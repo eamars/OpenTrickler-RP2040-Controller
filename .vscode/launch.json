@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cortex-debug",
+            "cwd": "${workspaceRoot}",
+            "executable": "build/app.elf",
+            "name": "Attach to OpenOCD",
+            "gdbPath": "gdb-multiarch",
+            "servertype": "external",
+            "gdbTarget": "localhost:3333",
+            "request": "attach",
+        }
+    ]
+}

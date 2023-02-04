@@ -39,13 +39,17 @@ include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel
 # Include source
 include_directories(${SRC_DIRECTORY})
 
+# Collect all source files
+file(GLOB SRC ${SRC_DIRECTORY}/*.c)
 # Include application source file
 add_executable(app
-    ${SRC_DIRECTORY}/app.c
+    ${SRC}
 )
 
 # Include libraries1
 target_link_libraries(app
     pico_stdlib
-    FreeRTOS-Kernel FreeRTOS-Kernel-Heap1
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+    pico_cyw43_arch_none
 )
