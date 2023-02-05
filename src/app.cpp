@@ -13,11 +13,17 @@
 #include "generated/ws2812.pio.h"
 
 
+#define DISPlAY0_SPI spi0
 #define DISPLAY0_RX_PIN PICO_DEFAULT_SPI_RX_PIN
 #define DISPLAY0_TX_PIN PICO_DEFAULT_SPI_TX_PIN
 #define DISPLAY0_CS_PIN PICO_DEFAULT_SPI_CSN_PIN
 #define DISPLAY0_SCK_PIN PICO_DEFAULT_SPI_SCK_PIN
 #define DISPLAY0_A0_PIN 20
+#define DISPLAY0_RESET_PIN 21
+
+#define BUTTON0_ENCODER_PIN1 15
+#define BUTTON0_ENCODER_PIN2 14
+#define BUTTON0_SW_PIN 22
 
 #define NEOPIXEL_PIN 26
 
@@ -40,20 +46,59 @@ void cyw43_led_task(void *p){
 }
 
 
+void button_task(void *p){
+    gpio_init(BUTTON0_ENCODER_PIN1);
+    gpio_set_dir(BUTTON0_ENCODER_PIN1, GPIO_IN);
+    gpio_pull_up(BUTTON0_ENCODER_PIN1);
+
+    gpio_init(BUTTON0_ENCODER_PIN2);
+    gpio_set_dir(BUTTON0_ENCODER_PIN2, GPIO_IN);
+    gpio_pull_up(BUTTON0_ENCODER_PIN2);
+
+    gpio_init(BUTTON0_SW_PIN);
+    gpio_set_dir(BUTTON0_SW_PIN, GPIO_IN);
+    gpio_pull_up(BUTTON0_SW_PIN);
+
+    portTickType xLastWakeTime = xTaskGetTickCount();
+
+    while (true){
+        bool encoder_pin1_state = gpio_get(BUTTON0_ENCODER_PIN1);
+        bool encoder_pin2_state = gpio_get(BUTTON0_ENCODER_PIN2);
+        bool button_sw_state = gpio_get(BUTTON0_SW_PIN);
+        printf("%d %d %d\n", encoder_pin1_state, encoder_pin2_state, button_sw_state);
+
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(20));
+    }
+}
+
+
+
 uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
     switch(msg)
     {
         case U8X8_MSG_GPIO_AND_DELAY_INIT:	// called once during init phase of u8g2/u8x8
+            // We don't initialize here
             break;							// can be used to setup pins
         case U8X8_MSG_DELAY_NANO:			// delay arg_int * 1 nano second
             break;    
         case U8X8_MSG_DELAY_100NANO:		// delay arg_int * 100 nano seconds
+            __asm volatile ("NOP\n");
             break;
         case U8X8_MSG_DELAY_10MICRO:		// delay arg_int * 10 micro seconds
+            sleep_us((uint64_t) arg_int * 10);
             break;
         case U8X8_MSG_DELAY_MILLI:			// delay arg_int * 1 milli second
+        {
+            BaseType_t scheduler_state = xTaskGetSchedulerState();
+            if (scheduler_state == taskSCHEDULER_RUNNING){
+                vTaskDelay(arg_int / portTICK_PERIOD_MS);
+            }
+            else {
+                sleep_ms(arg_int);
+            }
             break;
+        }
         case U8X8_MSG_DELAY_I2C:				// arg_int is the I2C speed in 100KHz, e.g. 4 = 400 KHz
             break;							// arg_int=1: delay by 5us, arg_int = 4: delay by 1.25us
         case U8X8_MSG_GPIO_D0:				// D0 or SPI clock pin: Output level in arg_int
@@ -77,10 +122,13 @@ uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *ar
         case U8X8_MSG_GPIO_E:				// E/WR pin: Output level in arg_int
             break;
         case U8X8_MSG_GPIO_CS:				// CS (chip select) pin: Output level in arg_int
+            gpio_put(DISPLAY0_CS_PIN, arg_int);
             break;
         case U8X8_MSG_GPIO_DC:				// DC (data/cmd, A0, register select) pin: Output level in arg_int
+            gpio_put(DISPLAY0_A0_PIN, arg_int);
             break;
         case U8X8_MSG_GPIO_RESET:			// Reset pin: Output level in arg_int
+            gpio_put(DISPLAY0_RESET_PIN, arg_int);
             break;
         case U8X8_MSG_GPIO_CS1:				// CS1 (chip select) pin: Output level in arg_int
             break;
@@ -117,12 +165,34 @@ uint8_t u8x8_byte_pico_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *
     switch (msg)
     {
         case U8X8_MSG_BYTE_SEND:
-
+            spi_write_blocking(DISPlAY0_SPI, (uint8_t *) arg_ptr, arg_int);
+            break;
+        case U8X8_MSG_BYTE_INIT:
+            u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
+            break;
+        case U8X8_MSG_BYTE_SET_DC:
+            u8x8_gpio_SetDC(u8x8, arg_int);
+            break;
+        case U8X8_MSG_BYTE_START_TRANSFER:
+            u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_enable_level);  
+            u8x8->gpio_and_delay_cb(u8x8, U8X8_MSG_DELAY_NANO, u8x8->display_info->post_chip_enable_wait_ns, NULL);
+            break;
+        case U8X8_MSG_BYTE_END_TRANSFER:
+            u8x8->gpio_and_delay_cb(u8x8, U8X8_MSG_DELAY_NANO, u8x8->display_info->pre_chip_disable_wait_ns, NULL);
+            u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
             break;
         default:
-            break;
+            return 0;
     }
     return 1;
+}
+
+static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
+    return
+            ((uint32_t) (g) << 8) |
+            ((uint32_t) (r) << 16) |
+            ((uint32_t) (w) << 24) |
+            (uint32_t) (b);
 }
  
 static inline void put_pixel(uint32_t pixel_grb) {
@@ -133,21 +203,23 @@ int main()
 {
     stdio_init_all();
     if (cyw43_arch_init()) {
-        printf("WiFi Init Failed");
+        printf("WiFi Init Failed\n");
         return -1;
     }
 
     // Configure Neopixel (WS2812)
-    printf("Configure Neopixel");
-    int sm = 0;
-    uint offset = pio_add_program(pio0, &ws2812_program);
-    ws2812_program_init(pio0, sm, offset, NEOPIXEL_PIN, 800000, true);
-    put_pixel(5 * 0x10101);
+    printf("Configure Neopixel\n");
+    uint ws2812_sm = pio_claim_unused_sm(pio0, true);
+    uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
+    ws2812_program_init(pio0, ws2812_sm, ws2812_offset, NEOPIXEL_PIN, 800000, true);
+    put_pixel(urgb_u32(0x00, 0x00, 0x00, 0x00));  // Encoder RGB1
+    put_pixel(urgb_u32(0x00, 0x00, 0x00, 0x00));  // Encoder RGB2
+    put_pixel(urgb_u32(0xf0, 0xf0, 0xf0, 0x00));  // 12864 Backlight
 
     // Configure 12864
     printf("Initialize LED display\n");
     // Initialize SPI engine
-    spi_init(spi0, 4000 * 1000);
+    spi_init(DISPlAY0_SPI, 4000 * 1000);
 
     // Configure port for SPI
     gpio_set_function(DISPLAY0_RX_PIN, GPIO_FUNC_SPI);  // Rx
@@ -165,6 +237,11 @@ int main()
     gpio_set_dir(DISPLAY0_A0_PIN, GPIO_OUT);
     gpio_put(DISPLAY0_A0_PIN, 0);
 
+    // Configure property for RESET
+    gpio_init(DISPLAY0_RESET_PIN);
+    gpio_set_dir(DISPLAY0_RESET_PIN, GPIO_OUT);
+    gpio_put(DISPLAY0_RESET_PIN, 0);
+
     u8g2_t display_handler;
     u8g2_Setup_uc1701_mini12864_f(
         &display_handler, 
@@ -173,10 +250,27 @@ int main()
         u8x8_gpio_and_delay
     );
 
+    // Display something
+    // Initialize Screen
+    u8g2_InitDisplay(&display_handler);
+    u8g2_SetPowerSave(&display_handler, 0);
+    u8g2_SetContrast(&display_handler, 200);
+
+    // Clear 
+    u8g2_ClearBuffer(&display_handler);
+    u8g2_ClearDisplay(&display_handler);
+
+    u8g2_SetMaxClipWindow(&display_handler);
+    u8g2_SetFont(&display_handler, u8g2_font_6x13_tr);
+    u8g2_DrawStr(&display_handler, 20, 20, "Hello");
+    u8g2_UpdateDisplay(&display_handler);
+
     printf("Start LED blink\n");
 
     struct led_task_arg arg1 = { CYW43_WL_GPIO_LED_PIN, 100 };
     xTaskCreate(cyw43_led_task, "LED_Task 1", 256, &arg1, 1, NULL);
+
+    xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
 
     vTaskStartScheduler();
 

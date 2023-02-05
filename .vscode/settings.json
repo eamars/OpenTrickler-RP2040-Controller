@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "stdlib.h": "c",
-        "u8g2.h": "c"
+        "u8g2.h": "c",
+        "task.h": "c",
+        "quadrature_encoder.pio.h": "c"
     }
 }

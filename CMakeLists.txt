@@ -38,6 +38,9 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
 # Initialise the Pico SDK
 pico_sdk_init()
 
+# Application
+add_executable(app)
+
 # Include source
 include_directories(${SRC_DIRECTORY})
 
@@ -47,12 +50,9 @@ include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel
 # Pull in u8g2
 add_subdirectory(${CMAKE_SOURCE_DIR}/graphics/u8g2)
 
+# Pull in src
+add_subdirectory(${CMAKE_SOURCE_DIR}/src)
 
-# Application
-add_executable(app)
-
-# Generate PIO headers
-pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 
 # Collect all source files
 file(GLOB SRC ${SRC_DIRECTORY}/*.c ${SRC_DIRECTORY}/*.cpp)
