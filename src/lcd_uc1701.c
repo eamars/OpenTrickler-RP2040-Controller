@@ -24,3 +24,4 @@
 // EXP2_2 (SCK) <-> PIN24 (SPI0 SCK)
 // EXP1_5 (RST) <-> PIN27 (GP21)
 
+

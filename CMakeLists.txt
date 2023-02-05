@@ -29,27 +29,49 @@ project(${PROJECT_NAME}
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+# Append compiler flags
+SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections")
+SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
+# SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
+
 
 # Initialise the Pico SDK
 pico_sdk_init()
 
-# Pull in FreeRTOS
-include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
-
 # Include source
 include_directories(${SRC_DIRECTORY})
 
+# Pull in FreeRTOS
+include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+
+# Pull in u8g2
+add_subdirectory(${CMAKE_SOURCE_DIR}/graphics/u8g2)
+
+
+# Application
+add_executable(app)
+
+# Generate PIO headers
+pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
+
 # Collect all source files
-file(GLOB SRC ${SRC_DIRECTORY}/*.c)
+file(GLOB SRC ${SRC_DIRECTORY}/*.c ${SRC_DIRECTORY}/*.cpp)
+
 # Include application source file
-add_executable(app
+target_sources(app PRIVATE
     ${SRC}
 )
 
 # Include libraries1
 target_link_libraries(app
     pico_stdlib
+    hardware_spi
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     pico_cyw43_arch_none
+    u8g2
 )
+
+target_link_options(app PRIVATE -Wl,--gc-sections)
+# set( CMAKE_VERBOSE_MAKEFILE on )
+
