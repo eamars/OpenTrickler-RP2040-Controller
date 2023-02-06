@@ -59,19 +59,77 @@ void button_task(void *p){
     gpio_set_dir(BUTTON0_SW_PIN, GPIO_IN);
     gpio_pull_up(BUTTON0_SW_PIN);
 
+    int state = 0;
+    int move = 2;
+
     portTickType xLastWakeTime = xTaskGetTickCount();
 
     while (true){
         bool encoder_pin1_state = gpio_get(BUTTON0_ENCODER_PIN1);
         bool encoder_pin2_state = gpio_get(BUTTON0_ENCODER_PIN2);
         bool button_sw_state = gpio_get(BUTTON0_SW_PIN);
-        printf("%d %d %d\n", encoder_pin1_state, encoder_pin2_state, button_sw_state);
 
-        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(20));
+        switch (state) {
+            case 0: {
+                if (encoder_pin1_state) {
+                    move += 1;
+                    state = 1;
+                }
+                else if (encoder_pin2_state) {
+                    move -= 1;
+                    state = 3;
+                }
+                vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5));
+                break;
+            }
+            case 1: {
+                if (!encoder_pin1_state) {
+                    move -= 1;
+                    state = 0;
+                }
+                else if (encoder_pin2_state) {
+                    move += 1;
+                    state = 2;
+                }
+                vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5));
+                break;
+            }
+            case 2: {
+                // Steady state
+                if (!encoder_pin1_state) {
+                    move += 1;
+                    state = 3;
+                }
+                else if (!encoder_pin2_state) {
+                    move -= 1;
+                    state = 1;
+                }
+                vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(20));
+                break;
+            }
+            case 3: {
+                if (!encoder_pin1_state) {
+                    move += 1;
+                    state = 0;
+                }
+                else if (encoder_pin2_state) {
+                    move -= 1;
+                    state = 2;
+                }
+                vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5));
+                break;
+            }
+            default:
+                break;
+        }
+
+        printf("Encoder state: %d, Move: %d, 4/Move: %d\n", state, move, move % 4);
+
+        
     }
 }
 
-
+  
 
 uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
