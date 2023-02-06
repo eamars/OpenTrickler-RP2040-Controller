@@ -50,9 +50,17 @@ include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel
 # Pull in u8g2
 add_subdirectory(${CMAKE_SOURCE_DIR}/graphics/u8g2)
 
+# Pull in u8g2 mui
+set(U8G2_MUI_DIRECTORY "${CMAKE_SOURCE_DIR}/graphics/u8g2/csrc")
+add_library(u8g2_mui
+    ${U8G2_MUI_DIRECTORY}/mui_u8g2.c
+    ${U8G2_MUI_DIRECTORY}/mui.c
+    ${U8G2_MUI_DIRECTORY}/u8g2_button.c
+    ${U8G2_MUI_DIRECTORY}/u8g2_box.c
+)
+
 # Pull in src
 add_subdirectory(${CMAKE_SOURCE_DIR}/src)
-
 
 # Collect all source files
 file(GLOB SRC ${SRC_DIRECTORY}/*.c ${SRC_DIRECTORY}/*.cpp)
@@ -70,6 +78,7 @@ target_link_libraries(app
     FreeRTOS-Kernel-Heap4
     pico_cyw43_arch_none
     u8g2
+    u8g2_mui
 )
 
 target_link_options(app PRIVATE -Wl,--gc-sections)
