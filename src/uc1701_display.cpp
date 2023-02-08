@@ -26,16 +26,24 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <FreeRTOS.h>
+#include <queue.h>
 #include "pico/stdlib.h"
 #include "u8g2.h"
 #include <task.h>
 #include "configuration.h"
+#include "rotary_button.h"
 
 #include "mui.h"
 #include "mui_u8g2.h"
 
 // Local variables
-static u8g2_t display_handler;
+u8g2_t display_handler;
+
+// External variables
+extern QueueHandle_t encoder_event_queue;
+extern muif_t muif_list[];
+extern fds_t fds_data[];
+extern const size_t muif_cnt;
 
 
 uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
@@ -160,7 +168,7 @@ void display_init() {
     spi_init(DISPlAY0_SPI, 4000 * 1000);
 
     // Configure port for SPI
-    gpio_set_function(DISPLAY0_RX_PIN, GPIO_FUNC_SPI);  // Rx
+    // gpio_set_function(DISPLAY0_RX_PIN, GPIO_FUNC_SPI);  // Rx
     gpio_set_function(DISPLAY0_SCK_PIN, GPIO_FUNC_SPI);  // CSn
     gpio_set_function(DISPLAY0_SCK_PIN, GPIO_FUNC_SPI);  // SCK
     gpio_set_function(DISPLAY0_TX_PIN, GPIO_FUNC_SPI);  // Tx
@@ -205,88 +213,3 @@ void display_init() {
     printf("done\n");
 }
 
-
-uint8_t mui_hrule(mui_t *ui, uint8_t msg)
-{
-  u8g2_t *u8g2 = mui_get_U8g2(ui);
-  switch(msg)
-  {
-    case MUIF_MSG_DRAW:
-        u8g2_DrawHLine(u8g2, 0, mui_get_y(ui), u8g2_GetDisplayWidth(u8g2));
-        break;
-  }
-  return 0;
-}
-
-
-void display_task(void *p){
-    // u8g2_SetMaxClipWindow(&display_handler);
-    // u8g2_SetFont(&display_handler, u8g2_font_6x13_tr);
-    // u8g2_DrawStr(&display_handler, 20, 20, "Hello");
-    // u8g2_UpdateDisplay(&display_handler);
-
-    // Create UI element
-    mui_t mui;
-
-    muif_t muif_list[] = {
-        /* normal text style */
-        MUIF_U8G2_FONT_STYLE(0, u8g2_font_helvR08_tr),
-
-        /* bold text style */
-        MUIF_U8G2_FONT_STYLE(1, u8g2_font_helvB08_tr),
-
-        /* monospaced font */
-        MUIF_U8G2_FONT_STYLE(2, u8g2_font_profont12_tr),
-
-        MUIF_U8G2_LABEL(),                                                    /* allow MUI_LABEL command */
-
-        // Horizontal line
-        MUIF_RO("HR", mui_hrule),
-
-        /* main menu */
-        MUIF_RO("GP",mui_u8g2_goto_data),
-        MUIF_BUTTON("GC", mui_u8g2_goto_form_w1_pi),
-    };
-
-    fds_t fds_data[] = {
-        MUI_FORM(0)
-        MUI_STYLE(1)
-        MUI_LABEL(5,10, "Main Menu")
-        MUI_XY("HR", 0,13)
-        MUI_STYLE(0)
-
-        MUI_DATA("GP", 
-            MUI_10 "Enter a number|"
-            MUI_11 "Parent/Child Selection|"
-            MUI_13 "Checkbox|"
-            MUI_14 "Radio Selection|"
-            MUI_15 "Text Input|"
-            MUI_16 "Single Line Selection|"
-            MUI_17 "List Line Selection|"
-            MUI_18 "Parent/Child List|"
-            MUI_20 "Array Edit|"
-            MUI_3 "Alternative Menu"
-            )
-        MUI_XYA("GC", 5, 25, 0) 
-        MUI_XYA("GC", 5, 37, 1) 
-        MUI_XYA("GC", 5, 49, 2) 
-        MUI_XYA("GC", 5, 61, 3)
-    };
-
-    mui_Init(&mui, &display_handler, fds_data, muif_list, sizeof(muif_list)/sizeof(muif_t));
-    mui_GotoForm(&mui, 0, 0);
-
-
-    while (true) {
-        if (mui_IsFormActive(&mui)) {
-            // If active then draw the menu
-            do {
-                mui_Draw(&mui);
-            } while (u8g2_NextPage(&display_handler));
-
-            u8g2_UpdateDisplay(&display_handler);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
-}

@@ -58,6 +58,7 @@ add_library(u8g2_mui
     ${U8G2_MUI_DIRECTORY}/u8g2_button.c
     ${U8G2_MUI_DIRECTORY}/u8g2_box.c
 )
+target_link_libraries(u8g2_mui u8g2)
 
 # Pull in src
 add_subdirectory(${CMAKE_SOURCE_DIR}/src)

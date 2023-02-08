@@ -17,7 +17,10 @@ extern void button_init(void);
 extern void button_task(void *p);
 
 extern void display_init(void);
-extern void display_task(void *p);
+extern void menu_task(void *p);
+
+extern void scale_measurement_init(void);
+extern void scale_measurement_generator(void *p);
 
 struct led_task_arg {
     int gpio;
@@ -73,11 +76,13 @@ int main()
     // Configure others
     display_init();
     button_init();
+    scale_measurement_init();
 
     struct led_task_arg arg1 = { CYW43_WL_GPIO_LED_PIN, 100 };
     xTaskCreate(cyw43_led_task, "LED_Task 1", 256, &arg1, 1, NULL);
-    xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
-    xTaskCreate(display_task, "Display Task", 512, NULL, 1, NULL);
+    // xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
+    xTaskCreate(menu_task, "Menu Task", 256, NULL, 1, NULL);
+    // xTaskcreate(scale_measurement_generator, "Mocked Scale Data Generator Task", 256, NULL, 1, NULL);
 
     vTaskStartScheduler();
 

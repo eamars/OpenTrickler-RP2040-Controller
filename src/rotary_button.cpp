@@ -29,31 +29,16 @@
 #include <queue.h>
 #include "configuration.h"
 #include "gpio_irq_handler.h"
+#include "rotary_button.h"
 
 
 // Statics (to be shared between IRQ and tasks)
 QueueHandle_t encoder_event_queue = NULL;
 
-enum ButtonEncoderEvent_t {
-    BUTTON_ENCODER_ROTATE_CW = 1 << 0,
-    BUTTON_ENCODER_ROTATE_CCW = 1 << 1,
-    BUTTON_ENCODER_PRESSED = 1 << 2,
-    BUTTON_RST_PRESSED = 1 << 3,
-};
-
 
 void _isr_on_encoder_update(uint gpio, uint32_t event){
     static uint8_t state = 2;
     static int8_t count = 0;
-    static TickType_t last_call_time = 0;
-    const TickType_t idle_timeout_ticks = pdMS_TO_TICKS(1000);
-
-    // If the ISR has been sitting idle for longer than idle_timeout_ticks then we shall reset the state to prevent accumulated error
-    TickType_t current_call_time = xTaskGetTickCountFromISR();
-    if ((current_call_time - last_call_time) > idle_timeout_ticks) {
-        count = 0;
-    }
-    last_call_time = current_call_time;
 
     bool en1 = gpio_get(BUTTON0_ENCODER_PIN1);
     bool en2 = gpio_get(BUTTON0_ENCODER_PIN2);
@@ -177,30 +162,32 @@ void button_init() {
     irq_handler.register_interrupt(BUTTON0_ENC_PIN, gpio_irq_handler::irq_event::fall, _isr_on_button_enc_update);
     irq_handler.register_interrupt(BUTTON0_RST_PIN, gpio_irq_handler::irq_event::fall, _isr_on_button_rst_update);
 
-    printf("done\n");
-}
-
-
-void button_task(void *p){
     encoder_event_queue = xQueueCreate(5, sizeof(ButtonEncoderEvent_t));
     if (encoder_event_queue == 0) {
         assert(false);
     }
 
-    while (true){
-        ButtonEncoderEvent_t button_encoder_event;
-        xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
-        if (button_encoder_event & BUTTON_ENCODER_ROTATE_CW) {
-            printf("Rotating CW\n");
-        }
-        if (button_encoder_event & BUTTON_ENCODER_ROTATE_CCW) {
-            printf("Rotating CCW\n");
-        }
-        if (button_encoder_event & BUTTON_ENCODER_PRESSED) {
-            printf("Button Pressed\n");
-        }
-        if (button_encoder_event & BUTTON_RST_PRESSED) {
-            printf("RST Pressed\n");
-        }
-    }
+    printf("done\n");
 }
+
+
+// void button_task(void *p){
+    
+
+//     while (true){
+//         ButtonEncoderEvent_t button_encoder_event;
+//         xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
+//         if (button_encoder_event & BUTTON_ENCODER_ROTATE_CW) {
+//             printf("Rotating CW\n");
+//         }
+//         if (button_encoder_event & BUTTON_ENCODER_ROTATE_CCW) {
+//             printf("Rotating CCW\n");
+//         }
+//         if (button_encoder_event & BUTTON_ENCODER_PRESSED) {
+//             printf("Button Pressed\n");
+//         }
+//         if (button_encoder_event & BUTTON_RST_PRESSED) {
+//             printf("RST Pressed\n");
+//         }
+//     }
+// }
