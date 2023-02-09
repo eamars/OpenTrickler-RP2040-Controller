@@ -40,15 +40,12 @@ void menu_task(void *p){
             ButtonEncoderEvent_t button_encoder_event;
             while (xQueueReceive(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(20))){
                 if (button_encoder_event == BUTTON_ENCODER_ROTATE_CW) {
-                    printf("Next Selected\n");
                     mui_NextField(&mui);
                 }
                 else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CCW) {
-                    printf("Prev Selected\n");
                     mui_PrevField(&mui);
                 }
                 else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-                    printf("Item Selected\n");
                     mui_SendSelect(&mui);
                 }
             }

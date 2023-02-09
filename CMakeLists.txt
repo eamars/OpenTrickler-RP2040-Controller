@@ -9,14 +9,15 @@ message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 # Set env variable 'PICO_SDK_PATH' to the local Pico SDK
 # Comment out the set() if you have a global copy of the
 # SDK set and $PICO_SDK_PATH defined in your $PATH
-set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/target/pico-sdk")
+set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/library/pico-sdk")
 set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 
 # Set flags and directory variables
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -DDEBUG")
 set(SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/src")
-set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/rtos/FreeRTOS-Kernel")
+set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
+set(U8G2_SRC_DIRECYTORY "${CMAKE_SOURCE_DIR}/library/u8g2")
 
 # Include the Pico SDK
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
@@ -48,10 +49,10 @@ include_directories(${SRC_DIRECTORY})
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
 # Pull in u8g2
-add_subdirectory(${CMAKE_SOURCE_DIR}/graphics/u8g2)
+add_subdirectory(${U8G2_SRC_DIRECYTORY})
 
 # Pull in u8g2 mui
-set(U8G2_MUI_DIRECTORY "${CMAKE_SOURCE_DIR}/graphics/u8g2/csrc")
+set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
 add_library(u8g2_mui
     ${U8G2_MUI_DIRECTORY}/mui_u8g2.c
     ${U8G2_MUI_DIRECTORY}/mui.c
