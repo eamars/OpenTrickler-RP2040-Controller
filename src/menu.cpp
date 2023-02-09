@@ -18,6 +18,10 @@ extern muif_t muif_list[];
 extern fds_t fds_data[];
 extern const size_t muif_cnt;
 
+// External menus
+extern AppState_t charge_mode_menu(AppState_t prev_state);
+
+
 // Local variables
 uint8_t charge_weight_digits[] = {0, 0, 0, 0};
 AppState_t exit_state = APP_STATE_DEFAULT;
@@ -30,10 +34,10 @@ void menu_task(void *p){
     mui_Init(&mui, &display_handler, fds_data, muif_list, muif_cnt);
     mui_GotoForm(&mui, 0, 0);
 
-    u8g2_FirstPage(&display_handler);
-    do {
-        mui_Draw(&mui);
-    } while ( u8g2_NextPage(&display_handler) );
+    // Render the menu before user input
+    u8g2_ClearBuffer(&display_handler);
+    mui_Draw(&mui);
+    u8g2_SendBuffer(&display_handler);
 
     while (true) {
         if (mui_IsFormActive(&mui)) {
@@ -50,18 +54,15 @@ void menu_task(void *p){
                 }
             }
 
-            // If active then draw the menu
-            u8g2_FirstPage(&display_handler);
-            do {
-                mui_Draw(&mui);
-            } while ( u8g2_NextPage(&display_handler) );
+            u8g2_ClearBuffer(&display_handler);
+            mui_Draw(&mui);
+            u8g2_SendBuffer(&display_handler);
         }
         else {
             // menu is not active, leave the control to the app
-            printf("exit state: %d\n", exit_state);
             switch (exit_state) {
                 case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_state = APP_STATE_DEFAULT;
+                    exit_state = charge_mode_menu(exit_state);
                     break;
                 default:
                     mui_GotoForm(&mui, 0, 0);

@@ -18,6 +18,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -DDEBUG")
 set(SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/src")
 set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
 set(U8G2_SRC_DIRECYTORY "${CMAKE_SOURCE_DIR}/library/u8g2")
+set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
+set(TMC_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/Trinamic-library")
 
 # Include the Pico SDK
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
@@ -51,8 +53,20 @@ include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel
 # Pull in u8g2
 add_subdirectory(${U8G2_SRC_DIRECYTORY})
 
+# Pull in Trinamic library (we don't use CMakeLists provided by TMC library as I don't want hal stuff)
+add_library(trinamic INTERFACE)
+target_sources(trinamic INTERFACE
+    ${TMC_SRC_DIRECTORY}/common.c
+    ${TMC_SRC_DIRECTORY}/tmc_interface.c
+    ${TMC_SRC_DIRECTORY}/tmc2130.c
+    ${TMC_SRC_DIRECTORY}/tmc2209.c
+    ${TMC_SRC_DIRECTORY}/tmc5160.c
+)
+target_include_directories(trinamic INTERFACE ${TMC_SRC_DIRECTORY})
+
+
+
 # Pull in u8g2 mui
-set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
 add_library(u8g2_mui
     ${U8G2_MUI_DIRECTORY}/mui_u8g2.c
     ${U8G2_MUI_DIRECTORY}/mui.c
@@ -81,6 +95,7 @@ target_link_libraries(app
     pico_cyw43_arch_none
     u8g2
     u8g2_mui
+    trinamic
 )
 
 target_link_options(app PRIVATE -Wl,--gc-sections)

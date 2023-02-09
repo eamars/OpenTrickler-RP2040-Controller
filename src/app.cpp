@@ -82,7 +82,7 @@ int main()
     xTaskCreate(cyw43_led_task, "LED_Task 1", 256, &arg1, 1, NULL);
     // xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
     xTaskCreate(menu_task, "Menu Task", 256, NULL, 1, NULL);
-    // xTaskcreate(scale_measurement_generator, "Mocked Scale Data Generator Task", 256, NULL, 1, NULL);
+    xTaskCreate(scale_measurement_generator, "Mocked Scale Data Generator Task", 128, NULL, 1, NULL);
 
     vTaskStartScheduler();
 
