@@ -64,6 +64,9 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_CHARGE_MODE:
                     exit_state = charge_mode_menu(exit_state);
                     break;
+                case APP_STATE_ENTER_MENU_READY_PAGE:
+                    mui_GotoForm(&mui, 11, 1);
+                    break;
                 default:
                     mui_GotoForm(&mui, 0, 0);
                     break;
