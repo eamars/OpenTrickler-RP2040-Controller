@@ -138,7 +138,9 @@ uint8_t u8x8_byte_pico_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *
     switch (msg)
     {
         case U8X8_MSG_BYTE_SEND:
+            taskENTER_CRITICAL();
             spi_write_blocking(DISPlAY0_SPI, (uint8_t *) arg_ptr, arg_int);
+            taskEXIT_CRITICAL();
             break;
         case U8X8_MSG_BYTE_INIT:
             u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
