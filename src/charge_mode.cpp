@@ -19,9 +19,11 @@ extern float current_scale_measurement;
 extern SemaphoreHandle_t scale_measurement_ready;
 
 // Configures
+float target_charge_weight = 0.0f;
 float cfg_zero_sd_threshold = 0.02;
 float cfg_zero_mean_threshold = 0.04;
 TaskHandle_t scale_measurement_render_handler = NULL;
+char title_string[30];
 
 
 typedef enum {
@@ -34,20 +36,25 @@ typedef enum {
 
 
 void scale_measurement_render_task(void *p) {
+    char current_weight_string[5];
 
     while (true) {
+        TickType_t last_measurement_tick = xTaskGetTickCount();
+
         u8g2_ClearBuffer(&display_handler);
         // Draw title
-        u8g2_SetFont(&display_handler, u8g2_font_helvB08_tr);
-        u8g2_DrawStr(&display_handler, 5, 10, "Zeroing...");
+        if (strlen(title_string)) {
+            u8g2_SetFont(&display_handler, u8g2_font_helvB08_tr);
+            u8g2_DrawStr(&display_handler, 5, 10, title_string);
+        }
+
+        // u8g2_DrawStr(&display_handler, 5, 10, "Zeroing...");
 
         // Draw line
         u8g2_DrawHLine(&display_handler, 0, 13, u8g2_GetDisplayWidth(&display_handler));
 
         // current weight
-        char current_weight_string[5];
         memset(current_weight_string, 0x0, sizeof(current_weight_string));
-
         sprintf(current_weight_string, "%0.02f", current_scale_measurement);
 
         u8g2_SetFont(&display_handler, u8g2_font_profont22_tf);
@@ -58,9 +65,8 @@ void scale_measurement_render_task(void *p) {
         u8g2_DrawStr(&display_handler, 96, 35, "gr");
 
         u8g2_SendBuffer(&display_handler);
-    
 
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(20));
     }
 }
 
@@ -68,6 +74,9 @@ void scale_measurement_render_task(void *p) {
 ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state, AppState_t * charge_mode_menu_exit) {
     // Wait for 5 measurements and wait for stable
     FloatRingBuffer data_buffer(10);
+
+    // Update current status
+    snprintf(title_string, sizeof(title_string), "Zeroing..");
 
     while (true) {
         xSemaphoreTake(scale_measurement_ready, portMAX_DELAY);
@@ -102,6 +111,21 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state, AppSta
 }
 
 ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state, AppState_t * charge_mode_menu_exit) {
+    // Update current status
+    snprintf(title_string, sizeof(title_string), "Target: %.02f gr", target_charge_weight);
+
+    while (true) {
+        // Wait if quit is pressed
+        ButtonEncoderEvent_t button_encoder_event;
+        while (xQueueReceive(encoder_event_queue, &button_encoder_event, 0)){
+            if (button_encoder_event == BUTTON_RST_PRESSED) {
+                *charge_mode_menu_exit = APP_STATE_ENTER_MENU_READY_PAGE;
+                return CHARGE_MODE_EXIT;
+            }
+        }
+    }
+
+
     return CHARGE_MODE_WAIT_FOR_PAN_REMOVAL;
 }
 
@@ -111,6 +135,14 @@ ChargeModeState_t charge_mode_wait_for_pan_removal(ChargeModeState_t prev_state,
 
 
 AppState_t charge_mode_menu(AppState_t prev_state) {
+    // Create target weight
+    target_charge_weight = charge_weight_digits[3] * 10 + \
+                           charge_weight_digits[2] + \
+                           charge_weight_digits[1] * 0.1 + \
+                           charge_weight_digits[0] * 0.01;
+    printf("Target Charge Weight: %f\n", target_charge_weight);
+
+
     if (scale_measurement_render_handler == NULL) {
         xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", 128, NULL, 1, &scale_measurement_render_handler);
     }
