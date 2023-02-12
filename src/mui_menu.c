@@ -10,6 +10,7 @@
 
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
+MeasurementUnit_t measurement_unit;
 
 
 uint8_t mui_hrule(mui_t *ui, uint8_t msg)
@@ -44,7 +45,7 @@ muif_t muif_list[] = {
         MUIF_RO("HL", mui_hrule),
 
         /* main menu */
-        MUIF_RO("M0",mui_u8g2_goto_data),
+        MUIF_RO("MU",mui_u8g2_goto_data),
         MUIF_BUTTON("GC", mui_u8g2_goto_form_w1_pi),
 
         /* Goto Form Button where the width is equal to the size of the text, spaces can be used to extend the size */
@@ -53,27 +54,33 @@ muif_t muif_list[] = {
         // Leave
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
 
+        // Unit selection
+        MUIF_VARIABLE("UN",&measurement_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
+
         /* input for a number between 0 to 9 */
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N2", &charge_weight_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N1", &charge_weight_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N0", &charge_weight_digits[0], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
+
+        // PID Slider
+
     };
 
 const size_t muif_cnt = sizeof(muif_list) / sizeof(muif_t);
 
 fds_t fds_data[] = {
     // Main menu
-    MUI_FORM(0)
+    MUI_FORM(1)
     MUI_STYLE(1)
     MUI_LABEL(5,10, "OpenTrickler")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_DATA("M0", 
+    MUI_DATA("MU", 
         MUI_10 "Start|"
         MUI_20 "Cleanup|"
-        MUI_30 "Configuration"
+        MUI_30 "Configurations"
         )
     MUI_XYA("GC", 5, 25, 0) 
     MUI_XYA("GC", 5, 37, 1) 
@@ -97,7 +104,7 @@ fds_t fds_data[] = {
     MUI_LABEL(96, 35, "gr")
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 0, "Back")
+    MUI_XYAT("BN",14, 59, 1, "Back")
     MUI_XYAT("BN",115, 59, 11, "Next")
 
 
@@ -117,14 +124,40 @@ fds_t fds_data[] = {
     // MUI_XYAT("BN",115, 59, 0, "Next")
 
     // Menu 20: Cleanup
-    MUI_FORM(20)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Cleanup")
-    MUI_XY("HL", 0,13)
+    // MUI_FORM(20)
+    // MUI_STYLE(1)
+    // MUI_LABEL(5,10, "Select Cleanup")
+    // MUI_XY("HL", 0,13)
 
-    // Menu 3: Configuration
+    // Menu 30: Configurations
     MUI_FORM(30)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Configuration")
+    MUI_LABEL(5,10, "Configurations")
     MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_DATA("MU", 
+        MUI_31 "Unit|"
+        MUI_32 "PID|"
+        MUI_1 "<-Return"  // Back to main menu
+        )
+    MUI_XYA("GC", 5, 25, 0) 
+    MUI_XYA("GC", 5, 37, 1) 
+    MUI_XYA("GC", 5, 49, 2) 
+    MUI_XYA("GC", 5, 61, 3)
+
+    // Menu 31: Select Unit
+    MUI_FORM(31)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select Unit")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(5,25, "Unit:")
+    MUI_XYAT("UN", 60, 25, 60, "Grain (gr)|Gram (g)")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN", 64, 59, 30, " OK ")
+
+
 };

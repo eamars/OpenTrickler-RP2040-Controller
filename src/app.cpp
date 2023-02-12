@@ -8,9 +8,9 @@
 #include <stdint.h>
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
-
+#include "hardware/watchdog.h"
 #include "generated/ws2812.pio.h"
-
+#include "FreeRTOSConfig.h"
 #include "configuration.h"
 
 extern void button_init(void);
@@ -22,24 +22,21 @@ extern void menu_task(void *p);
 extern void scale_measurement_init(void);
 extern void scale_measurement_generator(void *p);
 
-struct led_task_arg {
-    int gpio;
-    int delay;
-};
 
-
-void cyw43_led_task(void *p){
-    struct led_task_arg *a = (struct led_task_arg *)p;
-    printf("Start LED blink task\n");
-
+void watchdog_task(void *p){
+    // watchdog_enable(500, true);  // 500ms, enable debug
+    bool led_state = true;
     while (true){
-        cyw43_arch_gpio_put(a->gpio, 1);
-        vTaskDelay(pdMS_TO_TICKS(a->delay));
-        cyw43_arch_gpio_put(a->gpio, 0);
-        vTaskDelay(pdMS_TO_TICKS(a->delay));
+        TickType_t last_measurement_tick = xTaskGetTickCount();
+        // watchdog_update();
+
+        // Change LED state
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+        led_state = !led_state;
+
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(400));
     }
 }
-  
 
 
 
@@ -62,7 +59,7 @@ int main()
     if (cyw43_arch_init()) {
         printf("WiFi Init Failed\n");
         return -1;
-    }    
+    }
 
     // Configure Neopixel (WS2812)
     printf("Configure Neopixel\n");
@@ -78,8 +75,7 @@ int main()
     button_init();
     scale_measurement_init();
 
-    struct led_task_arg arg1 = { CYW43_WL_GPIO_LED_PIN, 100 };
-    xTaskCreate(cyw43_led_task, "LED_Task 1", 256, &arg1, 1, NULL);
+    xTaskCreate(watchdog_task, "Watchdog Task", 256, NULL, 2, NULL);
     // xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
     xTaskCreate(menu_task, "Menu Task", 256, NULL, 1, NULL);
     xTaskCreate(scale_measurement_generator, "Mocked Scale Data Generator Task", 128, NULL, 1, NULL);

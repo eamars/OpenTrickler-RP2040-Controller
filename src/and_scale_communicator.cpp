@@ -3,7 +3,9 @@
 #include <queue.h>
 #include <stdlib.h>
 #include <semphr.h>
+#include <time.h>
 #include "math.h"
+
 
 
 // Statics (to be shared between multiple tasks)
@@ -19,11 +21,11 @@ void scale_measurement_init() {
 
 void scale_measurement_generator(void *p) {
     current_scale_measurement = 0;
+    srand(time(NULL));
     while (true) {
         xSemaphoreGive(scale_measurement_ready);
 
-        // cnt += 1;
-        // current_scale_measurement += 0.01;
+        current_scale_measurement = (rand() % 9999) / 100.0f;
 
         vTaskDelay(pdMS_TO_TICKS(5));
     }

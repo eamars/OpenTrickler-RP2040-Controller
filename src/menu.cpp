@@ -32,7 +32,7 @@ void menu_task(void *p){
     mui_t mui;
 
     mui_Init(&mui, &display_handler, fds_data, muif_list, muif_cnt);
-    mui_GotoForm(&mui, 0, 0);
+    mui_GotoForm(&mui, 1, 0);
 
     // Render the menu before user input
     u8g2_ClearBuffer(&display_handler);
@@ -68,7 +68,7 @@ void menu_task(void *p){
                     mui_GotoForm(&mui, 11, 1);
                     break;
                 default:
-                    mui_GotoForm(&mui, 0, 0);
+                    mui_GotoForm(&mui, 1, 0);
                     break;
             }
         }

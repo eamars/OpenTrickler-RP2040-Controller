@@ -48,8 +48,6 @@ void scale_measurement_render_task(void *p) {
             u8g2_DrawStr(&display_handler, 5, 10, title_string);
         }
 
-        // u8g2_DrawStr(&display_handler, 5, 10, "Zeroing...");
-
         // Draw line
         u8g2_DrawHLine(&display_handler, 0, 13, u8g2_GetDisplayWidth(&display_handler));
 
@@ -142,7 +140,7 @@ AppState_t charge_mode_menu(AppState_t prev_state) {
                            charge_weight_digits[0] * 0.01;
     printf("Target Charge Weight: %f\n", target_charge_weight);
 
-
+    // If the display task is never created then we shall create one, otherwise we shall resume the task
     if (scale_measurement_render_handler == NULL) {
         xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", 128, NULL, 1, &scale_measurement_render_handler);
     }
