@@ -1,7 +1,7 @@
 /*
   This file is created to be compiled in C instead of C++ mode. 
 */
-
+#include <stdio.h>
 #include "u8g2.h"
 #include "mui.h"
 #include "mui_u8g2.h"
@@ -11,6 +11,16 @@
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
 MeasurementUnit_t measurement_unit;
+
+
+float coarse_kp = 4.5f;
+float coarse_ki = 0.0f;
+float coarse_kd = 150.0f;
+char coarse_kp_string[20];
+
+float fine_kp = 200.0f;
+float fine_ki = 0.0f;
+float fine_kd = 150.0f;
 
 
 uint8_t mui_hrule(mui_t *ui, uint8_t msg)
@@ -24,6 +34,43 @@ uint8_t mui_hrule(mui_t *ui, uint8_t msg)
     }
     return 0;
 }
+
+
+uint8_t render_pid_values(mui_t *ui, uint8_t msg, float kp, float ki, float kd) {
+    u8g2_t *u8g2 = mui_get_U8g2(ui);
+    switch(msg)
+    {
+        case MUIF_MSG_DRAW:
+        {
+            char buf[30];
+
+            // Render text
+            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "KP:%0.2f", kp);
+            u8g2_DrawStr(u8g2, 5, 25, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "KI:%0.2f", ki);
+            u8g2_DrawStr(u8g2, 5, 35, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "KD:%0.2f", kd);
+            u8g2_DrawStr(u8g2, 5, 45, buf);
+            break;
+        }            
+    }
+    return 0;
+}
+
+uint8_t render_coarse_pid_values(mui_t *ui, uint8_t msg) {
+    return render_pid_values(ui, msg, coarse_kp, coarse_ki, coarse_kd);
+}
+
+uint8_t render_fine_pid_values(mui_t *ui, uint8_t msg) {
+    return render_pid_values(ui, msg, fine_kp, fine_ki, fine_kd);
+}
+
 
 
 muif_t muif_list[] = {
@@ -63,8 +110,9 @@ muif_t muif_list[] = {
         MUIF_U8G2_U8_MIN_MAX("N1", &charge_weight_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N0", &charge_weight_digits[0], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
 
-        // PID Slider
-
+        // Render PID value views
+        MUIF_RO("K0", render_coarse_pid_values),
+        MUIF_RO("K1", render_fine_pid_values),
     };
 
 const size_t muif_cnt = sizeof(muif_list) / sizeof(muif_t);
@@ -138,7 +186,8 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_DATA("MU", 
         MUI_31 "Unit|"
-        MUI_32 "PID|"
+        MUI_32 "View PID|"
+        MUI_34 "Tune PID|"
         MUI_1 "<-Return"  // Back to main menu
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -159,5 +208,26 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_XYAT("BN", 64, 59, 30, " OK ")
 
+    // Menu 32: View PID page 1
+    MUI_FORM(32)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Coarse Trickler PID")
+    MUI_XY("HL", 0,13)
 
+    MUI_STYLE(0)
+    MUI_XYAT("BN",14, 59, 30, "Back")
+    MUI_XYAT("BN", 115, 59, 33, "Next")  // APP_STATE_ENTER_CHARGE_MODE
+    MUI_AUX("K0")
+
+    // Menu 33: View PID page 2
+    MUI_FORM(33)
+
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Fine Trickler PID")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",14, 59, 32, "Back")
+    MUI_XYAT("BN", 115, 59, 30, "Next")  // APP_STATE_ENTER_CHARGE_MODE
+    MUI_AUX("K1")
 };
