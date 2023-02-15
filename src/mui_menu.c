@@ -11,7 +11,8 @@
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
 MeasurementUnit_t measurement_unit;
-
+MotorControllerSelect_t coarse_motor_controller_select;
+MotorControllerSelect_t fine_motor_controller_select;
 
 float coarse_kp = 4.5f;
 float coarse_ki = 0.0f;
@@ -104,6 +105,10 @@ muif_t muif_list[] = {
         // Unit selection
         MUIF_VARIABLE("UN",&measurement_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
 
+        // motor controller selection
+        MUIF_VARIABLE("MC",&coarse_motor_controller_select, mui_u8g2_u8_opt_line_wa_mud_pi),
+        MUIF_VARIABLE("MF",&fine_motor_controller_select, mui_u8g2_u8_opt_line_wa_mud_pi),
+
         /* input for a number between 0 to 9 */
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N2", &charge_weight_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -188,6 +193,7 @@ fds_t fds_data[] = {
         MUI_31 "Unit|"
         MUI_32 "View PID|"
         MUI_34 "Tune PID|"
+        MUI_35 "Motor Controller|"
         MUI_1 "<-Return"  // Back to main menu
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -228,6 +234,22 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_XYAT("BN",14, 59, 32, "Back")
-    MUI_XYAT("BN", 115, 59, 30, "Next")  // APP_STATE_ENTER_CHARGE_MODE
+    MUI_XYAT("BN", 115, 59, 30, " OK ")  // APP_STATE_ENTER_CHARGE_MODE
     MUI_AUX("K1")
+
+    // Menu 35: Select motor controller
+    MUI_FORM(35)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select Motor Controller")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(5,27, "Coarse:")
+    MUI_XYAT("MC", 60, 27, 60, "TMC2209|TMC2130|TMC5160")
+
+    MUI_LABEL(5,43, "Fine:")
+    MUI_XYAT("MF", 60, 43, 60, "TMC2209|TMC2130|TMC5160")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",64, 59, 30, " OK ")
 };
