@@ -10,9 +10,10 @@
 
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
+extern MotorControllerSelect_t coarse_motor_controller_select;
+extern MotorControllerSelect_t fine_motor_controller_select;
+
 MeasurementUnit_t measurement_unit;
-MotorControllerSelect_t coarse_motor_controller_select;
-MotorControllerSelect_t fine_motor_controller_select;
 
 float coarse_kp = 4.5f;
 float coarse_ki = 0.0f;

@@ -2,6 +2,7 @@
 #define CONFIGURATION_H_
 
 #include "hardware/spi.h"
+#include "hardware/uart.h"
 
 #define DISPlAY0_SPI spi0
 #define DISPLAY0_RX_PIN PICO_DEFAULT_SPI_RX_PIN
@@ -17,5 +18,13 @@
 #define BUTTON0_RST_PIN 12
 
 #define NEOPIXEL_PIN 26
+
+#define COARSE_MOTOR_UART uart0
+#define COARSE_MOTOR_UART_RX_PIN 1
+#define COARSE_MOTOR_UART_TX_PIN 0
+
+#define FINE_MOTOR_UART uart1
+#define FINE_MOTOR_UART_RX_PIN 9
+#define FINE_MOTOR_UART_TX_PIN 8
 
 #endif  // CONFIGURATION_H_

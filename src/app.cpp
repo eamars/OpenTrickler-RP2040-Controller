@@ -12,7 +12,6 @@
 #include "generated/ws2812.pio.h"
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
-// #include "tmc2209.h"
 
 
 extern void button_init(void);
@@ -23,6 +22,11 @@ extern void menu_task(void *p);
 
 extern void scale_measurement_init(void);
 extern void scale_measurement_generator(void *p);
+
+extern "C"{
+    extern void motors_init(void);
+}
+
 
 
 void watchdog_task(void *p){
@@ -76,6 +80,7 @@ int main()
     display_init();
     button_init();
     scale_measurement_init();
+    motors_init();
 
     xTaskCreate(watchdog_task, "Watchdog Task", 256, NULL, 2, NULL);
     // xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);

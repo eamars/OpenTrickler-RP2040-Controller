@@ -5,7 +5,8 @@
         "task.h": "c",
         "quadrature_encoder.pio.h": "c",
         "mui_u8g2.h": "c",
-        "app.h": "c"
+        "app.h": "c",
+        "tmc2209.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
