@@ -20,6 +20,7 @@ set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
 set(U8G2_SRC_DIRECYTORY "${CMAKE_SOURCE_DIR}/library/u8g2")
 set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
 set(TMC_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/Trinamic-library")
+set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 
 # Include the Pico SDK
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
@@ -89,15 +90,23 @@ target_sources(app PRIVATE
 # Include libraries1
 target_link_libraries(app
     pico_stdlib
+    hardware_pio
     hardware_spi
+    pico_cyw43_arch_none
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
-    pico_cyw43_arch_none
     u8g2
     u8g2_mui
     trinamic
 )
 
+# if (BOARD_TYPE STREQUAL "pico_w" )
+#     message("Using PICO_W board, link cyw43")
+#     target_link_libraries(app pico_cyw43_arch_none)
+# endif()
+
 target_link_options(app PRIVATE -Wl,--gc-sections)
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
+# Generate extra input
+pico_add_extra_outputs(app)

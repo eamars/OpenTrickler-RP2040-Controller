@@ -7,11 +7,12 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
 #include "hardware/watchdog.h"
 #include "generated/ws2812.pio.h"
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
+#include "u8g2.h"
+#include "pico/cyw43_arch.h"
 
 
 extern void button_init(void);
@@ -38,6 +39,7 @@ void watchdog_task(void *p){
 
         // Change LED state
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+
         led_state = !led_state;
 
         vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(400));
