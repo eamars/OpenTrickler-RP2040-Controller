@@ -49,7 +49,7 @@
 #endif  // BUTTON0_RST_PIN
 
 #ifndef NEOPIXEL_PIN
-#define NEOPIXEL_PIN 26
+#define NEOPIXEL_PIN 13
 #endif  // NEOPIXEL_PIN
 
 #ifndef COARSE_MOTOR_UART

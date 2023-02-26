@@ -92,7 +92,6 @@ target_link_libraries(app
     pico_stdlib
     hardware_pio
     hardware_spi
-    pico_cyw43_arch_none
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     u8g2
@@ -100,10 +99,10 @@ target_link_libraries(app
     trinamic
 )
 
-# if (BOARD_TYPE STREQUAL "pico_w" )
-#     message("Using PICO_W board, link cyw43")
-#     target_link_libraries(app pico_cyw43_arch_none)
-# endif()
+if (PICO_BOARD STREQUAL "pico_w" )
+    message("Using PICO_W board, link cyw43")
+    target_link_libraries(app pico_cyw43_arch_none)
+endif()
 
 target_link_options(app PRIVATE -Wl,--gc-sections)
 # set( CMAKE_VERBOSE_MAKEFILE on )

@@ -12,8 +12,10 @@
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
 #include "u8g2.h"
-#include "pico/cyw43_arch.h"
 
+#ifdef CYW43_WL_GPIO_LED_PIN
+#include "pico/cyw43_arch.h"
+#endif  // CYW43_WL_GPIO_LED_PIN
 
 extern void button_init(void);
 extern void button_task(void *p);
@@ -37,8 +39,10 @@ void watchdog_task(void *p){
         TickType_t last_measurement_tick = xTaskGetTickCount();
         // watchdog_update();
 
+#ifdef CYW43_WL_GPIO_LED_PIN
         // Change LED state
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+#endif  // CYW43_WL_GPIO_LED_PIN
 
         led_state = !led_state;
 
@@ -63,11 +67,14 @@ static inline void put_pixel(uint32_t pixel_grb) {
 
 int main()
 {
+#ifdef CYW43_WL_GPIO_LED_PIN
     stdio_init_all();
+
     if (cyw43_arch_init()) {
         printf("WiFi Init Failed\n");
         return -1;
     }
+#endif  // CYW43_WL_GPIO_LED_PIN
 
     // Configure Neopixel (WS2812)
     printf("Configure Neopixel\n");

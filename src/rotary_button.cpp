@@ -20,7 +20,7 @@
 // EXP1_2 (BTN_ENC) <-> PIN29 (GP22)
 // EXP2_5 (ENCODER2) <-> PIN19 (GP14)
 // EXP2_3 (ENCODER1) <-> PIN20 (GP15)
-// EXP2_8 (BTN_RST) <-> PIN17 (GP13)
+// EXP2_8 (BTN_RST) <-> PIN16 (GP12)
 
 #include <stdio.h>
 #include <stdint.h>

@@ -22,6 +22,13 @@
 // EXP2_6 (MOSI) <-> PIN19 (SPI0 TX)
 // EXP2_2 (SCK) <-> PIN24 (SPI0 SCK)
 // EXP1_5 (RST) <-> PIN27 (GP21)
+// 
+// For Fly ERCF
+// EXP1_3 (CS) <-> P13
+// EXP1_4 (A0) <-> P24
+// EXP2_6 (MOSI) <-> P11
+// EXP2_2 (SCK) <-> P10
+// EXP1_5 (RST) <-> P25
 
 #include <stdio.h>
 #include <stdint.h>

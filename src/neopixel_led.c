@@ -17,5 +17,7 @@
 //             EXP2
 // 
 // For Pico W
-// EXP1_6 (Neopixel) <-> PIN31 (GP26)
-
+// EXP1_6 (Neopixel) <-> PIN17 (GP13)
+// 
+// For Fly ERCF
+// EXP1_6 (Neopixel) <-> GP26
