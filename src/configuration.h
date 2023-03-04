@@ -4,76 +4,13 @@
 #include "hardware/spi.h"
 #include "hardware/uart.h"
 
-#ifndef DISPlAY0_SPI
-#define DISPlAY0_SPI spi0
-#endif  // DISPlAY0_SPI
+#ifdef RASPBERRYPI_PICO
+#include "raspberrypi_pico_config.h"
+#endif
 
-#ifndef DISPLAY0_RX_PIN
-#define DISPLAY0_RX_PIN PICO_DEFAULT_SPI_RX_PIN
-#endif  // DISPLAY0_RX_PIN
+#ifdef RASPBERRYPI_PICO_W
+#include "raspberrypi_pico_w_config.h"
+#endif
 
-#ifndef DISPLAY0_TX_PIN
-#define DISPLAY0_TX_PIN PICO_DEFAULT_SPI_TX_PIN
-#endif  // DISPLAY0_TX_PIN
-
-#ifndef DISPLAY0_CS_PIN
-#define DISPLAY0_CS_PIN PICO_DEFAULT_SPI_CSN_PIN
-#endif  // DISPLAY0_CS_PIN
-
-#ifndef DISPLAY0_SCK_PIN
-#define DISPLAY0_SCK_PIN PICO_DEFAULT_SPI_SCK_PIN
-#endif  // DISPLAY0_SCK_PIN
-
-#ifndef DISPLAY0_A0_PIN
-#define DISPLAY0_A0_PIN 20
-#endif  // DISPLAY0_A0_PIN
-
-#ifndef DISPLAY0_RESET_PIN
-#define DISPLAY0_RESET_PIN 21
-#endif  // DISPLAY0_RESET_PIN
-
-#ifndef BUTTON0_ENCODER_PIN1
-#define BUTTON0_ENCODER_PIN1 15
-#endif  // BUTTON0_ENCODER_PIN1
-
-#ifndef BUTTON0_ENCODER_PIN2
-#define BUTTON0_ENCODER_PIN2 14
-#endif  // BUTTON0_ENCODER_PIN2
-
-#ifndef BUTTON0_ENC_PIN
-#define BUTTON0_ENC_PIN 22
-#endif  // BUTTON0_ENC_PIN
-
-#ifndef BUTTON0_RST_PIN
-#define BUTTON0_RST_PIN 12
-#endif  // BUTTON0_RST_PIN
-
-#ifndef NEOPIXEL_PIN
-#define NEOPIXEL_PIN 13
-#endif  // NEOPIXEL_PIN
-
-#ifndef COARSE_MOTOR_UART
-#define COARSE_MOTOR_UART uart0
-#endif  // COARSE_MOTOR_UART
-
-#ifndef COARSE_MOTOR_UART_RX_PIN
-#define COARSE_MOTOR_UART_RX_PIN 1
-#endif  // COARSE_MOTOR_UART_RX_PIN
-
-#ifndef COARSE_MOTOR_UART_TX_PIN
-#define COARSE_MOTOR_UART_TX_PIN 0
-#endif  // COARSE_MOTOR_UART_TX_PIN
-
-#ifndef FINE_MOTOR_UART
-#define FINE_MOTOR_UART uart1
-#endif  // FINE_MOTOR_UART
-
-#ifndef FINE_MOTOR_UART_RX_PIN
-#define FINE_MOTOR_UART_RX_PIN 9
-#endif  // FINE_MOTOR_UART_RX_PIN
-
-#ifndef FINE_MOTOR_UART_TX_PIN
-#define FINE_MOTOR_UART_TX_PIN 8
-#endif  // FINE_MOTOR_UART_TX_PIN
 
 #endif  // CONFIGURATION_H_

@@ -77,7 +77,7 @@ add_library(u8g2_mui
 target_link_libraries(u8g2_mui u8g2)
 
 # Pull in src
-add_subdirectory(${CMAKE_SOURCE_DIR}/src)
+add_subdirectory(${SRC_DIRECTORY})
 
 # Collect all source files
 file(GLOB SRC ${SRC_DIRECTORY}/*.c ${SRC_DIRECTORY}/*.cpp)
@@ -86,6 +86,9 @@ file(GLOB SRC ${SRC_DIRECTORY}/*.c ${SRC_DIRECTORY}/*.cpp)
 target_sources(app PRIVATE
     ${SRC}
 )
+
+# Include additional headers
+target_include_directories(app PRIVATE ${CMAKE_SOURCE_DIR}/targets)
 
 # Include libraries1
 target_link_libraries(app

@@ -13,9 +13,6 @@
 #include "configuration.h"
 #include "u8g2.h"
 
-#ifdef CYW43_WL_GPIO_LED_PIN
-#include "pico/cyw43_arch.h"
-#endif  // CYW43_WL_GPIO_LED_PIN
 
 extern void button_init(void);
 extern void button_task(void *p);
@@ -31,6 +28,10 @@ extern "C"{
 }
 
 
+#ifndef LED_SET
+#define LED_SET(pin, state) gpio_put(pin, state)
+#endif   // LED_SET
+
 
 void watchdog_task(void *p){
     // watchdog_enable(500, true);  // 500ms, enable debug
@@ -39,10 +40,8 @@ void watchdog_task(void *p){
         TickType_t last_measurement_tick = xTaskGetTickCount();
         // watchdog_update();
 
-#ifdef CYW43_WL_GPIO_LED_PIN
         // Change LED state
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
-#endif  // CYW43_WL_GPIO_LED_PIN
+        LED_SET(WATCHDOG_LED_PIN, led_state)
 
         led_state = !led_state;
 
@@ -67,9 +66,9 @@ static inline void put_pixel(uint32_t pixel_grb) {
 
 int main()
 {
-#ifdef CYW43_WL_GPIO_LED_PIN
-    stdio_init_all();
+    // stdio_init_all();
 
+#ifdef RASPBERRYPI_PICO_W
     if (cyw43_arch_init()) {
         printf("WiFi Init Failed\n");
         return -1;
@@ -89,7 +88,7 @@ int main()
     display_init();
     button_init();
     scale_measurement_init();
-    motors_init();
+    // motors_init();
 
     xTaskCreate(watchdog_task, "Watchdog Task", 256, NULL, 2, NULL);
     // xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
