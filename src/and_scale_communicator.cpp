@@ -27,6 +27,6 @@ void scale_measurement_generator(void *p) {
 
         current_scale_measurement = (rand() % 9999) / 100.0f;
 
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }

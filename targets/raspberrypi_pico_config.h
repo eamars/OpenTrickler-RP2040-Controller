@@ -2,8 +2,6 @@
 #define RASPBERRYPI_PICO_CONFIG_H_
 
 
-#define LED_SET(pin, state) gpio_put(pin, state);
-
 
 // Settings
 #define WATCHDOG_LED_PIN 25

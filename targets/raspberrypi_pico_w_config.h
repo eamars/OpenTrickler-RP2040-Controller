@@ -4,8 +4,6 @@
 #include "pico/cyw43_arch.h"
 
 
-#define LED_SET(pin, state) cyw43_arch_gpio_put(pin, state);
-
 
 // Settings
 #define WATCHDOG_LED_PIN CYW43_WL_GPIO_LED_PIN

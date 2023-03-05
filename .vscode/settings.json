@@ -7,7 +7,8 @@
         "mui_u8g2.h": "c",
         "app.h": "c",
         "tmc2209.h": "c",
-        "config.h": "c"
+        "config.h": "c",
+        "cyw43_arch.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

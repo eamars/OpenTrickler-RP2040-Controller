@@ -142,8 +142,9 @@ AppState_t charge_mode_menu(AppState_t prev_state) {
 
     // If the display task is never created then we shall create one, otherwise we shall resume the task
     if (scale_measurement_render_handler == NULL) {
-        // The render task shall have higher priority than the current one
-        xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", 128, NULL, 3, &scale_measurement_render_handler);
+        // The render task shall have lower priority than the current one
+        UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
+        xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", 128, NULL, current_task_priority - 1, &scale_measurement_render_handler);
     }
     else {
         vTaskResume(scale_measurement_render_handler);

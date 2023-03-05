@@ -170,24 +170,3 @@ void button_init() {
     printf("done\n");
 }
 
-
-// void button_task(void *p){
-    
-
-//     while (true){
-//         ButtonEncoderEvent_t button_encoder_event;
-//         xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
-//         if (button_encoder_event & BUTTON_ENCODER_ROTATE_CW) {
-//             printf("Rotating CW\n");
-//         }
-//         if (button_encoder_event & BUTTON_ENCODER_ROTATE_CCW) {
-//             printf("Rotating CCW\n");
-//         }
-//         if (button_encoder_event & BUTTON_ENCODER_PRESSED) {
-//             printf("Button Pressed\n");
-//         }
-//         if (button_encoder_event & BUTTON_RST_PRESSED) {
-//             printf("RST Pressed\n");
-//         }
-//     }
-// }

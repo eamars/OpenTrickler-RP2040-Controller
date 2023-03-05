@@ -25,12 +25,30 @@ extern void scale_measurement_generator(void *p);
 
 extern "C"{
     extern void motors_init(void);
+    extern void access_point_mode_init(void);
 }
 
 
-#ifndef LED_SET
-#define LED_SET(pin, state) gpio_put(pin, state)
-#endif   // LED_SET
+void cyw43_task(void *p){
+    if (cyw43_arch_init()) {
+        printf("WiFi Init Failed\n");
+        exit(-1);
+    }
+
+    // watchdog_enable(500, true);  // 500ms, enable debug
+    bool led_state = true;
+    while (true){
+        TickType_t last_measurement_tick = xTaskGetTickCount();
+        // watchdog_update();
+
+        // Change LED state
+        cyw43_arch_gpio_put(WATCHDOG_LED_PIN, led_state);
+
+        led_state = !led_state;
+
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(500));
+    }
+}
 
 
 void watchdog_task(void *p){
@@ -41,11 +59,11 @@ void watchdog_task(void *p){
         // watchdog_update();
 
         // Change LED state
-        LED_SET(WATCHDOG_LED_PIN, led_state)
+        gpio_put(WATCHDOG_LED_PIN, led_state);
 
         led_state = !led_state;
 
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(400));
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(500));
     }
 }
 
@@ -63,20 +81,11 @@ static inline void put_pixel(uint32_t pixel_grb) {
 }
 
 
-
 int main()
 {
     // stdio_init_all();
 
-#ifdef RASPBERRYPI_PICO_W
-    if (cyw43_arch_init()) {
-        printf("WiFi Init Failed\n");
-        return -1;
-    }
-#endif  // CYW43_WL_GPIO_LED_PIN
-
     // Configure Neopixel (WS2812)
-    printf("Configure Neopixel\n");
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
     uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
     ws2812_program_init(pio0, ws2812_sm, ws2812_offset, NEOPIXEL_PIN, 800000, true);
@@ -90,10 +99,13 @@ int main()
     scale_measurement_init();
     // motors_init();
 
-    xTaskCreate(watchdog_task, "Watchdog Task", 256, NULL, 10, NULL);
-    // xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
-    xTaskCreate(menu_task, "Menu Task", 256, NULL, 1, NULL);
-    xTaskCreate(scale_measurement_generator, "Mocked Scale Data Generator Task", 128, NULL, 9, NULL);
+#ifdef RASPBERRYPI_PICO_W
+    xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+#else
+    xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+#endif  // RASPBERRYPI_PICO_W
+    xTaskCreate(menu_task, "Menu Task", 512, NULL, 6, NULL);
+    xTaskCreate(scale_measurement_generator, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
 
     vTaskStartScheduler();
 
