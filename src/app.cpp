@@ -90,10 +90,10 @@ int main()
     scale_measurement_init();
     // motors_init();
 
-    xTaskCreate(watchdog_task, "Watchdog Task", 256, NULL, 2, NULL);
+    xTaskCreate(watchdog_task, "Watchdog Task", 256, NULL, 10, NULL);
     // xTaskCreate(button_task, "Button Task", 256, NULL, 1, NULL);
     xTaskCreate(menu_task, "Menu Task", 256, NULL, 1, NULL);
-    xTaskCreate(scale_measurement_generator, "Mocked Scale Data Generator Task", 128, NULL, 1, NULL);
+    xTaskCreate(scale_measurement_generator, "Mocked Scale Data Generator Task", 128, NULL, 9, NULL);
 
     vTaskStartScheduler();
 
