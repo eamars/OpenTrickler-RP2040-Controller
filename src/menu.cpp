@@ -21,6 +21,9 @@ extern const size_t muif_cnt;
 // External menus
 extern AppState_t charge_mode_menu(AppState_t prev_state);
 
+extern "C"{
+    extern AppState_t access_point_mode_menu(AppState_t prev_state);
+}
 
 // Local variables
 uint8_t charge_weight_digits[] = {0, 0, 0, 0};
@@ -66,6 +69,12 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_MENU_READY_PAGE:
                     mui_GotoForm(&mui, 11, 1);
+                    break;
+                case APP_STATE_ENTER_ACCESS_POINT_MODE:
+                    exit_state = access_point_mode_menu(exit_state);
+                    break;
+                case APP_STATE_ENTER_CONFIG_MENU_PAGE:
+                    mui_GotoForm(&mui, 36, 1);
                     break;
                 default:
                     mui_GotoForm(&mui, 1, 0);

@@ -6,6 +6,7 @@
 #include "mui.h"
 #include "mui_u8g2.h"
 #include "app.h"
+#include "pico/stdlib.h"
 
 
 extern uint8_t charge_weight_digits[];
@@ -195,6 +196,7 @@ fds_t fds_data[] = {
         MUI_32 "View PID|"
         MUI_34 "Tune PID|"
         MUI_35 "Motor Controller|"
+        MUI_36 "AP Mode|"
         MUI_1 "<-Return"  // Back to main menu
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -253,4 +255,30 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_XYAT("BN",64, 59, 30, " OK ")
+
+
+    MUI_FORM(36)
+#ifdef RASPBERRYPI_PICO_W
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Start AP Mode")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(2,27, "Press OK to start AP mode")
+    MUI_LABEL(2, 37, "mode")
+    MUI_XYAT("BN",14, 59, 30, "Back")
+    MUI_XYAT("LV", 115, 59, 3, " OK ")  // APP_STATE_ENTER_ACCESS_POINT_MODE
+#else
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Error")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(3,27, "AP Mode is not supported")
+    MUI_LABEL(3,37, "on your platform")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",64, 59, 30, " OK ")
+
+#endif
 };

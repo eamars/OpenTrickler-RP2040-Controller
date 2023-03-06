@@ -25,11 +25,11 @@ extern void scale_measurement_generator(void *p);
 
 extern "C"{
     extern void motors_init(void);
-    extern void access_point_mode_init(void);
 }
 
 
 void cyw43_task(void *p){
+    // Initialize cyw43 and start the background tasks
     if (cyw43_arch_init()) {
         printf("WiFi Init Failed\n");
         exit(-1);

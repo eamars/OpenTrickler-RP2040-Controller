@@ -1,8 +1,13 @@
 #include <FreeRTOS.h>
 #include <task.h>
+#include <queue.h>
 #include "pico/cyw43_arch.h"
 #include "dhcpserver.h"
 #include "dnsserver.h"
+#include "app.h"
+#include "rotary_button.h"
+#include "u8g2.h"
+
 
 
 typedef struct TCP_SERVER_T_ {
@@ -14,7 +19,13 @@ typedef struct TCP_SERVER_T_ {
 TCP_SERVER_T state;
 
 
-TaskHandle_t cyw43_poll_handler = NULL;
+extern u8g2_t display_handler;
+extern QueueHandle_t encoder_event_queue;
+
+TaskHandle_t ap_mode_display_render_handler = NULL;
+
+char ap_ssid[] = "OpenTricker";
+char ap_password[] = "1234567890";
 
 
 // static bool tcp_server_open(void *arg) {
@@ -49,9 +60,45 @@ TaskHandle_t cyw43_poll_handler = NULL;
 // }
 
 
+void ap_mode_display_render_task(void *p) {
+    char string_buf[30];
+
+    while (true) {
+        TickType_t last_render_tick = xTaskGetTickCount();
+
+        u8g2_ClearBuffer(&display_handler);
+
+        // Draw AP Info
+        memset(string_buf, 0x0, sizeof(string_buf));
+        snprintf(string_buf, sizeof(string_buf), "SSID: %s", ap_ssid);
+        u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
+        u8g2_DrawStr(&display_handler, 5, 10, string_buf);
+
+        memset(string_buf, 0x0, sizeof(string_buf));
+        snprintf(string_buf, sizeof(string_buf), "Pw: %s", ap_password);
+        u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
+        u8g2_DrawStr(&display_handler, 5, 20, string_buf);
+
+        memset(string_buf, 0x0, sizeof(string_buf));
+        snprintf(string_buf, sizeof(string_buf), "IP: 192.168.3.1");
+        u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
+        u8g2_DrawStr(&display_handler, 5, 30, string_buf);
+
+        memset(string_buf, 0x0, sizeof(string_buf));
+        snprintf(string_buf, sizeof(string_buf), "Press key to exit");
+        u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
+        u8g2_DrawStr(&display_handler, 5, 60, string_buf);
+
+        u8g2_SendBuffer(&display_handler);
+
+        vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(20));
+    }
+}
+
+
 void access_point_mode_init() {
-    const char ap_name[] = "OpenTricklerAP";
-    cyw43_arch_enable_ap_mode(ap_name, "1234567890", CYW43_AUTH_WPA2_AES_PSK);
+    
+    cyw43_arch_enable_ap_mode(ap_ssid, ap_password, CYW43_AUTH_WPA2_AES_PSK);
 
     ip4_addr_t mask;
     IP4_ADDR(ip_2_ip4(&state.gw), 192, 168, 3, 1);
@@ -69,5 +116,39 @@ void access_point_mode_init() {
     //     printf("failed to open server\n");
     //     exit(-1);
     // }
+}
 
+
+
+
+AppState_t access_point_mode_menu(AppState_t prev_state)
+{
+    AppState_t exit_state = APP_STATE_ENTER_CONFIG_MENU_PAGE;
+
+    if (ap_mode_display_render_handler == NULL) {
+        // The render task shall have lower priority than the current one
+        UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
+        xTaskCreate(ap_mode_display_render_task, "AP Mode Display Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &ap_mode_display_render_handler);
+    }
+    else {
+        vTaskResume(ap_mode_display_render_handler);
+    }
+
+    access_point_mode_init();
+
+    bool quit = false;
+    while (quit == false) {
+        // Wait if quit is pressed
+        ButtonEncoderEvent_t button_encoder_event;
+        while (xQueueReceive(encoder_event_queue, &button_encoder_event, 0)){
+            if (button_encoder_event == BUTTON_RST_PRESSED || button_encoder_event == BUTTON_ENCODER_PRESSED) {
+                quit = true;
+                break;
+            }
+        }
+    }
+
+    vTaskSuspend(ap_mode_display_render_handler);
+
+    return exit_state;
 }

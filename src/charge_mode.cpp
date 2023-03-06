@@ -39,7 +39,7 @@ void scale_measurement_render_task(void *p) {
     char current_weight_string[5];
 
     while (true) {
-        TickType_t last_measurement_tick = xTaskGetTickCount();
+        TickType_t last_render_tick = xTaskGetTickCount();
 
         u8g2_ClearBuffer(&display_handler);
         // Draw title
@@ -64,7 +64,7 @@ void scale_measurement_render_task(void *p) {
 
         u8g2_SendBuffer(&display_handler);
 
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(20));
+        vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(20));
     }
 }
 
@@ -144,7 +144,7 @@ AppState_t charge_mode_menu(AppState_t prev_state) {
     if (scale_measurement_render_handler == NULL) {
         // The render task shall have lower priority than the current one
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-        xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", 128, NULL, current_task_priority - 1, &scale_measurement_render_handler);
+        xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &scale_measurement_render_handler);
     }
     else {
         vTaskResume(scale_measurement_render_handler);
