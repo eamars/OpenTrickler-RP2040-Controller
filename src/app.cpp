@@ -42,7 +42,7 @@ void cyw43_task(void *p){
         // watchdog_update();
 
         // Change LED state
-        cyw43_arch_gpio_put(WATCHDOG_LED_PIN, led_state);
+        // cyw43_arch_gpio_put(WATCHDOG_LED_PIN, led_state);
 
         led_state = !led_state;
 
@@ -83,7 +83,7 @@ static inline void put_pixel(uint32_t pixel_grb) {
 
 int main()
 {
-    // stdio_init_all();
+    stdio_init_all();
 
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
