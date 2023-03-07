@@ -8,7 +8,8 @@
         "app.h": "c",
         "tmc2209.h": "c",
         "config.h": "c",
-        "cyw43_arch.h": "c"
+        "cyw43_arch.h": "c",
+        "lwipopts_examples_common.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
