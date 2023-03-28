@@ -111,14 +111,14 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
     _enable_uart_rx(MOTOR_UART, true);
 
     // Clear the buffer
-    _clear_rx_buffer(MOTOR_UART);
+    // _clear_rx_buffer(MOTOR_UART);
 
     // // Wait for response
-    // sleep_ms(5);
+    sleep_ms(1);
 
     uint8_t read_byte = 0;
     for (; read_byte < 8; read_byte++) {
-        if (uart_is_readable_within_us(MOTOR_UART, 10000)) {
+        if (uart_is_readable_within_us(MOTOR_UART, 2000)) {
             uart_read_blocking(MOTOR_UART, &wdgr.data[read_byte], 1);
         }
         else {

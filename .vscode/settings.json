@@ -1,17 +1,26 @@
 {
-    "files.associations": {
-        "stdlib.h": "c",
-        "u8g2.h": "c",
-        "task.h": "c",
-        "quadrature_encoder.pio.h": "c",
-        "mui_u8g2.h": "c",
-        "app.h": "c",
-        "tmc2209.h": "c",
-        "config.h": "c",
-        "cyw43_arch.h": "c",
-        "lwipopts_examples_common.h": "c",
-        "uart.h": "c",
-        "address_mapped.h": "c"
+    // These settings tweaks to the cmake plugin will ensure
+    // that you debug using cortex-debug instead of trying to launch
+    // a Pico binary on the host
+    "cmake.statusbar.advanced": {
+        "debug": {
+            "visibility": "hidden"
+        },
+        "launch": {
+            "visibility": "hidden"
+        },
+        "build": {
+            "visibility": "hidden"
+        },
+        "buildTarget": {
+            "visibility": "hidden"
+        }
     },
-    "cortex-debug.variableUseNaturalFormat": false
+    "cmake.buildBeforeRun": true,
+    "cmake.configureOnOpen": true,
+    "cmake.configureSettings": {
+      "CMAKE_MODULE_PATH": "${env:PICO_INSTALL_PATH}/pico-sdk-tools"
+    },
+    "cmake.generator": "Ninja",
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
 }
