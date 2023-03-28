@@ -9,7 +9,9 @@
         "tmc2209.h": "c",
         "config.h": "c",
         "cyw43_arch.h": "c",
-        "lwipopts_examples_common.h": "c"
+        "lwipopts_examples_common.h": "c",
+        "uart.h": "c",
+        "address_mapped.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

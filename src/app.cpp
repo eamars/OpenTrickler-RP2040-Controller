@@ -24,7 +24,7 @@ extern void scale_measurement_init(void);
 extern void scale_measurement_generator(void *p);
 
 extern "C"{
-    extern void motors_init(void);
+    extern void motor_task(void *p);
 }
 
 
@@ -83,7 +83,7 @@ static inline void put_pixel(uint32_t pixel_grb) {
 
 int main()
 {
-    stdio_init_all();
+    // stdio_init_all();
 
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
@@ -97,7 +97,6 @@ int main()
     display_init();
     button_init();
     scale_measurement_init();
-    // motors_init();
 
 #ifdef RASPBERRYPI_PICO_W
     xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
@@ -106,6 +105,7 @@ int main()
 #endif  // RASPBERRYPI_PICO_W
     xTaskCreate(menu_task, "Menu Task", 512, NULL, 6, NULL);
     xTaskCreate(scale_measurement_generator, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
+    xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 
     vTaskStartScheduler();
 
