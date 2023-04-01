@@ -16,10 +16,10 @@ TMC2209_t fine_motor;
 
 void _enable_uart_rx(uart_inst_t * uart, bool enable) {
     if (enable) {
-        hw_clear_bits(&uart_get_hw(uart)->cr, UART_UARTCR_RXE_BITS);
+        hw_set_bits(&uart_get_hw(uart)->cr, UART_UARTCR_RXE_BITS);
     }
     else {
-        hw_set_bits(&uart_get_hw(uart)->cr, UART_UARTCR_RXE_BITS);
+        hw_clear_bits(&uart_get_hw(uart)->cr, UART_UARTCR_RXE_BITS);
     }
 }
 
@@ -31,12 +31,28 @@ void _clear_rx_buffer(uart_inst_t * uart) {
 }
 
 
+bool _block_wait_for_sync(uart_inst_t * uart) {
+    uint8_t c;
+    do
+    {
+        if (uart_is_readable_within_us(uart, 2000)) {
+            uart_read_blocking(MOTOR_UART, &c, 1);
+        }
+        else {
+            return false;
+        }
+    } while (c != 0x05); 
+
+    return true;
+}
+
+
 
 bool motors_init() {
     // TODO: USE motor select
 
     // TMC driver doesn't care about the baud rate the host is using
-    uart_init(MOTOR_UART, 500000);
+    uart_init(MOTOR_UART, 115200);
     gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
     gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
 
@@ -80,9 +96,7 @@ bool motors_init() {
     coarse_motor.config.current = 0.5;
     coarse_motor.config.microsteps = 256;
 
-    if (!TMC2209_ReadRegister(&coarse_motor, (TMC2209_datagram_t *)&coarse_motor.gstat)) {
-        return false;
-    }
+    TMC2209_Init(&coarse_motor);
 
     // TMC2209_WriteRegister(&coarse_motor, (TMC2209_datagram_t *)&coarse_motor.gstat);
     // TMC2209_ReadRegister(&coarse_motor, (TMC2209_datagram_t *)&coarse_motor.gconf);
@@ -108,29 +122,21 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
     static TMC_uart_write_datagram_t wdgr = {0}; 
 
     uart_write_blocking(MOTOR_UART, datagram->data, sizeof(TMC_uart_read_datagram_t));
+
     _enable_uart_rx(MOTOR_UART, true);
 
-    // Clear the buffer
-    // _clear_rx_buffer(MOTOR_UART);
+    // Read until 0x05 is received
+    if (_block_wait_for_sync(MOTOR_UART)) {
+        // Read full payload
+        wdgr.data[0] = 0x05;
+        uart_read_blocking(MOTOR_UART, &wdgr.data[1], 7);
 
-    // // Wait for response
-    sleep_ms(1);
-
-    uint8_t read_byte = 0;
-    for (; read_byte < 8; read_byte++) {
-        if (uart_is_readable_within_us(MOTOR_UART, 2000)) {
-            uart_read_blocking(MOTOR_UART, &wdgr.data[read_byte], 1);
-        }
-        else {
-            break;
-        }
+        _enable_uart_rx(MOTOR_UART, false);
     }
-
-    _enable_uart_rx(MOTOR_UART, false);
-
-    if (read_byte < 7) {
+    else {
         wdgr.msg.addr.value = 0xFF;
     }
+    
 
     return &wdgr;
 }
