@@ -1,17 +1,23 @@
 /* Isolate the C and C++ */
 #include <stddef.h>
 #include <stdio.h>
+#include <math.h>
 #include "app.h"
 #include "tmc2209.h"
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "hardware/gpio.h"
+#include "motors.h"
 
 MotorControllerSelect_t coarse_motor_controller_select = USE_TMC2209;
 MotorControllerSelect_t fine_motor_controller_select = USE_TMC2209;
 
 TMC2209_t coarse_motor;
 TMC2209_t fine_motor;
+
+motor_motion_config_t coarse_motor_config;
+
+float coarse_motor_speed_rps = 0.1; 
 
 
 void _enable_uart_rx(uart_inst_t * uart, bool enable) {
@@ -49,7 +55,12 @@ bool _block_wait_for_sync(uart_inst_t * uart) {
 
 
 bool motors_init() {
-    // TODO: USE motor select
+    // TODO: Define motor configs elsewhere
+    coarse_motor_config.current_ma = 500;
+    coarse_motor_config.direction = true;
+    coarse_motor_config.full_steps_per_rotation = 200;
+    coarse_motor_config.max_speed_rpm = 2000;
+    coarse_motor_config.microsteps = 16;
 
     // TMC driver doesn't care about the baud rate the host is using
     uart_init(MOTOR_UART, 115200);
@@ -71,12 +82,6 @@ bool motors_init() {
     gpio_set_dir(FINE_MOTOR_DIR_PIN, GPIO_OUT);
     // gpio_put(FINE_MOTOR_DIR_PIN, 0);
 
-    TMC2209_SetDefaults(&fine_motor);
-    fine_motor.config.motor.id = 1;
-    fine_motor.config.motor.address = 1;
-    fine_motor.config.current = 0.5;
-    fine_motor.config.microsteps = 256;
-
     // Initialize coarse motor
     gpio_init(COARSE_MOTOR_EN_PIN);
     gpio_set_dir(COARSE_MOTOR_EN_PIN, GPIO_OUT);
@@ -93,21 +98,29 @@ bool motors_init() {
     TMC2209_SetDefaults(&coarse_motor);
     coarse_motor.config.motor.id = 0;
     coarse_motor.config.motor.address = 0;
-    coarse_motor.config.current = 0.5;
-    coarse_motor.config.microsteps = 256;
+    coarse_motor.config.current = coarse_motor_config.current_ma;
+    coarse_motor.config.r_sense = 110;
+    coarse_motor.config.hold_current_pct = 100;
+    coarse_motor.config.microsteps = coarse_motor_config.microsteps;
 
     TMC2209_Init(&coarse_motor);
-
-    // TMC2209_WriteRegister(&coarse_motor, (TMC2209_datagram_t *)&coarse_motor.gstat);
-    // TMC2209_ReadRegister(&coarse_motor, (TMC2209_datagram_t *)&coarse_motor.gconf);
 
     return true;
 }
 
 void motor_task(void *p) {
     bool status = motors_init();
+
     while (true) {
-        ;
+        absolute_time_t current_time = get_absolute_time();
+        gpio_put(COARSE_MOTOR_STEP_PIN, 1);
+        gpio_put(COARSE_MOTOR_STEP_PIN, 0);
+
+        uint32_t full_rotation_steps = coarse_motor_config.full_steps_per_rotation * coarse_motor_config.microsteps;
+        uint32_t step_time_us = (int) round(1000 * 1000 / (coarse_motor_speed_rps * full_rotation_steps));
+
+
+        sleep_until(delayed_by_us(current_time, step_time_us));
     }
 }
 

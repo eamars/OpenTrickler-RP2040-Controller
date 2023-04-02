@@ -281,4 +281,5 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",64, 59, 30, " OK ")
 
 #endif
+
 };
