@@ -1,0 +1,25 @@
+; The overall period is 2 + clk_period (two instructions at low)
+.program stepper
+.side_set 1 opt
+    pull noblock   side 0 ; Read new period from TX FIFO, if no new value then copy from X (previous period)
+                          ; Also set the STEP pin to low
+    mov x, osr            ; Copy the value back from the OSR to X
+    mov y, x       side 1 ; Copy the period to the counter (y)
+                          ; Also set the SETP pin to high
+hold_high:                ; Wait for the counter
+    jmp y-- hold_high   ; Hold high while looping
+
+
+% c-sdk {
+static inline void stepper_program_init(PIO pio, uint sm, uint offset, uint pin) {
+   pio_gpio_init(pio, pin);
+
+   // Set STEP pin as the output
+   pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+   pio_sm_config c = stepper_program_get_default_config(offset);
+
+   // Use side_step control to save few state machine cycles
+   sm_config_set_sideset_pins(&c, pin);
+   pio_sm_init(pio, sm, offset, &c);
+}
+%}

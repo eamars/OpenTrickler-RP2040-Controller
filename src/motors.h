@@ -12,5 +12,10 @@ typedef struct {
 } motor_motion_config_t;
 
 
+typedef struct {
+    float speed;
+    float ramp_rate;
+} stepper_speed_setpoint_t;
+
 
 #endif

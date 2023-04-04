@@ -2,12 +2,19 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
+#include <FreeRTOS.h>
+#include <queue.h>
+#include <math.h>
 #include "app.h"
 #include "tmc2209.h"
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "hardware/gpio.h"
 #include "motors.h"
+#include "hardware/pio.h"
+#include "hardware/clocks.h"
+#include "stepper.pio.h"
+
 
 MotorControllerSelect_t coarse_motor_controller_select = USE_TMC2209;
 MotorControllerSelect_t fine_motor_controller_select = USE_TMC2209;
@@ -17,7 +24,9 @@ TMC2209_t fine_motor;
 
 motor_motion_config_t coarse_motor_config;
 
-float coarse_motor_speed_rps = 0.1; 
+QueueHandle_t coarse_trickler_speed_queue;
+
+float coarse_motor_speed_rps = 0.05; 
 
 
 void _enable_uart_rx(uart_inst_t * uart, bool enable) {
@@ -60,7 +69,7 @@ bool motors_init() {
     coarse_motor_config.direction = true;
     coarse_motor_config.full_steps_per_rotation = 200;
     coarse_motor_config.max_speed_rpm = 2000;
-    coarse_motor_config.microsteps = 16;
+    coarse_motor_config.microsteps = 256;
 
     // TMC driver doesn't care about the baud rate the host is using
     uart_init(MOTOR_UART, 115200);
@@ -85,10 +94,10 @@ bool motors_init() {
     // Initialize coarse motor
     gpio_init(COARSE_MOTOR_EN_PIN);
     gpio_set_dir(COARSE_MOTOR_EN_PIN, GPIO_OUT);
-    gpio_put(COARSE_MOTOR_EN_PIN, 0);
+    // gpio_put(COARSE_MOTOR_EN_PIN, 0);
 
-    gpio_init(COARSE_MOTOR_STEP_PIN);
-    gpio_set_dir(COARSE_MOTOR_STEP_PIN, GPIO_OUT);
+    // gpio_init(COARSE_MOTOR_STEP_PIN);
+    // gpio_set_dir(COARSE_MOTOR_STEP_PIN, GPIO_OUT);
     // gpio_put(COARSE_MOTOR_STEP_PIN, 0);
 
     gpio_init(COARSE_MOTOR_DIR_PIN);
@@ -108,19 +117,80 @@ bool motors_init() {
     return true;
 }
 
+void pio_stepper_set_period(PIO pio, uint sm, uint32_t period) {
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_put_blocking(pio, sm, period);
+    pio_sm_exec(pio, sm, pio_encode_pull(false, false));
+    pio_sm_exec(pio, sm, pio_encode_out(pio_isr, 32));
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+
+// uint32_t speed_to_period(uint32_t pio_clock_speed, float speed, motor_motion_config_t motor_config) {
+//     // uint32_t pio_clock_speed = clock_get_hz(clk_sys);
+//     uint32_t full_rotation_steps = motor_config.full_steps_per_rotation * motor_config.microsteps;
+//     uint32_t steps = 
+
+//     uint32_t step_time_us = (int) round(1000 * 1000 / (speed * full_rotation_steps));
+
+// }
+
+
 void motor_task(void *p) {
     bool status = motors_init();
 
+    coarse_trickler_speed_queue = xQueueCreate(1, sizeof(stepper_speed_setpoint_t));
+
+    uint stepper_sm = pio_claim_unused_sm(pio0, true);
+    uint stepper_offset = pio_add_program(pio0, &stepper_program);
+    stepper_program_init(pio0, stepper_sm, stepper_offset, COARSE_MOTOR_STEP_PIN);
+    pio_sm_set_enabled(pio0, stepper_sm, true);
+
+
+    float prev_speed = 0.0f;
+
+    stepper_speed_setpoint_t test_new_speed = {.speed=100, .ramp_rate=10};
+    xQueueSend(coarse_trickler_speed_queue, &test_new_speed, portMAX_DELAY);
+
     while (true) {
-        absolute_time_t current_time = get_absolute_time();
-        gpio_put(COARSE_MOTOR_STEP_PIN, 1);
-        gpio_put(COARSE_MOTOR_STEP_PIN, 0);
+        // Wait for new speed
+        stepper_speed_setpoint_t new_setpoint;
+        xQueueReceive(coarse_trickler_speed_queue, &new_setpoint, portMAX_DELAY);
 
-        uint32_t full_rotation_steps = coarse_motor_config.full_steps_per_rotation * coarse_motor_config.microsteps;
-        uint32_t step_time_us = (int) round(1000 * 1000 / (coarse_motor_speed_rps * full_rotation_steps));
+        // Create difference
+        float speed_delta = fabs(new_setpoint.speed - prev_speed);
+        float ramp_time_s = speed_delta / new_setpoint.ramp_rate;
+        float slope = speed_delta / ramp_time_s;
+        uint64_t ramp_time_us = (uint32_t) (ramp_time_s * 1e6);
+        
+        uint64_t start_time = time_us_64();
+        uint64_t stop_time = start_time + ramp_time_us;
+
+        float current_speed;
+        // Linear ramp
+        while (true) {
+            uint64_t current_time = time_us_64();
+            if (current_time > stop_time) {
+                break;
+            }
+            uint64_t time_delta = current_time - start_time;
+            current_speed = prev_speed + slope * time_delta / 1e6;
+
+            pio_sm_put_blocking(pio0, stepper_sm, (uint32_t) current_speed * 500);
+        }
+
+        pio_sm_put_blocking(pio0, stepper_sm, (uint32_t) new_setpoint.speed * 500);
+
+        prev_speed = new_setpoint.speed;
+        // absolute_time_t current_time = get_absolute_time();
+        // gpio_put(COARSE_MOTOR_STEP_PIN, 1);
+        // gpio_put(COARSE_MOTOR_STEP_PIN, 0);
+
+        // uint32_t full_rotation_steps = coarse_motor_config.full_steps_per_rotation * coarse_motor_config.microsteps;
+        // uint32_t step_time_us = (int) round(1000 * 1000 / (coarse_motor_speed_rps * full_rotation_steps));
 
 
-        sleep_until(delayed_by_us(current_time, step_time_us));
+        // sleep_until(delayed_by_us(current_time, step_time_us));
     }
 }
 
