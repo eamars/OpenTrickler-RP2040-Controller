@@ -3,6 +3,12 @@
 
 #include <stdint.h>
 
+
+typedef enum {
+    COARSE_TRICKLER_MOTOR,
+    FINE_TRICKLER_MOTOR,
+} motor_select_t;
+
 typedef struct {
     uint32_t full_steps_per_rotation;
     uint16_t current_ma;
@@ -12,10 +18,15 @@ typedef struct {
 } motor_motion_config_t;
 
 
+
+
 typedef struct {
-    float speed;
+    float new_speed_setpoint;
+    float direction;
     float ramp_rate;
-} stepper_speed_setpoint_t;
+    motor_select_t motor_select;
+} stepper_speed_control_t;
+extern QueueHandle_t stepper_speed_control_queue;
 
 
 #endif

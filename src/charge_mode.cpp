@@ -22,8 +22,8 @@ extern SemaphoreHandle_t scale_measurement_ready;
 float target_charge_weight = 0.0f;
 float cfg_zero_sd_threshold = 0.02;
 float cfg_zero_mean_threshold = 0.04;
-TaskHandle_t scale_measurement_render_handler = NULL;
-char title_string[30];
+TaskHandle_t scale_measurement_render_task_handler = NULL;
+static char title_string[30];
 
 
 typedef enum {
@@ -141,13 +141,13 @@ AppState_t charge_mode_menu(AppState_t prev_state) {
     printf("Target Charge Weight: %f\n", target_charge_weight);
 
     // If the display task is never created then we shall create one, otherwise we shall resume the task
-    if (scale_measurement_render_handler == NULL) {
+    if (scale_measurement_render_task_handler == NULL) {
         // The render task shall have lower priority than the current one
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-        xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &scale_measurement_render_handler);
+        xTaskCreate(scale_measurement_render_task, "Scale Measurement Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &scale_measurement_render_task_handler);
     }
     else {
-        vTaskResume(scale_measurement_render_handler);
+        vTaskResume(scale_measurement_render_task_handler);
     }
     
     ChargeModeState_t state = CHARGE_MODE_WAIT_FOR_ZERO;
@@ -182,6 +182,6 @@ AppState_t charge_mode_menu(AppState_t prev_state) {
     // }
     
     // vTaskDelete(scale_measurement_render_handler);
-    vTaskSuspend(scale_measurement_render_handler);
+    vTaskSuspend(scale_measurement_render_task_handler);
     return exit_state;
 }

@@ -166,7 +166,7 @@ fds_t fds_data[] = {
     // Menu 11: 
     MUI_FORM(11)
     MUI_STYLE(1)
-    MUI_LABEL(5, 10, "Ready?")
+    MUI_LABEL(5, 10, "Warning")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
@@ -179,10 +179,15 @@ fds_t fds_data[] = {
     // MUI_XYAT("BN",115, 59, 0, "Next")
 
     // Menu 20: Cleanup
-    // MUI_FORM(20)
-    // MUI_STYLE(1)
-    // MUI_LABEL(5,10, "Select Cleanup")
-    // MUI_XY("HL", 0,13)
+    MUI_FORM(20)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Warning")
+    MUI_XY("HL", 0,13)
+    MUI_STYLE(0)
+    MUI_LABEL(5, 25, "Put pan on the scale and")
+    MUI_LABEL(5, 37, "press Next to cleanup")
+    MUI_XYAT("BN",14, 59, 0, "Back")
+    MUI_XYAT("LV", 115, 59, 5, "Next")  // APP_STATE_ENTER_CLEANUP_MODE
 
     // Menu 30: Configurations
     MUI_FORM(30)

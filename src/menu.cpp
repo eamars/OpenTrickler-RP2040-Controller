@@ -20,6 +20,7 @@ extern const size_t muif_cnt;
 
 // External menus
 extern AppState_t charge_mode_menu(AppState_t prev_state);
+extern AppState_t cleanup_mode_menu(AppState_t prev_state);
 
 extern "C"{
     extern AppState_t access_point_mode_menu(AppState_t prev_state);
@@ -75,6 +76,9 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_CONFIG_MENU_PAGE:
                     mui_GotoForm(&mui, 36, 1);
+                    break;
+                case APP_STATE_ENTER_CLEANUP_MODE:
+                    exit_state = cleanup_mode_menu(exit_state);
                     break;
                 default:
                     mui_GotoForm(&mui, 1, 0);

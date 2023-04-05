@@ -15,6 +15,19 @@
 #include "hardware/clocks.h"
 #include "stepper.pio.h"
 
+typedef enum {
+    MOVE_BACKWARD = 0,
+    MOVE_FORWARD = 1,
+    UNCHANGED = 2,
+} stepper_direction_t;
+
+typedef struct {
+    float prev_speed;
+    float next_speed;
+    float ramp_rate;
+    stepper_direction_t direction;
+} stepper_speed_delta_control_t;
+QueueHandle_t stepper_speed_delta_control_queue;
 
 MotorControllerSelect_t coarse_motor_controller_select = USE_TMC2209;
 MotorControllerSelect_t fine_motor_controller_select = USE_TMC2209;
@@ -24,9 +37,12 @@ TMC2209_t fine_motor;
 
 motor_motion_config_t coarse_motor_config;
 
-QueueHandle_t coarse_trickler_speed_queue;
+QueueHandle_t stepper_speed_control_queue;
+TaskHandle_t stepper_speed_control_task_handler = NULL;
 
 float coarse_motor_speed_rps = 0.05; 
+
+
 
 
 void _enable_uart_rx(uart_inst_t * uart, bool enable) {
@@ -102,7 +118,7 @@ bool motors_init() {
 
     gpio_init(COARSE_MOTOR_DIR_PIN);
     gpio_set_dir(COARSE_MOTOR_DIR_PIN, GPIO_OUT);
-    // gpio_put(COARSE_MOTOR_DIR_PIN, 0);
+    gpio_put(COARSE_MOTOR_DIR_PIN, MOVE_FORWARD);
 
     TMC2209_SetDefaults(&coarse_motor);
     coarse_motor.config.motor.id = 0;
@@ -126,71 +142,134 @@ void pio_stepper_set_period(PIO pio, uint sm, uint32_t period) {
 }
 
 
-// uint32_t speed_to_period(uint32_t pio_clock_speed, float speed, motor_motion_config_t motor_config) {
-//     // uint32_t pio_clock_speed = clock_get_hz(clk_sys);
-//     uint32_t full_rotation_steps = motor_config.full_steps_per_rotation * motor_config.microsteps;
-//     uint32_t steps = 
+uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_rotation_steps) {
+    // uint32_t pio_clock_speed = clock_get_hz(clk_sys);
 
-//     uint32_t step_time_us = (int) round(1000 * 1000 / (speed * full_rotation_steps));
+    // Step speed (step/s) is calculated by full rotation steps x rotations per second
+    uint32_t delay_period;
+    if (speed < 1e-3) {
+        delay_period = 0;
+    }
+    else {
+        float steps_speed = full_rotation_steps * speed;
+        delay_period = (uint32_t) (pio_clock_speed / steps_speed);
+    }
 
-// }
+    // Discount the period when holds low
+    if (delay_period >= 2) {
+        delay_period -= 2;
+    }
+    else {
+        delay_period = 0;
+    }
+
+    return delay_period;
+}
+
+
+void stepper_speed_control_task(void *p) {
+    float prev_speed = 0;
+    bool prev_direction = MOVE_FORWARD;
+
+    // Currently doing speed control
+    while (true) {
+        // Wait for new speed
+        stepper_speed_control_t new_setpoint;
+        xQueueReceive(stepper_speed_control_queue, &new_setpoint, portMAX_DELAY);
+
+        // If the direction has changed then generate two stepper control packet
+        if (prev_direction != new_setpoint.direction) {
+            // First: ramp down to 0
+            stepper_speed_delta_control_t ramp_down;
+            ramp_down.prev_speed = prev_speed;
+            ramp_down.next_speed = 0;
+            ramp_down.direction = UNCHANGED;
+            ramp_down.ramp_rate = new_setpoint.ramp_rate;
+            
+            stepper_speed_delta_control_t ramp_up;
+            ramp_up.prev_speed = 0;
+            ramp_up.next_speed = new_setpoint.new_speed_setpoint;
+            ramp_up.direction = new_setpoint.direction;
+            ramp_up.ramp_rate = new_setpoint.ramp_rate;
+
+            xQueueSend(stepper_speed_delta_control_queue, &ramp_down, portMAX_DELAY);
+            xQueueSend(stepper_speed_delta_control_queue, &ramp_up, portMAX_DELAY);
+        }
+        else {
+            stepper_speed_delta_control_t speed_change;
+            speed_change.prev_speed = prev_speed;
+            speed_change.next_speed = new_setpoint.new_speed_setpoint;
+            speed_change.direction = UNCHANGED;
+            speed_change.ramp_rate = new_setpoint.ramp_rate;
+            xQueueSend(stepper_speed_delta_control_queue, &speed_change, portMAX_DELAY);
+        }
+
+        // Update record
+        prev_speed = new_setpoint.new_speed_setpoint;
+        if (new_setpoint.direction != UNCHANGED) {
+            prev_direction = new_setpoint.direction;
+        }
+        
+    }
+}
 
 
 void motor_task(void *p) {
     bool status = motors_init();
 
-    coarse_trickler_speed_queue = xQueueCreate(1, sizeof(stepper_speed_setpoint_t));
+    stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
+    stepper_speed_delta_control_queue = xQueueCreate(2, sizeof(stepper_speed_delta_control_t));
+
+    UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
+    xTaskCreate(stepper_speed_control_task, "Stepper Speed Control Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority + 1, &stepper_speed_control_task_handler);
+
 
     uint stepper_sm = pio_claim_unused_sm(pio0, true);
     uint stepper_offset = pio_add_program(pio0, &stepper_program);
     stepper_program_init(pio0, stepper_sm, stepper_offset, COARSE_MOTOR_STEP_PIN);
     pio_sm_set_enabled(pio0, stepper_sm, true);
 
-
-    float prev_speed = 0.0f;
-
-    stepper_speed_setpoint_t test_new_speed = {.speed=100, .ramp_rate=10};
-    xQueueSend(coarse_trickler_speed_queue, &test_new_speed, portMAX_DELAY);
+    uint32_t full_rotation_steps = coarse_motor_config.full_steps_per_rotation * coarse_motor_config.microsteps;
+    uint32_t pio_speed = clock_get_hz(clk_sys);
 
     while (true) {
         // Wait for new speed
-        stepper_speed_setpoint_t new_setpoint;
-        xQueueReceive(coarse_trickler_speed_queue, &new_setpoint, portMAX_DELAY);
+        stepper_speed_delta_control_t new_delta;
+        xQueueReceive(stepper_speed_delta_control_queue, &new_delta, portMAX_DELAY);
 
-        // Create difference
-        float speed_delta = fabs(new_setpoint.speed - prev_speed);
-        float ramp_time_s = speed_delta / new_setpoint.ramp_rate;
-        float slope = speed_delta / ramp_time_s;
-        uint64_t ramp_time_us = (uint32_t) (ramp_time_s * 1e6);
-        
+        // Change speed if needed
+        if (new_delta.direction != UNCHANGED) {
+            gpio_put(COARSE_MOTOR_DIR_PIN, new_delta.direction);
+        }
+
+        // Calculate ramp param
+        float v0 = new_delta.prev_speed;
+        float v1 = new_delta.next_speed;
+        float dv = v1 - v0;
+        float ramp_time_s = fabs(dv / new_delta.ramp_rate);
+
+        // Calculate termination condition
+        uint32_t ramp_time_us = (uint32_t) (fabs(ramp_time_s) * 1e6);
         uint64_t start_time = time_us_64();
         uint64_t stop_time = start_time + ramp_time_us;
 
         float current_speed;
-        // Linear ramp
+        uint32_t current_period;
         while (true) {
             uint64_t current_time = time_us_64();
             if (current_time > stop_time) {
                 break;
             }
-            uint64_t time_delta = current_time - start_time;
-            current_speed = prev_speed + slope * time_delta / 1e6;
 
-            pio_sm_put_blocking(pio0, stepper_sm, (uint32_t) current_speed * 500);
+            float percentage = (current_time - start_time) / (float) ramp_time_us;
+
+            current_speed = v0 + dv * percentage;
+            current_period = speed_to_period(current_speed, pio_speed, full_rotation_steps);
+            pio_sm_put_blocking(pio0, stepper_sm, current_period);
         }
 
-        pio_sm_put_blocking(pio0, stepper_sm, (uint32_t) new_setpoint.speed * 500);
-
-        prev_speed = new_setpoint.speed;
-        // absolute_time_t current_time = get_absolute_time();
-        // gpio_put(COARSE_MOTOR_STEP_PIN, 1);
-        // gpio_put(COARSE_MOTOR_STEP_PIN, 0);
-
-        // uint32_t full_rotation_steps = coarse_motor_config.full_steps_per_rotation * coarse_motor_config.microsteps;
-        // uint32_t step_time_us = (int) round(1000 * 1000 / (coarse_motor_speed_rps * full_rotation_steps));
-
-
-        // sleep_until(delayed_by_us(current_time, step_time_us));
+        current_period = speed_to_period(v1, pio_speed, full_rotation_steps);
+        pio_sm_put_blocking(pio0, stepper_sm, current_period);
     }
 }
 

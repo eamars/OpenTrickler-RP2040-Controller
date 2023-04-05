@@ -1,13 +1,14 @@
 ; The overall period is 2 + clk_period (two instructions at low)
 .program stepper
 .side_set 1 opt
+init:
     pull noblock   side 0 ; Read new period from TX FIFO, if no new value then copy from X (previous period)
                           ; Also set the STEP pin to low
     mov x, osr            ; Copy the value back from the OSR to X
     mov y, x       side 1 ; Copy the period to the counter (y)
                           ; Also set the SETP pin to high
 hold_high:                ; Wait for the counter
-    jmp y-- hold_high   ; Hold high while looping
+    jmp y-- hold_high     ; Hold high while looping
 
 
 % c-sdk {
