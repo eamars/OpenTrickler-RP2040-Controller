@@ -69,7 +69,7 @@ AppState_t cleanup_mode_menu(AppState_t prev_state) {
 
     current_motor_speed = 0;
 
-    stepper_speed_control_t new_speed = {.new_speed_setpoint=0, .ramp_rate=5}; 
+    stepper_speed_control_t new_speed = {.new_speed_setpoint=0, .ramp_rate=2000}; 
 
     // Update current status
     snprintf(title_string, sizeof(title_string), "Adjust Speed");
@@ -106,6 +106,12 @@ AppState_t cleanup_mode_menu(AppState_t prev_state) {
                 xQueueSend(stepper_speed_control_queue, &new_speed, portMAX_DELAY);
                 
                 break;
+
+            case BUTTON_ENCODER_PRESSED:
+                current_motor_speed = 0;
+
+                new_speed.new_speed_setpoint = fabs(current_motor_speed);
+                xQueueSend(stepper_speed_control_queue, &new_speed, portMAX_DELAY);
             default:
                 break;
         }

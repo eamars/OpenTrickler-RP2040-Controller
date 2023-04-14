@@ -114,7 +114,7 @@ bool motors_init() {
 
     // gpio_init(COARSE_MOTOR_STEP_PIN);
     // gpio_set_dir(COARSE_MOTOR_STEP_PIN, GPIO_OUT);
-    // gpio_put(COARSE_MOTOR_STEP_PIN, 0);
+    // gpio_put(COARSE_MOTOR_STEP_PIN, 1);
 
     gpio_init(COARSE_MOTOR_DIR_PIN);
     gpio_set_dir(COARSE_MOTOR_DIR_PIN, GPIO_OUT);
@@ -156,8 +156,8 @@ uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_ro
     }
 
     // Discount the period when holds low
-    if (delay_period >= 2) {
-        delay_period -= 2;
+    if (delay_period >= 3) {
+        delay_period -= 3;
     }
     else {
         delay_period = 0;
