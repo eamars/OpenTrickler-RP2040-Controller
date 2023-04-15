@@ -11,8 +11,6 @@
 
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
-extern MotorControllerSelect_t coarse_motor_controller_select;
-extern MotorControllerSelect_t fine_motor_controller_select;
 
 MeasurementUnit_t measurement_unit;
 
@@ -106,10 +104,6 @@ muif_t muif_list[] = {
 
         // Unit selection
         MUIF_VARIABLE("UN",&measurement_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
-
-        // motor controller selection
-        MUIF_VARIABLE("MC",&coarse_motor_controller_select, mui_u8g2_u8_opt_line_wa_mud_pi),
-        MUIF_VARIABLE("MF",&fine_motor_controller_select, mui_u8g2_u8_opt_line_wa_mud_pi),
 
         /* input for a number between 0 to 9 */
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),

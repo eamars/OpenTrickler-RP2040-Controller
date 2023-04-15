@@ -40,5 +40,7 @@
 #define SCALE_UART_TX 0
 #define SCALE_UART_RX 1
 
+#define MOTOR_STEPPER_PIO pio0
+
 
 #endif  // RASPBERRYPI_PICO_W_CONFIG_H_

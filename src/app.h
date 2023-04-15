@@ -17,11 +17,5 @@ typedef enum {
 } MeasurementUnit_t;
 
 
-typedef enum {
-    USE_TMC2209,
-    USE_TMC2130,
-    USE_TMC5160,
-} MotorControllerSelect_t;
-
 
 #endif  // APP_H_

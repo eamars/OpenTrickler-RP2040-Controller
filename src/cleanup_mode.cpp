@@ -18,6 +18,9 @@ static char title_string[30];
 TaskHandle_t cleanup_render_task_handler = NULL;
 float current_motor_speed = 0;
 
+extern motor_config_t coarse_trickler_motor_config;
+extern motor_config_t fine_trickler_motor_config;
+
 
 void cleanup_render_task(void *p) {
     char charge_weight_string[30];
@@ -69,8 +72,6 @@ AppState_t cleanup_mode_menu(AppState_t prev_state) {
 
     current_motor_speed = 0;
 
-    stepper_speed_control_t new_speed = {.new_speed_setpoint=0, .ramp_rate=2000}; 
-
     // Update current status
     snprintf(title_string, sizeof(title_string), "Adjust Speed");
 
@@ -86,32 +87,22 @@ AppState_t cleanup_mode_menu(AppState_t prev_state) {
                 break;
             case BUTTON_ENCODER_ROTATE_CW:
                 current_motor_speed += 1;
-
-                if (current_motor_speed > 0) {
-                    new_speed.direction = true;
-                }
-
-                new_speed.new_speed_setpoint = fabs(current_motor_speed);
-                xQueueSend(stepper_speed_control_queue, &new_speed, portMAX_DELAY);
+                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, current_motor_speed);
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, current_motor_speed);
                 
                 break;
             case BUTTON_ENCODER_ROTATE_CCW:
                 current_motor_speed -= 1;
 
-                if (current_motor_speed < 0) {
-                    new_speed.direction = false;
-                }
-
-                new_speed.new_speed_setpoint = fabs(current_motor_speed);
-                xQueueSend(stepper_speed_control_queue, &new_speed, portMAX_DELAY);
-                
+                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, current_motor_speed);
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, current_motor_speed);
                 break;
 
             case BUTTON_ENCODER_PRESSED:
                 current_motor_speed = 0;
-
-                new_speed.new_speed_setpoint = fabs(current_motor_speed);
-                xQueueSend(stepper_speed_control_queue, &new_speed, portMAX_DELAY);
+                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, current_motor_speed);
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, current_motor_speed);
+                break;
             default:
                 break;
         }
