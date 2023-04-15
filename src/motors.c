@@ -153,7 +153,7 @@ bool driver_init(motor_config_t * motor_config) {
     tmc_driver->config.motor.address = motor_config->uart_addr;
     tmc_driver->config.current = motor_config->current_ma;
     tmc_driver->config.r_sense = motor_config->r_sense;
-    tmc_driver->config.hold_current_pct = 100;
+    tmc_driver->config.hold_current_pct = 50;
     tmc_driver->config.microsteps = motor_config->microsteps;
 
     bool is_ok = TMC2209_Init(tmc_driver);
@@ -210,7 +210,6 @@ bool motors_init(void) {
     fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
     fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
     fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
-
 
     // TMC driver doesn't care about the baud rate the host is using
     uart_init(MOTOR_UART, 115200);
@@ -276,8 +275,7 @@ void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed
 }
 
 
-void stepper_speed_control_task(void * p) {
-    
+void stepper_speed_control_task(void * p) {    
     // Currently doing speed control
     while (true) {
         // Wait for new speed
