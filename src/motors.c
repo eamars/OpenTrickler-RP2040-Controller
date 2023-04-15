@@ -77,7 +77,11 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
 
     uart_write_blocking(MOTOR_UART, datagram->data, sizeof(TMC_uart_read_datagram_t));
 
+    sleep_us(20);
+
     _enable_uart_rx(MOTOR_UART, true);
+
+    sleep_ms(2);
 
     // Read until 0x05 is received
     if (_block_wait_for_sync(MOTOR_UART)) {
@@ -139,13 +143,17 @@ bool driver_init(motor_config_t * motor_config) {
 
 
     TMC2209_t * tmc_driver = malloc(sizeof(TMC2209_t));
-    TMC2209_SetDefaults(motor_config->tmc_driver);
+    if (tmc_driver == NULL) {
+        return false;
+    }
+
+    TMC2209_SetDefaults(tmc_driver);
 
     // Apply user configurations
     tmc_driver->config.motor.address = motor_config->uart_addr;
     tmc_driver->config.current = motor_config->current_ma;
     tmc_driver->config.r_sense = motor_config->r_sense;
-    tmc_driver->config.hold_current_pct = 50;
+    tmc_driver->config.hold_current_pct = 100;
     tmc_driver->config.microsteps = motor_config->microsteps;
 
     bool is_ok = TMC2209_Init(tmc_driver);
@@ -158,7 +166,7 @@ bool driver_init(motor_config_t * motor_config) {
 bool driver_io_init(motor_config_t * motor_config) {
     gpio_init(motor_config->en_pin);
     gpio_set_dir(motor_config->en_pin, GPIO_OUT);
-    gpio_put(motor_config->en_pin, 0);  // off at high
+    gpio_put(motor_config->en_pin, 1);  // off at high
 
     // Note: STEP PIN is controlled by PIO block
     // gpio_init(motor_config->step_pin);
@@ -205,7 +213,7 @@ bool motors_init(void) {
 
 
     // TMC driver doesn't care about the baud rate the host is using
-    uart_init(MOTOR_UART, 500000);
+    uart_init(MOTOR_UART, 115200);
     gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
     gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
 
@@ -221,9 +229,6 @@ bool motors_init(void) {
 
     // Initialize the stepper driver 
     is_ok = driver_init(&coarse_trickler_motor_config);
-
-    TMC2209_t * driver = coarse_trickler_motor_config.tmc_driver;
-    TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->chopconf);
 
     // 
     // Initialize fine trickler motor at UART ADDR 1
@@ -339,7 +344,6 @@ void motor_task(void *p) {
                 current_task_priority + 1, 
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
 
-
     while (true) {
         // Stop here
         vTaskSuspend(NULL);
@@ -364,6 +368,35 @@ void motor_set_speed(motor_select_t selected_motor, float new_velocity) {
     }
 
     if (motor_config) {
-        xQueueSend(motor_config->stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
+        // Send to the queue only if 
+        if (motor_config->stepper_speed_control_queue) {
+            xQueueSend(motor_config->stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
+        }
+    }   
+}
+
+void motor_enable(motor_select_t selected_motor, bool enable) {
+    motor_config_t * motor_config = NULL;
+    switch (selected_motor)
+    {
+    case SELECT_COARSE_TRICKLER_MOTOR:
+        motor_config = &coarse_trickler_motor_config;
+        break;
+    case SELECT_FINE_TRICKLER_MOTOR:
+        motor_config = &fine_trickler_motor_config;
+        break;
+    
+    default:
+        break;
+    }
+
+    if (motor_config) {
+        // Send to the queue only if 
+        gpio_put(motor_config->en_pin, !enable);  // off at high
+
+        // If disabled, we shall also disable the stepper signal
+        if (!enable) {
+            motor_set_speed(selected_motor, 0);
+        }
     }   
 }

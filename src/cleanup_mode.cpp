@@ -70,6 +70,9 @@ AppState_t cleanup_mode_menu(AppState_t prev_state) {
         vTaskResume(cleanup_render_task_handler);
     }
 
+    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
+    motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
+
     current_motor_speed = 0;
 
     // Update current status
@@ -108,6 +111,9 @@ AppState_t cleanup_mode_menu(AppState_t prev_state) {
         }
         
     }
+
+    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
+    motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
 
     vTaskSuspend(cleanup_render_task_handler);
     return APP_STATE_DEFAULT;
