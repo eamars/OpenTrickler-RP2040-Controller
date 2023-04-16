@@ -95,6 +95,7 @@ target_link_libraries(app
     pico_stdlib
     hardware_pio
     hardware_spi
+    hardware_i2c
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     u8g2

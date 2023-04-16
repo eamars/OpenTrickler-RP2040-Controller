@@ -75,7 +75,8 @@ uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *ar
                 vTaskDelay(pdMS_TO_TICKS(arg_int));
             }
             else {
-                sleep_ms(arg_int);
+                // sleep_ms(arg_int);
+                busy_wait_us(arg_int * 1000ULL);
             }
             break;
         }

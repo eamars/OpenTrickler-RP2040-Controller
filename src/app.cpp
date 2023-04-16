@@ -13,6 +13,10 @@
 #include "configuration.h"
 #include "u8g2.h"
 
+// modules
+#include "motors.h"
+#include "eeprom.h"
+
 
 extern void button_init(void);
 extern void button_task(void *p);
@@ -20,12 +24,10 @@ extern void button_task(void *p);
 extern void display_init(void);
 extern void menu_task(void *p);
 
+
 extern void scale_measurement_init(void);
 extern void scale_measurement_generator(void *p);
 
-extern "C"{
-    extern void motor_task(void *p);
-}
 
 
 
@@ -85,6 +87,11 @@ static inline void put_pixel(uint32_t pixel_grb) {
 int main()
 {
     // stdio_init_all();
+    // Initialize EEPROM first
+    eeprom_init();
+
+    // Load config for motors
+    motor_config_init();
 
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);

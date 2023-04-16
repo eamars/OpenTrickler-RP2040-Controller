@@ -10,10 +10,20 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "hardware/gpio.h"
-#include "motors.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "stepper.pio.h"
+
+#include "motors.h"
+#include "eeprom.h"
+
+
+// Internal data structure for speed control between tasks
+typedef struct {
+    float new_speed_setpoint;
+    float direction;
+    float ramp_rate;
+} stepper_speed_control_t;
 
 
 // Configurations
@@ -21,7 +31,7 @@ motor_config_t coarse_trickler_motor_config;
 motor_config_t fine_trickler_motor_config;
 
 
-const motor_config_t default_motor_config = {
+const motor_persistent_config_t default_motor_persistent_config = {
     .angular_acceleration = 2000,       // 2000 rev/s^2
     .current_ma = 500,                  // 500 mA
     .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
@@ -150,11 +160,11 @@ bool driver_init(motor_config_t * motor_config) {
     TMC2209_SetDefaults(tmc_driver);
 
     // Apply user configurations
-    tmc_driver->config.motor.address = motor_config->uart_addr;
-    tmc_driver->config.current = motor_config->current_ma;
-    tmc_driver->config.r_sense = motor_config->r_sense;
+    tmc_driver->config.motor.address = motor_config->persistent_config.uart_addr;
+    tmc_driver->config.current = motor_config->persistent_config.current_ma;
+    tmc_driver->config.r_sense = motor_config->persistent_config.r_sense;
     tmc_driver->config.hold_current_pct = 50;
-    tmc_driver->config.microsteps = motor_config->microsteps;
+    tmc_driver->config.microsteps = motor_config->persistent_config.microsteps;
 
     bool is_ok = TMC2209_Init(tmc_driver);
 
@@ -194,19 +204,48 @@ bool driver_pio_init(motor_config_t * motor_config) {
 }
 
 
+bool motor_config_init(void) {
+    bool is_ok = true;
+
+    // Read motor config from EEPROM
+    eeprom_motor_data_t eeprom_motor_data;
+    is_ok = eeprom_read(EEPROM_MOTOR_CONFIG_BASE_ADDR, (uint8_t *)&eeprom_motor_data, sizeof(eeprom_motor_data_t));
+    if (!is_ok) {
+        printf("Unable to read from EEPROM at address %x\n", EEPROM_MOTOR_CONFIG_BASE_ADDR);
+        return false;
+    }
+
+    // If the revision doesn't match then re-initialize the config
+    if (eeprom_motor_data.motor_data_rev != EEPROM_MOTOR_DATA_REV) {
+        memcpy(&eeprom_motor_data.motor_data[0], &default_motor_persistent_config, sizeof(motor_persistent_config_t));
+        memcpy(&eeprom_motor_data.motor_data[1], &default_motor_persistent_config, sizeof(motor_persistent_config_t));
+        eeprom_motor_data.motor_data_rev = EEPROM_MOTOR_DATA_REV;
+
+        eeprom_motor_data.motor_data[0].uart_addr = 0;
+        eeprom_motor_data.motor_data[1].uart_addr = 1;
+
+        // Write data back
+        is_ok = eeprom_write(EEPROM_MOTOR_CONFIG_BASE_ADDR, (uint8_t *) &eeprom_motor_data, sizeof(eeprom_motor_data_t));
+        if (!is_ok) {
+            printf("Unable to write to %x\n", EEPROM_MOTOR_CONFIG_BASE_ADDR);
+            return false;
+        }
+    }
+    
+    // Copy the initialized data back to the stack
+    memcpy(&coarse_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
+    memcpy(&fine_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
+}
+
+
 bool motors_init(void) {
     bool is_ok;
 
-    // TODO: Decide when to load from EEPROM 
-    memcpy(&coarse_trickler_motor_config, &default_motor_config, sizeof(motor_config_t));
-    memcpy(&fine_trickler_motor_config, &default_motor_config, sizeof(motor_config_t));
-
-    coarse_trickler_motor_config.uart_addr = 0;
+    // Assume the `motor_config_init` is already called
     coarse_trickler_motor_config.dir_pin = COARSE_MOTOR_DIR_PIN;
     coarse_trickler_motor_config.en_pin = COARSE_MOTOR_EN_PIN;
     coarse_trickler_motor_config.step_pin = COARSE_MOTOR_STEP_PIN;
 
-    fine_trickler_motor_config.uart_addr = 1;
     fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
     fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
     fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
@@ -247,8 +286,8 @@ bool motors_init(void) {
 void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed, uint32_t pio_speed) {
     // Calculate ramp param
     float dv = new_speed - prev_speed;
-    float ramp_time_s = fabs(dv / motor_config->angular_acceleration);
-    uint32_t full_rotation_steps = motor_config->full_steps_per_rotation * motor_config->microsteps;
+    float ramp_time_s = fabs(dv / motor_config->persistent_config.angular_acceleration);
+    uint32_t full_rotation_steps = motor_config->persistent_config.full_steps_per_rotation * motor_config->persistent_config.microsteps;
 
     // Calculate termination condition
     uint32_t ramp_time_us = (uint32_t) (fabs(ramp_time_s) * 1e6);

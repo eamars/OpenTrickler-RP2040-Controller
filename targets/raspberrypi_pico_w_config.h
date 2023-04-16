@@ -42,5 +42,10 @@
 
 #define MOTOR_STEPPER_PIO pio0
 
+#define EEPROM_I2C i2c1
+#define EEPROM_SDA_PIN 10
+#define EEPROM_SCL_PIN 11
+#define EEPROM_ADDR 0x50
+
 
 #endif  // RASPBERRYPI_PICO_W_CONFIG_H_

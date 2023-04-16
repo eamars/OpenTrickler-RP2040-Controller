@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 #include <FreeRTOS.h>
+#include <queue.h>
+
+#define EEPROM_MOTOR_DATA_REV                     1              // 16 byte 
+
 
 // Terms
 // Velocity: speed with direction (clockwise or counter-clockwise)
@@ -13,16 +17,8 @@ typedef enum {
     SELECT_FINE_TRICKLER_MOTOR,
 } motor_select_t;
 
+
 typedef struct {
-    // control flag
-    bool is_initialized;
-
-    // Constants to be copied from the hardware configuration
-    uint dir_pin;
-    uint en_pin;
-    uint step_pin;
-
-    // Setings that should be read from EEPROM
     float angular_acceleration;  // In rev/s^2
     uint32_t full_steps_per_rotation;
     uint16_t current_ma;
@@ -30,6 +26,23 @@ typedef struct {
     uint16_t max_speed_rps;
     uint16_t uart_addr;
     uint16_t r_sense;
+} motor_persistent_config_t;
+
+
+typedef struct {
+    uint16_t motor_data_rev;
+    motor_persistent_config_t motor_data[2];
+} __attribute__((packed)) eeprom_motor_data_t;
+
+
+typedef struct {
+    // Setings that should be read from EEPROM
+    motor_persistent_config_t persistent_config;
+
+    // Constants to be copied from the hardware configuration
+    uint dir_pin;
+    uint en_pin;
+    uint step_pin;
 
     // Set at run time
     void * tmc_driver;
@@ -47,22 +60,15 @@ typedef struct {
 
 
 
-typedef struct {
-    float new_speed_setpoint;
-    float direction;
-    float ramp_rate;
-} stepper_speed_control_t;
-extern QueueHandle_t stepper_speed_control_queue;
-
-
 // Interface functions
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-    void motor_task(void *p);
-    void motor_set_speed(motor_select_t selected_motor, float new_velocity);
-    void motor_enable(motor_select_t selected_motor, bool enable);
+bool motor_config_init(void);
+void motor_task(void *p);
+void motor_set_speed(motor_select_t selected_motor, float new_velocity);
+void motor_enable(motor_select_t selected_motor, bool enable);
 
 #ifdef __cplusplus
 }
