@@ -37,6 +37,7 @@
 #define FINE_MOTOR_DIR_PIN 7
 
 #define SCALE_UART uart0
+#define SCALE_UART_BAUDRATE 19200
 #define SCALE_UART_TX 0
 #define SCALE_UART_RX 1
 

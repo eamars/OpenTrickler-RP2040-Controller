@@ -11,12 +11,11 @@
 #include "u8g2.h"
 #include "FloatRingBuffer.h"
 
+#include "scale.h"
 
 extern u8g2_t display_handler;
 extern uint8_t charge_weight_digits[];
 extern QueueHandle_t encoder_event_queue;
-extern float current_scale_measurement;
-extern SemaphoreHandle_t scale_measurement_ready;
 
 // Configures
 float target_charge_weight = 0.0f;
@@ -53,7 +52,7 @@ void scale_measurement_render_task(void *p) {
 
         // current weight
         memset(current_weight_string, 0x0, sizeof(current_weight_string));
-        sprintf(current_weight_string, "%0.02f", current_scale_measurement);
+        sprintf(current_weight_string, "%0.02f", scale_get_current_measurement());
 
         u8g2_SetFont(&display_handler, u8g2_font_profont22_tf);
         u8g2_DrawStr(&display_handler, 26, 35, current_weight_string);
@@ -77,11 +76,10 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state, AppSta
     snprintf(title_string, sizeof(title_string), "Zeroing..");
 
     while (true) {
-        xSemaphoreTake(scale_measurement_ready, portMAX_DELAY);
+        float current_measurement = scale_block_wait_for_next_measurement();
         TickType_t last_measurement_tick = xTaskGetTickCount();
 
-        printf("Measure: %f\n", current_scale_measurement);
-        data_buffer.enqueue(current_scale_measurement);
+        data_buffer.enqueue(current_measurement);
 
         if (data_buffer.getCounter() >= 10){
             float sd = data_buffer.getSd();

@@ -39,10 +39,9 @@ bool cat24c256_write(uint16_t data_addr, uint8_t * data, size_t len) {
     memcpy(&buf[2], data, len);
 
     // Send to the EEPROM
-    int bytes_written;
-    bytes_written = i2c_write_blocking(EEPROM_I2C, EEPROM_ADDR, buf, len + 2, false);
-    return bytes_written == (len - 2);
-
+    int ret;
+    ret = i2c_write_blocking(EEPROM_I2C, EEPROM_ADDR, buf, len + 2, false);
+    return ret != PICO_ERROR_GENERIC;
 }
 
 
@@ -89,7 +88,7 @@ bool eeprom_init(void) {
         // Write data back
         is_ok = eeprom_write(EEPROM_METADATA_BASE_ADDR, (uint8_t *) &metadata, sizeof(eeprom_metadata_t));
         if (!is_ok) {
-            printf("Unable to write to %x\n", EEPROM_METADATA_BASE_ADDR);
+             printf("Unable to write to %x\n", EEPROM_METADATA_BASE_ADDR);
             return false;
         }
     }

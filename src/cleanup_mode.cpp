@@ -8,10 +8,10 @@
 #include "u8g2.h"
 #include "rotary_button.h"
 #include "motors.h"
+#include "scale.h"
 
 
 extern u8g2_t display_handler;
-extern float current_scale_measurement;
 extern QueueHandle_t encoder_event_queue;
 
 static char title_string[30];
@@ -42,7 +42,7 @@ void cleanup_render_task(void *p) {
 
         // Draw charge weight
         memset(charge_weight_string, 0x0, sizeof(charge_weight_string));
-        sprintf(charge_weight_string, "W: %0.02f", current_scale_measurement);
+        sprintf(charge_weight_string, "W: %0.02f", scale_get_current_measurement());
         u8g2_SetFont(&display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(&display_handler, 5, 25, charge_weight_string);
 

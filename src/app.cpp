@@ -16,6 +16,7 @@
 // modules
 #include "motors.h"
 #include "eeprom.h"
+#include "scale.h"
 
 
 extern void button_init(void);
@@ -93,6 +94,9 @@ int main()
     // Load config for motors
     motor_config_init();
 
+    // Initialize UART
+    scale_init();
+
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
     uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
@@ -104,7 +108,6 @@ int main()
     // Configure others
     display_init();
     button_init();
-    scale_measurement_init();
 
 #ifdef RASPBERRYPI_PICO_W
     xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
@@ -112,7 +115,7 @@ int main()
     xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W
     xTaskCreate(menu_task, "Menu Task", 512, NULL, 6, NULL);
-    xTaskCreate(scale_measurement_generator, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
+    xTaskCreate(scale_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
     xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 
     vTaskStartScheduler();
