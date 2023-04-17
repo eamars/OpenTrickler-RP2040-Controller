@@ -11,6 +11,7 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "scale.h"
+#include "eeprom.h"
 
 
 typedef union {
@@ -25,10 +26,24 @@ typedef union {
 } scale_standard_data_format_t;
 
 
+// In this case we will only use eeprom data format to store information
+eeprom_scale_data_t scale_data;
+
 
 // Statics (to be shared between multiple tasks)
 static float current_scale_measurement = NAN;
 SemaphoreHandle_t scale_measurement_ready;
+SemaphoreHandle_t scale_serial_write_access_mutex = NULL;
+
+// Control related calls
+void scale_press_re_zero_key();
+void scale_press_print_key();
+void scale_press_sample_key();
+void scale_press_mode_key();
+void scale_press_cal_key();
+void scale_press_on_off_key();
+void scale_display_off();
+void scale_display_on();
 
 
 float _decode_measurement_msg(scale_standard_data_format_t * msg) {
@@ -42,18 +57,54 @@ float _decode_measurement_msg(scale_standard_data_format_t * msg) {
 }
 
 bool scale_init() {
+    bool is_ok;
+
     uart_init(SCALE_UART, SCALE_UART_BAUDRATE);
 
     gpio_set_function(SCALE_UART_TX, GPIO_FUNC_UART);
     gpio_set_function(SCALE_UART_RX, GPIO_FUNC_UART);
 
+    // Read config from EEPROM
+    is_ok = eeprom_read(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_data, sizeof(eeprom_scale_data_t));
+    if (!is_ok) {
+        printf("Unable to read from EEPROM at address %x\n", EEPROM_SCALE_CONFIG_BASE_ADDR);
+        return false;
+    }
+
+    // If the revision doesn't match then re-initialize the config
+    if (scale_data.scale_data_rev != EEPROM_SCALE_DATA_REV) {
+        scale_data.scale_data_rev = EEPROM_SCALE_DATA_REV;
+        scale_data.scale_unit = SCALE_UNIT_GRAIN;
+
+        // Write data back
+        is_ok = eeprom_write(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_data, sizeof(eeprom_scale_data_t));
+        if (!is_ok) {
+            printf("Unable to write to %x\n", EEPROM_SCALE_CONFIG_BASE_ADDR);
+            return false;
+        }
+    }
+
+    // Create control variables
+    // Semaphore to indicate the availability of new measurement. 
     scale_measurement_ready = xSemaphoreCreateBinary();
 
-    return true;
+    // Mutex to control the access to the serial port write
+    scale_serial_write_access_mutex = xSemaphoreCreateMutex();
+
+    return is_ok;
 }
 
 
-void scale_task(void *p) {
+void scale_calibrate() {
+    // TODO: Finish this
+}
+
+void scale_enable_fast_report() {
+    // TODO: Finish this
+}
+
+
+void scale_listener_task(void *p) {
     char string_buf[20];
     uint8_t string_buf_idx = 0;
 
@@ -95,4 +146,70 @@ float scale_block_wait_for_next_measurement() {
     // You can only call this once the scheduler starts
     xSemaphoreTake(scale_measurement_ready, portMAX_DELAY);
     return scale_get_current_measurement();
+}
+
+
+static inline void _take_mutex(BaseType_t scheduler_state) {
+    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
+        xSemaphoreTake(scale_serial_write_access_mutex, portMAX_DELAY);
+    }
+}
+
+
+static inline void _give_mutex(BaseType_t scheduler_state) {
+    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
+        xSemaphoreGive(scale_serial_write_access_mutex);
+    }
+}
+
+
+void scale_write(char * command, size_t len) {
+    BaseType_t scheduler_state = xTaskGetSchedulerState();
+
+    _take_mutex(scheduler_state);
+
+    uart_write_blocking(SCALE_UART, (uint8_t *) command, len);
+
+    _give_mutex(scheduler_state);
+}
+
+
+void scale_press_re_zero_key() {
+    char cmd[] = "Z";
+    scale_write(cmd, strlen(cmd));
+}
+
+void scale_press_print_key() {
+    char cmd[] = "PRT";
+    scale_write(cmd, strlen(cmd));
+}
+
+void scale_press_sample_key() {
+    char cmd[] = "SMP";
+    scale_write(cmd, strlen(cmd));
+}
+
+void scale_press_mode_key() {
+    char cmd[] = "U";
+    scale_write(cmd, strlen(cmd));
+}
+
+void scale_press_cal_key() {
+    char cmd[] = "CAL";
+    scale_write(cmd, strlen(cmd));
+}
+
+void scale_press_on_off_key() {
+    char cmd[] = "P";
+    scale_write(cmd, strlen(cmd));
+}
+
+void scale_display_off() {
+    char cmd[] = "OFF";
+    scale_write(cmd, strlen(cmd));
+}
+
+void scale_display_on() {
+    char cmd[] = "ON";
+    scale_write(cmd, strlen(cmd));
 }
