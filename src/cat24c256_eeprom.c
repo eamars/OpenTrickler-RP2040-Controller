@@ -97,13 +97,13 @@ bool eeprom_init(void) {
 }
 
 
-static void _take_mutex(BaseType_t scheduler_state) {
+static inline void _take_mutex(BaseType_t scheduler_state) {
     if (scheduler_state != taskSCHEDULER_NOT_STARTED){
         xSemaphoreTake(eeprom_access_mutex, portMAX_DELAY);
     }
 }
 
-static void _give_mutex(BaseType_t scheduler_state) {
+static inline void _give_mutex(BaseType_t scheduler_state) {
     if (scheduler_state != taskSCHEDULER_NOT_STARTED){
         xSemaphoreGive(eeprom_access_mutex);
     }
