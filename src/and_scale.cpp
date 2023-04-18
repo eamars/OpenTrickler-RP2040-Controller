@@ -95,7 +95,7 @@ bool scale_init() {
 }
 
 
-void scale_calibrate() {
+void scale_calibrate_with_external_weight() {
     // TODO: Finish this
 }
 

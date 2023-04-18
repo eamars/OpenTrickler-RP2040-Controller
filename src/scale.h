@@ -7,8 +7,8 @@
 
 
 typedef enum {
-    SCALE_UNIT_GRAM = 0,
-    SCALE_UNIT_GRAIN = 1,
+    SCALE_UNIT_GRAIN = 0,
+    SCALE_UNIT_GRAM = 1,
 } scale_unit_t;
 
 typedef struct {

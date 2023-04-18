@@ -11,11 +11,5 @@ typedef enum {
 } AppState_t;
 
 
-typedef enum {
-    UNIT_GRAIN,
-    UNIT_GRAM,
-} MeasurementUnit_t;
-
-
 
 #endif  // APP_H_

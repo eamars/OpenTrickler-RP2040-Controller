@@ -8,11 +8,11 @@
 #include "app.h"
 #include "pico/stdlib.h"
 
+#include "scale.h"
+
 
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
-
-MeasurementUnit_t measurement_unit;
 
 float coarse_kp = 4.5f;
 float coarse_ki = 0.0f;
@@ -22,6 +22,9 @@ char coarse_kp_string[20];
 float fine_kp = 200.0f;
 float fine_ki = 0.0f;
 float fine_kd = 150.0f;
+
+// Imported from and_scale module
+extern eeprom_scale_data_t scale_data;
 
 
 uint8_t mui_hrule(mui_t *ui, uint8_t msg)
@@ -103,7 +106,7 @@ muif_t muif_list[] = {
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
 
         // Unit selection
-        MUIF_VARIABLE("UN",&measurement_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
+        MUIF_VARIABLE("UN",&scale_data.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
 
         /* input for a number between 0 to 9 */
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -129,7 +132,7 @@ fds_t fds_data[] = {
     MUI_DATA("MU", 
         MUI_10 "Start|"
         MUI_20 "Cleanup|"
-        MUI_30 "Configurations"
+        MUI_30 "Settings"
         )
     MUI_XYA("GC", 5, 25, 0) 
     MUI_XYA("GC", 5, 37, 1) 
@@ -186,12 +189,12 @@ fds_t fds_data[] = {
     // Menu 30: Configurations
     MUI_FORM(30)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Configurations")
+    MUI_LABEL(5,10, "Settings")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
     MUI_DATA("MU", 
-        MUI_31 "Unit|"
+        MUI_31 "Scale|"
         MUI_32 "View PID|"
         MUI_34 "Tune PID|"
         MUI_35 "Motor Controller|"
@@ -203,19 +206,24 @@ fds_t fds_data[] = {
     MUI_XYA("GC", 5, 49, 2) 
     MUI_XYA("GC", 5, 61, 3)
 
-    // Menu 31: Select Unit
+    // Menu 31: Scale (main menu)
     MUI_FORM(31)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Unit")
+    MUI_LABEL(5,10, "Scale")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_LABEL(5,25, "Unit:")
-    MUI_XYAT("UN", 60, 25, 60, "Grain (gr)|Gram (g)")
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN", 64, 59, 30, " OK ")
-
+    MUI_DATA("MU",
+        MUI_50 "Select Unit|"
+        MUI_51 "Calibration|"
+        MUI_52 "Enable Fast Report|"
+        MUI_30 "<-Return"  // back to view 30
+    )
+    MUI_XYA("GC", 5, 25, 0) 
+    MUI_XYA("GC", 5, 37, 1) 
+    MUI_XYA("GC", 5, 49, 2) 
+    MUI_XYA("GC", 5, 61, 3)
+    
     // Menu 32: View PID page 1
     MUI_FORM(32)
     MUI_STYLE(1)
@@ -280,5 +288,18 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",64, 59, 30, " OK ")
 
 #endif
+    
+    // Scale unit
+    MUI_FORM(50)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select Unit")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(5,25, "Unit:")
+    MUI_XYAT("UN", 60, 25, 60, "Grain (gn)|Gram (g)")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN", 64, 59, 31, " OK ")
 
 };
