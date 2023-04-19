@@ -6,13 +6,22 @@
 #include "scale.h"
 #include "app.h"
 #include "display.h"
+#include "rotary_button.h"
+#include "common.h"
 
 
-char title[16] = "";
+// Below steps are refering to Section 8-5 of the FX_FZ-i instruction manual
+// typedef enum {
+//     CALIBRATE_STEP_1,
+// }
+
+
+char title_string[16] = "";
 char line1[16] = "";
 char line2[16] = "";
 
 TaskHandle_t scale_calibration_render_task_handler = NULL;
+
 
 
 void scale_calibration_render_task(void *p) {
@@ -22,17 +31,28 @@ void scale_calibration_render_task(void *p) {
 
         u8g2_ClearBuffer(display_handler);
 
+        // Draw title
+        if (strlen(title_string)) {
+            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
+            u8g2_DrawStr(display_handler, 5, 10, title_string);
+        }
+
+        // Draw line
+        u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
+
+        u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
         // Draw line 1
         if (strlen(line1)) {
-            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-            u8g2_DrawStr(display_handler, 5, 10, line1);
+            u8g2_DrawStr(display_handler, 5, 25, line1);
         }
 
         // Draw line 2
         if (strlen(line2)) {
-            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-            u8g2_DrawStr(display_handler, 5, 25, line2);
+            u8g2_DrawStr(display_handler, 5, 37, line2);
         }
+
+        // Draw a button
+        u8g2_DrawButtonUTF8(display_handler, 64, 59, U8G2_BTN_HCENTER | U8G2_BTN_INV | U8G2_BTN_BW1, 0, 1, 1, "Next");
 
         u8g2_SendBuffer(display_handler);
 
@@ -41,9 +61,47 @@ void scale_calibration_render_task(void *p) {
 }
 
 
-AppState_t scale_calibrate_with_external_weight(AppState_t prev_state) {
-    // TODO: Finish this
-    return 0;
+uint8_t scale_calibrate_with_external_weight() {
+    AppState_t exit_state = APP_STATE_DEFAULT;
+
+    if (scale_calibration_render_task_handler == NULL) {
+        UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
+        xTaskCreate(scale_calibration_render_task, "Scale Measurement Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &scale_calibration_render_task_handler);
+    }
+    else {
+        vTaskResume(scale_calibration_render_task_handler);
+    }
+
+    BaseType_t scheduler_state = xTaskGetSchedulerState();
+
+    // Step 1: Enter CAL mode by pressing CAL key
+    strcpy(title_string, "Step 1");
+    strcpy(line1, "Enter CAL mode");
+    strcpy(line2, "Wait 3s");
+    scale_press_cal_key();
+    delay_ms(30, scheduler_state);
+
+    // Step 2: Confirm the weight (assume it was calibrated before)
+    strcpy(title_string, "Step 2");
+    strcpy(line1, "Confirm weight");
+    strcpy(line2, "Press Next to continue");
+
+
+    bool quit = false;
+    while (!quit) {
+        // Wait for the input
+        ButtonEncoderEvent_t button = button_wait_for_input(true);
+
+        if (button == BUTTON_RST_PRESSED) {
+            break;
+        }
+    }
+
+    
+
+    vTaskSuspend(scale_calibration_render_task_handler);
+
+    return 31;  // Returns to scale page
 }
 
 

@@ -20,11 +20,11 @@ extern fds_t fds_data[];
 extern const size_t muif_cnt;
 
 // External menus
-extern AppState_t charge_mode_menu(AppState_t prev_state);
-extern AppState_t cleanup_mode_menu(AppState_t prev_state);
+extern uint8_t charge_mode_menu();
+extern uint8_t cleanup_mode_menu();
 
 extern "C"{
-    extern AppState_t access_point_mode_menu(AppState_t prev_state);
+    extern uint8_t access_point_mode_menu();
 }
 
 // Local variables
@@ -64,30 +64,27 @@ void menu_task(void *p){
             u8g2_SendBuffer(&display_handler);
         }
         else {
+            uint8_t exit_form_id = 1;  // by default it goes to the main menu
             // menu is not active, leave the control to the app
             switch (exit_state) {
                 case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_state = charge_mode_menu(exit_state);
-                    break;
-                case APP_STATE_ENTER_MENU_READY_PAGE:
-                    mui_GotoForm(&mui, 11, 1);
+                    exit_form_id = charge_mode_menu();
                     break;
                 case APP_STATE_ENTER_ACCESS_POINT_MODE:
-                    exit_state = access_point_mode_menu(exit_state);
-                    break;
-                case APP_STATE_ENTER_CONFIG_MENU_PAGE:
-                    mui_GotoForm(&mui, 36, 1);
+                    exit_form_id = access_point_mode_menu();
                     break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
-                    exit_state = cleanup_mode_menu(exit_state);
+                    exit_form_id = cleanup_mode_menu();
                     break;
-                case APP_STATE_ENTER_SCALE_CALIBRATION:
-                    exit_state = scale_calibrate_with_external_weight(exit_state);
+                case APP_STATE_ENTER_SCALE_CALIBRATION: {
+                    exit_form_id = scale_calibrate_with_external_weight();
                     break;
+                }
                 default:
-                    mui_GotoForm(&mui, 1, 0);
                     break;
             }
+
+            mui_GotoForm(&mui, exit_form_id, 0);
         }
     }
 }

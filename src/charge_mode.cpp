@@ -68,7 +68,7 @@ void scale_measurement_render_task(void *p) {
 }
 
 
-ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state, AppState_t * charge_mode_menu_exit) {
+ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
     // Wait for 5 measurements and wait for stable
     FloatRingBuffer data_buffer(10);
 
@@ -94,7 +94,6 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state, AppSta
         ButtonEncoderEvent_t button_encoder_event;
         while (xQueueReceive(encoder_event_queue, &button_encoder_event, 0)){
             if (button_encoder_event == BUTTON_RST_PRESSED) {
-                *charge_mode_menu_exit = APP_STATE_ENTER_MENU_READY_PAGE;
                 return CHARGE_MODE_EXIT;
             }
         }
@@ -106,7 +105,7 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state, AppSta
     return CHARGE_MODE_WAIT_FOR_COMPLETE;
 }
 
-ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state, AppState_t * charge_mode_menu_exit) {
+ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Target: %.02f gr", target_charge_weight);
 
@@ -115,7 +114,6 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state, Ap
         ButtonEncoderEvent_t button_encoder_event;
         while (xQueueReceive(encoder_event_queue, &button_encoder_event, 0)){
             if (button_encoder_event == BUTTON_RST_PRESSED) {
-                *charge_mode_menu_exit = APP_STATE_ENTER_MENU_READY_PAGE;
                 return CHARGE_MODE_EXIT;
             }
         }
@@ -125,12 +123,12 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state, Ap
     return CHARGE_MODE_WAIT_FOR_PAN_REMOVAL;
 }
 
-ChargeModeState_t charge_mode_wait_for_pan_removal(ChargeModeState_t prev_state, AppState_t * charge_mode_menu_exit) {
+ChargeModeState_t charge_mode_wait_for_pan_removal(ChargeModeState_t prev_state) {
     return CHARGE_MODE_WAIT_FOR_ZERO;
 }
 
 
-AppState_t charge_mode_menu(AppState_t prev_state) {
+uint8_t charge_mode_menu() {
     // Create target weight
     target_charge_weight = charge_weight_digits[3] * 10 + \
                            charge_weight_digits[2] + \
@@ -149,19 +147,18 @@ AppState_t charge_mode_menu(AppState_t prev_state) {
     }
     
     ChargeModeState_t state = CHARGE_MODE_WAIT_FOR_ZERO;
-    AppState_t exit_state = APP_STATE_DEFAULT;
 
     bool quit = false;
     while (quit == false) {
         switch (state) {
             case CHARGE_MODE_WAIT_FOR_ZERO:
-                state = charge_mode_wait_for_zero(state, &exit_state);
+                state = charge_mode_wait_for_zero(state);
                 break;
             case CHARGE_MODE_WAIT_FOR_COMPLETE:
-                state = charge_mode_wait_for_complete(state, &exit_state);
+                state = charge_mode_wait_for_complete(state);
                 break;
             case CHARGE_MODE_WAIT_FOR_PAN_REMOVAL:
-                state = charge_mode_wait_for_pan_removal(state, &exit_state);
+                state = charge_mode_wait_for_pan_removal(state);
                 break;
             case CHARGE_MODE_EXIT:
             default:
@@ -181,5 +178,5 @@ AppState_t charge_mode_menu(AppState_t prev_state) {
     
     // vTaskDelete(scale_measurement_render_handler);
     vTaskSuspend(scale_measurement_render_task_handler);
-    return exit_state;
+    return 1;  // return back to main menu
 }

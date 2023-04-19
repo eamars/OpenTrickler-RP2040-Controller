@@ -59,7 +59,7 @@ void cleanup_render_task(void *p) {
 }
 
 
-AppState_t cleanup_mode_menu(AppState_t prev_state) {
+uint8_t cleanup_mode_menu() {
     // If the display task is never created then we shall create one, otherwise we shall resume the task
     if (cleanup_render_task_handler == NULL) {
         // The render task shall have lower priority than the current one
@@ -116,5 +116,5 @@ AppState_t cleanup_mode_menu(AppState_t prev_state) {
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
 
     vTaskSuspend(cleanup_render_task_handler);
-    return APP_STATE_DEFAULT;
+    return 1;  // Return backs to the main menu view
 }

@@ -30,8 +30,19 @@ void scale_listener_task(void *p);
 float scale_get_current_measurement();
 float scale_block_wait_for_next_measurement();
 
+
+// Key bindings
+void scale_press_re_zero_key();
+void scale_press_print_key();
+void scale_press_sample_key();
+void scale_press_mode_key();
+void scale_press_cal_key();
+void scale_press_on_off_key();
+void scale_display_off();
+void scale_display_on();
+
 // Features
-AppState_t scale_calibrate_with_external_weight(AppState_t prev_state);
+uint8_t scale_calibrate_with_external_weight();
 AppState_t scale_enable_fast_report(AppState_t prev_state);
 
 

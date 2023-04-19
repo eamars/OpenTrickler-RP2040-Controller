@@ -37,6 +37,30 @@ SemaphoreHandle_t scale_measurement_ready;
 SemaphoreHandle_t scale_serial_write_access_mutex = NULL;
 
 
+static inline void _take_mutex(BaseType_t scheduler_state) {
+    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
+        xSemaphoreTake(scale_serial_write_access_mutex, portMAX_DELAY);
+    }
+}
+
+
+static inline void _give_mutex(BaseType_t scheduler_state) {
+    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
+        xSemaphoreGive(scale_serial_write_access_mutex);
+    }
+}
+
+
+void scale_write(char * command, size_t len) {
+    BaseType_t scheduler_state = xTaskGetSchedulerState();
+
+    _take_mutex(scheduler_state);
+
+    uart_write_blocking(SCALE_UART, (uint8_t *) command, len);
+
+    _give_mutex(scheduler_state);
+}
+
 
 float _decode_measurement_msg(scale_standard_data_format_t * msg) {
     // Decode header
@@ -132,73 +156,48 @@ float scale_block_wait_for_next_measurement() {
 }
 
 
-static inline void _take_mutex(BaseType_t scheduler_state) {
-    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreTake(scale_serial_write_access_mutex, portMAX_DELAY);
-    }
-}
-
-
-static inline void _give_mutex(BaseType_t scheduler_state) {
-    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreGive(scale_serial_write_access_mutex);
-    }
-}
-
-
-void scale_write(char * command, size_t len) {
-    BaseType_t scheduler_state = xTaskGetSchedulerState();
-
-    _take_mutex(scheduler_state);
-
-    uart_write_blocking(SCALE_UART, (uint8_t *) command, len);
-
-    _give_mutex(scheduler_state);
-}
-
-
 void scale_press_re_zero_key() {
-    char cmd[] = "Z";
+    char cmd[] = "Z\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 void scale_press_print_key() {
-    char cmd[] = "PRT";
+    char cmd[] = "PRT\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 void scale_press_sample_key() {
-    char cmd[] = "SMP";
+    char cmd[] = "SMP\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 void scale_press_mode_key() {
-    char cmd[] = "U";
+    char cmd[] = "U\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 void scale_press_cal_key() {
-    char cmd[] = "CAL";
+    char cmd[] = "CAL\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 void scale_press_on_off_key() {
-    char cmd[] = "P";
+    char cmd[] = "P\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 void scale_display_off() {
-    char cmd[] = "OFF";
+    char cmd[] = "OFF\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 void scale_display_on() {
-    char cmd[] = "ON";
+    char cmd[] = "ON\r\n";
     scale_write(cmd, strlen(cmd));
 }
 
 
 
-AppState_t scale_enable_fast_report(AppState_t prev_state) {
-    // TODO: Finish this
-}
+// AppState_t scale_enable_fast_report(AppState_t prev_state) {
+//     // TODO: Finish this
+// }

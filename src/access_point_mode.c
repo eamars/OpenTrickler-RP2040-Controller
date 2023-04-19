@@ -345,10 +345,8 @@ void access_point_mode_deinit() {
 
 
 
-AppState_t access_point_mode_menu(AppState_t prev_state)
+uint8_t access_point_mode_menu()
 {
-    AppState_t exit_state = APP_STATE_ENTER_CONFIG_MENU_PAGE;
-
     if (ap_mode_display_render_handler == NULL) {
         // The render task shall have lower priority than the current one
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
@@ -376,5 +374,5 @@ AppState_t access_point_mode_menu(AppState_t prev_state)
 
     vTaskSuspend(ap_mode_display_render_handler);
 
-    return exit_state;
+    return 36;  // Returns the AP mode page
 }
