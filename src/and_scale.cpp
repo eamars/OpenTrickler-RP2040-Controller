@@ -12,6 +12,7 @@
 #include "configuration.h"
 #include "scale.h"
 #include "eeprom.h"
+#include "app.h"
 
 
 typedef union {
@@ -35,15 +36,6 @@ static float current_scale_measurement = NAN;
 SemaphoreHandle_t scale_measurement_ready;
 SemaphoreHandle_t scale_serial_write_access_mutex = NULL;
 
-// Control related calls
-void scale_press_re_zero_key();
-void scale_press_print_key();
-void scale_press_sample_key();
-void scale_press_mode_key();
-void scale_press_cal_key();
-void scale_press_on_off_key();
-void scale_display_off();
-void scale_display_on();
 
 
 float _decode_measurement_msg(scale_standard_data_format_t * msg) {
@@ -92,15 +84,6 @@ bool scale_init() {
     scale_serial_write_access_mutex = xSemaphoreCreateMutex();
 
     return is_ok;
-}
-
-
-void scale_calibrate_with_external_weight() {
-    // TODO: Finish this
-}
-
-void scale_enable_fast_report() {
-    // TODO: Finish this
 }
 
 
@@ -212,4 +195,10 @@ void scale_display_off() {
 void scale_display_on() {
     char cmd[] = "ON";
     scale_write(cmd, strlen(cmd));
+}
+
+
+
+AppState_t scale_enable_fast_report(AppState_t prev_state) {
+    // TODO: Finish this
 }

@@ -302,4 +302,17 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_XYAT("BN", 64, 59, 31, " OK ")
 
+    // Scale calibration
+    MUI_FORM(51)
+    MUI_STYLE(1)
+    MUI_LABEL(5, 10, "Warning")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(5, 25, "Clear the scale and press")
+    MUI_LABEL(5, 37, "Next to calibrate")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",14, 59, 31, "Back")
+    MUI_XYAT("LV", 115, 59, 6, "Next")  // APP_STATE_ENTER_SCALE_CALIBRATION
 };

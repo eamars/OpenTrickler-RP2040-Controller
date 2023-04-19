@@ -2,13 +2,14 @@
 #include <task.h>
 #include <queue.h>
 #include <stdio.h>
-#include "app.h"
 #include "u8g2.h"
-#include "configuration.h"
-#include "rotary_button.h"
-
 #include "mui.h"
 #include "mui_u8g2.h"
+
+#include "app.h"
+#include "configuration.h"
+#include "rotary_button.h"
+#include "scale.h"
 
 
 // External variables
@@ -79,6 +80,9 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
                     exit_state = cleanup_mode_menu(exit_state);
+                    break;
+                case APP_STATE_ENTER_SCALE_CALIBRATION:
+                    exit_state = scale_calibrate_with_external_weight(exit_state);
                     break;
                 default:
                     mui_GotoForm(&mui, 1, 0);

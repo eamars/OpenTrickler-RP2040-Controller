@@ -34,20 +34,21 @@
 #include <stdint.h>
 #include <FreeRTOS.h>
 #include <queue.h>
+#include <task.h>
 #include "pico/stdlib.h"
 #include "u8g2.h"
-#include <task.h>
-#include "configuration.h"
-#include "rotary_button.h"
-
 #include "mui.h"
 #include "mui_u8g2.h"
+
+#include "configuration.h"
+#include "rotary_button.h"
+#include "common.h"
+#include "display.h"
 
 // Local variables
 u8g2_t display_handler;
 
 // External variables
-extern QueueHandle_t encoder_event_queue;
 extern muif_t muif_list[];
 extern fds_t fds_data[];
 extern const size_t muif_cnt;
@@ -66,18 +67,12 @@ uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *ar
             __asm volatile ("NOP\n");
             break;
         case U8X8_MSG_DELAY_10MICRO:		// delay arg_int * 10 micro seconds
-            sleep_us((uint64_t) arg_int * 10);
+            busy_wait_us(arg_int * 10ULL);
             break;
         case U8X8_MSG_DELAY_MILLI:			// delay arg_int * 1 milli second
         {
             BaseType_t scheduler_state = xTaskGetSchedulerState();
-            if (scheduler_state == taskSCHEDULER_RUNNING){
-                vTaskDelay(pdMS_TO_TICKS(arg_int));
-            }
-            else {
-                // sleep_ms(arg_int);
-                busy_wait_us(arg_int * 1000ULL);
-            }
+            delay_ms(arg_int, scheduler_state);
             break;
         }
         case U8X8_MSG_DELAY_I2C:				// arg_int is the I2C speed in 100KHz, e.g. 4 = 400 KHz
@@ -223,3 +218,7 @@ void display_init() {
     printf("done\n");
 }
 
+
+u8g2_t * get_display_handler(void) {
+    return &display_handler;
+}

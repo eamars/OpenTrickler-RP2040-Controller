@@ -14,15 +14,16 @@
 #include "u8g2.h"
 
 // modules
+#include "app.h"
 #include "motors.h"
 #include "eeprom.h"
 #include "scale.h"
+#include "display.h"
 
 
 extern void button_init(void);
 extern void button_task(void *p);
 
-extern void display_init(void);
 extern void menu_task(void *p);
 
 
