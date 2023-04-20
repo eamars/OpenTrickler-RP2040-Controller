@@ -16,9 +16,10 @@
 // }
 
 
-char title_string[16] = "";
-char line1[16] = "";
-char line2[16] = "";
+char title_string[32] = "";
+char line1[32] = "";
+char line2[32] = "";
+bool show_next_key = false;
 
 TaskHandle_t scale_calibration_render_task_handler = NULL;
 
@@ -52,7 +53,9 @@ void scale_calibration_render_task(void *p) {
         }
 
         // Draw a button
-        u8g2_DrawButtonUTF8(display_handler, 64, 59, U8G2_BTN_HCENTER | U8G2_BTN_INV | U8G2_BTN_BW1, 0, 1, 1, "Next");
+        if (show_next_key) {
+            u8g2_DrawButtonUTF8(display_handler, 64, 59, U8G2_BTN_HCENTER | U8G2_BTN_INV | U8G2_BTN_BW1, 0, 1, 1, "Next");
+        }
 
         u8g2_SendBuffer(display_handler);
 
@@ -73,30 +76,65 @@ uint8_t scale_calibrate_with_external_weight() {
     }
 
     BaseType_t scheduler_state = xTaskGetSchedulerState();
+    ButtonEncoderEvent_t button;
 
     // Step 1: Enter CAL mode by pressing CAL key
+    // Displays CAL 0
     strcpy(title_string, "Step 1");
-    strcpy(line1, "Enter CAL mode");
-    strcpy(line2, "Wait 3s");
+    strcpy(line1, "Wait 3s");
+    memset(line2, 0x0, sizeof(line2));
     scale_press_cal_key();
-    delay_ms(30, scheduler_state);
+    delay_ms(3000, scheduler_state);  // Wait for 3 seconds
 
-    // Step 2: Confirm the weight (assume it was calibrated before)
+    // Step 2a: Confirm the weight (assume it was calibrated before) and measure Zero
     strcpy(title_string, "Step 2");
-    strcpy(line1, "Confirm weight");
+    strcpy(line1, "Confirm pan is empty");
+    strcpy(line2, "Press Next to continue");
+    show_next_key = true;
+    while (button_wait_for_input(true) != BUTTON_ENCODER_PRESSED) {
+        ;
+    }
+    show_next_key = false;
+    scale_press_print_key();
+
+    // Step 2b update screen and prompt to wait
+    strcpy(line1, "Wait 5s");
+    memset(line2, 0x0, sizeof(line2));
+    delay_ms(5000, scheduler_state);  // Wait for 10 seconds
+
+    // Step 3a: Place the specified weight to the scale, wait for input
+    strcpy(title_string, "Step 3");
+    strcpy(line1, "Place displayed weight");
     strcpy(line2, "Press Next to continue");
 
-
-    bool quit = false;
-    while (!quit) {
-        // Wait for the input
-        ButtonEncoderEvent_t button = button_wait_for_input(true);
-
-        if (button == BUTTON_RST_PRESSED) {
-            break;
-        }
+    show_next_key = true;
+    while (button_wait_for_input(true) != BUTTON_ENCODER_PRESSED) {
+        ;
     }
+    show_next_key = false;
+    scale_press_print_key();
 
+    // Step 3b update screen and prompt to wait
+    strcpy(line1, "Wait 5s");
+    memset(line2, 0x0, sizeof(line2));
+    delay_ms(5000, scheduler_state);  // Wait for 10 seconds
+
+    strcpy(title_string, "Step 4");
+    strcpy(line1, "Remove the weight");
+    strcpy(line2, "Press Next to continue");
+
+    show_next_key = true;
+    while (button_wait_for_input(true) != BUTTON_ENCODER_PRESSED) {
+        ;
+    }
+    show_next_key = false;
+
+    // Step 5 calibration done
+    strcpy(title_string, "Calibration done");
+    strcpy(line1, "Return to main menu in");
+    strcpy(line2, "3 seconds");
+
+    delay_ms(3000, scheduler_state);  // Wait for 3 seconds
     
 
     vTaskSuspend(scale_calibration_render_task_handler);

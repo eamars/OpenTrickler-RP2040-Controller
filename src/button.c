@@ -7,6 +7,7 @@
 
 extern QueueHandle_t encoder_event_queue;
 
+
 ButtonEncoderEvent_t button_wait_for_input(bool block) {
     TickType_t delay_ticks;
 

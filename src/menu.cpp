@@ -10,11 +10,11 @@
 #include "configuration.h"
 #include "rotary_button.h"
 #include "scale.h"
+#include "display.h"
+#include "rotary_button.h"
 
 
 // External variables
-extern u8g2_t display_handler;
-extern QueueHandle_t encoder_event_queue;
 extern muif_t muif_list[];
 extern fds_t fds_data[];
 extern const size_t muif_cnt;
@@ -28,40 +28,40 @@ extern "C"{
 }
 
 // Local variables
-uint8_t charge_weight_digits[] = {0, 0, 0, 0};
+
 AppState_t exit_state = APP_STATE_DEFAULT;
 
 
 void menu_task(void *p){
+    u8g2_t * display_handler = get_display_handler();
     // Create UI element
     mui_t mui;
 
-    mui_Init(&mui, &display_handler, fds_data, muif_list, muif_cnt);
+    mui_Init(&mui, display_handler, fds_data, muif_list, muif_cnt);
     mui_GotoForm(&mui, 1, 0);
 
     // Render the menu before user input
-    u8g2_ClearBuffer(&display_handler);
+    u8g2_ClearBuffer(display_handler);
     mui_Draw(&mui);
-    u8g2_SendBuffer(&display_handler);
+    u8g2_SendBuffer(display_handler);
 
     while (true) {
         if (mui_IsFormActive(&mui)) {
-            ButtonEncoderEvent_t button_encoder_event;
-            while (xQueueReceive(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(20))){
-                if (button_encoder_event == BUTTON_ENCODER_ROTATE_CW) {
-                    mui_NextField(&mui);
-                }
-                else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CCW) {
-                    mui_PrevField(&mui);
-                }
-                else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-                    mui_SendSelect(&mui);
-                }
+            // Block wait for the user input
+            ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(true);
+            if (button_encoder_event == BUTTON_ENCODER_ROTATE_CW) {
+                mui_NextField(&mui);
+            }
+            else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CCW) {
+                mui_PrevField(&mui);
+            }
+            else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
+                mui_SendSelect(&mui);
             }
 
-            u8g2_ClearBuffer(&display_handler);
+            u8g2_ClearBuffer(display_handler);
             mui_Draw(&mui);
-            u8g2_SendBuffer(&display_handler);
+            u8g2_SendBuffer(display_handler);
         }
         else {
             uint8_t exit_form_id = 1;  // by default it goes to the main menu

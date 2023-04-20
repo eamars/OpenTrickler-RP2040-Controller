@@ -7,14 +7,15 @@
 #include <queue.h>
 #include <task.h>
 #include <semphr.h>
-#include "rotary_button.h"
-#include "u8g2.h"
-#include "FloatRingBuffer.h"
+#include <u8g2.h>
 
+#include "FloatRingBuffer.h"
+#include "rotary_button.h"
+#include "display.h"
 #include "scale.h"
 
-extern u8g2_t display_handler;
-extern uint8_t charge_weight_digits[];
+
+uint8_t charge_weight_digits[] = {0, 0, 0, 0};
 extern QueueHandle_t encoder_event_queue;
 
 // Configures
@@ -36,32 +37,34 @@ typedef enum {
 
 void scale_measurement_render_task(void *p) {
     char current_weight_string[5];
+    
+    u8g2_t * display_handler = get_display_handler();
 
     while (true) {
         TickType_t last_render_tick = xTaskGetTickCount();
 
-        u8g2_ClearBuffer(&display_handler);
+        u8g2_ClearBuffer(display_handler);
         // Draw title
         if (strlen(title_string)) {
-            u8g2_SetFont(&display_handler, u8g2_font_helvB08_tr);
-            u8g2_DrawStr(&display_handler, 5, 10, title_string);
+            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
+            u8g2_DrawStr(display_handler, 5, 10, title_string);
         }
 
         // Draw line
-        u8g2_DrawHLine(&display_handler, 0, 13, u8g2_GetDisplayWidth(&display_handler));
+        u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
 
         // current weight
         memset(current_weight_string, 0x0, sizeof(current_weight_string));
         sprintf(current_weight_string, "%0.02f", scale_get_current_measurement());
 
-        u8g2_SetFont(&display_handler, u8g2_font_profont22_tf);
-        u8g2_DrawStr(&display_handler, 26, 35, current_weight_string);
+        u8g2_SetFont(display_handler, u8g2_font_profont22_tf);
+        u8g2_DrawStr(display_handler, 26, 35, current_weight_string);
 
         // print unit
-        u8g2_SetFont(&display_handler, u8g2_font_helvR08_tr);
-        u8g2_DrawStr(&display_handler, 96, 35, "gr");
+        u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
+        u8g2_DrawStr(display_handler, 96, 35, "gr");
 
-        u8g2_SendBuffer(&display_handler);
+        u8g2_SendBuffer(display_handler);
 
         vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(20));
     }
