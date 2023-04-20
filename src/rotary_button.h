@@ -15,6 +15,9 @@ extern "C" {
 #endif
 
 
+/**
+ * Wait for button encoder input. 
+*/
 ButtonEncoderEvent_t button_wait_for_input(bool block);
 
 #ifdef __cplusplus

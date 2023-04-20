@@ -13,10 +13,10 @@
 #include "rotary_button.h"
 #include "display.h"
 #include "scale.h"
+#include "motors.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0};
-extern QueueHandle_t encoder_event_queue;
 
 // Configures
 float target_charge_weight = 0.0f;
@@ -93,16 +93,18 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
             }
         }
 
-        // Wait if quit is pressed
-        ButtonEncoderEvent_t button_encoder_event;
-        while (xQueueReceive(encoder_event_queue, &button_encoder_event, 0)){
-            if (button_encoder_event == BUTTON_RST_PRESSED) {
-                return CHARGE_MODE_EXIT;
-            }
+        // Optionally, if the RST button is pressed then we will quit
+        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
+        if (button_encoder_event == BUTTON_RST_PRESSED) {
+            return CHARGE_MODE_EXIT;
+        }
+        // If button is pressed then we shall force reset to zero
+        else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
+            scale_press_re_zero_key();
         }
 
-        // Wait for 0.5s for next measurement
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(100));
+        // Wait for 20ms for next measurement
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(20));
     }
 
     return CHARGE_MODE_WAIT_FOR_COMPLETE;
@@ -113,13 +115,13 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
     snprintf(title_string, sizeof(title_string), "Target: %.02f gr", target_charge_weight);
 
     while (true) {
-        // Wait if quit is pressed
-        ButtonEncoderEvent_t button_encoder_event;
-        while (xQueueReceive(encoder_event_queue, &button_encoder_event, 0)){
-            if (button_encoder_event == BUTTON_RST_PRESSED) {
-                return CHARGE_MODE_EXIT;
-            }
+        // Non block waiting for the input
+        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
+        if (button_encoder_event == BUTTON_RST_PRESSED) {
+            return CHARGE_MODE_EXIT;
         }
+
+        // Run the PID controlled loop to start charging
     }
 
 
@@ -148,6 +150,10 @@ uint8_t charge_mode_menu() {
     else {
         vTaskResume(scale_measurement_render_task_handler);
     }
+
+    // Enable motor on entering the charge mode
+    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
+    motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
     
     ChargeModeState_t state = CHARGE_MODE_WAIT_FOR_ZERO;
 
@@ -181,5 +187,10 @@ uint8_t charge_mode_menu() {
     
     // vTaskDelete(scale_measurement_render_handler);
     vTaskSuspend(scale_measurement_render_task_handler);
+
+    // Diable motors on exiting the mode
+    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
+    motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
+
     return 1;  // return back to main menu
 }

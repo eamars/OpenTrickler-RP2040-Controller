@@ -23,9 +23,8 @@ extern const size_t muif_cnt;
 extern uint8_t charge_mode_menu();
 extern uint8_t cleanup_mode_menu();
 
-extern "C"{
-    extern uint8_t access_point_mode_menu();
-}
+extern "C" uint8_t access_point_mode_menu();
+
 
 // Local variables
 
@@ -58,10 +57,6 @@ void menu_task(void *p){
             else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
                 mui_SendSelect(&mui);
             }
-
-            u8g2_ClearBuffer(display_handler);
-            mui_Draw(&mui);
-            u8g2_SendBuffer(display_handler);
         }
         else {
             uint8_t exit_form_id = 1;  // by default it goes to the main menu
@@ -86,5 +81,9 @@ void menu_task(void *p){
 
             mui_GotoForm(&mui, exit_form_id, 0);
         }
+
+        u8g2_ClearBuffer(display_handler);
+        mui_Draw(&mui);
+        u8g2_SendBuffer(display_handler);
     }
 }

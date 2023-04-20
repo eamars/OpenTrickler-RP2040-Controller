@@ -20,16 +20,14 @@
 #include "scale.h"
 #include "display.h"
 
-
+// C++ functions
 extern void button_init(void);
-extern void button_task(void *p);
-
 extern void menu_task(void *p);
 
 
-extern void scale_measurement_init(void);
-extern void scale_measurement_generator(void *p);
-
+extern "C" void button_task(void *p);
+extern "C" void scale_measurement_init(void);
+extern "C" void scale_measurement_generator(void *p);
 
 
 
