@@ -14,9 +14,25 @@
 #include "display.h"
 #include "scale.h"
 #include "motors.h"
+#include "charge_mode.h"
+#include "eeprom.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0};
+
+// PID related
+charge_mode_config_t charge_mode_config;
+
+const eeprom_charge_mode_data_t default_charge_mode_data = {
+    .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
+    .coarse_kp = 4.5f,
+    .coarse_ki = 0.0f,
+    .coarse_kd = 150.0f,
+
+    .fine_kp = 200.0f,
+    .fine_ki = 0.0f,
+    .fine_kd = 150.0f,
+};
 
 // Configures
 float target_charge_weight = 0.0f;
@@ -24,6 +40,9 @@ float cfg_zero_sd_threshold = 0.02;
 float cfg_zero_mean_threshold = 0.04;
 TaskHandle_t scale_measurement_render_task_handler = NULL;
 static char title_string[30];
+
+
+
 
 
 typedef enum {
@@ -114,6 +133,9 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Target: %.02f gr", target_charge_weight);
 
+    float integral = 0.0f;
+    float last_error = 0.0f;
+
     while (true) {
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
@@ -193,4 +215,31 @@ uint8_t charge_mode_menu() {
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
 
     return 1;  // return back to main menu
+}
+
+
+bool charge_mode_config_init(void) {
+    bool is_ok = true;
+
+    // Read charge mode config from EEPROM
+    is_ok = eeprom_read(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *)&charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
+    if (!is_ok) {
+        printf("Unable to read from EEPROM at address %x\n", EEPROM_CHARGE_MODE_BASE_ADDR);
+        return false;
+    }
+
+    if (charge_mode_config.eeprom_charge_mode_data.charge_mode_data_rev != EEPROM_CHARGE_MODE_DATA_REV) {
+        // charge_mode_config.eeprom_charge_mode_data.charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV;
+
+        memcpy(&charge_mode_config.eeprom_charge_mode_data, &default_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
+
+        // Write back
+        is_ok = eeprom_write(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *) &charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
+        if (!is_ok) {
+            printf("Unable to write to %x\n", EEPROM_CHARGE_MODE_BASE_ADDR);
+            return false;
+        }
+    }
+
+    return true;
 }

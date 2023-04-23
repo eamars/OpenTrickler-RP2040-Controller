@@ -19,6 +19,7 @@
 #include "eeprom.h"
 #include "scale.h"
 #include "display.h"
+#include "charge_mode.h"
 
 // C++ functions
 extern void button_init(void);
@@ -95,6 +96,9 @@ int main()
 
     // Initialize UART
     scale_init();
+
+    // Initialize charge mode settings
+    charge_mode_config_init();
 
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);

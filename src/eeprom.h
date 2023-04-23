@@ -10,6 +10,7 @@
 #define EEPROM_PID_CONFIG_BASE_ADDR         2 * 1024       // 2K
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR    3 * 1024       // 3K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR       4 * 1024       // 4K
+#define EEPROM_CHARGE_MODE_BASE_ADDR        5 * 1024       // 5K
 
 
 #define EEPROM_METADATA_REV                     1              // 16 byte 

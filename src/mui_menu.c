@@ -9,19 +9,13 @@
 #include "pico/stdlib.h"
 
 #include "scale.h"
+#include "charge_mode.h"
 
 
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
+extern charge_mode_config_t charge_mode_config;
 
-float coarse_kp = 4.5f;
-float coarse_ki = 0.0f;
-float coarse_kd = 150.0f;
-char coarse_kp_string[20];
-
-float fine_kp = 200.0f;
-float fine_ki = 0.0f;
-float fine_kd = 150.0f;
 
 // Imported from and_scale module
 extern eeprom_scale_data_t scale_data;
@@ -68,11 +62,17 @@ uint8_t render_pid_values(mui_t *ui, uint8_t msg, float kp, float ki, float kd) 
 }
 
 uint8_t render_coarse_pid_values(mui_t *ui, uint8_t msg) {
-    return render_pid_values(ui, msg, coarse_kp, coarse_ki, coarse_kd);
+    return render_pid_values(ui, msg, 
+                             charge_mode_config.eeprom_charge_mode_data.coarse_kp, 
+                             charge_mode_config.eeprom_charge_mode_data.coarse_ki, 
+                             charge_mode_config.eeprom_charge_mode_data.coarse_kd);
 }
 
 uint8_t render_fine_pid_values(mui_t *ui, uint8_t msg) {
-    return render_pid_values(ui, msg, fine_kp, fine_ki, fine_kd);
+    return render_pid_values(ui, msg, 
+                             charge_mode_config.eeprom_charge_mode_data.fine_kp, 
+                             charge_mode_config.eeprom_charge_mode_data.fine_ki, 
+                             charge_mode_config.eeprom_charge_mode_data.fine_kd);
 }
 
 
