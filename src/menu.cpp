@@ -24,7 +24,7 @@ extern uint8_t charge_mode_menu();
 extern uint8_t cleanup_mode_menu();
 
 extern "C" uint8_t access_point_mode_menu();
-
+extern "C" uint8_t eeprom_save_all();
 
 // Local variables
 
@@ -71,10 +71,12 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_CLEANUP_MODE:
                     exit_form_id = cleanup_mode_menu();
                     break;
-                case APP_STATE_ENTER_SCALE_CALIBRATION: {
+                case APP_STATE_ENTER_SCALE_CALIBRATION:
                     exit_form_id = scale_calibrate_with_external_weight();
                     break;
-                }
+                case APP_STATE_ENTER_EEPROM_SAVE: 
+                    exit_form_id = eeprom_save_all();
+                    break;
                 default:
                     break;
             }

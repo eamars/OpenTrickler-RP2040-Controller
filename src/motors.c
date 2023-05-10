@@ -236,7 +236,7 @@ bool motor_config_init(void) {
     memcpy(&coarse_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
     memcpy(&fine_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
 
-    return true;
+    return is_ok;
 }
 
 
@@ -253,7 +253,7 @@ bool motors_init(void) {
     fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
 
     // TMC driver doesn't care about the baud rate the host is using
-    uart_init(MOTOR_UART, 19200);
+    uart_init(MOTOR_UART, 115200);
     gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
     gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
 

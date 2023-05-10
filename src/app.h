@@ -9,6 +9,7 @@ typedef enum {
     // 4 is removed
     APP_STATE_ENTER_CLEANUP_MODE = 5,
     APP_STATE_ENTER_SCALE_CALIBRATION = 6,
+    APP_STATE_ENTER_EEPROM_SAVE = 7,
 } AppState_t;
 
 

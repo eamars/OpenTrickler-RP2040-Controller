@@ -199,6 +199,7 @@ fds_t fds_data[] = {
         MUI_34 "Tune PID|"
         MUI_35 "Motor Controller|"
         MUI_36 "AP Mode|"
+        MUI_37 "Save to EEPROM|"
         MUI_1 "<-Return"  // Back to main menu
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -288,6 +289,17 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",64, 59, 30, " OK ")
 
 #endif
+
+    // Save to EEPROM
+    MUI_FORM(37)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Save to EEPROM")
+    MUI_XY("HL", 0,13)
+    MUI_STYLE(0)
+    MUI_LABEL(5, 25, "Press Next to save ")
+    MUI_LABEL(5, 37, "changes to EEPROM")
+    MUI_XYAT("BN",14, 59, 30, "Back")
+    MUI_XYAT("LV", 115, 59, 7, "Next")  // APP_STATE_ENTER_EEPROM_SAVE
     
     // Scale unit
     MUI_FORM(50)

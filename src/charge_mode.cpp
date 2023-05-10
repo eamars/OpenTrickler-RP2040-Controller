@@ -43,8 +43,6 @@ static char title_string[30];
 
 
 
-
-
 typedef enum {
     CHARGE_MODE_WAIT_FOR_ZERO,
     CHARGE_MODE_WAIT_FOR_COMPLETE,

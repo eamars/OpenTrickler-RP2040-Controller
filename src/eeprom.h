@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-
+#include <stdbool.h>
 
 #define EEPROM_METADATA_BASE_ADDR           0 * 1024       // 0K
 #define EEPROM_SCALE_CONFIG_BASE_ADDR       1 * 1024       // 1K
@@ -29,6 +29,9 @@ extern "C" {
 bool eeprom_init(void);
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len);
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
+
+
+uint8_t eeprom_save_all(void);
 
 
 #ifdef __cplusplus
