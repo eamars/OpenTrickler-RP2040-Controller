@@ -66,6 +66,7 @@ extern "C" {
 #endif
 
 bool motor_config_init(void);
+bool motor_config_save(void);
 void motor_task(void *p);
 void motor_set_speed(motor_select_t selected_motor, float new_velocity);
 void motor_enable(motor_select_t selected_motor, bool enable);

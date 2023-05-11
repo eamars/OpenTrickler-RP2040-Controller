@@ -30,6 +30,8 @@ void scale_listener_task(void *p);
 float scale_get_current_measurement();
 float scale_block_wait_for_next_measurement();
 
+bool scale_config_save(void);
+
 
 // Key bindings
 void scale_press_re_zero_key();

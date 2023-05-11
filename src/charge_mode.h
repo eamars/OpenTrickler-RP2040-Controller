@@ -24,5 +24,17 @@ typedef struct {
 
 bool charge_mode_config_init(void);
 
+// C Functions
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+bool charge_mode_config_save(void);
+
+
+#ifdef __cplusplus
+}  // __cplusplus
+#endif
+
 
 #endif  // CHARGE_MODE_H_

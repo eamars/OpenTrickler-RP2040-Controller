@@ -129,8 +129,8 @@ uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_ro
     }
 
     // Discount the period when holds low
-    if (delay_period >= 3) {
-        delay_period -= 3;
+    if (delay_period >= 4) {
+        delay_period -= 4;
     }
     else {
         delay_period = 0;
@@ -235,6 +235,20 @@ bool motor_config_init(void) {
     // Copy the initialized data back to the stack
     memcpy(&coarse_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
     memcpy(&fine_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
+
+    return is_ok;
+}
+
+
+bool motor_config_save() {
+    bool is_ok;
+    eeprom_motor_data_t eeprom_motor_data;
+
+    // Copy the live data to the EEPROM structure
+    memcpy(&eeprom_motor_data.motor_data[0], &coarse_trickler_motor_config.persistent_config, sizeof(motor_persistent_config_t));
+    memcpy(&eeprom_motor_data.motor_data[1], &fine_trickler_motor_config.persistent_config, sizeof(motor_persistent_config_t));
+
+    is_ok = eeprom_write(EEPROM_MOTOR_CONFIG_BASE_ADDR, (uint8_t *) &eeprom_motor_data, sizeof(eeprom_motor_data_t));
 
     return is_ok;
 }

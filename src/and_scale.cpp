@@ -111,6 +111,13 @@ bool scale_init() {
 }
 
 
+bool scale_config_save() {
+    bool is_ok;
+    is_ok = eeprom_write(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_data, sizeof(eeprom_scale_data_t));
+    return is_ok;
+}
+
+
 void scale_listener_task(void *p) {
     char string_buf[20];
     uint8_t string_buf_idx = 0;

@@ -7,7 +7,7 @@
 
 #define EEPROM_METADATA_BASE_ADDR           0 * 1024       // 0K
 #define EEPROM_SCALE_CONFIG_BASE_ADDR       1 * 1024       // 1K
-#define EEPROM_PID_CONFIG_BASE_ADDR         2 * 1024       // 2K
+// #define EEPROM_PID_CONFIG_BASE_ADDR         2 * 1024       // 2K
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR    3 * 1024       // 3K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR       4 * 1024       // 4K
 #define EEPROM_CHARGE_MODE_BASE_ADDR        5 * 1024       // 5K
@@ -29,6 +29,7 @@ extern "C" {
 bool eeprom_init(void);
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len);
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
+
 
 
 uint8_t eeprom_save_all(void);

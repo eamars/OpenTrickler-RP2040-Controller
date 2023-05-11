@@ -1,4 +1,4 @@
-; The overall period is 3 + clk_period (two instructions at low)
+; The overall period is 4 + clk_period (two instructions at low)
 .program stepper
 .side_set 1 opt
 init:

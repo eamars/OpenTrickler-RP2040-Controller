@@ -241,3 +241,10 @@ bool charge_mode_config_init(void) {
 
     return true;
 }
+
+
+bool charge_mode_config_save(void) {
+    bool is_ok;
+    is_ok = eeprom_write(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *) &charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
+    return is_ok;
+}
