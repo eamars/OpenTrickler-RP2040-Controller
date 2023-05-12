@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     1              // 16 byte 
+#define EEPROM_CHARGE_MODE_DATA_REV                     3              // 16 byte 
 
 
 typedef struct {
@@ -15,6 +15,11 @@ typedef struct {
     float fine_kp;
     float fine_ki;
     float fine_kd;
+
+    float error_margin_grain;
+    float zero_sd_margin_grain;
+    float zero_mean_stability_grain;
+
 } __attribute__((packed)) eeprom_charge_mode_data_t;
 
 typedef struct {

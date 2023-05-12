@@ -453,3 +453,26 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
         }
     }   
 }
+
+
+uint16_t get_motor_max_speed(motor_select_t selected_motor) {
+    motor_config_t * motor_config = NULL;
+    switch (selected_motor)
+    {
+    case SELECT_COARSE_TRICKLER_MOTOR:
+        motor_config = &coarse_trickler_motor_config;
+        break;
+    case SELECT_FINE_TRICKLER_MOTOR:
+        motor_config = &fine_trickler_motor_config;
+        break;
+    
+    default:
+        break;
+    }
+
+    if (motor_config) {
+        return motor_config->persistent_config.max_speed_rps;
+    }
+
+    return 0;
+}

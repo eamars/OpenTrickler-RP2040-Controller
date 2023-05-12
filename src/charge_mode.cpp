@@ -1,4 +1,3 @@
-#include "app.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +7,9 @@
 #include <task.h>
 #include <semphr.h>
 #include <u8g2.h>
+#include <math.h>
 
+#include "app.h"
 #include "FloatRingBuffer.h"
 #include "rotary_button.h"
 #include "display.h"
@@ -25,19 +26,21 @@ charge_mode_config_t charge_mode_config;
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
-    .coarse_kp = 4.5f,
+    .coarse_kp = 0.2f,
     .coarse_ki = 0.0f,
-    .coarse_kd = 150.0f,
+    .coarse_kd = 1.0f,
 
-    .fine_kp = 200.0f,
+    .fine_kp = 5.0f,
     .fine_ki = 0.0f,
-    .fine_kd = 150.0f,
+    .fine_kd = 20.0f,
+
+    .error_margin_grain = 0.03,
+    .zero_sd_margin_grain = 0.02,
+    .zero_mean_stability_grain = 0.04,
 };
 
 // Configures
 float target_charge_weight = 0.0f;
-float cfg_zero_sd_threshold = 0.02;
-float cfg_zero_mean_threshold = 0.04;
 TaskHandle_t scale_measurement_render_task_handler = NULL;
 static char title_string[30];
 
@@ -46,7 +49,8 @@ static char title_string[30];
 typedef enum {
     CHARGE_MODE_WAIT_FOR_ZERO,
     CHARGE_MODE_WAIT_FOR_COMPLETE,
-    CHARGE_MODE_WAIT_FOR_PAN_REMOVAL,
+    CHARGE_MODE_WAIT_FOR_CUP_REMOVAL,
+    CHARGE_MODE_WAIT_FOR_CUP_RETURN,
     CHARGE_MODE_EXIT,
 
 } ChargeModeState_t;
@@ -70,9 +74,16 @@ void scale_measurement_render_task(void *p) {
         // Draw line
         u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
 
-        // current weight
+        // current weight (only show values > -10)
         memset(current_weight_string, 0x0, sizeof(current_weight_string));
-        sprintf(current_weight_string, "%0.02f", scale_get_current_measurement());
+        float scale_measurement = scale_get_current_measurement();
+        if (scale_measurement > -10) {
+            sprintf(current_weight_string, "%0.02f", scale_measurement);
+        }
+        else {
+            strcpy(current_weight_string, "---");
+        }
+        
 
         u8g2_SetFont(display_handler, u8g2_font_profont22_tf);
         u8g2_DrawStr(display_handler, 26, 35, current_weight_string);
@@ -93,35 +104,36 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
     FloatRingBuffer data_buffer(10);
 
     // Update current status
-    snprintf(title_string, sizeof(title_string), "Zeroing..");
+    snprintf(title_string, sizeof(title_string), "Waiting for Zero");
 
+    // Stop condition: 10 stable measurements in 200ms apart (2 seconds minimum)
     while (true) {
-        float current_measurement = scale_block_wait_for_next_measurement();
         TickType_t last_measurement_tick = xTaskGetTickCount();
 
-        data_buffer.enqueue(current_measurement);
-
-        if (data_buffer.getCounter() >= 10){
-            float sd = data_buffer.getSd();
-            float mean = abs(data_buffer.getMean());
-            if (sd < cfg_zero_sd_threshold && mean < cfg_zero_mean_threshold){
-                printf("Zero and stable condition reached\n");
-                break;
-            }
-        }
-
-        // Optionally, if the RST button is pressed then we will quit
+        // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
         if (button_encoder_event == BUTTON_RST_PRESSED) {
             return CHARGE_MODE_EXIT;
         }
-        // If button is pressed then we shall force reset to zero
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
             scale_press_re_zero_key();
         }
 
-        // Wait for 20ms for next measurement
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(20));
+        // Perform measurement
+        float current_measurement = scale_block_wait_for_next_measurement();
+
+        data_buffer.enqueue(current_measurement);
+
+        // Generate stop condition
+        if (data_buffer.getCounter() >= 10){
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain && 
+                data_buffer.getMean() < charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain) {
+                break;
+            }
+        }
+
+        // Wait for 200 for next measurement
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
     }
 
     return CHARGE_MODE_WAIT_FOR_COMPLETE;
@@ -131,8 +143,15 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Target: %.02f gr", target_charge_weight);
 
+    uint16_t coarse_trickler_max_speed = get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR);
+    uint16_t fine_trickler_max_speed = get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR);
+
     float integral = 0.0f;
     float last_error = 0.0f;
+
+    TickType_t last_sample_tick = xTaskGetTickCount();
+    TickType_t current_sample_tick = last_sample_tick;
+    bool should_coarse_trickler_move = true;
 
     while (true) {
         // Non block waiting for the input
@@ -142,13 +161,124 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         }
 
         // Run the PID controlled loop to start charging
+        // Perform the measurement
+        float current_weight = scale_block_wait_for_next_measurement();
+        current_sample_tick = xTaskGetTickCount();
+
+        float error = target_charge_weight - current_weight;
+
+        // Stop condition
+        if (error < 0 || abs(error) < charge_mode_config.eeprom_charge_mode_data.error_margin_grain) {
+            // Stop all motors
+            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+
+            break;
+        }
+
+        // Coarse trickler move condition
+        if (abs(error) < 5.0f && should_coarse_trickler_move) {
+            should_coarse_trickler_move = false;
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+
+            // TODO: When tuning off the coarse trickler, also move reverse to back off some powder
+        }
+
+        // Update PID variables
+        float elapse_time_ms = (current_sample_tick - last_sample_tick) / portTICK_RATE_MS;
+        integral += error;
+        float derivative = (error - last_error) / elapse_time_ms;
+
+        // Update fine trickler speed
+        float new_p = charge_mode_config.eeprom_charge_mode_data.fine_kp * error;
+        float new_i = charge_mode_config.eeprom_charge_mode_data.fine_ki * integral;
+        float new_d = charge_mode_config.eeprom_charge_mode_data.fine_kd * derivative;
+        float new_speed = fmax(0.1, fmin(round(new_p + new_i + new_d), fine_trickler_max_speed));
+
+        motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
+
+        // Update coarse trickler speed
+        if (should_coarse_trickler_move) {
+            new_p = charge_mode_config.eeprom_charge_mode_data.coarse_kp * error;
+            new_i = charge_mode_config.eeprom_charge_mode_data.coarse_ki * integral;
+            new_d = charge_mode_config.eeprom_charge_mode_data.coarse_kd * derivative;
+
+            new_speed = fmin(round(new_p + new_i + new_d), coarse_trickler_max_speed);
+
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, new_speed);
+        }
+
+        // Record state
+        last_sample_tick = current_sample_tick;
+        last_error = error;
     }
 
 
-    return CHARGE_MODE_WAIT_FOR_PAN_REMOVAL;
+    return CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
 }
 
-ChargeModeState_t charge_mode_wait_for_pan_removal(ChargeModeState_t prev_state) {
+ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state) {
+    // Update current status
+    snprintf(title_string, sizeof(title_string), "Remove Cup", target_charge_weight);
+
+    FloatRingBuffer data_buffer(5);
+
+    // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
+    while (true) {
+        TickType_t last_sample_tick = xTaskGetTickCount();
+
+        // Non block waiting for the input
+        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
+        if (button_encoder_event == BUTTON_RST_PRESSED) {
+            return CHARGE_MODE_EXIT;
+        }
+
+        // Perform measurement
+        float current_weight = scale_block_wait_for_next_measurement();
+        data_buffer.enqueue(current_weight);
+
+        // Generate stop condition
+        if (data_buffer.getCounter() >= 5) {
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.error_margin_grain && 
+                data_buffer.getMean() + 10 < charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain){
+                break;
+            }
+        }
+
+        // Wait for 600 for next measurement
+        vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(300));
+    }
+
+    return CHARGE_MODE_WAIT_FOR_CUP_RETURN;
+}
+
+ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) { 
+    snprintf(title_string, sizeof(title_string), "Return Cup", target_charge_weight);
+
+    FloatRingBuffer data_buffer(5);
+
+    while (true) {
+        TickType_t last_sample_tick = xTaskGetTickCount();
+
+        // Non block waiting for the input
+        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
+        if (button_encoder_event == BUTTON_RST_PRESSED) {
+            return CHARGE_MODE_EXIT;
+        }
+        else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
+            scale_press_re_zero_key();
+        }
+
+        // Perform measurement
+        float current_weight = scale_block_wait_for_next_measurement();
+        if (current_weight >= 0) {
+            break;
+        }
+
+        // Wait for 600 for next measurement
+        vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(20));
+    }
+
     return CHARGE_MODE_WAIT_FOR_ZERO;
 }
 
@@ -186,8 +316,11 @@ uint8_t charge_mode_menu() {
             case CHARGE_MODE_WAIT_FOR_COMPLETE:
                 state = charge_mode_wait_for_complete(state);
                 break;
-            case CHARGE_MODE_WAIT_FOR_PAN_REMOVAL:
-                state = charge_mode_wait_for_pan_removal(state);
+            case CHARGE_MODE_WAIT_FOR_CUP_REMOVAL:
+                state = charge_mode_wait_for_cup_removal(state);
+                break;
+            case CHARGE_MODE_WAIT_FOR_CUP_RETURN:
+                state = charge_mode_wait_for_cup_return(state);
                 break;
             case CHARGE_MODE_EXIT:
             default:
