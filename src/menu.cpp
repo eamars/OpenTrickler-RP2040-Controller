@@ -2,9 +2,9 @@
 #include <task.h>
 #include <queue.h>
 #include <stdio.h>
-#include "u8g2.h"
-#include "mui.h"
-#include "mui_u8g2.h"
+#include <u8g2.h>
+#include <mui.h>
+#include <mui_u8g2.h>
 
 #include "app.h"
 #include "configuration.h"
@@ -12,6 +12,7 @@
 #include "scale.h"
 #include "display.h"
 #include "rotary_button.h"
+#include "eeprom.h"
 
 
 // External variables
@@ -76,6 +77,9 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_EEPROM_SAVE: 
                     exit_form_id = eeprom_save_all();
+                    break;
+                case APP_STATE_ENTER_EEPROM_ERASE:
+                    exit_form_id = eeprom_erase(true);
                     break;
                 default:
                     break;

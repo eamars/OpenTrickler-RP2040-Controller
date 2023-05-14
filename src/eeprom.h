@@ -32,7 +32,12 @@ bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
 
 
 
+/*
+ * Fill all EEPROM with 0xFF
+ */
+uint8_t eeprom_erase(bool);
 uint8_t eeprom_save_all(void);
+
 
 
 #ifdef __cplusplus

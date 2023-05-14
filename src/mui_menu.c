@@ -183,7 +183,7 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_LABEL(5, 25, "Put pan on the scale and")
     MUI_LABEL(5, 37, "press Next to cleanup")
-    MUI_XYAT("BN",14, 59, 0, "Back")
+    MUI_XYAT("BN",14, 59, 1, "Back")
     MUI_XYAT("LV", 115, 59, 5, "Next")  // APP_STATE_ENTER_CLEANUP_MODE
 
     // Menu 30: Configurations
@@ -199,7 +199,7 @@ fds_t fds_data[] = {
         MUI_34 "Tune PID|"
         MUI_35 "Motor Controller|"
         MUI_36 "AP Mode|"
-        MUI_37 "Save to EEPROM|"
+        MUI_37 "EEPROM|"
         MUI_1 "<-Return"  // Back to main menu
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -289,17 +289,22 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",64, 59, 30, " OK ")
 
 #endif
-
-    // Save to EEPROM
+    // EEPROM submenu
     MUI_FORM(37)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Save to EEPROM")
+    MUI_LABEL(5,10, "EEPROM")
     MUI_XY("HL", 0,13)
+
     MUI_STYLE(0)
-    MUI_LABEL(5, 25, "Press Next to save ")
-    MUI_LABEL(5, 37, "changes to EEPROM")
-    MUI_XYAT("BN",14, 59, 30, "Back")
-    MUI_XYAT("LV", 115, 59, 7, "Next")  // APP_STATE_ENTER_EEPROM_SAVE
+    MUI_DATA("MU",
+        MUI_60 "Save to EEPROM|"
+        MUI_61 "Erase EEPROM|"
+        MUI_30 "<-Return"  // back to view 30
+    )
+    MUI_XYA("GC", 5, 25, 0) 
+    MUI_XYA("GC", 5, 37, 1) 
+    MUI_XYA("GC", 5, 49, 2) 
+    MUI_XYA("GC", 5, 61, 3)
     
     // Scale unit
     MUI_FORM(50)
@@ -327,4 +332,25 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_XYAT("BN",14, 59, 31, "Back")
     MUI_XYAT("LV", 115, 59, 6, "Next")  // APP_STATE_ENTER_SCALE_CALIBRATION
+
+    // Save to EEPROM
+    MUI_FORM(60)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Save to EEPROM")
+    MUI_XY("HL", 0,13)
+    MUI_STYLE(0)
+    MUI_LABEL(5, 25, "Press Next to save")
+    MUI_LABEL(5, 37, "changes to EEPROM")
+    MUI_XYAT("BN",14, 59, 37, "Back")
+    MUI_XYAT("LV", 115, 59, 7, "Next")  // APP_STATE_ENTER_EEPROM_SAVE
+
+    MUI_FORM(61)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Erase EEPROM")
+    MUI_XY("HL", 0,13)
+    MUI_STYLE(0)
+    MUI_LABEL(5, 25, "Press Next to ERASE")
+    MUI_LABEL(5, 37, "EEPROM")
+    MUI_XYAT("BN",14, 59, 37, "Back")
+    MUI_XYAT("LV", 115, 59, 8, "Next")  // APP_STATE_ENTER_EEPROM_ERASE
 };

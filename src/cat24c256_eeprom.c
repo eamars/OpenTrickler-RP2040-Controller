@@ -59,6 +59,21 @@ bool cat24c256_read(uint16_t data_addr, uint8_t * data, size_t len) {
 }
 
 
+bool cat24c256_eeprom_erase() {
+    size_t page_size = 64;
+    uint8_t dummy_buffer[page_size];
+    memset(dummy_buffer, 0xff, page_size);
+
+    
+    for (size_t page; page < 512; page++) {
+        size_t page_offset = page * page_size;
+        cat24c256_write(page_offset, dummy_buffer, page_size);
+    }
+    return true;
+}
+
+
+
 bool eeprom_init(void) {
     bool is_ok = true;
     eeprom_access_mutex = xSemaphoreCreateMutex();
@@ -136,5 +151,3 @@ bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len) {
 
     return is_ok;
 }
-
-
