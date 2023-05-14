@@ -76,6 +76,30 @@ bool _block_wait_for_sync(uart_inst_t * uart) {
 }
 
 
+void swuart_calcCRC(uint8_t* datagram, uint8_t datagramLength)
+{
+    int i,j;
+    uint8_t* crc = datagram + (datagramLength-1); // CRC located in last byte of message
+    uint8_t currentByte;
+    *crc = 0;
+    for (i=0; i<(datagramLength-1); i++) { // Execute for all bytes of a message
+        currentByte = datagram[i]; // Retrieve a byte to be sent from Array
+        for (j=0; j<8; j++) {
+            if ((*crc >> 7) ^ (currentByte&0x01)) // update CRC based result of XOR operation
+            {
+                *crc = (*crc << 1) ^ 0x07;
+            }
+            else
+            {
+                *crc = (*crc << 1);
+            }
+            currentByte = currentByte >> 1;
+        } // for CRC bit
+    } // for message byte
+}
+
+
+
 void tmc_uart_write (trinamic_motor_t driver, TMC_uart_write_datagram_t *datagram)
 {
     uart_write_blocking(MOTOR_UART, datagram->data, sizeof(TMC_uart_write_datagram_t));
@@ -87,28 +111,31 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
 
     uart_write_blocking(MOTOR_UART, datagram->data, sizeof(TMC_uart_read_datagram_t));
 
-    sleep_us(20);
-
+    // At 250k baud rate the transmit time is about 320us. Need to wait long enough to not reading the echo message back.
+    busy_wait_us(2);
     _enable_uart_rx(MOTOR_UART, true);
-
-    sleep_ms(2);
-
-    // Read until 0x05 is received
-    if (_block_wait_for_sync(MOTOR_UART)) {
-        // Read full payload
-        wdgr.data[0] = 0x05;
-        uart_read_blocking(MOTOR_UART, &wdgr.data[1], 7);
-    }
-    else {
-        wdgr.msg.addr.value = 0xFF;
-    }
-
-    // Read remaining data
-    while (uart_is_readable(MOTOR_UART)) {
-        uint8_t c;
-        uart_read_blocking(MOTOR_UART, &c, 1);
-    }
+    busy_wait_ms(2);
     
+    uint8_t sync_flag = 0x05;
+    int8_t idx = -1;
+    while (uart_is_readable_within_us(MOTOR_UART, 2000)) {
+        uint8_t c;
+
+        uart_read_blocking(MOTOR_UART, &c, 1);
+        if (c == sync_flag) {
+            idx = 0;
+        }
+
+        if (idx >= 0 && idx < 8) {
+            wdgr.data[idx++] = c;
+        }
+
+        if (idx == 8) {
+            // FIXME: there is known issue that calling IFCNT causes target addr to be incorrect. 
+            break;
+        }
+    }
+
     _enable_uart_rx(MOTOR_UART, false);
 
     return &wdgr;
@@ -140,6 +167,53 @@ uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_ro
 }
 
 
+bool tmc2209_init (TMC2209_t *driver)
+{
+    // Perform a status register read/write to clear status flags.
+    // If no or bad response from driver return with error.
+    if(!TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->gstat))
+        return false;
+
+    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->gstat);
+
+    TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->gconf);
+    driver->gconf.reg.pdn_disable = 1;
+    driver->gconf.reg.mstep_reg_select = 1;
+
+// Use default settings (from OTP) for these:
+//  driver->gconf.reg.I_scale_analog = 1;
+//  driver->gconf.reg.internal_Rsense = 0;
+//  driver->gconf.reg.en_spreadcycle = 0;
+//  driver->gconf.reg.multistep_filt = 1;
+
+    TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->ifcnt);
+
+    uint8_t ifcnt = driver->ifcnt.reg.count;
+
+    driver->chopconf.reg.mres = tmc_microsteps_to_mres(driver->config.microsteps);
+
+    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->gconf);
+    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->tpowerdown);
+    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->pwmconf);
+    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->tpwmthrs);
+    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->tcoolthrs);
+    TMC2209_SetCurrent(driver, driver->config.current, driver->config.hold_current_pct);
+
+    int retry = 5;
+    while (retry-- > 0) {
+        TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->ifcnt);
+        uint8_t new_cnt = (uint8_t)driver->ifcnt.reg.count;
+
+        if (new_cnt - ifcnt == 7) {
+            return true;
+        }
+    }
+    
+
+    return false;
+}
+
+
 bool driver_init(motor_config_t * motor_config) {
     // Copy the user config to the driver config and initialize the communication
     // Return True if the initialization is successful, False otherwise. 
@@ -166,7 +240,7 @@ bool driver_init(motor_config_t * motor_config) {
     tmc_driver->config.hold_current_pct = 50;
     tmc_driver->config.microsteps = motor_config->persistent_config.microsteps;
 
-    bool is_ok = TMC2209_Init(tmc_driver);
+    bool is_ok = tmc2209_init(tmc_driver);
 
     motor_config->tmc_driver = (void *) tmc_driver;
 
@@ -267,7 +341,7 @@ bool motors_init(void) {
     fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
 
     // TMC driver doesn't care about the baud rate the host is using
-    uart_init(MOTOR_UART, 115200);
+    uart_init(MOTOR_UART, 250000);
     gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
     gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
 
@@ -283,6 +357,7 @@ bool motors_init(void) {
 
     // Initialize the stepper driver 
     is_ok = driver_init(&coarse_trickler_motor_config);
+    assert(is_ok);
 
     // 
     // Initialize fine trickler motor at UART ADDR 1
@@ -294,6 +369,7 @@ bool motors_init(void) {
     
     // Initialize the stepper driver
     is_ok = driver_init(&fine_trickler_motor_config);
+    assert(is_ok);
 
     return true;
 }

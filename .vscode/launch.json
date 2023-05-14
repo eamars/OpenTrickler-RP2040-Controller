@@ -19,7 +19,6 @@
         "openOCDLaunchCommands": [
           "adapter speed 5000"
         ],
-        "rtos": "FreeRTOS",
       },
       {
         "name": "Pico Debug (Cortex-Debug with external OpenOCD)",

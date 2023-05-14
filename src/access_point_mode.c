@@ -333,6 +333,11 @@ void access_point_mode_init() {
     memset(ap_ssid, 0x0, sizeof(ap_ssid));
     snprintf(ap_ssid, sizeof(ap_ssid), "OpenTrickler%s", id);
 
+    if (cyw43_arch_init()) {
+        printf("WiFi Init Failed\n");
+        exit(-1);
+    }
+
     cyw43_arch_enable_ap_mode(ap_ssid, ap_password, CYW43_AUTH_WPA2_AES_PSK);
 
     ip4_addr_t mask;
@@ -356,6 +361,8 @@ void access_point_mode_deinit() {
     tcp_server_close(&state);
     dns_server_deinit(&dns_server);
     dhcp_server_deinit(&dhcp_server);
+
+    cyw43_arch_deinit();
 
     num_connected_clients = 0;
 }

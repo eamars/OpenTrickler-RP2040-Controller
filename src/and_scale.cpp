@@ -135,7 +135,9 @@ void scale_listener_task(void *p) {
                 current_scale_measurement = _decode_measurement_msg((scale_standard_data_format_t *) string_buf);
 
                 // Signal the data is ready
-                xSemaphoreGive(scale_measurement_ready);
+                if (scale_measurement_ready) {
+                    xSemaphoreGive(scale_measurement_ready);
+                }
 
                 // Reset
                 string_buf_idx = 0;

@@ -120,9 +120,9 @@ int main()
     button_init();
 
 #ifdef RASPBERRYPI_PICO_W
-    xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+    // xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #else
-    xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+    // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W
     xTaskCreate(menu_task, "Menu Task", 512, NULL, 6, NULL);
     xTaskCreate(scale_listener_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
