@@ -81,6 +81,9 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_EEPROM_ERASE:
                     exit_form_id = eeprom_erase(true);
                     break;
+                case APP_STATE_ENTER_REBOOT:
+                    exit_form_id = software_reboot();
+                    break;
                 default:
                     break;
             }

@@ -11,8 +11,10 @@ typedef enum {
     APP_STATE_ENTER_SCALE_CALIBRATION = 6,
     APP_STATE_ENTER_EEPROM_SAVE = 7,
     APP_STATE_ENTER_EEPROM_ERASE = 8,
+    APP_STATE_ENTER_REBOOT = 9,
 } AppState_t;
 
 
+uint8_t software_reboot();
 
 #endif  // APP_H_

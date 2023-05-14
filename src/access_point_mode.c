@@ -10,6 +10,7 @@
 #include "app.h"
 #include "rotary_button.h"
 #include "u8g2.h"
+#include "pico/unique_id.h"
 
 
 
@@ -48,35 +49,42 @@ TCP_SERVER_T state;
 dhcp_server_t dhcp_server;
 dns_server_t dns_server;
 TaskHandle_t ap_mode_display_render_handler = NULL;
+size_t num_connected_clients = 0;
 
-char ap_ssid[] = "OpenTricker";
-char ap_password[] = "1234567890";
-
+char ap_ssid[17] = "";
+char ap_password[] = "opentrickler";
 
 
 void ap_mode_display_render_task(void *p) {
-    char string_buf[30];
+    
 
     while (true) {
         TickType_t last_render_tick = xTaskGetTickCount();
 
         u8g2_ClearBuffer(&display_handler);
 
+        char string_buf[30];
+
         // Draw AP Info
         memset(string_buf, 0x0, sizeof(string_buf));
-        snprintf(string_buf, sizeof(string_buf), "SSID: %s", ap_ssid);
+        snprintf(string_buf, sizeof(string_buf), "SSID:");
         u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
         u8g2_DrawStr(&display_handler, 5, 10, string_buf);
 
         memset(string_buf, 0x0, sizeof(string_buf));
-        snprintf(string_buf, sizeof(string_buf), "Pw: %s", ap_password);
+        snprintf(string_buf, sizeof(string_buf), ">%s", ap_ssid);
         u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
         u8g2_DrawStr(&display_handler, 5, 20, string_buf);
 
         memset(string_buf, 0x0, sizeof(string_buf));
-        snprintf(string_buf, sizeof(string_buf), "IP: 192.168.3.1");
+        snprintf(string_buf, sizeof(string_buf), "Pw: %s", ap_password);
         u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
         u8g2_DrawStr(&display_handler, 5, 30, string_buf);
+
+        memset(string_buf, 0x0, sizeof(string_buf));
+        snprintf(string_buf, sizeof(string_buf), "IP: 192.168.3.1");
+        u8g2_SetFont(&display_handler, u8g2_font_6x12_tf);
+        u8g2_DrawStr(&display_handler, 5, 40, string_buf);
 
         memset(string_buf, 0x0, sizeof(string_buf));
         snprintf(string_buf, sizeof(string_buf), "Press key to exit");
@@ -317,7 +325,14 @@ static bool tcp_server_open(void *arg) {
 
 
 void access_point_mode_init() {
-    
+    num_connected_clients = 0;
+
+    // Get unique id
+    char id[5];
+    pico_get_unique_board_id_string(id, 5);
+    memset(ap_ssid, 0x0, sizeof(ap_ssid));
+    snprintf(ap_ssid, sizeof(ap_ssid), "OpenTrickler%s", id);
+
     cyw43_arch_enable_ap_mode(ap_ssid, ap_password, CYW43_AUTH_WPA2_AES_PSK);
 
     ip4_addr_t mask;
@@ -338,8 +353,11 @@ void access_point_mode_init() {
 
 
 void access_point_mode_deinit() {
+    tcp_server_close(&state);
     dns_server_deinit(&dns_server);
     dhcp_server_deinit(&dhcp_server);
+
+    num_connected_clients = 0;
 }
 
 
@@ -362,7 +380,7 @@ uint8_t access_point_mode_menu()
     while (quit == false) {
         // Wait if quit is pressed
         ButtonEncoderEvent_t button_encoder_event;
-        while (xQueueReceive(encoder_event_queue, &button_encoder_event, 0)){
+        while (xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY)){
             if (button_encoder_event == BUTTON_RST_PRESSED || button_encoder_event == BUTTON_ENCODER_PRESSED) {
                 quit = true;
                 break;

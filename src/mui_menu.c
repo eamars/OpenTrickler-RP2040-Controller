@@ -197,9 +197,9 @@ fds_t fds_data[] = {
         MUI_31 "Scale|"
         MUI_32 "View PID|"
         MUI_34 "Tune PID|"
-        MUI_35 "Motor Controller|"
         MUI_36 "AP Mode|"
         MUI_37 "EEPROM|"
+        MUI_35 "Reboot|"
         MUI_1 "<-Return"  // Back to main menu
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -248,22 +248,16 @@ fds_t fds_data[] = {
     MUI_XYAT("BN", 115, 59, 30, " OK ")  // APP_STATE_ENTER_CHARGE_MODE
     MUI_AUX("K1")
 
-    // Menu 35: Select motor controller
+    // Menu 35: Reboot
     MUI_FORM(35)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Motor Controller")
+    MUI_LABEL(5,10, "Reboot")
     MUI_XY("HL", 0,13)
-
     MUI_STYLE(0)
-    MUI_LABEL(5,27, "Coarse:")
-    MUI_XYAT("MC", 60, 27, 60, "TMC2209|TMC2130|TMC5160")
-
-    MUI_LABEL(5,43, "Fine:")
-    MUI_XYAT("MF", 60, 43, 60, "TMC2209|TMC2130|TMC5160")
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN",64, 59, 30, " OK ")
-
+    MUI_LABEL(5, 25, "Press Next to perform")
+    MUI_LABEL(5, 37, "software reboot")
+    MUI_XYAT("BN",14, 59, 37, "Back")
+    MUI_XYAT("LV", 115, 59, 8, "Next")  // APP_STATE_ENTER_REBOOT
 
     MUI_FORM(36)
 #ifdef RASPBERRYPI_PICO_W

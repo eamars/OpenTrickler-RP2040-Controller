@@ -85,6 +85,13 @@ static inline void put_pixel(uint32_t pixel_grb) {
 }
 
 
+uint8_t software_reboot() {
+    watchdog_reboot(0, 0, 0);
+
+    return 0;
+}
+
+
 int main()
 {
     // stdio_init_all();
