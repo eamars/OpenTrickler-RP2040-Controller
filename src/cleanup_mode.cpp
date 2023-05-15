@@ -9,9 +9,9 @@
 #include "rotary_button.h"
 #include "motors.h"
 #include "scale.h"
+#include "display.h"
 
 
-extern u8g2_t display_handler;
 extern QueueHandle_t encoder_event_queue;
 
 static char title_string[30];
@@ -26,33 +26,35 @@ void cleanup_render_task(void *p) {
     char charge_weight_string[30];
     char current_motor_speed_string[30];
 
+    u8g2_t * display_handler = get_display_handler();
+
     while (true) {
         TickType_t last_render_tick = xTaskGetTickCount();
 
-        u8g2_ClearBuffer(&display_handler);
+        u8g2_ClearBuffer(display_handler);
 
         // Draw title
         if (strlen(title_string)) {
-            u8g2_SetFont(&display_handler, u8g2_font_helvB08_tr);
-            u8g2_DrawStr(&display_handler, 5, 10, title_string);
+            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
+            u8g2_DrawStr(display_handler, 5, 10, title_string);
         }
 
         // Draw line
-        u8g2_DrawHLine(&display_handler, 0, 13, u8g2_GetDisplayWidth(&display_handler));
+        u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
 
         // Draw charge weight
         memset(charge_weight_string, 0x0, sizeof(charge_weight_string));
         sprintf(charge_weight_string, "W: %0.02f", scale_get_current_measurement());
-        u8g2_SetFont(&display_handler, u8g2_font_profont11_tf);
-        u8g2_DrawStr(&display_handler, 5, 25, charge_weight_string);
+        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
+        u8g2_DrawStr(display_handler, 5, 25, charge_weight_string);
 
         // Draw current motor speed
         memset(current_motor_speed_string, 0x0, sizeof(current_motor_speed_string));
         sprintf(current_motor_speed_string, "CS: %d", (int) current_motor_speed);
-        u8g2_SetFont(&display_handler, u8g2_font_profont11_tf);
-        u8g2_DrawStr(&display_handler, 5, 35, current_motor_speed_string);
+        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
+        u8g2_DrawStr(display_handler, 5, 35, current_motor_speed_string);
 
-        u8g2_SendBuffer(&display_handler);
+        u8g2_SendBuffer(display_handler);
 
         vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(20));
     }

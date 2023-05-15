@@ -86,10 +86,6 @@ typedef struct {
     uint8_t options[312]; // optional parameters, variable, starts with magic
 } dhcp_msg_t;
 
-// Record number of clients connected
-extern size_t num_connected_clients;
-
-
 static int dhcp_socket_new_dgram(struct udp_pcb **udp, void *cb_data, udp_recv_fn cb_udp_recv) {
     // family is AF_INET
     // type is SOCK_DGRAM
@@ -273,7 +269,6 @@ static void dhcp_server_process(void *arg, struct udp_pcb *upcb, struct pbuf *p,
             printf("DHCPS: client connected: MAC=%02x:%02x:%02x:%02x:%02x:%02x IP=%u.%u.%u.%u\n",
                 dhcp_msg.chaddr[0], dhcp_msg.chaddr[1], dhcp_msg.chaddr[2], dhcp_msg.chaddr[3], dhcp_msg.chaddr[4], dhcp_msg.chaddr[5],
                 dhcp_msg.yiaddr[0], dhcp_msg.yiaddr[1], dhcp_msg.yiaddr[2], dhcp_msg.yiaddr[3]);
-                num_connected_clients += 1;
             break;
         }
 

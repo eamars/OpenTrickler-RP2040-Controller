@@ -48,10 +48,12 @@ void cyw43_task(void *p){
         // Change LED state
         // cyw43_arch_gpio_put(WATCHDOG_LED_PIN, led_state);
 
-        led_state = !led_state;
+        // led_state = !led_state;
 
         vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(500));
     }
+
+    cyw43_arch_deinit();
 }
 
 
@@ -120,7 +122,7 @@ int main()
     button_init();
 
 #ifdef RASPBERRYPI_PICO_W
-    // xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+    xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #else
     // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W

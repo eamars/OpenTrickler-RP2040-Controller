@@ -112,7 +112,7 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
     uart_write_blocking(MOTOR_UART, datagram->data, sizeof(TMC_uart_read_datagram_t));
 
     // At 250k baud rate the transmit time is about 320us. Need to wait long enough to not reading the echo message back.
-    busy_wait_us(2);
+    busy_wait_us(20);
     _enable_uart_rx(MOTOR_UART, true);
     busy_wait_ms(2);
     
@@ -132,7 +132,13 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
 
         if (idx == 8) {
             // FIXME: there is known issue that calling IFCNT causes target addr to be incorrect. 
-            break;
+            // Calculate CRC
+            uint8_t crc = wdgr.msg.crc;
+            swuart_calcCRC(&wdgr.data, sizeof(TMC_uart_write_datagram_t));
+            if (crc == wdgr.msg.crc) {
+                break;
+            }
+            idx = -1;
         }
     }
 

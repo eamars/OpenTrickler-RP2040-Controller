@@ -28,6 +28,7 @@ typedef struct {
 
 
 bool charge_mode_config_init(void);
+uint8_t charge_mode_menu();
 
 // C Functions
 #ifdef __cplusplus

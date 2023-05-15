@@ -13,6 +13,11 @@
 #include "display.h"
 #include "rotary_button.h"
 #include "eeprom.h"
+#include "wifi_scan_mode.h"
+#include "charge_mode.h"
+#include "cleanup_mode.h"
+#include "access_point_mode.h"
+#include "eeprom.h"
 
 
 // External variables
@@ -21,11 +26,6 @@ extern fds_t fds_data[];
 extern const size_t muif_cnt;
 
 // External menus
-extern uint8_t charge_mode_menu();
-extern uint8_t cleanup_mode_menu();
-
-extern "C" uint8_t access_point_mode_menu();
-extern "C" uint8_t eeprom_save_all();
 
 // Local variables
 
@@ -83,6 +83,9 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_REBOOT:
                     exit_form_id = software_reboot();
+                    break;
+                case APP_STATE_ENTER_WIFI_SCAN:
+                    exit_form_id = wifi_scan();
                     break;
                 default:
                     break;

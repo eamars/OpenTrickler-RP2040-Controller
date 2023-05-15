@@ -197,7 +197,7 @@ fds_t fds_data[] = {
         MUI_31 "Scale|"
         MUI_32 "View PID|"
         MUI_34 "Tune PID|"
-        MUI_36 "AP Mode|"
+        MUI_36 "Wireless|"
         MUI_37 "EEPROM|"
         MUI_35 "Reboot|"
         MUI_1 "<-Return"  // Back to main menu
@@ -262,14 +262,20 @@ fds_t fds_data[] = {
     MUI_FORM(36)
 #ifdef RASPBERRYPI_PICO_W
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Start AP Mode")
+    MUI_LABEL(5,10, "Wireless")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_LABEL(2,27, "Press OK to start AP mode")
-    MUI_LABEL(2, 37, "mode")
-    MUI_XYAT("BN",14, 59, 30, "Back")
-    MUI_XYAT("LV", 115, 59, 3, " OK ")  // APP_STATE_ENTER_ACCESS_POINT_MODE
+    MUI_DATA("MU",
+        MUI_70 "AP Mode|"
+        MUI_71 "Connect to WIFI|"
+        MUI_30 "<-Return"  // back to view 30
+    )
+    MUI_XYA("GC", 5, 25, 0) 
+    MUI_XYA("GC", 5, 37, 1) 
+    MUI_XYA("GC", 5, 49, 2) 
+    MUI_XYA("GC", 5, 61, 3)
+
 #else
     MUI_STYLE(1)
     MUI_LABEL(5,10, "Error")
@@ -338,13 +344,38 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",14, 59, 37, "Back")
     MUI_XYAT("LV", 115, 59, 7, "Next")  // APP_STATE_ENTER_EEPROM_SAVE
 
+    // Erease entire EEPROM
     MUI_FORM(61)
     MUI_STYLE(1)
     MUI_LABEL(5,10, "Erase EEPROM")
     MUI_XY("HL", 0,13)
     MUI_STYLE(0)
-    MUI_LABEL(5, 25, "Press Next to ERASE")
-    MUI_LABEL(5, 37, "EEPROM")
+    MUI_LABEL(5, 25, "Press Next to erase")
+    MUI_LABEL(5, 37, "the EEPROM")
     MUI_XYAT("BN",14, 59, 37, "Back")
     MUI_XYAT("LV", 115, 59, 8, "Next")  // APP_STATE_ENTER_EEPROM_ERASE
+
+    // Access point mode
+    MUI_FORM(70)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "AP Mode")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(2,27, "Press OK to start AP mode")
+    MUI_LABEL(2, 37, "mode")
+    MUI_XYAT("BN",14, 59, 36, "Back")
+    MUI_XYAT("LV", 115, 59, 3, " OK ")  // APP_STATE_ENTER_ACCESS_POINT_MODE
+
+    // Wifi Scan Mode
+    MUI_FORM(71)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Wifi Scan")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(2,27, "Press OK to start Wifi")
+    MUI_LABEL(2, 37, "scan")
+    MUI_XYAT("BN",14, 59, 36, "Back")
+    MUI_XYAT("LV", 115, 59, 10, " OK ")  // APP_STATE_ENTER_WIFI_SCAN
 };
