@@ -65,6 +65,7 @@ typedef struct {
 extern "C" {
 #endif
 
+bool motors_init(void);
 bool motor_config_init(void);
 bool motor_config_save(void);
 void motor_task(void *p);

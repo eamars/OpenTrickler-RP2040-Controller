@@ -20,6 +20,7 @@
 #include "scale.h"
 #include "display.h"
 #include "charge_mode.h"
+#include "cyw43_control.h"
 
 // C++ functions
 extern void button_init(void);
@@ -29,32 +30,6 @@ extern void menu_task(void *p);
 extern "C" void button_task(void *p);
 extern "C" void scale_measurement_init(void);
 extern "C" void scale_measurement_generator(void *p);
-
-
-
-void cyw43_task(void *p){
-    // Initialize cyw43 and start the background tasks
-    if (cyw43_arch_init()) {
-        printf("WiFi Init Failed\n");
-        exit(-1);
-    }
-
-    // watchdog_enable(500, true);  // 500ms, enable debug
-    bool led_state = true;
-    while (true){
-        TickType_t last_measurement_tick = xTaskGetTickCount();
-        // watchdog_update();
-
-        // Change LED state
-        // cyw43_arch_gpio_put(WATCHDOG_LED_PIN, led_state);
-
-        // led_state = !led_state;
-
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(500));
-    }
-
-    cyw43_arch_deinit();
-}
 
 
 void watchdog_task(void *p){
@@ -100,15 +75,6 @@ int main()
     // Initialize EEPROM first
     eeprom_init();
 
-    // Load config for motors
-    motor_config_init();
-
-    // Initialize UART
-    scale_init();
-
-    // Initialize charge mode settings
-    charge_mode_config_init();
-
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
     uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
@@ -120,6 +86,16 @@ int main()
     // Configure others
     display_init();
     button_init();
+
+    // Load config for motors
+    motor_config_init();
+    motors_init();
+
+    // Initialize UART
+    scale_init();
+
+    // Initialize charge mode settings
+    charge_mode_config_init();
 
 #ifdef RASPBERRYPI_PICO_W
     xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);

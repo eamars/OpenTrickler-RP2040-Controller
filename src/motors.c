@@ -134,7 +134,7 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
             // FIXME: there is known issue that calling IFCNT causes target addr to be incorrect. 
             // Calculate CRC
             uint8_t crc = wdgr.msg.crc;
-            swuart_calcCRC(&wdgr.data, sizeof(TMC_uart_write_datagram_t));
+            swuart_calcCRC(wdgr.data, sizeof(TMC_uart_write_datagram_t));
             if (crc == wdgr.msg.crc) {
                 break;
             }
@@ -455,7 +455,7 @@ void stepper_speed_control_task(void * p) {
 
 
 void motor_task(void *p) {
-    bool status = motors_init();
+    // bool status = motors_init();
 
     // Initialize motor related RTOS control
     coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));

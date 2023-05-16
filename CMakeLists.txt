@@ -107,7 +107,7 @@ if (PICO_BOARD STREQUAL "pico_w" )
     message("Using PICO_W board, link cyw43")
     target_link_libraries(app 
         pico_cyw43_arch_lwip_sys_freertos
-        pico_lwip_freertos)
+        )
 endif()
 
 target_link_options(app PRIVATE -Wl,--gc-sections)

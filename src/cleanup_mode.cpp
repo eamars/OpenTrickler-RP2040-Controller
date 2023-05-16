@@ -44,13 +44,13 @@ void cleanup_render_task(void *p) {
 
         // Draw charge weight
         memset(charge_weight_string, 0x0, sizeof(charge_weight_string));
-        sprintf(charge_weight_string, "W: %0.02f", scale_get_current_measurement());
+        sprintf(charge_weight_string, "Weight: %0.02f", scale_get_current_measurement());
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 25, charge_weight_string);
 
         // Draw current motor speed
         memset(current_motor_speed_string, 0x0, sizeof(current_motor_speed_string));
-        sprintf(current_motor_speed_string, "CS: %d", (int) current_motor_speed);
+        sprintf(current_motor_speed_string, "Speed: %d", (int) current_motor_speed);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 35, current_motor_speed_string);
 

@@ -1,12 +1,19 @@
 #include <stdbool.h>
 #include <FreeRTOS.h>
 #include <task.h>
+#include <pico/cyw43_arch.h>
+
 #include "wifi_scan_mode.h"
 #include "display.h"
 #include "u8g2.h"
+#include "cyw43_control.h"
 
 
 TaskHandle_t wifi_scan_render_task_handler = NULL;
+
+int num_ssid_scanned = 0;
+char ssid_list[16][32];  // 32 chars per SSID and 16 SSIDs in total
+char status[16];
 
 
 void wifi_scan_display_render_task(void *p) {
@@ -14,6 +21,7 @@ void wifi_scan_display_render_task(void *p) {
 
     while (true) {
         TickType_t last_render_tick = xTaskGetTickCount();
+        char buf[30];
 
         u8g2_ClearBuffer(display_handler);
 
@@ -24,14 +32,47 @@ void wifi_scan_display_render_task(void *p) {
         // Draw line
         u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
 
+        // Draw status
+        memset(buf, 0x0, sizeof(buf));
+        sprintf(buf, "Num SSID: %d", num_ssid_scanned);
+        snprintf(buf, sizeof(buf), status);
+        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
+        u8g2_DrawStr(display_handler, 5, 25, buf);
+
+        // Draw number of SSIDs detected
+        memset(buf, 0x0, sizeof(buf));
+        sprintf(buf, "Num SSID: %d", num_ssid_scanned);
+        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
+        u8g2_DrawStr(display_handler, 5, 35, buf);
+
         u8g2_SendBuffer(display_handler);
 
         vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(20));
     }
 }
 
+static int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+    if (result) {
+        // printf("ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n",
+        //     result->ssid, result->rssi, result->channel,
+        //     result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5],
+        //     result->auth_mode);
+        if (strlen(result->ssid) > 0 && num_ssid_scanned < 16) {
+            memcpy(ssid_list[num_ssid_scanned], 
+                result->ssid, 
+                sizeof(ssid_list[num_ssid_scanned]));
+            num_ssid_scanned += 1;
+        }
+
+    }
+    return 0;
+}
+
 
 uint8_t wifi_scan() {
+    num_ssid_scanned = 0;
+    memset(status, 0x0, sizeof(status));
+
     if (wifi_scan_render_task_handler == NULL) {
         // The render task shall have lower priority than the current one
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
@@ -41,8 +82,25 @@ uint8_t wifi_scan() {
         vTaskResume(wifi_scan_render_task_handler);
     }
 
-    sleep_ms(10000);
+    cyw43_arch_enable_sta_mode();
 
+    snprintf(status, sizeof(status), "> Scanning");
+
+    // Perform scan once
+    cyw43_wifi_scan_options_t scan_options = {0};
+    int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
+    if (err) {
+        exit(err);
+    }
+
+    while (cyw43_wifi_scan_active(&cyw43_state)) {
+        vTaskDelay(500);
+    }
+
+    // Show complete for 3 seconds
+    snprintf(status, sizeof(status), "> Complete");
+    vTaskDelay(3000);
+    
 
     vTaskSuspend(wifi_scan_render_task_handler);
 
