@@ -114,6 +114,9 @@
 #define configSUPPORT_PICO_SYNC_INTEROP         1
 #define configSUPPORT_PICO_TIME_INTEROP         1
 
+// Debug
+#define configRECORD_STACK_HIGH_ADDRESS         1
+
 #include <assert.h>
 /* Define to trap errors during development. */
 #define configASSERT(x)                         assert(x)

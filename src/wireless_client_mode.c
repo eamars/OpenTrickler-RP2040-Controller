@@ -3,16 +3,19 @@
 #include <task.h>
 #include <pico/cyw43_arch.h>
 
-#include "wifi_scan_mode.h"
+#include "wireless_client_mode.h"
 #include "display.h"
 #include "u8g2.h"
 #include "cyw43_control.h"
 
+#define MAX_NUM_SSID        16
+#define MAX_SSID_LENGTH     32
 
 TaskHandle_t wifi_scan_render_task_handler = NULL;
 
 int num_ssid_scanned = 0;
-char ssid_list[16][32];  // 32 chars per SSID and 16 SSIDs in total
+int16_t wifi_selected_ssid = 0;
+char ssid_list[MAX_NUM_SSID][MAX_SSID_LENGTH];  // 32 chars per SSID and 16 SSIDs in total
 char status[16];
 
 
@@ -57,10 +60,10 @@ static int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
         //     result->ssid, result->rssi, result->channel,
         //     result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5],
         //     result->auth_mode);
-        if (strlen(result->ssid) > 0 && num_ssid_scanned < 16) {
+        if (strlen(result->ssid) > 0 && num_ssid_scanned < MAX_NUM_SSID) {
             memcpy(ssid_list[num_ssid_scanned], 
                 result->ssid, 
-                sizeof(ssid_list[num_ssid_scanned]));
+                MAX_SSID_LENGTH);
             num_ssid_scanned += 1;
         }
 
@@ -99,11 +102,20 @@ uint8_t wifi_scan() {
 
     // Show complete for 3 seconds
     snprintf(status, sizeof(status), "> Complete");
-    vTaskDelay(3000);
+    vTaskDelay(500);
     
 
     vTaskSuspend(wifi_scan_render_task_handler);
 
 
-    return 1;  // Move to show page
+    return 72;  // Move to FORM 72
+}
+
+
+const char * wifi_get_ssid_name(void *data, uint16_t index) {
+    return ssid_list[index];
+}
+
+uint16_t wifi_get_ssid_count(void *data) {
+    return num_ssid_scanned;
 }

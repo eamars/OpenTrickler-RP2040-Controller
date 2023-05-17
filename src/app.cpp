@@ -88,7 +88,6 @@ int main()
     button_init();
 
     // Load config for motors
-    motor_config_init();
     motors_init();
 
     // Initialize UART
@@ -104,7 +103,7 @@ int main()
 #endif  // RASPBERRYPI_PICO_W
     xTaskCreate(menu_task, "Menu Task", 512, NULL, 6, NULL);
     xTaskCreate(scale_listener_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
-    xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
+    // xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 
     vTaskStartScheduler();
 

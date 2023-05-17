@@ -15,6 +15,7 @@
 #define DEFAULT_RAW_RECVMBOX_SIZE 8
 #define TCPIP_MBOX_SIZE 8
 #define LWIP_TIMEVAL_PRIVATE 0
+#define TCPIP_THREAD_PRIO   7
 
 // // not necessary, can be done either way
 #define LWIP_TCPIP_CORE_LOCKING_INPUT 1

@@ -10,6 +10,7 @@
 
 #include "scale.h"
 #include "charge_mode.h"
+#include "wireless_client_mode.h"
 
 
 extern uint8_t charge_weight_digits[];
@@ -19,6 +20,8 @@ extern charge_mode_config_t charge_mode_config;
 
 // Imported from and_scale module
 extern eeprom_scale_data_t scale_data;
+// Imported from wifi module
+extern uint16_t wifi_selected_ssid;
 
 
 uint8_t mui_hrule(mui_t *ui, uint8_t msg)
@@ -108,7 +111,7 @@ muif_t muif_list[] = {
         // Unit selection
         MUIF_VARIABLE("UN",&scale_data.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
 
-        /* input for a number between 0 to 9 */
+        // input for a number between 0 to 9 //
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N2", &charge_weight_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N1", &charge_weight_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -117,6 +120,11 @@ muif_t muif_list[] = {
         // Render PID value views
         MUIF_RO("K0", render_coarse_pid_values),
         MUIF_RO("K1", render_fine_pid_values),
+
+        // Render list of available WIFI
+        MUIF_U8G2_U16_LIST("PP", &wifi_selected_ssid, NULL, wifi_get_ssid_name, wifi_get_ssid_count, mui_u8g2_u16_list_parent_wm_pi),
+        MUIF_U8G2_U16_LIST("CC", &wifi_selected_ssid, NULL, wifi_get_ssid_name, wifi_get_ssid_count, mui_u8g2_u16_list_child_w1_pi),
+
     };
 
 const size_t muif_cnt = sizeof(muif_list) / sizeof(muif_t);
@@ -374,8 +382,30 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_LABEL(2,27, "Press OK to start Wifi")
-    MUI_LABEL(2, 37, "scan")
+    MUI_LABEL(2,27, "Press OK to start Wifi scan")
     MUI_XYAT("BN",14, 59, 36, "Back")
     MUI_XYAT("LV", 115, 59, 10, " OK ")  // APP_STATE_ENTER_WIFI_SCAN
+
+    // Select available WIFI
+    MUI_FORM(72)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select SSID")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(5,25, "SSID:")
+    MUI_XYA("PP", 35, 25, 73)  // goto form 73
+    MUI_XYAT("BN", 64, 59, 31, " OK ")
+
+    // List available WIFI 
+    MUI_FORM(73)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select SSID")
+    MUI_XY("HL", 0,13)
+    
+    MUI_STYLE(0)
+    MUI_XYA("CC", 5, 25, 0) 
+    MUI_XYA("CC", 5, 37, 1) 
+    MUI_XYA("CC", 5, 49, 2) 
+    MUI_XYA("CC", 5, 61, 3)
 };

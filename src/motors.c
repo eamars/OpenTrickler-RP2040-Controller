@@ -334,53 +334,6 @@ bool motor_config_save() {
 }
 
 
-bool motors_init(void) {
-    bool is_ok;
-
-    // Assume the `motor_config_init` is already called
-    coarse_trickler_motor_config.dir_pin = COARSE_MOTOR_DIR_PIN;
-    coarse_trickler_motor_config.en_pin = COARSE_MOTOR_EN_PIN;
-    coarse_trickler_motor_config.step_pin = COARSE_MOTOR_STEP_PIN;
-
-    fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
-    fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
-    fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
-
-    // TMC driver doesn't care about the baud rate the host is using
-    uart_init(MOTOR_UART, 250000);
-    gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
-    gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
-
-    _enable_uart_rx(MOTOR_UART, false);
-
-    // 
-    // Enable coarse trickler motor at UART ADDR 0
-    // 
-    driver_io_init(&coarse_trickler_motor_config);
-
-    // Allocate PIO to the stepper
-    driver_pio_init(&coarse_trickler_motor_config);
-
-    // Initialize the stepper driver 
-    is_ok = driver_init(&coarse_trickler_motor_config);
-    assert(is_ok);
-
-    // 
-    // Initialize fine trickler motor at UART ADDR 1
-    // 
-    driver_io_init(&fine_trickler_motor_config);
-
-    // Allocate PIO to the stepper
-    driver_pio_init(&fine_trickler_motor_config);
-    
-    // Initialize the stepper driver
-    is_ok = driver_init(&fine_trickler_motor_config);
-    assert(is_ok);
-
-    return true;
-}
-
-
 void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed, uint32_t pio_speed) {
     // Calculate ramp param
     float dv = new_speed - prev_speed;
@@ -454,38 +407,6 @@ void stepper_speed_control_task(void * p) {
 }   
 
 
-void motor_task(void *p) {
-    // bool status = motors_init();
-
-    // Initialize motor related RTOS control
-    coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
-    fine_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
-
-
-    UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-
-    // Create one task for each stepper controller
-    xTaskCreate(stepper_speed_control_task, 
-                "Coarse Trickler", 
-                configMINIMAL_STACK_SIZE, 
-                (void *) &coarse_trickler_motor_config, 
-                current_task_priority + 1, 
-                &coarse_trickler_motor_config.stepper_speed_control_task_handler);
-
-    xTaskCreate(stepper_speed_control_task, 
-                "Fine Trickler", 
-                configMINIMAL_STACK_SIZE, 
-                (void *) &fine_trickler_motor_config, 
-                current_task_priority + 1, 
-                &fine_trickler_motor_config.stepper_speed_control_task_handler);
-
-    while (true) {
-        // Stop here
-        vTaskSuspend(NULL);
-    }
-}
-
-
 void motor_set_speed(motor_select_t selected_motor, float new_velocity) {
     // Positive speed for positive direction
     motor_config_t * motor_config = NULL;
@@ -557,4 +478,76 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor) {
     }
 
     return 0;
+}
+
+
+bool motors_init(void) {
+    bool is_ok;
+
+    // Initialize config
+    is_ok = motor_config_init();
+    assert(is_ok);
+
+    // Assume the `motor_config_init` is already called
+    coarse_trickler_motor_config.dir_pin = COARSE_MOTOR_DIR_PIN;
+    coarse_trickler_motor_config.en_pin = COARSE_MOTOR_EN_PIN;
+    coarse_trickler_motor_config.step_pin = COARSE_MOTOR_STEP_PIN;
+
+    fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
+    fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
+    fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
+
+    // TMC driver doesn't care about the baud rate the host is using
+    uart_init(MOTOR_UART, 250000);
+    gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
+    gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
+
+    _enable_uart_rx(MOTOR_UART, false);
+
+    // 
+    // Enable coarse trickler motor at UART ADDR 0
+    // 
+    driver_io_init(&coarse_trickler_motor_config);
+
+    // Allocate PIO to the stepper
+    driver_pio_init(&coarse_trickler_motor_config);
+
+    // Initialize the stepper driver 
+    is_ok = driver_init(&coarse_trickler_motor_config);
+    assert(is_ok);
+
+    // 
+    // Initialize fine trickler motor at UART ADDR 1
+    // 
+    driver_io_init(&fine_trickler_motor_config);
+
+    // Allocate PIO to the stepper
+    driver_pio_init(&fine_trickler_motor_config);
+    
+    // Initialize the stepper driver
+    is_ok = driver_init(&fine_trickler_motor_config);
+    assert(is_ok);
+
+    // Initialize motor related RTOS control
+    coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
+    fine_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
+
+    UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
+
+    // Create one task for each stepper controller
+    xTaskCreate(stepper_speed_control_task, 
+                "Coarse Trickler", 
+                configMINIMAL_STACK_SIZE, 
+                (void *) &coarse_trickler_motor_config, 
+                8, 
+                &coarse_trickler_motor_config.stepper_speed_control_task_handler);
+
+    xTaskCreate(stepper_speed_control_task, 
+                "Fine Trickler", 
+                configMINIMAL_STACK_SIZE, 
+                (void *) &fine_trickler_motor_config, 
+                8, 
+                &fine_trickler_motor_config.stepper_speed_control_task_handler);
+
+    return true;
 }

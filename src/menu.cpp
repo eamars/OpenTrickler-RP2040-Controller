@@ -13,7 +13,7 @@
 #include "display.h"
 #include "rotary_button.h"
 #include "eeprom.h"
-#include "wifi_scan_mode.h"
+#include "wireless_client_mode.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "access_point_mode.h"

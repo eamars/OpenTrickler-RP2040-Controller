@@ -90,7 +90,7 @@ void ap_mode_display_render_task(void *p) {
 
         u8g2_SendBuffer(display_handler);
 
-        vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(20));
+        vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(200));
     }
 }
 
@@ -340,6 +340,8 @@ uint8_t access_point_mode_menu()
         exit(1);
     }
 
+    // cyw43_arch_lwip_begin();
+
     // Get unique id
     char id[5];
     pico_get_unique_board_id_string(id, 5);
@@ -349,7 +351,7 @@ uint8_t access_point_mode_menu()
 
     // Initialize IP
     ip4_addr_t mask;
-    IP4_ADDR(ip_2_ip4(&state->gw), 192, 168, 3, 1);
+    IP4_ADDR(ip_2_ip4(&state->gw), 192, 168, 4, 1);
     IP4_ADDR(ip_2_ip4(&mask), 255, 255, 255, 0);
 
     // Start the dhcp server
@@ -380,6 +382,8 @@ uint8_t access_point_mode_menu()
 
     dns_server_deinit(&dns_server);
     dhcp_server_deinit(&dhcp_server);
+
+    // cyw43_arch_lwip_end();
 
     vTaskSuspend(ap_mode_display_render_handler);
 
