@@ -17,6 +17,7 @@
 #include "motors.h"
 #include "charge_mode.h"
 #include "eeprom.h"
+#include "rest_endpoints.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0};
@@ -380,4 +381,24 @@ bool charge_mode_config_save(void) {
     bool is_ok;
     is_ok = eeprom_write(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *) &charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
     return is_ok;
+}
+
+
+char * charge_mode_config_to_json() {
+    char buf[256];
+    sprintf(buf, "{\"coarse_kp\":%f,\"coarse_ki\":%f,\"coarse_kd\":%f,\"fine_kp\":%f,\"fine_ki\":%f,\"fine_kd\":%f,\"error_margin_grain\":%f,\"zero_sd_margin_grain\":%f,\"zero_mean_stability_grain\":%f}",
+            charge_mode_config.eeprom_charge_mode_data.coarse_kp,
+            charge_mode_config.eeprom_charge_mode_data.coarse_ki,
+            charge_mode_config.eeprom_charge_mode_data.coarse_kd,
+            charge_mode_config.eeprom_charge_mode_data.fine_kp,
+            charge_mode_config.eeprom_charge_mode_data.fine_ki,
+            charge_mode_config.eeprom_charge_mode_data.fine_kd,
+            charge_mode_config.eeprom_charge_mode_data.error_margin_grain,
+            charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain,
+            charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain);
+
+    char *return_ptr = (char *) malloc(strlen(buf));
+    strcpy(return_ptr, buf);
+
+    return return_ptr;
 }

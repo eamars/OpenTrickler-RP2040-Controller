@@ -36,7 +36,7 @@ extern "C" {
 #endif
 
 bool charge_mode_config_save(void);
-
+char * charge_mode_config_to_json();
 
 #ifdef __cplusplus
 }  // __cplusplus

@@ -21,6 +21,7 @@
 #include "display.h"
 #include "charge_mode.h"
 #include "cyw43_control.h"
+#include "rest_endpoints.h"
 
 // C++ functions
 extern void button_init(void);
@@ -98,6 +99,8 @@ int main()
 
 #ifdef RASPBERRYPI_PICO_W
     xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+
+    rest_endpoint_init();
 #else
     // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W

@@ -351,7 +351,7 @@ uint8_t access_point_mode_menu()
 
     // Initialize IP
     ip4_addr_t mask;
-    IP4_ADDR(ip_2_ip4(&state->gw), 192, 168, 4, 1);
+    IP4_ADDR(ip_2_ip4(&state->gw), 192, 168, 4, 1);  
     IP4_ADDR(ip_2_ip4(&mask), 255, 255, 255, 0);
 
     // Start the dhcp server
