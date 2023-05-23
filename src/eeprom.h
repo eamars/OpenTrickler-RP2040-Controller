@@ -13,12 +13,12 @@
 #define EEPROM_CHARGE_MODE_BASE_ADDR        5 * 1024       // 5K
 
 
-#define EEPROM_METADATA_REV                     1              // 16 byte 
+#define EEPROM_METADATA_REV                     2              // 16 byte 
 
 
 typedef struct {
     uint16_t eeprom_metadata_rev;
-    uint8_t unique_id[8];
+    char unique_id[8];
 } __attribute__((packed)) eeprom_metadata_t;
 
 
@@ -30,7 +30,7 @@ bool eeprom_init(void);
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len);
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
 
-
+bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy);
 
 /*
  * Fill all EEPROM with 0xFF

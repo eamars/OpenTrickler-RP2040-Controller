@@ -2,23 +2,20 @@
 #define REST_ENDPOINTS_H_
 
 #include <stdbool.h>
+#include "lwip/apps/httpd.h"
 
 
-typedef enum {
-    HTTP_GET,
-    HTTP_POST,
-} http_method_t;
-
-typedef bool *(rest_handler_t)(char *, char *); 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-void rest_register_handler(char * request, rest_handler_t f);
-rest_handler_t * rest_get_handler(char *request);
-bool rest_endpoint_init();
+// const tCGI * get_rest_handlers();
+// int get_num_rest_handlers();
+
+
+
 
 #ifdef __cplusplus
 }  // __cplusplus

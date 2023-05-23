@@ -74,7 +74,7 @@ int main()
 {
     // stdio_init_all();
     // Initialize EEPROM first
-    eeprom_init();
+     eeprom_init();
 
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
@@ -99,8 +99,6 @@ int main()
 
 #ifdef RASPBERRYPI_PICO_W
     xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
-
-    rest_endpoint_init();
 #else
     // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W

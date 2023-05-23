@@ -6,18 +6,24 @@
 #include "dnsserver.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
+#include "lwip/apps/httpd.h"
 
 #include "app.h"
 #include "rotary_button.h"
 #include "u8g2.h"
 #include "pico/unique_id.h"
 #include "display.h"
+#include "eeprom.h"
+
 
 #define DEBUG_printf printf
 
+#define HTTP_GET_STR "GET"
+#define HTTP_POST_STR "POST"
+
 #define TCP_PORT 80
 #define POLL_TIME_S 5
-#define HTTP_GET "GET"
+
 #define HTTP_RESPONSE_HEADERS "HTTP/1.1 %d OK\nContent-Length: %d\nContent-Type: text/html; charset=utf-8\nConnection: close\n\n"
 #define LED_TEST_BODY "<html><body><h1>Hello from Pico W.</h1><p>Led is %s</p><p><a href=\"?led=%d\">Turn led %s</a></body></html>"
 #define LED_PARAM "led=%d"
@@ -92,6 +98,17 @@ void ap_mode_display_render_task(void *p) {
 
         vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(200));
     }
+}
+
+
+size_t _count_to_space(char * string, size_t max_count) {
+    size_t count;
+    for (count = 0; count < max_count; count += 1) {
+        if (string[count] == ' ') {
+            break;
+        }
+    }
+    return count;
 }
 
 
@@ -183,9 +200,10 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
         // Copy the request into the buffer
         pbuf_copy_partial(p, con_state->headers, p->tot_len > sizeof(con_state->headers) - 1 ? sizeof(con_state->headers) - 1 : p->tot_len, 0);
 
+
         // Handle GET request
-        if (strncmp(HTTP_GET, con_state->headers, sizeof(HTTP_GET) - 1) == 0) {
-            char *request = con_state->headers + sizeof(HTTP_GET); // + space
+        if (strncmp(HTTP_POST_STR, con_state->headers, sizeof(HTTP_POST_STR) - 1) == 0) {
+            char *request = con_state->headers + sizeof(HTTP_POST_STR); // + space
             char *params = strchr(request, '?');
             if (params) {
                 if (*params) {
@@ -321,6 +339,17 @@ static bool tcp_server_open(void *arg) {
 }
 
 
+const char * eeprom_endpoint(int idx, int num_params, char *params[], char *pc_value[]) {
+    printf("called\n");
+}
+
+
+static const tCGI rest_handlers[] = {
+    {
+        // eeprom
+        "/eeprom", eeprom_endpoint
+    }
+};
 
 
 uint8_t access_point_mode_menu()
@@ -343,8 +372,8 @@ uint8_t access_point_mode_menu()
     // cyw43_arch_lwip_begin();
 
     // Get unique id
-    char id[5];
-    pico_get_unique_board_id_string(id, 5);
+    char id[4];
+    eeprom_get_board_id((char **) &id, sizeof(id));
     memset(ap_ssid, 0x0, sizeof(ap_ssid));
     snprintf(ap_ssid, sizeof(ap_ssid), "OpenTrickler%s", id);
     cyw43_arch_enable_ap_mode(ap_ssid, ap_password, CYW43_AUTH_WPA2_AES_PSK);
@@ -361,11 +390,16 @@ uint8_t access_point_mode_menu()
     // Start the dns server
     dns_server_t dns_server;
     dns_server_init(&dns_server, &state->gw);
+    
 
-    if (!tcp_server_open(state)) {
-        DEBUG_printf("failed to open server\n");
-        return 1;
-    }
+    // if (!tcp_server_open(state)) {
+    //     DEBUG_printf("failed to open server\n");
+    //     return 1;
+    // }
+
+    httpd_init();
+
+    http_set_cgi_handlers(rest_handlers, 1);
 
 
     bool quit = false;

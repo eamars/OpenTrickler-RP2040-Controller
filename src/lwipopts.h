@@ -24,6 +24,9 @@
 #define LWIP_SO_RCVTIMEO 1
 #endif
 
+// Lwip features
+#define LWIP_HTTPD_CGI                  1    // Enable HTTPCGI
+#define LWIP_HTTPD_SUPPORT_POST         0    // Enable POST
 
 
 #endif
