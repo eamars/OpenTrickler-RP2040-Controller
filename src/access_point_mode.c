@@ -84,10 +84,10 @@ void ap_mode_display_render_task(void *p) {
         u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
         u8g2_DrawStr(display_handler, 5, 30, string_buf);
 
-        memset(string_buf, 0x0, sizeof(string_buf));
-        snprintf(string_buf, sizeof(string_buf), "IP: 192.168.3.1");
-        u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
-        u8g2_DrawStr(display_handler, 5, 40, string_buf);
+        // memset(string_buf, 0x0, sizeof(string_buf));
+        // snprintf(string_buf, sizeof(string_buf), "IP: 192.168.3.1");
+        // u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
+        // u8g2_DrawStr(display_handler, 5, 40, string_buf);
 
         memset(string_buf, 0x0, sizeof(string_buf));
         snprintf(string_buf, sizeof(string_buf), "Press key to exit");

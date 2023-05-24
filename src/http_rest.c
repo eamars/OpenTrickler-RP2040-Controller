@@ -345,6 +345,19 @@
 // static char *http_cgi_param_vals[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Values for each extracted param */
 // #endif /* LWIP_HTTPD_CGI */
 
+// void fs_close(struct fs_file *file) {
+
+// }
+
+// int fs_bytes_left(struct fs_file *file) {
+//     return 0;
+// }
+
+// err_t fs_open(struct fs_file *file, const char *name) {
+//     return ERR_OK;
+// }
+
+
 // #if LWIP_HTTPD_KILL_OLD_ON_CONNECTIONS_EXCEEDED
 // /** global list of active HTTP connections, use to kill the oldest when
 //     running out of memory */
