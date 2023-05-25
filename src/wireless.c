@@ -78,10 +78,6 @@ bool wireless_config_init() {
         }
     }
 
-    memset(&wireless_config, 0xFE, sizeof(wireless_config_t));
-    wireless_config.eeprom_wireless_metadata.configured = false;
-    is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
-
     return is_ok;
 }
 
