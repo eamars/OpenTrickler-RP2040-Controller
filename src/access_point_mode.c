@@ -19,6 +19,8 @@
 
 static dhcp_server_t dhcp_server;
 static dns_server_t dns_server;
+static ip4_addr_t mask;
+static ip_addr_t gw;
 
 extern char ip_addr_string[16];
 extern char first_line_buffer[32];
@@ -36,8 +38,6 @@ bool access_point_mode_start() {
     cyw43_arch_enable_ap_mode(ap_ssid, ap_password, CYW43_AUTH_WPA2_AES_PSK);
 
     // Initialize IP
-    ip4_addr_t mask;
-    ip_addr_t gw;
     IP4_ADDR(ip_2_ip4(&gw), 192, 168, 4, 1);  
     IP4_ADDR(ip_2_ip4(&mask), 255, 255, 255, 0);
 
@@ -46,7 +46,6 @@ bool access_point_mode_start() {
     sprintf(second_line_buffer, ">%s", ap_password);
 
     // Start the dhcp server
-    
     dhcp_server_init(&dhcp_server, &gw, &mask);
 
     // Start the dns server

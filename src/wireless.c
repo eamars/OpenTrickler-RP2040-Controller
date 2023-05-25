@@ -2,13 +2,14 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
-#include <lwip/apps/httpd.h>
+// #include <lwip/apps/httpd.h>
 
 #include "wireless.h"
 #include "eeprom.h"
 #include "access_point_mode.h"
 #include "display.h"
 #include "rotary_button.h"
+#include "http_rest.h"
 
 
 typedef enum {
@@ -78,7 +79,20 @@ bool wireless_config_init() {
         }
     }
 
+    is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
+
     return is_ok;
+}
+
+
+bool http_rest_eeprom_handler(struct fs_file *file, int num_params, char *params[], char *values[]) {
+
+    file->data = "It Works";
+    file->len = 9;
+    file->index = 9;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+
+    return true;
 }
 
 
@@ -120,6 +134,8 @@ void wireless_task(void *p) {
 
     // Start the HTTP server
     httpd_init();
+
+    rest_register_handler("/rest/eeprom", http_rest_eeprom_handler);
 
 
     while (true) {
