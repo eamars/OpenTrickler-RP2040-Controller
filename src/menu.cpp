@@ -13,11 +13,10 @@
 #include "display.h"
 #include "rotary_button.h"
 #include "eeprom.h"
-#include "wireless_client_mode.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
-#include "access_point_mode.h"
 #include "eeprom.h"
+#include "wireless.h"
 
 
 // External variables
@@ -66,9 +65,6 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_CHARGE_MODE:
                     exit_form_id = charge_mode_menu();
                     break;
-                case APP_STATE_ENTER_ACCESS_POINT_MODE:
-                    exit_form_id = access_point_mode_menu();
-                    break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
                     exit_form_id = cleanup_mode_menu();
                     break;
@@ -84,8 +80,8 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_REBOOT:
                     exit_form_id = software_reboot();
                     break;
-                case APP_STATE_ENTER_WIFI_SCAN:
-                    exit_form_id = wifi_scan();
+                case APP_STATE_ENTER_WIFI_INFO:
+                    exit_form_id = wireless_view_wifi_info();
                     break;
                 default:
                     break;

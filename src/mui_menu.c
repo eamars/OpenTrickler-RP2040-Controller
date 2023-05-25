@@ -10,7 +10,6 @@
 
 #include "scale.h"
 #include "charge_mode.h"
-#include "wireless_client_mode.h"
 
 
 extern uint8_t charge_weight_digits[];
@@ -20,8 +19,7 @@ extern charge_mode_config_t charge_mode_config;
 
 // Imported from and_scale module
 extern eeprom_scale_data_t scale_data;
-// Imported from wifi module
-extern uint16_t wifi_selected_ssid;
+
 
 
 uint8_t mui_hrule(mui_t *ui, uint8_t msg)
@@ -121,10 +119,6 @@ muif_t muif_list[] = {
         MUIF_RO("K0", render_coarse_pid_values),
         MUIF_RO("K1", render_fine_pid_values),
 
-        // Render list of available WIFI
-        MUIF_U8G2_U16_LIST("PP", &wifi_selected_ssid, NULL, wifi_get_ssid_name, wifi_get_ssid_count, mui_u8g2_u16_list_parent_wm_pi),
-        MUIF_U8G2_U16_LIST("CC", &wifi_selected_ssid, NULL, wifi_get_ssid_name, wifi_get_ssid_count, mui_u8g2_u16_list_child_w1_pi),
-
     };
 
 const size_t muif_cnt = sizeof(muif_list) / sizeof(muif_t);
@@ -140,6 +134,7 @@ fds_t fds_data[] = {
     MUI_DATA("MU", 
         MUI_10 "Start|"
         MUI_20 "Cleanup|"
+        MUI_40 "Wireless|"
         MUI_30 "Settings"
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -205,7 +200,6 @@ fds_t fds_data[] = {
         MUI_31 "Scale|"
         MUI_32 "View PID|"
         MUI_34 "Tune PID|"
-        MUI_36 "Wireless|"
         MUI_37 "EEPROM|"
         MUI_35 "Reboot|"
         MUI_1 "<-Return"  // Back to main menu
@@ -267,36 +261,6 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",14, 59, 37, "Back")
     MUI_XYAT("LV", 115, 59, 8, "Next")  // APP_STATE_ENTER_REBOOT
 
-    MUI_FORM(36)
-#ifdef RASPBERRYPI_PICO_W
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Wireless")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_DATA("MU",
-        MUI_70 "AP Mode|"
-        MUI_71 "Connect to WIFI|"
-        MUI_30 "<-Return"  // back to view 30
-    )
-    MUI_XYA("GC", 5, 25, 0) 
-    MUI_XYA("GC", 5, 37, 1) 
-    MUI_XYA("GC", 5, 49, 2) 
-    MUI_XYA("GC", 5, 61, 3)
-
-#else
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Error")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(3,27, "AP Mode is not supported")
-    MUI_LABEL(3,37, "on your platform")
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN",64, 59, 30, " OK ")
-
-#endif
     // EEPROM submenu
     MUI_FORM(37)
     MUI_STYLE(1)
@@ -313,6 +277,49 @@ fds_t fds_data[] = {
     MUI_XYA("GC", 5, 37, 1) 
     MUI_XYA("GC", 5, 49, 2) 
     MUI_XYA("GC", 5, 61, 3)
+
+    // Wirelss submenu
+    MUI_FORM(40)
+#ifdef RASPBERRYPI_PICO_W
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Wireless")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_DATA("MU",
+        MUI_41 "Wifi Info|"
+        MUI_1 "<-Return"  // back to view 1
+    )
+    MUI_XYA("GC", 5, 25, 0) 
+    MUI_XYA("GC", 5, 37, 1) 
+    MUI_XYA("GC", 5, 49, 2) 
+    MUI_XYA("GC", 5, 61, 3)
+#else  // doesn't support wifi
+
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Error")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(3,27, "AP Mode is not supported")
+    MUI_LABEL(3,37, "on your platform")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",64, 59, 1, " OK ")
+#endif
+
+    // Wifi info
+    MUI_FORM(41)
+    MUI_LABEL(5,10, "Wifi Info")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(3,27, "Press OK to view Wifi")
+    MUI_LABEL(3,37, "information")
+
+    MUI_STYLE(0)
+    MUI_XYAT("LV",64, 59, 10, " OK ")  // APP_STATE_ENTER_WIFI_INFO
+
     
     // Scale unit
     MUI_FORM(50)
@@ -362,50 +369,4 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 37, "the EEPROM")
     MUI_XYAT("BN",14, 59, 37, "Back")
     MUI_XYAT("LV", 115, 59, 8, "Next")  // APP_STATE_ENTER_EEPROM_ERASE
-
-    // Access point mode
-    MUI_FORM(70)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "AP Mode")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(2,27, "Press OK to start AP mode")
-    MUI_LABEL(2, 37, "mode")
-    MUI_XYAT("BN",14, 59, 36, "Back")
-    MUI_XYAT("LV", 115, 59, 3, " OK ")  // APP_STATE_ENTER_ACCESS_POINT_MODE
-
-    // Wifi Scan Mode
-    MUI_FORM(71)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Wifi Scan")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(2,27, "Press OK to start Wifi scan")
-    MUI_XYAT("BN",14, 59, 36, "Back")
-    MUI_XYAT("LV", 115, 59, 10, " OK ")  // APP_STATE_ENTER_WIFI_SCAN
-
-    // Select available WIFI
-    MUI_FORM(72)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select SSID")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(5,25, "SSID:")
-    MUI_XYA("PP", 35, 25, 73)  // goto form 73
-    MUI_XYAT("BN", 64, 59, 31, " OK ")
-
-    // List available WIFI 
-    MUI_FORM(73)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select SSID")
-    MUI_XY("HL", 0,13)
-    
-    MUI_STYLE(0)
-    MUI_XYA("CC", 5, 25, 0) 
-    MUI_XYA("CC", 5, 37, 1) 
-    MUI_XYA("CC", 5, 49, 2) 
-    MUI_XYA("CC", 5, 61, 3)
 };

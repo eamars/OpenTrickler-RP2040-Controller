@@ -13,6 +13,7 @@
 #include "hardware/watchdog.h"
 #include "hardware/regs/rosc.h"
 #include "hardware/regs/addressmap.h"
+#include "common.h"
 
 
 extern bool cat24c256_eeprom_erase();

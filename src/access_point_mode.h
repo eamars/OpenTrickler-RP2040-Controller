@@ -10,6 +10,9 @@ extern "C" {
 
 uint8_t access_point_mode_menu();
 
+bool access_point_mode_start();
+bool access_point_mode_stop();
+
 #ifdef __cplusplus
 }
 #endif

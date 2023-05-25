@@ -20,34 +20,12 @@
 #include "scale.h"
 #include "display.h"
 #include "charge_mode.h"
-#include "cyw43_control.h"
 #include "rest_endpoints.h"
+#include "wireless.h"
 
 // C++ functions
 extern void button_init(void);
 extern void menu_task(void *p);
-
-
-extern "C" void button_task(void *p);
-extern "C" void scale_measurement_init(void);
-extern "C" void scale_measurement_generator(void *p);
-
-
-void watchdog_task(void *p){
-    // watchdog_enable(500, true);  // 500ms, enable debug
-    bool led_state = true;
-    while (true){
-        TickType_t last_measurement_tick = xTaskGetTickCount();
-        // watchdog_update();
-
-        // Change LED state
-        gpio_put(WATCHDOG_LED_PIN, led_state);
-
-        led_state = !led_state;
-
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(500));
-    }
-}
 
 
 
@@ -97,8 +75,11 @@ int main()
     // Initialize charge mode settings
     charge_mode_config_init();
 
+    // Load wireless settings
+    wireless_config_init();
+
 #ifdef RASPBERRYPI_PICO_W
-    xTaskCreate(cyw43_task, "Cyw43 Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+    xTaskCreate(wireless_task, "Wireless Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #else
     // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W
