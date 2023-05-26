@@ -10,6 +10,7 @@
 #include "display.h"
 #include "rotary_button.h"
 #include "http_rest.h"
+#include "rest_endpoints.h"
 
 
 typedef enum {
@@ -85,14 +86,35 @@ bool wireless_config_init() {
 }
 
 
-bool http_rest_eeprom_handler(struct fs_file *file, int num_params, char *params[], char *values[]) {
+char * wireless_config_to_json() {
+    static char wireless_config_json_buffer[256];
+    const char * auth_string;
 
-    file->data = "It Works";
-    file->len = 9;
-    file->index = 9;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+    switch (wireless_config.eeprom_wireless_metadata.auth) {
+        case CYW43_AUTH_OPEN:
+            auth_string = "CYW43_AUTH_OPEN";
+            break;
+        case CYW43_AUTH_WPA_TKIP_PSK:
+            auth_string = "CYW43_AUTH_WPA_TKIP_PSK";
+            break;
+        case CYW43_AUTH_WPA2_AES_PSK:
+            auth_string = "CYW43_AUTH_WPA2_AES_PSK";
+            break;
+        case CYW43_AUTH_WPA2_MIXED_PSK:
+            auth_string = "CYW43_AUTH_WPA2_MIXED_PSK";
+            break;
+        default:
+            auth_string = "error";
+            break;
+    }
 
-    return true;
+    sprintf(wireless_config_json_buffer, 
+            "{\"ssid\":\"%s\",\"pw\":\"******\",\"auth\":\"%s\",\"timeout_ms\":%d}",
+            wireless_config.eeprom_wireless_metadata.ssid,
+            auth_string,
+            wireless_config.eeprom_wireless_metadata.timeout_ms);
+
+    return wireless_config_json_buffer;
 }
 
 
@@ -132,10 +154,13 @@ void wireless_task(void *p) {
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
     }
 
+    // Initialize REST endpoints
+    rest_endpoints_init();
+
     // Start the HTTP server
     httpd_init();
 
-    rest_register_handler("/rest/eeprom", http_rest_eeprom_handler);
+    
 
 
     while (true) {

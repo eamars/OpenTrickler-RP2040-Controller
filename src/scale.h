@@ -47,6 +47,9 @@ void scale_display_on();
 uint8_t scale_calibrate_with_external_weight();
 AppState_t scale_enable_fast_report(AppState_t prev_state);
 
+// REST
+char * scale_weight_to_json();
+
 
 #ifdef __cplusplus
 }

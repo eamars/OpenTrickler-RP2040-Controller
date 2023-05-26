@@ -5,7 +5,7 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
-#define EEPROM_MOTOR_DATA_REV                     1              // 16 byte 
+#define EEPROM_MOTOR_DATA_REV                     2              // 16 byte 
 
 
 // Terms
@@ -24,7 +24,6 @@ typedef struct {
     uint16_t current_ma;
     uint16_t microsteps;
     uint16_t max_speed_rps;
-    uint16_t uart_addr;
     uint16_t r_sense;
 } motor_persistent_config_t;
 
@@ -43,6 +42,7 @@ typedef struct {
     uint dir_pin;
     uint en_pin;
     uint step_pin;
+    uint8_t uart_addr;
 
     // Set at run time
     void * tmc_driver;
@@ -72,6 +72,8 @@ void motor_task(void *p);
 void motor_set_speed(motor_select_t selected_motor, float new_velocity);
 uint16_t get_motor_max_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
+
+char * motor_config_to_json(motor_select_t selected_motor);
 
 #ifdef __cplusplus
 }

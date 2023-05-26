@@ -26,6 +26,8 @@ void wireless_task(void *);
 bool wireless_config_init(void);
 uint8_t wireless_view_wifi_info(void);
 
+char * wireless_config_to_json();
+
 #ifdef __cplusplus
 }
 #endif

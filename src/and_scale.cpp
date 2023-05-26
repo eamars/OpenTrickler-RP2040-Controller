@@ -210,3 +210,14 @@ void scale_display_on() {
 // AppState_t scale_enable_fast_report(AppState_t prev_state) {
 //     // TODO: Finish this
 // }
+
+
+char * scale_weight_to_json() {
+    static char scale_weight_to_json_buffer[32];
+
+    sprintf(scale_weight_to_json_buffer, 
+            "{\"weight\":%f}", 
+            scale_get_current_measurement());
+
+    return scale_weight_to_json_buffer;
+}

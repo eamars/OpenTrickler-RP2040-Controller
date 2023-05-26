@@ -11,8 +11,7 @@ extern "C" {
 #endif
 
 
-// const tCGI * get_rest_handlers();
-// int get_num_rest_handlers();
+bool rest_endpoints_init();
 
 
 

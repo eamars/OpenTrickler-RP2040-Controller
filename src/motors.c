@@ -38,7 +38,6 @@ const motor_persistent_config_t default_motor_persistent_config = {
     .max_speed_rps = 20,                // Maximum speed before the stepper runs out
     .microsteps = 256,                  // Default to maximum that the driver supports
     .r_sense = 110,                     // 0.110 ohm sense resistor the stepper driver
-    .uart_addr = 0,                     // 0 to 4
 };
 
 
@@ -240,7 +239,7 @@ bool driver_init(motor_config_t * motor_config) {
     TMC2209_SetDefaults(tmc_driver);
 
     // Apply user configurations
-    tmc_driver->config.motor.address = motor_config->persistent_config.uart_addr;
+    tmc_driver->config.motor.address = motor_config->uart_addr;
     tmc_driver->config.current = motor_config->persistent_config.current_ma;
     tmc_driver->config.r_sense = motor_config->persistent_config.r_sense;
     tmc_driver->config.hold_current_pct = 50;
@@ -300,9 +299,6 @@ bool motor_config_init(void) {
         memcpy(&eeprom_motor_data.motor_data[0], &default_motor_persistent_config, sizeof(motor_persistent_config_t));
         memcpy(&eeprom_motor_data.motor_data[1], &default_motor_persistent_config, sizeof(motor_persistent_config_t));
         eeprom_motor_data.motor_data_rev = EEPROM_MOTOR_DATA_REV;
-
-        eeprom_motor_data.motor_data[0].uart_addr = 0;
-        eeprom_motor_data.motor_data[1].uart_addr = 1;
 
         // Write data back
         is_ok = eeprom_write(EEPROM_MOTOR_CONFIG_BASE_ADDR, (uint8_t *) &eeprom_motor_data, sizeof(eeprom_motor_data_t));
@@ -492,10 +488,12 @@ bool motors_init(void) {
     coarse_trickler_motor_config.dir_pin = COARSE_MOTOR_DIR_PIN;
     coarse_trickler_motor_config.en_pin = COARSE_MOTOR_EN_PIN;
     coarse_trickler_motor_config.step_pin = COARSE_MOTOR_STEP_PIN;
+    coarse_trickler_motor_config.uart_addr = COARSE_MOTOR_ADDR;
 
     fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
     fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
     fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
+    fine_trickler_motor_config.uart_addr = FINE_MOTOR_ADDR;
 
     // TMC driver doesn't care about the baud rate the host is using
     uart_init(MOTOR_UART, 250000);
@@ -550,4 +548,36 @@ bool motors_init(void) {
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
 
     return true;
+}
+
+
+char * motor_config_to_json(motor_select_t selected_motor) {
+    static char motor_config_json_buffer[256];
+    motor_config_t * motor_config = NULL;
+    switch (selected_motor)
+    {
+    case SELECT_COARSE_TRICKLER_MOTOR:
+        motor_config = &coarse_trickler_motor_config;
+        break;
+    case SELECT_FINE_TRICKLER_MOTOR:
+        motor_config = &fine_trickler_motor_config;
+        break;
+    
+    default:
+        break;
+    }
+
+    if (!motor_config) {
+        exit(-1);
+    }
+
+    sprintf(motor_config_json_buffer, 
+            "{\"angular_acceleration\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d}",
+            motor_config->persistent_config.angular_acceleration, 
+            motor_config->persistent_config.full_steps_per_rotation,
+            motor_config->persistent_config.current_ma,
+            motor_config->persistent_config.microsteps,
+            motor_config->persistent_config.max_speed_rps,
+            motor_config->persistent_config.r_sense);
+    return motor_config_json_buffer;
 }

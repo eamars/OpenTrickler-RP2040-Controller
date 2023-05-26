@@ -2832,7 +2832,13 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
     }
     
     if (file == NULL) {
-        file = http_get_404_file(hs, &uri);
+        rest_handler = rest_get_handler("/404");
+        LWIP_ASSERT("Missing 404 handler", file == NULL);
+
+        rest_handler(&hs->file_handle, http_cgi_paramcount, hs->params, hs->param_vals);
+
+        file = &hs->file_handle;
+        
     }
 
     uint8_t tag_check = 0;
