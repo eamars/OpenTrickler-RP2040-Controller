@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 bool eeprom_init(void);
+bool eeprom_save_config();
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len);
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
 
@@ -37,7 +38,7 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy);
 uint8_t eeprom_erase(bool);
 uint8_t eeprom_save_all(void);
 
-
+char * eeprom_config_to_json();
 
 #ifdef __cplusplus
 }

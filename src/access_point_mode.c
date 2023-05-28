@@ -41,16 +41,15 @@ bool access_point_mode_start() {
     IP4_ADDR(ip_2_ip4(&gw), 192, 168, 4, 1);  
     IP4_ADDR(ip_2_ip4(&mask), 255, 255, 255, 0);
 
-    sprintf(ip_addr_string, "192.168.4.1");
-    sprintf(first_line_buffer, ">%s", ap_ssid);
-    sprintf(second_line_buffer, ">%s", ap_password);
-
     // Start the dhcp server
     dhcp_server_init(&dhcp_server, &gw, &mask);
 
     // Start the dns server
     dns_server_t dns_server;
     dns_server_init(&dns_server, &gw);
+
+    sprintf(first_line_buffer, ">%s", ap_ssid);
+    sprintf(second_line_buffer, ">%s", ap_password);
 
     return true;
 }
@@ -59,4 +58,7 @@ bool access_point_mode_start() {
 bool access_point_mode_stop() {
     dhcp_server_deinit(&dhcp_server);
     dns_server_deinit(&dns_server);
+
+    memset(first_line_buffer, 0x0, sizeof(first_line_buffer));
+    memset(second_line_buffer, 0x0, sizeof(second_line_buffer));
 }

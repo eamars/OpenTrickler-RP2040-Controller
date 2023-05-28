@@ -2,7 +2,7 @@
 #define WIRELESS_H_
 
 #include <stdint.h>
-
+#include "http_rest.h"
 
 #define EEPROM_WIRELESS_CONFIG_METADATA_REV                     1              // 16 byte 
 
@@ -24,9 +24,10 @@ extern "C" {
 
 void wireless_task(void *);
 bool wireless_config_init(void);
+bool wireless_config_save();
 uint8_t wireless_view_wifi_info(void);
 
-char * wireless_config_to_json();
+bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 #ifdef __cplusplus
 }

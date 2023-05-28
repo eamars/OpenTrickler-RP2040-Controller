@@ -127,6 +127,12 @@ static const char *const g_pcSSIExtensions[] = {
 
 #include <lwip/apps/fs.h>
 
+typedef enum {
+    HTTP_METHOD_GET,
+    HTTP_METHOD_POST,
+} http_method_t;
+
+
 typedef bool (*rest_handler_t)(struct fs_file *file, int num_params, char *params[], char *values[]); 
 
 #ifdef __cplusplus

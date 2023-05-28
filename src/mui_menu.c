@@ -259,7 +259,7 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 25, "Press Next to perform")
     MUI_LABEL(5, 37, "software reboot")
     MUI_XYAT("BN",14, 59, 37, "Back")
-    MUI_XYAT("LV", 115, 59, 8, "Next")  // APP_STATE_ENTER_REBOOT
+    MUI_XYAT("LV", 115, 59, 9, "Next")  // APP_STATE_ENTER_REBOOT
 
     // EEPROM submenu
     MUI_FORM(37)
@@ -359,7 +359,7 @@ fds_t fds_data[] = {
     MUI_XYAT("BN",14, 59, 37, "Back")
     MUI_XYAT("LV", 115, 59, 7, "Next")  // APP_STATE_ENTER_EEPROM_SAVE
 
-    // Erease entire EEPROM
+    // Erase entire EEPROM
     MUI_FORM(61)
     MUI_STYLE(1)
     MUI_LABEL(5,10, "Erase EEPROM")

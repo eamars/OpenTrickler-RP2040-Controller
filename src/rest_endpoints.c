@@ -6,13 +6,17 @@
 #include "motors.h"
 #include "scale.h"
 #include "wireless.h"
+#include "eeprom.h"
+#include "rotary_button.h"
 
 
 bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
 
-    file->data = "It Works";
-    file->len = 9;
-    file->index = 9;
+    size_t data_length;
+    file->data = eeprom_config_to_json();
+    data_length = strlen(file->data);
+    file->len = data_length;
+    file->index = data_length;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
 
     return true;
@@ -20,6 +24,8 @@ bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[
 
 
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+
+
     size_t data_length;
     file->data = charge_mode_config_to_json();
     data_length = strlen(file->data);
@@ -82,16 +88,7 @@ bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[]
 }
 
 
-bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t data_length;
-    file->data = wireless_config_to_json();
-    data_length = strlen(file->data);
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
 
-    return true;
-}
 
 bool http_404_error(struct fs_file *file, int num_params, char *params[], char *values[]) {
 
@@ -104,11 +101,15 @@ bool http_404_error(struct fs_file *file, int num_params, char *params[], char *
 }
 
 
+
+
+
 bool rest_endpoints_init() {
     rest_register_handler("/404", http_404_error);
     rest_register_handler("/rest/scale_weight", http_rest_scale_weight);
     rest_register_handler("/rest/charge_mode_config", http_rest_charge_mode_config);
     rest_register_handler("/rest/eeprom_config", http_rest_eeprom_config);
     rest_register_handler("/rest/motor_config", http_rest_motor_config);
+    rest_register_handler("/rest/button_control", http_rest_button_control);
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
 }

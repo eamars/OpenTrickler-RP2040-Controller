@@ -1,6 +1,8 @@
 #ifndef ROTARY_BUTTON_H_
 #define ROTARY_BUTTON_H_
 
+#include "http_rest.h"
+
 
 typedef enum {
     BUTTON_NO_EVENT = 0,
@@ -19,6 +21,9 @@ extern "C" {
  * Wait for button encoder input. 
 */
 ButtonEncoderEvent_t button_wait_for_input(bool block);
+
+bool http_rest_button_control(struct fs_file *file, int num_params, char *params[], char *values[]);
+
 
 #ifdef __cplusplus
 }

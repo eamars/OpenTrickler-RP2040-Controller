@@ -24,12 +24,14 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "pico/stdlib.h"
 #include <FreeRTOS.h>
 #include <queue.h>
 #include "configuration.h"
 #include "gpio_irq_handler.h"
 #include "rotary_button.h"
+#include "http_rest.h"
 
 
 // Statics (to be shared between IRQ and tasks)
@@ -168,4 +170,68 @@ void button_init() {
     }
 
     printf("done\n");
+}
+
+
+bool http_rest_button_control(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char button_control_json_buffer[256];
+    memset(button_control_json_buffer, 0x0, sizeof(button_control_json_buffer));
+
+    strcat(button_control_json_buffer, "{\"button_pressed\":[");
+
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "BUTTON_ENCODER_ROTATE_CW") == 0) {
+            if (strcmp(values[idx], "true") == 0){
+                ButtonEncoderEvent_t button_event = BUTTON_ENCODER_ROTATE_CW;
+                xQueueSend(encoder_event_queue, &button_event, 0);
+
+                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_ROTATE_CW\",");
+            }
+        }
+        
+        if (strcmp(params[idx], "BUTTON_ENCODER_ROTATE_CCW") == 0) {
+            if (strcmp(values[idx], "true") == 0){
+                ButtonEncoderEvent_t button_event = BUTTON_ENCODER_ROTATE_CCW;
+                xQueueSend(encoder_event_queue, &button_event, 0);
+
+                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_ROTATE_CCW\",");
+            }
+        }
+
+        if (strcmp(params[idx], "BUTTON_ENCODER_PRESSED") == 0) {
+            if (strcmp(values[idx], "true") == 0){
+                ButtonEncoderEvent_t button_event = BUTTON_ENCODER_PRESSED;
+                xQueueSend(encoder_event_queue, &button_event, 0);
+
+                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_PRESSED\",");
+            }
+        }
+
+        if (strcmp(params[idx], "BUTTON_RST_PRESSED") == 0) {
+            if (strcmp(values[idx], "true") == 0){
+                ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
+                xQueueSend(encoder_event_queue, &button_event, 0);
+
+                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_PRESSED\",");
+            }
+        }
+    }
+
+    // Remove trailing comma
+    size_t len = strlen(button_control_json_buffer);
+    if (button_control_json_buffer[len-1] == ',') {
+        button_control_json_buffer[len-1] = 0;
+    }
+
+    strcat(button_control_json_buffer, "]}");
+
+    // Send to client
+    len = strlen(button_control_json_buffer);
+
+    file->data = button_control_json_buffer;
+    file->len = len;
+    file->index = len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
 }

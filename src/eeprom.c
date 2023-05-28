@@ -6,14 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "hardware/watchdog.h"
+#include "hardware/regs/rosc.h"
+#include "hardware/regs/addressmap.h"
+
 #include "eeprom.h"
 #include "scale.h"
 #include "motors.h"
 #include "charge_mode.h"
-#include "hardware/watchdog.h"
-#include "hardware/regs/rosc.h"
-#include "hardware/regs/addressmap.h"
 #include "common.h"
+#include "wireless.h"
 
 
 extern bool cat24c256_eeprom_erase();
@@ -41,11 +43,14 @@ uint32_t rnd(void){
 
 
 uint8_t eeprom_save_all() {
+    eeprom_save_config();
     scale_config_save();
     motor_config_save();
     charge_mode_config_save();
+    wireless_config_save();
     return 37;  // Configuration Menu ID
 }
+
 
 uint8_t eeprom_erase(bool reboot) {
     cat24c256_eeprom_erase();
@@ -95,6 +100,18 @@ bool eeprom_init(void) {
     }
 
     return is_ok;
+}
+
+bool eeprom_save_config() {
+    bool is_ok;
+
+    is_ok = eeprom_write(EEPROM_METADATA_BASE_ADDR, (uint8_t *) &metadata, sizeof(eeprom_metadata_t));
+    if (!is_ok) {
+        printf("Unable to write to %x\n", EEPROM_METADATA_BASE_ADDR);
+        return false;
+    }
+
+    return true;
 }
 
 
@@ -147,4 +164,14 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy) {
     memcpy(board_id_buffer, metadata.unique_id, bytes_to_copy);
 
     return true;
+}
+
+
+char * eeprom_config_to_json() {
+    static char eeprom_config_json_buffer[64];
+    sprintf(eeprom_config_json_buffer, 
+            "{\"unique_id\":\"%s\"}", 
+            metadata.unique_id);
+
+    return eeprom_config_json_buffer;
 }

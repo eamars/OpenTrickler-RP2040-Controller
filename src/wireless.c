@@ -51,133 +51,9 @@ const char * wireless_state_strings[] = {
     "STA Mode Listen"
 };
 
-char ip_addr_string[16];
+
 char first_line_buffer[32];
 char second_line_buffer[32];
-
-
-bool wireless_config_init() {
-    bool is_ok = true;
-
-    memset(&wireless_config, 0x00, sizeof(wireless_config_t));
-
-    is_ok = eeprom_read(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
-    if (!is_ok) {
-        printf("Unable to read from EEPROM at address %x\n", EEPROM_WIRELESS_CONFIG_BASE_ADDR);
-        return false;
-    }
-
-    // If the revision doesn't match then re-initialize the config
-    if (wireless_config.eeprom_wireless_metadata.wireless_data_rev != EEPROM_WIRELESS_CONFIG_METADATA_REV) {
-        wireless_config.eeprom_wireless_metadata.wireless_data_rev = EEPROM_WIRELESS_CONFIG_METADATA_REV;
-        wireless_config.eeprom_wireless_metadata.configured = false;
-
-        // Write data back
-        is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
-        if (!is_ok) {
-            printf("Unable to write to %x\n", EEPROM_WIRELESS_CONFIG_BASE_ADDR);
-            return false;
-        }
-    }
-
-    is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
-
-    return is_ok;
-}
-
-
-char * wireless_config_to_json() {
-    static char wireless_config_json_buffer[256];
-    const char * auth_string;
-
-    switch (wireless_config.eeprom_wireless_metadata.auth) {
-        case CYW43_AUTH_OPEN:
-            auth_string = "CYW43_AUTH_OPEN";
-            break;
-        case CYW43_AUTH_WPA_TKIP_PSK:
-            auth_string = "CYW43_AUTH_WPA_TKIP_PSK";
-            break;
-        case CYW43_AUTH_WPA2_AES_PSK:
-            auth_string = "CYW43_AUTH_WPA2_AES_PSK";
-            break;
-        case CYW43_AUTH_WPA2_MIXED_PSK:
-            auth_string = "CYW43_AUTH_WPA2_MIXED_PSK";
-            break;
-        default:
-            auth_string = "error";
-            break;
-    }
-
-    sprintf(wireless_config_json_buffer, 
-            "{\"ssid\":\"%s\",\"pw\":\"******\",\"auth\":\"%s\",\"timeout_ms\":%d}",
-            wireless_config.eeprom_wireless_metadata.ssid,
-            auth_string,
-            wireless_config.eeprom_wireless_metadata.timeout_ms);
-
-    return wireless_config_json_buffer;
-}
-
-
-void wireless_task(void *p) {
-    wireless_config.current_wireless_state = WIRELESS_STATE_NOT_INITIALIZED;
-    wireless_ctrl_queue = xQueueCreate(5, sizeof(wireless_ctrl_t));
-
-    if (cyw43_arch_init()) {
-        exit(-1);
-    }
-
-    wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
-
-    // Start default initialize pattern
-    if (wireless_config.eeprom_wireless_metadata.configured) {
-        wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_INIT;
-        cyw43_arch_enable_sta_mode();
-
-        int resp;
-        resp = cyw43_arch_wifi_connect_blocking(wireless_config.eeprom_wireless_metadata.ssid, 
-                                                wireless_config.eeprom_wireless_metadata.pw,
-                                                wireless_config.eeprom_wireless_metadata.auth);
-        if (resp) {
-            // Failed to connect, fallback to AP mode
-            wireless_config.eeprom_wireless_metadata.configured = false;
-        }
-
-        wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
-    }
-
-
-    // If not configured, or failed to connect existing wifi then start the AP mode
-    if (!wireless_config.eeprom_wireless_metadata.configured) {
-        // If previous configured, then start STA mode by default
-        wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_INIT;
-        access_point_mode_start();
-        wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
-    }
-
-    // Initialize REST endpoints
-    rest_endpoints_init();
-
-    // Start the HTTP server
-    httpd_init();
-
-    
-
-
-    while (true) {
-        wireless_ctrl_t wireless_ctrl;
-
-        xQueueReceive(wireless_ctrl_queue, &wireless_ctrl, portMAX_DELAY);
-
-        // TODO: Implement control
-        switch (wireless_ctrl) {
-            default:
-                break;
-        }
-    }
-
-    cyw43_arch_deinit();
-}
-
 
 
 void wirelss_info_render_task(void *p) {
@@ -197,6 +73,7 @@ void wirelss_info_render_task(void *p) {
         u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
 
         // Draw IP address
+        char * ip_addr_string = ipaddr_ntoa(netif_ip4_addr(netif_default));
         if (strlen(ip_addr_string)) {
             u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
             u8g2_DrawStr(display_handler, 5, 23, ip_addr_string);
@@ -214,14 +91,151 @@ void wirelss_info_render_task(void *p) {
             u8g2_DrawStr(display_handler, 5, 43, second_line_buffer);
         }
 
-        // Draw OK button
-        u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
-        u8g2_DrawButtonUTF8(display_handler, 64, 59, U8G2_BTN_HCENTER | U8G2_BTN_INV | U8G2_BTN_BW1, 0, 1, 1, " OK ");
+        // Draw link status
+        if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_INIT || 
+            wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
+                int link_status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
+                char * link_status_string = NULL;
+
+                if (link_status == CYW43_LINK_DOWN) {
+                    link_status_string = "LINK_DOWN";
+                }
+                else if (link_status == CYW43_LINK_JOIN) {
+                    link_status_string = "CYW43_LINK_JOIN";
+                }
+                else if (link_status == CYW43_LINK_NOIP) {
+                    link_status_string = "CYW43_LINK_NOIP";
+                }
+                else if (link_status == CYW43_LINK_UP) {
+                    link_status_string = "CYW43_LINK_UP";
+                }
+                else if (link_status == CYW43_LINK_FAIL) {
+                    link_status_string = "CYW43_LINK_FAIL";
+                }
+                else if (link_status == CYW43_LINK_NONET) {
+                    link_status_string = "CYW43_LINK_NONET";
+                }
+                else if (link_status == CYW43_LINK_BADAUTH) {
+                    link_status_string = "CYW43_LINK_BADAUTH";
+                }
+                u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
+                u8g2_DrawStr(display_handler, 5, 53, link_status_string);
+            }
+
 
         u8g2_SendBuffer(display_handler);
 
         vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(200));
     }
+}
+
+
+
+bool wireless_config_init() {
+    bool is_ok = true;
+
+    memset(&wireless_config, 0x00, sizeof(wireless_config_t));
+
+    is_ok = eeprom_read(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
+    if (!is_ok) {
+        printf("Unable to read from EEPROM at address %x\n", EEPROM_WIRELESS_CONFIG_BASE_ADDR);
+        return false;
+    }
+
+    // If the revision doesn't match then re-initialize the config
+    if (wireless_config.eeprom_wireless_metadata.wireless_data_rev != EEPROM_WIRELESS_CONFIG_METADATA_REV) {
+        wireless_config.eeprom_wireless_metadata.wireless_data_rev = EEPROM_WIRELESS_CONFIG_METADATA_REV;
+        wireless_config.eeprom_wireless_metadata.configured = false;
+        wireless_config.eeprom_wireless_metadata.timeout_ms = 30000;  // 30s
+
+        // Write data back
+        is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
+        if (!is_ok) {
+            printf("Unable to write to %x\n", EEPROM_WIRELESS_CONFIG_BASE_ADDR);
+            return false;
+        }
+    }
+
+    return is_ok;
+}
+
+
+bool wireless_config_save() {
+    bool is_ok;
+
+    is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
+    if (!is_ok) {
+        printf("Unable to write to %x\n", EEPROM_WIRELESS_CONFIG_BASE_ADDR);
+        return false;
+    }
+
+    return true;
+}
+
+
+void wireless_task(void *p) {
+    memset(first_line_buffer, 0x0, sizeof(first_line_buffer));
+    memset(second_line_buffer, 0x0, sizeof(second_line_buffer));
+
+    wireless_config.current_wireless_state = WIRELESS_STATE_NOT_INITIALIZED;
+    wireless_ctrl_queue = xQueueCreate(5, sizeof(wireless_ctrl_t));
+
+    if (cyw43_arch_init()) {
+        exit(-1);
+    }
+
+    wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
+
+    // Start default initialize pattern
+    if (wireless_config.eeprom_wireless_metadata.configured) {
+        wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_INIT;
+        cyw43_arch_enable_sta_mode();
+
+        // Show the current joining SSID
+        sprintf(first_line_buffer, ">%s", wireless_config.eeprom_wireless_metadata.ssid);
+
+        int resp;
+        resp = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid,
+                                                  wireless_config.eeprom_wireless_metadata.pw,
+                                                  wireless_config.eeprom_wireless_metadata.auth,
+                                                  wireless_config.eeprom_wireless_metadata.timeout_ms);
+        if (resp) {
+            // Failed to connect, fallback to AP mode
+            wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
+        }
+        else {
+            wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
+        }
+    }
+
+
+    // If not configured, or failed to connect existing wifi then start the AP mode
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_IDLE) {
+        // If previous configured, then start STA mode by default
+        wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_INIT;
+        access_point_mode_start();
+        wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
+    }
+
+    // Initialize REST endpoints
+    rest_endpoints_init();
+
+    // Start the HTTP server
+    httpd_init();
+
+    while (true) {
+        wireless_ctrl_t wireless_ctrl;
+
+        xQueueReceive(wireless_ctrl_queue, &wireless_ctrl, portMAX_DELAY);
+
+        // TODO: Implement control
+        switch (wireless_ctrl) {
+            default:
+                break;
+        }
+    }
+
+    cyw43_arch_deinit();
 }
 
 
@@ -248,4 +262,90 @@ uint8_t wireless_view_wifi_info(void) {
     vTaskSuspend(wirelss_info_render_task_handler);
 
     return 40;  // Returns to the Wireless menu (view 40)
+}
+
+
+bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char wireless_config_json_buffer[256];
+
+    // If the argument includes control, then update the settings
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "ssid") == 0) {
+            memset(wireless_config.eeprom_wireless_metadata.ssid, 0x0, sizeof(wireless_config.eeprom_wireless_metadata.ssid));
+            strcpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx]); 
+        }
+
+        if (strcmp(params[idx], "pw") == 0) {
+            memset(wireless_config.eeprom_wireless_metadata.pw, 0x0, sizeof(wireless_config.eeprom_wireless_metadata.pw));
+            strcpy(wireless_config.eeprom_wireless_metadata.pw, values[idx]); 
+        }
+
+        if (strcmp(params[idx], "auth") == 0) {
+            if (strcmp(values[idx], "CYW43_AUTH_OPEN") == 0) {
+                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_OPEN;
+            }
+            else if (strcmp(values[idx], "CYW43_AUTH_WPA_TKIP_PSK") == 0) {
+                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_WPA_TKIP_PSK;
+            }
+            else if (strcmp(values[idx], "CYW43_AUTH_WPA2_AES_PSK") == 0) {
+                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_WPA2_AES_PSK;
+            }
+            else if (strcmp(values[idx], "CYW43_AUTH_WPA2_MIXED_PSK") == 0) {
+                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_WPA2_MIXED_PSK;
+            }
+        }
+
+        if (strcmp(params[idx], "timeout_ms") == 0) {
+            int timeout_ms = strtod(values[idx], NULL);
+            wireless_config.eeprom_wireless_metadata.timeout_ms = timeout_ms;
+        }
+
+        if (strcmp(params[idx], "configured") == 0 && strcmp(values[idx], "true") == 0) {
+            wireless_config.eeprom_wireless_metadata.configured = true;
+        }
+    }
+
+    // Response
+    const char * auth_string;
+    switch (wireless_config.eeprom_wireless_metadata.auth) {
+        case CYW43_AUTH_OPEN:
+            auth_string = "CYW43_AUTH_OPEN";
+            break;
+        case CYW43_AUTH_WPA_TKIP_PSK:
+            auth_string = "CYW43_AUTH_WPA_TKIP_PSK";
+            break;
+        case CYW43_AUTH_WPA2_AES_PSK:
+            auth_string = "CYW43_AUTH_WPA2_AES_PSK";
+            break;
+        case CYW43_AUTH_WPA2_MIXED_PSK:
+            auth_string = "CYW43_AUTH_WPA2_MIXED_PSK";
+            break;
+        default:
+            auth_string = "error";
+            break;
+    }
+
+    const char * configured_string;
+    if (wireless_config.eeprom_wireless_metadata.configured) {
+        configured_string = "true";
+    }
+    else {
+        configured_string = "false";
+    }
+
+    sprintf(wireless_config_json_buffer, 
+            "{\"ssid\":\"%s\",\"pw\":\"%s\",\"auth\":\"%s\",\"timeout_ms\":%d,\"configured\":\"%s\"}",
+            wireless_config.eeprom_wireless_metadata.ssid,
+            wireless_config.eeprom_wireless_metadata.pw,
+            auth_string,
+            wireless_config.eeprom_wireless_metadata.timeout_ms,
+            configured_string);
+
+    size_t data_length = strlen(wireless_config_json_buffer);
+    file->data = wireless_config_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
 }

@@ -52,7 +52,7 @@ int main()
 {
     // stdio_init_all();
     // Initialize EEPROM first
-     eeprom_init();
+    eeprom_init();
 
     // Configure Neopixel (WS2812)
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
