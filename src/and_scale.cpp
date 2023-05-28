@@ -212,12 +212,19 @@ void scale_display_on() {
 // }
 
 
-char * scale_weight_to_json() {
+
+bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char scale_weight_to_json_buffer[32];
 
     sprintf(scale_weight_to_json_buffer, 
             "{\"weight\":%f}", 
             scale_get_current_measurement());
 
-    return scale_weight_to_json_buffer;
+    size_t data_length = strlen(scale_weight_to_json_buffer);
+    file->data = scale_weight_to_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
 }

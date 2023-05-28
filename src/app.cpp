@@ -79,7 +79,7 @@ int main()
     wireless_config_init();
 
 #ifdef RASPBERRYPI_PICO_W
-    xTaskCreate(wireless_task, "Wireless Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+    xTaskCreate(wireless_task, "Wireless Task", 512, NULL, 10, NULL);
 #else
     // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W

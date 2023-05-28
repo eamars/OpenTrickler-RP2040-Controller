@@ -5,6 +5,8 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
+#include "http_rest.h"
+
 #define EEPROM_MOTOR_DATA_REV                     2              // 16 byte 
 
 
@@ -73,7 +75,9 @@ void motor_set_speed(motor_select_t selected_motor, float new_velocity);
 uint16_t get_motor_max_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
 
-char * motor_config_to_json(motor_select_t selected_motor);
+// REST interface
+bool http_rest_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+
 
 #ifdef __cplusplus
 }

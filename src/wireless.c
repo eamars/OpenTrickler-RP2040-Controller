@@ -334,7 +334,7 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
     }
 
     sprintf(wireless_config_json_buffer, 
-            "{\"ssid\":\"%s\",\"pw\":\"%s\",\"auth\":\"%s\",\"timeout_ms\":%d,\"configured\":\"%s\"}",
+            "{\"ssid\":\"%s\",\"pw\":\"%s\",\"auth\":\"%s\",\"timeout_ms\":%d,\"configured\":%s}",
             wireless_config.eeprom_wireless_metadata.ssid,
             wireless_config.eeprom_wireless_metadata.pw,
             auth_string,

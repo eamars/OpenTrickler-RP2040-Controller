@@ -167,11 +167,34 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy) {
 }
 
 
-char * eeprom_config_to_json() {
+bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char eeprom_config_json_buffer[64];
-    sprintf(eeprom_config_json_buffer, 
-            "{\"unique_id\":\"%s\"}", 
-            metadata.unique_id);
+    bool save_to_eeprom = false;
+    const char * save_to_eeprom_string;
 
-    return eeprom_config_json_buffer;
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "save_to_eeprom") == 0 && strcmp(values[idx], "true") == 0) {
+            save_to_eeprom = true;
+        }
+    }
+
+    if (save_to_eeprom) {
+        eeprom_save_all();
+        save_to_eeprom_string = "true";
+    }
+    else {
+        save_to_eeprom_string = "false";
+    }
+
+    sprintf(eeprom_config_json_buffer, 
+            "{\"unique_id\":\"%s\",\"save_to_eeprom\":%s}", 
+            metadata.unique_id, save_to_eeprom_string);
+
+    size_t data_length = strlen(eeprom_config_json_buffer);
+    file->data = eeprom_config_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
 }

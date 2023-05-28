@@ -2,7 +2,9 @@
 #define SCALE_H_
 
 #include <stdint.h>
+
 #include "app.h"
+#include "http_rest.h"
 
 #define EEPROM_SCALE_DATA_REV                     1              // 16 byte 
 
@@ -48,7 +50,7 @@ uint8_t scale_calibrate_with_external_weight();
 AppState_t scale_enable_fast_report(AppState_t prev_state);
 
 // REST
-char * scale_weight_to_json();
+bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

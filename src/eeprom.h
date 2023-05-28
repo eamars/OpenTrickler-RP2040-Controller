@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "http_rest.h"
 
 #define EEPROM_METADATA_BASE_ADDR           0 * 1024       // 0K
 #define EEPROM_SCALE_CONFIG_BASE_ADDR       1 * 1024       // 1K
@@ -38,7 +39,8 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy);
 uint8_t eeprom_erase(bool);
 uint8_t eeprom_save_all(void);
 
-char * eeprom_config_to_json();
+bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+
 
 #ifdef __cplusplus
 }

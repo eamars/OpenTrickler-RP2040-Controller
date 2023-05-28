@@ -2,6 +2,7 @@
 #define CHARGE_MODE_H_
 
 #include <stdint.h>
+#include "http_rest.h"
 
 #define EEPROM_CHARGE_MODE_DATA_REV                     3              // 16 byte 
 
@@ -36,7 +37,10 @@ extern "C" {
 #endif
 
 bool charge_mode_config_save(void);
-char * charge_mode_config_to_json();
+
+// REST interface
+bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+
 
 #ifdef __cplusplus
 }  // __cplusplus
