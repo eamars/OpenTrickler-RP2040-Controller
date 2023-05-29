@@ -88,9 +88,10 @@ void scale_measurement_render_task(void *p) {
         u8g2_SetFont(display_handler, u8g2_font_profont22_tf);
         u8g2_DrawStr(display_handler, 26, 35, current_weight_string);
 
-        // print unit
+        // print unit (short)
+        const char * scale_unit_string = get_scale_unit_string(true);
         u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
-        u8g2_DrawStr(display_handler, 96, 35, "gr");
+        u8g2_DrawStr(display_handler, 96, 35, scale_unit_string);
 
         u8g2_SendBuffer(display_handler);
 

@@ -39,7 +39,7 @@ extern "C" {
 bool charge_mode_config_save(void);
 
 // REST interface
-bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[])
 
 
 #ifdef __cplusplus

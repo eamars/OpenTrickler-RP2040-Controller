@@ -212,16 +212,78 @@ void scale_display_on() {
 // }
 
 
+const char * get_scale_unit_string(bool is_short_string) {
+    const char * scale_unit_string = NULL;
+
+    switch (scale_data.scale_unit) {
+        case SCALE_UNIT_GRAIN:
+            if (is_short_string) {
+                scale_unit_string = "gn";
+            }
+            else {
+                scale_unit_string = "grain";
+            }
+            
+            break;
+        case SCALE_UNIT_GRAM:
+            if (is_short_string) {
+                scale_unit_string = "g";
+            }
+            else {
+                scale_unit_string = "gram";
+            }
+            
+            break;
+        default:
+            break;
+    }
+
+    return scale_unit_string;
+}
+
+
 
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char scale_weight_to_json_buffer[32];
 
     sprintf(scale_weight_to_json_buffer, 
-            "{\"weight\":%f}", 
+            "{\"weight\":%0.3f}", 
             scale_get_current_measurement());
 
     size_t data_length = strlen(scale_weight_to_json_buffer);
     file->data = scale_weight_to_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
+
+
+bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char scale_config_to_json_buffer[32];
+
+    // Set value
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "unit") == 0) {
+            if (strcmp(values[idx], "grain") == 0) {
+                scale_data.scale_unit = SCALE_UNIT_GRAIN;
+            }
+            else if (strcmp(values[idx], "gram") == 0) {
+                scale_data.scale_unit = SCALE_UNIT_GRAM;
+            }
+        }
+    }
+
+    // Convert config to string
+    const char * scale_unit_string = get_scale_unit_string(false);
+
+    sprintf(scale_config_to_json_buffer, 
+            "{\"unit\":\"%s\"}", 
+            scale_unit_string);
+    
+    size_t data_length = strlen(scale_config_to_json_buffer);
+    file->data = scale_config_to_json_buffer;
     file->len = data_length;
     file->index = data_length;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;

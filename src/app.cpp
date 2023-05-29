@@ -79,11 +79,11 @@ int main()
     wireless_config_init();
 
 #ifdef RASPBERRYPI_PICO_W
-    xTaskCreate(wireless_task, "Wireless Task", 512, NULL, 10, NULL);
+    xTaskCreate(wireless_task, "Wireless Task", 512, NULL, 3, NULL);
 #else
     // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
 #endif  // RASPBERRYPI_PICO_W
-    xTaskCreate(menu_task, "Menu Task", 512, NULL, 6, NULL);
+    xTaskCreate(menu_task, "Menu Task", configMINIMAL_STACK_SIZE, NULL, 6, NULL);
     xTaskCreate(scale_listener_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
     // xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 

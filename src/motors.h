@@ -77,6 +77,7 @@ void motor_enable(motor_select_t selected_motor, bool enable);
 
 // REST interface
 bool http_rest_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

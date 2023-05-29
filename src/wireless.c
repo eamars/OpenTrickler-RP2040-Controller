@@ -12,6 +12,12 @@
 #include "http_rest.h"
 #include "rest_endpoints.h"
 
+#ifdef CYW43_HOST_NAME
+#undef CYW43_HOST_NAME
+#endif
+
+#define CYW43_HOST_NAME "OpenTrickler"
+
 
 typedef enum {
     WIRELESS_STATE_NOT_INITIALIZED = 0,
@@ -194,18 +200,33 @@ void wireless_task(void *p) {
         // Show the current joining SSID
         sprintf(first_line_buffer, ">%s", wireless_config.eeprom_wireless_metadata.ssid);
 
-        int resp;
-        resp = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid,
-                                                  wireless_config.eeprom_wireless_metadata.pw,
-                                                  wireless_config.eeprom_wireless_metadata.auth,
-                                                  wireless_config.eeprom_wireless_metadata.timeout_ms);
-        if (resp) {
-            // Failed to connect, fallback to AP mode
-            wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
+        // Retry within timeframe
+        TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(wireless_config.eeprom_wireless_metadata.timeout_ms);
+        while (xTaskGetTickCount() < stop_tick) {
+            int resp;
+            resp = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid,
+                                                    wireless_config.eeprom_wireless_metadata.pw,
+                                                    wireless_config.eeprom_wireless_metadata.auth,
+                                                    wireless_config.eeprom_wireless_metadata.timeout_ms);
+            if (resp == PICO_OK) {
+                wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
+                break;
+            }
+            // else if (resp == PICO_ERROR_BADAUTH) {
+            //     // Failed to connect, fallback to AP mode
+            //     wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
+            //     break;
+            // }
+            else {
+                // PICO_ERROR_CONNECT_FAILED
+                // retry
+            }
         }
-        else {
-            wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
-        }
+    }
+
+    // If the state didn't change (connection failed) then we shall put it back to idle
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_INIT) {
+         wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
     }
 
 

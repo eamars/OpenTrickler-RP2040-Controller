@@ -49,8 +49,11 @@ void scale_display_on();
 uint8_t scale_calibrate_with_external_weight();
 AppState_t scale_enable_fast_report(AppState_t prev_state);
 
+const char * get_scale_unit_string(bool);
+
 // REST
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus
