@@ -20,11 +20,11 @@ typedef struct {
     float error_margin_grain;
     float zero_sd_margin_grain;
     float zero_mean_stability_grain;
-
 } __attribute__((packed)) eeprom_charge_mode_data_t;
 
 typedef struct {
     eeprom_charge_mode_data_t eeprom_charge_mode_data;
+    float target_charge_weight;
 } charge_mode_config_t;
 
 
@@ -39,8 +39,8 @@ extern "C" {
 bool charge_mode_config_save(void);
 
 // REST interface
-bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[])
-
+bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_charge_mode_setpoint(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 #ifdef __cplusplus
 }  // __cplusplus

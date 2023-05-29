@@ -40,7 +40,6 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
 };
 
 // Configures
-float target_charge_weight = 0.0f;
 TaskHandle_t scale_measurement_render_task_handler = NULL;
 static char title_string[30];
 
@@ -142,7 +141,7 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
 
 ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
     // Update current status
-    snprintf(title_string, sizeof(title_string), "Target: %.02f gr", target_charge_weight);
+    snprintf(title_string, sizeof(title_string), "Target: %.02f gr", charge_mode_config.target_charge_weight);
 
     uint16_t coarse_trickler_max_speed = get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR);
     uint16_t fine_trickler_max_speed = get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR);
@@ -166,7 +165,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         float current_weight = scale_block_wait_for_next_measurement();
         current_sample_tick = xTaskGetTickCount();
 
-        float error = target_charge_weight - current_weight;
+        float error = charge_mode_config.target_charge_weight - current_weight;
 
         // Stop condition
         if (error < 0 || abs(error) < charge_mode_config.eeprom_charge_mode_data.error_margin_grain) {
@@ -220,7 +219,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
 
 ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state) {
     // Update current status
-    snprintf(title_string, sizeof(title_string), "Remove Cup", target_charge_weight);
+    snprintf(title_string, sizeof(title_string), "Remove Cup", charge_mode_config.target_charge_weight);
 
     FloatRingBuffer data_buffer(5);
 
@@ -254,7 +253,7 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
 }
 
 ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) { 
-    snprintf(title_string, sizeof(title_string), "Return Cup", target_charge_weight);
+    snprintf(title_string, sizeof(title_string), "Return Cup", charge_mode_config.target_charge_weight);
 
     FloatRingBuffer data_buffer(5);
 
@@ -286,11 +285,11 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
 
 uint8_t charge_mode_menu() {
     // Create target weight
-    target_charge_weight = charge_weight_digits[3] * 10 + \
-                           charge_weight_digits[2] + \
-                           charge_weight_digits[1] * 0.1 + \
-                           charge_weight_digits[0] * 0.01;
-    printf("Target Charge Weight: %f\n", target_charge_weight);
+    charge_mode_config.target_charge_weight = charge_weight_digits[3] * 10 + \
+                                              charge_weight_digits[2] + \
+                                              charge_weight_digits[1] * 0.1 + \
+                                              charge_weight_digits[0] * 0.01;
+    printf("Target Charge Weight: %f\n", charge_mode_config.target_charge_weight);
 
     // If the display task is never created then we shall create one, otherwise we shall resume the task
     if (scale_measurement_render_task_handler == NULL) {
@@ -354,6 +353,7 @@ bool charge_mode_config_init(void) {
     bool is_ok = true;
 
     // Read charge mode config from EEPROM
+    memset(&charge_mode_config, 0x0, sizeof(charge_mode_config));
     is_ok = eeprom_read(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *)&charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
     if (!is_ok) {
         printf("Unable to read from EEPROM at address %x\n", EEPROM_CHARGE_MODE_BASE_ADDR);
@@ -386,7 +386,9 @@ bool charge_mode_config_save(void) {
 
 
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char charge_mode_json_buffer[256];
+    static char charge_mode_json_buffer[128];
+
+    // TODO:LAdd control
 
     sprintf(charge_mode_json_buffer, "{\"coarse_kp\":%f,\"coarse_ki\":%f,\"coarse_kd\":%f,\"fine_kp\":%f,\"fine_ki\":%f,\"fine_kd\":%f,\"error_margin_grain\":%f,\"zero_sd_margin_grain\":%f,\"zero_mean_stability_grain\":%f}",
             charge_mode_config.eeprom_charge_mode_data.coarse_kp,
@@ -398,6 +400,31 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
             charge_mode_config.eeprom_charge_mode_data.error_margin_grain,
             charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain,
             charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain);
+
+    size_t data_length = strlen(charge_mode_json_buffer);
+    file->data = charge_mode_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
+
+
+bool http_rest_charge_mode_setpoint(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char charge_mode_json_buffer[64];
+
+    // Control
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "target_charge_weight") == 0) {
+            float target_charge_weight = strtof(values[idx], NULL);
+            charge_mode_config.target_charge_weight = target_charge_weight;
+        }
+    }
+
+    // Response
+    sprintf(charge_mode_json_buffer, "{\"target_charge_weight\":%0.3f}",
+            charge_mode_config.target_charge_weight);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
