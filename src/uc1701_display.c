@@ -46,7 +46,7 @@
 #include "display.h"
 
 // Local variables
-u8g2_t display_handler;
+extern u8g2_t display_handler;
 
 // External variables
 extern muif_t muif_list[];
@@ -216,9 +216,4 @@ void display_init() {
     // u8g2_UpdateDisplay(&display_handler);
 
     printf("done\n");
-}
-
-
-u8g2_t * get_display_handler(void) {
-    return &display_handler;
 }

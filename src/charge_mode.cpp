@@ -388,8 +388,38 @@ bool charge_mode_config_save(void) {
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char charge_mode_json_buffer[128];
 
-    // TODO:LAdd control
+    // Control
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "coarse_kp") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_kp = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "coarse_ki") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_ki = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "coarse_kd") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_kd = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "fine_kp") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.fine_kp = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "fine_ki") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.fine_ki = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "fine_kd") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.fine_kd = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "error_margin_grain") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.error_margin_grain = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "zero_sd_margin_grain") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "zero_mean_stability_grain") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain = strtof(values[idx], NULL);
+        }
+    }
 
+    // Response
     sprintf(charge_mode_json_buffer, "{\"coarse_kp\":%f,\"coarse_ki\":%f,\"coarse_kd\":%f,\"fine_kp\":%f,\"fine_ki\":%f,\"fine_kd\":%f,\"error_margin_grain\":%f,\"zero_sd_margin_grain\":%f,\"zero_mean_stability_grain\":%f}",
             charge_mode_config.eeprom_charge_mode_data.coarse_kp,
             charge_mode_config.eeprom_charge_mode_data.coarse_ki,
