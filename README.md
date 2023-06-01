@@ -12,7 +12,7 @@ This repo is for the firmware that utilises the Raspberry Pi RP2040 micro contro
  git clone https://github.com/eamars/OpenTrickler-RP2040-Controller
 ~~~  
 Next change to the cloned directory
-~~javascript  
+~~~javascript  
  cd OpenTrickler-RP2040-Controller
 ~~~  
 Next use git to initalise the required submodules
