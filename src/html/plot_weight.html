@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scale Monitoring</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+  <h1>Scale Monitoring</h1>
+  <h2>Current Weight: <span id="currentWeight">Loading...</span></h2>
+  <div id="chart"></div>
+
+  <script>
+    // Initialize the plot data
+    var plotData = {
+      x: [],
+      y: [],
+      mode: 'lines',
+      type: 'scatter'
+    };
+
+    // Initialize the plot layout
+    var layout = {
+      title: 'Weight over Time',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'Weight' }
+    };
+
+    // Create an empty plot
+    Plotly.newPlot('chart', [plotData], layout);
+
+    // Function to fetch the scale weight from the endpoint
+    function fetchScaleWeight() {
+      $.ajax({
+        url: '/rest/scale_weight',
+        type: 'GET',
+        dataType: 'json',
+        success: function (data) {
+          // Update the current weight
+          document.getElementById('currentWeight').textContent = data.weight.toFixed(3);
+
+          // Add the weight to the plot data
+          var timestamp = new Date().getTime();
+          plotData.x.push(timestamp);
+          plotData.y.push(data.weight.toFixed(3));
+
+          // Prune old data
+          var cutoffTime = timestamp - 20000;
+          while (plotData.x[0] < cutoffTime) {
+            plotData.x.shift();
+            plotData.y.shift();
+          }
+
+          // Update the plot
+          Plotly.update('chart', [plotData], layout);
+        },
+        error: function (xhr, status, error) {
+          console.error('Error fetching scale weight:', error);
+        },
+        complete: function () {
+          // Schedule the next request after 1 second
+          setTimeout(fetchScaleWeight, 500);
+        }
+      });
+    }
+
+    // Start fetching the scale weight
+    fetchScaleWeight();
+  </script>
+</body>
+</html>

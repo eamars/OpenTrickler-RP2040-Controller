@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Display Mirror</title>
+    <style>
+      canvas {
+        border: 1px solid black;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="pixel-canvas"></canvas>
+
+    <script>
+      // Get the canvas element
+      const canvas = document.getElementById("pixel-canvas");
+      const context = canvas.getContext("2d");
+
+      // Function to render a pixel at the specified coordinates with the specified color
+      function renderPixel(x, y, color) {
+        context.fillStyle = color;
+        context.fillRect(x, y, 4, 4);
+      }
+
+      // Scale the canvas by 4x
+      const scaleFactor = 4;
+      canvas.width = 128 * scaleFactor;
+      canvas.height = 64 * scaleFactor;
+
+      // Function to fetch and render the binary data
+      function fetchAndRender() {
+        // Fetch the binary data from the endpoint
+        fetch("/display_buffer")
+          .then((response) => response.arrayBuffer())
+          .then((buffer) => {
+            // Convert the ArrayBuffer to a Uint8Array
+            const binaryData = new Uint8Array(buffer);
+
+            // Decoding the binary data
+            const tileWidth = 0x10;
+
+            for (let tileRowIdx = 0; tileRowIdx < 8; tileRowIdx++) {
+              for (let bit = 0; bit < 8; bit++) {
+                // Each tile row includes 16 * 8 bytes
+                for (let byteIdx = 0; byteIdx < tileWidth * 8; byteIdx++) {
+                  const dataOffset =
+                    byteIdx + tileRowIdx * tileWidth * 8;
+                  let data;
+                  try {
+                    data = binaryData[dataOffset];
+                  } catch (error) {
+                    console.log(dataOffset);
+                    throw error;
+                  }
+                  const color = (1 << bit) & data ? "black" : "white";
+                  renderPixel(byteIdx * scaleFactor, tileRowIdx * 8 * scaleFactor + bit * scaleFactor, color);
+                }
+              }
+            }
+          })
+          .catch((error) => {
+            console.log("Error fetching binary data:", error);
+          });
+      }
+
+      // Poll the endpoint every 1 second
+      setInterval(fetchAndRender, 1000);
+    </script>
+  </body>
+</html>

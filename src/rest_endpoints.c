@@ -11,141 +11,10 @@
 #include "display.h"
 
 
-const char index_page[] = "<!DOCTYPE html>\n"
-                    "<html>\n"
-                    "<head>\n"
-                    "  <title>Scale Monitoring</title>\n"
-                    "  <script src=\"https://cdn.plot.ly/plotly-latest.min.js\"></script>\n"
-                    "  <script src=\"https://code.jquery.com/jquery-3.6.0.min.js\"></script>\n"
-                    "</head>\n"
-                    "<body>\n"
-                    "  <h1>Scale Monitoring</h1>\n"
-                    "  <h2>Current Weight: <span id=\"currentWeight\">Loading...</span></h2>\n"
-                    "  <div id=\"chart\"></div>\n"
-                    "\n"
-                    "  <script>\n"
-                    "    // Initialize the plot data\n"
-                    "    var plotData = {\n"
-                    "      x: [],\n"
-                    "      y: [],\n"
-                    "      mode: 'lines',\n"
-                    "      type: 'scatter'\n"
-                    "    };\n"
-                    "\n"
-                    "    // Initialize the plot layout\n"
-                    "    var layout = {\n"
-                    "      title: 'Weight over Time',\n"
-                    "      xaxis: { title: 'Time' },\n"
-                    "      yaxis: { title: 'Weight' }\n"
-                    "    };\n"
-                    "\n"
-                    "    // Create an empty plot\n"
-                    "    Plotly.newPlot('chart', [plotData], layout);\n"
-                    "\n"
-                    "    // Function to fetch the scale weight from the endpoint\n"
-                    "    function fetchScaleWeight() {\n"
-                    "      $.ajax({\n"
-                    "        url: '/rest/scale_weight',\n"
-                    "        type: 'GET',\n"
-                    "        dataType: 'json',\n"
-                    "        success: function (data) {\n"
-                    "          // Update the current weight\n"
-                    "          document.getElementById('currentWeight').textContent = data.weight.toFixed(3);\n"
-                    "\n"
-                    "          // Add the weight to the plot data\n"
-                    "          var timestamp = new Date().getTime();\n"
-                    "          plotData.x.push(timestamp);\n"
-                    "          plotData.y.push(data.weight.toFixed(3));\n"
-                    "\n"
-                    "          // Prune old data\n"
-                    "          var cutoffTime = timestamp - 20000;\n"
-                    "          while (plotData.x[0] < cutoffTime) {\n"
-                    "            plotData.x.shift();\n"
-                    "            plotData.y.shift();\n"
-                    "          }\n"
-                    "\n"
-                    "          // Update the plot\n"
-                    "          Plotly.update('chart', [plotData], layout);\n"
-                    "        },\n"
-                    "        error: function (xhr, status, error) {\n"
-                    "          console.error('Error fetching scale weight:', error);\n"
-                    "        },\n"
-                    "        complete: function () {\n"
-                    "          // Schedule the next request after 1 second\n"
-                    "          setTimeout(fetchScaleWeight, 250);\n"
-                    "        }\n"
-                    "      });\n"
-                    "    }\n"
-                    "\n"
-                    "    // Start fetching the scale weight\n"
-                    "    fetchScaleWeight();\n"
-                    "  </script>\n"
-                    "</body>\n"
-                    "</html>";
+const char html_display_mirror[] = "<!doctype html><title>Pixel Renderer</title><style>canvas{border:1px solid black}</style><body><canvas id=pixel-canvas></canvas><script>const canvas=document.getElementById(\"pixel-canvas\");const context=canvas.getContext(\"2d\");function renderPixel(a,b,c){context.fillStyle=c;context.fillRect(a,b,4,4)}const scaleFactor=4;canvas.width=128*scaleFactor;canvas.height=64*scaleFactor;function fetchAndRender(){fetch(\"/display_buffer\").then(a=>a.arrayBuffer()).then(a=>{const b=new Uint8Array(a);const c=0x10;for(let d=0;d<8;d++){for(let e=0;e<8;e++){for(let f=0;f<c*8;f++){const g=f+ d*c*8;let h;try{h=b[g]}catch(j){console.log(g);throw j};const i=1<<e&h?\"black\":\"white\";renderPixel(f*scaleFactor,d*8*scaleFactor+ e*scaleFactor,i)}}}}).catch(a=>{console.log(\"Error fetching binary data:\",a)})}setInterval(fetchAndRender,1000)</script>";
 
+const char html_plot_weight[] = "<!doctype html><title>Scale Monitoring</title><script src=https://cdn.plot.ly/plotly-latest.min.js></script><script src=https://code.jquery.com/jquery-3.6.0.min.js></script><body><h1>Scale Monitoring</h1><h2>Current Weight: <span id=currentWeight>Loading...</span></h2><div id=chart></div><script>var plotData={x:[],y:[],mode:\'lines\',type:\'scatter\'};var layout={title:\'Weight over Time\',xaxis:{title:\'Time\'},yaxis:{title:\'Weight\'}};Plotly.newPlot(\'chart\',[plotData],layout);function fetchScaleWeight(){$.ajax({url:\'/rest/scale_weight\',type:\'GET\',dataType:\'json\',success:function(a){document.getElementById(\'currentWeight\').textContent=a.weight.toFixed(3);var b=new Date().getTime();plotData.x.push(b);plotData.y.push(a.weight.toFixed(3));var c=b- 20000;while(plotData.x[0]<c){plotData.x.shift();plotData.y.shift()};Plotly.update(\'chart\',[plotData],layout)},error:function(a,b,c){console.error(\'Error fetching scale weight:\',c)},complete:function(){setTimeout(fetchScaleWeight,500)}})}fetchScaleWeight()</script>";
 
-const char render_display[] = "\
-<!DOCTYPE html>\n\
-<html>\n\
-  <head>\n\
-    <title>Pixel Renderer</title>\n\
-    <style>\n\
-      canvas {\n\
-        border: 1px solid black;\n\
-      }\n\
-    </style>\n\
-  </head>\n\
-  <body>\n\
-    <canvas id=\"pixel-canvas\"></canvas>\n\
-\n\
-    <script>\n\
-      const canvas = document.getElementById(\"pixel-canvas\");\n\
-      const context = canvas.getContext(\"2d\");\n\
-\n\
-      function renderPixel(x, y, color) {\n\
-        context.fillStyle = color;\n\
-        context.fillRect(x, y, 4, 4);\n\
-      }\n\
-\n\
-      const scaleFactor = 4;\n\
-      canvas.width = 128 * scaleFactor;\n\
-      canvas.height = 64 * scaleFactor;\n\
-\n\
-      function fetchAndRender() {\n\
-        fetch(\"/display_buffer\")\n\
-          .then((response) => response.arrayBuffer())\n\
-          .then((buffer) => {\n\
-            const binaryData = new Uint8Array(buffer);\n\
-\n\
-            const tileWidth = 0x10;\n\
-\n\
-            for (let tileRowIdx = 0; tileRowIdx < 8; tileRowIdx++) {\n\
-              for (let bit = 0; bit < 8; bit++) {\n\
-                for (let byteIdx = 0; byteIdx < tileWidth * 8; byteIdx++) {\n\
-                  const dataOffset = byteIdx + tileRowIdx * tileWidth * 8;\n\
-                  let data;\n\
-\n\
-                  try {\n\
-                    data = binaryData[dataOffset];\n\
-                  } catch (error) {\n\
-                    throw error;\n\
-                  }\n\
-\n\
-                  const color = (1 << bit) & data ? \"black\" : \"white\";\n\
-                  renderPixel(byteIdx * scaleFactor, tileRowIdx * 8 * scaleFactor + bit * scaleFactor, color);\n\
-                }\n\
-              }\n\
-            }\n\
-          })\n\
-          .catch((error) => {\n\
-            throw error;\n\
-          });\n\
-      }\n\
-\n\
-      setInterval(fetchAndRender, 1000);\n\
-    </script>\n\
-  </body>\n\
-</html>";
 
 
 bool http_404_error(struct fs_file *file, int num_params, char *params[], char *values[]) {
@@ -159,10 +28,10 @@ bool http_404_error(struct fs_file *file, int num_params, char *params[], char *
 }
 
 
-bool http_rest_index(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(index_page);
+bool http_plot_weight(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(html_plot_weight);
 
-    file->data = index_page;
+    file->data = html_plot_weight;
     file->len = len;
     file->index = len;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
@@ -170,10 +39,10 @@ bool http_rest_index(struct fs_file *file, int num_params, char *params[], char 
     return true;
 }
 
-bool http_render_display(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(render_display);
+bool http_display_mirror(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(html_display_mirror);
 
-    file->data = render_display;
+    file->data = html_display_mirror;
     file->len = len;
     file->index = len;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
@@ -183,7 +52,7 @@ bool http_render_display(struct fs_file *file, int num_params, char *params[], c
 
 
 bool rest_endpoints_init() {
-    rest_register_handler("/", http_rest_index);
+    // rest_register_handler("/", http_rest_index);
     rest_register_handler("/404", http_404_error);
     rest_register_handler("/rest/scale_weight", http_rest_scale_weight);
     rest_register_handler("/rest/scale_config", http_rest_scale_config);
@@ -195,5 +64,6 @@ bool rest_endpoints_init() {
     rest_register_handler("/rest/button_control", http_rest_button_control);
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
     rest_register_handler("/display_buffer", http_get_display_buffer);
-    rest_register_handler("/render_display", http_render_display);
+    rest_register_handler("/display_mirror", http_display_mirror);
+    rest_register_handler("/plot_weight", http_plot_weight);
 }
