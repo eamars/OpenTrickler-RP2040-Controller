@@ -51,6 +51,10 @@ def main(input_filepth, output_filepath):
     with open(output_full_filename, "w") as fp:
         fp.write(c_header_string)
 
+    input_len = len(input_file)
+    output_data_len = len(escaped_html)
+    logging.info(f"Input HTML includes {input_len} bytes, the output escaped HTML includes {output_data_len} bytes")
+
     return 0
 
 

@@ -551,83 +551,72 @@ bool motors_init(void) {
 }
 
 
-bool http_rest_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char motor_config_json_buffer[256];
-    const char * error_msg = NULL;
-    const char * response = NULL;
+void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_t max_len) {
+    // Build response
+    snprintf(buf, 
+             max_len,
+             "{\"angular_acceleration\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d}",
+             motor_config->persistent_config.angular_acceleration, 
+             motor_config->persistent_config.full_steps_per_rotation,
+             motor_config->persistent_config.current_ma,
+             motor_config->persistent_config.microsteps,
+             motor_config->persistent_config.max_speed_rps,
+             motor_config->persistent_config.r_sense);
+}
 
-    if (num_params == 0) {
-        error_msg = "invalid_num_args";
-    }
-    else {
-        motor_config_t * motor_config = NULL;
-        // Read motor
-        if (strcmp(params[0], "motor") == 0) {
-            if (strcmp(values[0], "coarse") == 0) {
-                motor_config = &coarse_trickler_motor_config;
-            }
-            else if (strcmp(values[0], "fine") == 0) {
-                motor_config = &fine_trickler_motor_config;
-            }
-            else {
-                error_msg = "invalid_motor";
-            }
-
-            if (motor_config) {
-                // Control
-                for (int idx = 1; idx < num_params; idx += 1) {
-                    if (strcmp(params[idx], "angular_acceleration") == 0) {
-                        float angular_acceleration = strtof(values[idx], NULL);
-                        motor_config->persistent_config.angular_acceleration = angular_acceleration;
-                    }
-                    else if (strcmp(params[idx], "full_steps_per_rotation") == 0) {
-                        uint32_t full_steps_per_rotation = strtol(values[idx], NULL, 10);
-                        motor_config->persistent_config.full_steps_per_rotation = full_steps_per_rotation;
-                    }
-                    else if (strcmp(params[idx], "current_ma") == 0) {
-                        uint16_t current_ma = strtod(values[idx], NULL);
-                        motor_config->persistent_config.current_ma = current_ma;
-                    }
-                    else if (strcmp(params[idx], "microsteps") == 0) {
-                        uint16_t microsteps = strtod(values[idx], NULL);
-                        motor_config->persistent_config.microsteps = microsteps;
-                    }
-                    else if (strcmp(params[idx], "max_speed_rps") == 0) {
-                        uint16_t max_speed_rps = strtod(values[idx], NULL);
-                        motor_config->persistent_config.max_speed_rps = max_speed_rps;
-                    }
-                    else if (strcmp(params[idx], "r_sense") == 0) {
-                        uint16_t r_sense = strtod(values[idx], NULL);
-                        motor_config->persistent_config.r_sense = r_sense;
-                    }
-                }
-
-                // Build response
-                sprintf(motor_config_json_buffer, 
-                        "{\"angular_acceleration\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d}",
-                        motor_config->persistent_config.angular_acceleration, 
-                        motor_config->persistent_config.full_steps_per_rotation,
-                        motor_config->persistent_config.current_ma,
-                        motor_config->persistent_config.microsteps,
-                        motor_config->persistent_config.max_speed_rps,
-                        motor_config->persistent_config.r_sense);
-            }
+void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {
+    for (int idx = 1; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "angular_acceleration") == 0) {
+            float angular_acceleration = strtof(values[idx], NULL);
+            motor_config->persistent_config.angular_acceleration = angular_acceleration;
         }
-        else {
-            error_msg = "motor_not_selected";
+        else if (strcmp(params[idx], "full_steps_per_rotation") == 0) {
+            uint32_t full_steps_per_rotation = strtol(values[idx], NULL, 10);
+            motor_config->persistent_config.full_steps_per_rotation = full_steps_per_rotation;
+        }
+        else if (strcmp(params[idx], "current_ma") == 0) {
+            uint16_t current_ma = strtod(values[idx], NULL);
+            motor_config->persistent_config.current_ma = current_ma;
+        }
+        else if (strcmp(params[idx], "microsteps") == 0) {
+            uint16_t microsteps = strtod(values[idx], NULL);
+            motor_config->persistent_config.microsteps = microsteps;
+        }
+        else if (strcmp(params[idx], "max_speed_rps") == 0) {
+            uint16_t max_speed_rps = strtod(values[idx], NULL);
+            motor_config->persistent_config.max_speed_rps = max_speed_rps;
+        }
+        else if (strcmp(params[idx], "r_sense") == 0) {
+            uint16_t r_sense = strtod(values[idx], NULL);
+            motor_config->persistent_config.r_sense = r_sense;
         }
     }
+}
 
-    if (error_msg) {
-        response = error_msg;
-    }
-    else {
-        response = motor_config_json_buffer;
-    }
-    
 
-    size_t response_len = strlen(response);
-    file->data = response;
+bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char json_buffer[256];
+
+    apply_rest_motor_config(&coarse_trickler_motor_config, num_params, params, values);
+    populate_rest_motor_config(&coarse_trickler_motor_config, json_buffer, sizeof(json_buffer));
+
+    size_t response_len = strlen(json_buffer);
+    file->data = json_buffer;
+    file->len = response_len;
+    file->index = response_len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
+
+bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char json_buffer[256];
+
+    apply_rest_motor_config(&fine_trickler_motor_config, num_params, params, values);
+    populate_rest_motor_config(&fine_trickler_motor_config, json_buffer, sizeof(json_buffer));
+
+    size_t response_len = strlen(json_buffer);
+    file->data = json_buffer;
     file->len = response_len;
     file->index = response_len;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
@@ -637,7 +626,7 @@ bool http_rest_motor_config(struct fs_file *file, int num_params, char *params[]
 
 
 bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char motor_speed_json_buffer[128];
+    static char motor_speed_json_buffer[64];
     const char * response = NULL;
 
     const char * error_msg = NULL;
@@ -673,10 +662,11 @@ bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[],
                 }
 
                 // Build response
-                sprintf(motor_speed_json_buffer, 
-                        "{\"speed\":%0.3f,\"direction\":%d}",
-                        motor_config->prev_velocity,
-                        motor_config->step_direction);
+                snprintf(motor_speed_json_buffer, 
+                         sizeof(motor_speed_json_buffer),
+                         "{\"speed\":%0.3f,\"direction\":%d}",
+                         motor_config->prev_velocity,
+                         motor_config->step_direction);
             }
         }
         else {

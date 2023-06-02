@@ -186,9 +186,10 @@ bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[
         save_to_eeprom_string = "false";
     }
 
-    sprintf(eeprom_config_json_buffer, 
-            "{\"unique_id\":\"%s\",\"save_to_eeprom\":%s}", 
-            metadata.unique_id, save_to_eeprom_string);
+    snprintf(eeprom_config_json_buffer, 
+             sizeof(eeprom_config_json_buffer),
+             "{\"unique_id\":\"%s\",\"save_to_eeprom\":%s}", 
+             metadata.unique_id, save_to_eeprom_string);
 
     size_t data_length = strlen(eeprom_config_json_buffer);
     file->data = eeprom_config_json_buffer;

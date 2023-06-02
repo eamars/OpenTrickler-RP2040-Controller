@@ -386,7 +386,7 @@ bool charge_mode_config_save(void) {
 
 
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char charge_mode_json_buffer[128];
+    static char charge_mode_json_buffer[256];
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
@@ -420,16 +420,18 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     }
 
     // Response
-    sprintf(charge_mode_json_buffer, "{\"coarse_kp\":%f,\"coarse_ki\":%f,\"coarse_kd\":%f,\"fine_kp\":%f,\"fine_ki\":%f,\"fine_kd\":%f,\"error_margin_grain\":%f,\"zero_sd_margin_grain\":%f,\"zero_mean_stability_grain\":%f}",
-            charge_mode_config.eeprom_charge_mode_data.coarse_kp,
-            charge_mode_config.eeprom_charge_mode_data.coarse_ki,
-            charge_mode_config.eeprom_charge_mode_data.coarse_kd,
-            charge_mode_config.eeprom_charge_mode_data.fine_kp,
-            charge_mode_config.eeprom_charge_mode_data.fine_ki,
-            charge_mode_config.eeprom_charge_mode_data.fine_kd,
-            charge_mode_config.eeprom_charge_mode_data.error_margin_grain,
-            charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain,
-            charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain);
+    snprintf(charge_mode_json_buffer, 
+             sizeof(charge_mode_json_buffer),
+             "{\"coarse_kp\":%f,\"coarse_ki\":%f,\"coarse_kd\":%f,\"fine_kp\":%f,\"fine_ki\":%f,\"fine_kd\":%f,\"error_margin_grain\":%f,\"zero_sd_margin_grain\":%f,\"zero_mean_stability_grain\":%f}",
+             charge_mode_config.eeprom_charge_mode_data.coarse_kp,
+             charge_mode_config.eeprom_charge_mode_data.coarse_ki,
+             charge_mode_config.eeprom_charge_mode_data.coarse_kd,
+             charge_mode_config.eeprom_charge_mode_data.fine_kp,
+             charge_mode_config.eeprom_charge_mode_data.fine_ki,
+             charge_mode_config.eeprom_charge_mode_data.fine_kd,
+             charge_mode_config.eeprom_charge_mode_data.error_margin_grain,
+             charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain,
+             charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
@@ -453,8 +455,10 @@ bool http_rest_charge_mode_setpoint(struct fs_file *file, int num_params, char *
     }
 
     // Response
-    sprintf(charge_mode_json_buffer, "{\"target_charge_weight\":%0.3f}",
-            charge_mode_config.target_charge_weight);
+    snprintf(charge_mode_json_buffer, 
+             sizeof(charge_mode_json_buffer),
+             "{\"target_charge_weight\":%0.3f}",
+             charge_mode_config.target_charge_weight);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;

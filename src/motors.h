@@ -76,7 +76,8 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
 
 // REST interface
-bool http_rest_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 

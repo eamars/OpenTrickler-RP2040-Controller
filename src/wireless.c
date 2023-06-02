@@ -354,13 +354,14 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
         configured_string = "false";
     }
 
-    sprintf(wireless_config_json_buffer, 
-            "{\"ssid\":\"%s\",\"pw\":\"%s\",\"auth\":\"%s\",\"timeout_ms\":%d,\"configured\":%s}",
-            wireless_config.eeprom_wireless_metadata.ssid,
-            wireless_config.eeprom_wireless_metadata.pw,
-            auth_string,
-            wireless_config.eeprom_wireless_metadata.timeout_ms,
-            configured_string);
+    snprintf(wireless_config_json_buffer, 
+             sizeof(wireless_config_json_buffer),
+             "{\"ssid\":\"%s\",\"pw\":\"%s\",\"auth\":\"%s\",\"timeout_ms\":%d,\"configured\":%s}",
+             wireless_config.eeprom_wireless_metadata.ssid,
+             wireless_config.eeprom_wireless_metadata.pw,
+             auth_string,
+             wireless_config.eeprom_wireless_metadata.timeout_ms,
+             configured_string);
 
     size_t data_length = strlen(wireless_config_json_buffer);
     file->data = wireless_config_json_buffer;
