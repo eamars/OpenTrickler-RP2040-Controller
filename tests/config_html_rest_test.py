@@ -1,3 +1,14 @@
+"""
+This script is created load the config.html as the Python REST frontend. The script will supply the JSON as the response to certain endpoints.
+
+Usage
+
+    python config_html_rest_test.py
+
+Dependencies from pip:
+ - flask
+"""
+
 import json
 from flask import Flask
 import os

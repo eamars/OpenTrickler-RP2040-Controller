@@ -1,3 +1,14 @@
+"""
+This script is created to convert HTML file into the C header file with compressed HTML (as well as CSS and JavaScripts). 
+
+Usage
+
+    python html2header.py -f ./src/html/config.html -o /src/generated/ -v
+
+Dependencies from pip:
+ - minify_html
+"""
+
 import argparse
 import logging
 import sys
