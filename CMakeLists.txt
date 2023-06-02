@@ -112,8 +112,8 @@ if (PICO_BOARD STREQUAL "pico_w" )
         )
 endif()
 
-target_link_options(app PRIVATE -Wl,--gc-sections)
+target_link_options(app PRIVATE -Wl,--gc-sections -Wl,--print-memory-usage)
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
-# Generate extra input
+# Generate extra outputs
 pico_add_extra_outputs(app)
