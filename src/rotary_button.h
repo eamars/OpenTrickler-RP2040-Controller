@@ -6,10 +6,13 @@
 
 typedef enum {
     BUTTON_NO_EVENT = 0,
-    BUTTON_ENCODER_ROTATE_CW = 1 << 0,
-    BUTTON_ENCODER_ROTATE_CCW = 1 << 1,
-    BUTTON_ENCODER_PRESSED = 1 << 2,
-    BUTTON_RST_PRESSED = 1 << 3,
+    BUTTON_ENCODER_ROTATE_CW,
+    BUTTON_ENCODER_ROTATE_CCW,
+    BUTTON_ENCODER_PRESSED,
+    BUTTON_RST_PRESSED,
+
+    // Overrides from other sources, used to signal other thread to proceed
+    OVERRIDE_FROM_REST,
 } ButtonEncoderEvent_t;
 
 #ifdef __cplusplus

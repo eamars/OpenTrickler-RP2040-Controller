@@ -16,6 +16,7 @@
 #include "charge_mode.h"
 #include "common.h"
 #include "wireless.h"
+#include "app.h"
 
 
 extern bool cat24c256_eeprom_erase();
@@ -167,18 +168,30 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy) {
 }
 
 
-bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char eeprom_config_json_buffer[64];
-    bool save_to_eeprom = false;
+bool http_rest_system_control(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char eeprom_config_json_buffer[256];
+
     const char * save_to_eeprom_string;
+    const char * software_reset_string;
+    const char * erase_eeprom_string;
+
+    bool save_to_eeprom_flag = false;
+    bool software_reset_flag = false;
+    bool erase_eeprom_flag = false;
 
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "save_to_eeprom") == 0 && strcmp(values[idx], "true") == 0) {
-            save_to_eeprom = true;
+            save_to_eeprom_flag = true;
         }
+        else if (strcmp(params[idx], "software_reset") == 0 && strcmp(values[idx], "true") == 0) {
+            software_reset_flag = true;
+        }
+        else if (strcmp(params[idx], "erase_eeprom") == 0 && strcmp(values[idx], "true") == 0) {
+            erase_eeprom_flag = true;
+        } 
     }
 
-    if (save_to_eeprom) {
+    if (save_to_eeprom_flag) {
         eeprom_save_all();
         save_to_eeprom_string = "true";
     }
@@ -186,10 +199,28 @@ bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[
         save_to_eeprom_string = "false";
     }
 
+    if (erase_eeprom_flag) {
+        eeprom_erase(software_reset_flag);
+        erase_eeprom_string = "true";
+    }
+    else {
+        erase_eeprom_string = "false";
+    }
+
+    if (software_reset_flag) {
+        software_reboot();
+        software_reset_string = "true";
+    }
+    else {
+        software_reset_string = "false";
+    }
+
+
+
     snprintf(eeprom_config_json_buffer, 
              sizeof(eeprom_config_json_buffer),
-             "{\"unique_id\":\"%s\",\"save_to_eeprom\":%s}", 
-             metadata.unique_id, save_to_eeprom_string);
+             "{\"unique_id\":\"%s\",\"save_to_eeprom\":%s,\"software_reset\":%s,\"erase_eeprom\":%s}", 
+             metadata.unique_id, save_to_eeprom_string, software_reset_string, erase_eeprom_string);
 
     size_t data_length = strlen(eeprom_config_json_buffer);
     file->data = eeprom_config_json_buffer;

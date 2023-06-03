@@ -37,9 +37,9 @@ def rest_charge_mode_config():
 def rest_wireless_config():
     return '{"ssid":"YYYY","pw":"xxx","auth":"CYW43_AUTH_WPA2_AES_PSK","timeout_ms":30000,"configured":true}'
 
-@app.route('/rest/eeprom_config')
-def rest_eeprom_config():
-    return '{"unique_id":"4C64A49","save_to_eeprom":false}'
+@app.route('/rest/system_control')
+def rest_system_control():
+    return '{"unique_id":"4C64A49","save_to_eeprom":false,"software_reboot":false,"erase_eeprom":false}'
 
 
 @app.route('/rest/fine_motor_config')

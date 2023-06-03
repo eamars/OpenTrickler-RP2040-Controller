@@ -11,6 +11,7 @@
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR    2 * 1024       // 2K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR       4 * 1024       // 4K
 #define EEPROM_CHARGE_MODE_BASE_ADDR        5 * 1024       // 5K
+#define EEPROM_APP_CONFIG_BASE_ADDR         6 * 1024       // 6k
 
 
 #define EEPROM_METADATA_REV                     2              // 16 byte 
@@ -39,7 +40,7 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy);
 uint8_t eeprom_erase(bool);
 uint8_t eeprom_save_all(void);
 
-bool http_rest_eeprom_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_system_control(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

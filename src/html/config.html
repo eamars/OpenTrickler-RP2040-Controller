@@ -60,10 +60,20 @@
       background-color: #4CAF50;
       border-color: #4CAF50;
     }
+    
+    .label {
+      color: white;
+      padding: 2px;
+    }
+    .success {background-color: #04AA6D;} /* Green */
+    .info {background-color: #2196F3;} /* Blue */
+    .warning {background-color: #ff9800;} /* Orange */
+    .danger {background-color: #f44336;} /* Red */
+    .other {background-color: #e7e7e7; color: black;} /* Gray */
   </style>
 </head>
 <body>
-  <h1>EEPROM Settings</h1>
+  <h1>Open Trickler Settings</h1>
   
   <div class="container">
     <div class="nav-column">
@@ -72,7 +82,7 @@
       <a class="nav-link" href="#wireless_config">Wireless</a>
       <a class="nav-link" href="#coarse_motor_config">Coarse Motor</a>
       <a class="nav-link" href="#fine_motor_config">Fine Motor</a>
-      <a class="nav-link" href="#eeprom_config">EEPROM</a>
+      <a class="nav-link" href="#system_control">System Control</a>
       <!-- Add more categories as needed -->
     </div>
     
@@ -264,9 +274,9 @@
 
 
       <!-- EEPROM Config -->
-      <div id="eeprom_config" class="config-section" style="display: none;">
-        <h2>Scale Configuration</h2>
-        <form class="config-form" id="eeprom_config-form">
+      <div id="system_control" class="config-section" style="display: none;">
+        <h2>EEPROM Configuration</h2>
+        <form class="config-form" id="system_control-form">
           <div class="form-group">
             <label for="unique_id">Unique ID:</label>
             <!-- Don't show unique id when submit -->
@@ -280,8 +290,26 @@
               <option value="false">No</option>
             </select>
           </div>
+
+          <div class="form-group">
+            <span class="label warning">Warning</span>
+            <label for="erase_eeprom">Erase EEPROM:</label>
+            <select class="form-control" id="erase_eeprom" name="erase_eeprom">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="software_reset">Reboot:</label>
+            <select class="form-control" id="software_reset" name="software_reset">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          
                     
-          <button type="submit" class="btn btn-primary" data-api="/eeprom_config">Save to EEPROM</button>
+          <button type="submit" class="btn btn-primary" data-api="/system_control">Apply System Control</button>
         </form>
       </div>
       

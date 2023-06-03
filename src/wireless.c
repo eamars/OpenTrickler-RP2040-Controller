@@ -17,7 +17,7 @@
 #endif
 
 #define CYW43_HOST_NAME "OpenTrickler"
-
+#define LED_INTERFACE_MINIMUM_POLL_PERIOD_MS    20
 
 typedef enum {
     WIRELESS_STATE_NOT_INITIALIZED = 0,
@@ -29,11 +29,14 @@ typedef enum {
 } wireless_state_t;
 
 typedef enum {
-    WIRELESS_CTRL_CYW43_INIT = 0,
+    WIRELESS_CTRL_NOP = 0,
+    WIRELESS_CTRL_CYW43_INIT,
     WIRELESS_CTRL_CYW43_DEINIT,
     WIRELESS_CTRL_DISCONNECT,
     WRIELESS_CTRL_START_AP_MODE,
     WRIELESS_CTRL_START_STA_MODE,
+    WIRELESS_CTRL_LED_ON,
+    WIRELESS_CTRL_LED_OFF,
 } wireless_ctrl_t;
 
 
@@ -43,7 +46,6 @@ typedef struct {
 } wireless_config_t;
 
 
-static TaskHandle_t wirelss_info_render_task_handler = NULL;
 static wireless_config_t wireless_config;
 static QueueHandle_t wireless_ctrl_queue;
 
@@ -178,8 +180,60 @@ bool wireless_config_save() {
     return true;
 }
 
+void led_interface_task(void *p) {
+    wireless_ctrl_t wireless_ctrl;
+    uint32_t blink_interval_ms = 0;
+    bool prev_led_state = false;
+    bool led_state = prev_led_state;
+
+    while (true) {
+        prev_led_state = led_state;
+
+        switch (wireless_config.current_wireless_state) {
+            case WIRELESS_STATE_NOT_INITIALIZED:
+            case WIRELESS_STATE_IDLE:
+                blink_interval_ms = 0;
+                led_state = false;
+                break;
+            case WIRELESS_STATE_AP_MODE_INIT:
+                led_state = !led_state;
+                blink_interval_ms = 20;
+                break;
+            case WIRELESS_STATE_AP_MODE_LISTEN:
+                led_state = !led_state;
+                blink_interval_ms = 1000;
+                break;
+            case WIRELESS_STATE_STA_MODE_INIT:
+                led_state = !led_state;
+                blink_interval_ms = 20;
+                break;
+            case WIRELESS_STATE_STA_MODE_LISTEN:
+                led_state = true;
+                blink_interval_ms = 0;
+                break;
+            default:
+                break;
+        }
+
+        if (led_state != prev_led_state) {
+            if (led_state) {
+                wireless_ctrl = WIRELESS_CTRL_LED_ON;
+            }
+            else {
+                wireless_ctrl = WIRELESS_CTRL_LED_OFF;
+            }
+            xQueueSend(wireless_ctrl_queue, &wireless_ctrl, 0);
+        }
+
+        
+        vTaskDelay(pdMS_TO_TICKS(MIN(blink_interval_ms, LED_INTERFACE_MINIMUM_POLL_PERIOD_MS)));
+    }
+}
+
 
 void wireless_task(void *p) {
+    static TaskHandle_t led_interface_task_handler = NULL;
+
     memset(first_line_buffer, 0x0, sizeof(first_line_buffer));
     memset(second_line_buffer, 0x0, sizeof(second_line_buffer));
 
@@ -191,6 +245,16 @@ void wireless_task(void *p) {
     }
 
     wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
+
+    // Create LED task
+    if (led_interface_task_handler == NULL) {
+        // The render task shall have lower priority than the current one
+        UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
+        xTaskCreate(led_interface_task, "LED Interface Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &led_interface_task_handler);
+    }
+    else {
+        vTaskResume(led_interface_task_handler);
+    }
 
     // Start default initialize pattern
     if (wireless_config.eeprom_wireless_metadata.configured) {
@@ -212,14 +276,8 @@ void wireless_task(void *p) {
                 wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
                 break;
             }
-            // else if (resp == PICO_ERROR_BADAUTH) {
-            //     // Failed to connect, fallback to AP mode
-            //     wireless_config.current_wireless_state = WIRELESS_STATE_IDLE;
-            //     break;
-            // }
             else {
-                // PICO_ERROR_CONNECT_FAILED
-                // retry
+
             }
         }
     }
@@ -249,22 +307,30 @@ void wireless_task(void *p) {
 
         xQueueReceive(wireless_ctrl_queue, &wireless_ctrl, portMAX_DELAY);
 
-        // TODO: Implement control
         switch (wireless_ctrl) {
+            case WIRELESS_CTRL_LED_ON:
+                cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, true);
+                break;
+            case WIRELESS_CTRL_LED_OFF:
+                cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
+                break;
             default:
                 break;
         }
     }
 
     cyw43_arch_deinit();
+
+    vTaskSuspend(led_interface_task_handler);
 }
 
 
 uint8_t wireless_view_wifi_info(void) {
+    static TaskHandle_t wirelss_info_render_task_handler = NULL;
     if (wirelss_info_render_task_handler == NULL) {
         // The render task shall have lower priority than the current one
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-        xTaskCreate(wirelss_info_render_task, "AP Mode Display Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &wirelss_info_render_task_handler);
+        xTaskCreate(wirelss_info_render_task, "Wireless Display Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &wirelss_info_render_task_handler);
     }
     else {
         vTaskResume(wirelss_info_render_task_handler);
