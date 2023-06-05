@@ -33,10 +33,10 @@ motor_config_t fine_trickler_motor_config;
 
 
 const motor_persistent_config_t default_motor_persistent_config = {
-    .angular_acceleration = 2000,       // 2000 rev/s^2
+    .angular_acceleration = 100,       // 2000 rev/s^2
     .current_ma = 500,                  // 500 mA
     .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
-    .max_speed_rps = 20,                // Maximum speed before the stepper runs out
+    .max_speed_rps = 5,                // Maximum speed before the stepper runs out
     .microsteps = 256,                  // Default to maximum that the driver supports
     .r_sense = 110,                     // 0.110 ohm sense resistor the stepper driver
 
@@ -165,8 +165,8 @@ uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_ro
     }
 
     // Discount the period when holds low
-    if (delay_period >= 4) {
-        delay_period -= 4;
+    if (delay_period >= 14) {
+        delay_period -= 14;
     }
     else {
         delay_period = 0;
@@ -575,7 +575,7 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
     // Build response
     snprintf(buf, 
              max_len,
-             "{\"angular_acceleration\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d,\"inv_en\":%s,\"inv_dir\":%s}",
+             "{\"accel\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d,\"inv_en\":%s,\"inv_dir\":%s}",
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,
              motor_config->persistent_config.current_ma,
@@ -587,8 +587,8 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
 }
 
 void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {
-    for (int idx = 1; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "angular_acceleration") == 0) {
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "accel") == 0) {
             float angular_acceleration = strtof(values[idx], NULL);
             motor_config->persistent_config.angular_acceleration = angular_acceleration;
         }
