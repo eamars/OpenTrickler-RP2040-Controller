@@ -7,7 +7,7 @@
 
 #include "http_rest.h"
 
-#define EEPROM_MOTOR_DATA_REV                     3              // 16 byte 
+#define EEPROM_MOTOR_DATA_REV                     4              // 16 byte 
 
 
 // Terms
@@ -27,6 +27,7 @@ typedef struct {
     uint16_t microsteps;
     uint16_t max_speed_rps;
     uint16_t r_sense;
+    float min_speed_rps;
     bool inverted_direction;
     bool inverted_enable;
 } motor_persistent_config_t;
@@ -75,6 +76,7 @@ bool motor_config_save(void);
 void motor_task(void *p);
 void motor_set_speed(motor_select_t selected_motor, float new_velocity);
 uint16_t get_motor_max_speed(motor_select_t selected_motor);
+float get_motor_min_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
 
 // REST interface

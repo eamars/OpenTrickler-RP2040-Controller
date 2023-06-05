@@ -26,13 +26,13 @@ charge_mode_config_t charge_mode_config;
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
-    .coarse_kp = 0.2f,
+    .coarse_kp = 0.02f,
     .coarse_ki = 0.0f,
-    .coarse_kd = 1.0f,
+    .coarse_kd = 0.2f,
 
-    .fine_kp = 5.0f,
+    .fine_kp = 1.0f,
     .fine_ki = 0.0f,
-    .fine_kd = 20.0f,
+    .fine_kd = 5.0f,
 
     .error_margin_grain = 0.03,
     .zero_sd_margin_grain = 0.02,
@@ -145,6 +145,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
 
     uint16_t coarse_trickler_max_speed = get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR);
     uint16_t fine_trickler_max_speed = get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR);
+    float fine_trickler_min_speed = get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR);
 
     float integral = 0.0f;
     float last_error = 0.0f;
@@ -193,7 +194,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         float new_p = charge_mode_config.eeprom_charge_mode_data.fine_kp * error;
         float new_i = charge_mode_config.eeprom_charge_mode_data.fine_ki * integral;
         float new_d = charge_mode_config.eeprom_charge_mode_data.fine_kd * derivative;
-        float new_speed = fmax(0.1, fmin(round(new_p + new_i + new_d), fine_trickler_max_speed));
+        float new_speed = fmax(fine_trickler_min_speed, fmin(new_p + new_i + new_d, fine_trickler_max_speed));
 
         motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
 
@@ -203,7 +204,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
             new_i = charge_mode_config.eeprom_charge_mode_data.coarse_ki * integral;
             new_d = charge_mode_config.eeprom_charge_mode_data.coarse_kd * derivative;
 
-            new_speed = fmin(round(new_p + new_i + new_d), coarse_trickler_max_speed);
+            new_speed = fmin(new_p + new_i + new_d, coarse_trickler_max_speed);
 
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, new_speed);
         }

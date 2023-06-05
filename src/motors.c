@@ -33,16 +33,18 @@ motor_config_t fine_trickler_motor_config;
 
 
 const motor_persistent_config_t default_motor_persistent_config = {
-    .angular_acceleration = 100,       // 2000 rev/s^2
+    .angular_acceleration = 50,         // In rev/s^2
     .current_ma = 500,                  // 500 mA
     .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
-    .max_speed_rps = 5,                // Maximum speed before the stepper runs out
+    .max_speed_rps = 5,                 // Maximum speed before the stepper runs out
     .microsteps = 256,                  // Default to maximum that the driver supports
     .r_sense = 110,                     // 0.110 ohm sense resistor the stepper driver
+    .min_speed_rps = 0.05,              // Minimum speed for powder to drop
 
     .inverted_direction = false,        // Invert the direction if set to true
     .inverted_enable = false,           // Invert the enable flag if set to true
 };
+
 
 
 // UART Control functions
@@ -497,6 +499,29 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor) {
 }
 
 
+float get_motor_min_speed(motor_select_t selected_motor) {
+    motor_config_t * motor_config = NULL;
+    switch (selected_motor)
+    {
+    case SELECT_COARSE_TRICKLER_MOTOR:
+        motor_config = &coarse_trickler_motor_config;
+        break;
+    case SELECT_FINE_TRICKLER_MOTOR:
+        motor_config = &fine_trickler_motor_config;
+        break;
+    
+    default:
+        break;
+    }
+
+    if (motor_config) {
+        return motor_config->persistent_config.min_speed_rps;
+    }
+
+    return 0.0f;
+}
+
+
 bool motors_init(void) {
     bool is_ok;
 
@@ -575,13 +600,14 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
     // Build response
     snprintf(buf, 
              max_len,
-             "{\"accel\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d,\"inv_en\":%s,\"inv_dir\":%s}",
+             "{\"accel\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d,\"min_speed_rps\":%0.3f,\"inv_en\":%s,\"inv_dir\":%s}",
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,
              motor_config->persistent_config.current_ma,
              motor_config->persistent_config.microsteps,
              motor_config->persistent_config.max_speed_rps,
              motor_config->persistent_config.r_sense,
+             motor_config->persistent_config.min_speed_rps,
              boolean_string(motor_config->persistent_config.inverted_enable),
              boolean_string(motor_config->persistent_config.inverted_direction));
 }
@@ -611,6 +637,10 @@ void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char
         else if (strcmp(params[idx], "r_sense") == 0) {
             uint16_t r_sense = strtod(values[idx], NULL);
             motor_config->persistent_config.r_sense = r_sense;
+        }
+        else if (strcmp(params[idx], "min_speed_rps") == 0) {
+            float min_speed_rps = strtof(values[idx], NULL);
+            motor_config->persistent_config.min_speed_rps = min_speed_rps;
         }
         else if (strcmp(params[idx], "inv_en") == 0) {
             if (strcmp(values[idx], "true") == 0) {
