@@ -16,6 +16,7 @@
 
 #include "motors.h"
 #include "eeprom.h"
+#include "common.h"
 
 
 // Internal data structure for speed control between tasks
@@ -38,6 +39,9 @@ const motor_persistent_config_t default_motor_persistent_config = {
     .max_speed_rps = 20,                // Maximum speed before the stepper runs out
     .microsteps = 256,                  // Default to maximum that the driver supports
     .r_sense = 110,                     // 0.110 ohm sense resistor the stepper driver
+
+    .inverted_direction = false,        // Invert the direction if set to true
+    .inverted_enable = false,           // Invert the enable flag if set to true
 };
 
 
@@ -255,7 +259,10 @@ bool driver_init(motor_config_t * motor_config) {
 bool driver_io_init(motor_config_t * motor_config) {
     gpio_init(motor_config->en_pin);
     gpio_set_dir(motor_config->en_pin, GPIO_OUT);
-    gpio_put(motor_config->en_pin, 1);  // off at high
+
+    // If enable is inverted the GPIO shall output enable state directly, otherwise invert it. 
+    // If not inverted the GPIO shall be the opposite state of the enable signal
+    gpio_put(motor_config->en_pin, motor_config->persistent_config.inverted_enable ? false : true); 
 
     // Note: STEP PIN is controlled by PIO block
     // gpio_init(motor_config->step_pin);
@@ -286,6 +293,9 @@ bool driver_pio_init(motor_config_t * motor_config) {
 bool motor_config_init(void) {
     bool is_ok = true;
 
+    memset(&coarse_trickler_motor_config, 0x0, sizeof(motor_config_t));
+    memset(&fine_trickler_motor_config, 0x0, sizeof(motor_config_t));
+
     // Read motor config from EEPROM
     eeprom_motor_data_t eeprom_motor_data;
     is_ok = eeprom_read(EEPROM_MOTOR_CONFIG_BASE_ADDR, (uint8_t *)&eeprom_motor_data, sizeof(eeprom_motor_data_t));
@@ -312,6 +322,10 @@ bool motor_config_init(void) {
     memcpy(&coarse_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
     memcpy(&fine_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
 
+    // Set initial direction
+    coarse_trickler_motor_config.step_direction = coarse_trickler_motor_config.persistent_config.inverted_direction ? true : false;
+    fine_trickler_motor_config.step_direction = fine_trickler_motor_config.persistent_config.inverted_direction ? true : false;
+
     return is_ok;
 }
 
@@ -319,6 +333,9 @@ bool motor_config_init(void) {
 bool motor_config_save() {
     bool is_ok;
     eeprom_motor_data_t eeprom_motor_data;
+
+    // Set the versionf flag
+    eeprom_motor_data.motor_data_rev = EEPROM_MOTOR_DATA_REV;
 
     // Copy the live data to the EEPROM structure
     memcpy(&eeprom_motor_data.motor_data[0], &coarse_trickler_motor_config.persistent_config, sizeof(motor_persistent_config_t));
@@ -443,8 +460,11 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
     }
 
     if (motor_config) {
-        // Send to the queue only if 
-        gpio_put(motor_config->en_pin, !enable);  // off at high
+        // If enable is inverted the GPIO shall output enable state directly, otherwise invert it. 
+        // If not inverted the GPIO shall be the opposite state of the enable signal
+        bool en_signal = motor_config->persistent_config.inverted_enable ? enable : !enable;
+
+        gpio_put(motor_config->en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
@@ -555,13 +575,15 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
     // Build response
     snprintf(buf, 
              max_len,
-             "{\"angular_acceleration\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d}",
+             "{\"angular_acceleration\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d,\"inv_en\":%s,\"inv_dir\":%s}",
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,
              motor_config->persistent_config.current_ma,
              motor_config->persistent_config.microsteps,
              motor_config->persistent_config.max_speed_rps,
-             motor_config->persistent_config.r_sense);
+             motor_config->persistent_config.r_sense,
+             boolean_string(motor_config->persistent_config.inverted_enable),
+             boolean_string(motor_config->persistent_config.inverted_direction));
 }
 
 void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {
@@ -589,6 +611,22 @@ void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char
         else if (strcmp(params[idx], "r_sense") == 0) {
             uint16_t r_sense = strtod(values[idx], NULL);
             motor_config->persistent_config.r_sense = r_sense;
+        }
+        else if (strcmp(params[idx], "inv_en") == 0) {
+            if (strcmp(values[idx], "true") == 0) {
+                motor_config->persistent_config.inverted_enable = true;
+            }
+            else if (strcmp(values[idx], "false") == 0) {
+                motor_config->persistent_config.inverted_enable = false;
+            }
+        }
+        else if (strcmp(params[idx], "inv_dir") == 0) {
+            if (strcmp(values[idx], "true") == 0) {
+                motor_config->persistent_config.inverted_direction = true;
+            }
+            else if (strcmp(values[idx], "false") == 0) {
+                motor_config->persistent_config.inverted_direction = false;
+            }
         }
     }
 }

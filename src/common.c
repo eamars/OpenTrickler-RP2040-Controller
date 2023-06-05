@@ -13,3 +13,9 @@ void delay_ms(uint32_t ms, BaseType_t scheduler_state) {
         busy_wait_us(ms * 1000ULL);
     }
 }
+
+const char * true_string = "true";
+const char * false_string = "false";
+const char * boolean_string(bool var) {
+    return var ? true_string : false_string;
+}

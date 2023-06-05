@@ -4,6 +4,8 @@
   <title>Settings</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- <link rel="stylesheet" href="/css/font_awesome.css">
+  <link rel="stylesheet" href="/css/bootstrap.css"> -->
   <style>
     body {
       background-color: #f2f2f2;
@@ -221,6 +223,22 @@
             <input type="number" class="form-control" id="r_sense" name="r_sense" step="1">
           </div>
 
+          <div class="form-group">
+            <label for="inv_en">Inverted Enable Pin:</label>
+            <select class="form-control" id="inv_en" name="inv_en">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="inv_dir">Inverted Step Direction Pin:</label>
+            <select class="form-control" id="inv_dir" name="inv_dir">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+
           <button type="submit" class="btn btn-primary" data-api="/coarse_motor_config">Apply Coarse Motor Settings</button>
         </form>
       </div>
@@ -268,6 +286,22 @@
             <input type="number" class="form-control" id="r_sense" name="r_sense" step="1">
           </div>
 
+          <div class="form-group">
+            <label for="inv_en">Inverted Enable Pin:</label>
+            <select class="form-control" id="inv_en" name="inv_en">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="inv_dir">Inverted Step Direction Pin:</label>
+            <select class="form-control" id="inv_dir" name="inv_dir">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+
           <button type="submit" class="btn btn-primary" data-api="/fine_motor_config">Apply Fine Motor Settings</button>
         </form>
       </div>
@@ -292,17 +326,17 @@
           </div>
 
           <div class="form-group">
-            <span class="label warning">Warning</span>
-            <label for="erase_eeprom"> Erase EEPROM:</label>
-            <select class="form-control" id="erase_eeprom" name="erase_eeprom">
+            <label for="software_reset">Reboot:</label>
+            <select class="form-control" id="software_reset" name="software_reset">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label for="software_reset">Reboot:</label>
-            <select class="form-control" id="software_reset" name="software_reset">
+            <span class="label warning">Warning</span>
+            <label for="erase_eeprom"> Erase EEPROM:</label>
+            <select class="form-control" id="erase_eeprom" name="erase_eeprom">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>

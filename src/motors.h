@@ -7,7 +7,7 @@
 
 #include "http_rest.h"
 
-#define EEPROM_MOTOR_DATA_REV                     2              // 16 byte 
+#define EEPROM_MOTOR_DATA_REV                     3              // 16 byte 
 
 
 // Terms
@@ -27,13 +27,15 @@ typedef struct {
     uint16_t microsteps;
     uint16_t max_speed_rps;
     uint16_t r_sense;
+    bool inverted_direction;
+    bool inverted_enable;
 } motor_persistent_config_t;
 
 
 typedef struct {
-    uint16_t motor_data_rev;
+    uint32_t motor_data_rev;
     motor_persistent_config_t motor_data[2];
-} __attribute__((packed)) eeprom_motor_data_t;
+} eeprom_motor_data_t;
 
 
 typedef struct {

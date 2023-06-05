@@ -15,6 +15,7 @@ extern "C" {
 */
 void delay_ms(uint32_t ms, BaseType_t scheduler_state);
 
+const char * boolean_string(bool var);
 
 
 #ifdef __cplusplus

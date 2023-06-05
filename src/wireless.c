@@ -11,6 +11,8 @@
 #include "rotary_button.h"
 #include "http_rest.h"
 #include "rest_endpoints.h"
+#include "common.h"
+
 
 #ifdef CYW43_HOST_NAME
 #undef CYW43_HOST_NAME
@@ -226,7 +228,7 @@ void led_interface_task(void *p) {
         }
 
         
-        vTaskDelay(pdMS_TO_TICKS(MIN(blink_interval_ms, LED_INTERFACE_MINIMUM_POLL_PERIOD_MS)));
+        vTaskDelay(pdMS_TO_TICKS(MAX(blink_interval_ms, LED_INTERFACE_MINIMUM_POLL_PERIOD_MS)));
     }
 }
 
@@ -412,14 +414,6 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
             break;
     }
 
-    const char * configured_string;
-    if (wireless_config.eeprom_wireless_metadata.configured) {
-        configured_string = "true";
-    }
-    else {
-        configured_string = "false";
-    }
-
     snprintf(wireless_config_json_buffer, 
              sizeof(wireless_config_json_buffer),
              "{\"ssid\":\"%s\",\"pw\":\"%s\",\"auth\":\"%s\",\"timeout_ms\":%d,\"configured\":%s}",
@@ -427,7 +421,7 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
              wireless_config.eeprom_wireless_metadata.pw,
              auth_string,
              wireless_config.eeprom_wireless_metadata.timeout_ms,
-             configured_string);
+             boolean_string(wireless_config.eeprom_wireless_metadata.configured));
 
     size_t data_length = strlen(wireless_config_json_buffer);
     file->data = wireless_config_json_buffer;
