@@ -334,7 +334,7 @@ bool motor_config_save() {
     bool is_ok;
     eeprom_motor_data_t eeprom_motor_data;
 
-    // Set the versionf flag
+    // Set the versionf 
     eeprom_motor_data.motor_data_rev = EEPROM_MOTOR_DATA_REV;
 
     // Copy the live data to the EEPROM structure
