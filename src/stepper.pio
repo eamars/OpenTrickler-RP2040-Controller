@@ -1,5 +1,5 @@
-; The overall period is 14 + clk_period (two instructions at low)
-; The PIO will dwell at output low for minimum 14 instructions to achieve minimum 112ns STEP low time
+; 4 additional instructions per cycle.
+; actual_period = (target_period - 4) / 2
 .program stepper
 .side_set 1 opt
 init:
@@ -7,19 +7,16 @@ init:
                           ; Also set the STEP pin to low
     mov x, osr            ; Copy the value back from the OSR to X
     jmp !x init           ; If no X is provided then wrap back to the beginning
-    nop                   ; Wait 11 instructions at low to achieve
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
+
+    mov y, x              ; Hold at low for half of the period
+hold_low:
+    jmp y-- hold_low
+
     mov y, x       side 1 ; Copy the period to the counter (y)
                           ; Also set the SETP pin to high
+    nop
+    nop
+    nop
 hold_high:                ; Wait for the counter
     jmp y-- hold_high     ; Hold high while looping
 

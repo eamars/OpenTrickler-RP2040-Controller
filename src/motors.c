@@ -157,22 +157,26 @@ uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_ro
     // uint32_t pio_clock_speed = clock_get_hz(clk_sys);
 
     // Step speed (step/s) is calculated by full rotation steps x rotations per second
-    uint32_t delay_period;
+    float delay_period_f;
     if (speed < 1e-3) {
-        delay_period = 0;
+        delay_period_f = 0.0;
     }
     else {
         float steps_speed = full_rotation_steps * speed;
-        delay_period = (uint32_t) (pio_clock_speed / steps_speed);
+        delay_period_f = pio_clock_speed / steps_speed;
     }
 
+    delay_period_f /= 2;
+
     // Discount the period when holds low
-    if (delay_period >= 14) {
-        delay_period -= 14;
+    if (delay_period_f >= 4) {
+        delay_period_f -= 4;
     }
     else {
-        delay_period = 0;
+        delay_period_f = 0;
     }
+
+    uint32_t delay_period = lroundf(delay_period_f);
 
     return delay_period;
 }
