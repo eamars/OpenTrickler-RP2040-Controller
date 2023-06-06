@@ -14,7 +14,7 @@ hold_low:
 
     mov y, x       side 1 ; Copy the period to the counter (y)
                           ; Also set the SETP pin to high
-    nop
+    nop                   ; 3x NOP to match the time that holds low.
     nop
     nop
 hold_high:                ; Wait for the counter
