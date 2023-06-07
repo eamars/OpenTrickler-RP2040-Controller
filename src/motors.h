@@ -17,6 +17,7 @@
 typedef enum {
     SELECT_COARSE_TRICKLER_MOTOR,
     SELECT_FINE_TRICKLER_MOTOR,
+    SELECT_BOTH_MOTOR,
 } motor_select_t;
 
 
@@ -78,6 +79,7 @@ void motor_set_speed(motor_select_t selected_motor, float new_velocity);
 uint16_t get_motor_max_speed(motor_select_t selected_motor);
 float get_motor_min_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
+const char * get_motor_select_string(motor_select_t selected_motor);
 
 // REST interface
 bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);

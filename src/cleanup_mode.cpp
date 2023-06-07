@@ -10,6 +10,7 @@
 #include "motors.h"
 #include "scale.h"
 #include "display.h"
+#
 
 
 extern QueueHandle_t encoder_event_queue;
@@ -18,8 +19,12 @@ static char title_string[30];
 TaskHandle_t cleanup_render_task_handler = NULL;
 float current_motor_speed = 0;
 
-extern motor_config_t coarse_trickler_motor_config;
-extern motor_config_t fine_trickler_motor_config;
+int motor_select_index = 0;
+const motor_select_t available_motor_select[] = {
+    SELECT_BOTH_MOTOR,
+    SELECT_COARSE_TRICKLER_MOTOR,
+    SELECT_FINE_TRICKLER_MOTOR,
+};
 
 
 void cleanup_render_task(void *p) {
@@ -30,6 +35,8 @@ void cleanup_render_task(void *p) {
 
     while (true) {
         TickType_t last_render_tick = xTaskGetTickCount();
+
+        const char * scale_unit_string = get_scale_unit_string(true);
 
         u8g2_ClearBuffer(display_handler);
 
@@ -43,9 +50,9 @@ void cleanup_render_task(void *p) {
         u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
 
         // Draw charge weight
-        float current_weight = scale_get_current_measurement();
+        float current_weight = scale_block_wait_for_next_measurement();
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Weight: %0.02f", current_weight);
+        sprintf(buf, "Weight: %0.02f%s", current_weight, scale_unit_string);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 25, buf);
 
@@ -55,16 +62,21 @@ void cleanup_render_task(void *p) {
         float flow_rate = weight_diff / 0.02;  // 20 ms per sampling period, see below
 
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Flow: %0.2f", flow_rate);
+        sprintf(buf, "Flow: %0.2f%s/s", flow_rate, scale_unit_string);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 35, buf);
-
 
         // Draw current motor speed
         memset(buf, 0x0, sizeof(buf));
         sprintf(buf, "Speed: %d", (int) current_motor_speed);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 45, buf);
+
+        // Draw current selected motor
+        memset(buf, 0x0, sizeof(buf));
+        sprintf(buf, "Select: %s motor", get_motor_select_string(available_motor_select[motor_select_index]));
+        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
+        u8g2_DrawStr(display_handler, 5, 55, buf);
 
         u8g2_SendBuffer(display_handler);
 
@@ -104,21 +116,23 @@ uint8_t cleanup_mode_menu() {
                 break;
             case BUTTON_ENCODER_ROTATE_CW:
                 current_motor_speed += 1;
-                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, current_motor_speed);
-                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, current_motor_speed);
-                
+                motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
                 break;
             case BUTTON_ENCODER_ROTATE_CCW:
                 current_motor_speed -= 1;
-
-                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, current_motor_speed);
-                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, current_motor_speed);
+                motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
                 break;
 
             case BUTTON_ENCODER_PRESSED:
-                current_motor_speed = 0;
-                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, current_motor_speed);
-                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, current_motor_speed);
+                // If current speed is non zero then set speed to 0 and move to next option
+                if (current_motor_speed != 0) {
+                    current_motor_speed = 0;
+                    motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
+                }
+                motor_select_index += 1;
+                motor_select_index %= 3;
+                motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
+                
                 break;
             default:
                 break;

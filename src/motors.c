@@ -427,56 +427,42 @@ void stepper_speed_control_task(void * p) {
 
 
 void motor_set_speed(motor_select_t selected_motor, float new_velocity) {
-    // Positive speed for positive direction
-    motor_config_t * motor_config = NULL;
-    switch (selected_motor)
-    {
-    case SELECT_COARSE_TRICKLER_MOTOR:
-        motor_config = &coarse_trickler_motor_config;
-        break;
-    case SELECT_FINE_TRICKLER_MOTOR:
-        motor_config = &fine_trickler_motor_config;
-        break;
-    
-    default:
-        break;
+    if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        if (coarse_trickler_motor_config.stepper_speed_control_queue) {
+            xQueueSend(coarse_trickler_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
+        }
     }
 
-    if (motor_config) {
-        // Send to the queue only if 
-        if (motor_config->stepper_speed_control_queue) {
-            xQueueSend(motor_config->stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
+    if (selected_motor == SELECT_FINE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        if (fine_trickler_motor_config.stepper_speed_control_queue) {
+            xQueueSend(fine_trickler_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
         }
-    }   
+    }
 }
 
+
 void motor_enable(motor_select_t selected_motor, bool enable) {
-    motor_config_t * motor_config = NULL;
-    switch (selected_motor)
-    {
-    case SELECT_COARSE_TRICKLER_MOTOR:
-        motor_config = &coarse_trickler_motor_config;
-        break;
-    case SELECT_FINE_TRICKLER_MOTOR:
-        motor_config = &fine_trickler_motor_config;
-        break;
-    
-    default:
-        break;
-    }
+    if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        bool en_signal = coarse_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
 
-    if (motor_config) {
-        // If enable is inverted the GPIO shall output enable state directly, otherwise invert it. 
-        // If not inverted the GPIO shall be the opposite state of the enable signal
-        bool en_signal = motor_config->persistent_config.inverted_enable ? enable : !enable;
-
-        gpio_put(motor_config->en_pin, en_signal);
+        gpio_put(coarse_trickler_motor_config.en_pin, en_signal);
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
             motor_set_speed(selected_motor, 0);
         }
-    }   
+    }
+
+    if (selected_motor == SELECT_FINE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
+        bool en_signal = fine_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;
+
+        gpio_put(fine_trickler_motor_config.en_pin, en_signal);
+
+        // If disabled, we shall also disable the stepper signal
+        if (!enable) {
+            motor_set_speed(selected_motor, 0);
+        }
+    }
 }
 
 
@@ -492,6 +478,7 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor) {
         break;
     
     default:
+        assert(false);
         break;
     }
 
@@ -597,6 +584,23 @@ bool motors_init(void) {
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
 
     return true;
+}
+
+
+const char * get_motor_select_string(motor_select_t selected_motor) {
+    if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR) {
+        return "Coarse";
+    }
+    else if (selected_motor == SELECT_FINE_TRICKLER_MOTOR) {
+        return "Fine";
+    }
+    else if (selected_motor == SELECT_BOTH_MOTOR) {
+        return "Both";
+    }
+
+    assert(false);
+
+    return NULL;
 }
 
 
