@@ -159,8 +159,8 @@ fds_t fds_data[] = {
     MUI_LABEL(96, 35, "gr")
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 1, "Back")
     MUI_XYAT("BN",115, 59, 11, "Next")
+    MUI_XYAT("BN",14, 59, 1, "Back")
 
 
     // Menu 11: 
