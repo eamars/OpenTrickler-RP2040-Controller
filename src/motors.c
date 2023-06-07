@@ -573,7 +573,7 @@ bool motors_init(void) {
                 "Coarse Trickler", 
                 configMINIMAL_STACK_SIZE, 
                 (void *) &coarse_trickler_motor_config, 
-                8, 
+                9,  // Coarse trickler at higher priority to response faster to stop
                 &coarse_trickler_motor_config.stepper_speed_control_task_handler);
 
     xTaskCreate(stepper_speed_control_task, 
