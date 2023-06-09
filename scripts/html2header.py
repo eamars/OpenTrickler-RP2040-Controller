@@ -13,7 +13,11 @@ import argparse
 import logging
 import sys
 import os
-import minify_html  # 3rd party package
+
+try:
+    import minify_html  # 3rd party package
+except ImportError:
+    minify_html = None
 
 
 C_HEADER_TEMPLATE = """// ---------------------------------------------------------- //
@@ -29,30 +33,35 @@ const char html_{lowercase_filename}[] = "{html_string}";
 """
  
 
-def main(input_filepth, output_filepath):
+def main(input_filepth, output_filepath, skip_minify):
     logging.debug(f"Input path: {input_filepth}, output path: {output_filepath}")
 
     with open(input_filepth) as fp:
         input_file = fp.read()
 
-    # Minify the HTML with the javascript
-    minified_html = minify_html.minify(input_file, 
-                                       do_not_minify_doctype=True, 
-                                       minify_js=True,
-                                       minify_css=True, 
-                                       keep_html_and_head_opening_tags=False, 
-                                       keep_closing_tags=False)
-    logging.debug(minified_html)
+    if not skip_minify:
+        # Minify the HTML with the javascript
+        minified_html = minify_html.minify(input_file, 
+                                        do_not_minify_doctype=True, 
+                                        minify_js=True,
+                                        minify_css=True, 
+                                        keep_html_and_head_opening_tags=False, 
+                                        keep_closing_tags=False)
+        logging.debug(minified_html)
+    else:
+        minified_html = input_file
 
     # Escape characters
     escaped_html = minified_html.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'").replace("\n", "\\\n")
 
     filename = os.path.basename(input_filepth)
-    filename_without_ext, ext = os.path.splitext(filename)
+
+    # Escape some basic illegal variable names
+    filename = filename.replace('.', '_').replace('-', '_')
     
     c_header_string = C_HEADER_TEMPLATE.format(
-        capitalized_filename=filename_without_ext.upper(),
-        lowercase_filename=filename_without_ext.lower(),
+        capitalized_filename=filename.upper(),
+        lowercase_filename=filename.lower(),
         html_string=escaped_html,
     )
     logging.debug(c_header_string)
@@ -75,7 +84,10 @@ if __name__ == "__main__":
 
     parser.add_argument('-f', '--input_filepath', help="Filepath to the HTML file that need to be converted to C header", required=True)
     parser.add_argument('-o', '--output_filepath', help="The output path. The filename shall remain the same, with .h suffix.", required=True)
+    parser.add_argument('--no-minify', help="Do not minify the input file", default=False, action='store_true')
+
     parser.add_argument('-v', '--verbose', action='count', default=0)
+    
 
     args = parser.parse_args()
 
@@ -88,5 +100,4 @@ if __name__ == "__main__":
     
     logging.basicConfig(stream=sys.stdout, level=logging_levels[args.verbose])
 
-
-    main(args.input_filepath, args.output_filepath)
+    main(args.input_filepath, args.output_filepath, skip_minify=args.no_minify)
