@@ -1,4 +1,6 @@
 
+![12864_main_menu](resources/main_menu_screen_mirror.png)
+
 # OpenTrickler RP2040 Controller 
 This repo is for the firmware that utilises the Raspberry Pi RP2040 micro controller OpenTrickler RP2040 Controller.
 
