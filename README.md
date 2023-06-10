@@ -20,7 +20,7 @@ This repo is for the firmware that utilises the Raspberry Pi RP2040 micro contro
     ![12864_wait for charge](resources/wait_for_charge_screen_mirror.png)
 6. Once the charge set point is reached, remove the pan. The program shall restart from step 4.
 
-    ![12864_wait_for_cup_removal](resources/wait_for_cup_removal.png)_
+    ![12864_wait_for_cup_removal](resources/wait_for_cup_removal.png)
 
 
 ## Build OpenTrickler firmware from source
