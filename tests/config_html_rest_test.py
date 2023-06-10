@@ -16,11 +16,14 @@ import os
 
 script_directory = os.path.dirname(os.path.realpath(__file__))
 config_html_path = os.path.join(script_directory, '..', 'src', 'html', 'config.html')
+static_folder = os.path.join(script_directory, '..', 'src', 'html')
 
 with open(config_html_path) as fp:
     config_page = fp.read()
 
-app = Flask(__name__)
+app = Flask(__name__,
+            static_url_path='',
+            static_folder=static_folder)
 
 
 @app.route('/rest/scale_config')
@@ -44,13 +47,17 @@ def rest_eeprom_config():
 
 @app.route('/rest/fine_motor_config')
 def rest_fine_motor_config():
-    return '{"angular_acceleration":2000.000000,"full_steps_per_rotation":200,"current_ma":500,"microsteps":256,"max_speed_rps":20,"r_sense":110}'
+    return """{"accel":100.000000,"full_steps_per_rotation":200,"current_ma":800,"microsteps":256,"max_speed_rps":5,"r_sense":110,"min_speed_rps":0.080,"inv_en":false,"inv_dir":false}"""
 
 
 @app.route('/rest/coarse_motor_config')
 def rest_coarse_motor_config():
-    return '{"angular_acceleration":2000.000000,"full_steps_per_rotation":200,"current_ma":500,"microsteps":256,"max_speed_rps":20,"r_sense":110}'
+    return """{"accel":100.000000,"full_steps_per_rotation":200,"current_ma":800,"microsteps":256,"max_speed_rps":3,"r_sense":110,"min_speed_rps":0.020,"inv_en":false,"inv_dir":false}"""
 
+
+@app.route('/rest/system_control')
+def rest_system_control():
+    return """{"unique_id":"8178C61","save_to_eeprom":false,"software_reset":false,"erase_eeprom":false}"""
 
 
 @app.route('/')

@@ -42,12 +42,12 @@
     }
     
     .nav-link.active {
-      background-color: #4CAF50;
+      background-color: var(--bs-primary);
       color: #fff;
     }
     
-    .form-group label {
-      color: #555;
+    .form-group {
+      margin-bottom: 1rem;
     }
     
     .form-group input,
@@ -55,25 +55,11 @@
       width: 100%;
     }
     
-    .btn-primary {
-      background-color: #4CAF50;
-      border-color: #4CAF50;
-    }
-    
-    .label {
-      color: white;
-      padding: 2px;
-    }
-    .success {background-color: #04AA6D;} /* Green */
-    .info {background-color: #2196F3;} /* Blue */
-    .warning {background-color: #ff9800;} /* Orange */
-    .danger {background-color: #f44336;} /* Red */
-    .other {background-color: #e7e7e7; color: black;} /* Gray */
   </style>
 </head>
 <body>
   <h1>Open Trickler Settings</h1>
-  
+
   <div class="container">
     <div class="nav-column">
       <a class="nav-link active" href="#scale_config">Scale</a>
@@ -89,11 +75,10 @@
 
       <!-- Scale Config -->
       <div id="scale_config" class="config-section">
-        <h2>Scale Configuration</h2>
         <form class="config-form" id="scale_config-form">
           <div class="form-group">
             <label for="unit">Scale Unit:</label>
-            <select class="form-control" id="unit" name="unit">
+            <select class="form-select" id="unit" name="unit">
               <option value="grain">Grain</option>
               <option value="gram">Gram</option>
             </select>
@@ -105,7 +90,6 @@
       
       <!-- Charge Mode Config -->
       <div id="charge_mode_config" class="config-section" style="display: none;">
-        <h2>Charge Mode Configuration</h2>
         <form class="config-form" id="charge_mode_config-form">
           <div class="form-group">
             <label for="coarse_kp">Coarse Kp:</label>
@@ -143,7 +127,6 @@
       
       <!-- Wireless Config -->
       <div id="wireless_config" class="config-section" style="display: none;">
-        <h2>Wireless Configuration</h2>
         <form class="config-form" id="wireless_config-form">
           <div class="form-group">
             <label for="ssid">WiFi SSID:</label>
@@ -157,7 +140,7 @@
 
           <div class="form-group">
             <label for="auth">WiFi Authentication Method:</label>
-            <select class="form-control" id="auth" name="auth">
+            <select class="form-select" id="auth" name="auth">
               <option value="CYW43_AUTH_OPEN">None</option>
               <option value="CYW43_AUTH_WPA_TKIP_PSK">WPA-TKIP</option>
               <option value="CYW43_AUTH_WPA2_AES_PSK">WPA2-AES</option>
@@ -167,7 +150,7 @@
 
           <div class="form-group">
             <label for="configured">Use WiFi:</label>
-            <select class="form-control" id="configured" name="configured">
+            <select class="form-select" id="configured" name="configured">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
@@ -179,7 +162,6 @@
 
       <!-- Motor Config (Coarse) -->
       <div id="coarse_motor_config" class="config-section" style="display: none;">
-        <h2>Coarse Motor Configuration</h2>
         <form class="config-form" id="coarse_motor_config-form">
           <div class="form-group">
             <label for="accel">Angular Acceleration (rps/s):</label>
@@ -188,7 +170,7 @@
 
           <div class="form-group">
             <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-            <select class="form-control" id="full_steps_per_rotation" name="full_steps_per_rotation">
+            <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation">
               <option value="200">200</option>
               <option value="400">400</option>
             </select>
@@ -201,7 +183,7 @@
 
           <div class="form-group">
             <label for="microsteps">Microsteps:</label>
-            <select class="form-control" id="microsteps" name="microsteps">
+            <select class="form-select" id="microsteps" name="microsteps">
               <option value="16">16</option>
               <option value="32">32</option>
               <option value="64">64</option>
@@ -227,7 +209,7 @@
 
           <div class="form-group">
             <label for="inv_en">Inverted Enable Pin:</label>
-            <select class="form-control" id="inv_en" name="inv_en">
+            <select class="form-select" id="inv_en" name="inv_en">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
@@ -235,7 +217,7 @@
 
           <div class="form-group">
             <label for="inv_dir">Inverted Step Direction Pin:</label>
-            <select class="form-control" id="inv_dir" name="inv_dir">
+            <select class="form-select" id="inv_dir" name="inv_dir">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
@@ -247,7 +229,6 @@
 
       <!-- Motor Config (Fine) -->
       <div id="fine_motor_config" class="config-section" style="display: none;">
-        <h2>Fine Motor Configuration</h2>
         <form class="config-form" id="fine_motor_config-form">
           <div class="form-group">
             <label for="accel">Angular Acceleration (rps/s):</label>
@@ -256,7 +237,7 @@
 
           <div class="form-group">
             <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-            <select class="form-control" id="full_steps_per_rotation" name="full_steps_per_rotation">
+            <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation">
               <option value="200">200</option>
               <option value="400">400</option>
             </select>
@@ -269,7 +250,7 @@
 
           <div class="form-group">
             <label for="microsteps">Microsteps:</label>
-            <select class="form-control" id="microsteps" name="microsteps">
+            <select class="form-select" id="microsteps" name="microsteps">
               <option value="16">16</option>
               <option value="32">32</option>
               <option value="64">64</option>
@@ -295,7 +276,7 @@
 
           <div class="form-group">
             <label for="inv_en">Inverted Enable Pin:</label>
-            <select class="form-control" id="inv_en" name="inv_en">
+            <select class="form-select" id="inv_en" name="inv_en">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
@@ -303,7 +284,7 @@
 
           <div class="form-group">
             <label for="inv_dir">Inverted Step Direction Pin:</label>
-            <select class="form-control" id="inv_dir" name="inv_dir">
+            <select class="form-select" id="inv_dir" name="inv_dir">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
@@ -316,7 +297,6 @@
 
       <!-- EEPROM Config -->
       <div id="system_control" class="config-section" style="display: none;">
-        <h2>System Control</h2>
         <form class="config-form" id="system_control-form">
           <div class="form-group">
             <label for="unique_id">Unique ID:</label>
@@ -326,7 +306,7 @@
 
           <div class="form-group">
             <label for="save_to_eeprom">Save to EEPROM:</label>
-            <select class="form-control" id="save_to_eeprom" name="save_to_eeprom">
+            <select class="form-select" id="save_to_eeprom" name="save_to_eeprom">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
@@ -334,16 +314,16 @@
 
           <div class="form-group">
             <label for="software_reset">Reboot:</label>
-            <select class="form-control" id="software_reset" name="software_reset">
+            <select class="form-select" id="software_reset" name="software_reset">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
           </div>
 
           <div class="form-group">
-            <span class="label warning">Warning</span>
+            <span class="badge text-bg-warning">Warning</span>
             <label for="erase_eeprom"> Erase EEPROM:</label>
-            <select class="form-control" id="erase_eeprom" name="erase_eeprom">
+            <select class="form-select" id="erase_eeprom" name="erase_eeprom">
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
