@@ -6,13 +6,13 @@
 #include <stdbool.h>
 #include "http_rest.h"
 
-#define EEPROM_METADATA_BASE_ADDR           0 * 1024       // 0K
-#define EEPROM_SCALE_CONFIG_BASE_ADDR       1 * 1024       // 1K
-#define EEPROM_WIRELESS_CONFIG_BASE_ADDR    2 * 1024       // 2K
-#define EEPROM_MOTOR_CONFIG_BASE_ADDR       4 * 1024       // 4K
-#define EEPROM_CHARGE_MODE_BASE_ADDR        5 * 1024       // 5K
-#define EEPROM_APP_CONFIG_BASE_ADDR         6 * 1024       // 6k
-
+#define EEPROM_METADATA_BASE_ADDR               0 * 1024       // 0K
+#define EEPROM_SCALE_CONFIG_BASE_ADDR           1 * 1024       // 1K
+#define EEPROM_WIRELESS_CONFIG_BASE_ADDR        2 * 1024       // 2K
+#define EEPROM_MOTOR_CONFIG_BASE_ADDR           4 * 1024       // 4K
+#define EEPROM_CHARGE_MODE_BASE_ADDR            5 * 1024       // 5K
+#define EEPROM_APP_CONFIG_BASE_ADDR             6 * 1024       // 6k
+#define EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR    7 * 1024       // 7k
 
 #define EEPROM_METADATA_REV                     2              // 16 byte 
 

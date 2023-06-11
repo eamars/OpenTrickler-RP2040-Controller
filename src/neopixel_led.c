@@ -19,5 +19,115 @@
 // For Pico W
 // EXP1_6 (Neopixel) <-> PIN17 (GP13)
 // 
-// For Fly ERCF
-// EXP1_6 (Neopixel) <-> GP26
+#include <stdint.h>
+#include "neopixel_led.h"
+#include "generated/ws2812.pio.h"
+#include "configuration.h"
+#include "eeprom.h"
+
+
+
+
+typedef struct {
+    eeprom_neopixel_led_metadata_t eeprom_neopixel_led_metadata;
+
+    uint32_t current_mini12864_backlight_colour;
+    uint32_t current_led1_colour;
+    uint32_t current_led2_colour;
+} neopixel_led_config_t;
+
+
+static neopixel_led_config_t neopixel_led_config;
+
+
+uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
+    return
+            ((uint32_t) (g) << 8) |
+            ((uint32_t) (r) << 16) |
+            (uint32_t) (b);
+}
+ 
+static inline void put_pixel(uint32_t pixel_grb) {
+    pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
+}
+
+
+void neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour) {
+    // TODO: Implement the queue and task control
+}
+
+static void _neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour) {
+    put_pixel(led1_colour);  // Encoder RGB1
+    put_pixel(led2_colour);  // Encoder RGB2
+    put_pixel(mini12864_backlight_colour);  // 12864 Backlight
+}
+
+
+bool neopixel_led_init(void) {
+    bool is_ok = true;
+    
+    // Initialize configuration
+    memset(&neopixel_led_config, 0x0, sizeof(neopixel_led_config));
+
+    is_ok = eeprom_read(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, (uint8_t *) &neopixel_led_config.eeprom_neopixel_led_metadata, sizeof(eeprom_neopixel_led_metadata_t));
+    if (!is_ok) {
+        printf("Unable to read from EEPROM at address %x\n", EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR);
+        return false;
+    }
+
+    // If the revision doesn't match then re-initialize the config
+    if (neopixel_led_config.eeprom_neopixel_led_metadata.neopixel_data_rev != EEPROM_NEOPIXEL_LED_METADATA_REV) {
+        neopixel_led_config.eeprom_neopixel_led_metadata.neopixel_data_rev = EEPROM_NEOPIXEL_LED_METADATA_REV;
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_mini12864_backlight_colour = urgb_u32(0xFF, 0xFF, 0xFF);
+        neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour1 = urgb_u32(0x0F, 0x0F, 0x0F);
+        neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour2 = urgb_u32(0xFF, 0xFF, 0x00);
+        neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour1 = urgb_u32(0x0F, 0x0F, 0x0F);
+        neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour2 = urgb_u32(0x00, 0xFF, 0xFF);
+
+        // Write data back
+        is_ok = eeprom_write(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, (uint8_t *) &neopixel_led_config.eeprom_neopixel_led_metadata, sizeof(eeprom_neopixel_led_metadata_t));
+        if (!is_ok) {
+            printf("Unable to write to %x\n", EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR);
+            return false;
+        }
+    }
+
+    // Initialise current values
+    neopixel_led_config.current_mini12864_backlight_colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_mini12864_backlight_colour;
+    neopixel_led_config.current_led1_colour = neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour1;
+    neopixel_led_config.current_led2_colour = neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour1;
+
+
+    // Configure Neopixel (WS2812) with PIO
+    uint ws2812_sm = pio_claim_unused_sm(pio0, true);
+    uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
+    ws2812_program_init(pio0, ws2812_sm, ws2812_offset, NEOPIXEL_PIN, 800000, false);
+
+    // Set default colour
+    _neopixel_led_set_colour(
+        neopixel_led_config.current_led1_colour,
+        neopixel_led_config.current_led2_colour,
+        neopixel_led_config.current_mini12864_backlight_colour
+    );
+
+    return true;
+}
+
+
+bool neopixel_led_config_save() {
+    bool is_ok = eeprom_write(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, (uint8_t *) &neopixel_led_config.eeprom_neopixel_led_metadata, sizeof(eeprom_neopixel_led_metadata_t));
+    if (!is_ok) {
+        printf("Unable to write to %x\n", EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR);
+        return false;
+    }
+
+    return true;
+}
+
+bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    return true;
+}
+
+
+
+

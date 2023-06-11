@@ -49,6 +49,7 @@ uint8_t eeprom_save_all() {
     motor_config_save();
     charge_mode_config_save();
     wireless_config_save();
+    neopixel_led_config_save();
     return 37;  // Configuration Menu ID
 }
 

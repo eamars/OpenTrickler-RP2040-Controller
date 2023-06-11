@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
-#include "generated/ws2812.pio.h"
+
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
 #include "u8g2.h"
@@ -22,23 +22,12 @@
 #include "charge_mode.h"
 #include "rest_endpoints.h"
 #include "wireless.h"
+#include "neopixel_led.h"
+
 
 // C++ functions
 extern void button_init(void);
 extern void menu_task(void *p);
-
-
-
-static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
-    return
-            ((uint32_t) (g) << 8) |
-            ((uint32_t) (r) << 16) |
-            (uint32_t) (b);
-}
- 
-static inline void put_pixel(uint32_t pixel_grb) {
-    pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
-}
 
 
 uint8_t software_reboot() {
@@ -54,13 +43,8 @@ int main()
     // Initialize EEPROM first
     eeprom_init();
 
-    // Configure Neopixel (WS2812)
-    uint ws2812_sm = pio_claim_unused_sm(pio0, true);
-    uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
-    ws2812_program_init(pio0, ws2812_sm, ws2812_offset, NEOPIXEL_PIN, 800000, false);
-    put_pixel(urgb_u32(0x0f, 0x0f, 0x0f));  // Encoder RGB1
-    put_pixel(urgb_u32(0x0f, 0x0f, 0x0f));  // Encoder RGB2
-    put_pixel(urgb_u32(0xFF, 0xFF, 0xFF));  // 12864 Backlight
+    // Initialize Neopixel RGB on the mini 12864 board
+    neopixel_led_init();
 
     // Configure others
     display_init();
