@@ -19,7 +19,7 @@
 #include "eeprom.h"
 
 
-uint8_t charge_weight_digits[] = {0, 0, 0, 0};
+uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
 
 // PID related
 charge_mode_config_t charge_mode_config;
@@ -141,7 +141,9 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
 
 ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
     // Update current status
-    snprintf(title_string, sizeof(title_string), "Target: %.02f gr", charge_mode_config.target_charge_weight);
+    snprintf(title_string, sizeof(title_string), 
+             "Target: %.02f %s", 
+             charge_mode_config.target_charge_weight, get_scale_unit_string(true));
 
     uint16_t coarse_trickler_max_speed = get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR);
     uint16_t fine_trickler_max_speed = get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR);
@@ -286,7 +288,8 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
 
 uint8_t charge_mode_menu() {
     // Create target weight
-    charge_mode_config.target_charge_weight = charge_weight_digits[3] * 10 + \
+    charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
+                                              charge_weight_digits[3] * 10 + \
                                               charge_weight_digits[2] + \
                                               charge_weight_digits[1] * 0.1 + \
                                               charge_weight_digits[0] * 0.01;

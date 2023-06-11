@@ -241,6 +241,9 @@ const char * get_scale_unit_string(bool is_short_string) {
     return scale_unit_string;
 }
 
+void set_scale_unit(scale_unit_t scale_unit) {
+    scale_data.scale_unit = scale_unit;
+}
 
 
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]) {
@@ -268,9 +271,10 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "unit") == 0) {
             if (strcmp(values[idx], "grain") == 0) {
-                scale_data.scale_unit = SCALE_UNIT_GRAIN;
+                set_scale_unit(SCALE_UNIT_GRAIN);
             }
             else if (strcmp(values[idx], "gram") == 0) {
+                set_scale_unit(SCALE_UNIT_GRAM);
                 scale_data.scale_unit = SCALE_UNIT_GRAM;
             }
         }

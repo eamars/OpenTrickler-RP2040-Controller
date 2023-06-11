@@ -16,7 +16,6 @@ extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
 extern charge_mode_config_t charge_mode_config;
 
-
 // Imported from and_scale module
 extern eeprom_scale_data_t scale_data;
 
@@ -76,6 +75,22 @@ uint8_t render_fine_pid_values(mui_t *ui, uint8_t msg) {
                              charge_mode_config.eeprom_charge_mode_data.fine_kd);
 }
 
+uint8_t render_scale_unit(mui_t * ui, uint8_t msg) {
+    switch (msg) {
+        case MUIF_MSG_DRAW:
+        {
+            u8g2_uint_t x = mui_get_x(ui);
+            u8g2_uint_t y = mui_get_y(ui);
+            u8g2_t *u8g2 = mui_get_U8g2(ui);
+
+            u8g2_SetFont(u8g2, u8g2_font_helvR08_tr);
+            u8g2_DrawStr(u8g2, x, y, get_scale_unit_string(true));
+        }
+        break;
+    }
+    return 0;
+}
+
 
 
 muif_t muif_list[] = {
@@ -109,7 +124,11 @@ muif_t muif_list[] = {
         // Unit selection
         MUIF_VARIABLE("UN",&scale_data.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
 
+        // Render unit
+        MUIF_RO("SU", render_scale_unit),
+
         // input for a number between 0 to 9 //
+        MUIF_U8G2_U8_MIN_MAX("N4", &charge_weight_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N2", &charge_weight_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N1", &charge_weight_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -149,18 +168,22 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(3)
-    MUI_XY("N3",26, 35)
-    MUI_XY("N2",42, 35)
-    MUI_LABEL(54, 35, ".")
-    MUI_XY("N1",66, 35)
-    MUI_XY("N0",82, 35)
+    MUI_XY("N3",36, 35)
+    MUI_XY("N2",52, 35)
+    MUI_LABEL(64, 35, ".")
+    MUI_XY("N1",76, 35)
+    MUI_XY("N0",92, 35)
 
     MUI_STYLE(0)
-    MUI_LABEL(96, 35, "gr")
+    MUI_XY("SU", 106, 35)
+    // MUI_LABEL(106, 35, "gr")  // TODO: Make it variable
 
     MUI_STYLE(0)
     MUI_XYAT("BN",115, 59, 11, "Next")
     MUI_XYAT("BN",14, 59, 1, "Back")
+
+    MUI_STYLE(3)
+    MUI_XY("N4",20, 35)
 
 
     // Menu 11: 

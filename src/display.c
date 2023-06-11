@@ -2,7 +2,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <u8g2.h>
-
+#include <FreeRTOS.h>
+#include <semphr.h>
 
 #include "display.h"
 #include "http_rest.h"
@@ -10,10 +11,26 @@
 
 // Local variables
 u8g2_t display_handler;
-
+SemaphoreHandle_t display_buffer_access_mutex = NULL;
 
 u8g2_t * get_display_handler(void) {
     return &display_handler;
+}
+
+void acquire_display_buffer_access() {
+    if (!display_buffer_access_mutex) {
+        xSemaphoreCreateMutex();
+    }
+
+    assert(display_buffer_access_mutex);
+
+    xSemaphoreTake(display_buffer_access_mutex, portMAX_DELAY);
+}
+
+void release_display_buffer_access() {
+    assert(display_buffer_access_mutex);
+
+    xSemaphoreGive(display_buffer_access_mutex);
 }
 
 

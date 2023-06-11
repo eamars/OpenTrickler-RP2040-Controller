@@ -50,6 +50,7 @@ uint8_t scale_calibrate_with_external_weight();
 AppState_t scale_enable_fast_report(AppState_t prev_state);
 
 const char * get_scale_unit_string(bool);
+void set_scale_unit(scale_unit_t scale_unit);
 
 // REST
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);
