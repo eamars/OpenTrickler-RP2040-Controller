@@ -19,7 +19,7 @@ u8g2_t * get_display_handler(void) {
 
 void acquire_display_buffer_access() {
     if (!display_buffer_access_mutex) {
-        xSemaphoreCreateMutex();
+        display_buffer_access_mutex = xSemaphoreCreateMutex();
     }
 
     assert(display_buffer_access_mutex);
