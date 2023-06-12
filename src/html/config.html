@@ -57,11 +57,6 @@
       margin-bottom: 1rem;
     }
     
-    .form-group input,
-    .form-group select {
-      width: 100%;
-    }
-    
   </style>
 </head>
 <body>
@@ -74,6 +69,7 @@
       <a class="nav-link" href="#wireless_config">Wireless</a>
       <a class="nav-link" href="#coarse_motor_config">Coarse Motor</a>
       <a class="nav-link" href="#fine_motor_config">Fine Motor</a>
+      <a class="nav-link" href="#neopixel_led_config">Neopixel LED</a>
       <a class="nav-link" href="#system_control">System Control</a>
       <!-- Add more categories as needed -->
     </div>
@@ -184,7 +180,7 @@
           </div>
 
           <div class="form-group">
-            <label for="current_ma">Current (ma):</label>
+            <label for="current_ma">Current (mA):</label>
             <input type="number" class="form-control" id="current_ma" name="current_ma" step="1">
           </div>
 
@@ -201,7 +197,7 @@
 
           <div class="form-group">
             <label for="max_speed_rps">Max Speed (rps):</label>
-            <input type="number" class="form-control" id="max_speed_rps" name="max_speed_rps" step="1">
+            <input type="number" class="form-control" id="max_speed_rps" name="max_speed_rps" step="0.1">
           </div>
 
           <div class="form-group">
@@ -251,7 +247,7 @@
           </div>
 
           <div class="form-group">
-            <label for="current_ma">Current (ma):</label>
+            <label for="current_ma">Current (mA):</label>
             <input type="number" class="form-control" id="current_ma" name="current_ma" step="1">
           </div>
 
@@ -268,7 +264,7 @@
 
           <div class="form-group">
             <label for="max_speed_rps">Max Speed (rps):</label>
-            <input type="number" class="form-control" id="max_speed_rps" name="max_speed_rps" step="1">
+            <input type="number" class="form-control" id="max_speed_rps" name="max_speed_rps" step="0.1">
           </div>
 
           <div class="form-group">
@@ -301,8 +297,39 @@
         </form>
       </div>
 
+      <!-- Neopixel LED Config -->
+      <div id="neopixel_led_config" class="config-section" style="display: none;">
+        <form class="config-form" id="neopixel_led_config-form">
+          <div class="form-group">
+            <label for="12864bl">Mini 12864 Display Background Colour:</label>
+            <input type="color" class="form-control form-control-color" id="12864bl" name="12864bl">
+          </div>
 
-      <!-- EEPROM Config -->
+          <div class="form-group">
+            <label for="led1_c1">LED1 Primary Colour</label>
+            <input type="color" class="form-control form-control-color" id="led1_c1" name="led1_c1">
+          </div>
+
+          <div class="form-group">
+            <label for="led1_c2">LED1 Secondary Colour</label>
+            <input type="color" class="form-control form-control-color" id="led1_c2" name="led1_c2">
+          </div>
+          
+          <div class="form-group">
+            <label for="led2_c1">LED2 Primary Colour</label>
+            <input type="color" class="form-control form-control-color" id="led2_c1" name="led2_c1">
+          </div>
+
+          <div class="form-group">
+            <label for="led2_c2">LED2 Secondary Colour</label>
+            <input type="color" class="form-control form-control-color" id="led2_c2" name="led2_c2">
+          </div>
+
+          <button type="submit" class="btn btn-primary" data-api="/neopixel_led_config">Apply Neopixel LED Settings</button>
+        </form>
+      </div>
+
+      <!-- System Control -->
       <div id="system_control" class="config-section" style="display: none;">
         <form class="config-form" id="system_control-form">
           <div class="form-group">

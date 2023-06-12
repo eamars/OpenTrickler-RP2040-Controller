@@ -60,6 +60,11 @@ def rest_system_control():
     return """{"unique_id":"8178C61","save_to_eeprom":false,"software_reset":false,"erase_eeprom":false}"""
 
 
+@app.route('/rest/neopixel_led_config')
+def rest_neopixel_led_config():
+    return """{"12864bl":"#ffffff","led1_c1":"#0f0f0f","led1_c2":"#ffff00","led2_c1":"#0f0f0f","led2_c2":"#00ffff"}"""
+
+
 @app.route('/')
 def index():
     return config_page

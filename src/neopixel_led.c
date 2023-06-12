@@ -124,32 +124,50 @@ bool neopixel_led_config_save() {
     return true;
 }
 
+
+uint32_t _to_hex_colour(char * string) {
+    uint32_t value = 0;
+
+    if (string) {
+        // If the string is an escaped character, then skip the next 3 characters
+        if (string[0] == '%') {
+            string += 3;
+        }
+
+        value = strtol(string, NULL, 16);
+    }
+
+    return value;
+}
+
+
 bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char neopixel_config_json_buffer[128];
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "12864bl") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.default_mini12864_backlight_colour = strtod(values[idx], NULL);
+            // Remove %23 (#) from the request
+            neopixel_led_config.eeprom_neopixel_led_metadata.default_mini12864_backlight_colour = _to_hex_colour(values[idx]);
         }
         else if (strcmp(params[idx], "led1_c1") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour1 = strtod(values[idx], NULL);
+            neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour1 = _to_hex_colour(values[idx]);
         }
         else if (strcmp(params[idx], "led1_c2") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour2 = strtod(values[idx], NULL);
+            neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour2 = _to_hex_colour(values[idx]);
         }
         else if (strcmp(params[idx], "led2_c1") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour1 = strtod(values[idx], NULL);
+            neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour1 = _to_hex_colour(values[idx]);
         }
         else if (strcmp(params[idx], "led2_c2") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour2 = strtod(values[idx], NULL);
+            neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour2 = _to_hex_colour(values[idx]);
         }
     }
 
     // Response
     snprintf(neopixel_config_json_buffer, 
              sizeof(neopixel_config_json_buffer),
-             "{\"12864bl\":%d,\"led1_c1\":%d,\"led1_c2\":%d,\"led2_c1\":%d,\"led2_c2\":%d}",
+             "{\"12864bl\":\"#%06x\",\"led1_c1\":\"#%06x\",\"led1_c2\":\"#%06x\",\"led2_c1\":\"#%06x\",\"led2_c2\":\"#%06x\"}",
              neopixel_led_config.eeprom_neopixel_led_metadata.default_mini12864_backlight_colour,
              neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour1,
              neopixel_led_config.eeprom_neopixel_led_metadata.led1_colour2,
