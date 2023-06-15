@@ -17,6 +17,7 @@
 #include "common.h"
 #include "wireless.h"
 #include "app.h"
+#include "neopixel_led.h"
 
 
 extern bool cat24c256_eeprom_erase();

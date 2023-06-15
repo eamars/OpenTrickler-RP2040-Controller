@@ -52,7 +52,11 @@ def main(input_filepth, output_filepath, skip_minify):
         minified_html = input_file
 
     # Escape characters
-    escaped_html = minified_html.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'").replace("\n", "\\\n")
+    escaped_html = minified_html.replace("\\", "\\\\")
+    escaped_html = escaped_html.replace('"', '\\"')
+    escaped_html = escaped_html.replace("'", "\\'")
+    escaped_html = escaped_html.replace("\n", "\\n")
+    escaped_html = escaped_html.replace("\r", "\\r")
 
     filename = os.path.basename(input_filepth)
 
@@ -67,8 +71,7 @@ def main(input_filepth, output_filepath, skip_minify):
     logging.debug(c_header_string)
 
     # Write to the file
-    output_full_filename = os.path.join(output_filepath, f"{filename}.h")
-    with open(output_full_filename, "w") as fp:
+    with open(output_filepath, "w") as fp:
         fp.write(c_header_string)
 
     input_len = len(input_file)
@@ -83,7 +86,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-f', '--input_filepath', help="Filepath to the HTML file that need to be converted to C header", required=True)
-    parser.add_argument('-o', '--output_filepath', help="The output path. The filename shall remain the same, with .h suffix.", required=True)
+    parser.add_argument('-o', '--output_filepath', help="The output filepath that the C header will be written to", required=True)
     parser.add_argument('--no-minify', help="Do not minify the input file", default=False, action='store_true')
 
     parser.add_argument('-v', '--verbose', action='count', default=0)
