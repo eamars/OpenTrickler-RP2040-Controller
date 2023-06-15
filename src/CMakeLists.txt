@@ -4,6 +4,7 @@ pico_generate_pio_header(app ${CMAKE_CURRENT_LIST_DIR}/ws2812.pio OUTPUT_DIR ${C
 pico_generate_pio_header(app ${CMAKE_CURRENT_LIST_DIR}/stepper.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
 
 # Generate HTML header
+# Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
 find_package(PythonInterp REQUIRED)
 
 # config.html
