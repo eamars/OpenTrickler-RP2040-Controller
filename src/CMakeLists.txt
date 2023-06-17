@@ -20,6 +20,20 @@ add_custom_command(
 )
 
 
+# dashboard.html
+add_custom_target(
+    generate_dashboard_header ALL
+    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h"
+)
+
+add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h"
+    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/dashboard.html"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/dashboard.html -o ${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h
+)
+
+
+
 # display_mirror.html
 add_custom_target(
     generate_display_mirror ALL

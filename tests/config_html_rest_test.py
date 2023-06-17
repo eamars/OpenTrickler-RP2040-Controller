@@ -16,10 +16,8 @@ import os
 
 script_directory = os.path.dirname(os.path.realpath(__file__))
 config_html_path = os.path.join(script_directory, '..', 'src', 'html', 'config.html')
+dashboard_html_path = os.path.join(script_directory, '..', 'src', 'html', 'dashboard.html')
 static_folder = os.path.join(script_directory, '..', 'src', 'html')
-
-with open(config_html_path) as fp:
-    config_page = fp.read()
 
 app = Flask(__name__,
             static_url_path='',
@@ -65,9 +63,18 @@ def rest_neopixel_led_config():
     return """{"12864bl":"#ffffff","led1_c1":"#0f0f0f","led1_c2":"#ffff00","led2_c1":"#0f0f0f","led2_c2":"#00ffff"}"""
 
 
-@app.route('/')
-def index():
+@app.route("/config")
+def config():
+    with open(config_html_path) as fp:
+        config_page = fp.read()
     return config_page
+
+
+@app.route('/')
+def dashboard():
+    with open(dashboard_html_path) as fp:
+        dashboard_page = fp.read()
+    return dashboard_page
 
 
 app.run(debug=True)
