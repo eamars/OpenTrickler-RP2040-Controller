@@ -15,6 +15,8 @@ typedef enum {
     OVERRIDE_FROM_REST,
 } ButtonEncoderEvent_t;
 
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,7 +26,7 @@ extern "C" {
  * Wait for button encoder input. 
 */
 ButtonEncoderEvent_t button_wait_for_input(bool block);
-
+void button_init();
 bool http_rest_button_control(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 

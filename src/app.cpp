@@ -23,11 +23,8 @@
 #include "rest_endpoints.h"
 #include "wireless.h"
 #include "neopixel_led.h"
-
-
-// C++ functions
-extern void button_init(void);
-extern void menu_task(void *p);
+#include "rotary_button.h"
+#include "menu.h"
 
 
 uint8_t software_reboot() {
