@@ -10,6 +10,8 @@
 
 #include "scale.h"
 #include "charge_mode.h"
+#include "version.h"
+#include "common.h"
 
 
 extern uint8_t charge_weight_digits[];
@@ -60,6 +62,36 @@ uint8_t render_pid_values(mui_t *ui, uint8_t msg, float kp, float ki, float kd) 
     }
     return 0;
 }
+
+
+uint8_t render_version_page(mui_t * ui, uint8_t msg) {
+    switch (msg) {
+        case MUIF_MSG_DRAW:
+        {
+            u8g2_uint_t x = mui_get_x(ui);
+            u8g2_uint_t y = mui_get_y(ui);
+            u8g2_t *u8g2 = mui_get_U8g2(ui);
+
+            char buf[32];
+
+            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+
+            snprintf(buf, sizeof(buf), "Ver:%s", version_string);
+            u8g2_DrawStr(u8g2, x, y, buf);
+
+            snprintf(buf, sizeof(buf), "Hash:%s", vcs_hash);
+            u8g2_DrawStr(u8g2, x, y + 10, buf);
+
+            snprintf(buf, sizeof(buf), "Dirty:%s", boolean_string(is_dirty));
+            u8g2_DrawStr(u8g2, x, y + 20, buf);
+
+            break;
+        }
+        break;
+    }
+    return 0;
+}
+
 
 uint8_t render_coarse_pid_values(mui_t *ui, uint8_t msg) {
     return render_pid_values(ui, msg, 
@@ -126,6 +158,9 @@ muif_t muif_list[] = {
 
         // Render unit
         MUIF_RO("SU", render_scale_unit),
+
+        // Render version
+        MUIF_RO("VE", render_version_page),
 
         // input for a number between 0 to 9 //
         MUIF_U8G2_U8_MIN_MAX("N4", &charge_weight_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -225,6 +260,7 @@ fds_t fds_data[] = {
         MUI_34 "Tune PID|"
         MUI_37 "EEPROM|"
         MUI_35 "Reboot|"
+        MUI_36 "Version|"
         MUI_1 "<-Return"  // Back to main menu
         )
     MUI_XYA("GC", 5, 25, 0) 
@@ -283,6 +319,17 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 37, "software reboot")
     MUI_XYAT("BN",14, 59, 37, "Back")
     MUI_XYAT("LV", 115, 59, 9, "Next")  // APP_STATE_ENTER_REBOOT
+
+    // Menu 36 Version
+    MUI_FORM(36)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Build Version")
+    MUI_XY("HL", 0,13)
+
+    MUI_XY("VE", 5, 25)  // Version text
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN", 64, 59, 30, " OK ")
 
     // EEPROM submenu
     MUI_FORM(37)
