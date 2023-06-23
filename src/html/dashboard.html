@@ -481,6 +481,27 @@
                             </div>
 
                             <div class="form-group mb-3">
+                                <label for="unique_id">Firmware Version:</label>
+                                <!-- Don't show unique id when submit -->
+                                <input type="text" class="form-control" id="ver" name="ver"
+                                    disabled="disabled" readonly>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="unique_id">VCS Hash:</label>
+                                <!-- Don't show unique id when submit -->
+                                <input type="text" class="form-control" id="hash" name="hash"
+                                    disabled="disabled" readonly>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="unique_id">VCS Dirty:</label>
+                                <!-- Don't show unique id when submit -->
+                                <input type="text" class="form-control" id="dirty" name="dirty"
+                                    disabled="disabled" readonly>
+                            </div>
+
+                            <div class="form-group mb-3">
                                 <label for="save_to_eeprom">Save to EEPROM:</label>
                                 <select class="form-select" id="save_to_eeprom" name="save_to_eeprom">
                                     <option value="true">Yes</option>
