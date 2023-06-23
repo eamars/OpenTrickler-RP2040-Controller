@@ -32,7 +32,12 @@
 #include "gpio_irq_handler.h"
 #include "rotary_button.h"
 #include "http_rest.h"
+#include "eeprom.h"
+#include "common.h"
 
+
+// Configs
+rotary_button_config_t rotary_button_config;
 
 // Statics (to be shared between IRQ and tasks)
 QueueHandle_t encoder_event_queue = NULL;
@@ -97,14 +102,28 @@ void _isr_on_encoder_update(uint gpio, uint32_t event){
     ButtonEncoderEvent_t button_encoder_event;
     if (count >= 4) {
         count = 0;
-        button_encoder_event = BUTTON_ENCODER_ROTATE_CW;
+
+        if (rotary_button_config.inverted_encoder_direction) {
+            button_encoder_event = BUTTON_ENCODER_ROTATE_CCW;
+        }
+        else {
+            button_encoder_event = BUTTON_ENCODER_ROTATE_CW;
+        }
+        
         if (encoder_event_queue) {
             xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
         }
     }
     else if (count <= -4) {
         count = 0;
-        button_encoder_event = BUTTON_ENCODER_ROTATE_CCW;
+
+        if (rotary_button_config.inverted_encoder_direction) {
+            button_encoder_event = BUTTON_ENCODER_ROTATE_CW;
+        }
+        else {
+            button_encoder_event = BUTTON_ENCODER_ROTATE_CCW;
+        }
+
         if (encoder_event_queue) {
             xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
         }
@@ -138,8 +157,33 @@ void _isr_on_button_rst_update(uint gpio, uint32_t event) {
 }
   
 
-void button_init() {
+bool button_init() {
     printf("Initializing Button Task -- ");
+
+    bool is_ok;
+
+    // Read configuration
+    memset(&rotary_button_config, 0x0, sizeof(rotary_button_config_t));
+    is_ok = eeprom_read(EEPROM_ROTARY_BUTTON_CONFIG_BASE_ADDR, (uint8_t *)&rotary_button_config, sizeof(rotary_button_config_t));
+    if (!is_ok) {
+        printf("Unable to read from EEPROM at address %x\n", EEPROM_CHARGE_MODE_BASE_ADDR);
+        return false;
+    }
+
+    if (rotary_button_config.rotary_button_data_rev != EEPROM_ROTARY_BUTTON_DATA_REV) {
+        rotary_button_config.rotary_button_data_rev = EEPROM_ROTARY_BUTTON_DATA_REV;
+
+        // Set default
+        rotary_button_config.inverted_encoder_direction = false;
+
+        // Write back
+        is_ok = button_config_save();
+        if (!is_ok) {
+            printf("Unable to write to %x\n", EEPROM_ROTARY_BUTTON_CONFIG_BASE_ADDR);
+            return false;
+        }
+    }
+
     // Configure button encoder
     gpio_init(BUTTON0_ENCODER_PIN1);
     gpio_set_dir(BUTTON0_ENCODER_PIN1, GPIO_IN);
@@ -170,6 +214,14 @@ void button_init() {
     }
 
     printf("done\n");
+
+    return true;
+}
+
+
+bool button_config_save() {
+    bool is_ok = eeprom_write(EEPROM_ROTARY_BUTTON_CONFIG_BASE_ADDR, (uint8_t *) &rotary_button_config, sizeof(rotary_button_config_t));
+    return is_ok;
 }
 
 
@@ -231,6 +283,36 @@ bool http_rest_button_control(struct fs_file *file, int num_params, char *params
     file->data = button_control_json_buffer;
     file->len = len;
     file->index = len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
+
+
+bool http_rest_button_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    static char buf[128];
+
+    // Control
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "inv_dir") == 0) {
+            if (strcmp(values[idx], "true") == 0){
+                rotary_button_config.inverted_encoder_direction = true;
+            }
+            else if (strcmp(values[idx], "false") == 0) {
+                rotary_button_config.inverted_encoder_direction = false;
+            }
+        }
+    }
+
+    // Response
+    snprintf(buf, sizeof(buf), 
+             "{\"inv_dir\":%s}", 
+             boolean_string(rotary_button_config.inverted_encoder_direction));
+    
+    size_t response_len = strlen(buf);
+    file->data = buf;
+    file->len = response_len;
+    file->index = response_len;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
 
     return true;

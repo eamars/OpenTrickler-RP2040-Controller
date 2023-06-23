@@ -93,7 +93,7 @@ bool scale_init() {
         scale_data.scale_unit = SCALE_UNIT_GRAIN;
 
         // Write data back
-        is_ok = eeprom_write(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_data, sizeof(eeprom_scale_data_t));
+        is_ok = scale_config_save();
         if (!is_ok) {
             printf("Unable to write to %x\n", EEPROM_SCALE_CONFIG_BASE_ADDR);
             return false;
@@ -112,8 +112,7 @@ bool scale_init() {
 
 
 bool scale_config_save() {
-    bool is_ok;
-    is_ok = eeprom_write(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_data, sizeof(eeprom_scale_data_t));
+    bool is_ok = eeprom_write(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_data, sizeof(eeprom_scale_data_t));
     return is_ok;
 }
 

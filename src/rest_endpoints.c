@@ -12,7 +12,6 @@
 #include "neopixel_led.h"
 
 // Generated headers by html2header.py under scripts
-#include "config.html.h"
 #include "display_mirror.html.h"
 #include "bootstrap.min.css.h"
 #include "bootstrap.min.js.h"
@@ -42,16 +41,6 @@ bool http_display_mirror(struct fs_file *file, int num_params, char *params[], c
     return true;
 }
 
-bool http_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(html_config_html);
-
-    file->data = html_config_html;
-    file->len = len;
-    file->index = len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
-
-    return true;
-}
 
 bool http_bootstrap_css(struct fs_file *file, int num_params, char *params[], char *values[]) {
     size_t len = strlen(html_bootstrap_min_css);
@@ -112,11 +101,11 @@ bool rest_endpoints_init() {
     rest_register_handler("/rest/fine_motor_config", http_rest_fine_motor_config);
     rest_register_handler("/rest/motor_speed", http_rest_motor_speed);
     rest_register_handler("/rest/button_control", http_rest_button_control);
+    rest_register_handler("/rest/button_config", http_rest_button_config);
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
     rest_register_handler("/rest/neopixel_led_config", http_rest_neopixel_led_config);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
-    rest_register_handler("/config", http_config);
     rest_register_handler("/css/bootstrap.min.css", http_bootstrap_css);
     rest_register_handler("/js/bootstrap.min.js", http_bootstrap_js);
     rest_register_handler("/js/jquery-3.7.0.min.js", http_jquery_js);

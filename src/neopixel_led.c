@@ -85,7 +85,7 @@ bool neopixel_led_init(void) {
         neopixel_led_config.eeprom_neopixel_led_metadata.led2_colour2 = urgb_u32(0x00, 0xFF, 0xFF);
 
         // Write data back
-        is_ok = eeprom_write(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, (uint8_t *) &neopixel_led_config.eeprom_neopixel_led_metadata, sizeof(eeprom_neopixel_led_metadata_t));
+        is_ok = neopixel_led_config_save();
         if (!is_ok) {
             printf("Unable to write to %x\n", EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR);
             return false;
@@ -116,12 +116,7 @@ bool neopixel_led_init(void) {
 
 bool neopixel_led_config_save() {
     bool is_ok = eeprom_write(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, (uint8_t *) &neopixel_led_config.eeprom_neopixel_led_metadata, sizeof(eeprom_neopixel_led_metadata_t));
-    if (!is_ok) {
-        printf("Unable to write to %x\n", EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR);
-        return false;
-    }
-
-    return true;
+    return is_ok;
 }
 
 

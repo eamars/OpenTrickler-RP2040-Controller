@@ -18,6 +18,7 @@
 #include "wireless.h"
 #include "app.h"
 #include "neopixel_led.h"
+#include "rotary_button.h"
 
 
 extern bool cat24c256_eeprom_erase();
@@ -45,12 +46,13 @@ uint32_t rnd(void){
 
 
 uint8_t eeprom_save_all() {
-    eeprom_save_config();
+    eeprom_config_save();
     scale_config_save();
     motor_config_save();
     charge_mode_config_save();
     wireless_config_save();
     neopixel_led_config_save();
+    button_config_save();
     return 37;  // Configuration Menu ID
 }
 
@@ -95,7 +97,7 @@ bool eeprom_init(void) {
         snprintf(metadata.unique_id, 8, "%08X", rnd() & 0xffffffff);
 
         // Write data back
-        is_ok = eeprom_write(EEPROM_METADATA_BASE_ADDR, (uint8_t *) &metadata, sizeof(eeprom_metadata_t));
+        is_ok = eeprom_config_save();
         if (!is_ok) {
             printf("Unable to write to %x\n", EEPROM_METADATA_BASE_ADDR);
             return false;
@@ -105,16 +107,9 @@ bool eeprom_init(void) {
     return is_ok;
 }
 
-bool eeprom_save_config() {
-    bool is_ok;
-
-    is_ok = eeprom_write(EEPROM_METADATA_BASE_ADDR, (uint8_t *) &metadata, sizeof(eeprom_metadata_t));
-    if (!is_ok) {
-        printf("Unable to write to %x\n", EEPROM_METADATA_BASE_ADDR);
-        return false;
-    }
-
-    return true;
+bool eeprom_config_save() {
+    bool is_ok = eeprom_write(EEPROM_METADATA_BASE_ADDR, (uint8_t *) &metadata, sizeof(eeprom_metadata_t));
+    return is_ok;
 }
 
 

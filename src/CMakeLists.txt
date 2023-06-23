@@ -7,18 +7,6 @@ pico_generate_pio_header(app ${CMAKE_CURRENT_LIST_DIR}/stepper.pio OUTPUT_DIR ${
 # Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
 find_package(PythonInterp REQUIRED)
 
-# config.html
-add_custom_target(
-    generate_config_header ALL
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/config.html.h"
-)
-
-add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/config.html.h"
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/config.html"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/config.html -o ${CMAKE_CURRENT_LIST_DIR}/generated/config.html.h
-)
-
 
 # dashboard.html
 add_custom_target(

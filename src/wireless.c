@@ -159,7 +159,7 @@ bool wireless_config_init() {
         wireless_config.eeprom_wireless_metadata.timeout_ms = 30000;  // 30s
 
         // Write data back
-        is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
+        is_ok = wireless_config_save();
         if (!is_ok) {
             printf("Unable to write to %x\n", EEPROM_WIRELESS_CONFIG_BASE_ADDR);
             return false;
@@ -171,15 +171,8 @@ bool wireless_config_init() {
 
 
 bool wireless_config_save() {
-    bool is_ok;
-
-    is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
-    if (!is_ok) {
-        printf("Unable to write to %x\n", EEPROM_WIRELESS_CONFIG_BASE_ADDR);
-        return false;
-    }
-
-    return true;
+    bool is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
+    return is_ok;
 }
 
 void led_interface_task(void *p) {

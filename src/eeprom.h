@@ -13,6 +13,7 @@
 #define EEPROM_CHARGE_MODE_BASE_ADDR            5 * 1024       // 5K
 #define EEPROM_APP_CONFIG_BASE_ADDR             6 * 1024       // 6k
 #define EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR    7 * 1024       // 7k
+#define EEPROM_ROTARY_BUTTON_CONFIG_BASE_ADDR   8 * 1024       // 8k 
 
 #define EEPROM_METADATA_REV                     2              // 16 byte 
 
@@ -28,7 +29,7 @@ extern "C" {
 #endif
 
 bool eeprom_init(void);
-bool eeprom_save_config();
+bool eeprom_config_save();
 bool eeprom_read(uint16_t data_addr, uint8_t * data, size_t len);
 bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len);
 

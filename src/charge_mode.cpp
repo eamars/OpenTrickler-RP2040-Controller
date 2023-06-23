@@ -370,7 +370,7 @@ bool charge_mode_config_init(void) {
         memcpy(&charge_mode_config.eeprom_charge_mode_data, &default_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
 
         // Write back
-        is_ok = eeprom_write(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *) &charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
+        is_ok = charge_mode_config_save();
         if (!is_ok) {
             printf("Unable to write to %x\n", EEPROM_CHARGE_MODE_BASE_ADDR);
             return false;
@@ -382,8 +382,7 @@ bool charge_mode_config_init(void) {
 
 
 bool charge_mode_config_save(void) {
-    bool is_ok;
-    is_ok = eeprom_write(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *) &charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
+    bool is_ok = eeprom_write(EEPROM_CHARGE_MODE_BASE_ADDR, (uint8_t *) &charge_mode_config.eeprom_charge_mode_data, sizeof(eeprom_charge_mode_data_t));
     return is_ok;
 }
 
