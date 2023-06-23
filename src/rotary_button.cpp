@@ -232,39 +232,39 @@ bool http_rest_button_control(struct fs_file *file, int num_params, char *params
     strcat(button_control_json_buffer, "{\"button_pressed\":[");
 
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "BUTTON_ENCODER_ROTATE_CW") == 0) {
+        if (strcmp(params[idx], "CW") == 0) {
             if (strcmp(values[idx], "true") == 0){
                 ButtonEncoderEvent_t button_event = BUTTON_ENCODER_ROTATE_CW;
                 xQueueSend(encoder_event_queue, &button_event, 0);
 
-                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_ROTATE_CW\",");
+                strcat(button_control_json_buffer, "\"CW\",");
             }
         }
         
-        if (strcmp(params[idx], "BUTTON_ENCODER_ROTATE_CCW") == 0) {
+        if (strcmp(params[idx], "CCW") == 0) {
             if (strcmp(values[idx], "true") == 0){
                 ButtonEncoderEvent_t button_event = BUTTON_ENCODER_ROTATE_CCW;
                 xQueueSend(encoder_event_queue, &button_event, 0);
 
-                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_ROTATE_CCW\",");
+                strcat(button_control_json_buffer, "\"CCW\",");
             }
         }
 
-        if (strcmp(params[idx], "BUTTON_ENCODER_PRESSED") == 0) {
+        if (strcmp(params[idx], "PRESS") == 0) {
             if (strcmp(values[idx], "true") == 0){
                 ButtonEncoderEvent_t button_event = BUTTON_ENCODER_PRESSED;
                 xQueueSend(encoder_event_queue, &button_event, 0);
 
-                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_PRESSED\",");
+                strcat(button_control_json_buffer, "\"PRESS\",");
             }
         }
 
-        if (strcmp(params[idx], "BUTTON_RST_PRESSED") == 0) {
+        if (strcmp(params[idx], "RST") == 0) {
             if (strcmp(values[idx], "true") == 0){
                 ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
                 xQueueSend(encoder_event_queue, &button_event, 0);
 
-                strcat(button_control_json_buffer, "\"BUTTON_ENCODER_PRESSED\",");
+                strcat(button_control_json_buffer, "\"RST\",");
             }
         }
     }
