@@ -18,6 +18,7 @@ add_custom_command(
     OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h"
     DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/dashboard.html"
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/dashboard.html -o ${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h
+    COMMENT "Generating dashboard.html header"
 )
 
 
@@ -32,6 +33,7 @@ add_custom_command(
     OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/display_mirror.html.h"
     DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/display_mirror.html"
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/display_mirror.html -o ${CMAKE_CURRENT_LIST_DIR}/generated/display_mirror.html.h
+    COMMENT "Generating display_mirror.html header"
 )
 
 
@@ -45,6 +47,7 @@ add_custom_command(
     OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.css.h"
     DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/css/bootstrap.min.css"
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/css/bootstrap.min.css -o ${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.css.h
+    COMMENT "Generating boootstrap.min.css header"
 )
 
 
@@ -58,6 +61,7 @@ add_custom_command(
     OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.js.h"
     DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/js/bootstrap.min.js"
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/js/bootstrap.min.js -o ${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.js.h
+    COMMENT "Generating bootstrap.min.js header"
 )
 
 
@@ -70,7 +74,8 @@ add_custom_target(
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/jquery-3.7.0.min.js.h"
     DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/js/jquery-3.7.0.min.js"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/js/jquery-3.7.0.min.js -o ${CMAKE_CURRENT_LIST_DIR}/generated/jquery-3.7.0.min.js.h
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/js/jquery-3.7.0.min.js -o ${CMAKE_CURRENT_LIST_DIR}/generated/jquery-3.7.0.min.js.h
+    COMMENT "Generating jQuery header"
 )
 
 
@@ -83,8 +88,9 @@ add_custom_target(
 add_custom_command(
     OUTPUT 
         "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
+        "${CMAKE_CURRENT_LIST_DIR}/generated/version.c"
         "non_exist_file"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${CMAKE_CURRENT_LIST_DIR}/generated/version.h
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${CMAKE_CURRENT_LIST_DIR}/generated
     COMMENT "Generating version"
 )
 
