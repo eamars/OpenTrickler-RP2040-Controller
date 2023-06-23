@@ -76,14 +76,15 @@ add_custom_command(
 
 # Generate version
 add_custom_target(
-    generate_version
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
+    generate_version ALL
+    DEPENDS "non_exist_file"  # Some workaround to force the re-generation of header regardless of the file update
 )
 
 add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
+    OUTPUT 
+        "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
+        "non_exist_file"
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${CMAKE_CURRENT_LIST_DIR}/generated/version.h
-    WORKING_DIRECTORY ${SCRIPTS_DIRECTORY}
     COMMENT "Generating version"
 )
 
