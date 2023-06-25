@@ -1,4 +1,4 @@
-# OpenTrickler Wirless
+# OpenTrickler Wireless
 The OpenTrickler uses the Pico W on board green LED to indicate the wireless status if you don't have the mini 12864 display attached.
 
  - Solid: The OpenTrickler is connected to the home network. 
@@ -14,7 +14,7 @@ The below screenshot shows the OpenTrickler is operating at the AP mode.
 Alternatively, if you see the page below then the OpenTrickler is already connected to your home network and the IP address is displayed. 
 ![sta_mode_view](../resources/connect_to_wireless/sta_mode_view.png)
 
-## Connect to Wirless
+## Connect to Wireless
 To connect the OpenTrickler to your home network, you will need a laptop with wireless accessibility. **For now the smart phone and iPads are not supported.**
 
 1. Look for the OpenTrickler from the list of SSIDs. Each OpenTrickler will generate the random 4 digit suffix based on its unique id. 
