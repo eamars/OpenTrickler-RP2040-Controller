@@ -56,7 +56,11 @@ def main(output_path, build_type):
         short_hash = groupdict['short_hash']
         dirty = groupdict['dirty']
 
-        version_string = f"{major}.{minor}.{patch}{dirty}"
+        dirty_string = ""
+        if dirty:  # In case the dirty is None
+            dirty_string = dirty
+
+        version_string = f"{major}.{minor}.{patch}{dirty_string}"
         hash_string = short_hash
 
     c_header_string = C_HEADER_TEMPLATE.format(
