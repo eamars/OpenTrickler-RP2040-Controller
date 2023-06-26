@@ -39,7 +39,7 @@ const bool is_dirty = {is_dirty};
 """
 
 
-def main(output_path):
+def main(output_path, build_type=None):
     output = subprocess.check_output(GIT_VERSION_COMMAND, text=True)
     logging.debug(f'Raw output: {output}')
     match = re.match(GIT_VERSION_PATTERN_REGEX, output)
@@ -61,6 +61,9 @@ def main(output_path):
         hash_string = short_hash
         is_dirty = dirty is not None
 
+    if build_type:
+        version_string += f"-{build_type}"
+
     c_header_string = C_HEADER_TEMPLATE.format(
         capitalized_filename="VERSION")
     c_source_string = C_SOURCE_TEMPLATE.format(
@@ -79,7 +82,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-o', '--output_filepath', help="The output filepath that the C header will be written to", required=True)
-    parser.add_argument('--no-minify', help="Do not minify the input file", default=False, action='store_true')
+    parser.add_argument('--build-type', help="CMake build type")
 
     parser.add_argument('-v', '--verbose', action='count', default=0)
     
@@ -95,4 +98,4 @@ if __name__ == "__main__":
     
     logging.basicConfig(stream=sys.stdout, level=logging_levels[args.verbose])
 
-    main(args.output_filepath)
+    main(args.output_filepath, args.build_type)

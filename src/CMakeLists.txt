@@ -90,7 +90,7 @@ add_custom_command(
         "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
         "${CMAKE_CURRENT_LIST_DIR}/generated/version.c"
         "non_exist_file"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${CMAKE_CURRENT_LIST_DIR}/generated
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${CMAKE_CURRENT_LIST_DIR}/generated --build-type="${CMAKE_BUILD_TYPE}"
     COMMENT "Generating version"
 )
 
