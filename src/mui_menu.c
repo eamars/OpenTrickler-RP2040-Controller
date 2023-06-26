@@ -76,13 +76,13 @@ uint8_t render_version_page(mui_t * ui, uint8_t msg) {
 
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
 
-            snprintf(buf, sizeof(buf), "Ver:    %s", version_string);
+            snprintf(buf, sizeof(buf), "Ver: %s", version_string);
             u8g2_DrawStr(u8g2, x, y, buf);
 
-            snprintf(buf, sizeof(buf), "Hash:   %s", vcs_hash);
+            snprintf(buf, sizeof(buf), "VCS: %s", vcs_hash);
             u8g2_DrawStr(u8g2, x, y + 10, buf);
 
-            snprintf(buf, sizeof(buf), "Dirty:  %s", boolean_string(is_dirty));
+            snprintf(buf, sizeof(buf), "Build: %s", build_type);
             u8g2_DrawStr(u8g2, x, y + 20, buf);
 
             break;
@@ -323,7 +323,7 @@ fds_t fds_data[] = {
     // Menu 36 Version
     MUI_FORM(36)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Build Version")
+    MUI_LABEL(5,10, "Version Info")
     MUI_XY("HL", 0,13)
 
     MUI_XY("VE", 5, 25)  // Version text

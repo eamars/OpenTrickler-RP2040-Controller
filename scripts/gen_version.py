@@ -22,7 +22,7 @@ C_HEADER_TEMPLATE = """// ------------------------------------------------------
 // Implemented in version.c
 extern const char * version_string;
 extern const char * vcs_hash;
-extern const bool is_dirty;
+extern const char * build_type;
 
 #endif  //  {capitalized_filename}_H_
 """
@@ -35,18 +35,17 @@ C_SOURCE_TEMPLATE = """// ------------------------------------------------------
 
 const char * version_string = "{version_string}";
 const char * vcs_hash = "{hash_string}";
-const bool is_dirty = {is_dirty};
+const char * build_type = "{build_type}";
 """
 
 
-def main(output_path, build_type=None):
+def main(output_path, build_type):
     output = subprocess.check_output(GIT_VERSION_COMMAND, text=True)
     logging.debug(f'Raw output: {output}')
     match = re.match(GIT_VERSION_PATTERN_REGEX, output)
 
     version_string = "unknown"
     hash_string = ""
-    is_dirty = False
 
     if match:
         groupdict = match.groupdict()
@@ -57,17 +56,13 @@ def main(output_path, build_type=None):
         short_hash = groupdict['short_hash']
         dirty = groupdict['dirty']
 
-        version_string = f"{major}.{minor}.{patch}"
+        version_string = f"{major}.{minor}.{patch}{dirty}"
         hash_string = short_hash
-        is_dirty = dirty is not None
-
-    if build_type:
-        version_string += f"-{build_type}"
 
     c_header_string = C_HEADER_TEMPLATE.format(
         capitalized_filename="VERSION")
     c_source_string = C_SOURCE_TEMPLATE.format(
-        capitalized_filename="VERSION", version_string=version_string, hash_string=hash_string, is_dirty={True: "true", False: "false"}[is_dirty])
+        capitalized_filename="VERSION", version_string=version_string, hash_string=hash_string, build_type=build_type)
     
     c_header_filepath = os.path.join(output_path, "version.h")
     with open(c_header_filepath, "w") as fp:
@@ -82,7 +77,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-o', '--output_filepath', help="The output filepath that the C header will be written to", required=True)
-    parser.add_argument('--build-type', help="CMake build type")
+    parser.add_argument('--build-type', help="CMake build type", required=True)
 
     parser.add_argument('-v', '--verbose', action='count', default=0)
     
