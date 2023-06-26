@@ -23,7 +23,7 @@ extern "C" {
 
 
 void wireless_task(void *);
-bool wireless_config_init(void);
+bool wireless_init(void);
 bool wireless_config_save();
 uint8_t wireless_view_wifi_info(void);
 

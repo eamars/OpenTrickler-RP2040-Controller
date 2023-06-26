@@ -56,13 +56,11 @@ int main()
     // Initialize charge mode settings
     charge_mode_config_init();
 
-    // Load wireless settings
-    wireless_config_init();
-
 #ifdef RASPBERRYPI_PICO_W
-    xTaskCreate(wireless_task, "Wireless Task", 512, NULL, 3, NULL);
+    // Load wireless settings
+    wireless_init();
 #else
-    // xTaskCreate(watchdog_task, "Watchdog Task", configMINIMAL_STACK_SIZE, NULL, 10, NULL);
+    #error "Unpported platform"
 #endif  // RASPBERRYPI_PICO_W
     xTaskCreate(menu_task, "Menu Task", configMINIMAL_STACK_SIZE, NULL, 6, NULL);
     xTaskCreate(scale_listener_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);

@@ -141,7 +141,7 @@ void wirelss_info_render_task(void *p) {
 
 
 
-bool wireless_config_init() {
+bool wireless_init() {
     bool is_ok = true;
 
     memset(&wireless_config, 0x00, sizeof(wireless_config_t));
@@ -165,6 +165,9 @@ bool wireless_config_init() {
             return false;
         }
     }
+
+    // Create Wireless handler task
+    xTaskCreate(wireless_task, "Wireless Task", 512, NULL, 3, NULL);
 
     return is_ok;
 }
