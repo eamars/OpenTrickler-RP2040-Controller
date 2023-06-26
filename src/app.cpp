@@ -45,6 +45,8 @@ int main()
 
     // Configure others
     display_init();
+
+    // Initialise rotary button
     button_init();
 
     // Load config for motors

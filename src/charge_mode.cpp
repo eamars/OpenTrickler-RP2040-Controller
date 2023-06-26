@@ -17,6 +17,7 @@
 #include "motors.h"
 #include "charge_mode.h"
 #include "eeprom.h"
+#include "neopixel_led.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -226,6 +227,9 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
 
     FloatRingBuffer data_buffer(5);
 
+    // Update LED colour 
+    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_2, NEOPIXEL_LED_COLOUR_2, true);
+
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
     while (true) {
         TickType_t last_sample_tick = xTaskGetTickCount();
@@ -251,6 +255,9 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
         // Wait for 600 for next measurement
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(300));
     }
+
+    // Update LED colour 
+    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_1, NEOPIXEL_LED_COLOUR_1, true);
 
     return CHARGE_MODE_WAIT_FOR_CUP_RETURN;
 }
@@ -287,6 +294,9 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
 
 
 uint8_t charge_mode_menu() {
+    // Update LED colour 
+    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_1, NEOPIXEL_LED_COLOUR_1, true);
+
     // Create target weight
     charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
                                               charge_weight_digits[3] * 10 + \
@@ -341,6 +351,9 @@ uint8_t charge_mode_menu() {
     //         printf("%d\n", button_encoder_event);
     //     }
     // }
+
+    // Update LED colour 
+    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_1, NEOPIXEL_LED_COLOUR_1, true);
     
     // vTaskDelete(scale_measurement_render_handler);
     vTaskSuspend(scale_measurement_render_task_handler);

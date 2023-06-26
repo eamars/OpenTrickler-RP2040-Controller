@@ -7,8 +7,6 @@
 
 #define EEPROM_NEOPIXEL_LED_METADATA_REV                     1              // 16 byte 
 
-#define NEOPIXEL_LED_NOT_SET    1 << 31
-
 
 typedef struct {
     uint16_t neopixel_data_rev;
@@ -22,6 +20,13 @@ typedef struct {
 } eeprom_neopixel_led_metadata_t;
 
 
+typedef enum {
+    NEOPIXEL_LED_COLOUR_1,
+    NEOPIXEL_LED_COLOUR_2,
+    NEOPIXEL_LED_NO_CHANGE,
+} neopixel_led_colour_t;
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,7 +34,7 @@ extern "C" {
 
 bool neopixel_led_init(void);
 bool neopixel_led_config_save();
-void neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour);
+void neopixel_led_set_colour(neopixel_led_colour_t led1_colour, neopixel_led_colour_t led2_colour, bool block_wait);
 bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b);
