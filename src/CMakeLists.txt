@@ -21,7 +21,7 @@ add_custom_command(
     COMMENT "Generating dashboard.html header"
 )
 
-add_dependencies(app generate_dashboard_header)
+add_dependencies("${TARGET_NAME}" generate_dashboard_header)
 
 
 # display_mirror.html
@@ -37,7 +37,7 @@ add_custom_command(
     COMMENT "Generating display_mirror.html header"
 )
 
-add_dependencies(app generate_display_mirror)
+add_dependencies("${TARGET_NAME}" generate_display_mirror)
 
 
 # bootstrap.min.css
@@ -53,7 +53,7 @@ add_custom_command(
     COMMENT "Generating boootstrap.min.css header"
 )
 
-add_dependencies(app generate_bootstrap_min_css)
+add_dependencies("${TARGET_NAME}" generate_bootstrap_min_css)
 
 
 # bootstrap.min.js
@@ -69,7 +69,7 @@ add_custom_command(
     COMMENT "Generating bootstrap.min.js header"
 )
 
-add_dependencies(app generate_bootstrap_min_js)
+add_dependencies("${TARGET_NAME}" generate_bootstrap_min_js)
 
 
 # jquery-3.7.0.min.js
@@ -85,7 +85,7 @@ add_custom_command(
     COMMENT "Generating jQuery header"
 )
 
-add_dependencies(app generate_jquery_min_js)
+add_dependencies("${TARGET_NAME}" generate_jquery_min_js)
 
 
 # Generate version
@@ -96,11 +96,13 @@ add_custom_target(
 
 add_custom_command(
     OUTPUT 
-        "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
         "${CMAKE_CURRENT_LIST_DIR}/generated/version.c"
+        "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
         "non_exist_file"
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${CMAKE_CURRENT_LIST_DIR}/generated --build-type="${CMAKE_BUILD_TYPE}"
     COMMENT "Generating version"
 )
 
-add_dependencies(app generate_version)
+add_dependencies("${TARGET_NAME}" generate_version)
+target_sources("${TARGET_NAME}" PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/generated/version.c")

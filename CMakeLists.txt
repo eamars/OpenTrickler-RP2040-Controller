@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.14)
 
 # Set project data
 set(PROJECT_NAME "OpenTricklerController")
+set(TARGET_NAME "app")
 
 message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 
@@ -44,7 +45,7 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
 pico_sdk_init()
 
 # Application
-add_executable(app)
+add_executable("${TARGET_NAME}")
 
 # Include source
 include_directories(${SRC_DIRECTORY})
@@ -82,20 +83,18 @@ add_subdirectory(${SRC_DIRECTORY})
 
 # Collect all source files
 file(GLOB SRC ${SRC_DIRECTORY}/*.c 
-              ${SRC_DIRECTORY}/*.cpp 
-              ${SRC_DIRECTORY}/generated/*.c 
-              ${SRC_DIRECTORY}/generated/*.cpp)
+              ${SRC_DIRECTORY}/*.cpp)
 
 # Include application source file
-target_sources(app PRIVATE
+target_sources("${TARGET_NAME}" PRIVATE
     ${SRC}
 )
 
 # Include additional headers
-target_include_directories(app PRIVATE ${CMAKE_SOURCE_DIR}/targets)
+target_include_directories("${TARGET_NAME}" PRIVATE ${CMAKE_SOURCE_DIR}/targets)
 
 # Include libraries1
-target_link_libraries(app
+target_link_libraries("${TARGET_NAME}"
     pico_stdlib
     hardware_pio
     hardware_spi
@@ -109,15 +108,15 @@ target_link_libraries(app
 
 if (PICO_BOARD STREQUAL "pico_w" )
     message("Using PICO_W board, link cyw43")
-    target_link_libraries(app 
+    target_link_libraries("${TARGET_NAME}" 
         pico_cyw43_arch_lwip_sys_freertos
         pico_lwip_freertos
         # pico_lwip_http
         )
 endif()
 
-target_link_options(app PRIVATE -Wl,--gc-sections -Wl,--print-memory-usage)
+target_link_options("${TARGET_NAME}" PRIVATE -Wl,--gc-sections -Wl,--print-memory-usage)
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # Generate extra outputs
-pico_add_extra_outputs(app)
+pico_add_extra_outputs("${TARGET_NAME}")
