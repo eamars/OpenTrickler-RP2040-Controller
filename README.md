@@ -60,3 +60,6 @@ cmake .. -DPICO_BOARD=pico_w -DCMAKE_BUILD_TYPE=Debug
 ~~~
 ### Compiling the Firmware
 Open Pico-VisualStudioCode and open the OpenTrickler-RP2040-Controller folder then navigate to the cmake plugin and click Build All Projects.
+
+## Pre-build firmware
+[![Auto Release Build](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml/badge.svg)](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml)
