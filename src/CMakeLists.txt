@@ -1,7 +1,7 @@
 # Generate PIO headers
-pico_generate_pio_header(app ${CMAKE_CURRENT_LIST_DIR}/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
+pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 # Generate PIO headers
-pico_generate_pio_header(app ${CMAKE_CURRENT_LIST_DIR}/stepper.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
+pico_generate_pio_header(app ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 
 # Generate HTML header
 # Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
@@ -11,13 +11,13 @@ find_package(PythonInterp REQUIRED)
 # dashboard.html
 add_custom_target(
     generate_dashboard_header ALL
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h"
+    DEPENDS "${SRC_DIRECTORY}/generated/dashboard.html.h"
 )
 
 add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h"
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/dashboard.html"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/dashboard.html -o ${CMAKE_CURRENT_LIST_DIR}/generated/dashboard.html.h
+    OUTPUT "${SRC_DIRECTORY}/generated/dashboard.html.h"
+    DEPENDS "${SRC_DIRECTORY}/html/dashboard.html"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/dashboard.html -o ${SRC_DIRECTORY}/generated/dashboard.html.h
     COMMENT "Generating dashboard.html header"
 )
 
@@ -27,13 +27,13 @@ add_dependencies("${TARGET_NAME}" generate_dashboard_header)
 # display_mirror.html
 add_custom_target(
     generate_display_mirror ALL
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/display_mirror.html.h"
+    DEPENDS "${SRC_DIRECTORY}/generated/display_mirror.html.h"
 )
 
 add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/display_mirror.html.h"
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/display_mirror.html"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/display_mirror.html -o ${CMAKE_CURRENT_LIST_DIR}/generated/display_mirror.html.h
+    OUTPUT "${SRC_DIRECTORY}/generated/display_mirror.html.h"
+    DEPENDS "${SRC_DIRECTORY}/html/display_mirror.html"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/display_mirror.html -o ${SRC_DIRECTORY}/generated/display_mirror.html.h
     COMMENT "Generating display_mirror.html header"
 )
 
@@ -43,13 +43,13 @@ add_dependencies("${TARGET_NAME}" generate_display_mirror)
 # bootstrap.min.css
 add_custom_target(
     generate_bootstrap_min_css ALL
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.css.h"
+    DEPENDS "${SRC_DIRECTORY}/generated/bootstrap.min.css.h"
 )
 
 add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.css.h"
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/css/bootstrap.min.css"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/css/bootstrap.min.css -o ${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.css.h
+    OUTPUT "${SRC_DIRECTORY}/generated/bootstrap.min.css.h"
+    DEPENDS "${SRC_DIRECTORY}/html/css/bootstrap.min.css"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/css/bootstrap.min.css -o ${SRC_DIRECTORY}/generated/bootstrap.min.css.h
     COMMENT "Generating boootstrap.min.css header"
 )
 
@@ -59,13 +59,13 @@ add_dependencies("${TARGET_NAME}" generate_bootstrap_min_css)
 # bootstrap.min.js
 add_custom_target(
     generate_bootstrap_min_js ALL
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.js.h"
+    DEPENDS "${SRC_DIRECTORY}/generated/bootstrap.min.js.h"
 )
 
 add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.js.h"
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/js/bootstrap.min.js"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/js/bootstrap.min.js -o ${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.js.h
+    OUTPUT "${SRC_DIRECTORY}/generated/bootstrap.min.js.h"
+    DEPENDS "${SRC_DIRECTORY}/html/js/bootstrap.min.js"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/js/bootstrap.min.js -o ${SRC_DIRECTORY}/generated/bootstrap.min.js.h
     COMMENT "Generating bootstrap.min.js header"
 )
 
@@ -75,13 +75,13 @@ add_dependencies("${TARGET_NAME}" generate_bootstrap_min_js)
 # jquery-3.7.0.min.js
 add_custom_target(
     generate_jquery_min_js ALL
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/generated/jquery-3.7.0.min.js.h"
+    DEPENDS "${SRC_DIRECTORY}/generated/jquery-3.7.0.min.js.h"
 )
 
 add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_LIST_DIR}/generated/jquery-3.7.0.min.js.h"
-    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/html/js/jquery-3.7.0.min.js"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/js/jquery-3.7.0.min.js -o ${CMAKE_CURRENT_LIST_DIR}/generated/jquery-3.7.0.min.js.h
+    OUTPUT "${SRC_DIRECTORY}/generated/jquery-3.7.0.min.js.h"
+    DEPENDS "${SRC_DIRECTORY}/html/js/jquery-3.7.0.min.js"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" --no-minify -f ${SRC_DIRECTORY}/html/js/jquery-3.7.0.min.js -o ${SRC_DIRECTORY}/generated/jquery-3.7.0.min.js.h
     COMMENT "Generating jQuery header"
 )
 
@@ -96,13 +96,14 @@ add_custom_target(
 
 add_custom_command(
     OUTPUT 
-        "${CMAKE_CURRENT_LIST_DIR}/generated/version.c"
-        "${CMAKE_CURRENT_LIST_DIR}/generated/version.h"
+        "${SRC_DIRECTORY}/generated/version.c"
+        "${SRC_DIRECTORY}/generated/version.h"
         "non_exist_file"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${CMAKE_CURRENT_LIST_DIR}/generated --build-type="${CMAKE_BUILD_TYPE}"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
     COMMENT "Generating version"
 )
 
 add_dependencies("${TARGET_NAME}" generate_version)
-target_sources("${TARGET_NAME}" PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/generated/version.c")
+target_sources("${TARGET_NAME}" PUBLIC
+    "${SRC_DIRECTORY}/generated/version.c"
+)

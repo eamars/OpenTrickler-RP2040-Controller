@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
-
+cmake_minimum_required(VERSION 3.23.0)
 
 # Set project data
 set(PROJECT_NAME "OpenTricklerController")
@@ -86,12 +85,12 @@ file(GLOB SRC ${SRC_DIRECTORY}/*.c
               ${SRC_DIRECTORY}/*.cpp)
 
 # Include application source file
-target_sources("${TARGET_NAME}" PRIVATE
+target_sources("${TARGET_NAME}" PUBLIC
     ${SRC}
 )
 
 # Include additional headers
-target_include_directories("${TARGET_NAME}" PRIVATE ${CMAKE_SOURCE_DIR}/targets)
+target_include_directories("${TARGET_NAME}" PUBLIC ${CMAKE_SOURCE_DIR}/targets)
 
 # Include libraries1
 target_link_libraries("${TARGET_NAME}"
@@ -115,7 +114,7 @@ if (PICO_BOARD STREQUAL "pico_w" )
         )
 endif()
 
-target_link_options("${TARGET_NAME}" PRIVATE -Wl,--gc-sections -Wl,--print-memory-usage)
+target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # Generate extra outputs
