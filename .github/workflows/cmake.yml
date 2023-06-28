@@ -1,4 +1,7 @@
-name: CMake
+name: Auto Release Build
+
+run-name: Build based on ${{ github.ref }} by @${{ github.actor }}
+
 
 on:
   push:
@@ -41,5 +44,22 @@ jobs:
       uses: actions/upload-artifact@v3
       with: 
         name: uf2-binary
-        path: build/*.uf2
-        
+        path: |
+         src/generated/version.c
+          build/*.uf2
+
+    - name: Archive Build Metadata
+      uses: actions/upload-artifact@v3
+      with: 
+        name: build-metadata
+        retention-days: 5
+        path: |
+          src/generated/version.c  
+          build/*.bin
+          build/*.dis
+          build/*.elf
+          build/*.map
+          build/*.hex
+          build/*.uf2
+
+          
