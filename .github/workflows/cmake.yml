@@ -21,11 +21,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with: 
-        submodules: true
-        
-    - name: Update Submodules
-      run: | 
-        git submodule update --init
+        submodules: recursive
       
     - name: Install Build Dependencies
       run: | 
