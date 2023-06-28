@@ -21,6 +21,7 @@ add_custom_command(
     COMMENT "Generating dashboard.html header"
 )
 
+add_dependencies(app generate_dashboard_header)
 
 
 # display_mirror.html
@@ -36,6 +37,8 @@ add_custom_command(
     COMMENT "Generating display_mirror.html header"
 )
 
+add_dependencies(app generate_display_mirror)
+
 
 # bootstrap.min.css
 add_custom_target(
@@ -49,6 +52,8 @@ add_custom_command(
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/css/bootstrap.min.css -o ${CMAKE_CURRENT_LIST_DIR}/generated/bootstrap.min.css.h
     COMMENT "Generating boootstrap.min.css header"
 )
+
+add_dependencies(app generate_bootstrap_min_css)
 
 
 # bootstrap.min.js
@@ -64,6 +69,8 @@ add_custom_command(
     COMMENT "Generating bootstrap.min.js header"
 )
 
+add_dependencies(app generate_bootstrap_min_js)
+
 
 # jquery-3.7.0.min.js
 add_custom_target(
@@ -77,6 +84,8 @@ add_custom_command(
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" --no-minify -f ${CMAKE_CURRENT_LIST_DIR}/html/js/jquery-3.7.0.min.js -o ${CMAKE_CURRENT_LIST_DIR}/generated/jquery-3.7.0.min.js.h
     COMMENT "Generating jQuery header"
 )
+
+add_dependencies(app generate_jquery_min_js)
 
 
 # Generate version
