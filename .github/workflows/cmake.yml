@@ -45,7 +45,7 @@ jobs:
       with: 
         name: uf2-binary
         path: |
-         src/generated/version.c
+          src/generated/version.c
           build/*.uf2
 
     - name: Archive Build Metadata
