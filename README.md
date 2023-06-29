@@ -22,6 +22,10 @@ This repo is for the firmware that utilises the Raspberry Pi RP2040 micro contro
 
     ![12864_wait_for_cup_removal](resources/wait_for_cup_removal.png)
 
+## Pre-build firmware
+You can download the pre-built firmware based on the latest release from below link. Similar to flashing other RP2040 firmware, you need to put the Pico W into the bootloader mode by pressing BOOTSEL button and plug in the micro-USB cable. Then you can copy the .uf2 file from the package to the pico. Shortly after the Pico W will be programmed automatically. 
+[![Auto Build](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml/badge.svg)](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml)
+
 
 ## Build OpenTrickler firmware from source
 ### Prerequistes  
@@ -60,6 +64,3 @@ cmake .. -DPICO_BOARD=pico_w -DCMAKE_BUILD_TYPE=Debug
 ~~~
 ### Compiling the Firmware
 Open Pico-VisualStudioCode and open the OpenTrickler-RP2040-Controller folder then navigate to the cmake plugin and click Build All Projects.
-
-## Pre-build firmware
-[![Auto Release Build](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml/badge.svg)](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml)

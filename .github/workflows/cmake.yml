@@ -11,7 +11,6 @@ on:
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Release
   PICO_BOARD: pico_w
 
 jobs:
@@ -32,27 +31,36 @@ jobs:
         sudo apt-get update
         sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libstdc++-arm-none-eabi-newlib
 
-    - name: Configure CMake
+    - name: Build Release Package
+      # Build your program with the given configuration
+
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DPICO_BOARD=${{env.PICO_BOARD}}
+      run: |
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=${{env.PICO_BOARD}}
+        cmake --build ${{github.workspace}}/build --config Release
 
-    - name: Build
-      # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-
-    - name: Archive Artifacts
+    - name: Archive Release Artifacts
       uses: actions/upload-artifact@v3
       with: 
-        name: uf2-binary
+        name: uf2-release
         path: |
           src/generated/version.c
           build/*.uf2
 
-    - name: Archive Build Metadata
+    - name: Build Debug Package
+      # Build your program with the given configuration
+
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=${{env.PICO_BOARD}}
+        cmake --build ${{github.workspace}}/build --config Debug
+
+    - name: Archive Debug Artifact
       uses: actions/upload-artifact@v3
       with: 
-        name: build-metadata
+        name: uf2-debug-symbol
         retention-days: 5
         path: |
           src/generated/version.c  
