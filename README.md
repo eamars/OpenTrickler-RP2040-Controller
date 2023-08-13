@@ -1,6 +1,8 @@
 # OpenTrickler RP2040 Controller 
 This repo is for the firmware that utilises the Raspberry Pi RP2040 micro controller OpenTrickler RP2040 Controller.
 
+Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and development information. 
+
 ## Get Started
 ### Use with mini 12864 display
 1. From the main menu, select "Start".
