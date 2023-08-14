@@ -1,0 +1,72 @@
+**Configuration Guide: Connecting A&D FX Series Scales to OpenTrickler**
+
+This guide will walk you through the process of successfully connecting A&D FX Series scales to the OpenTrickler using the RS232 interface. Follow these steps to configure your scale settings and ensure smooth communication.
+
+**Preparation:**
+
+1. Visit the OpenTrickler Project on GitHub: [https://github.com/eamars/OpenTrickler](https://github.com/eamars/OpenTrickler) to download the required software.
+
+**Step 1: Setting the Display Refresh Rate (SPd):**
+
+1. Hold down the SAMPLE button to access the menu.
+2. Use the SAMPLE button until "bASFnc" appears on the display.
+3. Press PRINT to enter the submenu.
+4. Select "SPd" using the SAMPLE button.
+5. Press RE-ZERO until "SPd" reaches the value of "2" (20 times per second update rate).
+6. Above the value, "20/s" should be displayed, indicating 20 updates per second.
+7. Press PRINT once to save the setting.
+8. Exit the menu by pressing the CAL button.
+
+**Step 2: Setting the Data Output Mode (Prt):**
+
+1. Hold down the SAMPLE button to access the menu.
+2. Use SAMPLE until "dout" is displayed.
+3. Press PRINT to enter the submenu.
+4. Select "Prt" using the SAMPLE button.
+5. Press RE-ZERO until "Prt" reaches the value of "3" (data output in stream mode).
+6. Above the value, "Stre" should be displayed, indicating the data stream mode.
+7. Press PRINT once to save the setting.
+8. Exit the menu by pressing the CAL button.
+
+**Step 3: Setting the RS232 Baud Rate:**
+
+1. Hold down the SAMPLE button to access the menu.
+2. Use SAMPLE until "Sif" is displayed.
+3. Press PRINT to enter the submenu.
+4. Select "bPS" using the SAMPLE button.
+5. Press RE-ZERO until "bPS" reaches the value of "5" (baud rate set to 19200 bits per second).
+6. Above the value, "19.2" should be displayed, indicating the baud rate.
+7. Press PRINT once to save the setting.
+8. Exit the menu by pressing the CAL button.
+
+**Step 4: Setting Data Bits and Parity:**
+
+1. Hold down the SAMPLE button to access the menu.
+2. Use SAMPLE until "Sif" is displayed.
+3. Press PRINT to enter the submenu.
+4. Select "btPr" using the SAMPLE button.
+5. Press RE-ZERO until "btPr" reaches the value of "2" (8 data bits, no parity, 1 stop bit).
+6. Above the value, "8-N" should be displayed, indicating the data bit and parity settings.
+7. Press PRINT once to save the setting.
+8. Press the MODE button until "Response" is displayed.
+9. Press the MODE button again until "FAST" is displayed.
+10. Press PRINT to save the setting.
+11. Exit the menu by pressing the CAL button.
+
+**Step 5: Setting Units and Completing Configuration:**
+
+1. Hold down the SAMPLE button to access the menu.
+2. Use SAMPLE until "UNIT" is displayed.
+3. Press PRINT to enter the submenu.
+4. Select "GN" (Grain) using the SAMPLE button.
+5. Confirm using the RE-ZERO button, observing the circle (stabilization indicator) on the left.
+6. Use SAMPLE until "g" (Gram) is displayed.
+7. Confirm again with RE-ZERO.
+8. Press PRINT once to save the selection.
+9. Exit the menu by pressing the CAL button.
+
+**Step 6: Switching Units:**
+
+1. Press the MODE button to switch between "grain" and "gram."
+
+Configuration of your A&D FX Series scale for connection with OpenTrickler is complete. Please note that this guide provides general instructions, and there might be variations based on the scale model or software version.
