@@ -19,7 +19,7 @@ extern AppState_t exit_state;
 extern charge_mode_config_t charge_mode_config;
 
 // Imported from and_scale module
-extern eeprom_scale_data_t scale_data;
+extern scale_config_t scale_config;
 
 
 
@@ -154,7 +154,7 @@ muif_t muif_list[] = {
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
 
         // Unit selection
-        MUIF_VARIABLE("UN",&scale_data.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
+        MUIF_VARIABLE("UN",&scale_config.persistent_config.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
 
         // Render unit
         MUIF_RO("SU", render_scale_unit),
