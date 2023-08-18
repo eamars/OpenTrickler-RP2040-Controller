@@ -1,0 +1,104 @@
+Configuration Guide: Connecting A&D FX Series Scales with OpenTrickler
+Follow these steps to successfully connect your A&D FX series scale to OpenTrickler using the RS232 interface. Follow these instructions to adjust the necessary settings on your scale and ensure smooth communication.
+Preparation:
+1.	You can find the project on GitHub: https://github.com/eamars/OpenTrickler
+Step 1: Setting the Display Refresh Rate (SPd):
+1.	Press and hold the SAMPLE button to open the menu.
+2.	Scroll through and select "bASFnc" by pressing the SAMPLE button repeatedly.
+3.	Press PRINT to enter the submenu.
+4.	Scroll through and select "SPd" by pressing the SAMPLE button repeatedly.
+5.	Use RE-ZERO to set "SPd" to value "2" (20 updates per second).
+6.	Press PRINT once to save the setting.
+7.	Exit the menu by pressing the CAL button.
+Step 2: Setting the Data Output Mode (Prt):
+1.	Press and hold the SAMPLE button to open the menu.
+2.	Scroll through and select "dout" by pressing the SAMPLE button repeatedly.
+3.	Press PRINT to enter the submenu.
+4.	Scroll through and select "Prt" by pressing the SAMPLE button repeatedly.
+5.	Use RE-ZERO to set "Prt" to value "3" (data output continuously in data stream mode).
+6.	Press PRINT once to save the setting.
+7.	Exit the menu by pressing the CAL button.
+Step 3: Setting the RS232 Baud Rate:
+1.	Press and hold the SAMPLE button to access the menu.
+2.	Scroll through and select "Sif" by pressing the SAMPLE button repeatedly.
+3.	Press PRINT to enter the submenu.
+4.	Use SAMPLE to navigate to "bPS".
+5.	Use RE-ZERO to set "bPS" to value "5" (baud rate of 19200 bits per second).
+6.	Press PRINT once to save the setting.
+7.	Exit the menu by pressing the CAL button.
+Step 4: Setting Data Bits and Parity:
+1.	Press and hold the SAMPLE button to access the menu.
+2.	Scroll through and select "Sif" by pressing the SAMPLE button repeatedly.
+3.	Press PRINT to enter the submenu.
+4.	Use SAMPLE to navigate to "btPr".
+5.	Use RE-ZERO to set "btPr" to value "2" (8 data bits, no parity, 1 stop bit).
+6.	Press PRINT once to save the setting.
+7.	Exit the menu by pressing the CAL button.
+Step 5: Setting Response Mode:
+1.	Press and hold MODE until "Response" is displayed.
+2.	Press MODE until "FAST" appears.
+3.	Press PRINT to save the setting or it will be automatically saved after a few seconds.
+Step 6: Setting Weight Unit to Grain:
+1.	Press and hold the SAMPLE button to access the menu.
+2.	Scroll through and select "UNIT" by pressing the SAMPLE button repeatedly.
+3.	Press PRINT to enter the submenu.
+4.	Select "GN" (Grain) using the SAMPLE button.
+5.	Confirm the selection with the PRINT button.
+6.	Exit the menu by pressing the CAL button.
+The configuration of your A&D FX series scale for connection with OpenTrickler is complete. Please note that this guide is general and variations may occur depending on the scale or software version.
+
+
+
+
+
+
+
+Konfigurationsanleitung: Verbindung von A&D FX Serie Waagen mit OpenTrickler
+Mit dieser Anleitung erfahren Sie, wie Sie Waagen der A&D FX Serie mit dem OpenTrickler über die RS232-Schnittstelle verbinden können. Befolgen Sie diese Schritte, um die notwendigen Einstellungen an Ihrer Waage vorzunehmen und eine reibungslose Kommunikation zu gewährleisten.
+Vorbereitung:
+1.	Das Projekt finden Sie auf GitHub: https://github.com/eamars/OpenTrickler
+Schritt 1: Einstellen der Display Refresh Rate (SPd):
+1.	Halten Sie die SAMPLE-Taste gedrückt, um das Menü zu öffnen.
+2.	Wählen Sie "bASFnc", indem Sie die SAMPLE-Taste wiederholt drücken.
+3.	Drücken Sie PRINT, um ins Untermenü zu gelangen.
+4.	Wählen Sie "SPd", indem Sie die SAMPLE-Taste wiederholt drücken.
+5.	Verwenden Sie RE-ZERO, bis "SPd" den Wert "2" erreicht (20 Mal pro Sekunde Aktualisierung).
+6.	Drücken Sie einmal PRINT, um die Einstellung zu speichern.
+7.	Verlassen Sie das Menü durch Drücken der CAL-Taste.
+Schritt 2: Einstellen des Datenausgabemodus (Prt):
+1.	Halten Sie die SAMPLE-Taste gedrückt, um das Menü zu öffnen.
+2.	Wählen Sie "dout", indem Sie die SAMPLE-Taste wiederholt drücken.
+3.	Drücken Sie PRINT, um ins Untermenü zu gelangen.
+4.	Wählen Sie "Prt", indem Sie die SAMPLE-Taste wiederholt drücken.
+5.	Verwenden Sie RE-ZERO, bis "Prt" den Wert "3" erreicht (Daten werden permanent im Datenstrommodus ausgegeben).
+6.	Drücken Sie einmal PRINT, um die Einstellung zu speichern.
+7.	Verlassen Sie das Menü durch Drücken der CAL-Taste.
+Schritt 3: Einstellen der RS232 Baudrate:
+1.	Halten Sie die SAMPLE-Taste gedrückt, um ins Menü zu gelangen.
+2.	Wählen Sie "Sif", indem Sie die SAMPLE-Taste wiederholt drücken.
+3.	Drücken Sie PRINT, um ins Untermenü zu gelangen.
+4.	Mit SAMPLE "bPS" navigieren.
+5.	Verwenden Sie RE-ZERO, bis "bPS" den Wert "5" erreicht (Baudrate auf 19200 Bit pro Sekunde).
+6.	Drücken Sie einmal PRINT, um die Einstellung zu speichern.
+7.	Verlassen Sie das Menü durch Drücken der CAL-Taste.
+Schritt 4: Einstellen von Datenbits und Parität:
+1.	Halten Sie die SAMPLE-Taste gedrückt, um ins Menü zu gelangen.
+2.	Wählen Sie "Sif", indem Sie die SAMPLE-Taste wiederholt drücken.
+3.	Drücken Sie PRINT, um ins Untermenü zu gelangen.
+4.	Mit der SAMPLE-Taste zu "btPr" navigieren.
+5.	Verwenden Sie RE-ZERO, bis "btPr" den Wert "2" erreicht hat (8 Datenbits, keine Parität, 1 Stoppbit).
+6.	Drücken Sie einmal PRINT, um die Einstellung zu speichern.
+7.	Verlassen Sie das Menü durch Drücken der CAL-Taste.
+Schritt 5: Response Mode einstellen:
+1.	Halten Sie MODE gedrückt, bis "Response" angezeigt wird.
+2.	Drücken Sie MODE so oft, bis "FAST" erscheint.
+3.	Drücken Sie PRINT, um die Einstellung zu speichern bzw. sie wird automatisch nach einigen Sekunden gespeichert.
+Schritt 6: Einstellen der Gewichtseinheit auf Grain:
+1.	Halten Sie die SAMPLE-Taste gedrückt, um ins Menü zu gelangen.
+2.	Wählen Sie "UNIT", indem Sie die SAMPLE-Taste wiederholt drücken.
+3.	Drücken Sie PRINT, um ins Untermenü zu gelangen.
+4.	Wählen Sie "GN" (Grain) mit der SAMPLE-Taste aus.
+5.	Bestätigen Sie die Auswahl mit der PRINT-Taste.
+6.	Verlassen Sie das Menü durch Drücken der CAL-Taste.
+Die Konfiguration Ihrer A&D FX Serie Waage für die Verbindung mit dem OpenTrickler ist abgeschlossen. Beachten Sie, dass die Anleitung allgemein ist und Abweichungen je nach Waage oder Software-Version auftreten können.
+
