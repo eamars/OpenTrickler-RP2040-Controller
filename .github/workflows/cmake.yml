@@ -61,6 +61,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with: 
         name: uf2-debug-symbol
+        retention-days: 5
         path: |
           src/generated/version.c  
           build/*.bin
