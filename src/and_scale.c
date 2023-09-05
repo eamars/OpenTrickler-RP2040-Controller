@@ -10,7 +10,6 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "scale.h"
-#include "eeprom.h"
 #include "app.h"
 
 
@@ -27,41 +26,13 @@ typedef union {
 
 
 // Forward declaration
-void scale_listener_task(void *p);
-void scale_write(char * command, size_t len);
+void _and_scale_listener_task(void *p);
 extern scale_config_t scale_config;
 
 // Instance of the scale handle for A&D FXi series
 scale_handle_t and_fxi_scale_handle = {
-    .read_loop_task = scale_listener_task,
-    .write = scale_write
+    .read_loop_task = _and_scale_listener_task,
 };
-
-
-
-static inline void _take_mutex(BaseType_t scheduler_state) {
-    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreTake(scale_config.scale_serial_write_access_mutex, portMAX_DELAY);
-    }
-}
-
-
-static inline void _give_mutex(BaseType_t scheduler_state) {
-    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
-        xSemaphoreGive(scale_config.scale_serial_write_access_mutex);
-    }
-}
-
-
-void scale_write(char * command, size_t len) {
-    BaseType_t scheduler_state = xTaskGetSchedulerState();
-
-    _take_mutex(scheduler_state);
-
-    uart_write_blocking(SCALE_UART, (uint8_t *) command, len);
-
-    _give_mutex(scheduler_state);
-}
 
 
 float _decode_measurement_msg(scale_standard_data_format_t * msg) {
@@ -75,7 +46,7 @@ float _decode_measurement_msg(scale_standard_data_format_t * msg) {
 }
 
 
-void scale_listener_task(void *p) {
+void _and_scale_listener_task(void *p) {
     char string_buf[20];
     uint8_t string_buf_idx = 0;
 

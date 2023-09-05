@@ -20,18 +20,18 @@ typedef struct {
 typedef struct {
     // Basic functions
     void (*read_loop_task)(void *self);
-    void (*write)(char * cmd, size_t len);
 } scale_handle_t;
 
 
 
 typedef enum {
     SCALE_UNIT_GRAIN = 0,
-    SCALE_UNIT_GRAM = 1,
+    SCALE_UNIT_GRAM,
 } scale_unit_t;
 
 typedef enum {
     SCALE_DRIVER_AND_FXI = 0,
+    SCALE_DRIVER_STEINBERG_SBS,
 } scale_driver_t;
 
 
@@ -61,15 +61,19 @@ extern "C" {
 bool scale_init();
 float scale_get_current_measurement();
 float scale_block_wait_for_next_measurement();
-const char * get_scale_unit_string(bool);
 void set_scale_unit(scale_unit_t scale_unit);
+void set_scale_driver(scale_driver_t scale_driver);
+const char * get_scale_unit_string(bool);
+const char * get_scale_driver_string();
 bool scale_config_save(void);
+
+// Low lever handler for writing data to the scale
+void scale_write(char * command, size_t len);
 
 // REST
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
-////////////////////////// A&D Scale Implementations /////////////////////////////
 // Key bindings
 void scale_press_re_zero_key();
 void scale_press_print_key();

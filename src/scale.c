@@ -11,6 +11,7 @@
 #include "scale.h"
 
 extern scale_handle_t and_fxi_scale_handle;
+extern scale_handle_t steinberg_scale_handle;
 scale_config_t scale_config;
 
 
@@ -24,6 +25,10 @@ void set_scale_driver(scale_driver_t scale_driver) {
         {
             scale_config.scale_handle = &and_fxi_scale_handle;
             break;
+        }
+        case SCALE_DRIVER_STEINBERG_SBS:
+        {
+            scale_config.scale_handle = &steinberg_scale_handle;
         }
         default:
             assert(false);
@@ -116,6 +121,49 @@ const char * get_scale_unit_string(bool is_short_string) {
     }
 
     return scale_unit_string;
+}
+
+
+const char * get_scale_driver_string() {
+    const char * scale_driver_string = NULL;
+
+    switch (scale_config.persistent_config.scale_driver) {
+        case SCALE_DRIVER_AND_FXI:
+            scale_driver_string = "A&D FX-i Std";
+            break;
+        case SCALE_DRIVER_STEINBERG_SBS:
+            scale_driver_string = "Steinberg SBS";
+            break;
+        default:
+            break;
+    }
+
+    return scale_driver_string;
+}
+
+
+static inline void _take_mutex(BaseType_t scheduler_state) {
+    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
+        xSemaphoreTake(scale_config.scale_serial_write_access_mutex, portMAX_DELAY);
+    }
+}
+
+
+static inline void _give_mutex(BaseType_t scheduler_state) {
+    if (scheduler_state != taskSCHEDULER_NOT_STARTED){
+        xSemaphoreGive(scale_config.scale_serial_write_access_mutex);
+    }
+}
+
+
+void scale_write(char * command, size_t len) {
+    BaseType_t scheduler_state = xTaskGetSchedulerState();
+
+    _take_mutex(scheduler_state);
+
+    uart_write_blocking(SCALE_UART, (uint8_t *) command, len);
+
+    _give_mutex(scheduler_state);
 }
 
 
