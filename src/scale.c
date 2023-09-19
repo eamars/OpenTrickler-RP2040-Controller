@@ -168,7 +168,7 @@ void scale_write(char * command, size_t len) {
 
 
 bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char scale_config_to_json_buffer[32];
+    static char scale_config_to_json_buffer[128];
 
     // Set value
     for (int idx = 0; idx < num_params; idx += 1) {
@@ -178,18 +178,26 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
             }
             else if (strcmp(values[idx], "gram") == 0) {
                 set_scale_unit(SCALE_UNIT_GRAM);
-                scale_config.persistent_config.scale_unit = SCALE_UNIT_GRAM;
+            }
+        }
+        else if (strcmp(params[idx], "driver") == 0) {
+            if (strcmp(values[idx], "A&D FX-i Std") == 0) {
+                set_scale_driver(SCALE_DRIVER_AND_FXI);
+            }
+            else if (strcmp(values[idx], "Steinberg SBS") == 0) {
+                set_scale_driver(SCALE_DRIVER_STEINBERG_SBS);
             }
         }
     }
 
     // Convert config to string
     const char * scale_unit_string = get_scale_unit_string(false);
+    const char * scale_driver_string = get_scale_driver_string();
 
     snprintf(scale_config_to_json_buffer, 
              sizeof(scale_config_to_json_buffer),
-             "{\"unit\":\"%s\"}", 
-             scale_unit_string);
+             "{\"unit\":\"%s\",\"driver\":\"%s\"}", 
+             scale_unit_string, scale_driver_string);
     
     size_t data_length = strlen(scale_config_to_json_buffer);
     file->data = scale_config_to_json_buffer;

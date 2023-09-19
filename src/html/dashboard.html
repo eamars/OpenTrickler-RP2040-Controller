@@ -172,6 +172,14 @@
                     <div class="card-body">
                         <form class="config-form" id="scale_config" action="/rest/scale_config">
                             <div class="form-group mb-3">
+                                <label for="unit">Scale Driver:</label>
+                                <select class="form-select" id="driver" name="driver">
+                                    <option value="A&D FX-i Std">A&D FX-i Std</option>
+                                    <option value="Steinberg SBS">Steinberg SBS</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group mb-3">
                                 <label for="unit">Scale Unit:</label>
                                 <select class="form-select" id="unit" name="unit">
                                     <option value="grain">Grain</option>
