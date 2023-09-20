@@ -50,7 +50,7 @@ void cleanup_render_task(void *p) {
         u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
 
         // Draw charge weight
-        float current_weight = scale_block_wait_for_next_measurement();
+        float current_weight = scale_get_current_measurement();
         memset(buf, 0x0, sizeof(buf));
         sprintf(buf, "Weight: %0.02f%s", current_weight, scale_unit_string);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
