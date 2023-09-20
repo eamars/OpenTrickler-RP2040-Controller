@@ -29,6 +29,7 @@ void set_scale_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_STEINBERG_SBS:
         {
             scale_config.scale_handle = &steinberg_scale_handle;
+            break;
         }
         default:
             assert(false);

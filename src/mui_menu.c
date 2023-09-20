@@ -156,6 +156,9 @@ muif_t muif_list[] = {
         // Unit selection
         MUIF_VARIABLE("UN",&scale_config.persistent_config.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
 
+        // Scale driver selection
+        MUIF_VARIABLE("SD", &scale_config.persistent_config.scale_driver, mui_u8g2_u8_opt_line_wa_mud_pi),
+
         // Render unit
         MUIF_RO("SU", render_scale_unit),
 
@@ -276,6 +279,7 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_DATA("MU",
+        MUI_53 "Select Driver|"
         MUI_50 "Select Unit|"
         MUI_51 "Calibration|"
         MUI_52 "Enable Fast Report|"
@@ -417,6 +421,18 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_XYAT("BN",14, 59, 31, "Back")
     MUI_XYAT("LV", 115, 59, 6, "Next")  // APP_STATE_ENTER_SCALE_CALIBRATION
+
+    // Scale driver
+    MUI_FORM(53)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select Scale Driver")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_XYAT("SD", 5, 26, 118, "A&D FX-i Std|Steinberg SBS")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN", 64, 59, 31, " OK ")
 
     // Save to EEPROM
     MUI_FORM(60)
