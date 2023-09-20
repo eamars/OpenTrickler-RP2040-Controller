@@ -20,6 +20,9 @@ void set_scale_unit(scale_unit_t scale_unit) {
 }
 
 void set_scale_driver(scale_driver_t scale_driver) {
+    // Update the persistent settings
+    scale_config.persistent_config.scale_driver = scale_driver;
+    
     switch (scale_driver) {
         case SCALE_DRIVER_AND_FXI:
         {
@@ -182,10 +185,10 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
             }
         }
         else if (strcmp(params[idx], "driver") == 0) {
-            if (strcmp(values[idx], "A&D FX-i Std") == 0) {
+            if (strcmp(values[idx], "A&D+FX-i+Std") == 0) {
                 set_scale_driver(SCALE_DRIVER_AND_FXI);
             }
-            else if (strcmp(values[idx], "Steinberg SBS") == 0) {
+            else if (strcmp(values[idx], "Steinberg+SBS") == 0) {
                 set_scale_driver(SCALE_DRIVER_STEINBERG_SBS);
             }
         }
