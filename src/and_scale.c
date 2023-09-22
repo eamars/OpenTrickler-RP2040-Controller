@@ -27,11 +27,14 @@ typedef union {
 
 // Forward declaration
 void _and_scale_listener_task(void *p);
+void scale_press_re_zero_key();
+
 extern scale_config_t scale_config;
 
 // Instance of the scale handle for A&D FXi series
 scale_handle_t and_fxi_scale_handle = {
     .read_loop_task = _and_scale_listener_task,
+    .force_zero = scale_press_re_zero_key,
 };
 
 

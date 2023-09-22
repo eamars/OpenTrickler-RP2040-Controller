@@ -20,6 +20,7 @@ typedef struct {
 typedef struct {
     // Basic functions
     void (*read_loop_task)(void *self);
+    void (*force_zero)(void);
 } scale_handle_t;
 
 
@@ -73,16 +74,6 @@ void scale_write(char * command, size_t len);
 // REST
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-
-// Key bindings
-void scale_press_re_zero_key();
-void scale_press_print_key();
-void scale_press_sample_key();
-void scale_press_mode_key();
-void scale_press_cal_key();
-void scale_press_on_off_key();
-void scale_display_off();
-void scale_display_on();
 
 
 // Features
