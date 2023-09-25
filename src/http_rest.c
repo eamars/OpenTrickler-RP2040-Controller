@@ -2772,7 +2772,9 @@ http_set_cgi_handlers(const tCGI *cgis, int num_handlers)
 
 
 
-// ####################################################################################################################
+/////////////////////////////////////
+//   Open Trickler Modified Code   //
+// //////////////////////////////////
 
 #include "eeprom.h"
 
@@ -2807,13 +2809,51 @@ rest_handler_t rest_get_handler(const char *uri) {
     return target_handler;
 }
 
+/* 
+  Reference: https://stackoverflow.com/a/14530993
+*/
+void uridecode(char * dst, const char * src) {
+    char a, b;
+    while (*src) {
+        if ((*src == '%') &&
+            ((a = src[1]) && (b = src[2])) &&
+            (isxdigit(a) && isxdigit(b))) {
+                if (a >= 'a')
+                        a -= 'a'-'A';
+                if (a >= 'A')
+                        a -= ('A' - 10);
+                else
+                        a -= '0';
+                if (b >= 'a')
+                        b -= 'a'-'A';
+                if (b >= 'A')
+                        b -= ('A' - 10);
+                else
+                        b -= '0';
+                *dst++ = 16*a+b;
+                src+=3;
+        } else if (*src == '+') {
+            *dst++ = ' ';
+            src++;
+        } else {
+            *dst++ = *src++;
+        }
+    }
+    *dst++ = '\0';
+}
+
 
 static err_t http_find_file(struct http_state * hs, const char * uri, int is_09) {
     struct fs_file * file = NULL;
     char * params = NULL;
 
+    char decoded_uri[strlen(uri) + 1];  // The decoded URI will be fed to the parameter and REST handler loopup
+    memset(decoded_uri, 0x0, sizeof(decoded_uri));
+
+    uridecode(decoded_uri, uri);
+
     // First, isolate the base URI (without any parameters)
-    params = (char *) strchr(uri, '?');
+    params = (char *) strchr(decoded_uri, '?');
     if (params != NULL) {
         // uri includes parameters, we need to terminate the base URI
         *params = 0;
@@ -2821,7 +2861,7 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
     }
 
     // Look for handler
-    rest_handler_t rest_handler = rest_get_handler(uri);
+    rest_handler_t rest_handler = rest_get_handler(decoded_uri);
 
     if (rest_handler) {
         // Extract parameters from the uri
