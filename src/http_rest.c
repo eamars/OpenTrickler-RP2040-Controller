@@ -2809,10 +2809,12 @@ rest_handler_t rest_get_handler(const char *uri) {
     return target_handler;
 }
 
-/* 
+/*
+  Decode special characters in URI into the regular ASCII characters
+
   Reference: https://stackoverflow.com/a/14530993
 */
-void uridecode(char * dst, const char * src) {
+void decode_uri(char * dst, const char * src) {
     char a, b;
     while (*src) {
         if ((*src == '%') &&
@@ -2847,10 +2849,11 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
     struct fs_file * file = NULL;
     char * params = NULL;
 
-    char decoded_uri[strlen(uri) + 1];  // The decoded URI will be fed to the parameter and REST handler loopup
+    // The decoded URI will be fed to the parameter and REST handler loopup
+    // decoded_uri will be within the scope of `http_find_file` exclusively
+    char decoded_uri[strlen(uri) + 1];
     memset(decoded_uri, 0x0, sizeof(decoded_uri));
-
-    uridecode(decoded_uri, uri);
+    decode_uri(decoded_uri, uri);
 
     // First, isolate the base URI (without any parameters)
     params = (char *) strchr(decoded_uri, '?');
@@ -2870,7 +2873,7 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
         rest_handler(&hs->file_handle, http_cgi_paramcount, hs->params, hs->param_vals);
         file = &hs->file_handle;
     }
-    
+
     if (file == NULL) {
         rest_handler = rest_get_handler("/404");
         LWIP_ASSERT("Missing 404 handler", file == NULL);
@@ -2878,7 +2881,7 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
         rest_handler(&hs->file_handle, http_cgi_paramcount, hs->params, hs->param_vals);
 
         file = &hs->file_handle;
-        
+
     }
 
     uint8_t tag_check = 0;
