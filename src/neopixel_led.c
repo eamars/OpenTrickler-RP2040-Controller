@@ -193,13 +193,10 @@ bool neopixel_led_config_save() {
 uint32_t _to_hex_colour(char * string) {
     uint32_t value = 0;
 
-    if (string) {
-        // If the string is an escaped character, then skip the next 3 characters
-        if (string[0] == '%') {
-            string += 3;
-        }
-
-        value = strtol(string, NULL, 16);
+    // Valid hex decimal starts with #
+    // For example, #ff00ff
+    if (string && string[0] == '#') {
+        value = strtol(string + 1, NULL, 16);
     }
 
     return value;
