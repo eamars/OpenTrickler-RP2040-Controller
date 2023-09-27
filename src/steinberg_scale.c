@@ -28,7 +28,7 @@ typedef union {
         char terminator[2];     // \r\n (carriage return)
     };
     char packet[16];
-} _steinberg_sbs_data_format_t ;
+} steinberg_sbs_data_format_t ;
 
 // Forward declaration
 void _steinberg_scale_listener_task(void *p);
@@ -42,7 +42,7 @@ scale_handle_t steinberg_scale_handle = {
 };
 
 
-static float _decode_measurement_msg(_steinberg_sbs_data_format_t * msg) {
+static float _decode_measurement_msg(steinberg_sbs_data_format_t * msg) {
     float weight = strtof(msg->data, NULL);
 
     return weight;
@@ -61,9 +61,9 @@ void _steinberg_scale_listener_task(void *p) {
             string_buf[string_buf_idx++] = ch;
 
             // If we have received 16 bytes then we can decode the message
-            if (string_buf_idx == sizeof(_steinberg_sbs_data_format_t)) {
+            if (string_buf_idx == sizeof(steinberg_sbs_data_format_t)) {
                 // Data is ready, send to decode
-                scale_config.current_scale_measurement = _decode_measurement_msg((_steinberg_sbs_data_format_t *) string_buf);
+                scale_config.current_scale_measurement = _decode_measurement_msg((steinberg_sbs_data_format_t *) string_buf);
 
                 // Signal the data is ready
                 if (scale_config.scale_measurement_ready) {
