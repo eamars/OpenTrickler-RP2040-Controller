@@ -11,11 +11,6 @@
 #define EEPROM_SCALE_DATA_REV                     2              // 16 byte 
 
 
-typedef struct {
-    uint32_t baudrate;
-} scale_serial_params_t;
-
-
 // Abstracted base class
 typedef struct {
     // Basic functions
@@ -24,11 +19,18 @@ typedef struct {
 } scale_handle_t;
 
 
+typedef enum {
+    BAUDRATE_4800,
+    BAUDRATE_9600,
+    BAUDRATE_19200,
+} scale_baudrate_t;
+
 
 typedef enum {
     SCALE_UNIT_GRAIN = 0,
     SCALE_UNIT_GRAM,
 } scale_unit_t;
+
 
 typedef enum {
     SCALE_DRIVER_AND_FXI = 0,
@@ -40,9 +42,8 @@ typedef struct {
     uint16_t scale_data_rev;
     scale_unit_t scale_unit;
     scale_driver_t scale_driver;
-    scale_serial_params_t scale_serial_params;
+    scale_baudrate_t scale_baudrate;
 } eeprom_scale_data_t;
-
 
 
 typedef struct {

@@ -124,7 +124,6 @@ uint8_t render_scale_unit(mui_t * ui, uint8_t msg) {
 }
 
 
-
 muif_t muif_list[] = {
         /* normal text style */
         MUIF_U8G2_FONT_STYLE(0, u8g2_font_helvR08_tr),
@@ -158,6 +157,9 @@ muif_t muif_list[] = {
 
         // Scale driver selection
         MUIF_VARIABLE("SD", &scale_config.persistent_config.scale_driver, mui_u8g2_u8_opt_line_wa_mud_pi),
+
+        // Baud rate selection
+        MUIF_VARIABLE("BR", &scale_config.persistent_config.scale_baudrate, mui_u8g2_u8_opt_line_wa_mud_pi),
 
         // Render unit
         MUIF_RO("SU", render_scale_unit),
@@ -429,7 +431,11 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_XYAT("SD", 5, 26, 118, "A&D FX-i Std|Steinberg SBS")
+    MUI_LABEL(5,25, "Driver:")
+    MUI_XYAT("SD", 50, 25, 60, "A&D FX-i Std|Steinberg SBS")
+
+    MUI_LABEL(5,37, "Baudrate:")
+    MUI_XYAT("BR", 50, 37, 60, "4800|9600|19200")
 
     MUI_STYLE(0)
     MUI_XYAT("BN", 64, 59, 31, " OK ")

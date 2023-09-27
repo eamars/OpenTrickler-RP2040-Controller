@@ -3,6 +3,7 @@
 #include <queue.h>
 #include <stdlib.h>
 #include <semphr.h>
+#include <inttypes.h>
 
 #include "configuration.h"
 #include "scale.h"
@@ -40,61 +41,24 @@ void set_scale_driver(scale_driver_t scale_driver) {
     }
 }
 
-bool scale_init() {
-    bool is_ok;
+uint32_t get_scale_baudrate(scale_baudrate_t scale_baudrate) {
+    uint32_t baudrate_uint = 0;
 
-    // Read config from EEPROM
-    is_ok = eeprom_read(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_config.persistent_config, sizeof(eeprom_scale_data_t));
-    if (!is_ok) {
-        printf("Unable to read from EEPROM at address %x\n", EEPROM_SCALE_CONFIG_BASE_ADDR);
-        return false;
+    switch (scale_baudrate) {
+        case BAUDRATE_4800:
+            baudrate_uint = 4800;
+            break;
+        case BAUDRATE_9600:
+            baudrate_uint = 9600;
+            break;
+        case BAUDRATE_19200:
+            baudrate_uint = 19200;
+            break;
+        default:
+            break;
     }
 
-    // If the revision doesn't match then re-initialize the config
-    if (scale_config.persistent_config.scale_data_rev != EEPROM_SCALE_DATA_REV) {
-
-        scale_config.persistent_config.scale_data_rev = EEPROM_SCALE_DATA_REV;
-        scale_config.persistent_config.scale_unit = SCALE_UNIT_GRAIN;
-        scale_config.persistent_config.scale_driver = SCALE_DRIVER_AND_FXI;
-        scale_config.persistent_config.scale_serial_params.baudrate = SCALE_UART_BAUDRATE;
-
-        // Write data back
-        is_ok = scale_config_save();
-        if (!is_ok) {
-            printf("Unable to write to %x\n", EEPROM_SCALE_CONFIG_BASE_ADDR);
-            return false;
-        }
-    }
-
-    // Initialize UART
-    uart_init(SCALE_UART, scale_config.persistent_config.scale_serial_params.baudrate);
-
-    gpio_set_function(SCALE_UART_TX, GPIO_FUNC_UART);
-    gpio_set_function(SCALE_UART_RX, GPIO_FUNC_UART);
-
-    // Create control variables
-    // Semaphore to indicate the availability of new measurement. 
-    scale_config.scale_measurement_ready = xSemaphoreCreateBinary();
-
-    // Mutex to control the access to the serial port write
-    scale_config.scale_serial_write_access_mutex = xSemaphoreCreateMutex();
-
-    // Initialize the measurement variable
-    scale_config.current_scale_measurement = NAN;
-
-    // Initialize the driver handle
-    set_scale_driver(scale_config.persistent_config.scale_driver);
-
-    // Create the Task for the listener loop
-    xTaskCreate(scale_config.scale_handle->read_loop_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
-
-    return is_ok;
-}
-
-
-bool scale_config_save() {
-    bool is_ok = eeprom_write(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_config.persistent_config, sizeof(eeprom_scale_data_t));
-    return is_ok;
+    return baudrate_uint;
 }
 
 
@@ -133,7 +97,7 @@ const char * get_scale_driver_string() {
 
     switch (scale_config.persistent_config.scale_driver) {
         case SCALE_DRIVER_AND_FXI:
-            scale_driver_string = "A&D FX-i Std";
+            scale_driver_string = "AND FX-i Std";
             break;
         case SCALE_DRIVER_STEINBERG_SBS:
             scale_driver_string = "Steinberg SBS";
@@ -143,6 +107,64 @@ const char * get_scale_driver_string() {
     }
 
     return scale_driver_string;
+}
+
+
+bool scale_init() {
+    bool is_ok;
+
+    // Read config from EEPROM
+    is_ok = eeprom_read(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_config.persistent_config, sizeof(eeprom_scale_data_t));
+    if (!is_ok) {
+        printf("Unable to read from EEPROM at address %x\n", EEPROM_SCALE_CONFIG_BASE_ADDR);
+        return false;
+    }
+
+    // If the revision doesn't match then re-initialize the config
+    if (scale_config.persistent_config.scale_data_rev != EEPROM_SCALE_DATA_REV) {
+
+        scale_config.persistent_config.scale_data_rev = EEPROM_SCALE_DATA_REV;
+        scale_config.persistent_config.scale_unit = SCALE_UNIT_GRAIN;
+        scale_config.persistent_config.scale_driver = SCALE_DRIVER_AND_FXI;
+        scale_config.persistent_config.scale_baudrate = BAUDRATE_19200;
+
+        // Write data back
+        is_ok = scale_config_save();
+        if (!is_ok) {
+            printf("Unable to write to %x\n", EEPROM_SCALE_CONFIG_BASE_ADDR);
+            return false;
+        }
+    }
+
+    // Initialize UART
+    uart_init(SCALE_UART, get_scale_baudrate(scale_config.persistent_config.scale_baudrate));
+
+    gpio_set_function(SCALE_UART_TX, GPIO_FUNC_UART);
+    gpio_set_function(SCALE_UART_RX, GPIO_FUNC_UART);
+
+    // Create control variables
+    // Semaphore to indicate the availability of new measurement. 
+    scale_config.scale_measurement_ready = xSemaphoreCreateBinary();
+
+    // Mutex to control the access to the serial port write
+    scale_config.scale_serial_write_access_mutex = xSemaphoreCreateMutex();
+
+    // Initialize the measurement variable
+    scale_config.current_scale_measurement = NAN;
+
+    // Initialize the driver handle
+    set_scale_driver(scale_config.persistent_config.scale_driver);
+
+    // Create the Task for the listener loop
+    xTaskCreate(scale_config.scale_handle->read_loop_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
+
+    return is_ok;
+}
+
+
+bool scale_config_save() {
+    bool is_ok = eeprom_write(EEPROM_SCALE_CONFIG_BASE_ADDR, (uint8_t *) &scale_config.persistent_config, sizeof(eeprom_scale_data_t));
+    return is_ok;
 }
 
 
@@ -172,7 +194,7 @@ void scale_write(char * command, size_t len) {
 
 
 bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char scale_config_to_json_buffer[128];
+    static char scale_config_to_json_buffer[256];
 
     // Set value
     for (int idx = 0; idx < num_params; idx += 1) {
@@ -185,11 +207,22 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
             }
         }
         else if (strcmp(params[idx], "driver") == 0) {
-            if (strcmp(values[idx], "A&D+FX-i+Std") == 0) {
+            if (strcmp(values[idx], "AND FX-i Std") == 0) {
                 set_scale_driver(SCALE_DRIVER_AND_FXI);
             }
-            else if (strcmp(values[idx], "Steinberg+SBS") == 0) {
+            else if (strcmp(values[idx], "Steinberg SBS") == 0) {
                 set_scale_driver(SCALE_DRIVER_STEINBERG_SBS);
+            }
+        }
+        else if (strcmp(params[idx], "baudrate") == 0) {
+            if (strcmp(values[idx], "4800") == 0) {
+                scale_config.persistent_config.scale_baudrate = BAUDRATE_4800;
+            }
+            else if (strcmp(values[idx], "9600") == 0) {
+                scale_config.persistent_config.scale_baudrate = BAUDRATE_9600;
+            }
+            else if (strcmp(values[idx], "19200") == 0) {
+                scale_config.persistent_config.scale_baudrate = BAUDRATE_19200;
             }
         }
     }
@@ -200,8 +233,9 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
 
     snprintf(scale_config_to_json_buffer, 
              sizeof(scale_config_to_json_buffer),
-             "{\"unit\":\"%s\",\"driver\":\"%s\"}", 
-             scale_unit_string, scale_driver_string);
+             "{\"unit\":\"%s\",\"driver\":\"%s\",\"baudrate\":%"PRId32"}", 
+             scale_unit_string, scale_driver_string, 
+             get_scale_baudrate(scale_config.persistent_config.scale_baudrate));
     
     size_t data_length = strlen(scale_config_to_json_buffer);
     file->data = scale_config_to_json_buffer;
