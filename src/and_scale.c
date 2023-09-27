@@ -38,7 +38,7 @@ scale_handle_t and_fxi_scale_handle = {
 };
 
 
-float _decode_measurement_msg(scale_standard_data_format_t * msg) {
+static float _decode_measurement_msg(scale_standard_data_format_t * msg) {
     // Decode header
     // Doesn't really matter though..
 
@@ -61,7 +61,7 @@ void _and_scale_listener_task(void *p) {
             string_buf[string_buf_idx++] = ch;
 
             // If we have received 17 bytes then we can decode the message
-            if (string_buf_idx == 17) {
+            if (string_buf_idx == sizeof(scale_standard_data_format_t)) {
                 // Data is ready, send to decode
                 scale_config.current_scale_measurement = _decode_measurement_msg((scale_standard_data_format_t *) string_buf);
 
