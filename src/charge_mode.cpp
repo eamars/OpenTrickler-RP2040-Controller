@@ -130,7 +130,7 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
         // Generate stop condition
         if (data_buffer.getCounter() >= 10){
             if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
-                data_buffer.getMean() < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
+                abs(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
                 break;
             }
         }
