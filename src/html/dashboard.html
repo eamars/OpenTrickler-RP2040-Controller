@@ -191,33 +191,53 @@
                     <div class="card-body">
                         <form class="config-form" id="charge_mode_config" action="/rest/charge_mode_config">
                             <div class="form-group mb-3">
-                                <label for="coarse_kp">Coarse Kp:</label>
-                                <input type="number" class="form-control" id="coarse_kp" name="coarse_kp" step="0.001">
+                                <label for="c_stop">Coarse Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="c_stop" name="c_stop" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="coarse_ki">Coarse Ki:</label>
-                                <input type="number" class="form-control" id="coarse_ki" name="coarse_ki" step="0.001">
+                                <label for="c_kp">Coarse Trickler Kp:</label>
+                                <input type="number" class="form-control" id="c_kp" name="c_kp" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="coarse_kd">Coarse Kd:</label>
-                                <input type="number" class="form-control" id="coarse_kd" name="coarse_kd" step="0.001">
+                                <label for="c_ki">Coarse Trickler Ki:</label>
+                                <input type="number" class="form-control" id="c_ki" name="c_ki" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="fine_kd">Fine Kp:</label>
-                                <input type="number" class="form-control" id="fine_kp" name="fine_kp" step="0.001">
+                                <label for="c_kd">Coarse Trickler Kd:</label>
+                                <input type="number" class="form-control" id="c_kd" name="c_kd" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="fine_ki">Fine Ki:</label>
-                                <input type="number" class="form-control" id="fine_ki" name="fine_ki" step="0.001">
+                                <label for="f_stop">Fine Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="f_stop" name="f_stop" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="fine_kd">Fine Kd:</label>
-                                <input type="number" class="form-control" id="fine_kd" name="fine_kd" step="0.001">
+                                <label for="f_kp">Fine Trickler Kp:</label>
+                                <input type="number" class="form-control" id="f_kp" name="f_kp" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="f_ki">Fine Trickler Ki:</label>
+                                <input type="number" class="form-control" id="f_ki" name="f_ki" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="f_kd">Fine Trickler Kd:</label>
+                                <input type="number" class="form-control" id="f_kd" name="f_kd" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="sp_sd">Set Point Accuracy (Standard Deviation):</label>
+                                <input type="number" class="form-control" id="sp_sd" name="sp_sd" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="sp_avg">Set Point Accuracy (Mean):</label>
+                                <input type="number" class="form-control" id="sp_avg" name="sp_avg" step="0.001">
                             </div>
 
                             <button type="submit" class="btn btn-primary">Apply Charge Mode Settings</button>
@@ -277,7 +297,8 @@
 
                             <div class="form-group mb-3">
                                 <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation">
+                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation"
+                                        data-bs-toggle="tooltip" data-bs-title="Select 200 steps for 1.8 deg stepper motor, 400 for 0.9 deg stepper motor">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
                                 </select>
@@ -350,7 +371,8 @@
 
                             <div class="form-group mb-3">
                                 <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation">
+                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation"
+                                        data-bs-toggle="tooltip" data-bs-title="Select 200 steps for 1.8 deg stepper motor, 400 for 0.9 deg stepper motor">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
                                 </select>
@@ -536,6 +558,10 @@
     </div>
 
     <script>
+        // Enable tooltip
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+
         // Show or display sections from the side bar
         const navLinks = document.querySelectorAll('.nav-link');
         navLinks.forEach(link => {

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "http_rest.h"
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     3              // 16 byte 
+#define EEPROM_CHARGE_MODE_DATA_REV                     4              // 16 byte 
 
 
 typedef struct {
@@ -17,10 +17,13 @@ typedef struct {
     float fine_ki;
     float fine_kd;
 
-    float error_margin_grain;
-    float zero_sd_margin_grain;
-    float zero_mean_stability_grain;
-} __attribute__((packed)) eeprom_charge_mode_data_t;
+    float coarse_stop_threshold;
+    float fine_stop_threshold;
+
+    float set_point_sd_margin;
+    float set_point_mean_margin;
+
+} eeprom_charge_mode_data_t;
 
 typedef struct {
     eeprom_charge_mode_data_t eeprom_charge_mode_data;
