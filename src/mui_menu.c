@@ -317,7 +317,7 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_LABEL(5, 25, "Press Next to perform")
     MUI_LABEL(5, 37, "software reboot")
-    MUI_XYAT("BN",14, 59, 37, "Back")
+    MUI_XYAT("BN",14, 59, 30, "Back")
     MUI_XYAT("LV", 115, 59, 9, "Next")  // APP_STATE_ENTER_REBOOT
 
     // Menu 36 Version
