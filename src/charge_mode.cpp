@@ -35,9 +35,11 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .fine_ki = 0.0f,
     .fine_kd = 5.0f,
 
-    .error_margin_grain = 0.03,
-    .zero_sd_margin_grain = 0.02,
-    .zero_mean_stability_grain = 0.04,
+    .coarse_stop_threshold = 5,
+    .fine_stop_threshold = 0.03,
+
+    .set_point_sd_margin = 0.02,
+    .set_point_mean_margin = 0.02,
 };
 
 // Configures
@@ -127,8 +129,8 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
 
         // Generate stop condition
         if (data_buffer.getCounter() >= 10){
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain && 
-                data_buffer.getMean() < charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain) {
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
+                abs(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
                 break;
             }
         }
@@ -172,7 +174,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         float error = charge_mode_config.target_charge_weight - current_weight;
 
         // Stop condition
-        if (error < 0 || abs(error) < charge_mode_config.eeprom_charge_mode_data.error_margin_grain) {
+        if (error < charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
             // Stop all motors
             motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
@@ -181,7 +183,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         }
 
         // Coarse trickler move condition
-        if (abs(error) < 5.0f && should_coarse_trickler_move) {
+        else if (error < charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold && should_coarse_trickler_move) {
             should_coarse_trickler_move = false;
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
@@ -246,8 +248,8 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
 
         // Generate stop condition
         if (data_buffer.getCounter() >= 5) {
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.error_margin_grain && 
-                data_buffer.getMean() + 10 < charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain){
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
+                data_buffer.getMean() + 10 < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin){
                 break;
             }
         }
@@ -406,48 +408,52 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "coarse_kp") == 0) {
+        if (strcmp(params[idx], "c_kp") == 0) {
             charge_mode_config.eeprom_charge_mode_data.coarse_kp = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "coarse_ki") == 0) {
+        else if (strcmp(params[idx], "c_ki") == 0) {
             charge_mode_config.eeprom_charge_mode_data.coarse_ki = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "coarse_kd") == 0) {
+        else if (strcmp(params[idx], "c_kd") == 0) {
             charge_mode_config.eeprom_charge_mode_data.coarse_kd = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "fine_kp") == 0) {
+        else if (strcmp(params[idx], "f_kp") == 0) {
             charge_mode_config.eeprom_charge_mode_data.fine_kp = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "fine_ki") == 0) {
+        else if (strcmp(params[idx], "f_ki") == 0) {
             charge_mode_config.eeprom_charge_mode_data.fine_ki = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "fine_kd") == 0) {
+        else if (strcmp(params[idx], "f_kd") == 0) {
             charge_mode_config.eeprom_charge_mode_data.fine_kd = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "error_margin_grain") == 0) {
-            charge_mode_config.eeprom_charge_mode_data.error_margin_grain = strtof(values[idx], NULL);
+        else if (strcmp(params[idx], "c_stop") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "zero_sd_margin_grain") == 0) {
-            charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain = strtof(values[idx], NULL);
+        else if (strcmp(params[idx], "f_stop") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "zero_mean_stability_grain") == 0) {
-            charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain = strtof(values[idx], NULL);
+        else if (strcmp(params[idx], "sp_sd") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "sp_avg") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin = strtof(values[idx], NULL);
         }
     }
 
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
-             "{\"coarse_kp\":%f,\"coarse_ki\":%f,\"coarse_kd\":%f,\"fine_kp\":%f,\"fine_ki\":%f,\"fine_kd\":%f,\"error_margin_grain\":%f,\"zero_sd_margin_grain\":%f,\"zero_mean_stability_grain\":%f}",
+             "{\"c_kp\":%.3f,\"c_ki\":%.3f,\"c_kd\":%.3f,\"f_kp\":%.3f,\"f_ki\":%.3f,\"f_kd\":%.3f,\"c_stop\":%.3f,\"f_stop\":%.3f,\"sp_sd\":%.3f,\"sp_avg\":%.3f}",
              charge_mode_config.eeprom_charge_mode_data.coarse_kp,
              charge_mode_config.eeprom_charge_mode_data.coarse_ki,
              charge_mode_config.eeprom_charge_mode_data.coarse_kd,
              charge_mode_config.eeprom_charge_mode_data.fine_kp,
              charge_mode_config.eeprom_charge_mode_data.fine_ki,
              charge_mode_config.eeprom_charge_mode_data.fine_kd,
-             charge_mode_config.eeprom_charge_mode_data.error_margin_grain,
-             charge_mode_config.eeprom_charge_mode_data.zero_sd_margin_grain,
-             charge_mode_config.eeprom_charge_mode_data.zero_mean_stability_grain);
+             charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
+             charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
+             charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,
+             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
