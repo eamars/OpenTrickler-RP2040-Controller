@@ -242,6 +242,26 @@
                                 <input type="number" class="form-control" id="sp_avg" name="sp_avg" step="0.001">
                             </div>
 
+                            <div class="form-group mb-3">
+                                <label for="c1">Neopixel LED Normal Charge Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c1" name="c1">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="c2">Neopixel LED Under Charge Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c2" name="c2">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="c3">Neopixel LED Over Charge Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c3" name="c3">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="c4">Neopixel LED Not Ready Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c4" name="c4">
+                            </div>
+
                             <button type="submit" class="btn btn-primary">Apply Charge Mode Settings</button>
                         </form>
                     </div>
@@ -442,28 +462,18 @@
                     <div class="card-body">
                         <form class="config-form" id="neopixel_led_config" action="/rest/neopixel_led_config">
                             <div class="form-group mb-3">
-                                <label for="12864bl">Mini 12864 Display Background Colour:</label>
-                                <input type="color" class="form-control form-control-color" id="12864bl" name="12864bl">
+                                <label for="bl">Mini 12864 Display Background Colour:</label>
+                                <input type="color" class="form-control form-control-color" id="bl" name="bl">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="led1_c1">LED1 Primary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led1_c1" name="led1_c1">
+                                <label for="l1">LED1 Default Colour</label>
+                                <input type="color" class="form-control form-control-color" id="l1" name="l1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="led1_c2">LED1 Secondary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led1_c2" name="led1_c2">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="led2_c1">LED2 Primary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led2_c1" name="led2_c1">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="led2_c2">LED2 Secondary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led2_c2" name="led2_c2">
+                                <label for="l2">LED2 Default Colour</label>
+                                <input type="color" class="form-control form-control-color" id="l2" name="l2">
                             </div>
 
                             <button type="submit" class="btn btn-primary">Apply Neopixel LED Settings</button>
