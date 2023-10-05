@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "http_rest.h"
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     4              // 16 byte 
+#define EEPROM_CHARGE_MODE_DATA_REV                     5              // 16 byte 
 
 
 typedef struct {
@@ -22,6 +22,12 @@ typedef struct {
 
     float set_point_sd_margin;
     float set_point_mean_margin;
+
+    // LED related settings
+    uint32_t neopixel_normal_charge_colour;
+    uint32_t neopixel_under_charge_colour;
+    uint32_t neopixel_over_charge_colour;
+    uint32_t neopixel_not_ready_colour;
 
 } eeprom_charge_mode_data_t;
 

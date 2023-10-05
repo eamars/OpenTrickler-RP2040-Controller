@@ -40,6 +40,12 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
 
     .set_point_sd_margin = 0.02,
     .set_point_mean_margin = 0.02,
+
+    // LED related
+    .neopixel_normal_charge_colour = urgb_u32(0, 0xFF, 0),          // green
+    .neopixel_under_charge_colour = urgb_u32(0xFF, 0xFF, 0),        // yellow
+    .neopixel_over_charge_colour = urgb_u32(0xFF, 0, 0),            // red
+    .neopixel_not_ready_colour = urgb_u32(0, 0, 0xFF),              // blue
 };
 
 // Configures
@@ -103,6 +109,14 @@ void scale_measurement_render_task(void *p) {
 
 
 ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
+    // Set colour to not ready
+    neopixel_led_set_colour(
+        NEOPIXEL_LED_DEFAULT_COLOUR, 
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
+        true
+    );
+    
     // Wait for 5 measurements and wait for stable
     FloatRingBuffer data_buffer(10);
 
@@ -143,6 +157,14 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
 }
 
 ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
+    // Set colour to under charge
+    neopixel_led_set_colour(
+        NEOPIXEL_LED_DEFAULT_COLOUR, 
+        charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
+        charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
+        true
+    );
+
     // Update current status
     snprintf(title_string, sizeof(title_string), 
              "Target: %.02f %s", 
@@ -219,6 +241,7 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         last_error = error;
     }
 
+    vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete
 
     return CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
 }
@@ -229,8 +252,38 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
 
     FloatRingBuffer data_buffer(5);
 
-    // Update LED colour 
-    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_2, NEOPIXEL_LED_COLOUR_2, true);
+    // Post charge analysis (while waiting for removal of the cup)
+    vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for other tasks to complete
+    float error = charge_mode_config.target_charge_weight - scale_block_wait_for_next_measurement();
+
+    // Update LED colour before moving to the next stage
+    // Over charged
+    if (error <= -charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
+        neopixel_led_set_colour(
+            NEOPIXEL_LED_DEFAULT_COLOUR, 
+            charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
+            charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
+            true
+        );
+    }
+    // Under charged
+    else if (error >= charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
+        neopixel_led_set_colour(
+            NEOPIXEL_LED_DEFAULT_COLOUR, 
+            charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
+            charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
+            true
+        );
+    }
+    // Normal
+    else {
+        neopixel_led_set_colour(
+            NEOPIXEL_LED_DEFAULT_COLOUR, 
+            charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour, 
+            charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour, 
+            true
+        );
+    }
 
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
     while (true) {
@@ -258,13 +311,21 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(300));
     }
 
-    // Update LED colour 
-    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_1, NEOPIXEL_LED_COLOUR_1, true);
+    // Reset LED to default colour
+    neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
 
     return CHARGE_MODE_WAIT_FOR_CUP_RETURN;
 }
 
 ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) { 
+    // Set colour to not ready
+    neopixel_led_set_colour(
+        NEOPIXEL_LED_DEFAULT_COLOUR, 
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
+        true
+    );
+
     snprintf(title_string, sizeof(title_string), "Return Cup", charge_mode_config.target_charge_weight);
 
     FloatRingBuffer data_buffer(5);
@@ -296,8 +357,8 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
 
 
 uint8_t charge_mode_menu() {
-    // Update LED colour 
-    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_1, NEOPIXEL_LED_COLOUR_1, true);
+    // Reset LED to default colour
+    neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
 
     // Create target weight
     charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
@@ -354,9 +415,9 @@ uint8_t charge_mode_menu() {
     //     }
     // }
 
-    // Update LED colour 
-    neopixel_led_set_colour(NEOPIXEL_LED_COLOUR_1, NEOPIXEL_LED_COLOUR_1, true);
-    
+    // Reset LED to default colour
+    neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
+
     // vTaskDelete(scale_measurement_render_handler);
     vTaskSuspend(scale_measurement_render_task_handler);
 
@@ -438,12 +499,27 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "sp_avg") == 0) {
             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin = strtof(values[idx], NULL);
         }
+
+        // LED related settings
+        else if (strcmp(params[idx], "c1") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour = hex_string_to_decimal(values[idx]);
+        }
+        else if (strcmp(params[idx], "c2") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour = hex_string_to_decimal(values[idx]);
+        }
+        else if (strcmp(params[idx], "c3") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour = hex_string_to_decimal(values[idx]);
+        }
+        else if (strcmp(params[idx], "c4") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour = hex_string_to_decimal(values[idx]);
+        }
     }
 
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
-             "{\"c_kp\":%.3f,\"c_ki\":%.3f,\"c_kd\":%.3f,\"f_kp\":%.3f,\"f_ki\":%.3f,\"f_kd\":%.3f,\"c_stop\":%.3f,\"f_stop\":%.3f,\"sp_sd\":%.3f,\"sp_avg\":%.3f}",
+             "{\"c_kp\":%.3f,\"c_ki\":%.3f,\"c_kd\":%.3f,\"f_kp\":%.3f,\"f_ki\":%.3f,\"f_kd\":%.3f,\"c_stop\":%.3f,\"f_stop\":%.3f,\"sp_sd\":%.3f,\"sp_avg\":%.3f,"
+             "\"c1\":\"#%06x\",\"c2\":\"#%06x\",\"c3\":\"#%06x\",\"c4\":\"#%06x\"}",
              charge_mode_config.eeprom_charge_mode_data.coarse_kp,
              charge_mode_config.eeprom_charge_mode_data.coarse_ki,
              charge_mode_config.eeprom_charge_mode_data.coarse_kd,
@@ -453,7 +529,12 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,
-             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin);
+             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin,
+
+             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
+             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
+             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour,
+             charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
