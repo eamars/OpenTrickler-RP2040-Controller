@@ -25,6 +25,9 @@ uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
 // PID related
 charge_mode_config_t charge_mode_config;
 
+// Scale related
+extern scale_config_t scale_config;
+
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
     .coarse_kp = 0.02f,
@@ -133,7 +136,7 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
             return CHARGE_MODE_EXIT;
         }
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-            scale_press_re_zero_key();
+            scale_config.scale_handle->force_zero();
         }
 
         // Perform measurement
@@ -339,7 +342,7 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
             return CHARGE_MODE_EXIT;
         }
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-            scale_press_re_zero_key();
+            scale_config.scale_handle->force_zero();
         }
 
         // Perform measurement

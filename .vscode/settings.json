@@ -24,6 +24,8 @@
     "cmake.generator": "Ninja",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "files.associations": {
-        "neopixel_led.h": "c"
+        "neopixel_led.h": "c",
+        "app.h": "c",
+        "queue.h": "c"
     }
 }

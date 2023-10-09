@@ -19,7 +19,7 @@ extern AppState_t exit_state;
 extern charge_mode_config_t charge_mode_config;
 
 // Imported from and_scale module
-extern eeprom_scale_data_t scale_data;
+extern scale_config_t scale_config;
 
 
 
@@ -124,7 +124,6 @@ uint8_t render_scale_unit(mui_t * ui, uint8_t msg) {
 }
 
 
-
 muif_t muif_list[] = {
         /* normal text style */
         MUIF_U8G2_FONT_STYLE(0, u8g2_font_helvR08_tr),
@@ -154,7 +153,13 @@ muif_t muif_list[] = {
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
 
         // Unit selection
-        MUIF_VARIABLE("UN",&scale_data.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
+        MUIF_VARIABLE("UN",&scale_config.persistent_config.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
+
+        // Scale driver selection
+        MUIF_VARIABLE("SD", &scale_config.persistent_config.scale_driver, mui_u8g2_u8_opt_line_wa_mud_pi),
+
+        // Baud rate selection
+        MUIF_VARIABLE("BR", &scale_config.persistent_config.scale_baudrate, mui_u8g2_u8_opt_line_wa_mud_pi),
 
         // Render unit
         MUIF_RO("SU", render_scale_unit),
@@ -276,6 +281,7 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_DATA("MU",
+        MUI_53 "Select Driver|"
         MUI_50 "Select Unit|"
         MUI_51 "Calibration|"
         MUI_52 "Enable Fast Report|"
@@ -417,6 +423,22 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_XYAT("BN",14, 59, 31, "Back")
     MUI_XYAT("LV", 115, 59, 6, "Next")  // APP_STATE_ENTER_SCALE_CALIBRATION
+
+    // Scale driver
+    MUI_FORM(53)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select Scale Driver")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_LABEL(5,25, "Driver:")
+    MUI_XYAT("SD", 50, 25, 60, "A&D FX-i Std|Steinberg SBS")
+
+    MUI_LABEL(5,37, "Baudrate:")
+    MUI_XYAT("BR", 50, 37, 60, "4800|9600|19200")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN", 64, 59, 31, " OK ")
 
     // Save to EEPROM
     MUI_FORM(60)
