@@ -208,33 +208,75 @@
                     <div class="card-body">
                         <form class="config-form" id="charge_mode_config" action="/rest/charge_mode_config">
                             <div class="form-group mb-3">
-                                <label for="coarse_kp">Coarse Kp:</label>
-                                <input type="number" class="form-control" id="coarse_kp" name="coarse_kp" step="0.001">
+                                <label for="c_stop">Coarse Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="c_stop" name="c_stop" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="If the current charge weight is less than the threshold then the coarse trickler will stop">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="coarse_ki">Coarse Ki:</label>
-                                <input type="number" class="form-control" id="coarse_ki" name="coarse_ki" step="0.001">
+                                <label for="c_kp">Coarse Trickler Kp:</label>
+                                <input type="number" class="form-control" id="c_kp" name="c_kp" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="coarse_kd">Coarse Kd:</label>
-                                <input type="number" class="form-control" id="coarse_kd" name="coarse_kd" step="0.001">
+                                <label for="c_ki">Coarse Trickler Ki:</label>
+                                <input type="number" class="form-control" id="c_ki" name="c_ki" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="fine_kd">Fine Kp:</label>
-                                <input type="number" class="form-control" id="fine_kp" name="fine_kp" step="0.001">
+                                <label for="c_kd">Coarse Trickler Kd:</label>
+                                <input type="number" class="form-control" id="c_kd" name="c_kd" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="fine_ki">Fine Ki:</label>
-                                <input type="number" class="form-control" id="fine_ki" name="fine_ki" step="0.001">
+                                <label for="f_stop">Fine Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="f_stop" name="f_stop" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="If the current charge weight is less than the threshold then both coarse and fine trickler will stop">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="fine_kd">Fine Kd:</label>
-                                <input type="number" class="form-control" id="fine_kd" name="fine_kd" step="0.001">
+                                <label for="f_kp">Fine Trickler Kp:</label>
+                                <input type="number" class="form-control" id="f_kp" name="f_kp" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="f_ki">Fine Trickler Ki:</label>
+                                <input type="number" class="form-control" id="f_ki" name="f_ki" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="f_kd">Fine Trickler Kd:</label>
+                                <input type="number" class="form-control" id="f_kd" name="f_kd" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="sp_sd">Set Point Accuracy (Standard Deviation):</label>
+                                <input type="number" class="form-control" id="sp_sd" name="sp_sd" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="sp_avg">Set Point Accuracy (Mean):</label>
+                                <input type="number" class="form-control" id="sp_avg" name="sp_avg" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="c1">Neopixel LED Normal Charge Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c1" name="c1">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="c2">Neopixel LED Under Charge Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c2" name="c2">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="c3">Neopixel LED Over Charge Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c3" name="c3">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="c4">Neopixel LED Not Ready Colour</label>
+                                <input type="color" class="form-control form-control-color" id="c4" name="c4">
                             </div>
 
                             <button type="submit" class="btn btn-primary">Apply Charge Mode Settings</button>
@@ -294,7 +336,8 @@
 
                             <div class="form-group mb-3">
                                 <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation">
+                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation"
+                                        data-bs-toggle="tooltip" data-bs-title="Select 200 steps for 1.8 deg stepper motor, 400 for 0.9 deg stepper motor">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
                                 </select>
@@ -367,7 +410,8 @@
 
                             <div class="form-group mb-3">
                                 <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation">
+                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation"
+                                        data-bs-toggle="tooltip" data-bs-title="Select 200 steps for 1.8 deg stepper motor, 400 for 0.9 deg stepper motor">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
                                 </select>
@@ -435,28 +479,18 @@
                     <div class="card-body">
                         <form class="config-form" id="neopixel_led_config" action="/rest/neopixel_led_config">
                             <div class="form-group mb-3">
-                                <label for="12864bl">Mini 12864 Display Background Colour:</label>
-                                <input type="color" class="form-control form-control-color" id="12864bl" name="12864bl">
+                                <label for="bl">Mini 12864 Display Background Colour:</label>
+                                <input type="color" class="form-control form-control-color" id="bl" name="bl">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="led1_c1">LED1 Primary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led1_c1" name="led1_c1">
+                                <label for="l1">LED1 Default Colour</label>
+                                <input type="color" class="form-control form-control-color" id="l1" name="l1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="led1_c2">LED1 Secondary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led1_c2" name="led1_c2">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="led2_c1">LED2 Primary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led2_c1" name="led2_c1">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="led2_c2">LED2 Secondary Colour</label>
-                                <input type="color" class="form-control form-control-color" id="led2_c2" name="led2_c2">
+                                <label for="l2">LED2 Default Colour</label>
+                                <input type="color" class="form-control form-control-color" id="l2" name="l2">
                             </div>
 
                             <button type="submit" class="btn btn-primary">Apply Neopixel LED Settings</button>
@@ -553,6 +587,10 @@
     </div>
 
     <script>
+        // Enable tooltip
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+
         // Show or display sections from the side bar
         const navLinks = document.querySelectorAll('.nav-link');
         navLinks.forEach(link => {

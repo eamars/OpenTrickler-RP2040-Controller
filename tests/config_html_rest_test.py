@@ -31,7 +31,7 @@ def rest_scale_config():
 
 @app.route('/rest/charge_mode_config')
 def rest_charge_mode_config():
-    return '{"coarse_kp":0.200000,"coarse_ki":0.000000,"coarse_kd":1.000000,"fine_kp":5.000000,"fine_ki":0.000000,"fine_kd":20.000000,"error_margin_grain":0.030000,"zero_sd_margin_grain":0.020000,"zero_mean_stability_grain":0.040000}'
+    return '{"c_kp":0.020,"c_ki":0.000,"c_kd":0.200,"f_kp":1.000,"f_ki":0.000,"f_kd":5.000,"c_stop":5.000,"f_stop":0.030,"sp_sd":0.020,"sp_avg":0.020}'
 
 
 @app.route('/rest/wireless_config')
@@ -55,12 +55,17 @@ def rest_coarse_motor_config():
 
 @app.route('/rest/system_control')
 def rest_system_control():
-    return """{"unique_id":"8178C61","save_to_eeprom":false,"software_reset":false,"erase_eeprom":false}"""
+    return """{"unique_id":"8381FFF","save_to_eeprom":false,"software_reset":false,"erase_eeprom":false,"ver":"0.1.36-dirty","hash":"18111a5","build_type":"Debug"}"""
 
 
 @app.route('/rest/neopixel_led_config')
 def rest_neopixel_led_config():
     return """{"12864bl":"#ffffff","led1_c1":"#0f0f0f","led1_c2":"#ffff00","led2_c1":"#0f0f0f","led2_c2":"#00ffff"}"""
+
+
+@app.route('/rest/button_config')
+def rest_button_config():
+    return """{"inv_dir":true}"""
 
 
 @app.route("/config")
