@@ -40,13 +40,13 @@ jobs:
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=${{env.PICO_BOARD}}
         cmake --build ${{github.workspace}}/build --config Release
 
-    # - name: Archive Release Artifacts
-    #   uses: actions/upload-artifact@v3
-    #   with: 
-    #     name: uf2-release
-    #     path: |
-    #       src/generated/version.c
-    #       build/*.uf2
+    - name: Archive Release Artifacts
+      uses: actions/upload-artifact@v3
+      with: 
+        name: uf2-release
+        path: |
+          src/generated/version.c
+          build/*.uf2
 
     - name: Build Debug Package
       # Build your program with the given configuration
