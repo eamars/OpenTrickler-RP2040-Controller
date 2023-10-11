@@ -7,7 +7,7 @@
 
 #include "http_rest.h"
 
-#define EEPROM_MOTOR_DATA_REV                     6              // 16 byte 
+#define EEPROM_MOTOR_DATA_REV                     5              // 16 byte 
 
 
 // Terms
