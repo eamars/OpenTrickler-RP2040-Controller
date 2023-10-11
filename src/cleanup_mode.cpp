@@ -36,8 +36,6 @@ void cleanup_render_task(void *p) {
     while (true) {
         TickType_t last_render_tick = xTaskGetTickCount();
 
-        const char * scale_unit_string = get_scale_unit_string(true);
-
         u8g2_ClearBuffer(display_handler);
 
         // Draw title
@@ -52,7 +50,7 @@ void cleanup_render_task(void *p) {
         // Draw charge weight
         float current_weight = scale_get_current_measurement();
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Weight: %0.02f%s", current_weight, scale_unit_string);
+        sprintf(buf, "Weight: %0.02f", current_weight);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 25, buf);
 
@@ -62,7 +60,7 @@ void cleanup_render_task(void *p) {
         float flow_rate = weight_diff / 0.02;  // 20 ms per sampling period, see below
 
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Flow: %0.2f%s/s", flow_rate, scale_unit_string);
+        sprintf(buf, "Flow: %0.2f/s", flow_rate);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 35, buf);
 

@@ -16,9 +16,6 @@ extern scale_handle_t steinberg_scale_handle;
 scale_config_t scale_config;
 
 
-void set_scale_unit(scale_unit_t scale_unit) {
-    scale_config.persistent_config.scale_unit = scale_unit;
-}
 
 void set_scale_driver(scale_driver_t scale_driver) {
     // Update the persistent settings
@@ -62,36 +59,6 @@ uint32_t get_scale_baudrate(scale_baudrate_t scale_baudrate) {
 }
 
 
-const char * get_scale_unit_string(bool is_short_string) {
-    const char * scale_unit_string = NULL;
-
-    switch (scale_config.persistent_config.scale_unit) {
-        case SCALE_UNIT_GRAIN:
-            if (is_short_string) {
-                scale_unit_string = "gn";
-            }
-            else {
-                scale_unit_string = "grain";
-            }
-            
-            break;
-        case SCALE_UNIT_GRAM:
-            if (is_short_string) {
-                scale_unit_string = "g";
-            }
-            else {
-                scale_unit_string = "gram";
-            }
-            
-            break;
-        default:
-            break;
-    }
-
-    return scale_unit_string;
-}
-
-
 const char * get_scale_driver_string() {
     const char * scale_driver_string = NULL;
 
@@ -124,7 +91,6 @@ bool scale_init() {
     if (scale_config.persistent_config.scale_data_rev != EEPROM_SCALE_DATA_REV) {
 
         scale_config.persistent_config.scale_data_rev = EEPROM_SCALE_DATA_REV;
-        scale_config.persistent_config.scale_unit = SCALE_UNIT_GRAIN;
         scale_config.persistent_config.scale_driver = SCALE_DRIVER_AND_FXI;
         scale_config.persistent_config.scale_baudrate = BAUDRATE_19200;
 
@@ -198,15 +164,7 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
 
     // Set value
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "unit") == 0) {
-            if (strcmp(values[idx], "grain") == 0) {
-                set_scale_unit(SCALE_UNIT_GRAIN);
-            }
-            else if (strcmp(values[idx], "gram") == 0) {
-                set_scale_unit(SCALE_UNIT_GRAM);
-            }
-        }
-        else if (strcmp(params[idx], "driver") == 0) {
+        if (strcmp(params[idx], "driver") == 0) {
             if (strcmp(values[idx], "AND FX-i Std") == 0) {
                 set_scale_driver(SCALE_DRIVER_AND_FXI);
             }
@@ -228,13 +186,12 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
     }
 
     // Convert config to string
-    const char * scale_unit_string = get_scale_unit_string(false);
     const char * scale_driver_string = get_scale_driver_string();
 
     snprintf(scale_config_to_json_buffer, 
              sizeof(scale_config_to_json_buffer),
-             "{\"unit\":\"%s\",\"driver\":\"%s\",\"baudrate\":%"PRId32"}", 
-             scale_unit_string, scale_driver_string, 
+             "{\"driver\":\"%s\",\"baudrate\":%"PRId32"}", 
+             scale_driver_string, 
              get_scale_baudrate(scale_config.persistent_config.scale_baudrate));
     
     size_t data_length = strlen(scale_config_to_json_buffer);
