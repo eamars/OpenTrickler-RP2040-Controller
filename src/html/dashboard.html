@@ -330,13 +330,13 @@
                     <div class="card-body">
                         <form class="config-form" id="coarse_motor_config" action="/rest/coarse_motor_config">
                             <div class="form-group mb-3">
-                                <label for="accel">Angular Acceleration (rps/s):</label>
-                                <input type="number" class="form-control" id="accel" name="accel" step="1">
+                                <label for="m0">Angular Acceleration (rps/s):</label>
+                                <input type="number" class="form-control" id="m0" name="m0" step="1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation"
+                                <label for="m1">Full Steps per Rotation:</label>
+                                <select class="form-select" id="m1" name="m1"
                                         data-bs-toggle="tooltip" data-bs-title="Select 200 steps for 1.8 deg stepper motor, 400 for 0.9 deg stepper motor">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
@@ -344,13 +344,13 @@
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="current_ma">Current (mA):</label>
-                                <input type="number" class="form-control" id="current_ma" name="current_ma" step="1">
+                                <label for="m2">Current (mA):</label>
+                                <input type="number" class="form-control" id="m2" name="m2" step="1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="microsteps">Microsteps:</label>
-                                <select class="form-select" id="microsteps" name="microsteps">
+                                <label for="m3">Microsteps:</label>
+                                <select class="form-select" id="m3" name="m3">
                                     <option value="16">16</option>
                                     <option value="32">32</option>
                                     <option value="64">64</option>
@@ -360,33 +360,40 @@
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="max_speed_rps">Max Speed (rps):</label>
-                                <input type="number" class="form-control" id="max_speed_rps" name="max_speed_rps"
+                                <label for="m4">Max Speed (rps):</label>
+                                <input type="number" class="form-control" id="m4" name="m4"
                                     step="0.1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="min_speed_rps">Min Speed (rps):</label>
-                                <input type="number" class="form-control" id="min_speed_rps" name="min_speed_rps"
+                                <label for="m6">Min Speed (rps):</label>
+                                <input type="number" class="form-control" id="m6" name="m6"
                                     step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="r_sense">Current Sensing Resistor (mOhm):</label>
-                                <input type="number" class="form-control" id="r_sense" name="r_sense" step="1">
+                                <label for="m5">Current Sensing Resistor (mOhm):</label>
+                                <input type="number" class="form-control" id="m5" name="m5" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="Consult the manufactor for the on-board sense resistor">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="inv_en">Inverted Enable Pin:</label>
-                                <select class="form-select" id="inv_en" name="inv_en">
+                                <label for="m7">Gear Ratio:</label>
+                                <input type="number" class="form-control" id="m7" name="m7" step="0.0000001"
+                                       data-bs-toggle="tooltip" data-bs-title="The speed ratio between the driver and driven gear">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="m8">Inverted Enable Pin:</label>
+                                <select class="form-select" id="m8" name="m8">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="inv_dir">Inverted Step Direction Pin:</label>
-                                <select class="form-select" id="inv_dir" name="inv_dir">
+                                <label for="m9">Inverted Step Direction Pin:</label>
+                                <select class="form-select" id="m9" name="m9">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -404,13 +411,13 @@
                     <div class="card-body">
                         <form class="config-form" id="fine_motor_config" action="/rest/fine_motor_config">
                             <div class="form-group mb-3">
-                                <label for="accel">Angular Acceleration (rps/s):</label>
-                                <input type="number" class="form-control" id="accel" name="accel" step="1">
+                                <label for="m0">Angular Acceleration (rps/s):</label>
+                                <input type="number" class="form-control" id="m0" name="m0" step="1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="full_steps_per_rotation">Full Steps per Rotation:</label>
-                                <select class="form-select" id="full_steps_per_rotation" name="full_steps_per_rotation"
+                                <label for="m1">Full Steps per Rotation:</label>
+                                <select class="form-select" id="m1" name="m1"
                                         data-bs-toggle="tooltip" data-bs-title="Select 200 steps for 1.8 deg stepper motor, 400 for 0.9 deg stepper motor">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
@@ -418,13 +425,13 @@
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="current_ma">Current (mA):</label>
-                                <input type="number" class="form-control" id="current_ma" name="current_ma" step="1">
+                                <label for="m2">Current (mA):</label>
+                                <input type="number" class="form-control" id="m2" name="m2" step="1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="microsteps">Microsteps:</label>
-                                <select class="form-select" id="microsteps" name="microsteps">
+                                <label for="m3">Microsteps:</label>
+                                <select class="form-select" id="m3" name="m3">
                                     <option value="16">16</option>
                                     <option value="32">32</option>
                                     <option value="64">64</option>
@@ -434,33 +441,40 @@
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="max_speed_rps">Max Speed (rps):</label>
-                                <input type="number" class="form-control" id="max_speed_rps" name="max_speed_rps"
+                                <label for="m4">Max Speed (rps):</label>
+                                <input type="number" class="form-control" id="m4" name="m4"
                                     step="0.1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="min_speed_rps">Min Speed (rps):</label>
-                                <input type="number" class="form-control" id="min_speed_rps" name="min_speed_rps"
+                                <label for="m6">Min Speed (rps):</label>
+                                <input type="number" class="form-control" id="m6" name="m6"
                                     step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="r_sense">Current Sensing Resistor (mOhm):</label>
-                                <input type="number" class="form-control" id="r_sense" name="r_sense" step="1">
+                                <label for="m5">Current Sensing Resistor (mOhm):</label>
+                                <input type="number" class="form-control" id="m5" name="m5" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="Consult the manufactor for the on-board sense resistor">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="inv_en">Inverted Enable State:</label>
-                                <select class="form-select" id="inv_en" name="inv_en">
+                                <label for="m7">Gear Ratio:</label>
+                                <input type="number" class="form-control" id="m7" name="m7" step="0.0000001"
+                                       data-bs-toggle="tooltip" data-bs-title="The speed ratio between the driver and driven gear">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="m8">Inverted Enable Pin:</label>
+                                <select class="form-select" id="m8" name="m8">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="inv_dir">Inverted Step Direction State:</label>
-                                <select class="form-select" id="inv_dir" name="inv_dir">
+                                <label for="m9">Inverted Step Direction Pin:</label>
+                                <select class="form-select" id="m9" name="m9">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>

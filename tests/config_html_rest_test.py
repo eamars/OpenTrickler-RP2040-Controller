@@ -45,12 +45,12 @@ def rest_eeprom_config():
 
 @app.route('/rest/fine_motor_config')
 def rest_fine_motor_config():
-    return """{"accel":100.000000,"full_steps_per_rotation":200,"current_ma":800,"microsteps":256,"max_speed_rps":5,"r_sense":110,"min_speed_rps":0.080,"inv_en":false,"inv_dir":false}"""
+    return """{"m0":50.000000,"m1":200,"m2":800,"m3":256,"m4":5,"m5":110,"m6":0.050,"m7":2.105263,"m8":false,"m9":false}"""
 
 
 @app.route('/rest/coarse_motor_config')
 def rest_coarse_motor_config():
-    return """{"accel":100.000000,"full_steps_per_rotation":200,"current_ma":800,"microsteps":256,"max_speed_rps":3,"r_sense":110,"min_speed_rps":0.020,"inv_en":false,"inv_dir":false}"""
+    return """{"m0":50.000000,"m1":200,"m2":800,"m3":256,"m4":5,"m5":110,"m6":0.050,"m7":1.250000,"m8":false,"m9":false}"""
 
 
 @app.route('/rest/system_control')
