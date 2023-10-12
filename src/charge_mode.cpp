@@ -139,10 +139,11 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
             scale_config.scale_handle->force_zero();
         }
 
-        // Perform measurement
-        float current_measurement = scale_block_wait_for_next_measurement();
-
-        data_buffer.enqueue(current_measurement);
+        // Perform measurement (max delay 300 seconds   )
+        float current_measurement;
+        if (scale_block_wait_for_next_measurement(300, &current_measurement)){
+            data_buffer.enqueue(current_measurement);
+        }
 
         // Generate stop condition
         if (data_buffer.getCounter() >= 10){
@@ -152,7 +153,7 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
             }
         }
 
-        // Wait for 200 for next measurement
+        // Wait for minimum 300 ms (but can skip if previously wait already)
         vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
     }
 
@@ -193,7 +194,11 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
 
         // Run the PID controlled loop to start charging
         // Perform the measurement
-        float current_weight = scale_block_wait_for_next_measurement();
+        float current_weight;
+        if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
+            // If no measurement within 200ms then poll the button and retry
+            continue;
+        }
         current_sample_tick = xTaskGetTickCount();
 
         float error = charge_mode_config.target_charge_weight - current_weight;
@@ -257,7 +262,10 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
 
     // Post charge analysis (while waiting for removal of the cup)
     vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for other tasks to complete
-    float error = charge_mode_config.target_charge_weight - scale_block_wait_for_next_measurement();
+
+    // Take current measurement
+    float current_measurement = scale_get_current_measurement();
+    float error = charge_mode_config.target_charge_weight - current_measurement;
 
     // Update LED colour before moving to the next stage
     // Over charged
@@ -299,7 +307,11 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
         }
 
         // Perform measurement
-        float current_weight = scale_block_wait_for_next_measurement();
+        float current_weight;
+        if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
+            // If no measurement within 200ms then poll the button and retry
+            continue;
+        }
         data_buffer.enqueue(current_weight);
 
         // Generate stop condition
@@ -310,7 +322,7 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
             }
         }
 
-        // Wait for 600 for next measurement
+        // Wait for next measurement
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(300));
     }
 
@@ -346,12 +358,17 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
         }
 
         // Perform measurement
-        float current_weight = scale_block_wait_for_next_measurement();
+        float current_weight;
+        if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
+            // If no measurement within 200ms then poll the button and retry
+            continue;
+        }
+
         if (current_weight >= 0) {
             break;
         }
 
-        // Wait for 600 for next measurement
+        // Wait for next measurement
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(20));
     }
 

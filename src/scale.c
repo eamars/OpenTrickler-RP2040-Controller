@@ -270,9 +270,29 @@ float scale_get_current_measurement() {
 }
 
 
-float scale_block_wait_for_next_measurement() {
+/*
+    Block wait for the next available measurement.
+
+    block_time_ms set to 0 to wait indefinitely.
+*/
+bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement) {
+    TickType_t delay_ticks;
+
+    if (block_time_ms == 0) {
+        delay_ticks = portMAX_DELAY;
+    }
+    else {
+        delay_ticks = pdMS_TO_TICKS(block_time_ms);
+    }
+
     // You can only call this once the scheduler starts
-    xSemaphoreTake(scale_config.scale_measurement_ready, portMAX_DELAY);
-    return scale_get_current_measurement();
+    if (xSemaphoreTake(scale_config.scale_measurement_ready, delay_ticks) == pdTRUE){
+        *current_measurement = scale_get_current_measurement();
+
+        return true;
+    }
+    
+    // No valid measurement
+    return false;
 }
 
