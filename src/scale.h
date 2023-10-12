@@ -58,7 +58,6 @@ bool scale_init();
 float scale_get_current_measurement();
 bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement);
 
-void set_scale_unit(scale_unit_t scale_unit);
 void set_scale_driver(scale_driver_t scale_driver);
 
 const char * get_scale_driver_string();
