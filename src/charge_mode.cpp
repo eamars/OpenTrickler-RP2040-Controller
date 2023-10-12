@@ -99,11 +99,6 @@ void scale_measurement_render_task(void *p) {
         u8g2_SetFont(display_handler, u8g2_font_profont22_tf);
         u8g2_DrawStr(display_handler, 26, 35, current_weight_string);
 
-        // print unit (short)
-        const char * scale_unit_string = get_scale_unit_string(true);
-        u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
-        u8g2_DrawStr(display_handler, 96, 35, scale_unit_string);
-
         u8g2_SendBuffer(display_handler);
 
         vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(20));
@@ -171,8 +166,8 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
 
     // Update current status
     snprintf(title_string, sizeof(title_string), 
-             "Target: %.02f %s", 
-             charge_mode_config.target_charge_weight, get_scale_unit_string(true));
+             "Target: %.02f", 
+             charge_mode_config.target_charge_weight);
 
     uint16_t coarse_trickler_max_speed = get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR);
     uint16_t fine_trickler_max_speed = get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR);

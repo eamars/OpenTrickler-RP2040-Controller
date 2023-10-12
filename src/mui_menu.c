@@ -107,22 +107,6 @@ uint8_t render_fine_pid_values(mui_t *ui, uint8_t msg) {
                              charge_mode_config.eeprom_charge_mode_data.fine_kd);
 }
 
-uint8_t render_scale_unit(mui_t * ui, uint8_t msg) {
-    switch (msg) {
-        case MUIF_MSG_DRAW:
-        {
-            u8g2_uint_t x = mui_get_x(ui);
-            u8g2_uint_t y = mui_get_y(ui);
-            u8g2_t *u8g2 = mui_get_U8g2(ui);
-
-            u8g2_SetFont(u8g2, u8g2_font_helvR08_tr);
-            u8g2_DrawStr(u8g2, x, y, get_scale_unit_string(true));
-        }
-        break;
-    }
-    return 0;
-}
-
 
 muif_t muif_list[] = {
         /* normal text style */
@@ -152,17 +136,11 @@ muif_t muif_list[] = {
         // Leave
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
 
-        // Unit selection
-        MUIF_VARIABLE("UN",&scale_config.persistent_config.scale_unit, mui_u8g2_u8_opt_line_wa_mud_pi),
-
         // Scale driver selection
         MUIF_VARIABLE("SD", &scale_config.persistent_config.scale_driver, mui_u8g2_u8_opt_line_wa_mud_pi),
 
         // Baud rate selection
         MUIF_VARIABLE("BR", &scale_config.persistent_config.scale_baudrate, mui_u8g2_u8_opt_line_wa_mud_pi),
-
-        // Render unit
-        MUIF_RO("SU", render_scale_unit),
 
         // Render version
         MUIF_RO("VE", render_version_page),
@@ -282,9 +260,7 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_DATA("MU",
         MUI_53 "Select Driver|"
-        MUI_50 "Select Unit|"
         MUI_51 "Calibration|"
-        MUI_52 "Enable Fast Report|"
         MUI_30 "<-Return"  // back to view 30
     )
     MUI_XYA("GC", 5, 25, 0) 
@@ -396,19 +372,6 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_XYAT("LV",64, 59, 10, " OK ")  // APP_STATE_ENTER_WIFI_INFO
 
-    
-    // Scale unit
-    MUI_FORM(50)
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Unit")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(5,25, "Unit:")
-    MUI_XYAT("UN", 60, 25, 60, "Grain (gn)|Gram (g)")
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN", 64, 59, 31, " OK ")
 
     // Scale calibration
     MUI_FORM(51)
