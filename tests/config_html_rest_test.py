@@ -26,21 +26,21 @@ app = Flask(__name__,
 
 @app.route('/rest/scale_config')
 def rest_scale_config():
-    return '{"unit":"gram"}'
+    return """{"driver":"AND FX-i Std","baudrate":19200}"""
 
 
 @app.route('/rest/charge_mode_config')
 def rest_charge_mode_config():
-    return '{"c_kp":0.020,"c_ki":0.000,"c_kd":0.200,"f_kp":1.000,"f_ki":0.000,"f_kd":5.000,"c_stop":5.000,"f_stop":0.030,"sp_sd":0.020,"sp_avg":0.020}'
+    return """{"c_kp":0.020,"c_ki":0.000,"c_kd":0.200,"f_kp":1.000,"f_ki":0.000,"f_kd":5.000,"c_stop":5.000,"f_stop":0.030,"sp_sd":0.020,"sp_avg":0.020}"""
 
 
 @app.route('/rest/wireless_config')
 def rest_wireless_config():
-    return '{"ssid":"YYYY","pw":"xxx","auth":"CYW43_AUTH_WPA2_AES_PSK","timeout_ms":30000,"configured":true}'
+    return """{"ssid":"YYYY","pw":"xxx","auth":"CYW43_AUTH_WPA2_AES_PSK","timeout_ms":30000,"configured":true}"""
 
 @app.route('/rest/eeprom_config')
 def rest_eeprom_config():
-    return '{"unique_id":"4C64A49","save_to_eeprom":false}'
+    return """{"unique_id":"4C64A49","save_to_eeprom":false}'"""
 
 
 @app.route('/rest/fine_motor_config')
@@ -60,7 +60,7 @@ def rest_system_control():
 
 @app.route('/rest/neopixel_led_config')
 def rest_neopixel_led_config():
-    return """{"12864bl":"#ffffff","led1_c1":"#0f0f0f","led1_c2":"#ffff00","led2_c1":"#0f0f0f","led2_c2":"#00ffff"}"""
+    return """{"bl":"#ffffff","l1":"#0f0f0f","l2":"#0f0f0f"}"""
 
 
 @app.route('/rest/button_config')

@@ -8,7 +8,7 @@
 #include "http_rest.h"
 #include <semphr.h>
 
-#define EEPROM_SCALE_DATA_REV                     2              // 16 byte 
+#define EEPROM_SCALE_DATA_REV                     3              // 16 byte 
 
 
 // Abstracted base class
@@ -27,12 +27,6 @@ typedef enum {
 
 
 typedef enum {
-    SCALE_UNIT_GRAIN = 0,
-    SCALE_UNIT_GRAM,
-} scale_unit_t;
-
-
-typedef enum {
     SCALE_DRIVER_AND_FXI = 0,
     SCALE_DRIVER_STEINBERG_SBS,
 } scale_driver_t;
@@ -40,7 +34,6 @@ typedef enum {
 
 typedef struct {
     uint16_t scale_data_rev;
-    scale_unit_t scale_unit;
     scale_driver_t scale_driver;
     scale_baudrate_t scale_baudrate;
 } eeprom_scale_data_t;
@@ -61,12 +54,14 @@ extern "C" {
 
 // Scale related calls
 bool scale_init();
+
 float scale_get_current_measurement();
-float scale_block_wait_for_next_measurement();
-void set_scale_unit(scale_unit_t scale_unit);
+bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement);
+
 void set_scale_driver(scale_driver_t scale_driver);
-const char * get_scale_unit_string(bool);
+
 const char * get_scale_driver_string();
+
 bool scale_config_save(void);
 
 // Low lever handler for writing data to the scale
