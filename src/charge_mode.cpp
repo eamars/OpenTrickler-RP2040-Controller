@@ -30,13 +30,13 @@ extern scale_config_t scale_config;
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
-    .coarse_kp = 0.02f,
+    .coarse_kp = 0.025f,
     .coarse_ki = 0.0f,
-    .coarse_kd = 0.2f,
+    .coarse_kd = 0.25f,
 
-    .fine_kp = 1.0f,
+    .fine_kp = 2.0f,
     .fine_ki = 0.0f,
-    .fine_kd = 5.0f,
+    .fine_kd = 10.0f,
 
     .coarse_stop_threshold = 5,
     .fine_stop_threshold = 0.03,

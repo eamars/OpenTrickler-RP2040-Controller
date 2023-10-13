@@ -40,7 +40,7 @@ const motor_persistent_config_t default_motor_persistent_config = {
     .r_sense = 110,                     // 0.110 ohm sense resistor the stepper driver
 
     .angular_acceleration = 50,         // In rev/s^2
-    .min_speed_rps = 0.05,              // Minimum speed for powder to drop
+    .min_speed_rps = 0.1,               // Minimum speed for powder to drop
     .gear_ratio = 1.0f,                 // The speed ratio between the driver and driven gear
 
     .inverted_direction = false,        // Invert the direction if set to true
