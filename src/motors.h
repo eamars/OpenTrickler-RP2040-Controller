@@ -7,7 +7,7 @@
 
 #include "http_rest.h"
 
-#define EEPROM_MOTOR_DATA_REV                     4              // 16 byte 
+#define EEPROM_MOTOR_DATA_REV                     5              // 16 byte 
 
 
 // Terms
@@ -22,13 +22,16 @@ typedef enum {
 
 
 typedef struct {
-    float angular_acceleration;  // In rev/s^2
     uint32_t full_steps_per_rotation;
     uint16_t current_ma;
     uint16_t microsteps;
     uint16_t max_speed_rps;
     uint16_t r_sense;
+
+    float angular_acceleration;  // In rev/s^2
     float min_speed_rps;
+    float gear_ratio;
+
     bool inverted_direction;
     bool inverted_enable;
 } motor_persistent_config_t;

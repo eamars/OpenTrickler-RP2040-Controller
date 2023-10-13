@@ -33,13 +33,15 @@ motor_config_t fine_trickler_motor_config;
 
 
 const motor_persistent_config_t default_motor_persistent_config = {
-    .angular_acceleration = 50,         // In rev/s^2
     .current_ma = 500,                  // 500 mA
     .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
     .max_speed_rps = 5,                 // Maximum speed before the stepper runs out
     .microsteps = 256,                  // Default to maximum that the driver supports
     .r_sense = 110,                     // 0.110 ohm sense resistor the stepper driver
-    .min_speed_rps = 0.05,              // Minimum speed for powder to drop
+
+    .angular_acceleration = 50,         // In rev/s^2
+    .min_speed_rps = 0.1,               // Minimum speed for powder to drop
+    .gear_ratio = 1.0f,                 // The speed ratio between the driver and driven gear
 
     .inverted_direction = false,        // Invert the direction if set to true
     .inverted_enable = false,           // Invert the enable flag if set to true
@@ -316,6 +318,12 @@ bool motor_config_init(void) {
         memcpy(&eeprom_motor_data.motor_data[1], &default_motor_persistent_config, sizeof(motor_persistent_config_t));
         eeprom_motor_data.motor_data_rev = EEPROM_MOTOR_DATA_REV;
 
+        // Update the gear ratio
+        // Coarse Trickler (default 40:32)
+        eeprom_motor_data.motor_data[0].gear_ratio = 1.25f;
+        // Fine Trickler (default 40:19)
+        eeprom_motor_data.motor_data[1].gear_ratio = 2.1052631f;
+
         // Write data back
         is_ok = eeprom_write(EEPROM_MOTOR_CONFIG_BASE_ADDR, (uint8_t *) &eeprom_motor_data, sizeof(eeprom_motor_data_t));
         if (!is_ok) {
@@ -390,6 +398,9 @@ void stepper_speed_control_task(void * p) {
         // Wait for new speed
         float new_velocity;
         xQueueReceive(((motor_config_t *) p)->stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
+
+        // Calculate the speed of the motor
+        new_velocity /= ((motor_config_t *) p)->persistent_config.gear_ratio;
 
         // Get latest PIO speed, in case of the change of system clock
         uint32_t pio_speed = clock_get_hz(clk_sys);
@@ -605,10 +616,22 @@ const char * get_motor_select_string(motor_select_t selected_motor) {
 
 
 void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_t max_len) {
+    // Mappings:
+    // m0: angular_acceleration
+    // m1: full_steps_per_rotation
+    // m2: current_ma
+    // m3: microsteps
+    // m4: max_speed_rps
+    // m5: r_sense
+    // m6: min_speed_rps
+    // m7: gear_ratio
+    // m8: inverted_enable
+    // m9: inverted_direction
+
     // Build response
     snprintf(buf, 
              max_len,
-             "{\"accel\":%f,\"full_steps_per_rotation\":%d,\"current_ma\":%d,\"microsteps\":%d,\"max_speed_rps\":%d,\"r_sense\":%d,\"min_speed_rps\":%0.3f,\"inv_en\":%s,\"inv_dir\":%s}",
+             "{\"m0\":%f,\"m1\":%d,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%f,\"m8\":%s,\"m9\":%s}",
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,
              motor_config->persistent_config.current_ma,
@@ -616,41 +639,46 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
              motor_config->persistent_config.max_speed_rps,
              motor_config->persistent_config.r_sense,
              motor_config->persistent_config.min_speed_rps,
+             motor_config->persistent_config.gear_ratio,
              boolean_string(motor_config->persistent_config.inverted_enable),
              boolean_string(motor_config->persistent_config.inverted_direction));
 }
 
 void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "accel") == 0) {
+        if (strcmp(params[idx], "m0") == 0) {
             float angular_acceleration = strtof(values[idx], NULL);
             motor_config->persistent_config.angular_acceleration = angular_acceleration;
         }
-        else if (strcmp(params[idx], "full_steps_per_rotation") == 0) {
+        else if (strcmp(params[idx], "m1") == 0) {
             uint32_t full_steps_per_rotation = strtol(values[idx], NULL, 10);
             motor_config->persistent_config.full_steps_per_rotation = full_steps_per_rotation;
         }
-        else if (strcmp(params[idx], "current_ma") == 0) {
+        else if (strcmp(params[idx], "m2") == 0) {
             uint16_t current_ma = strtod(values[idx], NULL);
             motor_config->persistent_config.current_ma = current_ma;
         }
-        else if (strcmp(params[idx], "microsteps") == 0) {
+        else if (strcmp(params[idx], "m3") == 0) {
             uint16_t microsteps = strtod(values[idx], NULL);
             motor_config->persistent_config.microsteps = microsteps;
         }
-        else if (strcmp(params[idx], "max_speed_rps") == 0) {
+        else if (strcmp(params[idx], "m4") == 0) {
             uint16_t max_speed_rps = strtod(values[idx], NULL);
             motor_config->persistent_config.max_speed_rps = max_speed_rps;
         }
-        else if (strcmp(params[idx], "r_sense") == 0) {
+        else if (strcmp(params[idx], "m5") == 0) {
             uint16_t r_sense = strtod(values[idx], NULL);
             motor_config->persistent_config.r_sense = r_sense;
         }
-        else if (strcmp(params[idx], "min_speed_rps") == 0) {
+        else if (strcmp(params[idx], "m6") == 0) {
             float min_speed_rps = strtof(values[idx], NULL);
             motor_config->persistent_config.min_speed_rps = min_speed_rps;
         }
-        else if (strcmp(params[idx], "inv_en") == 0) {
+        else if (strcmp(params[idx], "m7") == 0) {
+            float gear_ratio = strtof(values[idx], NULL);
+            motor_config->persistent_config.gear_ratio = gear_ratio;
+        }
+        else if (strcmp(params[idx], "m8") == 0) {
             if (strcmp(values[idx], "true") == 0) {
                 motor_config->persistent_config.inverted_enable = true;
             }
@@ -658,7 +686,7 @@ void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char
                 motor_config->persistent_config.inverted_enable = false;
             }
         }
-        else if (strcmp(params[idx], "inv_dir") == 0) {
+        else if (strcmp(params[idx], "m9") == 0) {
             if (strcmp(values[idx], "true") == 0) {
                 motor_config->persistent_config.inverted_direction = true;
             }
