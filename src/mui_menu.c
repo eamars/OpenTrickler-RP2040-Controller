@@ -243,6 +243,7 @@ fds_t fds_data[] = {
         MUI_34 "Tune PID|"
         MUI_37 "EEPROM|"
         MUI_35 "Reboot|"
+        MUI_38 "Bootloader|"
         MUI_36 "Version|"
         MUI_1 "<-Return"  // Back to main menu
         )
@@ -312,6 +313,18 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_XYAT("BN", 64, 59, 30, " OK ")
+
+    // Menu 38: Reboot to bootloader
+    MUI_FORM(38)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Reboot to Bootloader")
+    MUI_XY("HL", 0,13)
+    MUI_STYLE(0)
+    MUI_LABEL(5, 25, "Press Next to perform")
+    MUI_LABEL(5, 37, "reboot to bootloader")
+    MUI_XYAT("BN",14, 59, 30, "Back")
+    MUI_XYAT("LV", 115, 59, 11, "Next")  // APP_STATE_ENTER_BOOTLOADER
+
 
     // EEPROM submenu
     MUI_FORM(37)

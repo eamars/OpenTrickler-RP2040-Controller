@@ -80,6 +80,9 @@ void menu_task(void *p){
                 case APP_STATE_ENTER_REBOOT:
                     exit_form_id = software_reboot();
                     break;
+                case APP_STATE_ENTER_BOOTLOADER:
+                    exit_form_id = reboot_to_bootloader();
+                    break;
                 case APP_STATE_ENTER_WIFI_INFO:
                     exit_form_id = wireless_view_wifi_info();
                     break;

@@ -1,0 +1,1 @@
+If necessary, get precompiled PIOASM.exe and ELF2UF2.exe from https://sourceforge.net/projects/rpi-pico-utils/

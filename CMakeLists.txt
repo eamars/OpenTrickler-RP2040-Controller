@@ -22,6 +22,7 @@ set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
 set(TMC_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/Trinamic-library")
 set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
+set(PICOWOTA_DIRECTORY "${CMAKE_SOURCE_DIR}/library/picowota")
 
 # Include the Pico SDK
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
@@ -39,15 +40,54 @@ SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
 # SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
+# On Windows, here we have a problem: If not full "Windows 10 SDK" from Build Tools for Visual Studio is installed, we'll fail on building PIOASM and ELF2UF2
+# Two options:
+# #1 Install "Full Build Tools" -> https://vanhunteradams.com/Pico/Setup/PicoSetup.html
+# #2 Manually get precompiled PIOASM.exe and ELF2UF2.exe from https://sourceforge.net/projects/rpi-pico-utils/ and place it under library/ELF2UF2_PIOASM
+SET(PIOASM_ELF2UF2_OPTION 2) # choose your option: 1 or 2
+if(${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+    message("---------------If build fails on elf2uf2, consider looking at CMakeLists.txt around line 50 ;-)---------------")
+endif()
+if(${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows" AND PIOASM_ELF2UF2_OPTION EQUAL 2) # avoid building pioasm and elf2uf2 on windows machines
+    set(ELF2UF2_PATH "${CMAKE_SOURCE_DIR}/library/ELF2UF2_PIOASM")
+    set(PIOASM_PATH  "${CMAKE_SOURCE_DIR}/library/ELF2UF2_PIOASM")
+
+    # .-------------------------------------------------------.
+    # | Avoid building 'pioasm'                               |
+    # |                                                       |
+    add_executable(Pioasm IMPORTED)                         # |
+    set_property(TARGET Pioasm PROPERTY IMPORTED_LOCATION   # |
+        ${PIOASM_PATH}/pioasm)                              # |
+    set(Pioasm_FOUND 1)                                     # |
+    # |                                                       |
+    # `-------------------------------------------------------'
+
+    # .-------------------------------------------------------.
+    # | Avoid building 'elf2uf2'                              |
+    # |                                                       |
+    add_executable(ELF2UF2 IMPORTED)                        # |
+    set_property(TARGET ELF2UF2 PROPERTY IMPORTED_LOCATION  # |
+       ${ELF2UF2_PATH}/elf2uf2)                              # |
+    set(ELF2UF2_FOUND 1)                                    # |
+    # |                                                       |
+    # `-------------------------------------------------------'
+endif()
 
 # Initialise the Pico SDK
 pico_sdk_init()
+
+# TODO - would be cool to have any WiFi credentials saved exclusively on the PICO EEPROM, but not being erased on any firmware update...
+set(PICOWOTA_WIFI_SSID "OpenTricklerBootloader") # The WiFi network SSID
+set(PICOWOTA_WIFI_PASS "opentrickler") # The WiFi network password
+set(PICOWOTA_WIFI_AP "1") # Optional; 0 = connect to the network, 1 = create it
+add_subdirectory(${PICOWOTA_DIRECTORY})
 
 # Application
 add_executable("${TARGET_NAME}")
 
 # Include source
-include_directories(${SRC_DIRECTORY})
+include_directories(${SRC_DIRECTORY}
+)
 
 # Pull in FreeRTOS
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
@@ -66,8 +106,6 @@ target_sources(trinamic INTERFACE
 )
 target_include_directories(trinamic INTERFACE ${TMC_SRC_DIRECTORY})
 
-
-
 # Pull in u8g2 mui
 add_library(u8g2_mui
     ${U8G2_MUI_DIRECTORY}/mui_u8g2.c
@@ -82,7 +120,8 @@ add_subdirectory(${SRC_DIRECTORY})
 
 # Collect all source files
 file(GLOB SRC ${SRC_DIRECTORY}/*.c 
-              ${SRC_DIRECTORY}/*.cpp)
+              ${SRC_DIRECTORY}/*.cpp
+)
 
 # Include application source file
 target_sources("${TARGET_NAME}" PUBLIC
@@ -103,6 +142,7 @@ target_link_libraries("${TARGET_NAME}"
     u8g2
     u8g2_mui
     trinamic
+    picowota_reboot
 )
 
 if (PICO_BOARD STREQUAL "pico_w" )
@@ -116,6 +156,9 @@ endif()
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 # set( CMAKE_VERBOSE_MAKEFILE on )
-
 # Generate extra outputs
 pico_add_extra_outputs("${TARGET_NAME}")
+
+picowota_build_combined("${TARGET_NAME}") # build both standalone and combined executable
+#picowota_build_standalone("${TARGET_NAME}")
+

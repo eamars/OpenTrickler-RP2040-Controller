@@ -17,6 +17,7 @@ typedef enum {
     APP_STATE_ENTER_EEPROM_ERASE = 8,
     APP_STATE_ENTER_REBOOT = 9,
     APP_STATE_ENTER_WIFI_INFO = 10,
+    APP_STATE_ENTER_BOOTLOADER = 11,
 } AppState_t;
 
 
@@ -36,6 +37,7 @@ extern "C" {
 
 bool app_init();
 uint8_t software_reboot();
+uint8_t reboot_to_bootloader();
 bool http_app_config();
 
 #ifdef __cplusplus

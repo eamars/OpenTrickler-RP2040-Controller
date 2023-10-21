@@ -26,10 +26,18 @@
 #include "rotary_button.h"
 #include "menu.h"
 
+#include "picowota/reboot.h"
+
 
 uint8_t software_reboot() {
     watchdog_reboot(0, 0, 0);
 
+    return 0;
+}
+
+uint8_t reboot_to_bootloader() {
+    picowota_reboot(true);
+    
     return 0;
 }
 
