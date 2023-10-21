@@ -66,5 +66,28 @@ Then run the following comand
 ~~~javascript  
 cmake .. -DPICO_BOARD=pico_w -DCMAKE_BUILD_TYPE=Debug
 ~~~
+
 ### Compiling the Firmware
-Open Pico-VisualStudioCode and open the OpenTrickler-RP2040-Controller folder then navigate to the cmake plugin and click Build All Projects.
+Open Pico-VisualStudioCode and open the OpenTrickler-RP2040-Controller folder then navigate to the cmake plugin.
+
+First time compilation: Compile "App" only by clicking the Build Icon next to "app [app.elf]".
+After that, hit "Build All Projects" to let the whole project bake together. From now on, "Build All Projects" is good to go.
+
+
+### Flashing the Firmware
+Either flash "picowota_app.uf2" via Pico's USB bootloader (the way you did up to now) or use serial-flash from usedbytes: https://github.com/usedbytes/serial-flash
+Read on usedbytes' repository on how to obtain it.
+
+Once serial-flash is working, and OpenTrickler is in Bootloader (via it's menu), and your computer is connected to the OpenTrickler WiFi, one can use serial-flash_app.bat to send app.elf over the air to the OpenTrickler.
+
+OpenTrickler will create a WiFi AP with following credentials:
+
+SSID: OpenTricklerBootloader
+
+PW: opentrickler
+
+Credentials can be changed in CMakeLists.txt.
+
+
+### Known Issues
+For Windows users: If necessary, get precompiled PIOASM.exe and ELF2UF2.exe from https://sourceforge.net/projects/rpi-pico-utils/ or configure CMakeLists.txt around line 50 according to your needs. I write this, because full "Windows 10 SDK" is required to build PIOASM and ELF2UF2.
