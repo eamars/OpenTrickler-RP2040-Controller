@@ -1,4 +1,4 @@
-# OpenTrickler RP2040 Controller 
+# OpenTrickler RP2040 Controller - with OTA update capability
 This repo is for the firmware that utilises the Raspberry Pi RP2040 micro controller OpenTrickler RP2040 Controller.
 
 Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and development information. 
@@ -27,7 +27,7 @@ Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and developmen
 ## Pre-build firmware
 [![Auto Build](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml/badge.svg)](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml)
 
-You can download the pre-built firmware based on the latest release from above link. Similar to flashing other RP2040 firmware, you need to put the Pico W into the bootloader mode by pressing BOOTSEL button and plug in the micro-USB cable. Then you can copy the .uf2 file from the package to the pico. Shortly after the Pico W will be programmed automatically. 
+You can download the pre-built firmware based on the latest release from above link. Similar to flashing other RP2040 firmware, you need to put the Pico W into the bootloader mode by pressing BOOTSEL button and plug in the micro-USB cable. Then you can copy the .uf2 file from the package to the pico. Shortly after the Pico W will be programmed automatically. Alternatively, use the OTA update feature described below.
 
 
 
