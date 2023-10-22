@@ -36,9 +36,9 @@ You can download the pre-built firmware based on the latest release from above l
 [Git](https://gitforwindows.org/) and [Pico-SDK](https://github.com/raspberrypi/pico-setup-windows/releases/download/v0.5.1/pico-setup-windows-x64-standalone.exe) are required to build the firmware. 
  
 ### Setting Up Firmware 
- Using Git Bash clone the repository   
+ Using Git Bash clone this repository   
 
-    git clone https://github.com/eamars/OpenTrickler-RP2040-Controller
+    git clone <URL>
 
 Next change to the cloned directory
 
@@ -75,18 +75,22 @@ After that, hit "Build All Projects" to let the whole project bake together. Fro
 
 
 ### Flashing the Firmware
-Either flash "picowota_app.uf2" via Pico's USB bootloader (the way you did up to now) or use serial-flash from usedbytes: https://github.com/usedbytes/serial-flash
+The first time you have to flash the bootloader by flashing "picowota_app.uf2" via Pico's USB bootloader (the way you did up to now).
+
+On any further flashing, one can use serial-flash from usedbytes: https://github.com/usedbytes/serial-flash
 Read on usedbytes' repository on how to obtain it.
 
-Once serial-flash is working, and OpenTrickler is in Bootloader (via it's menu), and your computer is connected to the OpenTrickler WiFi, one can use serial-flash_app.bat to send app.elf over the air to the OpenTrickler.
+Once serial-flash is working, and OpenTrickler is in Bootloader (via menu, Settings -> Bootloader), one can use serial-flash_app.bat to send app.elf over the air to the OpenTrickler. You may need to configure the correct IP address.
 
-OpenTrickler will create a WiFi AP with following credentials:
+If you configured WiFi via OpenTrickler Web Interface, it will use the same credentials for the bootloader. 
+
+If not, OpenTrickler Bootloader will create a WiFi AP with following credentials:
 
 SSID: OpenTricklerBootloader
 
 PW: opentrickler
 
-Credentials can be changed in CMakeLists.txt.
+Credentials for access point can be changed in CMakeLists.txt.
 
 
 ### Known Issues
