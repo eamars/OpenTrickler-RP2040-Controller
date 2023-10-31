@@ -12,6 +12,7 @@
 #include "charge_mode.h"
 #include "version.h"
 #include "common.h"
+#include "profile.h"
 
 
 extern uint8_t charge_weight_digits[];
@@ -20,7 +21,16 @@ extern charge_mode_config_t charge_mode_config;
 
 // Imported from and_scale module
 extern scale_config_t scale_config;
+extern eeprom_profile_data_t profile_data;
 
+
+const char * get_selected_profile_name(void * data, uint16_t idx) {
+    return profile_data.profiles[idx].name;
+}
+
+uint16_t get_profile_count() {
+    return MAX_PROFILE_CNT;
+}
 
 
 uint8_t mui_hrule(mui_t *ui, uint8_t msg)
@@ -31,34 +41,6 @@ uint8_t mui_hrule(mui_t *ui, uint8_t msg)
         case MUIF_MSG_DRAW:
             u8g2_DrawHLine(u8g2, 0, mui_get_y(ui), u8g2_GetDisplayWidth(u8g2));
             break;
-    }
-    return 0;
-}
-
-
-uint8_t render_pid_values(mui_t *ui, uint8_t msg, float kp, float ki, float kd) {
-    u8g2_t *u8g2 = mui_get_U8g2(ui);
-    switch(msg)
-    {
-        case MUIF_MSG_DRAW:
-        {
-            char buf[30];
-
-            // Render text
-            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
-            memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "KP:%0.2f", kp);
-            u8g2_DrawStr(u8g2, 5, 25, buf);
-
-            memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "KI:%0.2f", ki);
-            u8g2_DrawStr(u8g2, 5, 35, buf);
-
-            memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "KD:%0.2f", kd);
-            u8g2_DrawStr(u8g2, 5, 45, buf);
-            break;
-        }            
     }
     return 0;
 }
@@ -87,24 +69,32 @@ uint8_t render_version_page(mui_t * ui, uint8_t msg) {
 
             break;
         }
-        break;
+        default:
+            break;
     }
     return 0;
 }
 
 
-uint8_t render_coarse_pid_values(mui_t *ui, uint8_t msg) {
-    return render_pid_values(ui, msg, 
-                             charge_mode_config.eeprom_charge_mode_data.coarse_kp, 
-                             charge_mode_config.eeprom_charge_mode_data.coarse_ki, 
-                             charge_mode_config.eeprom_charge_mode_data.coarse_kd);
-}
+uint8_t render_profile_details(mui_t *ui, uint8_t msg) {
+    switch (msg) {
+        case MUIF_MSG_DRAW: 
+        {
+            u8g2_uint_t x = mui_get_x(ui);
+            u8g2_uint_t y = mui_get_y(ui);
+            u8g2_t *u8g2 = mui_get_U8g2(ui);
 
-uint8_t render_fine_pid_values(mui_t *ui, uint8_t msg) {
-    return render_pid_values(ui, msg, 
-                             charge_mode_config.eeprom_charge_mode_data.fine_kp, 
-                             charge_mode_config.eeprom_charge_mode_data.fine_ki, 
-                             charge_mode_config.eeprom_charge_mode_data.fine_kd);
+            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+
+            profile_t * current_profile = get_selected_profile();
+
+            char buf[32];
+            snprintf(buf, sizeof(buf), 
+                     "0x%x,0x%x,0x%x", current_profile->id, current_profile->hardware_compatibility_rev, current_profile->software_compatibility_rev);
+
+            u8g2_DrawStr(u8g2, x, y, buf);
+        }
+    }
 }
 
 
@@ -142,9 +132,6 @@ muif_t muif_list[] = {
         // Baud rate selection
         MUIF_VARIABLE("BR", &scale_config.persistent_config.scale_baudrate, mui_u8g2_u8_opt_line_wa_mud_pi),
 
-        // Render version
-        MUIF_RO("VE", render_version_page),
-
         // input for a number between 0 to 9 //
         MUIF_U8G2_U8_MIN_MAX("N4", &charge_weight_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -153,9 +140,14 @@ muif_t muif_list[] = {
         MUIF_U8G2_U8_MIN_MAX("N0", &charge_weight_digits[0], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
 
         // Render PID value views
-        MUIF_RO("K0", render_coarse_pid_values),
-        MUIF_RO("K1", render_fine_pid_values),
+        // MUIF_RO("K0", render_coarse_pid_values),
+        // MUIF_RO("K1", render_fine_pid_values),
 
+        MUIF_U8G2_U16_LIST("P0", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_parent_wm_pi),
+        MUIF_U8G2_U16_LIST("P1", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_child_w1_pi),
+
+        // Render profile details
+        MUIF_RO("P2", render_profile_details)
     };
 
 const size_t muif_cnt = sizeof(muif_list) / sizeof(muif_t);
@@ -194,7 +186,6 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_XY("SU", 106, 35)
-    // MUI_LABEL(106, 35, "gr")  // TODO: Make it variable
 
     MUI_STYLE(0)
     MUI_XYAT("BN",115, 59, 11, "Next")
@@ -239,8 +230,7 @@ fds_t fds_data[] = {
     MUI_STYLE(0)
     MUI_DATA("MU", 
         MUI_31 "Scale|"
-        MUI_32 "View PID|"
-        MUI_34 "Tune PID|"
+        MUI_32 "Profile Manager|"
         MUI_37 "EEPROM|"
         MUI_35 "Reboot|"
         MUI_36 "Version|"
@@ -268,28 +258,37 @@ fds_t fds_data[] = {
     MUI_XYA("GC", 5, 49, 2) 
     MUI_XYA("GC", 5, 61, 3)
     
-    // Menu 32: View PID page 1
+    // Menu 32: Select Profile Page
     MUI_FORM(32)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Coarse Trickler PID")
+    MUI_LABEL(5,10, "Select Profile")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 30, "Back")
-    MUI_XYAT("BN", 115, 59, 33, "Next")  // APP_STATE_ENTER_CHARGE_MODE
-    MUI_AUX("K0")
+    MUI_XYAT("BN",14, 59, 30, "Back")  // Jump to form 30
+    MUI_XYA("P0", 5, 25, 33)  // Jump to form 33
+    MUI_XYAT("BN",115, 59, 35, "Next")  // Jump to form 34
 
-    // Menu 33: View PID page 2
+    // Render details
+    MUI_XY("P2", 5, 37)
+
+    // Child List for profile selection
     MUI_FORM(33)
-
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Fine Trickler PID")
+    MUI_LABEL(5,10, "Select Profile")
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 32, "Back")
-    MUI_XYAT("BN", 115, 59, 30, " OK ")  // APP_STATE_ENTER_CHARGE_MODE
-    MUI_AUX("K1")
+    MUI_XYA("P1", 5, 25, 0) 
+    MUI_XYA("P1", 5, 37, 1) 
+    MUI_XYA("P1", 5, 49, 2) 
+    MUI_XYA("P1", 5, 61, 3)
+
+    // Menu 35: profile details
+    MUI_FORM(35)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Profile Details")
+    MUI_XY("HL", 0,13)
 
     // Menu 35: Reboot
     MUI_FORM(35)

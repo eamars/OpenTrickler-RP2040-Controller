@@ -35,8 +35,9 @@ typedef struct __attribute__((packed))  // The alignment is critical to the CRC 
 
 typedef struct {
     uint16_t profile_data_rev;
-    uint16_t profile_addr_offsets[MAX_PROFILE_CNT];
-    uint8_t current_loaded_profile_idx;
+    uint16_t current_profile_idx;
+
+    profile_t profiles[MAX_PROFILE_CNT];
 } eeprom_profile_data_t;
 
 
@@ -48,12 +49,13 @@ extern "C" {
 
 // Interface
 bool profile_data_init(void);
-bool profile_load(uint8_t profile_idx);
-bool profile_save();
 bool profile_data_save();
 
-profile_t * get_current_profile();
-uint8_t get_current_profile_idx();
+bool profile_select(uint8_t idx);
+
+void profile_update_checksum();
+
+profile_t * get_selected_profile();
 
 // GUI interface
 
