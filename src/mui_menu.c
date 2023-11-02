@@ -76,7 +76,7 @@ uint8_t render_version_page(mui_t * ui, uint8_t msg) {
 }
 
 
-uint8_t render_profile_details(mui_t *ui, uint8_t msg) {
+uint8_t render_profile_ver_info(mui_t *ui, uint8_t msg) {
     switch (msg) {
         case MUIF_MSG_DRAW: 
         {
@@ -90,11 +90,81 @@ uint8_t render_profile_details(mui_t *ui, uint8_t msg) {
 
             char buf[32];
             snprintf(buf, sizeof(buf), 
-                     "0x%x,0x%x,0x%x", current_profile->id, current_profile->hardware_compatibility_rev, current_profile->software_compatibility_rev);
+                     "Rev:%x,Comp:%x", current_profile->rev, current_profile->compatibility);
 
             u8g2_DrawStr(u8g2, x, y, buf);
         }
     }
+}
+
+
+uint8_t render_profile_pid_details(mui_t *ui, uint8_t msg) {
+    u8g2_t *u8g2 = mui_get_U8g2(ui);
+    switch(msg)
+    {
+        case MUIF_MSG_DRAW:
+        {
+            char buf[30];
+
+            profile_t * current_profile = get_selected_profile();
+
+            // Render Coarse
+            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Kp:%0.3f", current_profile->coarse_kp);
+            u8g2_DrawStr(u8g2, 5, 25, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Ki:%0.3f", current_profile->coarse_ki);
+            u8g2_DrawStr(u8g2, 5, 35, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Kd:%0.3f", current_profile->coarse_kd);
+            u8g2_DrawStr(u8g2, 5, 45, buf);
+
+            // Render fine
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Kp:%0.3f", current_profile->fine_kp);
+            u8g2_DrawStr(u8g2, 65, 25, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Ki:%0.3f", current_profile->fine_ki);
+            u8g2_DrawStr(u8g2, 65, 35, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Kd:%0.3f", current_profile->fine_kd);
+            u8g2_DrawStr(u8g2, 65, 45, buf);
+            break;
+        }            
+    }
+    return 0;
+}
+
+
+uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
+        u8g2_t *u8g2 = mui_get_U8g2(ui);
+    switch(msg)
+    {
+        case MUIF_MSG_DRAW:
+        {
+            char buf[30];
+
+            profile_t * current_profile = get_selected_profile();
+
+            // Render speed
+            u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Min RPS:%0.3f", current_profile->min_flow_speed_rps);
+            u8g2_DrawStr(u8g2, 5, 25, buf);
+
+            memset(buf, 0x0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "Max RPS:%0.3f", current_profile->max_flow_speed_rps);
+            u8g2_DrawStr(u8g2, 5, 35, buf);
+
+            break;
+        }            
+    }
+    return 0;
 }
 
 
@@ -147,7 +217,9 @@ muif_t muif_list[] = {
         MUIF_U8G2_U16_LIST("P1", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_child_w1_pi),
 
         // Render profile details
-        MUIF_RO("P2", render_profile_details)
+        MUIF_RO("P2", render_profile_ver_info),
+        MUIF_RO("P3", render_profile_pid_details),
+        MUIF_RO("P4", render_profile_misc_details)
     };
 
 const size_t muif_cnt = sizeof(muif_list) / sizeof(muif_t);
@@ -265,9 +337,9 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 30, "Back")  // Jump to form 30
     MUI_XYA("P0", 5, 25, 33)  // Jump to form 33
-    MUI_XYAT("BN",115, 59, 35, "Next")  // Jump to form 34
+    MUI_XYAT("BN",115, 59, 34, "Next")  // Jump to form 34
+    MUI_XYAT("BN",14, 59, 30, "Back")  // Jump to form 30
 
     // Render details
     MUI_XY("P2", 5, 37)
@@ -284,11 +356,32 @@ fds_t fds_data[] = {
     MUI_XYA("P1", 5, 49, 2) 
     MUI_XYA("P1", 5, 61, 3)
 
-    // Menu 35: profile details
-    MUI_FORM(35)
+    // Menu 34: profile details (PID)
+    MUI_FORM(34)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Profile Details")
+    MUI_LABEL(5,10, "Profile Details (1/2)")
     MUI_XY("HL", 0,13)
+
+    // Draw details
+    MUI_AUX("P3")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",115, 59, 38, "Next")  // Jump next to page 38
+    MUI_XYAT("BN",14, 59, 32, "Back")  // Jump back to form 30
+
+    // Menu 38: profile details (others)
+    MUI_FORM(38)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Profile Details (2/2)")
+    MUI_XY("HL", 0,13)
+
+    // Draw details
+    MUI_AUX("P4")
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",115, 59, 30, "Exit")  // Jump back to form 30
+    MUI_XYAT("BN",14, 59, 34, "Back")  // Jump next to page 30
+
 
     // Menu 35: Reboot
     MUI_FORM(35)

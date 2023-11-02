@@ -9,6 +9,46 @@ eeprom_profile_data_t profile_data;
 extern void swuart_calcCRC(uint8_t* datagram, uint8_t datagramLength);
 
 
+const profile_t default_ar_2208_profile = {
+    .rev = 0,
+    .compatibility = 0,
+
+    .name = "AR2208,gr",
+
+    .coarse_kp = 0.025f,
+    .coarse_ki = 0.0f,
+    .coarse_kd = 0.25f,
+
+    .fine_kp = 2.0f,
+    .fine_ki = 0.0f,
+    .fine_kd = 10.0f,
+
+    .min_flow_speed_rps = 0.1,
+    .max_flow_speed_rps = 5
+};
+
+
+const profile_t default_ar_2209_profile = {
+    .rev = 0,
+    .compatibility = 0,
+
+    .name = "AR2209,gr",
+
+    .coarse_kp = 0.02f,
+    .coarse_ki = 0.0f,
+    .coarse_kd = 0.30f,
+
+    .fine_kp = 2.0f,
+    .fine_ki = 0.0f,
+    .fine_kd = 10.0f,
+
+    .min_flow_speed_rps = 0.08,
+    .max_flow_speed_rps = 5
+};
+
+
+
+
 bool profile_data_save() {
     bool is_ok = eeprom_write(EEPROM_PROFILE_DATA_BASE_ADDR, (uint8_t *) &profile_data, sizeof(eeprom_profile_data_t));
     if (!is_ok) {
@@ -43,8 +83,12 @@ bool profile_data_init() {
         // Reset all profiles
         memset(profile_data.profiles, 0x0, sizeof(profile_data.profiles));
 
+        // Copy two default profiles
+        memcpy(&profile_data.profiles[0], &default_ar_2208_profile, sizeof(profile_t));
+        memcpy(&profile_data.profiles[1], &default_ar_2209_profile, sizeof(profile_t));
+
         // Update default profile data
-        for (uint8_t idx=0; idx < MAX_PROFILE_CNT; idx+=1) {
+        for (uint8_t idx=2; idx < MAX_PROFILE_CNT; idx+=1) {
             profile_t * selected_profile = &profile_data.profiles[idx];
 
             // Provide default name

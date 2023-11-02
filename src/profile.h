@@ -8,13 +8,12 @@
 #define PROFILE_NAME_MAX_LEN    16
 #define MAX_PROFILE_CNT         8
 
-#define EEPROM_PROFILE_DATA_REV             1           // 16 bit
+#define EEPROM_PROFILE_DATA_REV             2           // 16 bit
 
 typedef struct __attribute__((packed))  // The alignment is critical to the CRC calculation
 {  
-    uint32_t id;
-    uint16_t hardware_compatibility_rev;
-    uint16_t software_compatibility_rev;
+    uint32_t rev;
+    uint32_t compatibility;
     
     char name[PROFILE_NAME_MAX_LEN];
 
