@@ -202,16 +202,15 @@ muif_t muif_list[] = {
         // Baud rate selection
         MUIF_VARIABLE("BR", &scale_config.persistent_config.scale_baudrate, mui_u8g2_u8_opt_line_wa_mud_pi),
 
+        // Render version
+        MUIF_RO("VE", render_version_page),
+
         // input for a number between 0 to 9 //
         MUIF_U8G2_U8_MIN_MAX("N4", &charge_weight_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N3", &charge_weight_digits[3], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N2", &charge_weight_digits[2], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N1", &charge_weight_digits[1], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
         MUIF_U8G2_U8_MIN_MAX("N0", &charge_weight_digits[0], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
-
-        // Render PID value views
-        // MUIF_RO("K0", render_coarse_pid_values),
-        // MUIF_RO("K1", render_fine_pid_values),
 
         MUIF_U8G2_U16_LIST("P0", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_parent_wm_pi),
         MUIF_U8G2_U16_LIST("P1", (uint16_t *) &profile_data.current_profile_idx, NULL, get_selected_profile_name, get_profile_count, mui_u8g2_u16_list_child_w1_pi),
