@@ -356,13 +356,11 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
     // If the argument includes control, then update the settings
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "ssid") == 0) {
-            memset(wireless_config.eeprom_wireless_metadata.ssid, 0x0, sizeof(wireless_config.eeprom_wireless_metadata.ssid));
-            strcpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx]); 
+            strncpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx], sizeof(wireless_config.eeprom_wireless_metadata.ssid)); 
         }
 
         if (strcmp(params[idx], "pw") == 0) {
-            memset(wireless_config.eeprom_wireless_metadata.pw, 0x0, sizeof(wireless_config.eeprom_wireless_metadata.pw));
-            strcpy(wireless_config.eeprom_wireless_metadata.pw, values[idx]); 
+            strncpy(wireless_config.eeprom_wireless_metadata.pw, values[idx], sizeof(wireless_config.eeprom_wireless_metadata.pw)); 
         }
 
         if (strcmp(params[idx], "auth") == 0) {

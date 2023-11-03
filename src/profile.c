@@ -107,8 +107,10 @@ bool profile_data_init() {
 }
 
 
-bool profile_select(uint8_t idx) {
+profile_t * profile_select(uint8_t idx) {
     profile_data.current_profile_idx = idx;
+
+    return get_selected_profile(idx);
 }
 
 
@@ -119,4 +121,35 @@ profile_t * get_selected_profile() {
 
 void profile_update_checksum() {
     swuart_calcCRC((uint8_t *) get_selected_profile(), sizeof(profile_t));
+}
+
+bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings:
+    // pf (int): profile index
+    // p0 (int): rev
+    // p1 (int): compatibility
+    // p2 (str): name
+
+    const char * error_msg = NULL;
+    if (num_params < 1 && strcmp(params[0], "pf") != 0) {
+        error_msg = "incorrect_profile_index";
+    }
+    else {
+        // Read profile index as the first parameter
+        uint8_t profile_idx = strtod(values[0], NULL);
+
+        profile_t * current_profile = profile_select(profile_idx);
+
+        // Control
+        for (int idx = 1; idx < num_params; idx += 1) {
+            if (strcmp(params[idx], "p0")) {
+                current_profile->rev = strtol(values[idx], NULL, 10);
+            }
+            else if (strcmp(params[idx], "p1")) {
+                current_profile->compatibility = strtol(values[idx], NULL, 10);
+            }
+            else if (strcmp(params[idx], "p2") == 0) {
+                strncpy(current_profile->name, values[idx], sizeof(current_profile->name));
+            }
+    }
 }
