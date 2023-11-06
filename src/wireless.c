@@ -379,7 +379,7 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
         }
 
         if (strcmp(params[idx], "timeout_ms") == 0) {
-            int timeout_ms = strtod(values[idx], NULL);
+            int timeout_ms = (uint16_t) atoi(values[idx]);
             wireless_config.eeprom_wireless_metadata.timeout_ms = timeout_ms;
         }
 

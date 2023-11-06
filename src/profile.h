@@ -11,7 +11,7 @@
 
 #define EEPROM_PROFILE_DATA_REV             2           // 16 bit
 
-typedef struct __attribute__((packed))  // The alignment is critical to the CRC calculation
+typedef struct
 {  
     uint32_t rev;
     uint32_t compatibility;
@@ -28,8 +28,6 @@ typedef struct __attribute__((packed))  // The alignment is critical to the CRC 
 
     float min_flow_speed_rps;
     float max_flow_speed_rps;
-
-    uint8_t crc8;
 } profile_t;
 
 
@@ -52,10 +50,7 @@ bool profile_data_init(void);
 bool profile_data_save();
 
 profile_t * profile_select(uint8_t idx);
-
-void profile_update_checksum();
-
-profile_t * get_selected_profile();
+profile_t * profile_get_selected();
 
 // REST interface
 bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]);

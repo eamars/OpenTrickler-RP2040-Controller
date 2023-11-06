@@ -86,7 +86,7 @@ uint8_t render_profile_ver_info(mui_t *ui, uint8_t msg) {
 
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
 
-            profile_t * current_profile = get_selected_profile();
+            profile_t * current_profile = profile_get_selected();
 
             char buf[32];
             snprintf(buf, sizeof(buf), 
@@ -106,7 +106,7 @@ uint8_t render_profile_pid_details(mui_t *ui, uint8_t msg) {
         {
             char buf[30];
 
-            profile_t * current_profile = get_selected_profile();
+            profile_t * current_profile = profile_get_selected();
 
             // Render Coarse
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
@@ -149,7 +149,7 @@ uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
         {
             char buf[30];
 
-            profile_t * current_profile = get_selected_profile();
+            profile_t * current_profile = profile_get_selected();
 
             // Render speed
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);

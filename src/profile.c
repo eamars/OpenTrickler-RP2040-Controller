@@ -94,9 +94,6 @@ bool profile_data_init() {
             // Provide default name
             snprintf(selected_profile->name, PROFILE_NAME_MAX_LEN, 
                      "NewProfile%d", idx);
-
-            // Generate new CRC
-            swuart_calcCRC((uint8_t *) selected_profile, sizeof(profile_t));
         }
 
         // Write back
@@ -107,20 +104,25 @@ bool profile_data_init() {
 }
 
 
-profile_t * profile_select(uint8_t idx) {
-    profile_data.current_profile_idx = idx;
-
-    return get_selected_profile(idx);
+uint16_t profile_get_selected_idx() {
+    return profile_data.current_profile_idx;
 }
 
 
-profile_t * get_selected_profile() {
-    return &profile_data.profiles[profile_data.current_profile_idx];
+profile_t * profile_get_selected() {
+    return &profile_data.profiles[profile_get_selected_idx()];
+}
+
+
+profile_t * profile_select(uint8_t idx) {
+    profile_data.current_profile_idx = idx;
+
+    return profile_get_selected(idx);
 }
 
 
 void profile_update_checksum() {
-    swuart_calcCRC((uint8_t *) get_selected_profile(), sizeof(profile_t));
+    swuart_calcCRC((uint8_t *) profile_get_selected(), sizeof(profile_t));
 }
 
 bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
@@ -129,15 +131,31 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
     // p0 (int): rev
     // p1 (int): compatibility
     // p2 (str): name
+    // p3 (float): coarse_kp
+    // p4 (float): coarse_ki
+    // p5 (float): coarse_kd
+    // p6 (float): fine_kp
+    // p7 (float): fine_ki
+    // p8 (float): fine_kd
+    // p9 (float): min_flow_speed_rps
+    // p10 (float): max_flow_speed_rps
+    static char buf[256];
 
-    const char * error_msg = NULL;
-    if (num_params < 1 && strcmp(params[0], "pf") != 0) {
-        error_msg = "incorrect_profile_index";
+    // Read the current loaded profile index
+    uint8_t profile_idx = profile_get_selected_idx();
+
+    // Overwrite the profile index (if applicable)
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "pf") == 0) {
+            profile_idx = (uint16_t) atoi(values[0]);
+        }
     }
-    else {
-        // Read profile index as the first parameter
-        uint8_t profile_idx = strtod(values[0], NULL);
 
+    if (profile_idx >= MAX_PROFILE_CNT) {
+        strcpy(buf, "{\"error\":\"InvalidProfileIndex\"}");
+    }
+
+    else {
         profile_t * current_profile = profile_select(profile_idx);
 
         // Control
@@ -151,5 +169,54 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
             else if (strcmp(params[idx], "p2") == 0) {
                 strncpy(current_profile->name, values[idx], sizeof(current_profile->name));
             }
+            else if (strcmp(params[idx], "p3") == 0) {
+                current_profile->coarse_kp = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p4") == 0) {
+                current_profile->coarse_ki = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p5") == 0) {
+                current_profile->coarse_kd = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p6") == 0) {
+                current_profile->fine_kp = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p7") == 0) {
+                current_profile->fine_ki = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p8") == 0) {
+                current_profile->fine_kd = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p9") == 0) {
+                current_profile->min_flow_speed_rps = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p10") == 0) {
+                current_profile->max_flow_speed_rps = strtof(values[idx], NULL);
+            }
+        }
+
+        // Response
+        snprintf(buf, sizeof(buf), 
+                    "{\"pf\":%d,\"p0\":%d,\"p1\":%d,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f}",
+                    profile_idx, 
+                    current_profile->rev,
+                    current_profile->compatibility,
+                    current_profile->name,
+                    current_profile->coarse_kp,
+                    current_profile->coarse_ki,
+                    current_profile->coarse_kd,
+                    current_profile->fine_kp,
+                    current_profile->fine_ki,
+                    current_profile->fine_kd,
+                    current_profile->min_flow_speed_rps,
+                    current_profile->max_flow_speed_rps);
     }
+
+    size_t response_len = strlen(buf);
+    file->data = buf;
+    file->len = response_len;
+    file->index = response_len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
 }
