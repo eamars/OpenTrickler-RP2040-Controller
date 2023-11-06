@@ -159,11 +159,11 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
         profile_t * current_profile = profile_select(profile_idx);
 
         // Control
-        for (int idx = 1; idx < num_params; idx += 1) {
-            if (strcmp(params[idx], "p0")) {
+        for (int idx = 0; idx < num_params; idx += 1) {
+            if (strcmp(params[idx], "p0") == 0) {
                 current_profile->rev = strtol(values[idx], NULL, 10);
             }
-            else if (strcmp(params[idx], "p1")) {
+            else if (strcmp(params[idx], "p1") == 0) {
                 current_profile->compatibility = strtol(values[idx], NULL, 10);
             }
             else if (strcmp(params[idx], "p2") == 0) {

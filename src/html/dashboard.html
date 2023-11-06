@@ -68,6 +68,7 @@
                                 <ul class="submenu-list list-unstyled">
                                     <li class="submenu-item">
                                         <a class="nav-link link-light" href="#settings-scale">Scale</a>
+                                        <a class="nav-link link-light" href="#settings-profile">Profile</a>
                                         <a class="nav-link link-light" href="#settings-charge-mode">Charge Mode</a>
                                         <a class="nav-link link-light" href="#settings-wireless">Wireless</a>
                                         <a class="nav-link link-light" href="#settings-coarse-motor">Coarse Motor</a>
@@ -189,6 +190,93 @@
                             </div>
 
                             <button type="submit" class="btn btn-primary">Apply Scale Settings</button>
+                        </form>
+                    </div>
+                </section>
+
+                <section id="settings-profile" class="card mb-3 mt-3" style="display: none;">
+                    <div class="card-header">
+                        Profile Settings
+                    </div>
+                    <div class="card-body">
+                        <form class="config-form" id="profile_config" action="/rest/profile_config">
+                            <div class="form-group mb-3">
+                                <label for="Profile Index">Select Profile</label>
+                                <select class="form-select" id="pf" name="pf" onchange="populateProfileSelection(this)">
+                                    <option value="0">#0</option>
+                                    <option value="1">#1</option>
+                                    <option value="2">#2</option>
+                                    <option value="3">#3</option>
+                                    <option value="4">#4</option>
+                                    <option value="5">#5</option>
+                                    <option value="6">#6</option>
+                                    <option value="7">#7</option>
+                                </select>
+                            </div>
+
+                            <hr/>
+
+                            <div class="form-group mb-3">
+                                <label for="p0">Revision:</label>
+                                <input type="number" class="form-control" id="p0" name="p0" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="Profile revision, not to be modified">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p1">Compatibility:</label>
+                                <input type="number" class="form-control" id="p1" name="p1" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="The compatibility bitmask, not to be modified">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p2">Profile Name:</label>
+                                <input type="text" class="form-control" id="p2" name="p2" maxlength="16"
+                                       data-bs-toggle="tooltip" data-bs-title="The name of the current profile, limited to maximum 16 characters">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p3">Coarse Trickler Kp:</label>
+                                <input type="number" class="form-control" id="p3" name="p3" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p4">Coarse Trickler Ki:</label>
+                                <input type="number" class="form-control" id="p4" name="p4" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p5">Coarse Trickler Kd:</label>
+                                <input type="number" class="form-control" id="p5" name="p5" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p6">Fine Trickler Kp:</label>
+                                <input type="number" class="form-control" id="p6" name="p6" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p7">Fine Trickler Ki:</label>
+                                <input type="number" class="form-control" id="p7" name="p7" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p8">Fine Trickler Kd:</label>
+                                <input type="number" class="form-control" id="p8" name="p8" step="0.001">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="p9">Minimum Flow Speed (rps):</label>
+                                <input type="number" class="form-control" id="p9" name="p9" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The minimum speed for trickling this type of powder">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="p10">Maximum Flow Speed (rps):</label>
+                                <input type="number" class="form-control" id="p10" name="p10" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The maximum speed for trickling this type of powder">
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Apply Profile Config</button>
                         </form>
                     </div>
                 </section>
@@ -676,6 +764,23 @@
                     }
                 });
             }
+        }
+
+        function populateProfileSelection(selectedObject) {
+            const restQueryURL = "/rest/profile_config?pf=" + selectedObject.value;
+            const targetForm = selectedObject.form
+
+            // Send query and populate user options
+            getRestJson(restQueryURL).then(jsonData => {
+                for (const key in jsonData) {
+                    // Look for the input/select by its name
+                    const formElement = targetForm.querySelector('[name="' + key + '"]');
+                    if (formElement) {
+                        const value = jsonData[key];
+                        formElement.value = String(value);
+                    }
+                }
+            });
         }
 
         // Callback to the button control action
