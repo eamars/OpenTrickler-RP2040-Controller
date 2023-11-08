@@ -69,7 +69,7 @@ int main()
 #else
     #error "Unpported platform"
 #endif  // RASPBERRYPI_PICO_W
-    xTaskCreate(menu_task, "Menu Task", configMINIMAL_STACK_SIZE, NULL, 6, NULL);
+    xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
     // xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 
     vTaskStartScheduler();

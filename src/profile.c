@@ -18,13 +18,14 @@ const profile_t default_ar_2208_profile = {
     .coarse_kp = 0.025f,
     .coarse_ki = 0.0f,
     .coarse_kd = 0.25f,
+    .coarse_min_flow_speed_rps = 0.1f,
+    .coarse_max_flow_speed_rps = 5.0f,
 
     .fine_kp = 2.0f,
     .fine_ki = 0.0f,
     .fine_kd = 10.0f,
-
-    .min_flow_speed_rps = 0.1,
-    .max_flow_speed_rps = 5
+    .fine_min_flow_speed_rps = 0.1f,
+    .fine_max_flow_speed_rps = 3.0f,
 };
 
 
@@ -37,13 +38,15 @@ const profile_t default_ar_2209_profile = {
     .coarse_kp = 0.02f,
     .coarse_ki = 0.0f,
     .coarse_kd = 0.30f,
+    .coarse_min_flow_speed_rps = 0.1f,
+    .coarse_max_flow_speed_rps = 5.0f,
 
     .fine_kp = 2.0f,
     .fine_ki = 0.0f,
     .fine_kd = 10.0f,
 
-    .min_flow_speed_rps = 0.08,
-    .max_flow_speed_rps = 5
+    .fine_min_flow_speed_rps = 0.08f,
+    .fine_max_flow_speed_rps = 5.0f,
 };
 
 
@@ -134,11 +137,13 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
     // p3 (float): coarse_kp
     // p4 (float): coarse_ki
     // p5 (float): coarse_kd
-    // p6 (float): fine_kp
-    // p7 (float): fine_ki
-    // p8 (float): fine_kd
-    // p9 (float): min_flow_speed_rps
-    // p10 (float): max_flow_speed_rps
+    // p6 (float): coarse_min_flow_speed_rps
+    // p7 (float): coarse_max_flow_speed_rps
+    // p8 (float): fine_kp
+    // p9 (float): fine_ki
+    // p10 (float): fine_kd
+    // p11 (float): fine_min_flow_speed_rps
+    // p12 (float): fine_max_flow_speed_rps
     static char buf[256];
 
     // Read the current loaded profile index
@@ -179,37 +184,45 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
                 current_profile->coarse_kd = strtof(values[idx], NULL);
             }
             else if (strcmp(params[idx], "p6") == 0) {
-                current_profile->fine_kp = strtof(values[idx], NULL);
+                current_profile->coarse_min_flow_speed_rps = strtof(values[idx], NULL);
             }
             else if (strcmp(params[idx], "p7") == 0) {
-                current_profile->fine_ki = strtof(values[idx], NULL);
+                current_profile->coarse_max_flow_speed_rps = strtof(values[idx], NULL);
             }
             else if (strcmp(params[idx], "p8") == 0) {
-                current_profile->fine_kd = strtof(values[idx], NULL);
+                current_profile->fine_kp = strtof(values[idx], NULL);
             }
             else if (strcmp(params[idx], "p9") == 0) {
-                current_profile->min_flow_speed_rps = strtof(values[idx], NULL);
+                current_profile->fine_ki = strtof(values[idx], NULL);
             }
             else if (strcmp(params[idx], "p10") == 0) {
-                current_profile->max_flow_speed_rps = strtof(values[idx], NULL);
+                current_profile->fine_kd = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p11") == 0) {
+                current_profile->fine_min_flow_speed_rps = strtof(values[idx], NULL);
+            }
+            else if (strcmp(params[idx], "p12") == 0) {
+                current_profile->fine_max_flow_speed_rps = strtof(values[idx], NULL);
             }
         }
 
         // Response
         snprintf(buf, sizeof(buf), 
-                    "{\"pf\":%d,\"p0\":%d,\"p1\":%d,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f}",
-                    profile_idx, 
-                    current_profile->rev,
-                    current_profile->compatibility,
-                    current_profile->name,
-                    current_profile->coarse_kp,
-                    current_profile->coarse_ki,
-                    current_profile->coarse_kd,
-                    current_profile->fine_kp,
-                    current_profile->fine_ki,
-                    current_profile->fine_kd,
-                    current_profile->min_flow_speed_rps,
-                    current_profile->max_flow_speed_rps);
+                 "{\"pf\":%d,\"p0\":%d,\"p1\":%d,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f,\"p11\":%0.3f,\"p12\":%0.3f}",
+                 profile_idx, 
+                 current_profile->rev,
+                 current_profile->compatibility,
+                 current_profile->name,
+                 current_profile->coarse_kp,
+                 current_profile->coarse_ki,
+                 current_profile->coarse_kd,
+                 current_profile->coarse_min_flow_speed_rps,
+                 current_profile->coarse_max_flow_speed_rps,
+                 current_profile->fine_kp,
+                 current_profile->fine_ki,
+                 current_profile->fine_kd,
+                 current_profile->fine_min_flow_speed_rps,
+                 current_profile->fine_max_flow_speed_rps);
     }
 
     size_t response_len = strlen(buf);

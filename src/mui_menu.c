@@ -154,11 +154,11 @@ uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
             // Render speed
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
             memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Min RPS:%0.3f", current_profile->min_flow_speed_rps);
+            snprintf(buf, sizeof(buf), "Coarse:%0.3f,%0.3f", current_profile->coarse_min_flow_speed_rps, current_profile->coarse_max_flow_speed_rps);
             u8g2_DrawStr(u8g2, 5, 25, buf);
 
             memset(buf, 0x0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "Max RPS:%0.3f", current_profile->max_flow_speed_rps);
+            snprintf(buf, sizeof(buf), "Fine  :%0.3f,%0.3f", current_profile->fine_min_flow_speed_rps, current_profile->fine_max_flow_speed_rps);
             u8g2_DrawStr(u8g2, 5, 35, buf);
 
             break;
@@ -265,9 +265,19 @@ fds_t fds_data[] = {
     MUI_STYLE(3)
     MUI_XY("N4",20, 35)
 
-
-    // Menu 11: 
+    // Menu 11: Select profile
     MUI_FORM(11)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select Profile")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",115, 59, 12, "Next")  // Jump to form 10
+    MUI_XYAT("BN",14, 59, 10, "Back")  // Jump to form 12
+    MUI_XYA("P0", 5, 25, 33)  // Jump to form 33 (profile selection)
+
+    // Menu 12: 
+    MUI_FORM(12)
     MUI_STYLE(1)
     MUI_LABEL(5, 10, "Warning")
     MUI_XY("HL", 0,13)
@@ -277,7 +287,7 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 37, "press Next to trickle")
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 10, "Back")
+    MUI_XYAT("BN",14, 59, 11, "Back")
     MUI_XYAT("LV", 115, 59, 1, "Next")  // APP_STATE_ENTER_CHARGE_MODE
     // MUI_XYAT("BN",115, 59, 0, "Next")
 

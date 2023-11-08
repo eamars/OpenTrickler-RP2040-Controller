@@ -22,12 +22,15 @@ typedef struct
     float coarse_ki;
     float coarse_kd;
 
+    float coarse_min_flow_speed_rps;
+    float coarse_max_flow_speed_rps;
+
     float fine_kp;
     float fine_ki;
     float fine_kd;
 
-    float min_flow_speed_rps;
-    float max_flow_speed_rps;
+    float fine_min_flow_speed_rps;
+    float fine_max_flow_speed_rps;
 } profile_t;
 
 
