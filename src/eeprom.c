@@ -20,6 +20,7 @@
 #include "neopixel_led.h"
 #include "rotary_button.h"
 #include "version.h"
+#include "profile.h"
 
 
 extern bool cat24c256_eeprom_erase();
@@ -54,6 +55,7 @@ uint8_t eeprom_save_all() {
     wireless_config_save();
     neopixel_led_config_save();
     button_config_save();
+    profile_data_save();
     return 37;  // Configuration Menu ID
 }
 

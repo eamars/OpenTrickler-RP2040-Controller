@@ -10,6 +10,7 @@
 #include "rotary_button.h"
 #include "display.h"
 #include "neopixel_led.h"
+#include "profile.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
@@ -104,6 +105,7 @@ bool rest_endpoints_init() {
     rest_register_handler("/rest/button_config", http_rest_button_config);
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
     rest_register_handler("/rest/neopixel_led_config", http_rest_neopixel_led_config);
+    rest_register_handler("/rest/profile_config", http_rest_profile_config);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
     rest_register_handler("/css/bootstrap.min.css", http_bootstrap_css);

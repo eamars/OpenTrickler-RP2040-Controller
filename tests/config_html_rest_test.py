@@ -67,6 +67,10 @@ def rest_neopixel_led_config():
 def rest_button_config():
     return """{"inv_dir":true}"""
 
+@app.route('/rest/profile_config')
+def rest_profile_config():
+    return """{"pf":0,"p0":0,"p1":0,"p2":"AR2208,gr","p3":0.025,"p4":0.000,"p5":0.250,"p6":0.100,"p7":3.000,"p8":2.000,"p9":0.000,"p10":10.000,"p11":0.100,"p12":5.000}"""
+
 
 @app.route("/config")
 def config():

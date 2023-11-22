@@ -4,18 +4,11 @@
 #include <stdint.h>
 #include "http_rest.h"
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     5              // 16 byte 
+#define EEPROM_CHARGE_MODE_DATA_REV                     6              // 16 byte 
 
 
 typedef struct {
     uint16_t charge_mode_data_rev;
-    float coarse_kp;
-    float coarse_ki;
-    float coarse_kd;
-
-    float fine_kp;
-    float fine_ki;
-    float fine_kd;
 
     float coarse_stop_threshold;
     float fine_stop_threshold;

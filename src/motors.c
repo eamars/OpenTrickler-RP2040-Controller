@@ -655,19 +655,19 @@ void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char
             motor_config->persistent_config.full_steps_per_rotation = full_steps_per_rotation;
         }
         else if (strcmp(params[idx], "m2") == 0) {
-            uint16_t current_ma = strtod(values[idx], NULL);
+            uint16_t current_ma = (uint16_t) atoi(values[idx]);
             motor_config->persistent_config.current_ma = current_ma;
         }
         else if (strcmp(params[idx], "m3") == 0) {
-            uint16_t microsteps = strtod(values[idx], NULL);
+            uint16_t microsteps = (uint16_t) atoi(values[idx]);
             motor_config->persistent_config.microsteps = microsteps;
         }
         else if (strcmp(params[idx], "m4") == 0) {
-            uint16_t max_speed_rps = strtod(values[idx], NULL);
+            uint16_t max_speed_rps = (uint16_t) atoi(values[idx]);
             motor_config->persistent_config.max_speed_rps = max_speed_rps;
         }
         else if (strcmp(params[idx], "m5") == 0) {
-            uint16_t r_sense = strtod(values[idx], NULL);
+            uint16_t r_sense = (uint16_t) atoi(values[idx]);
             motor_config->persistent_config.r_sense = r_sense;
         }
         else if (strcmp(params[idx], "m6") == 0) {
