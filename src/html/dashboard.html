@@ -41,6 +41,25 @@
         <h1>OpenTrickler</h1>
     </div> -->
 
+    <!-- Modal for popup dialog -->
+    <div class="modal fade" id="saveToEepromDialog" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="exampleModalLabel">Settings Applied</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+            Do you also want to save configurations to EEPROM?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Save to EEPROM</button>
+            </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container-fluid h-100">
         <div class="row h-100">
             <!-- Side panel -->
@@ -68,6 +87,7 @@
                                 <ul class="submenu-list list-unstyled">
                                     <li class="submenu-item">
                                         <a class="nav-link link-light" href="#settings-scale">Scale</a>
+                                        <a class="nav-link link-light" href="#settings-profile">Profiles</a>
                                         <a class="nav-link link-light" href="#settings-charge-mode">Charge Mode</a>
                                         <a class="nav-link link-light" href="#settings-wireless">Wireless</a>
                                         <a class="nav-link link-light" href="#settings-coarse-motor">Coarse Motor</a>
@@ -193,6 +213,143 @@
                     </div>
                 </section>
 
+                <section id="settings-profile" class="card mb-3 mt-3" style="display: none;">
+                    <div class="card-header">
+                        Profile Settings
+                    </div>
+                    <div class="card-body">
+                        <form class="config-form" id="profile_config" action="/rest/profile_config">
+                            <div class="form-group mb-3">
+                                <label for="Profile Index">Select Profile</label>
+                                <select class="form-select" id="pf" name="pf" onchange="populateProfileSelection(this)">
+                                    <option value="0">#0</option>
+                                    <option value="1">#1</option>
+                                    <option value="2">#2</option>
+                                    <option value="3">#3</option>
+                                    <option value="4">#4</option>
+                                    <option value="5">#5</option>
+                                    <option value="6">#6</option>
+                                    <option value="7">#7</option>
+                                </select>
+                            </div>
+
+                            <hr/>
+
+                            <div class="form-group mb-3">
+                                <label for="p0">Revision:</label>
+                                <input type="number" class="form-control" id="p0" name="p0" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="Profile revision, not to be modified">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p1">Compatibility:</label>
+                                <input type="number" class="form-control" id="p1" name="p1" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="The compatibility bitmask, not to be modified">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p2">Profile Name:</label>
+                                <input type="text" class="form-control" id="p2" name="p2" maxlength="16"
+                                       data-bs-toggle="tooltip" data-bs-title="The name of the current profile, limited to maximum 16 characters">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p3">Coarse Trickler Kp:</label>
+                                <input type="number" class="form-control" id="p3" name="p3" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p4">Coarse Trickler Ki:</label>
+                                <input type="number" class="form-control" id="p4" name="p4" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p5">Coarse Trickler Kd:</label>
+                                <input type="number" class="form-control" id="p5" name="p5" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p6">Coarse Trickler Min Flow Speed (rps):</label>
+                                <input type="number" class="form-control" id="p6" name="p6" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The minimum speed for trickling this type of powder">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p7">Coarse Trickler Max Flow Speed (rps):</label>
+                                <input type="number" class="form-control" id="p7" name="p7" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The maximum speed for trickling this type of powder">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p8">Fine Trickler Kp:</label>
+                                <input type="number" class="form-control" id="p8" name="p8" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p9">Fine Trickler Ki:</label>
+                                <input type="number" class="form-control" id="p9" name="p9" step="0.001">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="p10">Fine Trickler Kd:</label>
+                                <input type="number" class="form-control" id="p10" name="p10" step="0.001">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="p11">Fine Trickler Min Flow Speed (rps):</label>
+                                <input type="number" class="form-control" id="p11" name="p11" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The minimum speed for trickling this type of powder">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="p12">Fine Trickler Max Flow Speed (rps):</label>
+                                <input type="number" class="form-control" id="p12" name="p12" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The maximum speed for trickling this type of powder">
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Apply Profile Config</button>
+                            <!-- <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#profileDatabaseDialog">Profile Database</button> -->
+
+                            <!-- Modal for popup dialog -->
+                            <!-- <div class="modal fade" id="profileDatabaseDialog" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered modal-fullscreen">
+                                  <div class="modal-content">
+                                    <div class="modal-header">
+                                      <h1 class="modal-title fs-5" id="modalLabel">Profile Database</h1>
+                                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <table class="table table-bordered table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>Revision</th>
+                                                    <th>Compatibility</th>
+                                                    <th>Coarse Kp</th>
+                                                    <th>Coarse Ki</th>
+                                                    <th>Coarse Kd</th>
+                                                    <th>Coarse Min Flow Speed (rps)</th>
+                                                    <th>Coarse Max Flow Speed (rps)</th>
+                                                    <th>Fine Kp</th>
+                                                    <th>Fine Ki</th>
+                                                    <th>Fine Kd</th>
+                                                    <th>Fine Min Flow Speed (rps)</th>
+                                                    <th>Fine Max Flow Speed (rps)</th>
+                                                </tr>
+                                            </thead>
+                                        </table>
+                                    </div>
+                                    <div class="modal-footer">
+                                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                      <button type="button" class="btn btn-primary">Save changes</button>
+                                    </div>
+                                  </div>
+                                </div>
+                            </div> -->
+                        </form>
+                    </div>
+                </section>
+
                 <section id="settings-charge-mode" class="card mb-3 mt-3" style="display: none;">
                     <div class="card-header">
                         Charge Mode Settings
@@ -206,39 +363,9 @@
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="c_kp">Coarse Trickler Kp:</label>
-                                <input type="number" class="form-control" id="c_kp" name="c_kp" step="0.001">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="c_ki">Coarse Trickler Ki:</label>
-                                <input type="number" class="form-control" id="c_ki" name="c_ki" step="0.001">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="c_kd">Coarse Trickler Kd:</label>
-                                <input type="number" class="form-control" id="c_kd" name="c_kd" step="0.001">
-                            </div>
-
-                            <div class="form-group mb-3">
                                 <label for="f_stop">Fine Trickler Stop Threshold:</label>
                                 <input type="number" class="form-control" id="f_stop" name="f_stop" step="0.001"
                                        data-bs-toggle="tooltip" data-bs-title="If the current charge weight is less than the threshold then both coarse and fine trickler will stop">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="f_kp">Fine Trickler Kp:</label>
-                                <input type="number" class="form-control" id="f_kp" name="f_kp" step="0.001">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="f_ki">Fine Trickler Ki:</label>
-                                <input type="number" class="form-control" id="f_ki" name="f_ki" step="0.001">
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="f_kd">Fine Trickler Kd:</label>
-                                <input type="number" class="form-control" id="f_kd" name="f_kd" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
@@ -676,6 +803,23 @@
                     }
                 });
             }
+        }
+
+        function populateProfileSelection(selectedObject) {
+            const restQueryURL = "/rest/profile_config?pf=" + selectedObject.value;
+            const targetForm = selectedObject.form
+
+            // Send query and populate user options
+            getRestJson(restQueryURL).then(jsonData => {
+                for (const key in jsonData) {
+                    // Look for the input/select by its name
+                    const formElement = targetForm.querySelector('[name="' + key + '"]');
+                    if (formElement) {
+                        const value = jsonData[key];
+                        formElement.value = String(value);
+                    }
+                }
+            });
         }
 
         // Callback to the button control action
