@@ -103,6 +103,9 @@ bool profile_data_init() {
         profile_data_save();
     }
 
+    // Register to eeprom save all
+    eeprom_register_handler(profile_data_save);
+
     return true;
 }
 

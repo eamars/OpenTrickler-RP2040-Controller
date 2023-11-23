@@ -124,6 +124,9 @@ bool scale_init() {
     // Create the Task for the listener loop
     xTaskCreate(scale_config.scale_handle->read_loop_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
 
+    // Register to eeprom save all
+    eeprom_register_handler(scale_config_save);
+
     return is_ok;
 }
 

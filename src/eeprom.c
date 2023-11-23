@@ -28,8 +28,16 @@ extern void cat24c256_eeprom_init();
 extern bool cat24c256_write(uint16_t data_addr, uint8_t * data, size_t len);
 extern bool cat24c256_read(uint16_t data_addr, uint8_t * data, size_t len);
 
+// Linked list implementation
+typedef struct _eeprom_save_handler_node {
+    eeprom_save_handler_t function_handler;
+    struct _eeprom_save_handler_node * next;
+} _eeprom_save_handler_node_t;
+
+// Singleton variables
 SemaphoreHandle_t eeprom_access_mutex = NULL;
 eeprom_metadata_t metadata;
+static _eeprom_save_handler_node_t * eeprom_save_handler_head = NULL;
 
 
 uint32_t rnd(void){
@@ -39,23 +47,29 @@ uint32_t rnd(void){
     for(k=0;k<32;k++){
     
     random = random << 1;
-    random=random + (0x00000001 & (*rnd_reg));
+    random = random + (0x00000001 & (*rnd_reg));
 
     }
     return random;
 }
 
 
+void eeprom_register_handler(eeprom_save_handler_t handler) {
+    _eeprom_save_handler_node_t * new_node = malloc(sizeof(_eeprom_save_handler_node_t));
+    new_node->function_handler = handler;
+
+    // Append to the head
+    new_node->next = eeprom_save_handler_head;
+    eeprom_save_handler_head = new_node;
+}
+
 
 uint8_t eeprom_save_all() {
-    eeprom_config_save();
-    scale_config_save();
-    motor_config_save();
-    charge_mode_config_save();
-    wireless_config_save();
-    neopixel_led_config_save();
-    button_config_save();
-    profile_data_save();
+    // Iterate over all registered handlers and run the save functions
+    for (_eeprom_save_handler_node_t * node = eeprom_save_handler_head; node != NULL; node = node->next) {
+        // Run the save handler
+        node->function_handler();
+    }
     return 37;  // Configuration Menu ID
 }
 
@@ -106,6 +120,9 @@ bool eeprom_init(void) {
             return false;
         }
     }
+
+    // Register to eeprom save all
+    eeprom_register_handler(eeprom_config_save);
 
     return is_ok;
 }

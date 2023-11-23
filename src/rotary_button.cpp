@@ -213,6 +213,9 @@ bool button_init() {
         assert(false);
     }
 
+    // Register to eeprom save all
+    eeprom_register_handler(button_config_save);
+
     printf("done\n");
 
     return true;

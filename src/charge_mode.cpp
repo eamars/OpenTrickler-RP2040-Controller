@@ -476,6 +476,9 @@ bool charge_mode_config_init(void) {
         }
     }
 
+    // Register to eeprom save all
+    eeprom_register_handler(charge_mode_config_save);
+
     return true;
 }
 

@@ -169,6 +169,9 @@ bool wireless_init() {
     // Create Wireless handler task
     xTaskCreate(wireless_task, "Wireless Task", 512, NULL, 3, NULL);
 
+    // Register to eeprom save all
+    eeprom_register_handler(wireless_config_save);
+
     return is_ok;
 }
 

@@ -177,6 +177,9 @@ bool neopixel_led_init(void) {
                 2, 
                 &neopixel_led_config.neopixel_control_task_handler);
 
+    // Register to eeprom save all
+    eeprom_register_handler(neopixel_led_config_save);
+
     return true;
 }
 
