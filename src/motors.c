@@ -642,8 +642,8 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
              motor_config->persistent_config.r_sense,
              motor_config->persistent_config.min_speed_rps,
              motor_config->persistent_config.gear_ratio,
-             boolean_string(motor_config->persistent_config.inverted_enable),
-             boolean_string(motor_config->persistent_config.inverted_direction));
+             boolean_to_string(motor_config->persistent_config.inverted_enable),
+             boolean_to_string(motor_config->persistent_config.inverted_direction));
 }
 
 void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {

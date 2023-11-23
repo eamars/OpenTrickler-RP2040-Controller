@@ -418,7 +418,7 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
              wireless_config.eeprom_wireless_metadata.pw,
              auth_string,
              wireless_config.eeprom_wireless_metadata.timeout_ms,
-             boolean_string(wireless_config.eeprom_wireless_metadata.configured));
+             boolean_to_string(wireless_config.eeprom_wireless_metadata.configured));
 
     size_t data_length = strlen(wireless_config_json_buffer);
     file->data = wireless_config_json_buffer;

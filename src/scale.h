@@ -20,15 +20,15 @@ typedef struct {
 
 
 typedef enum {
-    BAUDRATE_4800,
-    BAUDRATE_9600,
-    BAUDRATE_19200,
+    BAUDRATE_4800 = 0,
+    BAUDRATE_9600 = 1,
+    BAUDRATE_19200 = 2,
 } scale_baudrate_t;
 
 
 typedef enum {
     SCALE_DRIVER_AND_FXI = 0,
-    SCALE_DRIVER_STEINBERG_SBS,
+    SCALE_DRIVER_STEINBERG_SBS = 1,
 } scale_driver_t;
 
 

@@ -310,7 +310,7 @@ bool http_rest_button_config(struct fs_file *file, int num_params, char *params[
     // Response
     snprintf(buf, sizeof(buf), 
              "{\"inv_dir\":%s}", 
-             boolean_string(rotary_button_config.inverted_encoder_direction));
+             boolean_to_string(rotary_button_config.inverted_encoder_direction));
     
     size_t response_len = strlen(buf);
     file->data = buf;

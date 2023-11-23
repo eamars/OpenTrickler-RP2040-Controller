@@ -26,7 +26,7 @@ app = Flask(__name__,
 
 @app.route('/rest/scale_config')
 def rest_scale_config():
-    return """{"driver":"AND FX-i Std","baudrate":19200}"""
+    return """{"s0":"0","s1":2}"""
 
 
 @app.route('/rest/charge_mode_config')
