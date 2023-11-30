@@ -2,6 +2,7 @@
 
 #include "profile.h"
 #include "eeprom.h"
+#include "common.h"
 
 
 eeprom_profile_data_t profile_data;
@@ -147,6 +148,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
     // p10 (float): fine_kd
     // p11 (float): fine_min_flow_speed_rps
     // p12 (float): fine_max_flow_speed_rps
+    // ee (bool): save to eeprom
     static char buf[256];
 
     // Read the current loaded profile index
@@ -165,6 +167,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
 
     else {
         profile_t * current_profile = profile_select(profile_idx);
+        bool save_to_eeprom = false;
 
         // Control
         for (int idx = 0; idx < num_params; idx += 1) {
@@ -207,6 +210,14 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
             else if (strcmp(params[idx], "p12") == 0) {
                 current_profile->fine_max_flow_speed_rps = strtof(values[idx], NULL);
             }
+            else if (strcmp(params[idx], "ee") == 0) {
+                save_to_eeprom = string_to_boolean(values[idx]);
+            }
+        }
+
+        // Perform action
+        if (save_to_eeprom) {
+            profile_data_save();
         }
 
         // Response
