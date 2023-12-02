@@ -25,8 +25,6 @@
 #include "neopixel_led.h"
 #include "rotary_button.h"
 #include "menu.h"
-#include "profile.h"
-
 
 #include "picowota/reboot.h"
 
@@ -68,16 +66,13 @@ int main()
     // Initialize charge mode settings
     charge_mode_config_init();
 
-    // Initialize profile data
-    profile_data_init();
-
 #ifdef RASPBERRYPI_PICO_W
     // Load wireless settings
     wireless_init();
 #else
     #error "Unpported platform"
 #endif  // RASPBERRYPI_PICO_W
-    xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
+    xTaskCreate(menu_task, "Menu Task", configMINIMAL_STACK_SIZE, NULL, 6, NULL);
     // xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 
     vTaskStartScheduler();

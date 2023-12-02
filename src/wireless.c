@@ -356,11 +356,13 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
     // If the argument includes control, then update the settings
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "ssid") == 0) {
-            strncpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx], sizeof(wireless_config.eeprom_wireless_metadata.ssid)); 
+            memset(wireless_config.eeprom_wireless_metadata.ssid, 0x0, sizeof(wireless_config.eeprom_wireless_metadata.ssid));
+            strcpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx]); 
         }
 
         if (strcmp(params[idx], "pw") == 0) {
-            strncpy(wireless_config.eeprom_wireless_metadata.pw, values[idx], sizeof(wireless_config.eeprom_wireless_metadata.pw)); 
+            memset(wireless_config.eeprom_wireless_metadata.pw, 0x0, sizeof(wireless_config.eeprom_wireless_metadata.pw));
+            strcpy(wireless_config.eeprom_wireless_metadata.pw, values[idx]); 
         }
 
         if (strcmp(params[idx], "auth") == 0) {
@@ -379,7 +381,7 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
         }
 
         if (strcmp(params[idx], "timeout_ms") == 0) {
-            int timeout_ms = (uint16_t) atoi(values[idx]);
+            int timeout_ms = strtod(values[idx], NULL);
             wireless_config.eeprom_wireless_metadata.timeout_ms = timeout_ms;
         }
 
