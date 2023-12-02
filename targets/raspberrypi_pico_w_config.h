@@ -41,7 +41,7 @@
 #define SCALE_UART_TX 0
 #define SCALE_UART_RX 1
 
-#define MOTOR_STEPPER_PIO pio1
+#define MOTOR_STEPPER_PIO pio0
 
 #define EEPROM_I2C i2c1
 #define EEPROM_SDA_PIN 10

@@ -18,7 +18,6 @@
 #include "charge_mode.h"
 #include "eeprom.h"
 #include "neopixel_led.h"
-#include "profile.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -31,6 +30,13 @@ extern scale_config_t scale_config;
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
+    .coarse_kp = 0.025f,
+    .coarse_ki = 0.0f,
+    .coarse_kd = 0.25f,
+
+    .fine_kp = 2.0f,
+    .fine_ki = 0.0f,
+    .fine_kd = 10.0f,
 
     .coarse_stop_threshold = 5,
     .fine_stop_threshold = 0.03,
@@ -92,11 +98,6 @@ void scale_measurement_render_task(void *p) {
 
         u8g2_SetFont(display_handler, u8g2_font_profont22_tf);
         u8g2_DrawStr(display_handler, 26, 35, current_weight_string);
-
-        // Draw current profile
-        profile_t * current_profile = profile_get_selected();
-        u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
-        u8g2_DrawStr(display_handler, 5, 61, current_profile->name);
 
         u8g2_SendBuffer(display_handler);
 
@@ -168,18 +169,9 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
              "Target: %.02f", 
              charge_mode_config.target_charge_weight);
 
-    // Read trickling parameter from the current profile
-    profile_t * current_profile = profile_get_selected();
-
-    // Find the minimum of max speed from the motor and the profile
-    float coarse_trickler_max_speed = fmin(get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR),
-                                           current_profile->coarse_max_flow_speed_rps);
-    float coarse_trickler_min_speed = fmax(get_motor_min_speed(SELECT_COARSE_TRICKLER_MOTOR),
-                                           current_profile->coarse_min_flow_speed_rps);
-    float fine_trickler_max_speed = fmin(get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR),
-                                         current_profile->fine_max_flow_speed_rps);
-    float fine_trickler_min_speed = fmax(get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR),
-                                         current_profile->fine_min_flow_speed_rps);
+    uint16_t coarse_trickler_max_speed = get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR);
+    uint16_t fine_trickler_max_speed = get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR);
+    float fine_trickler_min_speed = get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR);
 
     float integral = 0.0f;
     float last_error = 0.0f;
@@ -229,20 +221,20 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         float derivative = (error - last_error) / elapse_time_ms;
 
         // Update fine trickler speed
-        float new_p = current_profile->fine_kp * error;
-        float new_i = current_profile->fine_ki * integral;
-        float new_d = current_profile->fine_kd * derivative;
+        float new_p = charge_mode_config.eeprom_charge_mode_data.fine_kp * error;
+        float new_i = charge_mode_config.eeprom_charge_mode_data.fine_ki * integral;
+        float new_d = charge_mode_config.eeprom_charge_mode_data.fine_kd * derivative;
         float new_speed = fmax(fine_trickler_min_speed, fmin(new_p + new_i + new_d, fine_trickler_max_speed));
 
         motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
 
         // Update coarse trickler speed
         if (should_coarse_trickler_move) {
-            new_p = current_profile->coarse_kp * error;
-            new_i = current_profile->coarse_ki * integral;
-            new_d = current_profile->coarse_kd * derivative;
+            new_p = charge_mode_config.eeprom_charge_mode_data.coarse_kp * error;
+            new_i = charge_mode_config.eeprom_charge_mode_data.coarse_ki * integral;
+            new_d = charge_mode_config.eeprom_charge_mode_data.coarse_kd * derivative;
 
-            new_speed = fmax(coarse_trickler_min_speed, fmin(new_p + new_i + new_d, coarse_trickler_max_speed));
+            new_speed = fmin(new_p + new_i + new_d, coarse_trickler_max_speed);
 
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, new_speed);
         }
@@ -492,7 +484,25 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "c_stop") == 0) {
+        if (strcmp(params[idx], "c_kp") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_kp = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "c_ki") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_ki = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "c_kd") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_kd = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "f_kp") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.fine_kp = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "f_ki") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.fine_ki = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "f_kd") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.fine_kd = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "c_stop") == 0) {
             charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold = strtof(values[idx], NULL);
         }
         else if (strcmp(params[idx], "f_stop") == 0) {
@@ -523,8 +533,14 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
-             "{\"c_stop\":%.3f,\"f_stop\":%.3f,\"sp_sd\":%.3f,\"sp_avg\":%.3f,"
+             "{\"c_kp\":%.3f,\"c_ki\":%.3f,\"c_kd\":%.3f,\"f_kp\":%.3f,\"f_ki\":%.3f,\"f_kd\":%.3f,\"c_stop\":%.3f,\"f_stop\":%.3f,\"sp_sd\":%.3f,\"sp_avg\":%.3f,"
              "\"c1\":\"#%06x\",\"c2\":\"#%06x\",\"c3\":\"#%06x\",\"c4\":\"#%06x\"}",
+             charge_mode_config.eeprom_charge_mode_data.coarse_kp,
+             charge_mode_config.eeprom_charge_mode_data.coarse_ki,
+             charge_mode_config.eeprom_charge_mode_data.coarse_kd,
+             charge_mode_config.eeprom_charge_mode_data.fine_kp,
+             charge_mode_config.eeprom_charge_mode_data.fine_ki,
+             charge_mode_config.eeprom_charge_mode_data.fine_kd,
              charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,

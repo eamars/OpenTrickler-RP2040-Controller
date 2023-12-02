@@ -26,8 +26,6 @@
     "files.associations": {
         "neopixel_led.h": "c",
         "app.h": "c",
-        "queue.h": "c",
-        "limits": "c",
-        "*.tcc": "c"
+        "queue.h": "c"
     }
 }

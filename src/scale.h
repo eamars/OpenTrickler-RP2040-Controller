@@ -64,6 +64,13 @@ const char * get_scale_driver_string();
 
 bool scale_config_save(void);
 
+void scale_press_re_zero_key(void);
+void scale_press_print_key(void);
+void scale_press_sample_key(void);
+void scale_press_mode_key(void);
+void scale_press_cal_key(void);
+void scale_press_on_off_key(void);
+
 // Low lever handler for writing data to the scale
 void scale_write(char * command, size_t len);
 
