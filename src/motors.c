@@ -18,9 +18,6 @@
 #include "eeprom.h"
 #include "common.h"
 
-#define STEPPER_LOW_CYCLE_COUNT 13  // Defined as the implementation of stepper.pio
-#define MAX_RESPONSE_TIME   0.01f   // Maximum response time for PIO stepper
-
 
 // Internal data structure for speed control between tasks
 typedef struct {
@@ -157,27 +154,33 @@ TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read
     return &wdgr;
 }
 
+
 uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_rotation_steps) {
-    // speed: rev/s
-    float step_speed = full_rotation_steps * speed;    // in steps/s
+    // uint32_t pio_clock_speed = clock_get_hz(clk_sys);
 
-    uint32_t full_cycle_count = lroundf(pio_clock_speed / step_speed);
-
-    // Limit by maximum response time
-    uint32_t max_response_steps = pio_clock_speed * MAX_RESPONSE_TIME;
-    if (full_cycle_count > max_response_steps){ 
-        full_cycle_count = 0;
+    // Step speed (step/s) is calculated by full rotation steps x rotations per second
+    float delay_period_f;
+    if (speed < 1e-3) {
+        delay_period_f = 0.0;
+    }
+    else {
+        float steps_speed = full_rotation_steps * speed;
+        delay_period_f = pio_clock_speed / steps_speed;
     }
 
-    // Avoid wrap around
-    if (full_cycle_count < STEPPER_LOW_CYCLE_COUNT) {
-        full_cycle_count = STEPPER_LOW_CYCLE_COUNT;
+    delay_period_f /= 2;
+
+    // Discount the period when holds low
+    if (delay_period_f >= 4) {
+        delay_period_f -= 4;
+    }
+    else {
+        delay_period_f = 0;
     }
 
-    // High cycle should be calculated as full_cycle - low cycle.
-    uint32_t high_cycle_steps = full_cycle_count - STEPPER_LOW_CYCLE_COUNT;
+    uint32_t delay_period = lroundf(delay_period_f);
 
-    return high_cycle_steps;
+    return delay_period;
 }
 
 
@@ -366,13 +369,13 @@ void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed
 
     // Calculate termination condition
     uint32_t ramp_time_us = (uint32_t) (fabs(ramp_time_s) * 1e6);
-    uint32_t start_time = time_us_32();
-    uint32_t stop_time = start_time + ramp_time_us;
+    uint64_t start_time = time_us_64();
+    uint64_t stop_time = start_time + ramp_time_us;
 
     float current_speed;
     uint32_t current_period;
     while (true) {
-        uint32_t current_time = time_us_32();
+        uint64_t current_time = time_us_64();
         if (current_time > stop_time) {
             break;
         }
@@ -381,12 +384,10 @@ void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed
 
         current_speed = prev_speed + dv * percentage;
         current_period = speed_to_period(current_speed, pio_speed, full_rotation_steps);
-        pio_sm_clear_fifos(MOTOR_STEPPER_PIO, motor_config->pio_sm);
         pio_sm_put(MOTOR_STEPPER_PIO, motor_config->pio_sm, current_period);
     }
 
     current_period = speed_to_period(new_speed, pio_speed, full_rotation_steps);
-    pio_sm_clear_fifos(MOTOR_STEPPER_PIO, motor_config->pio_sm);
     pio_sm_put_blocking(MOTOR_STEPPER_PIO, motor_config->pio_sm, current_period);
 }
 
@@ -654,19 +655,19 @@ void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char
             motor_config->persistent_config.full_steps_per_rotation = full_steps_per_rotation;
         }
         else if (strcmp(params[idx], "m2") == 0) {
-            uint16_t current_ma = (uint16_t) atoi(values[idx]);
+            uint16_t current_ma = strtod(values[idx], NULL);
             motor_config->persistent_config.current_ma = current_ma;
         }
         else if (strcmp(params[idx], "m3") == 0) {
-            uint16_t microsteps = (uint16_t) atoi(values[idx]);
+            uint16_t microsteps = strtod(values[idx], NULL);
             motor_config->persistent_config.microsteps = microsteps;
         }
         else if (strcmp(params[idx], "m4") == 0) {
-            uint16_t max_speed_rps = (uint16_t) atoi(values[idx]);
+            uint16_t max_speed_rps = strtod(values[idx], NULL);
             motor_config->persistent_config.max_speed_rps = max_speed_rps;
         }
         else if (strcmp(params[idx], "m5") == 0) {
-            uint16_t r_sense = (uint16_t) atoi(values[idx]);
+            uint16_t r_sense = strtod(values[idx], NULL);
             motor_config->persistent_config.r_sense = r_sense;
         }
         else if (strcmp(params[idx], "m6") == 0) {
