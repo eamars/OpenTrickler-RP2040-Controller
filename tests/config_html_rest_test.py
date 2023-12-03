@@ -31,7 +31,7 @@ def rest_scale_config():
 
 @app.route('/rest/charge_mode_config')
 def rest_charge_mode_config():
-    return """{"c_kp":0.020,"c_ki":0.000,"c_kd":0.200,"f_kp":1.000,"f_ki":0.000,"f_kd":5.000,"c_stop":5.000,"f_stop":0.030,"sp_sd":0.020,"sp_avg":0.020}"""
+    return """{"c1":"#00ff00","c2":"#ffff00","c3":"#ff0000","c4":"#0000ff","c5":3.000,"c6":0.030,"c7":0.020,"c8":0.020}"""
 
 
 @app.route('/rest/wireless_config')

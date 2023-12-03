@@ -357,25 +357,25 @@
                     <div class="card-body">
                         <form class="config-form" id="charge_mode_config" action="/rest/charge_mode_config">
                             <div class="form-group mb-3">
-                                <label for="c_stop">Coarse Trickler Stop Threshold:</label>
-                                <input type="number" class="form-control" id="c_stop" name="c_stop" step="0.001"
+                                <label for="c5">Coarse Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="c5" name="c5" step="0.001"
                                        data-bs-toggle="tooltip" data-bs-title="If the current charge weight is less than the threshold then the coarse trickler will stop">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="f_stop">Fine Trickler Stop Threshold:</label>
-                                <input type="number" class="form-control" id="f_stop" name="f_stop" step="0.001"
+                                <label for="c6">Fine Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="c6" name="c6" step="0.001"
                                        data-bs-toggle="tooltip" data-bs-title="If the current charge weight is less than the threshold then both coarse and fine trickler will stop">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="sp_sd">Set Point Accuracy (Standard Deviation):</label>
-                                <input type="number" class="form-control" id="sp_sd" name="sp_sd" step="0.001">
+                                <label for="c7">Set Point Accuracy (Standard Deviation):</label>
+                                <input type="number" class="form-control" id="c7" name="c7" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="sp_avg">Set Point Accuracy (Mean):</label>
-                                <input type="number" class="form-control" id="sp_avg" name="sp_avg" step="0.001">
+                                <label for="c8">Set Point Accuracy (Mean):</label>
+                                <input type="number" class="form-control" id="c8" name="c8" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
@@ -398,7 +398,7 @@
                                 <input type="color" class="form-control form-control-color" id="c4" name="c4">
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Charge Mode Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Charge Mode Settings</button>
                         </form>
                     </div>
                 </section>

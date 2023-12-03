@@ -19,6 +19,7 @@
 #include "eeprom.h"
 #include "neopixel_led.h"
 #include "profile.h"
+#include "common.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -491,20 +492,34 @@ bool charge_mode_config_save(void) {
 
 
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings
+    // c1 (str): neopixel_normal_charge_colour
+    // c2 (str): neopixel_under_charge_colour
+    // c3 (str): neopixel_over_charge_colour
+    // c4 (str): neopixel_not_ready_colour
+
+    // c5 (float): coarse_stop_threshold
+    // c6 (float): fine_stop_threshold
+    // c7 (float): set_point_sd_margin
+    // c8 (float): set_point_mean_margin
+
+    // ee (bool): save to eeprom
+
     static char charge_mode_json_buffer[256];
+    bool save_to_eeprom = false;
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "c_stop") == 0) {
+        if (strcmp(params[idx], "c5") == 0) {
             charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "f_stop") == 0) {
+        else if (strcmp(params[idx], "c6") == 0) {
             charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "sp_sd") == 0) {
+        else if (strcmp(params[idx], "c7") == 0) {
             charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin = strtof(values[idx], NULL);
         }
-        else if (strcmp(params[idx], "sp_avg") == 0) {
+        else if (strcmp(params[idx], "c8") == 0) {
             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin = strtof(values[idx], NULL);
         }
 
@@ -521,22 +536,30 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "c4") == 0) {
             charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour = hex_string_to_decimal(values[idx]);
         }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
+        }
+    }
+    
+    // Perform action
+    if (save_to_eeprom) {
+        profile_data_save();
     }
 
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
-             "{\"c_stop\":%.3f,\"f_stop\":%.3f,\"sp_sd\":%.3f,\"sp_avg\":%.3f,"
-             "\"c1\":\"#%06x\",\"c2\":\"#%06x\",\"c3\":\"#%06x\",\"c4\":\"#%06x\"}",
-             charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
-             charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
-             charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,
-             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin,
-
+             "{\"c1\":\"#%06x\",\"c2\":\"#%06x\",\"c3\":\"#%06x\",\"c4\":\"#%06x\","
+             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour,
-             charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour);
+             charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
+             
+             charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
+             charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
+             charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,
+             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
