@@ -36,7 +36,7 @@ def rest_charge_mode_config():
 
 @app.route('/rest/wireless_config')
 def rest_wireless_config():
-    return """{"ssid":"YYYY","pw":"xxx","auth":"CYW43_AUTH_WPA2_AES_PSK","timeout_ms":30000,"configured":true}"""
+    return """{"w0":"YYYY","w1":"xxx","w2":"3","w3":30000,"w4":true}"""
 
 @app.route('/rest/eeprom_config')
 def rest_eeprom_config():

@@ -410,34 +410,40 @@
                     <div class="card-body">
                         <form class="config-form" id="wireless_config" action="/rest/wireless_config">
                             <div class="form-group mb-3">
-                                <label for="ssid">WiFi SSID:</label>
-                                <input type="text" class="form-control" id="ssid" name="ssid">
+                                <label for="w0">WiFi SSID:</label>
+                                <input type="text" class="form-control" id="w0" name="w0">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="pw">WiFi Password:</label>
-                                <input type="password" class="form-control" id="pw" name="pw">
+                                <label for="w1">WiFi Password:</label>
+                                <input type="password" class="form-control" id="w1" name="w1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="auth">WiFi Authentication Method:</label>
-                                <select class="form-select" id="auth" name="auth">
-                                    <option value="CYW43_AUTH_OPEN">None</option>
-                                    <option value="CYW43_AUTH_WPA_TKIP_PSK">WPA-TKIP</option>
-                                    <option value="CYW43_AUTH_WPA2_AES_PSK">WPA2-AES</option>
-                                    <option value="CYW43_AUTH_WPA2_MIXED_PSK">WPA2-MIXED</option>
+                                <label for="w2">WiFi Authentication Method:</label>
+                                <select class="form-select" id="w2" name="w2">
+                                    <option value="0">None</option>
+                                    <option value="1">WPA-TKIP</option>
+                                    <option value="2">WPA2-AES</option>
+                                    <option value="3">WPA2-MIXED</option>
                                 </select>
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="configured">Use WiFi:</label>
-                                <select class="form-select" id="configured" name="configured">
+                                <label for="w3">WiFi Attempt to Connect Timeout (ms):</label>
+                                <input type="number" class="form-control" id="w3" name="w3"
+                                       data-bs-toggle="tooltip" data-bs-title="Default: 30000">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="w4">Use WiFi:</label>
+                                <select class="form-select" id="w4" name="w4">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Wireless Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Wireless Settings</button>
                         </form>
                     </div>
                 </section>

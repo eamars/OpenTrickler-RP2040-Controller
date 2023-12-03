@@ -543,7 +543,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     
     // Perform action
     if (save_to_eeprom) {
-        profile_data_save();
+        charge_mode_config_save();
     }
 
     // Response

@@ -194,7 +194,7 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
 
     snprintf(scale_config_to_json_buffer, 
              sizeof(scale_config_to_json_buffer),
-             "{\"s0\":\"%"PRId32"\",\"s1\":%"PRId32"}", 
+             "{\"s0\":\"%d\",\"s1\":%d}", 
              scale_config.persistent_config.scale_driver, 
              scale_config.persistent_config.scale_baudrate);
     

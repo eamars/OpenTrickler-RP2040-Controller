@@ -18,6 +18,7 @@
 #undef CYW43_HOST_NAME
 #endif
 
+// Overwrite the host name
 #define CYW43_HOST_NAME "OpenTrickler"
 #define LED_INTERFACE_MINIMUM_POLL_PERIOD_MS    20
 
@@ -155,7 +156,7 @@ bool wireless_init() {
     // If the revision doesn't match then re-initialize the config
     if (wireless_config.eeprom_wireless_metadata.wireless_data_rev != EEPROM_WIRELESS_CONFIG_METADATA_REV) {
         wireless_config.eeprom_wireless_metadata.wireless_data_rev = EEPROM_WIRELESS_CONFIG_METADATA_REV;
-        wireless_config.eeprom_wireless_metadata.configured = false;
+        wireless_config.eeprom_wireless_metadata.enable = false;
         wireless_config.eeprom_wireless_metadata.timeout_ms = 30000;  // 30s
 
         // Write data back
@@ -180,6 +181,31 @@ bool wireless_config_save() {
     bool is_ok = eeprom_write(EEPROM_WIRELESS_CONFIG_BASE_ADDR, (uint8_t *) &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
     return is_ok;
 }
+
+
+uint32_t get_cyw43_auth(cyw43_auth_t auth) {
+    uint32_t cyw43_auth = 0;
+
+    switch (auth) {
+        case AUTH_OPEN:
+            cyw43_auth = CYW43_AUTH_OPEN;
+            break;
+        case AUTH_WPA_TKIP_PSK:
+            cyw43_auth = CYW43_AUTH_WPA_TKIP_PSK;
+            break;
+        case AUTH_WPA2_AES_PSK:
+            cyw43_auth = CYW43_AUTH_WPA2_AES_PSK;
+            break;
+        case AUTH_WPA2_MIXED_PSK:
+            cyw43_auth = CYW43_AUTH_WPA2_MIXED_PSK;
+            break;
+        default:
+            break;
+    }
+
+    return cyw43_auth;
+}
+
 
 void led_interface_task(void *p) {
     wireless_ctrl_t wireless_ctrl;
@@ -258,7 +284,7 @@ void wireless_task(void *p) {
     }
 
     // Start default initialize pattern
-    if (wireless_config.eeprom_wireless_metadata.configured) {
+    if (wireless_config.eeprom_wireless_metadata.enable) {
         wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_INIT;
         cyw43_arch_enable_sta_mode();
 
@@ -271,7 +297,7 @@ void wireless_task(void *p) {
             int resp;
             resp = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid,
                                                     wireless_config.eeprom_wireless_metadata.pw,
-                                                    wireless_config.eeprom_wireless_metadata.auth,
+                                                    get_cyw43_auth(wireless_config.eeprom_wireless_metadata.auth),
                                                     wireless_config.eeprom_wireless_metadata.timeout_ms);
             if (resp == PICO_OK) {
                 wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
@@ -354,71 +380,56 @@ uint8_t wireless_view_wifi_info(void) {
 
 
 bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mapping
+    // w0 (str): ssid
+    // w1 (str): pw
+    // w2 (int): auth
+    // w3 (int): timeout_ms
+    // w4 (bool): enable
+    // ee (bool): save to eeprom
+
     static char wireless_config_json_buffer[256];
+    bool save_to_eeprom = false;
 
     // If the argument includes control, then update the settings
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "ssid") == 0) {
+        if (strcmp(params[idx], "w0") == 0) {
             strncpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx], sizeof(wireless_config.eeprom_wireless_metadata.ssid)); 
         }
-
-        if (strcmp(params[idx], "pw") == 0) {
+        else if (strcmp(params[idx], "w1") == 0) {
             strncpy(wireless_config.eeprom_wireless_metadata.pw, values[idx], sizeof(wireless_config.eeprom_wireless_metadata.pw)); 
         }
-
-        if (strcmp(params[idx], "auth") == 0) {
-            if (strcmp(values[idx], "CYW43_AUTH_OPEN") == 0) {
-                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_OPEN;
-            }
-            else if (strcmp(values[idx], "CYW43_AUTH_WPA_TKIP_PSK") == 0) {
-                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_WPA_TKIP_PSK;
-            }
-            else if (strcmp(values[idx], "CYW43_AUTH_WPA2_AES_PSK") == 0) {
-                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_WPA2_AES_PSK;
-            }
-            else if (strcmp(values[idx], "CYW43_AUTH_WPA2_MIXED_PSK") == 0) {
-                wireless_config.eeprom_wireless_metadata.auth = CYW43_AUTH_WPA2_MIXED_PSK;
-            }
+        else if (strcmp(params[idx], "w2") == 0) {
+            cyw43_auth_t auth = (cyw43_auth_t) atoi(values[idx]);
+            wireless_config.eeprom_wireless_metadata.auth = auth;
         }
-
-        if (strcmp(params[idx], "timeout_ms") == 0) {
+        else if (strcmp(params[idx], "w3") == 0) {
             int timeout_ms = (uint16_t) atoi(values[idx]);
             wireless_config.eeprom_wireless_metadata.timeout_ms = timeout_ms;
         }
-
-        if (strcmp(params[idx], "configured") == 0 && strcmp(values[idx], "true") == 0) {
-            wireless_config.eeprom_wireless_metadata.configured = true;
+        else if (strcmp(params[idx], "w4") == 0) {
+            bool enable = string_to_boolean(values[idx]);
+            wireless_config.eeprom_wireless_metadata.enable = enable;
+        }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
         }
     }
 
-    // Response
-    const char * auth_string;
-    switch (wireless_config.eeprom_wireless_metadata.auth) {
-        case CYW43_AUTH_OPEN:
-            auth_string = "CYW43_AUTH_OPEN";
-            break;
-        case CYW43_AUTH_WPA_TKIP_PSK:
-            auth_string = "CYW43_AUTH_WPA_TKIP_PSK";
-            break;
-        case CYW43_AUTH_WPA2_AES_PSK:
-            auth_string = "CYW43_AUTH_WPA2_AES_PSK";
-            break;
-        case CYW43_AUTH_WPA2_MIXED_PSK:
-            auth_string = "CYW43_AUTH_WPA2_MIXED_PSK";
-            break;
-        default:
-            auth_string = "error";
-            break;
+    // Perform action
+    if (save_to_eeprom) {
+        wireless_config_save();
     }
 
+    // Response
     snprintf(wireless_config_json_buffer, 
              sizeof(wireless_config_json_buffer),
-             "{\"ssid\":\"%s\",\"pw\":\"%s\",\"auth\":\"%s\",\"timeout_ms\":%d,\"configured\":%s}",
+             "{\"w0\":\"%s\",\"w1\":\"%s\",\"w2\":\"%d\",\"w3\":%"PRId32",\"w4\":%s}",
              wireless_config.eeprom_wireless_metadata.ssid,
              wireless_config.eeprom_wireless_metadata.pw,
-             auth_string,
+             wireless_config.eeprom_wireless_metadata.auth,
              wireless_config.eeprom_wireless_metadata.timeout_ms,
-             boolean_to_string(wireless_config.eeprom_wireless_metadata.configured));
+             boolean_to_string(wireless_config.eeprom_wireless_metadata.enable));
 
     size_t data_length = strlen(wireless_config_json_buffer);
     file->data = wireless_config_json_buffer;
