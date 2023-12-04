@@ -293,23 +293,31 @@ bool http_rest_button_control(struct fs_file *file, int num_params, char *params
 
 
 bool http_rest_button_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings:
+    // b0 (bool): inverted_encoder_direction
+    // ee (bool): save to eeprom
     static char buf[128];
+    bool save_to_eeprom = false;
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "inv_dir") == 0) {
-            if (strcmp(values[idx], "true") == 0){
-                rotary_button_config.inverted_encoder_direction = true;
-            }
-            else if (strcmp(values[idx], "false") == 0) {
-                rotary_button_config.inverted_encoder_direction = false;
-            }
+        if (strcmp(params[idx], "b0") == 0) {
+            bool inverted_encoder_direction = string_to_boolean(values[idx]);
+            rotary_button_config.inverted_encoder_direction = inverted_encoder_direction;
         }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
+        }
+    }
+
+    // Perform action
+    if (save_to_eeprom) {
+        button_config_save();
     }
 
     // Response
     snprintf(buf, sizeof(buf), 
-             "{\"inv_dir\":%s}", 
+             "{\"b0\":%s}", 
              boolean_to_string(rotary_button_config.inverted_encoder_direction));
     
     size_t response_len = strlen(buf);

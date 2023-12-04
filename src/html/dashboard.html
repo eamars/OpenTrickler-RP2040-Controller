@@ -646,14 +646,14 @@
                     <div class="card-body">
                         <form class="config-form" id="button_config" action="/rest/button_config">
                             <div class="form-group mb-3">
-                                <label for="inv_dir">Inverted Rotary Button Direction:</label>
-                                <select class="form-select" id="inv_dir" name="inv_dir">
+                                <label for="b0">Inverted Rotary Button Direction:</label>
+                                <select class="form-select" id="b0" name="b0">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Buttons Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Buttons Settings</button>
                         </form>
                     </div>
                 </section>
