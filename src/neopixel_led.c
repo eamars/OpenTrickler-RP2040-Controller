@@ -29,7 +29,7 @@
 #include "generated/ws2812.pio.h"
 #include "configuration.h"
 #include "eeprom.h"
-
+#include "common.h"
 
 
 typedef struct {
@@ -204,7 +204,14 @@ uint32_t hex_string_to_decimal(char * string) {
 
 
 bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings：
+    // bl (str): mini12864_backlight_colour
+    // l1 (str): led1_colour
+    // l2 (str): led2_colour
+    // ee (bool): save to eeprom
+
     static char neopixel_config_json_buffer[128];
+    bool save_to_eeprom = false;
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
@@ -218,6 +225,14 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
         else if (strcmp(params[idx], "l2") == 0) {
             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour = hex_string_to_decimal(values[idx]);
         }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
+        }
+    }
+
+    // Perform action
+    if (save_to_eeprom) {
+        neopixel_led_config_save();
     }
 
     // Response
