@@ -55,7 +55,7 @@ def rest_coarse_motor_config():
 
 @app.route('/rest/system_control')
 def rest_system_control():
-    return """{"unique_id":"8381FFF","save_to_eeprom":false,"software_reset":false,"erase_eeprom":false,"ver":"0.1.36-dirty","hash":"18111a5","build_type":"Debug"}"""
+    return """{"s0":"8381FFF","s1":"0.1.99-dirty","s2":"a10466c","s3":"Debug","s4":false,"s5":false,"s6":false}"""
 
 
 @app.route('/rest/neopixel_led_config')
