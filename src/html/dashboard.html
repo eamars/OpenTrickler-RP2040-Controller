@@ -46,15 +46,15 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
             <div class="modal-header">
-                <h1 class="modal-title fs-5" id="exampleModalLabel">Settings Applied</h1>
+                <h1 class="modal-title fs-5" id="exampleModalLabel">Apply</h1>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
             Do you also want to save configurations to EEPROM?
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary">Save to EEPROM</button>
+                <button type="button" id="apply" class="btn btn-primary" data-bs-dismiss="modal">Apply</button>
+                <button type="button" id="save_to_eeprom" class="btn btn-success" data-bs-dismiss="modal">Save to EEPROM</button>
             </div>
             </div>
         </div>
@@ -192,23 +192,23 @@
                     <div class="card-body">
                         <form class="config-form" id="scale_config" action="/rest/scale_config">
                             <div class="form-group mb-3">
-                                <label for="driver">Scale Driver:</label>
-                                <select class="form-select" id="driver" name="driver">
-                                    <option value="AND FX-i Std">AND FX-i Std</option>
-                                    <option value="Steinberg SBS">Steinberg SBS</option>
+                                <label for="s0">Scale Driver:</label>
+                                <select class="form-select" id="s0" name="s0">
+                                    <option value="0">AND FX-i Std</option>
+                                    <option value="1">Steinberg SBS</option>
                                 </select>
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="baudrate">Serial Baudrate</label>
-                                <select class="form-select" id="baudrate" name="baudrate">
-                                    <option value=4800>4800</option>
-                                    <option value=9600>9600</option>
-                                    <option value=19200>19200</option>
+                                <label for="s1">Serial Baudrate</label>
+                                <select class="form-select" id="s1" name="s1">
+                                    <option value="0">4800</option>
+                                    <option value="1">9600</option>
+                                    <option value="2">19200</option>
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Scale Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Scale Settings</button>
                         </form>
                     </div>
                 </section>
@@ -220,7 +220,7 @@
                     <div class="card-body">
                         <form class="config-form" id="profile_config" action="/rest/profile_config">
                             <div class="form-group mb-3">
-                                <label for="Profile Index">Select Profile</label>
+                                <label for="pf">Select Profile</label>
                                 <select class="form-select" id="pf" name="pf" onchange="populateProfileSelection(this)">
                                     <option value="0">#0</option>
                                     <option value="1">#1</option>
@@ -307,7 +307,7 @@
                                        data-bs-toggle="tooltip" data-bs-title="The maximum speed for trickling this type of powder">
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Profile Config</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Profile Config</button>
                             <!-- <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#profileDatabaseDialog">Profile Database</button> -->
 
                             <!-- Modal for popup dialog -->
@@ -357,25 +357,25 @@
                     <div class="card-body">
                         <form class="config-form" id="charge_mode_config" action="/rest/charge_mode_config">
                             <div class="form-group mb-3">
-                                <label for="c_stop">Coarse Trickler Stop Threshold:</label>
-                                <input type="number" class="form-control" id="c_stop" name="c_stop" step="0.001"
+                                <label for="c5">Coarse Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="c5" name="c5" step="0.001"
                                        data-bs-toggle="tooltip" data-bs-title="If the current charge weight is less than the threshold then the coarse trickler will stop">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="f_stop">Fine Trickler Stop Threshold:</label>
-                                <input type="number" class="form-control" id="f_stop" name="f_stop" step="0.001"
+                                <label for="c6">Fine Trickler Stop Threshold:</label>
+                                <input type="number" class="form-control" id="c6" name="c6" step="0.001"
                                        data-bs-toggle="tooltip" data-bs-title="If the current charge weight is less than the threshold then both coarse and fine trickler will stop">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="sp_sd">Set Point Accuracy (Standard Deviation):</label>
-                                <input type="number" class="form-control" id="sp_sd" name="sp_sd" step="0.001">
+                                <label for="c7">Set Point Accuracy (Standard Deviation):</label>
+                                <input type="number" class="form-control" id="c7" name="c7" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="sp_avg">Set Point Accuracy (Mean):</label>
-                                <input type="number" class="form-control" id="sp_avg" name="sp_avg" step="0.001">
+                                <label for="c8">Set Point Accuracy (Mean):</label>
+                                <input type="number" class="form-control" id="c8" name="c8" step="0.001">
                             </div>
 
                             <div class="form-group mb-3">
@@ -398,7 +398,7 @@
                                 <input type="color" class="form-control form-control-color" id="c4" name="c4">
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Charge Mode Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Charge Mode Settings</button>
                         </form>
                     </div>
                 </section>
@@ -410,34 +410,40 @@
                     <div class="card-body">
                         <form class="config-form" id="wireless_config" action="/rest/wireless_config">
                             <div class="form-group mb-3">
-                                <label for="ssid">WiFi SSID:</label>
-                                <input type="text" class="form-control" id="ssid" name="ssid">
+                                <label for="w0">WiFi SSID:</label>
+                                <input type="text" class="form-control" id="w0" name="w0">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="pw">WiFi Password:</label>
-                                <input type="password" class="form-control" id="pw" name="pw">
+                                <label for="w1">WiFi Password:</label>
+                                <input type="password" class="form-control" id="w1" name="w1">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="auth">WiFi Authentication Method:</label>
-                                <select class="form-select" id="auth" name="auth">
-                                    <option value="CYW43_AUTH_OPEN">None</option>
-                                    <option value="CYW43_AUTH_WPA_TKIP_PSK">WPA-TKIP</option>
-                                    <option value="CYW43_AUTH_WPA2_AES_PSK">WPA2-AES</option>
-                                    <option value="CYW43_AUTH_WPA2_MIXED_PSK">WPA2-MIXED</option>
+                                <label for="w2">WiFi Authentication Method:</label>
+                                <select class="form-select" id="w2" name="w2">
+                                    <option value="0">None</option>
+                                    <option value="1">WPA-TKIP</option>
+                                    <option value="2">WPA2-AES</option>
+                                    <option value="3">WPA2-MIXED</option>
                                 </select>
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="configured">Use WiFi:</label>
-                                <select class="form-select" id="configured" name="configured">
+                                <label for="w3">WiFi Attempt to Connect Timeout (ms):</label>
+                                <input type="number" class="form-control" id="w3" name="w3"
+                                       data-bs-toggle="tooltip" data-bs-title="Default: 30000">
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="w4">Use WiFi:</label>
+                                <select class="form-select" id="w4" name="w4">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Wireless Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Wireless Settings</button>
                         </form>
                     </div>
                 </section>
@@ -518,7 +524,8 @@
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Coarse Motor Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Coarse Motor Settings</button>
+
                         </form>
                     </div>
                 </section>
@@ -599,7 +606,7 @@
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Fine Motor Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Fine Motor Settings</button>
                         </form>
                     </div>
                 </section>
@@ -626,7 +633,7 @@
                                 <input type="color" class="form-control form-control-color" id="l2" name="l2">
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Neopixel LED Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Neopixel LED Settings</button>
                         </form>
                     </div>
                 </section>
@@ -639,14 +646,14 @@
                     <div class="card-body">
                         <form class="config-form" id="button_config" action="/rest/button_config">
                             <div class="form-group mb-3">
-                                <label for="inv_dir">Inverted Rotary Button Direction:</label>
-                                <select class="form-select" id="inv_dir" name="inv_dir">
+                                <label for="b0">Inverted Rotary Button Direction:</label>
+                                <select class="form-select" id="b0" name="b0">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Apply Buttons Settings</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Buttons Settings</button>
                         </form>
                     </div>
                 </section>
@@ -658,44 +665,45 @@
                     <div class="card-body">
                         <form class="config-form" id="system_control" action="/rest/system_control">
                             <div class="form-group mb-3">
-                                <label for="unique_id">Unique ID:</label>
+                                <label for="s0">Unique ID:</label>
                                 <!-- Don't show unique id when submit -->
-                                <input type="text" class="form-control" id="unique_id" name="unique_id"
-                                    disabled="disabled" readonly>
+                                <input type="text" class="form-control" id="s0" name="s0" disabled="disabled" readonly
+                                       data-bs-toggle="tooltip" data-bs-title="Unique Identification for your OpenTrickler">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="unique_id">Firmware Version:</label>
+                                <label for="s1">Firmware Version:</label>
                                 <!-- Don't show unique id when submit -->
-                                <input type="text" class="form-control" id="ver" name="ver"
-                                    disabled="disabled" readonly>
+                                <input type="text" class="form-control" id="s1" name="s1" disabled="disabled" readonly>
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="unique_id">VCS Hash:</label>
+                                <label for="s2">VCS Hash:</label>
                                 <!-- Don't show unique id when submit -->
-                                <input type="text" class="form-control" id="hash" name="hash"
-                                    disabled="disabled" readonly>
+                                <input type="text" class="form-control" id="s2" name="s2" disabled="disabled" readonly
+                                       data-bs-toggle="tooltip" data-bs-title="Commit number relates to this particular firmware build. Git guru will understand this.">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="unique_id">Firmware Build Type:</label>
+                                <label for="s3">Firmware Build Type:</label>
                                 <!-- Don't show unique id when submit -->
-                                <input type="text" class="form-control" id="build_type" name="build_type"
-                                    disabled="disabled" readonly>
+                                <input type="text" class="form-control" id="s3" name="s3" disabled="disabled" readonly
+                                       data-bs-toggle="tooltip" data-bs-title="Type of the firmware releases">
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="save_to_eeprom">Save to EEPROM:</label>
-                                <select class="form-select" id="save_to_eeprom" name="save_to_eeprom">
+                                <label for="s4">Save to EEPROM:</label>
+                                <select class="form-select" id="s4" name="s4"
+                                        data-bs-toggle="tooltip" data-bs-title="Save all pending settings to EEPROM">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="software_reset">Reboot:</label>
-                                <select class="form-select" id="software_reset" name="software_reset">
+                                <label for="s5">Reboot:</label>
+                                <select class="form-select" id="s5" name="s5"
+                                        data-bs-toggle="tooltip" data-bs-title="OpenTrickler will reboot if this option is Yes">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -703,16 +711,34 @@
 
                             <div class="form-group mb-3">
                                 <span class="badge text-bg-warning">Warning</span>
-                                <label for="erase_eeprom"> Erase EEPROM:</label>
-                                <select class="form-select" id="erase_eeprom" name="erase_eeprom">
+                                <label for="s6"> Erase EEPROM:</label>
+                                <select class="form-select" id="s6" name="s6"
+                                        data-bs-toggle="tooltip" data-bs-title="You cannot undo the erasing of EEPROM">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
                             </div>
 
-
-                            <button type="submit" class="btn btn-primary">Apply System Control</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#systemControlDialog">Apply System Control</button>
                         </form>
+                    </div>
+
+                    <!-- Modal for popup dialog specifically for system control-->
+                    <div class="modal fade" id="systemControlDialog" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                            <div class="modal-header">
+                                <h1 class="modal-title fs-5" id="exampleModalLabel">Apply System Control</h1>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" id="confirm" class="btn btn-danger" data-bs-dismiss="modal">Confirm</button>
+                            </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -750,31 +776,6 @@
                     navLink.classList.remove('active');
                 });
                 link.classList.add('active');
-            });
-        });
-
-        const configForms = document.querySelectorAll('.config-form');
-        configForms.forEach(form => {
-            form.addEventListener('submit', (event) => {
-                event.preventDefault();
-                const targetForm = event.currentTarget;
-                const paramData = new FormData(targetForm);
-
-                // Remove empty param
-                for (const [key, value] of paramData.entries()) {
-                    if (value == "") {
-                        paramData.delete(key);
-                    }
-                }
-
-                const queryString = new URLSearchParams(paramData).toString();
-                const url = new URL(targetForm.action + '?');
-                url.search = queryString;
-
-                // Post the new param with GET method
-                getRestJson(url.toString()).then(
-                    // TODO: Check for error
-                );
             });
         });
 
@@ -832,6 +833,92 @@
                 // TODO: Check for error
             );
         }
+
+        function putForm(targetForm, save_to_eeprom) {
+            const paramData = new FormData(targetForm);
+
+            // Remove empty param
+            for (const [key, value] of paramData.entries()) {
+                if (value == "") {
+                    paramData.delete(key);
+                }
+            }
+
+            if (save_to_eeprom) {
+                paramData.append('ee', true)
+            }
+
+            const queryString = new URLSearchParams(paramData).toString();
+            const url = new URL(targetForm.action + '?');
+            url.search = queryString;
+
+            // // Post the new param with GET method
+            getRestJson(url.toString()).then(
+                // TODO: Check for error
+            );
+        }
+
+        const saveToEepromDialogModal = document.getElementById('saveToEepromDialog')
+        saveToEepromDialogModal.addEventListener('show.bs.modal', event => {
+            // Example: https://getbootstrap.com/docs/5.2/components/modal/#varying-modal-content
+            // Button that triggered the modal
+            const button = event.relatedTarget;
+
+            // Update title
+            const modalTitle = saveToEepromDialogModal.querySelector('.modal-title');
+            modalTitle.innerHTML = button.innerText;
+
+            // Trigger push
+            const targetForm = button.closest('form');
+            
+            // Find function to the button
+            const apply_button = saveToEepromDialogModal.querySelector('#apply');
+            const save_to_eeprom_button = saveToEepromDialogModal.querySelector('#save_to_eeprom');
+
+            apply_button.onclick = function() {
+                putForm(targetForm, false);
+            }
+
+            save_to_eeprom_button.onclick = function() {
+                putForm(targetForm, true);
+            }
+
+        })
+
+
+        const systemControlDialogModal = document.getElementById('systemControlDialog')
+        systemControlDialogModal.addEventListener('show.bs.modal', event => {
+            // Example: https://getbootstrap.com/docs/5.2/components/modal/#varying-modal-content
+            // Button that triggered the modal
+            const button = event.relatedTarget;
+            const targetForm = button.closest('form');
+            const modalBody = systemControlDialogModal.querySelector('.modal-body');
+
+            var formData = new FormData(targetForm);
+
+            // Form the content string
+            let bodyText = '<p class="fw-bold">Pending Actions</p><ul>';
+            if (formData.get("s4") == 'true') {
+                bodyText += "<li>Save all settings to EEPROM</li>";
+            }
+            if (formData.get("s5") == 'true') {
+                bodyText += "<li>Reboot the OpenTrickler</li>";
+            }
+            if (formData.get("s6") == 'true') {
+                bodyText += "<li>Erase the EEPROM. You cannot undo this action!</li>";
+            }
+
+            bodyText += "</ul>"
+
+            modalBody.innerHTML = bodyText;
+
+            // Find function to the button
+            const confirm_button = systemControlDialogModal.querySelector('#confirm');
+
+            confirm_button.onclick = function() {
+                putForm(targetForm, false);
+            }
+        })
 
     </script>
 </body>

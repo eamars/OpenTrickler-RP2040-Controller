@@ -337,6 +337,9 @@ bool motor_config_init(void) {
     coarse_trickler_motor_config.step_direction = coarse_trickler_motor_config.persistent_config.inverted_direction ? true : false;
     fine_trickler_motor_config.step_direction = fine_trickler_motor_config.persistent_config.inverted_direction ? true : false;
 
+    // Register to eeprom save all
+    eeprom_register_handler(motor_config_save);
+
     return is_ok;
 }
 
@@ -616,16 +619,17 @@ const char * get_motor_select_string(motor_select_t selected_motor) {
 
 void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_t max_len) {
     // Mappings:
-    // m0: angular_acceleration
-    // m1: full_steps_per_rotation
-    // m2: current_ma
-    // m3: microsteps
-    // m4: max_speed_rps
-    // m5: r_sense
-    // m6: min_speed_rps
-    // m7: gear_ratio
-    // m8: inverted_enable
-    // m9: inverted_direction
+    // m0 (float): angular_acceleration
+    // m1 (int): full_steps_per_rotation
+    // m2 (int): current_ma
+    // m3 (int): microsteps
+    // m4 (int): max_speed_rps
+    // m5 (int): r_sense
+    // m6 (float): min_speed_rps
+    // m7 (float): gear_ratio
+    // m8 (bool): inverted_enable
+    // m9 (bool): inverted_direction
+    // ee (bool): save to eeprom
 
     // Build response
     snprintf(buf, 
@@ -639,11 +643,13 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
              motor_config->persistent_config.r_sense,
              motor_config->persistent_config.min_speed_rps,
              motor_config->persistent_config.gear_ratio,
-             boolean_string(motor_config->persistent_config.inverted_enable),
-             boolean_string(motor_config->persistent_config.inverted_direction));
+             boolean_to_string(motor_config->persistent_config.inverted_enable),
+             boolean_to_string(motor_config->persistent_config.inverted_direction));
 }
 
 void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {
+    bool save_to_eeprom = false;
+
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "m0") == 0) {
             float angular_acceleration = strtof(values[idx], NULL);
@@ -678,21 +684,21 @@ void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char
             motor_config->persistent_config.gear_ratio = gear_ratio;
         }
         else if (strcmp(params[idx], "m8") == 0) {
-            if (strcmp(values[idx], "true") == 0) {
-                motor_config->persistent_config.inverted_enable = true;
-            }
-            else if (strcmp(values[idx], "false") == 0) {
-                motor_config->persistent_config.inverted_enable = false;
-            }
+            bool inverted_enable = string_to_boolean(values[idx]);
+            motor_config->persistent_config.inverted_enable = inverted_enable;
         }
         else if (strcmp(params[idx], "m9") == 0) {
-            if (strcmp(values[idx], "true") == 0) {
-                motor_config->persistent_config.inverted_direction = true;
-            }
-            else if (strcmp(values[idx], "false") == 0) {
-                motor_config->persistent_config.inverted_direction = false;
-            }
+            bool inverted_direction = string_to_boolean(values[idx]);
+            motor_config->persistent_config.inverted_direction = inverted_direction;
         }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
+        }
+    }
+
+    // Perform action
+    if (save_to_eeprom) {
+        motor_config_save();  // Note: this will save settings for both
     }
 }
 

@@ -24,6 +24,9 @@ typedef struct {
     char unique_id[8];
 } __attribute__((packed)) eeprom_metadata_t;
 
+// EEPROM save handler function
+typedef bool (*eeprom_save_handler_t)(void);
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +44,7 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy);
  */
 uint8_t eeprom_erase(bool);
 uint8_t eeprom_save_all(void);
+void eeprom_register_handler(eeprom_save_handler_t handler);
 
 bool http_rest_system_control(struct fs_file *file, int num_params, char *params[], char *values[]);
 

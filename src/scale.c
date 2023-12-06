@@ -10,6 +10,7 @@
 #include "eeprom.h"
 #include "app.h"
 #include "scale.h"
+#include "common.h"
 
 extern scale_handle_t and_fxi_scale_handle;
 extern scale_handle_t steinberg_scale_handle;
@@ -124,6 +125,9 @@ bool scale_init() {
     // Create the Task for the listener loop
     xTaskCreate(scale_config.scale_handle->read_loop_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
 
+    // Register to eeprom save all
+    eeprom_register_handler(scale_config_save);
+
     return is_ok;
 }
 
@@ -160,39 +164,39 @@ void scale_write(char * command, size_t len) {
 
 
 bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings:
+    // s0 (int): driver index
+    // s1 (int): baud rate index
+    // ee (bool): save to eeprom
+
     static char scale_config_to_json_buffer[256];
+    bool save_to_eeprom = false;
 
     // Set value
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "driver") == 0) {
-            if (strcmp(values[idx], "AND FX-i Std") == 0) {
-                set_scale_driver(SCALE_DRIVER_AND_FXI);
-            }
-            else if (strcmp(values[idx], "Steinberg SBS") == 0) {
-                set_scale_driver(SCALE_DRIVER_STEINBERG_SBS);
-            }
+        if (strcmp(params[idx], "s0") == 0) {
+            scale_driver_t driver_idx = (scale_driver_t) atoi(values[idx]);
+            set_scale_driver(driver_idx);
         }
-        else if (strcmp(params[idx], "baudrate") == 0) {
-            if (strcmp(values[idx], "4800") == 0) {
-                scale_config.persistent_config.scale_baudrate = BAUDRATE_4800;
-            }
-            else if (strcmp(values[idx], "9600") == 0) {
-                scale_config.persistent_config.scale_baudrate = BAUDRATE_9600;
-            }
-            else if (strcmp(values[idx], "19200") == 0) {
-                scale_config.persistent_config.scale_baudrate = BAUDRATE_19200;
-            }
+        else if (strcmp(params[idx], "s1") == 0) {
+            scale_baudrate_t baudrate_idx = (scale_baudrate_t) atoi(values[idx]);
+            scale_config.persistent_config.scale_baudrate = baudrate_idx;
+        }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
         }
     }
 
-    // Convert config to string
-    const char * scale_driver_string = get_scale_driver_string();
+    // Perform action
+    if (save_to_eeprom) {
+        scale_config_save();
+    }
 
     snprintf(scale_config_to_json_buffer, 
              sizeof(scale_config_to_json_buffer),
-             "{\"driver\":\"%s\",\"baudrate\":%"PRId32"}", 
-             scale_driver_string, 
-             get_scale_baudrate(scale_config.persistent_config.scale_baudrate));
+             "{\"s0\":\"%d\",\"s1\":%d}", 
+             scale_config.persistent_config.scale_driver, 
+             scale_config.persistent_config.scale_baudrate);
     
     size_t data_length = strlen(scale_config_to_json_buffer);
     file->data = scale_config_to_json_buffer;

@@ -28,8 +28,16 @@ extern void cat24c256_eeprom_init();
 extern bool cat24c256_write(uint16_t data_addr, uint8_t * data, size_t len);
 extern bool cat24c256_read(uint16_t data_addr, uint8_t * data, size_t len);
 
+// Linked list implementation
+typedef struct _eeprom_save_handler_node {
+    eeprom_save_handler_t function_handler;
+    struct _eeprom_save_handler_node * next;
+} _eeprom_save_handler_node_t;
+
+// Singleton variables
 SemaphoreHandle_t eeprom_access_mutex = NULL;
 eeprom_metadata_t metadata;
+static _eeprom_save_handler_node_t * eeprom_save_handler_head = NULL;
 
 
 uint32_t rnd(void){
@@ -39,23 +47,29 @@ uint32_t rnd(void){
     for(k=0;k<32;k++){
     
     random = random << 1;
-    random=random + (0x00000001 & (*rnd_reg));
+    random = random + (0x00000001 & (*rnd_reg));
 
     }
     return random;
 }
 
 
+void eeprom_register_handler(eeprom_save_handler_t handler) {
+    _eeprom_save_handler_node_t * new_node = malloc(sizeof(_eeprom_save_handler_node_t));
+    new_node->function_handler = handler;
+
+    // Append to the head
+    new_node->next = eeprom_save_handler_head;
+    eeprom_save_handler_head = new_node;
+}
+
 
 uint8_t eeprom_save_all() {
-    eeprom_config_save();
-    scale_config_save();
-    motor_config_save();
-    charge_mode_config_save();
-    wireless_config_save();
-    neopixel_led_config_save();
-    button_config_save();
-    profile_data_save();
+    // Iterate over all registered handlers and run the save functions
+    for (_eeprom_save_handler_node_t * node = eeprom_save_handler_head; node != NULL; node = node->next) {
+        // Run the save handler
+        node->function_handler();
+    }
     return 37;  // Configuration Menu ID
 }
 
@@ -106,6 +120,9 @@ bool eeprom_init(void) {
             return false;
         }
     }
+
+    // Register to eeprom save all
+    eeprom_register_handler(eeprom_config_save);
 
     return is_ok;
 }
@@ -169,59 +186,55 @@ bool eeprom_get_board_id(char ** board_id_buffer, size_t bytes_to_copy) {
 
 
 bool http_rest_system_control(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings
+    // s0 (str): unique_id
+    // s1 (str): version_string
+    // s2 (str): vcs_hash
+    // s3 (str): build_type
+    // s4 (bool): save_to_eeprom
+    // s5 (bool): software_reset
+    // s6 (bool): erase_eeprom
     static char eeprom_config_json_buffer[256];
 
-    const char * save_to_eeprom_string;
     const char * software_reset_string;
-    const char * erase_eeprom_string;
 
     bool save_to_eeprom_flag = false;
     bool software_reset_flag = false;
     bool erase_eeprom_flag = false;
 
+    // Control
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "save_to_eeprom") == 0 && strcmp(values[idx], "true") == 0) {
-            save_to_eeprom_flag = true;
+        if (strcmp(params[idx], "s4") == 0) {
+            save_to_eeprom_flag = string_to_boolean(values[idx]);
         }
-        else if (strcmp(params[idx], "software_reset") == 0 && strcmp(values[idx], "true") == 0) {
-            software_reset_flag = true;
+        else if (strcmp(params[idx], "s5") == 0) {
+            software_reset_flag = string_to_boolean(values[idx]);
         }
-        else if (strcmp(params[idx], "erase_eeprom") == 0 && strcmp(values[idx], "true") == 0) {
-            erase_eeprom_flag = true;
+        else if (strcmp(params[idx], "s6") == 0) {
+            erase_eeprom_flag = string_to_boolean(values[idx]);
         } 
     }
 
     if (save_to_eeprom_flag) {
         eeprom_save_all();
-        save_to_eeprom_string = "true";
-    }
-    else {
-        save_to_eeprom_string = "false";
     }
 
     if (erase_eeprom_flag) {
         eeprom_erase(software_reset_flag);
-        erase_eeprom_string = "true";
-    }
-    else {
-        erase_eeprom_string = "false";
     }
 
     if (software_reset_flag) {
         software_reboot();
-        software_reset_string = "true";
-    }
-    else {
-        software_reset_string = "false";
     }
 
-
-
+    // Response
     snprintf(eeprom_config_json_buffer, 
              sizeof(eeprom_config_json_buffer),
-             "{\"unique_id\":\"%s\",\"save_to_eeprom\":%s,\"software_reset\":%s,\"erase_eeprom\":%s,\"ver\":\"%s\",\"hash\":\"%s\",\"build_type\":\"%s\"}", 
-             metadata.unique_id, save_to_eeprom_string, software_reset_string, erase_eeprom_string,
-             version_string, vcs_hash, build_type);
+             "{\"s0\":\"%s\",\"s1\":\"%s\",\"s2\":\"%s\",\"s3\":\"%s\",\"s4\":%s,\"s5\":%s,\"s6\":%s}", 
+             metadata.unique_id, version_string, vcs_hash, build_type,
+             boolean_to_string(save_to_eeprom_flag),
+             boolean_to_string(erase_eeprom_flag),
+             boolean_to_string(software_reset_flag));
 
     size_t data_length = strlen(eeprom_config_json_buffer);
     file->data = eeprom_config_json_buffer;
