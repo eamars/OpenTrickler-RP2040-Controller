@@ -24,6 +24,9 @@ bool show_next_key = false;
 TaskHandle_t scale_calibration_render_task_handler = NULL;
 
 
+extern void scale_press_cal_key();
+extern void scale_press_print_key();
+
 
 void scale_calibration_render_task(void *p) {
     while (true) {
