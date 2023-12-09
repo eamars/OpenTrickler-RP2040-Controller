@@ -17,8 +17,6 @@ C_HEADER_TEMPLATE = """// ------------------------------------------------------
 #ifndef {capitalized_filename}_H_
 #define {capitalized_filename}_H_
 
-#include <stdbool.h>
-
 // Implemented in version.c
 extern const char * version_string;
 extern const char * vcs_hash;
