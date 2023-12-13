@@ -99,13 +99,12 @@ uint8_t render_profile_ver_info(mui_t *ui, uint8_t msg) {
 
 
 uint8_t render_profile_pid_details(mui_t *ui, uint8_t msg) {
-    u8g2_t *u8g2 = mui_get_U8g2(ui);
     switch(msg)
     {
         case MUIF_MSG_DRAW:
         {
             char buf[30];
-
+            u8g2_t *u8g2 = mui_get_U8g2(ui);
             profile_t * current_profile = profile_get_selected();
 
             // Render Coarse
@@ -141,14 +140,34 @@ uint8_t render_profile_pid_details(mui_t *ui, uint8_t msg) {
 }
 
 
+uint8_t render_charge_mode_next_button(mui_t * ui, uint8_t msg) {
+    switch (msg) {
+        case MUIF_MSG_CURSOR_SELECT:
+        case MUIF_MSG_VALUE_INCREMENT:
+        case MUIF_MSG_VALUE_DECREMENT:
+            if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_2) {
+                ui->arg = 11;  // goto form 11
+            }
+            else if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_3) {
+                ui->arg = 12;  // goto form 12
+            }
+            return mui_u8g2_btn_goto_wm_fi(ui, msg);
+        default:
+            mui_u8g2_btn_goto_wm_fi(ui, msg);
+            break;
+    }
+
+    return 0;
+}
+
+
 uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
-        u8g2_t *u8g2 = mui_get_U8g2(ui);
     switch(msg)
     {
         case MUIF_MSG_DRAW:
         {
             char buf[30];
-
+            u8g2_t *u8g2 = mui_get_U8g2(ui);
             profile_t * current_profile = profile_get_selected();
 
             // Render speed
@@ -166,6 +185,7 @@ uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
     }
     return 0;
 }
+
 
 
 muif_t muif_list[] = {
@@ -192,6 +212,8 @@ muif_t muif_list[] = {
 
         /* Goto Form Button where the width is equal to the size of the text, spaces can be used to extend the size */
         MUIF_BUTTON("BN", mui_u8g2_btn_goto_wm_fi),
+
+        MUIF_BUTTON("B1", render_charge_mode_next_button),
 
         // Leave
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
@@ -242,8 +264,19 @@ fds_t fds_data[] = {
     MUI_XYA("GC", 5, 49, 2) 
     MUI_XYA("GC", 5, 61, 3)
 
-    // Menu 10: Start
+    // Menu 10: Select profile
     MUI_FORM(10)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Select Profile")
+    MUI_XY("HL", 0,13)
+
+    MUI_STYLE(0)
+    MUI_XYT("B1",115, 59, "Next")  // Jump to form 11 or 12
+    MUI_XYAT("BN",14, 59, 1, "Back")  // Jump to form 1
+    MUI_XYA("P0", 5, 25, 33)  // Jump to form 33 (profile selection)
+
+    // Menu 11: Charge Weight (2dp)
+    MUI_FORM(11)
     MUI_STYLE(1)
     MUI_LABEL(5,10, "Select Charge Weight")
     MUI_XY("HL", 0,13)
@@ -259,25 +292,37 @@ fds_t fds_data[] = {
     MUI_XY("SU", 106, 35)
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",115, 59, 11, "Next")
-    MUI_XYAT("BN",14, 59, 1, "Back")
+    MUI_XYAT("BN",115, 59, 13, "Next")
+    MUI_XYAT("BN",14, 59, 10, "Back")
 
     MUI_STYLE(3)
     MUI_XY("N4",20, 35)
 
-    // Menu 11: Select profile
-    MUI_FORM(11)
+    // Menu 12: Charge Weight (3dp)
+    MUI_FORM(12)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "Select Profile")
+    MUI_LABEL(5,10, "Select Charge Weight")
     MUI_XY("HL", 0,13)
 
-    MUI_STYLE(0)
-    MUI_XYAT("BN",115, 59, 12, "Next")  // Jump to form 10
-    MUI_XYAT("BN",14, 59, 10, "Back")  // Jump to form 12
-    MUI_XYA("P0", 5, 25, 33)  // Jump to form 33 (profile selection)
+    MUI_STYLE(3)
+    MUI_XY("N3",36, 35)
+    MUI_LABEL(48, 35, ".")
+    MUI_XY("N2",60, 35)
+    MUI_XY("N1",76, 35)
+    MUI_XY("N0",92, 35)
 
-    // Menu 12: 
-    MUI_FORM(12)
+    MUI_STYLE(0)
+    MUI_XY("SU", 106, 35)
+
+    MUI_STYLE(0)
+    MUI_XYAT("BN",115, 59, 13, "Next")
+    MUI_XYAT("BN",14, 59, 10, "Back")
+
+    MUI_STYLE(3)
+    MUI_XY("N4",20, 35)
+
+    // Menu 13: Warning page
+    MUI_FORM(13)
     MUI_STYLE(1)
     MUI_LABEL(5, 10, "Warning")
     MUI_XY("HL", 0,13)
@@ -287,9 +332,8 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 37, "press Next to trickle")
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 11, "Back")
+    MUI_XYAT("BN",14, 59, 10, "Back")
     MUI_XYAT("LV", 115, 59, 1, "Next")  // APP_STATE_ENTER_CHARGE_MODE
-    // MUI_XYAT("BN",115, 59, 0, "Next")
 
     // Menu 20: Cleanup
     MUI_FORM(20)

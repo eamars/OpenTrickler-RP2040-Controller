@@ -1,6 +1,8 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <string.h>
+#include <stdio.h>
+
 #include "common.h"
 #include "pico/time.h"
 
@@ -29,4 +31,22 @@ bool string_to_boolean(char * s) {
     }
 
     return var;
+}
+
+
+int float_to_string(char * output_decimal_str, float var, decimal_places_t decimal_places) {
+    int return_value = 0;
+    
+    switch (decimal_places) {
+        case DP_2:
+            return_value = sprintf(output_decimal_str, "%0.02f", var);
+            break;
+        case DP_3:
+            return_value = sprintf(output_decimal_str, "%0.03f", var);
+            break;
+        default:
+            break;
+    }
+    
+    return return_value;
 }

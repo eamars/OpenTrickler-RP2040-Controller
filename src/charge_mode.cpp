@@ -24,7 +24,6 @@
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
 
-// PID related
 charge_mode_config_t charge_mode_config;
 
 // Scale related
@@ -38,6 +37,8 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
 
     .set_point_sd_margin = 0.02,
     .set_point_mean_margin = 0.02,
+
+    .decimal_places = DP_2,
 
     // LED related
     .neopixel_normal_charge_colour = urgb_u32(0, 0xFF, 0),          // green
@@ -63,7 +64,7 @@ typedef enum {
 
 
 void scale_measurement_render_task(void *p) {
-    char current_weight_string[5];
+    char current_weight_string[WEIGHT_STRING_LEN];
     
     u8g2_t * display_handler = get_display_handler();
 
@@ -83,8 +84,8 @@ void scale_measurement_render_task(void *p) {
         // current weight (only show values > -10)
         memset(current_weight_string, 0x0, sizeof(current_weight_string));
         float scale_measurement = scale_get_current_measurement();
-        if (scale_measurement > -10) {
-            sprintf(current_weight_string, "%0.02f", scale_measurement);
+        if (scale_measurement > -1.0) {
+            float_to_string(current_weight_string, scale_measurement, charge_mode_config.eeprom_charge_mode_data.decimal_places);
         }
         else {
             strcpy(current_weight_string, "---");
@@ -165,9 +166,12 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
     );
 
     // Update current status
+    char target_weight_string[WEIGHT_STRING_LEN];
+    float_to_string(target_weight_string, charge_mode_config.target_charge_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+
     snprintf(title_string, sizeof(title_string), 
-             "Target: %.02f", 
-             charge_mode_config.target_charge_weight);
+             "Target: %s", 
+             target_weight_string);
 
     // Read trickling parameter from the current profile
     profile_t * current_profile = profile_get_selected();
@@ -385,11 +389,26 @@ uint8_t charge_mode_menu() {
     neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
 
     // Create target weight
-    charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
-                                              charge_weight_digits[3] * 10 + \
-                                              charge_weight_digits[2] + \
-                                              charge_weight_digits[1] * 0.1 + \
-                                              charge_weight_digits[0] * 0.01;
+    switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
+        case DP_2:
+            charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
+                                            charge_weight_digits[3] * 10 + \
+                                            charge_weight_digits[2] * 1 + \
+                                            charge_weight_digits[1] * 0.1 + \
+                                            charge_weight_digits[0] * 0.01;
+            break;
+        case DP_3:
+            charge_mode_config.target_charge_weight = charge_weight_digits[4] * 10 + \
+                                            charge_weight_digits[3] * 1 + \
+                                            charge_weight_digits[2] * 0.1 + \
+                                            charge_weight_digits[1] * 0.01 + \
+                                            charge_weight_digits[0] * 0.001;
+            break;
+        default:
+            charge_mode_config.target_charge_weight = 0;
+            break;
+    }
+
     printf("Target Charge Weight: %f\n", charge_mode_config.target_charge_weight);
 
     // If the display task is never created then we shall create one, otherwise we shall resume the task
@@ -502,6 +521,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c6 (float): fine_stop_threshold
     // c7 (float): set_point_sd_margin
     // c8 (float): set_point_mean_margin
+    // c9 (int): decimal point enum
 
     // ee (bool): save to eeprom
 
@@ -521,6 +541,9 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         }
         else if (strcmp(params[idx], "c8") == 0) {
             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "c9") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.decimal_places = (decimal_places_t) atoi(values[idx]);
         }
 
         // LED related settings
@@ -550,7 +573,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
              "{\"c1\":\"#%06x\",\"c2\":\"#%06x\",\"c3\":\"#%06x\",\"c4\":\"#%06x\","
-             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f}",
+             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour,
@@ -559,7 +582,8 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,
-             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin);
+             charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin,
+             charge_mode_config.eeprom_charge_mode_data.decimal_places);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
