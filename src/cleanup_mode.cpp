@@ -10,10 +10,14 @@
 #include "motors.h"
 #include "scale.h"
 #include "display.h"
-#
+#include "common.h"
+#include "charge_mode.h"
 
 
+// Memory from other modules
 extern QueueHandle_t encoder_event_queue;
+extern charge_mode_config_t charge_mode_config;
+
 
 static char title_string[30];
 TaskHandle_t cleanup_render_task_handler = NULL;
@@ -50,7 +54,12 @@ void cleanup_render_task(void *p) {
         // Draw charge weight
         float current_weight = scale_get_current_measurement();
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Weight: %0.02f", current_weight);
+        
+        // Convert to weight string with given decimal places
+        char weight_string[WEIGHT_STRING_LEN];
+        float_to_string(weight_string, current_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+
+        sprintf(buf, "Weight: %s", weight_string);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 25, buf);
 
@@ -60,7 +69,7 @@ void cleanup_render_task(void *p) {
         float flow_rate = weight_diff / 0.02;  // 20 ms per sampling period, see below
 
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Flow: %0.2f/s", flow_rate);
+        sprintf(buf, "Flow: %0.3f/s", flow_rate);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 35, buf);
 
