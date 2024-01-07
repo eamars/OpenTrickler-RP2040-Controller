@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.23.0)
 
+# Include build functions from Pico SDK
+include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+
 # Set project data
 set(PROJECT_NAME "OpenTricklerController")
 set(TARGET_NAME "app")
@@ -9,8 +12,8 @@ message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 # Set env variable 'PICO_SDK_PATH' to the local Pico SDK
 # Comment out the set() if you have a global copy of the
 # SDK set and $PICO_SDK_PATH defined in your $PATH
-set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/library/pico-sdk")
-set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
+#set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/library/pico-sdk")
+#set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 
 # Set flags and directory variables
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -DDEBUG")
@@ -24,7 +27,7 @@ set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 
 # Include the Pico SDK
-include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
+#include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
 
 # Name the project
 project(${PROJECT_NAME}
@@ -33,6 +36,7 @@ project(${PROJECT_NAME}
 )
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Append compiler flags
 SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections")
