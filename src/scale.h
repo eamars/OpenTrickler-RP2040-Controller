@@ -29,6 +29,7 @@ typedef enum {
 typedef enum {
     SCALE_DRIVER_AND_FXI = 0,
     SCALE_DRIVER_STEINBERG_SBS = 1,
+    SCALE_DRIVER_GNG_JJB = 2,
 } scale_driver_t;
 
 
