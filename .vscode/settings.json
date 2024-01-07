@@ -21,13 +21,14 @@
     "cmake.configureSettings": {
       "CMAKE_MODULE_PATH": "${env:PICO_INSTALL_PATH}/pico-sdk-tools"
     },
-    "cmake.generator": "Ninja",
+    "cmake.generator": "MinGW Makefiles",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "files.associations": {
         "neopixel_led.h": "c",
         "app.h": "c",
         "queue.h": "c",
         "limits": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "cyw43_arch.h": "c"
     }
 }
