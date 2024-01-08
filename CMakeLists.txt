@@ -7,6 +7,9 @@ include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 set(PROJECT_NAME "OpenTricklerController")
 set(TARGET_NAME "app")
 
+# Set PICO_BOARD variable
+set(PICO_BOARD "pico_w")
+
 message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 
 # Set env variable 'PICO_SDK_PATH' to the local Pico SDK
