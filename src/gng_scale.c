@@ -48,7 +48,7 @@ static float _decode_measurement_msg(gngscale_standard_data_format_t * msg) {
     return weight;
 }
 
-char REQUEST_DATA_TRANSFER_CMD[2] = {'!','p'};
+char REQUEST_DATA_TRANSFER_CMD[4] = {'!','p','\r','\n'};
 
 //read UART
 void _gng_scale_listener_task(void *p) {
@@ -89,32 +89,41 @@ void _gng_scale_listener_task(void *p) {
 }
 
 //G&G JJB key function
+//C4 communication setting - data signal command control 
+//standard ESC 0x1B to ! 0x22
+//hint:
+//For better syntax change standard setting 'C4' 27 'ESC' symbol at scale to 33 '!' sign 
 
-//ESC p -> 0x1b 0x70 0x0D 0x0A
+//ESC p -> 0x1b 0x70 0x0D 0x0A standard setting
+// ! p -> 0x21 0x70 0x0D 0x0A
 void scalegng_press_print_key() {
     char cmd[] = {'!','p','\r','\n'};
     scale_write(cmd, strlen(cmd));
 }
 
-//ESC t -> 0x1B 0x74 0x0D 0x0A
+//ESC t -> 0x1B 0x74 0x0D 0x0A standard setting
+// ! t -> 0x21 0x74 0x0D 0x0A
 void scalegng_press_tare_key() {
-    char cmd[] = {'!','t'};
+    char cmd[] = {'!','t','\r','\n'};
     scale_write(cmd, strlen(cmd));
 }
 
-//ESC s -> 0x1B 0x73 0x0D 0x0A
+//ESC s -> 0x1B 0x73 0x0D 0x0A standard setting
+// ! s -> 0x21 0x73 0x0D 0x0A
 void scalegng_press_weight_key() {
     char cmd[] = {'!','s','\r','\n'};
     scale_write(cmd, strlen(cmd));
 }
 
-//ESC q -> 0x1B 0x71 0x0D 0x0A
+//ESC q -> 0x1B 0x71 0x0D 0x0A standard setting
+// ! q -> 0x21 0x71 0x0D 0x0A
 void scalegng_press_cal_key() {
     char cmd[] = {'!','q','\r','\n'};
     scale_write(cmd, strlen(cmd));
 }
 
-// ESC u -> 0x1B 0x75 0x0D 0x0A
+// ESC u -> 0x1B 0x75 0x0D 0x0A standard setting
+// ! u -> 0x21 0x75 0x0D 0x0A
 void scalegng_display_light() {
     char cmd[] = {'!','u','\r','\n'};
     scale_write(cmd, strlen(cmd));
