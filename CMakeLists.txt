@@ -12,6 +12,21 @@ message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/library/pico-sdk")
 set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 
+# Include the Pico SDK
+include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
+
+# Name the project
+project(${PROJECT_NAME}
+        LANGUAGES C CXX ASM
+        DESCRIPTION "Firmware for OpenTrickler Controller"
+)
+
+# Initialise the Pico SDK
+pico_sdk_init()
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+
 # Set flags and directory variables
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -DDEBUG")
@@ -23,25 +38,11 @@ set(TMC_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/Trinamic-library")
 set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 
-# Include the Pico SDK
-include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
-
-# Name the project
-project(${PROJECT_NAME}
-        LANGUAGES C CXX ASM
-        DESCRIPTION "Firmware for OpenTrickler Controller"
-)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-
 # Append compiler flags
 SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
 # SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
-
-# Initialise the Pico SDK
-pico_sdk_init()
 
 # Application
 add_executable("${TARGET_NAME}")
