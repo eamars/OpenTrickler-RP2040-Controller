@@ -3,9 +3,11 @@ pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECT
 # Generate PIO headers
 pico_generate_pio_header(app ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 
+# Find Python, as Python is required to convert pages into source
+find_package (Python COMPONENTS Interpreter REQUIRED)
+
 # Generate HTML header
 # Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
-find_package(PythonInterp REQUIRED)
 
 
 # dashboard.html
