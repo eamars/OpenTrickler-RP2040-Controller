@@ -106,6 +106,7 @@ add_custom_command(
 )
 
 add_dependencies("${TARGET_NAME}" generate_version)
+set_source_files_properties(${SRC_DIRECTORY}/generated/version.c PROPERTIES GENERATED 1)
 target_sources("${TARGET_NAME}" PUBLIC
     "${SRC_DIRECTORY}/generated/version.c"
 )
