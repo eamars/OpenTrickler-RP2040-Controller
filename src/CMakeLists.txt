@@ -91,6 +91,7 @@ add_dependencies("${TARGET_NAME}" generate_jquery_min_js)
 
 
 # Generate version
+MESSAGE("PYTHON_EXECUTABLE: ${PYTHON_EXECUTABLE}")
 add_custom_command(
     OUTPUT 
         "${SRC_DIRECTORY}/generated/version.c"
