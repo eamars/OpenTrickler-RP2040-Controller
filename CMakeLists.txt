@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23.0)
+cmake_minimum_required(VERSION 3.25)
 
 # Set project data
 set(PROJECT_NAME "OpenTricklerController")
