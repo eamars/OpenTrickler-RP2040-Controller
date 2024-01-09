@@ -91,11 +91,6 @@ add_dependencies("${TARGET_NAME}" generate_jquery_min_js)
 
 
 # Generate version
-add_custom_target(
-    generate_version ALL
-    DEPENDS "non_exist_file"  # Some workaround to force the re-generation of header regardless of the file update
-)
-
 add_custom_command(
     OUTPUT 
         "${SRC_DIRECTORY}/generated/version.c"
@@ -104,5 +99,4 @@ add_custom_command(
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
     COMMENT "Generating version"
 )
-add_dependencies("${TARGET_NAME}" generate_version)
 add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
