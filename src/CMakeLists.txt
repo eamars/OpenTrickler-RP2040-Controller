@@ -104,9 +104,5 @@ add_custom_command(
     COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
     COMMENT "Generating version"
 )
-
 add_dependencies("${TARGET_NAME}" generate_version)
-set_source_files_properties(${SRC_DIRECTORY}/generated/version.c PROPERTIES GENERATED 1)
-target_sources("${TARGET_NAME}" PUBLIC
-    "${SRC_DIRECTORY}/generated/version.c"
-)
+add_library(app_version "${SRC_DIRECTORY}/generated/version.c")

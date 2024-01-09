@@ -104,6 +104,7 @@ target_link_libraries("${TARGET_NAME}"
     u8g2
     u8g2_mui
     trinamic
+    app_version
 )
 
 if (PICO_BOARD STREQUAL "pico_w" )
