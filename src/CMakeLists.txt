@@ -96,7 +96,7 @@ add_custom_command(
         "${SRC_DIRECTORY}/generated/version.c"
         "${SRC_DIRECTORY}/generated/version.h"
         "non_exist_file"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
+    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -v -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
     COMMENT "Generating version"
 )
 add_library(app_version "${SRC_DIRECTORY}/generated/version.c")

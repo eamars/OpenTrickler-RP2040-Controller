@@ -29,8 +29,7 @@ jobs:
     - name: Install Build Dependencies
       run: | 
         sudo apt-get update
-        sudo apt satisfy -y "cmake (>=3.25)"
-        sudo apt install -y gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libstdc++-arm-none-eabi-newlib python3
+        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libstdc++-arm-none-eabi-newlib python3
 
     - name: Build Release Package
       # Build your program with the given configuration
