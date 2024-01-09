@@ -63,15 +63,21 @@ def main(output_path, build_type):
 
     c_header_string = C_HEADER_TEMPLATE.format(
         capitalized_filename="VERSION")
+    logging.debug(f"c_header_string={c_header_string}")
+
     c_source_string = C_SOURCE_TEMPLATE.format(
         capitalized_filename="VERSION", version_string=version_string, hash_string=hash_string, build_type=build_type)
+    logging.debug(f"c_header_string={c_source_string}")
+
     
     c_header_filepath = os.path.join(output_path, "version.h")
     with open(c_header_filepath, "w") as fp:
+        logging.debug(f"Write to {c_header_filepath}")
         fp.write(c_header_string)
 
     c_source_filepath = os.path.join(output_path, "version.c")
     with open(c_source_filepath, "w") as fp:
+        logging.debug(f"Write to {c_source_filepath}")
         fp.write(c_source_string)
 
 

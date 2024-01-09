@@ -3,9 +3,11 @@ pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECT
 # Generate PIO headers
 pico_generate_pio_header(app ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 
+# Find Python, as Python is required to convert pages into source
+find_package (Python COMPONENTS Interpreter REQUIRED)
+
 # Generate HTML header
 # Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
-find_package(PythonInterp REQUIRED)
 
 
 # dashboard.html
@@ -17,7 +19,7 @@ add_custom_target(
 add_custom_command(
     OUTPUT "${SRC_DIRECTORY}/generated/dashboard.html.h"
     DEPENDS "${SRC_DIRECTORY}/html/dashboard.html"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/dashboard.html -o ${SRC_DIRECTORY}/generated/dashboard.html.h
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/dashboard.html -o ${SRC_DIRECTORY}/generated/dashboard.html.h
     COMMENT "Generating dashboard.html header"
 )
 
@@ -33,7 +35,7 @@ add_custom_target(
 add_custom_command(
     OUTPUT "${SRC_DIRECTORY}/generated/display_mirror.html.h"
     DEPENDS "${SRC_DIRECTORY}/html/display_mirror.html"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/display_mirror.html -o ${SRC_DIRECTORY}/generated/display_mirror.html.h
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/display_mirror.html -o ${SRC_DIRECTORY}/generated/display_mirror.html.h
     COMMENT "Generating display_mirror.html header"
 )
 
@@ -49,7 +51,7 @@ add_custom_target(
 add_custom_command(
     OUTPUT "${SRC_DIRECTORY}/generated/bootstrap.min.css.h"
     DEPENDS "${SRC_DIRECTORY}/html/css/bootstrap.min.css"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/css/bootstrap.min.css -o ${SRC_DIRECTORY}/generated/bootstrap.min.css.h
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/css/bootstrap.min.css -o ${SRC_DIRECTORY}/generated/bootstrap.min.css.h
     COMMENT "Generating boootstrap.min.css header"
 )
 
@@ -65,7 +67,7 @@ add_custom_target(
 add_custom_command(
     OUTPUT "${SRC_DIRECTORY}/generated/bootstrap.min.js.h"
     DEPENDS "${SRC_DIRECTORY}/html/js/bootstrap.min.js"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/js/bootstrap.min.js -o ${SRC_DIRECTORY}/generated/bootstrap.min.js.h
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/js/bootstrap.min.js -o ${SRC_DIRECTORY}/generated/bootstrap.min.js.h
     COMMENT "Generating bootstrap.min.js header"
 )
 
@@ -81,7 +83,7 @@ add_custom_target(
 add_custom_command(
     OUTPUT "${SRC_DIRECTORY}/generated/jquery-3.7.0.min.js.h"
     DEPENDS "${SRC_DIRECTORY}/html/js/jquery-3.7.0.min.js"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" --no-minify -f ${SRC_DIRECTORY}/html/js/jquery-3.7.0.min.js -o ${SRC_DIRECTORY}/generated/jquery-3.7.0.min.js.h
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" --no-minify -f ${SRC_DIRECTORY}/html/js/jquery-3.7.0.min.js -o ${SRC_DIRECTORY}/generated/jquery-3.7.0.min.js.h
     COMMENT "Generating jQuery header"
 )
 
@@ -89,21 +91,13 @@ add_dependencies("${TARGET_NAME}" generate_jquery_min_js)
 
 
 # Generate version
-add_custom_target(
-    generate_version ALL
-    DEPENDS "non_exist_file"  # Some workaround to force the re-generation of header regardless of the file update
-)
-
+MESSAGE("Python_EXECUTABLE: ${Python_EXECUTABLE}")
 add_custom_command(
     OUTPUT 
         "${SRC_DIRECTORY}/generated/version.c"
         "${SRC_DIRECTORY}/generated/version.h"
         "non_exist_file"
-    COMMAND "${PYTHON_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
     COMMENT "Generating version"
 )
-
-add_dependencies("${TARGET_NAME}" generate_version)
-target_sources("${TARGET_NAME}" PUBLIC
-    "${SRC_DIRECTORY}/generated/version.c"
-)
+add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
