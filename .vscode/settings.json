@@ -10,7 +10,7 @@
             "visibility": "hidden"
         },
         "build": {
-            "visibility": "hidden"
+            "visibility": "visible"
         },
         "buildTarget": {
             "visibility": "hidden"
@@ -28,7 +28,9 @@
         "app.h": "c",
         "queue.h": "c",
         "limits": "c",
-        "*.tcc": "c",
-        "cyw43_arch.h": "c"
-    }
+        "*.tcc": "c"
+    },
+    "cortex-debug.openocdPath": "C:/VSARM/sdk/pico/openocd/src/openocd.exe",
+    "cortex-debug.gdbPath": "arm-none-eabi-gdb",
+    "C_Cpp.errorSquiggles": "enabled"
 }
