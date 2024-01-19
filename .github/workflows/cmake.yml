@@ -5,9 +5,9 @@ run-name: Build based on ${{ github.ref }} by @${{ github.actor }}
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "G&G-Scale" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "G&G-Scale" ]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
