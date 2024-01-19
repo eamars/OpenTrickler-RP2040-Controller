@@ -1,22 +1,22 @@
 cmake_minimum_required(VERSION 3.25)
 
-# Include build functions from Pico SDK
-include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+# Include build functions from external Pico SDK
+#include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
 # Set project data
 set(PROJECT_NAME "OpenTricklerController")
 set(TARGET_NAME "app")
 
 # Set PICO_BOARD variable
-set(PICO_BOARD "pico_w")
+#set(PICO_BOARD "pico_w")
 
 message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 
 # Set env variable 'PICO_SDK_PATH' to the local Pico SDK
 # Comment out the set() if you have a global copy of the
 # SDK set and $PICO_SDK_PATH defined in your $PATH
-#set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/library/pico-sdk")
-#set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
+set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/library/pico-sdk")
+set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 
 # Include the Pico SDK
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
