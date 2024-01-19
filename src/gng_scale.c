@@ -37,13 +37,20 @@ scale_handle_t gng_scale_handle = {
     .force_zero = scalegng_press_tare_key,
 };
 
-
 static float _decode_measurement_msg(gngscale_standard_data_format_t * msg) {
     // Decode header
     // Doesn't really matter though..
 
+    // Check if the header contains a negative sign
+    bool is_negative = strchr(msg->header, '-') != NULL;
+
     // Decode weight information
     float weight = strtof(msg->data, NULL);
+
+    // If the header contains a negative sign, make the weight negative
+    if (is_negative) {
+        weight = -weight;
+    }
 
     return weight;
 }
@@ -61,14 +68,12 @@ void _gng_scale_listener_task(void *p) {
 
         while (uart_is_readable(SCALE_UART)) {   
             char ch = uart_getc(SCALE_UART);
-            
             string_buf[string_buf_idx++] = ch;
 
             // If we have received 14 bytes then we can decode the message
             if (string_buf_idx == sizeof(gngscale_standard_data_format_t)) {
                 // Data is ready, send to decode
                 scale_config.current_scale_measurement = _decode_measurement_msg((gngscale_standard_data_format_t *) string_buf);
-
                 // Signal the data is ready
                 if (scale_config.scale_measurement_ready) {
                     xSemaphoreGive(scale_config.scale_measurement_ready);

@@ -14,6 +14,7 @@
 
 extern scale_handle_t and_fxi_scale_handle;
 extern scale_handle_t steinberg_scale_handle;
+extern scale_handle_t gng_scale_handle;
 scale_config_t scale_config;
 
 
@@ -31,6 +32,11 @@ void set_scale_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_STEINBERG_SBS:
         {
             scale_config.scale_handle = &steinberg_scale_handle;
+            break;
+        }
+         case SCALE_DRIVER_GNG_JJB:
+        {
+            scale_config.scale_handle = &gng_scale_handle;
             break;
         }
         default:
@@ -69,6 +75,9 @@ const char * get_scale_driver_string() {
             break;
         case SCALE_DRIVER_STEINBERG_SBS:
             scale_driver_string = "Steinberg SBS";
+            break;
+        case SCALE_DRIVER_GNG_JJB:
+            scale_driver_string = "GNG JJB";
             break;
         default:
             break;
@@ -120,6 +129,7 @@ bool scale_init() {
     scale_config.current_scale_measurement = NAN;
 
     // Initialize the driver handle
+    printf("Scale driver: %x\n", scale_config.persistent_config.scale_driver);
     set_scale_driver(scale_config.persistent_config.scale_driver);
 
     // Create the Task for the listener loop
