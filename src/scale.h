@@ -66,7 +66,7 @@ const char * get_scale_driver_string();
 bool scale_config_save(void);
 
 // Low lever handler for writing data to the scale
-void scale_write(char * command, size_t len);
+void scale_write(const char * command, size_t len);
 
 // REST
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);

@@ -162,7 +162,7 @@ static inline void _give_mutex(BaseType_t scheduler_state) {
 }
 
 
-void scale_write(char * command, size_t len) {
+void scale_write(const char * command, size_t len) {
     BaseType_t scheduler_state = xTaskGetSchedulerState();
 
     _take_mutex(scheduler_state);
