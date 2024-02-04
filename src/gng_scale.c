@@ -12,12 +12,12 @@
 #include "scale.h"
 #include "app.h"
 
-const static char CMD_REQUEST_DATA_TRANSFER[] = "\x1bp\r\n";
-const static char CMD_CALIBRATE_FUNC[] = "\x1bq\r\n";
-const static char CMD_COUNTING_FUNC[] = "\x1br\r\n";
-const static char CMD_CHANGE_WEIGHT_UNIT[] = "\x1bs\r\n";
-const static char CMD_TARE_FUNC[] = "\x1bt\r\n";
-const static char CMD_BACKLIGHT[] = "\x1bu\r\n";
+const static char CMD_REQUEST_DATA_TRANSFER[] = "!p\r\n";
+const static char CMD_CALIBRATE_FUNC[] = "!q\r\n";
+const static char CMD_COUNTING_FUNC[] = "!r\r\n";
+const static char CMD_CHANGE_WEIGHT_UNIT[] = "!s\r\n";
+const static char CMD_TARE_FUNC[] = "!t\r\n";
+const static char CMD_BACKLIGHT[] = "!u\r\n";
 
 
 
