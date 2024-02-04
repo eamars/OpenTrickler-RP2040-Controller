@@ -10,6 +10,3 @@
 [submodule "library/Trinamic-library"]
 	path = library/Trinamic-library
 	url = https://github.com/terjeio/Trinamic-library.git
-[submodule "pico-sdk"]
-	path = pico-sdk
-	url = https://github.com/raspberrypi/pico-sdk.git

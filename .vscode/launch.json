@@ -14,9 +14,6 @@
           "interface/cmsis-dap.cfg",
           "target/rp2040.cfg"
         ],
-        "searchDir": [
-          "C:/VSARM/sdk/pico/openocd/tcl"
-        ],
         "svdFile": "${env:PICO_SDK_PATH}/src/rp2040/hardware_regs/rp2040.svd",
         "runToEntryPoint": "main",
         "openOCDLaunchCommands": [

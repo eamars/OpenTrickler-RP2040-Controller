@@ -10,7 +10,7 @@
             "visibility": "hidden"
         },
         "build": {
-            "visibility": "visible"
+            "visibility": "hidden"
         },
         "buildTarget": {
             "visibility": "hidden"
@@ -21,7 +21,7 @@
     "cmake.configureSettings": {
       "CMAKE_MODULE_PATH": "${env:PICO_INSTALL_PATH}/pico-sdk-tools"
     },
-    "cmake.generator": "MinGW Makefiles",
+    "cmake.generator": "Ninja",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "files.associations": {
         "neopixel_led.h": "c",
@@ -29,8 +29,5 @@
         "queue.h": "c",
         "limits": "c",
         "*.tcc": "c"
-    },
-    "cortex-debug.openocdPath": "C:/VSARM/sdk/pico/openocd/src/openocd.exe",
-    "cortex-debug.gdbPath": "arm-none-eabi-gdb",
-    "C_Cpp.errorSquiggles": "enabled"
+    }
 }
