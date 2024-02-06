@@ -29,6 +29,7 @@ typedef enum {
 typedef enum {
     SCALE_DRIVER_AND_FXI = 0,
     SCALE_DRIVER_STEINBERG_SBS = 1,
+    SCALE_DRIVER_GNG_JJB = 2,
 } scale_driver_t;
 
 
@@ -65,7 +66,7 @@ const char * get_scale_driver_string();
 bool scale_config_save(void);
 
 // Low lever handler for writing data to the scale
-void scale_write(char * command, size_t len);
+void scale_write(const char * command, size_t len);
 
 // REST
 bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);

@@ -28,6 +28,7 @@
         "app.h": "c",
         "queue.h": "c",
         "limits": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "scale.h": "c"
     }
 }
