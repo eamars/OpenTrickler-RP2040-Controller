@@ -108,7 +108,7 @@
                 <section id="control">
                     <h1>Control</h1>
                     <div class="row my-3">
-                        
+
                         <div class="col-md-6">
                             <div class="card">
                                 <div class="card-header">
@@ -157,7 +157,7 @@
                                                 <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"></path>
                                             </svg>
                                         </button>
-                                        
+
                                         <button class="btn btn-primary btn-lg" onclick="rotaryBtnCtrl(this)" action="CW">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
                                                 <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"></path>
@@ -193,7 +193,8 @@
                         <form class="config-form" id="scale_config" action="/rest/scale_config">
                             <div class="form-group mb-3">
                                 <label for="s0">Scale Driver:</label>
-                                <select class="form-select" id="s0" name="s0">
+                                <select class="form-select" id="s0" name="s0"
+                                        data-bs-toggle="tooltip" data-bs-title="Select from supported scales">
                                     <option value="0">AND FX-i Std</option>
                                     <option value="1">Steinberg SBS</option>
                                     <option value="2">GNG JJB</option>
@@ -202,7 +203,8 @@
 
                             <div class="form-group mb-3">
                                 <label for="s1">Serial Baudrate</label>
-                                <select class="form-select" id="s1" name="s1">
+                                <select class="form-select" id="s1" name="s1"
+                                        data-bs-toggle="tooltip" data-bs-title="The baud rate for the serial connection">
                                     <option value="0">4800</option>
                                     <option value="1">9600</option>
                                     <option value="2">19200</option>
@@ -222,7 +224,8 @@
                         <form class="config-form" id="profile_config" action="/rest/profile_config">
                             <div class="form-group mb-3">
                                 <label for="pf">Select Profile</label>
-                                <select class="form-select" id="pf" name="pf" onchange="populateProfileSelection(this)">
+                                <select class="form-select" id="pf" name="pf" onchange="populateProfileSelection(this)"
+                                        data-bs-toggle="tooltip" data-bs-title="Select the powder profile from the list">
                                     <option value="0">#0</option>
                                     <option value="1">#1</option>
                                     <option value="2">#2</option>
@@ -239,13 +242,13 @@
                             <div class="form-group mb-3">
                                 <label for="p0">Revision:</label>
                                 <input type="number" class="form-control" id="p0" name="p0" step="1"
-                                       data-bs-toggle="tooltip" data-bs-title="Profile revision, not to be modified">
+                                       data-bs-toggle="tooltip" data-bs-title="Profile revision, reserved for future use">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="p1">Compatibility:</label>
                                 <input type="number" class="form-control" id="p1" name="p1" step="1"
-                                       data-bs-toggle="tooltip" data-bs-title="The compatibility bitmask, not to be modified">
+                                       data-bs-toggle="tooltip" data-bs-title="The compatibility bitmask, reserved for future use">
                             </div>
 
                             <div class="form-group mb-3">
@@ -256,17 +259,20 @@
 
                             <div class="form-group mb-3">
                                 <label for="p3">Coarse Trickler Kp:</label>
-                                <input type="number" class="form-control" id="p3" name="p3" step="0.001">
+                                <input type="number" class="form-control" id="p3" name="p3" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The proportional gain of the coarse trickler controller (PID). Increase to speed up trickling speed as well as the chance to overthrow.">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="p4">Coarse Trickler Ki:</label>
-                                <input type="number" class="form-control" id="p4" name="p4" step="0.001">
+                                <input type="number" class="form-control" id="p4" name="p4" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The intergal gain of the coarse trickler controller (PID). Keep at 0.">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="p5">Coarse Trickler Kd:</label>
-                                <input type="number" class="form-control" id="p5" name="p5" step="0.001">
+                                <input type="number" class="form-control" id="p5" name="p5" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The derivative gain of the coarse trickler controller (PID). Increase to reduce the chance to overthrow.">
                             </div>
 
                             <div class="form-group mb-3">
@@ -283,25 +289,28 @@
 
                             <div class="form-group mb-3">
                                 <label for="p8">Fine Trickler Kp:</label>
-                                <input type="number" class="form-control" id="p8" name="p8" step="0.001">
+                                <input type="number" class="form-control" id="p8" name="p8" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The proportional gain of the fine trickler controller (PID). Increase to speed up trickling speed as well as the chance to overthrow.">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="p9">Fine Trickler Ki:</label>
-                                <input type="number" class="form-control" id="p9" name="p9" step="0.001">
+                                <input type="number" class="form-control" id="p9" name="p9" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The intergal gain of the fine trickler controller (PID). Keep at 0.">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="p10">Fine Trickler Kd:</label>
-                                <input type="number" class="form-control" id="p10" name="p10" step="0.001">
+                                <input type="number" class="form-control" id="p10" name="p10" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The derivative gain of the fine trickler controller (PID). Increase to reduce the chance to overthrow">
                             </div>
-                            
+
                             <div class="form-group mb-3">
                                 <label for="p11">Fine Trickler Min Flow Speed (rps):</label>
                                 <input type="number" class="form-control" id="p11" name="p11" step="0.001"
                                        data-bs-toggle="tooltip" data-bs-title="The minimum speed for trickling this type of powder">
                             </div>
-                            
+
                             <div class="form-group mb-3">
                                 <label for="p12">Fine Trickler Max Flow Speed (rps):</label>
                                 <input type="number" class="form-control" id="p12" name="p12" step="0.001"
@@ -371,12 +380,14 @@
 
                             <div class="form-group mb-3">
                                 <label for="c7">Set Point Accuracy (Standard Deviation):</label>
-                                <input type="number" class="form-control" id="c7" name="c7" step="0.001">
+                                <input type="number" class="form-control" id="c7" name="c7" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The standard deviation threshold of last 5 measurements to determine the steady state.">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="c8">Set Point Accuracy (Mean):</label>
-                                <input type="number" class="form-control" id="c8" name="c8" step="0.001">
+                                <input type="number" class="form-control" id="c8" name="c8" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The average threshold of last 5 measurements to determine the steady state.">
                             </div>
 
                             <div class="form-group mb-3">
@@ -390,22 +401,26 @@
 
                             <div class="form-group mb-3">
                                 <label for="c1">Neopixel LED Normal Charge Colour</label>
-                                <input type="color" class="form-control form-control-color" id="c1" name="c1">
+                                <input type="color" class="form-control form-control-color" id="c1" name="c1"
+                                       data-bs-toggle="tooltip" data-bs-title="The colour of rotary button when the trickler is ready">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="c2">Neopixel LED Under Charge Colour</label>
-                                <input type="color" class="form-control form-control-color" id="c2" name="c2">
+                                <input type="color" class="form-control form-control-color" id="c2" name="c2"
+                                       data-bs-toggle="tooltip" data-bs-title="The colour of rotary button when charge weight is less than the set point (outside of the threshhold)">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="c3">Neopixel LED Over Charge Colour</label>
-                                <input type="color" class="form-control form-control-color" id="c3" name="c3">
+                                <input type="color" class="form-control form-control-color" id="c3" name="c3"
+                                       data-bs-toggle="tooltip" data-bs-title="The colour of rotary button when charge weight is more than the set point (outside of the threshold)">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="c4">Neopixel LED Not Ready Colour</label>
-                                <input type="color" class="form-control form-control-color" id="c4" name="c4">
+                                <input type="color" class="form-control form-control-color" id="c4" name="c4"
+                                       data-bs-toggle="tooltip" data-bs-title="The colour of rotary button while waiting for the zero, or the return of the cup">
                             </div>
 
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Charge Mode Settings</button>
@@ -466,7 +481,8 @@
                         <form class="config-form" id="coarse_motor_config" action="/rest/coarse_motor_config">
                             <div class="form-group mb-3">
                                 <label for="m0">Angular Acceleration (rps/s):</label>
-                                <input type="number" class="form-control" id="m0" name="m0" step="1">
+                                <input type="number" class="form-control" id="m0" name="m0" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="The acceleration of the motor">
                             </div>
 
                             <div class="form-group mb-3">
@@ -480,12 +496,14 @@
 
                             <div class="form-group mb-3">
                                 <label for="m2">Current (mA):</label>
-                                <input type="number" class="form-control" id="m2" name="m2" step="1">
+                                <input type="number" class="form-control" id="m2" name="m2" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="The peak current supplied to the motor. Increase to allow higher speed with more heat.">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m3">Microsteps:</label>
-                                <select class="form-select" id="m3" name="m3">
+                                <select class="form-select" id="m3" name="m3"
+                                        data-bs-toggle="tooltip" data-bs-title="Microstepping of the stepper motor. High microstepping allows smooth rotation of the auger.">
                                     <option value="16">16</option>
                                     <option value="32">32</option>
                                     <option value="64">64</option>
@@ -496,31 +514,32 @@
 
                             <div class="form-group mb-3">
                                 <label for="m4">Max Speed (rps):</label>
-                                <input type="number" class="form-control" id="m4" name="m4"
-                                    step="0.1">
+                                <input type="number" class="form-control" id="m4" name="m4" step="0.1"
+                                       data-bs-toggle="tooltip" data-bs-title="The maximum speed of the auger to allow consistent flow of the powder">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m6">Min Speed (rps):</label>
-                                <input type="number" class="form-control" id="m6" name="m6"
-                                    step="0.001">
+                                <input type="number" class="form-control" id="m6" name="m6" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The minimum speed of he auger to allow consistent flow of the powder">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m5">Current Sensing Resistor (mOhm):</label>
                                 <input type="number" class="form-control" id="m5" name="m5" step="1"
-                                       data-bs-toggle="tooltip" data-bs-title="Consult the manufactor for the on-board sense resistor">
+                                       data-bs-toggle="tooltip" data-bs-title="Consult the manufactorer for the on-board sense resistor">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m7">Gear Ratio:</label>
                                 <input type="number" class="form-control" id="m7" name="m7" step="0.0000001"
-                                       data-bs-toggle="tooltip" data-bs-title="The speed ratio between the driver and driven gear">
+                                       data-bs-toggle="tooltip" data-bs-title="The gear ratio between the driver and driven gear">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m8">Inverted Enable Pin:</label>
-                                <select class="form-select" id="m8" name="m8">
+                                <select class="form-select" id="m8" name="m8"
+                                        data-bs-toggle="tooltip" data-bs-title="If the auger is not rotating, set this option to the opposite value.">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -528,7 +547,8 @@
 
                             <div class="form-group mb-3">
                                 <label for="m9">Inverted Step Direction Pin:</label>
-                                <select class="form-select" id="m9" name="m9">
+                                <select class="form-select" id="m9" name="m9"
+                                        data-bs-toggle="tooltip" data-bs-title="If the auger is not rotating clockwise, set this option to the opposite value.">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -548,7 +568,8 @@
                         <form class="config-form" id="fine_motor_config" action="/rest/fine_motor_config">
                             <div class="form-group mb-3">
                                 <label for="m0">Angular Acceleration (rps/s):</label>
-                                <input type="number" class="form-control" id="m0" name="m0" step="1">
+                                <input type="number" class="form-control" id="m0" name="m0" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="The acceleration of the motor">
                             </div>
 
                             <div class="form-group mb-3">
@@ -562,12 +583,14 @@
 
                             <div class="form-group mb-3">
                                 <label for="m2">Current (mA):</label>
-                                <input type="number" class="form-control" id="m2" name="m2" step="1">
+                                <input type="number" class="form-control" id="m2" name="m2" step="1"
+                                       data-bs-toggle="tooltip" data-bs-title="The peak current supplied to the motor. Increase to allow higher speed with more heat.">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m3">Microsteps:</label>
-                                <select class="form-select" id="m3" name="m3">
+                                <select class="form-select" id="m3" name="m3"
+                                        data-bs-toggle="tooltip" data-bs-title="Microstepping of the stepper motor. High microstepping allows smooth rotation of the auger.">
                                     <option value="16">16</option>
                                     <option value="32">32</option>
                                     <option value="64">64</option>
@@ -578,14 +601,14 @@
 
                             <div class="form-group mb-3">
                                 <label for="m4">Max Speed (rps):</label>
-                                <input type="number" class="form-control" id="m4" name="m4"
-                                    step="0.1">
+                                <input type="number" class="form-control" id="m4" name="m4" step="0.1"
+                                       data-bs-toggle="tooltip" data-bs-title="The maximum speed of the auger to allow consistent flow of the powder">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m6">Min Speed (rps):</label>
-                                <input type="number" class="form-control" id="m6" name="m6"
-                                    step="0.001">
+                                <input type="number" class="form-control" id="m6" name="m6" step="0.001"
+                                       data-bs-toggle="tooltip" data-bs-title="The minimum speed of he auger to allow consistent flow of the powder">
                             </div>
 
                             <div class="form-group mb-3">
@@ -597,12 +620,13 @@
                             <div class="form-group mb-3">
                                 <label for="m7">Gear Ratio:</label>
                                 <input type="number" class="form-control" id="m7" name="m7" step="0.0000001"
-                                       data-bs-toggle="tooltip" data-bs-title="The speed ratio between the driver and driven gear">
+                                       data-bs-toggle="tooltip" data-bs-title="The gear ratio between the driver and driven gear">
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="m8">Inverted Enable Pin:</label>
-                                <select class="form-select" id="m8" name="m8">
+                                <select class="form-select" id="m8" name="m8"
+                                        data-bs-toggle="tooltip" data-bs-title="If the auger is not rotating, set this option to the opposite value.">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -610,7 +634,8 @@
 
                             <div class="form-group mb-3">
                                 <label for="m9">Inverted Step Direction Pin:</label>
-                                <select class="form-select" id="m9" name="m9">
+                                <select class="form-select" id="m9" name="m9"
+                                        data-bs-toggle="tooltip" data-bs-title="If the auger is not rotating clockwise, set this option to the opposite value.">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -657,7 +682,8 @@
                         <form class="config-form" id="button_config" action="/rest/button_config">
                             <div class="form-group mb-3">
                                 <label for="b0">Inverted Rotary Button Direction:</label>
-                                <select class="form-select" id="b0" name="b0">
+                                <select class="form-select" id="b0" name="b0"
+                                        data-bs-toggle="tooltip" data-bs-title="Set this option to the opposite value if you want the rotary button to invert the control direction.">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -880,7 +906,7 @@
 
             // Trigger push
             const targetForm = button.closest('form');
-            
+
             // Find function to the button
             const apply_button = saveToEepromDialogModal.querySelector('#apply');
             const save_to_eeprom_button = saveToEepromDialogModal.querySelector('#save_to_eeprom');
