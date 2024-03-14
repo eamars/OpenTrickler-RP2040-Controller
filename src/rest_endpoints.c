@@ -18,6 +18,7 @@
 #include "bootstrap.min.js.h"
 #include "jquery-3.7.0.min.js.h"
 #include "dashboard.html.h"
+#include "mobile_portal.html.h"
 
 
 bool http_404_error(struct fs_file *file, int num_params, char *params[], char *values[]) {
@@ -90,8 +91,22 @@ bool http_dashboard(struct fs_file *file, int num_params, char *params[], char *
 }
 
 
+bool http_mobile_portal(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(html_mobile_portal_html);
+
+    file->data = html_mobile_portal_html;
+    file->len = len;
+    file->index = len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+
+    return true;
+}
+
+
+
 bool rest_endpoints_init() {
     rest_register_handler("/", http_dashboard);
+    rest_register_handler("/mobile", http_mobile_portal);
     rest_register_handler("/404", http_404_error);
     rest_register_handler("/rest/scale_weight", http_rest_scale_weight);
     rest_register_handler("/rest/scale_config", http_rest_scale_config);
