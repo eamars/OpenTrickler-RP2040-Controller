@@ -44,6 +44,9 @@ void menu_task(void *p){
     mui_Draw(&mui);
     u8g2_SendBuffer(display_handler);
 
+    // Flags
+    bool charge_mode_skip_user_input = false;  // Used to skip user input if the charge mode weight is received from REST
+
     while (true) {
         if (mui_IsFormActive(&mui)) {
             // Block wait for the user input
@@ -57,13 +60,19 @@ void menu_task(void *p){
             else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
                 mui_SendSelect(&mui);
             }
+            else if (button_encoder_event == OVERRIDE_FROM_REST) {
+                // Assuming the caller code will set the exit_state
+                mui_SaveForm(&mui);          // store the current form and position so that the child can jump back
+                mui_LeaveForm(&mui);
+                charge_mode_skip_user_input = true;
+            }
         }
         else {
             uint8_t exit_form_id = 1;  // by default it goes to the main menu
             // menu is not active, leave the control to the app
             switch (exit_state) {
                 case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_form_id = charge_mode_menu();
+                    exit_form_id = charge_mode_menu(charge_mode_skip_user_input);
                     break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
                     exit_form_id = cleanup_mode_menu();

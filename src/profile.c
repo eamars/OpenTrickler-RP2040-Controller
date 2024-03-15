@@ -222,6 +222,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
 
         // Response
         snprintf(buf, sizeof(buf), 
+                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
                  "{\"pf\":%d,\"p0\":%d,\"p1\":%d,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f,\"p11\":%0.3f,\"p12\":%0.3f}",
                  profile_idx, 
                  current_profile->rev,

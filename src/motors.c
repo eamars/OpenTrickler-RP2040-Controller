@@ -634,6 +634,7 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
     // Build response
     snprintf(buf, 
              max_len,
+             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"m0\":%f,\"m1\":%d,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%f,\"m8\":%s,\"m9\":%s}",
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,
@@ -773,6 +774,7 @@ bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[],
                 // Build response
                 snprintf(motor_speed_json_buffer, 
                          sizeof(motor_speed_json_buffer),
+                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
                          "{\"speed\":%0.3f,\"direction\":%d}",
                          motor_config->prev_velocity,
                          motor_config->step_direction);

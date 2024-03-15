@@ -25,9 +25,6 @@
         </div>
 
         <!-- Row 2 -->
-        <div class="divider">Control</div>
-
-        <!-- Row 3 -->
         <ul class="steps">
             <li id="chargeModeStateWait" class="step step-primary">Wait</li>
             <li id="chargeModeStateCharging" class="step">Charging</li>
@@ -35,11 +32,22 @@
             <li id="chargeModeStateReturnCup" class="step">Return Cup</li>
         </ul>
 
+        <!-- Row 3 -->
+        <div class="divider">Control</div>
+
         <!-- Row 4 -->
-        <input id="chargeWeightInput" type="number" step="0.001" placeholder="Charge Weight" class="input input-lg input-bordered input-primary"/>
+        <input id="chargeWeightInput" type="number" step="0.001" placeholder="Charge Weight" class="input input-lg input-bordered input-primary" pattern="[0-9]+([\.,][0-9]+)?"/>
 
         <!-- Row 5 -->
-        <button class="btn btn-primary" onclick="setChargeWeight()">Confirm</button>        
+        <button class="btn btn-primary" onclick="setChargeWeight()">Confirm</button>
+
+        <!-- Row 6 -->
+        <div class="form-control">
+            <label class="label cursor-pointer">
+                <span class="label-text">Trickler Active</span> 
+                <input type="checkbox" class="toggle" id="tricklerActiveToggle"/>
+            </label>
+        </div>
     </div>
 </div>
 
@@ -68,8 +76,42 @@
     </form>
 </dialog>
 
+<dialog id="overThrowDialog" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Warning</h3>
+        <p class="py-4">Over Throw!</p>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<dialog id="underThrowDialog" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Warning</h3>
+        <p class="py-4">Under Throw!</p>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
 <!-- Scripts to support the webapp -->
 <script>
+    const ChargeModeState = Object.freeze({ 
+        WAIT: 0, 
+        CHARGING: 1, 
+        REMOVE_CUP: 2, 
+        RETURN_CUP: 3, 
+        NOT_ACTIVATED: 4,
+    }); 
+
+    const ChargeModeEvent = Object.freeze({ 
+        NO_EVENT: 1 << 0, 
+        UNDER_CHARGE: 1 << 1, 
+        OVER_CHARGE: 1 << 2, 
+    }); 
+
     // Set Charge Mode Set Point with REST interface
     function setChargeWeight() {
         // Read charge weight
@@ -100,12 +142,6 @@
     }
 
     // Helper function to update progress widget
-    const ChargeModeState = Object.freeze({ 
-        WAIT: 0, 
-        CHARGING: 1, 
-        REMOVE_CUP: 2, 
-        RETURN_CUP: 3, 
-    }); 
     const PRIMARY_CLASS = "step-primary";
 
     function _setChargeModeStateWidget(state) {
@@ -139,9 +175,15 @@
                 chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
                 chargeModeStateReturnCup.classList.add(PRIMARY_CLASS)
                 break;
+            case ChargeModeState.NOT_ACTIVATED:
+                chargeModeStateWait.classList.remove(PRIMARY_CLASS);
+                chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
+                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
+                break;
         }
     }
-
+    
     // Helper function to set the current weight widget
     function _setCurrentWeight(weight, percentage) {
         var currentWeightDecimal = document.getElementById("currentWeightDecimal");
@@ -159,6 +201,47 @@
         })
         .then(data => {
             console.log(data);
+            // Parse data
+            const charge_weight_set_point = data["s0"];
+            const current_charge_weight = data["s1"];
+            const charge_mode_state = data["s2"]
+            const charge_mode_event = data["s3"]
+
+            var percentage = 0;
+            if (charge_weight_set_point == 0) {
+                percentage = 0;
+            }
+            else {
+                percentage = current_charge_weight / charge_weight_set_point * 100.0;
+            }
+
+            // Update web element
+            _setCurrentWeight(current_charge_weight, percentage);
+            _setChargeModeStateWidget(charge_mode_state);
+            
+            if (charge_mode_state == ChargeModeState.NOT_ACTIVATED) {
+                _setTricklerActiveToggle(false);
+            }
+            else {
+                _setTricklerActiveToggle(true);
+            }
+
+            // Process event
+            if (charge_mode_event != ChargeModeEvent.NO_EVENT) {
+                var dialog_name = null;
+                if (charge_mode_event == ChargeModeEvent.UNDER_CHARGE) {
+                    dialog_name = "underThrowDialog";
+                }
+                else if (charge_mode_event == ChargeModeEvent.OVER_CHARGE) {
+                    dialog_name = "overThrowDialog";
+                }
+
+                // Show modal
+                const dialogModal = document.getElementById(dialog_name);
+                if (dialogModal) {
+                    dialogModal.showModal();
+                }
+            }
         })
         .catch(error => {
             console.error("Error reading charge mode settings");
@@ -170,8 +253,45 @@
             setTimeout(pollChargeModeStatus, 500);
         })
     }
+
+    function _setTricklerActiveToggle(isActive) {
+        const tricklerActiveToggle = document.getElementById('tricklerActiveToggle');
+        tricklerActiveToggle.checked = isActive;
+    }
+
+    // Override checkbox behavior
+    const tricklerActiveToggle = document.getElementById('tricklerActiveToggle');
+    tricklerActiveToggle.addEventListener('click', (event) => {
+        event.preventDefault();
+
+        // Allow disable
+        if (!tricklerActiveToggle.checked) {
+            // Uncheck
+            tricklerActiveToggle.checked = false;
+
+            // Send stop command
+            // Build URI
+            const uri = `/rest/charge_mode_status?s2=${encodeURIComponent(ChargeModeState.NOT_ACTIVATED)}`;
+
+            // Call set charge weight REST
+            fetch(uri)
+            .then(response => {
+                
+            })
+            .catch(error => {
+                console.error("Error setting charge mode status");
+            });
+        }
+
+    });
+
      // Start the long polling process when the page loads
-     document.addEventListener('DOMContentLoaded', pollChargeModeStatus);
+     if (document.readyState != "loading") {
+        pollChargeModeStatus();
+     }
+     else {
+        document.addEventListener('DOMContentLoaded', pollChargeModeStatus);
+     }
 
 </script>
 

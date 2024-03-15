@@ -25,17 +25,17 @@ add_custom_command(
 
 add_dependencies("${TARGET_NAME}" generate_dashboard_header)
 
-# mobile_portal.html
+# mobile_frontend.html
 add_custom_target(
     generate_mobile_portal_header ALL
-    DEPENDS "${SRC_DIRECTORY}/generated/mobile_portal.html.h"
+    DEPENDS "${SRC_DIRECTORY}/generated/mobile_frontend.html.h"
 )
 
 add_custom_command(
-    OUTPUT "${SRC_DIRECTORY}/generated/mobile_portal.html.h"
-    DEPENDS "${SRC_DIRECTORY}/html/mobile_portal.html"
-    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/mobile_portal.html -o ${SRC_DIRECTORY}/generated/mobile_portal.html.h
-    COMMENT "Generating mobile_portal.html header"
+    OUTPUT "${SRC_DIRECTORY}/generated/mobile_frontend.html.h"
+    DEPENDS "${SRC_DIRECTORY}/html/mobile_frontend.html"
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/mobile_frontend.html -o ${SRC_DIRECTORY}/generated/mobile_frontend.html.h
+    COMMENT "Generating mobile_frontend.html header"
 )
 
 add_dependencies("${TARGET_NAME}" generate_mobile_portal_header)

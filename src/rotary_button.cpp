@@ -232,7 +232,7 @@ bool http_rest_button_control(struct fs_file *file, int num_params, char *params
     static char button_control_json_buffer[256];
     memset(button_control_json_buffer, 0x0, sizeof(button_control_json_buffer));
 
-    strcat(button_control_json_buffer, "{\"button_pressed\":[");
+    strcat(button_control_json_buffer, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"button_pressed\":[");
 
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "CW") == 0) {
@@ -317,6 +317,7 @@ bool http_rest_button_config(struct fs_file *file, int num_params, char *params[
 
     // Response
     snprintf(buf, sizeof(buf), 
+             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"b0\":%s}", 
              boolean_to_string(rotary_button_config.inverted_encoder_direction));
     

@@ -204,6 +204,7 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
 
     snprintf(scale_config_to_json_buffer, 
              sizeof(scale_config_to_json_buffer),
+             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"s0\":\"%d\",\"s1\":%d}", 
              scale_config.persistent_config.scale_driver, 
              scale_config.persistent_config.scale_baudrate);
@@ -223,7 +224,7 @@ bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[]
 
     snprintf(scale_weight_to_json_buffer, 
              sizeof(scale_weight_to_json_buffer),
-             "{\"weight\":%0.3f}", 
+             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"weight\":%0.3f}", 
              scale_get_current_measurement());
 
     size_t data_length = strlen(scale_weight_to_json_buffer);
