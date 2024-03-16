@@ -108,11 +108,10 @@ bool rest_endpoints_init() {
     rest_register_handler("/", http_dashboard);
     rest_register_handler("/mobile", http_mobile_portal);
     rest_register_handler("/404", http_404_error);
-    rest_register_handler("/rest/scale_weight", http_rest_scale_weight);
+    rest_register_handler("/rest/scale_action", http_rest_scale_action);
     rest_register_handler("/rest/scale_config", http_rest_scale_config);
     rest_register_handler("/rest/charge_mode_config", http_rest_charge_mode_config);
-    rest_register_handler("/rest/charge_mode_set_point", http_rest_charge_mode_set_point);
-    rest_register_handler("/rest/charge_mode_status", http_rest_charge_mode_status);
+    rest_register_handler("/rest/charge_mode_state", http_rest_charge_mode_state);
     rest_register_handler("/rest/system_control", http_rest_system_control);
     rest_register_handler("/rest/coarse_motor_config", http_rest_coarse_motor_config);
     rest_register_handler("/rest/fine_motor_config", http_rest_fine_motor_config);

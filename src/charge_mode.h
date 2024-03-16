@@ -11,12 +11,12 @@
 #define WEIGHT_STRING_LEN 8
 
 typedef enum {
-    CHARGE_MODE_WAIT_FOR_ZERO = 0,
-    CHARGE_MODE_WAIT_FOR_COMPLETE = 1,
-    CHARGE_MODE_WAIT_FOR_CUP_REMOVAL = 2,
-    CHARGE_MODE_WAIT_FOR_CUP_RETURN = 3,
-    CHARGE_MODE_EXIT = 4,
-} ChargeModeState_t;
+    CHARGE_MODE_EXIT = 0,
+    CHARGE_MODE_WAIT_FOR_ZERO = 1,
+    CHARGE_MODE_WAIT_FOR_COMPLETE = 2,
+    CHARGE_MODE_WAIT_FOR_CUP_REMOVAL = 3,
+    CHARGE_MODE_WAIT_FOR_CUP_RETURN = 4,
+} charge_mode_state_t;
 
 typedef struct {
     uint16_t charge_mode_data_rev;
@@ -41,7 +41,7 @@ typedef struct {
     eeprom_charge_mode_data_t eeprom_charge_mode_data;
     float target_charge_weight;
     uint32_t charge_mode_event;
-    ChargeModeState_t charge_mode_state;
+    charge_mode_state_t charge_mode_state;
 } charge_mode_config_t;
 
 
@@ -57,8 +57,7 @@ bool charge_mode_config_save(void);
 
 // REST interface
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_charge_mode_set_point(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_charge_mode_status(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

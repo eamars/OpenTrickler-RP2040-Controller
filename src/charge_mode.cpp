@@ -462,16 +462,7 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
                 quit = true;
                 break;
         }
-
     }
-    
-    // // Wait for user input
-    // ButtonEncoderEvent_t button_encoder_event;
-    // while (true) {
-    //     while (xQueueReceive(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(20))){
-    //         printf("%d\n", button_encoder_event);
-    //     }
-    // }
 
     // Reset LED to default colour
     neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
@@ -611,65 +602,39 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
 }
 
 
-bool http_rest_charge_mode_set_point(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings
-    // c0 (float): Charge weight set point (unitless)
-
-    static char charge_mode_json_buffer[64];
-    float target_charge_weight = -1;
-
-    // Control
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "c0") == 0) {
-            target_charge_weight = strtof(values[idx], NULL);
-            charge_mode_config.target_charge_weight = target_charge_weight;
-        }
-    }
-
-    // Perform action
-    if (target_charge_weight > 0) {
-        // Set exit_status for the menu
-        exit_state = APP_STATE_ENTER_CHARGE_MODE;
-
-        // Then signal the menu to stop
-        ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
-        xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
-    }
-
-    // Response
-    snprintf(charge_mode_json_buffer, 
-             sizeof(charge_mode_json_buffer),
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-             "{\"c0\":%0.3f}",
-             charge_mode_config.target_charge_weight);
-
-    size_t data_length = strlen(charge_mode_json_buffer);
-    file->data = charge_mode_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}
-
-
-bool http_rest_charge_mode_status(struct fs_file *file, int num_params, char *params[], char *values[]) {
+bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings
     // s0 (float): Charge weight set point (unitless)
     // s1 (float): Current weight (unitless)
-    // s2 (ChargeModeState_t | int): Charge mode state
+    // s2 (charge_mode_state_t | int): Charge mode state
     // s3 (uint32_t): Charge mode event
 
     static char charge_mode_json_buffer[128];
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "s2") == 0) {
-            charge_mode_config.charge_mode_state = (ChargeModeState_t) atoi(values[idx]);
+        if (strcmp(params[idx], "s0") == 0) {
+            charge_mode_config.target_charge_weight = strtof(values[idx], NULL);;
+        }
+        else if (strcmp(params[idx], "s2") == 0) {
+            charge_mode_state_t new_state = (charge_mode_state_t) atoi(values[idx]);
 
-            // Also send termination request via button
-            ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
-            xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            // Exit
+            if (new_state == CHARGE_MODE_EXIT && charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+                ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
+                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            }
+            // Enter
+            else if (new_state == CHARGE_MODE_WAIT_FOR_ZERO && charge_mode_config.charge_mode_state == CHARGE_MODE_EXIT) {
+                // Set exit_status for the menu
+                exit_state = APP_STATE_ENTER_CHARGE_MODE;
+
+                // Then signal the menu to stop
+                ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
+                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            }
+
+            charge_mode_config.charge_mode_state = new_state;
         }
     }
 

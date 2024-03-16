@@ -173,6 +173,38 @@ void scale_write(const char * command, size_t len) {
 }
 
 
+float scale_get_current_measurement() {
+    return scale_config.current_scale_measurement;
+}
+
+
+/*
+    Block wait for the next available measurement.
+
+    block_time_ms set to 0 to wait indefinitely.
+*/
+bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement) {
+    TickType_t delay_ticks;
+
+    if (block_time_ms == 0) {
+        delay_ticks = portMAX_DELAY;
+    }
+    else {
+        delay_ticks = pdMS_TO_TICKS(block_time_ms);
+    }
+
+    // You can only call this once the scheduler starts
+    if (xSemaphoreTake(scale_config.scale_measurement_ready, delay_ticks) == pdTRUE){
+        *current_measurement = scale_get_current_measurement();
+
+        return true;
+    }
+    
+    // No valid measurement
+    return false;
+}
+
+
 bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
     // s0 (int): driver index
@@ -219,52 +251,41 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
 }
 
 
-bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char scale_weight_to_json_buffer[32];
+bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings:
+    // a0 (scale_action_t): driver index
+    
+    // Control
+    scale_action_t action = SCALE_ACTION_NO_ACTION;
 
-    snprintf(scale_weight_to_json_buffer, 
-             sizeof(scale_weight_to_json_buffer),
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"weight\":%0.3f}", 
-             scale_get_current_measurement());
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "a0") == 0) {
+            scale_action_t action = (scale_action_t) atoi(values[idx]);
+            
+            switch (action) {
+                case SCALE_ACTION_FORCE_ZERO:
+                    scale_config.scale_handle->force_zero();
+                    break;
+                default: 
+                    break;
+            }
+        }
+    }
 
-    size_t data_length = strlen(scale_weight_to_json_buffer);
-    file->data = scale_weight_to_json_buffer;
+    static char json_buffer[64];
+
+    // Response
+    snprintf(json_buffer, 
+             sizeof(json_buffer),
+             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+             "{\"a0\":%d}", 
+             (int) action);
+
+    size_t data_length = strlen(json_buffer);
+    file->data = json_buffer;
     file->len = data_length;
     file->index = data_length;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
 
     return true;
 }
-
-
-float scale_get_current_measurement() {
-    return scale_config.current_scale_measurement;
-}
-
-
-/*
-    Block wait for the next available measurement.
-
-    block_time_ms set to 0 to wait indefinitely.
-*/
-bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement) {
-    TickType_t delay_ticks;
-
-    if (block_time_ms == 0) {
-        delay_ticks = portMAX_DELAY;
-    }
-    else {
-        delay_ticks = pdMS_TO_TICKS(block_time_ms);
-    }
-
-    // You can only call this once the scheduler starts
-    if (xSemaphoreTake(scale_config.scale_measurement_ready, delay_ticks) == pdTRUE){
-        *current_measurement = scale_get_current_measurement();
-
-        return true;
-    }
-    
-    // No valid measurement
-    return false;
-}
-

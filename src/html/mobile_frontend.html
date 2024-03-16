@@ -14,54 +14,104 @@
 <body>
 
 <div class="container mx-auto px-2">
-    <div class="grid grid-cols-1 gap-2">
-        <!-- Row 1 -->
-        <div class="stat">
-            <div class="stat-title">Current Weight</div>
-            <div id="currentWeightDecimal" class="stat-value">---</div>
-            <div class="stat-desc">
-                <progress id="currentWeightProgressPencentage" class="progress progress-primary" value="100" max="100"></progress>
+    <!-- The Trickle Control Page -->
+    <section id="section_trickler" >
+        <div class="grid grid-cols-1 gap-2">
+            <!-- Row 1 -->
+            <div class="stat">
+                <div class="stat-title">Current Weight</div>
+                <div id="currentWeightDecimal" class="stat-value">---</div>
+                <div class="stat-desc">
+                    <progress id="currentWeightProgressPencentage" class="progress progress-primary" value="100" max="100"></progress>
+                </div>
+            </div>
+
+            <!-- Row 2 -->
+            <ul class="steps">
+                <li id="chargeModeStateWait" class="step step-primary">Wait</li>
+                <li id="chargeModeStateCharging" class="step">Charging</li>
+                <li id="chargeModeStateRemoveCup" class="step">Remove Cup</li>
+                <li id="chargeModeStateReturnCup" class="step">Return Cup</li>
+            </ul>
+
+            <!-- Row 3 -->
+            <div class="divider">Trickler Control</div>
+
+            <!-- Row 4 -->
+            <input id="chargeWeightInput" type="number" step="0.001" placeholder="Charge Weight" class="input input-bordered input-primary" pattern="[0-9]+([\.,][0-9]+)?"/>
+
+            <!-- Row 5 -->
+            <button class="btn btn-primary btn-lg" onclick="setChargeWeight()">Confirm</button>
+
+            <!-- Row 6 -->
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">Trickler Active</span> 
+                    <input type="checkbox" class="toggle" id="tricklerActiveToggle"/>
+                </label>
+            </div>
+
+            <!-- Row 7 -->
+            <div class="divider">Scale</div>
+            <div class="grid grid-cols-1 gap-2">
+                <button class="btn btn-neutral" onclick="scaleForceZero()">Scale Zero</button>
             </div>
         </div>
+    </section>
 
-        <!-- Row 2 -->
-        <ul class="steps">
-            <li id="chargeModeStateWait" class="step step-primary">Wait</li>
-            <li id="chargeModeStateCharging" class="step">Charging</li>
-            <li id="chargeModeStateRemoveCup" class="step">Remove Cup</li>
-            <li id="chargeModeStateReturnCup" class="step">Return Cup</li>
-        </ul>
+    <!-- The Settings Page -->
+    <section id="section_settings" style="display: none;">
+        <div class="grid grid-cols-1 gap-2">
+            <div class="drawer">
+                <input id="settings_sidebar_toggle_button" type="checkbox" class="drawer-toggle" /> 
+                <div class="drawer-content flex flex-col">
+                  <!-- Navbar -->
+                  <div class="w-full navbar">
+                    <div class="flex-none lg:hidden">
+                      <label for="settings_sidebar_toggle_button" aria-label="open sidebar" class="btn btn-square btn-ghost">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                      </label>
+                    </div> 
+                    <div class="flex-1 px-2 mx-2">Navbar Title</div>
+                    <div class="flex-none hidden lg:block">
+                      <ul class="menu menu-horizontal">
+                        <!-- Navbar menu content here -->
+                        <li><a>Navbar Item 1</a></li>
+                        <li><a>Navbar Item 2</a></li>
+                      </ul>
+                    </div>
+                  </div>
+                  <!-- Page content here -->
+                  Content
+                </div> 
+                <div class="drawer-side">
+                  <label for="my-drawer-3" aria-label="close sidebar" class="drawer-overlay"></label> 
+                  <ul class="menu p-4 w-80 min-h-full bg-base-200">
+                    <!-- Sidebar content here -->
+                    <li><a>Sidebar Item 1</a></li>
+                    <li><a>Sidebar Item 2</a></li>
+                  </ul>
+                </div>
+              </div>
 
-        <!-- Row 3 -->
-        <div class="divider">Control</div>
-
-        <!-- Row 4 -->
-        <input id="chargeWeightInput" type="number" step="0.001" placeholder="Charge Weight" class="input input-lg input-bordered input-primary" pattern="[0-9]+([\.,][0-9]+)?"/>
-
-        <!-- Row 5 -->
-        <button class="btn btn-primary" onclick="setChargeWeight()">Confirm</button>
-
-        <!-- Row 6 -->
-        <div class="form-control">
-            <label class="label cursor-pointer">
-                <span class="label-text">Trickler Active</span> 
-                <input type="checkbox" class="toggle" id="tricklerActiveToggle"/>
-            </label>
         </div>
-    </div>
+    </section>
 </div>
 
 
 <div class="btm-nav">
-  <button>
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-  </button>
-  <button class="active">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-  </button>
-  <button>
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-  </button>
+    <button id="button_trickler" class="active" onclick="onNavButtonClicked('trickler')">
+        <svg class="w-5 h-5 mb-2 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
+            <path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/>
+        </svg>
+        <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Trickler</span>
+    </button>
+    <button id="button_settings" onclick="onNavButtonClicked('settings')">
+        <svg class="w-5 h-5 mb-2 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12.25V1m0 11.25a2.25 2.25 0 0 0 0 4.5m0-4.5a2.25 2.25 0 0 1 0 4.5M4 19v-2.25m6-13.5V1m0 2.25a2.25 2.25 0 0 0 0 4.5m0-4.5a2.25 2.25 0 0 1 0 4.5M10 19V7.75m6 4.5V1m0 11.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM16 19v-2"/>
+        </svg>
+        <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Settings</span>
+    </button>
 </div>
 
 
@@ -96,21 +146,48 @@
     </form>
 </dialog>
 
+<dialog id="scaleZeroedSuccessDialog" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Info</h3>
+        <p class="py-4">Scale Zero Successful</p>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<dialog id="scaleZeroedFailDialog" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Error</h3>
+        <p class="py-4">Failed to Zero Scale</p>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
 <!-- Scripts to support the webapp -->
 <script>
     const ChargeModeState = Object.freeze({ 
-        WAIT: 0, 
-        CHARGING: 1, 
-        REMOVE_CUP: 2, 
-        RETURN_CUP: 3, 
-        NOT_ACTIVATED: 4,
+        EXIT: 0,
+        WAIT: 1, 
+        CHARGING: 2, 
+        REMOVE_CUP: 3, 
+        RETURN_CUP: 4, 
     }); 
 
     const ChargeModeEvent = Object.freeze({ 
         NO_EVENT: 1 << 0, 
         UNDER_CHARGE: 1 << 1, 
         OVER_CHARGE: 1 << 2, 
-    }); 
+    });
+
+    const ScaleAction = Object.freeze({ 
+        NO_ACTION: 0,
+        FORCE_ZERO: 1,
+    });
+
+    var pollSetTimeoutId;
 
     // Set Charge Mode Set Point with REST interface
     function setChargeWeight() {
@@ -126,7 +203,7 @@
         }
 
         // Build URI
-        const uri = `/rest/charge_mode_set_point?c0=${encodeURIComponent(chargeWeight)}`;
+        const uri = `/rest/charge_mode_state?s0=${encodeURIComponent(chargeWeight)}&s2=${encodeURIComponent(ChargeModeState.WAIT)}`;
 
         // Call set charge weight REST
         fetch(uri)
@@ -134,7 +211,7 @@
             return response.json();
         })
         .then(data => {
-            console.log(`Set charge weight to ${data.c0}`);
+            // console.log(`Set charge weight to ${data.s0}`);
         })
         .catch(error => {
             console.error("Error setting charge weight");
@@ -175,7 +252,7 @@
                 chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
                 chargeModeStateReturnCup.classList.add(PRIMARY_CLASS)
                 break;
-            case ChargeModeState.NOT_ACTIVATED:
+            case ChargeModeState.EXIT:
                 chargeModeStateWait.classList.remove(PRIMARY_CLASS);
                 chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
                 chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
@@ -195,12 +272,12 @@
 
     // Function to poll charge mode status (weight, progress, etc)
     function pollChargeModeStatus() {
-        fetch("/rest/charge_mode_status")
+        fetch("/rest/charge_mode_state")
         .then(response => {
             return response.json()
         })
         .then(data => {
-            console.log(data);
+            // console.log(data);
             // Parse data
             const charge_weight_set_point = data["s0"];
             const current_charge_weight = data["s1"];
@@ -219,7 +296,7 @@
             _setCurrentWeight(current_charge_weight, percentage);
             _setChargeModeStateWidget(charge_mode_state);
             
-            if (charge_mode_state == ChargeModeState.NOT_ACTIVATED) {
+            if (charge_mode_state == ChargeModeState.EXIT) {
                 _setTricklerActiveToggle(false);
             }
             else {
@@ -250,7 +327,7 @@
         })
         .finally(() => {
             // Schedule the next event
-            setTimeout(pollChargeModeStatus, 500);
+            pollSetTimeoutId = setTimeout(pollChargeModeStatus, 500);
         })
     }
 
@@ -271,12 +348,12 @@
 
             // Send stop command
             // Build URI
-            const uri = `/rest/charge_mode_status?s2=${encodeURIComponent(ChargeModeState.NOT_ACTIVATED)}`;
+            const uri = `/rest/charge_mode_state?s2=${encodeURIComponent(ChargeModeState.EXIT)}`;
 
             // Call set charge weight REST
             fetch(uri)
             .then(response => {
-                
+
             })
             .catch(error => {
                 console.error("Error setting charge mode status");
@@ -285,13 +362,76 @@
 
     });
 
-     // Start the long polling process when the page loads
-     if (document.readyState != "loading") {
-        pollChargeModeStatus();
-     }
-     else {
-        document.addEventListener('DOMContentLoaded', pollChargeModeStatus);
-     }
+    // Send scale force zero command
+    function scaleForceZero() {
+        const uri = `/rest/scale_action?a0=${encodeURIComponent(ScaleAction.FORCE_ZERO)}`;
+
+        // Call the scale action URI
+        fetch(uri)
+        .then(response => {
+            return response.json();
+        })
+        .then(data => {
+            console.log(data);
+
+            var scale_action_response = data["a0"];
+
+            if (scale_action_response == ScaleAction.FORCE_ZERO) {
+                const dialogModal = document.getElementById("scaleZeroedSuccessDialog");
+                dialogModal.showModal();
+            }
+            else {
+                const dialogModal = document.getElementById("scaleZeroedFailDialog");
+                dialogModal.showModal();
+        }
+        })
+        .catch(error => {
+            console.error("Error applying force zero");
+        });
+    }
+
+    // Switch pages
+    function onNavButtonClicked(button) {
+        const section_trickler = document.getElementById("section_trickler");
+        const section_settings = document.getElementById("section_settings")
+
+        const button_trickler = document.getElementById("button_trickler");
+        const button_settings = document.getElementById("button_settings");
+
+        if (button == 'trickler') {
+            // Section control
+            section_settings.style.display = "none";
+            section_trickler.style.display = "block";
+
+            // Button active control
+            button_settings.classList.remove("active");
+            button_trickler.classList.add("active");
+
+            // Restart
+            clearTimeout(pollSetTimeoutId);
+            pollSetTimeoutId = setTimeout(pollChargeModeStatus, 0);
+
+        }
+        else if (button == 'settings') {
+            section_trickler.style.display = "none";
+            section_settings.style.display = "block";
+
+            // Button active control
+            button_trickler.classList.remove("active");
+            button_settings.classList.add("active");
+
+            // Remove polling event
+            clearTimeout(pollSetTimeoutId);
+        }
+    }
+
+    // Start the long polling process when the page loads
+    if (document.readyState != "loading") {
+        onNavButtonClicked('trickler');
+    }
+    else {
+        document.addEventListener('DOMContentLoaded', function() {onNavButtonClicked('trickler');});
+    }
 
 </script>
 
