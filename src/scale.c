@@ -260,7 +260,7 @@ bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[]
 
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "a0") == 0) {
-            scale_action_t action = (scale_action_t) atoi(values[idx]);
+            action = (scale_action_t) atoi(values[idx]);
             
             switch (action) {
                 case SCALE_ACTION_FORCE_ZERO:

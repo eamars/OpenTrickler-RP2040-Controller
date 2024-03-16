@@ -627,7 +627,7 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
             // Enter
             else if (new_state == CHARGE_MODE_WAIT_FOR_ZERO && charge_mode_config.charge_mode_state == CHARGE_MODE_EXIT) {
                 // Set exit_status for the menu
-                exit_state = APP_STATE_ENTER_CHARGE_MODE;
+                exit_state = APP_STATE_ENTER_CHARGE_MODE_FROM_REST;
 
                 // Then signal the menu to stop
                 ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
