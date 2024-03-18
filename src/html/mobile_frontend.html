@@ -21,6 +21,7 @@
             <div class="stat">
                 <div class="stat-title">Current Weight</div>
                 <div id="currentWeightDecimal" class="stat-value">---</div>
+                <div id="profileName" class="stat-desc text-primary" onclick="quickChangeProfileDialog.showModal()">Unknown Profile</div>
                 <div class="stat-desc">
                     <progress id="currentWeightProgressPencentage" class="progress progress-primary" value="100" max="100"></progress>
                 </div>
@@ -41,17 +42,12 @@
             <input id="chargeWeightInput" type="number" step="0.001" placeholder="Charge Weight" class="input input-bordered input-primary" pattern="[0-9]+([\.,][0-9]+)?"/>
 
             <!-- Row 5 -->
-            <button class="btn btn-primary btn-lg" onclick="setChargeWeight()">Confirm</button>
-
-            <!-- Row 6 -->
-            <div class="form-control">
-                <label class="label cursor-pointer">
-                    <span class="label-text">Trickler Active</span> 
-                    <input type="checkbox" class="toggle" id="tricklerActiveToggle"/>
-                </label>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="confirmButton" class="btn btn-primary btn-lg" onclick="setChargeWeight()">Confirm</button>
+                <button id="stopButton" class="btn btn-warning btn-lg" onclick="stopTrickler()" disabled="disabled">Stop</button>
             </div>
 
-            <!-- Row 7 -->
+            <!-- Row 6 -->
             <div class="divider">Scale</div>
             <div class="grid grid-cols-1 gap-2">
                 <button class="btn btn-neutral" onclick="scaleForceZero()">Scale Zero</button>
@@ -99,6 +95,7 @@
 </div>
 
 
+<!-- Bottom navigation bar -->
 <div class="btm-nav">
     <button id="button_trickler" class="active" onclick="onNavButtonClicked('trickler')">
         <svg class="w-5 h-5 mb-2 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
@@ -116,6 +113,20 @@
 
 
 <!-- Other resources -->
+<dialog id="quickChangeProfileDialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg">Change Profile</h3>
+      <p class="py-4">Press ESC key or click the button below to close</p>
+      <div class="modal-action">
+        <form method="dialog">
+          <!-- if there is a button in form, it will close the modal -->
+          <button class="btn">Close</button>
+        </form>
+      </div>
+    </div>
+  </dialog>
+
+
 <dialog id="invalidChargeWeightDialog" class="modal">
     <div class="modal-box">
         <h3 class="font-bold text-lg">Error</h3>
@@ -208,13 +219,26 @@
         // Call set charge weight REST
         fetch(uri)
         .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // console.log(`Set charge weight to ${data.s0}`);
+            _restartPoll();  // Start the poll immediately to update the charge status
         })
         .catch(error => {
             console.error("Error setting charge weight");
+        });
+    }
+
+    // Set the charge mode to exit
+    function stopTrickler() {
+        // Send stop command
+        // Build URI
+        const uri = `/rest/charge_mode_state?s2=${encodeURIComponent(ChargeModeState.EXIT)}`;
+
+        // Call set charge weight REST
+        fetch(uri)
+        .then(response => {
+            _restartPoll();  // Start the poll immediately to update the charge status
+        })
+        .catch(error => {
+            console.error("Error setting charge mode status");
         });
     }
 
@@ -270,6 +294,20 @@
         currentWeightProgressPencentage.value = percentage;
     }
 
+    function _setStartStopButtonWidget(isStart) {
+        const confirmButton = document.getElementById("confirmButton");
+        const stopButton = document.getElementById("stopButton");
+
+        if (isStart) {
+            confirmButton.disabled = true;
+            stopButton.disabled = false;
+        }
+        else {
+            stopButton.disabled = true;
+            confirmButton.disabled = false;
+        }
+    }
+
     // Function to poll charge mode status (weight, progress, etc)
     function pollChargeModeStatus() {
         fetch("/rest/charge_mode_state")
@@ -281,8 +319,9 @@
             // Parse data
             const charge_weight_set_point = data["s0"];
             const current_charge_weight = data["s1"];
-            const charge_mode_state = data["s2"]
-            const charge_mode_event = data["s3"]
+            const charge_mode_state = data["s2"];
+            const charge_mode_event = data["s3"];
+            const profile_name = data["s4"];
 
             var percentage = 0;
             if (charge_weight_set_point == 0) {
@@ -295,12 +334,15 @@
             // Update web element
             _setCurrentWeight(current_charge_weight, percentage);
             _setChargeModeStateWidget(charge_mode_state);
+
+            profileName = document.getElementById("profileName");
+            profileName.innerText = String(profile_name);
             
             if (charge_mode_state == ChargeModeState.EXIT) {
-                _setTricklerActiveToggle(false);
+                _setStartStopButtonWidget(false);
             }
             else {
-                _setTricklerActiveToggle(true);
+                _setStartStopButtonWidget(true);
             }
 
             // Process event
@@ -331,37 +373,6 @@
         })
     }
 
-    function _setTricklerActiveToggle(isActive) {
-        const tricklerActiveToggle = document.getElementById('tricklerActiveToggle');
-        tricklerActiveToggle.checked = isActive;
-    }
-
-    // Override checkbox behavior
-    const tricklerActiveToggle = document.getElementById('tricklerActiveToggle');
-    tricklerActiveToggle.addEventListener('click', (event) => {
-        event.preventDefault();
-
-        // Allow disable
-        if (!tricklerActiveToggle.checked) {
-            // Uncheck
-            tricklerActiveToggle.checked = false;
-
-            // Send stop command
-            // Build URI
-            const uri = `/rest/charge_mode_state?s2=${encodeURIComponent(ChargeModeState.EXIT)}`;
-
-            // Call set charge weight REST
-            fetch(uri)
-            .then(response => {
-
-            })
-            .catch(error => {
-                console.error("Error setting charge mode status");
-            });
-        }
-
-    });
-
     // Send scale force zero command
     function scaleForceZero() {
         const uri = `/rest/scale_action?a0=${encodeURIComponent(ScaleAction.FORCE_ZERO)}`;
@@ -372,7 +383,7 @@
             return response.json();
         })
         .then(data => {
-            console.log(data);
+            // console.log(data);
 
             var scale_action_response = data["a0"];
 
@@ -408,8 +419,7 @@
             button_trickler.classList.add("active");
 
             // Restart
-            clearTimeout(pollSetTimeoutId);
-            pollSetTimeoutId = setTimeout(pollChargeModeStatus, 0);
+            _restartPoll();
 
         }
         else if (button == 'settings') {
@@ -423,6 +433,12 @@
             // Remove polling event
             clearTimeout(pollSetTimeoutId);
         }
+    }
+
+    // Helper function to restart the poll immediately
+    function _restartPoll() {
+        clearTimeout(pollSetTimeoutId);
+        pollSetTimeoutId = setTimeout(pollChargeModeStatus, 0);
     }
 
     // Start the long polling process when the page loads

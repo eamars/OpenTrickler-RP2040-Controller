@@ -608,6 +608,7 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
     // s1 (float): Current weight (unitless)
     // s2 (charge_mode_state_t | int): Charge mode state
     // s3 (uint32_t): Charge mode event
+    // s4 (string): Profile Name
 
     static char charge_mode_json_buffer[128];
 
@@ -642,11 +643,12 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-             "{\"s0\":%0.3f,\"s1\":%0.3f,\"s2\":%d,\"s3\":%lu}",
+             "{\"s0\":%0.3f,\"s1\":%0.3f,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\"}",
              charge_mode_config.target_charge_weight,
              scale_get_current_measurement(),
              (int) charge_mode_config.charge_mode_state,
-             charge_mode_config.charge_mode_event);
+             charge_mode_config.charge_mode_event,
+             profile_get_selected()->name);
 
     // Clear events
     charge_mode_config.charge_mode_event = 0;
