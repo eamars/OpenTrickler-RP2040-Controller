@@ -121,6 +121,7 @@ bool rest_endpoints_init() {
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
     rest_register_handler("/rest/neopixel_led_config", http_rest_neopixel_led_config);
     rest_register_handler("/rest/profile_config", http_rest_profile_config);
+    rest_register_handler("/rest/profile_summary", http_rest_profile_summary);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
     rest_register_handler("/css/bootstrap.min.css", http_bootstrap_css);

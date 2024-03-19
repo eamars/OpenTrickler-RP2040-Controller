@@ -639,13 +639,28 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
         }
     }
 
+    // Handle the special case
+    float current_measurement = scale_get_current_measurement();
+    char weight_string[16];
+    if (isnanf(current_measurement)) {
+        sprintf(weight_string, "\"nan\"");
+    }
+    else if (isinff(current_measurement)) {
+        sprintf(weight_string, "\"inf\"");
+    }
+    else {
+        sprintf(weight_string, "%0.3f", current_measurement);
+    }
+
+
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-             "{\"s0\":%0.3f,\"s1\":%0.3f,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\"}",
+             "%s"
+             "{\"s0\":%0.3f,\"s1\":%s,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\"}",
+             http_json_header,
              charge_mode_config.target_charge_weight,
-             scale_get_current_measurement(),
+             weight_string,
              (int) charge_mode_config.charge_mode_state,
              charge_mode_config.charge_mode_event,
              profile_get_selected()->name);

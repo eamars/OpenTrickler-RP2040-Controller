@@ -236,8 +236,9 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
 
     snprintf(scale_config_to_json_buffer, 
              sizeof(scale_config_to_json_buffer),
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-             "{\"s0\":\"%d\",\"s1\":%d}", 
+             "%s"
+             "{\"s0\":%d,\"s1\":%d}", 
+             http_json_header,
              scale_config.persistent_config.scale_driver, 
              scale_config.persistent_config.scale_baudrate);
     
@@ -277,8 +278,9 @@ bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[]
     // Response
     snprintf(json_buffer, 
              sizeof(json_buffer),
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-             "{\"a0\":%d}", 
+             "%s"
+             "{\"a0\":%d}",
+             http_json_header,
              (int) action);
 
     size_t data_length = strlen(json_buffer);

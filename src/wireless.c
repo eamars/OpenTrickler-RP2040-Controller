@@ -424,8 +424,9 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
     // Response
     snprintf(wireless_config_json_buffer, 
              sizeof(wireless_config_json_buffer),
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+             "%s"
              "{\"w0\":\"%s\",\"w1\":\"%s\",\"w2\":\"%d\",\"w3\":%"PRId32",\"w4\":%s}",
+             http_json_header,
              wireless_config.eeprom_wireless_metadata.ssid,
              wireless_config.eeprom_wireless_metadata.pw,
              wireless_config.eeprom_wireless_metadata.auth,

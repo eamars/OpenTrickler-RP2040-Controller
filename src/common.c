@@ -7,6 +7,9 @@
 #include "pico/time.h"
 
 
+const char * http_json_header = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n";
+
+
 void delay_ms(uint32_t ms, BaseType_t scheduler_state) {
     if (scheduler_state == taskSCHEDULER_RUNNING){
         vTaskDelay(pdMS_TO_TICKS(ms));

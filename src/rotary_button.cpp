@@ -317,8 +317,9 @@ bool http_rest_button_config(struct fs_file *file, int num_params, char *params[
 
     // Response
     snprintf(buf, sizeof(buf), 
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+             "%s"
              "{\"b0\":%s}", 
+             http_json_header,
              boolean_to_string(rotary_button_config.inverted_encoder_direction));
     
     size_t response_len = strlen(buf);

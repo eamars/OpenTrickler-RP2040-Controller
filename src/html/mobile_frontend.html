@@ -21,7 +21,7 @@
             <div class="stat">
                 <div class="stat-title">Current Weight</div>
                 <div id="currentWeightDecimal" class="stat-value">---</div>
-                <div id="profileName" class="stat-desc text-primary" onclick="quickChangeProfileDialog.showModal()">Unknown Profile</div>
+                <div id="profileName" class="stat-desc text-primary" onclick="onProfileNameClicked()">Unknown Profile</div>
                 <div class="stat-desc">
                     <progress id="currentWeightProgressPencentage" class="progress progress-primary" value="100" max="100"></progress>
                 </div>
@@ -43,7 +43,7 @@
 
             <!-- Row 5 -->
             <div class="grid grid-cols-2 gap-2">
-                <button id="confirmButton" class="btn btn-primary btn-lg" onclick="setChargeWeight()">Confirm</button>
+                <button id="confirmButton" class="btn btn-primary btn-lg" onclick="setChargeWeight()">Start</button>
                 <button id="stopButton" class="btn btn-warning btn-lg" onclick="stopTrickler()" disabled="disabled">Stop</button>
             </div>
 
@@ -115,16 +115,19 @@
 <!-- Other resources -->
 <dialog id="quickChangeProfileDialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
-      <h3 class="font-bold text-lg">Change Profile</h3>
-      <p class="py-4">Press ESC key or click the button below to close</p>
-      <div class="modal-action">
-        <form method="dialog">
-          <!-- if there is a button in form, it will close the modal -->
-          <button class="btn">Close</button>
-        </form>
-      </div>
+        <div class="grid grid-cols-1 gap-2">
+        <h3 class="font-bold text-lg">Change Profile</h3>
+            <select id="quickChangeProfileSelect" class="select select-bordered w-full max-w-xs">
+            </select>
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <!-- if there is a button in form, it will close the modal -->
+                <button id="quickChangeProfileConfirmButton" class="btn" onclick="onQuickProfileSelectConfirmed()">Confirm</button>
+            </form>
+        </div>
     </div>
-  </dialog>
+</dialog>
 
 
 <dialog id="invalidChargeWeightDialog" class="modal">
@@ -306,6 +309,57 @@
             stopButton.disabled = true;
             confirmButton.disabled = false;
         }
+    }
+
+    function onProfileNameClicked() {
+        const quickChangeProfileDialog = document.getElementById("quickChangeProfileDialog");
+        const quickChangeProfileSelect = document.getElementById("quickChangeProfileSelect");
+
+        // Populate the dialog option and show the modal
+        fetch("/rest/profile_summary")
+        .then(response => {
+            return response.json();
+        })
+        .then(data => {
+            const all_profiles = data["s0"];
+            const current_profile_idx = data["s1"];
+            // First remove existing options
+            var length = quickChangeProfileSelect.options.length;
+            for(var i = 0; i < length; i += 1) {
+                quickChangeProfileSelect.remove(i);     
+            }
+            quickChangeProfileSelect.options.length = 0;
+
+            // Then populate according to the new list
+            for (const idx in all_profiles) {
+                var option = document.createElement("option");
+                option.value = idx;
+                option.innerText = all_profiles[idx];
+                quickChangeProfileSelect.appendChild(option);
+            }
+            // Select the current
+            quickChangeProfileSelect.value = current_profile_idx;
+            
+            // Show the modal
+            quickChangeProfileDialog.showModal();
+        })
+        .catch(error => {
+            console.error("Error reading profile summary");
+        })
+    }
+
+    function onQuickProfileSelectConfirmed() {
+        const quickChangeProfileSelect = document.getElementById("quickChangeProfileSelect");
+
+        const uri = `/rest/profile_config?pf=${encodeURIComponent(quickChangeProfileSelect.value)}`;
+
+        fetch(uri)
+        .then(response => {
+            return response.json();
+        })
+        .catch(error => {
+            console.error("Error setting profile");
+        })
     }
 
     // Function to poll charge mode status (weight, progress, etc)
