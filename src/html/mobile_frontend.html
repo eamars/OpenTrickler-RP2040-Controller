@@ -9,11 +9,14 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <style>
+
+    </style>
 </head>
 
 <body>
 
-<div class="container mx-auto px-2">
+<div class="container mx-auto px-2 max-h-full">
     <!-- The Trickle Control Page -->
     <section id="sectionTrickler" >
         <div class="grid grid-cols-1 gap-2">
@@ -59,7 +62,7 @@
     <section id="sectionSettings" style="display: none;">
         <div class="drawer">
             <input id="settingsDrawer" type="checkbox" class="drawer-toggle" /> 
-            <div class="drawer-content grid grid-cols-1">
+            <div class="drawer-content">
                 <!-- Navbar -->
                 <div class="w-full navbar">
                     <div class="flex-none">
@@ -67,26 +70,126 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </label>
                     </div> 
-                    <div class="w-full px-2 mx-2">Navbar Title</div>
+                    <div id="settingsSectionTitle" class="w-full px-2 mx-2">---</div>
                 </div>
-                <div class="px-6">
-                    <!-- Page content here -->
-                    Content
+
+                <div class="grid grid-cols-1 px-6 gap-2 border-2">
+                    <!-- Select Scale Configuration -->
+                    <section class="settings-page" id="settings-scale" name="Scale Config">
+                        <form id="scaleConfigForm" action="/rest/scale_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Scale Driver</span>
+                                <select class="select select-bordered" name="s0">
+                                    <option value="0">AND FX-i Std</option>
+                                    <option value="1">Steinberg SBS</option>
+                                    <option value="2">GNG JJB</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Serial Baudrate</span>
+                                <select class="select select-bordered" name="s1">
+                                    <option value="0">4800</option>
+                                    <option value="1">9600</option>
+                                    <option value="2">19200</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-neutral" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Scale Settings</button>
+                        </form>
+                    </section>
+
+                    <!-- Select Profile Configuration -->
+                    <section class="settings-page" id="settings-profile" name="Profile Config" style="display: none;">
+                        <form id="profileConfigForm" action="/rest/profile_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Select Profile</span>
+                                <select class="select select-bordered select-primary" name="pf">
+                                    <option value="0">#0</option>
+                                    <option value="1">#1</option>
+                                    <option value="2">#2</option>
+                                    <option value="3">#3</option>
+                                    <option value="4">#4</option>
+                                    <option value="5">#5</option>
+                                    <option value="6">#6</option>
+                                    <option value="7">#7</option>
+                                </select>
+                            </div>
+
+                            <div class="divider"></div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Profile Name</span>
+                                <input type="text" class="input input-bordered" name="p2" maxlength="16">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Trickler Kp</span>
+                                <input type="number" class="input input-bordered" name="p3" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Trickler Ki</span>
+                                <input type="number" class="input input-bordered" name="p4" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Trickler Kd</span>
+                                <input type="number" class="input input-bordered" name="p5" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Trickler Min Flow Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="p6" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Trickler Max Flow Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="p7" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Fine Trickler Kp</span>
+                                <input type="number" class="input input-bordered" name="p8" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Fine Trickler Ki</span>
+                                <input type="number" class="input input-bordered" name="p9" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Fine Trickler Kd</span>
+                                <input type="number" class="input input-bordered" name="p10" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Fine Trickler Min Flow Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="p11" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Fine Trickler Max Flow Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="p12" step="0.001">
+                            </div>
+
+                        </form>
+                    </section>
                 </div>
             </div> 
             <div class="drawer-side">
-                <label for="settingsDrawer" aria-label="close sidebar" class="drawer-overlay"></label> 
-                <ul class="menu p-2 w-60 min-h-full bg-base-200">
+                <label id="closeDrawerSide" for="settingsDrawer" aria-label="close sidebar" class="drawer-overlay"></label> 
+                <ul id=drawerSlide" class="menu p-2 w-60 min-h-full bg-base-200">
                     <!-- Sidebar content here -->
-                    <li><a>Scale</a></li>
-                    <li><a>Profiles</a></li>
-                    <li><a>Charge Mode</a></li>
-                    <li><a>Wireless</a></li>
-                    <li><a>Coarse Motor</a></li>
-                    <li><a>Fine Motor</a></li>
-                    <li><a>Neopixel LED</a></li>
-                    <li><a>Buttons</a></li>
-                    <li><a>System Control</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-scale')">Scale</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-profile')">Profiles</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-charge-mode')">Charge Mode</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-wireless')">Wireless</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-coarse-motor')">Coarse Motor</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-fine-motor')">Fine Motor</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-neopixel-led')">Neopixel LED</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-button')">Buttons</a></li>
+                    <li><a onclick="onSettingsLinkClicked('settings-system-control')">System Control</a></li>
                 </ul>
             </div>
         </div>
@@ -134,7 +237,6 @@
         </div>
     </div>
 </dialog>
-
 
 <dialog id="invalidChargeWeightDialog" class="modal">
     <div class="modal-box">
@@ -494,6 +596,9 @@
 
             // Remove polling event
             clearTimeout(pollSetTimeoutId);
+
+            // Load the first settings
+            onSettingsLinkClicked("settings-scale");
         }
     }
 
@@ -501,6 +606,34 @@
     function _restartPoll() {
         clearTimeout(pollSetTimeoutId);
         pollSetTimeoutId = setTimeout(pollChargeModeStatus, 0);
+    }
+
+    // Functions show settings page
+    function onSettingsLinkClicked(sectionId) {
+        const targetSection = document.getElementById(sectionId);
+        const settingsSectionTitle = document.getElementById("settingsSectionTitle");
+
+        // Enumerate all sections to set hide/display
+        const sections = document.querySelectorAll('.settings-page');
+
+        // Set visibility
+        for (const section of sections) {
+            if (section.id == targetSection.id) {
+                section.style.display = "block";
+                settingsSectionTitle.innerText = targetSection.getAttribute("name");
+            }
+            else {
+                section.style.display = "none";
+            }
+        }
+        
+        // Close the drawer
+        const settingsDrawer = document.getElementById("settingsDrawer");
+        if (settingsDrawer.checked) {
+            settingsDrawer.checked = false;
+        }
+
+        // Populate values
     }
 
     // Start the long polling process when the page loads
