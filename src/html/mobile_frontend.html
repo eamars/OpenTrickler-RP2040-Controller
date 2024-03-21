@@ -10,6 +10,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0 viewport-fit=cover">
 
     <style>
+        /* Exclude the pixels taken by the bottom nav bar */
         .exclude-bottom-nav {
             padding-bottom: 74px;
         }
@@ -97,7 +98,7 @@
                                 </select>
                             </div>
 
-                            <button class="btn btn-neutral" data-bs-toggle="modal" data-bs-target="#saveToEepromDialog">Apply Scale Settings</button>
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>
 
@@ -106,7 +107,7 @@
                         <form id="profileConfigForm" action="/rest/profile_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Select Profile</span>
-                                <select class="select select-bordered select-primary" name="pf">
+                                <select class="select select-bordered select-primary" name="pf" onchange="populateProfileSelection(this)">
                                     <option value="0">#0</option>
                                     <option value="1">#1</option>
                                     <option value="2">#2</option>
@@ -175,6 +176,7 @@
                                 <input type="number" class="input input-bordered" name="p12" step="0.001">
                             </div>
 
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>
                 </div>
@@ -224,12 +226,31 @@
 
 
 <!-- Other resources -->
+<dialog id="applySettingsDialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <div class="grid grid-cols-1 gap-2">
+        <h3 class="font-bold text-lg">Apply Settings</h3>
+        <p class="py-4">Do you also want to save configurations to EEPROM?</p>
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <!-- if there is a button in form, it will close the modal -->
+                <div class="grid grid-cols-3 gap-2">
+                    <button id="dialogSaveToEepromButton" class="btn btn-primary">Save to EEPROM</button>
+                    <button id="dialogApplySettingsButton" class="btn btn-neutral">Apply</button>
+                    <button class="btn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</dialog>
+
 <dialog id="quickChangeProfileDialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
         <div class="grid grid-cols-1 gap-2">
         <h3 class="font-bold text-lg">Change Profile</h3>
-            <select id="quickChangeProfileSelect" class="select select-bordered w-full max-w-xs">
-            </select>
+        <select id="quickChangeProfileSelect" class="select select-bordered w-full max-w-xs">
+        </select>
         </div>
         <div class="modal-action">
             <form method="dialog">
@@ -264,6 +285,16 @@
     <div class="modal-box">
         <h3 class="font-bold text-lg">Warning</h3>
         <p class="py-4">Under Throw!</p>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<dialog id="settingsAppliedSuccessDialog" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Info</h3>
+        <p class="py-4">Settings Applied</p>
     </div>
     <form method="dialog" class="modal-backdrop">
         <button>close</button>
@@ -636,7 +667,104 @@
         }
 
         // Populate values
+        const form = targetSection.querySelector("form");
+        if (form) {
+            const uri = form.getAttribute("action");
+            fetch(uri)
+            .then(response => {
+                return response.json();
+            })
+            .then(data => {
+                // Populate the form
+                for (const key in data) {
+                    const element = form.querySelector('[name="' + key + '"]');
+                    if (element) {
+                        element.value = String(data[key]);
+                    }
+                }
+            })
+        }
     }
+
+    // Function to retrieve the profile values when the index is updated
+    function populateProfileSelection(select) {
+        const profileIdx = select.value;
+        const form = select.form;
+
+        const uri = form.getAttribute("action") + `?pf=${encodeURIComponent(profileIdx)}`
+        fetch(uri)
+        .then(response => {
+            return response.json();
+        })
+        .then(data => {
+            // Populate the form
+            for (const key in data) {
+                const element = form.querySelector('[name="' + key + '"]');
+                if (element) {
+                    element.value = String(data[key]);
+                }
+            }
+        })
+    }
+
+    // Submit the form data to the action URI
+    function putForm(targetForm, isSaveToEeprom) {
+        const paramData = new FormData(targetForm);
+
+        // Remove empty param
+        for (const [key, value] of paramData.entries()) {
+            if (value == "") {
+                paramData.delete(key);
+            }
+        }
+
+        if (isSaveToEeprom) {
+            paramData.append('ee', true)
+        }
+
+        const queryString = new URLSearchParams(paramData).toString();
+        const uri = new URL(targetForm.action + '?');
+        uri.search = queryString;
+
+        // // Post the new param with GET method
+        fetch(uri)
+        .then(response => {
+            return response.json();
+        })
+        .then(data => {
+            const settingsAppliedSuccessDialog = document.getElementById("settingsAppliedSuccessDialog");
+            settingsAppliedSuccessDialog.showModal();
+        })
+    }
+
+    // Function to populate the dialog when Apply button is pressed for settings
+    const allApplyButtons = document.querySelectorAll(".settings-apply-btn");
+    allApplyButtons.forEach(applyButton => {
+        applyButton.addEventListener("click", (event) => {
+            event.preventDefault();  // Cancel default event
+
+            const form = applyButton.form;
+
+            // Create the dialog
+            const applySettingsDialog = document.getElementById("applySettingsDialog");
+
+            // Bind the button
+            const dialogApplySettingsButton = document.getElementById("dialogApplySettingsButton");
+            const dialogSaveToEepromButton = document.getElementById("dialogSaveToEepromButton");
+
+            // Bind actions
+            dialogApplySettingsButton.onclick = function() {
+                putForm(form, false);
+            }
+
+            dialogSaveToEepromButton.onclick = function() {
+                putForm(form, true);
+            }
+
+            // Show the dialog
+            applySettingsDialog.showModal();
+        })
+    })
 
     // Start the long polling process when the page loads
     if (document.readyState != "loading") {
