@@ -7,19 +7,21 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.3/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0 viewport-fit=cover">
 
     <style>
-
+        .exclude-bottom-nav {
+            padding-bottom: 74px;
+        }
     </style>
 </head>
 
 <body>
 
-<div class="container mx-auto px-2 max-h-full">
+<div class="container mx-auto">
     <!-- The Trickle Control Page -->
     <section id="sectionTrickler" >
-        <div class="grid grid-cols-1 gap-2">
+        <div class="grid grid-cols-1 gap-2 px-2 exclude-bottom-nav">
             <!-- Row 1 -->
             <div class="stat">
                 <div class="stat-title">Current Weight</div>
@@ -62,9 +64,9 @@
     <section id="sectionSettings" style="display: none;">
         <div class="drawer">
             <input id="settingsDrawer" type="checkbox" class="drawer-toggle" /> 
-            <div class="drawer-content">
-                <!-- Navbar -->
-                <div class="w-full navbar">
+            <div class="drawer-content exclude-bottom-nav">
+                <!-- Navbar, fixed at the top-->
+                <div class="w-full navbar sticky top-0 bg-base-100">
                     <div class="flex-none">
                         <label for="settingsDrawer" aria-label="open sidebar" class="btn btn-square btn-ghost">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -73,7 +75,7 @@
                     <div id="settingsSectionTitle" class="w-full px-2 mx-2">---</div>
                 </div>
 
-                <div class="grid grid-cols-1 px-6 gap-2 border-2">
+                <div class="grid grid-cols-1 px-6 gap-2">
                     <!-- Select Scale Configuration -->
                     <section class="settings-page" id="settings-scale" name="Scale Config">
                         <form id="scaleConfigForm" action="/rest/scale_config" class="grid grid-cols-1 gap-3">
@@ -177,7 +179,7 @@
                     </section>
                 </div>
             </div> 
-            <div class="drawer-side">
+            <div class="drawer-side exclude-bottom-nav">
                 <label id="closeDrawerSide" for="settingsDrawer" aria-label="close sidebar" class="drawer-overlay"></label> 
                 <ul id=drawerSlide" class="menu p-2 w-60 min-h-full bg-base-200">
                     <!-- Sidebar content here -->
