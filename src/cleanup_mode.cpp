@@ -12,23 +12,22 @@
 #include "display.h"
 #include "common.h"
 #include "charge_mode.h"
+#include "cleanup_mode.h"
 
 
 // Memory from other modules
 extern QueueHandle_t encoder_event_queue;
 extern charge_mode_config_t charge_mode_config;
 
+extern AppState_t exit_state;
+extern QueueHandle_t encoder_event_queue;
+
+// Internal
+cleanup_mode_config_t cleanup_mode_config;
+
 
 static char title_string[30];
 TaskHandle_t cleanup_render_task_handler = NULL;
-float current_motor_speed = 0;
-
-int motor_select_index = 0;
-const motor_select_t available_motor_select[] = {
-    SELECT_BOTH_MOTOR,
-    SELECT_COARSE_TRICKLER_MOTOR,
-    SELECT_FINE_TRICKLER_MOTOR,
-};
 
 
 void cleanup_render_task(void *p) {
@@ -75,15 +74,9 @@ void cleanup_render_task(void *p) {
 
         // Draw current motor speed
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Speed: %d", (int) current_motor_speed);
+        sprintf(buf, "Speed: %0.3f", cleanup_mode_config.trickler_speed);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 45, buf);
-
-        // Draw current selected motor
-        memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Select: %s motor", get_motor_select_string(available_motor_select[motor_select_index]));
-        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
-        u8g2_DrawStr(display_handler, 5, 55, buf);
 
         u8g2_SendBuffer(display_handler);
 
@@ -103,10 +96,15 @@ uint8_t cleanup_mode_menu() {
         vTaskResume(cleanup_render_task_handler);
     }
 
+    // Initialize the cleanup mode config
+    memset(&cleanup_mode_config, 0x0, sizeof(cleanup_mode_config));
+
+    // Enter the clean up mode
+    cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_ENTER;
+
+    // Enable both motors
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
-
-    current_motor_speed = 0;
 
     // Update current status
     snprintf(title_string, sizeof(title_string), "Adjust Speed");
@@ -119,26 +117,23 @@ uint8_t cleanup_mode_menu() {
 
         switch (button_encoder_event) {
             case BUTTON_RST_PRESSED:
+                cleanup_mode_config.trickler_speed = 0;
+                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 quit = true;
+
                 break;
             case BUTTON_ENCODER_ROTATE_CW:
-                current_motor_speed += 1;
-                motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
+                cleanup_mode_config.trickler_speed += 1;
+                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
             case BUTTON_ENCODER_ROTATE_CCW:
-                current_motor_speed -= 1;
-                motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
+                cleanup_mode_config.trickler_speed -= 1;
+                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
 
             case BUTTON_ENCODER_PRESSED:
-                // If current speed is non zero then set speed to 0 and move to next option
-                if (current_motor_speed != 0) {
-                    current_motor_speed = 0;
-                    motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
-                }
-                motor_select_index += 1;
-                motor_select_index %= 3;
-                motor_set_speed(available_motor_select[motor_select_index], current_motor_speed);
+                cleanup_mode_config.trickler_speed = 0;
+                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 
                 break;
             default:
@@ -150,6 +145,65 @@ uint8_t cleanup_mode_menu() {
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
 
+    cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
+
     vTaskSuspend(cleanup_render_task_handler);
     return 1;  // Return backs to the main menu view
+}
+
+
+bool http_rest_cleanup_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings
+    // s0 (cleanup_mode_state_t | int): Cleanup mode state
+    // s1 (float): Trickler speed
+
+    static char cleanup_mode_json_buffer[128];
+
+    // Control
+        for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "s0") == 0) {
+            cleanup_mode_state_t new_state = (cleanup_mode_state_t) atoi(values[idx]);
+
+            // Exit
+            if (new_state == CLEANUP_MODE_EXIT && cleanup_mode_config.cleanup_mode_state != CLEANUP_MODE_ENTER) {
+                ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
+                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            }
+
+            // Enter
+            else if (new_state == CLEANUP_MODE_ENTER && cleanup_mode_config.cleanup_mode_state == CLEANUP_MODE_EXIT) {
+                // Set exit_status for the menu
+                exit_state = APP_STATE_ENTER_CLEANUP_MODE;
+
+                // Then signal the menu to stop
+                ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
+                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            }
+
+            cleanup_mode_config.cleanup_mode_state = new_state;
+        }
+        else if (strcmp(params[idx], "s1") == 0) {
+            cleanup_mode_config.trickler_speed = strtof(values[idx], NULL);
+            motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
+        }
+    }
+
+    // Response
+    snprintf(cleanup_mode_json_buffer, 
+             sizeof(cleanup_mode_json_buffer),
+             "%s"
+             "{\"s0\":%d,\"s1\":%0.3f}",
+             http_json_header,
+             (int) cleanup_mode_config.cleanup_mode_state,
+             cleanup_mode_config.trickler_speed);
+
+
+    size_t data_length = strlen(cleanup_mode_json_buffer);
+    file->data = cleanup_mode_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+
+    return true;
 }

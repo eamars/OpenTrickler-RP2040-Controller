@@ -615,7 +615,7 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "s0") == 0) {
-            charge_mode_config.target_charge_weight = strtof(values[idx], NULL);;
+            charge_mode_config.target_charge_weight = strtof(values[idx], NULL);
         }
         else if (strcmp(params[idx], "s2") == 0) {
             charge_mode_state_t new_state = (charge_mode_state_t) atoi(values[idx]);

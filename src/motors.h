@@ -15,9 +15,10 @@
 // Speed: The magnitude of how fast the motor rotates, in rev/s
 
 typedef enum {
-    SELECT_COARSE_TRICKLER_MOTOR,
+    SELECT_COARSE_TRICKLER_MOTOR = 0,
     SELECT_FINE_TRICKLER_MOTOR,
     SELECT_BOTH_MOTOR,
+    NUM_OF_MOTOR_SELECT,
 } motor_select_t;
 
 

@@ -11,6 +11,7 @@
 #include "display.h"
 #include "neopixel_led.h"
 #include "profile.h"
+#include "cleanup_mode.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
@@ -112,6 +113,7 @@ bool rest_endpoints_init() {
     rest_register_handler("/rest/scale_config", http_rest_scale_config);
     rest_register_handler("/rest/charge_mode_config", http_rest_charge_mode_config);
     rest_register_handler("/rest/charge_mode_state", http_rest_charge_mode_state);
+    rest_register_handler("/rest/cleanup_mode_state", http_rest_cleanup_mode_state);
     rest_register_handler("/rest/system_control", http_rest_system_control);
     rest_register_handler("/rest/coarse_motor_config", http_rest_coarse_motor_config);
     rest_register_handler("/rest/fine_motor_config", http_rest_fine_motor_config);
