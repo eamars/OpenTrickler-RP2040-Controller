@@ -77,8 +77,8 @@
                 </div>
 
                 <div class="grid grid-cols-1 px-6 gap-2">
-                    <!-- Select Scale Configuration -->
-                    <section class="settings-page" id="settings-scale" name="Scale Config">
+                    <!-- Scale Settings -->
+                    <section class="settings-page" id="settings-scale" name="Scale">
                         <form id="scaleConfigForm" action="/rest/scale_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Scale Driver</span>
@@ -102,8 +102,8 @@
                         </form>
                     </section>
 
-                    <!-- Select Profile Configuration -->
-                    <section class="settings-page" id="settings-profile" name="Profile Config" style="display: none;">
+                    <!-- Profile Settings -->
+                    <section class="settings-page" id="settings-profile" name="Profiles" style="display: none;">
                         <form id="profileConfigForm" action="/rest/profile_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Select Profile</span>
@@ -179,21 +179,365 @@
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>
+
+                    <!-- Charge Mode Settings -->
+                    <section class="settings-page" id="settings-charge-mode" name="Charge Mode" style="display: none;">
+                        <form id="chargeModeConfigForm" action="/rest/charge_mode_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">Neopixel LED Normal Charge Colour</span>
+                                <input type="color" class="input input-bordered w-full" name="c1">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">Neopixel LED Under Charge Colour</span>
+                                <input type="color" class="input input-bordered w-full" name="c2">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">Neopixel LED Over Charge Colour</span>
+                                <input type="color" class="input input-bordered w-full" name="c3">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">Neopixel LED Not Ready Colour</span>
+                                <input type="color" class="input input-bordered w-full" name="c4">
+                            </div>
+
+                            <div class="divider"></div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Trickler Stop Threshold</span>
+                                <input type="number" class="input input-bordered" name="c5" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Fine Trickler Stop Threshold</span>
+                                <input type="number" class="input input-bordered" name="c6" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Set Point Accuracy (Standard Deviation)</span>
+                                <input type="number" class="input input-bordered" name="c7" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Set Point Accuracy (Mean)</span>
+                                <input type="number" class="input input-bordered" name="c8" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Decimal Places</span>
+                                <select class="select select-bordered" name="c9">
+                                    <option value="0">2</option>
+                                    <option value="1">3</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form>
+                    </section>
+
+                    <!-- Wireless Settings -->
+                    <section class="settings-page" id="settings-wireless" name="Wireless" style="display: none;">
+                        <form id="wirelessConfigForm" action="/rest/wireless_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">WiFi SSID</span>
+                                <input type="text" class="input input-bordered" name="w0" maxlength="32">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <div>
+                                    <div class="badge badge-neutral">Write Only</div>
+                                    <span class="label-text">WiFi Password</span> 
+                                </div>
+                                <input type="password" class="input input-bordered" name="w1" maxlength="63" placeholder="Hidden">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">WiFi Authentication Method</span>
+                                <select class="select select-bordered" name="w2">
+                                    <option value="0">None</option>
+                                    <option value="1">WPA-TKIP</option>
+                                    <option value="2">WPA2-AES</option>
+                                    <option value="3">WPA2-MIXED</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">WiFi Attempt to Connect Timeout (ms)</span>
+                                <input type="number" class="input input-bordered" name="w3" step="1000">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Enable WiFi</span>
+                                <select class="select select-bordered" name="w4">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form>
+                    </section>
+
+                    <!-- Coarse Trickler Motor Settings -->
+                    <section class="settings-page" id="settings-coarse-motor" name="Coarse Trickler Motor" style="display: none;">
+                        <form id="coarseMotorConfigForm" action="/rest/coarse_motor_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Angular Acceleration (rps/s)</span>
+                                <input type="number" class="input input-bordered" name="m0" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Full Steps per Rotation</span>
+                                <select class="select select-bordered" name="m1">
+                                    <option value="200">200</option>
+                                    <option value="400">400</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Current (mA)</span>
+                                <input type="number" class="input input-bordered" name="m2" step="1">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Microsteps</span>
+                                <select class="select select-bordered" name="m3">
+                                    <option value="16">16</option>
+                                    <option value="32">32</option>
+                                    <option value="64">64</option>
+                                    <option value="128">128</option>
+                                    <option value="256">256</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Max Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="m4" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Min Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="m6" step="0.001"> 
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Current Sensing Resistor (mOhm)</span>
+                                <input type="number" class="input input-bordered" name="m5" step="1"> 
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Gear Ratio</span>
+                                <input type="number" class="input input-bordered" name="m7" step="0.0000001"> 
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Inverted Enable Pin</span>
+                                <select class="select select-bordered" name="m8">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Inverted Step Direction Pin</span>
+                                <select class="select select-bordered" name="m9">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form> 
+                    </section>
+
+                    <!-- Fine Trickler motor Settings -->
+                    <section class="settings-page" id="settings-fine-motor" name="Fine Trickler Motor" style="display: none;">
+                        <form id="fineMotorConfigForm" action="/rest/fine_motor_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Angular Acceleration (rps/s)</span>
+                                <input type="number" class="input input-bordered" name="m0" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Full Steps per Rotation</span>
+                                <select class="select select-bordered" name="m1">
+                                    <option value="200">200</option>
+                                    <option value="400">400</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Current (mA)</span>
+                                <input type="number" class="input input-bordered" name="m2" step="1">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Microsteps</span>
+                                <select class="select select-bordered" name="m3">
+                                    <option value="16">16</option>
+                                    <option value="32">32</option>
+                                    <option value="64">64</option>
+                                    <option value="128">128</option>
+                                    <option value="256">256</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Max Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="m4" step="0.001">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Min Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="m6" step="0.001"> 
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Current Sensing Resistor (mOhm)</span>
+                                <input type="number" class="input input-bordered" name="m5" step="1"> 
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Gear Ratio</span>
+                                <input type="number" class="input input-bordered" name="m7" step="0.0000001"> 
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Inverted Enable Pin</span>
+                                <select class="select select-bordered" name="m8">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Inverted Step Direction Pin</span>
+                                <select class="select select-bordered" name="m9">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form> 
+                    </section>
+
+                    <!-- Neopxiel LED Settings -->
+                    <section class="settings-page" id="settings-neopixel-led" name="Neopixel LED" style="display: none;">
+                        <form id="neopixelLedConfigForm" action="/rest/neopixel_led_config" class="grid grid-cols-1 gap-3">
+                            <div role="alert" class="alert">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>The default Neopxiel LED colour can be overridden by Charge Mode Functions.</span>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">Mini 12864 Display Background Colour</span>
+                                <input type="color" class="input input-bordered w-full" name="bl">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">LED1 Default Colour</span>
+                                <input type="color" class="input input-bordered w-full" name="l1">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">LED2 Default Colour</span>
+                                <input type="color" class="input input-bordered w-full" name="l2">
+                            </div>
+
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form>
+                    </section>
+
+                    <!-- Rotary Button Settings -->
+                    <section class="settings-page" id="settings-button" name="Button" style="display: none;">
+                        <form id="buttonConfigForm" action="/rest/button_config" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Inverted Rotary Button Direction</span>
+                                <select class="select select-bordered" name="b0">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-neutral settings-apply-btn">Apply</button>
+                        </form>
+                    </section>
+
+                    <!-- System Control Page -->
+                    <section class="settings-page" id="settings-system-control" name="System Control" style="display: none;">
+                        <form id="systemControlForm" action="/rest/system_control" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Unique ID</span>
+                                <input type="text" class="input input-bordered" name="s0" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Firmware Version</span>
+                                <input type="text" class="input input-bordered" name="s1" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">VCS Hash</span>
+                                <input type="text" class="input input-bordered" name="s2" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Build Type</span>
+                                <input type="text" class="input input-bordered" name="s3" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="divider"></div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Save All Changes to EEPROM</span>
+                                <select class="select select-bordered" name="s4">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Reboot</span>
+                                <select class="select select-bordered" name="s5">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <div>
+                                    <div class="badge badge-warning">Warning</div>
+                                    <span class="label-text">Erase EEPROM</span> 
+                                </div>
+                                <select class="select select-bordered" name="s6">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-neutral system-control-apply-btn">Apply</button>
+                        </form>
+                    </section>
+
                 </div>
             </div> 
             <div class="drawer-side exclude-bottom-nav">
                 <label id="closeDrawerSide" for="settingsDrawer" aria-label="close sidebar" class="drawer-overlay"></label> 
                 <ul id=drawerSlide" class="menu p-2 w-60 min-h-full bg-base-200">
                     <!-- Sidebar content here -->
-                    <li><a onclick="onSettingsLinkClicked('settings-scale')">Scale</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-profile')">Profiles</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-charge-mode')">Charge Mode</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-wireless')">Wireless</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-coarse-motor')">Coarse Motor</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-fine-motor')">Fine Motor</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-neopixel-led')">Neopixel LED</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-button')">Buttons</a></li>
-                    <li><a onclick="onSettingsLinkClicked('settings-system-control')">System Control</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-scale')">Scale</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-profile')">Profiles</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-charge-mode')">Charge Mode</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-wireless')">Wireless</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-coarse-motor')">Coarse Motor</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-fine-motor')">Fine Motor</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-neopixel-led')">Neopixel LED</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-button')">Buttons</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-system-control')">System Control</a></li>
                 </ul>
             </div>
         </div>
@@ -226,11 +570,32 @@
 
 
 <!-- Other resources -->
+<dialog id="applySystemControlDialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <div class="grid grid-cols-1 gap-2">
+            <h3 class="font-bold text-lg">Pending Actions</h3>
+            <div id="systemControlDialogWarningText"></div>
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <!-- if there is a button in form, it will close the modal -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="dialogSystemControlApplySettingsButton" class="btn btn-error">Apply</button>
+                    <button class="btn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+
 <dialog id="applySettingsDialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
         <div class="grid grid-cols-1 gap-2">
-        <h3 class="font-bold text-lg">Apply Settings</h3>
-        <p class="py-4">Do you also want to save configurations to EEPROM?</p>
+            <h3 class="font-bold text-lg">
+                Save <span id="applySettingsDialogTitle"></span> Settings
+            </h3>
+            <p class="py-4">Do you also want to save settings to EEPROM?</p>
         </div>
         <div class="modal-action">
             <form method="dialog">
@@ -248,9 +613,9 @@
 <dialog id="quickChangeProfileDialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
         <div class="grid grid-cols-1 gap-2">
-        <h3 class="font-bold text-lg">Change Profile</h3>
-        <select id="quickChangeProfileSelect" class="select select-bordered w-full max-w-xs">
-        </select>
+            <h3 class="font-bold text-lg">Change Profile</h3>
+            <select id="quickChangeProfileSelect" class="select select-bordered w-full max-w-xs">
+            </select>
         </div>
         <div class="modal-action">
             <form method="dialog">
@@ -708,7 +1073,7 @@
     }
 
     // Submit the form data to the action URI
-    function putForm(targetForm, isSaveToEeprom) {
+    function putForm(targetForm, saveToEeprom) {
         const paramData = new FormData(targetForm);
 
         // Remove empty param
@@ -718,7 +1083,7 @@
             }
         }
 
-        if (isSaveToEeprom) {
+        if (saveToEeprom) {
             paramData.append('ee', true)
         }
 
@@ -726,12 +1091,29 @@
         const uri = new URL(targetForm.action + '?');
         uri.search = queryString;
 
-        // // Post the new param with GET method
+        // Post the new param with GET method
         fetch(uri)
         .then(response => {
             return response.json();
         })
         .then(data => {
+            // Populate values
+            const uri = targetForm.getAttribute("action");
+            fetch(uri)
+            .then(response => {
+                return response.json();
+            })
+            .then(data => {
+                // Populate the form
+                for (const key in data) {
+                    const element = targetForm.querySelector('[name="' + key + '"]');
+                    if (element) {
+                        element.value = String(data[key]);
+                    }
+                }
+            })
+
+            // Show the success modal
             const settingsAppliedSuccessDialog = document.getElementById("settingsAppliedSuccessDialog");
             settingsAppliedSuccessDialog.showModal();
         })
@@ -747,6 +1129,11 @@
 
             // Create the dialog
             const applySettingsDialog = document.getElementById("applySettingsDialog");
+
+            // Update dialog title
+            applySettingsDialogTitle = document.getElementById("applySettingsDialogTitle");
+            const sectioName = form.closest("section").getAttribute("name");
+            applySettingsDialogTitle.innerText = sectioName;
 
             // Bind the button
             const dialogApplySettingsButton = document.getElementById("dialogApplySettingsButton");
@@ -765,6 +1152,48 @@
             applySettingsDialog.showModal();
         })
     })
+
+    const allApplySystemControlButton = document.querySelectorAll(".system-control-apply-btn");
+    allApplySystemControlButton.forEach(applyButton => {
+        applyButton.addEventListener("click", (event) => {
+            event.preventDefault();  // Cancel default event
+
+            const form = applyButton.form;
+
+            // Create the dialog
+            const applySettingsDialog = document.getElementById("applySystemControlDialog");
+            const systemControlDialogWarningText = document.getElementById('systemControlDialogWarningText');
+
+            // Update dialog content
+            var formData = new FormData(form);
+            let bodyText = '<ul class="list-disc">';
+            if (formData.get("s4") == 'true') {
+                bodyText += "<li>Save all settings to EEPROM</li>";
+            }
+            if (formData.get("s5") == 'true') {
+                bodyText += "<li>Reboot the OpenTrickler</li>";
+            }
+            if (formData.get("s6") == 'true') {
+                bodyText += "<li>Erase the EEPROM. You cannot undo this action!</li>";
+            }
+            bodyText += "</ul>";
+
+            systemControlDialogWarningText.innerHTML = bodyText;
+
+
+            // Bind the button
+            const dialogApplySettingsButton = document.getElementById("dialogSystemControlApplySettingsButton");
+
+            // Bind actions
+            dialogApplySettingsButton.onclick = function() {
+                putForm(form, false);
+            }
+
+            // Show the dialog
+            applySettingsDialog.showModal();
+        })
+    })
+
 
     // Start the long polling process when the page loads
     if (document.readyState != "loading") {

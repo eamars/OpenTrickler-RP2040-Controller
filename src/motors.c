@@ -635,7 +635,7 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
     snprintf(buf, 
              max_len,
              "%s"
-             "{\"m0\":%f,\"m1\":%d,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%f,\"m8\":%s,\"m9\":%s}",
+             "{\"m0\":%0.3f,\"m1\":%d,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%0.7f,\"m8\":%s,\"m9\":%s}",
              http_json_header,
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,
