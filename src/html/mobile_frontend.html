@@ -63,8 +63,8 @@
                 <div class="grid grid-cols-1 gap-2 px-4">
                     <div class="grid grid-cols-1 gap-2"> 
                         <span class="label-text">Trickler Speed (rps)</span>
-                        <input type="range" min="-5" max="5" value="0" class="range range-lg" step="0.1" onchange="onTricklerSpeedUpdate()"/>
-                        <button class="btn btn-primary w-full">Stop</button>
+                        <input id="tricklerSpeedSlider" type="range" min="-5" max="5" value="0" class="range range-lg" step="0.1" oninput="debouncedOnTricklerSpeedUpdate()"/>
+                        <button class="btn btn-primary w-full" onclick="onStopCleanupButtonClicked()">Stop</button>
                     </div>
                 </div>
             </section>
@@ -724,6 +724,11 @@
         FORCE_ZERO: 1,
     });
 
+    const CleanupModeState = Object.freeze({
+        EXIT: 0,
+        ENTER: 1,
+    });
+
     var pollSetTimeoutId;
 
     // Set Charge Mode Set Point with REST interface
@@ -993,6 +998,8 @@
 
         switch (button) {
             case "trickler":
+                enterCleanUpMode(false);
+
                 // Section control
                 sectionSettings.style.display = "none";
                 sectionTrickler.style.display = "block";
@@ -1020,6 +1027,12 @@
                 
                 // Restart
                 _restartPoll();
+
+                // Exit Charge mode
+                stopTrickler();
+
+                // Enter clean up mode
+                enterCleanUpMode(true);
                 break;
             case "settings":
                 sectionTrickler.style.display = "none";
@@ -1236,13 +1249,41 @@
         })
     })
 
-
-    function onTricklerSpeedUpdate() {
-
+    function debounce(callback, delay) {
+        let timer
+        return function() {
+            clearTimeout(timer)
+            timer = setTimeout(() => {
+                callback();
+            }, delay)
+        }
     }
 
-    function enterCleanUpMode(isEnter) {
+    // Update the trickler move speed in cleanup mode based on the slider input
+    function onTricklerSpeedUpdate() {
+        const new_speed = document.getElementById("tricklerSpeedSlider").value;
+        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(new_speed)}`;
+        fetch(uri);
+    }
+    const debouncedOnTricklerSpeedUpdate = debounce(onTricklerSpeedUpdate, 20);
 
+    function onStopCleanupButtonClicked() {
+        document.getElementById("tricklerSpeedSlider").value = "0";
+        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(0)}`;
+        fetch(uri);
+    }
+
+    // Enter or exit the clean up mode
+    function enterCleanUpMode(isEnter) {
+        var cleanup_state_value = null;
+        if (isEnter) {
+            cleanup_state_value = CleanupModeState.ENTER;
+        }
+        else {
+            cleanup_state_value = CleanupModeState.EXIT;
+        }
+        const uri = `/rest/cleanup_mode_state?s0=${encodeURIComponent(cleanup_state_value)}`;
+        fetch(uri);
     }
 
     // Start the long polling process when the page loads

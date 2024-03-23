@@ -160,18 +160,18 @@ bool http_rest_cleanup_mode_state(struct fs_file *file, int num_params, char *pa
     static char cleanup_mode_json_buffer[128];
 
     // Control
-        for (int idx = 0; idx < num_params; idx += 1) {
+    for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "s0") == 0) {
             cleanup_mode_state_t new_state = (cleanup_mode_state_t) atoi(values[idx]);
 
             // Exit
-            if (new_state == CLEANUP_MODE_EXIT && cleanup_mode_config.cleanup_mode_state != CLEANUP_MODE_ENTER) {
+            if (new_state == CLEANUP_MODE_EXIT && cleanup_mode_config.cleanup_mode_state != CLEANUP_MODE_EXIT) {
                 ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
                 xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
             }
 
             // Enter
-            else if (new_state == CLEANUP_MODE_ENTER && cleanup_mode_config.cleanup_mode_state == CLEANUP_MODE_EXIT) {
+            else if (new_state == CLEANUP_MODE_ENTER && cleanup_mode_config.cleanup_mode_state != CLEANUP_MODE_ENTER) {
                 // Set exit_status for the menu
                 exit_state = APP_STATE_ENTER_CLEANUP_MODE;
 
