@@ -254,7 +254,7 @@ bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[]
 
 bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
-    // a0 (scale_action_t): driver index
+    // a0 (scale_action_t): Command to the scale
     
     // Control
     scale_action_t action = SCALE_ACTION_NO_ACTION;

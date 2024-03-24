@@ -88,7 +88,6 @@ const char * get_motor_select_string(motor_select_t selected_motor);
 // REST interface
 bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus
