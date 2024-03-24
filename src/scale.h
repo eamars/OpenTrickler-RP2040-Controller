@@ -33,6 +33,12 @@ typedef enum {
 } scale_driver_t;
 
 
+typedef enum {
+    SCALE_ACTION_NO_ACTION = 0,
+    SCALE_ACTION_FORCE_ZERO = 1,
+} scale_action_t;
+
+
 typedef struct {
     uint16_t scale_data_rev;
     scale_driver_t scale_driver;
@@ -69,7 +75,7 @@ bool scale_config_save(void);
 void scale_write(const char * command, size_t len);
 
 // REST
-bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 

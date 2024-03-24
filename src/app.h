@@ -8,7 +8,7 @@
 typedef enum {
     APP_STATE_DEFAULT = 0,
     APP_STATE_ENTER_CHARGE_MODE = 1,
-    // 2 is removed
+    APP_STATE_ENTER_CHARGE_MODE_FROM_REST = 2,
     // 3 is removed
     // 4 is removed
     APP_STATE_ENTER_CLEANUP_MODE = 5,

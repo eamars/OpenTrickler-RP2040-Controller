@@ -29,6 +29,9 @@
         "queue.h": "c",
         "limits": "c",
         "*.tcc": "c",
-        "scale.h": "c"
+        "scale.h": "c",
+        "rotary_button.h": "c",
+        "freertos.h": "c",
+        "lwipopts_examples_common.h": "c"
     }
 }

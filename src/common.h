@@ -14,6 +14,9 @@ typedef enum {
 extern "C" {
 #endif
 
+// "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+extern const char * http_json_header;
+
 
 /**
  * If the RTOS is running then use RTOS delay. Otherwise use dummy delay. 

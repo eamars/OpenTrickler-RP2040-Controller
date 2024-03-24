@@ -51,6 +51,9 @@ def main(input_filepth, output_filepath, skip_minify):
     else:
         minified_html = input_file
 
+    # Append HTML header
+    minified_html = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + minified_html
+
     # Escape characters
     escaped_html = minified_html.replace("\\", "\\\\")
     escaped_html = escaped_html.replace('"', '\\"')

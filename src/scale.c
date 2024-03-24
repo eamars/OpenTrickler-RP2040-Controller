@@ -173,69 +173,6 @@ void scale_write(const char * command, size_t len) {
 }
 
 
-bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings:
-    // s0 (int): driver index
-    // s1 (int): baud rate index
-    // ee (bool): save to eeprom
-
-    static char scale_config_to_json_buffer[256];
-    bool save_to_eeprom = false;
-
-    // Set value
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "s0") == 0) {
-            scale_driver_t driver_idx = (scale_driver_t) atoi(values[idx]);
-            set_scale_driver(driver_idx);
-        }
-        else if (strcmp(params[idx], "s1") == 0) {
-            scale_baudrate_t baudrate_idx = (scale_baudrate_t) atoi(values[idx]);
-            scale_config.persistent_config.scale_baudrate = baudrate_idx;
-        }
-        else if (strcmp(params[idx], "ee") == 0) {
-            save_to_eeprom = string_to_boolean(values[idx]);
-        }
-    }
-
-    // Perform action
-    if (save_to_eeprom) {
-        scale_config_save();
-    }
-
-    snprintf(scale_config_to_json_buffer, 
-             sizeof(scale_config_to_json_buffer),
-             "{\"s0\":\"%d\",\"s1\":%d}", 
-             scale_config.persistent_config.scale_driver, 
-             scale_config.persistent_config.scale_baudrate);
-    
-    size_t data_length = strlen(scale_config_to_json_buffer);
-    file->data = scale_config_to_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}
-
-
-bool http_rest_scale_weight(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char scale_weight_to_json_buffer[32];
-
-    snprintf(scale_weight_to_json_buffer, 
-             sizeof(scale_weight_to_json_buffer),
-             "{\"weight\":%0.3f}", 
-             scale_get_current_measurement());
-
-    size_t data_length = strlen(scale_weight_to_json_buffer);
-    file->data = scale_weight_to_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}
-
-
 float scale_get_current_measurement() {
     return scale_config.current_scale_measurement;
 }
@@ -267,3 +204,90 @@ bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * curre
     return false;
 }
 
+
+bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings:
+    // s0 (int): driver index
+    // s1 (int): baud rate index
+    // ee (bool): save to eeprom
+
+    static char scale_config_to_json_buffer[256];
+    bool save_to_eeprom = false;
+
+    // Set value
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "s0") == 0) {
+            scale_driver_t driver_idx = (scale_driver_t) atoi(values[idx]);
+            set_scale_driver(driver_idx);
+        }
+        else if (strcmp(params[idx], "s1") == 0) {
+            scale_baudrate_t baudrate_idx = (scale_baudrate_t) atoi(values[idx]);
+            scale_config.persistent_config.scale_baudrate = baudrate_idx;
+        }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
+        }
+    }
+
+    // Perform action
+    if (save_to_eeprom) {
+        scale_config_save();
+    }
+
+    snprintf(scale_config_to_json_buffer, 
+             sizeof(scale_config_to_json_buffer),
+             "%s"
+             "{\"s0\":%d,\"s1\":%d}", 
+             http_json_header,
+             scale_config.persistent_config.scale_driver, 
+             scale_config.persistent_config.scale_baudrate);
+    
+    size_t data_length = strlen(scale_config_to_json_buffer);
+    file->data = scale_config_to_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
+
+
+bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings:
+    // a0 (scale_action_t): Command to the scale
+    
+    // Control
+    scale_action_t action = SCALE_ACTION_NO_ACTION;
+
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "a0") == 0) {
+            action = (scale_action_t) atoi(values[idx]);
+            
+            switch (action) {
+                case SCALE_ACTION_FORCE_ZERO:
+                    scale_config.scale_handle->force_zero();
+                    break;
+                default: 
+                    break;
+            }
+        }
+    }
+
+    static char json_buffer[64];
+
+    // Response
+    snprintf(json_buffer, 
+             sizeof(json_buffer),
+             "%s"
+             "{\"a0\":%d}",
+             http_json_header,
+             (int) action);
+
+    size_t data_length = strlen(json_buffer);
+    file->data = json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}

@@ -51,16 +51,17 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
 TaskHandle_t scale_measurement_render_task_handler = NULL;
 static char title_string[30];
 
+// Menu system
+extern AppState_t exit_state;
+extern QueueHandle_t encoder_event_queue;
 
 
+// Definitions
 typedef enum {
-    CHARGE_MODE_WAIT_FOR_ZERO,
-    CHARGE_MODE_WAIT_FOR_COMPLETE,
-    CHARGE_MODE_WAIT_FOR_CUP_REMOVAL,
-    CHARGE_MODE_WAIT_FOR_CUP_RETURN,
-    CHARGE_MODE_EXIT,
-
-} ChargeModeState_t;
+    CHARGE_MODE_EVENT_NO_EVENT = (1 << 0),
+    CHARGE_MODE_EVENT_UNDER_CHARGE = (1 << 1),
+    CHARGE_MODE_EVENT_OVER_CHARGE = (1 << 2),
+} ChargeModeEventBit_t;
 
 
 void scale_measurement_render_task(void *p) {
@@ -107,7 +108,7 @@ void scale_measurement_render_task(void *p) {
 }
 
 
-ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
+void charge_mode_wait_for_zero() {
     // Set colour to not ready
     neopixel_led_set_colour(
         NEOPIXEL_LED_DEFAULT_COLOUR, 
@@ -129,7 +130,8 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
         if (button_encoder_event == BUTTON_RST_PRESSED) {
-            return CHARGE_MODE_EXIT;
+            charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+            return;
         }
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
             scale_config.scale_handle->force_zero();
@@ -153,10 +155,10 @@ ChargeModeState_t charge_mode_wait_for_zero(ChargeModeState_t prev_state) {
         vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
     }
 
-    return CHARGE_MODE_WAIT_FOR_COMPLETE;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
 }
 
-ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
+void charge_mode_wait_for_complete() {
     // Set colour to under charge
     neopixel_led_set_colour(
         NEOPIXEL_LED_DEFAULT_COLOUR, 
@@ -197,7 +199,8 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
         if (button_encoder_event == BUTTON_RST_PRESSED) {
-            return CHARGE_MODE_EXIT;
+            charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+            return;
         }
 
         // Run the PID controlled loop to start charging
@@ -259,10 +262,10 @@ ChargeModeState_t charge_mode_wait_for_complete(ChargeModeState_t prev_state) {
 
     vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete
 
-    return CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
 }
 
-ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state) {
+void charge_mode_wait_for_cup_removal() {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Remove Cup", charge_mode_config.target_charge_weight);
 
@@ -284,6 +287,9 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
             true
         );
+
+        // Set over charge
+        charge_mode_config.charge_mode_event |= CHARGE_MODE_EVENT_OVER_CHARGE;
     }
     // Under charged
     else if (error >= charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
@@ -293,6 +299,10 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
             true
         );
+
+        // Set under charge flag
+        charge_mode_config.charge_mode_event |= CHARGE_MODE_EVENT_UNDER_CHARGE;
+
     }
     // Normal
     else {
@@ -302,6 +312,9 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour, 
             true
         );
+
+        // Clear over and under charge bit
+        charge_mode_config.charge_mode_event &= ~(CHARGE_MODE_EVENT_UNDER_CHARGE | CHARGE_MODE_EVENT_OVER_CHARGE);
     }
 
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
@@ -311,7 +324,8 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
         if (button_encoder_event == BUTTON_RST_PRESSED) {
-            return CHARGE_MODE_EXIT;
+            charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+            return;
         }
 
         // Perform measurement
@@ -337,10 +351,10 @@ ChargeModeState_t charge_mode_wait_for_cup_removal(ChargeModeState_t prev_state)
     // Reset LED to default colour
     neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
 
-    return CHARGE_MODE_WAIT_FOR_CUP_RETURN;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_RETURN;
 }
 
-ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) { 
+void charge_mode_wait_for_cup_return() { 
     // Set colour to not ready
     neopixel_led_set_colour(
         NEOPIXEL_LED_DEFAULT_COLOUR, 
@@ -359,7 +373,8 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
         if (button_encoder_event == BUTTON_RST_PRESSED) {
-            return CHARGE_MODE_EXIT;
+            charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+            return;
         }
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
             scale_config.scale_handle->force_zero();
@@ -380,36 +395,36 @@ ChargeModeState_t charge_mode_wait_for_cup_return(ChargeModeState_t prev_state) 
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(20));
     }
 
-    return CHARGE_MODE_WAIT_FOR_ZERO;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
 }
 
 
-uint8_t charge_mode_menu() {
+uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
     // Reset LED to default colour
     neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
 
-    // Create target weight
-    switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
-        case DP_2:
-            charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
-                                            charge_weight_digits[3] * 10 + \
-                                            charge_weight_digits[2] * 1 + \
-                                            charge_weight_digits[1] * 0.1 + \
-                                            charge_weight_digits[0] * 0.01;
-            break;
-        case DP_3:
-            charge_mode_config.target_charge_weight = charge_weight_digits[4] * 10 + \
-                                            charge_weight_digits[3] * 1 + \
-                                            charge_weight_digits[2] * 0.1 + \
-                                            charge_weight_digits[1] * 0.01 + \
-                                            charge_weight_digits[0] * 0.001;
-            break;
-        default:
-            charge_mode_config.target_charge_weight = 0;
-            break;
+    // Create target weight, if the charge mode weight is built by charge_weight_digits
+    if (!charge_mode_skip_user_input) {
+        switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
+            case DP_2:
+                charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
+                                                charge_weight_digits[3] * 10 + \
+                                                charge_weight_digits[2] * 1 + \
+                                                charge_weight_digits[1] * 0.1 + \
+                                                charge_weight_digits[0] * 0.01;
+                break;
+            case DP_3:
+                charge_mode_config.target_charge_weight = charge_weight_digits[4] * 10 + \
+                                                charge_weight_digits[3] * 1 + \
+                                                charge_weight_digits[2] * 0.1 + \
+                                                charge_weight_digits[1] * 0.01 + \
+                                                charge_weight_digits[0] * 0.001;
+                break;
+            default:
+                charge_mode_config.target_charge_weight = 0;
+                break;
+        }
     }
-
-    printf("Target Charge Weight: %f\n", charge_mode_config.target_charge_weight);
 
     // If the display task is never created then we shall create one, otherwise we shall resume the task
     if (scale_measurement_render_task_handler == NULL) {
@@ -425,38 +440,29 @@ uint8_t charge_mode_menu() {
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
     
-    ChargeModeState_t state = CHARGE_MODE_WAIT_FOR_ZERO;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
 
     bool quit = false;
     while (quit == false) {
-        switch (state) {
+        switch (charge_mode_config.charge_mode_state) {
             case CHARGE_MODE_WAIT_FOR_ZERO:
-                state = charge_mode_wait_for_zero(state);
+                charge_mode_wait_for_zero();
                 break;
             case CHARGE_MODE_WAIT_FOR_COMPLETE:
-                state = charge_mode_wait_for_complete(state);
+                charge_mode_wait_for_complete();
                 break;
             case CHARGE_MODE_WAIT_FOR_CUP_REMOVAL:
-                state = charge_mode_wait_for_cup_removal(state);
+                charge_mode_wait_for_cup_removal();
                 break;
             case CHARGE_MODE_WAIT_FOR_CUP_RETURN:
-                state = charge_mode_wait_for_cup_return(state);
+                charge_mode_wait_for_cup_return();
                 break;
             case CHARGE_MODE_EXIT:
             default:
                 quit = true;
                 break;
         }
-
     }
-    
-    // // Wait for user input
-    // ButtonEncoderEvent_t button_encoder_event;
-    // while (true) {
-    //     while (xQueueReceive(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(20))){
-    //         printf("%d\n", button_encoder_event);
-    //     }
-    // }
 
     // Reset LED to default colour
     neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
@@ -572,6 +578,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
+             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06x\",\"c2\":\"#%06x\",\"c3\":\"#%06x\",\"c4\":\"#%06x\","
              "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
@@ -595,22 +602,71 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
 }
 
 
-bool http_rest_charge_mode_setpoint(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char charge_mode_json_buffer[64];
+bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings
+    // s0 (float): Charge weight set point (unitless)
+    // s1 (float): Current weight (unitless)
+    // s2 (charge_mode_state_t | int): Charge mode state
+    // s3 (uint32_t): Charge mode event
+    // s4 (string): Profile Name
+
+    static char charge_mode_json_buffer[128];
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "target_charge_weight") == 0) {
-            float target_charge_weight = strtof(values[idx], NULL);
-            charge_mode_config.target_charge_weight = target_charge_weight;
+        if (strcmp(params[idx], "s0") == 0) {
+            charge_mode_config.target_charge_weight = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "s2") == 0) {
+            charge_mode_state_t new_state = (charge_mode_state_t) atoi(values[idx]);
+
+            // Exit
+            if (new_state == CHARGE_MODE_EXIT && charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+                ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
+                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            }
+            // Enter
+            else if (new_state == CHARGE_MODE_WAIT_FOR_ZERO && charge_mode_config.charge_mode_state == CHARGE_MODE_EXIT) {
+                // Set exit_status for the menu
+                exit_state = APP_STATE_ENTER_CHARGE_MODE_FROM_REST;
+
+                // Then signal the menu to stop
+                ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
+                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            }
+
+            charge_mode_config.charge_mode_state = new_state;
         }
     }
+
+    // Handle the special case
+    float current_measurement = scale_get_current_measurement();
+    char weight_string[16];
+    if (isnanf(current_measurement)) {
+        sprintf(weight_string, "\"nan\"");
+    }
+    else if (isinff(current_measurement)) {
+        sprintf(weight_string, "\"inf\"");
+    }
+    else {
+        sprintf(weight_string, "%0.3f", current_measurement);
+    }
+
 
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
-             "{\"target_charge_weight\":%0.3f}",
-             charge_mode_config.target_charge_weight);
+             "%s"
+             "{\"s0\":%0.3f,\"s1\":%s,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\"}",
+             http_json_header,
+             charge_mode_config.target_charge_weight,
+             weight_string,
+             (int) charge_mode_config.charge_mode_state,
+             charge_mode_config.charge_mode_event,
+             profile_get_selected()->name);
+
+    // Clear events
+    charge_mode_config.charge_mode_event = 0;
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;

@@ -15,9 +15,10 @@
 // Speed: The magnitude of how fast the motor rotates, in rev/s
 
 typedef enum {
-    SELECT_COARSE_TRICKLER_MOTOR,
+    SELECT_COARSE_TRICKLER_MOTOR = 0,
     SELECT_FINE_TRICKLER_MOTOR,
     SELECT_BOTH_MOTOR,
+    NUM_OF_MOTOR_SELECT,
 } motor_select_t;
 
 
@@ -87,7 +88,6 @@ const char * get_motor_select_string(motor_select_t selected_motor);
 // REST interface
 bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

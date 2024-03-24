@@ -222,7 +222,9 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
 
         // Response
         snprintf(buf, sizeof(buf), 
+                 "%s"
                  "{\"pf\":%d,\"p0\":%d,\"p1\":%d,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f,\"p11\":%0.3f,\"p12\":%0.3f}",
+                 http_json_header,
                  profile_idx, 
                  current_profile->rev,
                  current_profile->compatibility,
@@ -238,6 +240,51 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
                  current_profile->fine_min_flow_speed_rps,
                  current_profile->fine_max_flow_speed_rps);
     }
+
+    size_t response_len = strlen(buf);
+    file->data = buf;
+    file->len = response_len;
+    file->index = response_len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
+
+
+bool http_rest_profile_summary(struct fs_file *file, int num_params, char *params[], char *values[])
+{
+    // It does not take argument
+    assert(MAX_PROFILE_CNT <= 8);  // Ensures 256 byte buffer us sufficient
+    static char buf[256];
+
+    // Response
+    // s0 (dict): A dictionary of all profiles in {idx: name} format. 
+    // s1 (int): The current loaded profile index
+    memset(buf, 0x0, sizeof(buf));
+    const char * item_template = "\"%d\":\"%s\",";
+
+    // Create header
+    snprintf(buf, sizeof(buf), 
+             "%s{\"s0\":{",
+             http_json_header);
+
+    size_t char_idx = strlen(buf);
+
+    // Write profile information
+    for (uint8_t p_idx=0; p_idx < MAX_PROFILE_CNT; p_idx+=1) {
+        snprintf(&buf[char_idx], sizeof(buf) - char_idx, 
+                 item_template,
+                 p_idx, &profile_data.profiles[p_idx].name);
+        char_idx += strnlen((const char *) &buf[char_idx], sizeof(buf));
+    }
+
+    // Append close bracket (replace the last comma)
+    buf[char_idx - 1] = '}';
+
+    // Append s1
+    snprintf(&buf[char_idx], sizeof(buf) - char_idx,
+             ",\"s1\":%d}", 
+             profile_data.current_profile_idx);
 
     size_t response_len = strlen(buf);
     file->data = buf;

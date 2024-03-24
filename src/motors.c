@@ -634,7 +634,9 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
     // Build response
     snprintf(buf, 
              max_len,
-             "{\"m0\":%f,\"m1\":%d,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%f,\"m8\":%s,\"m9\":%s}",
+             "%s"
+             "{\"m0\":%0.3f,\"m1\":%d,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%0.7f,\"m8\":%s,\"m9\":%s}",
+             http_json_header,
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,
              motor_config->persistent_config.current_ma,
@@ -728,72 +730,6 @@ bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *par
     file->data = json_buffer;
     file->len = response_len;
     file->index = response_len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}
-
-
-bool http_rest_motor_speed(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char motor_speed_json_buffer[64];
-    const char * response = NULL;
-
-    const char * error_msg = NULL;
-    if (num_params == 0) {
-        error_msg = "invalid_num_args";
-    }
-    else {
-        motor_config_t * motor_config = NULL;
-        motor_select_t motor_select;
-
-        // Read motor
-        if (strcmp(params[0], "motor") == 0) {
-            if (strcmp(values[0], "coarse") == 0) {
-                motor_config = &coarse_trickler_motor_config;
-                motor_select = SELECT_COARSE_TRICKLER_MOTOR;
-            }
-            else if (strcmp(values[0], "fine") == 0) {
-                motor_config = &fine_trickler_motor_config;
-                motor_select = SELECT_FINE_TRICKLER_MOTOR;
-            }
-            else {
-                error_msg = "invalid_motor";
-            }
-
-            if (motor_config) {
-                // Control
-                for (int idx = 1; idx < num_params; idx += 1) {
-                    if (strcmp(params[idx], "velocity") == 0) {
-                        float new_velocity = strtof(values[idx], NULL);
-                        motor_set_speed(motor_select, new_velocity);
-                    }
-                    // TODO: Handle enable
-                }
-
-                // Build response
-                snprintf(motor_speed_json_buffer, 
-                         sizeof(motor_speed_json_buffer),
-                         "{\"speed\":%0.3f,\"direction\":%d}",
-                         motor_config->prev_velocity,
-                         motor_config->step_direction);
-            }
-        }
-        else {
-            error_msg = "motor_not_selected";
-        }
-    }
-
-    if (error_msg) {
-        response = error_msg;
-    }
-    else {
-        response = motor_speed_json_buffer;
-    }
-
-    size_t data_length = strlen(response);
-    file->data = response;
-    file->len = data_length;
-    file->index = data_length;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
 
     return true;
