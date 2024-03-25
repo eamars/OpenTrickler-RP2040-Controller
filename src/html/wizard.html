@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>OpenTrickler Setup Wizard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0 viewport-fit=cover">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: #f1f1f1;
+        }
+        
+        .reg-form {
+            background-color: #ffffff;
+            margin: 10px auto;
+            font-family: Raleway;
+            padding: 30px;
+            width: 70%;
+            min-width: 300px;
+        }
+
+        .button-group {
+            overflow: auto;
+            text-align: right;
+        }
+
+        .option-group {
+            margin: 20px auto;
+        }
+        
+        h1 {
+            text-align: center;  
+        }
+        
+        input {
+            padding: 10px;
+            width: 100%;
+            font-size: 17px;
+            font-family: Raleway;
+            border: 1px solid #aaaaaa;
+        }
+
+        select {
+            padding: 10px;
+            width: 100%;
+            font-size: 17px;
+            font-family: Raleway;
+            border: 1px solid #aaaaaa;
+        }
+
+
+        
+        /* Mark input boxes that gets an error on validation: */
+        input.invalid {
+            background-color: #ffdddd;
+        }
+        
+        /* Hide all steps by default: */
+        /* .tab {
+          display: none;
+        } */
+        
+        button {
+            background-color: #2b3440;
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 17px;
+            font-family: Raleway;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            opacity: 0.8;
+        }
+        
+        .inactive-button {
+            background-color: #bbbbbb;
+        }
+        
+        /* Make circles that indicate the steps of the form: */
+        .step {
+            height: 15px;
+            width: 15px;
+            margin: 0 2px;
+            background-color: #bbbbbb;
+            border: none;  
+            border-radius: 50%;
+            display: inline-block;
+            opacity: 0.5;
+        }
+        
+        .step.active {
+            opacity: 1;
+        }
+        
+        /* Mark the steps that are finished and valid: */
+        .step.finish {
+            background-color: #04AA6D;
+        }
+
+        table {
+            font-family: arial, sans-serif;
+            border-collapse: collapse;
+            width: 100%;
+            margin: 32px;
+        }
+
+        td, th {
+            text-align: left;
+            padding: 8px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #dddddd;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Configure WiFi</h1>
+
+    <div class="reg-form">
+        <form action="/rest/wireless_config" id="wifi-config">
+            <!-- One "tab" for each step in the form: -->
+            <div class="option-group">
+                <span>SSID</span>
+                <input type="text" name="w0" maxlength="32">
+            </div>
+
+            <div class="option-group">
+                <span>Password</span>
+                <input type="password" name="w1" maxlength="63" placeholder="********">
+            </div>
+
+            <div class="option-group">
+                <span>WiFi Authentication Method</span>
+                <select name="w2">
+                    <option value="0">None</option>
+                    <option value="1">WPA-TKIP</option>
+                    <option value="2">WPA2-AES</option>
+                    <option value="3">WPA2-MIXED</option>
+                </select>
+            </div>
+            <div class="button-group">
+                <button type="button" id="submit-btn">Complete & Reboot</button>
+            </div>
+        </form>
+    </div>
+
+
+    <script>
+        function validateForm(form) {
+            var isValid = true;
+            allInputs = form.getElementsByTagName("input");
+            for (const input of allInputs) {
+                if (input.value == "") {
+                    isValid = false;
+                    input.classList.add("invalid");
+                }
+                else {
+                    input.classList.remove("invalid");
+                }
+            }
+
+            return isValid;
+        }
+
+        // Submit the form data to the action URI
+        function putForm(targetForm, saveToEeprom) {
+            const paramData = new FormData(targetForm);
+
+            // Remove empty param
+            for (const [key, value] of paramData.entries()) {
+                if (value == "") {
+                    paramData.delete(key);
+                }
+            }
+
+            if (saveToEeprom) {
+                paramData.append('ee', true)
+            }
+
+            const queryString = new URLSearchParams(paramData).toString();
+            const uri = new URL(targetForm.action + '?');
+            uri.search = queryString;
+
+            // Post the new param with GET method
+            fetch(uri)
+            .then(response => {
+                return response.json();
+            })
+            .then(data => {
+                // Populate values
+                const uri = targetForm.getAttribute("action");
+                fetch(uri)
+                .then(response => {
+                    return response.json();
+                })
+                .then(data => {
+                    // Populate the form
+                    for (const key in data) {
+                        const element = targetForm.querySelector('[name="' + key + '"]');
+                        if (element) {
+                            element.value = String(data[key]);
+                        }
+                    }
+                })
+            })
+        }
+
+        document.getElementById("submit-btn").addEventListener("click", (event) => {
+            event.preventDefault();
+
+            const form = document.getElementById("wifi-config")
+
+            // First validate the input
+            const isValid = validateForm(form);
+
+            if (isValid) {
+                putForm(form, true);
+
+                // Send reboot request
+                const uri = "/rest/system_control?s5=true";
+                fetch(uri);
+            }
+        })
+
+        function populateWifiConfig() {
+            // Populate values
+            const form = document.getElementById("wifi-config")
+            if (form) {
+                const uri = form.getAttribute("action");
+                fetch(uri)
+                .then(response => {
+                    return response.json();
+                })
+                .then(data => {
+                    // Populate the form
+                    for (const key in data) {
+                        const element = form.querySelector('[name="' + key + '"]');
+                        if (element) {
+                            element.value = String(data[key]);
+                        }
+                    }
+                })
+            }
+        }
+
+        // Start the long polling process when the page loads
+        document.addEventListener('DOMContentLoaded', function() {populateWifiConfig();});
+    </script>
+</body>
+</html>

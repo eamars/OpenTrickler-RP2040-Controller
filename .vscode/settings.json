@@ -32,6 +32,8 @@
         "scale.h": "c",
         "rotary_button.h": "c",
         "freertos.h": "c",
-        "lwipopts_examples_common.h": "c"
+        "lwipopts_examples_common.h": "c",
+        "jquery-3.7.0.min.js.h": "c",
+        "web_portal.html.h": "c"
     }
 }
