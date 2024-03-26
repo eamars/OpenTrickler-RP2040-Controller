@@ -324,7 +324,8 @@ void wireless_task(void *p) {
     }
 
     // Initialize REST endpoints
-    rest_endpoints_init();
+    // If the current wireless state is AP mode then we will map / to the wifi configuration
+    rest_endpoints_init(wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN);
 
     // Start the HTTP server
     httpd_init();

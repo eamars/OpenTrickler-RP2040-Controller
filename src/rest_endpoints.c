@@ -21,7 +21,8 @@
 
 bool http_404_error(struct fs_file *file, int num_params, char *params[], char *values[]) {
 
-    file->data = "{\"error\":404}";
+    file->data = "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\n\r\n"
+                 "{\"error\":404}";
     file->len = 13;
     file->index = 13;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
@@ -67,8 +68,15 @@ bool http_wizard(struct fs_file *file, int num_params, char *params[], char *val
 
 
 
-bool rest_endpoints_init() {
-    rest_register_handler("/", http_web_portal);
+bool rest_endpoints_init(bool default_wizard) {
+    if (default_wizard) {
+        rest_register_handler("/", http_wizard);
+    }
+    else {
+        rest_register_handler("/", http_web_portal);
+    }
+    
+    rest_register_handler("/mobile", http_web_portal);
     rest_register_handler("/wizard", http_wizard);
     rest_register_handler("/404", http_404_error);
     rest_register_handler("/rest/scale_action", http_rest_scale_action);

@@ -34,6 +34,12 @@
         "freertos.h": "c",
         "lwipopts_examples_common.h": "c",
         "jquery-3.7.0.min.js.h": "c",
-        "web_portal.html.h": "c"
+        "web_portal.html.h": "c",
+        "wizard.html.h": "c",
+        "display_mirror.html.h": "c",
+        "cleanup_mode.h": "c",
+        "charge_mode.h": "c",
+        "http_rest.h": "c",
+        "motors.h": "c"
     }
 }
