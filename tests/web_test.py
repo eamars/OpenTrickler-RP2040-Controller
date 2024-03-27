@@ -10,7 +10,7 @@ Dependencies from pip:
 """
 
 import json
-from flask import Flask
+from flask import Flask, send_from_directory
 import os
 
 
@@ -18,6 +18,7 @@ script_directory = os.path.dirname(os.path.realpath(__file__))
 web_portal_path = os.path.join(script_directory, '..', 'src', 'html', 'web_portal.html')
 wizard_path = os.path.join(script_directory, '..', 'src', 'html', 'wizard.html')
 static_folder = os.path.join(script_directory, '..', 'src', 'html')
+
 
 app = Flask(__name__,
             static_url_path='',
