@@ -15,16 +15,14 @@
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
-#include "bootstrap.min.css.h"
-#include "bootstrap.min.js.h"
-#include "jquery-3.7.0.min.js.h"
-#include "dashboard.html.h"
-#include "mobile_frontend.html.h"
+#include "web_portal.html.h"
+#include "wizard.html.h"
 
 
 bool http_404_error(struct fs_file *file, int num_params, char *params[], char *values[]) {
 
-    file->data = "{\"error\":404}";
+    file->data = "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\n\r\n"
+                 "{\"error\":404}";
     file->len = 13;
     file->index = 13;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
@@ -45,10 +43,10 @@ bool http_display_mirror(struct fs_file *file, int num_params, char *params[], c
 }
 
 
-bool http_bootstrap_css(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(html_bootstrap_min_css);
+bool http_web_portal(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(html_web_portal_html);
 
-    file->data = html_bootstrap_min_css;
+    file->data = html_web_portal_html;
     file->len = len;
     file->index = len;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
@@ -57,45 +55,10 @@ bool http_bootstrap_css(struct fs_file *file, int num_params, char *params[], ch
 }
 
 
-bool http_bootstrap_js(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(html_bootstrap_min_js);
+bool http_wizard(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(html_wizard_html);
 
-    file->data = html_bootstrap_min_js;
-    file->len = len;
-    file->index = len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
-
-    return true;
-}
-
-bool http_jquery_js(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(html_jquery_3_7_0_min_js);
-
-    file->data = html_jquery_3_7_0_min_js;
-    file->len = len;
-    file->index = len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
-
-    return true;
-}
-
-
-bool http_dashboard(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(html_dashboard_html);
-
-    file->data = html_dashboard_html;
-    file->len = len;
-    file->index = len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
-
-    return true;
-}
-
-
-bool http_mobile_portal(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t len = strlen(html_mobile_frontend_html);
-
-    file->data = html_mobile_frontend_html;
+    file->data = html_wizard_html;
     file->len = len;
     file->index = len;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
@@ -105,9 +68,16 @@ bool http_mobile_portal(struct fs_file *file, int num_params, char *params[], ch
 
 
 
-bool rest_endpoints_init() {
-    rest_register_handler("/", http_dashboard);
-    rest_register_handler("/mobile", http_mobile_portal);
+bool rest_endpoints_init(bool default_wizard) {
+    if (default_wizard) {
+        rest_register_handler("/", http_wizard);
+    }
+    else {
+        rest_register_handler("/", http_web_portal);
+    }
+    
+    rest_register_handler("/mobile", http_web_portal);
+    rest_register_handler("/wizard", http_wizard);
     rest_register_handler("/404", http_404_error);
     rest_register_handler("/rest/scale_action", http_rest_scale_action);
     rest_register_handler("/rest/scale_config", http_rest_scale_config);
@@ -125,7 +95,4 @@ bool rest_endpoints_init() {
     rest_register_handler("/rest/profile_summary", http_rest_profile_summary);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
-    rest_register_handler("/css/bootstrap.min.css", http_bootstrap_css);
-    rest_register_handler("/js/bootstrap.min.js", http_bootstrap_js);
-    rest_register_handler("/js/jquery-3.7.0.min.js", http_jquery_js);
 }
