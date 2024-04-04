@@ -1,4 +1,5 @@
 #include <stdint.h>
-#include <pico/binary_info.h>
 
-bi_decl(bi_program_description("APP1"))
+typedef struct {
+
+} binary_header_t;

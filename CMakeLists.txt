@@ -43,6 +43,8 @@ SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
 # SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
+# Add definitions
+add_definitions(-DPICO_NO_BINARY_INFO)
 
 # Application
 add_executable("${TARGET_NAME}")
