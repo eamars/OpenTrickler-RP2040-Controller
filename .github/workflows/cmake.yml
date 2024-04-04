@@ -31,22 +31,22 @@ jobs:
         sudo apt-get update
         sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libstdc++-arm-none-eabi-newlib python3
 
-    - name: Build Release Package
-      # Build your program with the given configuration
+    # - name: Build Release Package
+    #   # Build your program with the given configuration
 
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: |
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=${{env.PICO_BOARD}}
-        cmake --build ${{github.workspace}}/build --config Release
+    #   # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+    #   # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+    #   run: |
+    #     cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=${{env.PICO_BOARD}}
+    #     cmake --build ${{github.workspace}}/build --config Release
 
-    - name: Archive Release Artifacts
-      uses: actions/upload-artifact@v3
-      with: 
-        name: uf2-release
-        path: |
-          src/generated/version.c
-          build/*.uf2
+    # - name: Archive Release Artifacts
+    #   uses: actions/upload-artifact@v3
+    #   with: 
+    #     name: uf2-release
+    #     path: |
+    #       src/generated/version.c
+    #       build/*.uf2
 
     - name: Build Debug Package
       # Build your program with the given configuration

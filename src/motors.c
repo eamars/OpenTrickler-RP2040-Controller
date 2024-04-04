@@ -594,7 +594,7 @@ bool motors_init(void) {
                 8, 
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
 
-    return true;
+    return is_ok;
 }
 
 
