@@ -117,6 +117,7 @@ if (PICO_BOARD STREQUAL "pico_w" )
 endif()
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
+set_target_properties("${TARGET_NAME}" PROPERTIES PICO_TARGET_LINKER_SCRIPT ${SCRIPTS_DIRECTORY}/linker_scripts/initial_deployment.ld)
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # Generate extra outputs

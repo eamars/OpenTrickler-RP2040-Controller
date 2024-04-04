@@ -1,7 +1,7 @@
 # Generate PIO headers
-pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
+pico_generate_pio_header(${TARGET_NAME} ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 # Generate PIO headers
-pico_generate_pio_header(app ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
+pico_generate_pio_header(${TARGET_NAME} ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 
 # Find Python, as Python is required to convert pages into source
 find_package (Python COMPONENTS Interpreter REQUIRED)

@@ -40,6 +40,10 @@
         "cleanup_mode.h": "c",
         "charge_mode.h": "c",
         "http_rest.h": "c",
-        "motors.h": "c"
+        "motors.h": "c",
+        "defs.h": "c",
+        "code.h": "c",
+        "binary_info.h": "c",
+        "structure.h": "c"
     }
 }
