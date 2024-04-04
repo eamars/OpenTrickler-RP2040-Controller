@@ -97,6 +97,7 @@ target_link_libraries(app_base
     hardware_i2c
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_freertos
+    app_version
 )
 
 # Pull in src to generate extra files
@@ -110,7 +111,6 @@ add_executable(initial_deployment)
 # Include libraries1
 target_link_libraries(initial_deployment
     app_base
-    app_version
 )
 
 target_link_options(initial_deployment PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
@@ -129,7 +129,6 @@ add_executable(fw_bank0)
 # Include libraries1
 target_link_libraries(fw_bank0
     app_base
-    app_version
 )
 
 target_link_options(fw_bank0 PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
@@ -148,7 +147,6 @@ add_executable(fw_bank1)
 # Include libraries1
 target_link_libraries(fw_bank1
     app_base
-    app_version
 )
 
 target_link_options(fw_bank1 PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
