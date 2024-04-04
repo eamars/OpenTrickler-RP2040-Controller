@@ -84,7 +84,7 @@ void gpio_irq_handler::gpio_callback(uint gpio, uint32_t events)
 
 gpio_irq_handler::gpio_irq_handler()
 {
-    for (int c = 0; c < NUM_CORES; ++c)
+    for (uint8_t c = 0; c < NUM_CORES; ++c)
     {
         for (int p = 0; p <= HIGHEST_INTERRUPT_PIN; ++p)
         {

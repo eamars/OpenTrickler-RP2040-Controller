@@ -90,11 +90,13 @@ uint8_t render_profile_ver_info(mui_t *ui, uint8_t msg) {
 
             char buf[32];
             snprintf(buf, sizeof(buf), 
-                     "Rev:%x,Comp:%x", current_profile->rev, current_profile->compatibility);
+                     "Rev:%lx,Comp:%lx", current_profile->rev, current_profile->compatibility);
 
             u8g2_DrawStr(u8g2, x, y, buf);
         }
     }
+
+    return 0;
 }
 
 

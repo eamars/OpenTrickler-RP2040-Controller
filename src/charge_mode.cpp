@@ -267,7 +267,7 @@ void charge_mode_wait_for_complete() {
 
 void charge_mode_wait_for_cup_removal() {
     // Update current status
-    snprintf(title_string, sizeof(title_string), "Remove Cup", charge_mode_config.target_charge_weight);
+    snprintf(title_string, sizeof(title_string), "Remove Cup");
 
     FloatRingBuffer data_buffer(5);
 
@@ -363,7 +363,7 @@ void charge_mode_wait_for_cup_return() {
         true
     );
 
-    snprintf(title_string, sizeof(title_string), "Return Cup", charge_mode_config.target_charge_weight);
+    snprintf(title_string, sizeof(title_string), "Return Cup");
 
     FloatRingBuffer data_buffer(5);
 
@@ -579,7 +579,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-             "{\"c1\":\"#%06x\",\"c2\":\"#%06x\",\"c3\":\"#%06x\",\"c4\":\"#%06x\","
+             "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
              "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,

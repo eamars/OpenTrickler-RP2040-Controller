@@ -68,8 +68,6 @@ void scale_calibration_render_task(void *p) {
 
 
 uint8_t scale_calibrate_with_external_weight() {
-    AppState_t exit_state = APP_STATE_DEFAULT;
-
     if (scale_calibration_render_task_handler == NULL) {
         UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
         xTaskCreate(scale_calibration_render_task, "Scale Measurement Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &scale_calibration_render_task_handler);
@@ -79,7 +77,6 @@ uint8_t scale_calibrate_with_external_weight() {
     }
 
     BaseType_t scheduler_state = xTaskGetSchedulerState();
-    ButtonEncoderEvent_t button;
 
     // Step 1: Enter CAL mode by pressing CAL key
     // Displays CAL 0
