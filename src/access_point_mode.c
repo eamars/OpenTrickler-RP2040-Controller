@@ -61,4 +61,6 @@ bool access_point_mode_stop() {
 
     memset(first_line_buffer, 0x0, sizeof(first_line_buffer));
     memset(second_line_buffer, 0x0, sizeof(second_line_buffer));
+
+    return true;
 }
