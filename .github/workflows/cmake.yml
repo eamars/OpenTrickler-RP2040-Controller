@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with: 
         fetch-depth: 0          # Fetch all branches and tags
         submodules: recursive   # Automatically pull all submodules
@@ -58,7 +58,7 @@ jobs:
         cmake --build ${{github.workspace}}/build --config Debug
 
     - name: Archive Debug Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with: 
         name: uf2-debug
         path: |
