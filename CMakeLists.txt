@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.25)
 
 # Set project data
 set(PROJECT_NAME "OpenTricklerController")
-set(TARGET_NAME "app")
 
 message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 
@@ -46,12 +45,6 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wa
 # Add definitions
 add_definitions(-DPICO_NO_BINARY_INFO)
 
-# Application
-add_executable("${TARGET_NAME}")
-
-# Include source
-include_directories(${SRC_DIRECTORY})
-
 # Pull in FreeRTOS
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
@@ -69,8 +62,6 @@ target_sources(trinamic INTERFACE
 )
 target_include_directories(trinamic INTERFACE ${TMC_SRC_DIRECTORY})
 
-
-
 # Pull in u8g2 mui
 add_library(u8g2_mui
     ${U8G2_MUI_DIRECTORY}/mui_u8g2.c
@@ -80,47 +71,89 @@ add_library(u8g2_mui
 )
 target_link_libraries(u8g2_mui u8g2)
 
-# Pull in src
-add_subdirectory(${SRC_DIRECTORY})
-
 # Collect all source files
 file(GLOB SRC ${SRC_DIRECTORY}/*.c 
               ${SRC_DIRECTORY}/*.cpp)
 
-# Include application source file
-target_sources("${TARGET_NAME}" PUBLIC
+
+# Pull in source code as library
+add_library(app_base 
     ${SRC}
 )
-
-# Include additional headers
-target_include_directories("${TARGET_NAME}" PUBLIC ${CMAKE_SOURCE_DIR}/targets)
-
-# Include libraries1
-target_link_libraries("${TARGET_NAME}"
-    pico_stdlib
-    hardware_pio
-    hardware_spi
-    hardware_i2c
+target_include_directories(app_base PUBLIC 
+    ${SRC_DIRECTORY}
+    ${SRC_DIRECTORY}/generated
+    ${PICO_BOARD_HEADER_DIRS}
+)
+target_link_libraries(app_base
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     u8g2
     u8g2_mui
     trinamic
+    pico_stdlib
+    hardware_pio
+    hardware_spi
+    hardware_i2c
+    pico_cyw43_arch_lwip_sys_freertos
+    pico_lwip_freertos
+)
+
+# Pull in src to generate extra files
+add_subdirectory(${SRC_DIRECTORY})
+
+# ####################################################
+#           Build Deployment Application             #
+######################################################
+add_executable(initial_deployment)
+
+# Include libraries1
+target_link_libraries(initial_deployment
+    app_base
     app_version
 )
 
-if (PICO_BOARD STREQUAL "pico_w" )
-    message("Using PICO_W board, link cyw43")
-    target_link_libraries("${TARGET_NAME}" 
-        pico_cyw43_arch_lwip_sys_freertos
-        pico_lwip_freertos
-        # pico_lwip_http
-        )
-endif()
-
-target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
-set_target_properties("${TARGET_NAME}" PROPERTIES PICO_TARGET_LINKER_SCRIPT ${SCRIPTS_DIRECTORY}/linker_scripts/initial_deployment.ld)
+target_link_options(initial_deployment PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
+set_target_properties(initial_deployment PROPERTIES PICO_TARGET_LINKER_SCRIPT ${SCRIPTS_DIRECTORY}/linker_scripts/initial_deployment.ld)
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # Generate extra outputs
-pico_add_extra_outputs("${TARGET_NAME}")
+pico_add_extra_outputs(initial_deployment)
+
+
+# ####################################################
+#               Build Bank0 Application              #
+######################################################
+add_executable(fw_bank0)
+
+# Include libraries1
+target_link_libraries(fw_bank0
+    app_base
+    app_version
+)
+
+target_link_options(fw_bank0 PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
+set_target_properties(fw_bank0 PROPERTIES PICO_TARGET_LINKER_SCRIPT ${SCRIPTS_DIRECTORY}/linker_scripts/bank0.ld)
+# set( CMAKE_VERBOSE_MAKEFILE on )
+
+# Generate extra outputs
+pico_add_extra_outputs(fw_bank0)
+
+
+# ####################################################
+#               Build Bank1 Application              #
+######################################################
+add_executable(fw_bank1)
+
+# Include libraries1
+target_link_libraries(fw_bank1
+    app_base
+    app_version
+)
+
+target_link_options(fw_bank1 PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
+set_target_properties(fw_bank1 PROPERTIES PICO_TARGET_LINKER_SCRIPT ${SCRIPTS_DIRECTORY}/linker_scripts/bank1.ld)
+# set( CMAKE_VERBOSE_MAKEFILE on )
+
+# Generate extra outputs
+pico_add_extra_outputs(fw_bank1)

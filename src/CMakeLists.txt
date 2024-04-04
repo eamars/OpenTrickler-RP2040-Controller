@@ -1,7 +1,7 @@
 # Generate PIO headers
-pico_generate_pio_header(${TARGET_NAME} ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
+pico_generate_pio_header(app_base ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 # Generate PIO headers
-pico_generate_pio_header(${TARGET_NAME} ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
+pico_generate_pio_header(app_base ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
 
 # Find Python, as Python is required to convert pages into source
 find_package (Python COMPONENTS Interpreter REQUIRED)
@@ -22,7 +22,7 @@ add_custom_command(
     COMMENT "Generating web_portal.html header"
 )
 
-add_dependencies("${TARGET_NAME}" generate_web_portal_header)
+add_dependencies(app_base generate_web_portal_header)
 
 
 # wizard.html
@@ -38,7 +38,7 @@ add_custom_command(
     COMMENT "Generating wizard.html header"
 )
 
-add_dependencies("${TARGET_NAME}" generate_wizard_header)
+add_dependencies(app_base generate_wizard_header)
 
 
 # display_mirror.html
@@ -54,7 +54,7 @@ add_custom_command(
     COMMENT "Generating display_mirror.html header"
 )
 
-add_dependencies("${TARGET_NAME}" generate_display_mirror)
+add_dependencies(app_base generate_display_mirror)
 
 
 # Generate version
