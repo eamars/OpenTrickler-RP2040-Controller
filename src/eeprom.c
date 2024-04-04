@@ -111,7 +111,9 @@ bool eeprom_init(void) {
         metadata.eeprom_metadata_rev = EEPROM_METADATA_REV;
 
         // Generate id
-        snprintf(metadata.unique_id, 8, "%08X", rnd() & 0xffffffff);
+        char buf[9];
+        snprintf(buf, sizeof(buf), "%08lX", rnd() & 0xffffffff);
+        memcpy(metadata.unique_id, buf, sizeof(metadata.unique_id));
 
         // Write data back
         is_ok = eeprom_config_save();
@@ -195,8 +197,6 @@ bool http_rest_system_control(struct fs_file *file, int num_params, char *params
     // s5 (bool): software_reset
     // s6 (bool): erase_eeprom
     static char eeprom_config_json_buffer[256];
-
-    const char * software_reset_string;
 
     bool save_to_eeprom_flag = false;
     bool software_reset_flag = false;

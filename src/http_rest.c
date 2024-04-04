@@ -151,13 +151,13 @@ typedef struct {
   u8_t shtml;
 } default_filename;
 
-static const default_filename httpd_default_filenames[] = {
-  {"/index.shtml", 1 },
-  {"/index.ssi",   1 },
-  {"/index.shtm",  1 },
-  {"/index.html",  0 },
-  {"/index.htm",   0 }
-};
+// static const default_filename httpd_default_filenames[] = {
+//   {"/index.shtml", 1 },
+//   {"/index.ssi",   1 },
+//   {"/index.shtm",  1 },
+//   {"/index.html",  0 },
+//   {"/index.htm",   0 }
+// };
 
 #define NUM_DEFAULT_FILENAMES LWIP_ARRAYSIZE(httpd_default_filenames)
 
@@ -177,7 +177,7 @@ static char httpd_req_buf[LWIP_HTTPD_MAX_REQ_LENGTH + 1];
 #if LWIP_HTTPD_URI_BUF_LEN
 /* Filename for response file to send when POST is finished or
  * search for default files when a directory is requested. */
-static char http_uri_buf[LWIP_HTTPD_URI_BUF_LEN + 1];
+// static char http_uri_buf[LWIP_HTTPD_URI_BUF_LEN + 1];
 #endif
 
 #if LWIP_HTTPD_DYNAMIC_HEADERS
@@ -1693,33 +1693,33 @@ http_find_error_file(struct http_state *hs, u16_t error_nr)
  * @param uri pointer that receives the actual file name URI
  * @return file struct for the error page or NULL no matching file was found
  */
-static struct fs_file *
-http_get_404_file(struct http_state *hs, const char **uri)
-{
-  err_t err;
+// static struct fs_file *
+// http_get_404_file(struct http_state *hs, const char **uri)
+// {
+//   err_t err;
 
-  *uri = "/404.html";
-  err = fs_open(&hs->file_handle, *uri);
-  if (err != ERR_OK) {
-    /* 404.html doesn't exist. Try 404.htm instead. */
-    *uri = "/404.htm";
-    err = fs_open(&hs->file_handle, *uri);
-    if (err != ERR_OK) {
-      /* 404.htm doesn't exist either. Try 404.shtml instead. */
-      *uri = "/404.shtml";
-      err = fs_open(&hs->file_handle, *uri);
-      if (err != ERR_OK) {
-        /* 404.htm doesn't exist either. Indicate to the caller that it should
-         * send back a default 404 page.
-         */
-        *uri = NULL;
-        return NULL;
-      }
-    }
-  }
+//   *uri = "/404.html";
+//   err = fs_open(&hs->file_handle, *uri);
+//   if (err != ERR_OK) {
+//     /* 404.html doesn't exist. Try 404.htm instead. */
+//     *uri = "/404.htm";
+//     err = fs_open(&hs->file_handle, *uri);
+//     if (err != ERR_OK) {
+//       /* 404.htm doesn't exist either. Try 404.shtml instead. */
+//       *uri = "/404.shtml";
+//       err = fs_open(&hs->file_handle, *uri);
+//       if (err != ERR_OK) {
+//         /* 404.htm doesn't exist either. Indicate to the caller that it should
+//          * send back a default 404 page.
+//          */
+//         *uri = NULL;
+//         return NULL;
+//       }
+//     }
+//   }
 
-  return &hs->file_handle;
-}
+//   return &hs->file_handle;
+// }
 
 #if LWIP_HTTPD_SUPPORT_POST
 static err_t

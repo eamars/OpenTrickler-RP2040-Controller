@@ -135,9 +135,6 @@ uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *ar
 
 uint8_t u8x8_byte_pico_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) 
 {
-    uint8_t *data;
-    uint8_t internal_spi_mode;
-
     switch (msg)
     {
         case U8X8_MSG_BYTE_SEND:

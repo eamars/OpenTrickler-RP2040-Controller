@@ -579,8 +579,6 @@ bool motors_init(void) {
     coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
     fine_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
 
-    UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-
     // Create one task for each stepper controller
     xTaskCreate(stepper_speed_control_task, 
                 "Coarse Trickler", 
@@ -596,7 +594,7 @@ bool motors_init(void) {
                 8, 
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
 
-    return true;
+    return is_ok;
 }
 
 
@@ -635,7 +633,7 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
     snprintf(buf, 
              max_len,
              "%s"
-             "{\"m0\":%0.3f,\"m1\":%d,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%0.7f,\"m8\":%s,\"m9\":%s}",
+             "{\"m0\":%0.3f,\"m1\":%ld,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%0.7f,\"m8\":%s,\"m9\":%s}",
              http_json_header,
              motor_config->persistent_config.angular_acceleration, 
              motor_config->persistent_config.full_steps_per_rotation,

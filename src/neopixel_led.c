@@ -239,7 +239,7 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
     snprintf(neopixel_config_json_buffer, 
              sizeof(neopixel_config_json_buffer),
              "%s"
-             "{\"bl\":\"#%06x\",\"l1\":\"#%06x\",\"l2\":\"#%06x\"}",
+             "{\"bl\":\"#%06lx\",\"l1\":\"#%06lx\",\"l2\":\"#%06lx\"}",
              http_json_header,
              neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
              neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,

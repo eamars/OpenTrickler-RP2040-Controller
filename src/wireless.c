@@ -63,8 +63,8 @@ const char * wireless_state_strings[] = {
 };
 
 
-char first_line_buffer[32];
-char second_line_buffer[32];
+char first_line_buffer[35];
+char second_line_buffer[35];
 
 
 void wirelss_info_render_task(void *p) {

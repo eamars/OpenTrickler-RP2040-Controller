@@ -78,9 +78,6 @@ bool profile_data_init() {
 
     if (profile_data.profile_data_rev != EEPROM_PROFILE_DATA_REV) {
         profile_data.profile_data_rev = EEPROM_PROFILE_DATA_REV;
-        // Generate new set of data
-        uint16_t base_addr = EEPROM_PROFILE_DATA_BASE_ADDR + sizeof(eeprom_profile_data_t);
-
         // Set default selected profile
         profile_data.current_profile_idx = 0;
 
@@ -223,7 +220,7 @@ bool http_rest_profile_config(struct fs_file *file, int num_params, char *params
         // Response
         snprintf(buf, sizeof(buf), 
                  "%s"
-                 "{\"pf\":%d,\"p0\":%d,\"p1\":%d,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f,\"p11\":%0.3f,\"p12\":%0.3f}",
+                 "{\"pf\":%d,\"p0\":%ld,\"p1\":%ld,\"p2\":\"%s\",\"p3\":%0.3f,\"p4\":%0.3f,\"p5\":%0.3f,\"p6\":%0.3f,\"p7\":%0.3f,\"p8\":%0.3f,\"p9\":%0.3f,\"p10\":%0.3f,\"p11\":%0.3f,\"p12\":%0.3f}",
                  http_json_header,
                  profile_idx, 
                  current_profile->rev,
