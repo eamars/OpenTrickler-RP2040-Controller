@@ -6,7 +6,7 @@
 #include "common.h"
 
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     7              // 16 byte 
+#define EEPROM_CHARGE_MODE_DATA_REV                     8              // 16 byte 
 
 #define WEIGHT_STRING_LEN 8
 
@@ -34,6 +34,11 @@ typedef struct {
     uint32_t neopixel_under_charge_colour;
     uint32_t neopixel_over_charge_colour;
     uint32_t neopixel_not_ready_colour;
+
+    // Charge mode auto tare
+    // If set to true, the charge mode will auto matically run scale.zero() if the weight difference is less than min(coarse_stop_threshold, fine_stop_threshold)
+    // default to false. 
+    bool auto_tare;
 
 } eeprom_charge_mode_data_t;
 
