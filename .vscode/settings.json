@@ -45,6 +45,7 @@
         "code.h": "c",
         "binary_info.h": "c",
         "structure.h": "c",
-        "stepper.pio.h": "c"
+        "stepper.pio.h": "c",
+        "app_header.h": "c"
     }
 }

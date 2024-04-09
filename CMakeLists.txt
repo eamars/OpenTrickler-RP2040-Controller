@@ -40,10 +40,10 @@ set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 # Append compiler flags
 SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wall -Werror")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wall -Werror")
-# SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
+
 
 # Add definitions
-add_definitions(-DPICO_NO_BINARY_INFO)
+add_definitions(-DPICO_NO_BINARY_INFO)  # remove binary info from pico-sdk. We will implement our own
 
 # Pull in FreeRTOS
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
@@ -151,7 +151,7 @@ target_link_libraries(fw_bank1
 
 target_link_options(fw_bank1 PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 set_target_properties(fw_bank1 PROPERTIES PICO_TARGET_LINKER_SCRIPT ${SCRIPTS_DIRECTORY}/linker_scripts/bank1.ld)
-# set( CMAKE_VERBOSE_MAKEFILE on )
+
 
 # Generate extra outputs
 pico_add_extra_outputs(fw_bank1)

@@ -21,6 +21,9 @@
 #include "rotary_button.h"
 #include "version.h"
 #include "profile.h"
+#include "app_header.h"
+
+extern const app_header_t __app_header;
 
 
 extern bool cat24c256_eeprom_erase();
@@ -233,7 +236,7 @@ bool http_rest_system_control(struct fs_file *file, int num_params, char *params
              "%s"
              "{\"s0\":\"%s\",\"s1\":\"%s\",\"s2\":\"%s\",\"s3\":\"%s\",\"s4\":%s,\"s5\":%s,\"s6\":%s}", 
              http_json_header,
-             metadata.unique_id, version_string, vcs_hash, build_type,
+             metadata.unique_id, __app_header.firmware_version, __app_header.vcs_hash, __app_header.build_type,
              boolean_to_string(save_to_eeprom_flag),
              boolean_to_string(erase_eeprom_flag),
              boolean_to_string(software_reset_flag));
