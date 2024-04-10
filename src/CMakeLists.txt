@@ -5,6 +5,7 @@ pico_generate_pio_header(app_base ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_
 
 # Find Python, as Python is required to convert pages into source
 find_package (Python COMPONENTS Interpreter REQUIRED)
+MESSAGE("Python_EXECUTABLE: ${Python_EXECUTABLE}")
 
 # Generate HTML header
 # Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
@@ -57,14 +58,26 @@ add_custom_command(
 add_dependencies(app_base generate_display_mirror)
 
 
-# Generate version
-MESSAGE("Python_EXECUTABLE: ${Python_EXECUTABLE}")
+# Generate two app headers. The target will select the one to linked against
 add_custom_command(
     OUTPUT 
-        "${SRC_DIRECTORY}/generated/version.c"
-        "${SRC_DIRECTORY}/generated/version.h"
-        "non_exist_file"
-    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_version.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}"
+        "${SRC_DIRECTORY}/generated/app_header_0.c"
+        "non_exist_file0"
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_app_header.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}" --flash-partition-idx=0
     COMMENT "Generating version"
 )
-add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
+add_library(app_version_0 INTERFACE)
+target_include_directories(app_version_0 INTERFACE ${SRC_DIRECTORY})
+target_sources(app_version_0 INTERFACE "${SRC_DIRECTORY}/generated/app_header_0.c")
+
+
+add_custom_command(
+    OUTPUT 
+        "${SRC_DIRECTORY}/generated/app_header_1.c"
+        "non_exist_file1"
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_app_header.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}" --flash-partition-idx=1
+    COMMENT "Generating version"
+)
+add_library(app_version_1 INTERFACE)
+target_include_directories(app_version_1 INTERFACE ${SRC_DIRECTORY})
+target_sources(app_version_1 INTERFACE "${SRC_DIRECTORY}/generated/app_header_0.c")

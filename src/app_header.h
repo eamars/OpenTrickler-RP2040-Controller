@@ -12,8 +12,16 @@ typedef struct {
 
 } app_header_t;
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
-extern app_header_t * __app_header_start;
+const app_header_t * get_app_header();
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif  // APP_HEADER_H_
