@@ -64,11 +64,11 @@ add_custom_command(
         "${SRC_DIRECTORY}/generated/app_header_0.c"
         "non_exist_file0"
     COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_app_header.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}" --flash-partition-idx=0
-    COMMENT "Generating version"
+    COMMENT "Generating app header 0"
 )
-add_library(app_version_0 INTERFACE)
-target_include_directories(app_version_0 INTERFACE ${SRC_DIRECTORY})
-target_sources(app_version_0 INTERFACE "${SRC_DIRECTORY}/generated/app_header_0.c")
+add_library(app_header_0)
+target_include_directories(app_header_0 PRIVATE ${SRC_DIRECTORY})
+target_sources(app_header_0 PRIVATE "${SRC_DIRECTORY}/generated/app_header_0.c")
 
 
 add_custom_command(
@@ -76,8 +76,14 @@ add_custom_command(
         "${SRC_DIRECTORY}/generated/app_header_1.c"
         "non_exist_file1"
     COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/gen_app_header.py" -o ${SRC_DIRECTORY}/generated --build-type="${CMAKE_BUILD_TYPE}" --flash-partition-idx=1
-    COMMENT "Generating version"
+    COMMENT "Generating app header 1"
 )
-add_library(app_version_1 INTERFACE)
-target_include_directories(app_version_1 INTERFACE ${SRC_DIRECTORY})
-target_sources(app_version_1 INTERFACE "${SRC_DIRECTORY}/generated/app_header_0.c")
+add_library(app_header_1)
+target_include_directories(app_header_1 PRIVATE ${SRC_DIRECTORY})
+target_sources(app_header_1 PRIVATE "${SRC_DIRECTORY}/generated/app_header_1.c")
+
+
+# Add modules
+# add_library(eeprom INTERFACE)
+# target_include_directories(eeprom INTERFACE ${SRC_DIRECTORY})
+# target_sources(eeprom INTERFACE "${SRC_DIRECTORY}/generated/eeprom.c")

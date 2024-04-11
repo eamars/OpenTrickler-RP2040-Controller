@@ -110,7 +110,7 @@ add_executable(initial_deployment)
 # Include libraries1
 target_link_libraries(initial_deployment
     app_base
-    app_version_0
+    app_header_0
 )
 
 target_link_options(initial_deployment PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
@@ -129,7 +129,7 @@ add_executable(fw_bank0)
 # Include libraries1
 target_link_libraries(fw_bank0
     app_base
-    app_version_0
+    app_header_0
 )
 
 target_link_options(fw_bank0 PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
@@ -148,7 +148,7 @@ add_executable(fw_bank1)
 # Include libraries1
 target_link_libraries(fw_bank1
     app_base
-    app_version_1
+    app_header_1
 )
 
 target_link_options(fw_bank1 PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
