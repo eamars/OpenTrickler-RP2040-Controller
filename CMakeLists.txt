@@ -78,7 +78,9 @@ file(GLOB SRC ${SRC_DIRECTORY}/*.c
 
 # Pull in source code as library
 add_library(app_base 
-    ${SRC}
+    # ${SRC}
+    "${SRC_DIRECTORY}/app.cpp"
+    "${SRC_DIRECTORY}/freertos_hooks.c"
 )
 target_include_directories(app_base PUBLIC 
     ${SRC_DIRECTORY}
@@ -97,6 +99,26 @@ target_link_libraries(app_base
     hardware_i2c
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_freertos
+
+    # Source libraries
+    access_point_mode
+    button
+    charge_mode
+    cleanup_mode
+    common
+    http_server
+    rest_server
+    eeprom
+    menu
+    display
+    motors
+    neopixel
+    wireless
+    profile
+    and_scale
+    steinberg_scale
+    gng_scale
+    scale
 )
 
 # Pull in src to generate extra files

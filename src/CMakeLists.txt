@@ -83,7 +83,135 @@ target_include_directories(app_header_1 PRIVATE ${SRC_DIRECTORY})
 target_sources(app_header_1 PRIVATE "${SRC_DIRECTORY}/generated/app_header_1.c")
 
 
-# Add modules
-# add_library(eeprom INTERFACE)
-# target_include_directories(eeprom INTERFACE ${SRC_DIRECTORY})
-# target_sources(eeprom INTERFACE "${SRC_DIRECTORY}/generated/eeprom.c")
+## Add modules
+# Common
+add_library(common INTERFACE)
+target_include_directories(common INTERFACE ${SRC_DIRECTORY})
+target_sources(common INTERFACE "${SRC_DIRECTORY}/common.c")
+
+# Access point mode
+add_library(access_point_mode INTERFACE)
+target_include_directories(access_point_mode INTERFACE ${SRC_DIRECTORY})
+target_sources(access_point_mode INTERFACE "${SRC_DIRECTORY}/access_point_mode.c")
+
+# G&G Scale
+add_library(gng_scale INTERFACE)
+target_include_directories(gng_scale INTERFACE ${SRC_DIRECTORY})
+target_sources(gng_scale INTERFACE 
+    "${SRC_DIRECTORY}/gng_scale.c"
+)
+
+# A&D Scale
+add_library(and_scale INTERFACE)
+target_include_directories(and_scale INTERFACE ${SRC_DIRECTORY})
+target_sources(and_scale INTERFACE 
+    "${SRC_DIRECTORY}/and_scale_calibrate.c"
+    "${SRC_DIRECTORY}/and_scale.c"
+)
+
+# Steinberg scale
+add_library(steinberg_scale INTERFACE)
+target_include_directories(steinberg_scale INTERFACE ${SRC_DIRECTORY})
+target_sources(steinberg_scale INTERFACE 
+    "${SRC_DIRECTORY}/steinberg_scale.c"
+)
+
+# Scale (abstract class)
+add_library(scale INTERFACE)
+target_include_directories(scale INTERFACE ${SRC_DIRECTORY})
+target_sources(scale INTERFACE 
+    "${SRC_DIRECTORY}/scale.c"
+)
+
+# Button
+add_library(button INTERFACE)
+target_include_directories(button INTERFACE ${SRC_DIRECTORY})
+target_sources(button INTERFACE 
+    "${SRC_DIRECTORY}/button.c"
+    "${SRC_DIRECTORY}/rotary_button.cpp"
+)
+
+# Charge mode
+add_library(charge_mode INTERFACE)
+target_include_directories(charge_mode INTERFACE ${SRC_DIRECTORY})
+target_sources(charge_mode INTERFACE 
+    "${SRC_DIRECTORY}/charge_mode.cpp"
+    "${SRC_DIRECTORY}/FloatRingBuffer.cpp"
+)
+
+# Cleanup mode
+add_library(cleanup_mode INTERFACE)
+target_include_directories(cleanup_mode INTERFACE ${SRC_DIRECTORY})
+target_sources(cleanup_mode INTERFACE 
+    "${SRC_DIRECTORY}/cleanup_mode.cpp"
+)
+
+# HTTP server
+add_library(http_server INTERFACE)
+target_include_directories(http_server INTERFACE ${SRC_DIRECTORY})
+target_sources(http_server INTERFACE 
+    "${SRC_DIRECTORY}/dhcpserver.c"
+    "${SRC_DIRECTORY}/dnsserver.c"
+    "${SRC_DIRECTORY}/http_rest.c"
+)
+
+# REST server
+add_library(rest_server INTERFACE)
+target_include_directories(rest_server INTERFACE ${SRC_DIRECTORY})
+target_sources(rest_server INTERFACE 
+    "${SRC_DIRECTORY}/rest_endpoints.c"
+    "${SRC_DIRECTORY}/rest_app_control.c"
+
+)
+
+# EEPROM
+add_library(eeprom INTERFACE)
+target_include_directories(eeprom INTERFACE ${SRC_DIRECTORY})
+target_sources(eeprom INTERFACE 
+    "${SRC_DIRECTORY}/eeprom.c"
+    "${SRC_DIRECTORY}/cat24c256_eeprom.c"
+)
+
+# Menu
+add_library(menu INTERFACE)
+target_include_directories(menu INTERFACE ${SRC_DIRECTORY})
+target_sources(menu INTERFACE 
+    "${SRC_DIRECTORY}/menu.cpp"
+    "${SRC_DIRECTORY}/mui_menu.c"
+)
+
+# Display
+add_library(display INTERFACE)
+target_include_directories(display INTERFACE ${SRC_DIRECTORY})
+target_sources(display INTERFACE 
+    "${SRC_DIRECTORY}/display.c"
+    "${SRC_DIRECTORY}/uc1701_display.c"
+)
+
+# Motors
+add_library(motors INTERFACE)
+target_include_directories(motors INTERFACE ${SRC_DIRECTORY})
+target_sources(motors INTERFACE 
+    "${SRC_DIRECTORY}/motors.c"
+)
+
+# Neopixel
+add_library(neopixel INTERFACE)
+target_include_directories(neopixel INTERFACE ${SRC_DIRECTORY})
+target_sources(neopixel INTERFACE 
+    "${SRC_DIRECTORY}/neopixel_led.c"
+)
+
+# Profile
+add_library(profile INTERFACE)
+target_include_directories(profile INTERFACE ${SRC_DIRECTORY})
+target_sources(profile INTERFACE 
+    "${SRC_DIRECTORY}/profile.c"
+)
+
+# Wireless
+add_library(wireless INTERFACE)
+target_include_directories(wireless INTERFACE ${SRC_DIRECTORY})
+target_sources(wireless INTERFACE 
+    "${SRC_DIRECTORY}/wireless.c"
+)
