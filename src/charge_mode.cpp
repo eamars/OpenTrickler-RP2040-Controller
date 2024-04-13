@@ -152,7 +152,7 @@ void charge_mode_wait_for_zero() {
                 if (abs_mean_measurement < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
                     break;
                 }
-                else if (abs_mean_measurement < fmin(charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold, 
+                else if (abs_mean_measurement <= fmin(charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold, 
                                                      charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) && 
                          charge_mode_config.eeprom_charge_mode_data.auto_tare == true) {
                     scale_config.scale_handle->force_zero();
