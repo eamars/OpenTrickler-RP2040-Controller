@@ -45,6 +45,8 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .neopixel_under_charge_colour = urgb_u32(0xFF, 0xFF, 0),        // yellow
     .neopixel_over_charge_colour = urgb_u32(0xFF, 0, 0),            // red
     .neopixel_not_ready_colour = urgb_u32(0, 0, 0xFF),              // blue
+
+    .auto_tare = false,
 };
 
 // Configures
@@ -145,9 +147,16 @@ void charge_mode_wait_for_zero() {
 
         // Generate stop condition
         if (data_buffer.getCounter() >= 10){
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
-                abs(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
-                break;
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
+                float abs_mean_measurement = abs(data_buffer.getMean());
+                if (abs_mean_measurement < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
+                    break;
+                }
+                else if (abs_mean_measurement <= fmin(charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold, 
+                                                     charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) && 
+                         charge_mode_config.eeprom_charge_mode_data.auto_tare == true) {
+                    scale_config.scale_handle->force_zero();
+                }
             }
         }
 
@@ -528,6 +537,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c7 (float): set_point_sd_margin
     // c8 (float): set_point_mean_margin
     // c9 (int): decimal point enum
+    // c10 (bool): auto tare enable
 
     // ee (bool): save to eeprom
 
@@ -550,6 +560,9 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         }
         else if (strcmp(params[idx], "c9") == 0) {
             charge_mode_config.eeprom_charge_mode_data.decimal_places = (decimal_places_t) atoi(values[idx]);
+        }
+        else if (strcmp(params[idx], "c10") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.auto_tare = string_to_boolean(values[idx]);
         }
 
         // LED related settings
@@ -580,7 +593,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              sizeof(charge_mode_json_buffer),
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
-             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d}",
+             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour,
@@ -590,7 +603,8 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,
              charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin,
-             charge_mode_config.eeprom_charge_mode_data.decimal_places);
+             charge_mode_config.eeprom_charge_mode_data.decimal_places,
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.auto_tare));
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
