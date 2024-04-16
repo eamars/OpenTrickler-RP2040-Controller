@@ -46,6 +46,17 @@
         "binary_info.h": "c",
         "structure.h": "c",
         "stepper.pio.h": "c",
-        "app_header.h": "c"
+        "app_header.h": "c",
+        "pico.h": "c",
+        "critical_section.h": "c",
+        "*.in": "c",
+        "vreg.h": "c",
+        "resets.h": "c",
+        "address_mapped.h": "c",
+        "m0plus.h": "c",
+        "stdint.h": "c",
+        "rp2040_config.h": "c",
+        "rp2040.h": "c",
+        "core_cm0plus.h": "c"
     }
 }

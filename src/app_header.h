@@ -6,6 +6,7 @@
 typedef struct {
     uint32_t app_header_rev;
     uint32_t flash_partition_idx;
+    uint32_t crc;
     char vcs_hash[16];
     char build_type[16];
     char firmware_version[32];

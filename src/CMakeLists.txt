@@ -69,6 +69,7 @@ add_custom_command(
 add_library(app_header_0)
 target_include_directories(app_header_0 PRIVATE ${SRC_DIRECTORY})
 target_sources(app_header_0 PRIVATE "${SRC_DIRECTORY}/generated/app_header_0.c")
+target_link_libraries(app_header_0 cmsis_core)
 
 
 add_custom_command(
@@ -81,6 +82,7 @@ add_custom_command(
 add_library(app_header_1)
 target_include_directories(app_header_1 PRIVATE ${SRC_DIRECTORY})
 target_sources(app_header_1 PRIVATE "${SRC_DIRECTORY}/generated/app_header_1.c")
+target_link_libraries(app_header_1 cmsis_core)
 
 
 ## Add modules

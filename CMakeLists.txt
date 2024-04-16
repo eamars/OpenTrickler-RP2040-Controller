@@ -99,6 +99,7 @@ target_link_libraries(app_base
     hardware_i2c
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_freertos
+    cmsis_core
 
     # Source libraries
     access_point_mode

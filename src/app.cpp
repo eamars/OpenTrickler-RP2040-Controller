@@ -28,7 +28,6 @@
 #include "profile.h"
 
 
-
 uint8_t software_reboot() {
     watchdog_reboot(0, 0, 0);
 
