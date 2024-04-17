@@ -12,6 +12,7 @@
 #include "neopixel_led.h"
 #include "profile.h"
 #include "cleanup_mode.h"
+#include "servo_gate.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
@@ -93,6 +94,8 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/rest/neopixel_led_config", http_rest_neopixel_led_config);
     rest_register_handler("/rest/profile_config", http_rest_profile_config);
     rest_register_handler("/rest/profile_summary", http_rest_profile_summary);
+    rest_register_handler("/rest/servo_gate_state", http_rest_servo_gate_state);
+
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
 

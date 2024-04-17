@@ -71,11 +71,17 @@
             </section>
 
             <div class="grid grid-cols-1 gap-2 px-4">
-                <div class="divider">Scale</div>
+                <div class="divider">General Control</div>
                 <div class="grid grid-cols-1 gap-2">
                     <button class="btn btn-neutral" onclick="scaleForceZero()">Scale Zero</button>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="btn btn-neutral" onclick="servoGateSetState(2)">Gate Open</button>
+                        <button class="btn btn-neutral" onclick="servoGateSetState(1)">Gate Close</button>
+                    </div>
                 </div>
             </div>
+
         </div>
     </section>
 
@@ -988,6 +994,22 @@
         })
         .catch(error => {
             console.error("Error applying force zero");
+        });
+    }
+
+    function servoGateSetState(state) {
+        const uri = `/rest/servo_gate_state?g0=${encodeURIComponent(state)}`;
+
+        // Call the scale action URI
+        fetch(uri)
+        .then(response => {
+            return response.json();
+        })
+        .then(data => {
+            // console.log(data);
+        })
+        .catch(error => {
+            console.error("Error applying servo gate state");
         });
     }
 

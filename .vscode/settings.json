@@ -40,6 +40,10 @@
         "cleanup_mode.h": "c",
         "charge_mode.h": "c",
         "http_rest.h": "c",
-        "motors.h": "c"
+        "motors.h": "c",
+        "eeprom.h": "c",
+        "stdbool.h": "c",
+        "configuration.h": "c",
+        "uart.h": "c"
     }
 }
