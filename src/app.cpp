@@ -63,6 +63,7 @@ int main()
     // Initialize profile data
     profile_data_init();
 
+    // Initialize the servo
     servo_gate_init();
 
 #ifdef RASPBERRYPI_PICO_W

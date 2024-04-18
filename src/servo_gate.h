@@ -2,6 +2,8 @@
 #define SERVO_GATE_H_
 
 #include <stdint.h>
+#include <FreeRTOS.h>
+#include <queue.h>
 #include "http_rest.h"
 
 #define EEPROM_SERVO_GATE_CONFIG_REV                     1              // 16 byte 
@@ -26,7 +28,9 @@ typedef struct {
     eeprom_servo_gate_config_t eeprom_servo_gate_config;
     gate_state_t gate_state;
 
-    // RTOS queue
+    // RTOS control
+    TaskHandle_t servo_gate_control_task_handler;
+    QueueHandle_t servo_gate_control_queue;
 } servo_gate_t;
 
 
@@ -37,7 +41,9 @@ extern "C" {
 bool servo_gate_init(void);
 bool servo_gate_config_save(void);
 bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *params[], char *values[]);
+bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
+void servo_gate_set_state(gate_state_t state);
 
 #ifdef __cplusplus
 }

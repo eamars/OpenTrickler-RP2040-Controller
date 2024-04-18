@@ -5,6 +5,7 @@
 #include "hardware/clocks.h"
 #include "configuration.h"
 #include "eeprom.h"
+#include "common.h"
 
 // Attributes
 servo_gate_t servo_gate;
@@ -22,10 +23,10 @@ const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
 };
 
 
-void set_servo_gate_state(gate_state_t state) {
-    // pwm_set_chan_level(pwm_gpio_to_slice_num(gpio), pwm_gpio_to_channel(gpio), level);
+void _servo_gate_set_state(gate_state_t state) {
     uint32_t servo0_level;
     uint32_t servo1_level;
+
     switch (state)
     {
     case GATE_CLOSE:
@@ -49,6 +50,26 @@ void set_servo_gate_state(gate_state_t state) {
         reg_level,
         0xffffffff
     );
+}
+
+
+void servo_gate_set_state(gate_state_t state) {
+    if (servo_gate.servo_gate_control_queue) {
+        xQueueSend(servo_gate.servo_gate_control_queue, &state, portMAX_DELAY);
+    }
+}
+
+
+void servo_gate_control_task(void * p) {
+    while (true) {
+        gate_state_t new_state;
+        xQueueReceive(servo_gate.servo_gate_control_queue, &new_state, portMAX_DELAY);
+
+        servo_gate.gate_state = new_state;
+
+        // Apply the new state
+        _servo_gate_set_state(new_state);
+    }
 }
 
 
@@ -121,22 +142,35 @@ bool servo_gate_init() {
     pwm_init(pwm_gpio_to_slice_num(SERVO0_PWM_PIN), &cfg, true);
     pwm_init(pwm_gpio_to_slice_num(SERVO1_PWM_PIN), &cfg, true);
 
-    set_servo_gate_state(servo_gate.gate_state);
+    // Start the RTOS task and queue
+    servo_gate.servo_gate_control_queue = xQueueCreate(1, sizeof(gate_state_t));
+
+    xTaskCreate(
+        servo_gate_control_task,
+        "servo_gate_controller",
+        configMINIMAL_STACK_SIZE,
+        NULL,
+        8,
+        &servo_gate.servo_gate_control_task_handler
+    );
+
+    servo_gate_set_state(servo_gate.gate_state);
 
     return true;
 }
 
+
 bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings
     // g0 (int): gate_state_t
-    
-    static char servo_gate_json_buffer[256];
+
+    static char servo_gate_json_buffer[64];
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "g0") == 0) {
-            servo_gate.gate_state = (gate_state_t) atoi(values[idx]);
-            set_servo_gate_state(servo_gate.gate_state);
+            gate_state_t state = (gate_state_t) atoi(values[idx]);
+            servo_gate_set_state(state);
         }
     }
     
@@ -146,6 +180,61 @@ bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *para
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"g0\":%d}",
              (int) servo_gate.gate_state);
+
+    size_t data_length = strlen(servo_gate_json_buffer);
+    file->data = servo_gate_json_buffer;
+    file->len = data_length;
+    file->index = data_length;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    return true;
+}
+
+
+bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    // Mappings
+    // c0 (bool): servo_gate_enable
+    // c1 (int): gate_close_duty_cycle
+    // c2 (int): gate_open_duty_cycle
+    // ee (bool): save_to_eeprom
+
+    static char servo_gate_json_buffer[256];
+    bool save_to_eeprom = false;
+
+
+    // Control
+    for (int idx = 0; idx < num_params; idx += 1) {
+        if (strcmp(params[idx], "c0") == 0) {
+            bool enable = string_to_boolean(values[idx]);
+            servo_gate.eeprom_servo_gate_config.servo_gate_enable = enable;
+        }
+        else if (strcmp(params[idx], "c1") == 0) {
+            float gate_close_duty_cycle = strtof(values[idx], NULL);
+            servo_gate.eeprom_servo_gate_config.gate_close_duty_cycle = gate_close_duty_cycle;
+        }
+        else if (strcmp(params[idx], "c2") == 0) {
+            float gate_open_duty_cycle = strtof(values[idx], NULL);
+            servo_gate.eeprom_servo_gate_config.gate_open_duty_cycle = gate_open_duty_cycle;
+        }
+        else if (strcmp(params[idx], "ee") == 0) {
+            save_to_eeprom = string_to_boolean(values[idx]);
+        }
+    }
+
+    // Perform action
+    if (save_to_eeprom) {
+        servo_gate_config_save();  // Note: this will save settings for both
+    }
+    
+    // Response
+    snprintf(servo_gate_json_buffer, 
+             sizeof(servo_gate_json_buffer),
+             "%s"
+             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f}",
+             http_json_header,
+             boolean_to_string(servo_gate.eeprom_servo_gate_config.servo_gate_enable),
+             servo_gate.eeprom_servo_gate_config.gate_close_duty_cycle,
+             servo_gate.eeprom_servo_gate_config.gate_open_duty_cycle);
 
     size_t data_length = strlen(servo_gate_json_buffer);
     file->data = servo_gate_json_buffer;

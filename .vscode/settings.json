@@ -44,6 +44,7 @@
         "eeprom.h": "c",
         "stdbool.h": "c",
         "configuration.h": "c",
-        "uart.h": "c"
+        "uart.h": "c",
+        "common.h": "c"
     }
 }
