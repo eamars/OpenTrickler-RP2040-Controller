@@ -17,7 +17,7 @@ const uint16_t _pwm_full_scale_level = 65535;
 
 const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
     .servo_gate_config_rev = EEPROM_SERVO_GATE_CONFIG_REV,
-    .servo_gate_enable = true,
+    .servo_gate_enable = false,
     .gate_close_duty_cycle = 0.05,
     .gate_open_duty_cycle = 0.1,
 };
