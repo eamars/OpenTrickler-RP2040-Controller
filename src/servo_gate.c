@@ -18,31 +18,33 @@ const uint16_t _pwm_full_scale_level = 65535;
 const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
     .servo_gate_config_rev = EEPROM_SERVO_GATE_CONFIG_REV,
     .servo_gate_enable = false,
-    .gate_close_duty_cycle = 0.05,
-    .gate_open_duty_cycle = 0.1,
+    .shutter0_close_duty_cycle = 0.05,
+    .shutter0_open_duty_cycle = 0.12,
+    .shutter1_close_duty_cycle = 0.05,
+    .shutter1_open_duty_cycle = 0.12,
 };
 
 
 void _servo_gate_set_state(gate_state_t state) {
-    uint32_t servo0_level;
-    uint32_t servo1_level;
+    uint32_t shutter0_duty_cycle;
+    uint32_t shutter1_duty_cycle;
 
     switch (state)
     {
     case GATE_CLOSE:
-        servo0_level = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.gate_open_duty_cycle;
-        servo1_level = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.gate_close_duty_cycle;
+        shutter0_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle;
+        shutter1_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle;
         break;
     case GATE_OPEN:
-        servo0_level = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.gate_close_duty_cycle;
-        servo1_level = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.gate_open_duty_cycle;
+        shutter0_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle;
+        shutter1_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle;
         break;
     
     default:
         return;
     }
 
-    uint32_t reg_level = (servo1_level) << 16 | servo0_level;
+    uint32_t reg_level = (shutter0_duty_cycle) << 16 | shutter1_duty_cycle;
 
     // Write both levels to the pwm at the same time
     hw_write_masked(
@@ -194,8 +196,10 @@ bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *para
 bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings
     // c0 (bool): servo_gate_enable
-    // c1 (int): gate_close_duty_cycle
-    // c2 (int): gate_open_duty_cycle
+    // c1 (int): shutter0_close_duty_cycle
+    // c2 (int): shutter0_open_duty_cycle
+    // c3 (int): shutter1_close_duty_cycle
+    // c4 (int): shutter1_open_duty_cycle
     // ee (bool): save_to_eeprom
 
     static char servo_gate_json_buffer[256];
@@ -209,12 +213,20 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
             servo_gate.eeprom_servo_gate_config.servo_gate_enable = enable;
         }
         else if (strcmp(params[idx], "c1") == 0) {
-            float gate_close_duty_cycle = strtof(values[idx], NULL);
-            servo_gate.eeprom_servo_gate_config.gate_close_duty_cycle = gate_close_duty_cycle;
+            float duty_cycle = strtof(values[idx], NULL);
+            servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle = duty_cycle;
         }
         else if (strcmp(params[idx], "c2") == 0) {
-            float gate_open_duty_cycle = strtof(values[idx], NULL);
-            servo_gate.eeprom_servo_gate_config.gate_open_duty_cycle = gate_open_duty_cycle;
+            float duty_cycle = strtof(values[idx], NULL);
+            servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle = duty_cycle;
+        }
+        else if (strcmp(params[idx], "c3") == 0) {
+            float duty_cycle = strtof(values[idx], NULL);
+            servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle = duty_cycle;
+        }
+        else if (strcmp(params[idx], "c4") == 0) {
+            float duty_cycle = strtof(values[idx], NULL);
+            servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle = duty_cycle;
         }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
@@ -230,11 +242,13 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
     snprintf(servo_gate_json_buffer, 
              sizeof(servo_gate_json_buffer),
              "%s"
-             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f}",
+             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f,\"c3\":%0.3f,\"c4\":%0.3f}",
              http_json_header,
              boolean_to_string(servo_gate.eeprom_servo_gate_config.servo_gate_enable),
-             servo_gate.eeprom_servo_gate_config.gate_close_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.gate_open_duty_cycle);
+             servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle,
+             servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle,
+             servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle,
+             servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle);
 
     size_t data_length = strlen(servo_gate_json_buffer);
     file->data = servo_gate_json_buffer;

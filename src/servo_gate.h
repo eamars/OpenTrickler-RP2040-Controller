@@ -6,7 +6,7 @@
 #include <queue.h>
 #include "http_rest.h"
 
-#define EEPROM_SERVO_GATE_CONFIG_REV                     1              // 16 byte 
+#define EEPROM_SERVO_GATE_CONFIG_REV                     2              // 16 byte 
 
 typedef enum {
     GATE_DISABLED = 0,
@@ -18,10 +18,11 @@ typedef enum {
 typedef struct {
     uint16_t servo_gate_config_rev;
     bool servo_gate_enable;
-    float gate_close_duty_cycle;
-    float gate_open_duty_cycle;
+    float shutter0_close_duty_cycle;
+    float shutter0_open_duty_cycle;
+    float shutter1_close_duty_cycle;
+    float shutter1_open_duty_cycle;
 } eeprom_servo_gate_config_t;
-
 
 
 typedef struct {
