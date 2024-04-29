@@ -45,6 +45,9 @@
         "stdbool.h": "c",
         "configuration.h": "c",
         "uart.h": "c",
-        "common.h": "c"
+        "common.h": "c",
+        "clocks.h": "c",
+        "pwm.h": "c",
+        "servo_gate.h": "c"
     }
 }

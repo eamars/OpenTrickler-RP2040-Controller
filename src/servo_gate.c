@@ -18,10 +18,10 @@ const uint16_t _pwm_full_scale_level = 65535;
 const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
     .servo_gate_config_rev = EEPROM_SERVO_GATE_CONFIG_REV,
     .servo_gate_enable = false,
-    .shutter0_close_duty_cycle = 0.05,
-    .shutter0_open_duty_cycle = 0.12,
+    .shutter0_close_duty_cycle = 0.09,
+    .shutter0_open_duty_cycle = 0.05,
     .shutter1_close_duty_cycle = 0.05,
-    .shutter1_open_duty_cycle = 0.12,
+    .shutter1_open_duty_cycle = 0.09,
 };
 
 
@@ -107,7 +107,7 @@ bool servo_gate_config_init() {
 
     // Initialize settings
     if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
-        servo_gate.gate_state = GATE_CLOSE;
+        servo_gate.gate_state = GATE_OPEN;
     }
     else {
         servo_gate.gate_state = GATE_DISABLED;
