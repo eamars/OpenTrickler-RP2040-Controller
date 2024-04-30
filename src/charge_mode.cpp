@@ -20,6 +20,7 @@
 #include "neopixel_led.h"
 #include "profile.h"
 #include "common.h"
+#include "servo_gate.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -28,6 +29,8 @@ charge_mode_config_t charge_mode_config;
 
 // Scale related
 extern scale_config_t scale_config;
+extern servo_gate_t servo_gate;
+
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
@@ -167,6 +170,10 @@ void charge_mode_wait_for_complete() {
         true
     );
 
+    if (servo_gate.gate_state != GATE_DISABLED) {
+        servo_gate_set_state(GATE_OPEN, false);
+    }
+
     // Update current status
     char target_weight_string[WEIGHT_STRING_LEN];
     float_to_string(target_weight_string, charge_mode_config.target_charge_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
@@ -229,6 +236,11 @@ void charge_mode_wait_for_complete() {
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
             // TODO: When tuning off the coarse trickler, also move reverse to back off some powder
+
+            // FIXME: Temporary solution to implement precharge
+            if (servo_gate.gate_state != GATE_DISABLED) {
+                servo_gate_set_state(GATE_OPEN_HALF, false);
+            }
         }
 
         // Update PID variables
@@ -261,6 +273,19 @@ void charge_mode_wait_for_complete() {
     }
 
     vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete
+
+    // FIXME: Temporary solution to implement precharge
+    if (servo_gate.gate_state != GATE_DISABLED) {
+        servo_gate_set_state(GATE_CLOSE, true);
+
+        BaseType_t scheduler_state = xTaskGetSchedulerState();
+        delay_ms(1000, scheduler_state);
+        motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 2);
+
+        delay_ms(1000, scheduler_state);
+
+        motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+    }
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
 }
@@ -364,6 +389,7 @@ void charge_mode_wait_for_cup_return() {
     );
 
     snprintf(title_string, sizeof(title_string), "Return Cup");
+
 
     FloatRingBuffer data_buffer(5);
 

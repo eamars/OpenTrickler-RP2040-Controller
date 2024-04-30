@@ -22,30 +22,11 @@ const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
     .shutter0_open_duty_cycle = 0.05,
     .shutter1_close_duty_cycle = 0.05,
     .shutter1_open_duty_cycle = 0.09,
-    .servo_gate_dwell_time_ms = 200ul,
 };
 
 
-void _servo_gate_set_current_state() {
-    uint32_t shutter0_duty_cycle;
-    uint32_t shutter1_duty_cycle;
-
-    switch (servo_gate.gate_state)
-    {
-    case GATE_CLOSE:
-        shutter0_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle;
-        shutter1_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle;
-        break;
-    case GATE_OPEN:
-        shutter0_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle;
-        shutter1_duty_cycle = _pwm_full_scale_level * servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle;
-        break;
-    
-    default:
-        return;
-    }
-
-    uint32_t reg_level = (shutter0_duty_cycle) << 16 | shutter1_duty_cycle;
+void _set_duty_cycle(uint16_t shutter0_duty_cycle, uint16_t shutter1_duty_cycle) {
+    uint32_t reg_level = ((uint32_t) shutter0_duty_cycle) << 16 | shutter1_duty_cycle;
 
     // Write both levels to the pwm at the same time
     hw_write_masked(
@@ -56,21 +37,86 @@ void _servo_gate_set_current_state() {
 }
 
 
-void servo_gate_set_state(gate_state_t state, bool block_for_dwell) {
-    if (servo_gate.servo_gate_control_mux) {
-        xSemaphoreTake(servo_gate.servo_gate_control_mux, portMAX_DELAY);
+void _servo_gate_set_current_state(float open_ratio) {
+    uint32_t shutter0_duty_cycle;
+    uint32_t shutter1_duty_cycle;
 
-        servo_gate.gate_state = state;
+    float shutter0_range = servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle - servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle;
+    float shutter1_range = servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle - servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle;
 
+    shutter0_duty_cycle = _pwm_full_scale_level * (servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle + shutter0_range * open_ratio);
+    shutter1_duty_cycle = _pwm_full_scale_level * (servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle + shutter1_range * open_ratio);
+
+    _set_duty_cycle(shutter0_duty_cycle, shutter1_duty_cycle);
+}
+
+
+void servo_gate_set_state(gate_state_t state, bool block_wait) {
+    if (servo_gate.servo_gate_control_queue) {
+        xQueueSend(servo_gate.servo_gate_control_queue, &state, portMAX_DELAY);
+    }
+
+    if (block_wait) {
+        xSemaphoreTake(servo_gate.move_ready_semphore, portMAX_DELAY);
+    }
+}
+
+
+void servo_gate_control_task(void * p) {
+    float prev_open_ratio = -1.0f;
+    float accel = 2.0f;
+
+    while (true) {
+        gate_state_t new_state;
+        xQueueReceive(servo_gate.servo_gate_control_queue, &new_state, portMAX_DELAY);
         // Apply the state
-        _servo_gate_set_current_state();
 
-        if (block_for_dwell) {
-            BaseType_t scheduler_state = xTaskGetSchedulerState();
-            delay_ms(servo_gate.eeprom_servo_gate_config.servo_gate_dwell_time_ms, scheduler_state);
+        float new_open_ratio;
+        switch (new_state) {
+            case GATE_OPEN:
+                new_open_ratio = 0.0f;
+                break;
+            case GATE_OPEN_HALF:
+                new_open_ratio = 0.5f;
+                break;
+            case GATE_OPEN_QUARTER:
+                new_open_ratio = 0.25f;
+                break;
+            case GATE_CLOSE:
+                new_open_ratio = 1.0f;
+                break;
+            default:
+                break;
         }
 
-        xSemaphoreGive(servo_gate.servo_gate_control_mux);
+        if (prev_open_ratio < 0) {
+            _servo_gate_set_current_state(new_open_ratio);
+        }
+        else {
+            float delta = new_open_ratio - prev_open_ratio;
+            uint32_t ramp_time_us = fabs(delta / accel) * 1e6;
+
+            uint32_t start_time = time_us_32();
+            uint32_t stop_time = start_time + ramp_time_us;
+            while (true) {
+                uint32_t current_time = time_us_32();
+                if (current_time > stop_time) {
+                    break;
+                }
+
+                float percentage = (current_time - start_time) / (float) ramp_time_us;
+                float current_ratio = prev_open_ratio + delta * percentage;
+
+                _servo_gate_set_current_state(current_ratio);
+            }
+
+            _servo_gate_set_current_state(new_open_ratio);
+        }
+
+        // Signal the motion is ready
+        xSemaphoreGive(servo_gate.move_ready_semphore);
+
+        prev_open_ratio = new_open_ratio;
     }
 }
 
@@ -145,7 +191,17 @@ bool servo_gate_init() {
     pwm_init(pwm_gpio_to_slice_num(SERVO1_PWM_PIN), &cfg, true);
 
     // Start the RTOS task and queue
-    servo_gate.servo_gate_control_mux = xSemaphoreCreateMutex();
+    servo_gate.servo_gate_control_queue = xQueueCreate(1, sizeof(gate_state_t));
+    servo_gate.move_ready_semphore = xSemaphoreCreateBinary();
+
+    xTaskCreate(
+        servo_gate_control_task,
+        "servo_gate_controller",
+        configMINIMAL_STACK_SIZE,
+        NULL,
+        8,
+        &servo_gate.servo_gate_control_task_handler
+    );
 
     servo_gate_set_state(servo_gate.gate_state, false);
 
@@ -191,7 +247,6 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
     // c2 (float): shutter0_open_duty_cycle
     // c3 (float): shutter1_close_duty_cycle
     // c4 (float): shutter1_open_duty_cycle
-    // c5 (int | uint32_t): servo_gate_dwell_time_ms
     // ee (bool): save_to_eeprom
 
     static char servo_gate_json_buffer[256];
@@ -216,9 +271,6 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
         else if (strcmp(params[idx], "c4") == 0) {
             servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle = strtof(values[idx], NULL);;
         }
-        else if (strcmp(params[idx], "c5") == 0) {
-            servo_gate.eeprom_servo_gate_config.servo_gate_dwell_time_ms = strtol(values[idx], NULL, 10);;
-        }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
         }
@@ -233,14 +285,13 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
     snprintf(servo_gate_json_buffer, 
              sizeof(servo_gate_json_buffer),
              "%s"
-             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f,\"c3\":%0.3f,\"c4\":%0.3f,\"c5\":%ld}",
+             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f,\"c3\":%0.3f,\"c4\":%0.3f}",
              http_json_header,
              boolean_to_string(servo_gate.eeprom_servo_gate_config.servo_gate_enable),
              servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle,
              servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle,
              servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.servo_gate_dwell_time_ms);
+             servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle);
 
     size_t data_length = strlen(servo_gate_json_buffer);
     file->data = servo_gate_json_buffer;

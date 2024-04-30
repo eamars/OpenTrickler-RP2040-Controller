@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <FreeRTOS.h>
+#include <queue.h>
 #include <semphr.h>
 #include "http_rest.h"
 
@@ -12,6 +13,8 @@ typedef enum {
     GATE_DISABLED = 0,
     GATE_CLOSE,
     GATE_OPEN,
+    GATE_OPEN_HALF,
+    GATE_OPEN_QUARTER,
 } gate_state_t;
 
 
@@ -22,9 +25,6 @@ typedef struct {
     float shutter0_open_duty_cycle;
     float shutter1_close_duty_cycle;
     float shutter1_open_duty_cycle;
-    
-    // Time taken to open or close the servo gate
-    uint32_t servo_gate_dwell_time_ms;
 } eeprom_servo_gate_config_t;
 
 
@@ -33,7 +33,9 @@ typedef struct {
     gate_state_t gate_state;
 
     // RTOS control
-    xSemaphoreHandle servo_gate_control_mux;
+    TaskHandle_t servo_gate_control_task_handler;
+    QueueHandle_t servo_gate_control_queue;
+    SemaphoreHandle_t move_ready_semphore;
 } servo_gate_t;
 
 
