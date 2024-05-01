@@ -236,11 +236,6 @@ void charge_mode_wait_for_complete() {
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
             // TODO: When tuning off the coarse trickler, also move reverse to back off some powder
-
-            // FIXME: Temporary solution to implement precharge
-            if (servo_gate.gate_state != GATE_DISABLED) {
-                servo_gate_set_state(GATE_OPEN_HALF, false);
-            }
         }
 
         // Update PID variables
