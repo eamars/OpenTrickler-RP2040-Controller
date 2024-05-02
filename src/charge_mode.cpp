@@ -273,8 +273,6 @@ void charge_mode_wait_for_complete() {
         last_error = error;
     }
 
-    vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete
-
     // Precharge
     if (charge_mode_config.eeprom_charge_mode_data.precharge_enable && servo_gate.gate_state != GATE_DISABLED) {
         servo_gate_set_state(GATE_CLOSE, true);
@@ -283,6 +281,9 @@ void charge_mode_wait_for_complete() {
         vTaskDelay(pdMS_TO_TICKS(charge_mode_config.eeprom_charge_mode_data.precharge_time_ms));
 
         motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+    }
+    else {
+        vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete  
     }
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
