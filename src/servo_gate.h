@@ -23,7 +23,8 @@ typedef struct {
     float shutter0_open_duty_cycle;
     float shutter1_close_duty_cycle;
     float shutter1_open_duty_cycle;
-    float shutter_speed_pct_s;  // Per shutter speed (percentage per second)
+    float shutter_close_speed_pct_s;  // Per shutter speed (percentage per second)
+    float shutter_open_speed_pct_s;  // Per shutter speed (percentage per second)
 } eeprom_servo_gate_config_t;
 
 

@@ -22,7 +22,8 @@ const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
     .shutter0_open_duty_cycle = 0.05f,
     .shutter1_close_duty_cycle = 0.05f,
     .shutter1_open_duty_cycle = 0.09f,
-    .shutter_speed_pct_s = 1.0f,
+    .shutter_open_speed_pct_s = 5.0f,
+    .shutter_close_speed_pct_s = 3.0f,
 };
 
 
@@ -93,7 +94,9 @@ void servo_gate_control_task(void * p) {
         }
         else {
             float delta = new_open_ratio - prev_open_ratio;
-            uint32_t ramp_time_us = fabs(delta / servo_gate.eeprom_servo_gate_config.shutter_speed_pct_s) * 1e6;
+            float speed = delta < 0 ? servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s : 
+                                      servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s;
+            uint32_t ramp_time_us = fabs(delta / speed) * 1e6;
 
             uint32_t start_time = time_us_32();
             uint32_t stop_time = start_time + ramp_time_us;
@@ -246,7 +249,8 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
     // c2 (float): shutter0_open_duty_cycle
     // c3 (float): shutter1_close_duty_cycle
     // c4 (float): shutter1_open_duty_cycle
-    // c5 (float): shutter_speed_pct_s
+    // c5 (float): shutter_close_speed_pct_s
+    // c6 (float): shutter_open_speed_pct_s
     // ee (bool): save_to_eeprom
 
     static char servo_gate_json_buffer[256];
@@ -272,7 +276,10 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
             servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle = strtof(values[idx], NULL);;
         }
         else if (strcmp(params[idx], "c5") == 0) {
-            servo_gate.eeprom_servo_gate_config.shutter_speed_pct_s = strtof(values[idx], NULL);;
+            servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s = strtof(values[idx], NULL);;
+        }
+        else if (strcmp(params[idx], "c6") == 0) {
+            servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s = strtof(values[idx], NULL);;
         }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
@@ -288,14 +295,15 @@ bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *par
     snprintf(servo_gate_json_buffer, 
              sizeof(servo_gate_json_buffer),
              "%s"
-             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f,\"c3\":%0.3f,\"c4\":%0.3f,\"c5\":%0.3f}",
+             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f,\"c3\":%0.3f,\"c4\":%0.3f,\"c5\":%0.3f,\"c6\":%0.3f}",
              http_json_header,
              boolean_to_string(servo_gate.eeprom_servo_gate_config.servo_gate_enable),
              servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle,
              servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle,
              servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle,
              servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.shutter_speed_pct_s);
+             servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s,
+             servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s);
 
     size_t data_length = strlen(servo_gate_json_buffer);
     file->data = servo_gate_json_buffer;
