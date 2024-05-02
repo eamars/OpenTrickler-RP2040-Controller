@@ -257,6 +257,26 @@
                                 </select>
                             </div>
 
+                            <div class="divider"></div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Enable Pre-Charge (requires servo gate)</span>
+                                <select class="select select-bordered" name="c10">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Pre-Charge Duration (ms)</span>
+                                <input type="number" class="input input-bordered" name="c11" step="1">
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Pre-Charge Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="c12" step="0.001">
+                            </div>
+
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>

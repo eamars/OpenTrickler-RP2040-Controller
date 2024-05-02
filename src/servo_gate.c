@@ -53,12 +53,17 @@ void _servo_gate_set_current_state(float open_ratio) {
 
 
 void servo_gate_set_state(gate_state_t state, bool block_wait) {
+    // Skip if not initialized
     if (servo_gate.control_queue) {
         xQueueSend(servo_gate.control_queue, &state, portMAX_DELAY);
-    }
 
-    if (block_wait) {
-        xSemaphoreTake(servo_gate.move_ready_semphore, portMAX_DELAY);
+        if (block_wait) {
+            xSemaphoreTake(servo_gate.move_ready_semphore, portMAX_DELAY);
+
+            // Still wait for another second to ensure the gate is really closed
+            BaseType_t scheduler_state = xTaskGetSchedulerState();
+            delay_ms(1000, scheduler_state);
+        }
     }
 }
 
@@ -197,7 +202,7 @@ bool servo_gate_init() {
         &servo_gate.control_task_handler
     );
 
-    servo_gate_set_state(servo_gate.gate_state, false);
+    // No, we don't set the servo gate state
 
     return true;
 }
