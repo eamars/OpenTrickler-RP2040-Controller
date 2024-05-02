@@ -13,8 +13,6 @@ typedef enum {
     GATE_DISABLED = 0,
     GATE_CLOSE,
     GATE_OPEN,
-    GATE_OPEN_HALF,
-    GATE_OPEN_QUARTER,
 } gate_state_t;
 
 
@@ -25,6 +23,7 @@ typedef struct {
     float shutter0_open_duty_cycle;
     float shutter1_close_duty_cycle;
     float shutter1_open_duty_cycle;
+    float shutter_speed_pct_s;  // Per shutter speed (percentage per second)
 } eeprom_servo_gate_config_t;
 
 
@@ -33,8 +32,8 @@ typedef struct {
     gate_state_t gate_state;
 
     // RTOS control
-    TaskHandle_t servo_gate_control_task_handler;
-    QueueHandle_t servo_gate_control_queue;
+    TaskHandle_t control_task_handler;
+    QueueHandle_t control_queue;
     SemaphoreHandle_t move_ready_semphore;
 } servo_gate_t;
 
