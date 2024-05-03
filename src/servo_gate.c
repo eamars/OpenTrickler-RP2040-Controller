@@ -27,6 +27,16 @@ const eeprom_servo_gate_config_t default_eeprom_servo_gate_config = {
 };
 
 
+const char * _gate_state_string[] = {
+    "Disabled",
+    "Close",
+    "Open"
+};
+const char * gate_state_to_string(gate_state_t state) {
+    return _gate_state_string[state];
+}
+
+
 static void inline _set_duty_cycle(uint16_t shutter0_duty_cycle, uint16_t shutter1_duty_cycle) {
     uint32_t reg_level = ((uint32_t) shutter0_duty_cycle) << 16 | shutter1_duty_cycle;
 
@@ -118,7 +128,9 @@ void servo_gate_control_task(void * p) {
         // Signal the motion is ready
         xSemaphoreGive(servo_gate.move_ready_semphore);
 
+        // Update state
         prev_open_ratio = new_open_ratio;
+        servo_gate.gate_state = new_state;
     }
 }
 
