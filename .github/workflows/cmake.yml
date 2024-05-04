@@ -5,7 +5,7 @@ run-name: Build based on ${{ github.ref }} by @${{ github.actor }}
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "US-Solid-JFDBS00058-100G" ]
   pull_request:
     branches: [ "main" ]
 
