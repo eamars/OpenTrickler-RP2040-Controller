@@ -273,10 +273,13 @@ void charge_mode_wait_for_complete() {
         last_error = error;
     }
 
+    // Close the gate if the servo gate is present
+    if (servo_gate.gate_state != GATE_DISABLED) {
+        servo_gate_set_state(GATE_CLOSE, true);
+    }
+
     // Precharge
     if (charge_mode_config.eeprom_charge_mode_data.precharge_enable && servo_gate.gate_state != GATE_DISABLED) {
-        servo_gate_set_state(GATE_CLOSE, true);
-
         motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps);
         vTaskDelay(pdMS_TO_TICKS(charge_mode_config.eeprom_charge_mode_data.precharge_time_ms));
 
