@@ -50,8 +50,8 @@ static void inline _set_duty_cycle(uint16_t shutter0_duty_cycle, uint16_t shutte
 
 
 void _servo_gate_set_current_state(float open_ratio) {
-    uint32_t shutter0_duty_cycle;
-    uint32_t shutter1_duty_cycle;
+    uint16_t shutter0_duty_cycle;
+    uint16_t shutter1_duty_cycle;
 
     float shutter0_range = servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle - servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle;
     float shutter1_range = servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle - servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle;
@@ -240,8 +240,9 @@ bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *para
     // Response
     snprintf(servo_gate_json_buffer, 
              sizeof(servo_gate_json_buffer),
-             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+             "%s"
              "{\"g0\":%d}",
+             http_json_header,
              (int) servo_gate.gate_state);
 
     size_t data_length = strlen(servo_gate_json_buffer);
