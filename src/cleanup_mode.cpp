@@ -13,12 +13,13 @@
 #include "common.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
+#include "servo_gate.h"
 
 
 // Memory from other modules
 extern QueueHandle_t encoder_event_queue;
 extern charge_mode_config_t charge_mode_config;
-
+extern servo_gate_t servo_gate;
 extern AppState_t exit_state;
 extern QueueHandle_t encoder_event_queue;
 
@@ -77,6 +78,11 @@ void cleanup_render_task(void *p) {
         sprintf(buf, "Speed: %0.3f", cleanup_mode_config.trickler_speed);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 45, buf);
+
+        memset(buf, 0x0, sizeof(buf));
+        sprintf(buf, "Servo Gate: %s", gate_state_to_string(servo_gate.gate_state));
+        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
+        u8g2_DrawStr(display_handler, 5, 55, buf);
 
         u8g2_SendBuffer(display_handler);
 

@@ -46,5 +46,8 @@
 #define EEPROM_SCL_PIN 11
 #define EEPROM_ADDR 0x0
 
+#define SERVO0_PWM_PIN 26
+#define SERVO1_PWM_PIN 27
+#define SERVO_PWM_SLICE_NUM 5
 
 #endif  // RASPBERRYPI_PICO_CONFIG_H_

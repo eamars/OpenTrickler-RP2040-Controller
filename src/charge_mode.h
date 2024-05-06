@@ -6,7 +6,7 @@
 #include "common.h"
 
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     7              // 16 byte 
+#define EEPROM_CHARGE_MODE_DATA_REV                     8              // 16 byte 
 
 #define WEIGHT_STRING_LEN 8
 
@@ -28,6 +28,11 @@ typedef struct {
     float set_point_mean_margin;
 
     decimal_places_t decimal_places;
+
+    // Precharge
+    bool precharge_enable;
+    uint32_t precharge_time_ms;
+    float precharge_speed_rps;
 
     // LED related settings
     uint32_t neopixel_normal_charge_colour;

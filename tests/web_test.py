@@ -112,6 +112,11 @@ def rest_neopixel_led_config():
 def rest_button_config():
     return {"b0":True}
 
+@app.route('/rest/servo_gate_config')
+def rest_servo_gate_config():
+    return {"c0":True,"c1":0.050,"c2":0.125}
+
+
 
 @app.route('/rest/system_control')
 def rest_system_control():
