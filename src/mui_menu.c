@@ -13,13 +13,14 @@
 #include "version.h"
 #include "common.h"
 #include "profile.h"
+#include "servo_gate.h"
 
 
+// External modules/varaibles
 extern uint8_t charge_weight_digits[];
 extern AppState_t exit_state;
 extern charge_mode_config_t charge_mode_config;
-
-// Imported from and_scale module
+extern servo_gate_t servo_gate;
 extern scale_config_t scale_config;
 extern eeprom_profile_data_t profile_data;
 
@@ -189,6 +190,22 @@ uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
 }
 
 
+uint8_t render_servo_gate_state_with_action(mui_t *ui, uint8_t msg) {
+    uint8_t return_value = mui_u8g2_u8_radio_wm_pi(ui, msg);
+
+    switch(msg) {
+        case MUIF_MSG_CURSOR_SELECT:
+        {
+            uint8_t *value = (uint8_t *)muif_get_data(ui->uif);
+            servo_gate_set_state((gate_state_t) *value, false);
+            break;
+        }
+    }
+
+    return return_value;
+}
+
+
 
 muif_t muif_list[] = {
         /* normal text style */
@@ -228,6 +245,9 @@ muif_t muif_list[] = {
 
         // Render version
         MUIF_RO("VE", render_version_page),
+
+        // Render servo gate state
+        MUIF_VARIABLE("RB",&servo_gate.gate_state, render_servo_gate_state_with_action),
 
         // input for a number between 0 to 9 //
         MUIF_U8G2_U8_MIN_MAX("N4", &charge_weight_digits[4], 0, 9, mui_u8g2_u8_min_max_wm_mud_pi),
@@ -359,6 +379,7 @@ fds_t fds_data[] = {
         MUI_31 "Scale|"
         MUI_32 "Profile Manager|"
         MUI_37 "EEPROM|"
+        MUI_39 "Servo Gate|"
         MUI_35 "Reboot|"
         MUI_36 "Version|"
         MUI_1 "<-Return"  // Back to main menu
@@ -476,6 +497,17 @@ fds_t fds_data[] = {
     MUI_XYA("GC", 5, 37, 1) 
     MUI_XYA("GC", 5, 49, 2) 
     MUI_XYA("GC", 5, 61, 3)
+
+    // Servo Gate submenu
+    MUI_FORM(39)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Servo Gate Control")
+    MUI_XY("HL", 0,13)
+
+    MUI_XYAT("RB", 5, 25, 0, "Disable")
+    MUI_XYAT("RB", 5, 37, 1, "Open")
+    MUI_XYAT("RB", 5, 49, 2, "Close")
+    MUI_XYAT("BN", 64, 59, 30, " OK ")  // Jump to form 30
 
     // Wirelss submenu
     MUI_FORM(40)
