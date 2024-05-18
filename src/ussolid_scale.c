@@ -14,22 +14,28 @@
 
 /* 
   Example data
-    +  320.422GN
-    +  320.406GN
-    +  320.391GN
-    +  320.375GN
-    +  320.391GN
-    +  320.406GN
-    +  320.437GN
+    +   20.758g  
+    +   20.758g  
+    +   20.758g  
+    +  320.344GN 
+    +  320.344GN 
+    +  320.344GN 
+    +  320.344GN 
+    +  889.629GN 
+    + 1116.438GN 
+    + 1320.253GN 
+    + 1508.019GN 
+    + ~~~~~~~~GN 
 */
 typedef union {
     struct __attribute__((__packed__)) {
-        char header[1];         // + or -
-        char data[9];           // Float integer
-        char unit[2];           // GN (or something else)   
-        char terminator[2];     // \r\n (carriage return)
+        char sign[1];           // + or -
+        char space[1];          // empty space
+        char data[8];           // Float integer
+        char unit[3];           // GN (or something else)   
+        char terminator[1];     // \n (carriage return)
     };
-    char packet[16];
+    char packet[14];
 } ussolid_jfdbs_data_format_t ;
 
 // Forward declaration
@@ -43,13 +49,18 @@ scale_handle_t ussolid_scale_handle = {
     .force_zero = force_zero,
 };
 
-
 static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
-    float weight = strtof(msg->data, NULL);
+    char *endptr;
+    float weight = ((msg->sign[0] == '-') ? -1 : 1 ) * strtof(msg->data, &endptr);
 
+    if( endptr == msg->data ) {
+        // Conversion failed
+        return __FLT_MAX__;
+    }
+
+    float weight = (msg->sign[0] == '-' ? -1 : 1) * strtof(msg->data, NULL);
     return weight;
 }
-
 
 void _ussolid_scale_listener_task(void *p) {
     char string_buf[20];
@@ -64,14 +75,20 @@ void _ussolid_scale_listener_task(void *p) {
 
             // If we have received 16 bytes then we can decode the message
             if (string_buf_idx == sizeof(ussolid_jfdbs_data_format_t)) {
+                
                 // Data is ready, send to decode
-                scale_config.current_scale_measurement = _decode_measurement_msg((ussolid_jfdbs_data_format_t *) string_buf);
+                float weight = _decode_measurement_msg((ussolid_jfdbs_data_format_t *) string_buf);
 
-                // Signal the data is ready
-                if (scale_config.scale_measurement_ready) {
-                    xSemaphoreGive(scale_config.scale_measurement_ready);
+                // Check for decode error
+                if (weight != __FLT_MAX__) {
+                    scale_config.current_scale_measurement = weight;
+
+                    // Signal the data is ready
+                    if (scale_config.scale_measurement_ready) {
+                        xSemaphoreGive(scale_config.scale_measurement_ready);
+                    }
                 }
-
+                
                 // Reset
                 string_buf_idx = 0;
             }
@@ -89,3 +106,4 @@ void _ussolid_scale_listener_task(void *p) {
 static void force_zero() {
     // TODO: Not implemented
 }
+
