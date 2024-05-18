@@ -58,7 +58,6 @@ static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
         return __FLT_MAX__;
     }
 
-    float weight = (msg->sign[0] == '-' ? -1 : 1) * strtof(msg->data, NULL);
     return weight;
 }
 
@@ -88,7 +87,7 @@ void _ussolid_scale_listener_task(void *p) {
                         xSemaphoreGive(scale_config.scale_measurement_ready);
                     }
                 }
-                
+
                 // Reset
                 string_buf_idx = 0;
             }
