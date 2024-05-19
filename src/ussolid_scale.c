@@ -43,7 +43,7 @@ void _ussolid_scale_listener_task(void *p);
 extern scale_config_t scale_config;
 static void force_zero();
 
-// Instance of the scale handle for A&D FXi series
+// Instance of the scale handle for US Solid series
 scale_handle_t ussolid_scale_handle = {
     .read_loop_task = _ussolid_scale_listener_task,
     .force_zero = force_zero,
