@@ -43,7 +43,14 @@ scale_handle_t steinberg_scale_handle = {
 
 
 static float _decode_measurement_msg(steinberg_sbs_data_format_t * msg) {
-    float weight = strtof(msg->data, NULL);
+    // Decode weight information
+    char *endptr;
+    float weight = strtof(msg->data, &endptr);
+
+    if( endptr == msg->data ) {
+        // Conversion failed
+        return NAN;
+    }
 
     return weight;
 }

@@ -43,7 +43,13 @@ static float _decode_measurement_msg(scale_standard_data_format_t * msg) {
     // Doesn't really matter though..
 
     // Decode weight information
-    float weight = strtof(msg->data, NULL);
+    char *endptr;
+    float weight = strtof(msg->data, &endptr);
+
+    if( endptr == msg->data ) {
+        // Conversion failed
+        return NAN;
+    }
 
     return weight;
 }
