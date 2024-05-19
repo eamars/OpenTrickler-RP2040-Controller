@@ -62,7 +62,7 @@ static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
 
     if( endptr == msg->data ) {
         // Conversion failed
-        return __FLT_MAX__;
+        return NAN;
     }
 
     // Apply the sign
@@ -88,14 +88,11 @@ void _ussolid_scale_listener_task(void *p) {
                 // Data is ready, send to decode
                 float weight = _decode_measurement_msg((ussolid_jfdbs_data_format_t *) string_buf);
 
-                // Check for decode error
-                if (weight != __FLT_MAX__) {
-                    scale_config.current_scale_measurement = weight;
+                scale_config.current_scale_measurement = weight;
 
-                    // Signal the data is ready
-                    if (scale_config.scale_measurement_ready) {
-                        xSemaphoreGive(scale_config.scale_measurement_ready);
-                    }
+                // Signal the data is ready
+                if (scale_config.scale_measurement_ready) {
+                    xSemaphoreGive(scale_config.scale_measurement_ready);
                 }
 
                 // Reset
