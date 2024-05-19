@@ -62,7 +62,7 @@ static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
 
     if( endptr == msg->data ) {
         // Conversion failed
-        return NAN;
+        return nanf(msg->data);
     }
 
     // Apply the sign
