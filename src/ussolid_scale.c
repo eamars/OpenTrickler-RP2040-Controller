@@ -29,13 +29,12 @@
 */
 typedef union {
     struct __attribute__((__packed__)) {
-        char sign[1];           // + or -
-        char space[1];          // empty space
+        char header[2];         // + or -
         char data[8];           // Float integer
         char unit[3];           // GN (or something else)   
-        char terminator[1];     // \n (carriage return)
+        char terminator[2];     // \r\n (carriage return and newline)
     };
-    char packet[14];
+    char packet[15];
 } ussolid_jfdbs_data_format_t ;
 
 // Forward declaration
@@ -50,13 +49,24 @@ scale_handle_t ussolid_scale_handle = {
 };
 
 static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
+    // Determine sign
+    int sign = 1;
+
+    // Check if the header contains a negative sign
+    if (msg->header[0] == '-') {
+        sign = -1;
+    }
+
     char *endptr;
-    float weight = ((msg->sign[0] == '-') ? -1 : 1 ) * strtof(msg->data, &endptr);
+    float weight = strtof(msg->data, &endptr);
 
     if( endptr == msg->data ) {
         // Conversion failed
         return __FLT_MAX__;
     }
+
+    // Apply the sign
+    weight *= sign;
 
     return weight;
 }
@@ -72,7 +82,7 @@ void _ussolid_scale_listener_task(void *p) {
 
             string_buf[string_buf_idx++] = ch;
 
-            // If we have received 16 bytes then we can decode the message
+            // If we have received 15 bytes then we can decode the message
             if (string_buf_idx == sizeof(ussolid_jfdbs_data_format_t)) {
                 
                 // Data is ready, send to decode
