@@ -110,6 +110,6 @@ void _ussolid_scale_listener_task(void *p) {
 }
 
 static void force_zero() {
-    // TODO: Not implemented
+    // Unsupported
 }
 
