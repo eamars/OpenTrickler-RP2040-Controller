@@ -14,6 +14,7 @@
 
 extern scale_handle_t and_fxi_scale_handle;
 extern scale_handle_t steinberg_scale_handle;
+extern scale_handle_t ussolid_scale_handle;
 extern scale_handle_t gng_scale_handle;
 scale_config_t scale_config;
 
@@ -32,6 +33,11 @@ void set_scale_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_STEINBERG_SBS:
         {
             scale_config.scale_handle = &steinberg_scale_handle;
+            break;
+        }
+        case SCALE_DRIVER_USSOLID_JFDBS:
+        {
+            scale_config.scale_handle = &ussolid_scale_handle;
             break;
         }
          case SCALE_DRIVER_GNG_JJB:
@@ -75,6 +81,9 @@ const char * get_scale_driver_string() {
             break;
         case SCALE_DRIVER_STEINBERG_SBS:
             scale_driver_string = "Steinberg SBS";
+            break;
+        case SCALE_DRIVER_USSOLID_JFDBS:
+            scale_driver_string = "US Solid JFDBS";
             break;
         case SCALE_DRIVER_GNG_JJB:
             scale_driver_string = "GNG JJB";
