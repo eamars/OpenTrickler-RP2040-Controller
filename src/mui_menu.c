@@ -10,9 +10,9 @@
 
 #include "scale.h"
 #include "charge_mode.h"
-#include "version.h"
 #include "common.h"
 #include "profile.h"
+#include "app_header.h"
 #include "servo_gate.h"
 
 
@@ -51,21 +51,22 @@ uint8_t render_version_page(mui_t * ui, uint8_t msg) {
     switch (msg) {
         case MUIF_MSG_DRAW:
         {
+            const app_header_t * app_header = get_app_header();
             u8g2_uint_t x = mui_get_x(ui);
             u8g2_uint_t y = mui_get_y(ui);
             u8g2_t *u8g2 = mui_get_U8g2(ui);
 
-            char buf[32];
+            char buf[40];
 
             u8g2_SetFont(u8g2, u8g2_font_profont11_tf);
 
-            snprintf(buf, sizeof(buf), "Ver: %s", version_string);
+            snprintf(buf, sizeof(buf), "Ver: %s", app_header->firmware_version);
             u8g2_DrawStr(u8g2, x, y, buf);
 
-            snprintf(buf, sizeof(buf), "VCS: %s", vcs_hash);
+            snprintf(buf, sizeof(buf), "VCS: %s", app_header->vcs_hash);
             u8g2_DrawStr(u8g2, x, y + 10, buf);
 
-            snprintf(buf, sizeof(buf), "Build: %s", build_type);
+            snprintf(buf, sizeof(buf), "Build: %s", app_header->build_type);
             u8g2_DrawStr(u8g2, x, y + 20, buf);
 
             break;
