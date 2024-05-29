@@ -56,7 +56,13 @@ static float _decode_measurement_msg(gngscale_standard_data_format_t * msg) {
     }
 
     // Decode weight information
-    float weight = strtof(msg->data, NULL);
+    char *endptr;
+    float weight = strtof(msg->data, &endptr);
+
+    if( endptr == msg->data ) {
+        // Conversion failed
+        return nanf(msg->data);
+    }
 
     // Apply the sign
     weight *= sign;

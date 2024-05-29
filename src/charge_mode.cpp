@@ -20,6 +20,7 @@
 #include "neopixel_led.h"
 #include "profile.h"
 #include "common.h"
+#include "servo_gate.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -28,6 +29,8 @@ charge_mode_config_t charge_mode_config;
 
 // Scale related
 extern scale_config_t scale_config;
+extern servo_gate_t servo_gate;
+
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = EEPROM_CHARGE_MODE_DATA_REV,
@@ -39,6 +42,11 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .set_point_mean_margin = 0.02,
 
     .decimal_places = DP_2,
+
+    // Precharges
+    .precharge_enable = false,
+    .precharge_time_ms = 1000,
+    .precharge_speed_rps = 2,
 
     // LED related
     .neopixel_normal_charge_colour = urgb_u32(0, 0xFF, 0),          // green
@@ -167,6 +175,11 @@ void charge_mode_wait_for_complete() {
         true
     );
 
+    // If the servo gate is used then it has to be opened
+    if (servo_gate.gate_state != GATE_DISABLED) {
+        servo_gate_set_state(GATE_OPEN, false);
+    }
+
     // Update current status
     char target_weight_string[WEIGHT_STRING_LEN];
     float_to_string(target_weight_string, charge_mode_config.target_charge_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
@@ -260,7 +273,21 @@ void charge_mode_wait_for_complete() {
         last_error = error;
     }
 
-    vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete
+    // Close the gate if the servo gate is present
+    if (servo_gate.gate_state != GATE_DISABLED) {
+        servo_gate_set_state(GATE_CLOSE, true);
+    }
+
+    // Precharge
+    if (charge_mode_config.eeprom_charge_mode_data.precharge_enable && servo_gate.gate_state != GATE_DISABLED) {
+        motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps);
+        vTaskDelay(pdMS_TO_TICKS(charge_mode_config.eeprom_charge_mode_data.precharge_time_ms));
+
+        motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+    }
+    else {
+        vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete  
+    }
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
 }
@@ -364,6 +391,7 @@ void charge_mode_wait_for_cup_return() {
     );
 
     snprintf(title_string, sizeof(title_string), "Return Cup");
+
 
     FloatRingBuffer data_buffer(5);
 
@@ -528,6 +556,9 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c7 (float): set_point_sd_margin
     // c8 (float): set_point_mean_margin
     // c9 (int): decimal point enum
+    // c10 (bool): precharge_enable
+    // c11 (int): precharge_time_ms
+    // c12 (float): precharge_speed_rps
 
     // ee (bool): save to eeprom
 
@@ -550,6 +581,17 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         }
         else if (strcmp(params[idx], "c9") == 0) {
             charge_mode_config.eeprom_charge_mode_data.decimal_places = (decimal_places_t) atoi(values[idx]);
+        }
+        
+        // Pre charge related settings
+        else if (strcmp(params[idx], "c10") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.precharge_enable = string_to_boolean(values[idx]);
+        }
+        else if (strcmp(params[idx], "c11") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.precharge_time_ms = strtol(values[idx], NULL, 10);
+        }
+        else if (strcmp(params[idx], "c12") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps = strtof(values[idx], NULL);
         }
 
         // LED related settings
@@ -580,17 +622,19 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              sizeof(charge_mode_json_buffer),
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
-             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d}",
+             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":\"%s\",\"c11\":%ld,\"c12\":%0.3f}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
-             
              charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,
              charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin,
-             charge_mode_config.eeprom_charge_mode_data.decimal_places);
+             charge_mode_config.eeprom_charge_mode_data.decimal_places,
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.precharge_enable),
+             charge_mode_config.eeprom_charge_mode_data.precharge_time_ms,
+             charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;

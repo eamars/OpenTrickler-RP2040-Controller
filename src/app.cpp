@@ -26,7 +26,7 @@
 #include "rotary_button.h"
 #include "menu.h"
 #include "profile.h"
-
+#include "servo_gate.h"
 
 uint8_t software_reboot() {
     watchdog_reboot(0, 0, 0);
@@ -61,6 +61,9 @@ int main()
 
     // Initialize profile data
     profile_data_init();
+
+    // Initialize the servo
+    servo_gate_init();
 
 #ifdef RASPBERRYPI_PICO_W
     // Load wireless settings

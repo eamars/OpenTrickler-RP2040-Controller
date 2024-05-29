@@ -14,36 +14,49 @@
 
 /* 
   Example data
-    S       0.00 GN
-    S       0.00 GN
-    SD     -1.14 GN
-    SD   -143.02 GN
-    SD   -467.16 GN
+    +   20.758g  
+    +   20.758g  
+    +   20.758g  
+    +  320.344GN 
+    +  320.344GN 
+    +  320.344GN 
+    +  320.344GN 
+    +  889.629GN 
+    + 1116.438GN 
+    + 1320.253GN 
+    + 1508.019GN 
+    + ~~~~~~~~GN 
 */
 typedef union {
     struct __attribute__((__packed__)) {
-        char header[2];         // S or SD
-        char data[10];          // Signed integer
-        char unit[2];           // GN (or something else)   
-        char terminator[2];     // \r\n (carriage return)
+        char header[2];         // + or -
+        char data[8];           // Float integer
+        char unit[3];           // GN (or something else)   
+        char terminator[2];     // \r\n (carriage return and newline)
     };
-    char packet[16];
-} steinberg_sbs_data_format_t ;
+    char packet[15];
+} ussolid_jfdbs_data_format_t ;
 
 // Forward declaration
-void _steinberg_scale_listener_task(void *p);
+void _ussolid_scale_listener_task(void *p);
 extern scale_config_t scale_config;
 static void force_zero();
 
-// Instance of the scale handle for A&D FXi series
-scale_handle_t steinberg_scale_handle = {
-    .read_loop_task = _steinberg_scale_listener_task,
+// Instance of the scale handle for US Solid series
+scale_handle_t ussolid_scale_handle = {
+    .read_loop_task = _ussolid_scale_listener_task,
     .force_zero = force_zero,
 };
 
+static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
+    // Determine sign
+    int sign = 1;
 
-static float _decode_measurement_msg(steinberg_sbs_data_format_t * msg) {
-    // Decode weight information
+    // Check if the header contains a negative sign
+    if (msg->header[0] == '-') {
+        sign = -1;
+    }
+
     char *endptr;
     float weight = strtof(msg->data, &endptr);
 
@@ -52,11 +65,13 @@ static float _decode_measurement_msg(steinberg_sbs_data_format_t * msg) {
         return nanf(msg->data);
     }
 
+    // Apply the sign
+    weight *= sign;
+
     return weight;
 }
 
-
-void _steinberg_scale_listener_task(void *p) {
+void _ussolid_scale_listener_task(void *p) {
     char string_buf[20];
     uint8_t string_buf_idx = 0;
 
@@ -67,10 +82,13 @@ void _steinberg_scale_listener_task(void *p) {
 
             string_buf[string_buf_idx++] = ch;
 
-            // If we have received 16 bytes then we can decode the message
-            if (string_buf_idx == sizeof(steinberg_sbs_data_format_t)) {
+            // If we have received 15 bytes then we can decode the message
+            if (string_buf_idx == sizeof(ussolid_jfdbs_data_format_t)) {
+                
                 // Data is ready, send to decode
-                scale_config.current_scale_measurement = _decode_measurement_msg((steinberg_sbs_data_format_t *) string_buf);
+                float weight = _decode_measurement_msg((ussolid_jfdbs_data_format_t *) string_buf);
+
+                scale_config.current_scale_measurement = weight;
 
                 // Signal the data is ready
                 if (scale_config.scale_measurement_ready) {
@@ -92,5 +110,6 @@ void _steinberg_scale_listener_task(void *p) {
 }
 
 static void force_zero() {
-    // TODO: Not implemented
+    // Unsupported
 }
+

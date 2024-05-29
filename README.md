@@ -32,6 +32,9 @@ You can download the pre-built firmware based on the latest release from above l
 
 
 ## Build OpenTrickler firmware from source
+
+Reference: https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf
+
 ### Prerequistes  
 [Git](https://gitforwindows.org/) and [Pico-SDK](https://github.com/raspberrypi/pico-setup-windows/releases/download/v0.5.1/pico-setup-windows-x64-standalone.exe) are required to build the firmware. 
  
