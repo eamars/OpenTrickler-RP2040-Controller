@@ -120,7 +120,9 @@ target_link_libraries(app_base
     and_scale
     steinberg_scale
     gng_scale
+    ussolid_scale
     scale
+    servo_gate
 )
 
 # Pull in src to generate extra files

@@ -118,6 +118,13 @@ target_sources(steinberg_scale INTERFACE
     "${SRC_DIRECTORY}/steinberg_scale.c"
 )
 
+# U.S.solid scale
+add_library(ussolid_scale INTERFACE)
+target_include_directories(ussolid_scale INTERFACE ${SRC_DIRECTORY})
+target_sources(ussolid_scale INTERFACE 
+    "${SRC_DIRECTORY}/ussolid_scale.c"
+)
+
 # Scale (abstract class)
 add_library(scale INTERFACE)
 target_include_directories(scale INTERFACE ${SRC_DIRECTORY})
@@ -216,4 +223,11 @@ add_library(wireless INTERFACE)
 target_include_directories(wireless INTERFACE ${SRC_DIRECTORY})
 target_sources(wireless INTERFACE 
     "${SRC_DIRECTORY}/wireless.c"
+)
+
+# Servo Gate
+add_library(servo_gate INTERFACE)
+target_include_directories(servo_gate INTERFACE ${SRC_DIRECTORY})
+target_sources(servo_gate INTERFACE 
+    "${SRC_DIRECTORY}/servo_gate.c"
 )
