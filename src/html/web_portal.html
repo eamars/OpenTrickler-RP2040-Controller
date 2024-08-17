@@ -609,15 +609,16 @@
                             </div>
 
                             <button class="btn btn-neutral system-control-apply-btn">Apply</button>
-
-                            <div class="divider"></div>
-
-                            <!-- Export and Import config -->
-                            <div class="grid grid-cols-2 gap-1">
-                                <button class="btn btn-neutral system-control-export-btn">Export Config</button>
-                                <button class="btn btn-neutral system-control-import-btn">Import Config</button>
-                            </div>
                         </form>
+
+                        <div class="divider"></div>
+
+                        <!-- Export and Import config -->
+                        <div class="grid grid-cols-2 gap-1">
+                            <button class="btn btn-neutral system-control-export-btn" onclick="onExportConfigClicked()">Export Config</button>
+                            <button class="btn btn-neutral system-control-import-btn" onclick="onImportConfigClicked()">Import Config</button>
+                        </div>
+
                     </section>
 
                 </div>
@@ -1393,6 +1394,52 @@
         }
         const uri = `/rest/cleanup_mode_state?s0=${encodeURIComponent(cleanup_state_value)}`;
         fetch(uri);
+    }
+
+    async function onExportConfigClicked() {
+        const config = {};
+
+        const endpoints = [
+            "/rest/scale_config",
+            "/rest/charge_mode_config",
+            "/rest/coarse_motor_config",
+            "/rest/fine_motor_config",
+            "/rest/button_config",
+            "/rest/wireless_config",
+            "/rest/neopixel_led_config",
+            "/rest/profile_config?pf=0",
+            "/rest/profile_config?pf=1",
+            "/rest/profile_config?pf=2",
+            "/rest/profile_config?pf=3",
+            "/rest/profile_config?pf=4",
+            "/rest/profile_config?pf=5",
+            "/rest/profile_config?pf=6",
+            "/rest/profile_config?pf=7",
+            "/rest/servo_gate_config",
+        ]
+
+        // Read metadata
+        const response = await fetch("/rest/system_control");
+        const system_control_data = await response.json();
+        config["unique_id"] = system_control_data["s0"];
+        config["firmware_version"] = system_control_data["s1"];
+        config["vcs_hash"] = system_control_data["s2"];
+
+        // Fetch data from endpoints
+        for (const endpoint of endpoints) {
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            config[endpoint] = data;
+        }
+
+        // download as a file
+        const blob = new Blob([JSON.stringify(config, null, "\t")], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "opentrickler"+config["unique_id"]+"_config.json";
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     // Start the long polling process when the page loads
