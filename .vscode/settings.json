@@ -49,6 +49,7 @@
         "clocks.h": "c",
         "pwm.h": "c",
         "servo_gate.h": "c",
-        "semphr.h": "c"
+        "semphr.h": "c",
+        "version.h": "c"
     }
 }

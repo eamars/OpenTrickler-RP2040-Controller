@@ -35,7 +35,6 @@ extern "C" {
 #endif
 
 bool app_init();
-uint8_t software_reboot();
 bool http_app_config();
 
 #ifdef __cplusplus
