@@ -34,7 +34,7 @@ typedef union {
         char unit[3];           // GN (or something else)   
         char terminator[2];     // \r\n (carriage return and newline)
     };
-    char packet[15];
+    char bytes[15];
 } ussolid_jfdbs_data_format_t ;
 
 // Forward declaration
@@ -72,21 +72,21 @@ static float _decode_measurement_msg(ussolid_jfdbs_data_format_t * msg) {
 }
 
 void _ussolid_scale_listener_task(void *p) {
-    char string_buf[20];
     uint8_t string_buf_idx = 0;
+    ussolid_jfdbs_data_format_t frame;
 
     while (true) {
         // Read all data 
         while (uart_is_readable(SCALE_UART)) {
             char ch = uart_getc(SCALE_UART);
 
-            string_buf[string_buf_idx++] = ch;
+            frame.bytes[string_buf_idx++] = ch;
 
             // If we have received 15 bytes then we can decode the message
             if (string_buf_idx == sizeof(ussolid_jfdbs_data_format_t)) {
                 
                 // Data is ready, send to decode
-                float weight = _decode_measurement_msg((ussolid_jfdbs_data_format_t *) string_buf);
+                float weight = _decode_measurement_msg(&frame);
 
                 scale_config.current_scale_measurement = weight;
 
