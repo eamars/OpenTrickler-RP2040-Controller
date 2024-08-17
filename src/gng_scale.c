@@ -28,7 +28,7 @@ typedef union {
         char unit[3];
         char terminator[2];
     };
-    char packet[14];
+    char bytes[14];
 } gngscale_standard_data_format_t;
 
 
@@ -72,8 +72,8 @@ static float _decode_measurement_msg(gngscale_standard_data_format_t * msg) {
 
 //read UART
 void _gng_scale_listener_task(void *p) {
-    char string_buf[20];
     uint8_t string_buf_idx = 0;
+    gngscale_standard_data_format_t frame;
 
     while (true) {
         // Request for a data transfer (ESC p)
@@ -82,12 +82,12 @@ void _gng_scale_listener_task(void *p) {
             // Read all data 
         while (uart_is_readable(SCALE_UART)) {   
             char ch = uart_getc(SCALE_UART);
-            string_buf[string_buf_idx++] = ch;
+            frame.bytes[string_buf_idx++] = ch;
 
             // If we have received 14 bytes then we can decode the message
             if (string_buf_idx == sizeof(gngscale_standard_data_format_t)) {
                 // Data is ready, send to decode
-                scale_config.current_scale_measurement = _decode_measurement_msg((gngscale_standard_data_format_t *) string_buf);
+                scale_config.current_scale_measurement = _decode_measurement_msg(&frame);
                 // Signal the data is ready
                 if (scale_config.scale_measurement_ready) {
                     xSemaphoreGive(scale_config.scale_measurement_ready);
