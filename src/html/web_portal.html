@@ -1424,12 +1424,13 @@
         config["unique_id"] = system_control_data["s0"];
         config["firmware_version"] = system_control_data["s1"];
         config["vcs_hash"] = system_control_data["s2"];
+        config["config"] = {};
 
         // Fetch data from endpoints
         for (const endpoint of endpoints) {
             const response = await fetch(endpoint);
             const data = await response.json();
-            config[endpoint] = data;
+            config["config"][endpoint] = data;
         }
 
         // download as a file
