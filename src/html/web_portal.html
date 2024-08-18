@@ -132,7 +132,7 @@
                         <form id="profileConfigForm" action="/rest/profile_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Select Profile</span>
-                                <select class="select select-bordered select-primary" name="pf" onchange="populateProfileSelection(this)">
+                                <select class="select select-bordered select-primary" name="pf" onchange="populateProfileSelection(this)" id="select_profile_option">
                                     <option value="0">#0</option>
                                     <option value="1">#1</option>
                                     <option value="2">#2</option>
@@ -142,6 +142,8 @@
                                     <option value="6">#6</option>
                                     <option value="7">#7</option>
                                 </select>
+
+                                <button class="btn btn-neutral system-control-export-btn" onclick="onExportProfileBtnClicked(event)">Export Profile</button>
                             </div>
 
                             <div class="divider"></div>
@@ -1402,6 +1404,39 @@
         }
         const uri = `/rest/cleanup_mode_state?s0=${encodeURIComponent(cleanup_state_value)}`;
         fetch(uri);
+    }
+
+    async function onExportProfileBtnClicked(event) {
+        // Skip the default response
+        event.preventDefault();
+
+        const config = {};
+
+        // Read metadata
+        let response = await fetch("/rest/system_control");
+        const system_control_data = await response.json();
+        config["unique_id"] = system_control_data["s0"];
+        config["firmware_version"] = system_control_data["s1"];
+        config["vcs_hash"] = system_control_data["s2"];
+        config["config"] = {};
+
+        // get current selected profile
+        const select_profile = document.getElementById("select_profile_option");
+
+        // Fetch data from endpoints
+        const url_string = `/rest/profile_config?pf=${select_profile.value}`
+        response = await fetch(url_string);
+        const profile_data = await response.json();
+        config["config"][url_string] = profile_data;
+
+        // download as a file
+        const blob = new Blob([JSON.stringify(config, null, "\t")], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = profile_data["p2"] + ".json"
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     async function onExportConfigClicked() {
