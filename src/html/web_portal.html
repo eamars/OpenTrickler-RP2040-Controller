@@ -608,8 +608,17 @@
                                 </select>
                             </div>
 
-                            <button class="btn btn-neutral system-control-apply-btn">Apply</button>
+                            <button class="btn btn-neutral system-control-apply-btn" id="system_control_apply_btn">Apply</button>
                         </form>
+
+                        <div class="divider"></div>
+
+                        <!-- Export and Import config -->
+                        <div class="grid grid-cols-2 gap-1">
+                            <button class="btn btn-neutral system-control-export-btn" onclick="onExportConfigClicked()">Export Config</button>
+                            <button class="btn btn-neutral system-control-import-btn" onclick="onImportConfigClicked()">Import Config</button>
+                        </div>
+
                     </section>
 
                 </div>
@@ -747,9 +756,17 @@
 </dialog>
 
 <dialog id="settingsAppliedSuccessDialog" class="modal">
-    <div class="modal-box">
+    <div class="modal-box" id="settingsAppliedSuccessText">
         <h3 class="font-bold text-lg">Info</h3>
         <p class="py-4">Settings Applied</p>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<dialog id="settingsRestoreFailedDialog" class="modal">
+    <div class="modal-box" id="settingsRestoreFailedText">
     </div>
     <form method="dialog" class="modal-backdrop">
         <button>close</button>
@@ -1385,6 +1402,117 @@
         }
         const uri = `/rest/cleanup_mode_state?s0=${encodeURIComponent(cleanup_state_value)}`;
         fetch(uri);
+    }
+
+    async function onExportConfigClicked() {
+        const config = {};
+
+        const endpoints = [
+            "/rest/scale_config",
+            "/rest/charge_mode_config",
+            "/rest/coarse_motor_config",
+            "/rest/fine_motor_config",
+            "/rest/button_config",
+            "/rest/wireless_config",
+            "/rest/neopixel_led_config",
+            "/rest/profile_config?pf=0",
+            "/rest/profile_config?pf=1",
+            "/rest/profile_config?pf=2",
+            "/rest/profile_config?pf=3",
+            "/rest/profile_config?pf=4",
+            "/rest/profile_config?pf=5",
+            "/rest/profile_config?pf=6",
+            "/rest/profile_config?pf=7",
+            "/rest/servo_gate_config",
+        ]
+
+        // Read metadata
+        const response = await fetch("/rest/system_control");
+        const system_control_data = await response.json();
+        config["unique_id"] = system_control_data["s0"];
+        config["firmware_version"] = system_control_data["s1"];
+        config["vcs_hash"] = system_control_data["s2"];
+        config["config"] = {};
+
+        // Fetch data from endpoints
+        for (const endpoint of endpoints) {
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            config["config"][endpoint] = data;
+        }
+
+        // download as a file
+        const blob = new Blob([JSON.stringify(config, null, "\t")], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "opentrickler_"+config["unique_id"]+"_config.json";
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async function onImportConfigClicked() {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file')
+        input.setAttribute('multiple', 'false')
+        input.setAttribute('accept', '.json')
+
+        input.onchange = (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            // Setup the callbacks
+            const reader = new FileReader();
+            reader.onload = (event2) => {
+                try {
+                    const data = JSON.parse(reader.result);
+    
+                    // Process data
+                    const source_firmware_version = data["firmware_version"];
+                    const source_unique_id = data["unique_id"];
+                    const source_vcs_hash = data["vcs_hash"];
+                    const config = data["config"];
+
+                    // Restore settings
+                    for (const [endpoint, config_data] of Object.entries(config)) {
+                        const paramData = new FormData();
+                        for (const [key, value] of Object.entries(config_data)) {
+                            paramData.append(key, value);
+                        }
+
+                        // Create URI
+                        const queryString = new URLSearchParams(paramData).toString();
+                        const uri = new URL(endpoint + "?", window.location.origin);
+                        uri.search = queryString;
+                        fetch(uri);
+                    }
+
+                    // Update form
+                    const systemControlForm = document.getElementById("systemControlForm");
+                    systemControlForm.elements["s4"].value = true;  // Save to EEPROM
+                    systemControlForm.elements["s5"].value = true;  // Reboot
+                    
+                    // Prompt user to save and reboot
+                    const applyBtn = document.getElementById("system_control_apply_btn");
+                    applyBtn.click();
+                } 
+                catch (exception) {
+                    console.error(exception);
+
+                    // Show warning 
+                    const settingsRestoreFailedDialog = document.getElementById("settingsRestoreFailedDialog");
+                    const settingsRestoreFailedText = document.getElementById("settingsRestoreFailedText");
+
+                    settingsRestoreFailedText.innerHTML = `<h3 class="font-bold text-lg">Failed to Restore Settings</h3><p class="py-4">${exception}</p>`
+                    settingsRestoreFailedDialog.showModal();
+                }
+            }
+
+            reader.readAsText(file);
+        }
+        input.click();
     }
 
     // Start the long polling process when the page loads

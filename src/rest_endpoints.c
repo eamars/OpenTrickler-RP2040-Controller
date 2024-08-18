@@ -13,6 +13,7 @@
 #include "profile.h"
 #include "cleanup_mode.h"
 #include "servo_gate.h"
+#include "system_control.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"

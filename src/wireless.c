@@ -426,7 +426,7 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
     snprintf(wireless_config_json_buffer, 
              sizeof(wireless_config_json_buffer),
              "%s"
-             "{\"w0\":\"%s\",\"w2\":\"%d\",\"w3\":%"PRId32",\"w4\":%s}",
+             "{\"w0\":\"%s\",\"w2\":%d,\"w3\":%"PRId32",\"w4\":%s}",
              http_json_header,
              wireless_config.eeprom_wireless_metadata.ssid,
             //  wireless_config.eeprom_wireless_metadata.pw,  // No, we don't send the password over anymore

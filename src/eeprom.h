@@ -47,8 +47,6 @@ uint8_t eeprom_erase(bool);
 uint8_t eeprom_save_all(void);
 void eeprom_register_handler(eeprom_save_handler_t handler);
 
-bool http_rest_system_control(struct fs_file *file, int num_params, char *params[], char *values[]);
-
 
 #ifdef __cplusplus
 }

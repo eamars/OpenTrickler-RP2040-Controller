@@ -17,7 +17,7 @@
 #include "cleanup_mode.h"
 #include "eeprom.h"
 #include "wireless.h"
-
+#include "system_control.h"
 
 // External variables
 extern muif_t muif_list[];
