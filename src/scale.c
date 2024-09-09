@@ -16,6 +16,8 @@ extern scale_handle_t and_fxi_scale_handle;
 extern scale_handle_t steinberg_scale_handle;
 extern scale_handle_t ussolid_scale_handle;
 extern scale_handle_t gng_scale_handle;
+extern scale_handle_t jm_science_scale_handle;
+
 scale_config_t scale_config;
 
 
@@ -35,14 +37,19 @@ void set_scale_driver(scale_driver_t scale_driver) {
             scale_config.scale_handle = &steinberg_scale_handle;
             break;
         }
+        case SCALE_DRIVER_GNG_JJB:
+        {
+            scale_config.scale_handle = &gng_scale_handle;
+            break;
+        }
         case SCALE_DRIVER_USSOLID_JFDBS:
         {
             scale_config.scale_handle = &ussolid_scale_handle;
             break;
         }
-         case SCALE_DRIVER_GNG_JJB:
+        case SCALE_DRIVER_JM_SCIENCE:
         {
-            scale_config.scale_handle = &gng_scale_handle;
+            scale_config.scale_handle = &jm_science_scale_handle;
             break;
         }
         default:
@@ -88,6 +95,8 @@ const char * get_scale_driver_string() {
         case SCALE_DRIVER_GNG_JJB:
             scale_driver_string = "GNG JJB";
             break;
+        case SCALE_DRIVER_JM_SCIENCE:
+            scale_driver_string = "JM SCIENCE";
         default:
             break;
     }
