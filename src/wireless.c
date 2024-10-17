@@ -291,14 +291,20 @@ void wireless_task(void *p) {
         // Show the current joining SSID
         sprintf(first_line_buffer, ">%s", wireless_config.eeprom_wireless_metadata.ssid);
 
+        // If the authentication method is open then the password is NULL
+        const char * wifi_password = NULL;
+        if (wireless_config.eeprom_wireless_metadata.auth != AUTH_OPEN) {
+            wifi_password = wireless_config.eeprom_wireless_metadata.pw;
+        }
+
         // Retry within timeframe
         TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(wireless_config.eeprom_wireless_metadata.timeout_ms);
         while (xTaskGetTickCount() < stop_tick) {
             int resp;
             resp = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid,
-                                                    wireless_config.eeprom_wireless_metadata.pw,
-                                                    get_cyw43_auth(wireless_config.eeprom_wireless_metadata.auth),
-                                                    wireless_config.eeprom_wireless_metadata.timeout_ms);
+                                                      wifi_password,
+                                                      get_cyw43_auth(wireless_config.eeprom_wireless_metadata.auth),
+                                                      wireless_config.eeprom_wireless_metadata.timeout_ms);
             if (resp == PICO_OK) {
                 wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
                 break;
