@@ -168,21 +168,6 @@
 
 
     <script>
-        function validateForm(form) {
-            var isValid = true;
-            allInputs = form.getElementsByTagName("input");
-            for (const input of allInputs) {
-                if (input.value == "") {
-                    isValid = false;
-                    input.classList.add("invalid");
-                }
-                else {
-                    input.classList.remove("invalid");
-                }
-            }
-
-            return isValid;
-        }
 
         // Submit the form data to the action URI
         function putForm(targetForm, saveToEeprom) {
@@ -232,16 +217,11 @@
 
             const form = document.getElementById("wifi-config")
 
-            // First validate the input
-            const isValid = validateForm(form);
+            putForm(form, true);
 
-            if (isValid) {
-                putForm(form, true);
-
-                // Send reboot request
-                const uri = "/rest/system_control?s5=true";
-                fetch(uri);
-            }
+            // Send reboot request
+            const uri = "/rest/system_control?s5=true";
+            fetch(uri);
         })
 
         function populateWifiConfig() {
