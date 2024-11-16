@@ -11,7 +11,7 @@
 
 #include "app.h"
 #include "FloatRingBuffer.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "display.h"
 #include "scale.h"
 #include "motors.h"

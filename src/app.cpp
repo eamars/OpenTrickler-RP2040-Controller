@@ -23,7 +23,7 @@
 #include "rest_endpoints.h"
 #include "wireless.h"
 #include "neopixel_led.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "menu.h"
 #include "profile.h"
 #include "servo_gate.h"
@@ -38,11 +38,8 @@ int main()
     // Initialize Neopixel RGB on the mini 12864 board
     neopixel_led_init();
 
-    // Configure others
-    display_init();
-
-    // Initialise rotary button
-    button_init();
+    // Configure other functions from mini 12864 display
+    mini_12864_module_init();
 
     // Load config for motors
     motors_init();

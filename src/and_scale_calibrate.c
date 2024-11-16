@@ -6,7 +6,7 @@
 #include "scale.h"
 #include "app.h"
 #include "display.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "common.h"
 
 

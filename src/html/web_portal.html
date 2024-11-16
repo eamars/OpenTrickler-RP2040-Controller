@@ -514,14 +514,22 @@
                         </form>
                     </section>
 
-                    <!-- Rotary Button Settings -->
-                    <section class="settings-page" id="settings-button" name="Button" style="display: none;">
-                        <form id="buttonConfigForm" action="/rest/button_config" class="grid grid-cols-1 gap-3">
+                    <!-- Mini 12864 Module Settings -->
+                    <section class="settings-page" id="settings-mini-12864-module" name="Mini 12864 Module" style="display: none;">
+                        <form id="mini12864ModuleConfigForm" action="/rest/mini_12864_config" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Inverted Rotary Button Direction</span>
                                 <select class="select select-bordered" name="b0">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Display Rotation (deg)</span>
+                                <select class="select select-bordered" name="b1">
+                                    <option value="0">0</option>
+                                    <option value="2">180</option>
                                 </select>
                             </div>
 
@@ -652,7 +660,7 @@
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-coarse-motor')">Coarse Motor</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-fine-motor')">Fine Motor</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-neopixel-led')">Neopixel LED</a></li>
-                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-button')">Buttons</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-mini-12864-module')">Mini 12864 Module</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-servo-gate')">Servo Gate</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-system-control')">System Control</a></li>
                 </ul>

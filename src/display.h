@@ -10,8 +10,6 @@ extern "C" {
 
 u8g2_t *get_display_handler(void);
 
-void display_init(void);
-
 // REST
 bool http_get_display_buffer(struct fs_file *file, int num_params, char *params[], char *values[]);
 
