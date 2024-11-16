@@ -2,7 +2,7 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 
 
 extern QueueHandle_t encoder_event_queue;

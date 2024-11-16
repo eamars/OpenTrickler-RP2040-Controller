@@ -8,7 +8,7 @@
 #include "eeprom.h"
 #include "access_point_mode.h"
 #include "display.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "http_rest.h"
 #include "rest_endpoints.h"
 #include "common.h"

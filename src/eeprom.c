@@ -17,7 +17,7 @@
 #include "wireless.h"
 #include "app.h"
 #include "neopixel_led.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "profile.h"
 #include "system_control.h"
 

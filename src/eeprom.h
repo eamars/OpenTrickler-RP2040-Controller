@@ -13,7 +13,7 @@
 #define EEPROM_CHARGE_MODE_BASE_ADDR            5 * 1024       // 5K
 #define EEPROM_APP_CONFIG_BASE_ADDR             6 * 1024       // 6k
 #define EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR    7 * 1024       // 7k
-#define EEPROM_ROTARY_BUTTON_CONFIG_BASE_ADDR   8 * 1024       // 8k 
+#define EEPROM_MINI_12864_CONFIG_BASE_ADDR      8 * 1024       // 8k 
 #define EEPROM_PROFILE_DATA_BASE_ADDR           9 * 1024       // 9k
 #define EEPROM_SERVO_GATE_CONFIG_BASE_ADDR     10 * 1024       // 10k
 

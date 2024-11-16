@@ -6,7 +6,7 @@
 #include <math.h>
 #include "app.h"
 #include "u8g2.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "motors.h"
 #include "scale.h"
 #include "display.h"

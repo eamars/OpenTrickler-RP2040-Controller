@@ -8,10 +8,9 @@
 
 #include "app.h"
 #include "configuration.h"
-#include "rotary_button.h"
 #include "scale.h"
 #include "display.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "eeprom.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"

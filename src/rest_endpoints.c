@@ -7,7 +7,7 @@
 #include "scale.h"
 #include "wireless.h"
 #include "eeprom.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "display.h"
 #include "neopixel_led.h"
 #include "profile.h"
@@ -90,7 +90,7 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/rest/coarse_motor_config", http_rest_coarse_motor_config);
     rest_register_handler("/rest/fine_motor_config", http_rest_fine_motor_config);
     rest_register_handler("/rest/button_control", http_rest_button_control);
-    rest_register_handler("/rest/button_config", http_rest_button_config);
+    rest_register_handler("/rest/mini_12864_config", http_rest_mini_12864_module_config);
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
     rest_register_handler("/rest/neopixel_led_config", http_rest_neopixel_led_config);
     rest_register_handler("/rest/profile_config", http_rest_profile_config);

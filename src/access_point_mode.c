@@ -9,7 +9,7 @@
 #include "lwip/apps/httpd.h"
 
 #include "app.h"
-#include "rotary_button.h"
+#include "mini_12864_module.h"
 #include "u8g2.h"
 #include "pico/unique_id.h"
 #include "display.h"
