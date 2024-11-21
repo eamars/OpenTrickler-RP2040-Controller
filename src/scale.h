@@ -31,6 +31,7 @@ typedef enum {
     SCALE_DRIVER_STEINBERG_SBS = 1,
     SCALE_DRIVER_GNG_JJB = 2,
     SCALE_DRIVER_USSOLID_JFDBS = 3,
+    SCALE_DRIVER_JM_SCIENCE = 4,
 } scale_driver_t;
 
 
