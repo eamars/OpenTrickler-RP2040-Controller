@@ -79,4 +79,4 @@ _deps
 *.vsix
 
 # Build directory
-build/
+build*/
