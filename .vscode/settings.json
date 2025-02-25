@@ -51,6 +51,7 @@
         "servo_gate.h": "c",
         "semphr.h": "c",
         "version.h": "c",
-        "raspberrypi_pico_w_config.h": "c"
+        "raspberrypi_pico_w_config.h": "c",
+        "cyw43_arch.h": "c"
     }
 }
