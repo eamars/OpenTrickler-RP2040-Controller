@@ -32,33 +32,8 @@ jobs:
         sudo apt-get update
         sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libstdc++-arm-none-eabi-newlib python3
 
-    - name: Build Pico W Package
-      # Build your program with the given configuration
-
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: |
-        cmake -B ${{github.workspace}}/build_pico_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
-        cmake --build ${{github.workspace}}/build_pico_w --config Debug
-
-    - name: Archive Debug Artifact
-      uses: actions/upload-artifact@v4
-      with: 
-        name: pico_w_package
-        path: |
-          src/generated/version.c  
-          build_pico_w/*.bin
-          build_pico_w/*.dis
-          build_pico_w/*.elf
-          build_pico_w/*.map
-          build_pico_w/*.hex
-          build_pico_w/*.uf2
-
+    # Build Pico2 W support package into build_pico2_w
     - name: Build Pico2 W Package
-      # Build your program with the given configuration
-
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         cmake -B ${{github.workspace}}/build_pico2_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
         cmake --build ${{github.workspace}}/build_pico2_w --config Debug
@@ -75,3 +50,22 @@ jobs:
           build_pico2_w/*.map
           build_pico2_w/*.hex
           build_pico2_w/*.uf2
+
+    # Build Pico W support package into build_pico_w
+    - name: Build Pico W Package
+      run: |
+        cmake -B ${{github.workspace}}/build_pico_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
+        cmake --build ${{github.workspace}}/build_pico_w --config Debug
+
+    - name: Archive Debug Artifact
+      uses: actions/upload-artifact@v4
+      with: 
+        name: pico_w_package
+        path: |
+          src/generated/version.c  
+          build_pico_w/*.bin
+          build_pico_w/*.dis
+          build_pico_w/*.elf
+          build_pico_w/*.map
+          build_pico_w/*.hex
+          build_pico_w/*.uf2
