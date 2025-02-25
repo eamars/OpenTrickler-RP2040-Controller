@@ -106,16 +106,12 @@ target_link_libraries("${TARGET_NAME}"
     u8g2_mui
     trinamic
     app_version
-)
 
-if (PICO_BOARD STREQUAL "pico_w" )
-    message("Using PICO_W board, link cyw43")
-    target_link_libraries("${TARGET_NAME}" 
-        pico_cyw43_arch_lwip_sys_freertos
-        pico_lwip_freertos
-        # pico_lwip_http
-        )
-endif()
+    # Required by cyw43 wireless module
+    pico_cyw43_arch_lwip_sys_freertos
+    pico_lwip_freertos
+    # pico_lwip_http
+)
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 # set( CMAKE_VERBOSE_MAKEFILE on )
