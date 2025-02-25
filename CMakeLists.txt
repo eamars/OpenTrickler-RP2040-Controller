@@ -102,6 +102,7 @@ target_link_libraries("${TARGET_NAME}"
     hardware_pwm
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
+    pico_multicore
     u8g2
     u8g2_mui
     trinamic
