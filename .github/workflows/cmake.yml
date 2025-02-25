@@ -39,7 +39,7 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         cmake -B ${{github.workspace}}/build_pico_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
-        cmake --build ${{github.workspace}}/build --config Debug
+        cmake --build ${{github.workspace}}/build_pico_w --config Debug
 
     - name: Archive Debug Artifact
       uses: actions/upload-artifact@v4
@@ -61,7 +61,7 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         cmake -B ${{github.workspace}}/build_pico2_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
-        cmake --build ${{github.workspace}}/build --config Debug
+        cmake --build ${{github.workspace}}/build_pico2_w --config Debug
 
     - name: Archive Debug Artifact
       uses: actions/upload-artifact@v4
