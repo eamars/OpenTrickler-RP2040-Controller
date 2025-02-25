@@ -511,7 +511,6 @@ fds_t fds_data[] = {
 
     // Wirelss submenu
     MUI_FORM(40)
-#ifdef RASPBERRYPI_PICO_W
     MUI_STYLE(1)
     MUI_LABEL(5,10, "Wireless")
     MUI_XY("HL", 0,13)
@@ -525,19 +524,6 @@ fds_t fds_data[] = {
     MUI_XYA("GC", 5, 37, 1) 
     MUI_XYA("GC", 5, 49, 2) 
     MUI_XYA("GC", 5, 61, 3)
-#else  // doesn't support wifi
-
-    MUI_STYLE(1)
-    MUI_LABEL(5,10, "Error")
-    MUI_XY("HL", 0,13)
-
-    MUI_STYLE(0)
-    MUI_LABEL(3,27, "AP Mode is not supported")
-    MUI_LABEL(3,37, "on your platform")
-
-    MUI_STYLE(0)
-    MUI_XYAT("BN",64, 59, 1, " OK ")
-#endif
 
     // Wifi info
     MUI_FORM(41)
