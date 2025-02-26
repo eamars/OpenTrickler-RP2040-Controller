@@ -56,12 +56,9 @@ int main()
     // Initialize the servo
     servo_gate_init();
 
-#ifdef RASPBERRYPI_PICO_W
     // Load wireless settings
     wireless_init();
-#else
-    #error "Unpported platform"
-#endif  // RASPBERRYPI_PICO_W
+
     xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
     // xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 

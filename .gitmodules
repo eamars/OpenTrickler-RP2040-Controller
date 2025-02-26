@@ -3,7 +3,7 @@
 	url = https://github.com/raspberrypi/pico-sdk.git
 [submodule "library/FreeRTOS-Kernel"]
 	path = library/FreeRTOS-Kernel
-	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+	url = https://github.com/raspberrypi/FreeRTOS-Kernel.git
 [submodule "library/u8g2"]
 	path = library/u8g2
 	url = https://github.com/olikraus/u8g2.git

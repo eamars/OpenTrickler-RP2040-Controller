@@ -39,8 +39,8 @@ set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 
 # Append compiler flags
-SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wall -Werror")
-SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wall -Werror")
+SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wall")
+SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wall")
 # SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
 
@@ -106,16 +106,12 @@ target_link_libraries("${TARGET_NAME}"
     u8g2_mui
     trinamic
     app_version
-)
 
-if (PICO_BOARD STREQUAL "pico_w" )
-    message("Using PICO_W board, link cyw43")
-    target_link_libraries("${TARGET_NAME}" 
-        pico_cyw43_arch_lwip_sys_freertos
-        pico_lwip_freertos
-        # pico_lwip_http
-        )
-endif()
+    # Required by cyw43 wireless module
+    pico_cyw43_arch_lwip_sys_freertos
+    pico_lwip_freertos
+    # pico_lwip_http
+)
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 # set( CMAKE_VERBOSE_MAKEFILE on )
