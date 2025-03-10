@@ -148,13 +148,14 @@ uint8_t render_charge_mode_next_button(mui_t * ui, uint8_t msg) {
         case MUIF_MSG_CURSOR_SELECT:
         case MUIF_MSG_VALUE_INCREMENT:
         case MUIF_MSG_VALUE_DECREMENT:
+            mui_SaveForm(ui);
             if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_2) {
                 ui->arg = 11;  // goto form 11
             }
             else if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_3) {
                 ui->arg = 12;  // goto form 12
             }
-            return mui_u8g2_btn_goto_wm_fi(ui, msg);
+            return mui_GotoFormAutoCursorPosition(ui, ui->arg);
         default:
             mui_u8g2_btn_goto_wm_fi(ui, msg);
             break;
@@ -505,8 +506,8 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_XYAT("RB", 5, 25, 0, "Disable")
-    MUI_XYAT("RB", 5, 37, 1, "Open")
-    MUI_XYAT("RB", 5, 49, 2, "Close")
+    MUI_XYAT("RB", 5, 37, 1, "Close")
+    MUI_XYAT("RB", 5, 49, 2, "Open")
     MUI_XYAT("BN", 64, 59, 30, " OK ")  // Jump to form 30
 
     // Wirelss submenu
