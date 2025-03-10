@@ -294,7 +294,7 @@ fds_t fds_data[] = {
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_XYAT("B1",115, 59, 1, "Next")  // Jump to form 11 or 12 (needs argument of 0 to keep ui->arg being erased)
+    MUI_XYT("B1",115, 59, "Next")  // Jump to form 11 or 12
     MUI_XYAT("BN",14, 59, 1, "Back")  // Jump to form 1
     MUI_XYA("P0", 5, 25, 33)  // Jump to form 33 (profile selection)
 
