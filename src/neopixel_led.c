@@ -38,6 +38,7 @@ typedef struct {
     neopixel_led_colours_t current_led_colours;
     xQueueHandle colour_update_queue;
     TaskHandle_t neopixel_control_task_handler;
+    int pio_sm;
 } neopixel_led_config_t;
 
 
@@ -52,7 +53,7 @@ uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
 }
  
 static inline void put_pixel(uint32_t pixel_grb) {
-    pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
+    pio_sm_put_blocking(pio0, neopixel_led_config.pio_sm, pixel_grb << 8u);
 }
 
 
@@ -161,6 +162,9 @@ bool neopixel_led_init(void) {
     uint ws2812_sm = pio_claim_unused_sm(pio0, true);
     uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
     ws2812_program_init(pio0, ws2812_sm, ws2812_offset, NEOPIXEL_PIN, 800000, false);
+
+    // Save sm for later access
+    neopixel_led_config.pio_sm = ws2812_sm;
 
     // Set default colour
     _neopixel_led_set_colour(
