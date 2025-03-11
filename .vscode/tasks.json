@@ -1,41 +1,54 @@
 {
     "version": "2.0.0",
     "tasks": [
-      {
-        "label": "Flash",
-        "type": "shell",
-        "command": "openocd",
-        "args": [
-          "-f",
-          "interface/cmsis-dap.cfg",
-          "-f",
-          "target/rp2040.cfg",
-          "-c",
-          "adapter speed 1000; program {${command:cmake.launchTargetPath}} verify reset exit"
-        ],
-        "problemMatcher": []
-      },
-      {
-        "label": "Build",
-        "type": "cmake",
-        "command": "build",
-        "problemMatcher": "$gcc",
-        "group": {
-          "kind": "build",
-          "isDefault": true
+        {
+            "label": "Flash RP2040",
+            "type": "process",
+            "command": "openocd",
+            "args": [
+            "-f",
+            "interface/cmsis-dap.cfg",
+            "-f",
+            "target/rp2040.cfg",
+            "-c",
+            "adapter speed 1000; program {${command:cmake.launchTargetPath}} verify reset exit"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Flash RP2350",
+            "type": "process",
+            "command": "openocd",
+            "args": [
+            "-f",
+            "interface/cmsis-dap.cfg",
+            "-f",
+            "target/rp2350.cfg",
+            "-c",
+            "adapter speed 1000; program {${command:cmake.launchTargetPath}} verify reset exit"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Build",
+            "type": "cmake",
+            "command": "build",
+            "problemMatcher": "$gcc",
+            "group": {
+              "kind": "build",
+              "isDefault": true
+            }
+          },
+        {
+            "type": "cmake",
+            "label": "CMake: build",
+            "command": "build",
+            "targets": [
+            "all"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "CMake template build task"
         }
-      },
-      {
-        "type": "cmake",
-        "label": "CMake: build",
-        "command": "build",
-        "targets": [
-          "all"
-        ],
-        "group": "build",
-        "problemMatcher": [],
-        "detail": "CMake template build task"
-      }
     ]
-  }
-  
+}

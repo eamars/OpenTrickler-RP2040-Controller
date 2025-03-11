@@ -29,16 +29,17 @@ Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and developmen
 
 You can download the pre-built firmware based on the latest release from above link. Similar to flashing other RP2040 firmware, you need to put the Pico W into the bootloader mode by pressing BOOTSEL button and plug in the micro-USB cable. Then you can copy the .uf2 file from the package to the pico. Shortly after the Pico W will be programmed automatically. 
 
-
-
-## Build OpenTrickler firmware from source
+## Build OpenTrickler firmware from source on Windows
 
 Reference: https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf
 
 ### Prerequistes  
-[Git](https://gitforwindows.org/) and [Pico-SDK](https://github.com/raspberrypi/pico-setup-windows/releases/download/v0.5.1/pico-setup-windows-x64-standalone.exe) are required to build the firmware. 
+[Git](https://gitforwindows.org/) and [VSCode](https://code.visualstudio.com/) are required to build the firmware. To install build dependencies, you will need to use [VSCode Raspberry Pi Pico extension](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico) and create an pico-example project (any project will trigger the download of pico-sdk, a collection of tools required to build the firmware locally). 
+
+Then you can verify the installation of pico-sdk by inspecting the path from `C:\Users\<user name>\.pico-sdk`. 
+![pico_sdk_path](resources/pico_sdk_path.png)
  
-### Setting Up Firmware 
+### Downloading Source Code
  Using Git Bash clone the repository   
 
     git clone https://github.com/eamars/OpenTrickler-RP2040-Controller
@@ -55,19 +56,29 @@ Now using git clone all submodules
 
     git submodule update --init --recursive
  
+### Configure CMake
+From the workspace root directory, run the below script to load required environment variables: 
 
-### Setting Up Libraries
-Using the Pico-Developer window navigate to the cloned directory.
-~~~javascript  
- cd Path:\to\cloned\repository
-~~~  
-Navigate to the build folder.
-~~~javascript  
- cd build
-~~~
-Then run the following comand
-~~~javascript  
-cmake .. -DPICO_BOARD=pico_w -DCMAKE_BUILD_TYPE=Debug
-~~~
-### Compiling the Firmware
-Open Pico-VisualStudioCode and open the OpenTrickler-RP2040-Controller folder then navigate to the cmake plugin and click Build All Projects.
+    .\configure_env.ps1
+
+To build firmware for Pico W, run below command:
+
+    cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
+
+To build firmware for Pico 2W, run below command:
+
+    cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
+
+### Build Firmware
+From the same workspace root directory, run the below command to build the firmware from source code: 
+
+    cmake --build build --config Debug
+
+On success, you can find the app.uf2 from `<workspace_root>/build/` directory. 
+
+### Use VSCode
+You need to call VScode from script to pre-configure environment variables. You can simply call
+
+    .\run_vscode.ps1
+
+The VSCode cmake plugin is pre-configured to build for Pico 2W by default. You can change the build config to Pico W by modifying `<workspace_root>.vscode/settings.json`. 

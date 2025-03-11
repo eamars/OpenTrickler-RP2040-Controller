@@ -18,40 +18,10 @@
     },
     "cmake.buildBeforeRun": true,
     "cmake.configureOnOpen": true,
-    "cmake.configureSettings": {
-      "CMAKE_MODULE_PATH": "${env:PICO_INSTALL_PATH}/pico-sdk-tools"
-    },
-    "cmake.generator": "Ninja",
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "files.associations": {
-        "neopixel_led.h": "c",
-        "app.h": "c",
-        "queue.h": "c",
-        "limits": "c",
-        "*.tcc": "c",
-        "scale.h": "c",
-        "rotary_button.h": "c",
-        "freertos.h": "c",
-        "lwipopts_examples_common.h": "c",
-        "jquery-3.7.0.min.js.h": "c",
-        "web_portal.html.h": "c",
-        "wizard.html.h": "c",
-        "display_mirror.html.h": "c",
-        "cleanup_mode.h": "c",
-        "charge_mode.h": "c",
-        "http_rest.h": "c",
-        "motors.h": "c",
-        "eeprom.h": "c",
-        "stdbool.h": "c",
-        "configuration.h": "c",
-        "uart.h": "c",
-        "common.h": "c",
-        "clocks.h": "c",
-        "pwm.h": "c",
-        "servo_gate.h": "c",
-        "semphr.h": "c",
-        "version.h": "c",
-        "raspberrypi_pico_w_config.h": "c",
-        "cyw43_arch.h": "c"
+    },
+    "cmake.configureSettings": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PICO_BOARD": "pico2_w"  // or pico_w for RP2040 target
     }
 }
