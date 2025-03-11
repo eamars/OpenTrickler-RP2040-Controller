@@ -40,7 +40,7 @@ Then you can verify the installation of pico-sdk by inspecting the path from `C:
 ![pico_sdk_path](resources/pico_sdk_path.png)
  
 ### Downloading Source Code
- Using Git Bash clone the repository   
+From PowerShell, execute below command to fetch the source code: 
 
     git clone https://github.com/eamars/OpenTrickler-RP2040-Controller
 
@@ -52,25 +52,25 @@ Next use git to initalise the required submodules
 
     git submodule init
 
-Now using git clone all submodules
+Now using git clone all submodules. It may take up to 5 minutes to clone all required submodules.
 
     git submodule update --init --recursive
  
 ### Configure CMake
-From the workspace root directory, run the below script to load required environment variables: 
+Open the PowerShell, run the below script to load required environment variables: 
 
     .\configure_env.ps1
 
-To build firmware for Pico W, run below command:
+To build firmware for Pico W, from the same PowerShell session, run below command:
 
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
 
-To build firmware for Pico 2W, run below command:
+To build firmware for Pico 2W, from the same PowerShell session, run below command:
 
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
 
 ### Build Firmware
-From the same workspace root directory, run the below command to build the firmware from source code: 
+From the same workspace root directory, run the below command to build the firmware from source code into the `build` directory: 
 
     cmake --build build --config Debug
 
