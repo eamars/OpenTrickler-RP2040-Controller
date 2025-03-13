@@ -37,6 +37,8 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
 uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b);
 uint32_t hex_string_to_decimal(char * string);
 
+// Low level function to bypass RTOS to configure colour directly
+void _neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour);
 
 #ifdef __cplusplus
 }

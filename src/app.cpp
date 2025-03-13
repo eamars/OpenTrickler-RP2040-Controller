@@ -41,8 +41,14 @@ int main()
     // Configure other functions from mini 12864 display
     mini_12864_module_init();
 
+    // Initialize wireless settings
+    wireless_init();
+
     // Load config for motors
-    motors_init();
+    motor_init_err_t motor_init_err = motors_init();
+    if (motor_init_err != MOTOR_INIT_OK) {
+        handle_motor_init_error(motor_init_err);
+    }
 
     // Initialize UART
     scale_init();
@@ -56,12 +62,10 @@ int main()
     // Initialize the servo
     servo_gate_init();
 
-    // Load wireless settings
-    wireless_init();
-
+    // Start menu task
     xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
-    // xTaskCreate(motor_task, "Motor Task", configMINIMAL_STACK_SIZE, NULL, 8, NULL);
 
+    // Start RTOS
     vTaskStartScheduler();
 
     while (true)
