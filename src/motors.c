@@ -17,6 +17,8 @@
 #include "motors.h"
 #include "eeprom.h"
 #include "common.h"
+#include "display.h"  // in case the stepper motor driver failed to initialize
+#include "neopixel_led.h" // in case the stepper motor driver failed to initialize
 
 #define STEPPER_LOW_CYCLE_COUNT 13  // Defined as the implementation of stepper.pio
 #define MAX_RESPONSE_TIME   0.01f   // Maximum response time for PIO stepper
@@ -526,12 +528,14 @@ float get_motor_min_speed(motor_select_t selected_motor) {
 }
 
 
-bool motors_init(void) {
+motor_init_err_t motors_init(void) {
     bool is_ok;
 
     // Initialize config
     is_ok = motor_config_init();
-    assert(is_ok);
+    if (!is_ok) {
+        return MOTOR_INIT_CFG_ERR;
+    }
 
     // Assume the `motor_config_init` is already called
     coarse_trickler_motor_config.dir_pin = COARSE_MOTOR_DIR_PIN;
@@ -561,7 +565,9 @@ bool motors_init(void) {
 
     // Initialize the stepper driver 
     is_ok = driver_init(&coarse_trickler_motor_config);
-    assert(is_ok);
+    if (!is_ok) {
+        return MOTOR_INIT_COARSE_DRV_ERR;
+    }
 
     // 
     // Initialize fine trickler motor at UART ADDR 1
@@ -573,7 +579,9 @@ bool motors_init(void) {
     
     // Initialize the stepper driver
     is_ok = driver_init(&fine_trickler_motor_config);
-    assert(is_ok);
+    if (!is_ok) {
+        return MOTOR_INIT_FINE_DRV_ERR;
+    }
 
     // Initialize motor related RTOS control
     coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
@@ -594,7 +602,7 @@ bool motors_init(void) {
                 8, 
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
 
-    return is_ok;
+    return MOTOR_INIT_OK;
 }
 
 
@@ -612,6 +620,66 @@ const char * get_motor_select_string(motor_select_t selected_motor) {
     assert(false);
 
     return NULL;
+}
+
+
+/* 
+The function will assume the screen and cyw43 are already initialized. 
+*/
+void handle_motor_init_error(motor_init_err_t err) {
+    char * error_string;
+
+    switch (err)
+    {
+        case MOTOR_INIT_CFG_ERR:
+            error_string = "CFG ERR";
+            break;
+        case MOTOR_INIT_COARSE_DRV_ERR:
+            error_string = "COARSE DRV ERR";
+            break;
+        case MOTOR_INIT_FINE_DRV_ERR:
+            error_string = "FINE DRV ERR";
+            break;
+        default:
+            error_string = "UNDEF ERR";
+            break;
+    }
+
+    // Draw the error message on the screen
+    u8g2_t * display_handler = get_display_handler();
+    char title_string[32] = "Motor Init Error";
+
+    while (true) {
+        BaseType_t scheduler_state = xTaskGetSchedulerState();
+
+        // Flash LED
+        for (int i = 0; i < err; i++) {
+            // Set neopixel LED colour
+            _neopixel_led_set_colour(0xFFA500, 0xFFA5000, 0xffffff);
+            delay_ms(200, scheduler_state);
+            _neopixel_led_set_colour(0xFF0000, 0xFF0000, 0xffffff);
+            delay_ms(200, scheduler_state);
+        }
+
+        u8g2_ClearBuffer(display_handler);
+
+        // Draw title
+        if (strlen(title_string)) {
+            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
+            u8g2_DrawStr(display_handler, 5, 10, title_string);
+        }
+
+        // Draw line
+        u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
+
+        // Draw error message
+        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
+        u8g2_DrawStr(display_handler, 5, 25, error_string);
+
+        // Draw error message
+        u8g2_SendBuffer(display_handler);
+        delay_ms(2000, scheduler_state);
+    }
 }
 
 

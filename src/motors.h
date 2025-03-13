@@ -21,6 +21,13 @@ typedef enum {
     NUM_OF_MOTOR_SELECT,
 } motor_select_t;
 
+typedef enum {
+    MOTOR_INIT_OK = 0,
+    MOTOR_INIT_CFG_ERR = 2,
+    MOTOR_INIT_COARSE_DRV_ERR = 3,
+    MOTOR_INIT_FINE_DRV_ERR = 4,
+} motor_init_err_t;
+
 
 typedef struct {
     uint32_t full_steps_per_rotation;
@@ -75,7 +82,7 @@ typedef struct {
 extern "C" {
 #endif
 
-bool motors_init(void);
+motor_init_err_t motors_init(void);
 bool motor_config_init(void);
 bool motor_config_save(void);
 void motor_task(void *p);
@@ -84,6 +91,7 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor);
 float get_motor_min_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
 const char * get_motor_select_string(motor_select_t selected_motor);
+void handle_motor_init_error(motor_init_err_t err);
 
 // REST interface
 bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);

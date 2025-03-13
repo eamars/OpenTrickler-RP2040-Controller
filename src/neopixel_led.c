@@ -100,7 +100,7 @@ void neopixel_led_set_colour(uint32_t mini12864_backlight_colour, uint32_t led1_
 }
 
 
-static void _neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour) {
+void _neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour) {
     put_pixel(led1_colour);  // Encoder RGB1
     put_pixel(led2_colour);  // Encoder RGB2
     put_pixel(mini12864_backlight_colour);  // 12864 Backlight
