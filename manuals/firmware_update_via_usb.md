@@ -1,6 +1,6 @@
 # Firmware Update via USB
 
-1. Download the latest debug version (uf2-debug) of OpenTrickler controller firmware at [![Auto Release Build](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml/badge.svg?branch=main)](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/workflows/cmake.yml?query=branch%3Amain+actor%3Aeamars), unzip the package and look for app.uf2 under build directory. 
+1. Download the latest debug version (uf2-debug) of OpenTrickler controller firmware from the [latest release](https://github.com/eamars/OpenTrickler-RP2040-Controller/releases), unzip the package and look for app.uf2 under build directory. 
 2. Disconnect the OpenTrickler controller board from the 12/24V power supply. 
 3. Connect the small end of your micro USB cable to the Raspberry Pi Pico W
    ![plug-in-pico](../resources/firmware_update/pico-top-plug.png)
