@@ -2,6 +2,7 @@
 <html>
 
 <head>
+    <meta charset="UTF-8">
     <title>OpenTrickler Web Controller</title>
 
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.3/dist/full.min.css" rel="stylesheet" type="text/css" />
@@ -22,16 +23,30 @@
 
 <div class="container mx-auto">
     <!-- The Trickle Control Page -->
-    <section id="sectionTrickler" >
+    <section id="sectionTrickler">
         <div class="grid grid-cols-1 exclude-bottom-nav">
             <!-- Row 1 -->
-            <div class="stat">
-                <div class="stat-title">Current Weight</div>
-                <div id="currentWeightDecimal" class="stat-value">---</div>
-                <div id="profileName" class="stat-desc text-primary" onclick="onProfileNameClicked()">Unknown Profile</div>
-                <div class="stat-desc">
-                    <progress id="currentWeightProgressPencentage" class="progress progress-primary" value="100" max="100"></progress>
+            <div class="grid grid-cols-2">
+
+                <!-- Stat 1: Current Weight  -->
+                <div class="stat">
+                    <div class="stat-title">Current Weight</div>
+                    <div id="currentWeightDecimal" class="stat-value">---</div>
+                    <div id="profileName" class="stat-desc text-primary" onclick="onProfileNameClicked()">Unknown Profile</div>
+                    <div class="stat-desc">
+                        <progress id="currentWeightProgressPencentage" class="progress progress-primary" value="100" max="100"></progress>
+                    </div>
                 </div>
+
+                <!-- Stat 2: Charging Time -->
+                <div class="stat text-right">
+                    <div class="stat-title">Charging Time</div>
+                    <div id="chargeTimeValue" class="stat-value">-.-- s</div>
+                    <!-- These two lines are placeholders to ensure vertical alignment -->
+                    <div class="stat-desc"> </div>
+                    <div class="stat-desc"> </div>
+                </div>
+
             </div>
 
             <!-- Charge Mode Control -->
@@ -1032,6 +1047,7 @@
             const charge_mode_state = data["s2"];
             const charge_mode_event = data["s3"];
             const profile_name = data["s4"];
+            const charge_time_seconds = data["s5"] || "-.--";
 
             var percentage = 0;
             if (charge_weight_set_point == 0) {
@@ -1048,6 +1064,12 @@
             profileName = document.getElementById("profileName");
             profileName.innerText = String(profile_name);
             
+            // Find the charge time element and update its text content
+            const chargeTimeElement = document.getElementById('chargeTimeValue');
+            if (chargeTimeElement) {
+                chargeTimeElement.textContent = `${charge_time_seconds} s`;
+            }
+
             if (charge_mode_state == ChargeModeState.EXIT) {
                 _setStartStopButtonWidget(false);
             }
