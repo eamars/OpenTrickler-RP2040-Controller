@@ -284,14 +284,35 @@ bool driver_io_init(motor_config_t * motor_config) {
 }
 
 bool driver_pio_init(motor_config_t * motor_config) {
+    bool is_ok;
     // Allocate PIO to the stepper
-    motor_config->pio_sm = pio_claim_unused_sm(MOTOR_STEPPER_PIO, true);
-    motor_config->pio_program_offset = pio_add_program(MOTOR_STEPPER_PIO, &stepper_program);
-    stepper_program_init(MOTOR_STEPPER_PIO, 
+    PIO pio;
+    uint sm;
+    uint offset;
+
+    is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
+        &stepper_program, 
+        &pio, 
+        &sm, 
+        &offset, 
+        motor_config->step_pin, 
+        1, 
+        true
+    );
+
+    if (!is_ok) {
+        printf("Unable to claim PIO for stepper motor\n");
+        return false;
+    }
+
+    motor_config->pio = pio;
+    motor_config->pio_sm = sm;
+    motor_config->pio_program_offset = offset;
+    stepper_program_init(motor_config->pio, 
                          motor_config->pio_sm, 
                          motor_config->pio_program_offset, motor_config->step_pin);
     // Start stepper state machine
-    pio_sm_set_enabled(MOTOR_STEPPER_PIO, motor_config->pio_sm, true);
+    pio_sm_set_enabled(motor_config->pio, motor_config->pio_sm, true);
 
     return true;
 }
@@ -386,13 +407,13 @@ void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed
 
         current_speed = prev_speed + dv * percentage;
         current_period = speed_to_period(current_speed, pio_speed, full_rotation_steps);
-        pio_sm_clear_fifos(MOTOR_STEPPER_PIO, motor_config->pio_sm);
-        pio_sm_put(MOTOR_STEPPER_PIO, motor_config->pio_sm, current_period);
+        pio_sm_clear_fifos(motor_config->pio, motor_config->pio_sm);
+        pio_sm_put(motor_config->pio, motor_config->pio_sm, current_period);
     }
 
     current_period = speed_to_period(new_speed, pio_speed, full_rotation_steps);
-    pio_sm_clear_fifos(MOTOR_STEPPER_PIO, motor_config->pio_sm);
-    pio_sm_put_blocking(MOTOR_STEPPER_PIO, motor_config->pio_sm, current_period);
+    pio_sm_clear_fifos(motor_config->pio, motor_config->pio_sm);
+    pio_sm_put_blocking(motor_config->pio, motor_config->pio_sm, current_period);
 }
 
 

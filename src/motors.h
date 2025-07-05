@@ -5,6 +5,7 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
+#include "hardware/pio.h"
 #include "http_rest.h"
 
 #define EEPROM_MOTOR_DATA_REV                     5              // 16 byte 
@@ -63,6 +64,7 @@ typedef struct {
 
     // Set at run time
     void * tmc_driver;
+    PIO pio;
     int pio_sm;
     uint pio_program_offset;
 
