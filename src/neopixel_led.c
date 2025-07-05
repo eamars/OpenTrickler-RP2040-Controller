@@ -38,6 +38,7 @@ typedef struct {
     neopixel_led_colours_t current_led_colours;
     xQueueHandle colour_update_queue;
     TaskHandle_t neopixel_control_task_handler;
+    PIO pio;
     int pio_sm;
 } neopixel_led_config_t;
 
@@ -53,7 +54,7 @@ uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
 }
  
 static inline void put_pixel(uint32_t pixel_grb) {
-    pio_sm_put_blocking(pio0, neopixel_led_config.pio_sm, pixel_grb << 8u);
+    pio_sm_put_blocking(neopixel_led_config.pio, neopixel_led_config.pio_sm, pixel_grb << 8u);
 }
 
 
@@ -159,11 +160,22 @@ bool neopixel_led_init(void) {
     assert(neopixel_led_config.colour_update_queue);
 
     // Configure Neopixel (WS2812) with PIO
-    uint ws2812_sm = pio_claim_unused_sm(pio0, true);
-    uint ws2812_offset = pio_add_program(pio0, &ws2812_program);
-    ws2812_program_init(pio0, ws2812_sm, ws2812_offset, NEOPIXEL_PIN, 800000, false);
+    PIO pio;
+    uint ws2812_sm;
+    uint ws2812_offset;
 
-    // Save sm for later access
+    is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
+        &ws2812_program, &pio, &ws2812_sm, &ws2812_offset, NEOPIXEL_PIN, 1, true
+    );
+    if (!is_ok) {
+        printf("Unable to initialize WS2812 PIO");
+        return false;
+    }
+
+    ws2812_program_init(pio, ws2812_sm, ws2812_offset, NEOPIXEL_PIN, 800000, false);
+
+    // Save pio and sm for later access
+    neopixel_led_config.pio = pio;
     neopixel_led_config.pio_sm = ws2812_sm;
 
     // Set default colour
