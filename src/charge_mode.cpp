@@ -59,6 +59,9 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
 TaskHandle_t scale_measurement_render_task_handler = NULL;
 static char title_string[30];
 
+static TickType_t charge_start_tick = 0;
+static float last_charge_elapsed_seconds = 0.0f;
+
 // Menu system
 extern AppState_t exit_state;
 extern QueueHandle_t encoder_event_queue;
@@ -72,40 +75,70 @@ typedef enum {
 } ChargeModeEventBit_t;
 
 
+static void format_elapsed_time(char *buffer, size_t len, TickType_t start_tick) {
+    TickType_t now = xTaskGetTickCount();
+    uint32_t elapsed_ticks = now - start_tick;
+
+    // Tick to milliseconds
+    float elapsed_seconds = (float)(elapsed_ticks * portTICK_PERIOD_MS) / 1000.0f;
+
+    snprintf(buffer, len, "%.2f s", elapsed_seconds);
+}
+
+
 void scale_measurement_render_task(void *p) {
     char current_weight_string[WEIGHT_STRING_LEN];
-    
-    u8g2_t * display_handler = get_display_handler();
+    char time_buffer[16];
+
+    u8g2_t *display_handler = get_display_handler();
 
     while (true) {
         TickType_t last_render_tick = xTaskGetTickCount();
 
         u8g2_ClearBuffer(display_handler);
-        // Draw title
-        if (strlen(title_string)) {
-            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-            u8g2_DrawStr(display_handler, 5, 10, title_string);
+
+        // Set font for title and timer
+        u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
+
+        // Format the timer string based on current state
+        if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
+            format_elapsed_time(time_buffer, sizeof(time_buffer), charge_start_tick);
+        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
+                   charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_RETURN ||
+                   charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_ZERO) {
+            snprintf(time_buffer, sizeof(time_buffer), "%.2f s", last_charge_elapsed_seconds);
+        } else {
+            snprintf(time_buffer, sizeof(time_buffer), "--.- s");
         }
 
-        // Draw line
-        u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
+        // Calculate x positions
+        uint8_t screen_width = u8g2_GetDisplayWidth(display_handler);
+        uint8_t time_width = u8g2_GetStrWidth(display_handler, time_buffer);
 
-        // current weight (only show values > -10)
+        // Draw title on left
+        u8g2_DrawStr(display_handler, 5, 10, title_string);
+
+        // Draw timer on right edge
+        u8g2_DrawStr(display_handler, screen_width - time_width - 5, 10, time_buffer);  // 5 px padding from edge
+
+        // Draw line under title
+        u8g2_DrawHLine(display_handler, 0, 13, screen_width);
+
+        // Current weight (only show values > -1.0)
         memset(current_weight_string, 0x0, sizeof(current_weight_string));
         float scale_measurement = scale_get_current_measurement();
         if (scale_measurement > -1.0) {
             float_to_string(current_weight_string, scale_measurement, charge_mode_config.eeprom_charge_mode_data.decimal_places);
-        }
-        else {
+        } else {
             strcpy(current_weight_string, "---");
         }
-        
 
+        // Draw current weight value
         u8g2_SetFont(display_handler, u8g2_font_profont22_tf);
         u8g2_DrawStr(display_handler, 26, 35, current_weight_string);
 
-        // Draw current profile
-        profile_t * current_profile = profile_get_selected();
+        // Draw profile name
+        profile_t *current_profile = profile_get_selected();
         u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
         u8g2_DrawStr(display_handler, 5, 61, current_profile->name);
 
@@ -167,6 +200,9 @@ void charge_mode_wait_for_zero() {
 }
 
 void charge_mode_wait_for_complete() {
+
+    charge_start_tick = xTaskGetTickCount();
+
     // Set colour to under charge
     neopixel_led_set_colour(
         NEOPIXEL_LED_DEFAULT_COLOUR, 
@@ -272,6 +308,11 @@ void charge_mode_wait_for_complete() {
         last_sample_tick = current_sample_tick;
         last_error = error;
     }
+
+    // Stop the timer 
+    TickType_t now = xTaskGetTickCount();
+    TickType_t elapsed_ticks = now - charge_start_tick;
+    last_charge_elapsed_seconds = (float)(elapsed_ticks * portTICK_PERIOD_MS) / 1000.0f;
 
     // Close the gate if the servo gate is present
     if (servo_gate.gate_state != GATE_DISABLED) {
@@ -653,8 +694,10 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
     // s2 (charge_mode_state_t | int): Charge mode state
     // s3 (uint32_t): Charge mode event
     // s4 (string): Profile Name
+    // s5 (string): Elapsed time in seconds, live during charging
 
-    static char charge_mode_json_buffer[128];
+    static char charge_mode_json_buffer[160];  // Increased to fit s5
+    char elapsed_time_buffer[16] = {0};
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
@@ -696,18 +739,27 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
         sprintf(weight_string, "%0.3f", current_measurement);
     }
 
+    // Format elapsed time
+    if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
+        TickType_t now = xTaskGetTickCount();
+        float elapsed_seconds = (float)((now - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+        snprintf(elapsed_time_buffer, sizeof(elapsed_time_buffer), "%.2f", elapsed_seconds);
+    } else {
+        snprintf(elapsed_time_buffer, sizeof(elapsed_time_buffer), "%.2f", last_charge_elapsed_seconds);
+    }
 
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
              "%s"
-             "{\"s0\":%0.3f,\"s1\":%s,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\"}",
+             "{\"s0\":%0.3f,\"s1\":%s,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\",\"s5\":\"%s\"}",
              http_json_header,
              charge_mode_config.target_charge_weight,
              weight_string,
              (int) charge_mode_config.charge_mode_state,
              charge_mode_config.charge_mode_event,
-             profile_get_selected()->name);
+             profile_get_selected()->name,
+             elapsed_time_buffer);
 
     // Clear events
     charge_mode_config.charge_mode_event = 0;
