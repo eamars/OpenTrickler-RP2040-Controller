@@ -3,9 +3,10 @@
 
 #include "pico/cyw43_arch.h"
 
+/* Specify board PIN mapping
+    Reference: https://github.com/eamars/RaspberryPi-Pico-Motor-Expansion-Board?tab=readme-ov-file#peripherals
+*/
 
-
-// Settings
 #define WATCHDOG_LED_PIN CYW43_WL_GPIO_LED_PIN
 
 #define DISPLAY0_SPI spi0
@@ -21,6 +22,7 @@
 #define BUTTON0_ENC_PIN 22
 #define BUTTON0_RST_PIN 12
 #define NEOPIXEL_PIN 13
+#define NEOPIXEL_2_PIN 28
 
 #define MOTOR_UART uart1
 #define MOTOR_UART_TX 4

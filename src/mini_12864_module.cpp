@@ -338,7 +338,7 @@ uint8_t u8x8_byte_pico_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *
     {
         case U8X8_MSG_BYTE_SEND:
             // taskENTER_CRITICAL();
-            spi_write_blocking(DISPlAY0_SPI, (uint8_t *) arg_ptr, arg_int);
+            spi_write_blocking(DISPLAY0_SPI, (uint8_t *) arg_ptr, arg_int);
             // taskEXIT_CRITICAL();
             break;
         case U8X8_MSG_BYTE_INIT:
