@@ -367,7 +367,7 @@ void display_init() {
     // Configure 12864
     printf("Initializing Display Task -- ");
     // Initialize SPI engine
-    spi_init(DISPlAY0_SPI, 4000 * 1000);
+    spi_init(DISPLAY0_SPI, 4000 * 1000);
 
     // Configure port for SPI
     // gpio_set_function(DISPLAY0_RX_PIN, GPIO_FUNC_SPI);  // Rx

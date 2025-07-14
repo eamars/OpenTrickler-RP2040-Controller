@@ -8,7 +8,7 @@
 // Settings
 #define WATCHDOG_LED_PIN CYW43_WL_GPIO_LED_PIN
 
-#define DISPlAY0_SPI spi0
+#define DISPLAY0_SPI spi0
 #define DISPLAY0_RX_PIN 16
 #define DISPLAY0_TX_PIN 19
 #define DISPLAY0_CS_PIN 17
