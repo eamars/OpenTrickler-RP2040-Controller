@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <FreeRTOS.h>
+#include "hardware/pio.h"
+
 
 typedef enum {
     DP_2 = 0,
@@ -16,6 +18,11 @@ extern "C" {
 
 // "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
 extern const char * http_json_header;
+
+typedef struct {
+    PIO pio;
+    int sm;
+} pio_config_t;
 
 
 /**

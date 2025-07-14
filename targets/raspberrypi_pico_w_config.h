@@ -22,7 +22,7 @@
 #define BUTTON0_ENC_PIN 22
 #define BUTTON0_RST_PIN 12
 #define NEOPIXEL_PIN 13
-#define NEOPIXEL_2_PIN 28
+#define NEOPIXEL_PWM3_PIN 28
 
 #define MOTOR_UART uart1
 #define MOTOR_UART_TX 4
