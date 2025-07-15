@@ -22,7 +22,7 @@
 #include <stdint.h>
 #include <FreeRTOS.h>
 #include <task.h>
-#include <queue.h>
+#include <semphr.h>
 #include <string.h>
 
 #include "neopixel_led.h"
@@ -39,7 +39,7 @@ typedef struct {
     eeprom_neopixel_led_metadata_t eeprom_neopixel_led_metadata;
 
     neopixel_led_colours_t current_led_colours;
-    xQueueHandle colour_update_queue;
+    SemaphoreHandle_t mutex;
     TaskHandle_t neopixel_control_task_handler;
     pio_config_t mini12864_pio_config;
     pio_config_t pwm3_pio_config;
@@ -82,9 +82,10 @@ void neopixel_led_set_colour(uint32_t mini12864_backlight_colour, uint32_t led1_
     if (block_wait) {
         ticks_to_wait = portMAX_DELAY;
     }
-
-    _neopixel_led_colour_update_params_t update_params;
-    update_params.pio_config = &neopixel_led_config.mini12864_pio_config;
+    // Wait for the mutex
+    if (xSemaphoreTake(neopixel_led_config.mutex, ticks_to_wait) != pdTRUE) {
+        return;  // unable to take mutex, return immediately
+    }
 
     /* Important: do not change the order of LED update operations. 
        Neopixel LEDs on the same string are updated in the order they are sent. The update order has to be: 
@@ -92,49 +93,50 @@ void neopixel_led_set_colour(uint32_t mini12864_backlight_colour, uint32_t led1_
         2. Encoder RGB2
         3. 12864 Backlight
     */
+    uint32_t new_led1_colour;  // record the new led1 colour for later use
     if (led1_colour == NEOPIXEL_LED_NO_CHANGE) {
-        update_params.colour = neopixel_led_config.current_led_colours.led1_colour;
-
+        new_led1_colour = neopixel_led_config.current_led_colours.led1_colour;
     }
     else if (led1_colour == NEOPIXEL_LED_DEFAULT_COLOUR) {
-        update_params.colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour;
+        new_led1_colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour;
     }
     else {
-        update_params.colour = led1_colour;
+        new_led1_colour = led1_colour;
     }
-    xQueueSend(neopixel_led_config.colour_update_queue, &update_params, ticks_to_wait);
 
-
+    uint32_t new_led2_colour;
     if (led2_colour == NEOPIXEL_LED_NO_CHANGE) {
-        update_params.colour = neopixel_led_config.current_led_colours.led2_colour;
+        new_led2_colour = neopixel_led_config.current_led_colours.led2_colour;
     }
     else if (led2_colour == NEOPIXEL_LED_DEFAULT_COLOUR) {
-        update_params.colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour;
+        new_led2_colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour;
     }
     else {
-        update_params.colour = led2_colour;
+        new_led2_colour = led2_colour;
     }
-    xQueueSend(neopixel_led_config.colour_update_queue, &update_params, ticks_to_wait);
 
+    uint32_t new_mini12864_backlight_colour;
     if (mini12864_backlight_colour == NEOPIXEL_LED_NO_CHANGE) {
-        update_params.colour = neopixel_led_config.current_led_colours.mini12864_backlight_colour;
+        new_mini12864_backlight_colour = neopixel_led_config.current_led_colours.mini12864_backlight_colour;
     }
     else if (mini12864_backlight_colour == NEOPIXEL_LED_DEFAULT_COLOUR) {
-        update_params.colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour;
+        new_mini12864_backlight_colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour;
     }
     else {
-        update_params.colour = mini12864_backlight_colour;
+        new_mini12864_backlight_colour = mini12864_backlight_colour;
     }
-    xQueueSend(neopixel_led_config.colour_update_queue, &update_params, ticks_to_wait);
-}
 
+    _neopixel_led_set_colour(
+        new_led1_colour,
+        new_led2_colour,
+        new_mini12864_backlight_colour
+    );
 
-void neopixel_control_task(void *p) {
-    while (true) {
-        _neopixel_led_colour_update_params_t update_params;
-        xQueueReceive(neopixel_led_config.colour_update_queue, &update_params, portMAX_DELAY);
-        put_pixel(update_params.pio_config, update_params.colour);
-    }
+    /* Update PWM3 output to mirror new_led1_colour */
+    put_pixel(&neopixel_led_config.pwm3_pio_config, new_led1_colour);
+
+    // Release resource
+    xSemaphoreGive(neopixel_led_config.mutex);
 }
 
 
@@ -170,9 +172,12 @@ bool neopixel_led_init(void) {
     // Initialise current values
     memcpy(&neopixel_led_config.current_led_colours, &neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours, sizeof(neopixel_led_colours_t));
 
-    // Initialize the queue
-    neopixel_led_config.colour_update_queue = xQueueCreate(2, sizeof(neopixel_led_colours_t));
-    assert(neopixel_led_config.colour_update_queue);
+    // Initialize the mutex
+    neopixel_led_config.mutex = xSemaphoreCreateMutex();
+    if (neopixel_led_config.mutex == NULL) {
+        printf("Unable to create neopixel LED mutex\n");
+        return false;
+    }
 
     // Configure Neopixel for mini12864 display
     PIO pio;
@@ -214,14 +219,6 @@ bool neopixel_led_init(void) {
     neopixel_led_config.pwm3_pio_config.sm = sm;
     // Set default colour for PWM3
     put_pixel(&neopixel_led_config.pwm3_pio_config, neopixel_led_config.current_led_colours.led1_colour);
-
-    // Initialize the task
-    xTaskCreate(neopixel_control_task, 
-                "Neopixel Controller", 
-                configMINIMAL_STACK_SIZE, 
-                NULL, 
-                2, 
-                &neopixel_led_config.neopixel_control_task_handler);
 
     // Register to eeprom save all
     eeprom_register_handler(neopixel_led_config_save);

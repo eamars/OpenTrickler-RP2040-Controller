@@ -18,8 +18,6 @@
     },
     "cmake.buildBeforeRun": true,
     "cmake.configureOnOpen": true,
-    "files.associations": {
-    },
     "cmake.configureSettings": {
         "CMAKE_BUILD_TYPE": "Debug",
         "PICO_BOARD": "pico2_w"  // or pico_w for RP2040 target
