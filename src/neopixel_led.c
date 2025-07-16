@@ -61,6 +61,14 @@ uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
             ((uint32_t) (r) << 16) |
             (uint32_t) (b);
 }
+
+uint32_t urgbw_u32(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
+    return
+            ((uint32_t) (r) << 8) |
+            ((uint32_t) (g) << 16) |
+            ((uint32_t) (w) << 24) |
+            (uint32_t) (b);
+}
  
 static inline void put_pixel(pio_config_t * pio_config, uint32_t pixel_grb) {
     pio_sm_put_blocking(pio_config->pio, pio_config->sm, pixel_grb << 8u);
@@ -169,6 +177,9 @@ bool neopixel_led_init(void) {
         // Default to 1 LED chain
         neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count = NEOPIXEL_LED_CHAIN_COUNT_1;
 
+        // Default to RGBW
+        neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw = true;
+
         // Write data back
         is_ok = neopixel_led_config_save();
         if (!is_ok) {
@@ -220,13 +231,14 @@ bool neopixel_led_init(void) {
         return false;
     }
 
-    ws2812_program_init(pio, sm, offset, NEOPIXEL_PWM3_PIN, 800000, false);
+    ws2812_program_init(pio, sm, offset, NEOPIXEL_PWM3_PIN, 800000, (bool) neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw);
     
     // Save pio and sm for later access
     neopixel_led_config.pwm3_pio_config.pio = pio;
     neopixel_led_config.pwm3_pio_config.sm = sm;
     // Set default colour for PWM3
-    _neopixel_pwm3_set_colour(neopixel_led_config.current_led_colours.led1_colour);
+    // _neopixel_pwm3_set_colour(neopixel_led_config.current_led_colours.led1_colour);
+    _neopixel_pwm3_set_colour(urgbw_u32(128, 128, 128, 0));  // Default to white
 
     // Register to eeprom save all
     eeprom_register_handler(neopixel_led_config_save);
@@ -259,6 +271,8 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
     // bl (str): mini12864_backlight_colour
     // l1 (str): led1_colour
     // l2 (str): led2_colour
+    // l3 (str): PWM3 led chain count
+    // l4 (bool): RGBW: true, RGB: false
     // ee (bool): save to eeprom
 
     static char neopixel_config_json_buffer[128];
@@ -279,6 +293,9 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
         else if (strcmp(params[idx], "l3") == 0) {
             neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count = (neopixel_led_chain_count_t) atoi(values[idx]);
         }
+        else if (strcmp(params[idx], "l4") == 0) {
+            neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw = string_to_boolean(values[idx]);
+        }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
         }
@@ -293,13 +310,13 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
     snprintf(neopixel_config_json_buffer, 
              sizeof(neopixel_config_json_buffer),
              "%s"
-             "{\"bl\":\"#%06lx\",\"l1\":\"#%06lx\",\"l2\":\"#%06lx\",\"l3\":%d}",
+             "{\"bl\":\"#%06lx\",\"l1\":\"#%06lx\",\"l2\":\"#%06lx\",\"l3\":%d,\"l4\":%s}",
              http_json_header,
              neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
              neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,
              neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour,
-             neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count);
-
+             neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count,
+             boolean_to_string(neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw));
     size_t data_length = strlen(neopixel_config_json_buffer);
     file->data = neopixel_config_json_buffer;
     file->len = data_length;

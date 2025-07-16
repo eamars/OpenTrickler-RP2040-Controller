@@ -27,6 +27,7 @@ typedef struct {
     uint16_t neopixel_data_rev;
     neopixel_led_colours_t default_led_colours;
     neopixel_led_chain_count_t pwm3_led_chain_count;
+    bool is_rgbw;   // true: RGBW, false: RGB
 } eeprom_neopixel_led_metadata_t;
 
 
