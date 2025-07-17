@@ -305,14 +305,14 @@ bool driver_pio_init(motor_config_t * motor_config) {
         return false;
     }
 
-    motor_config->pio = pio;
-    motor_config->pio_sm = sm;
-    motor_config->pio_program_offset = offset;
-    stepper_program_init(motor_config->pio, 
-                         motor_config->pio_sm, 
-                         motor_config->pio_program_offset, motor_config->step_pin);
+    stepper_program_init(pio, sm, offset, motor_config->step_pin);
+
     // Start stepper state machine
-    pio_sm_set_enabled(motor_config->pio, motor_config->pio_sm, true);
+    pio_sm_set_enabled(pio, sm, true);
+
+    // Record the PIO configuration
+    motor_config->pio_config.pio = pio;
+    motor_config->pio_config.sm = sm;
 
     return true;
 }
@@ -407,13 +407,13 @@ void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed
 
         current_speed = prev_speed + dv * percentage;
         current_period = speed_to_period(current_speed, pio_speed, full_rotation_steps);
-        pio_sm_clear_fifos(motor_config->pio, motor_config->pio_sm);
-        pio_sm_put(motor_config->pio, motor_config->pio_sm, current_period);
+        pio_sm_clear_fifos(motor_config->pio_config.pio, motor_config->pio_config.sm);
+        pio_sm_put(motor_config->pio_config.pio, motor_config->pio_config.sm, current_period);
     }
 
     current_period = speed_to_period(new_speed, pio_speed, full_rotation_steps);
-    pio_sm_clear_fifos(motor_config->pio, motor_config->pio_sm);
-    pio_sm_put_blocking(motor_config->pio, motor_config->pio_sm, current_period);
+    pio_sm_clear_fifos(motor_config->pio_config.pio, motor_config->pio_config.sm);
+    pio_sm_put_blocking(motor_config->pio_config.pio, motor_config->pio_config.sm, current_period);
 }
 
 

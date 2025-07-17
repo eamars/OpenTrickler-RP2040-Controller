@@ -5,7 +5,7 @@
 #include "http_rest.h"
 
 
-#define EEPROM_NEOPIXEL_LED_METADATA_REV                     2              // 16 byte 
+#define EEPROM_NEOPIXEL_LED_METADATA_REV                     3              // 16 byte 
 
 #define NEOPIXEL_LED_NO_CHANGE      (uint32_t)(1 << 24)                     // High bit is not used for Neopixel RGB
 #define NEOPIXEL_LED_DEFAULT_COLOUR (uint32_t)(1 << 25)
@@ -17,10 +17,17 @@ typedef struct {
     uint32_t mini12864_backlight_colour;
 } neopixel_led_colours_t;
 
+typedef enum {
+    NEOPIXEL_LED_CHAIN_COUNT_1 = 1,  // 1 LED from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_2 = 2,  // 2 LEDs from the same chain
+} neopixel_led_chain_count_t;
+
 
 typedef struct {
     uint16_t neopixel_data_rev;
     neopixel_led_colours_t default_led_colours;
+    neopixel_led_chain_count_t pwm3_led_chain_count;
+    bool is_rgbw;   // true: RGBW, false: RGB
 } eeprom_neopixel_led_metadata_t;
 
 

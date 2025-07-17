@@ -469,9 +469,6 @@ void charge_mode_wait_for_cup_return() {
 
 
 uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
-    // Reset LED to default colour
-    neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
-
     // Create target weight, if the charge mode weight is built by charge_weight_digits
     if (!charge_mode_skip_user_input) {
         switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
