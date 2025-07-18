@@ -10,6 +10,17 @@
 #define NEOPIXEL_LED_NO_CHANGE      (uint32_t)(1 << 24)                     // High bit is not used for Neopixel RGB
 #define NEOPIXEL_LED_DEFAULT_COLOUR (uint32_t)(1 << 25)
 
+// A struct that uses 8bit bitfields to map R, G, B, W into a uint32_t memory space.
+typedef union {
+    struct __attribute__((__packed__)){
+        uint8_t r;  // Red
+        uint8_t g;  // Green
+        uint8_t b;  // Blue
+        uint8_t w;  // White
+    };
+    uint32_t colour;
+} rgbw_u32_t;
+
 
 typedef struct {
     uint32_t led1_colour;
