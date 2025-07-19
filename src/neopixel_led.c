@@ -32,18 +32,6 @@
 #include "common.h"
 
 
-/* Configuration file for neopixel LEDs on both mini12864 display (including three LEDs in chain) and one dedicated LED on PWM3
-   PWM3 output will mirror the LED1 colour from mini12864 display.
-*/
-typedef struct {
-    eeprom_neopixel_led_metadata_t eeprom_neopixel_led_metadata;
-
-    neopixel_led_colours_t current_led_colours;
-    SemaphoreHandle_t mutex;
-    TaskHandle_t neopixel_control_task_handler;
-    pio_config_t mini12864_pio_config;
-    pio_config_t pwm3_pio_config;
-} neopixel_led_config_t;
 
 // The parameters for updating the NeoPixel LED colors (including the target LED information)
 typedef struct {
@@ -52,22 +40,26 @@ typedef struct {
 } _neopixel_led_colour_update_params_t;
 
 
-static neopixel_led_config_t neopixel_led_config;
+// Global configuration for neopixel LED instance
+neopixel_led_config_t neopixel_led_config;
 
+uint32_t urgbw_u32(rgbw_u32_t colour, neopixel_colour_order_t colour_order) {
 
-uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
-    return
-            ((uint32_t) (g) << 8) |
-            ((uint32_t) (r) << 16) |
-            (uint32_t) (b);
-}
+    uint32_t output;
 
-uint32_t urgbw_u32(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
-    return
-            ((uint32_t) (r) << 8) |
-            ((uint32_t) (g) << 16) |
-            ((uint32_t) (w) << 24) |
-            (uint32_t) (b);
+    if (colour_order == NEOPIXEL_COLOUR_ORDER_GRB) {
+        output = ((uint32_t) (colour.g) << 8) |
+                 ((uint32_t) (colour.r) << 16) |
+                 ((uint32_t) (colour.b)) |
+                 ((uint32_t) (colour.w) << 24);
+    } else if (colour_order == NEOPIXEL_COLOUR_ORDER_RGB) {
+        output = ((uint32_t) (colour.r) << 8) |
+                 ((uint32_t) (colour.g) << 16) |
+                 ((uint32_t) (colour.b)) |
+                 ((uint32_t) (colour.w) << 24);
+    }
+    
+    return output;
 }
  
 static inline void put_pixel(pio_config_t * pio_config, uint32_t pixel_grb) {
@@ -82,14 +74,14 @@ void _neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32
     put_pixel(&neopixel_led_config.mini12864_pio_config, mini12864_backlight_colour);  // 12864 Backlight
 }
 
-void _neopixel_pwm3_set_colour(uint32_t new_colour) {
-    for (int i = 0; i < neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count; i++) {
+void _neopixel_pwm_out_set_colour(uint32_t new_colour) {
+    for (int i = 0; i < neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_chain_count; i++) {
         put_pixel(&neopixel_led_config.pwm3_pio_config, new_colour);
     }
 }
 
 
-void neopixel_led_set_colour(uint32_t mini12864_backlight_colour, uint32_t led1_colour, uint32_t led2_colour, bool block_wait) {
+void neopixel_led_set_colour(rgbw_u32_t mini12864_backlight_colour, rgbw_u32_t led1_colour, rgbw_u32_t led2_colour, bool block_wait) {
     // Assign delay time
     TickType_t ticks_to_wait = 0;
     if (block_wait) {
@@ -106,47 +98,17 @@ void neopixel_led_set_colour(uint32_t mini12864_backlight_colour, uint32_t led1_
         2. Encoder RGB2
         3. 12864 Backlight
     */
-    uint32_t new_led1_colour;  // record the new led1 colour for later use
-    if (led1_colour == NEOPIXEL_LED_NO_CHANGE) {
-        new_led1_colour = neopixel_led_config.current_led_colours.led1_colour;
-    }
-    else if (led1_colour == NEOPIXEL_LED_DEFAULT_COLOUR) {
-        new_led1_colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour;
-    }
-    else {
-        new_led1_colour = led1_colour;
-    }
-
-    uint32_t new_led2_colour;
-    if (led2_colour == NEOPIXEL_LED_NO_CHANGE) {
-        new_led2_colour = neopixel_led_config.current_led_colours.led2_colour;
-    }
-    else if (led2_colour == NEOPIXEL_LED_DEFAULT_COLOUR) {
-        new_led2_colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour;
-    }
-    else {
-        new_led2_colour = led2_colour;
-    }
-
-    uint32_t new_mini12864_backlight_colour;
-    if (mini12864_backlight_colour == NEOPIXEL_LED_NO_CHANGE) {
-        new_mini12864_backlight_colour = neopixel_led_config.current_led_colours.mini12864_backlight_colour;
-    }
-    else if (mini12864_backlight_colour == NEOPIXEL_LED_DEFAULT_COLOUR) {
-        new_mini12864_backlight_colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour;
-    }
-    else {
-        new_mini12864_backlight_colour = mini12864_backlight_colour;
-    }
-
     _neopixel_led_set_colour(
-        new_led1_colour,
-        new_led2_colour,
-        new_mini12864_backlight_colour
+        urgbw_u32(led1_colour, NEOPIXEL_COLOUR_ORDER_GRB),
+        urgbw_u32(led2_colour, NEOPIXEL_COLOUR_ORDER_GRB),
+        urgbw_u32(mini12864_backlight_colour, NEOPIXEL_COLOUR_ORDER_GRB)
     );
 
     /* Update PWM3 output to mirror new_led1_colour */
-    _neopixel_pwm3_set_colour(new_led1_colour);
+    // Infuse white intensity
+    _neopixel_pwm_out_set_colour(
+        urgbw_u32(led1_colour, neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_colour_order)
+    );
 
     // Release resource
     xSemaphoreGive(neopixel_led_config.mutex);
@@ -170,15 +132,18 @@ bool neopixel_led_init(void) {
         neopixel_led_config.eeprom_neopixel_led_metadata.neopixel_data_rev = EEPROM_NEOPIXEL_LED_METADATA_REV;
 
         // Default to white
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour = urgb_u32(0x0F, 0x0F, 0x0F);
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour = urgb_u32(0x0F, 0x0F, 0x0F);
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour = urgb_u32(0xFF, 0xFF, 0xFF);
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour._raw_colour = RGB_COLOUR_DULL_WHITE;
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour._raw_colour = RGB_COLOUR_DULL_WHITE;
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour._raw_colour = RGB_COLOUR_WHITE;
 
         // Default to 1 LED chain
-        neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count = NEOPIXEL_LED_CHAIN_COUNT_1;
+        neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_chain_count = NEOPIXEL_LED_CHAIN_COUNT_2;
 
         // Default to RGBW
-        neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw = true;
+        neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_is_rgbw = true;
+
+        // Default to RGB colour order
+        neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_colour_order = NEOPIXEL_COLOUR_ORDER_RGB;
 
         // Write data back
         is_ok = neopixel_led_config_save();
@@ -187,9 +152,6 @@ bool neopixel_led_init(void) {
             return false;
         }
     }
-
-    // Initialise current values
-    memcpy(&neopixel_led_config.current_led_colours, &neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours, sizeof(neopixel_led_colours_t));
 
     // Initialize the mutex
     neopixel_led_config.mutex = xSemaphoreCreateMutex();
@@ -218,9 +180,11 @@ bool neopixel_led_init(void) {
     neopixel_led_config.mini12864_pio_config.sm = sm;
 
     // Set default colour
-    put_pixel(&neopixel_led_config.mini12864_pio_config, neopixel_led_config.current_led_colours.led1_colour);  // Encoder RGB1
-    put_pixel(&neopixel_led_config.mini12864_pio_config, neopixel_led_config.current_led_colours.led2_colour);  // Encoder RGB2
-    put_pixel(&neopixel_led_config.mini12864_pio_config, neopixel_led_config.current_led_colours.mini12864_backlight_colour);  // 12864 Backlight
+    _neopixel_led_set_colour(
+        urgbw_u32(neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour, NEOPIXEL_COLOUR_ORDER_GRB),
+        urgbw_u32(neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour, NEOPIXEL_COLOUR_ORDER_GRB),
+        urgbw_u32(neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, NEOPIXEL_COLOUR_ORDER_GRB)
+    );
 
     // Configure Neopixel for PWM3
     is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
@@ -231,14 +195,18 @@ bool neopixel_led_init(void) {
         return false;
     }
 
-    ws2812_program_init(pio, sm, offset, NEOPIXEL_PWM3_PIN, 800000, (bool) neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw);
+    ws2812_program_init(pio, sm, offset, NEOPIXEL_PWM3_PIN, 800000, neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_is_rgbw);
     
     // Save pio and sm for later access
     neopixel_led_config.pwm3_pio_config.pio = pio;
     neopixel_led_config.pwm3_pio_config.sm = sm;
+
     // Set default colour for PWM3
-    // _neopixel_pwm3_set_colour(neopixel_led_config.current_led_colours.led1_colour);
-    _neopixel_pwm3_set_colour(urgbw_u32(128, 128, 128, 0));  // Default to white
+    // Infuse white intensity
+    rgbw_u32_t colour = neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour;
+    _neopixel_pwm_out_set_colour(
+        urgbw_u32(colour, neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_colour_order)
+    );
 
     // Register to eeprom save all
     eeprom_register_handler(neopixel_led_config_save);
@@ -271,30 +239,35 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
     // bl (str): mini12864_backlight_colour
     // l1 (str): led1_colour
     // l2 (str): led2_colour
-    // l3 (str): PWM3 led chain count
+    // l3 (str): PWM OUT led chain count
     // l4 (bool): RGBW: true, RGB: false
+    // l5 (int): PWM OUT led colour order
+    // l6 (int): PWM OUT white intensity
     // ee (bool): save to eeprom
 
-    static char neopixel_config_json_buffer[128];
+    static char neopixel_config_json_buffer[256];
     bool save_to_eeprom = false;
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "bl") == 0) {
             // Remove %23 (#) from the request
-            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour= hex_string_to_decimal(values[idx]);
+            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "l1") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour = hex_string_to_decimal(values[idx]);
+            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "l2") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour = hex_string_to_decimal(values[idx]);
+            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "l3") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count = (neopixel_led_chain_count_t) atoi(values[idx]);
+            neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_chain_count = (neopixel_led_chain_count_t) atoi(values[idx]);
         }
         else if (strcmp(params[idx], "l4") == 0) {
-            neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw = string_to_boolean(values[idx]);
+            neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_is_rgbw = string_to_boolean(values[idx]);
+        }
+        else if (strcmp(params[idx], "l5") == 0) {
+            neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_colour_order = (neopixel_colour_order_t) atoi(values[idx]);
         }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
@@ -310,18 +283,28 @@ bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *p
     snprintf(neopixel_config_json_buffer, 
              sizeof(neopixel_config_json_buffer),
              "%s"
-             "{\"bl\":\"#%06lx\",\"l1\":\"#%06lx\",\"l2\":\"#%06lx\",\"l3\":%d,\"l4\":%s}",
+             "{\"bl\":\"#%06lx\",\"l1\":\"#%06lx\",\"l2\":\"#%06lx\",\"l3\":%d,\"l4\":%s,\"l5\":%d}",
              http_json_header,
-             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
-             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,
-             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour,
-             neopixel_led_config.eeprom_neopixel_led_metadata.pwm3_led_chain_count,
-             boolean_to_string(neopixel_led_config.eeprom_neopixel_led_metadata.is_rgbw));
+             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour._raw_colour,
+             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour._raw_colour,
+             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour._raw_colour,
+             neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_chain_count,
+             boolean_to_string(neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_is_rgbw),
+             neopixel_led_config.eeprom_neopixel_led_metadata.pwm_out_led_colour_order
+    );
     size_t data_length = strlen(neopixel_config_json_buffer);
     file->data = neopixel_config_json_buffer;
     file->len = data_length;
     file->index = data_length;
     file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+
+    // Update new colour
+    neopixel_led_set_colour(
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour,
+        true  // block wait
+    );
 
     return true;
 }
