@@ -49,10 +49,10 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .precharge_speed_rps = 2,
 
     // LED related
-    .neopixel_normal_charge_colour = urgb_u32(0, 0xFF, 0),          // green
-    .neopixel_under_charge_colour = urgb_u32(0xFF, 0xFF, 0),        // yellow
-    .neopixel_over_charge_colour = urgb_u32(0xFF, 0, 0),            // red
-    .neopixel_not_ready_colour = urgb_u32(0, 0, 0xFF),              // blue
+    .neopixel_normal_charge_colour = RGB_COLOUR_GREEN,        // green
+    .neopixel_under_charge_colour = RGB_COLOUR_YELLOW,        // yellow
+    .neopixel_over_charge_colour = RGB_COLOUR_RED,            // red
+    .neopixel_not_ready_colour = RGB_COLOUR_BLUE,             // blue
 };
 
 // Configures
@@ -65,6 +65,7 @@ static float last_charge_elapsed_seconds = 0.0f;
 // Menu system
 extern AppState_t exit_state;
 extern QueueHandle_t encoder_event_queue;
+extern neopixel_led_config_t neopixel_led_config;
 
 
 // Definitions
@@ -152,7 +153,7 @@ void scale_measurement_render_task(void *p) {
 void charge_mode_wait_for_zero() {
     // Set colour to not ready
     neopixel_led_set_colour(
-        NEOPIXEL_LED_DEFAULT_COLOUR, 
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         true
@@ -205,7 +206,7 @@ void charge_mode_wait_for_complete() {
 
     // Set colour to under charge
     neopixel_led_set_colour(
-        NEOPIXEL_LED_DEFAULT_COLOUR, 
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
         charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
         charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
         true
@@ -350,7 +351,7 @@ void charge_mode_wait_for_cup_removal() {
     // Over charged
     if (error <= -charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
         neopixel_led_set_colour(
-            NEOPIXEL_LED_DEFAULT_COLOUR, 
+            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
             true
@@ -362,7 +363,7 @@ void charge_mode_wait_for_cup_removal() {
     // Under charged
     else if (error >= charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
         neopixel_led_set_colour(
-            NEOPIXEL_LED_DEFAULT_COLOUR, 
+            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
             true
@@ -375,7 +376,7 @@ void charge_mode_wait_for_cup_removal() {
     // Normal
     else {
         neopixel_led_set_colour(
-            NEOPIXEL_LED_DEFAULT_COLOUR, 
+            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour, 
             true
@@ -417,7 +418,10 @@ void charge_mode_wait_for_cup_removal() {
     }
 
     // Reset LED to default colour
-    neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
+    neopixel_led_set_colour(neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,
+                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour,
+                            true);
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_RETURN;
 }
@@ -425,7 +429,7 @@ void charge_mode_wait_for_cup_removal() {
 void charge_mode_wait_for_cup_return() { 
     // Set colour to not ready
     neopixel_led_set_colour(
-        NEOPIXEL_LED_DEFAULT_COLOUR, 
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour, 
         true
@@ -531,7 +535,10 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
     }
 
     // Reset LED to default colour
-    neopixel_led_set_colour(NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, NEOPIXEL_LED_DEFAULT_COLOUR, true);
+    neopixel_led_set_colour(neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led1_colour,
+                            neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.led2_colour,
+                            true);
 
     // vTaskDelete(scale_measurement_render_handler);
     vTaskSuspend(scale_measurement_render_task_handler);
@@ -634,16 +641,16 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
 
         // LED related settings
         else if (strcmp(params[idx], "c1") == 0) {
-            charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour = hex_string_to_decimal(values[idx]);
+            charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "c2") == 0) {
-            charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour = hex_string_to_decimal(values[idx]);
+            charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "c3") == 0) {
-            charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour = hex_string_to_decimal(values[idx]);
+            charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "c4") == 0) {
-            charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour = hex_string_to_decimal(values[idx]);
+            charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour._raw_colour = hex_string_to_decimal(values[idx]);
         }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
@@ -661,10 +668,10 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
              "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f}",
-             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour,
-             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
-             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour,
-             charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
+             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour,
+             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour._raw_colour,
+             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour._raw_colour,
+             charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
              charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin,

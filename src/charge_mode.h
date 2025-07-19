@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "http_rest.h"
 #include "common.h"
+#include "neopixel_led.h"
 
 
 #define EEPROM_CHARGE_MODE_DATA_REV                     8              // 16 byte 
@@ -35,10 +36,10 @@ typedef struct {
     float precharge_speed_rps;
 
     // LED related settings
-    uint32_t neopixel_normal_charge_colour;
-    uint32_t neopixel_under_charge_colour;
-    uint32_t neopixel_over_charge_colour;
-    uint32_t neopixel_not_ready_colour;
+    rgbw_u32_t neopixel_normal_charge_colour;
+    rgbw_u32_t neopixel_under_charge_colour;
+    rgbw_u32_t neopixel_over_charge_colour;
+    rgbw_u32_t neopixel_not_ready_colour;
 
 } eeprom_charge_mode_data_t;
 
