@@ -64,16 +64,13 @@ void _servo_gate_set_current_state(float open_ratio) {
 
 
 void servo_gate_set_state(gate_state_t state, bool block_wait) {
-    // Skip if not initialized
-    if (servo_gate.control_queue) {
-        // Clear the semaphore state
-        xSemaphoreTake(servo_gate.move_ready_semphore, 0);
+    // Clear the semaphore state
+    xSemaphoreTake(servo_gate.move_ready_semphore, 0);
 
-        xQueueSend(servo_gate.control_queue, &state, portMAX_DELAY);
+    xQueueSend(servo_gate.control_queue, &state, portMAX_DELAY);
 
-        if (block_wait) {
-            xSemaphoreTake(servo_gate.move_ready_semphore, portMAX_DELAY);
-        }
+    if (block_wait) {
+        xSemaphoreTake(servo_gate.move_ready_semphore, portMAX_DELAY);
     }
 }
 
@@ -181,11 +178,6 @@ bool servo_gate_init() {
     bool is_ok = true;
 
     is_ok = servo_gate_config_init();
-
-    // Stop early if servo config failed to initialise, or disabled
-    if (!is_ok || servo_gate.gate_state == GATE_DISABLED) {
-        return false;
-    }
 
     // Initialize pins
     gpio_set_function(SERVO0_PWM_PIN, GPIO_FUNC_PWM);
