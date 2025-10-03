@@ -17,6 +17,7 @@ extern scale_handle_t steinberg_scale_handle;
 extern scale_handle_t ussolid_scale_handle;
 extern scale_handle_t gng_scale_handle;
 extern scale_handle_t jm_science_scale_handle;
+extern scale_handle_t creedmoor_scale_handle;
 
 scale_config_t scale_config;
 
@@ -50,6 +51,11 @@ void set_scale_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_JM_SCIENCE:
         {
             scale_config.scale_handle = &jm_science_scale_handle;
+            break;
+        }
+        case SCALE_DRIVER_CREEDMOOR:
+        {
+            scale_config.scale_handle = &creedmoor_scale_handle;
             break;
         }
         default:
@@ -96,7 +102,11 @@ const char * get_scale_driver_string() {
             scale_driver_string = "GNG JJB";
             break;
         case SCALE_DRIVER_JM_SCIENCE:
-            scale_driver_string = "JM SCIENCE";
+            scale_driver_string = "JM Science";
+            break;
+        case SCALE_DRIVER_CREEDMOOR:
+            scale_driver_string = "Creedmoor";
+            break;
         default:
             break;
     }
