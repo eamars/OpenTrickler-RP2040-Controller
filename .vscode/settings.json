@@ -21,5 +21,10 @@
     "cmake.configureSettings": {
         "CMAKE_BUILD_TYPE": "Debug",
         "PICO_BOARD": "pico2_w"  // or pico_w for RP2040 target
+    },
+    "files.associations": {
+        "mdns.h": "c",
+        "rest_endpoints.h": "c",
+        "access_point_mode.h": "c"
     }
 }
