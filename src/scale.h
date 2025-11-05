@@ -33,6 +33,7 @@ typedef enum {
     SCALE_DRIVER_USSOLID_JFDBS = 3,
     SCALE_DRIVER_JM_SCIENCE = 4,
     SCALE_DRIVER_CREEDMOOR = 5,
+    SCALE_DRIVER_RADWAG_PS_R2 = 6,
 } scale_driver_t;
 
 
