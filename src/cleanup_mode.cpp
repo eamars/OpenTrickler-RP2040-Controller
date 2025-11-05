@@ -112,6 +112,11 @@ uint8_t cleanup_mode_menu() {
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
 
+    // Open servo gate (if enabled)
+    if (servo_gate.gate_state != GATE_DISABLED) {
+        servo_gate_set_state(GATE_OPEN, true);
+    }
+
     // Update current status
     snprintf(title_string, sizeof(title_string), "Adjust Speed");
 
