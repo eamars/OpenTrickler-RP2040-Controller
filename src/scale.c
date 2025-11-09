@@ -18,6 +18,7 @@ extern scale_handle_t ussolid_scale_handle;
 extern scale_handle_t gng_scale_handle;
 extern scale_handle_t jm_science_scale_handle;
 extern scale_handle_t creedmoor_scale_handle;
+extern scale_handle_t radwag_ps_r2_scale_handle;
 
 scale_config_t scale_config;
 
@@ -56,6 +57,11 @@ void set_scale_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_CREEDMOOR:
         {
             scale_config.scale_handle = &creedmoor_scale_handle;
+            break;
+        }
+        case SCALE_DRIVER_RADWAG_PS_R2:
+        {
+            scale_config.scale_handle = &radwag_ps_r2_scale_handle;
             break;
         }
         default:
@@ -106,6 +112,9 @@ const char * get_scale_driver_string() {
             break;
         case SCALE_DRIVER_CREEDMOOR:
             scale_driver_string = "Creedmoor";
+            break;
+        case SCALE_DRIVER_RADWAG_PS_R2:
+            scale_driver_string = "Radwag PS R2";
             break;
         default:
             break;

@@ -561,7 +561,7 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_LABEL(5,25, "Driver:")
-    MUI_XYAT("SD", 50, 25, 60, "A&D FX-i Std|Steinberg SBS|G&G JJB|US Solid JFDBS|JM Science|Creedmoor")
+    MUI_XYAT("SD", 50, 25, 60, "A&D FX-i Std|Steinberg SBS|G&G JJB|US Solid JFDBS|JM Science|Creedmoor|Radwag PS R2")
 
     MUI_LABEL(5,37, "Baudrate:")
     MUI_XYAT("BR", 50, 37, 60, "4800|9600|19200")
