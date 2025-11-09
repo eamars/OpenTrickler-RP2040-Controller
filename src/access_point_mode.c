@@ -25,17 +25,12 @@ static ip_addr_t gw;
 extern char ip_addr_string[16];
 extern char first_line_buffer[32];
 extern char second_line_buffer[32];
-
+extern char host_name[18];
 
 bool access_point_mode_start() {
-    char ap_ssid[17] = "";
     char ap_password[] = "opentrickler";
-    char id[4];
 
-    eeprom_get_board_id((char **) &id, sizeof(id));
-    memset(ap_ssid, 0x0, sizeof(ap_ssid));
-    snprintf(ap_ssid, sizeof(ap_ssid), "OpenTrickler%s", id);
-    cyw43_arch_enable_ap_mode(ap_ssid, ap_password, CYW43_AUTH_WPA2_AES_PSK);
+    cyw43_arch_enable_ap_mode(host_name, ap_password, CYW43_AUTH_WPA2_AES_PSK);
 
     // Initialize IP
     IP4_ADDR(ip_2_ip4(&gw), 192, 168, 4, 1);  
@@ -48,7 +43,7 @@ bool access_point_mode_start() {
     dns_server_t dns_server;
     dns_server_init(&dns_server, &gw);
 
-    sprintf(first_line_buffer, ">%s", ap_ssid);
+    sprintf(first_line_buffer, ">%s", host_name);
     sprintf(second_line_buffer, ">%s", ap_password);
 
     return true;

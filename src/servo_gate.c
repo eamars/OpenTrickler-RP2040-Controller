@@ -211,7 +211,7 @@ bool servo_gate_init() {
 
     // No, we don't set the servo gate state
 
-    return true;
+    return is_ok;
 }
 
 

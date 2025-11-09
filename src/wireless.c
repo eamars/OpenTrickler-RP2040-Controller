@@ -12,6 +12,7 @@
 #include "http_rest.h"
 #include "rest_endpoints.h"
 #include "common.h"
+#include "lwip/apps/mdns.h"
 
 
 #ifdef CYW43_HOST_NAME
@@ -19,8 +20,11 @@
 #endif
 
 // Overwrite the host name
-#define CYW43_HOST_NAME "OpenTrickler"
+#define CYW43_HOST_NAME "opentrickler"
 #define LED_INTERFACE_MINIMUM_POLL_PERIOD_MS    20
+
+// The hostname is used by STA mode to advertise mDNS. The value is also used for AP mode as the SSID
+char host_name[18];
 
 typedef enum {
     WIRELESS_STATE_NOT_INITIALIZED = 0,
@@ -173,6 +177,12 @@ bool wireless_init() {
     // Register to eeprom save all
     eeprom_register_handler(wireless_config_save);
 
+    // Generate the hostname
+    char id[4];
+    eeprom_get_board_id((char **) &id, sizeof(id));
+    snprintf(host_name, sizeof(host_name), "opentrickler-%s", id);
+
+
     return is_ok;
 }
 
@@ -258,6 +268,15 @@ void led_interface_task(void *p) {
 }
 
 
+static void srv_txt(struct mdns_service *service, void *txt_userdata)
+{
+  err_t res;
+  LWIP_UNUSED_ARG(txt_userdata);
+
+  res = mdns_resp_add_service_txtitem(service, "path=/", 6);
+  LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
+}
+
 void wireless_task(void *p) {
     static TaskHandle_t led_interface_task_handler = NULL;
 
@@ -328,13 +347,30 @@ void wireless_task(void *p) {
         access_point_mode_start();
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
     }
+    else {
+        cyw43_arch_lwip_begin();
+        // If the STA mode is successfully initialized, we will also start the mdns service
+        mdns_resp_init();
+
+        // The opentrickler can be accessed via 
+        mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], host_name);
+
+        // Add service HTTP, allowing user to access the web interface with hostname.local format
+        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "rest_httpd", "_http", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
+
+        // Add secondary service to allow client to discover with service _opentrickler._tcp.local
+        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_opentrickler", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
+        cyw43_arch_lwip_end();
+    }
 
     // Initialize REST endpoints
     // If the current wireless state is AP mode then we will map / to the wifi configuration
     rest_endpoints_init(wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN);
 
     // Start the HTTP server
+    cyw43_arch_lwip_begin();
     httpd_init();
+    cyw43_arch_lwip_end();
 
     while (true) {
         wireless_ctrl_t wireless_ctrl;
@@ -353,6 +389,7 @@ void wireless_task(void *p) {
         }
     }
 
+    mdns_resp_remove_netif(&cyw43_state.netif[CYW43_ITF_STA]);
     cyw43_arch_deinit();
 
     vTaskSuspend(led_interface_task_handler);

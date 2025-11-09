@@ -110,6 +110,7 @@ target_link_libraries("${TARGET_NAME}"
     # Required by cyw43 wireless module
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_freertos
+    pico_lwip_mdns
     # pico_lwip_http
 )
 
