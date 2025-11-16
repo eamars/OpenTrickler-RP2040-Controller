@@ -39,6 +39,20 @@ typedef struct {
 typedef enum {
     NEOPIXEL_LED_CHAIN_COUNT_1 = 1,  // 1 LED from the same chain
     NEOPIXEL_LED_CHAIN_COUNT_2 = 2,  // 2 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_3 = 3,  // 3 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_4 = 4,  // 4 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_5 = 5,  // 5 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_6 = 6,  // 6 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_7 = 7,  // 7 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_8 = 8,  // 8 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_9 = 9,  // 9 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_10 = 10, // 10 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_11 = 11, // 11 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_12 = 12, // 12 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_13 = 13, // 13 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_14 = 14, // 14 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_15 = 15, // 15 LEDs from the same chain
+    NEOPIXEL_LED_CHAIN_COUNT_16 = 16, // 16 LEDs from the same chain
 } neopixel_led_chain_count_t;
 
 typedef enum {
