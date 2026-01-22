@@ -49,10 +49,10 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .precharge_speed_rps = 2,
 
     // LED related
-    .neopixel_normal_charge_colour = RGB_COLOUR_GREEN,        // green
-    .neopixel_under_charge_colour = RGB_COLOUR_YELLOW,        // yellow
-    .neopixel_over_charge_colour = RGB_COLOUR_RED,            // red
-    .neopixel_not_ready_colour = RGB_COLOUR_BLUE,             // blue
+    .neopixel_normal_charge_colour = {._raw_colour = RGB_COLOUR_GREEN},        // green
+    .neopixel_under_charge_colour = {._raw_colour = RGB_COLOUR_YELLOW},        // yellow
+    .neopixel_over_charge_colour = {._raw_colour = RGB_COLOUR_RED},            // red
+    .neopixel_not_ready_colour = {._raw_colour = RGB_COLOUR_BLUE},             // blue
 };
 
 // Configures
