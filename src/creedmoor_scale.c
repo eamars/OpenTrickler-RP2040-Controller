@@ -5,7 +5,6 @@
 #include <time.h>
 #include <math.h>
 #include <task.h>
-#include <stdlib.h>
 
 #include "hardware/uart.h"
 #include "configuration.h"

@@ -4,7 +4,6 @@
 #include <math.h>
 #include <FreeRTOS.h>
 #include <queue.h>
-#include <math.h>
 #include "app.h"
 #include "tmc2209.h"
 #include "hardware/uart.h"
