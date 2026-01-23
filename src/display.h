@@ -10,6 +10,10 @@ extern "C" {
 
 u8g2_t *get_display_handler(void);
 
+// Display buffer access control
+void acquire_display_buffer_access(void);
+void release_display_buffer_access(void);
+
 // REST
 bool http_get_display_buffer(struct fs_file *file, int num_params, char *params[], char *values[]);
 
