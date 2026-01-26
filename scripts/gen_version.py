@@ -42,7 +42,7 @@ def main(output_path, build_type):
     logging.debug(f'Raw output: {output}')
     match = re.match(GIT_VERSION_PATTERN_REGEX, output)
 
-    version_string = "unknown"
+    version_string = "2.5.0"
     hash_string = ""
 
     if match:

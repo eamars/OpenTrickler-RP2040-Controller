@@ -31,7 +31,8 @@ void gp_init(gp_model_t* gp,
 
     // UCB exploration parameter
     // Higher = more exploration, lower = more exploitation
-    gp->beta = 2.0f;
+    // Using 1.0 for conservative refinement (exploit more than explore)
+    gp->beta = 1.0f;
 
     gp->n_obs = 0;
     gp->matrices_valid = false;

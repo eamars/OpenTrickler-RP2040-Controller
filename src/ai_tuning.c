@@ -13,7 +13,7 @@ extern charge_mode_config_t charge_mode_config;
 // EEPROM address defined in eeprom.h (EEPROM_AI_TUNING_HISTORY_BASE_ADDR = 12K)
 
 // =============================================================================
-// PARAMETER RANGES - Coarse is gentle (0-1), Fine is aggressive (0-10)
+// PARAMETER RANGES - Both motors use 0-1 range
 // =============================================================================
 #define COARSE_KP_MIN 0.0f
 #define COARSE_KP_MAX 1.0f
@@ -21,9 +21,9 @@ extern charge_mode_config_t charge_mode_config;
 #define COARSE_KD_MAX 1.0f
 
 #define FINE_KP_MIN 0.0f
-#define FINE_KP_MAX 10.0f
+#define FINE_KP_MAX 1.0f
 #define FINE_KD_MIN 0.0f
-#define FINE_KD_MAX 10.0f
+#define FINE_KD_MAX 1.0f
 
 // Global tuning session state
 static ai_tuning_session_t g_session;
@@ -61,14 +61,20 @@ static bool g_fine_had_overthrow;
 static int g_gp_refine_drops;
 #define GP_REFINE_DROPS 5  // Number of GP-guided drops for refinement
 
-// Minimum step sizes based on range
-#define COARSE_MIN_STEP 0.02f   // 2% of 0-1 range
-#define FINE_MIN_STEP   0.2f    // 2% of 0-10 range
+// Minimum step sizes (2% of 0-1 range for both)
+#define COARSE_MIN_STEP 0.02f
+#define FINE_MIN_STEP   0.02f
+
+// GP constraint radius for refinement phase
+#define GP_CONSTRAIN_RADIUS 0.2f
 
 // Forward declarations
 static void calculate_next_params_phase1(const ai_drop_telemetry_t* drop);
 static void calculate_next_params_phase2(const ai_drop_telemetry_t* drop);
 static void init_gp_models(void);
+static void constrain_gp_bounds(gp_model_t* gp, float center_kp, float center_kd,
+                                 float abs_min_kp, float abs_max_kp,
+                                 float abs_min_kd, float abs_max_kd);
 static float calculate_score(const ai_drop_telemetry_t* drop);
 static void finalize_recommendations(void);
 
@@ -82,7 +88,7 @@ void ai_tuning_init(void) {
     g_config.target_coarse_time_ms = 10000.0f;
     g_config.target_total_time_ms = 15000.0f;
 
-    // Parameter limits - COARSE: 0-1, FINE: 0-10
+    // Parameter limits - both 0-1 range
     g_config.coarse_kp_min = COARSE_KP_MIN;
     g_config.coarse_kp_max = COARSE_KP_MAX;
     g_config.coarse_kd_min = COARSE_KD_MIN;
@@ -103,8 +109,7 @@ void ai_tuning_init(void) {
     g_initialized = true;
 
     printf("AI Tuning System initialized\n");
-    printf("  Coarse range: Kp 0-1, Kd 0-1\n");
-    printf("  Fine range:   Kp 0-10, Kd 0-10\n");
+    printf("  Both motors: Kp 0-1, Kd 0-1\n");
 }
 
 static void init_gp_models(void) {
@@ -118,13 +123,39 @@ static void init_gp_models(void) {
             COARSE_KP_MIN, COARSE_KP_MAX,
             COARSE_KD_MIN, COARSE_KD_MAX);
 
-    // Initialize GP for fine (0-10 range)
+    // Initialize GP for fine (0-1 range)
     gp_init(&g_gp_fine,
             FINE_KP_MIN, FINE_KP_MAX,
             FINE_KD_MIN, FINE_KD_MAX);
 
     g_gp_initialized = true;
-    printf("GP models initialized for hybrid tuning\n");
+    printf("GP models initialized\n");
+}
+
+// Constrain GP search bounds to ±radius around center point
+static void constrain_gp_bounds(gp_model_t* gp, float center_kp, float center_kd,
+                                 float abs_min_kp, float abs_max_kp,
+                                 float abs_min_kd, float abs_max_kd) {
+    // Calculate constrained bounds
+    float new_kp_min = center_kp - GP_CONSTRAIN_RADIUS;
+    float new_kp_max = center_kp + GP_CONSTRAIN_RADIUS;
+    float new_kd_min = center_kd - GP_CONSTRAIN_RADIUS;
+    float new_kd_max = center_kd + GP_CONSTRAIN_RADIUS;
+
+    // Clamp to absolute limits
+    gp->param_min[0] = fmaxf(new_kp_min, abs_min_kp);
+    gp->param_max[0] = fminf(new_kp_max, abs_max_kp);
+    gp->param_min[1] = fmaxf(new_kd_min, abs_min_kd);
+    gp->param_max[1] = fminf(new_kd_max, abs_max_kd);
+
+    // Update length scale for smaller search area
+    float kp_range = gp->param_max[0] - gp->param_min[0];
+    float kd_range = gp->param_max[1] - gp->param_min[1];
+    gp->length_scale = fmaxf(kp_range, kd_range) * 0.15f;
+
+    printf("GP: Constrained to Kp [%.2f-%.2f], Kd [%.2f-%.2f]\n",
+           gp->param_min[0], gp->param_max[0],
+           gp->param_min[1], gp->param_max[1]);
 }
 
 // Calculate a score from drop telemetry (higher = better)
@@ -178,8 +209,9 @@ bool ai_tuning_start(profile_t* profile) {
         return false;
     }
 
-    // Use default time targets (10s coarse, 15s total)
-    // These are set in ai_tuning_init() and can be overridden via config
+    // Load time targets from charge mode config
+    g_config.target_coarse_time_ms = (float)charge_mode_config.eeprom_charge_mode_data.coarse_time_target_ms;
+    g_config.target_total_time_ms = (float)charge_mode_config.eeprom_charge_mode_data.total_time_target_ms;
 
     // Initialize GP models for hybrid tuning
     init_gp_models();
@@ -227,36 +259,37 @@ bool ai_tuning_start(profile_t* profile) {
     g_coarse_tuning_phase = TUNING_PHASE_ADAPTIVE_KP;
     g_fine_tuning_phase = TUNING_PHASE_ADAPTIVE_KP;
 
-    // Initialize step sizes scaled for ranges
-    // Coarse (0-1): start at 0.2 (20% of range)
-    // Fine (0-10): start at 2.0 (20% of range)
-    g_coarse_kp_step = 0.2f;
-    g_coarse_kd_step = 0.1f;
-    g_fine_kp_step = 2.0f;
-    g_fine_kd_step = 1.0f;
+    // Initialize step sizes based on tuning mode
+    // Quick mode: 0.1 increments (10 steps across 0-1 range)
+    // Fine mode:  0.05 increments (20 steps across 0-1 range)
+    float step_size = (g_config.tuning_mode == AI_TUNING_MODE_QUICK) ? 0.1f : 0.05f;
+    g_coarse_kp_step = step_size;
+    g_coarse_kd_step = step_size;
+    g_fine_kp_step = step_size;
+    g_fine_kd_step = step_size;
 
     g_coarse_had_overthrow = false;
     g_fine_had_overthrow = false;
     g_gp_refine_drops = 0;
 
     printf("\n========================================================\n");
-    printf("  HYBRID PID Auto-Tuning Started\n");
+    printf("  PID Auto-Tuning Started\n");
     printf("========================================================\n");
     printf("Profile: %s (idx %d)\n", profile->name, profile_idx);
-    printf("Mode: %s\n", g_config.tuning_mode == AI_TUNING_MODE_QUICK ? "Quick" : "Fine");
-    printf("\nPARAMETER RANGES:\n");
+    printf("Mode: %s (step size: %.2f)\n",
+           g_config.tuning_mode == AI_TUNING_MODE_QUICK ? "Quick" : "Fine", step_size);
+    printf("\nPARAMETER RANGES (both 0-1):\n");
     printf("  Coarse: Kp 0.0-1.0, Kd 0.0-1.0\n");
-    printf("  Fine:   Kp 0.0-10.0, Kd 0.0-10.0\n");
+    printf("  Fine:   Kp 0.0-1.0, Kd 0.0-1.0\n");
     printf("\nPHASE 1: Adaptive Coarse Tuning\n");
-    printf("  - Kp steps: %.2f (halve on overshoot)\n", g_coarse_kp_step);
     printf("  - Goal: coarse time < %.0f ms\n", g_config.target_coarse_time_ms);
     printf("\nPHASE 2: Adaptive Fine Tuning\n");
-    printf("  - Kp steps: %.1f (halve on overshoot)\n", g_fine_kp_step);
     printf("  - Goal: total time < %.0f ms, overthrow < %.1f%%\n",
            g_config.target_total_time_ms, g_config.max_overthrow_percent);
-    printf("\nPHASE 3: GP Refinement (both motors)\n");
-    printf("  - Uses Gaussian Process to find optimal Kp×Kd combo\n");
-    printf("  - Leverages RP2350 FPU for fast matrix ops\n");
+    if (g_config.tuning_mode == AI_TUNING_MODE_FINE) {
+        printf("\nPHASE 3: GP Refinement (Fine mode only)\n");
+        printf("  - Constrained search around adaptive result\n");
+    }
     printf("========================================================\n\n");
 
     return true;
@@ -328,8 +361,8 @@ bool ai_tuning_record_drop(const ai_drop_telemetry_t* telemetry) {
     printf("\n------------------------------------------------\n");
     printf("Drop %d completed (score: %.1f)\n", g_session.drops_completed, score);
     printf("------------------------------------------------\n");
-    printf("Coarse: Kp=%.3f, Kd=%.3f (range 0-1)\n", telemetry->coarse_kp_used, telemetry->coarse_kd_used);
-    printf("Fine:   Kp=%.2f, Kd=%.2f (range 0-10)\n", telemetry->fine_kp_used, telemetry->fine_kd_used);
+    printf("Coarse: Kp=%.3f, Kd=%.3f\n", telemetry->coarse_kp_used, telemetry->coarse_kd_used);
+    printf("Fine:   Kp=%.3f, Kd=%.3f\n", telemetry->fine_kp_used, telemetry->fine_kd_used);
     printf("Overthrow: %.3f gr (%.2f%%)\n", telemetry->overthrow, telemetry->overthrow_percent);
     printf("Time: %.0f ms (coarse: %.0f ms)\n", telemetry->total_time_ms, telemetry->coarse_time_ms);
     printf("------------------------------------------------\n");
@@ -442,15 +475,33 @@ static void calculate_next_params_phase1(const ai_drop_telemetry_t* drop) {
         bool overthrow_ok = !has_overthrow;
 
         if (overthrow_ok && time_ok) {
-            // Adaptive done - start GP refinement
-            printf("\n  Adaptive coarse tuning found baseline.\n");
-            printf("  Starting GP refinement to optimize Kp×Kd...\n\n");
-
+            // Adaptive done
             g_session.coarse_kp_best = fminf(g_session.coarse_kp_best, COARSE_KP_MAX);
             g_session.coarse_kd_best = fminf(g_session.coarse_kd_best, COARSE_KD_MAX);
 
-            g_coarse_tuning_phase = TUNING_PHASE_GP_REFINE;
-            g_gp_refine_drops = 0;
+            if (g_config.tuning_mode == AI_TUNING_MODE_QUICK) {
+                // Quick mode: skip GP, use adaptive result directly
+                printf("\n  Adaptive coarse tuning complete (Quick mode).\n");
+                g_session.recommended_coarse_kp = g_session.coarse_kp_best;
+                g_session.recommended_coarse_kd = g_session.coarse_kd_best;
+
+                // Move to Phase 2
+                g_session.phase2_start_idx = g_session.drops_completed;
+                g_session.state = AI_TUNING_PHASE_2_FINE;
+                printf("\nStarting Phase 2: Fine Trickler Tuning...\n\n");
+            } else {
+                // Fine mode: constrain GP and run refinement
+                printf("\n  Adaptive coarse tuning found baseline.\n");
+                printf("  Starting GP refinement (constrained)...\n\n");
+
+                constrain_gp_bounds(&g_gp_coarse,
+                                   g_session.coarse_kp_best, g_session.coarse_kd_best,
+                                   COARSE_KP_MIN, COARSE_KP_MAX,
+                                   COARSE_KD_MIN, COARSE_KD_MAX);
+
+                g_coarse_tuning_phase = TUNING_PHASE_GP_REFINE;
+                g_gp_refine_drops = 0;
+            }
         }
         else if (!overthrow_ok) {
             // Still overthrowing - increase Kd
@@ -458,10 +509,22 @@ static void calculate_next_params_phase1(const ai_drop_telemetry_t* drop) {
             printf("  Still overthrow, Kd -> %.3f\n", g_session.coarse_kd_best);
 
             if (g_session.coarse_kd_best >= COARSE_KD_MAX) {
-                // Hit Kd limit - go to GP refinement anyway
+                // Hit Kd limit
                 g_session.coarse_kd_best = COARSE_KD_MAX;
-                printf("  Hit max Kd, starting GP refinement...\n");
-                g_coarse_tuning_phase = TUNING_PHASE_GP_REFINE;
+                if (g_config.tuning_mode == AI_TUNING_MODE_QUICK) {
+                    printf("  Hit max Kd, moving to Phase 2 (Quick mode)...\n");
+                    g_session.recommended_coarse_kp = g_session.coarse_kp_best;
+                    g_session.recommended_coarse_kd = g_session.coarse_kd_best;
+                    g_session.phase2_start_idx = g_session.drops_completed;
+                    g_session.state = AI_TUNING_PHASE_2_FINE;
+                } else {
+                    printf("  Hit max Kd, starting GP refinement...\n");
+                    constrain_gp_bounds(&g_gp_coarse,
+                                       g_session.coarse_kp_best, g_session.coarse_kd_best,
+                                       COARSE_KP_MIN, COARSE_KP_MAX,
+                                       COARSE_KD_MIN, COARSE_KD_MAX);
+                    g_coarse_tuning_phase = TUNING_PHASE_GP_REFINE;
+                }
             }
         }
         else {
@@ -477,11 +540,11 @@ static void calculate_next_params_phase1(const ai_drop_telemetry_t* drop) {
 }
 
 /**
- * Phase 2: Tune Fine Trickler (Hybrid: Adaptive + GP)
- * Range: Kp 0-10, Kd 0-10
+ * Phase 2: Tune Fine Trickler
+ * Range: Kp 0-1, Kd 0-1 (same as coarse)
  *
- * Step 1: Adaptive - increase Kp until overthrow, then tune Kd
- * Step 2: GP Refine - use GP to find optimal Kp×Kd combination
+ * Adaptive: increase Kp until overthrow, then tune Kd
+ * GP Refine (Fine mode only): constrained search around adaptive result
  */
 static void calculate_next_params_phase2(const ai_drop_telemetry_t* drop) {
     float max_overthrow_percent = g_config.max_overthrow_percent;
@@ -524,20 +587,20 @@ static void calculate_next_params_phase2(const ai_drop_telemetry_t* drop) {
                 g_fine_kp_step /= 2.0f;
                 if (g_fine_kp_step < FINE_MIN_STEP) g_fine_kp_step = FINE_MIN_STEP;
 
-                printf("  Overthrow! Back off Kp to %.2f, step=%.2f\n",
+                printf("  Overthrow! Back off Kp to %.3f, step=%.3f\n",
                        g_session.fine_kp_best, g_fine_kp_step);
 
                 g_session.fine_kp_best += g_fine_kp_step;
             } else {
                 // Switch to Kd tuning
-                printf("  Kp converged at %.2f, tuning Kd...\n", g_session.fine_kp_best);
+                printf("  Kp converged at %.3f, tuning Kd...\n", g_session.fine_kp_best);
                 g_fine_tuning_phase = TUNING_PHASE_ADAPTIVE_KD;
                 g_session.fine_kd_best += g_fine_kd_step;
             }
         } else {
             // No overthrow - increase Kp
             g_session.fine_kp_best += g_fine_kp_step;
-            printf("  No overthrow, Kp -> %.2f\n", g_session.fine_kp_best);
+            printf("  No overthrow, Kp -> %.3f\n", g_session.fine_kp_best);
 
             if (g_session.fine_kp_best >= FINE_KP_MAX) {
                 g_session.fine_kp_best = FINE_KP_MAX;
@@ -548,39 +611,64 @@ static void calculate_next_params_phase2(const ai_drop_telemetry_t* drop) {
     }
     else if (g_fine_tuning_phase == TUNING_PHASE_ADAPTIVE_KD) {
         if (overthrow_acceptable && time_ok) {
-            // Adaptive done - start GP refinement
-            printf("\n  Adaptive fine tuning found baseline.\n");
-            printf("  Starting GP refinement to optimize Kp×Kd...\n\n");
-
+            // Adaptive done
             g_session.fine_kp_best = fminf(g_session.fine_kp_best, FINE_KP_MAX);
             g_session.fine_kd_best = fminf(g_session.fine_kd_best, FINE_KD_MAX);
 
-            g_fine_tuning_phase = TUNING_PHASE_GP_REFINE;
-            g_gp_refine_drops = 0;
+            if (g_config.tuning_mode == AI_TUNING_MODE_QUICK) {
+                // Quick mode: skip GP, finalize directly
+                printf("\n  Adaptive fine tuning complete (Quick mode).\n");
+                g_session.recommended_fine_kp = g_session.fine_kp_best;
+                g_session.recommended_fine_kd = g_session.fine_kd_best;
+                finalize_recommendations();
+            } else {
+                // Fine mode: constrain GP and run refinement
+                printf("\n  Adaptive fine tuning found baseline.\n");
+                printf("  Starting GP refinement (constrained)...\n\n");
+
+                constrain_gp_bounds(&g_gp_fine,
+                                   g_session.fine_kp_best, g_session.fine_kd_best,
+                                   FINE_KP_MIN, FINE_KP_MAX,
+                                   FINE_KD_MIN, FINE_KD_MAX);
+
+                g_fine_tuning_phase = TUNING_PHASE_GP_REFINE;
+                g_gp_refine_drops = 0;
+            }
         }
         else if (!overthrow_acceptable && has_overthrow) {
             // Still overthrowing too much - increase Kd
             g_session.fine_kd_best += g_fine_kd_step;
-            printf("  Overthrow high (%.2f%%), Kd -> %.2f\n",
+            printf("  Overthrow high (%.2f%%), Kd -> %.3f\n",
                    drop->overthrow_percent, g_session.fine_kd_best);
 
             if (g_session.fine_kd_best >= FINE_KD_MAX) {
                 g_session.fine_kd_best = FINE_KD_MAX;
-                printf("  Hit max Kd, starting GP refinement...\n");
-                g_fine_tuning_phase = TUNING_PHASE_GP_REFINE;
+                if (g_config.tuning_mode == AI_TUNING_MODE_QUICK) {
+                    printf("  Hit max Kd, finalizing (Quick mode)...\n");
+                    g_session.recommended_fine_kp = g_session.fine_kp_best;
+                    g_session.recommended_fine_kd = g_session.fine_kd_best;
+                    finalize_recommendations();
+                } else {
+                    printf("  Hit max Kd, starting GP refinement...\n");
+                    constrain_gp_bounds(&g_gp_fine,
+                                       g_session.fine_kp_best, g_session.fine_kd_best,
+                                       FINE_KP_MIN, FINE_KP_MAX,
+                                       FINE_KD_MIN, FINE_KD_MAX);
+                    g_fine_tuning_phase = TUNING_PHASE_GP_REFINE;
+                }
             }
         }
         else if (!time_ok) {
             // Time too slow
             g_session.fine_kp_best += FINE_MIN_STEP;
-            printf("  Time slow (%.0fms), Kp -> %.2f\n",
+            printf("  Time slow (%.0fms), Kp -> %.3f\n",
                    drop->total_time_ms, g_session.fine_kp_best);
         }
         else {
             // Underthrow - reduce Kd slightly
             if (g_session.fine_kd_best > FINE_MIN_STEP) {
                 g_session.fine_kd_best -= FINE_MIN_STEP;
-                printf("  Underthrow, Kd -> %.2f\n", g_session.fine_kd_best);
+                printf("  Underthrow, Kd -> %.3f\n", g_session.fine_kd_best);
             }
         }
     }
@@ -610,14 +698,13 @@ static void finalize_recommendations(void) {
     }
 
     printf("\n========================================================\n");
-    printf("  HYBRID AI PID Auto-Tuning COMPLETE!\n");
+    printf("  PID Auto-Tuning COMPLETE!\n");
     printf("========================================================\n");
-    printf("\nRECOMMENDED PARAMETERS:\n");
-    printf("  Coarse (0-1 range):\n");
-    printf("    Kp: %.3f  Kd: %.3f  Ki: 0\n",
+    printf("Mode: %s\n", g_config.tuning_mode == AI_TUNING_MODE_QUICK ? "Quick" : "Fine");
+    printf("\nRECOMMENDED PARAMETERS (0-1 range):\n");
+    printf("  Coarse: Kp=%.3f  Kd=%.3f  Ki=0\n",
            g_session.recommended_coarse_kp, g_session.recommended_coarse_kd);
-    printf("  Fine (0-10 range):\n");
-    printf("    Kp: %.2f  Kd: %.2f  Ki: 0\n",
+    printf("  Fine:   Kp=%.3f  Kd=%.3f  Ki=0\n",
            g_session.recommended_fine_kp, g_session.recommended_fine_kd);
     printf("\nSTATISTICS:\n");
     printf("  Total drops: %d\n", g_session.drops_completed);
@@ -662,9 +749,9 @@ bool ai_tuning_apply_params(void) {
     g_session.target_profile->fine_kd = g_session.recommended_fine_kd;
 
     printf("AI Tuning: Parameters applied to profile '%s'\n", g_session.target_profile->name);
-    printf("  Coarse: Kp=%.3f Kd=%.3f (range 0-1)\n",
+    printf("  Coarse: Kp=%.3f Kd=%.3f\n",
            g_session.target_profile->coarse_kp, g_session.target_profile->coarse_kd);
-    printf("  Fine:   Kp=%.2f Kd=%.2f (range 0-10)\n",
+    printf("  Fine:   Kp=%.3f Kd=%.3f\n",
            g_session.target_profile->fine_kp, g_session.target_profile->fine_kd);
 
     g_session.state = AI_TUNING_IDLE;
@@ -805,18 +892,18 @@ void ai_tuning_calculate_refinements(void) {
     float coarse_kp_adj = 0.0f, coarse_kd_adj = 0.0f;
     float fine_kp_adj = 0.0f, fine_kd_adj = 0.0f;
 
-    // Coarse adjustments (scaled for 0-1 range)
+    // Coarse adjustments (0-1 range)
     if (avg_overthrow > coarse_threshold * 0.5f) {
-        coarse_kd_adj = 0.01f;  // Small adjustment for 0-1 range
+        coarse_kd_adj = 0.01f;
     } else if (avg_overthrow < -fine_threshold) {
         coarse_kp_adj = 0.01f;
     }
 
-    // Fine adjustments (scaled for 0-10 range)
+    // Fine adjustments (0-1 range, same as coarse)
     if (avg_overthrow > fine_threshold) {
-        fine_kd_adj = 0.1f;  // Larger adjustment for 0-10 range
+        fine_kd_adj = 0.01f;
     } else if (avg_overthrow < -fine_threshold) {
-        fine_kp_adj = 0.1f;
+        fine_kp_adj = 0.01f;
     }
 
     // Apply adjustments with range clamping
@@ -827,10 +914,10 @@ void ai_tuning_calculate_refinements(void) {
     g_history.has_suggestions = true;
 
     printf("AI ML: Refined values (avg overthrow=%.3f):\n", avg_overthrow);
-    printf("  Coarse (0-1): Kp %.3f->%.3f, Kd %.3f->%.3f\n",
+    printf("  Coarse: Kp %.3f->%.3f, Kd %.3f->%.3f\n",
            avg_coarse_kp, g_history.suggested_coarse_kp,
            avg_coarse_kd, g_history.suggested_coarse_kd);
-    printf("  Fine (0-10):  Kp %.2f->%.2f, Kd %.2f->%.2f\n",
+    printf("  Fine:   Kp %.3f->%.3f, Kd %.3f->%.3f\n",
            avg_fine_kp, g_history.suggested_fine_kp,
            avg_fine_kd, g_history.suggested_fine_kd);
 }
@@ -924,8 +1011,8 @@ bool ai_tuning_apply_refined_params(uint8_t profile_idx) {
     profile_data_save();
 
     printf("AI ML: Applied refined values to profile '%s'\n", profile->name);
-    printf("  Coarse (0-1): Kp=%.3f, Kd=%.3f\n", profile->coarse_kp, profile->coarse_kd);
-    printf("  Fine (0-10):  Kp=%.2f, Kd=%.2f\n", profile->fine_kp, profile->fine_kd);
+    printf("  Coarse: Kp=%.3f, Kd=%.3f\n", profile->coarse_kp, profile->coarse_kd);
+    printf("  Fine:   Kp=%.3f, Kd=%.3f\n", profile->fine_kp, profile->fine_kd);
 
     // Clear history after applying (start fresh learning)
     g_history.count = 0;

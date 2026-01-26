@@ -9,41 +9,42 @@
 #define AI_TUNING_HISTORY_REV 1
 
 /**
- * HYBRID PID Auto-Tuning System (Adaptive + Gaussian Process)
+ * PID Auto-Tuning System (Adaptive + Optional GP Refinement)
  *
  * Automatically tunes Kp and Kd parameters for both coarse and fine tricklers.
  * Ki is kept at 0 for both motors.
  *
- * PARAMETER RANGES:
- *   Coarse: Kp 0-1, Kd 0-1  (gentle, large motor)
- *   Fine:   Kp 0-10, Kd 0-10 (aggressive, small motor)
+ * PARAMETER RANGES (both motors use same range):
+ *   Coarse: Kp 0-1, Kd 0-1
+ *   Fine:   Kp 0-1, Kd 0-1
  *
- * HYBRID ALGORITHM:
+ * TUNING MODES:
+ *   Quick Mode: Adaptive only, 0.1 step size, faster convergence
+ *   Fine Mode:  Adaptive + GP refinement, 0.05 step size, more precise
  *
- * Phase 1: Tune Coarse Trickler (0-1 range)
- *   Step A: Adaptive - increase Kp until overthrow, tune Kd
- *   Step B: GP Refinement - use Gaussian Process to find optimal Kp×Kd combo
- *   Goal: coarse time < 10 seconds
+ * ALGORITHM:
  *
- * Phase 2: Tune Fine Trickler (0-10 range)
- *   Step A: Adaptive - increase Kp until overthrow, tune Kd
- *   Step B: GP Refinement - find optimal Kp×Kd combo
- *   Goal: total time < 15 seconds, overthrow < 1/15 (6.67%)
+ * Phase 1: Tune Coarse Trickler
+ *   - Adaptive: increase Kp until overthrow, tune Kd
+ *   - GP Refinement (Fine mode only): constrained ±0.2 around adaptive result
+ *   - Goal: coarse time < target
  *
- * WHY HYBRID:
- *   - Adaptive: Fast convergence to "good" region (~5-8 drops)
- *   - GP: Finds true optimum by considering Kp×Kd interaction (~5 drops)
- *   - Total: ~15 drops for better results than adaptive alone
+ * Phase 2: Tune Fine Trickler
+ *   - Adaptive: increase Kp until overthrow, tune Kd
+ *   - GP Refinement (Fine mode only): constrained ±0.2 around adaptive result
+ *   - Goal: total time < target, overthrow < 6.67%
  *
- * RP2350 OPTIMIZATION:
- *   - GP uses hardware FPU for fast exp()/sqrt() in kernel calculations
- *   - Matrix operations leverage Cortex-M33 performance
+ * GP REFINEMENT (Fine mode):
+ *   - Constrained to ±0.2 around adaptive result (won't explore far)
+ *   - Beta=1.0 (conservative, exploits more than explores)
+ *   - Uses RP2350 FPU for fast matrix operations
  *
  * Usage:
- * 1. ai_tuning_start(profile) - Begin tuning session
- * 2. Charge mode calls ai_tuning_record_drop() after each drop
- * 3. ai_tuning_get_recommended_params() when complete
- * 4. User confirms and applies parameters
+ * 1. ai_tuning_set_mode(QUICK or FINE)
+ * 2. ai_tuning_start(profile) - Begin tuning session
+ * 3. Charge mode calls ai_tuning_record_drop() after each drop
+ * 4. ai_tuning_get_recommended_params() when complete
+ * 5. User confirms and applies parameters
  */
 
 // Tuning state machine
@@ -138,17 +139,17 @@ typedef struct {
     float target_coarse_time_ms;      // Target coarse time (default: 10000ms)
     float target_total_time_ms;       // Target total time (default: 15000ms)
 
-    // Coarse parameter limits (0-1 range for gentle, large motor)
+    // Coarse parameter limits (0-1 range)
     float coarse_kp_min;              // Min coarse Kp (default: 0.0)
     float coarse_kp_max;              // Max coarse Kp (default: 1.0)
     float coarse_kd_min;              // Min coarse Kd (default: 0.0)
     float coarse_kd_max;              // Max coarse Kd (default: 1.0)
 
-    // Fine parameter limits (0-10 range for aggressive, small motor)
+    // Fine parameter limits (0-1 range, same as coarse)
     float fine_kp_min;                // Min fine Kp (default: 0.0)
-    float fine_kp_max;                // Max fine Kp (default: 10.0)
+    float fine_kp_max;                // Max fine Kp (default: 1.0)
     float fine_kd_min;                // Min fine Kd (default: 0.0)
-    float fine_kd_max;                // Max fine Kd (default: 10.0)
+    float fine_kd_max;                // Max fine Kd (default: 1.0)
 
     // Tuning mode
     ai_tuning_mode_t tuning_mode;     // Quick or Fine mode
