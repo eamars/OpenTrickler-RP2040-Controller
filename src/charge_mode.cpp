@@ -40,7 +40,7 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
 
     .set_point_sd_margin = 0.02,
     .set_point_mean_margin = 0.02,
-
+    .coarse_stop_gate_ratio = 0.50f,   // NEW
     .decimal_places = DP_2,
 
     // Precharges
@@ -273,13 +273,25 @@ void charge_mode_wait_for_complete() {
             break;
         }
 
-        // Coarse trickler move condition
-        else if (error < charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold && should_coarse_trickler_move) {
+                // Coarse trickler move condition
+        else if (error < charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold &&
+                 should_coarse_trickler_move) {
+
             should_coarse_trickler_move = false;
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
-            // TODO: When tuning off the coarse trickler, also move reverse to back off some powder
+            // NEW: When the coarse trickler stops, move the servo gate to a configured ratio
+            // Ratio convention: 0.0 = open, 1.0 = close
+            if (servo_gate.gate_state != GATE_DISABLED) {
+                float r = charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio;
+                if (r < 0.0f) r = 0.0f;
+                if (r > 1.0f) r = 1.0f;
+                servo_gate_set_ratio(r, false); // don't block the charge loop
+            }
+
+            // TODO: When turning off the coarse trickler, also move reverse to back off some powder
         }
+    
 
         // Update PID variables
         float elapse_time_ms = (current_sample_tick - last_sample_tick) / portTICK_RATE_MS;
@@ -594,7 +606,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c10 (bool): precharge_enable
     // c11 (int): precharge_time_ms
     // c12 (float): precharge_speed_rps
-
+    // c13 (float): coarse_stop_gate_ratio
     // ee (bool): save to eeprom
 
     static char charge_mode_json_buffer[256];
@@ -628,6 +640,10 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "c12") == 0) {
             charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps = strtof(values[idx], NULL);
         }
+        else if (strcmp(params[idx], "c13") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio = strtof(values[idx], NULL);
+        }
+
 
         // LED related settings
         else if (strcmp(params[idx], "c1") == 0) {
@@ -657,7 +673,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              sizeof(charge_mode_json_buffer),
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
-             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f}",
+             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f,\"c13\":%0.3f}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour._raw_colour,
@@ -669,7 +685,8 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              charge_mode_config.eeprom_charge_mode_data.decimal_places,
              boolean_to_string(charge_mode_config.eeprom_charge_mode_data.precharge_enable),
              charge_mode_config.eeprom_charge_mode_data.precharge_time_ms,
-             charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps);
+             charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps,
+             charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;

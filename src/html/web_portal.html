@@ -86,18 +86,71 @@
             </section>
 
             <div class="grid grid-cols-1 gap-2 px-4">
-                <div class="divider">General Control</div>
+                <div class="divider">Scale Control</div>
                 <div class="grid grid-cols-1 gap-2">
                     <button class="btn btn-neutral" onclick="scaleForceZero()">Scale Zero</button>
-
-                    <div class="grid grid-cols-2 gap-2">
-                        <button class="btn btn-neutral" onclick="servoGateSetState(2)">Gate Open</button>
-                        <button class="btn btn-neutral" onclick="servoGateSetState(1)">Gate Close</button>
+					<div class="h-8"></div>
+					<!-- Gate Ratio Control -->
+                    <div class="grid grid-cols-1 gap-2">
+                        <div class="divider">Gate Control</div>
                     </div>
-                </div>
-            </div>
+                      
+					
 
-        </div>
+                   
+                            <!--<button class="btn btn-primary"
+                                    onclick="servoGateApplyRatioFromUi()"> 
+                                Set
+                            </button>-->
+				</div>				
+                    
+				<div class="grid grid-cols-3 gap-20"> 
+					<button class="btn btn-neutral" onclick="servoGateSetState(2)">Gate Open</button>
+					
+					<!-- <div class="grid grid-cols-3 gap-2"> -->
+					<input id="servoGateRatioNumber"
+						   type="number"
+						   min="0"
+						   max="1"
+						   step="0.001"
+						   value="0.500"
+						   class="input input-bordered input-primary"
+						   oninput="onServoGateRatioNumberInput(); debouncedServoGateRatioSendFromNumber();" />
+
+
+					<!--<button class="btn btn-primary"
+							onclick="servoGateApplyRatioFromUi()"> 
+						Set
+					</button>-->
+				<!-- </div> -->
+					<!--<button class="btn btn-neutral" onclick="servoGateSetRatio(0.250)">0.250</button>
+					<button class="btn btn-neutral" onclick="servoGateSetRatio(0.500)">0.500</button>
+					<button class="btn btn-neutral" onclick="servoGateSetRatio(0.750)">0.750</button>-->
+					
+					<button class="btn btn-neutral" onclick="servoGateSetState(1)">Gate Close</button>
+				</div>
+				<div></div>
+                <div class="grid grid-cols-1 gap-2">
+                        <input id="servoGateRatioSlider"
+                               type="range"
+                               min="0"
+                               max="1000"
+                               step="1"
+                               value="500"
+                               class="range range-lg"
+                               oninput="onServoGateRatioInput(); debouncedServoGateRatioSend();" />
+				</div>
+				<div class="grid grid-cols-1 gap-2">
+					<div></div>
+					<div class="flex justify-between w-full">
+						<span class="label-text">0.000 = Open</span>
+						<span class="label-text">1.000 = Close</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+        
     </section>
 
     <!-- The Settings Page -->
@@ -323,7 +376,10 @@
                                 <span class="label-text">Pre-Charge Speed (rps)</span>
                                 <input type="number" class="input input-bordered" name="c12" step="0.001">
                             </div>
-
+							<div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Stop Gate Ratio (0=open, 1=close)</span>
+                                <input type="number" class="input input-bordered" name="c13" step="0.001" min="0" max="1">
+                            </div>
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>
@@ -1202,7 +1258,92 @@
             console.error("Error applying servo gate state");
         });
     }
+// --- Gate Ratio Support ---
+    function _clamp01(x) {
+        let v = Number(x);
+        if (Number.isNaN(v)) return null;
+        if (v < 0) v = 0;
+        if (v > 1) v = 1;
+        return v;
+    }
 
+    function _setGateRatioUi(r) {
+        const slider = document.getElementById("servoGateRatioSlider");
+        const number = document.getElementById("servoGateRatioNumber");
+
+        if (slider) slider.value = String(Math.round(r * 1000));
+        if (number) number.value = r.toFixed(3);
+    }
+
+    function servoGateSetRatio(ratio) {
+        const r = _clamp01(ratio);
+        if (r === null) return;
+
+        _setGateRatioUi(r);
+
+        const uri = `/rest/servo_gate_state?r0=${encodeURIComponent(r.toFixed(3))}`;
+
+        fetch(uri)
+        .then(response => {
+            return response.json();
+        })
+        .then(data => {
+            // If firmware returns r0 later, you can sync UI like:
+            // if (data["r0"] !== undefined) _setGateRatioUi(_clamp01(data["r0"]));
+        })
+        .catch(error => {
+            console.error("Error applying servo gate ratio");
+        });
+    }
+
+    function onServoGateRatioInput() {
+        const slider = document.getElementById("servoGateRatioSlider");
+        if (!slider) return;
+
+        const r = parseInt(slider.value, 10) / 1000.0;
+        const rc = _clamp01(r);
+        if (rc === null) return;
+
+        _setGateRatioUi(rc);
+    }
+
+    function onServoGateRatioNumberInput() {
+        const number = document.getElementById("servoGateRatioNumber");
+        if (!number) return;
+
+        const r = _clamp01(number.value);
+        if (r === null) return;
+
+        _setGateRatioUi(r);
+    }
+
+    function servoGateApplyRatioFromUi() {
+        const number = document.getElementById("servoGateRatioNumber");
+        if (!number) return;
+
+        servoGateSetRatio(number.value);
+    }
+
+    // Debounced live sending (uses existing debounce())
+    function sendServoGateRatioFromSlider() {
+        const slider = document.getElementById("servoGateRatioSlider");
+        if (!slider) return;
+
+        const r = parseInt(slider.value, 10) / 1000.0;
+        servoGateSetRatio(r);
+    }
+    const debouncedServoGateRatioSend = debounce(sendServoGateRatioFromSlider, 60);
+
+    function sendServoGateRatioFromNumber() {
+        const number = document.getElementById("servoGateRatioNumber");
+        if (!number) return;
+
+        const r = _clamp01(number.value);
+        if (r === null) return;
+
+        servoGateSetRatio(r);
+    }
+    const debouncedServoGateRatioSendFromNumber = debounce(sendServoGateRatioFromNumber, 120);
     // Switch pages
     function onNavButtonClicked(button) {
         const sectionTrickler = document.getElementById("sectionTrickler");
