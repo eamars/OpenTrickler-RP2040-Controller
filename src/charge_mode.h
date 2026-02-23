@@ -51,14 +51,14 @@ typedef struct {
 } charge_mode_config_t;
 
 
-bool charge_mode_config_init(void);
-uint8_t charge_mode_menu(bool charge_mode_skip_user_input);
-
 // C Functions
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+
+bool charge_mode_config_init(void);
+uint8_t charge_mode_menu(bool charge_mode_skip_user_input);
 bool charge_mode_config_save(void);
 
 // REST interface
