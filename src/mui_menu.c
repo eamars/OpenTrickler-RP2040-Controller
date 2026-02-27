@@ -194,11 +194,30 @@ uint8_t render_profile_misc_details(mui_t *ui, uint8_t msg) {
 uint8_t render_servo_gate_state_with_action(mui_t *ui, uint8_t msg) {
     uint8_t return_value = mui_u8g2_u8_radio_wm_pi(ui, msg);
 
-    switch(msg) {
+    switch (msg) {
         case MUIF_MSG_CURSOR_SELECT:
         {
             uint8_t *value = (uint8_t *)muif_get_data(ui->uif);
-            servo_gate_set_state((gate_state_t) *value, false);
+            gate_state_t state = (gate_state_t)(*value);
+
+            float ratio = SERVO_GATE_RATIO_DISABLED;
+
+            switch (state) {
+                case GATE_OPEN:
+                    ratio = SERVO_GATE_RATIO_OPEN;
+                    break;
+
+                case GATE_CLOSE:
+                    ratio = SERVO_GATE_RATIO_CLOSED;
+                    break;
+
+                case GATE_DISABLED:
+                default:
+                    ratio = SERVO_GATE_RATIO_DISABLED;
+                    break;
+            }
+
+            servo_gate_set_ratio(ratio, false);
             break;
         }
     }

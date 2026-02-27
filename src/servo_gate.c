@@ -1,5 +1,7 @@
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
+#include <stdlib.h>
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include "configuration.h"
@@ -36,6 +38,11 @@ const char * gate_state_to_string(gate_state_t state) {
     return _gate_state_string[state];
 }
 
+static inline float clamp01(float x) {
+    if (x < 0.0f) return 0.0f;
+    if (x > 1.0f) return 1.0f;
+    return x;
+}
 
 static void inline _set_duty_cycle(uint16_t shutter0_duty_cycle, uint16_t shutter1_duty_cycle) {
     uint32_t reg_level = ((uint32_t) shutter0_duty_cycle) << 16 | shutter1_duty_cycle;
@@ -49,7 +56,7 @@ static void inline _set_duty_cycle(uint16_t shutter0_duty_cycle, uint16_t shutte
 }
 
 
-void _servo_gate_set_current_state(float open_ratio) {
+static void _servo_gate_set_current_state(float open_ratio) {
     uint16_t shutter0_duty_cycle;
     uint16_t shutter1_duty_cycle;
 
@@ -63,71 +70,93 @@ void _servo_gate_set_current_state(float open_ratio) {
 }
 
 
-void servo_gate_set_state(gate_state_t state, bool block_wait) {
-    // Clear the semaphore state
-    xSemaphoreTake(servo_gate.move_ready_semphore, 0);
 
-    xQueueSend(servo_gate.control_queue, &state, portMAX_DELAY);
+void servo_gate_set_ratio(gate_ratio_t ratio, bool block_wait) {
+    float r = (ratio == SERVO_GATE_RATIO_DISABLED) ? SERVO_GATE_RATIO_DISABLED : clamp01(ratio);
+    
+    xSemaphoreTake(servo_gate.move_ready_semphore, 0); 
+    
+    xQueueOverwrite(servo_gate.control_queue, &r);
 
     if (block_wait) {
         xSemaphoreTake(servo_gate.move_ready_semphore, portMAX_DELAY);
     }
 }
 
+void servo_gate_control_task(void *p) {
+    (void)p;
 
-void servo_gate_control_task(void * p) {
-    float prev_open_ratio = -1.0f;
+    const float UNKNOWN_RATIO = -2.0f;
+    float prev_open_ratio = UNKNOWN_RATIO;
 
     while (true) {
-        gate_state_t new_state;
-        xQueueReceive(servo_gate.control_queue, &new_state, portMAX_DELAY);
+        gate_ratio_t new_ratio;
+        xQueueReceive(servo_gate.control_queue, &new_ratio, portMAX_DELAY);
 
-        // Calculate the new gate open ratio
-        float new_open_ratio;
-        switch (new_state) {
-            case GATE_OPEN:
-                new_open_ratio = 0.0f;
-                break;
-            case GATE_CLOSE:
-                new_open_ratio = 1.0f;
-                break;
-            default:
-                break;
+        // --- DISABLE ---
+        if (new_ratio == SERVO_GATE_RATIO_DISABLED) {
+            servo_gate.gate_state = GATE_DISABLED;
+
+            // Do NOT modify prev_open_ratio
+            xSemaphoreGive(servo_gate.move_ready_semphore);
+            continue;
         }
 
-        // First time
-        if (prev_open_ratio < 0) {
+        // Clamp to valid range
+        float new_open_ratio = clamp01((float)new_ratio);
+
+        // First valid move: set immediately
+        if (prev_open_ratio == UNKNOWN_RATIO) {
             _servo_gate_set_current_state(new_open_ratio);
-        }
-        else {
-            float delta = new_open_ratio - prev_open_ratio;
-            float speed = delta < 0 ? servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s : 
-                                      servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s;
-            uint32_t ramp_time_us = fabs(delta / speed) * 1e6;
+        } else {
+            // Skip ramp if no change
+            if (fabsf(new_open_ratio - prev_open_ratio) > 0.0001f) {
 
-            uint32_t start_time = time_us_32();
-            uint32_t stop_time = start_time + ramp_time_us;
-            while (true) {
-                uint32_t current_time = time_us_32();
-                if (current_time > stop_time) {
-                    break;
+                float delta = new_open_ratio - prev_open_ratio;
+
+                // 0 = open, 1 = closed
+                float speed = (delta < 0.0f)
+                    ? servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s
+                    : servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s;
+
+                if (speed < 0.0001f) speed = 0.0001f;
+
+                uint32_t ramp_time_us = (uint32_t)(fabsf(delta / speed) * 1e6f);
+
+                if (ramp_time_us < 1000) {
+                    _servo_gate_set_current_state(new_open_ratio);
+                } else {
+                    uint32_t start_time = time_us_32();
+                    uint32_t stop_time  = start_time + ramp_time_us;
+
+                    while (true) {
+                        uint32_t current_time = time_us_32();
+                        if (current_time > stop_time) break;
+
+                        float percentage = (current_time - start_time) / (float)ramp_time_us;
+                        float current_ratio = prev_open_ratio + delta * percentage;
+
+                        _servo_gate_set_current_state(current_ratio);
+                    }
+
+                    _servo_gate_set_current_state(new_open_ratio);
                 }
-
-                float percentage = (current_time - start_time) / (float) ramp_time_us;
-                float current_ratio = prev_open_ratio + delta * percentage;
-
-                _servo_gate_set_current_state(current_ratio);
             }
-
-            _servo_gate_set_current_state(new_open_ratio);
         }
 
-        // Signal the motion is ready
-        xSemaphoreGive(servo_gate.move_ready_semphore);
+        // Update discrete state for reporting/UI
+        if (new_open_ratio <= 0.0001f) {
+            servo_gate.gate_state = GATE_OPEN;
+        } else if (new_open_ratio >= 0.9999f) {
+            servo_gate.gate_state = GATE_CLOSE;
+        }
 
-        // Update state
+        // Save last ratio
         prev_open_ratio = new_open_ratio;
-        servo_gate.gate_state = new_state;
+        servo_gate.gate_ratio = (gate_ratio_t)new_open_ratio;
+
+        // Signal completion
+        xSemaphoreGive(servo_gate.move_ready_semphore);
     }
 }
 
@@ -186,7 +215,7 @@ bool servo_gate_init() {
     pwm_init(pwm_gpio_to_slice_num(SERVO1_PWM_PIN), &cfg, true);
 
     // Start the RTOS task and queue
-    servo_gate.control_queue = xQueueCreate(1, sizeof(gate_state_t));
+    servo_gate.control_queue = xQueueCreate(1, sizeof(gate_ratio_t));
     servo_gate.move_ready_semphore = xSemaphoreCreateBinary();
 
     xTaskCreate(
@@ -205,26 +234,34 @@ bool servo_gate_init() {
 
 
 bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings
-    // g0 (int): gate_state_t
+    static char servo_gate_json_buffer[96];
 
-    static char servo_gate_json_buffer[64];
-
-    // Control
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "g0") == 0) {
-            gate_state_t state = (gate_state_t) atoi(values[idx]);
-            servo_gate_set_state(state, false);
+            gate_state_t state = (gate_state_t)atoi(values[idx]);
+
+            float ratio = SERVO_GATE_RATIO_DISABLED;
+            switch (state) {
+                case GATE_OPEN:   ratio = SERVO_GATE_RATIO_OPEN; break;
+                case GATE_CLOSE:  ratio = SERVO_GATE_RATIO_CLOSED; break;
+                case GATE_DISABLED:
+                default:          ratio = SERVO_GATE_RATIO_DISABLED; break;
+            }
+
+            servo_gate_set_ratio(ratio, false);
+        }
+        else if (strcmp(params[idx], "r0") == 0) {
+            float ratio = strtof(values[idx], NULL);
+            servo_gate_set_ratio(ratio, false);
         }
     }
-    
-    // Response
-    snprintf(servo_gate_json_buffer, 
+
+    snprintf(servo_gate_json_buffer,
              sizeof(servo_gate_json_buffer),
              "%s"
              "{\"g0\":%d}",
              http_json_header,
-             (int) servo_gate.gate_state);
+             (int)servo_gate.gate_state);
 
     size_t data_length = strlen(servo_gate_json_buffer);
     file->data = servo_gate_json_buffer;

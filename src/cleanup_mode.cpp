@@ -114,7 +114,7 @@ uint8_t cleanup_mode_menu() {
 
     // Open servo gate (if enabled)
     if (servo_gate.gate_state != GATE_DISABLED) {
-        servo_gate_set_state(GATE_OPEN, true);
+        servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, true);
     }
 
     // Update current status

@@ -27,6 +27,7 @@ typedef struct {
 
     float set_point_sd_margin;
     float set_point_mean_margin;
+    float coarse_stop_gate_ratio; // 0.0=open, 1.0=close, -1.0=disabled (optional)
 
     decimal_places_t decimal_places;
 

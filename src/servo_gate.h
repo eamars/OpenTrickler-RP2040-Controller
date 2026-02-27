@@ -7,7 +7,15 @@
 #include <semphr.h>
 #include "http_rest.h"
 
+#include <stdbool.h>    
+
 #define EEPROM_SERVO_GATE_CONFIG_REV                     1              // 16 byte 
+
+#define SERVO_GATE_RATIO_OPEN       (0.0f)
+#define SERVO_GATE_RATIO_CLOSED     (1.0f)
+#define SERVO_GATE_RATIO_DISABLED   (-1.0f)
+
+typedef float gate_ratio_t;
 
 typedef enum {
     GATE_DISABLED = 0,
@@ -15,6 +23,22 @@ typedef enum {
     GATE_OPEN,
 } gate_state_t;
 
+/**
+ * Control queue payload (ratio-only)
+ *
+ * Ratio convention:
+ *   0.0  = OPEN
+ *   1.0  = CLOSED
+ *  -1.0  = DISABLED
+ *
+ * Any value between 0.0 and 1.0 is proportional.
+ */
+ 
+/*typedef struct {
+    float ratio;
+    bool block_wait;
+} servo_gate_cmd_t;
+ */
 
 typedef struct {
     uint16_t servo_gate_config_rev;
@@ -31,7 +55,7 @@ typedef struct {
 typedef struct {
     eeprom_servo_gate_config_t eeprom_servo_gate_config;
     gate_state_t gate_state;
-
+    gate_ratio_t gate_ratio;  // 0.0 = OPEN, 1.0 = CLOSED, -1.0 = DISABLED
     // RTOS control
     TaskHandle_t control_task_handler;
     QueueHandle_t control_queue;
@@ -49,7 +73,9 @@ bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *para
 bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 const char * gate_state_to_string(gate_state_t);
 
-void servo_gate_set_state(gate_state_t, bool);
+
+// NEW:
+void servo_gate_set_ratio(float ratio, bool block_wait);
 
 #ifdef __cplusplus
 }
