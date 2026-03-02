@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
       {
-        "name": "Pico (RP2040) Debug (Cortex-Debug)",
+        "name": "RP2040 Debug, Load",
         "cwd": "${workspaceFolder}",
         "executable": "${command:cmake.launchTargetPath}",
         "request": "launch",
@@ -19,7 +19,7 @@
         "openOCDLaunchCommands": [
           "adapter speed 5000"
         ],
-        // "preLaunchTask": "Flash RP2040"
+
         "postLaunchCommands": [
           "interrupt",
           "start",
@@ -32,7 +32,36 @@
         ]
       },
       {
-        "name": "Pico 2 (RP2350) Debug (Cortex-Debug)",
+        "name": "RP2040 Debug, NoLoad",
+        "cwd": "${workspaceFolder}",
+        "executable": "${command:cmake.launchTargetPath}",
+        "request": "launch",
+        "type": "cortex-debug",
+        "servertype": "openocd",
+        "gdbPath": "arm-none-eabi-gdb",
+        "device": "RP2040",
+        "configFiles": [
+          "interface/cmsis-dap.cfg",
+          "target/rp2040.cfg"
+        ],
+        "svdFile": "${workspaceFolder}/library/pico-sdk/src/rp2040/hardware_regs/RP2040.svd",
+        "runToEntryPoint": "main",
+        "openOCDLaunchCommands": [
+          "adapter speed 5000"
+        ],
+
+        "postLaunchCommands": [
+          "interrupt",
+          "start",
+          "starti"
+        ],
+        "postRestartCommands": [
+          "break main",
+          "continue"
+        ]
+      },
+      {
+        "name": "RP2350 Debug, Load",
         "cwd": "${workspaceFolder}",
         "executable": "${command:cmake.launchTargetPath}",
         "request": "launch",
@@ -59,8 +88,35 @@
           "break main",
           "continue"
         ]
-        
-        // "preLaunchTask": "Flash RP2350"
+      }, 
+
+      {
+        "name": "RP2350 Debug, Noload",
+        "cwd": "${workspaceFolder}",
+        "executable": "${command:cmake.launchTargetPath}",
+        "request": "launch",
+        "type": "cortex-debug",
+        "servertype": "openocd",
+        "gdbPath": "arm-none-eabi-gdb",
+        "device": "RP2350",
+        "configFiles": [
+          "interface/cmsis-dap.cfg",
+          "target/rp2350.cfg"
+        ],
+        "svdFile": "${workspaceFolder}/library/pico-sdk/src/rp2350/hardware_regs/RP2350.svd",
+        "runToEntryPoint": "main",
+        "openOCDLaunchCommands": [
+          "adapter speed 5000"
+        ],
+        "postLaunchCommands": [
+          "interrupt",
+          "start",
+          "starti"
+        ],
+        "postRestartCommands": [
+          "break main",
+          "continue"
+        ]
       }
     ]
   }
