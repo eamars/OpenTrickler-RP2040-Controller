@@ -43,7 +43,9 @@ jobs:
       with: 
         name: pico2_w_package
         path: |
-          src/generated/version.c  
+          src/generated/version.c
+          src/generated/ws2812.pio.h
+          src/generated/stepper.pio.h
           build_pico2_w/*.bin
           build_pico2_w/*.dis
           build_pico2_w/*.elf
@@ -62,7 +64,9 @@ jobs:
       with: 
         name: pico_w_package
         path: |
-          src/generated/version.c  
+          src/generated/version.c
+          src/generated/ws2812.pio.h
+          src/generated/stepper.pio.h
           build_pico_w/*.bin
           build_pico_w/*.dis
           build_pico_w/*.elf
