@@ -7,19 +7,11 @@ init:
     mov x, osr            ; Copy the value back from the OSR to X
     jmp !x init           ; If no X is provided then wrap back to the beginning
 
-    ; Delay 10 cycles (10x8ns=80ns)
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    ; At this point we have dwelled 13 cycles (13*8=104 ns), fufilled typ dwell time at low
+    ; Delay (4 + 1 + 4 + 1) cycles (10x8ns=80ns)
+    nop [4]
+    nop [4]
 
+    ; At this point we have dwelled 13 cycles (13*8=104 ns), fufilled typ dwell time at low
     mov y, x       side 1 ; 
 
 hold_high:                ; Wait for the counter

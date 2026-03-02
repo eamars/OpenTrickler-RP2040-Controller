@@ -301,26 +301,39 @@ bool driver_io_init(motor_config_t * motor_config) {
 }
 
 bool driver_pio_init(motor_config_t * motor_config) {
-    bool is_ok;
     // Allocate PIO to the stepper
-    PIO pio;
-    uint sm;
-    uint offset;
+    PIO pio = MOTOR_PIO;  // Always use specified PIO to ensure the resource is claimed
+    int sm;
+    int offset;
 
-    is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
-        &stepper_program, 
-        &pio, 
-        &sm, 
-        &offset, 
-        motor_config->step_pin, 
-        1, 
-        true
-    );
-
-    if (!is_ok) {
-        printf("Unable to claim PIO for stepper motor\n");
+    // Claim an unused state machine
+    sm = pio_claim_unused_sm(pio, true);
+    if (sm < 0) {
+        printf("Unable to claim state machine, err: %d\n", sm);
         return false;
     }
+
+    // Load program to the state machine
+    offset = pio_add_program(pio, &stepper_program);
+    if (offset < 0) {
+        printf("Unable to add program, err: %d\n", offset);
+        return false;
+    }
+
+    // is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
+    //     &stepper_program, 
+    //     &pio, 
+    //     &sm, 
+    //     &offset, 
+    //     motor_config->step_pin, 
+    //     1, 
+    //     true
+    // );
+    // 
+    // if (!is_ok) {
+    //     printf("Unable to claim PIO for stepper motor\n");
+    //     return false;
+    // }
 
     stepper_program_init(pio, sm, offset, motor_config->step_pin);
 
@@ -580,7 +593,9 @@ motor_init_err_t motors_init(void) {
     driver_io_init(&coarse_trickler_motor_config);
 
     // Allocate PIO to the stepper
-    driver_pio_init(&coarse_trickler_motor_config);
+    if (!driver_pio_init(&coarse_trickler_motor_config)) {
+        return MOTOR_INIT_PIO_ERR;
+    }
 
     // Initialize the stepper driver 
     is_ok = driver_init(&coarse_trickler_motor_config);
@@ -594,7 +609,9 @@ motor_init_err_t motors_init(void) {
     driver_io_init(&fine_trickler_motor_config);
 
     // Allocate PIO to the stepper
-    driver_pio_init(&fine_trickler_motor_config);
+    if (!driver_pio_init(&fine_trickler_motor_config)) {
+        return MOTOR_INIT_PIO_ERR;
+    }
     
     // Initialize the stepper driver
     is_ok = driver_init(&fine_trickler_motor_config);
@@ -658,6 +675,9 @@ void handle_motor_init_error(motor_init_err_t err) {
             break;
         case MOTOR_INIT_FINE_DRV_ERR:
             error_string = "FINE DRV ERR";
+            break;
+        case MOTOR_INIT_PIO_ERR:
+            error_string = "PIO ERR";
             break;
         default:
             error_string = "UNDEF ERR";

@@ -27,6 +27,7 @@
 #define MOTOR_UART uart1
 #define MOTOR_UART_TX 4
 #define MOTOR_UART_RX 5
+#define MOTOR_PIO pio0
 
 #define COARSE_MOTOR_ADDR 0
 #define COARSE_MOTOR_EN_PIN 6

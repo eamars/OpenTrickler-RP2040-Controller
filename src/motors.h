@@ -27,6 +27,7 @@ typedef enum {
     MOTOR_INIT_CFG_ERR = 2,
     MOTOR_INIT_COARSE_DRV_ERR = 3,
     MOTOR_INIT_FINE_DRV_ERR = 4,
+    MOTOR_INIT_PIO_ERR = 5,
 } motor_init_err_t;
 
 
