@@ -301,23 +301,23 @@ void charge_mode_wait_for_complete() {
         // Update fine trickler speed
         float elapse_time_ms = (current_sample_tick - last_sample_tick) / portTICK_RATE_MS;
         fine_trickler_integral += fine_trickler_error;
-        float derivative = (fine_trickler_error - fine_trickler_last_error) / elapse_time_ms;
+        float fine_trickler_derivative = (fine_trickler_error - fine_trickler_last_error) / elapse_time_ms;
 
         // Update fine trickler speed
         float new_p = current_profile->fine_kp * fine_trickler_error;
         float new_i = current_profile->fine_ki * fine_trickler_integral;
-        float new_d = current_profile->fine_kd * derivative;
+        float new_d = current_profile->fine_kd * fine_trickler_derivative;
         float new_speed = fmaxf(fine_trickler_min_speed, fminf(new_p + new_i + new_d, fine_trickler_max_speed));
         motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
 
         // Update coarse trickler speed
         if (should_coarse_trickler_move) {
             coarse_trickler_integral += coarse_trickler_error;
-            derivative = (coarse_trickler_error - coarse_trickler_last_error) / elapse_time_ms;
+            float coarse_trickler_derivative = (coarse_trickler_error - coarse_trickler_last_error) / elapse_time_ms;
 
             new_p = current_profile->coarse_kp * coarse_trickler_error;
             new_i = current_profile->coarse_ki * coarse_trickler_integral;
-            new_d = current_profile->coarse_kd * derivative;
+            new_d = current_profile->coarse_kd * coarse_trickler_derivative ;
 
             new_speed = fmaxf(coarse_trickler_min_speed, fminf(new_p + new_i + new_d, coarse_trickler_max_speed));
 
