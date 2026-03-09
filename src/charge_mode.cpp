@@ -268,7 +268,7 @@ void charge_mode_wait_for_complete() {
         }
         current_sample_tick = xTaskGetTickCount();
 
-        float coarse_trickler_error = coarse_trickler_target_charge_weight = current_weight;
+        float coarse_trickler_error = coarse_trickler_target_charge_weight - current_weight;
         float fine_trickler_error = charge_mode_config.target_charge_weight - current_weight;
 
         // Fine & Coarse trickler stop condition
