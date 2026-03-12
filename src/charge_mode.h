@@ -7,7 +7,7 @@
 #include "neopixel_led.h"
 
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     9              // 16 byte
+#define EEPROM_CHARGE_MODE_DATA_REV                     10             // 16 byte
 
 #define WEIGHT_STRING_LEN 8
 
@@ -39,6 +39,9 @@ typedef struct {
     // AI tuning time targets
     uint32_t coarse_time_target_ms;
     uint32_t total_time_target_ms;
+
+    // ML data collection during normal (non-tuning) charges
+    bool ml_data_collection_enabled;
 
     // LED related settings
     rgbw_u32_t neopixel_normal_charge_colour;

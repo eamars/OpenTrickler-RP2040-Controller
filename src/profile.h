@@ -54,6 +54,7 @@ bool profile_data_save();
 
 profile_t * profile_select(uint8_t idx);
 profile_t * profile_get_selected();
+uint16_t profile_get_selected_idx(void);
 
 // REST interface
 bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]);
