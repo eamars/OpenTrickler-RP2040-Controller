@@ -237,8 +237,15 @@ void charge_mode_wait_for_complete() {
     float fine_trickler_min_speed = fmax(get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR),
                                          current_profile->fine_min_flow_speed_rps);
 
-    float integral = 0.0f;
-    float last_error = 0.0f;
+    // Define PID terms
+    float coarse_trickler_integral = 0.0f;
+    float fine_trickler_integral = 0.0f;
+    float coarse_trickler_last_error = 0.0f;
+    float fine_trickler_last_error = 0.0f;
+
+    // Calculate target weight for coarse trickler
+    // The coarse trickler is suppose to stop ahead of the target weight by an offset
+    float coarse_trickler_target_charge_weight = fmaxf(0.0f, charge_mode_config.target_charge_weight - charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold);
 
     TickType_t last_sample_tick = xTaskGetTickCount();
     TickType_t current_sample_tick = last_sample_tick;
@@ -261,10 +268,11 @@ void charge_mode_wait_for_complete() {
         }
         current_sample_tick = xTaskGetTickCount();
 
-        float error = charge_mode_config.target_charge_weight - current_weight;
+        float coarse_trickler_error = coarse_trickler_target_charge_weight - current_weight;
+        float fine_trickler_error = charge_mode_config.target_charge_weight - current_weight;
 
-        // Stop condition
-        if (error < charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
+        // Fine & Coarse trickler stop condition
+        if (fine_trickler_error < charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
             // Stop all motors
             motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
@@ -272,8 +280,8 @@ void charge_mode_wait_for_complete() {
             break;
         }
 
-                // Coarse trickler move condition
-        else if (error < charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold &&
+        // Coarse trickler stop condition
+        else if (coarse_trickler_error <= 0 &&
                  should_coarse_trickler_move) {
 
             should_coarse_trickler_move = false;
@@ -290,33 +298,36 @@ void charge_mode_wait_for_complete() {
         }
     
 
-        // Update PID variables
+        // Update fine trickler speed
         float elapse_time_ms = (current_sample_tick - last_sample_tick) / portTICK_RATE_MS;
-        integral += error;
-        float derivative = (error - last_error) / elapse_time_ms;
+        fine_trickler_integral += fine_trickler_error;
+        float fine_trickler_derivative = (fine_trickler_error - fine_trickler_last_error) / elapse_time_ms;
 
         // Update fine trickler speed
-        float new_p = current_profile->fine_kp * error;
-        float new_i = current_profile->fine_ki * integral;
-        float new_d = current_profile->fine_kd * derivative;
-        float new_speed = fmax(fine_trickler_min_speed, fmin(new_p + new_i + new_d, fine_trickler_max_speed));
-
+        float new_p = current_profile->fine_kp * fine_trickler_error;
+        float new_i = current_profile->fine_ki * fine_trickler_integral;
+        float new_d = current_profile->fine_kd * fine_trickler_derivative;
+        float new_speed = fmaxf(fine_trickler_min_speed, fminf(new_p + new_i + new_d, fine_trickler_max_speed));
         motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
 
         // Update coarse trickler speed
         if (should_coarse_trickler_move) {
-            new_p = current_profile->coarse_kp * error;
-            new_i = current_profile->coarse_ki * integral;
-            new_d = current_profile->coarse_kd * derivative;
+            coarse_trickler_integral += coarse_trickler_error;
+            float coarse_trickler_derivative = (coarse_trickler_error - coarse_trickler_last_error) / elapse_time_ms;
 
-            new_speed = fmax(coarse_trickler_min_speed, fmin(new_p + new_i + new_d, coarse_trickler_max_speed));
+            new_p = current_profile->coarse_kp * coarse_trickler_error;
+            new_i = current_profile->coarse_ki * coarse_trickler_integral;
+            new_d = current_profile->coarse_kd * coarse_trickler_derivative ;
+
+            new_speed = fmaxf(coarse_trickler_min_speed, fminf(new_p + new_i + new_d, coarse_trickler_max_speed));
 
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, new_speed);
         }
 
         // Record state
         last_sample_tick = current_sample_tick;
-        last_error = error;
+        fine_trickler_last_error = fine_trickler_error;
+        coarse_trickler_last_error = coarse_trickler_error;
     }
 
     // Stop the timer 
