@@ -95,21 +95,6 @@
                 </div>
             </div>
 
-            <!-- AI Tuning Complete Banner -->
-            <div id="mlSuggestionsBanner" style="display: none;" class="px-4 pt-2 cursor-pointer" onclick="onNavButtonClicked('settings'); onSettingsLinkClicked('settings-ai-tuning');">
-                <div role="alert" class="alert alert-info">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>AI Tuning complete! Tap to view results.</span>
-                </div>
-            </div>
-
-            <!-- ML Recommendation Button (shown when ML data collection has suggestions) -->
-            <div id="mlRecommendationBanner" style="display: none;" class="px-4 pt-2 cursor-pointer" onclick="onMlRecommendationClicked();">
-                <div role="alert" class="alert alert-success">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>ML Recommendation available — tap to apply to profile.</span>
-                </div>
-            </div>
 
             <!-- Cleanup Mode Control -->
             <section id="sectionTricklerCleanUpMode" style="display: none;">
@@ -1387,6 +1372,8 @@
             if (aiSel) aiSel.value = idx;
             const settingsSel = document.getElementById('select_profile_option');
             if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
+            // Clear ML drop history — each profile has its own learning data
+            fetch('/rest/ai_tuning_clear_history').then(() => aiLoadHistory()).catch(() => {});
         })
         .catch(e => console.error('Error switching profile:', e));
     }
@@ -1409,6 +1396,8 @@
             if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
             const tricklerSel = document.getElementById("tricklerProfileSelect");
             if (tricklerSel) tricklerSel.value = idx;
+            // Clear ML drop history — each profile has its own learning data
+            fetch('/rest/ai_tuning_clear_history').then(() => aiLoadHistory()).catch(() => {});
         })
         .catch(error => {
             console.error("Error setting profile");
@@ -1686,6 +1675,9 @@
 
                 // Remove polling event
                 clearTimeout(pollSetTimeoutId);
+
+                // Pre-load profile names so dropdowns show names immediately
+                loadProfileDropdowns();
 
                 // Load the first settings
                 onSettingsLinkClicked("settings-scale");
@@ -2142,6 +2134,8 @@
             if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
             const tricklerSel = document.getElementById('tricklerProfileSelect');
             if (tricklerSel) tricklerSel.value = idx;
+            // Clear ML drop history — each profile has its own learning data
+            fetch('/rest/ai_tuning_clear_history').then(() => aiLoadHistory()).catch(() => {});
         })
         .catch(e => console.error('Error switching profile:', e));
     }
@@ -2321,13 +2315,11 @@
         fetch('/rest/ai_tuning_status')
         .then(r => r.json())
         .then(data => {
-            const panel     = document.getElementById('aiTuningMainPanel');
-            const recBanner = document.getElementById('mlRecommendationBanner');  // green — AI session complete
+            const panel      = document.getElementById('aiTuningMainPanel');
             const isActive   = data['is_active'];
             const isComplete = data['is_complete'];
 
-            if (panel)     panel.style.display     = isActive   ? 'block' : 'none';
-            if (recBanner) recBanner.style.display = isComplete ? 'block' : 'none';
+            if (panel) panel.style.display = isActive ? 'block' : 'none';
 
             if (isActive) {
                 const cp    = data['current_params'] || {};
@@ -2359,25 +2351,6 @@
         .catch(e => {});
 
         // Check ML history for suggestions (runs every ~5s to avoid hammering REST)
-        if (!pollAiTuningMainPanel._tick) pollAiTuningMainPanel._tick = 0;
-        pollAiTuningMainPanel._tick++;
-        if (pollAiTuningMainPanel._tick % 10 === 1) {  // every ~5s (10 × 500ms)
-            if (_aiHistoryPollId) {
-                // aiLoadHistory setInterval is active (on AI Tuning settings page) — use cached value
-                const sug = document.getElementById('mlSuggestionsBanner');
-                if (sug) sug.style.display = _mlHasSuggestions ? 'block' : 'none';
-            } else {
-                // On Trickler page — fetch independently to keep ML suggestion banner up to date
-                fetch('/rest/ai_tuning_history')
-                .then(r => r.json())
-                .then(hist => {
-                    _mlHasSuggestions = !!(hist['has_suggestions']) && (hist['count'] || 0) >= 10;
-                    const sug = document.getElementById('mlSuggestionsBanner');
-                    if (sug) sug.style.display = _mlHasSuggestions ? 'block' : 'none';
-                })
-                .catch(e => {});
-            }
-        }
     }
 
     // Navigate to AI Tuning settings page and scroll to ML section
@@ -2504,9 +2477,6 @@
                 }
             }
 
-            // Sync ML suggestion banner (blue — on Trickler page)
-            const sugBanner = document.getElementById('mlSuggestionsBanner');
-            if (sugBanner) sugBanner.style.display = _mlHasSuggestions ? 'block' : 'none';
 
             // Drop history table
             const tbody = document.getElementById('aiHistoryTableBody');
