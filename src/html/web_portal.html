@@ -1486,7 +1486,7 @@
             pollAiTuningMainPanel();
             // Schedule the next event
             clearTimeout(pollSetTimeoutId);
-            pollSetTimeoutId = setTimeout(pollChargeModeStatus, 500);
+            pollSetTimeoutId = setTimeout(pollChargeModeStatus, 200);
         })
     }
 
@@ -2262,15 +2262,15 @@
                 .then(r => r.json())
                 .then(chargeData => _setAiChargeModeStateWidget(chargeData['s2']))
                 .catch(() => {});
-                _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 500);
+                _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 200);
             } else {
                 if (chargeStateDiv) chargeStateDiv.style.display = 'none';
                 _aiTuningPollId = null;
             }
         })
         .catch(e => {
-            // On error retry after 1s — don't stop polling permanently
-            _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 1000);
+            // On error retry after 500ms — don't stop polling permanently
+            _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 500);
         });
     }
 
