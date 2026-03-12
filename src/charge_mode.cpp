@@ -70,6 +70,11 @@ static char title_string[30];
 static TickType_t charge_start_tick = 0;
 static float last_charge_elapsed_seconds = 0.0f;
 
+// Deferred ML recording (set in charge loop, written during cup removal to avoid flash blocking)
+static bool ml_record_pending = false;
+static float ml_coarse_time_ms = 0.0f;
+static float ml_fine_time_ms = 0.0f;
+
 // Menu system
 extern AppState_t exit_state;
 extern QueueHandle_t encoder_event_queue;
@@ -394,14 +399,11 @@ void charge_mode_wait_for_complete() {
         ai_tuning_record_drop(&telemetry);
     }
     else if (charge_mode_config.eeprom_charge_mode_data.ml_data_collection_enabled) {
-        // Background ML data collection during normal charges
-        ai_tuning_record_charge(
-            (uint8_t) profile_get_selected_idx(),
-            current_profile->coarse_kp, current_profile->coarse_kd,
-            current_profile->fine_kp, current_profile->fine_kd,
-            final_weight - charge_mode_config.target_charge_weight,
-            coarse_ms, fine_ms
-        );
+        // Defer ML recording to cup removal phase — flash_safe_execute is too slow
+        // to call here without risking timeout while WiFi stack is active
+        ml_record_pending = true;
+        ml_coarse_time_ms = coarse_ms;
+        ml_fine_time_ms = fine_ms;
     }
 
     // Close the gate if the servo gate is present
@@ -437,9 +439,23 @@ void charge_mode_wait_for_cup_removal() {
     // Post charge analysis (while waiting for removal of the cup)
     vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for other tasks to complete
 
-    // Take current measurement
+    // Take current measurement (settled reading used for ML overthrow too)
     float current_measurement = scale_get_current_measurement();
     float error = charge_mode_config.target_charge_weight - current_measurement;
+
+    // Deferred ML recording — use settled measurement taken after 1s delay
+    if (ml_record_pending) {
+        ml_record_pending = false;
+        profile_t* ml_profile = profile_get_selected();
+        float ml_overthrow = current_measurement - charge_mode_config.target_charge_weight;
+        ai_tuning_record_charge(
+            (uint8_t) profile_get_selected_idx(),
+            ml_profile->coarse_kp, ml_profile->coarse_kd,
+            ml_profile->fine_kp, ml_profile->fine_kd,
+            ml_overthrow,
+            ml_coarse_time_ms, ml_fine_time_ms
+        );
+    }
 
     // Update LED colour before moving to the next stage
     // Over charged

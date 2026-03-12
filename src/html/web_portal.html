@@ -1644,6 +1644,9 @@
                 purgeNavButton.classList.remove("active");
                 tricklerNavButton.classList.add("active");
 
+                // Stop AI history poll when leaving settings
+                _stopAiHistoryPoll();
+
                 // Load profile list
                 loadProfileDropdowns();
 
@@ -1725,8 +1728,10 @@
         // Populate values
         if (sectionId === 'settings-ai-tuning') {
             loadAiTuningPage();
+            _startAiHistoryPoll();
         }
         else {
+            _stopAiHistoryPoll();
             const form = targetSection.querySelector("form");
             if (form) {
                 const uri = form.getAttribute("action");
@@ -2075,6 +2080,7 @@
 
     var _aiLastDropCount = 0;
     var _aiTuningPollId = null;
+    var _aiHistoryPollId = null;  // Auto-refresh ML history count while on AI Tuning page
 
     // Populate all profile dropdowns with names from /rest/profile_summary
     function loadProfileDropdowns() {
@@ -2184,6 +2190,23 @@
             }
         })
         .catch(e => {});
+    }
+
+    // Auto-refresh ML history count every 5s while on AI Tuning settings page
+    function _startAiHistoryPoll() {
+        _stopAiHistoryPoll();
+        _aiHistoryPollId = setInterval(function() {
+            fetch('/rest/ai_tuning_history')
+            .then(r => r.json())
+            .then(data => {
+                const countEl = document.getElementById('aiHistoryCount');
+                if (countEl) countEl.innerText = (data['count'] || 0) + ' drops';
+            })
+            .catch(() => {});
+        }, 5000);
+    }
+    function _stopAiHistoryPoll() {
+        if (_aiHistoryPollId) { clearInterval(_aiHistoryPollId); _aiHistoryPollId = null; }
     }
 
     function _pollAiTuningSettingsPage() {
