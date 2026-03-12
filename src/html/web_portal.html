@@ -2504,7 +2504,6 @@
     }
 
     function aiClearHistory() {
-        if (!confirm('Clear all ML learning history?')) return;
         fetch('/rest/ai_tuning_clear_history')
         .then(r => r.json())
         .then(() => aiLoadHistory())
