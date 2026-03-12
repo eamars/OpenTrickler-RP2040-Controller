@@ -2099,6 +2099,9 @@
     function loadAiTuningPage() {
         loadProfileDropdowns();
 
+        // Firmware defaults for threshold fields (must match charge_mode.cpp defaults)
+        const _thresholdDefaults = { c5: 5, c6: 0.03, c14: 500, c15: 3000 };
+
         // Load thresholds from charge mode config
         fetch('/rest/charge_mode_config')
         .then(r => r.json())
@@ -2107,28 +2110,39 @@
             if (!form) return;
             ['c5','c6'].forEach(k => {
                 const el = form.querySelector(`[name="${k}"]`);
-                if (el && data[k] !== undefined) el.value = data[k];
+                if (!el) return;
+                const val = (data[k] !== undefined && Number(data[k]) !== 0) ? data[k] : _thresholdDefaults[k];
+                el.value = val;
             });
             // c14/c15 are in ms, display in seconds
-            const coarseMs = data['c14'];
-            const totalMs  = data['c15'];
-            if (coarseMs !== undefined) {
-                const disp = document.getElementById('aiCoarseTimeTargetDisplay');
-                const hid  = form.querySelector('[name="c14"]');
-                if (disp) disp.value = (coarseMs / 1000).toFixed(1);
-                if (hid)  hid.value  = coarseMs;
-            }
-            if (totalMs !== undefined) {
-                const disp = document.getElementById('aiTotalTimeTargetDisplay');
-                const hid  = form.querySelector('[name="c15"]');
-                if (disp) disp.value = (totalMs / 1000).toFixed(1);
-                if (hid)  hid.value  = totalMs;
-            }
+            const coarseMs = (data['c14'] !== undefined && Number(data['c14']) !== 0) ? data['c14'] : _thresholdDefaults.c14;
+            const totalMs  = (data['c15'] !== undefined && Number(data['c15']) !== 0) ? data['c15'] : _thresholdDefaults.c15;
+            const dispCoarse = document.getElementById('aiCoarseTimeTargetDisplay');
+            const hidCoarse  = form.querySelector('[name="c14"]');
+            if (dispCoarse) dispCoarse.value = (coarseMs / 1000).toFixed(1);
+            if (hidCoarse)  hidCoarse.value  = coarseMs;
+            const dispTotal = document.getElementById('aiTotalTimeTargetDisplay');
+            const hidTotal  = form.querySelector('[name="c15"]');
+            if (dispTotal) dispTotal.value = (totalMs / 1000).toFixed(1);
+            if (hidTotal)  hidTotal.value  = totalMs;
             const mlEnabled = data['c16'] === true || data['c16'] === 'true';
             const mlToggle = document.getElementById('aiMlDataCollectionToggle');
             if (mlToggle) mlToggle.checked = mlEnabled;
         })
-        .catch(e => console.error('Error loading charge mode config:', e));
+        .catch(e => {
+            // On error, apply defaults
+            const form = document.getElementById('aiTuningThresholdsForm');
+            if (!form) return;
+            ['c5','c6'].forEach(k => { const el = form.querySelector(`[name="${k}"]`); if (el) el.value = _thresholdDefaults[k]; });
+            const dispCoarse = document.getElementById('aiCoarseTimeTargetDisplay');
+            const hidCoarse  = form.querySelector('[name="c14"]');
+            if (dispCoarse) dispCoarse.value = (_thresholdDefaults.c14 / 1000).toFixed(1);
+            if (hidCoarse)  hidCoarse.value  = _thresholdDefaults.c14;
+            const dispTotal = document.getElementById('aiTotalTimeTargetDisplay');
+            const hidTotal  = form.querySelector('[name="c15"]');
+            if (dispTotal) dispTotal.value = (_thresholdDefaults.c15 / 1000).toFixed(1);
+            if (hidTotal)  hidTotal.value  = _thresholdDefaults.c15;
+        });
 
         aiLoadAdvancedConfig();
         aiLoadHistory();
