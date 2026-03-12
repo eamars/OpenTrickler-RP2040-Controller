@@ -14,7 +14,8 @@
 #include <math.h>
 #include "FreeRTOS.h"
 #include "semphr.h"
-#include "encoder.h"
+#include "mini_12864_module.h"
+extern QueueHandle_t encoder_event_queue;
 
 // Access charge mode config for thresholds
 extern charge_mode_config_t charge_mode_config;

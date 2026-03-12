@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "http_rest.h"
+#include "mini_12864_module.h"
 
 #define EEPROM_DISPLAY_CONFIG_BASE_ADDR     (13 * 1024)     // 13K - Display type selection
 #define EEPROM_DISPLAY_CONFIG_DATA_REV      2
@@ -13,13 +14,6 @@ typedef enum {
     DISPLAY_TYPE_TFT35 = 1,         // TFT35 V3.0.1: 3.5 inch, 480x320
     DISPLAY_TYPE_TFT43 = 2,         // TFT43 V3.0: 4.3 inch, 480x272
 } display_type_t;
-
-typedef enum {
-    DISPLAY_ROTATION_0 = 0,
-    DISPLAY_ROTATION_90 = 1,
-    DISPLAY_ROTATION_180 = 2,
-    DISPLAY_ROTATION_270 = 3,
-} display_rotation_t;
 
 typedef struct {
     uint32_t data_rev;

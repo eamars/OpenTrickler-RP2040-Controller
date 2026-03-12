@@ -5,13 +5,14 @@
 #include "common.h"
 #include "app.h"
 #include "app_state.h"
-#include "encoder.h"
+#include "mini_12864_module.h"
 #include "charge_mode.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <FreeRTOS.h>
 #include <queue.h>
+extern QueueHandle_t encoder_event_queue;
 
 // External references for triggering charge mode
 extern charge_mode_config_t charge_mode_config;

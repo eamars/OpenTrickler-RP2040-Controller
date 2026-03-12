@@ -17,6 +17,7 @@
 #include "eeprom.h"
 #include "wireless.h"
 #include "system_control.h"
+#include "app_state.h"
 
 // External variables
 extern muif_t muif_list[];
@@ -26,9 +27,6 @@ extern const size_t muif_cnt;
 // External menus
 
 // Local variables
-
-AppState_t exit_state = APP_STATE_DEFAULT;
-
 
 void menu_task(void *p){
     u8g2_t * display_handler = get_display_handler();
