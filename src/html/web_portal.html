@@ -1381,6 +1381,7 @@
         fetch(`/rest/profile_config?pf=${encodeURIComponent(idx)}`)
         .then(r => r.json())
         .then(() => {
+            _profileCurrentIdx = idx;
             // Sync all other profile selectors
             const aiSel = document.getElementById('aiTuningProfileSelect');
             if (aiSel) aiSel.value = idx;
@@ -1400,6 +1401,7 @@
             return response.json();
         })
         .then(() => {
+            _profileCurrentIdx = idx;
             // Sync all profile selectors
             const aiSel = document.getElementById("aiTuningProfileSelect");
             if (aiSel) aiSel.value = idx;
@@ -2082,32 +2084,50 @@
     var _aiTuningPollId = null;
     var _aiHistoryPollId = null;  // Auto-refresh ML history count while on AI Tuning page
 
-    // Populate all profile dropdowns with names from /rest/profile_summary
+    // Profile cache — fetched once, reused instantly on every page navigation
+    var _profileCache = null;   // {idx: name}
+    var _profileCurrentIdx = '0';
+
+    function _applyProfileCache() {
+        const selectors = [
+            document.getElementById('aiTuningProfileSelect'),
+            document.getElementById('select_profile_option'),
+            document.getElementById('tricklerProfileSelect'),
+        ];
+        selectors.forEach(sel => {
+            if (!sel) return;
+            sel.innerHTML = '';
+            for (const idx in _profileCache) {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                const name = (_profileCache[idx] || '').trim();
+                opt.text = name.length > 0 ? name : '#' + idx;
+                sel.appendChild(opt);
+            }
+            sel.value = _profileCurrentIdx;
+        });
+    }
+
+    // Populate all profile dropdowns — uses cache if available, fetches once otherwise
     function loadProfileDropdowns() {
+        if (_profileCache) {
+            _applyProfileCache();
+            return;
+        }
         fetch('/rest/profile_summary')
         .then(r => r.json())
         .then(data => {
-            const profiles = data['s0'];  // {idx: name}
-            const currentIdx = String(data['s1']);
-            const selectors = [
-                document.getElementById('aiTuningProfileSelect'),
-                document.getElementById('select_profile_option'),
-                document.getElementById('tricklerProfileSelect'),
-            ];
-            selectors.forEach(sel => {
-                if (!sel) return;
-                sel.innerHTML = '';
-                for (const idx in profiles) {
-                    const opt = document.createElement('option');
-                    opt.value = idx;
-                    const name = (profiles[idx] || '').trim();
-                    opt.text = name.length > 0 ? name : '#' + idx;
-                    sel.appendChild(opt);
-                }
-                sel.value = currentIdx;
-            });
+            _profileCache = data['s0'];
+            _profileCurrentIdx = String(data['s1']);
+            _applyProfileCache();
         })
         .catch(e => console.error('Error loading profiles:', e));
+    }
+
+    // Force re-fetch profile list (call after profile rename/add)
+    function reloadProfileDropdowns() {
+        _profileCache = null;
+        loadProfileDropdowns();
     }
 
     // Called when AI tuning profile selector changes — switch active profile in firmware
@@ -2116,6 +2136,7 @@
         fetch(`/rest/profile_config?pf=${encodeURIComponent(idx)}`)
         .then(r => r.json())
         .then(() => {
+            _profileCurrentIdx = idx;
             // Sync all other profile selectors
             const settingsSel = document.getElementById('select_profile_option');
             if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
