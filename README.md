@@ -53,21 +53,27 @@ Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and developmen
 ### Use with mini 12864 display
 
 1. From the main menu, select "Start".
+
     ![12864_main_menu](resources/main_menu_screen_mirror.png)
 
 2. Provide the target charge weight in grain then press Next to continue.
+
     ![12864_select_charge_weight](resources/select_weight_screen_mirror.png)
 
 3. Remember to put pan on the scale. 
+
     ![12864_waring_put_pan_on_scale](resources/put_pan_warning_screen_mirror.png)
 
 4. Wait for scale to stable at 0. Or press the rotary button to force Re-zero. 
+
     ![12864_wait_for_zero](resources/wait_for_zero_screen_mirror.png)
 
 5. Wait for charge to reach the set point
+
     ![12864_wait for charge](resources/wait_for_charge_screen_mirror.png)
 
 6. Once the charge set point is reached, remove the pan. The program shall restart from step 4.
+
     ![12864_wait_for_cup_removal](resources/wait_for_cup_removal.png)
 
 ## Pre-build firmware
