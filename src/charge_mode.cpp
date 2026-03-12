@@ -268,23 +268,65 @@ void charge_mode_wait_for_complete() {
     float fine_trickler_min_speed = fmax(get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR),
                                          current_profile->fine_min_flow_speed_rps);
 
-    // Phase 2 (FINE_ONLY): run a coarse pre-charge using Phase 1's best coarse params before fine PID
+    // Phase 2 (FINE_ONLY): run a coarse pre-charge using tuned coarse PID from Phase 1
     TickType_t coarse_stop_tick = 0;
     if (ai_active && ai_motor_mode == AI_MOTOR_MODE_FINE_ONLY) {
         ai_tuning_session_t *session = ai_tuning_get_session();
-        uint32_t precharge_ms = charge_mode_config.eeprom_charge_mode_data.coarse_time_target_ms;
-        if (precharge_ms > 0 && session->coarse_kp_best > 0.0f) {
-            float init_weight;
-            if (scale_block_wait_for_next_measurement(200, &init_weight)) {
-                float init_error = charge_mode_config.target_charge_weight - init_weight;
-                float precharge_speed = fmax(coarse_trickler_min_speed,
-                                        fmin(session->coarse_kp_best * init_error, coarse_trickler_max_speed));
-                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, precharge_speed);
-                vTaskDelay(pdMS_TO_TICKS(precharge_ms));
+        float tuned_coarse_kp = session->recommended_coarse_kp;
+        float tuned_coarse_kd = session->recommended_coarse_kd;
+
+        float precharge_target = charge_mode_config.target_charge_weight -
+                                 charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold;
+
+        float precharge_integral = 0.0f;
+        float precharge_last_error = 0.0f;
+        TickType_t precharge_last_tick = xTaskGetTickCount();
+
+        while (true) {
+            float current_weight;
+            if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
+                continue;
+            }
+
+            float precharge_error = precharge_target - current_weight;
+
+            if (precharge_error < charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold) {
                 motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+                // Settle before fine PID starts
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                coarse_stop_tick = xTaskGetTickCount();
+                break;
+            }
+
+            TickType_t now = xTaskGetTickCount();
+            float dt_ms = (float)((now - precharge_last_tick) * portTICK_PERIOD_MS);
+            precharge_integral += precharge_error;
+            // Anti-windup clamp
+            precharge_integral = fmaxf(-50.0f, fminf(precharge_integral, 50.0f));
+            float derivative = (dt_ms > 0.0f) ? (precharge_error - precharge_last_error) / dt_ms : 0.0f;
+
+            float pid_output = tuned_coarse_kp * precharge_error
+                             + current_profile->coarse_ki * precharge_integral
+                             + tuned_coarse_kd * derivative;
+            if (pid_output <= 0.0f) {
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+            } else {
+                float spd = fmax(coarse_trickler_min_speed, fmin(pid_output, coarse_trickler_max_speed));
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, spd);
+            }
+
+            precharge_last_tick = now;
+            precharge_last_error = precharge_error;
+
+            // User abort
+            ButtonEncoderEvent_t btn = button_wait_for_input(false);
+            if (btn == BUTTON_RST_PRESSED) {
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+                charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+                if (ai_active) ai_tuning_cancel();
+                return;
             }
         }
-        coarse_stop_tick = xTaskGetTickCount();
     }
 
     float integral = 0.0f;
