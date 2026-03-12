@@ -770,6 +770,17 @@
                                 <span id="aiTuningDrops" class="font-mono">0</span>
                             </div>
 
+                            <!-- Charge mode state during active tuning -->
+                            <div id="aiTuningChargeStateDiv" style="display: none;">
+                                <div class="divider">Current Action</div>
+                                <ul class="steps steps-horizontal w-full text-xs">
+                                    <li id="aiChargeModeStateWait" class="step step-primary">Wait</li>
+                                    <li id="aiChargeModeStateCharging" class="step">Charging</li>
+                                    <li id="aiChargeModeStateRemoveCup" class="step">Remove Cup</li>
+                                    <li id="aiChargeModeStateReturnCup" class="step">Return Cup</li>
+                                </ul>
+                            </div>
+
                             <!-- Cycle Report log -->
                             <div id="aiCycleReport" style="display: none;">
                                 <div class="divider">Cycle Log</div>
@@ -2216,14 +2227,42 @@
         if (_aiHistoryPollId) { clearInterval(_aiHistoryPollId); _aiHistoryPollId = null; }
     }
 
+    function _setAiChargeModeStateWidget(state) {
+        const wait      = document.getElementById('aiChargeModeStateWait');
+        const charging  = document.getElementById('aiChargeModeStateCharging');
+        const removeCup = document.getElementById('aiChargeModeStateRemoveCup');
+        const returnCup = document.getElementById('aiChargeModeStateReturnCup');
+        if (!wait) return;
+        const P = 'step-primary';
+        wait.classList.add(P);
+        switch (state) {
+            case ChargeModeState.WAIT:
+                charging.classList.remove(P); removeCup.classList.remove(P); returnCup.classList.remove(P); break;
+            case ChargeModeState.CHARGING:
+                charging.classList.add(P);    removeCup.classList.remove(P); returnCup.classList.remove(P); break;
+            case ChargeModeState.REMOVE_CUP:
+                charging.classList.add(P);    removeCup.classList.add(P);    returnCup.classList.remove(P); break;
+            case ChargeModeState.RETURN_CUP:
+                charging.classList.add(P);    removeCup.classList.add(P);    returnCup.classList.add(P);    break;
+            default:
+                wait.classList.remove(P); charging.classList.remove(P); removeCup.classList.remove(P); returnCup.classList.remove(P); break;
+        }
+    }
+
     function _pollAiTuningSettingsPage() {
-        fetch('/rest/ai_tuning_status')
-        .then(r => r.json())
-        .then(data => {
-            updateAiTuningUI(data);
-            if (data['is_active']) {
+        Promise.all([
+            fetch('/rest/ai_tuning_status').then(r => r.json()),
+            fetch('/rest/charge_mode_state').then(r => r.json())
+        ])
+        .then(([tuningData, chargeData]) => {
+            updateAiTuningUI(tuningData);
+            const chargeStateDiv = document.getElementById('aiTuningChargeStateDiv');
+            if (tuningData['is_active']) {
+                if (chargeStateDiv) chargeStateDiv.style.display = 'block';
+                _setAiChargeModeStateWidget(chargeData['s2']);
                 _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 500);
             } else {
+                if (chargeStateDiv) chargeStateDiv.style.display = 'none';
                 _aiTuningPollId = null;
             }
         })
@@ -2307,6 +2346,8 @@
         updateAiTuningUI({ is_active: false, is_complete: false, state: 'idle', drops_completed: 0 });
         const cycleLog = document.getElementById('aiCycleLog');
         if (cycleLog) cycleLog.innerText = '';
+        const chargeStateDiv = document.getElementById('aiTuningChargeStateDiv');
+        if (chargeStateDiv) chargeStateDiv.style.display = 'none';
     }
 
     // Live panel in trickler section — called every 500ms from pollChargeModeStatus

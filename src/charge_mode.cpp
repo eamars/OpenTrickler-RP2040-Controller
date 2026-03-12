@@ -75,6 +75,11 @@ static bool ml_record_pending = false;
 static float ml_coarse_time_ms = 0.0f;
 static float ml_fine_time_ms = 0.0f;
 
+// Deferred AI tuning recording (same pattern - defer to cup removal for settled scale reading)
+static bool ai_record_pending = false;
+static ai_drop_telemetry_t ai_pending_telemetry;
+static ai_motor_mode_t ai_pending_motor_mode;
+
 // Menu system
 extern AppState_t exit_state;
 extern QueueHandle_t encoder_event_queue;
@@ -313,7 +318,15 @@ void charge_mode_wait_for_complete() {
 
         float error = charge_mode_config.target_charge_weight - current_weight;
 
-        // Stop condition
+        // Stop condition - Phase 1 (COARSE_ONLY) exits at coarse threshold; others at fine threshold
+        if (ai_motor_mode == AI_MOTOR_MODE_COARSE_ONLY &&
+            error <= charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold) {
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+            coarse_stop_tick = xTaskGetTickCount();
+            break;
+        }
+
         if (error < charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
             // Stop all motors
             motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
@@ -374,29 +387,23 @@ void charge_mode_wait_for_complete() {
     last_charge_elapsed_seconds = (float)(elapsed_ticks * portTICK_PERIOD_MS) / 1000.0f;
 
     // Record AI telemetry or background ML data
-    float final_weight = scale_get_current_measurement();
     float total_ms = (float)(elapsed_ticks * portTICK_PERIOD_MS);
     float coarse_ms = coarse_stop_tick ? (float)((coarse_stop_tick - charge_start_tick) * portTICK_PERIOD_MS) : 0.0f;
     float fine_ms = total_ms - coarse_ms;
 
     if (ai_active) {
-        float overthrow = final_weight - charge_mode_config.target_charge_weight;
-        ai_drop_telemetry_t telemetry = {};
-        telemetry.drop_number       = ai_tuning_get_session()->drops_completed;
-        telemetry.coarse_time_ms    = coarse_ms;
-        telemetry.fine_time_ms      = fine_ms;
-        telemetry.total_time_ms     = total_ms;
-        telemetry.final_weight      = final_weight;
-        telemetry.target_weight     = charge_mode_config.target_charge_weight;
-        telemetry.overthrow         = overthrow;
-        telemetry.overthrow_percent = (charge_mode_config.target_charge_weight > 0.0f)
-                                      ? (overthrow / charge_mode_config.target_charge_weight) * 100.0f
-                                      : 0.0f;
-        telemetry.coarse_kp_used    = coarse_kp_used;
-        telemetry.coarse_kd_used    = coarse_kd_used;
-        telemetry.fine_kp_used      = fine_kp_used;
-        telemetry.fine_kd_used      = fine_kd_used;
-        ai_tuning_record_drop(&telemetry);
+        // Defer AI telemetry to cup_removal (1s settle) for accurate weight reading, same as ML
+        ai_pending_telemetry.drop_number    = ai_tuning_get_session()->drops_completed;
+        ai_pending_telemetry.coarse_time_ms = coarse_ms;
+        ai_pending_telemetry.fine_time_ms   = fine_ms;
+        ai_pending_telemetry.total_time_ms  = total_ms;
+        ai_pending_telemetry.coarse_kp_used = coarse_kp_used;
+        ai_pending_telemetry.coarse_kd_used = coarse_kd_used;
+        ai_pending_telemetry.fine_kp_used   = fine_kp_used;
+        ai_pending_telemetry.fine_kd_used   = fine_kd_used;
+        ai_pending_telemetry.target_weight  = charge_mode_config.target_charge_weight;
+        ai_pending_motor_mode               = ai_motor_mode;
+        ai_record_pending                   = true;
     }
     else if (charge_mode_config.eeprom_charge_mode_data.ml_data_collection_enabled) {
         // Defer ML recording to cup removal phase — flash_safe_execute is too slow
@@ -442,6 +449,26 @@ void charge_mode_wait_for_cup_removal() {
     // Take current measurement (settled reading used for ML overthrow too)
     float current_measurement = scale_get_current_measurement();
     float error = charge_mode_config.target_charge_weight - current_measurement;
+
+    // Deferred AI tuning recording — use settled measurement for accurate weight
+    if (ai_record_pending) {
+        ai_record_pending = false;
+        // Phase 1: overthrow relative to coarse stop point; Phase 2+: relative to full target
+        float ai_effective_target;
+        if (ai_pending_motor_mode == AI_MOTOR_MODE_COARSE_ONLY) {
+            ai_effective_target = ai_pending_telemetry.target_weight -
+                                  charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold;
+        } else {
+            ai_effective_target = ai_pending_telemetry.target_weight;
+        }
+        float ai_overthrow = current_measurement - ai_effective_target;
+        ai_pending_telemetry.final_weight      = current_measurement;
+        ai_pending_telemetry.overthrow         = ai_overthrow;
+        ai_pending_telemetry.overthrow_percent = (ai_effective_target > 0.0f)
+                                                 ? (ai_overthrow / ai_effective_target) * 100.0f
+                                                 : 0.0f;
+        ai_tuning_record_drop(&ai_pending_telemetry);
+    }
 
     // Deferred ML recording — use settled measurement taken after 1s delay
     if (ml_record_pending) {
