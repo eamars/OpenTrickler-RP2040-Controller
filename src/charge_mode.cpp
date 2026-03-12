@@ -689,9 +689,12 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c11 (int): precharge_time_ms
     // c12 (float): precharge_speed_rps
     // c13 (float): coarse_stop_gate_ratio
+    // c14 (uint32): coarse_time_target_ms (AI tuning coarse pre-charge duration)
+    // c15 (uint32): total_time_target_ms  (AI tuning total time target)
+    // c16 (bool): ml_data_collection_enabled
     // ee (bool): save to eeprom
 
-    static char charge_mode_json_buffer[256];
+    static char charge_mode_json_buffer[512];
     bool save_to_eeprom = false;
 
     // Control
@@ -726,6 +729,16 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
             charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio = strtof(values[idx], NULL);
         }
 
+        // AI tuning related settings
+        else if (strcmp(params[idx], "c14") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_time_target_ms = (uint32_t) strtol(values[idx], NULL, 10);
+        }
+        else if (strcmp(params[idx], "c15") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.total_time_target_ms = (uint32_t) strtol(values[idx], NULL, 10);
+        }
+        else if (strcmp(params[idx], "c16") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.ml_data_collection_enabled = string_to_boolean(values[idx]);
+        }
 
         // LED related settings
         else if (strcmp(params[idx], "c1") == 0) {
@@ -755,7 +768,8 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              sizeof(charge_mode_json_buffer),
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
-             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f,\"c13\":%0.3f}",
+             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f,\"c13\":%0.3f,"
+             "\"c14\":%lu,\"c15\":%lu,\"c16\":%s}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour._raw_colour,
@@ -768,7 +782,10 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              boolean_to_string(charge_mode_config.eeprom_charge_mode_data.precharge_enable),
              charge_mode_config.eeprom_charge_mode_data.precharge_time_ms,
              charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps,
-             charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio);
+             charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio,
+             (unsigned long) charge_mode_config.eeprom_charge_mode_data.coarse_time_target_ms,
+             (unsigned long) charge_mode_config.eeprom_charge_mode_data.total_time_target_ms,
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.ml_data_collection_enabled));
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
