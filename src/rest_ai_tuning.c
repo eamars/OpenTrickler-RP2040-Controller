@@ -398,8 +398,11 @@ bool http_rest_ai_tuning_history(struct fs_file *file, int num_params,
     // Add drop records
     len += snprintf(ai_tuning_json_buffer + len, sizeof(ai_tuning_json_buffer) - len, ",\"drops\":[");
 
+    // For a full circular buffer, oldest entry is at next_idx; for partial, oldest is at 0
+    int oldest_idx = (history->count >= AI_TUNING_HISTORY_SIZE) ? history->next_idx : 0;
     for (int i = 0; i < history->count && i < AI_TUNING_HISTORY_SIZE && len < (int)sizeof(ai_tuning_json_buffer) - 150; i++) {
-        ai_drop_record_t* d = &history->drops[i];
+        int idx = (oldest_idx + i) % AI_TUNING_HISTORY_SIZE;
+        ai_drop_record_t* d = &history->drops[idx];
         if (i > 0) {
             len += snprintf(ai_tuning_json_buffer + len, sizeof(ai_tuning_json_buffer) - len, ",");
         }

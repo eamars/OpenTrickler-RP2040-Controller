@@ -2321,13 +2321,13 @@
         fetch('/rest/ai_tuning_status')
         .then(r => r.json())
         .then(data => {
-            const panel  = document.getElementById('aiTuningMainPanel');
-            const banner = document.getElementById('mlSuggestionsBanner');
+            const panel     = document.getElementById('aiTuningMainPanel');
+            const recBanner = document.getElementById('mlRecommendationBanner');  // green — AI session complete
             const isActive   = data['is_active'];
             const isComplete = data['is_complete'];
 
-            if (panel)  panel.style.display  = isActive   ? 'block' : 'none';
-            if (banner) banner.style.display = isComplete ? 'block' : 'none';
+            if (panel)     panel.style.display     = isActive   ? 'block' : 'none';
+            if (recBanner) recBanner.style.display = isComplete ? 'block' : 'none';
 
             if (isActive) {
                 const cp    = data['current_params'] || {};
@@ -2362,14 +2362,21 @@
         if (!pollAiTuningMainPanel._tick) pollAiTuningMainPanel._tick = 0;
         pollAiTuningMainPanel._tick++;
         if (pollAiTuningMainPanel._tick % 10 === 1) {  // every ~5s (10 × 500ms)
-            fetch('/rest/ai_tuning_history')
-            .then(r => r.json())
-            .then(hist => {
-                _mlHasSuggestions = !!(hist['has_suggestions']) && (hist['count'] || 0) >= 10;
-                const rec = document.getElementById('mlRecommendationBanner');
-                if (rec) rec.style.display = _mlHasSuggestions ? 'block' : 'none';
-            })
-            .catch(e => {});
+            if (_aiHistoryPollId) {
+                // aiLoadHistory setInterval is active (on AI Tuning settings page) — use cached value
+                const sug = document.getElementById('mlSuggestionsBanner');
+                if (sug) sug.style.display = _mlHasSuggestions ? 'block' : 'none';
+            } else {
+                // On Trickler page — fetch independently to keep ML suggestion banner up to date
+                fetch('/rest/ai_tuning_history')
+                .then(r => r.json())
+                .then(hist => {
+                    _mlHasSuggestions = !!(hist['has_suggestions']) && (hist['count'] || 0) >= 10;
+                    const sug = document.getElementById('mlSuggestionsBanner');
+                    if (sug) sug.style.display = _mlHasSuggestions ? 'block' : 'none';
+                })
+                .catch(e => {});
+            }
         }
     }
 
@@ -2476,13 +2483,17 @@
         fetch('/rest/ai_tuning_history')
         .then(r => r.json())
         .then(data => {
+            const count = data['count'] || 0;
             const countEl = document.getElementById('aiHistoryCount');
-            if (countEl) countEl.innerText = (data['count'] || 0) + ' drops';
+            if (countEl) countEl.innerText = count + ' drops';
 
-            // ML suggestions
+            // Update shared suggestion state (used by pollAiTuningMainPanel to avoid duplicate fetch)
+            _mlHasSuggestions = !!(data['has_suggestions']) && count >= 10;
+
+            // ML suggestions section
             const sugSection = document.getElementById('aiSuggestedSection');
             if (sugSection) {
-                if (data['has_suggestions'] && data['count'] >= 10 && data['suggested']) {
+                if (_mlHasSuggestions && data['suggested']) {
                     sugSection.style.display = 'block';
                     const kpEl = document.getElementById('aiSugFineKp');
                     const kdEl = document.getElementById('aiSugFineKd');
@@ -2493,18 +2504,16 @@
                 }
             }
 
-            // Show ML banner on trickler page if suggestions available
-            const banner = document.getElementById('mlSuggestionsBanner');
-            if (banner && !document.getElementById('aiTuningMainPanel').style.display !== 'none') {
-                banner.style.display = (data['has_suggestions'] && data['count'] >= 10) ? 'block' : 'none';
-            }
+            // Sync ML suggestion banner (blue — on Trickler page)
+            const sugBanner = document.getElementById('mlSuggestionsBanner');
+            if (sugBanner) sugBanner.style.display = _mlHasSuggestions ? 'block' : 'none';
 
             // Drop history table
             const tbody = document.getElementById('aiHistoryTableBody');
             if (!tbody) return;
             tbody.innerHTML = '';
-            const drops = data['drops'] || [];
-            if (drops.length === 0) {
+            const drops = Array.isArray(data['drops']) ? data['drops'] : [];
+            if (count === 0 || drops.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500">No history yet</td></tr>';
                 return;
             }
@@ -2514,7 +2523,7 @@
                 return '#' + idx;
             }
             drops.forEach((drop, i) => {
-                const ot = drop.overthrow || 0;
+                const ot = (drop.overthrow !== undefined && drop.overthrow !== null) ? drop.overthrow : 0;
                 const otClass = ot > 0.02 ? 'text-error' : ot < -0.02 ? 'text-warning' : 'text-success';
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${i+1}</td><td>${getProfileName(drop.profile)}</td><td class="${otClass}">${ot >= 0 ? '+' : ''}${ot.toFixed(3)}gn</td><td>${((drop.time||0)/1000).toFixed(1)}s</td>`;
