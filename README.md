@@ -1,5 +1,46 @@
-# OpenTrickler RP2040 Controller 
+# OpenTrickler RP2040 Controller
 This repo is for the firmware that utilises the Raspberry Pi RP2040 micro controller OpenTrickler RP2040 Controller.
+
+## What's New — Branch `feature/ai-tuning-port`
+
+This branch ports the AI auto-tuning system from [OpenTrickler-v2](https://github.com/Jump73/OpenTrickler-v2) and integrates it fully into the RP2040/RP2350 firmware.
+
+### AI Auto-Tuning (`src/ai_tuning.*`)
+Automatic PID parameter optimisation using a binary-step search algorithm:
+- **Phase 1 (COARSE_ONLY)** — tunes coarse trickler Kp/Kd across configurable search bounds
+- **Phase 2 (FINE_ONLY)** — tunes fine trickler Kp/Kd, with a coarse pre-charge at the start of each drop
+- Configurable time targets: `coarse_time_target_ms` (c14) and `total_time_target_ms` (c15)
+- Configurable search bounds (Kp/Kd min/max), noise margin, and max overthrow threshold via `/rest/ai_tuning_config_set`
+- Results persisted in flash; apply best parameters to a profile via `/rest/ai_tuning_apply`
+
+### ML Data Collection (`src/ml_data_collection.*`, `src/ai_drop_telemetry.*`)
+- Records per-drop telemetry (weight, timing, motor params) to flash during normal charges when enabled
+- Toggle via charge mode config field `c16` (`ml_data_collection_enabled`)
+
+### Charge Mode Integration (`src/charge_mode.cpp`)
+- Charge loop queries `ai_tuning_get_next_params()` and overrides PID parameters when tuning is active
+- Coarse pre-charge phase injected at start of each drop in Phase 2
+- `ai_tuning_record_drop()` called after every drop to feed results back to the tuner
+- RST button cancels active tuning session
+- Tuning completion detected after cup removal — charge mode exits automatically
+
+### Error System (`src/errors.*`)
+- Centralised error reporting ported from v2; integrates with display and REST API
+
+### G&G Scale Fix
+- Fixed serial parsing for G&G / JJB scale driver
+
+### Web UI (`src/html/web_portal.html`)
+New **AI Tuning** section in the web portal Settings drawer:
+- Select profile and target charge weight, then start/cancel/apply tuning
+- Live progress panel (drops completed, progress %, current Kp/Kd) overlaid on the Trickler page during active tuning
+- Recommended parameters displayed on completion with one-tap Apply
+- Advanced collapsible panel for Kp/Kd search range and noise margin configuration
+- ML Data Collection toggle
+- REST endpoints used: `/rest/ai_tuning_start`, `/rest/ai_tuning_status`, `/rest/ai_tuning_apply`, `/rest/ai_tuning_cancel`, `/rest/ai_tuning_clear_history`, `/rest/ai_tuning_config`, `/rest/ai_tuning_config_set`
+
+### RP2350 Support
+- All new modules compile cleanly for both `pico_w` (RP2040) and `pico2_w` (RP2350) targets
 
 Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and development information. 
 
