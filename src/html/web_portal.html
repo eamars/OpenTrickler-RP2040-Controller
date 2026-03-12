@@ -2352,35 +2352,43 @@
         .catch(e => console.error('Error toggling ML data collection:', e));
     }
 
+    // Firmware defaults (must match ai_tuning.c #define values)
+    const _aiCfgDefaults = {
+        coarse_kp_min: 0.01, coarse_kp_max: 1.0,
+        coarse_kd_min: 0.01, coarse_kd_max: 2.0,
+        fine_kp_min:   0.01, fine_kp_max:   5.0,
+        fine_kd_min:   0.01, fine_kd_max:  20.0,
+        noise_margin:  0.05,
+    };
+    const _aiCfgFieldMap = {
+        'coarse_kp_min': 'aiCfgCoarseKpMin', 'coarse_kp_max': 'aiCfgCoarseKpMax',
+        'coarse_kd_min': 'aiCfgCoarseKdMin', 'coarse_kd_max': 'aiCfgCoarseKdMax',
+        'fine_kp_min':   'aiCfgFineKpMin',   'fine_kp_max':   'aiCfgFineKpMax',
+        'fine_kd_min':   'aiCfgFineKdMin',   'fine_kd_max':   'aiCfgFineKdMax',
+        'noise_margin':  'aiCfgNoiseMargin',
+    };
+
+    function _applyAiCfgToForm(data) {
+        for (const [key, elId] of Object.entries(_aiCfgFieldMap)) {
+            const el = document.getElementById(elId);
+            if (!el) continue;
+            // Use firmware value if present and non-zero, otherwise use hardcoded default
+            const val = (data && data[key] !== undefined && Number(data[key]) !== 0)
+                        ? data[key] : _aiCfgDefaults[key];
+            el.value = val;
+        }
+    }
+
     function aiLoadAdvancedConfig() {
         fetch('/rest/ai_tuning_config')
         .then(r => r.json())
-        .then(data => {
-            const map = {
-                'coarse_kp_min': 'aiCfgCoarseKpMin', 'coarse_kp_max': 'aiCfgCoarseKpMax',
-                'coarse_kd_min': 'aiCfgCoarseKdMin', 'coarse_kd_max': 'aiCfgCoarseKdMax',
-                'fine_kp_min':   'aiCfgFineKpMin',   'fine_kp_max':   'aiCfgFineKpMax',
-                'fine_kd_min':   'aiCfgFineKdMin',   'fine_kd_max':   'aiCfgFineKdMax',
-                'noise_margin':  'aiCfgNoiseMargin',
-            };
-            for (const [key, elId] of Object.entries(map)) {
-                const el = document.getElementById(elId);
-                if (el && data[key] !== undefined) el.value = data[key];
-            }
-        })
-        .catch(e => console.error('Error loading AI config:', e));
+        .then(data => _applyAiCfgToForm(data))
+        .catch(e => _applyAiCfgToForm(null));  // fill with defaults on error
     }
 
     function aiTuningSaveAdvancedConfig() {
-        const fields = {
-            'coarse_kp_min': 'aiCfgCoarseKpMin', 'coarse_kp_max': 'aiCfgCoarseKpMax',
-            'coarse_kd_min': 'aiCfgCoarseKdMin', 'coarse_kd_max': 'aiCfgCoarseKdMax',
-            'fine_kp_min':   'aiCfgFineKpMin',   'fine_kp_max':   'aiCfgFineKpMax',
-            'fine_kd_min':   'aiCfgFineKdMin',   'fine_kd_max':   'aiCfgFineKdMax',
-            'noise_margin':  'aiCfgNoiseMargin',
-        };
         const params = new URLSearchParams();
-        for (const [key, elId] of Object.entries(fields)) {
+        for (const [key, elId] of Object.entries(_aiCfgFieldMap)) {
             const el = document.getElementById(elId);
             if (el && el.value !== '') params.append(key, el.value);
         }
