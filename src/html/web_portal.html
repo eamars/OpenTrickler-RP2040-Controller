@@ -54,7 +54,14 @@
                 <div class="grid grid-cols-1 gap-2 px-4">
                     <!-- Row 1 -->
                     <div class="divider">Charge Control</div>
-                    
+
+                    <!-- Profile selector -->
+                    <div class="grid grid-cols-1 gap-1">
+                        <span class="label-text text-xs text-gray-500">Active Profile</span>
+                        <select id="tricklerProfileSelect" class="select select-bordered select-primary select-sm w-full" onchange="onTricklerProfileChanged(this)">
+                        </select>
+                    </div>
+
                     <!-- Row 2 -->
                     <ul class="steps">
                         <li id="chargeModeStateWait" class="step step-primary">Wait</li>
@@ -1369,6 +1376,20 @@
         })
     }
 
+    function onTricklerProfileChanged(sel) {
+        const idx = sel.value;
+        fetch(`/rest/profile_config?pf=${encodeURIComponent(idx)}`)
+        .then(r => r.json())
+        .then(() => {
+            // Sync all other profile selectors
+            const aiSel = document.getElementById('aiTuningProfileSelect');
+            if (aiSel) aiSel.value = idx;
+            const settingsSel = document.getElementById('select_profile_option');
+            if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
+        })
+        .catch(e => console.error('Error switching profile:', e));
+    }
+
     function onQuickProfileSelectConfirmed() {
         const quickChangeProfileSelect = document.getElementById("quickChangeProfileSelect");
         const idx = quickChangeProfileSelect.value;
@@ -1379,12 +1400,13 @@
             return response.json();
         })
         .then(() => {
-            // Sync AI tuning profile selector
+            // Sync all profile selectors
             const aiSel = document.getElementById("aiTuningProfileSelect");
             if (aiSel) aiSel.value = idx;
-            // Sync settings profile selector
             const settingsSel = document.getElementById("select_profile_option");
             if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
+            const tricklerSel = document.getElementById("tricklerProfileSelect");
+            if (tricklerSel) tricklerSel.value = idx;
         })
         .catch(error => {
             console.error("Error setting profile");
@@ -1621,6 +1643,9 @@
                 settingsNavButton.classList.remove("active");
                 purgeNavButton.classList.remove("active");
                 tricklerNavButton.classList.add("active");
+
+                // Load profile list
+                loadProfileDropdowns();
 
                 // Restart
                 _restartPoll();
@@ -2061,10 +2086,10 @@
             const selectors = [
                 document.getElementById('aiTuningProfileSelect'),
                 document.getElementById('select_profile_option'),
+                document.getElementById('tricklerProfileSelect'),
             ];
             selectors.forEach(sel => {
                 if (!sel) return;
-                const prev = sel.value;
                 sel.innerHTML = '';
                 for (const idx in profiles) {
                     const opt = document.createElement('option');
@@ -2073,11 +2098,8 @@
                     opt.text = name.length > 0 ? name : '#' + idx;
                     sel.appendChild(opt);
                 }
-                sel.value = prev || currentIdx;
+                sel.value = currentIdx;
             });
-            // Set AI select to current profile
-            const aiSel = document.getElementById('aiTuningProfileSelect');
-            if (aiSel) aiSel.value = currentIdx;
         })
         .catch(e => console.error('Error loading profiles:', e));
     }
@@ -2088,9 +2110,11 @@
         fetch(`/rest/profile_config?pf=${encodeURIComponent(idx)}`)
         .then(r => r.json())
         .then(() => {
-            // Sync settings profile selector
+            // Sync all other profile selectors
             const settingsSel = document.getElementById('select_profile_option');
             if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
+            const tricklerSel = document.getElementById('tricklerProfileSelect');
+            if (tricklerSel) tricklerSel.value = idx;
         })
         .catch(e => console.error('Error switching profile:', e));
     }
