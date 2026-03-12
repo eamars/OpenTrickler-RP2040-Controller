@@ -380,9 +380,10 @@ bool http_rest_ai_tuning_history(struct fs_file *file, int num_params,
 
     // Build JSON response with drop records and suggestions
     int len = snprintf(ai_tuning_json_buffer, sizeof(ai_tuning_json_buffer),
-        "%s{\"count\":%d,\"has_suggestions\":%s",
+        "%s{\"count\":%d,\"has_suggestions\":%s,\"profile_idx\":%d",
         http_json_header, history->count,
-        history->has_suggestions ? "true" : "false");
+        history->has_suggestions ? "true" : "false",
+        history->current_profile_idx);
 
     // Add suggestions if available (ML only suggests fine params)
     if (history->has_suggestions) {

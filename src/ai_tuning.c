@@ -699,6 +699,13 @@ void ai_tuning_record_charge(uint8_t profile_idx,
                               float coarse_time_ms, float fine_time_ms) {
     load_history_from_flash();
 
+    // Auto-clear history when profile changes so each profile gets a fresh session
+    if (g_history.count > 0 && profile_idx != g_history.current_profile_idx) {
+        memset(&g_history, 0, sizeof(ai_tuning_history_t));
+        g_history.revision = AI_TUNING_HISTORY_REV;
+    }
+    g_history.current_profile_idx = profile_idx;
+
     ai_drop_record_t record = {
         .coarse_kp = coarse_kp,
         .coarse_kd = coarse_kd,

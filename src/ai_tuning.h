@@ -6,7 +6,7 @@
 #include "profile.h"
 
 #define AI_TUNING_HISTORY_SIZE 10
-#define AI_TUNING_HISTORY_REV 4  // Bumped: added scale_latency_compensation
+#define AI_TUNING_HISTORY_REV 5  // Bumped: added current_profile_idx for per-profile ML data
 #define AI_TUNING_DROP_BUF_SIZE 10
 #define AI_TUNING_CONFIG_REV 2   // EEPROM config revision (v2: removed coarse_overthrow_max_percent)
 
@@ -132,6 +132,7 @@ typedef struct {
     float suggested_fine_kd;
     bool has_suggestions;
     float scale_latency_compensation;  // Learned overthrow compensation (grains)
+    uint8_t current_profile_idx;       // Profile for which data was collected (auto-clears on change)
 } ai_tuning_history_t;
 
 #ifdef __cplusplus
