@@ -2192,18 +2192,10 @@
         .catch(e => {});
     }
 
-    // Auto-refresh ML history count every 5s while on AI Tuning settings page
+    // Auto-refresh ML history (full update: badge + table + suggestions) every 5s
     function _startAiHistoryPoll() {
         _stopAiHistoryPoll();
-        _aiHistoryPollId = setInterval(function() {
-            fetch('/rest/ai_tuning_history')
-            .then(r => r.json())
-            .then(data => {
-                const countEl = document.getElementById('aiHistoryCount');
-                if (countEl) countEl.innerText = (data['count'] || 0) + ' drops';
-            })
-            .catch(() => {});
-        }, 5000);
+        _aiHistoryPollId = setInterval(aiLoadHistory, 5000);
     }
     function _stopAiHistoryPoll() {
         if (_aiHistoryPollId) { clearInterval(_aiHistoryPollId); _aiHistoryPollId = null; }
@@ -2352,7 +2344,7 @@
             fetch('/rest/ai_tuning_history')
             .then(r => r.json())
             .then(hist => {
-                _mlHasSuggestions = !!(hist['has_suggestions']);
+                _mlHasSuggestions = !!(hist['has_suggestions']) && (hist['count'] || 0) >= 3;
                 const rec = document.getElementById('mlRecommendationBanner');
                 if (rec) rec.style.display = _mlHasSuggestions ? 'block' : 'none';
             })
@@ -2469,7 +2461,7 @@
             // ML suggestions
             const sugSection = document.getElementById('aiSuggestedSection');
             if (sugSection) {
-                if (data['has_suggestions'] && data['suggested']) {
+                if (data['has_suggestions'] && data['count'] >= 3 && data['suggested']) {
                     sugSection.style.display = 'block';
                     const kpEl = document.getElementById('aiSugFineKp');
                     const kdEl = document.getElementById('aiSugFineKd');
@@ -2483,7 +2475,7 @@
             // Show ML banner on trickler page if suggestions available
             const banner = document.getElementById('mlSuggestionsBanner');
             if (banner && !document.getElementById('aiTuningMainPanel').style.display !== 'none') {
-                banner.style.display = (data['has_suggestions']) ? 'block' : 'none';
+                banner.style.display = (data['has_suggestions'] && data['count'] >= 3) ? 'block' : 'none';
             }
 
             // Drop history table
