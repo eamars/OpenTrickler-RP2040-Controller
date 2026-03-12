@@ -88,11 +88,19 @@
                 </div>
             </div>
 
-            <!-- ML Suggestions Banner -->
+            <!-- AI Tuning Complete Banner -->
             <div id="mlSuggestionsBanner" style="display: none;" class="px-4 pt-2 cursor-pointer" onclick="onNavButtonClicked('settings'); onSettingsLinkClicked('settings-ai-tuning');">
                 <div role="alert" class="alert alert-info">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span>AI Tuning complete! Tap to view results.</span>
+                </div>
+            </div>
+
+            <!-- ML Recommendation Button (shown when ML data collection has suggestions) -->
+            <div id="mlRecommendationBanner" style="display: none;" class="px-4 pt-2 cursor-pointer" onclick="onMlRecommendationClicked();">
+                <div role="alert" class="alert alert-success">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>ML Recommendation available — tap to apply to profile.</span>
                 </div>
             </div>
 
@@ -2234,6 +2242,7 @@
     }
 
     // Live panel in trickler section — called every 500ms from pollChargeModeStatus
+    var _mlHasSuggestions = false;
     function pollAiTuningMainPanel() {
         fetch('/rest/ai_tuning_status')
         .then(r => r.json())
@@ -2251,15 +2260,14 @@
                 const state = data['state'] || '';
                 const dropsCompleted = data['drops_completed'] || 0;
 
-                // Phase badge
                 const phaseEl = document.getElementById('aiMainPhase');
                 if (phaseEl) {
                     phaseEl.innerText = state.includes('coarse') ? 'Phase 1: Coarse' : 'Phase 2: Fine';
                     phaseEl.className = 'badge ' + (state.includes('coarse') ? 'badge-primary' : 'badge-secondary');
                 }
-                const dropEl    = document.getElementById('aiMainDrop');
-                const testEl    = document.getElementById('aiMainTesting');
-                const lastEl    = document.getElementById('aiMainLast');
+                const dropEl = document.getElementById('aiMainDrop');
+                const testEl = document.getElementById('aiMainTesting');
+                const lastEl = document.getElementById('aiMainLast');
                 if (dropEl) dropEl.innerText = dropsCompleted;
                 if (testEl && Object.keys(cp).length) {
                     const kp = state.includes('coarse') ? cp.coarse_kp : cp.fine_kp;
@@ -2275,6 +2283,31 @@
             }
         })
         .catch(e => {});
+
+        // Check ML history for suggestions (runs every ~5s to avoid hammering REST)
+        if (!pollAiTuningMainPanel._tick) pollAiTuningMainPanel._tick = 0;
+        pollAiTuningMainPanel._tick++;
+        if (pollAiTuningMainPanel._tick % 10 === 1) {  // every ~5s (10 × 500ms)
+            fetch('/rest/ai_tuning_history')
+            .then(r => r.json())
+            .then(hist => {
+                _mlHasSuggestions = !!(hist['has_suggestions']);
+                const rec = document.getElementById('mlRecommendationBanner');
+                if (rec) rec.style.display = _mlHasSuggestions ? 'block' : 'none';
+            })
+            .catch(e => {});
+        }
+    }
+
+    // Navigate to AI Tuning settings page and scroll to ML section
+    function onMlRecommendationClicked() {
+        onNavButtonClicked('settings');
+        onSettingsLinkClicked('settings-ai-tuning');
+        // After page loads, scroll to ML section
+        setTimeout(() => {
+            const mlDiv = document.getElementById('aiSuggestedSection');
+            if (mlDiv) mlDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
     }
 
     function aiTuningStart() {
