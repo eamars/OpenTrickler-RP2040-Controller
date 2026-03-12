@@ -2100,7 +2100,7 @@
         loadProfileDropdowns();
 
         // Firmware defaults for threshold fields (must match charge_mode.cpp defaults)
-        const _thresholdDefaults = { c5: 5, c6: 0.03, c14: 500, c15: 3000 };
+        const _thresholdDefaults = { c5: 5, c6: 0.03, c14: 6000, c15: 20000 };
 
         // Load thresholds from charge mode config
         fetch('/rest/charge_mode_config')
