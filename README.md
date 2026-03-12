@@ -1,6 +1,6 @@
 # OpenTrickler RP2040 Controller
 
-This repo is for the firmware that utilises the Raspberry Pi RP2040 micro controller OpenTrickler RP2040 Controller.
+This repo is for the firmware that utilises the Raspberry Pi RP2040/RP2350 microcontroller to operate the [OpenTrickler](https://github.com/eamars/OpenTrickler).
 
 Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and development information. 
 
