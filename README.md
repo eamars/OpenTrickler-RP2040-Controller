@@ -4,19 +4,49 @@ This repo is for the firmware that utilises the Raspberry Pi RP2040 micro contro
 
 Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and development information. 
 
-## Supported Scales
+## Features
 
-| Supported Scale              | Read | Force Zero (Tare)                 | Notes                               |
-| ---------------------------- | ---- | --------------------------------- | ----------------------------------- |
-| A&D fx-i series (Std Format) | ✔️   | ✔️                                | Baud: 19200, Format: 8d,1s,np       |
-| Steinberg SBS                | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np        |
-| G&G JJ / JJB series          | ✔️   | ✔️(Unreliable)                    | Baud: 9600, Format: 8d,1s,np        |
-| U.S.Solid JFDBS              | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np        |
-| JM Science series            | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np        |
-| Creedmoor Sports series      | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np        |
-| Radwag R series              | ✔️   | ✔️                                | Baud: 9600, Format: 8d,1s,np        |
-| Sartorius series             | ✔️   | ❌ (Not supported yet, but doable) | Baud: 9600, Format: 8d,1s,np        |
-| Generic Scale Driver         | ✔️   |                                   | Depends |
+### Supported Scales
+
+| Supported Scale              | Read | Force Zero (Tare)                 | Notes                             |
+| ---------------------------- | ---- | --------------------------------- | --------------------------------- |
+| A&D fx-i series (Std Format) | ✔️   | ✔️                                | Baud: **19200**, Format: 8d,1s,np |
+| Steinberg SBS                | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
+| G&G JJ / JJB series          | ✔️   | ✔️(Unreliable)                    | Baud: 9600, Format: 8d,1s,np      |
+| U.S.Solid JFDBS              | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
+| JM Science series            | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
+| Creedmoor Sports series      | ✔️   | ❌                                 | Baud: 9600, Format: 8d,1s,np      |
+| Radwag R series              | ✔️   | ✔️                                | Baud: 9600, Format: 8d,1s,np      |
+| Sartorius series             | ✔️   | ❌ (Not supported yet, but doable) | Baud: 9600, Format: **7d**,1s,np  |
+| Generic Scale Driver         | ✔️   |                                   | Depends                           |
+
+### Supported Hardware
+
+- Mini 12864 Display Module (with rotary encoder, 3x Neopixel LED)
+
+- Dedicated Neopixel LED (up to 16 chains)
+
+- 2x Miniture Servo Motors (TowerPro SG/MG90S, or similar)
+
+- 2x TMC2209 (STEP/DIR with 1-line UART)
+
+- On-board EEPROM (up to 256 kbits)
+
+### Remote Connectivity
+
+* WiFi (2.4 Ghz only,  AP or Station mode)
+
+* Web Interface
+
+* RESTFul Interface
+
+* mDNS Lookup
+
+### Operating Modes
+
+* Charge Mode
+
+* Cleanup Mode
 
 ## Get Started
 
