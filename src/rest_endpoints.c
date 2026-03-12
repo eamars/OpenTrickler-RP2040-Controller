@@ -14,11 +14,19 @@
 #include "cleanup_mode.h"
 #include "servo_gate.h"
 #include "system_control.h"
+#include "rest_errors.h"
+#include "rest_ai_tuning.h"
+#include "ai_tuning.h"
+#include "flash_storage.h"
+#include "display_config.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
 #include "web_portal.html.h"
+#include "web_portal_basic.html.h"
 #include "wizard.html.h"
+#include "styles.css.h"
+#include "favicon.ico.h"
 
 
 bool http_404_error(struct fs_file *file, int num_params, char *params[], char *values[]) {
@@ -69,6 +77,39 @@ bool http_wizard(struct fs_file *file, int num_params, char *params[], char *val
 }
 
 
+bool http_web_portal_basic(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(html_web_portal_basic_html);
+
+    file->data = html_web_portal_basic_html;
+    file->len = len;
+    file->index = len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+
+    return true;
+}
+
+
+bool http_styles_css(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(css_styles_css);
+
+    file->data = css_styles_css;
+    file->len = len;
+    file->index = len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+
+    return true;
+}
+
+
+bool http_favicon(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    file->data = (const char *)favicon_ico;
+    file->len = favicon_ico_len;
+    file->index = favicon_ico_len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+
+    return true;
+}
+
 
 bool rest_endpoints_init(bool default_wizard) {
     if (default_wizard) {
@@ -99,6 +140,25 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/rest/servo_gate_config", http_rest_servo_gate_config);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
+
+    // Additional web resources
+    rest_register_handler("/basic", http_web_portal_basic);
+    rest_register_handler("/styles.css", http_styles_css);
+    rest_register_handler("/favicon.ico", http_favicon);
+
+    // Error reporting endpoints
+    rest_register_handler("/rest/errors", http_rest_errors);
+    rest_register_handler("/rest/clear_errors", http_rest_clear_errors);
+
+    // Display configuration endpoint
+    rest_register_handler("/rest/display_config", http_rest_display_config);
+
+    // Initialize flash storage for ML history
+    flash_storage_init();
+
+    // Initialize AI tuning system and REST endpoints
+    ai_tuning_init();
+    rest_ai_tuning_init();
 
     return true;
 }

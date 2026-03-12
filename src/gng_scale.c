@@ -76,34 +76,59 @@ void _gng_scale_listener_task(void *p) {
     gngscale_standard_data_format_t frame;
 
     while (true) {
-        // Request for a data transfer (ESC p)
-        uart_puts(SCALE_UART, CMD_REQUEST_DATA_TRANSFER);
+        // Reset frame buffer index at the start of each poll cycle (fixes partial-frame carryover on timeout)
+        string_buf_idx = 0;
 
-            // Read all data 
-        while (uart_is_readable(SCALE_UART)) {   
-            char ch = uart_getc(SCALE_UART);
-            frame.bytes[string_buf_idx++] = ch;
-
-            // If we have received 14 bytes then we can decode the message
-            if (string_buf_idx == sizeof(gngscale_standard_data_format_t)) {
-                // Data is ready, send to decode
-                scale_config.current_scale_measurement = _decode_measurement_msg(&frame);
-                // Signal the data is ready
-                if (scale_config.scale_measurement_ready) {
-                    xSemaphoreGive(scale_config.scale_measurement_ready);
-                }
-
-                // Reset
-                string_buf_idx = 0;
-            }
-
-            // \n is the terminator. We shall reset the receive of message on receiving any of those character.
-            if (ch =='\n') {
-                string_buf_idx = 0;
-            }
+        // Clear any stale data in RX buffer before sending request
+        while (uart_is_readable(SCALE_UART)) {
+            uart_getc(SCALE_UART);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(250));
+        // Request for a data transfer using mutex-protected write
+        scale_write(CMD_REQUEST_DATA_TRANSFER, strlen(CMD_REQUEST_DATA_TRANSFER));
+
+        // Wait for scale to respond (up to 200ms)
+        TickType_t start_tick = xTaskGetTickCount();
+        bool got_response = false;
+
+        while ((xTaskGetTickCount() - start_tick) < pdMS_TO_TICKS(200)) {
+            while (uart_is_readable(SCALE_UART)) {
+                char ch = uart_getc(SCALE_UART);
+                frame.bytes[string_buf_idx++] = ch;
+
+                // If we have received 14 bytes then we can decode the message
+                if (string_buf_idx == sizeof(gngscale_standard_data_format_t)) {
+                    // Data is ready, send to decode
+                    scale_config.current_scale_measurement = _decode_measurement_msg(&frame);
+                    // Signal the data is ready
+                    if (scale_config.scale_measurement_ready) {
+                        xSemaphoreGive(scale_config.scale_measurement_ready);
+                    }
+
+                    // Reset
+                    string_buf_idx = 0;
+                    got_response = true;
+                }
+
+                // \n is the terminator. Reset on receiving it.
+                if (ch == '\n') {
+                    string_buf_idx = 0;
+                    if (got_response) {
+                        break;
+                    }
+                }
+            }
+
+            if (got_response) {
+                break;
+            }
+
+            // Small delay before checking again
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+
+        // Wait before next request
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
