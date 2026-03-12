@@ -363,8 +363,14 @@ void charge_mode_wait_for_complete() {
             new_p = fine_kp_used * error;
             new_i = current_profile->fine_ki * integral;
             new_d = fine_kd_used * derivative;
-            new_speed = fmax(fine_trickler_min_speed, fmin(new_p + new_i + new_d, fine_trickler_max_speed));
-            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
+            float fine_pid = new_p + new_i + new_d;
+            // Phase 2 FINE_ONLY: stop motor when PID <= 0 (don't force min speed past target)
+            if (ai_motor_mode == AI_MOTOR_MODE_FINE_ONLY && fine_pid <= 0.0f) {
+                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+            } else {
+                new_speed = fmax(fine_trickler_min_speed, fmin(fine_pid, fine_trickler_max_speed));
+                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
+            }
         }
 
         // Update coarse trickler speed
@@ -372,8 +378,14 @@ void charge_mode_wait_for_complete() {
             new_p = coarse_kp_used * error;
             new_i = current_profile->coarse_ki * integral;
             new_d = coarse_kd_used * derivative;
-            new_speed = fmax(coarse_trickler_min_speed, fmin(new_p + new_i + new_d, coarse_trickler_max_speed));
-            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, new_speed);
+            float coarse_pid = new_p + new_i + new_d;
+            // Phase 1 COARSE_ONLY: stop motor when PID <= 0 (don't force min speed past target)
+            if (ai_motor_mode == AI_MOTOR_MODE_COARSE_ONLY && coarse_pid <= 0.0f) {
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+            } else {
+                new_speed = fmax(coarse_trickler_min_speed, fmin(coarse_pid, coarse_trickler_max_speed));
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, new_speed);
+            }
         }
 
         // Record state

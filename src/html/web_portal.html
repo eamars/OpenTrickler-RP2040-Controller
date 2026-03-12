@@ -2250,23 +2250,28 @@
     }
 
     function _pollAiTuningSettingsPage() {
-        Promise.all([
-            fetch('/rest/ai_tuning_status').then(r => r.json()),
-            fetch('/rest/charge_mode_state').then(r => r.json())
-        ])
-        .then(([tuningData, chargeData]) => {
+        fetch('/rest/ai_tuning_status')
+        .then(r => r.json())
+        .then(tuningData => {
             updateAiTuningUI(tuningData);
             const chargeStateDiv = document.getElementById('aiTuningChargeStateDiv');
             if (tuningData['is_active']) {
                 if (chargeStateDiv) chargeStateDiv.style.display = 'block';
-                _setAiChargeModeStateWidget(chargeData['s2']);
+                // Fetch charge state separately — don't let its failure stop AI polling
+                fetch('/rest/charge_mode_state')
+                .then(r => r.json())
+                .then(chargeData => _setAiChargeModeStateWidget(chargeData['s2']))
+                .catch(() => {});
                 _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 500);
             } else {
                 if (chargeStateDiv) chargeStateDiv.style.display = 'none';
                 _aiTuningPollId = null;
             }
         })
-        .catch(e => { _aiTuningPollId = null; });
+        .catch(e => {
+            // On error retry after 1s — don't stop polling permanently
+            _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 1000);
+        });
     }
 
     function updateAiTuningUI(data) {
