@@ -157,6 +157,9 @@ const char * get_scale_driver_string() {
         case SCALE_DRIVER_SARTORIUS:
             scale_driver_string = "Sartorius";
             break;
+        case SCALE_DRIVER_GENERIC_DRV:
+            scale_driver_string = "Generic Driver";
+            break;
         default:
             break;
     }
