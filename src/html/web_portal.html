@@ -75,32 +75,22 @@
             </section>
 
             <!-- AI Tuning Live Panel (shown during active tuning) -->
-            <div id="aiTuningMainPanel" style="display: none;">
-                <div class="grid grid-cols-1 gap-2 px-4">
-                    <div class="divider">AI Tuning Active</div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="stat">
-                            <div class="stat-title">Drops</div>
-                            <div id="aiTuningDropsValue" class="stat-value text-primary">0/0</div>
-                            <div class="stat-desc">completed</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-title">Progress</div>
-                            <div id="aiTuningProgressValue" class="stat-value">0%</div>
-                            <div id="aiTuningPhaseLabel" class="stat-desc">-</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 gap-1">
-                        <span class="label-text">Current Params</span>
-                        <div id="aiTuningCurrentParams" class="text-sm font-mono bg-base-200 rounded p-2">-</div>
-                    </div>
-                    <button class="btn btn-warning btn-sm" onclick="aiTuningCancel()">Cancel Tuning</button>
+            <div id="aiTuningMainPanel" class="bg-base-200 rounded-lg mx-4 mt-2 p-3 text-sm" style="display: none;">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-primary">AI Tuning Active</span>
+                    <span id="aiMainPhase" class="badge badge-primary">-</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div><span class="text-gray-500">Drop: </span><span id="aiMainDrop" class="font-mono">-</span></div>
+                    <div><span class="text-gray-500">Testing: </span><span id="aiMainTesting" class="font-mono">-</span></div>
+                    <div><span class="text-gray-500">Last: </span><span id="aiMainLast" class="font-mono">-</span></div>
+                    <div><button class="btn btn-warning btn-xs" onclick="aiTuningCancel()">Cancel</button></div>
                 </div>
             </div>
 
             <!-- ML Suggestions Banner -->
-            <div id="mlSuggestionsBanner" style="display: none;" class="px-4 pt-2">
-                <div role="alert" class="alert alert-info cursor-pointer" onclick="onNavButtonClicked('settings'); onSettingsLinkClicked('settings-ai-tuning');">
+            <div id="mlSuggestionsBanner" style="display: none;" class="px-4 pt-2 cursor-pointer" onclick="onNavButtonClicked('settings'); onSettingsLinkClicked('settings-ai-tuning');">
+                <div role="alert" class="alert alert-info">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span>AI Tuning complete! Tap to view results.</span>
                 </div>
@@ -723,119 +713,227 @@
                     <!-- AI Tuning Settings -->
                     <section class="settings-page" id="settings-ai-tuning" name="AI Tuning" style="display: none;">
                         <div class="grid grid-cols-1 gap-3">
-                            <div class="divider">Start AI Tuning</div>
+
+                            <div role="alert" class="alert">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6 shrink-0 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Auto-tune PID parameters for coarse and fine tricklers. Place powder in hopper before starting.</span>
+                            </div>
+
+                            <!-- Profile selector (names loaded dynamically) -->
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Profile to Tune</span>
-                                <select id="aiTuningProfileSelect" class="select select-bordered">
-                                    <option value="0">#0</option>
-                                    <option value="1">#1</option>
-                                    <option value="2">#2</option>
-                                    <option value="3">#3</option>
-                                    <option value="4">#4</option>
-                                    <option value="5">#5</option>
-                                    <option value="6">#6</option>
-                                    <option value="7">#7</option>
-                                </select>
+                                <select id="aiTuningProfileSelect" class="select select-bordered select-primary" onchange="onAiTuningProfileChanged(this)"></select>
                             </div>
+
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Target Charge Weight (grains)</span>
-                                <input id="aiTuningTargetWeight" type="number" step="0.001" class="input input-bordered" placeholder="e.g. 42.000">
+                                <span class="label-text">Target Weight (grains)</span>
+                                <input id="aiTuningTargetWeight" type="number" step="0.01" min="1" max="200" class="input input-bordered" placeholder="e.g. 42.00">
                             </div>
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Coarse Time Target (s)</span>
-                                <input id="aiTuningCoarseTimeSec" type="number" step="0.1" class="input input-bordered">
-                            </div>
-                            <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Total Time Target (s)</span>
-                                <input id="aiTuningTotalTimeSec" type="number" step="0.1" class="input input-bordered">
-                            </div>
-                            <button class="btn btn-neutral" onclick="aiTuningSaveThresholds()">Save Time Targets</button>
+
+                            <!-- Thresholds form -->
+                            <form id="aiTuningThresholdsForm" action="/rest/charge_mode_config" class="grid grid-cols-1 gap-3">
+                                <div class="divider">Thresholds</div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="grid grid-cols-1 gap-1">
+                                        <span class="label-text text-xs">Coarse Stop Threshold (gn)</span>
+                                        <input type="number" class="input input-bordered input-sm" name="c5" step="0.001">
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-1">
+                                        <span class="label-text text-xs">Fine Stop Threshold (gn)</span>
+                                        <input type="number" class="input input-bordered input-sm" name="c6" step="0.001">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="grid grid-cols-1 gap-1">
+                                        <span class="label-text text-xs">Coarse Time Target (s)</span>
+                                        <input type="number" class="input input-bordered input-sm" id="aiCoarseTimeTargetDisplay" step="0.1" oninput="document.querySelector('#aiTuningThresholdsForm [name=c14]').value = Math.round(this.value * 1000)">
+                                        <input type="hidden" name="c14">
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-1">
+                                        <span class="label-text text-xs">Total Time Target (s)</span>
+                                        <input type="number" class="input input-bordered input-sm" id="aiTotalTimeTargetDisplay" step="0.1" oninput="document.querySelector('#aiTuningThresholdsForm [name=c15]').value = Math.round(this.value * 1000)">
+                                        <input type="hidden" name="c15">
+                                    </div>
+                                </div>
+                                <button class="btn btn-neutral settings-apply-btn">Apply Thresholds</button>
+                            </form>
 
                             <div class="divider">Tuning Status</div>
-                            <div id="aiTuningStatusDiv" class="grid grid-cols-1 gap-2">
-                                <div class="text-sm text-base-content opacity-60">Not running</div>
+
+                            <!-- Status row -->
+                            <div class="flex justify-between items-center">
+                                <span class="label-text">Status:</span>
+                                <span id="aiTuningState" class="badge badge-neutral">Idle</span>
                             </div>
+                            <div class="flex justify-between items-center">
+                                <span class="label-text">Drops completed:</span>
+                                <span id="aiTuningDrops" class="font-mono">0</span>
+                            </div>
+
+                            <!-- Cycle Report log -->
+                            <div id="aiCycleReport" style="display: none;">
+                                <div class="divider">Cycle Log</div>
+                                <div id="aiCycleLog" class="font-mono text-xs bg-base-200 rounded-box p-2 max-h-40 overflow-y-auto whitespace-pre-wrap"></div>
+                            </div>
+
+                            <!-- Current Test Parameters -->
+                            <div id="aiTuningCurrentParamsDiv" style="display: none;">
+                                <div class="divider">Current Test Parameters</div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="stat bg-base-200 rounded-box p-2">
+                                        <div class="stat-title text-xs">Coarse Kp</div>
+                                        <div id="aiCurrentCoarseKp" class="stat-value text-lg">-</div>
+                                    </div>
+                                    <div class="stat bg-base-200 rounded-box p-2">
+                                        <div class="stat-title text-xs">Coarse Kd</div>
+                                        <div id="aiCurrentCoarseKd" class="stat-value text-lg">-</div>
+                                    </div>
+                                    <div class="stat bg-base-200 rounded-box p-2">
+                                        <div class="stat-title text-xs">Fine Kp</div>
+                                        <div id="aiCurrentFineKp" class="stat-value text-lg">-</div>
+                                    </div>
+                                    <div class="stat bg-base-200 rounded-box p-2">
+                                        <div class="stat-title text-xs">Fine Kd</div>
+                                        <div id="aiCurrentFineKd" class="stat-value text-lg">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recommended Parameters -->
+                            <div id="aiTuningRecommendedParamsDiv" style="display: none;">
+                                <div class="divider">Recommended Parameters</div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="stat bg-success/20 rounded-box p-2">
+                                        <div class="stat-title text-xs">Coarse Kp</div>
+                                        <div id="aiRecCoarseKp" class="stat-value text-lg">-</div>
+                                    </div>
+                                    <div class="stat bg-success/20 rounded-box p-2">
+                                        <div class="stat-title text-xs">Coarse Kd</div>
+                                        <div id="aiRecCoarseKd" class="stat-value text-lg">-</div>
+                                    </div>
+                                    <div class="stat bg-success/20 rounded-box p-2">
+                                        <div class="stat-title text-xs">Fine Kp</div>
+                                        <div id="aiRecFineKp" class="stat-value text-lg">-</div>
+                                    </div>
+                                    <div class="stat bg-success/20 rounded-box p-2">
+                                        <div class="stat-title text-xs">Fine Kd</div>
+                                        <div id="aiRecFineKd" class="stat-value text-lg">-</div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 text-center text-sm mt-2">
+                                    <div>
+                                        <div class="text-gray-500">Avg Overthrow</div>
+                                        <div id="aiStatOverthrow">-</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-gray-500">Avg Time</div>
+                                        <div id="aiStatTime">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-accent w-full" onclick="scaleForceZero()">Scale Zero / Tare</button>
+
+                            <div class="divider"></div>
                             <div class="grid grid-cols-2 gap-2">
-                                <button class="btn btn-primary" onclick="aiTuningStart()">Start Tuning</button>
+                                <button id="aiTuningStartBtn" class="btn btn-primary" onclick="aiTuningStart()">Start</button>
                                 <button id="aiTuningCancelBtn" class="btn btn-warning" onclick="aiTuningCancel()" disabled>Cancel</button>
                             </div>
+                            <button id="aiTuningApplyBtn" class="btn btn-success w-full" onclick="aiTuningApply()" disabled>Apply Recommended Parameters</button>
 
-                            <div id="aiTuningResultsDiv" style="display: none;">
-                                <div class="divider">Recommended Parameters</div>
-                                <div id="aiTuningRecommendedParams" class="font-mono text-sm bg-base-200 rounded p-2"></div>
-                                <div class="grid grid-cols-1 gap-2 mt-2">
-                                    <button class="btn btn-success" onclick="aiTuningApply()">Apply to Profile</button>
-                                    <button class="btn btn-outline btn-sm" onclick="aiTuningClearHistory()">Clear History</button>
-                                </div>
-                            </div>
-
-                            <!-- Advanced Kp/Kd ranges -->
-                            <div class="collapse collapse-arrow bg-base-200">
-                                <input type="checkbox" />
-                                <div class="collapse-title text-sm font-medium">Advanced AI Config</div>
-                                <div class="collapse-content grid grid-cols-1 gap-2">
-                                    <div class="grid grid-cols-2 gap-1">
-                                        <div>
-                                            <span class="label-text text-xs">Coarse Kp Min</span>
-                                            <input id="aiCfgCoarseKpMin" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                        <div>
-                                            <span class="label-text text-xs">Coarse Kp Max</span>
-                                            <input id="aiCfgCoarseKpMax" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-1">
-                                        <div>
-                                            <span class="label-text text-xs">Coarse Kd Min</span>
-                                            <input id="aiCfgCoarseKdMin" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                        <div>
-                                            <span class="label-text text-xs">Coarse Kd Max</span>
-                                            <input id="aiCfgCoarseKdMax" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-1">
-                                        <div>
-                                            <span class="label-text text-xs">Fine Kp Min</span>
-                                            <input id="aiCfgFineKpMin" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                        <div>
-                                            <span class="label-text text-xs">Fine Kp Max</span>
-                                            <input id="aiCfgFineKpMax" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-1">
-                                        <div>
-                                            <span class="label-text text-xs">Fine Kd Min</span>
-                                            <input id="aiCfgFineKdMin" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                        <div>
-                                            <span class="label-text text-xs">Fine Kd Max</span>
-                                            <input id="aiCfgFineKdMax" type="number" step="0.001" class="input input-bordered input-sm w-full">
-                                        </div>
-                                    </div>
+                            <!-- Advanced Settings -->
+                            <details class="collapse collapse-arrow bg-base-200 rounded-box">
+                                <summary class="collapse-title font-medium">Advanced Settings</summary>
+                                <div class="collapse-content grid grid-cols-1 gap-3 pt-2">
+                                    <table class="table table-sm w-full">
+                                        <thead>
+                                            <tr><th></th><th class="text-center">Min</th><th class="text-center">Max</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="font-medium">Coarse Kp</td>
+                                                <td><input type="number" id="aiCfgCoarseKpMin" class="input input-bordered input-sm w-full" step="0.01" min="0"></td>
+                                                <td><input type="number" id="aiCfgCoarseKpMax" class="input input-bordered input-sm w-full" step="0.1" min="0"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="font-medium">Coarse Kd</td>
+                                                <td><input type="number" id="aiCfgCoarseKdMin" class="input input-bordered input-sm w-full" step="0.01" min="0"></td>
+                                                <td><input type="number" id="aiCfgCoarseKdMax" class="input input-bordered input-sm w-full" step="0.1" min="0"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="font-medium">Fine Kp</td>
+                                                <td><input type="number" id="aiCfgFineKpMin" class="input input-bordered input-sm w-full" step="0.01" min="0"></td>
+                                                <td><input type="number" id="aiCfgFineKpMax" class="input input-bordered input-sm w-full" step="0.1" min="0"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="font-medium">Fine Kd</td>
+                                                <td><input type="number" id="aiCfgFineKdMin" class="input input-bordered input-sm w-full" step="0.01" min="0"></td>
+                                                <td><input type="number" id="aiCfgFineKdMax" class="input input-bordered input-sm w-full" step="0.1" min="0"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                     <div class="grid grid-cols-1 gap-1">
-                                        <span class="label-text text-xs">Noise Margin</span>
-                                        <input id="aiCfgNoiseMargin" type="number" step="0.001" class="input input-bordered input-sm">
+                                        <span class="label-text text-xs">Noise Margin (grains)</span>
+                                        <input id="aiCfgNoiseMargin" type="number" step="0.001" min="0" class="input input-bordered input-sm">
                                     </div>
-                                    <div class="grid grid-cols-1 gap-1">
-                                        <span class="label-text text-xs">Max Overthrow (%)</span>
-                                        <input id="aiCfgMaxOverthrow" type="number" step="0.1" class="input input-bordered input-sm">
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button class="btn btn-sm btn-primary" onclick="aiTuningSaveAdvancedConfig()">Save</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="aiLoadAdvancedConfig()">Reset</button>
                                     </div>
-                                    <button class="btn btn-neutral btn-sm" onclick="aiTuningSaveAdvancedConfig()">Save Advanced Config</button>
                                 </div>
-                            </div>
+                            </details>
 
                             <!-- ML Data Collection -->
                             <div class="divider">ML Data Collection</div>
-                            <div role="alert" class="alert">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                <span>When enabled, charge data is recorded for background learning during normal charges.</span>
+                            <p class="text-sm text-gray-500 -mt-2">Collect data during normal charges to refine fine trickler parameters.</p>
+                            <div class="grid grid-cols-1 gap-2">
+                                <div class="text-xs text-gray-500 bg-base-200 rounded p-2">
+                                    <strong>Overthrow:</strong> + over target, - under target<br>
+                                    <span class="text-success">■</span> Good (±0.02gn) &nbsp;
+                                    <span class="text-warning">■</span> Under &nbsp;
+                                    <span class="text-error">■</span> Over
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="label-text">Enable ML data collection</span>
+                                    <input id="aiMlDataCollectionToggle" type="checkbox" class="toggle toggle-primary" onchange="aiToggleMlDataCollection(this.checked)">
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-500">Drops recorded:</span>
+                                    <div class="flex items-center gap-2">
+                                        <span id="aiHistoryCount" class="badge badge-info">0 drops</span>
+                                        <button class="btn btn-xs btn-ghost" onclick="aiLoadHistory()">Refresh</button>
+                                        <button class="btn btn-xs btn-ghost" onclick="aiClearHistory()">Clear</button>
+                                    </div>
+                                </div>
+
+                                <!-- ML Suggestions -->
+                                <div id="aiSuggestedSection" style="display: none;">
+                                    <div role="alert" class="alert alert-success">
+                                        <div class="w-full">
+                                            <span class="font-bold">ML Suggestions (Fine Only)</span>
+                                            <div class="grid grid-cols-2 gap-2 w-full mt-2 text-sm">
+                                                <div>Fine Kp: <span id="aiSugFineKp" class="font-mono">-</span></div>
+                                                <div>Fine Kd: <span id="aiSugFineKd" class="font-mono">-</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-sm btn-success w-full mt-2" onclick="aiApplyRefinedParams()">Apply ML Suggestions</button>
+                                </div>
+
+                                <!-- Drop History Table -->
+                                <details class="collapse collapse-arrow bg-base-200">
+                                    <summary class="collapse-title text-sm font-medium">Drop History</summary>
+                                    <div class="collapse-content overflow-x-auto">
+                                        <table class="table table-xs">
+                                            <thead>
+                                                <tr><th>#</th><th>Profile</th><th>Overthrow</th><th>Time</th></tr>
+                                            </thead>
+                                            <tbody id="aiHistoryTableBody"></tbody>
+                                        </table>
+                                    </div>
+                                </details>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <input id="aiMlDataCollectionToggle" type="checkbox" class="toggle toggle-primary" onchange="aiToggleMlDataCollection(this.checked)">
-                                <span class="label-text">Enable ML Data Collection</span>
-                            </div>
+
                         </div>
                     </section>
 
@@ -1265,12 +1363,20 @@
 
     function onQuickProfileSelectConfirmed() {
         const quickChangeProfileSelect = document.getElementById("quickChangeProfileSelect");
-
-        const uri = `/rest/profile_config?pf=${encodeURIComponent(quickChangeProfileSelect.value)}`;
+        const idx = quickChangeProfileSelect.value;
+        const uri = `/rest/profile_config?pf=${encodeURIComponent(idx)}`;
 
         fetch(uri)
         .then(response => {
             return response.json();
+        })
+        .then(() => {
+            // Sync AI tuning profile selector
+            const aiSel = document.getElementById("aiTuningProfileSelect");
+            if (aiSel) aiSel.value = idx;
+            // Sync settings profile selector
+            const settingsSel = document.getElementById("select_profile_option");
+            if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
         })
         .catch(error => {
             console.error("Error setting profile");
@@ -1934,132 +2040,237 @@
 
     // ---- AI Tuning functions ----
 
+    var _aiLastDropCount = 0;
+    var _aiTuningPollId = null;
+
+    // Populate all profile dropdowns with names from /rest/profile_summary
+    function loadProfileDropdowns() {
+        fetch('/rest/profile_summary')
+        .then(r => r.json())
+        .then(data => {
+            const profiles = data['s0'];  // {idx: name}
+            const currentIdx = String(data['s1']);
+            const selectors = [
+                document.getElementById('aiTuningProfileSelect'),
+                document.getElementById('select_profile_option'),
+            ];
+            selectors.forEach(sel => {
+                if (!sel) return;
+                const prev = sel.value;
+                sel.innerHTML = '';
+                for (const idx in profiles) {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    const name = (profiles[idx] || '').trim();
+                    opt.text = name.length > 0 ? name : '#' + idx;
+                    sel.appendChild(opt);
+                }
+                sel.value = prev || currentIdx;
+            });
+            // Set AI select to current profile
+            const aiSel = document.getElementById('aiTuningProfileSelect');
+            if (aiSel) aiSel.value = currentIdx;
+        })
+        .catch(e => console.error('Error loading profiles:', e));
+    }
+
+    // Called when AI tuning profile selector changes — switch active profile in firmware
+    function onAiTuningProfileChanged(sel) {
+        const idx = sel.value;
+        fetch(`/rest/profile_config?pf=${encodeURIComponent(idx)}`)
+        .then(r => r.json())
+        .then(() => {
+            // Sync settings profile selector
+            const settingsSel = document.getElementById('select_profile_option');
+            if (settingsSel) { settingsSel.value = idx; populateProfileSelection(settingsSel); }
+        })
+        .catch(e => console.error('Error switching profile:', e));
+    }
+
+    // Load AI tuning page — called when navigating to settings-ai-tuning
     function loadAiTuningPage() {
+        loadProfileDropdowns();
+
+        // Load thresholds from charge mode config
         fetch('/rest/charge_mode_config')
         .then(r => r.json())
         .then(data => {
-            const coarseSec = data['c14'] !== undefined ? (data['c14'] / 1000).toFixed(1) : '';
-            const totalSec = data['c15'] !== undefined ? (data['c15'] / 1000).toFixed(1) : '';
+            const form = document.getElementById('aiTuningThresholdsForm');
+            if (!form) return;
+            ['c5','c6'].forEach(k => {
+                const el = form.querySelector(`[name="${k}"]`);
+                if (el && data[k] !== undefined) el.value = data[k];
+            });
+            // c14/c15 are in ms, display in seconds
+            const coarseMs = data['c14'];
+            const totalMs  = data['c15'];
+            if (coarseMs !== undefined) {
+                const disp = document.getElementById('aiCoarseTimeTargetDisplay');
+                const hid  = form.querySelector('[name="c14"]');
+                if (disp) disp.value = (coarseMs / 1000).toFixed(1);
+                if (hid)  hid.value  = coarseMs;
+            }
+            if (totalMs !== undefined) {
+                const disp = document.getElementById('aiTotalTimeTargetDisplay');
+                const hid  = form.querySelector('[name="c15"]');
+                if (disp) disp.value = (totalMs / 1000).toFixed(1);
+                if (hid)  hid.value  = totalMs;
+            }
             const mlEnabled = data['c16'] === true || data['c16'] === 'true';
-            const coarseEl = document.getElementById('aiTuningCoarseTimeSec');
-            const totalEl = document.getElementById('aiTuningTotalTimeSec');
             const mlToggle = document.getElementById('aiMlDataCollectionToggle');
-            if (coarseEl) coarseEl.value = coarseSec;
-            if (totalEl) totalEl.value = totalSec;
             if (mlToggle) mlToggle.checked = mlEnabled;
         })
         .catch(e => console.error('Error loading charge mode config:', e));
 
-        fetch('/rest/ai_tuning_config')
-        .then(r => r.json())
-        .then(data => {
-            const map = {
-                'coarse_kp_min': 'aiCfgCoarseKpMin', 'coarse_kp_max': 'aiCfgCoarseKpMax',
-                'coarse_kd_min': 'aiCfgCoarseKdMin', 'coarse_kd_max': 'aiCfgCoarseKdMax',
-                'fine_kp_min': 'aiCfgFineKpMin', 'fine_kp_max': 'aiCfgFineKpMax',
-                'fine_kd_min': 'aiCfgFineKdMin', 'fine_kd_max': 'aiCfgFineKdMax',
-                'noise_margin': 'aiCfgNoiseMargin', 'max_overthrow_percent': 'aiCfgMaxOverthrow',
-            };
-            for (const [key, elId] of Object.entries(map)) {
-                const el = document.getElementById(elId);
-                if (el && data[key] !== undefined) el.value = data[key];
-            }
-        })
-        .catch(e => console.error('Error loading AI tuning config:', e));
+        aiLoadAdvancedConfig();
+        aiLoadHistory();
 
-        fetch('/rest/profile_summary')
-        .then(r => r.json())
-        .then(data => {
-            const idx = data['s1'];
-            const sel = document.getElementById('aiTuningProfileSelect');
-            if (sel && idx !== undefined) sel.value = idx;
-        })
-        .catch(e => {});
-
-        refreshAiTuningStatus();
-    }
-
-    function refreshAiTuningStatus() {
+        // Check current tuning status
         fetch('/rest/ai_tuning_status')
         .then(r => r.json())
         .then(data => {
-            const statusDiv = document.getElementById('aiTuningStatusDiv');
-            const resultsDiv = document.getElementById('aiTuningResultsDiv');
-            const cancelBtn = document.getElementById('aiTuningCancelBtn');
-            const isActive = data['is_active'];
-            const isComplete = data['is_complete'];
-            const dropsCompleted = data['drops_completed'] || 0;
-            const dropsMax = data['drops_max'] || 0;
-            const progress = data['progress_percent'] || 0;
-
-            if (cancelBtn) cancelBtn.disabled = !isActive;
-
-            if (isActive) {
-                const currentParams = data['current_params'] || {};
-                let html = `<div class="text-sm">State: <b>${(data['state']||'').replace(/_/g,' ')}</b></div>`;
-                html += `<div class="text-sm">Drops: ${dropsCompleted}/${dropsMax} (${progress.toFixed(0)}%)</div>`;
-                html += `<progress class="progress progress-primary w-full" value="${progress}" max="100"></progress>`;
-                if (Object.keys(currentParams).length) {
-                    html += `<div class="text-xs font-mono mt-1">Coarse Kp:${(currentParams.coarse_kp||0).toFixed(3)} Kd:${(currentParams.coarse_kd||0).toFixed(3)} | Fine Kp:${(currentParams.fine_kp||0).toFixed(3)} Kd:${(currentParams.fine_kd||0).toFixed(3)}</div>`;
-                }
-                if (statusDiv) statusDiv.innerHTML = html;
-                if (resultsDiv) resultsDiv.style.display = 'none';
-            }
-            else if (isComplete) {
-                const recommended = data['recommended_params'] || {};
-                const stats = data['statistics'] || {};
-                let html = `<div class="text-sm text-success font-bold">Tuning Complete!</div>`;
-                html += `<div class="text-sm">Drops: ${dropsCompleted}/${dropsMax}</div>`;
-                if (statusDiv) statusDiv.innerHTML = html;
-
-                let recHtml = '';
-                if (recommended.coarse_kp !== undefined) {
-                    recHtml += `Coarse Kp:${recommended.coarse_kp.toFixed(3)} Kd:${recommended.coarse_kd.toFixed(3)}<br>`;
-                    recHtml += `Fine Kp:${recommended.fine_kp.toFixed(3)} Kd:${recommended.fine_kd.toFixed(3)}<br>`;
-                }
-                if (stats.mean_charge_time !== undefined) {
-                    recHtml += `Mean time: ${stats.mean_charge_time.toFixed(2)}s`;
-                }
-                const recEl = document.getElementById('aiTuningRecommendedParams');
-                if (recEl) recEl.innerHTML = recHtml || 'No data';
-                if (resultsDiv) resultsDiv.style.display = 'block';
-            }
-            else {
-                if (statusDiv) statusDiv.innerHTML = '<div class="text-sm text-base-content opacity-60">Not running</div>';
-                if (resultsDiv) resultsDiv.style.display = 'none';
+            updateAiTuningUI(data);
+            if (data['is_active']) {
+                document.getElementById('aiTuningStartBtn').disabled = true;
+                document.getElementById('aiTuningCancelBtn').disabled = false;
+                document.getElementById('aiTuningProfileSelect').disabled = true;
+                _pollAiTuningSettingsPage();
             }
         })
-        .catch(e => console.error('Error reading AI tuning status:', e));
+        .catch(e => {});
     }
 
+    function _pollAiTuningSettingsPage() {
+        fetch('/rest/ai_tuning_status')
+        .then(r => r.json())
+        .then(data => {
+            updateAiTuningUI(data);
+            if (data['is_active']) {
+                _aiTuningPollId = setTimeout(_pollAiTuningSettingsPage, 500);
+            } else {
+                _aiTuningPollId = null;
+            }
+        })
+        .catch(e => { _aiTuningPollId = null; });
+    }
+
+    function updateAiTuningUI(data) {
+        const isActive   = data['is_active'];
+        const isComplete = data['is_complete'];
+        const state      = data['state'] || 'idle';
+        const dropsCompleted = data['drops_completed'] || 0;
+
+        // State badge
+        const badge = document.getElementById('aiTuningState');
+        if (badge) {
+            badge.innerText = state.replace(/_/g, ' ');
+            badge.className = 'badge';
+            badge.classList.add(isComplete ? 'badge-success' : isActive ? 'badge-primary' : 'badge-neutral');
+        }
+        const dropsEl = document.getElementById('aiTuningDrops');
+        if (dropsEl) dropsEl.innerText = dropsCompleted;
+
+        // Cycle report log
+        const cycleDiv = document.getElementById('aiCycleReport');
+        const cycleLog  = document.getElementById('aiCycleLog');
+        if (cycleDiv) cycleDiv.style.display = (isActive || isComplete) ? 'block' : 'none';
+        if (cycleLog && isActive && dropsCompleted > _aiLastDropCount && data['last_drop']) {
+            const d   = data['last_drop'];
+            const ot  = d.overthrow !== undefined ? d.overthrow : 0;
+            const otStr = (ot >= 0 ? '+' : '') + ot.toFixed(3) + 'gn';
+            const ph  = state.includes('coarse') ? 'C' : 'F';
+            const kp  = state.includes('coarse') ? (data['current_params']||{}).coarse_kp : (data['current_params']||{}).fine_kp;
+            const kd  = state.includes('coarse') ? (data['current_params']||{}).coarse_kd : (data['current_params']||{}).fine_kd;
+            const tms = d.total_time_ms !== undefined ? (d.total_time_ms / 1000).toFixed(1) : '?';
+            let line  = `#${dropsCompleted} ${ph}: Kp=${(kp||0).toFixed(3)} Kd=${(kd||0).toFixed(3)} → ${otStr} ${tms}s\n`;
+            cycleLog.innerText += line;
+            cycleLog.scrollTop  = cycleLog.scrollHeight;
+            _aiLastDropCount    = dropsCompleted;
+        }
+
+        // Current params div
+        const curDiv = document.getElementById('aiTuningCurrentParamsDiv');
+        if (curDiv) curDiv.style.display = (isActive && data['current_params']) ? 'block' : 'none';
+        if (isActive && data['current_params']) {
+            const cp = data['current_params'];
+            document.getElementById('aiCurrentCoarseKp').innerText = (cp.coarse_kp||0).toFixed(3);
+            document.getElementById('aiCurrentCoarseKd').innerText = (cp.coarse_kd||0).toFixed(3);
+            document.getElementById('aiCurrentFineKp').innerText   = (cp.fine_kp||0).toFixed(3);
+            document.getElementById('aiCurrentFineKd').innerText   = (cp.fine_kd||0).toFixed(3);
+        }
+
+        // Recommended params div
+        const recDiv = document.getElementById('aiTuningRecommendedParamsDiv');
+        if (recDiv) recDiv.style.display = (isComplete && data['recommended_params']) ? 'block' : 'none';
+        if (isComplete && data['recommended_params']) {
+            const rp = data['recommended_params'];
+            document.getElementById('aiRecCoarseKp').innerText = (rp.coarse_kp||0).toFixed(3);
+            document.getElementById('aiRecCoarseKd').innerText = (rp.coarse_kd||0).toFixed(3);
+            document.getElementById('aiRecFineKp').innerText   = (rp.fine_kp||0).toFixed(3);
+            document.getElementById('aiRecFineKd').innerText   = (rp.fine_kd||0).toFixed(3);
+            const stats = data['statistics'] || {};
+            const otEl  = document.getElementById('aiStatOverthrow');
+            const tmEl  = document.getElementById('aiStatTime');
+            if (otEl) otEl.innerText = stats.avg_overthrow !== undefined ? stats.avg_overthrow.toFixed(3) + ' gr' : '-';
+            if (tmEl) tmEl.innerText = stats.avg_time !== undefined ? stats.avg_time.toFixed(0) + ' ms' : '-';
+        }
+
+        // Button states
+        const startBtn  = document.getElementById('aiTuningStartBtn');
+        const cancelBtn = document.getElementById('aiTuningCancelBtn');
+        const applyBtn  = document.getElementById('aiTuningApplyBtn');
+        const profSel   = document.getElementById('aiTuningProfileSelect');
+        if (startBtn)  startBtn.disabled  = isActive;
+        if (cancelBtn) cancelBtn.disabled = !isActive;
+        if (applyBtn)  applyBtn.disabled  = !isComplete;
+        if (profSel)   profSel.disabled   = isActive;
+    }
+
+    function resetAiTuningUI() {
+        _aiLastDropCount = 0;
+        updateAiTuningUI({ is_active: false, is_complete: false, state: 'idle', drops_completed: 0 });
+        const cycleLog = document.getElementById('aiCycleLog');
+        if (cycleLog) cycleLog.innerText = '';
+    }
+
+    // Live panel in trickler section — called every 500ms from pollChargeModeStatus
     function pollAiTuningMainPanel() {
         fetch('/rest/ai_tuning_status')
         .then(r => r.json())
         .then(data => {
-            const panel = document.getElementById('aiTuningMainPanel');
+            const panel  = document.getElementById('aiTuningMainPanel');
             const banner = document.getElementById('mlSuggestionsBanner');
-            const isActive = data['is_active'];
+            const isActive   = data['is_active'];
             const isComplete = data['is_complete'];
 
-            if (panel) panel.style.display = isActive ? 'block' : 'none';
+            if (panel)  panel.style.display  = isActive   ? 'block' : 'none';
             if (banner) banner.style.display = isComplete ? 'block' : 'none';
 
             if (isActive) {
+                const cp    = data['current_params'] || {};
+                const state = data['state'] || '';
                 const dropsCompleted = data['drops_completed'] || 0;
-                const dropsMax = data['drops_max'] || 0;
-                const progress = data['progress_percent'] || 0;
-                const currentParams = data['current_params'] || {};
 
-                const dropsEl = document.getElementById('aiTuningDropsValue');
-                const progressEl = document.getElementById('aiTuningProgressValue');
-                const phaseEl = document.getElementById('aiTuningPhaseLabel');
-                const paramsEl = document.getElementById('aiTuningCurrentParams');
-
-                if (dropsEl) dropsEl.textContent = `${dropsCompleted}/${dropsMax}`;
-                if (progressEl) progressEl.textContent = `${progress.toFixed(0)}%`;
-                if (phaseEl) phaseEl.textContent = (data['state'] || '').replace(/_/g, ' ');
-                if (paramsEl && Object.keys(currentParams).length) {
-                    paramsEl.textContent = `Crs Kp:${(currentParams.coarse_kp||0).toFixed(3)} Kd:${(currentParams.coarse_kd||0).toFixed(3)} | Fin Kp:${(currentParams.fine_kp||0).toFixed(3)} Kd:${(currentParams.fine_kd||0).toFixed(3)}`;
+                // Phase badge
+                const phaseEl = document.getElementById('aiMainPhase');
+                if (phaseEl) {
+                    phaseEl.innerText = state.includes('coarse') ? 'Phase 1: Coarse' : 'Phase 2: Fine';
+                    phaseEl.className = 'badge ' + (state.includes('coarse') ? 'badge-primary' : 'badge-secondary');
+                }
+                const dropEl    = document.getElementById('aiMainDrop');
+                const testEl    = document.getElementById('aiMainTesting');
+                const lastEl    = document.getElementById('aiMainLast');
+                if (dropEl) dropEl.innerText = dropsCompleted;
+                if (testEl && Object.keys(cp).length) {
+                    const kp = state.includes('coarse') ? cp.coarse_kp : cp.fine_kp;
+                    const kd = state.includes('coarse') ? cp.coarse_kd : cp.fine_kd;
+                    testEl.innerText = `Kp=${(kp||0).toFixed(2)} Kd=${(kd||0).toFixed(2)}`;
+                }
+                if (lastEl && data['last_drop']) {
+                    const d  = data['last_drop'];
+                    const ot = d.overthrow !== undefined ? d.overthrow : 0;
+                    const t  = d.total_time_ms !== undefined ? (d.total_time_ms / 1000).toFixed(1) : '?';
+                    lastEl.innerText = (ot >= 0 ? '+' : '') + ot.toFixed(3) + 'g ' + t + 's';
                 }
             }
         })
@@ -2068,25 +2279,26 @@
 
     function aiTuningStart() {
         const profileSel = document.getElementById('aiTuningProfileSelect');
-        const targetWt = document.getElementById('aiTuningTargetWeight');
-        if (!targetWt || !targetWt.value) {
-            alert('Please enter a target charge weight');
-            return;
-        }
-        const uri = `/rest/ai_tuning_start?profile_idx=${encodeURIComponent(profileSel.value)}&target=${encodeURIComponent(targetWt.value)}`;
-        fetch(uri)
+        const targetWt   = document.getElementById('aiTuningTargetWeight');
+        if (!targetWt || !targetWt.value) { alert('Please enter a target charge weight'); return; }
+        _aiLastDropCount = 0;
+        const cycleLog = document.getElementById('aiCycleLog');
+        if (cycleLog) cycleLog.innerText = '';
+        fetch(`/rest/ai_tuning_start?profile_idx=${encodeURIComponent(profileSel.value)}&target=${encodeURIComponent(targetWt.value)}`)
         .then(r => r.json())
-        .then(data => { refreshAiTuningStatus(); })
+        .then(data => {
+            updateAiTuningUI({ is_active: true, is_complete: false, state: 'running', drops_completed: 0 });
+            _pollAiTuningSettingsPage();
+        })
         .catch(e => console.error('Error starting AI tuning:', e));
     }
 
     function aiTuningCancel() {
         fetch('/rest/ai_tuning_cancel')
         .then(r => r.json())
-        .then(data => {
-            refreshAiTuningStatus();
-            const panel = document.getElementById('aiTuningMainPanel');
-            if (panel) panel.style.display = 'none';
+        .then(() => {
+            if (_aiTuningPollId) { clearTimeout(_aiTuningPollId); _aiTuningPollId = null; }
+            resetAiTuningUI();
         })
         .catch(e => console.error('Error cancelling AI tuning:', e));
     }
@@ -2094,69 +2306,128 @@
     function aiTuningApply() {
         fetch('/rest/ai_tuning_apply')
         .then(r => r.json())
-        .then(data => {
+        .then(() => {
             const dialog = document.getElementById('settingsAppliedSuccessDialog');
             if (dialog) dialog.showModal();
-            refreshAiTuningStatus();
         })
         .catch(e => console.error('Error applying AI tuning params:', e));
     }
 
-    function aiTuningClearHistory() {
-        fetch('/rest/ai_tuning_clear_history')
-        .then(r => r.json())
-        .then(data => {
-            refreshAiTuningStatus();
-            const resultsDiv = document.getElementById('aiTuningResultsDiv');
-            if (resultsDiv) resultsDiv.style.display = 'none';
-        })
-        .catch(e => console.error('Error clearing AI tuning history:', e));
-    }
-
-    function aiTuningSaveThresholds() {
-        const coarseEl = document.getElementById('aiTuningCoarseTimeSec');
-        const totalEl = document.getElementById('aiTuningTotalTimeSec');
-        if (!coarseEl || !totalEl || !coarseEl.value || !totalEl.value) return;
-        const coarseMs = Math.round(parseFloat(coarseEl.value) * 1000);
-        const totalMs = Math.round(parseFloat(totalEl.value) * 1000);
-        const uri = `/rest/charge_mode_config?c14=${encodeURIComponent(coarseMs)}&c15=${encodeURIComponent(totalMs)}&ee=true`;
-        fetch(uri)
-        .then(r => r.json())
-        .then(data => {
-            const dialog = document.getElementById('settingsAppliedSuccessDialog');
-            if (dialog) dialog.showModal();
-        })
-        .catch(e => console.error('Error saving thresholds:', e));
-    }
-
     function aiToggleMlDataCollection(enabled) {
-        const uri = `/rest/charge_mode_config?c16=${encodeURIComponent(enabled ? 'true' : 'false')}&ee=true`;
-        fetch(uri)
+        fetch(`/rest/charge_mode_config?c16=${encodeURIComponent(enabled ? 'true' : 'false')}&ee=true`)
         .then(r => r.json())
         .catch(e => console.error('Error toggling ML data collection:', e));
+    }
+
+    function aiLoadAdvancedConfig() {
+        fetch('/rest/ai_tuning_config')
+        .then(r => r.json())
+        .then(data => {
+            const map = {
+                'coarse_kp_min': 'aiCfgCoarseKpMin', 'coarse_kp_max': 'aiCfgCoarseKpMax',
+                'coarse_kd_min': 'aiCfgCoarseKdMin', 'coarse_kd_max': 'aiCfgCoarseKdMax',
+                'fine_kp_min':   'aiCfgFineKpMin',   'fine_kp_max':   'aiCfgFineKpMax',
+                'fine_kd_min':   'aiCfgFineKdMin',   'fine_kd_max':   'aiCfgFineKdMax',
+                'noise_margin':  'aiCfgNoiseMargin',
+            };
+            for (const [key, elId] of Object.entries(map)) {
+                const el = document.getElementById(elId);
+                if (el && data[key] !== undefined) el.value = data[key];
+            }
+        })
+        .catch(e => console.error('Error loading AI config:', e));
     }
 
     function aiTuningSaveAdvancedConfig() {
         const fields = {
             'coarse_kp_min': 'aiCfgCoarseKpMin', 'coarse_kp_max': 'aiCfgCoarseKpMax',
             'coarse_kd_min': 'aiCfgCoarseKdMin', 'coarse_kd_max': 'aiCfgCoarseKdMax',
-            'fine_kp_min': 'aiCfgFineKpMin', 'fine_kp_max': 'aiCfgFineKpMax',
-            'fine_kd_min': 'aiCfgFineKdMin', 'fine_kd_max': 'aiCfgFineKdMax',
-            'noise_margin': 'aiCfgNoiseMargin', 'max_overthrow_percent': 'aiCfgMaxOverthrow',
+            'fine_kp_min':   'aiCfgFineKpMin',   'fine_kp_max':   'aiCfgFineKpMax',
+            'fine_kd_min':   'aiCfgFineKdMin',   'fine_kd_max':   'aiCfgFineKdMax',
+            'noise_margin':  'aiCfgNoiseMargin',
         };
         const params = new URLSearchParams();
         for (const [key, elId] of Object.entries(fields)) {
             const el = document.getElementById(elId);
             if (el && el.value !== '') params.append(key, el.value);
         }
-        const uri = `/rest/ai_tuning_config_set?${params.toString()}`;
-        fetch(uri)
+        fetch(`/rest/ai_tuning_config_set?${params.toString()}`)
+        .then(r => r.json())
+        .then(() => { const d = document.getElementById('settingsAppliedSuccessDialog'); if (d) d.showModal(); })
+        .catch(e => console.error('Error saving AI config:', e));
+    }
+
+    function aiLoadHistory() {
+        fetch('/rest/ai_tuning_history')
         .then(r => r.json())
         .then(data => {
-            const dialog = document.getElementById('settingsAppliedSuccessDialog');
-            if (dialog) dialog.showModal();
+            const countEl = document.getElementById('aiHistoryCount');
+            if (countEl) countEl.innerText = (data['count'] || 0) + ' drops';
+
+            // ML suggestions
+            const sugSection = document.getElementById('aiSuggestedSection');
+            if (sugSection) {
+                if (data['has_suggestions'] && data['suggested']) {
+                    sugSection.style.display = 'block';
+                    const kpEl = document.getElementById('aiSugFineKp');
+                    const kdEl = document.getElementById('aiSugFineKd');
+                    if (kpEl) kpEl.innerText = (data['suggested'].fine_kp || 0).toFixed(3);
+                    if (kdEl) kdEl.innerText = (data['suggested'].fine_kd || 0).toFixed(3);
+                } else {
+                    sugSection.style.display = 'none';
+                }
+            }
+
+            // Show ML banner on trickler page if suggestions available
+            const banner = document.getElementById('mlSuggestionsBanner');
+            if (banner && !document.getElementById('aiTuningMainPanel').style.display !== 'none') {
+                banner.style.display = (data['has_suggestions']) ? 'block' : 'none';
+            }
+
+            // Drop history table
+            const tbody = document.getElementById('aiHistoryTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            const drops = data['drops'] || [];
+            if (drops.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500">No history yet</td></tr>';
+                return;
+            }
+            const aiSel = document.getElementById('aiTuningProfileSelect');
+            function getProfileName(idx) {
+                if (aiSel) { const o = aiSel.querySelector(`option[value="${idx}"]`); if (o) return o.text; }
+                return '#' + idx;
+            }
+            drops.forEach((drop, i) => {
+                const ot = drop.overthrow || 0;
+                const otClass = ot > 0.02 ? 'text-error' : ot < -0.02 ? 'text-warning' : 'text-success';
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${i+1}</td><td>${getProfileName(drop.profile)}</td><td class="${otClass}">${ot >= 0 ? '+' : ''}${ot.toFixed(3)}gn</td><td>${((drop.time||0)/1000).toFixed(1)}s</td>`;
+                tbody.appendChild(row);
+            });
         })
-        .catch(e => console.error('Error saving AI config:', e));
+        .catch(e => console.error('Error loading ML history:', e));
+    }
+
+    function aiClearHistory() {
+        if (!confirm('Clear all ML learning history?')) return;
+        fetch('/rest/ai_tuning_clear_history')
+        .then(r => r.json())
+        .then(() => aiLoadHistory())
+        .catch(e => console.error('Error clearing history:', e));
+    }
+
+    function aiApplyRefinedParams() {
+        const aiSel = document.getElementById('aiTuningProfileSelect');
+        if (!confirm(`Apply refined PID values to selected profile?`)) return;
+        fetch(`/rest/ai_tuning_apply_refined?profile_idx=${aiSel ? aiSel.value : 0}`)
+        .then(r => r.json())
+        .then(data => {
+            const d = document.getElementById('settingsAppliedSuccessDialog');
+            if (d) d.showModal();
+            aiLoadHistory();
+        })
+        .catch(e => console.error('Error applying refined params:', e));
     }
 
     // Start the long polling process when the page loads
