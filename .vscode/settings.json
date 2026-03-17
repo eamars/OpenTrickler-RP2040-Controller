@@ -23,4 +23,17 @@
         "PICO_BOARD": "pico2_w"  // or pico_w for RP2040 target
     },
     // "cmake.generator": "Ninja"
+
+    //These settings allow a terminal to open correctly in Windows with the Build Tools environment for Visual Studio 2026, which is necessary for building the project using CMake and the appropriate toolchain.
+    "terminal.integrated.profiles.windows": {
+        "VS 2026 x64 Native Tools": {
+            "path": "C:\\Windows\\System32\\cmd.exe",
+            "args": [
+                "/k",
+                "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "VS 2026 x64 Native Tools"
+    
 }
