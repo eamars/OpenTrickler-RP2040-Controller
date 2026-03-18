@@ -88,7 +88,8 @@ Reference: https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf
 
 ### Prerequistes
 
-[Git](https://gitforwindows.org/) and [VSCode](https://code.visualstudio.com/) are required to build the firmware. To install build dependencies, you will need to use [VSCode Raspberry Pi Pico extension](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico) and create an pico-example project (any project will trigger the download of pico-sdk, a collection of tools required to build the firmware locally). 
+[Git](https://gitforwindows.org/) and [VSCode](https://code.visualstudio.com/) are required to build the firmware. To install build dependencies, you will need to use:
+ [VSCode Raspberry Pi Pico extension](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico) and create an pico-example project (any project will trigger the download of pico-sdk, a collection of tools required to build the firmware locally). When creating the example project, select a Pico SDK version of v2.1.1 in the version dropdown.
 
 Then you can verify the installation of pico-sdk by inspecting the path from `C:\Users\<user name>\.pico-sdk`. 
 ![pico_sdk_path](resources/pico_sdk_path.png)
