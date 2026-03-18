@@ -97,39 +97,53 @@ Then you can verify the installation of pico-sdk by inspecting the path from `C:
 ### Downloading Source Code
 
 From PowerShell, execute below command to fetch the source code: 
+    
     git clone https://github.com/eamars/OpenTrickler-RP2040-Controller
-
+    
 Next change to the cloned directory
-    ```cd OpenTrickler-RP2040-Controller```
+
+    
+    cd OpenTrickler-RP2040-Controller
+    
 
 Next use git to initalise the required submodules
+    
     git submodule init
+    
 
 Now using git clone all submodules. It may take up to 5 minutes to clone all required submodules.
+    
     git submodule update --init --recursive
-
+    
 ### Configure CMake
 
 Open the PowerShell, run the below script to load required environment variables: 
+    
     .\configure_env.ps1
-
+    
 To build firmware for Pico W, from the same PowerShell session, run below command:
+    
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
-
+    
 To build firmware for Pico 2W, from the same PowerShell session, run below command:
+    
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
+    
 
 ### Build Firmware
 
 From the same workspace root directory, run the below command to build the firmware from source code into the `build` directory: 
+    
     cmake --build build --config Debug
-
+    
 On success, you can find the app.uf2 from `<workspace_root>/build/` directory. 
 
 ### Use VSCode
 
 You need to call VScode from script to pre-configure environment variables. You can simply call
+    
     .\run_vscode.ps1
+    
 
 The VSCode cmake plugin is pre-configured to build for Pico 2W by default. You can change the build config to Pico W by modifying `<workspace_root>.vscode/settings.json`. 
 
