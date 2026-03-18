@@ -100,7 +100,7 @@ From PowerShell, execute below command to fetch the source code:
     git clone https://github.com/eamars/OpenTrickler-RP2040-Controller
 
 Next change to the cloned directory
-    cd OpenTrickler-RP2040-Controller
+    ```cd OpenTrickler-RP2040-Controller```
 
 Next use git to initalise the required submodules
     git submodule init
