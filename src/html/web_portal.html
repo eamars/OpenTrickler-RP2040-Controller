@@ -425,6 +425,23 @@
                                 <span class="text-xs text-gray-500">Wait time for scale to update between pulses</span>
                             </div>
 
+                            <div class="divider text-sm">Scale Stabilization</div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Fixed Stabilization Wait</span>
+                                <select class="select select-bordered" name="c22">
+                                    <option value="true">Yes (fixed time)</option>
+                                    <option value="false">No (adaptive SD-based)</option>
+                                </select>
+                                <span class="text-xs text-gray-500">ON = fixed wait time; OFF = adaptive SD-based (up to 3s)</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Stabilization Time (ms)</span>
+                                <input type="number" class="input input-bordered" name="c23" step="100" min="200" max="5000">
+                                <span class="text-xs text-gray-500">Fixed wait after motors stop (used when fixed stabilization is ON)</span>
+                            </div>
+
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>

@@ -7,7 +7,7 @@
 #include "neopixel_led.h"
 
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     12             // Added auto_zero + pulse mode
+#define EEPROM_CHARGE_MODE_DATA_REV                     13             // Added scale stabilization config
 
 #define WEIGHT_STRING_LEN 8
 
@@ -51,6 +51,10 @@ typedef struct {
     float pulse_threshold;          // Start pulsing when error < this (grains)
     uint32_t pulse_duration_ms;     // Motor on time per pulse
     uint32_t pulse_wait_ms;         // Wait time between pulses for scale to update
+
+    // Scale stabilization after motors stop (before overthrow/underthrow decision)
+    bool stabilization_enabled;     // true = fixed wait, false = adaptive SD-based
+    uint32_t stabilization_time_ms; // Fixed wait time when enabled (default 2000ms)
 
     // LED related settings
     rgbw_u32_t neopixel_normal_charge_colour;

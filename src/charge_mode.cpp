@@ -65,6 +65,10 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .pulse_duration_ms = 30,        // 30ms motor burst
     .pulse_wait_ms = 150,           // 150ms wait for scale
 
+    // Scale stabilization defaults
+    .stabilization_enabled = false,     // adaptive by default
+    .stabilization_time_ms = 2000,      // 2s fixed wait when enabled
+
     // LED related
     .neopixel_normal_charge_colour = RGB_COLOUR_GREEN,        // green
     .neopixel_under_charge_colour = RGB_COLOUR_YELLOW,        // yellow
@@ -549,7 +553,26 @@ void charge_mode_wait_for_cup_removal() {
     FloatRingBuffer data_buffer(5);
 
     // Post charge analysis (while waiting for removal of the cup)
-    vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for other tasks to complete
+    // Wait for scale to stabilize after motors stopped
+    if (charge_mode_config.eeprom_charge_mode_data.stabilization_enabled) {
+        // Fixed configured wait
+        vTaskDelay(pdMS_TO_TICKS(charge_mode_config.eeprom_charge_mode_data.stabilization_time_ms));
+    } else {
+        // Adaptive: collect samples until SD < set_point_sd_margin or 3s timeout
+        FloatRingBuffer stab_buffer(5);
+        TickType_t stab_start = xTaskGetTickCount();
+        const TickType_t stab_timeout = pdMS_TO_TICKS(3000);
+        while ((xTaskGetTickCount() - stab_start) < stab_timeout) {
+            float stab_weight;
+            if (scale_block_wait_for_next_measurement(200, &stab_weight)) {
+                stab_buffer.enqueue(stab_weight);
+                if (stab_buffer.getCounter() >= 5 &&
+                    stab_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
+                    break;
+                }
+            }
+        }
+    }
 
     // Take current measurement (settled reading used for ML overthrow too)
     float current_measurement = scale_get_current_measurement();
@@ -847,7 +870,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c16 (bool): ml_data_collection_enabled
     // ee (bool): save to eeprom
 
-    static char charge_mode_json_buffer[640];
+    static char charge_mode_json_buffer[700];
     bool save_to_eeprom = false;
 
     // Control
@@ -911,6 +934,14 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
             charge_mode_config.eeprom_charge_mode_data.pulse_wait_ms = (uint32_t) strtol(values[idx], NULL, 10);
         }
 
+        // Scale stabilization settings
+        else if (strcmp(params[idx], "c22") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.stabilization_enabled = string_to_boolean(values[idx]);
+        }
+        else if (strcmp(params[idx], "c23") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.stabilization_time_ms = (uint32_t) strtol(values[idx], NULL, 10);
+        }
+
         // LED related settings
         else if (strcmp(params[idx], "c1") == 0) {
             charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour = hex_string_to_decimal(values[idx]);
@@ -941,7 +972,8 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
              "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f,\"c13\":%0.3f,"
              "\"c14\":%lu,\"c15\":%lu,\"c16\":%s,\"c17\":%s,"
-             "\"c18\":%s,\"c19\":%.3f,\"c20\":%lu,\"c21\":%lu}",
+             "\"c18\":%s,\"c19\":%.3f,\"c20\":%lu,\"c21\":%lu,"
+             "\"c22\":%s,\"c23\":%lu}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour._raw_colour,
@@ -962,7 +994,9 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              boolean_to_string(charge_mode_config.eeprom_charge_mode_data.pulse_mode_enabled),
              charge_mode_config.eeprom_charge_mode_data.pulse_threshold,
              (unsigned long) charge_mode_config.eeprom_charge_mode_data.pulse_duration_ms,
-             (unsigned long) charge_mode_config.eeprom_charge_mode_data.pulse_wait_ms);
+             (unsigned long) charge_mode_config.eeprom_charge_mode_data.pulse_wait_ms,
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.stabilization_enabled),
+             (unsigned long) charge_mode_config.eeprom_charge_mode_data.stabilization_time_ms);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;
