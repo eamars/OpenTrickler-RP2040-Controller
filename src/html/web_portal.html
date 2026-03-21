@@ -1110,10 +1110,16 @@
         </svg>
         <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Settings</span>
     </button>
+    <button id="aiTuningNavButton" onclick="onNavButtonClicked('aiTuning')">
+        <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.5 11.5 11 13l4-3.5M12 20a16.405 16.405 0 0 1-5.092-3.583A14.557 14.557 0 0 1 5 13.643V6.221a1 1 0 0 1 .7-.95l6-1.803a1 1 0 0 1 .594 0l6 1.803a1 1 0 0 1 .7.95v7.421a14.557 14.557 0 0 1-1.908 3.774A16.405 16.405 0 0 1 12 20Z"/>
+        </svg>
+        <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">AI Tuning</span>
+    </button>
     <button id="purgeNavButton" onclick="onNavButtonClicked('purge')">
         <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12H4m12 0-4 4m4-4-4-4m3-4h2a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3h-2"/>
-          </svg>          
+          </svg>
         <span class="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-500">Purge</span>
     </button>
 </div>
@@ -1687,6 +1693,7 @@
         const settingsNavButton = document.getElementById("settingsNavButton")
         const purgeNavButton = document.getElementById("purgeNavButton");
         const tricklerNavButton = document.getElementById("tricklerNavButton");
+        const aiTuningNavButton = document.getElementById("aiTuningNavButton");
 
         switch (button) {
             case "trickler":
@@ -1701,6 +1708,7 @@
                 // Button active control
                 settingsNavButton.classList.remove("active");
                 purgeNavButton.classList.remove("active");
+                aiTuningNavButton.classList.remove("active");
                 tricklerNavButton.classList.add("active");
 
                 // Stop AI history poll when leaving settings
@@ -1721,6 +1729,7 @@
                 // Button active control
                 settingsNavButton.classList.remove("active");
                 tricklerNavButton.classList.remove("active");
+                aiTuningNavButton.classList.remove("active");
                 purgeNavButton.classList.add("active");
                 
                 // Restart
@@ -1739,6 +1748,7 @@
                 // Button active control
                 tricklerNavButton.classList.remove("active");
                 purgeNavButton.classList.remove("active");
+                aiTuningNavButton.classList.remove("active");
                 settingsNavButton.classList.add("active");
 
                 // Remove polling event
@@ -1750,6 +1760,25 @@
                 // Load the first settings
                 onSettingsLinkClicked("settings-scale");
                 
+                break;
+            case "aiTuning":
+                sectionTrickler.style.display = "none";
+                sectionSettings.style.display = "block";
+
+                // Button active control
+                tricklerNavButton.classList.remove("active");
+                purgeNavButton.classList.remove("active");
+                settingsNavButton.classList.remove("active");
+                aiTuningNavButton.classList.add("active");
+
+                // Remove polling event
+                clearTimeout(pollSetTimeoutId);
+
+                // Pre-load profile names
+                loadProfileDropdowns();
+
+                // Navigate directly to AI Tuning settings page
+                onSettingsLinkClicked("settings-ai-tuning");
                 break;
             default:
                 break;
