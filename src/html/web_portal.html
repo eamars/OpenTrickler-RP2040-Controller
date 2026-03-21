@@ -2608,7 +2608,7 @@
             if (countEl) countEl.innerText = count + ' drops';
 
             // Update shared suggestion state (used by pollAiTuningMainPanel to avoid duplicate fetch)
-            _mlHasSuggestions = !!(data['has_suggestions']) && count >= 3;
+            _mlHasSuggestions = !!(data['has_suggestions']) && count >= 10;
 
             // ML suggestions section
             const sugSection = document.getElementById('aiSuggestedSection');

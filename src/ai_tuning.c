@@ -724,7 +724,8 @@ void ai_tuning_record_charge(uint8_t profile_idx,
         g_history.count++;
     }
 
-    if (g_history.count >= 3) {
+    // Recalculate every 10 drops (at 10, 20, 30...) — first suggestion at drop 10
+    if (g_history.count >= 10 && g_history.count % 10 == 0) {
         ai_tuning_calculate_refinements(profile_idx);
     }
 
@@ -734,7 +735,7 @@ void ai_tuning_record_charge(uint8_t profile_idx,
 void ai_tuning_calculate_refinements(uint8_t profile_idx) {
     load_history_from_flash();
 
-    if (g_history.count < 3) {
+    if (g_history.count < 10) {
         g_history.has_suggestions = false;
         return;
     }
