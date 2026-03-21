@@ -56,6 +56,15 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     // ML data collection disabled by default
     .ml_data_collection_enabled = false,
 
+    // Auto zero disabled by default
+    .auto_zero_on_cup_return = false,
+
+    // Pulse mode defaults (disabled by default)
+    .pulse_mode_enabled = false,
+    .pulse_threshold = 0.5f,        // Start pulsing when within 0.5 grains (range: 0.3-1.0)
+    .pulse_duration_ms = 30,        // 30ms motor burst
+    .pulse_wait_ms = 150,           // 150ms wait for scale
+
     // LED related
     .neopixel_normal_charge_colour = RGB_COLOUR_GREEN,        // green
     .neopixel_under_charge_colour = RGB_COLOUR_YELLOW,        // yellow
@@ -282,11 +291,25 @@ void charge_mode_wait_for_complete() {
         float precharge_last_error = 0.0f;
         TickType_t precharge_last_tick = xTaskGetTickCount();
 
+        int precharge_scale_fail_count = 0;
         while (true) {
             float current_weight;
             if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
+                precharge_scale_fail_count++;
+                if (precharge_scale_fail_count >= 10) {
+                    // Scale disconnected for ~2 seconds - emergency stop
+                    motor_set_speed(SELECT_BOTH_MOTOR, 0);
+                    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
+                    motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
+                    if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+                        servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, false);
+                    }
+                    charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+                    return;
+                }
                 continue;
             }
+            precharge_scale_fail_count = 0;
 
             float precharge_error = precharge_target - current_weight;
 
@@ -338,6 +361,7 @@ void charge_mode_wait_for_complete() {
     // In FINE_ONLY mode coarse trickler was already handled by pre-charge above
     bool should_coarse_trickler_move = (ai_motor_mode != AI_MOTOR_MODE_FINE_ONLY);
 
+    int scale_fail_count = 0;
     while (true) {
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
@@ -354,8 +378,22 @@ void charge_mode_wait_for_complete() {
         float current_weight;
         if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
             // If no measurement within 200ms then poll the button and retry
+            scale_fail_count++;
+            if (scale_fail_count >= 10) {
+                // Scale disconnected for ~2 seconds - emergency stop
+                motor_set_speed(SELECT_BOTH_MOTOR, 0);
+                motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
+                motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
+                if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+                    servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, false);
+                }
+                if (ai_active) ai_tuning_cancel();
+                charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+                return;
+            }
             continue;
         }
+        scale_fail_count = 0;
         current_sample_tick = xTaskGetTickCount();
 
         float error = charge_mode_config.target_charge_weight - current_weight;
@@ -402,16 +440,29 @@ void charge_mode_wait_for_complete() {
 
         // Update fine trickler speed (skip if COARSE_ONLY mode)
         if (ai_motor_mode != AI_MOTOR_MODE_COARSE_ONLY) {
-            new_p = fine_kp_used * error;
-            new_i = current_profile->fine_ki * integral;
-            new_d = fine_kd_used * derivative;
-            float fine_pid = new_p + new_i + new_d;
-            // Phase 2 FINE_ONLY: stop motor when PID <= 0 (don't force min speed past target)
-            if (ai_motor_mode == AI_MOTOR_MODE_FINE_ONLY && fine_pid <= 0.0f) {
+            bool use_pulse = charge_mode_config.eeprom_charge_mode_data.pulse_mode_enabled &&
+                             error < charge_mode_config.eeprom_charge_mode_data.pulse_threshold &&
+                             error > charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
+
+            if (use_pulse) {
+                // Pulse mode: short burst then wait for scale to settle
+                float pulse_speed = fmax(fine_trickler_min_speed, fine_trickler_max_speed * 0.3f);
+                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, pulse_speed);
+                vTaskDelay(pdMS_TO_TICKS(charge_mode_config.eeprom_charge_mode_data.pulse_duration_ms));
                 motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+                vTaskDelay(pdMS_TO_TICKS(charge_mode_config.eeprom_charge_mode_data.pulse_wait_ms));
             } else {
-                new_speed = fmax(fine_trickler_min_speed, fmin(fine_pid, fine_trickler_max_speed));
-                motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
+                new_p = fine_kp_used * error;
+                new_i = current_profile->fine_ki * integral;
+                new_d = fine_kd_used * derivative;
+                float fine_pid = new_p + new_i + new_d;
+                // Phase 2 FINE_ONLY: stop motor when PID <= 0 (don't force min speed past target)
+                if (ai_motor_mode == AI_MOTOR_MODE_FINE_ONLY && fine_pid <= 0.0f) {
+                    motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+                } else {
+                    new_speed = fmax(fine_trickler_min_speed, fmin(fine_pid, fine_trickler_max_speed));
+                    motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
+                }
             }
         }
 
@@ -659,6 +710,11 @@ void charge_mode_wait_for_cup_return() {
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(20));
     }
 
+    // Auto zero scale if enabled
+    if (charge_mode_config.eeprom_charge_mode_data.auto_zero_on_cup_return) {
+        scale_config.scale_handle->force_zero();
+    }
+
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
 }
 
@@ -791,7 +847,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c16 (bool): ml_data_collection_enabled
     // ee (bool): save to eeprom
 
-    static char charge_mode_json_buffer[512];
+    static char charge_mode_json_buffer[640];
     bool save_to_eeprom = false;
 
     // Control
@@ -836,6 +892,24 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "c16") == 0) {
             charge_mode_config.eeprom_charge_mode_data.ml_data_collection_enabled = string_to_boolean(values[idx]);
         }
+        else if (strcmp(params[idx], "c17") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.auto_zero_on_cup_return = string_to_boolean(values[idx]);
+        }
+
+        // Pulse mode settings
+        else if (strcmp(params[idx], "c18") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.pulse_mode_enabled = string_to_boolean(values[idx]);
+        }
+        else if (strcmp(params[idx], "c19") == 0) {
+            float val = strtof(values[idx], NULL);
+            charge_mode_config.eeprom_charge_mode_data.pulse_threshold = fmaxf(0.3f, fminf(1.0f, val));
+        }
+        else if (strcmp(params[idx], "c20") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.pulse_duration_ms = (uint32_t) strtol(values[idx], NULL, 10);
+        }
+        else if (strcmp(params[idx], "c21") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.pulse_wait_ms = (uint32_t) strtol(values[idx], NULL, 10);
+        }
 
         // LED related settings
         else if (strcmp(params[idx], "c1") == 0) {
@@ -866,7 +940,8 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
              "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f,\"c13\":%0.3f,"
-             "\"c14\":%lu,\"c15\":%lu,\"c16\":%s}",
+             "\"c14\":%lu,\"c15\":%lu,\"c16\":%s,\"c17\":%s,"
+             "\"c18\":%s,\"c19\":%.3f,\"c20\":%lu,\"c21\":%lu}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour._raw_colour,
@@ -882,7 +957,12 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio,
              (unsigned long) charge_mode_config.eeprom_charge_mode_data.coarse_time_target_ms,
              (unsigned long) charge_mode_config.eeprom_charge_mode_data.total_time_target_ms,
-             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.ml_data_collection_enabled));
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.ml_data_collection_enabled),
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.auto_zero_on_cup_return),
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.pulse_mode_enabled),
+             charge_mode_config.eeprom_charge_mode_data.pulse_threshold,
+             (unsigned long) charge_mode_config.eeprom_charge_mode_data.pulse_duration_ms,
+             (unsigned long) charge_mode_config.eeprom_charge_mode_data.pulse_wait_ms);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;

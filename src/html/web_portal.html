@@ -385,6 +385,46 @@
                                 <span class="label-text">Mid-stage Servo Gate Position (0=open, 1=close)</span>
                                 <input type="number" class="input input-bordered" name="c13" step="0.001" min="0" max="1">
                             </div>
+
+                            <div class="divider"></div>
+
+                            <div class="grid grid-cols-2 gap-1">
+                                <span class="label-text">Auto-Zero Scale on Cup Return</span>
+                                <select class="select select-bordered" name="c17">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="divider">Pulse Mode</div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Enable Pulse Mode</span>
+                                <select class="select select-bordered" name="c18">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <span class="text-xs text-gray-500">Pulses motor near target instead of continuous run — helps slow scales</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Pulse Threshold (grains)</span>
+                                <input type="number" class="input input-bordered" name="c19" step="0.01" min="0.3" max="1.0">
+                                <span class="text-xs text-gray-500">Start pulsing when within this weight of target (0.3–1.0 gr)</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Pulse Duration (ms)</span>
+                                <input type="number" class="input input-bordered" name="c20" step="5" min="10" max="200">
+                                <span class="text-xs text-gray-500">Motor on time per pulse</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Pulse Wait (ms)</span>
+                                <input type="number" class="input input-bordered" name="c21" step="10" min="50" max="500">
+                                <span class="text-xs text-gray-500">Wait time for scale to update between pulses</span>
+                            </div>
+
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>

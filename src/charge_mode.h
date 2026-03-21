@@ -7,7 +7,7 @@
 #include "neopixel_led.h"
 
 
-#define EEPROM_CHARGE_MODE_DATA_REV                     10             // 16 byte
+#define EEPROM_CHARGE_MODE_DATA_REV                     12             // Added auto_zero + pulse mode
 
 #define WEIGHT_STRING_LEN 8
 
@@ -42,6 +42,15 @@ typedef struct {
 
     // ML data collection during normal (non-tuning) charges
     bool ml_data_collection_enabled;
+
+    // Auto zero scale when cup is returned
+    bool auto_zero_on_cup_return;
+
+    // Pulse mode - helps with slow scales near target
+    bool pulse_mode_enabled;
+    float pulse_threshold;          // Start pulsing when error < this (grains)
+    uint32_t pulse_duration_ms;     // Motor on time per pulse
+    uint32_t pulse_wait_ms;         // Wait time between pulses for scale to update
 
     // LED related settings
     rgbw_u32_t neopixel_normal_charge_colour;
