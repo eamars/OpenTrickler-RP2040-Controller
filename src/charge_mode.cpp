@@ -135,7 +135,8 @@ void scale_measurement_render_task(void *p) {
         // Format the timer string based on current state
         if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
             format_elapsed_time(time_buffer, sizeof(time_buffer), charge_start_tick);
-        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
+        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_STABILIZING ||
+                   charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_RETURN ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_ZERO) {
             snprintf(time_buffer, sizeof(time_buffer), "%.2f s", last_charge_elapsed_seconds);
@@ -543,16 +544,12 @@ void charge_mode_wait_for_complete() {
         vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete
     }
 
-    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_STABILIZING;
 }
 
-void charge_mode_wait_for_cup_removal() {
-    // Update current status
-    snprintf(title_string, sizeof(title_string), "Remove Cup");
+void charge_mode_stabilize() {
+    snprintf(title_string, sizeof(title_string), "Stabilizing...");
 
-    FloatRingBuffer data_buffer(5);
-
-    // Post charge analysis (while waiting for removal of the cup)
     // Wait for scale to stabilize after motors stopped
     if (charge_mode_config.eeprom_charge_mode_data.stabilization_enabled) {
         // Fixed configured wait
@@ -573,6 +570,15 @@ void charge_mode_wait_for_cup_removal() {
             }
         }
     }
+
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
+}
+
+void charge_mode_wait_for_cup_removal() {
+    // Update current status
+    snprintf(title_string, sizeof(title_string), "Remove Cup");
+
+    FloatRingBuffer data_buffer(5);
 
     // Take current measurement (settled reading used for ML overthrow too)
     float current_measurement = scale_get_current_measurement();
@@ -790,6 +796,9 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
                 break;
             case CHARGE_MODE_WAIT_FOR_COMPLETE:
                 charge_mode_wait_for_complete();
+                break;
+            case CHARGE_MODE_STABILIZING:
+                charge_mode_stabilize();
                 break;
             case CHARGE_MODE_WAIT_FOR_CUP_REMOVAL:
                 charge_mode_wait_for_cup_removal();

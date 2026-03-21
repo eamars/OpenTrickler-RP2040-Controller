@@ -1252,13 +1252,14 @@
 
 <!-- Scripts to support the webapp -->
 <script>
-    const ChargeModeState = Object.freeze({ 
+    const ChargeModeState = Object.freeze({
         EXIT: 0,
-        WAIT: 1, 
-        CHARGING: 2, 
-        REMOVE_CUP: 3, 
-        RETURN_CUP: 4, 
-    }); 
+        WAIT: 1,
+        CHARGING: 2,
+        REMOVE_CUP: 3,
+        RETURN_CUP: 4,
+        STABILIZING: 5,
+    });
 
     const ChargeModeEvent = Object.freeze({ 
         NO_EVENT: 1 << 0, 
@@ -1346,30 +1347,42 @@
                 chargeModeStateWait.classList.add(PRIMARY_CLASS);
                 chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
                 chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.innerText = "Remove Cup";
                 chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
                 break;
             case ChargeModeState.CHARGING:
                 chargeModeStateWait.classList.add(PRIMARY_CLASS);
                 chargeModeStateCharging.classList.add(PRIMARY_CLASS)
                 chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.innerText = "Remove Cup";
+                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
+                break;
+            case ChargeModeState.STABILIZING:
+                chargeModeStateWait.classList.add(PRIMARY_CLASS);
+                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.innerText = "Settling..."
                 chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
                 break;
             case ChargeModeState.REMOVE_CUP:
                 chargeModeStateWait.classList.add(PRIMARY_CLASS);
                 chargeModeStateCharging.classList.add(PRIMARY_CLASS)
                 chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.innerText = "Remove Cup";
                 chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
                 break;
             case ChargeModeState.RETURN_CUP:
                 chargeModeStateWait.classList.add(PRIMARY_CLASS);
                 chargeModeStateCharging.classList.add(PRIMARY_CLASS)
                 chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.innerText = "Remove Cup";
                 chargeModeStateReturnCup.classList.add(PRIMARY_CLASS)
                 break;
             case ChargeModeState.EXIT:
                 chargeModeStateWait.classList.remove(PRIMARY_CLASS);
                 chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
                 chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
+                chargeModeStateRemoveCup.innerText = "Remove Cup";
                 chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
                 break;
         }
@@ -2323,15 +2336,17 @@
         wait.classList.add(P);
         switch (state) {
             case ChargeModeState.WAIT:
-                charging.classList.remove(P); removeCup.classList.remove(P); returnCup.classList.remove(P); break;
+                charging.classList.remove(P); removeCup.classList.remove(P); removeCup.innerText = "Remove Cup"; returnCup.classList.remove(P); break;
             case ChargeModeState.CHARGING:
-                charging.classList.add(P);    removeCup.classList.remove(P); returnCup.classList.remove(P); break;
+                charging.classList.add(P);    removeCup.classList.remove(P); removeCup.innerText = "Remove Cup"; returnCup.classList.remove(P); break;
+            case ChargeModeState.STABILIZING:
+                charging.classList.add(P);    removeCup.classList.remove(P); removeCup.innerText = "Settling..."; returnCup.classList.remove(P); break;
             case ChargeModeState.REMOVE_CUP:
-                charging.classList.add(P);    removeCup.classList.add(P);    returnCup.classList.remove(P); break;
+                charging.classList.add(P);    removeCup.classList.add(P);    removeCup.innerText = "Remove Cup"; returnCup.classList.remove(P); break;
             case ChargeModeState.RETURN_CUP:
-                charging.classList.add(P);    removeCup.classList.add(P);    returnCup.classList.add(P);    break;
+                charging.classList.add(P);    removeCup.classList.add(P);    removeCup.innerText = "Remove Cup"; returnCup.classList.add(P);    break;
             default:
-                wait.classList.remove(P); charging.classList.remove(P); removeCup.classList.remove(P); returnCup.classList.remove(P); break;
+                wait.classList.remove(P); charging.classList.remove(P); removeCup.classList.remove(P); removeCup.innerText = "Remove Cup"; returnCup.classList.remove(P); break;
         }
     }
 
@@ -2593,7 +2608,7 @@
             if (countEl) countEl.innerText = count + ' drops';
 
             // Update shared suggestion state (used by pollAiTuningMainPanel to avoid duplicate fetch)
-            _mlHasSuggestions = !!(data['has_suggestions']) && count >= 10;
+            _mlHasSuggestions = !!(data['has_suggestions']) && count >= 3;
 
             // ML suggestions section
             const sugSection = document.getElementById('aiSuggestedSection');

@@ -5,8 +5,8 @@
 #include <stdbool.h>
 #include "profile.h"
 
-#define AI_TUNING_HISTORY_SIZE 10
-#define AI_TUNING_HISTORY_REV 5  // Bumped: added current_profile_idx for per-profile ML data
+#define AI_TUNING_HISTORY_SIZE 50
+#define AI_TUNING_HISTORY_REV 6  // Bumped: increased history buffer to 50 records
 #define AI_TUNING_DROP_BUF_SIZE 10
 #define AI_TUNING_CONFIG_REV 2   // EEPROM config revision (v2: removed coarse_overthrow_max_percent)
 

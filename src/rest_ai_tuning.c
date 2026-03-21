@@ -18,7 +18,7 @@ extern QueueHandle_t encoder_event_queue;
 extern charge_mode_config_t charge_mode_config;
 
 // JSON response buffer
-static char ai_tuning_json_buffer[2048];
+static char ai_tuning_json_buffer[4096];
 
 // Helper function for buffer overflow errors
 static bool send_buffer_overflow_error(struct fs_file *file) {

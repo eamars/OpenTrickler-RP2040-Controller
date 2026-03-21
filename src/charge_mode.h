@@ -17,6 +17,7 @@ typedef enum {
     CHARGE_MODE_WAIT_FOR_COMPLETE = 2,
     CHARGE_MODE_WAIT_FOR_CUP_REMOVAL = 3,
     CHARGE_MODE_WAIT_FOR_CUP_RETURN = 4,
+    CHARGE_MODE_STABILIZING = 5,
 } charge_mode_state_t;
 
 typedef struct {
