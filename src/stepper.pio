@@ -1,4 +1,5 @@
 ; 13 cycles at low
+.pio_version 0
 .program stepper
 .side_set 1 opt
 init:
