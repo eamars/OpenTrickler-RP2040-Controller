@@ -218,6 +218,10 @@ bool scale_init() {
 
 
 bool scale_config_save() {
+    // Sync the active driver handle with the persistent config (needed when
+    // scale driver is changed via display menu which bypasses set_scale_driver())
+    set_scale_driver(scale_config.persistent_config.scale_driver);
+    set_scale_baudrate(scale_config.persistent_config.scale_baudrate);
     bool is_ok = save_config(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config, sizeof(eeprom_scale_data_t));
     return is_ok;
 }

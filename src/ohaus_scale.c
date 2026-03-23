@@ -62,29 +62,36 @@ void _ohaus_scale_listener_task(void *p) {
             if (ch == '\n') {
                 rx_buffer[rx_buffer_idx] = '\0';
 
-                // Scan for sign character (+ or -) which precedes the value
-                for (char *p = rx_buffer; *p != '\0'; p++) {
+                // Scan the line for a valid weight value
+                bool found = false;
+                for (char *p = rx_buffer; *p != '\0' && !found; p++) {
+                    // Handle sign character (+ or -) separated from digits by spaces
                     if (*p == '+' || *p == '-') {
                         float sign = (*p == '-') ? -1.0f : 1.0f;
-
-                        // Skip spaces between sign and digits
                         char *q = p + 1;
-                        while (*q == ' ') {
-                            q++;
-                        }
-
-                        // Attempt float conversion from first digit
+                        while (*q == ' ') q++;
                         if (*q != '\0' && (isdigit((unsigned char)*q) || *q == '.')) {
                             char *endptr;
                             float weight = strtof(q, &endptr);
-
                             if (endptr != q) {
                                 scale_config.current_scale_measurement = sign * weight;
                                 if (scale_config.scale_measurement_ready) {
                                     xSemaphoreGive(scale_config.scale_measurement_ready);
                                 }
-                                break;
+                                found = true;
                             }
+                        }
+                    }
+                    // Fallback: try direct strtof (handles formats without explicit sign)
+                    if (!found && isdigit((unsigned char)*p)) {
+                        char *endptr;
+                        float weight = strtof(p, &endptr);
+                        if (endptr != p) {
+                            scale_config.current_scale_measurement = weight;
+                            if (scale_config.scale_measurement_ready) {
+                                xSemaphoreGive(scale_config.scale_measurement_ready);
+                            }
+                            found = true;
                         }
                     }
                 }

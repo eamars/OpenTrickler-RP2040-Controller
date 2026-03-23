@@ -1839,9 +1839,16 @@
             _stopAiHistoryPoll();
             const form = targetSection.querySelector("form");
             if (form) {
+                // Clear form fields to avoid showing stale values
+                for (const el of form.elements) {
+                    if (el.tagName === 'SELECT' || el.tagName === 'INPUT') {
+                        el.value = '';
+                    }
+                }
                 const uri = form.getAttribute("action");
                 fetch(uri)
                 .then(response => {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
                     return response.json();
                 })
                 .then(data => {
@@ -1853,6 +1860,10 @@
                         }
                     }
                 })
+                .catch(e => {
+                    console.error('Failed to load settings:', e);
+                    alert('Failed to load settings: ' + e.message);
+                });
             }
         }
     }
@@ -1900,17 +1911,18 @@
         // Post the new param with GET method
         fetch(uri)
         .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
             return response.json();
         })
         .then(data => {
-            // Populate values
-            const uri = targetForm.getAttribute("action");
-            fetch(uri)
+            // Read back and populate form
+            const readUri = targetForm.getAttribute("action");
+            fetch(readUri)
             .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
                 return response.json();
             })
             .then(data => {
-                // Populate the form
                 for (const key in data) {
                     const element = targetForm.querySelector('[name="' + key + '"]');
                     if (element) {
@@ -1918,10 +1930,15 @@
                     }
                 }
             })
+            .catch(e => console.error('Failed to read back settings:', e));
 
             // Show the success modal
             const settingsAppliedSuccessDialog = document.getElementById("settingsAppliedSuccessDialog");
             settingsAppliedSuccessDialog.showModal();
+        })
+        .catch(e => {
+            console.error('Failed to save settings:', e);
+            alert('Failed to save settings: ' + e.message);
         })
     }
 
