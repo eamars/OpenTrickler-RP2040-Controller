@@ -205,11 +205,20 @@ bool ai_tuning_start(profile_t* profile) {
     g_coarse_tuning_phase = TUNING_PHASE_ADAPTIVE_KP;
     g_fine_tuning_phase = TUNING_PHASE_ADAPTIVE_KP;
 
-    // Start at midpoint for binary search
-    g_session.coarse_kp_best = (g_config.coarse_kp_min + g_config.coarse_kp_max) / 2.0f;
-    g_session.coarse_kd_best = (g_config.coarse_kd_min + g_config.coarse_kd_max) / 2.0f;
-    g_session.fine_kp_best = (g_config.fine_kp_min + g_config.fine_kp_max) / 2.0f;
-    g_session.fine_kd_best = (g_config.fine_kd_min + g_config.fine_kd_max) / 2.0f;
+    // Start from existing profile values if available, otherwise midpoint
+    bool profile_has_values = (profile->coarse_kp > 0.0f || profile->coarse_kd > 0.0f ||
+                                profile->fine_kp > 0.0f   || profile->fine_kd > 0.0f);
+    if (profile_has_values) {
+        g_session.coarse_kp_best = fmaxf(g_config.coarse_kp_min, fminf(profile->coarse_kp, g_config.coarse_kp_max));
+        g_session.coarse_kd_best = fmaxf(g_config.coarse_kd_min, fminf(profile->coarse_kd, g_config.coarse_kd_max));
+        g_session.fine_kp_best   = fmaxf(g_config.fine_kp_min,   fminf(profile->fine_kp,   g_config.fine_kp_max));
+        g_session.fine_kd_best   = fmaxf(g_config.fine_kd_min,   fminf(profile->fine_kd,   g_config.fine_kd_max));
+    } else {
+        g_session.coarse_kp_best = (g_config.coarse_kp_min + g_config.coarse_kp_max) / 2.0f;
+        g_session.coarse_kd_best = (g_config.coarse_kd_min + g_config.coarse_kd_max) / 2.0f;
+        g_session.fine_kp_best   = (g_config.fine_kp_min   + g_config.fine_kp_max)   / 2.0f;
+        g_session.fine_kd_best   = (g_config.fine_kd_min   + g_config.fine_kd_max)   / 2.0f;
+    }
 
     g_coarse_kp_step = (g_config.coarse_kp_max - g_config.coarse_kp_min) / 2.0f;
     g_coarse_kd_step = (g_config.coarse_kd_max - g_config.coarse_kd_min) / 2.0f;

@@ -2009,13 +2009,47 @@
 
             // Bind actions
             dialogApplySettingsButton.onclick = function() {
-                putForm(form, false);
+                putSystemControlForm(form);
             }
 
             // Show the dialog
             applySettingsDialog.showModal();
         })
     })
+
+    function putSystemControlForm(targetForm) {
+        const paramData = new FormData(targetForm);
+        for (const [key, value] of paramData.entries()) {
+            if (value == "") paramData.delete(key);
+        }
+        const willReboot = paramData.get("s5") === "true";
+        const queryString = new URLSearchParams(paramData).toString();
+        const uri = new URL(targetForm.action + '?');
+        uri.search = queryString;
+
+        fetch(uri)
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(() => {
+            if (willReboot) {
+                alert('Device is rebooting. Please wait a few seconds and refresh the page.');
+            } else {
+                const settingsAppliedSuccessDialog = document.getElementById("settingsAppliedSuccessDialog");
+                settingsAppliedSuccessDialog.showModal();
+            }
+        })
+        .catch(e => {
+            if (willReboot) {
+                // Network error expected during reboot
+                alert('Device is rebooting. Please wait a few seconds and refresh the page.');
+            } else {
+                console.error('Failed to apply system control:', e);
+                alert('Failed to apply: ' + e.message);
+            }
+        });
+    }
 
     function debounce(callback, delay) {
         let timer

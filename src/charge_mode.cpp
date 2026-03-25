@@ -36,7 +36,7 @@ extern servo_gate_t servo_gate;
 const eeprom_charge_mode_data_t default_charge_mode_data = {
     .charge_mode_data_rev = 0,
 
-    .coarse_stop_threshold = 5,
+    .coarse_stop_threshold = 4,
     .fine_stop_threshold = 0.03,
 
     .set_point_sd_margin = 0.02,
@@ -49,9 +49,9 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .precharge_time_ms = 1000,
     .precharge_speed_rps = 2,
 
-    // AI tuning time targets (defaults: 500ms coarse pre-charge, 3000ms total)
-    .coarse_time_target_ms = 500,
-    .total_time_target_ms = 3000,
+    // AI tuning time targets (defaults: 7000ms coarse pre-charge, 15000ms total)
+    .coarse_time_target_ms = 7000,
+    .total_time_target_ms = 15000,
 
     // ML data collection disabled by default
     .ml_data_collection_enabled = false,
@@ -412,7 +412,7 @@ void charge_mode_wait_for_complete() {
             break;
         }
 
-        if (error < charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
+        if (error <= charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
             // Stop all motors
             motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
