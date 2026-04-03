@@ -363,6 +363,32 @@
                                 <span class="label-text">Mid-stage Servo Gate Position (0=open, 1=close)</span>
                                 <input type="number" class="input input-bordered" name="c13" step="0.001" min="0" max="1">
                             </div>
+
+                            <div class="divider"></div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Stop Backoff Enable</span>
+                                <select class="select select-bordered" name="c14">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Stop Backoff Size (turns)</span>
+                                <select class="select select-bordered" name="c15">
+                                    <option value="0.125">1/8</option>
+                                    <option value="0.25">1/4</option>
+                                    <option value="0.5">1/2</option>
+                                    <option value="1.0">1</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Coarse Stop Backoff Speed (rps)</span>
+                                <input type="number" class="input input-bordered" name="c16" step="0.001" min="0">
+                            </div>
+
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
                         </form>
                     </section>
