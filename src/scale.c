@@ -21,6 +21,7 @@ extern scale_handle_t jm_science_scale_handle;
 extern scale_handle_t creedmoor_scale_handle;
 extern scale_handle_t radwag_ps_r2_scale_handle;
 extern scale_handle_t sartorius_scale_handle;
+extern scale_handle_t simulated_scale_handle;
 
 scale_config_t scale_config;
 const eeprom_scale_data_t default_scale_persistent_config = {
@@ -79,6 +80,11 @@ void set_scale_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_GENERIC_DRV:
         {
             scale_config.scale_handle = &generic_scale_drv_handle;
+            break;
+        }
+        case SCALE_DRIVER_SIMULATED:
+        {
+            scale_config.scale_handle = &simulated_scale_handle;
             break;
         }
         default:
@@ -157,8 +163,8 @@ const char * get_scale_driver_string() {
         case SCALE_DRIVER_SARTORIUS:
             scale_driver_string = "Sartorius";
             break;
-        case SCALE_DRIVER_GENERIC_DRV:
-            scale_driver_string = "Generic Driver";
+        case SCALE_DRIVER_SIMULATED:
+            scale_driver_string = "Simulated Scale";
             break;
         default:
             break;
