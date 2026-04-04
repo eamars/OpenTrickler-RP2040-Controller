@@ -188,7 +188,7 @@ void charge_mode_wait_for_zero() {
         // Generate stop condition
         if (data_buffer.getCounter() >= 10){
             if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
-                abs(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
+                fabsf(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
                 break;
             }
         }
@@ -497,28 +497,67 @@ void charge_mode_wait_for_cup_return() {
 }
 
 
+void charge_mode_update_target_weight_from_digits() {
+    switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
+        case DP_2:
+            charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
+                                            charge_weight_digits[3] * 10 + \
+                                            charge_weight_digits[2] * 1 + \
+                                            charge_weight_digits[1] * 0.1 + \
+                                            charge_weight_digits[0] * 0.01;
+            break;
+        case DP_3:
+            charge_mode_config.target_charge_weight = charge_weight_digits[4] * 10 + \
+                                            charge_weight_digits[3] * 1 + \
+                                            charge_weight_digits[2] * 0.1 + \
+                                            charge_weight_digits[1] * 0.01 + \
+                                            charge_weight_digits[0] * 0.001;
+            break;
+        default:
+            charge_mode_config.target_charge_weight = 0;
+            break;
+    }
+}
+
+void charge_mode_load_digits_from_profile() {
+    profile_t *p = profile_get_selected();
+    float weight = p->last_charge_weight;
+    
+    if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_2) {
+        // DP_2 = 123.45 (charge_weight_digits[4] * 100 + [3] * 10 + [2] * 1 + [1] * 0.1 + [0] * 0.01)
+        int w = (int)(weight * 100.0f + 0.5f);
+        charge_weight_digits[4] = (w / 10000) % 10;
+        charge_weight_digits[3] = (w / 1000) % 10;
+        charge_weight_digits[2] = (w / 100) % 10;
+        charge_weight_digits[1] = (w / 10) % 10;
+        charge_weight_digits[0] = w % 10;
+    } else {
+        // DP_3 = 12.345 (charge_weight_digits[4] * 10 + [3] * 1 + [2] * 0.1 + [1] * 0.01 + [0] * 0.001)
+        int w = (int)(weight * 1000.0f + 0.5f);
+        charge_weight_digits[4] = (w / 10000) % 10;
+        charge_weight_digits[3] = (w / 1000) % 10;
+        charge_weight_digits[2] = (w / 100) % 10;
+        charge_weight_digits[1] = (w / 10) % 10;
+        charge_weight_digits[0] = w % 10;
+    }
+}
+
+void charge_mode_save_digits_to_profile() {
+    charge_mode_update_target_weight_from_digits();
+    profile_t *p = profile_get_selected();
+    p->last_charge_weight = charge_mode_config.target_charge_weight;
+    profile_data_save();
+}
+
+void charge_mode_update_weight_from_profile() {
+    profile_t *p = profile_get_selected();
+    charge_mode_config.target_charge_weight = p->last_charge_weight;
+}
+
 uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
     // Create target weight, if the charge mode weight is built by charge_weight_digits
     if (!charge_mode_skip_user_input) {
-        switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
-            case DP_2:
-                charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
-                                                charge_weight_digits[3] * 10 + \
-                                                charge_weight_digits[2] * 1 + \
-                                                charge_weight_digits[1] * 0.1 + \
-                                                charge_weight_digits[0] * 0.01;
-                break;
-            case DP_3:
-                charge_mode_config.target_charge_weight = charge_weight_digits[4] * 10 + \
-                                                charge_weight_digits[3] * 1 + \
-                                                charge_weight_digits[2] * 0.1 + \
-                                                charge_weight_digits[1] * 0.01 + \
-                                                charge_weight_digits[0] * 0.001;
-                break;
-            default:
-                charge_mode_config.target_charge_weight = 0;
-                break;
-        }
+        charge_mode_update_target_weight_from_digits();
     }
 
     // If the display task is never created then we shall create one, otherwise we shall resume the task
@@ -716,13 +755,20 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
     // s4 (string): Profile Name
     // s5 (string): Elapsed time in seconds, live during charging
 
-    static char charge_mode_json_buffer[160];  // Increased to fit s5
+    static char charge_mode_json_buffer[512];  // Increased to be safe
     char elapsed_time_buffer[16] = {0};
 
     // Control
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "s0") == 0) {
             charge_mode_config.target_charge_weight = strtof(values[idx], NULL);
+            
+            // Save to profile
+            profile_t *p = profile_get_selected();
+            if (p) {
+                p->last_charge_weight = charge_mode_config.target_charge_weight;
+                profile_data_save();
+            }
         }
         else if (strcmp(params[idx], "s2") == 0) {
             charge_mode_state_t new_state = (charge_mode_state_t) atoi(values[idx]);
@@ -746,17 +792,28 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
         }
     }
 
-    // Handle the special case
+    // Handle the special cases for JSON floats
     float current_measurement = scale_get_current_measurement();
     char weight_string[16];
-    if (isnanf(current_measurement)) {
-        sprintf(weight_string, "\"nan\"");
+    if (isnan(current_measurement)) {
+        sprintf(weight_string, "nan");
     }
-    else if (isinff(current_measurement)) {
-        sprintf(weight_string, "\"inf\"");
+    else if (isinf(current_measurement)) {
+        sprintf(weight_string, "inf");
     }
     else {
         sprintf(weight_string, "%0.3f", current_measurement);
+    }
+
+    char target_weight_string[16];
+    if (isnan(charge_mode_config.target_charge_weight)) {
+        sprintf(target_weight_string, "nan");
+    }
+    else if (isinf(charge_mode_config.target_charge_weight)) {
+        sprintf(target_weight_string, "inf");
+    }
+    else {
+        sprintf(target_weight_string, "%0.3f", charge_mode_config.target_charge_weight);
     }
 
     // Format elapsed time
@@ -768,17 +825,21 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
         snprintf(elapsed_time_buffer, sizeof(elapsed_time_buffer), "%.2f", last_charge_elapsed_seconds);
     }
 
+    // Safely get profile name
+    profile_t *selected_profile = profile_get_selected();
+    const char *profile_name = (selected_profile != NULL) ? selected_profile->name : "Unknown";
+
     // Response
     snprintf(charge_mode_json_buffer, 
              sizeof(charge_mode_json_buffer),
              "%s"
-             "{\"s0\":%0.3f,\"s1\":%s,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\",\"s5\":\"%s\"}",
+             "{\"s0\":%0.3f,\"s1\":\"%s\",\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\",\"s5\":\"%s\"}",
              http_json_header,
              charge_mode_config.target_charge_weight,
              weight_string,
              (int) charge_mode_config.charge_mode_state,
              charge_mode_config.charge_mode_event,
-             profile_get_selected()->name,
+             profile_name,
              elapsed_time_buffer);
 
     // Clear events

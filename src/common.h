@@ -35,6 +35,8 @@ bool string_to_boolean(char * s);
 
 int float_to_string(char * output_decimal_str, float var, decimal_places_t decimal_places);
 
+uint32_t software_crc32(void * data, size_t length);
+
 /** 
  * @brief Load configuration from persistent storage. 
  */

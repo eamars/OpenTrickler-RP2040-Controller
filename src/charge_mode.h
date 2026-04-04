@@ -62,6 +62,10 @@ bool charge_mode_config_init(void);
 uint8_t charge_mode_menu(bool charge_mode_skip_user_input);
 bool charge_mode_config_save(void);
 
+void charge_mode_load_digits_from_profile();
+void charge_mode_save_digits_to_profile();
+void charge_mode_update_weight_from_profile();
+
 // REST interface
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]);
