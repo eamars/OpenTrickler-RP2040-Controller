@@ -959,6 +959,8 @@
     });
 
     var pollSetTimeoutId;
+    var lastProfileNameOnServer = "";
+    var lastChargeWeightOnServer = -1;
 
     // Set Charge Mode Set Point with REST interface
     function setChargeWeight() {
@@ -980,9 +982,10 @@
         fetch(uri)
         .then(response => {
             _restartPoll();  // Start the poll immediately to update the charge status
+            return response.json();
         })
         .catch(error => {
-            console.error("Error setting charge weight");
+            console.error("Error setting charge weight:", error);
         });
     }
 
@@ -1002,9 +1005,10 @@
         fetch(uri)
         .then(response => {
             _restartPoll();  // Start the poll immediately to update the charge status
+            return response.json();
         })
         .catch(error => {
-            console.error("Error setting charge mode status");
+            console.error("Error setting charge mode status:", error);
         });
     }
 
@@ -1057,7 +1061,7 @@
         currentWeightDecimal.innerText = String(weight);
 
         var currentWeightProgressPencentage = document.getElementById("currentWeightProgressPencentage");
-        currentWeightProgressPencentage.value = percentage;
+        currentWeightProgressPencentage.value = isFinite(percentage) ? percentage : 0;
     }
 
     function _setStartStopButtonWidget(isStart) {
@@ -1129,32 +1133,43 @@
     function pollChargeModeStatus() {
         fetch("/rest/charge_mode_state")
         .then(response => {
-            return response.json()
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
         })
         .then(data => {
-            // console.log(data);
             // Parse data
-            const charge_weight_set_point = data["s0"];
-            const current_charge_weight = data["s1"];
+            const charge_weight_set_point = parseFloat(data["s0"]);
+            const current_charge_weight = parseFloat(data["s1"]);
             const charge_mode_state = data["s2"];
             const charge_mode_event = data["s3"];
             const profile_name = data["s4"];
             const charge_time_seconds = data["s5"] || "-.--";
 
             var percentage = 0;
-            if (charge_weight_set_point == 0) {
-                percentage = 0;
-            }
-            else {
+            if (isFinite(charge_weight_set_point) && charge_weight_set_point != 0) {
                 percentage = current_charge_weight / charge_weight_set_point * 100.0;
             }
 
             // Update web element
-            _setCurrentWeight(current_charge_weight, percentage);
+            _setCurrentWeight(data["s1"], percentage);
             _setChargeModeStateWidget(charge_mode_state);
 
-            profileName = document.getElementById("profileName");
-            profileName.innerText = String(profile_name);
+            // Update charge weight input if profile changed or weight changed on server
+            if (profile_name !== lastProfileNameOnServer || Math.abs(charge_weight_set_point - lastChargeWeightOnServer) > 0.0001) {
+                // Only update if the user isn't currently focusing the input
+                if (document.activeElement.id !== "chargeWeightInput") {
+                    document.getElementById("chargeWeightInput").value = charge_weight_set_point;
+                }
+                lastProfileNameOnServer = profile_name;
+                lastChargeWeightOnServer = charge_weight_set_point;
+            }
+
+            const profileNameElement = document.getElementById("profileName");
+            if (profileNameElement) {
+                profileNameElement.innerText = String(profile_name);
+            }
             
             // Find the charge time element and update its text content
             const chargeTimeElement = document.getElementById('chargeTimeValue');
@@ -1180,14 +1195,16 @@
                 }
 
                 // Show modal
-                const dialogModal = document.getElementById(dialog_name);
-                if (dialogModal) {
-                    dialogModal.showModal();
+                if (dialog_name) {
+                    const dialogModal = document.getElementById(dialog_name);
+                    if (dialogModal) {
+                        dialogModal.showModal();
+                    }
                 }
             }
         })
         .catch(error => {
-            console.error("Error reading charge mode settings");
+            console.error("Error reading charge mode settings:", error);
             _setCurrentWeight("---", 0);
             _setChargeModeStateWidget(ChargeModeState.WAIT);
         })

@@ -9,7 +9,7 @@
 #define PROFILE_NAME_MAX_LEN    16
 #define MAX_PROFILE_CNT         8
 
-#define EEPROM_PROFILE_DATA_REV             1           // 16 bit
+#define EEPROM_PROFILE_DATA_REV             2           // 16 bit
 
 typedef struct
 {  
@@ -31,6 +31,8 @@ typedef struct
 
     float fine_min_flow_speed_rps;
     float fine_max_flow_speed_rps;
+
+    float last_charge_weight;
 } profile_t;
 
 
