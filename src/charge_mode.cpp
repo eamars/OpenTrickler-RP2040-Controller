@@ -68,6 +68,9 @@ static float last_charge_elapsed_seconds = 0.0f;
 // Coarse trickler end-of-trickle backoff
 #define COARSE_STOP_BACKOFF_MAX_MS 15000  // safety cap
 
+static bool coarse_backoff_in_progress = false;
+static TickType_t coarse_backoff_end_tick = 0;
+
 static void coarse_trickler_backoff(float min_output_speed_rps) {
     if (!charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_enable) {
         return;
@@ -100,8 +103,8 @@ static void coarse_trickler_backoff(float min_output_speed_rps) {
     }
 
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, -fabsf(backoff_speed));
-    vTaskDelay(pdMS_TO_TICKS(backoff_time_ms));
-    motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+    coarse_backoff_in_progress = true;
+    coarse_backoff_end_tick = xTaskGetTickCount() + pdMS_TO_TICKS(backoff_time_ms);
 }
 
 
@@ -246,6 +249,7 @@ void charge_mode_wait_for_zero() {
 void charge_mode_wait_for_complete() {
 
     charge_start_tick = xTaskGetTickCount();
+    coarse_backoff_in_progress = false;
 
     // Set colour to under charge
     neopixel_led_set_colour(
@@ -311,6 +315,12 @@ void charge_mode_wait_for_complete() {
         }
         current_sample_tick = xTaskGetTickCount();
 
+        // Handle coarse trickler backoff stop
+        if (coarse_backoff_in_progress && (current_sample_tick >= coarse_backoff_end_tick)) {
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+            coarse_backoff_in_progress = false;
+        }
+
         float coarse_trickler_error = coarse_trickler_target_charge_weight - current_weight;
         float fine_trickler_error = charge_mode_config.target_charge_weight - current_weight;
 
@@ -356,7 +366,7 @@ void charge_mode_wait_for_complete() {
         motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
 
         // Update coarse trickler speed
-        if (should_coarse_trickler_move) {
+        if (should_coarse_trickler_move && !coarse_backoff_in_progress) {
             coarse_trickler_integral += coarse_trickler_error;
             float coarse_trickler_derivative = (coarse_trickler_error - coarse_trickler_last_error) / elapse_time_ms;
 
