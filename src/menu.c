@@ -56,6 +56,15 @@ void menu_task(void *p){
             else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
                 mui_SendSelect(&mui);
             }
+            else if (button_encoder_event == BUTTON_RST_PRESSED) {
+                // Global back: pop one menu level until we reach the root (form 1).
+                // If there is no history, force the root form.
+                if (mui_GetCurrentFormId(&mui) != 1) {
+                    if (mui_RestoreForm(&mui) == 0) {
+                        mui_GotoForm(&mui, 1, 0);
+                    }
+                }
+            }
             else if (button_encoder_event == OVERRIDE_FROM_REST) {
                 // Assuming the caller code will set the exit_state
                 mui_SaveForm(&mui);          // store the current form and position so that the child can jump back
