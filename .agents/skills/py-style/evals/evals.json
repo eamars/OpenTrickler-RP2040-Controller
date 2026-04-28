@@ -1,0 +1,90 @@
+{
+  "skill_name": "py-style",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review this function for style issues:\n\n```python\nasync def get_user_affinity(global_user_id, db=None):\n    try:\n        if db is None:\n            from kazusa_ai_chatbot.db import get_db\n            db = await get_db()\n        doc = await db.user_profiles.find_one({\"global_user_id\": global_user_id})\n        affinity = doc.get(\"affinity\", 500)\n        logger.info(\"Got affinity %d for user %s\", affinity, global_user_id)\n        return affinity\n    except Exception:\n        return 500\n```",
+      "expected_output": "Identifies all four violations: inline import (Rule 1), over-broad except Exception (Rule 3), scattered default 500 via .get() (Rule 5), try-except swallowing an internal DB failure (Rule 6). Also flags missing docstring (Rule 4). Proposes corrected version.",
+      "assertions": [
+        {
+          "name": "flags_inline_import",
+          "description": "Response identifies the inline import inside the function body as a Rule 1 violation"
+        },
+        {
+          "name": "flags_broad_except",
+          "description": "Response flags 'except Exception' as too broad and a Rule 3 violation"
+        },
+        {
+          "name": "flags_get_default",
+          "description": "Response flags doc.get('affinity', 500) as a Rule 5 violation — default should live at write time"
+        },
+        {
+          "name": "flags_swallowed_db_error",
+          "description": "Response identifies that catching Exception and returning 500 silences a DB failure (Rule 6)"
+        },
+        {
+          "name": "flags_missing_docstring",
+          "description": "Response flags the missing docstring as a Rule 4 violation"
+        },
+        {
+          "name": "provides_corrected_code",
+          "description": "Response includes a corrected version of the function with all violations fixed"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Write a function called `classify_message_depth` that takes a user message string, a topic string, and an affinity integer, calls an LLM to decide if the message is SHALLOW or DEEP, and returns a dict with 'depth' and 'reasoning'. The LLM might return broken JSON.",
+      "expected_output": "Produces code that: imports at top level, has a full docstring with Args/Returns, wraps only json.loads in try/except json.JSONDecodeError (not the whole LLM call), does not use .get() with defaults on internal state, and does not use bare except.",
+      "assertions": [
+        {
+          "name": "no_inline_imports",
+          "description": "All imports are at module level, not inside the function"
+        },
+        {
+          "name": "has_complete_docstring",
+          "description": "Function has docstring with purpose, Args section, and Returns section"
+        },
+        {
+          "name": "try_wraps_only_json_parse",
+          "description": "The try block contains only the JSON parsing statement, not the entire LLM call chain"
+        },
+        {
+          "name": "except_is_specific",
+          "description": "except clause names json.JSONDecodeError or equivalent specific type, not Exception"
+        },
+        {
+          "name": "no_swallowed_llm_call_errors",
+          "description": "The LLM ainvoke() call is not wrapped in a try-except that silences failures"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I have this code and my tech lead said the error handling is wrong. Can you fix it?\n\n```python\nimport asyncio\n\nasync def process_and_save(state):\n    try:\n        user_id = state[\"global_user_id\"]\n        facts = state.get(\"new_facts\", [])\n        affinity_delta = state.get(\"affinity_delta\", 0)\n        \n        from kazusa_ai_chatbot.db import get_db, upsert_user_facts, update_affinity\n        db = await get_db()\n        \n        if facts:\n            await upsert_user_facts(user_id, facts)\n        \n        if affinity_delta != 0:\n            new_affinity = await update_affinity(user_id, affinity_delta)\n        \n        logger.info(\"Saved %d facts, affinity delta %d\", len(facts), affinity_delta)\n        return {\"success\": True}\n    except Exception as e:\n        logger.warning(\"process_and_save failed: %s\", e)\n        return {\"success\": False}\n```",
+      "expected_output": "Explains why the tech lead is right: (1) inline imports (Rule 1), (2) try wraps the whole function body instead of minimum range (Rule 2), (3) except Exception is too broad (Rule 3), (4) no docstring (Rule 4), (5) .get() with defaults on internal state (Rule 5), (6) swallowing DB errors hides bugs (Rule 6). Provides corrected version where the try-except is removed entirely since there is no external I/O that justifies it.",
+      "assertions": [
+        {
+          "name": "moves_imports_to_top",
+          "description": "Fixed code moves the inline imports to the module top level"
+        },
+        {
+          "name": "removes_catch_all_try_except",
+          "description": "Fixed code removes or significantly narrows the try-except block; internal DB calls are not wrapped"
+        },
+        {
+          "name": "adds_docstring",
+          "description": "Fixed code includes a docstring with purpose, Args, and Returns"
+        },
+        {
+          "name": "explains_get_default_issue",
+          "description": "Response explains that state.get('new_facts', []) and state.get('affinity_delta', 0) mask missing upstream writes"
+        },
+        {
+          "name": "no_success_false_return",
+          "description": "Fixed code does not return a success/failure dict that silences exceptions — errors should propagate"
+        }
+      ]
+    }
+  ]
+}
