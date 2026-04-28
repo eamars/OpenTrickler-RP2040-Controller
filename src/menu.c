@@ -29,6 +29,41 @@ extern const size_t muif_cnt;
 
 AppState_t exit_state = APP_STATE_DEFAULT;
 
+static uint8_t menu_get_parent_form_id(uint8_t form_id) {
+    // Parent relationships for "one level up" navigation.
+    // Root is form 1.
+    switch (form_id) {
+        case 10: return 1;
+        case 11: return 10;
+        case 12: return 10;
+        case 13: return 10;
+
+        case 20: return 1;
+
+        case 30: return 1;
+        case 31: return 30;
+        case 32: return 30;
+        case 33: return 32;
+        case 34: return 32;
+        case 38: return 34;
+        case 35: return 30;
+        case 36: return 30;
+        case 37: return 30;
+        case 39: return 30;
+
+        case 40: return 1;
+        case 41: return 40;
+
+        case 51: return 31;
+        case 53: return 31;
+        case 60: return 37;
+        case 61: return 37;
+
+        default:
+            return 1;
+    }
+}
+
 
 void menu_task(void *p){
     u8g2_t * display_handler = get_display_handler();
@@ -55,6 +90,14 @@ void menu_task(void *p){
             }
             else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
                 mui_SendSelect(&mui);
+            }
+            else if (button_encoder_event == BUTTON_RST_PRESSED) {
+                // Global back: deterministic "one menu level up" until root (form 1).
+                uint8_t current_form_id = mui_GetCurrentFormId(&mui);
+                if (current_form_id != 1) {
+                    uint8_t parent_form_id = menu_get_parent_form_id(current_form_id);
+                    mui_GotoForm(&mui, parent_form_id, 0);
+                }
             }
             else if (button_encoder_event == OVERRIDE_FROM_REST) {
                 // Assuming the caller code will set the exit_state

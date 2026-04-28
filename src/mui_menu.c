@@ -374,8 +374,9 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 37, "press Next to trickle")
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 10, "Back")
+    // Put "Next" first so it is focused by default
     MUI_XYAT("LV", 115, 59, 1, "Next")  // APP_STATE_ENTER_CHARGE_MODE
+    MUI_XYAT("BN",14, 59, 10, "Back")
 
     // Menu 20: Cleanup
     MUI_FORM(20)
