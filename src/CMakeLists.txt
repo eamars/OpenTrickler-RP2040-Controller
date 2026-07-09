@@ -68,3 +68,32 @@ add_custom_command(
     COMMENT "Generating version"
 )
 add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
+
+
+# OTA firmware update: flash layout constants, computed once in the root
+# CMakeLists.txt (shared with the bootloader target) and consumed here.
+# The app target no longer needs FIRMWARE_UPDATE_APP_REGION_SIZE/OFFSET --
+# it never writes to the app region itself (see src/firmware_update.c); only
+# the bootloader does, since it's the one that actually copies a staged
+# image into place. Kept distinct from the SDK's own PICO_FLASH_SIZE_BYTES
+# macro (see root CMakeLists.txt) to avoid colliding with hardware_flash's
+# bounds-check against the physical flash size.
+# NOTE: values are plain integer literals, not parenthesized expressions --
+# CMake silently drops a compile definition whose value starts with '(' when
+# passing it on the compiler command line (it's misparsed as a function-style
+# macro), so e.g. "(4 * 1024 * 1024)" would never actually reach the compiler.
+# FIRMWARE_UPDATE_BATCH_SIZE: how many bytes are erased+programmed per
+# flash_safe_execute() call during OTA upload. Each call dynamically creates
+# and tears down a max-priority FreeRTOS task on the other core to
+# coordinate the multicore lockout (see pico_flash's flash.c) -- doing that
+# once per 4KB sector for a large image (hundreds of times back to back) was
+# found to wedge the system, so writes are batched into much larger chunks.
+# Sized generously on pico2_w (abundant RAM headroom) and more conservatively
+# on pico_w (tighter RAM budget) -- must remain a multiple of 4096.
+target_compile_definitions("${TARGET_NAME}" PUBLIC
+    FIRMWARE_UPDATE_TOTAL_FLASH_SIZE=${FIRMWARE_UPDATE_TOTAL_FLASH_SIZE}
+    FIRMWARE_UPDATE_STAGING_OFFSET=${FIRMWARE_UPDATE_STAGING_OFFSET}
+    FIRMWARE_UPDATE_STAGING_SIZE=${FIRMWARE_UPDATE_STAGING_SIZE}
+    FIRMWARE_UPDATE_BOARD_TYPE=${FIRMWARE_UPDATE_BOARD_TYPE}
+    FIRMWARE_UPDATE_BATCH_SIZE=${FIRMWARE_UPDATE_BATCH_SIZE}
+)

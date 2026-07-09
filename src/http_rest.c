@@ -177,7 +177,7 @@ static char httpd_req_buf[LWIP_HTTPD_MAX_REQ_LENGTH + 1];
 #if LWIP_HTTPD_URI_BUF_LEN
 /* Filename for response file to send when POST is finished or
  * search for default files when a directory is requested. */
-// static char http_uri_buf[LWIP_HTTPD_URI_BUF_LEN + 1];
+static char http_uri_buf[LWIP_HTTPD_URI_BUF_LEN + 1];
 #endif
 
 #if LWIP_HTTPD_DYNAMIC_HEADERS

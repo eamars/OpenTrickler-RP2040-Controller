@@ -39,9 +39,11 @@ void menu_task(void *p){
     mui_GotoForm(&mui, 1, 0);
 
     // Render the menu before user input
+    acquire_display_buffer_access();
     u8g2_ClearBuffer(display_handler);
     mui_Draw(&mui);
     u8g2_SendBuffer(display_handler);
+    release_display_buffer_access();
 
     while (true) {
         if (mui_IsFormActive(&mui)) {
@@ -97,8 +99,10 @@ void menu_task(void *p){
             mui_GotoForm(&mui, exit_form_id, 0);
         }
 
+        acquire_display_buffer_access();
         u8g2_ClearBuffer(display_handler);
         mui_Draw(&mui);
         u8g2_SendBuffer(display_handler);
+        release_display_buffer_access();
     }
 }

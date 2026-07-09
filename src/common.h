@@ -33,6 +33,15 @@ void delay_ms(uint32_t ms, BaseType_t scheduler_state);
 const char * boolean_to_string(bool var);
 bool string_to_boolean(char * s);
 
+uint32_t software_crc32(void * data, size_t length);
+
+// Incremental form of software_crc32(), for computing a CRC32 across data
+// that arrives in chunks (e.g. a streamed network upload) without ever
+// buffering the whole thing in RAM.
+uint32_t software_crc32_init(void);
+uint32_t software_crc32_update(uint32_t crc, const void * data, size_t length);
+uint32_t software_crc32_finalize(uint32_t crc);
+
 int float_to_string(char * output_decimal_str, float var, decimal_places_t decimal_places);
 
 /** 

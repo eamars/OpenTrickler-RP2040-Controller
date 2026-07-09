@@ -10,7 +10,7 @@ Dependencies from pip:
 """
 
 import json
-from flask import Flask, send_from_directory
+from flask import Flask, request, send_from_directory
 import os
 
 
@@ -121,6 +121,42 @@ def rest_servo_gate_config():
 @app.route('/rest/system_control')
 def rest_system_control():
     return {"s0":"8381FFF","s1":"1.2.10-dirty","s2":"8f201d6","s3":"Debug","s4":False,"s5":False,"s6":False}
+
+
+firmware_staged_valid = False
+
+@app.route('/rest/firmware_update_status')
+def rest_firmware_update_status():
+    return {"s0":"8381FFF","s1":"1.2.10-dirty","s2":"8f201d6","s3":"Debug",
+            "staged_valid": firmware_staged_valid,
+            "staged_version_string": "1.2.11-dirty" if firmware_staged_valid else "",
+            "staged_vcs_hash": "abcdef1" if firmware_staged_valid else "",
+            "staged_payload_size": 700000 if firmware_staged_valid else 0,
+            "last_upload_ok": firmware_staged_valid,
+            "last_upload_error": ""}
+
+
+@app.route('/rest/firmware_upload', methods=['POST'])
+def rest_firmware_upload():
+    global firmware_staged_valid
+    # Real device validates magic/CRC/board-type; this stub just pretends
+    # any upload with a body succeeds, so the web UI can be developed without
+    # hardware.
+    firmware_staged_valid = len(request.get_data()) > 0
+    return rest_firmware_update_status()
+
+
+@app.route('/rest/firmware_install')
+def rest_firmware_install():
+    global firmware_staged_valid
+    if request.args.get('i0') != 'true':
+        return {"error": "Install not confirmed"}
+    if not firmware_staged_valid:
+        return {"error": "No valid staged image"}
+    # A real device reboots here without responding; the stub just resets
+    # the staged flag so the page reflects "installed" on next refresh.
+    firmware_staged_valid = False
+    return {"s0":"8381FFF","s1":"1.2.11-dirty","s2":"abcdef1","s3":"Debug"}
 
 
 @app.route("/")

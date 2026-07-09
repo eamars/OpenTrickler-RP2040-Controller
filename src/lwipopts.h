@@ -27,7 +27,8 @@
 
 // Lwip features
 #define LWIP_HTTPD_CGI                  1    // Enable HTTPCGI
-#define LWIP_HTTPD_SUPPORT_POST         0    // Enable POST
+#define LWIP_HTTPD_SUPPORT_POST         1    // Enable POST (firmware OTA upload)
+#define LWIP_HTTPD_POST_MANUAL_WND      1    // Pace TCP window to flash write throughput
 #define LWIP_HTTPD_CUSTOM_FILES         0   
 #define LWIP_HTTPD_DYNAMIC_FILE_READ    0
 #define LWIP_HTTPD_DYNAMIC_HEADERS      0
