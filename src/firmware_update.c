@@ -229,6 +229,23 @@ bool firmware_update_install_and_reboot(void) {
 }
 
 
+// Erases just the footer sector, so firmware_update_get_staged_info() stops
+// reporting a valid staged image until a new upload completes and commits a
+// fresh footer. Called at the start of every new upload attempt, before any
+// data is received, so: (1) a previously-installed version's footer doesn't
+// keep being reported as "staged" forever (see the bootloader's own
+// invalidate_staged_image(), which handles the post-install case; this
+// handles the pre-upload case), and (2) if this new upload turns out to be
+// invalid, the status correctly shows the rejection reason instead of the
+// old (now superseded) image, so the user can immediately retry with a
+// different file rather than being stuck looking at stale "ready to
+// install" state.
+static bool invalidate_staged_footer(void) {
+    memset(s_batch_buf, 0xFF, FLASH_SECTOR_SIZE);
+    return flash_write_batch_safe(FIRMWARE_UPDATE_FOOTER_SECTOR_OFFSET, s_batch_buf, FLASH_SECTOR_SIZE);
+}
+
+
 err_t httpd_post_begin(void *connection, const char *uri, const char *http_request,
                         u16_t http_request_len, int content_len, char *response_uri,
                         u16_t response_uri_len, u8_t *post_auto_wnd) {
@@ -250,6 +267,13 @@ err_t httpd_post_begin(void *connection, const char *uri, const char *http_reque
         ((uint32_t)content_len - FIRMWARE_FOOTER_SIZE) > FIRMWARE_UPDATE_MAX_PAYLOAD_SIZE) {
         s_last_upload_ok = false;
         snprintf(s_last_upload_error, sizeof(s_last_upload_error), "Image too large or too small for staging region");
+        snprintf(response_uri, response_uri_len, "%s", FIRMWARE_UPDATE_STATUS_URI);
+        return ERR_ARG;
+    }
+
+    if (!invalidate_staged_footer()) {
+        s_last_upload_ok = false;
+        snprintf(s_last_upload_error, sizeof(s_last_upload_error), "Failed to clear previous staged image");
         snprintf(response_uri, response_uri_len, "%s", FIRMWARE_UPDATE_STATUS_URI);
         return ERR_ARG;
     }

@@ -78,20 +78,19 @@ static bool read_and_validate_footer(firmware_update_footer_t *out) {
     return true;
 }
 
-// Rewrites the footer with install_pending cleared. Only ever called after
-// copy_staged_image_to_app_region() has fully completed, so a power loss
-// before this point simply leaves install_pending set and the copy retries
-// from scratch (from the untouched staging-region source data) on the next
-// boot -- see the plan's "power-loss safety" design decision.
-static void clear_install_pending(firmware_update_footer_t *footer) {
-    footer->reserved[FIRMWARE_FOOTER_INSTALL_PENDING_BYTE] = 0;
-    footer->footer_crc32 = compute_footer_crc32(footer);
-
-    memset(s_sector_buf, 0xFF, FLASH_SECTOR_SIZE);
-    memcpy(&s_sector_buf[FLASH_SECTOR_SIZE - FIRMWARE_FOOTER_SIZE], footer, FIRMWARE_FOOTER_SIZE);
-
+// Invalidates the staged image entirely (erasing the footer sector removes
+// its magic, so firmware_update_get_staged_info() correctly reports "no
+// image staged" afterward) -- not just the install-pending flag. Without
+// this, the web UI kept showing the just-installed version as still
+// "staged", since a valid-but-pending-cleared footer is indistinguishable
+// from a valid-and-ready-to-install one from the REST status's point of
+// view. Only ever called after copy_staged_image_to_app_region() has fully
+// completed, so a power loss before this point simply leaves the original
+// footer (install_pending still set) in place and the copy retries from
+// scratch (from the untouched staging-region source data) on the next boot
+// -- see the plan's "power-loss safety" design decision.
+static void invalidate_staged_image(void) {
     flash_range_erase(FIRMWARE_UPDATE_FOOTER_SECTOR_OFFSET, FLASH_SECTOR_SIZE);
-    flash_range_program(FIRMWARE_UPDATE_FOOTER_SECTOR_OFFSET, s_sector_buf, FLASH_SECTOR_SIZE);
 }
 
 // Plain flash_range_erase/program calls, no flash_safe_execute: this is the
@@ -174,7 +173,7 @@ int main(void) {
 
     if (read_and_validate_footer(&footer) && footer.reserved[FIRMWARE_FOOTER_INSTALL_PENDING_BYTE] != 0) {
         copy_staged_image_to_app_region(footer.payload_size);
-        clear_install_pending(&footer);
+        invalidate_staged_image();
     }
 
     chain_to_app();
