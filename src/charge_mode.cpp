@@ -707,6 +707,11 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
 }
 
 
+bool charge_mode_is_idle(void) {
+    return charge_mode_config.charge_mode_state == CHARGE_MODE_EXIT;
+}
+
+
 bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings
     // s0 (float): Charge weight set point (unitless)

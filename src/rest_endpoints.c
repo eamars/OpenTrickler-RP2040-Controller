@@ -14,6 +14,7 @@
 #include "cleanup_mode.h"
 #include "servo_gate.h"
 #include "system_control.h"
+#include "firmware_update.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
@@ -71,6 +72,8 @@ bool http_wizard(struct fs_file *file, int num_params, char *params[], char *val
 
 
 bool rest_endpoints_init(bool default_wizard) {
+    firmware_update_init();
+
     if (default_wizard) {
         rest_register_handler("/", http_wizard);
     }
@@ -97,6 +100,8 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/rest/profile_summary", http_rest_profile_summary);
     rest_register_handler("/rest/servo_gate_state", http_rest_servo_gate_state);
     rest_register_handler("/rest/servo_gate_config", http_rest_servo_gate_config);
+    rest_register_handler("/rest/firmware_update_status", http_rest_firmware_update_status);
+    rest_register_handler("/rest/firmware_install", http_rest_firmware_install);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
 

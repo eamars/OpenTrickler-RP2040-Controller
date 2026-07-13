@@ -10,6 +10,12 @@ extern "C" {
 
 u8g2_t *get_display_handler(void);
 
+// Guards concurrent access to the shared u8g2 buffer/SPI bus: any code that
+// draws to the display (menu_task, firmware_update.c's OTA status screen,
+// etc.) must hold this around its whole ClearBuffer/.../SendBuffer sequence.
+void acquire_display_buffer_access(void);
+void release_display_buffer_access(void);
+
 // REST
 bool http_get_display_buffer(struct fs_file *file, int num_params, char *params[], char *values[]);
 

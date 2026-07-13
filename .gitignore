@@ -65,6 +65,7 @@ CTestTestfile.cmake
 _deps
 
 # VSCode stuff
+.vs/*
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -80,3 +81,10 @@ _deps
 
 # Build directory
 build*/
+
+# Python virtual environment
+venv/
+__pycache__/
+
+#Claude Code
+.claude/*

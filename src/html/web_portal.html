@@ -754,10 +754,62 @@
 
                     </section>
 
+                    <!-- Update Firmware Page -->
+                    <section class="settings-page" id="settings-update-firmware" name="Update Firmware" style="display: none;">
+                        <!-- Not a <form>: onSettingsLinkClicked's generic fetch-and-fill only
+                             triggers for a section that contains one, and this page's fields
+                             are instead populated by refreshFirmwareStatus() -- a single fetch
+                             shared by the nav click and the post-upload refresh, rather than
+                             two independent fetches to the same endpoint. -->
+                        <div id="firmwareUpdateFields" class="grid grid-cols-1 gap-3">
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Unique ID</span>
+                                <input type="text" class="input input-bordered" name="s0" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Firmware Version</span>
+                                <input type="text" class="input input-bordered" name="s1" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">VCS Hash</span>
+                                <input type="text" class="input input-bordered" name="s2" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Build Type</span>
+                                <input type="text" class="input input-bordered" name="s3" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="divider"></div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Staged Image Version</span>
+                                <input type="text" class="input input-bordered" name="staged_version_string" disabled="disabled" readonly>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-1">
+                                <span class="label-text">Staged Image Status</span>
+                                <input type="text" class="input input-bordered" id="firmwareStagedStatusText" disabled="disabled" readonly>
+                            </div>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div class="grid grid-cols-1 gap-2">
+                            <span class="label-text">Upload Firmware (.bin)</span>
+                            <input type="file" id="firmwareFileInput" class="file-input file-input-bordered" accept=".bin">
+                            <progress id="firmwareUploadProgress" class="progress progress-primary w-full" value="0" max="100" style="display: none;"></progress>
+
+                            <button class="btn btn-neutral" id="firmwareInstallBtn" disabled>Install</button>
+                        </div>
+                    </section>
+
                 </div>
-            </div> 
+            </div>
             <div class="drawer-side exclude-bottom-nav">
-                <label id="closeDrawerSide" for="settingsDrawer" aria-label="close sidebar" class="drawer-overlay"></label> 
+                <label id="closeDrawerSide" for="settingsDrawer" aria-label="close sidebar" class="drawer-overlay"></label>
                 <ul id=drawerSlide" class="menu p-2 w-60 min-h-full bg-base-200">
                     <!-- Sidebar content here -->
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-scale')">Scale</a></li>
@@ -770,6 +822,7 @@
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-mini-12864-module')">Mini 12864 Module</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-servo-gate')">Servo Gate</a></li>
                     <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-system-control')">System Control</a></li>
+                    <li><a class="text-lg" onclick="onSettingsLinkClicked('settings-update-firmware'); refreshFirmwareStatus();">Update Firmware</a></li>
                 </ul>
             </div>
         </div>
@@ -896,6 +949,24 @@
     <form method="dialog" class="modal-backdrop">
         <button>close</button>
     </form>
+</dialog>
+
+<dialog id="confirmFirmwareInstallDialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <div class="grid grid-cols-1 gap-2">
+            <h3 class="font-bold text-lg">Install Firmware</h3>
+            <p class="py-4">The device will flash the staged image and reboot. If power is lost during this process, the device will need to be recovered manually via USB BOOTSEL. This action cannot be undone. Continue?</p>
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <!-- if there is a button in form, it will close the modal -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="dialogFirmwareInstallConfirmButton" class="btn btn-error">Install &amp; Reboot</button>
+                    <button class="btn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </dialog>
 
 <dialog id="settingsRestoreFailedDialog" class="modal">
@@ -1772,6 +1843,88 @@
         }
         input.click();
     }
+
+    // Single source of truth for the Update Firmware page: one fetch to
+    // /rest/firmware_update_status, used by both the nav-link click and the
+    // post-upload refresh. Populates the raw fields (s0-s3,
+    // staged_version_string) the same way onSettingsLinkClicked's generic
+    // fetch-and-fill does for other settings pages, plus the derived status
+    // text/Install button state that has no single matching JSON key.
+    function refreshFirmwareStatus() {
+        fetch("/rest/firmware_update_status")
+        .then(response => response.json())
+        .then(data => {
+            const fields = document.getElementById("firmwareUpdateFields");
+            for (const key in data) {
+                const element = fields.querySelector('[name="' + key + '"]');
+                if (element) {
+                    element.value = String(data[key]);
+                }
+            }
+
+            const statusText = document.getElementById("firmwareStagedStatusText");
+            const installBtn = document.getElementById("firmwareInstallBtn");
+
+            if (data.staged_valid) {
+                statusText.value = "Valid image staged, ready to install";
+                installBtn.disabled = false;
+            } else if (data.last_upload_error) {
+                statusText.value = "Rejected: " + data.last_upload_error;
+                installBtn.disabled = true;
+            } else {
+                statusText.value = "No image staged";
+                installBtn.disabled = true;
+            }
+        });
+    }
+
+    // Upload the selected firmware file as a raw octet-stream POST body,
+    // with a progress bar driven by XMLHttpRequest's upload.onprogress
+    // (fetch has no equivalent upload-progress event in this browser target).
+    document.getElementById("firmwareFileInput").addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const progress = document.getElementById("firmwareUploadProgress");
+        progress.style.display = "block";
+        progress.value = 0;
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/rest/firmware_upload");
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+
+        xhr.upload.onprogress = (progressEvent) => {
+            if (progressEvent.lengthComputable) {
+                progress.value = (progressEvent.loaded / progressEvent.total) * 100;
+            }
+        };
+
+        xhr.onloadend = () => {
+            progress.style.display = "none";
+            refreshFirmwareStatus();
+        };
+
+        xhr.send(file);
+    });
+
+    // Confirm, then trigger install -- the device reboots on success, so the
+    // request's connection dropping is the expected outcome, not an error.
+    document.getElementById("firmwareInstallBtn").addEventListener("click", (event) => {
+        event.preventDefault();
+
+        const dialog = document.getElementById("confirmFirmwareInstallDialog");
+        const confirmButton = document.getElementById("dialogFirmwareInstallConfirmButton");
+
+        confirmButton.onclick = function() {
+            fetch("/rest/firmware_install?i0=true").catch(() => {
+                // Expected: the device reboots and drops the connection.
+            });
+        };
+
+        dialog.showModal();
+    });
 
     // Start the long polling process when the page loads
     if (document.readyState != "loading") {
