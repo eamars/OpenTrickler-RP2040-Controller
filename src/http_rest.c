@@ -2844,31 +2844,74 @@ void decode_uri(char * dst, const char * src) {
     *dst++ = '\0';
 }
 
+static void decode_uri_inplace(char *str) {
+    char *dst = str;
+    const char *src = str;
+    char a, b;
+
+    while (*src) {
+        if ((*src == '%') &&
+            ((a = src[1]) && (b = src[2])) &&
+            (isxdigit(a) && isxdigit(b))) {
+                if (a >= 'a')
+                      a -= 'a'-'A';
+                if (a >= 'A')
+                      a -= ('A' - 10);
+                else
+                      a -= '0';
+                if (b >= 'a')
+                      b -= 'a'-'A';
+                if (b >= 'A')
+                      b -= ('A' - 10);
+                else
+                      b -= '0';
+                *dst++ = 16*a+b;
+                src+=3;
+        } else if (*src == '+') {
+            *dst++ = ' ';
+            src++;
+        } else {
+            *dst++ = *src++;
+        }
+    }
+    *dst = '\0';
+}
+
 
 static err_t http_find_file(struct http_state * hs, const char * uri, int is_09) {
     struct fs_file * file = NULL;
     char * params = NULL;
 
-    // The decoded URI will be fed to the parameter and REST handler loopup
-    // decoded_uri will be within the scope of `http_find_file` exclusively
-    char decoded_uri[strlen(uri) + 1];
-    memset(decoded_uri, 0x0, sizeof(decoded_uri));
-    decode_uri(decoded_uri, uri);
+    // Split path and query before decoding. Query values may contain encoded
+    // characters such as %26 (&). Decoding the full URI before splitting
+    // parameters would turn those into literal delimiters.
+    const char * query = strchr(uri, '?');
+    size_t path_len = query ? (size_t)(query - uri) : strlen(uri);
 
-    // First, isolate the base URI (without any parameters)
-    params = (char *) strchr(decoded_uri, '?');
-    if (params != NULL) {
-        // uri includes parameters, we need to terminate the base URI
-        *params = 0;
-        params += 1;
+    char path_copy[path_len + 1];
+    char decoded_path[path_len + 1];
+    memcpy(path_copy, uri, path_len);
+    path_copy[path_len] = '\0';
+    decode_uri(decoded_path, path_copy);
+
+    char params_buf[LWIP_HTTPD_MAX_REQUEST_URI_LEN];
+    if (query != NULL) {
+        strncpy(params_buf, query + 1, sizeof(params_buf) - 1);
+        params_buf[sizeof(params_buf) - 1] = '\0';
+        params = params_buf;
     }
 
     // Look for handler
-    rest_handler_t rest_handler = rest_get_handler(decoded_uri);
+    rest_handler_t rest_handler = rest_get_handler(decoded_path);
 
     if (rest_handler) {
-        // Extract parameters from the uri
+        // Extract parameters from the still-encoded query string
         http_cgi_paramcount = extract_uri_parameters(hs, params);
+        for (int i = 0; i < http_cgi_paramcount; i++) {
+            if (http_cgi_param_vals[i] != NULL) {
+                decode_uri_inplace(http_cgi_param_vals[i]);
+            }
+        }
 
         rest_handler(&hs->file_handle, http_cgi_paramcount, hs->params, hs->param_vals);
         file = &hs->file_handle;
