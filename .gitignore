@@ -80,3 +80,6 @@ _deps
 
 # Build directory
 build*/
+
+# Local ARM toolchain download
+.toolchain/
