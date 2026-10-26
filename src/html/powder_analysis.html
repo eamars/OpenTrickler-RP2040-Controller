@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OpenTrickler - Powder Analysis</title>
+    <!-- Self-contained on purpose: no external CSS or JS, so the page also works in access point mode without internet -->
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f2f2f2; color: #222; }
+        main { max-width: 640px; margin: 0 auto; padding: 8px 8px 80px 8px; }   /* 80 px = nav height + gap, so the nav never covers content */
+        h1 { font-size: 1.3em; margin: 8px 0; }
+        h2 { font-size: 1.05em; margin: 0 0 8px 0; }
+        a { color: #1a5fb4; }
+        section { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+        label { display: block; margin: 6px 0 2px 0; font-size: 0.9em; color: #555; }
+        input, select { font-size: 1em; padding: 6px; width: 100%; box-sizing: border-box; }
+        button { font-size: 1em; padding: 10px 14px; margin: 4px 4px 4px 0; border: 0; border-radius: 6px; background: #1a5fb4; color: #fff; cursor: pointer; }
+        button.warn { background: #c64600; }
+        button.plain { background: #777; }
+        button:disabled { background: #bbb; cursor: default; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+        .big { font-size: 2em; font-weight: bold; }
+        .prompt { font-weight: bold; color: #1a5fb4; margin: 6px 0; }
+        .hint { color: #777; font-size: 0.9em; }
+        table { border-collapse: collapse; width: 100%; font-size: 0.85em; }
+        th, td { text-align: right; padding: 3px 5px; border-bottom: 1px solid #ddd; white-space: nowrap; }
+        th:nth-child(2), td:nth-child(2) { text-align: left; }
+        table.protocol th:nth-child(8), table.protocol td:nth-child(8) { text-align: left; }
+        .scroll { overflow-x: auto; }
+        canvas { width: 100%; height: 220px; background: #fafafa; border: 1px solid #ddd; }
+        .error { color: #b00; }
+        /* Bottom navigation like the portal's (Trickler / Settings / Purge), rebuilt in plain CSS */
+        .btm-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; display: flex; background: #fff; border-top: 1px solid #ddd; }
+        .btm-nav a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-decoration: none; color: #555; font-size: 0.85em; }
+        .btm-nav svg { width: 24px; height: 24px; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Powder Analysis</h1>
+
+    <!-- Setup: only used when the analysis is started from here -->
+    <section id="setupSection">
+        <h2>Setup</h2>
+        <div class="grid">
+            <div>
+                <label for="targetWeight">Target weight (gr)</label>
+                <input id="targetWeight" type="number" step="0.01" min="0.01">
+            </div>
+            <div>
+                <label for="shape">Powder shape</label>
+                <select id="shape">
+                    <option value="0">Ball</option>
+                    <option value="1">Stick</option>
+                    <option value="2">Flake</option>
+                    <option value="3">Disc</option>
+                </select>
+            </div>
+            <div>
+                <label for="grainSize">Grain size</label>
+                <select id="grainSize">
+                    <option value="0">Fine</option>
+                    <option value="1">Medium</option>
+                    <option value="2">Coarse</option>
+                </select>
+            </div>
+            <div>
+                <label>Stop thresholds (charge mode)</label>
+                <span id="thresholds">-</span>
+            </div>
+        </div>
+        <button id="startButton" onclick="onStartClicked()">Start analysis</button>
+        <span class="hint">The device must show the main menu.</span>
+    </section>
+
+    <!-- Live status and the buttons that make sense in the current state -->
+    <section>
+        <h2>Status</h2>
+        <div class="grid">
+            <div>State</div><div id="stateName">-</div>
+            <div>Phase</div><div id="phaseName">-</div>
+            <div>Trial</div><div id="trialNumber">-</div>
+            <div>Kp / Kd</div><div id="gains">-</div>
+            <div>Elapsed</div><div id="elapsed">-</div>
+            <div>Last throw</div><div id="lastTrial">-</div>
+            <div>Verification</div><div id="verifyInfo">-</div>
+        </div>
+        <div class="big" id="weight">-</div>
+        <div class="prompt" id="prompt"></div>
+        <div id="buttons"></div>
+        <div class="error" id="errorText"></div>
+    </section>
+
+    <!-- Result and saving -->
+    <section id="resultSection" style="display: none;">
+        <h2>Result</h2>
+        <div class="grid">
+            <div>Coarse Kp / Kd</div><div id="resultCoarse">-</div>
+            <div>Coarse time</div><div id="resultCoarseTime">-</div>
+            <div>Coarse check</div><div id="resultCoarseHint">-</div>
+            <div>Fine Kp / Kd</div><div id="resultFine">-</div>
+            <div>Total time</div><div id="resultTotalTime">-</div>
+            <div>Verify hits</div><div id="resultHits">-</div>
+            <div>Outcome</div><div id="resultReason">-</div>
+            <div>After-stop fall</div><div id="resultFall" style="white-space: pre-line;">-</div>
+            <div>Flow speeds</div><div id="resultSpeeds">-</div>
+        </div>
+        <div id="saveForm">
+            <div class="grid">
+                <div>
+                    <label for="profileSlot">Profile slot</label>
+                    <select id="profileSlot"></select>
+                </div>
+                <div>
+                    <label for="profileName">Profile name (max 15 characters)</label>
+                    <input id="profileName" type="text" maxlength="15">
+                </div>
+            </div>
+            <button onclick="onSaveClicked()">Save</button>
+            <button class="warn" onclick="onDiscardClicked()">Discard</button>
+        </div>
+        <div id="activateForm" style="display: none;">
+            <p>Saved. Use this profile now?</p>
+            <button onclick="sendCommand(CMD.USE_NOW_YES)">Yes</button>
+            <button class="plain" onclick="sendCommand(CMD.USE_NOW_NO)">No</button>
+        </div>
+    </section>
+
+    <!-- Weight curve of the running throw, collected from the status polling -->
+    <details>
+        <summary>Live chart</summary>
+        <section>
+            <canvas id="chart" width="600" height="220"></canvas>
+            <span class="hint">Weight over time of the current throw. Dashed: target and coarse stop point.</span>
+        </section>
+    </details>
+
+    <!-- Protocol of all throws -->
+    <section>
+        <h2>Protocol <button class="plain" style="float: right; padding: 4px 8px;" onclick="downloadCsv()">Download CSV</button></h2>
+        <div class="scroll">
+            <table class="protocol">
+                <thead>
+                    <tr><th>#</th><th>Phase</th><th>Kp</th><th>Kd</th><th>Weight</th><th>Coarse s</th><th>Total s</th><th>Result</th><th>Min rps</th><th>Fall gr</th></tr>
+                </thead>
+                <tbody id="trialRows"></tbody>
+            </table>
+        </div>
+    </section>
+    <!-- Test throw: one throw with given values, recorded per sample to see what P and D contribute -->
+    <details>
+        <summary>Test throw</summary>
+        <section>
+            <div class="grid">
+                <div><label for="testTarget">Target weight (gr)</label><input id="testTarget" type="number" step="0.01" min="0.01"></div>
+                <div><label for="testFineMin">Fine min speed (rps)</label><input id="testFineMin" type="number" step="0.001" min="0.001"></div>
+                <div><label for="testCoarseKp">Coarse Kp</label><input id="testCoarseKp" type="number" step="0.001" min="0"></div>
+                <div><label for="testCoarseKd">Coarse Kd</label><input id="testCoarseKd" type="number" step="0.01" min="0"></div>
+                <div><label for="testFineKp">Fine Kp</label><input id="testFineKp" type="number" step="0.01" min="0"></div>
+                <div><label for="testFineKd">Fine Kd</label><input id="testFineKd" type="number" step="0.1" min="0"></div>
+            </div>
+            <button id="testThrowButton" onclick="onTestThrowClicked()">Throw</button>
+            <button id="testCloseButton" class="plain" onclick="sendCommand(CMD.BACK)" style="display: none;">Close</button>
+            <span class="hint" id="testInfo">Device must be idle (main menu) or showing "Test throw done".</span>
+
+            <h2 style="margin-top: 12px;">Recorded throws (last 6)</h2>
+            <div class="scroll">
+                <table>
+                    <thead>
+                        <tr><th>#</th><th>Kind</th><th>Fine Kp</th><th>Fine Kd</th><th>Min rps</th><th>Final gr</th><th>Time s</th><th>Speed@stop</th><th>max |D|</th><th>max P end</th><th></th></tr>
+                    </thead>
+                    <tbody id="traceRows"></tbody>
+                </table>
+            </div>
+            <button class="plain" onclick="downloadAllTracesCsv()">Download all (CSV)</button>
+            <canvas id="traceChart" width="600" height="260"></canvas>
+            <span class="hint">Weight (blue, left axis) and fine P (green), fine D (orange), fine commanded speed (red) in rps (right axis). Click "Show" in the table to pick a throw.</span>
+        </section>
+    </details>
+</main>
+
+<!-- Bottom navigation: the three portal tabs. The portal opens the tab named in the hash. -->
+<div class="btm-nav">
+    <a href="/#trickler">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M18.796 4H5.204a1 1 0 0 0-.753 1.659l5.302 6.058a1 1 0 0 1 .247.659v4.874a.5.5 0 0 0 .2.4l3 2.25a.5.5 0 0 0 .8-.4v-7.124a1 1 0 0 1 .247-.659l5.302-6.059c.566-.646.106-1.658-.753-1.658Z"/>
+        </svg>
+        <span>Trickler</span>
+    </a>
+    <a href="/#settings">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12.25V1m0 11.25a2.25 2.25 0 0 0 0 4.5m0-4.5a2.25 2.25 0 0 1 0 4.5M4 19v-2.25m6-13.5V1m0 2.25a2.25 2.25 0 0 0 0 4.5m0-4.5a2.25 2.25 0 0 1 0 4.5M10 19V7.75m6 4.5V1m0 11.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM16 19v-2"/>
+        </svg>
+        <span>Settings</span>
+    </a>
+    <a href="/#purge">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12H4m12 0-4 4m4-4-4-4m3-4h2a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3h-2"/>
+        </svg>
+        <span>Purge</span>
+    </a>
+</div>
+
+<script>
+    // Mirror of the enums in powder_analysis.h
+    const STATE = {
+        IDLE: 0, SETUP_WEIGHT: 1, SETUP_SHAPE: 2, SETUP_GRAIN: 3, PREPARE: 4, FLOODING: 5,
+        WAIT_PAN_REMOVAL: 6, WAIT_PAN_RETURN: 7, WAIT_ZERO: 8, TRIAL: 9, PAUSED: 10, ABORT_CONFIRM: 11,
+        RESULT_COARSE: 12, RESULT_FINE: 13, RESULT_THRESHOLD: 14, SAVE_SLOT: 15, SAVE_CONFIRM: 16, ACTIVATE: 17,
+        EXIT: 18, TEST_THROW: 19, TEST_DONE: 20
+    };
+    const CMD = {
+        START: 1, NEXT: 2, BACK: 3, PAUSE_RESUME: 4, FLOOD_DONE: 5, ABORT: 6, ABORT_CONFIRM: 7, ABORT_CANCEL: 8,
+        SAVE: 9, DISCARD: 10, USE_NOW_YES: 11, USE_NOW_NO: 12, ZERO_SCALE: 13, TEST_THROW: 14
+    };
+
+    const POLL_INTERVAL_MS = 400;
+
+    let status = null;              // last status from the device
+    let trials = [];                // protocol as received from the device
+    let lastTrialCount = -1;        // to fetch the protocol only when it changed
+    let requestRunning = false;     // never let polls overlap
+    let targetWeightPrefilled = false;
+    let profilesLoaded = false;
+
+    // Chart samples of the running throw
+    let chartTrialNumber = 0;
+    let chartSamples = [];
+
+    // Recorded throws (per-sample traces from the device), newest last
+    const MAX_TRACES = 6;
+    let traces = [];
+    let lastTraceId = 0;
+    let traceFetching = false;
+    let selectedTrace = -1;
+    let testInputsPrefilled = false;
+
+    function $(id) {
+        return document.getElementById(id);
+    }
+
+    // Number with fixed decimals, '-' for anything that is not a number (e.g. "nan" from the scale).
+    // Rendering must never throw, otherwise one odd response would stop the polling.
+    function fmt(value, decimals) {
+        return (typeof value === 'number' && isFinite(value)) ? value.toFixed(decimals) : '-';
+    }
+
+    // Same for CSV files: an unknown number is an empty field, never a placeholder
+    function csvNum(value, decimals) {
+        return (typeof value === 'number' && isFinite(value)) ? value.toFixed(decimals) : '';
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Communication
+    // ---------------------------------------------------------------------------------------
+    // Fetch and parse JSON. Throws with a reason that is shown in the error line, so a failure on
+    // the device side (HTTP error, cut off or invalid JSON) can be told from a lost connection.
+    const FETCH_TIMEOUT_MS = 3000;
+
+    async function fetchJson(uri) {
+        // A hanging request must not stop the polling for minutes
+        const controller = (typeof AbortController === 'function') ? new AbortController() : null;
+        const timer = controller ? setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS) : null;
+        let response;
+        try {
+            response = await fetch(uri, { cache: 'no-store', signal: controller ? controller.signal : undefined });
+        } finally {
+            if (timer !== null) {
+                clearTimeout(timer);
+            }
+        }
+        if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ' for ' + uri);
+        }
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            throw new Error('invalid JSON from ' + uri + ': ' + text.slice(0, 80));
+        }
+    }
+
+    // Two kinds of errors: a failed status poll disappears with the next good poll, everything
+    // else (rejected command, profile list) stays until the next user action
+    let stickyError = '';
+    let pollError = '';
+
+    function showErrors() {
+        $('errorText').textContent = [stickyError, pollError].filter(t => t.length > 0).join(' | ');
+    }
+
+    function setStickyError(text) {
+        stickyError = text;
+        showErrors();
+    }
+
+    async function sendCommand(cmd, extraParams) {
+        setStickyError('');         // a new user action
+        let uri = '/rest/powder_analysis_state?cmd=' + cmd;
+        for (const key in (extraParams || {})) {
+            uri += '&' + key + '=' + encodeURIComponent(extraParams[key]);
+        }
+        try {
+            const newStatus = await fetchJson(uri);
+            applyStatus(newStatus);
+        } catch (e) {
+            setStickyError('Command failed: ' + (e.message || e));
+        }
+    }
+
+    async function poll() {
+        // Keep the device load low: no polling while the tab is hidden or a request is still running
+        if (document.hidden || requestRunning) {
+            return;
+        }
+        requestRunning = true;
+        try {
+            applyStatus(await fetchJson('/rest/powder_analysis_state'));
+            if (status.tc !== lastTrialCount) {
+                const protocol = await fetchJson('/rest/powder_analysis_trials');
+                trials = protocol.t || [];
+                lastTrialCount = protocol.tc;
+                renderTrials();
+            }
+            pollError = '';
+            showErrors();
+        } catch (e) {
+            pollError = 'Status update failed: ' + (e.message || e);
+            showErrors();
+        } finally {
+            requestRunning = false;     // the next poll must run even if this one failed
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Rendering
+    // ---------------------------------------------------------------------------------------
+    function applyStatus(newStatus) {
+        status = newStatus;
+
+        if (status.error) {
+            setStickyError('Rejected: ' + status.error);
+        }
+
+        const idle = (status.st === STATE.IDLE);
+        $('stateName').textContent = status.sn || '-';
+        $('phaseName').textContent = idle ? '-' : (status.tm ? 'Test throw' : status.ph);
+        $('trialNumber').textContent = idle ? '-' : status.tn;
+        $('elapsed').textContent = idle ? '-' : fmt(status.el, 1) + ' s';
+        $('weight').textContent = (typeof status.w === 'number') ? fmt(status.w, 3) + ' gr' : '---';
+        $('prompt').textContent = status.pr || '';
+        $('thresholds').textContent = 'coarse ' + fmt(status.cs, 2) + ' / fine ' + fmt(status.fs, 3) + ' gr';
+
+        // The gains of the trickler that is being tuned
+        const coarsePhase = (status.tt === 0);
+        $('gains').textContent = idle ? '-' : (coarsePhase
+            ? fmt(status.ckp, 4) + ' / ' + fmt(status.ckd, 4)
+            : fmt(status.fkp, 4) + ' / ' + fmt(status.fkd, 4));
+
+        $('lastTrial').textContent = status.lt
+            ? '#' + status.lt.n + ' ' + fmt(status.lt.w, 3) + ' gr ' + fmt(status.lt.tt, 1) + ' s ' + status.lt.ev
+            : '-';
+
+        // Verification round and hits; fcj = a correction was just made (after the throw that caused it)
+        let verifyInfo = '-';
+        if (status.vr > 0) {
+            verifyInfo = 'Round ' + status.vr + ': ' + status.vrh + '/' + status.vrt + ' hits';
+            if (status.fcj) {
+                verifyInfo += ', ' + (status.fck ? 'Kp -' + status.kpc : 'MinSpd -' + status.msc) + '% (' + status.fc + '/' + status.fcm + ')';
+            }
+        }
+        $('verifyInfo').textContent = verifyInfo;
+
+        // Propose the last charge weight once, but never overwrite what the user is typing
+        if (!targetWeightPrefilled && status.tw > 0) {
+            $('targetWeight').value = fmt(status.tw, 2);
+            $('shape').value = status.sh;
+            $('grainSize').value = status.gs;
+            targetWeightPrefilled = true;
+        }
+        $('startButton').disabled = (status.st !== STATE.IDLE);
+
+        renderButtons();
+        renderResult();
+        updateChart();
+        renderTestThrow();
+
+        // A new recorded throw (analysis or test): fetch it
+        if (status.tid > 0 && status.tid !== lastTraceId && !traceFetching) {
+            fetchTrace(status.tid);
+        }
+    }
+
+    function button(label, cmd, cssClass) {
+        const b = document.createElement('button');
+        b.textContent = label;
+        if (cssClass) {
+            b.className = cssClass;
+        }
+        b.onclick = () => sendCommand(cmd);
+        return b;
+    }
+
+    function abortButton() {
+        const b = document.createElement('button');
+        b.textContent = 'Abort';
+        b.className = 'warn';
+        b.onclick = async () => {
+            if (confirm(status.tm ? 'Abort the test throw?' : 'Abort the analysis? All progress is lost.')) {
+                await sendCommand(CMD.ABORT);
+                await sendCommand(CMD.ABORT_CONFIRM);
+            }
+        };
+        return b;
+    }
+
+    // Only the buttons that the current screen of the device offers
+    function renderButtons() {
+        const box = $('buttons');
+        box.innerHTML = '';
+        const st = status.st;
+
+        if (st === STATE.SETUP_WEIGHT || st === STATE.SETUP_SHAPE || st === STATE.SETUP_GRAIN) {
+            box.textContent = 'Setup is being entered on the display.';
+        }
+        else if (st === STATE.PREPARE) {
+            box.append(button('Back', CMD.BACK, 'plain'), button('Next', CMD.NEXT), abortButton());
+        }
+        else if (st === STATE.FLOODING) {
+            box.append(button(status.fl ? 'Pause' : 'Start', CMD.PAUSE_RESUME), button('Done', CMD.FLOOD_DONE), abortButton());
+        }
+        else if (st === STATE.WAIT_PAN_REMOVAL || st === STATE.WAIT_PAN_RETURN || st === STATE.WAIT_ZERO) {
+            box.append(button('Pause', CMD.PAUSE_RESUME), abortButton());
+        }
+        else if (st === STATE.TRIAL) {
+            box.append(abortButton());
+        }
+        else if (st === STATE.PAUSED) {
+            box.append(button('Resume', CMD.PAUSE_RESUME));
+            if (status.za) {
+                box.append(button('Zero scale', CMD.ZERO_SCALE, 'plain'));
+            }
+            box.append(abortButton());
+        }
+        else if (st === STATE.ABORT_CONFIRM) {
+            box.append(button('Continue', CMD.ABORT_CANCEL), button('Abort now', CMD.ABORT_CONFIRM, 'warn'));
+        }
+        else if (st === STATE.SAVE_SLOT || st === STATE.SAVE_CONFIRM) {
+            box.textContent = 'Saving is being done on the display.';
+        }
+        else if (st === STATE.TEST_THROW) {
+            box.append(abortButton());
+        }
+        else if (st === STATE.TEST_DONE) {
+            box.textContent = 'Test throw done, see the Test throw section.';
+        }
+    }
+
+    async function renderResult() {
+        const hasResult = (status.res !== null && status.res !== undefined);
+        $('resultSection').style.display = hasResult ? '' : 'none';
+        if (!hasResult) {
+            profilesLoaded = false;
+            return;
+        }
+
+        const r = status.res;
+        $('resultCoarse').textContent = fmt(r.ckp, 4) + ' / ' + fmt(r.ckd, 4);
+        $('resultCoarseTime').textContent = fmt(r.ct, 1) + ' s, overshoot ' + fmt(r.co, 2) + ' gr';
+        $('resultCoarseHint').textContent = r.ch;
+        $('resultFine').textContent = fmt(r.fkp, 4) + ' / ' + fmt(r.fkd, 4);
+        $('resultTotalTime').textContent = fmt(r.tt, 1) + ' s';
+        $('resultHits').textContent = r.vh + ' / ' + status.vrt +
+            (r.fc > 0 ? ' (' + r.fc + ' correction' + (r.fc > 1 ? 's' : '') + ': fine Kp -' + status.kpc + ' % or min speed -' + status.msc + ' %)' : '');
+        $('resultReason').textContent = r.rs;
+        $('resultFall').textContent = fallHintText(r);
+        $('resultSpeeds').textContent = 'coarse ' + r.cmin + '-' + r.cmax + ', fine ' + r.fmin + '-' + r.fmax + ' rps';
+
+        // The device accepts Save / Discard only on its result screens and the use-now answer only on D15
+        const onResultScreen = (status.st === STATE.RESULT_COARSE || status.st === STATE.RESULT_FINE ||
+                                status.st === STATE.RESULT_THRESHOLD);
+        $('saveForm').style.display = onResultScreen ? '' : 'none';
+        $('activateForm').style.display = (status.st === STATE.ACTIVATE) ? '' : 'none';
+
+        // Profile slots come from the existing profile summary endpoint: {"s0":{"0":"name",...},"s1":current}
+        if (!profilesLoaded) {
+            profilesLoaded = true;
+            $('profileName').value = status.pn;
+            try {
+                const summary = await fetchJson('/rest/profile_summary');
+                const select = $('profileSlot');
+                select.innerHTML = '';
+                for (const idx in summary.s0) {
+                    const option = document.createElement('option');
+                    option.value = idx;
+                    option.textContent = idx + ': ' + summary.s0[idx];
+                    select.append(option);
+                }
+                select.value = status.pi;
+            } catch (e) {
+                profilesLoaded = false;     // try again with the next status
+                setStickyError('Could not load the profile list, Save is not possible yet');
+            }
+        }
+    }
+
+    // Fine stop threshold recommendation from the measured fall after the stop (concept 4.10a), one
+    // line per item (the element keeps the line breaks). Hint only, the charge mode setting is never
+    // changed; the manual explains the background.
+    function fallHintText(r) {
+        if (!(r.fn > 0)) {
+            return 'not measured';
+        }
+        const resolution = status.sr;
+        const offset = r.efo;
+        const lines = [
+            'Recommended fine threshold ' + fmt(r.rft, 2) + ' (now ' + fmt(status.fs, 2) + ') - throws should land about ' +
+                (offset >= 0 ? '+' : '') + fmt(offset, 3) + ' gr from the target.',
+            'Median fall ' + fmt(r.fm, 3) + ' gr, max ' + fmt(r.fx, 3) + ' gr (' + r.fn + ' throws).'
+        ];
+        if (isExactScaleStep(status.fs, resolution)) {
+            lines.push('\u26a0 ' + fmt(status.fs, 2) + ' is an exact scale step - use ' +
+                fmt(1.5 * resolution, 2) + ', ' + fmt(2.5 * resolution, 2) + ' ...');
+        }
+        return lines.join('\n');
+    }
+
+    function isExactScaleStep(threshold, resolution) {
+        if (typeof threshold !== 'number' || threshold <= 0) {
+            return false;
+        }
+        const steps = threshold / resolution;
+        return Math.abs(steps - Math.round(steps)) * resolution < 0.001;
+    }
+
+    // One table row of text cells, returned so the caller can add more cells
+    function appendRow(body, cells) {
+        const row = document.createElement('tr');
+        for (const value of cells) {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            row.append(cell);
+        }
+        body.append(row);
+        return row;
+    }
+
+    function renderTrials() {
+        const body = $('trialRows');
+        body.innerHTML = '';
+        for (const t of trials) {
+            appendRow(body, [t.n, t.ph, fmt(t.kp, 4), fmt(t.kd, 4), fmt(t.w, 3), fmt(t.ct, 1), fmt(t.tt, 1), t.ev, fmt(t.fms, 3), fmt(t.fa, 3)]);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Canvas helpers shared by the live chart and the recording chart
+    // ---------------------------------------------------------------------------------------
+    // Left and bottom axis (and the right axis if wanted); leaves the label colour set
+    function drawAxes(ctx, width, height, margin, withRightAxis) {
+        ctx.strokeStyle = '#999';
+        ctx.fillStyle = '#555';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, margin.top);
+        ctx.lineTo(margin.left, height - margin.bottom);
+        ctx.lineTo(width - margin.right, height - margin.bottom);
+        if (withRightAxis) {
+            ctx.lineTo(width - margin.right, margin.top);
+        }
+        ctx.stroke();
+    }
+
+    // Polyline through pixel points [[x, y], ...]
+    function drawLine(ctx, points, color, lineWidth, dashed) {
+        ctx.setLineDash(dashed ? [4, 4] : []);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        points.forEach((p, idx) => {
+            if (idx === 0) {
+                ctx.moveTo(p[0], p[1]);
+            }
+            else {
+                ctx.lineTo(p[0], p[1]);
+            }
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Chart: weight over time of the running throw
+    // ---------------------------------------------------------------------------------------
+    let chartWasThrowing = false;
+
+    function updateChart() {
+        const throwing = (status.st === STATE.TRIAL || status.st === STATE.TEST_THROW);
+        if (throwing) {
+            if (!chartWasThrowing || status.tn !== chartTrialNumber) {
+                chartTrialNumber = status.tn;     // a new throw started
+                chartSamples = [];
+            }
+            if (typeof status.w === 'number' && typeof status.el === 'number') {
+                chartSamples.push({ t: status.el, w: status.w });
+            }
+        }
+        chartWasThrowing = throwing;
+        // The canvas has no size while <details> is collapsed, so only draw when the chart is open
+        if ($('chart').closest('details').open) {
+            drawChart();
+        }
+    }
+
+    function drawChart() {
+        const canvas = $('chart');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const margin = { left: 45, right: 10, top: 10, bottom: 20 };
+        ctx.clearRect(0, 0, width, height);
+
+        if (chartSamples.length === 0) {
+            ctx.fillStyle = '#999';
+            ctx.fillText('No throw running', margin.left, height / 2);
+            return;
+        }
+
+        const target = status.tw;
+        const coarseStop = target - status.cs;
+        const maxTime = Math.max(5, chartSamples[chartSamples.length - 1].t);
+        const minWeight = 0;
+        const maxWeight = Math.max(target * 1.05, chartSamples[chartSamples.length - 1].w);
+
+        const x = t => margin.left + (t / maxTime) * (width - margin.left - margin.right);
+        const y = w => height - margin.bottom - ((w - minWeight) / (maxWeight - minWeight)) * (height - margin.top - margin.bottom);
+
+        // Axes with a few labels
+        drawAxes(ctx, width, height, margin, false);
+        ctx.fillText(maxWeight.toFixed(1), 2, margin.top + 10);
+        ctx.fillText('0', 2, height - margin.bottom);
+        ctx.fillText(maxTime.toFixed(0) + ' s', width - margin.right - 25, height - 5);
+
+        // Target and coarse stop point, then the weight curve
+        drawLine(ctx, [[margin.left, y(target)], [width - margin.right, y(target)]], '#2a2', 1, true);
+        drawLine(ctx, [[margin.left, y(coarseStop)], [width - margin.right, y(coarseStop)]], '#e90', 1, true);
+        drawLine(ctx, chartSamples.map(sample => [x(sample.t), y(sample.w)]), '#1a5fb4', 2, false);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Test throw and recorded throws
+    // ---------------------------------------------------------------------------------------
+    function renderTestThrow() {
+        const idle = (status.st === STATE.IDLE);
+        const done = (status.st === STATE.TEST_DONE);
+        $('testThrowButton').disabled = !(idle || done);
+        $('testCloseButton').style.display = done ? '' : 'none';
+
+        if (status.tm) {
+            $('testInfo').textContent = 'Test throw: ' + status.sn + (status.pr ? ' - ' + status.pr : '');
+        }
+        else {
+            $('testInfo').textContent = 'Device must be idle (main menu) or showing "Test throw done".';
+        }
+
+        // Prefill once: the analysis result if there is one, otherwise the values of the last throw
+        if (!testInputsPrefilled && status.tw > 0) {
+            const source = status.res ? status.res : status;
+            $('testTarget').value = fmt(status.tw, 2);
+            $('testCoarseKp').value = fmt(source.ckp, 4);
+            $('testCoarseKd').value = fmt(source.ckd, 4);
+            $('testFineKp').value = fmt(source.fkp, 4);
+            $('testFineKd').value = fmt(source.fkd, 4);
+            $('testFineMin').value = fmt(status.res ? status.res.fmin : status.fmd, 3);
+            testInputsPrefilled = true;
+        }
+    }
+
+    function onTestThrowClicked() {
+        const values = {
+            tw: parseFloat($('testTarget').value),
+            ckp: parseFloat($('testCoarseKp').value),
+            ckd: parseFloat($('testCoarseKd').value),
+            fkp: parseFloat($('testFineKp').value),
+            fkd: parseFloat($('testFineKd').value),
+            fms: parseFloat($('testFineMin').value)
+        };
+        for (const key in values) {
+            if (!isFinite(values[key]) || values[key] < 0 || (key === 'tw' && values[key] <= 0) || (key === 'fms' && values[key] <= 0)) {
+                alert('Please fill in all test throw values (target and min speed > 0, gains >= 0).');
+                return;
+            }
+        }
+        sendCommand(CMD.TEST_THROW, values);
+    }
+
+    // The device sends the recording in chunks of 40 samples
+    async function fetchTrace(id) {
+        traceFetching = true;
+        try {
+            let samples = [];
+            let first = null;
+            let restarts = 0;
+            while (true) {
+                const chunk = await fetchJson('/rest/powder_analysis_trace?from=' + samples.length);
+                if (first !== null && chunk.id !== first.id) {
+                    // A new throw finished while fetching: the chunks would not belong together
+                    if (++restarts > 3) {
+                        throw new Error('recording keeps changing');
+                    }
+                    samples = [];
+                    first = null;
+                    continue;
+                }
+                if (first === null) {
+                    first = chunk;
+                }
+                samples = samples.concat(chunk.s || []);
+                if (!chunk.s || chunk.s.length === 0 || samples.length >= chunk.n) {
+                    break;
+                }
+            }
+            traces.push({ id: first.id, params: first.p, samples: samples, kind: first.p.k || 'analysis' });
+            while (traces.length > MAX_TRACES) {
+                traces.shift();
+            }
+            lastTraceId = id;
+            selectedTrace = traces.length - 1;
+            renderTraces();
+        } catch (e) {
+            setStickyError('Recording fetch failed: ' + (e.message || e));
+        } finally {
+            traceFetching = false;
+        }
+    }
+
+    // Sample columns: [t, weight, fine P, fine D, fine speed, coarse P, coarse D, coarse speed]
+    function traceSummary(trace) {
+        const s = trace.samples;
+        const last = s.length ? s[s.length - 1] : null;
+        // "Fine phase" = coarse trickler stopped (speed <= 0); if it never stopped, use all samples
+        let fine = s.filter(row => row[7] <= 0);
+        if (fine.length === 0) {
+            fine = s;
+        }
+        let maxAbsD = 0;
+        for (const row of fine) {
+            maxAbsD = Math.max(maxAbsD, Math.abs(row[3]));
+        }
+        let maxPEnd = 0;
+        for (const row of s.slice(-10)) {
+            maxPEnd = Math.max(maxPEnd, row[2]);
+        }
+        return {
+            // Settled weight from the device if known, otherwise the last sample
+            weight: (typeof trace.params.fw === 'number') ? trace.params.fw : (last ? last[1] : NaN),
+            time: last ? last[0] : NaN,
+            speedAtStop: last ? last[4] : NaN,
+            maxAbsD: maxAbsD,
+            maxPEnd: maxPEnd
+        };
+    }
+
+    function renderTraces() {
+        const body = $('traceRows');
+        body.innerHTML = '';
+        traces.forEach((trace, idx) => {
+            const sum = traceSummary(trace);
+            const row = appendRow(body, [trace.id, trace.kind, fmt(trace.params.fkp, 3), fmt(trace.params.fkd, 2), fmt(trace.params.fms, 3),
+                                         fmt(sum.weight, 3), fmt(sum.time, 1), fmt(sum.speedAtStop, 3), fmt(sum.maxAbsD, 3), fmt(sum.maxPEnd, 3)]);
+            const actions = document.createElement('td');
+            const show = document.createElement('button');
+            show.textContent = idx === selectedTrace ? 'Shown' : 'Show';
+            show.className = 'plain';
+            show.style.padding = '2px 6px';
+            show.onclick = () => { selectedTrace = idx; renderTraces(); };
+            const csv = document.createElement('button');
+            csv.textContent = 'CSV';
+            csv.className = 'plain';
+            csv.style.padding = '2px 6px';
+            csv.onclick = () => downloadTraceCsv(idx);
+            actions.append(show, csv);
+            row.append(actions);
+        });
+        drawTraceChart();
+    }
+
+    // Weight on the left axis, fine P / D / commanded speed on the right axis
+    function drawTraceChart() {
+        const canvas = $('traceChart');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const margin = { left: 45, right: 50, top: 10, bottom: 20 };
+        ctx.clearRect(0, 0, width, height);
+
+        const trace = traces[selectedTrace];
+        if (!trace || trace.samples.length === 0) {
+            ctx.fillStyle = '#999';
+            ctx.fillText('No recorded throw', margin.left, height / 2);
+            return;
+        }
+        const s = trace.samples;
+        const maxTime = Math.max(1, s[s.length - 1][0]);
+        const maxWeight = Math.max(trace.params.tw * 1.05, ...s.map(row => row[1]));
+        let minRps = 0;
+        let maxRps = 0.1;
+        for (const row of s) {
+            minRps = Math.min(minRps, row[2], row[3], row[4]);
+            maxRps = Math.max(maxRps, row[2], row[3], row[4]);
+        }
+
+        const x = t => margin.left + (t / maxTime) * (width - margin.left - margin.right);
+        const yW = w => height - margin.bottom - (w / maxWeight) * (height - margin.top - margin.bottom);
+        const yR = r => height - margin.bottom - ((r - minRps) / (maxRps - minRps)) * (height - margin.top - margin.bottom);
+
+        // Axes
+        drawAxes(ctx, width, height, margin, true);
+        ctx.fillText(maxWeight.toFixed(1) + ' gr', 2, margin.top + 10);
+        ctx.fillText(maxRps.toFixed(2), width - margin.right + 3, margin.top + 10);
+        ctx.fillText(minRps.toFixed(2), width - margin.right + 3, height - margin.bottom);
+        ctx.fillText(maxTime.toFixed(0) + ' s', width - margin.right - 25, height - 5);
+
+        // Zero line of the right axis and the target
+        drawLine(ctx, [[margin.left, yR(0)], [width - margin.right, yR(0)]], '#bbb', 1, true);
+        drawLine(ctx, [[margin.left, yW(trace.params.tw)], [width - margin.right, yW(trace.params.tw)]], '#2a2', 1, true);
+
+        const series = [
+            { col: 1, color: '#1a5fb4', y: yW, width: 2 },
+            { col: 2, color: '#2a2', y: yR, width: 1 },
+            { col: 3, color: '#e90', y: yR, width: 1 },
+            { col: 4, color: '#c00', y: yR, width: 1 }
+        ];
+        for (const line of series) {
+            drawLine(ctx, s.map(row => [x(row[0]), line.y(row[line.col])]), line.color, line.width, false);
+        }
+    }
+
+    const TRACE_CSV_COLUMNS = 't_s,weight_gr,fine_p_rps,fine_d_rps,fine_speed_rps,coarse_p_rps,coarse_d_rps,coarse_speed_rps';
+
+    function traceRowCsv(row) {
+        return [csvNum(row[0], 2), csvNum(row[1], 3), csvNum(row[2], 4), csvNum(row[3], 4), csvNum(row[4], 3), csvNum(row[5], 4), csvNum(row[6], 4), csvNum(row[7], 3)].join(',');
+    }
+
+    function downloadBlob(text, filename) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
+    // One throw: the parameters go into the file name, the file has one header line
+    function downloadTraceCsv(idx) {
+        const trace = traces[idx];
+        if (!trace) {
+            return;
+        }
+        let csv = 'final_weight_gr,' + TRACE_CSV_COLUMNS + '\n';
+        for (const row of trace.samples) {
+            csv += csvNum(trace.params.fw, 3) + ',' + traceRowCsv(row) + '\n';
+        }
+        const p = trace.params;
+        downloadBlob(csv, 'test_throw_' + trace.id + '_fkp' + fmt(p.fkp, 2) + '_fkd' + fmt(p.fkd, 1) + '_fms' + fmt(p.fms, 3) + '.csv');
+    }
+
+    // All kept throws in one file: throw number and parameters repeated on every row for filtering
+    function downloadAllTracesCsv() {
+        let csv = 'throw,coarse_kp,coarse_kd,fine_kp,fine_kd,fine_min_speed_rps,target_gr,final_weight_gr,' + TRACE_CSV_COLUMNS + '\n';
+        for (const trace of traces) {
+            const p = trace.params;
+            const prefix = [trace.id, csvNum(p.ckp, 4), csvNum(p.ckd, 4), csvNum(p.fkp, 4), csvNum(p.fkd, 4), csvNum(p.fms, 3), csvNum(p.tw, 2), csvNum(p.fw, 3)].join(',');
+            for (const row of trace.samples) {
+                csv += prefix + ',' + traceRowCsv(row) + '\n';
+            }
+        }
+        downloadBlob(csv, 'test_throws.csv');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // User actions
+    // ---------------------------------------------------------------------------------------
+    function onStartClicked() {
+        const targetWeight = parseFloat($('targetWeight').value);
+        if (!(targetWeight > 0)) {
+            alert('Please enter a target weight.');
+            return;
+        }
+        sendCommand(CMD.START, { tw: targetWeight.toFixed(2), sh: $('shape').value, gs: $('grainSize').value });
+    }
+
+    function onSaveClicked() {
+        const slot = $('profileSlot');
+        const name = $('profileName').value.trim();
+        if (slot.options.length === 0 || slot.value === '') {
+            alert('The profile list is not loaded yet, please wait a moment.');
+            return;
+        }
+        if (name.length === 0 || name.length > 15 || name.includes('"') || name.includes('\\')) {
+            alert('Please enter a name of 1 to 15 characters without quotes.');
+            return;
+        }
+        const slotText = slot.options[slot.selectedIndex] ? slot.options[slot.selectedIndex].textContent : slot.value;
+        if (confirm('Overwrite profile ' + slotText + ' as "' + name + '"?')) {
+            sendCommand(CMD.SAVE, { pi: slot.value, pn: name });
+        }
+    }
+
+    function onDiscardClicked() {
+        if (confirm('Discard the result?')) {
+            sendCommand(CMD.DISCARD);
+        }
+    }
+
+    // CSV of the protocol, generated here so the device does not have to
+    function downloadCsv() {
+        let csv = 'number,phase,kp,kd,weight_gr,coarse_time_s,total_time_s,evaluation,fine_min_speed_rps,fall_after_stop_gr\n';
+        for (const t of trials) {
+            csv += [t.n, t.ph, csvNum(t.kp, 4), csvNum(t.kd, 4), csvNum(t.w, 3), csvNum(t.ct, 1), csvNum(t.tt, 1), t.ev, csvNum(t.fms, 3), csvNum(t.fa, 3)].join(',') + '\n';
+        }
+        downloadBlob(csv, 'powder_analysis.csv');
+    }
+
+    setInterval(poll, POLL_INTERVAL_MS);
+    poll();
+</script>
+</body>
+</html>
