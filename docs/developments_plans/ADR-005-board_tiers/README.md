@@ -19,21 +19,22 @@ After ADR-004 the application's room on each board is a known number, so "does i
 
 ## What we know (checked 2026-11-13)
 
-**The image**, from the link maps of the v1.20 build in `build_w/` (Pico W) and `build/` (Pico 2 W):
+**The image**, from `tools/size_report.py` on the Pico W build (v1.20's code; the Pico 2 W image is 663 KB with the same shape):
 
 | Part | Pico W |
 |---|---|
-| Radio firmware (`cyw43_ll.c`) | 232 KB |
+| The radio: cyw43's driver and its firmware (the firmware's file, `cyw43_ll.c`, is 232 KB of it) | 252 KB |
 | lwIP | 105 KB |
 | Web pages, stored uncompressed | 90 KB |
 | C and C++ runtime, 37 KB of it a C++ name demangler (`cp-demangle.o`) | 72 KB |
-| Pico SDK | 50 KB |
-| The whole application | 48 KB |
-| u8g2 and MUI | 35 KB |
-| FreeRTOS | 32 KB |
-| Total | 689 KB (Pico 2 W: 663 KB) |
+| Pico SDK | 53 KB |
+| The whole application | 52 KB |
+| u8g2 and MUI | 32 KB |
+| FreeRTOS | 28 KB |
+| The HTTP server and the Trinamic library | 6 KB |
+| Total | 689 KB |
 
-- The application is 7% of the image. Pico W is not short of flash because of features.
+- The application is 7.5% of the image. Pico W is not short of flash because of features.
 - The firmware is built at `-O0`. The root `CMakeLists.txt` appends `-O0 -DDEBUG` to the Debug flags; 342 of the 354 compile commands in `build/` carry it. CI builds Debug only, and the releases are those builds.
 - `scripts/html2header.py` is run with `--no-minify`, and the pages are sent uncompressed.
 - RAM on Pico W: 194 KB of 256 KB is taken at link time, 128 KB of it the FreeRTOS heap (`configTOTAL_HEAP_SIZE`). How full that heap runs is not known; ADR-001's `stats` command will say.
