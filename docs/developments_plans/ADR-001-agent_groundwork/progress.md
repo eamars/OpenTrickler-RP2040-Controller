@@ -14,7 +14,7 @@ Built 2026-11-13.
 
 ## Step 2: build here, and know the size
 
-Built 2026-11-13. One part of its "done when" is left: the CI run that shows both tables.
+Built 2026-11-13, CI run included.
 
 **Was a toolchain already on this PC?** No. Searched: `PATH`, `.pico-sdk` under every user profile, Program Files, ProgramData, AppData and the VS Code folders. The VS Code Pico extension (0.23.0) is installed but had fetched nothing. The old build folders' caches named `C:\Users\Ran Bao\.pico-sdk`, a profile that is not on this PC.
 
@@ -70,7 +70,25 @@ Built 2026-11-13. One part of its "done when" is left: the CI run that shows bot
 - **A fault found in the report, and fixed.** Its first version told the parts apart by words anywhere in an object's path. On this PC the compiler lives in a folder named `.pico-sdk`, so the C runtime (70 KB) was counted as the Pico SDK; the same loose matching had put `mui_menu.c` under u8g2 and `freertos_hooks.c` under FreeRTOS. A part is now told by where its source sits in the repository, and anything from outside the tree is the compiler's runtime. The table no longer depends on where anything is installed.
 - The numbers in the first drafts of ADR-005 and ADR-010 came from the loose version and were corrected (the application is 52 KB on Pico W, not 48; u8g2 and MUI 32 KB, not 35).
 
-**Left in this step:** the CI run of this branch that shows both tables in its job summary. CI runs on pushes to `main`, on PRs and when started by hand, so it needs the branch pushed, which waits for the owner's word. CI builds with Make where this PC builds with Ninja; the report has not yet been seen on a map made that way.
+**The CI run.** The owner said to push the branch and start a run by hand (CI runs on pushes to `main`, on PRs, and when started by hand).
+
+- **The first run failed, and not because of this branch.** It stopped in "Build Pico2 W Package", before the size report:
+  - `ubuntu-latest` is now `ubuntu-26.04`, whose own compiler is GCC 15.2;
+  - the Pico SDK builds its `pioasm` tool with the runner's compiler, and SDK 2.1.1's `pio_types.h` uses `uint8_t` without including `<cstdint>`, which GCC 15 no longer lets pass;
+  - main's last green run was 2026-07-28, on the image before. So CI has been broken on main since the image moved, for any PR.
+- **The fix:** the runner is pinned to `ubuntu-24.04`, the image the build last passed on, with a comment that says why and when to move it (when the SDK is updated, which is a dependency ADR of its own).
+- **The second run passed** ([run 43410387723](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/runs/43410387723)), both boards, with both tables in the job summary and in the log:
+
+| In CI | Pico 2 W | Pico W |
+|---|---|---|
+| Flash | 624.3 KB | 645.1 KB |
+| RAM at link time | 195.5 KB | 195.1 KB |
+| The report's total against `app.bin` | −0.1% | −0.1% |
+| C and C++ runtime | 29.1 KB | 27.3 KB |
+
+- The report works on a map made by Make on Linux as it does on one made by Ninja on Windows: same parts, object names ending `.o` there and `.obj` here.
+- **The same code gives two images.** CI's are about 40 KB smaller than this PC's, all of it in the C and C++ runtime. The compilers differ: CI installs Ubuntu 24.04's `gcc-arm-none-eabi` (13.2.1), this PC has Arm's 14.2.Rel1, which is what `configure_env.ps1` names. The 37 KB name demangler is in the image from Arm's compiler and not in CI's.
+- **The releases are not CI's builds.** v1.20's release files are 1,323 KB and 1,374 KB as `.uf2`, which is 661 KB and 687 KB of image: the size of a build with Arm's compiler on a PC, not of CI's (625 KB and 646 KB). ADR-005 said otherwise and is corrected. Which compiler is the reference for a release is for ADR-004's release job to settle.
 
 ## Steps 3 to 6
 

@@ -35,7 +35,9 @@ After ADR-004 the application's room on each board is a known number, so "does i
 | Total | 689 KB |
 
 - The application is 7.5% of the image. Pico W is not short of flash because of features.
-- The firmware is built at `-O0`. The root `CMakeLists.txt` appends `-O0 -DDEBUG` to the Debug flags; 342 of the 354 compile commands in `build/` carry it. CI builds Debug only, and the releases are those builds.
+- The firmware is built at `-O0`. The root `CMakeLists.txt` appends `-O0 -DDEBUG` to the Debug flags; 342 of the 354 compile commands in the v1.20 build folder carry it. CI builds Debug only.
+- The same code gives two images (ADR-001's progress): 689 KB for Pico W with Arm's 14.2.Rel1 compiler on a PC, 645 KB in CI with Ubuntu 24.04's 13.2.1. The 40 KB is in the C and C++ runtime; the demangler is in the first and not in the second.
+- v1.20's release files have the size of the PC's build, not of CI's. Releases have been built on a PC.
 - `scripts/html2header.py` is run with `--no-minify`, and the pages are sent uncompressed.
 - RAM on Pico W: 194 KB of 256 KB is taken at link time, 128 KB of it the FreeRTOS heap (`configTOTAL_HEAP_SIZE`). How full that heap runs is not known; ADR-001's `stats` command will say.
 - The stack-overflow and failed-allocation hooks end in `assert()`. A build with `NDEBUG` compiles `assert()` away, so in such a build both hooks would do nothing.
@@ -68,7 +70,7 @@ Each of the first three is proven on the unit alone, because each changes the im
 
 1. **A size-optimised build.** The optimiser changes timing. Step pulses come from PIO and the loop runs at the scale's pace, so the charge should not notice; `charge_cycle` and the owner's real throws say whether it does. The two hooks stop relying on `assert()` first.
 2. **Pages gzipped** and sent with the header that says so.
-3. **The demangler gone.** It is pulled in by the C++ runtime's handler for an uncaught exception, which this firmware never needs.
+3. **The demangler gone.** It is pulled in by the C++ runtime's handler for an uncaught exception, which this firmware never needs. It is there with Arm's compiler and not with Ubuntu's, so this depends on which compiler builds a release.
 4. **The feature table.** Build options with a default per board, one generated header, and one answer from the unit that lists what it carries.
 5. **Budgets.** Two numbers per board in the repo, flash and RAM at link time, checked by ADR-001's size report in CI.
 

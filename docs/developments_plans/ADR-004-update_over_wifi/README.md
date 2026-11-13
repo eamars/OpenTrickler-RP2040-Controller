@@ -62,7 +62,7 @@ First view: #111's design on both, tried on the Pico 2 W first. One design is le
 
 **Refuse at the wrong moment.** No upload and no install while a charge or a cleanup runs.
 
-**Releases.** A CI job builds a tag for every board and attaches, for each, the `.uf2` for USB and the update file. The unit shows its version beside the staged one.
+**Releases.** A CI job builds a tag for every board and attaches, for each, the `.uf2` for USB and the update file. The unit shows its version beside the staged one. Releases have been built on a PC so far, with Arm's 14.2.Rel1 compiler; CI uses Ubuntu's 13.2.1 and its image is 40 KB smaller (ADR-001's progress). The job needs one compiler named as the reference, the same in CI and on a PC.
 
 **The first move from v1.20.** One update by USB, written as a manual and tried by someone following only the manual.
 

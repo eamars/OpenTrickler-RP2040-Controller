@@ -11,7 +11,8 @@ Firmware for the OpenTrickler controller: a Raspberry Pi Pico W or Pico 2 W on t
   - `.\build_pico_w.ps1` builds the Pico W image, `build_w\app.uf2`.
   - Both run CMake's configure each time, so a new or removed source file is picked up (sources are found by a glob).
   - `src/generated/` is made by the build (version, pages, PIO headers) and is not tracked.
-- **Size:** `python tools/size_report.py build/app.elf.map --bin build/app.bin` prints the image's flash by part and the RAM taken at link time. CI prints the same for both boards on every build.
+- **Size:** `python tools/size_report.py build/app.elf.map --bin build/app.bin` prints the image's flash by part and the RAM taken at link time. CI prints the same for both boards on every build, in the job summary and in the log (`gh run view <id> --log`).
+- **CI and a PC build different images.** CI runs on a pinned image, `ubuntu-24.04`, with Ubuntu's ARM compiler (13.2.1); a PC set up as above has Arm's 14.2.Rel1. CI's image is about 40 KB smaller, all in the C and C++ runtime. Compare sizes only between builds from the same place. The pin is there because SDK 2.1.1's `pioasm` does not compile on the next image's compiler; do not move it without a build that passes.
 - **Flash:** by hand today. Hold BOOTSEL, plug in USB, copy `app.uf2` to the drive ([manual](manuals/firmware_update_via_usb.md)). This is also how a unit is always recovered. ADR-001's step 3 adds flashing with no hands.
 - **Host tools:** Python from the venv at the repo root (`venv/`, built from `requirements.txt`). Never a second venv.
 

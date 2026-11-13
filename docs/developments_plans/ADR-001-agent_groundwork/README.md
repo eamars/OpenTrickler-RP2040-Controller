@@ -1,6 +1,6 @@
 # ADR-001: groundwork, so an agent can build, flash, drive and check a unit
 
-Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)); the CI run that shows step 2's tables waits for the branch to be pushed. Left: steps 3 to 6, which need the owner's word that the bench is ready.
+Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. Left: steps 3 to 6, which need the owner's word that the bench is ready.
 
 ## What we want
 
