@@ -29,6 +29,10 @@ typedef struct {
     float set_point_mean_margin;
     float coarse_stop_gate_ratio; // 0.0=open, 1.0=close, -1.0=disabled (optional)
 
+    bool coarse_stop_backoff_enable;
+    float coarse_stop_backoff_turns; // 0.125, 0.25, 0.5, 1.0
+    float coarse_stop_backoff_speed_rps; // if <=0 uses min speed
+
     decimal_places_t decimal_places;
 
     // Precharge

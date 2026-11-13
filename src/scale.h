@@ -42,6 +42,7 @@ typedef enum {
     SCALE_DRIVER_RADWAG_PS_R2 = 6,
     SCALE_DRIVER_SARTORIUS = 7,
     SCALE_DRIVER_GENERIC_DRV = 8,
+    SCALE_DRIVER_SIMULATED = 9,
 } scale_driver_t;
 
 

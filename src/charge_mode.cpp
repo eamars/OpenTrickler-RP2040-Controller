@@ -41,6 +41,9 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .set_point_sd_margin = 0.02,
     .set_point_mean_margin = 0.02,
     .coarse_stop_gate_ratio = 0,   // NEW
+    .coarse_stop_backoff_enable = true,
+    .coarse_stop_backoff_turns = 0.25f,
+    .coarse_stop_backoff_speed_rps = 1.0f,
     .decimal_places = DP_2,
 
     // Precharges
@@ -61,6 +64,49 @@ static char title_string[30];
 
 static TickType_t charge_start_tick = 0;
 static float last_charge_elapsed_seconds = 0.0f;
+
+// Coarse trickler end-of-trickle backoff
+#define COARSE_STOP_BACKOFF_MAX_MS 15000  // safety cap
+
+static bool coarse_backoff_in_progress = false;
+static TickType_t coarse_backoff_end_tick = 0;
+
+static void coarse_trickler_backoff(float min_output_speed_rps) {
+    if (!charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_enable) {
+        return;
+    }
+
+    float backoff_turns = charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_turns;
+    if (backoff_turns <= 0.0f) {
+        return;
+    }
+
+    float configured_speed = charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_speed_rps;
+    float backoff_speed = configured_speed;
+    if (backoff_speed <= 0.0f) {
+        backoff_speed = min_output_speed_rps;
+    }
+
+    if (backoff_speed <= 0.0f) {
+        return;
+    }
+
+    float backoff_time_s = backoff_turns / fabsf(backoff_speed);
+    uint32_t backoff_time_ms = (uint32_t)(backoff_time_s * 1000.0f);
+
+    if (backoff_time_ms == 0) {
+        return;
+    }
+
+    if (backoff_time_ms > COARSE_STOP_BACKOFF_MAX_MS) {
+        backoff_time_ms = COARSE_STOP_BACKOFF_MAX_MS;
+    }
+
+    motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, -fabsf(backoff_speed));
+    coarse_backoff_in_progress = true;
+    coarse_backoff_end_tick = xTaskGetTickCount() + pdMS_TO_TICKS(backoff_time_ms);
+}
+
 
 // Menu system
 extern AppState_t exit_state;
@@ -203,6 +249,7 @@ void charge_mode_wait_for_zero() {
 void charge_mode_wait_for_complete() {
 
     charge_start_tick = xTaskGetTickCount();
+    coarse_backoff_in_progress = false;
 
     // Set colour to under charge
     neopixel_led_set_colour(
@@ -268,6 +315,12 @@ void charge_mode_wait_for_complete() {
         }
         current_sample_tick = xTaskGetTickCount();
 
+        // Handle coarse trickler backoff stop
+        if (coarse_backoff_in_progress && (current_sample_tick >= coarse_backoff_end_tick)) {
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+            coarse_backoff_in_progress = false;
+        }
+
         float coarse_trickler_error = coarse_trickler_target_charge_weight - current_weight;
         float fine_trickler_error = charge_mode_config.target_charge_weight - current_weight;
 
@@ -294,7 +347,9 @@ void charge_mode_wait_for_complete() {
 
                 servo_gate_set_ratio(r, false); // don't block the charge loop
             }
-            // TODO: When turning off the coarse trickler, also move reverse to back off some powder
+
+            // NEW: Reverse the coarse trickler for a short backoff (quarter turn).
+            coarse_trickler_backoff(coarse_trickler_min_speed);
         }
     
 
@@ -311,7 +366,7 @@ void charge_mode_wait_for_complete() {
         motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
 
         // Update coarse trickler speed
-        if (should_coarse_trickler_move) {
+        if (should_coarse_trickler_move && !coarse_backoff_in_progress) {
             coarse_trickler_integral += coarse_trickler_error;
             float coarse_trickler_derivative = (coarse_trickler_error - coarse_trickler_last_error) / elapse_time_ms;
 
@@ -616,9 +671,12 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
     // c11 (int): precharge_time_ms
     // c12 (float): precharge_speed_rps
     // c13 (float): coarse_stop_gate_ratio
+    // c14 (bool): coarse_stop_backoff_enable
+    // c15 (float): coarse_stop_backoff_turns
+    // c16 (float): coarse_stop_backoff_speed_rps
     // ee (bool): save to eeprom
 
-    static char charge_mode_json_buffer[256];
+    static char charge_mode_json_buffer[384];
     bool save_to_eeprom = false;
 
     // Control
@@ -652,6 +710,15 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "c13") == 0) {
             charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio = strtof(values[idx], NULL);
         }
+        else if (strcmp(params[idx], "c14") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_enable = string_to_boolean(values[idx]);
+        }
+        else if (strcmp(params[idx], "c15") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_turns = strtof(values[idx], NULL);
+        }
+        else if (strcmp(params[idx], "c16") == 0) {
+            charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_speed_rps = strtof(values[idx], NULL);
+        }
 
 
         // LED related settings
@@ -682,7 +749,7 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              sizeof(charge_mode_json_buffer),
              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
              "{\"c1\":\"#%06lx\",\"c2\":\"#%06lx\",\"c3\":\"#%06lx\",\"c4\":\"#%06lx\","
-             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f,\"c13\":%0.3f}",
+             "\"c5\":%.3f,\"c6\":%.3f,\"c7\":%.3f,\"c8\":%.3f,\"c9\":%d,\"c10\":%s,\"c11\":%ld,\"c12\":%0.3f,\"c13\":%0.3f,\"c14\":%s,\"c15\":%0.3f,\"c16\":%0.3f}",
              charge_mode_config.eeprom_charge_mode_data.neopixel_normal_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour._raw_colour,
              charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour._raw_colour,
@@ -695,7 +762,10 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
              boolean_to_string(charge_mode_config.eeprom_charge_mode_data.precharge_enable),
              charge_mode_config.eeprom_charge_mode_data.precharge_time_ms,
              charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps,
-             charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio);
+             charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio,
+             boolean_to_string(charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_enable),
+             charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_turns,
+             charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_speed_rps);
 
     size_t data_length = strlen(charge_mode_json_buffer);
     file->data = charge_mode_json_buffer;

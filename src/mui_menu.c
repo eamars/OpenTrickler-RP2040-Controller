@@ -374,8 +374,9 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 37, "press Next to trickle")
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",14, 59, 10, "Back")
+    // Put "Next" first so it is focused by default
     MUI_XYAT("LV", 115, 59, 1, "Next")  // APP_STATE_ENTER_CHARGE_MODE
+    MUI_XYAT("BN",14, 59, 10, "Back")
 
     // Menu 20: Cleanup
     MUI_FORM(20)
@@ -580,7 +581,7 @@ fds_t fds_data[] = {
 
     MUI_STYLE(0)
     MUI_LABEL(5,25, "Driver:")
-    MUI_XYAT("SD", 50, 25, 60, "A&D FX-i Std|Steinberg SBS|G&G JJB|US Solid JFDBS|JM Science|Creedmoor|Radwag PS R2|Sartorius|Generic")
+    MUI_XYAT("SD", 50, 25, 60, "A&D FX-i Std|Steinberg SBS|G&G JJB|US Solid JFDBS|JM Science|Creedmoor|Radwag PS R2|Sartorius|Generic|Simulated")
 
     MUI_LABEL(5,37, "Baudrate:")
     MUI_XYAT("BR", 50, 37, 60, "4800|9600|19200")

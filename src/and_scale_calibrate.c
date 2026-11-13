@@ -91,8 +91,16 @@ uint8_t scale_calibrate_with_external_weight() {
     strcpy(line1, "Confirm pan is empty");
     strcpy(line2, "Press Next to continue");
     show_next_key = true;
-    while (button_wait_for_input(true) != BUTTON_ENCODER_PRESSED) {
-        ;
+    while (true) {
+        ButtonEncoderEvent_t ev = button_wait_for_input(true);
+        if (ev == BUTTON_RST_PRESSED) {
+            show_next_key = false;
+            vTaskSuspend(scale_calibration_render_task_handler);
+            return 31;  // back to Scale menu
+        }
+        if (ev == BUTTON_ENCODER_PRESSED) {
+            break;
+        }
     }
     show_next_key = false;
     scale_press_print_key();
@@ -108,8 +116,16 @@ uint8_t scale_calibrate_with_external_weight() {
     strcpy(line2, "Press Next to continue");
 
     show_next_key = true;
-    while (button_wait_for_input(true) != BUTTON_ENCODER_PRESSED) {
-        ;
+    while (true) {
+        ButtonEncoderEvent_t ev = button_wait_for_input(true);
+        if (ev == BUTTON_RST_PRESSED) {
+            show_next_key = false;
+            vTaskSuspend(scale_calibration_render_task_handler);
+            return 31;  // back to Scale menu
+        }
+        if (ev == BUTTON_ENCODER_PRESSED) {
+            break;
+        }
     }
     show_next_key = false;
     scale_press_print_key();
@@ -124,8 +140,16 @@ uint8_t scale_calibrate_with_external_weight() {
     strcpy(line2, "Press Next to continue");
 
     show_next_key = true;
-    while (button_wait_for_input(true) != BUTTON_ENCODER_PRESSED) {
-        ;
+    while (true) {
+        ButtonEncoderEvent_t ev = button_wait_for_input(true);
+        if (ev == BUTTON_RST_PRESSED) {
+            show_next_key = false;
+            vTaskSuspend(scale_calibration_render_task_handler);
+            return 31;  // back to Scale menu
+        }
+        if (ev == BUTTON_ENCODER_PRESSED) {
+            break;
+        }
     }
     show_next_key = false;
 
