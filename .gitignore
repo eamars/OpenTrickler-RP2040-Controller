@@ -80,3 +80,6 @@ _deps
 
 # Build directory
 build*/
+# Host tools: the venv and the remote control's session logs
+venv/
+logs/
