@@ -2,10 +2,16 @@
 
 Firmware for the OpenTrickler controller: a Raspberry Pi Pico W or Pico 2 W on the motor expansion board, with a mini 12864 display and rotary encoder, two TMC2209 stepper drivers, two servos, LEDs, an EEPROM and a scale on a serial port (see [README](README.md)). The trickler dispenses gunpowder. This page is for anyone, person or agent, about to change the firmware.
 
+## Before anything: fetch
+
+Run `git fetch` and compare your `main` with `origin/main` before you read the code as current. A checkout can be months behind. The first plans for this repository were drafted against a `main` that was 11 commits old, and had to be corrected.
+
 ## Build, flash
 
 - **Clone** with the submodules: `git submodule update --init --recursive`. `library/` holds the Pico SDK, FreeRTOS, u8g2 and the Trinamic library.
-- **Toolchain:** `tools/setup_toolchain.ps1` fetches the versions `configure_env.ps1` names into `%USERPROFILE%\.pico-sdk`. The VS Code Pico extension makes the same folder (README). `-List` prints what it would fetch.
+- **Toolchain:**
+  - Windows: `setup_toolchain.ps1` fetches the versions `configure_env.ps1` names into `%USERPROFILE%\.pico-sdk`. The VS Code Pico extension makes the same folder (README). `-List` prints what it would fetch.
+  - macOS: `setup_toolchain.sh` fetches Arm's compiler into `.toolchain/` in the repository, and `configure_env.sh` sets the environment.
 - **Build:**
   - `.\build_pico_2w.ps1` builds the Pico 2 W image, `build\app.uf2`;
   - `.\build_pico_w.ps1` builds the Pico W image, `build_w\app.uf2`.
@@ -25,7 +31,7 @@ Firmware for the OpenTrickler controller: a Raspberry Pi Pico W or Pico 2 W on t
 | `app.c` | Start-up order |
 | `menu.c`, `mui_menu.c` | The menu task and the menu's forms |
 | `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each takes the screen from the menu and draws for itself |
-| `scale.c`, `*_scale.c`, `and_scale_calibrate.c` | The scale: one driver per make, each a task that reads the serial port |
+| `scale.c`, `*_scale.c`, `and_scale_calibrate.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
 | `motors.c`, `stepper.pio` | The two steppers: TMC2209 set-up over its UART, step pulses by PIO |
 | `servo_gate.c`, `neopixel_led.c`, `ws2812.pio` | The servo gate and the LEDs |
 | `profile.c` | The powder profiles |
@@ -63,10 +69,11 @@ Work is planned and recorded as architecture decision records in [docs/developme
 - **Plain form:** plain words. What we want, the owner's direction, what we know (measured or checked in the code), what we do, how the unit shows it works. `progress.md` records what was built and measured.
 - **Close before the PR:** an ADR is closed (Built, in its README, its progress and the index) in its branch before its PR is opened.
 - **PRs from others** are not merged as they stand. Each is discussed with the owner first (ADR-002).
+- **An update that is not a feature may be merged without asking** (the owner, 2026-11-13: "for no feature update you can just merge the code"). Read here as: a change that leaves what the firmware does for a user as it was, such as CI, build scripts, host tools and documents. Open its PR, see its checks, merge it. A feature, or anything a user can see, waits for the owner.
 
 ## Do not
 
 - **Do not edit `src/generated/`.** Change the source (a page, a `.pio` file, `scripts/gen_version.py`) and build.
 - **Do not change anything under `library/`.** It is third-party code in submodules.
 - **Do not change a stored struct's layout without saying so in the ADR** (see "Settings in the EEPROM").
-- **Do not push, open or close a PR or an issue, or post a comment** without the owner's word.
+- **Do not merge a feature, close a PR or an issue of someone else's, or post a comment** without the owner's word. An update that is not a feature is the exception above.

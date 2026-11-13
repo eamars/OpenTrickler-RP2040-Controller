@@ -30,7 +30,8 @@ None of the PRs has been read in full. This is from each one's description, file
 | #101 | "AI tuning", a port from Jump73's fork | opened by the owner as a comparison, 2026-03 | Conflicts; 5,650 lines in 36 files | Tuning (880 lines and 606 of REST) mixed with an Ohaus scale driver, a G&G scale change, error pages, flash storage, a display config and a 1,307-line icon header. A commenter asks that it not be called AI |
 | #111 | OTA: a small bootloader, a staging area, upload from the web | tomanyusers, 2026-07 | Conflicts; 1,719 lines in 24 files | Works on its author's Pico W. Its Pico 2 W build fails in CI. Adds a `CLAUDE.md`. The owner asked on the PR whether Pico W has the room and whether dropping it is acceptable |
 
-- No CI run is shown for #109 and #113.
+- No CI run is shown for #109 and #113. Until 2026-11-13 a run would have failed whatever the PR held: CI's runner had moved to an image whose compiler cannot build the SDK's tools (fixed by PR #114).
+- Merged since April, and missed by this ADR's first draft, which read an old checkout: #107 (a simulated scale), #108 (the coarse trickler's back-off) and #110 (the back button), all by #109's author, and #112 (REST values that contain `&`).
 - Six branches on the remote hold commits that are not on main: `add_auto_tare`, `add_bootloader`, `codex/sub-pr-86`, `fix_pio_issue`, `pcb_design`, `pr_94_review`.
 
 ## What we will do

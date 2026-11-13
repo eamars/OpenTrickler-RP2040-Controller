@@ -24,6 +24,7 @@ Last of the large changes: the screens then sit on a split application (ADR-006)
 - The menu is u8g2's MUI: 22 forms described as one string in `mui_menu.c`, with a list of field functions.
 - u8g2 or MUI is called from 9 files. Besides the menu, these draw for themselves: the charge screen and the cleanup screen (each its own task, redrawing every 20 ms), the Wi-Fi information, scale calibration, and the motor error screen.
 - A mode takes the screen by the menu leaving its form and calling a function that blocks until the mode ends (`exit_state`, in `menu.c`).
+- In the menu the reset button goes up one level (PR #110). MUI has no notion of a form's parent, so `menu.c` keeps a table of them by hand, beside the forms' own description in `mui_menu.c`.
 - The web mirror serves u8g2's raw buffer.
 - u8g2, MUI and their fonts are 32 KB of the Pico W image (`tools/size_report.py`).
 - RAM on Pico W: 194 KB of 256 KB is taken at link time.

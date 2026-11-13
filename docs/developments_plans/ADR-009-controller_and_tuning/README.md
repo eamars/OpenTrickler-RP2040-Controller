@@ -25,7 +25,7 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 - Zero is ten readings 300 ms apart whose spread and mean are both under 0.02 (the default margins).
 - The loop runs once per scale reading. If none comes in 200 ms it polls the buttons and waits again.
 - Two PID loops, on the same weight:
-  - coarse aims at the target less the coarse stop threshold (5 gr by default) and is switched off for good the first time its error reaches 0. The servo gate then moves to a set position;
+  - coarse aims at the target less the coarse stop threshold (5 gr by default) and is switched off for good the first time its error reaches 0. The servo gate then moves to a set position, and the coarse trickler is run backwards for a quarter turn at 1 rev/s (the defaults; PR #108) so powder does not trail. That back-off has three stored settings: on or off, the turns, the speed;
   - fine aims at the target and runs from the start.
 - Each output is held between a minimum and a maximum speed from the profile and the motor.
 - Everything stops when the weight is within the fine stop threshold (0.03 gr by default) of the target.
@@ -42,13 +42,14 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 **What others have built**
 - PR #113: tuning from start values by powder shape and grain size, ten proving throws, a suggested fine threshold from the weight that still falls after the stop, a test throw with every sample recorded and exported, and a simulated powder with tests that run on a PC.
 - PR #101: another tuning routine, ported from a fork.
-- Open requests: a calibration routine (#12), PID values from an online source (#10), ladder loading (#106), reversing the coarse trickler (#105; the code has a TODO for it at the coarse stop), a press to skip the current charge (#75).
+- On main since July: a simulated scale (PR #107). Its weight follows the motors' speeds but is held at the target once within 0.1 gr, so it shows that a charge runs and cannot say how well it was controlled.
+- Open requests: a calibration routine (#12), PID values from an online source (#10), ladder loading (#106), a press to skip the current charge (#75). Issue #105 (reverse the coarse trickler) is still open, though PR #108 built it.
 
 ## Ideas
 
 **The controller as a module.** Readings and times in; two speeds and the gate's position out. No FreeRTOS, no motors, no screen in it. Charge mode keeps the states, the buttons and the LEDs, and calls it.
 
-**Tests on the PC.** The module against a simulated powder, in CI. ADR-001's simulated scale and PR #113's powder model are two starts for it; one is kept.
+**Tests on the PC.** The module against a simulated powder, in CI. Main's simulated scale and PR #113's powder model are two starts for it; one is kept. Main's would first have to stop holding the weight at the target, or it cannot show an overshoot.
 
 **Every throw recorded.** Time, weight, both speeds and the three terms of each loop, per reading, in RAM for the last throw; downloadable, and drawn on the tuning page. How many throws are kept, and where, depends on the board (ADR-005).
 
@@ -57,7 +58,6 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 **Ideas to try, not promised:**
 - a top-up when the throw ends under the target;
 - the stop thresholds per profile;
-- a short reverse of the coarse trickler at its stop;
 - stopping early by the amount known to still fall.
 
 **Test functions,** on the screen and the web: a test throw that is recorded, a motor at a set speed for a set time, the scale's readings and their rate.

@@ -1,6 +1,6 @@
 # ADR-001: groundwork, so an agent can build, flash, drive and check a unit
 
-Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. Left: steps 3 to 6, which need the owner's word that the bench is ready.
+Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. Left: steps 3 to 6, which need the owner's word that the bench is ready. **Step 5 and decision 2 are open again** ("What building found", F2): main already has a simulated scale.
 
 ## What we want
 
@@ -22,6 +22,8 @@ First. Today an agent cannot build on this PC, cannot read a log, and has no way
 - The USB serial debug feature of the Open Weapon Mount Computer firmware may be asked for here. This ADR builds it.
 
 ## What we know (checked 2026-11-13)
+
+This section was first written against a `main` that was 11 commits behind the remote's (F1 below). It is corrected to today's main; the corrected lines say so.
 
 **Building**
 - This PC has no Pico toolchain. `configure_env.ps1` expects one under `%USERPROFILE%\.pico-sdk` at fixed versions: Arm GNU toolchain 14.2.Rel1, CMake 3.31.5, Ninja 1.12.1, picotool 2.1.1, pioasm 2.1.1. The README installs them through the VS Code Pico extension.
@@ -47,12 +49,19 @@ First. Today an agent cannot build on this PC, cannot read a log, and has no way
 - The menu is 22 MUI forms (ids 1, 10 to 13, 20, 30 to 41, 51, 53, 60, 61). `mui_GotoForm()` returns 0 for an id that does not exist, and `mui_GetCurrentFormId()` gives the form on screen. The `mui_t` lives inside `menu_task`, so only that task may touch it.
 - The screen is u8g2's buffer: 128 × 64, 1,024 bytes, in 8 rows of 128 bytes, each byte a column of 8 pixels (layout described in `display.c`). `display.c` has a mutex for it that nothing takes, so a copy can catch a frame half drawn.
 - The web starts a charge by setting `charge_mode_config.target_charge_weight` and `exit_state`, then sending `OVERRIDE_FROM_REST` to the menu.
+- *(Corrected.)* In the menu the reset button goes up one level, by a table of each form's parent in `menu.c` (PR #110). In a mode it still leaves the mode.
 
 **The scale**
 - A scale driver is one task and a zero function (`scale_handle_t`). The task writes `scale_config.current_scale_measurement` and gives `scale_measurement_ready`.
 - `scale_init()` starts the stored driver's task once and keeps no handle to it. Changing the driver later swaps the handle only; the first task keeps running.
 - Charge mode decides "cup removed" when the mean of five readings is below about −10, and "cup returned" at the first reading of 0 or more.
 - The motors' commanded speed is kept as `prev_velocity` in each `motor_config_t`. There is no getter.
+- *(Corrected.)* **Main already has a simulated scale** (`simulated_scale.c`, PR #107, merged 2026-07-14):
+  - it is scale driver 9, chosen like any other from the screen menu and the web page, and stored like any other;
+  - ten readings a second. While the motors turn, the weight grows by 5 gr/s for each rev/s of the coarse trickler and 1 gr/s for each of the fine one, read straight from `prev_velocity`, with ±0.05 gr of noise;
+  - the weight is held at the target once it is within 0.1 gr of it, so it never overshoots;
+  - three seconds after reaching the target it "removes the cup" by itself (−150 gr), and three seconds later puts it back (0), so charge mode runs cycle after cycle with nobody there;
+  - like every driver, its task is started only if it is the stored driver at start-up.
 
 **The reference** (Open Weapon Mount Computer, `main/tools/`, `tools/remote_control/`)
 - Two layers: `remote_control` executes one command line and writes one reply line, and knows no transport; `rc_serial` is a task that reads lines from the console.
@@ -64,7 +73,7 @@ First. Today an agent cannot build on this PC, cannot read a log, and has no way
 Approving the ADR approves these.
 
 1. **The console is always on over USB, with no setting.** It needs a cable in the unit, and a setting would add a stored field, a menu entry and a web field for nothing.
-2. **The simulated scale can be switched on only from the console, is never stored, and is gone after a restart.** Nobody at the unit can end up trickling real powder against a made-up weight. While it is on, the scale's name reads `SIMULATED` wherever the unit shows it.
+2. **The simulated scale can be switched on only from the console, is never stored, and is gone after a restart.** Nobody at the unit can end up trickling real powder against a made-up weight. While it is on, the scale's name reads `SIMULATED` wherever the unit shows it. *(Open again: F2. Main's simulated scale is in the menu and is stored.)*
 3. **Flashing is by copying a `.uf2` to the USB loader's drive.** It needs no driver and no extra tool, and it is the same path a user has, so it is also the recovery path.
 4. **These files are downloaded to this PC**, into `%USERPROFILE%\.pico-sdk`, in the layout the VS Code extension makes, so `configure_env.ps1` stays as it is:
    - Arm GNU toolchain 14.2.Rel1 for `arm-none-eabi`, Windows x64 zip, from Arm's download page;
@@ -74,6 +83,23 @@ Approving the ADR approves these.
 5. **The menu's baseline snaps are tracked** in `tests/menu_baseline/<board>/`, so a later ADR can compare against them. Session logs are not tracked.
 6. **Hopper empty.** An agent's run assumes there is no powder in the trickler. The owner says when there is.
 7. **A failed `assert()` enters the USB loader** (`PICO_ENTER_USB_BOOT_ON_EXIT`). Today it stops at a breakpoint. Either way the unit is dead until its power is cycled. This way an agent can flash it back with no hands, and the step pulses stop. A hard fault is not covered and still needs the BOOTSEL button.
+
+## What building found
+
+| # | Found | Cause | Now |
+|---|---|---|---|
+| F1 | The ADRs were drafted against old code. Main had gained 11 commits since 2026-04-28: a simulated scale (#107), the coarse trickler's back-off (#108), the back button (#110), a REST query fix (#112), toolchain scripts for macOS | The agent read the local `main` and never fetched. The PR and issue lists came from GitHub and were current; the code was not | Main merged into this branch; both boards rebuilt and measured again; the facts in ADR-001, 002, 003, 005, 006, 009 and 010 corrected; "fetch first" is the first rule in `AGENTS.md` |
+| F2 | Step 5 plans a simulated scale, and main already has one | F1 | **For the owner to decide.** Proposal below |
+| F3 | `tools/setup_toolchain.ps1` sat apart from main's `setup_toolchain.sh` | F1 | Moved to the root, beside `configure_env.ps1` and the macOS script |
+| F4 | CI failed on main for every PR | `ubuntu-latest` became Ubuntu 26.04, whose compiler cannot build SDK 2.1.1's `pioasm` | The runner pinned to `ubuntu-24.04` (PR #114, merged) |
+
+**F2, the proposal: use main's simulated scale, and build no second one.**
+- `sim on` chooses it for this run only: the stored driver's task is suspended, the simulated driver's task is started, and the driver is set to Simulated in RAM. `sim off` undoes it. Nothing is saved by the command.
+- No `sim cup` commands: main's simulated scale removes and returns the cup by itself. `charge_cycle` waits for the states to come in order, and for a second charge to start on its own.
+- No `src/sim_scale.c`, and no getter for the motors' speed is needed for it.
+- What it cannot show: overshoot. Its weight is held at the target. `charge_cycle` proves that a charge runs from zero to cup return; it never claimed more.
+
+**F2, the question that comes with it.** Main's simulated scale can be chosen by anyone from the menu or the web page, and it stays chosen after a restart. A unit left on it, with powder in the hopper, trickles to a made-up weight that always lands on the target, and "removes the cup" by itself. Decision 2 was written to rule that out, and main does not. Whether it needs a guard (not stored, a plain warning on the charge screen, or the motors held off while it is chosen) is the owner's call, and would be a change a user sees.
 
 ## What we will do
 
@@ -95,7 +121,7 @@ Done when: a new agent, given only `AGENTS.md`, can say how to build and where a
 
 ### Step 2: build here, and know the size (no hardware)
 
-- `tools/setup_toolchain.ps1` fetches the files in decision 4 and unpacks them. It prints each file and its source before it downloads, and does nothing if the folder is already there.
+- `setup_toolchain.ps1` (at the root; F3) fetches the files in decision 4 and unpacks them. It prints each file and its source before it downloads, and does nothing if the folder is already there.
 - Both boards build from a clean clone with `build_pico_2w.ps1` and `build_pico_w.ps1`.
 - `tools/size_report.py <map file>` prints the image's flash by part (radio firmware, lwIP, pages, runtime, SDK, application, u8g2, FreeRTOS) and the RAM taken at link time. CI runs it for both boards and puts the tables in the job summary.
 
@@ -146,6 +172,8 @@ Done when: `menu_tour` finds all 22 forms; run twice, the second run compares eq
 
 ### Step 5: motors, the simulated scale, and a charge cycle
 
+**As approved. The parts about `src/sim_scale.c` and `sim cup` wait for the owner's word on F2.**
+
 - `motor <coarse|fine> <rev/s>` calls `motor_set_speed()`; 0 stops it. `motors.c` gets `motor_get_velocity()`, which returns the commanded speed.
 - `src/sim_scale.c`: the simulated scale.
   - `scale_init()` keeps the handle of the driver task it starts. `sim on` suspends that task and starts the simulated one; `sim off` deletes the simulated one and resumes it. Nothing is stored.
@@ -175,7 +203,7 @@ On the Pico 2 W controller, from a clean clone, with nobody touching the unit: b
 
 ## Files
 
-- New: `AGENTS.md`, `requirements.txt`, `tools/setup_toolchain.ps1`, `tools/size_report.py`, `tools/remote_control/rc_run.py`, `src/remote_control.c` and `.h`, `src/rc_serial.c` and `.h`, `src/sim_scale.c` and `.h`, `tests/menu_baseline/pico2_w/`, `docs/developments_plans/ADR-001-agent_groundwork/progress.md`.
+- New: `AGENTS.md`, `requirements.txt`, `setup_toolchain.ps1`, `tools/size_report.py`, `tools/remote_control/rc_run.py`, `src/remote_control.c` and `.h`, `src/rc_serial.c` and `.h`, `src/sim_scale.c` and `.h`, `tests/menu_baseline/pico2_w/`, `docs/developments_plans/ADR-001-agent_groundwork/progress.md`.
 - Changed: `CMakeLists.txt` (console over USB), `src/app.c` (console start, the console task), `src/menu.c` and `src/mini_12864_module.h` (the form id, the jump), `src/scale.c` and `.h` (the driver task's handle, the switch to the simulated scale), `src/motors.c` and `.h` (the getter), `src/charge_mode.cpp` and `.h` (one start function), `.github/workflows/cmake.yml` (the size report), `.gitignore`.
 - No stored struct changes.
 

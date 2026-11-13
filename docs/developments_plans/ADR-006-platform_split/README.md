@@ -20,8 +20,8 @@ After the PRs are decided (ADR-002), so nothing waiting to be merged is moved un
 
 ## What we know (checked 2026-11-13)
 
-- `src/` is one flat folder: 32 `.c` files, 4 `.cpp`, about 12,400 lines. `targets/` holds one pin map, and `configuration.h` includes it by name.
-- 20 of the 36 source files include `pico/` or `hardware/` headers: all eight scale drivers, `motors.c`, `servo_gate.c`, `eeprom.c`, `cat24c256_eeprom.c`, `common.c`, `mui_menu.c`, `mini_12864_module.cpp`, `system_control.c`, `wireless.c`, `access_point_mode.c`, `dhcpserver.c`, `app.c`.
+- `src/` is one flat folder: 33 `.c` files, 4 `.cpp`, about 12,750 lines with the headers. `targets/` holds one pin map, and `configuration.h` includes it by name.
+- 20 of the 37 source files include `pico/` or `hardware/` headers: all eight scale drivers, `motors.c`, `servo_gate.c`, `eeprom.c`, `cat24c256_eeprom.c`, `common.c`, `mui_menu.c`, `mini_12864_module.cpp`, `system_control.c`, `wireless.c`, `access_point_mode.c`, `dhcpserver.c`, `app.c`.
 - `common.h` includes `hardware/pio.h` and FreeRTOS, and almost everything includes `common.h`.
 - Three places reach past the SDK into registers: the TMC2209's one-wire UART switches the receiver off while it sends (`motors.c`), the unit's id is made from the ring oscillator's random bit (`eeprom.c`), and the servo writes a PWM slice's register (`servo_gate.c`).
 - Two PIO programs: `stepper.pio` makes the step pulses, `ws2812.pio` drives the LEDs.
@@ -30,6 +30,8 @@ After the PRs are decided (ADR-002), so nothing waiting to be merged is moved un
 - Wi-Fi is cyw43 with lwIP. The access point's DHCP and DNS servers are files from the Pico examples.
 - Stored settings are the C structs as compiled. They hold enums (`decimal_places_t`, `scale_driver_t`, `display_rotation_t`, and cyw43's own `cyw43_auth_t` in the Wi-Fi settings) and bools. Two compilers need not lay these out alike.
 - The scale drivers each poll `uart_is_readable(SCALE_UART)` in their own loop.
+- The simulated scale reads the motors' speeds straight out of `motors.c`'s structs (`extern motor_config_t`), and charge mode's target the same way.
+- The stored charge-mode struct gained three fields in the middle with PR #108, which changes its layout.
 
 ## Ideas
 

@@ -19,24 +19,24 @@ After ADR-004 the application's room on each board is a known number, so "does i
 
 ## What we know (checked 2026-11-13)
 
-**The image**, from `tools/size_report.py` on the Pico W build (v1.20's code; the Pico 2 W image is 663 KB with the same shape):
+**The image**, from `tools/size_report.py` on the Pico W build of today's main (the Pico 2 W image is 668 KB with the same shape):
 
 | Part | Pico W |
 |---|---|
 | The radio: cyw43's driver and its firmware (the firmware's file, `cyw43_ll.c`, is 232 KB of it) | 252 KB |
 | lwIP | 105 KB |
-| Web pages, stored uncompressed | 90 KB |
+| Web pages, stored uncompressed | 91 KB |
 | C and C++ runtime, 37 KB of it a C++ name demangler (`cp-demangle.o`) | 72 KB |
+| The whole application | 54 KB |
 | Pico SDK | 53 KB |
-| The whole application | 52 KB |
 | u8g2 and MUI | 32 KB |
 | FreeRTOS | 28 KB |
 | The HTTP server and the Trinamic library | 6 KB |
-| Total | 689 KB |
+| Total | 693 KB |
 
-- The application is 7.5% of the image. Pico W is not short of flash because of features.
+- The application is 7.7% of the image. Pico W is not short of flash because of features.
 - The firmware is built at `-O0`. The root `CMakeLists.txt` appends `-O0 -DDEBUG` to the Debug flags; 342 of the 354 compile commands in the v1.20 build folder carry it. CI builds Debug only.
-- The same code gives two images (ADR-001's progress): 689 KB for Pico W with Arm's 14.2.Rel1 compiler on a PC, 645 KB in CI with Ubuntu 24.04's 13.2.1. The 40 KB is in the C and C++ runtime; the demangler is in the first and not in the second.
+- The same code gives two images (ADR-001's progress, measured on v1.20's code): 689 KB for Pico W with Arm's 14.2.Rel1 compiler on a PC, 645 KB in CI with Ubuntu 24.04's 13.2.1. The 40 KB is in the C and C++ runtime; the demangler is in the first and not in the second.
 - v1.20's release files have the size of the PC's build, not of CI's. Releases have been built on a PC.
 - `scripts/html2header.py` is run with `--no-minify`, and the pages are sent uncompressed.
 - RAM on Pico W: 194 KB of 256 KB is taken at link time, 128 KB of it the FreeRTOS heap (`configTOTAL_HEAP_SIZE`). How full that heap runs is not known; ADR-001's `stats` command will say.
@@ -48,7 +48,7 @@ After ADR-004 the application's room on each board is a known number, so "does i
 |---|---|---|---|
 | Flash | 2 MB | 4 MB | 16 MB |
 | RAM | 264 KB | 520 KB | 512 KB and 2 MB PSRAM |
-| Image today | 689 KB | 663 KB | none yet |
+| Image today | 693 KB | 668 KB | none yet |
 | Room for the application beside OTA (PR #111's layout) | about 960 KB | about 1,980 KB | set in ADR-007 |
 
 ## The rules

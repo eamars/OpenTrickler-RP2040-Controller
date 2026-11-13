@@ -22,7 +22,7 @@ OTA's upload (ADR-004), the web UI (ADR-008) and the tuning pages (ADR-009) all 
 ## What we know (checked 2026-11-13)
 
 **How it is built**
-- `http_rest.c` is a copy of lwIP's file server (`httpd.c`, 2,770 lines in the SDK) with about 150 lines added: a linked list of paths and handlers, looked up where the file used to be opened.
+- `http_rest.c` is a copy of lwIP's file server (`httpd.c`, 2,770 lines in the SDK) with about 190 lines added: a linked list of paths and handlers, looked up where the file used to be opened, and its own decoding of the path and the query (PR #112 made it split the query before decoding it, so a value may contain `&`).
 - A handler has the signature `bool handler(struct fs_file *file, int num_params, char *params[], char *values[])`. It answers by pointing the file at a static buffer that holds the whole response, status line and headers included.
 - `http_rest.h` is included by the headers of charge mode, motors, the scale, profiles, the EEPROM, the display and more, so lwIP's headers reach all of them.
 - 22 paths are registered in `rest_endpoints.c`. Pages are C strings generated from `src/html/` by `scripts/html2header.py`.
@@ -32,7 +32,7 @@ OTA's upload (ADR-004), the web UI (ADR-008) and the tuning pages (ADR-009) all 
 - One GET both reads and writes. `GET /rest/charge_mode_state?s2=1` starts a charge. `GET /rest/system_control?s6=true` erases the EEPROM. A browser that prefetches a link, or a second tab, can do either.
 - A value goes straight into the live settings with `strtof` or `atoi` and no check of its range. It is written from the network task while the charge task reads the same struct.
 - Fields are named by codes (`c5`, `s0`, `m3`). Each setting is written out by hand three times in its module: a comment that maps the code to its name, a chain of `strcmp`, and a `snprintf` format. It is written again in the web page and in the screen menu.
-- JSON is made with `snprintf` into fixed buffers of 64 to 256 bytes. Nothing parses JSON.
+- JSON is made with `snprintf` into fixed buffers of 64 to 384 bytes. Nothing parses JSON. A new setting means a larger buffer by hand: the coarse back-off's three fields took charge mode's from 256 to 384 (PR #108).
 - Reading `/rest/charge_mode_state` clears the charge events, so two browsers take them from each other.
 - The web starts a charge by putting a made-up button press (`OVERRIDE_FROM_REST`) into the menu's queue and setting a global.
 - There is no password. Anyone on the network can read and change everything, and start the motors.
