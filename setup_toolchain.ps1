@@ -5,8 +5,10 @@ extension makes, so configure_env.ps1 works unchanged (ADR-001, decision 4).
 A part that is already there is left alone. Nothing outside %USERPROFILE%\.pico-sdk is touched.
 
 Usage:
-    .\tools\setup_toolchain.ps1          fetch what is missing
-    .\tools\setup_toolchain.ps1 -List    print what would be fetched, and fetch nothing
+    .\setup_toolchain.ps1          fetch what is missing
+    .\setup_toolchain.ps1 -List    print what would be fetched, and fetch nothing
+
+macOS has its own script, setup_toolchain.sh.
 #>
 param(
     [switch] $List
