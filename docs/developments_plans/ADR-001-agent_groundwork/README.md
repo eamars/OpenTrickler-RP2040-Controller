@@ -91,7 +91,7 @@ Approving the ADR approves these.
 | F1 | The ADRs were drafted against old code. Main had gained 11 commits since 2026-04-28: a simulated scale (#107), the coarse trickler's back-off (#108), the back button (#110), a REST query fix (#112), toolchain scripts for macOS | The agent read the local `main` and never fetched. The PR and issue lists came from GitHub and were current; the code was not | Main merged into this branch; both boards rebuilt and measured again; the facts in ADR-001, 002, 003, 005, 006, 009 and 010 corrected; "fetch first" is the first rule in `AGENTS.md` |
 | F2 | Step 5 plans a simulated scale, and main already has one | F1 | **For the owner to decide.** Proposal below |
 | F3 | `tools/setup_toolchain.ps1` sat apart from main's `setup_toolchain.sh` | F1 | Moved to the root, beside `configure_env.ps1` and the macOS script |
-| F4 | CI failed on main for every PR | `ubuntu-latest` became Ubuntu 26.04, whose compiler cannot build SDK 2.1.1's `pioasm` | The runner pinned to `ubuntu-24.04` (PR #114, merged) |
+| F4 | CI failed on main for every PR | `ubuntu-latest` became Ubuntu 26.04, whose compiler cannot build SDK 2.1.1's `pioasm` | The runner pinned to `ubuntu-24.04` (PR #114, merged). The pin's exit is ADR-011 |
 
 **F2, the proposal: use main's simulated scale, and build no second one.**
 - `sim on` chooses it for this run only: the stored driver's task is suspended, the simulated driver's task is started, and the driver is set to Simulated in RAM. `sim off` undoes it. Nothing is saved by the command.
@@ -210,8 +210,8 @@ On the Pico 2 W controller, from a clean clone, with nobody touching the unit: b
 ## Not in this ADR
 
 - The remote control over Wi-Fi. The reference added it in a later ADR of its own.
-- A watchdog, and stopping the motors whenever the firmware stops. What is known is under "What a failure looks like today". It changes what a user sees, so it is the owner's call and an ADR of its own.
-- A unit that starts without its motor drivers. Today it stops at the error screen; that stays.
-- The debug probe's scripts (`openocd_start.bat`, `program.bat`), which name the RP2040 only.
+- A watchdog, and stopping the motors whenever the firmware stops. What is known is under "What a failure looks like today". It changes what a user sees, so it is the owner's call and an ADR of its own: ADR-012 carries it.
+- A unit that starts without its motor drivers. Today it stops at the error screen; that stays. ADR-012 asks the question.
+- The debug probe's scripts (`openocd_start.bat`, `program.bat`), which name the RP2040 only. ADR-011 asks whether they are made right or removed.
 - The Pico W. Its baseline and its runs come when a Pico W is on the bench.
 - Fixing what the bench turns up. It is written into `progress.md` and brought to the owner.

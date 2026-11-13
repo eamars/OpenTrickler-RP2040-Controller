@@ -10,8 +10,11 @@ No PR left open without a decision, and nothing merged that the owner has not lo
 
 The verdicts cost reading and talking, not a bench, and they decide what ADR-004 and ADR-009 contain. A PR that is merged as it stands goes in here, while it still merges.
 
+It follows ADR-011 and ADR-012, so what is merged lands on the updated dependencies and the cleaned motor code. Of the open PRs, #111, #113, #44 and #28 touch the build files ADR-011 changes; #101 (one line of `stepper.pio`) and #28 touch the motor files.
+
 ## Owner's direction (2026-11-13)
 
+- The dependency update and the code cleanup, the motor drivers named, come before the changes of PRs are merged (2026-11-14).
 - Not every PR is merged as it stands. Many of them do not make sense, or are not organised the right way. Each is discussed with the owner at merging.
 - Community PRs land before the restructure (ADR-006). For a PR that is rebuilt and not merged, see "To settle".
 - Auto tare is dropped.

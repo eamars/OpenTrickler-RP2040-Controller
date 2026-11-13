@@ -16,7 +16,7 @@ Status: **Draft** 2026-11-13. Not approved. Captures what ties the application t
 
 ## Why here
 
-After the PRs are decided (ADR-002), so nothing waiting to be merged is moved under its author. After ADR-003, so the network's largest tie, the REST handlers, is already cut. Before ADR-007, which is its proof.
+After the PRs are decided (ADR-002), so nothing waiting to be merged is moved under its author. After ADR-003, so the network's largest tie, the REST handlers, is already cut. Before ADR-007, which is its proof. The motor module is split by role first, in ADR-012, and its seam is the one this ADR keeps.
 
 ## What we know (checked 2026-11-13)
 

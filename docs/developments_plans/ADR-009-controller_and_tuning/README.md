@@ -38,6 +38,7 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 - The loop's pace is the scale's. A scale that reports half as often is controlled half as often, with the same gains.
 - Nothing records a throw. The only trace is the elapsed time on the screen.
 - The loop is inside `charge_mode_wait_for_complete()` with the button polls, the LED colours, the servo gate and the title on the screen.
+- Setting a motor's speed can hold the loop: the call waits, with no time limit, while that motor's task is in a ramp. ADR-012 fixes it, with the motor module's other faults.
 
 **What others have built**
 - PR #113: tuning from start values by powder shape and grain size, ten proving throws, a suggested fine threshold from the weight that still falls after the stop, a test throw with every sample recorded and exported, and a simulated powder with tests that run on a PC.
