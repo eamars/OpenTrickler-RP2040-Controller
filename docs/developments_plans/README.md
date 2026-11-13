@@ -1,0 +1,24 @@
+# Development plans
+
+This folder holds the firmware's architecture decision records (ADRs): what was decided, why, and plans not yet built. It is not the authority for current behaviour; that lives in the source.
+
+This index says only where each ADR stands. What is known, what will be done and how the unit shows it works are in the ADR's folder; what was built and measured is in its `progress.md` once work starts.
+
+Status: **Draft**, being discussed, not approved. **Decided**, approved and not built. **Open**, partly built, with the part under "Left" still to do. **Built**, built, flashed and proven on a unit, nothing left. **Archived**, removed from the tree.
+
+How an ADR is written: in plain words. What we want, the owner's direction, what we know (measured, or checked in the code), what we will do and why, and how the unit shows it works. Work on an ADR starts when the owner approves it, and one ADR is open at a time. An ADR is closed (Built, in its README, its progress and this index) in its own branch before its PR is opened. A functional change and a dependency update are separate ADRs. The process is the Open Weapon Mount Computer firmware's.
+
+The ADRs are numbered in the order proposed for the work; each says under "Why here" why it sits where it does. ADR-001 is written to be started as it stands. ADR-002 to ADR-010 capture what is known and the ideas so far, and get their full text when their turn comes.
+
+| ADR | Title | Status | Left | Decision | Where |
+|---|---|---|---|---|---|
+| 001 | Groundwork: an agent can build, flash, drive and check a unit | Decided | Approved 2026-11-13; nothing built yet | The reference project's USB serial debug feature in two layers, always on over USB; flashing by the USB loader's drive; a simulated scale that only the console can switch on; `menu_tour` and `charge_cycle` as the proofs every later ADR uses. Steps 1 and 2 need no hardware | [ADR-001](ADR-001-agent_groundwork/README.md) |
+| 002 | The open PRs: a verdict for each | Draft | Not approved | Each PR read whole and brought to the owner on one page; the owner's verdict is merge, merge after changes, rebuild with credit, or close. Auto tare (PR #46, issue #45) is dropped | [ADR-002](ADR-002-open_prs/README.md) |
+| 003 | A real HTTP REST server | Draft | Not approved | The copy of lwIP's file server replaced by one server with methods and bodies for every board. First view: a small server of our own on sockets. Each setting described once, as an idea to weigh | [ADR-003](ADR-003-http_rest_server/README.md) |
+| 004 | Firmware update over Wi-Fi | Draft | Not approved | USB always recovers a unit. One update interface with the flash part per chip. First view: PR #111's bootloader and staging area on both RP chips, tried on the Pico 2 W first | [ADR-004](ADR-004-update_over_wifi/README.md) |
+| 005 | What each board carries: a smaller image, a feature table, budgets | Draft | Not approved | One implementation: a feature is present on a board or absent, never built a second way (the owner's rule). Tiers by what a feature needs; one feature table; flash and RAM budgets in CI; an optimised build and gzipped pages | [ADR-005](ADR-005-board_tiers/README.md) |
+| 006 | The application apart from the platform | Draft | Not approved | A layout by role and small interfaces to the chip, one step at a time, nothing a user sees changed. Stored settings no longer depend on the compiler | [ADR-006](ADR-006-platform_split/README.md) |
+| 007 | The same firmware on the ESP32-S3-Pico | Draft | Not approved | An ESP-IDF build of the same tree for the Waveshare ESP32-S3-Pico in the controller's Pico socket. The pins on GPIO33 to 37 are checked on the board before any code | [ADR-007](ADR-007-esp32_s3_pico/README.md) |
+| 008 | A web UI that needs no internet | Draft | Not approved | Served whole by the unit, phone first, showing only what the board carries. A mock the owner clicks through before anything is built | [ADR-008](ADR-008-web_ui/README.md) |
+| 009 | One controller, every throw recorded, automatic tuning on top | Draft | Not approved | The loop out of charge mode into a module tested on a PC; every throw recorded; the known faults fixed against recordings; tuning from what ADR-002 keeps of PR #113 and #101 | [ADR-009](ADR-009-controller_and_tuning/README.md) |
+| 010 | LVGL in place of u8g2 | Draft | Not approved | LVGL measured on each board first, and Pico W decided on that number; services stop drawing; screens rebuilt one at a time against `menu_tour` | [ADR-010](ADR-010-lvgl/README.md) |
