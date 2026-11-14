@@ -117,12 +117,13 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
         }
     }
 
-    snprintf(reply, reply_size, "@ok stats heap_free=%u heap_min=%u tasks=%u stack_min=\"%s\":%u",
+    snprintf(reply, reply_size, "@ok stats heap_free=%u heap_min=%u tasks=%u stack_min=\"%s\":%u bad_frames=%lu",
              (unsigned) xPortGetFreeHeapSize(),
              (unsigned) xPortGetMinimumEverFreeHeapSize(),
              (unsigned) task_count,
              remote_control_task_status[min_idx].pcTaskName,
-             (unsigned) remote_control_task_status[min_idx].usStackHighWaterMark);
+             (unsigned) remote_control_task_status[min_idx].usStackHighWaterMark,
+             (unsigned long) scale_get_bad_frames());
     return true;
 }
 

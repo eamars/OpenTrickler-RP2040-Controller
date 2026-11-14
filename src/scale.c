@@ -347,6 +347,28 @@ float scale_get_current_measurement() {
 }
 
 
+// Frames that did not give a finite number since the start (ADR-013); written by one driver task at a time
+static volatile uint32_t scale_bad_frames = 0;
+
+
+void scale_publish_measurement(float weight) {
+    if (!isfinite(weight)) {
+        scale_bad_frames += 1;
+        return;
+    }
+
+    scale_config.current_scale_measurement = weight;
+    if (scale_config.scale_measurement_ready) {
+        xSemaphoreGive(scale_config.scale_measurement_ready);
+    }
+}
+
+
+uint32_t scale_get_bad_frames(void) {
+    return scale_bad_frames;
+}
+
+
 /*
     Block wait for the next available measurement.
 

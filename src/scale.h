@@ -79,6 +79,15 @@ bool scale_init();
 float scale_get_current_measurement();
 
 /**
+ * @brief The one way a reading is published (ADR-013). Every scale driver and the simulated scale call it, in place
+ * of writing the measurement themselves. A driver says a frame did not parse by giving NaN. A value that is not a
+ * finite number, NaN or an infinity, is not published: the reading is not changed, the charge is not told of a new
+ * one, and it is counted (scale_get_bad_frames()). So a bad frame is a frame that never came.
+ */
+void scale_publish_measurement(float weight);
+uint32_t scale_get_bad_frames(void);
+
+/**
  * @brief The remote control's simulated scale (ADR-001): main's simulated driver stands in for the stored one
  * until scale_simulation_stop() or a restart. Nothing is stored.
  * @return false when the stored driver is already the simulated one, or its task could not start.

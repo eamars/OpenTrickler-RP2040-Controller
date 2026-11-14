@@ -70,12 +70,7 @@ void _steinberg_scale_listener_task(void *p) {
             // If we have received 16 bytes then we can decode the message
             if (string_buf_idx == sizeof(steinberg_sbs_data_format_t)) {
                 // Data is ready, send to decode
-                scale_config.current_scale_measurement = _decode_measurement_msg(&frame);
-
-                // Signal the data is ready
-                if (scale_config.scale_measurement_ready) {
-                    xSemaphoreGive(scale_config.scale_measurement_ready);
-                }
+                scale_publish_measurement(_decode_measurement_msg(&frame));
 
                 // Reset
                 string_buf_idx = 0;

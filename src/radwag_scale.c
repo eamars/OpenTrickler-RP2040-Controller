@@ -94,12 +94,7 @@ void _radwag_scale_listener_task(void *p) {
                     // bool is_stable = (frame.stability == ' ');
                     
                     // Data is ready, decode and update
-                    scale_config.current_scale_measurement = _decode_measurement_msg(&frame);
-                    
-                    // Signal that data is ready
-                    if (scale_config.scale_measurement_ready) {
-                        xSemaphoreGive(scale_config.scale_measurement_ready);
-                    }
+                    scale_publish_measurement(_decode_measurement_msg(&frame));
                 }
                 
                 // Reset buffer

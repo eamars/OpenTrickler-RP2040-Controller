@@ -86,12 +86,7 @@ void _jm_science_scale_listener_task(void *p) {
             // If we have received 17 bytes then we can decode the message
             if (byte_idx == sizeof(jm_science_frame_data_format_t)) {
                 // Data is ready, send to decode
-                scale_config.current_scale_measurement = _decode_measurement_msg(&frame);
-
-                // Signal the data is ready
-                if (scale_config.scale_measurement_ready) {
-                    xSemaphoreGive(scale_config.scale_measurement_ready);
-                }
+                scale_publish_measurement(_decode_measurement_msg(&frame));
 
                 // Reset buffer index to avoid overflow
                 byte_idx = 0;

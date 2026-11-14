@@ -188,10 +188,7 @@ void simulated_scale_read_loop_task(void *p) {
                     simulated_scale_bad_pending = false;
                     published = nanf("");
                 }
-                scale_config.current_scale_measurement = published;
-                if (scale_config.scale_measurement_ready) {
-                    xSemaphoreGive(scale_config.scale_measurement_ready);
-                }
+                scale_publish_measurement(published);
             }
         }
 
