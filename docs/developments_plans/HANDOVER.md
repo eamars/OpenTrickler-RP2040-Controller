@@ -6,7 +6,7 @@ First written at the end of a session that stopped early; brought up to date 202
 
 - **ADR-001:** Built and closed 2026-11-14, merged to main by PR #115. The owner waived the real throw and the check by eye (see its progress.md).
 - **ADR-011:** Built and closed 2026-11-15: SDK 2.3.1, FreeRTOS V11.3.3 from upstream, Arm's 15.2.Rel1, every version in `toolchain.env`, CI on `ubuntu-latest` with no pin. Proven on the Pico W and the Pico 2 W. The owner waived the end checks by hand and accepted the Pico 2 W's web soak as it stood; ADR-003 carries that finding. Merged by PR #119.
-- **ADR-013:** Built and closed 2026-11-15: one door for a reading (a bad frame is dropped and counted), a missing reading pauses the tricklers and a lost scale ends the charge, by the scale's own rhythm, and the web's cleanup speed only in cleanup mode. Proven on both units. A bad frame did opposite wrong things on the two chips before it: full speed on the RP2350, a short throw on the RP2040. Its PR is the one from the branch `adr013_charge_safety`; it changes what a user sees, so it waits for the owner.
+- **ADR-013:** Built and closed 2026-11-15: one door for a reading (a bad frame is dropped and counted), a missing reading pauses the tricklers and a lost scale ends the charge, by the scale's own rhythm, and the web's cleanup speed only in cleanup mode. Proven on both units. A bad frame did opposite wrong things on the two chips before it: full speed on the RP2350, a short throw on the RP2040. Reviewed and merged by the owner, PR #124.
 - **Next: ADR-012**, the motor drivers cleaned up (a draft): approval first. Its fault 7 very likely caused ADR-011's two silent starts. Then ADR-002, which holds the merge strategy discussed on 2026-11-14 as a proposal.
 - **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
 - **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
@@ -40,6 +40,11 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
   - on main since PR #112, a long web form is cut at 127 characters, so settings are saved wrong or not at all.
 - Its verdicts: the scale drivers and the modes each need a cleanup of their own; storage, the servo gate, Wi-Fi and the system files need a few fixes; the screens can wait for ADR-010.
 - **For the scale drivers' cleanup, seen on the bench in ADR-013** (2026-11-15): the A&D driver takes 17 bytes as a frame, not what ends in its CR LF. A frame stitched across a hand-over from the simulated scale was seen (`SST,+00000.00 GN\r`, 1 in 30). ADR-013's door drops one that does not parse; one that parses as a wrong number it cannot see. Take a frame only at its line ending, and look at the other drivers for the same. See ADR-013's progress.
+- **For the modes' cleanup, `FloatRingBuffer`** (read in the code 2026-11-15, owner's question in ADR-013's review). Its faults are latent: no caller meets them today.
+  - `getSum()`, `getMean()` and `getSd()` run over every slot, not the readings it holds, so they read memory `malloc` never set until the buffer is full. The three that use one wait for a full buffer first; a fourth, in the cup-return wait (`charge_mode.cpp`), is made and never used.
+  - `last()` gives the slot to be written next, not the newest reading. Nothing calls it.
+  - Its lock is a plain bool and locks nothing; its `malloc` is not checked.
+  - It is C++, and it has no median. So the scale's rhythm in `scale.c` (ADR-013) keeps its own window of 16 intervals and takes their median: a mean would be moved by the gaps it is there to find. Make one ring buffer in C, its sums over what it holds, with a median, and move the rhythm onto it.
 - `charge_mode.cpp` is the one file every live PR touches.
 
 ## To do next, in order
