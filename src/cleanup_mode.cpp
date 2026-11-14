@@ -112,6 +112,19 @@ uint8_t cleanup_mode_menu() {
     // Enter the clean up mode
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_ENTER;
 
+    // No cleanup with a motor driver that does not answer (ADR-012): the screen says which, any button goes back
+    if (!motors_ready()) {
+        snprintf(title_string, sizeof(title_string), "%s", motors_get_fault());
+        printf("Cleanup: not started, %s\n", title_string);
+
+        ButtonEncoderEvent_t button_encoder_event;
+        xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
+
+        cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
+        vTaskSuspend(cleanup_render_task_handler);
+        return 1;
+    }
+
     // Enable both motors
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);

@@ -1,10 +1,12 @@
 /* Isolate the C and C++ */
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include <FreeRTOS.h>
 #include <queue.h>
-#include <math.h>
+#include <semphr.h>
+#include <task.h>
 #include "app.h"
 #include "tmc2209.h"
 #include "hardware/uart.h"
@@ -17,11 +19,26 @@
 #include "motors.h"
 #include "eeprom.h"
 #include "common.h"
-#include "display.h"  // in case the stepper motor driver failed to initialize
-#include "neopixel_led.h" // in case the stepper motor driver failed to initialize
 
 #define STEPPER_LOW_CYCLE_COUNT 13  // Defined as the implementation of stepper.pio
 #define MAX_RESPONSE_TIME   0.01f   // Maximum response time for PIO stepper
+
+// The drivers' serial line: how long a byte may take to come, the driver's answer delay included
+#define MOTOR_UART_BYTE_TIMEOUT_US 2000
+
+/*
+    `current_ma` was the current only with the driver module's trimmer at full scale; it is now the current itself
+    (ADR-012). A figure stored before that is converted once, by the factory trimmer's share of full scale
+    (1.2 V of 2.5 V), and rounded to 10 mA.
+*/
+#define MOTOR_CURRENT_TRIMMER_SHARE 0.48f
+#define MOTOR_CURRENT_ROUND_MA 10
+
+/*
+    The mark of a converted figure, in the stored struct's `motor_data_rev`. In its upper two bytes: load_config
+    takes anything but 0 in the lower two as an EEPROM never written, and stores the defaults.
+*/
+#define MOTOR_DATA_REV_TRUE_CURRENT 0x00010000u
 
 
 // Internal data structure for speed control between tasks
@@ -38,11 +55,11 @@ motor_config_t fine_trickler_motor_config;
 
 
 const eeprom_motor_data_t default_motor_data = {
-    .motor_data_rev = 0,
+    .motor_data_rev = MOTOR_DATA_REV_TRUE_CURRENT,
     // Motor 0 is coarse trickler
     .motor_data[0] = {
         .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
-        .current_ma = 800,                  // 800 mA peak current
+        .current_ma = 400,                  // mA RMS: what a unit ran at before ADR-012, with 800 stored
         .microsteps = 256,                  // Maximum microstep that TMC2209 supports
         .max_speed_rps = 5,                 // Maximum speed before the stepper starts to lose step
         .r_sense = 110,                     // Default sensing resistor (110ohm is used for stanard TMC2209 modules)
@@ -56,7 +73,7 @@ const eeprom_motor_data_t default_motor_data = {
     },
     .motor_data[1] = {
         .full_steps_per_rotation = 200,     // 200: 1.8 deg stepper, 400: 0.9 deg stepper
-        .current_ma = 800,                  // 800 mA peak current
+        .current_ma = 400,                  // mA RMS: what a unit ran at before ADR-012, with 800 stored
         .microsteps = 256,                  // Maximum microstep that TMC2209 supports
         .max_speed_rps = 5,                 // Maximum speed before the stepper starts to lose step
         .r_sense = 110,                     // Default sensing resistor (110ohm is used for stanard TMC2209 modules)
@@ -71,110 +88,68 @@ const eeprom_motor_data_t default_motor_data = {
 };
 
 
-// UART Control functions
-void _enable_uart_rx(uart_inst_t * uart, bool enable) {
-    if (enable) {
-        hw_set_bits(&uart_get_hw(uart)->cr, UART_UARTCR_RXE_BITS);
+// The two drivers, and what is known of the stored settings
+static tmc2209_t coarse_trickler_driver;
+static tmc2209_t fine_trickler_driver;
+static bool motor_config_loaded = false;
+static uint32_t motor_data_rev = MOTOR_DATA_REV_TRUE_CURRENT;
+
+// One task at a time talks to the drivers once the scheduler runs
+static SemaphoreHandle_t motor_driver_mutex = NULL;
+
+
+/*
+    One exchange on the drivers' wire, for tmc_uart. The wire is one: TX reaches it through a resistor and RX sits
+    on it, so every byte sent comes back first, and is checked. The driver's answer follows.
+*/
+static bool motor_uart_exchange(const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len) {
+    bool is_ok = true;
+
+    // Whatever is left from before is not this exchange's
+    while (uart_is_readable(MOTOR_UART)) {
+        uart_getc(MOTOR_UART);
     }
-    else {
-        hw_clear_bits(&uart_get_hw(uart)->cr, UART_UARTCR_RXE_BITS);
-    }
-}
 
+    uart_write_blocking(MOTOR_UART, tx, tx_len);
 
-void _clear_rx_buffer(uart_inst_t * uart) {
-    while(!(uart_get_hw(uart)->fr & UART_UARTFR_RXFE_BITS)) {
-        uart_get_hw(uart)->dr;
-    }
-}
-
-
-bool _block_wait_for_sync(uart_inst_t * uart) {
-    uint8_t c;
-    do
-    {
-        if (uart_is_readable_within_us(uart, 2000)) {
-            uart_read_blocking(MOTOR_UART, &c, 1);
-        }
-        else {
+    for (size_t idx = 0; idx < tx_len; idx += 1) {
+        if (!uart_is_readable_within_us(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US)) {
             return false;
         }
-    } while (c != 0x05); 
-
-    return true;
-}
-
-
-void swuart_calcCRC(uint8_t* datagram, uint8_t datagramLength)
-{
-    int i,j;
-    uint8_t* crc = datagram + (datagramLength-1); // CRC located in last byte of message
-    uint8_t currentByte;
-    *crc = 0;
-    for (i=0; i<(datagramLength-1); i++) { // Execute for all bytes of a message
-        currentByte = datagram[i]; // Retrieve a byte to be sent from Array
-        for (j=0; j<8; j++) {
-            if ((*crc >> 7) ^ (currentByte&0x01)) // update CRC based result of XOR operation
-            {
-                *crc = (*crc << 1) ^ 0x07;
-            }
-            else
-            {
-                *crc = (*crc << 1);
-            }
-            currentByte = currentByte >> 1;
-        } // for CRC bit
-    } // for message byte
-}
-
-
-
-void tmc_uart_write (trinamic_motor_t driver, TMC_uart_write_datagram_t *datagram)
-{
-    uart_write_blocking(MOTOR_UART, datagram->data, sizeof(TMC_uart_write_datagram_t));
-}
-
-TMC_uart_write_datagram_t *tmc_uart_read (trinamic_motor_t driver, TMC_uart_read_datagram_t *datagram)
-{
-    static TMC_uart_write_datagram_t wdgr = {0}; 
-
-    uart_write_blocking(MOTOR_UART, datagram->data, sizeof(TMC_uart_read_datagram_t));
-
-    // At 250k baud rate the transmit time is about 320us. Need to wait long enough to not reading the echo message back.
-    busy_wait_us(20);
-    _enable_uart_rx(MOTOR_UART, true);
-    busy_wait_ms(2);
-    
-    uint8_t sync_flag = 0x05;
-    int8_t idx = -1;
-    while (uart_is_readable_within_us(MOTOR_UART, 2000)) {
-        uint8_t c;
-
-        uart_read_blocking(MOTOR_UART, &c, 1);
-        if (c == sync_flag) {
-            idx = 0;
-        }
-
-        if (idx >= 0 && idx < 8) {
-            wdgr.data[idx++] = c;
-        }
-
-        if (idx == 8) {
-            // FIXME: there is known issue that calling IFCNT causes target addr to be incorrect. 
-            // Calculate CRC
-            uint8_t crc = wdgr.msg.crc;
-            swuart_calcCRC(wdgr.data, sizeof(TMC_uart_write_datagram_t));
-            if (crc == wdgr.msg.crc) {
-                break;
-            }
-            idx = -1;
+        if ((uint8_t) uart_getc(MOTOR_UART) != tx[idx]) {
+            is_ok = false;
         }
     }
 
-    _enable_uart_rx(MOTOR_UART, false);
+    for (size_t idx = 0; idx < rx_len; idx += 1) {
+        if (!uart_is_readable_within_us(MOTOR_UART, MOTOR_UART_BYTE_TIMEOUT_US)) {
+            return false;
+        }
+        rx[idx] = (uint8_t) uart_getc(MOTOR_UART);
+    }
 
-    return &wdgr;
+    return is_ok;
 }
+
+
+static void motor_driver_lock(void) {
+    if (motor_driver_mutex && xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        xSemaphoreTake(motor_driver_mutex, portMAX_DELAY);
+    }
+}
+
+
+static void motor_driver_unlock(void) {
+    if (motor_driver_mutex && xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        xSemaphoreGive(motor_driver_mutex);
+    }
+}
+
+
+static tmc2209_t * motor_get_driver(motor_select_t selected_motor) {
+    return selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_driver : &coarse_trickler_driver;
+}
+
 
 uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_rotation_steps) {
     // speed: rev/s
@@ -200,85 +175,29 @@ uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_ro
 }
 
 
-bool tmc2209_init (TMC2209_t *driver)
-{
-    // Perform a status register read/write to clear status flags.
-    // If no or bad response from driver return with error.
-    if(!TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->gstat))
-        return false;
+// Write a driver its registers from the stored settings. False if it does not answer or does not take them
+static bool driver_setup(motor_config_t * motor_config) {
+    tmc2209_t * driver = (tmc2209_t *) motor_config->tmc_driver;
 
-    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->gstat);
+    motor_driver_lock();
+    bool is_ok = tmc2209_setup(driver,
+                               motor_config->persistent_config.current_ma,
+                               motor_config->persistent_config.r_sense,
+                               motor_config->persistent_config.microsteps);
+    motor_driver_unlock();
 
-    TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->gconf);
-    driver->gconf.reg.pdn_disable = 1;
-    driver->gconf.reg.mstep_reg_select = 1;
-
-// Use default settings (from OTP) for these:
-//  driver->gconf.reg.I_scale_analog = 1;
-//  driver->gconf.reg.internal_Rsense = 0;
-//  driver->gconf.reg.en_spreadcycle = 0;
-//  driver->gconf.reg.multistep_filt = 1;
-
-    TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->ifcnt);
-
-    uint8_t ifcnt = driver->ifcnt.reg.count;
-
-    driver->chopconf.reg.mres = tmc_microsteps_to_mres(driver->config.microsteps);
-
-    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->gconf);
-    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->tpowerdown);
-    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->pwmconf);
-    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->tpwmthrs);
-    TMC2209_WriteRegister(driver, (TMC2209_datagram_t *)&driver->tcoolthrs);
-    TMC2209_SetCurrent(driver, driver->config.current, driver->config.hold_current_pct);
-
-    int retry = 5;
-    while (retry-- > 0) {
-        TMC2209_ReadRegister(driver, (TMC2209_datagram_t *)&driver->ifcnt);
-        uint8_t new_cnt = (uint8_t)driver->ifcnt.reg.count;
-
-        if (new_cnt - ifcnt == 7) {
-            return true;
-        }
+    if (is_ok) {
+        printf("Motor driver %u: set up, %u mA RMS asked, %u mA given\n",
+               motor_config->uart_addr, motor_config->persistent_config.current_ma,
+               tmc2209_get_run_current_ma(driver));
     }
-    
-
-    return false;
-}
-
-
-bool driver_init(motor_config_t * motor_config) {
-    // Copy the user config to the driver config and initialize the communication
-    // Return True if the initialization is successful, False otherwise. 
-    // This must be called after the UART is initialized. 
-    
-    // Check if the tmc driver is already initialized. If true then free the previously allocated
-    //  driver then re-create. 
-    if (motor_config->tmc_driver) {
-        free(motor_config->tmc_driver);
+    else {
+        printf("Motor driver %u: no answer, or a register not taken\n", motor_config->uart_addr);
     }
-
-
-    TMC2209_t * tmc_driver = malloc(sizeof(TMC2209_t));
-    if (tmc_driver == NULL) {
-        return false;
-    }
-
-    TMC2209_SetDefaults(tmc_driver);
-
-    // Apply user configurations
-    tmc_driver->config.motor.address = motor_config->uart_addr;
-    tmc_driver->config.current = motor_config->persistent_config.current_ma;
-    tmc_driver->config.r_sense = motor_config->persistent_config.r_sense;
-    tmc_driver->config.hold_current_pct = 50;
-    tmc_driver->config.microsteps = motor_config->persistent_config.microsteps;
-
-    bool is_ok = tmc2209_init(tmc_driver);
-
-    motor_config->tmc_driver = (void *) tmc_driver;
 
     return is_ok;
 }
+
 
 bool driver_io_init(motor_config_t * motor_config) {
     gpio_init(motor_config->en_pin);
@@ -366,6 +285,24 @@ bool motor_config_init(void) {
     // Copy the initialized data back to the stack
     memcpy(&coarse_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
     memcpy(&fine_trickler_motor_config.persistent_config, &eeprom_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
+    motor_data_rev = eeprom_motor_data.motor_data_rev;
+
+    // Figures stored before ADR-012 are converted once: the motors keep the current they ran at
+    if (motor_data_rev != MOTOR_DATA_REV_TRUE_CURRENT) {
+        motor_config_t * motor_configs[] = {&coarse_trickler_motor_config, &fine_trickler_motor_config};
+        for (int idx = 0; idx < 2; idx += 1) {
+            uint16_t stored_ma = motor_configs[idx]->persistent_config.current_ma;
+            uint16_t true_ma = (uint16_t) (lroundf(stored_ma * MOTOR_CURRENT_TRIMMER_SHARE / MOTOR_CURRENT_ROUND_MA) *
+                                           MOTOR_CURRENT_ROUND_MA);
+            motor_configs[idx]->persistent_config.current_ma = true_ma;
+            printf("Motor %d: stored current %u mA converted to %u mA RMS\n", idx, stored_ma, true_ma);
+        }
+
+        motor_data_rev = MOTOR_DATA_REV_TRUE_CURRENT;
+        if (!motor_config_save()) {
+            printf("Unable to store the converted motor current\n");
+        }
+    }
 
     // Set initial direction
     coarse_trickler_motor_config.step_direction = coarse_trickler_motor_config.persistent_config.inverted_direction ? true : false;
@@ -382,8 +319,8 @@ bool motor_config_save() {
     bool is_ok;
     eeprom_motor_data_t eeprom_motor_data;
 
-    // Set the versionf 
-    eeprom_motor_data.motor_data_rev = 0;  // We don't use data rev anymore
+    // Not a revision any more: its lower two bytes stay 0 for load_config, its upper two mark the true current
+    eeprom_motor_data.motor_data_rev = motor_data_rev;
 
     // Copy the live data to the EEPROM structure
     memcpy(&eeprom_motor_data.motor_data[0], &coarse_trickler_motor_config.persistent_config, sizeof(motor_persistent_config_t));
@@ -568,85 +505,125 @@ float get_motor_min_speed(motor_select_t selected_motor) {
 }
 
 
-motor_init_err_t motors_init(void) {
-    bool is_ok;
-
-    // Initialize config
-    is_ok = motor_config_init();
-    if (!is_ok) {
-        return MOTOR_INIT_CFG_ERR;
+void motors_init(void) {
+    // The stored settings. If they cannot be read the defaults stand in, so the pins and tasks below are still
+    // set up, and motors_get_fault() says so: the modes do not start
+    motor_config_loaded = motor_config_init();
+    if (!motor_config_loaded) {
+        memcpy(&coarse_trickler_motor_config.persistent_config, &default_motor_data.motor_data[0], sizeof(motor_persistent_config_t));
+        memcpy(&fine_trickler_motor_config.persistent_config, &default_motor_data.motor_data[1], sizeof(motor_persistent_config_t));
     }
 
-    // Assume the `motor_config_init` is already called
     coarse_trickler_motor_config.dir_pin = COARSE_MOTOR_DIR_PIN;
     coarse_trickler_motor_config.en_pin = COARSE_MOTOR_EN_PIN;
     coarse_trickler_motor_config.step_pin = COARSE_MOTOR_STEP_PIN;
     coarse_trickler_motor_config.uart_addr = COARSE_MOTOR_ADDR;
+    coarse_trickler_motor_config.tmc_driver = &coarse_trickler_driver;
 
     fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
     fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
     fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
     fine_trickler_motor_config.uart_addr = FINE_MOTOR_ADDR;
+    fine_trickler_motor_config.tmc_driver = &fine_trickler_driver;
 
     // TMC driver doesn't care about the baud rate the host is using
     uart_init(MOTOR_UART, 250000);
     gpio_set_function(MOTOR_UART_RX, GPIO_FUNC_UART);
     gpio_set_function(MOTOR_UART_TX, GPIO_FUNC_UART);
 
-    _enable_uart_rx(MOTOR_UART, false);
+    motor_driver_mutex = xSemaphoreCreateMutex();
+    if (!motor_driver_mutex) {
+        printf("Unable to create the motor drivers' mutex\n");
+    }
 
-    // 
-    // Enable coarse trickler motor at UART ADDR 0
-    // 
+    tmc2209_init(&coarse_trickler_driver, motor_uart_exchange, COARSE_MOTOR_ADDR);
+    tmc2209_init(&fine_trickler_driver, motor_uart_exchange, FINE_MOTOR_ADDR);
+
+    // Pins and step pulses of both motors
     driver_io_init(&coarse_trickler_motor_config);
-
-    // Allocate PIO to the stepper
-    if (!driver_pio_init(&coarse_trickler_motor_config)) {
-        return MOTOR_INIT_PIO_ERR;
-    }
-
-    // Initialize the stepper driver 
-    is_ok = driver_init(&coarse_trickler_motor_config);
-    if (!is_ok) {
-        return MOTOR_INIT_COARSE_DRV_ERR;
-    }
-
-    // 
-    // Initialize fine trickler motor at UART ADDR 1
-    // 
     driver_io_init(&fine_trickler_motor_config);
 
-    // Allocate PIO to the stepper
-    if (!driver_pio_init(&fine_trickler_motor_config)) {
-        return MOTOR_INIT_PIO_ERR;
+    if (!driver_pio_init(&coarse_trickler_motor_config) || !driver_pio_init(&fine_trickler_motor_config)) {
+        printf("Unable to set up the motors' step pulses\n");
     }
-    
-    // Initialize the stepper driver
-    is_ok = driver_init(&fine_trickler_motor_config);
-    if (!is_ok) {
-        return MOTOR_INIT_FINE_DRV_ERR;
-    }
+
+    // The drivers. One that does not answer is not a halt (ADR-012): the unit starts, motors_get_fault() names it,
+    // and motors_ready() tries it again each time a mode is about to turn a motor
+    driver_setup(&coarse_trickler_motor_config);
+    driver_setup(&fine_trickler_motor_config);
 
     // Initialize motor related RTOS control
     coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
     fine_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
 
     // Create one task for each stepper controller
-    xTaskCreate(stepper_speed_control_task, 
-                "Coarse Trickler", 
-                configMINIMAL_STACK_SIZE, 
-                (void *) &coarse_trickler_motor_config, 
+    xTaskCreate(stepper_speed_control_task,
+                "Coarse Trickler",
+                configMINIMAL_STACK_SIZE,
+                (void *) &coarse_trickler_motor_config,
                 9,  // Coarse trickler at higher priority to response faster to stop
                 &coarse_trickler_motor_config.stepper_speed_control_task_handler);
 
-    xTaskCreate(stepper_speed_control_task, 
-                "Fine Trickler", 
-                configMINIMAL_STACK_SIZE, 
-                (void *) &fine_trickler_motor_config, 
-                8, 
+    xTaskCreate(stepper_speed_control_task,
+                "Fine Trickler",
+                configMINIMAL_STACK_SIZE,
+                (void *) &fine_trickler_motor_config,
+                8,
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
+}
 
-    return MOTOR_INIT_OK;
+
+const char * motors_get_fault(void) {
+    if (!motor_config_loaded) {
+        return "No motor settings";
+    }
+    if (!coarse_trickler_driver.ready) {
+        return "No coarse driver";
+    }
+    if (!fine_trickler_driver.ready) {
+        return "No fine driver";
+    }
+    return NULL;
+}
+
+
+bool motors_ready(void) {
+    // A driver that did not answer at start-up may by now: its supply can come after the Pico's
+    if (!coarse_trickler_driver.ready) {
+        driver_setup(&coarse_trickler_motor_config);
+    }
+    if (!fine_trickler_driver.ready) {
+        driver_setup(&fine_trickler_motor_config);
+    }
+
+    return motors_get_fault() == NULL;
+}
+
+
+bool motor_driver_setup(motor_select_t selected_motor) {
+    return driver_setup(selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
+                                                                     : &coarse_trickler_motor_config);
+}
+
+
+bool motor_driver_dump(motor_select_t selected_motor, motor_driver_line_fn emit, void * ctx) {
+    motor_driver_lock();
+    bool is_ok = tmc2209_dump(motor_get_driver(selected_motor), emit, ctx);
+    motor_driver_unlock();
+
+    return is_ok;
+}
+
+
+void motor_driver_get_stats(motor_select_t selected_motor, motor_driver_stats_t * stats) {
+    tmc2209_t * driver = motor_get_driver(selected_motor);
+
+    stats->ready = driver->ready;
+    stats->current_ma = tmc2209_get_run_current_ma(driver);
+    stats->writes = driver->bus.writes;
+    stats->write_retries = driver->bus.write_retries;
+    stats->read_retries = driver->bus.read_retries;
+    stats->failures = driver->bus.failures;
 }
 
 
@@ -664,69 +641,6 @@ const char * get_motor_select_string(motor_select_t selected_motor) {
     assert(false);
 
     return NULL;
-}
-
-
-/* 
-The function will assume the screen and cyw43 are already initialized. 
-*/
-void handle_motor_init_error(motor_init_err_t err) {
-    char * error_string;
-
-    switch (err)
-    {
-        case MOTOR_INIT_CFG_ERR:
-            error_string = "CFG ERR";
-            break;
-        case MOTOR_INIT_COARSE_DRV_ERR:
-            error_string = "COARSE DRV ERR";
-            break;
-        case MOTOR_INIT_FINE_DRV_ERR:
-            error_string = "FINE DRV ERR";
-            break;
-        case MOTOR_INIT_PIO_ERR:
-            error_string = "PIO ERR";
-            break;
-        default:
-            error_string = "UNDEF ERR";
-            break;
-    }
-
-    // Draw the error message on the screen
-    u8g2_t * display_handler = get_display_handler();
-    char title_string[32] = "Motor Init Error";
-
-    while (true) {
-        BaseType_t scheduler_state = xTaskGetSchedulerState();
-
-        // Flash LED
-        for (int i = 0; i < err; i++) {
-            // Set neopixel LED colour
-            _neopixel_led_set_colour(0xFFA500, 0xFFA5000, 0xffffff);
-            delay_ms(200, scheduler_state);
-            _neopixel_led_set_colour(0xFF0000, 0xFF0000, 0xffffff);
-            delay_ms(200, scheduler_state);
-        }
-
-        u8g2_ClearBuffer(display_handler);
-
-        // Draw title
-        if (strlen(title_string)) {
-            u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-            u8g2_DrawStr(display_handler, 5, 10, title_string);
-        }
-
-        // Draw line
-        u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
-
-        // Draw error message
-        u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
-        u8g2_DrawStr(display_handler, 5, 25, error_string);
-
-        // Draw error message
-        u8g2_SendBuffer(display_handler);
-        delay_ms(2000, scheduler_state);
-    }
 }
 
 

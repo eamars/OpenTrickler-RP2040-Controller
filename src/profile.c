@@ -7,8 +7,6 @@
 
 eeprom_profile_data_t profile_data;
 
-extern void swuart_calcCRC(uint8_t* datagram, uint8_t datagramLength);
-
 const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
     .profiles[0] = {
@@ -135,10 +133,6 @@ profile_t * profile_select(uint8_t idx) {
     return profile_get_selected(idx);
 }
 
-
-void profile_update_checksum() {
-    swuart_calcCRC((uint8_t *) profile_get_selected(), sizeof(profile_t));
-}
 
 bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:

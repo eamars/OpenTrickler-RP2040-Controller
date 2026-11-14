@@ -749,11 +749,24 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
         vTaskResume(scale_measurement_render_task_handler);
     }
 
-    // Enable motor on entering the charge mode
-    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
-    motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
-    
-    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
+    if (motors_ready()) {
+        // Enable motor on entering the charge mode
+        motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
+        motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
+
+        charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
+    }
+    else {
+        // No charge with a motor driver that does not answer (ADR-012): the screen says which, and a press of a
+        // button (or the console's charge stop) goes back to the menu
+        snprintf(title_string, sizeof(title_string), "%s", motors_get_fault());
+        printf("Charge: not started, %s\n", title_string);
+
+        while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+    }
 
     bool quit = false;
     while (quit == false) {

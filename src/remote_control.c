@@ -66,6 +66,7 @@ extern QueueHandle_t encoder_event_queue;
 extern mini_12864_module_config_t mini_12864_module_config;
 
 static bool remote_control_reboot_pending = false;
+static char remote_control_tmc_line[256];
 static TaskStatus_t remote_control_task_status[REMOTE_CONTROL_MAX_TASKS];
 static uint8_t remote_control_snap_buffer[REMOTE_CONTROL_SNAP_BUFFER_SIZE];
 static char remote_control_snap_line[8 + (REMOTE_CONTROL_SNAP_CHUNK + 2) / 3 * 4 + 1];
@@ -382,6 +383,90 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
 }
 
 
+typedef struct {
+    remote_control_write_fn write;
+    void *write_ctx;
+} remote_control_tmc_ctx_t;
+
+
+static void remote_control_tmc_emit(const char *line, void *ctx) {
+    remote_control_tmc_ctx_t *tmc_ctx = (remote_control_tmc_ctx_t *) ctx;
+
+    snprintf(remote_control_tmc_line, sizeof(remote_control_tmc_line), "@tmc %s", line);
+    if (tmc_ctx->write) {
+        tmc_ctx->write(remote_control_tmc_line, tmc_ctx->write_ctx);
+    }
+}
+
+
+/*
+ * `tmc <coarse|fine>`: the driver's registers by field, as `@tmc r ...` lines read from the chip now and `@tmc w ...`
+ * lines for those that can only be written, then its serial line's counts (ADR-012).
+ * `tmc <coarse|fine> setup <n>`: the driver set up n times from the stored settings, nine checked writes each.
+ */
+static bool remote_control_tmc(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                               void *write_ctx) {
+    size_t name_len = strcspn(args, " ");
+    motor_select_t selected_motor;
+    if (name_len == 6 && strncmp(args, "coarse", 6) == 0) {
+        selected_motor = SELECT_COARSE_TRICKLER_MOTOR;
+    }
+    else if (name_len == 4 && strncmp(args, "fine", 4) == 0) {
+        selected_motor = SELECT_FINE_TRICKLER_MOTOR;
+    }
+    else {
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>]");
+        return false;
+    }
+
+    const char *rest = args + name_len;
+    while (*rest == ' ') {
+        rest += 1;
+    }
+
+    int setups_failed = 0;
+    if (strncmp(rest, "setup ", 6) == 0) {
+        // The motors are still: a driver is not written while a mode turns it
+        if (menu_get_current_form_id() < 0) {
+            snprintf(reply, reply_size, "@err a mode is running");
+            return false;
+        }
+
+        char *end;
+        long count = strtol(rest + 6, &end, 10);
+        if (end == rest + 6 || *end != '\0' || count < 1 || count > 1000) {
+            snprintf(reply, reply_size, "@err setup: 1 to 1000 times");
+            return false;
+        }
+        for (long idx = 0; idx < count; idx += 1) {
+            if (!motor_driver_setup(selected_motor)) {
+                setups_failed += 1;
+            }
+        }
+    }
+    else if (*rest != '\0') {
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>]");
+        return false;
+    }
+    else {
+        remote_control_tmc_ctx_t tmc_ctx = {write, write_ctx};
+        if (!motor_driver_dump(selected_motor, remote_control_tmc_emit, &tmc_ctx)) {
+            snprintf(reply, reply_size, "@err the %s driver does not answer", get_motor_select_string(selected_motor));
+            return false;
+        }
+    }
+
+    motor_driver_stats_t stats;
+    motor_driver_get_stats(selected_motor, &stats);
+    snprintf(reply, reply_size,
+             "@ok tmc ready=%d ma=%u writes=%lu write_retries=%lu read_retries=%lu failures=%lu setups_failed=%d",
+             stats.ready ? 1 : 0, (unsigned) stats.current_ma,
+             (unsigned long) stats.writes, (unsigned long) stats.write_retries,
+             (unsigned long) stats.read_retries, (unsigned long) stats.failures, setups_failed);
+    return setups_failed == 0;
+}
+
+
 // `charge <gr>` starts charge mode as the web page does; `charge stop` presses reset, as at the unit
 static bool remote_control_charge(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                   void *write_ctx) {
@@ -425,6 +510,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"sim", remote_control_sim},
     {"scale", remote_control_scale},
     {"motor", remote_control_motor},
+    {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
 };
 

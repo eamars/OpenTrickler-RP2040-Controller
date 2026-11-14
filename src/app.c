@@ -48,11 +48,8 @@ int main()
     // Initialize wireless settings
     wireless_init();
 
-    // Load config for motors
-    motor_init_err_t motor_init_err = motors_init();
-    if (motor_init_err != MOTOR_INIT_OK) {
-        handle_motor_init_error(motor_init_err);
-    }
+    // The motors and their drivers. A driver that does not answer does not stop the start-up (ADR-012)
+    motors_init();
 
     // Initialize UART
     scale_init();

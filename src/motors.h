@@ -22,13 +22,18 @@ typedef enum {
     NUM_OF_MOTOR_SELECT,
 } motor_select_t;
 
-typedef enum {
-    MOTOR_INIT_OK = 0,
-    MOTOR_INIT_CFG_ERR = 2,
-    MOTOR_INIT_COARSE_DRV_ERR = 3,
-    MOTOR_INIT_FINE_DRV_ERR = 4,
-    MOTOR_INIT_PIO_ERR = 5,
-} motor_init_err_t;
+// One line of a driver's registers, without a line ending (motor_driver_dump)
+typedef void (*motor_driver_line_fn)(const char *line, void *ctx);
+
+// What the console shows of a driver and its serial line, counted since start-up
+typedef struct {
+    bool ready;                 // The driver answered and took every register
+    uint16_t current_ma;        // The run current its registers give, mA RMS
+    uint32_t writes;            // Writes the driver was seen to take
+    uint32_t write_retries;     // Tries of a write its count did not confirm
+    uint32_t read_retries;      // Tries of a read that brought no good answer
+    uint32_t failures;          // Reads and writes given up
+} motor_driver_stats_t;
 
 
 typedef struct {
@@ -83,7 +88,21 @@ typedef struct {
 extern "C" {
 #endif
 
-motor_init_err_t motors_init(void);
+void motors_init(void);
+
+/*
+    A motor driver that does not answer, or settings that could not be read, do not stop the unit (ADR-012): the
+    modes ask before they turn a motor.
+    motors_ready() tries again a driver that did not answer; true when both have their registers.
+    motors_get_fault() names what is missing in a few words for the screen, NULL when nothing is.
+*/
+bool motors_ready(void);
+const char * motors_get_fault(void);
+
+// For the console: a driver set up again from the stored settings, its registers by field, its line's counts
+bool motor_driver_setup(motor_select_t selected_motor);
+bool motor_driver_dump(motor_select_t selected_motor, motor_driver_line_fn emit, void * ctx);
+void motor_driver_get_stats(motor_select_t selected_motor, motor_driver_stats_t * stats);
 bool motor_config_init(void);
 bool motor_config_save(void);
 void motor_task(void *p);
@@ -93,7 +112,6 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor);
 float get_motor_min_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
 const char * get_motor_select_string(motor_select_t selected_motor);
-void handle_motor_init_error(motor_init_err_t err);
 
 // REST interface
 bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
