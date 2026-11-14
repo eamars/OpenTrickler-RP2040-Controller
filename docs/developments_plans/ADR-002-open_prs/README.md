@@ -18,6 +18,7 @@ It follows ADR-011 and ADR-012, so what is merged lands on the updated dependenc
 - Not every PR is merged as it stands. Many of them do not make sense, or are not organised the right way. Each is discussed with the owner at merging.
 - Community PRs land before the restructure (ADR-006). For a PR that is rebuilt and not merged, see "To settle".
 - Auto tare is dropped.
+- ADR-011 goes first (2026-11-14: "I would like to uprev the dependency per ADR-011 first"). The registry's order then puts ADR-012 before this one.
 
 ## What we know (checked 2026-11-13)
 
@@ -36,6 +37,40 @@ None of the PRs has been read in full. This is from each one's description, file
 - No CI run is shown for #109 and #113. Until 2026-11-13 a run would have failed whatever the PR held: CI's runner had moved to an image whose compiler cannot build the SDK's tools (fixed by PR #114).
 - Merged since April, and missed by this ADR's first draft, which read an old checkout: #107 (a simulated scale), #108 (the coarse trickler's back-off) and #110 (the back button), all by #109's author, and #112 (REST values that contain `&`).
 - Six branches on the remote hold commits that are not on main: `add_auto_tare`, `add_bootloader`, `codex/sub-pr-86`, `fix_pio_issue`, `pcb_design`, `pr_94_review`.
+
+**Checked again 2026-11-14** (a trial merge of each PR's head into main, `git merge-tree`):
+- #109 and #113 still merge cleanly, and they merge cleanly with each other.
+- #111 conflicts in `.gitignore`, `charge_mode.cpp` and `menu.c`. #101 conflicts in seven files, #46 in two and #44 in five. #28 comes from its author's `main` and was not tried.
+- #113's charge loop is a copy of charge mode's. Its comment: "Copy of the control loop of charge_mode_wait_for_complete() from charge_mode.cpp, keep in sync."
+- #109 raises the profile data's revision from 1 to 2 and carries a migration of the old layout.
+- All three community PRs (#109, #111, #113) let maintainers push to their branches.
+- Branches on the remote: five hold commits that are not on main (`add_auto_tare`, `add_bootloader`, `codex/sub-pr-86`, `fix_pio_issue`, `pr_94_review`). Seven hold nothing that is not on main.
+
+## Proposed merge strategy (2026-11-14, not agreed)
+
+Discussed with the owner on 2026-11-14 and written here so it is not lost while ADR-011 and ADR-012 go first. Nothing in it is decided; each verdict is still the owner's, after the PR's own page.
+
+**The test.** Not whether a PR is good, but whether the layers it stands on survive the roadmap. ADR-003 (the server), ADR-004 (the flash layout), ADR-008 (the pages), ADR-009 (the control loop) and ADR-010 (the screens) each rewrite a layer. A large feature merged on one of them is carried through every rewrite after it; a small one costs little to carry.
+
+**First views,** from the descriptions, the diffs of the shared files and #113's charge loop. No PR has been read whole yet.
+
+| PR | What it stands on | First view |
+|---|---|---|
+| #109 | The profile struct, charge mode, the menu, the portal. 287 lines | Merge, once settings saved by v1.20 are shown to survive it |
+| #113 | Its own copy of the charge loop, its own page, REST paths and screens | Rebuild in ADR-009, credited. Its tuner, PC tests and simulated powder kept nearly whole: they are logic with no hardware in it, and survive every rewrite |
+| #101 | Tuning mixed with an Ohaus driver, error pages, flash storage, a display config and an icon header | Close. Its tuning ideas go to ADR-009 beside #113's |
+| #111 | A new flash layout; its upload on the file server ADR-003 replaces; its Pico 2 W build fails | Rebuild in ADR-004 from its design, credited. A new layout costs every user one update by cable, and ADR-004 does that once |
+| #44, #28 | Superseded by #111's design | Close, pointing to ADR-004 |
+| #46 | Dropped by the owner | Close, with issue #45 |
+
+**How a verdict is carried out**
+- *Merge:* a merge commit, so the author's commits stay. CI passes; then `flash`, `menu_tour --compare` and `charge_cycle` on the bench.
+- *Merge after changes:* our commits on top of the author's branch, so the history shows both.
+- *Rebuild:* in the ADR's own branch. A commit that takes an author's code carries a `Co-authored-by:` line for them. The ADR names the files it keeps, under "What we know", so the idea cannot be lost. The PR is closed with a link to that ADR.
+- *A fix inside a PR that is rebuilt:* taken as a commit of its own, credited, when it fixes a fault users have today.
+- *Close:* a note of thanks that says where the idea goes. The owner sees each note before it is posted.
+
+**What it costs.** Tuning waits for ADR-009 and OTA for ADR-004, and their authors wait with them. The closing note says where each idea goes and asks the author to review the rebuild.
 
 ## What we will do
 
@@ -69,4 +104,6 @@ For anything merged: `charge_cycle` and `menu_tour` pass as before, and settings
 ## To settle before approval
 
 - **Where a rebuilt PR lands.** "Before the restructure" was chosen when merging as-is was the plan. For a PR that is rebuilt, the proposal is the ADR where its subject lives, even when that is after ADR-006.
-- **The six branches** that are not on main: delete them once their PRs are decided, or keep them.
+- **The five branches** with commits not on main: delete them once their PRs are decided, or keep them. The seven with nothing of their own can go now.
+- **The proposed merge strategy:** whether its test is the right one, or misses an interest of the owner's (tuning for users sooner, keeping contributors).
+- **#113's D-term fix:** taken on its own before ADR-009, or left to ADR-009's fixes against recordings. Main still divides by a time that can be 0 ms (`charge_mode.cpp`, both derivative lines).
