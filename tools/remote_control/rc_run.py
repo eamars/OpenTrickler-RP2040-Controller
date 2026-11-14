@@ -15,10 +15,13 @@ Usage, from the repository root:
     venv\\Scripts\\python tools\\remote_control\\rc_run.py watch 30
     venv\\Scripts\\python tools\\remote_control\\rc_run.py snap
     venv\\Scripts\\python tools\\remote_control\\rc_run.py menu_tour [--save <folder>] [--compare <folder>]
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py settings --host <address> [--save <folder>] [--compare <folder>]
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py soak 3600 --host <address>
 """
 import argparse
 import base64
 import datetime
+import json
 import queue
 import re
 import shutil
@@ -28,6 +31,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import zlib
 from pathlib import Path
 
@@ -78,6 +82,21 @@ PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
 MENU_TOUR_IDS = range(1, 100)
 # Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
 MENU_TOUR_LIVE_FORMS = {36: "version info: the version, hash and build of the image"}
+
+# The web API paths `settings` reads. Each answers a GET with no parameters with what is stored, and does nothing
+# else; a parameter can change the unit (AGENTS.md), so none is sent. profile_config with no parameter gives the
+# selected profile, and profile_summary every profile's name.
+SETTINGS_PATHS = ["charge_mode_config", "coarse_motor_config", "fine_motor_config", "mini_12864_config",
+                  "neopixel_led_config", "profile_config", "profile_summary", "scale_config", "servo_gate_config",
+                  "system_control", "wireless_config"]
+# Fields that change with the image, not with the stored settings: reported, not judged, by --compare
+SETTINGS_LIVE_FIELDS = {"system_control": {"s1": "the version", "s2": "the vcs hash", "s3": "the build type"}}
+HTTP_TIMEOUT_S = 5.0
+
+MIRROR_BYTES = 128 * 64 // 8    # the 12864 display's buffer, one bit a pixel
+SOAK_POLL_S = 1.0           # the mirror page reads the screen once a second
+SOAK_STATS_S = 60.0         # state and stats once a minute
+SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
 
 
 class SessionLog:
@@ -230,6 +249,42 @@ def write_png(path, rows):
         + chunk(b"IEND", b"")
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_bytes(png)
+
+
+def http_get(host, path):
+    """
+    GET one path of the unit's web API.
+
+    Args:
+        host: the unit's address.
+        path: the path, without its leading slash.
+
+    Returns:
+        The body, as bytes.
+    """
+    with urllib.request.urlopen(f"http://{host}/{path}", timeout=HTTP_TIMEOUT_S) as response:
+        return response.read()
+
+
+def read_mirror(host):
+    """
+    Read the screen's buffer as the mirror page does. /display_buffer answers with the bare buffer and no HTTP
+    header (its handler says the header is included, and it is not), so it is read over a plain socket.
+
+    Args:
+        host: the unit's address.
+
+    Returns:
+        The bytes until the unit closed the connection.
+    """
+    with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as sock:
+        sock.sendall(b"GET /display_buffer HTTP/1.0\r\n\r\n")
+        data = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                return data
+            data += chunk
 
 
 def build_version(build_dir):
@@ -650,6 +705,112 @@ class Session:
             return None
         return dict(re.findall(r'(\w+)=("[^"]*"|\S+)', reply))
 
+    def stats(self):
+        """
+        Ask `stats` and parse its numbers.
+
+        Returns:
+            heap_free, heap_min and tasks as ints in a dict, or None (counted as a failure).
+        """
+        reply = self.send("stats")
+        if reply is None or not reply.startswith("@ok stats"):
+            return None
+        return {key: int(value) for key, value in re.findall(r"\b(heap_free|heap_min|tasks)=(\d+)", reply)}
+
+    def settings(self, host, save_dir, compare_dir):
+        """
+        Read the stored settings over the web API, keep them as JSON, and compare them with an earlier copy.
+
+        Args:
+            host: the unit's address.
+            save_dir: where the copy goes (default: logs/rc/settings/<session>/).
+            compare_dir: an earlier copy; a path missing on either side or a field that differs fails, except
+                the fields in SETTINGS_LIVE_FIELDS, which are reported.
+        """
+        out_dir = Path(save_dir) if save_dir else LOG_DIR / "settings" / self.log.path.stem
+        out_dir.mkdir(parents=True, exist_ok=True)
+        read = {}
+        for name in SETTINGS_PATHS:
+            try:
+                read[name] = json.loads(http_get(host, f"rest/{name}"))
+            except (OSError, ValueError) as error:
+                self.fail(f"settings: rest/{name}: {error}")
+                continue
+            (out_dir / f"{name}.json").write_text(json.dumps(read[name], indent=1, sort_keys=True) + "\n",
+                                                  encoding="utf-8")
+        self.log.write("rc", f"settings: {len(read)} of {len(SETTINGS_PATHS)} paths read, kept in {out_dir}")
+
+        if compare_dir is None:
+            return
+        for name in SETTINGS_PATHS:
+            reference = Path(compare_dir) / f"{name}.json"
+            if not reference.exists():
+                self.fail(f"settings: {reference} does not exist")
+                continue
+            if name not in read:
+                continue
+            before = json.loads(reference.read_text(encoding="utf-8"))
+            for key in sorted(set(before) | set(read[name])):
+                old, new = before.get(key), read[name].get(key)
+                if old == new:
+                    continue
+                live = SETTINGS_LIVE_FIELDS.get(name, {}).get(key)
+                if live:
+                    self.log.write("rc", f"settings: {name} {key} differs, not judged ({live}): {old!r} -> {new!r}")
+                else:
+                    self.fail(f"settings: {name} {key} was {old!r}, is {new!r}")
+
+    def soak(self, host, seconds):
+        """
+        Read the screen's mirror over the web once a second, as its page does, for a time; `state` and `stats`
+        once a minute. Fails on a read with no answer, on a restart (`up=` going backwards), and when heap_free
+        ends lower than its lowest in the first SOAK_SETTLE_S: memory taken and not given back.
+
+        Args:
+            host: the unit's address.
+            seconds: how long.
+        """
+        started = time.monotonic()
+        next_stats = started
+        reads = 0
+        misses = 0
+        heap = []   # (seconds since the start, heap_free)
+        while True:
+            now = time.monotonic()
+            if now >= next_stats:
+                self.state()
+                stats = self.stats()
+                if stats is not None and "heap_free" in stats:
+                    heap.append((now - started, stats["heap_free"]))
+                next_stats += SOAK_STATS_S
+            if now - started >= seconds:
+                break
+            try:
+                size = len(read_mirror(host))
+                if size == MIRROR_BYTES:
+                    reads += 1
+                else:
+                    misses += 1
+                    self.log.write("rc", f"soak: display_buffer gave {size} bytes, not {MIRROR_BYTES}")
+            except OSError as error:
+                misses += 1
+                self.log.write("rc", f"soak: display_buffer: {error}")
+            time.sleep(max(0.0, SOAK_POLL_S - (time.monotonic() - now)))
+
+        self.log.write("rc", f"soak: {reads} reads of the mirror, {misses} with no answer, in {seconds:.0f} s")
+        if misses:
+            self.fail(f"soak: {misses} of {reads + misses} reads of the mirror got no answer")
+        if len(heap) < 2:
+            self.fail("soak: fewer than two stats read")
+            return
+        settled = [free for at, free in heap if at <= SOAK_SETTLE_S] or [heap[0][1]]
+        low, end = min(settled), heap[-1][1]
+        self.log.write("rc", f"soak: heap_free lowest in the first {SOAK_SETTLE_S:.0f} s {low}, at the end {end}, "
+                             f"lowest of the run {min(free for _, free in heap)}")
+        if end < low:
+            self.fail(f"soak: heap_free ended at {end}, lower than {low}, its lowest in the first "
+                      f"{SOAK_SETTLE_S:.0f} s")
+
     def step_activity(self):
         """
         Sample each trickler's STEP pin through the probe.
@@ -828,6 +989,13 @@ def main():
     pulses_parser = sub.add_parser("pulses", help="do the step pulses stop on a reset, an assert, a hard fault?")
     pulses_parser.add_argument("--assert-elf", default=str(REPO / "build_w_fault1" / "app.elf"))
     pulses_parser.add_argument("--hardfault-elf", default=str(REPO / "build_w_fault2" / "app.elf"))
+    settings_parser = sub.add_parser("settings", help="copy the stored settings over the web API, and compare")
+    settings_parser.add_argument("--host", required=True, help="the unit's address")
+    settings_parser.add_argument("--save", help="keep the copy in this folder")
+    settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
+    soak_parser = sub.add_parser("soak", help="read the screen's mirror over the web for a time; watch the memory")
+    soak_parser.add_argument("seconds", type=float)
+    soak_parser.add_argument("--host", required=True, help="the unit's address")
     args = parser.parse_args()
 
     session = Session(args, args.command)
@@ -848,6 +1016,10 @@ def main():
         session.reset()
     elif args.command == "watch":
         time.sleep(args.seconds)
+    elif args.command == "settings":
+        session.settings(args.host, args.save, args.compare)
+    elif args.command == "soak":
+        session.soak(args.host, args.seconds)
     sys.exit(session.finish())
 
 
