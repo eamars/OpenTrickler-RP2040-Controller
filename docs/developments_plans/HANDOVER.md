@@ -1,14 +1,15 @@
 # Handover, 2026-11-14
 
-Written at the end of a session that stopped early. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
+First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
 
 ## Where things stand
 
-- **Branch:** `adr001_agent_groundwork`, pushed. Main's CI is green with the runner pinned (PR #114).
-- **ADR-001:** Built 2026-11-14 (see its progress.md); its PR is the next step.
+- **ADR-001:** Built and closed 2026-11-14, merged to main by PR #115. Its branch is deleted. The owner waived the real throw and the check by eye (see its progress.md).
+- **Next: ADR-002**, the verdicts on the open PRs. The owner, 2026-11-14: "I will let another agent to pickup ADR-002". It is a draft and not approved, so approval comes first.
+- **CI:** the Gemini PR reviewer is disabled on GitHub (its API key is invalid) and removed by PR #116. The build workflow is the only check.
 - **New today, both drafts, not approved:** ADR-011 (the dependencies brought up to date) and ADR-012 (the motor drivers cleaned up).
-- **Order of the work:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
-- **Hardware:** the bench's Pico W runs this branch, 1.20.46 at f484e19, flashed through the probe on 2026-11-14. Its charge-mode settings are at their defaults since the first flash (ADR-001, F6); the copy of the old ones is in `logs/unit_backup/`.
+- **Order of the work, as the registry lists it:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. The owner has picked ADR-002 to go next. An ADR's number is its name and does not change.
+- **Hardware:** the bench's Pico W runs main's ADR-001 code, 1.20.46 at f484e19, flashed through the probe on 2026-11-14. Its charge-mode settings are at their defaults since the first flash (ADR-001, F6); the copy of the old ones is in `logs/unit_backup/`.
 
 ## Conclusions of today
 
@@ -27,8 +28,8 @@ Written at the end of a session that stopped early. It says where the work stand
 An audit of the rest of `src/` was run to find, for every other module, the kind of faults ADR-012 lists for the motors. It finished. Every file was read whole, except `http_rest.c`, which was read as a diff against lwIP's own server.
 
 - Its report is in `logs/audit_2026-11-14_unverified.md`. That folder is not tracked by git, so the report exists only on this PC.
-- **Nothing in it has been checked by a second reading.** Do not cite a finding from it before reading the line it points to.
-- What it ranks first, all unchecked:
+- **Its top ten, plus S2, W1 and W3, were checked by a second reading** on 2026-11-14: `logs/audit_2026-11-14_verified.md`, also this PC only. The rest is still unchecked: read the line a finding points to before citing it.
+- What it ranks first (confirmed):
   - a scale frame that does not parse is published as NaN, and one NaN puts both tricklers at maximum speed for the rest of the throw;
   - a scale that goes silent during a charge leaves the motors at their last speed;
   - the web page's cleanup speed is applied outside cleanup mode;
@@ -47,7 +48,7 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 ## Waiting on the owner
 
 - **The cleanup's scope**, once step 4 above is ready.
-- **ADR numbers:** kept fixed, with the table in the order of work. He can ask for renumbering; it is cheapest now.
+- **ADR numbers:** kept fixed, with the table in the order of work. The owner can ask for renumbering; it is cheapest now.
 - **ADR-012, fault 8:** the motor current's reference. Units as they are today, or the stored mA made true.
 - **ADR-012, fault 7:** whether its one-line fix goes in early, since ADR-001's bench restarts a unit without cutting power.
 - **ADR-011:** SDK 2.3.1 or 2.2.0; whether CI moves to Arm's compiler; the 2023 debug scripts.

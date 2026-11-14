@@ -273,7 +273,7 @@ Built 2026-11-14 on the bench's Pico W, with main's simulated scale (F2, the own
 | (c) The hard-fault test build: the core halts at the breakpoint in `isr_hardfault` | high in 100%, 3 s after the fault | **Runs on**, as expected: the processor halts and PIO does not. A unit that hard-faults during a charge keeps its motor turning until power is cut. This is the fact ADR-012 starts from |
 
 - **(a) does not tell the reset apart from the firmware's own start.** 0.5 s after the reset, the firmware has started again and set the motors to 0. Either way the pulses stop.
-- **The owner has not yet seen it by eye.** The pin was measured, not the motor.
+- **The check by eye was waived by the owner** (2026-11-14). The STEP pin itself was measured, which is the signal the driver steps on.
 
 **Seen in the first run.** The runner first took the last weight polled while still charging (29.875) as the charge's weight, and failed the run. It now takes the weight once charging has ended, which is what the scale shows before the cup is lifted.
 
