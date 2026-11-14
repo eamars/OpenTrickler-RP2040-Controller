@@ -35,6 +35,27 @@ TaskHandle_t cleanup_render_task_handler = NULL;
 static volatile bool cleanup_mode_running = false;
 
 
+/*
+    The speed cleanup mode asks for stays one the motors will turn at: a number, within the lower of their two limits
+    (ADR-012; audit M4). Before, each click added 1 rev/s with no end, and the web could send anything.
+*/
+static float cleanup_mode_limit_speed(float speed, float fallback) {
+    if (!isfinite(speed)) {
+        return fallback;
+    }
+
+    float max_speed = fminf(get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR),
+                            get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR));
+    if (speed > max_speed) {
+        return max_speed;
+    }
+    if (speed < -max_speed) {
+        return -max_speed;
+    }
+    return speed;
+}
+
+
 void cleanup_render_task(void *p) {
     char buf[32];
     float prev_weight = 0;
@@ -152,11 +173,13 @@ uint8_t cleanup_mode_menu() {
 
                 break;
             case BUTTON_ENCODER_ROTATE_CW:
-                cleanup_mode_config.trickler_speed += 1;
+                cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed + 1,
+                                                                              cleanup_mode_config.trickler_speed);
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
             case BUTTON_ENCODER_ROTATE_CCW:
-                cleanup_mode_config.trickler_speed -= 1;
+                cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed - 1,
+                                                                              cleanup_mode_config.trickler_speed);
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
 
@@ -215,7 +238,8 @@ bool http_rest_cleanup_mode_state(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "s1") == 0) {
             // Kept at any time; it reaches the motors only while cleanup mode runs, as from the screen (ADR-013).
             // Before, it set both tricklers whatever ran, a charge too.
-            cleanup_mode_config.trickler_speed = strtof(values[idx], NULL);
+            cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(strtof(values[idx], NULL),
+                                                                          cleanup_mode_config.trickler_speed);
             if (cleanup_mode_running) {
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
             }

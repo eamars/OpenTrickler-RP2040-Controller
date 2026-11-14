@@ -18,13 +18,23 @@
 #include "eeprom.h"
 #include "common.h"
 
-// The task that feeds the step pulses, every tick. Above every task that sets a speed: the pulses of a
-// motor that should turn must not wait for them
-#define MOTOR_STEP_FEED_PRIORITY 10
+// The motors' task: every tick it moves each speed toward its target and feeds the step pulses. Above every task
+// that sets a speed: the pulses of a motor that should turn must not wait for them
+#define MOTOR_TASK_PRIORITY 10
 
-// A direction is changed with the motor still: this long after the speed is set to zero, so the pulses
-// have stopped
-#define MOTOR_DIR_CHANGE_DELAY_MS 3
+// What a stored or a given setting may be. Outside these it is refused: several are divided by (ADR-012, fault 6)
+#define MOTOR_MIN_ACCELERATION 0.1f         // rev/s^2
+#define MOTOR_MAX_ACCELERATION 10000.0f
+#define MOTOR_MIN_FULL_STEPS 20             // a rotation
+#define MOTOR_MAX_FULL_STEPS 2000
+#define MOTOR_MIN_CURRENT_MA 10             // RMS
+#define MOTOR_MAX_CURRENT_MA 2000
+#define MOTOR_MIN_MAX_SPEED_RPS 1
+#define MOTOR_MAX_MAX_SPEED_RPS 100
+#define MOTOR_MIN_R_SENSE 50                // milliohm
+#define MOTOR_MAX_R_SENSE 1000
+#define MOTOR_MIN_GEAR_RATIO 0.01f
+#define MOTOR_MAX_GEAR_RATIO 100.0f
 
 // The drivers' serial line: how long a byte may take to come, the driver's answer delay included
 #define MOTOR_UART_BYTE_TIMEOUT_US 2000
@@ -49,14 +59,6 @@
     takes anything but 0 in the lower two as an EEPROM never written, and stores the defaults.
 */
 #define MOTOR_DATA_REV_TRUE_CURRENT 0x00010000u
-
-
-// Internal data structure for speed control between tasks
-typedef struct {
-    float new_speed_setpoint;
-    float direction;
-    float ramp_rate;
-} stepper_speed_control_t;
 
 
 // Configurations
@@ -158,6 +160,11 @@ static void motor_driver_unlock(void) {
 }
 
 
+static motor_config_t * motor_get_config(motor_select_t selected_motor) {
+    return selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config : &coarse_trickler_motor_config;
+}
+
+
 static tmc2209_t * motor_get_driver(motor_select_t selected_motor) {
     return selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_driver : &coarse_trickler_driver;
 }
@@ -209,6 +216,21 @@ bool driver_io_init(motor_config_t * motor_config) {
     return true;
 }
 
+static bool motor_persistent_config_is_valid(const motor_persistent_config_t * config) {
+    return isfinite(config->angular_acceleration) &&
+           config->angular_acceleration >= MOTOR_MIN_ACCELERATION && config->angular_acceleration <= MOTOR_MAX_ACCELERATION &&
+           config->full_steps_per_rotation >= MOTOR_MIN_FULL_STEPS && config->full_steps_per_rotation <= MOTOR_MAX_FULL_STEPS &&
+           config->current_ma >= MOTOR_MIN_CURRENT_MA && config->current_ma <= MOTOR_MAX_CURRENT_MA &&
+           tmc2209_microsteps_is_valid(config->microsteps) &&
+           config->max_speed_rps >= MOTOR_MIN_MAX_SPEED_RPS && config->max_speed_rps <= MOTOR_MAX_MAX_SPEED_RPS &&
+           config->r_sense >= MOTOR_MIN_R_SENSE && config->r_sense <= MOTOR_MAX_R_SENSE &&
+           isfinite(config->min_speed_rps) &&
+           config->min_speed_rps >= 0.0f && config->min_speed_rps <= config->max_speed_rps &&
+           isfinite(config->gear_ratio) &&
+           config->gear_ratio >= MOTOR_MIN_GEAR_RATIO && config->gear_ratio <= MOTOR_MAX_GEAR_RATIO;
+}
+
+
 bool motor_config_init(void) {
     bool is_ok = true;
 
@@ -246,6 +268,16 @@ bool motor_config_init(void) {
         }
     }
 
+    // A stored setting out of range would be divided by, or drive the motor wrong: that motor gets the defaults,
+    // in RAM only
+    motor_config_t * loaded_configs[] = {&coarse_trickler_motor_config, &fine_trickler_motor_config};
+    for (int idx = 0; idx < 2; idx += 1) {
+        if (!motor_persistent_config_is_valid(&loaded_configs[idx]->persistent_config)) {
+            printf("Motor %d: a stored setting is out of range, the defaults are used\n", idx);
+            memcpy(&loaded_configs[idx]->persistent_config, &default_motor_data.motor_data[idx], sizeof(motor_persistent_config_t));
+        }
+    }
+
     // Set initial direction
     coarse_trickler_motor_config.step_direction = coarse_trickler_motor_config.persistent_config.inverted_direction ? true : false;
     fine_trickler_motor_config.step_direction = fine_trickler_motor_config.persistent_config.inverted_direction ? true : false;
@@ -274,109 +306,104 @@ bool motor_config_save() {
 }
 
 
-void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed) {
-    // Calculate ramp param
-    float dv = new_speed - prev_speed;
-    float ramp_time_s = fabs(dv / motor_config->persistent_config.angular_acceleration);
-    uint32_t full_rotation_steps = motor_config->persistent_config.full_steps_per_rotation * motor_config->persistent_config.microsteps;
+/*
+    One tick of one motor. Its speed moves toward its target by the acceleration, and the step pulses are given the
+    new rate. A change of direction goes through a stop: the speed is held at zero for the tick in which the pulses
+    end, and the direction pin changes in the next, on a motor that is still.
+*/
+static void motor_tick(motor_config_t * motor_config, float dt_s) {
+    float target = motor_config->target_velocity;
+    float velocity = motor_config->velocity;
+    float max_change = motor_config->persistent_config.angular_acceleration * dt_s;
 
-    // Calculate termination condition
-    uint32_t ramp_time_us = (uint32_t) (fabs(ramp_time_s) * 1e6);
-    uint32_t start_time = time_us_32();
-    uint32_t stop_time = start_time + ramp_time_us;
-
-    float current_speed;
-    while (true) {
-        uint32_t current_time = time_us_32();
-        if (current_time > stop_time) {
-            break;
-        }
-
-        float percentage = (current_time - start_time) / (float) ramp_time_us;
-
-        current_speed = prev_speed + dv * percentage;
-        step_pulses_set_rate(motor_config->pulse_channel, current_speed * full_rotation_steps);
+    if (target > velocity + max_change) {
+        velocity += max_change;
+    }
+    else if (target < velocity - max_change) {
+        velocity -= max_change;
+    }
+    else {
+        velocity = target;
     }
 
-    step_pulses_set_rate(motor_config->pulse_channel, new_speed * full_rotation_steps);
+    if (velocity != 0.0f) {
+        bool wanted_direction = (velocity < 0.0f) != motor_config->persistent_config.inverted_direction;
+        if (wanted_direction != motor_config->step_direction) {
+            if (motor_config->velocity != 0.0f) {
+                velocity = 0.0f;
+            }
+            else {
+                motor_config->step_direction = wanted_direction;
+                gpio_put(motor_config->dir_pin, wanted_direction);
+            }
+        }
+    }
+
+    motor_config->velocity = velocity;
+    step_pulses_set_rate(motor_config->pulse_channel,
+                         fabsf(velocity) * motor_config->persistent_config.full_steps_per_rotation *
+                         motor_config->persistent_config.microsteps);
 }
 
 
-void stepper_speed_control_task(void * p) {    
-    // Currently doing speed control
-    while (true) {
-        // Wait for new speed
-        float new_velocity;
-        xQueueReceive(((motor_config_t *) p)->stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
-
-        // Calculate the speed of the motor
-        new_velocity /= ((motor_config_t *) p)->persistent_config.gear_ratio;
-
-        // Determine if both have same direction (no need to change DIR pin state)
-        if ((new_velocity >= 0) == (((motor_config_t *) p)->prev_velocity >= 0)) {
-            // Same direction means only speed change
-            speed_ramp(((motor_config_t *) p), 
-                       fabs(((motor_config_t *) p)->prev_velocity), 
-                       fabs(new_velocity));
-        }
-        else {
-            // Different direction, then ramp down to 0, change direction then ramp up
-            speed_ramp(((motor_config_t *) p), 
-                       fabs(((motor_config_t *) p)->prev_velocity),
-                       0.0f);
-            // The pulses stop at the next feed: the direction changes on a motor that is still
-            vTaskDelay(pdMS_TO_TICKS(MOTOR_DIR_CHANGE_DELAY_MS));
-            ((motor_config_t *) p)->step_direction = !((motor_config_t *) p)->step_direction;
-
-            // Toggle the direction
-            gpio_put(((motor_config_t *) p)->dir_pin, ((motor_config_t *) p)->step_direction);
-
-            // Ramp to the new speed
-            speed_ramp(((motor_config_t *) p), 
-                       0.0f,
-                       fabs(new_velocity));
-        }
-
-        // Update speed
-        ((motor_config_t *) p)->prev_velocity = new_velocity;
-    }
-}   
-
-
 /*
-    Feeds the step pulses, every tick. The PIO makes only the steps it is fed (ADR-012): if this task stops,
-    whatever stopped it, the motors stop within a few milliseconds.
+    The motors' task, every tick: the two speeds, then the feed of the step pulses. The PIO makes only the steps it
+    is fed (ADR-012): if this task stops, whatever stopped it, the motors stop within a few milliseconds.
 */
-static void motor_step_feed_task(void * p) {
+static void motor_control_task(void * p) {
     TickType_t last_wake_tick = xTaskGetTickCount();
+    const float dt_s = portTICK_PERIOD_MS / 1000.0f;
 
     while (true) {
+        motor_tick(&coarse_trickler_motor_config, dt_s);
+        motor_tick(&fine_trickler_motor_config, dt_s);
         step_pulses_feed();
+
         vTaskDelayUntil(&last_wake_tick, 1);
     }
 }
 
 
+// A motor's target, from the trickler's speed. Stored and done: the motors' task takes it from there
+static void motor_set_target(motor_config_t * motor_config, float new_velocity) {
+    // Not a number: refused, the motor keeps the target it has (audit M4)
+    if (!isfinite(new_velocity)) {
+        printf("Motor %u: a speed that is not a number is refused\n", motor_config->uart_addr);
+        return;
+    }
+
+    // Past the motor's limit: held to it
+    float max_speed = motor_config->persistent_config.max_speed_rps;
+    if (new_velocity > max_speed) {
+        new_velocity = max_speed;
+    }
+    else if (new_velocity < -max_speed) {
+        new_velocity = -max_speed;
+    }
+
+    motor_config->target_velocity = new_velocity / motor_config->persistent_config.gear_ratio;
+}
+
+
 void motor_set_speed(motor_select_t selected_motor, float new_velocity) {
     if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
-        if (coarse_trickler_motor_config.stepper_speed_control_queue) {
-            xQueueSend(coarse_trickler_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
-        }
+        motor_set_target(&coarse_trickler_motor_config, new_velocity);
     }
 
     if (selected_motor == SELECT_FINE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
-        if (fine_trickler_motor_config.stepper_speed_control_queue) {
-            xQueueSend(fine_trickler_motor_config.stepper_speed_control_queue, &new_velocity, portMAX_DELAY);
-        }
+        motor_set_target(&fine_trickler_motor_config, new_velocity);
     }
 }
 
 
 float motor_get_velocity(motor_select_t selected_motor) {
-    // prev_velocity is the motor's own speed, set once a ramp ends: back to the trickler's, as motor_set_speed takes it
-    motor_config_t *motor_config = selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
-                                                                                : &coarse_trickler_motor_config;
-    return motor_config->prev_velocity * motor_config->persistent_config.gear_ratio;
+    // The speed the motor turns at now, ramps included, at the trickler: as motor_set_speed takes it
+    return motor_get_shaft_velocity(selected_motor) * motor_get_config(selected_motor)->persistent_config.gear_ratio;
+}
+
+
+float motor_get_shaft_velocity(motor_select_t selected_motor) {
+    return motor_get_config(selected_motor)->velocity;
 }
 
 
@@ -388,7 +415,7 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
-            motor_set_speed(selected_motor, 0);
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
         }
     }
 
@@ -399,7 +426,7 @@ void motor_enable(motor_select_t selected_motor, bool enable) {
 
         // If disabled, we shall also disable the stepper signal
         if (!enable) {
-            motor_set_speed(selected_motor, 0);
+            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
         }
     }
 }
@@ -502,26 +529,9 @@ void motors_init(void) {
     driver_setup(&coarse_trickler_motor_config);
     driver_setup(&fine_trickler_motor_config);
 
-    // Initialize motor related RTOS control
-    coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
-    fine_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
-
-    xTaskCreate(motor_step_feed_task, "Step Feed", configMINIMAL_STACK_SIZE, NULL, MOTOR_STEP_FEED_PRIORITY, NULL);
-
-    // Create one task for each stepper controller
-    xTaskCreate(stepper_speed_control_task,
-                "Coarse Trickler",
-                configMINIMAL_STACK_SIZE,
-                (void *) &coarse_trickler_motor_config,
-                9,  // Coarse trickler at higher priority to response faster to stop
-                &coarse_trickler_motor_config.stepper_speed_control_task_handler);
-
-    xTaskCreate(stepper_speed_control_task,
-                "Fine Trickler",
-                configMINIMAL_STACK_SIZE,
-                (void *) &fine_trickler_motor_config,
-                8,
-                &fine_trickler_motor_config.stepper_speed_control_task_handler);
+    if (xTaskCreate(motor_control_task, "Motors", configMINIMAL_STACK_SIZE, NULL, MOTOR_TASK_PRIORITY, NULL) != pdPASS) {
+        printf("Unable to create the motors' task\n");
+    }
 }
 
 
@@ -534,16 +544,12 @@ void motors_fault_stop(void) {
 
 
 void motor_get_step_stats(motor_select_t selected_motor, step_pulses_stats_t * stats) {
-    motor_config_t * motor_config = selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
-                                                                                 : &coarse_trickler_motor_config;
-    step_pulses_get_stats(motor_config->pulse_channel, stats);
+    step_pulses_get_stats(motor_get_config(selected_motor)->pulse_channel, stats);
 }
 
 
 float motor_get_step_rate(motor_select_t selected_motor) {
-    motor_config_t * motor_config = selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
-                                                                                 : &coarse_trickler_motor_config;
-    return step_pulses_get_rate(motor_config->pulse_channel);
+    return step_pulses_get_rate(motor_get_config(selected_motor)->pulse_channel);
 }
 
 
@@ -575,8 +581,7 @@ bool motors_ready(void) {
 
 
 bool motor_driver_setup(motor_select_t selected_motor) {
-    return driver_setup(selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
-                                                                     : &coarse_trickler_motor_config);
+    return driver_setup(motor_get_config(selected_motor));
 }
 
 
@@ -665,50 +670,73 @@ void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_
 
 void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {
     bool save_to_eeprom = false;
+    bool changed = false;
+
+    // The settings as they would be: taken only if every one of them is in range
+    motor_persistent_config_t new_config = motor_config->persistent_config;
 
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "m0") == 0) {
-            float angular_acceleration = strtof(values[idx], NULL);
-            motor_config->persistent_config.angular_acceleration = angular_acceleration;
+            new_config.angular_acceleration = strtof(values[idx], NULL);
+            changed = true;
         }
         else if (strcmp(params[idx], "m1") == 0) {
-            uint32_t full_steps_per_rotation = strtol(values[idx], NULL, 10);
-            motor_config->persistent_config.full_steps_per_rotation = full_steps_per_rotation;
+            new_config.full_steps_per_rotation = strtol(values[idx], NULL, 10);
+            changed = true;
         }
         else if (strcmp(params[idx], "m2") == 0) {
-            uint16_t current_ma = (uint16_t) atoi(values[idx]);
-            motor_config->persistent_config.current_ma = current_ma;
+            new_config.current_ma = (uint16_t) atoi(values[idx]);
+            changed = true;
         }
         else if (strcmp(params[idx], "m3") == 0) {
-            uint16_t microsteps = (uint16_t) atoi(values[idx]);
-            motor_config->persistent_config.microsteps = microsteps;
+            new_config.microsteps = (uint16_t) atoi(values[idx]);
+            changed = true;
         }
         else if (strcmp(params[idx], "m4") == 0) {
-            uint16_t max_speed_rps = (uint16_t) atoi(values[idx]);
-            motor_config->persistent_config.max_speed_rps = max_speed_rps;
+            new_config.max_speed_rps = (uint16_t) atoi(values[idx]);
+            changed = true;
         }
         else if (strcmp(params[idx], "m5") == 0) {
-            uint16_t r_sense = (uint16_t) atoi(values[idx]);
-            motor_config->persistent_config.r_sense = r_sense;
+            new_config.r_sense = (uint16_t) atoi(values[idx]);
+            changed = true;
         }
         else if (strcmp(params[idx], "m6") == 0) {
-            float min_speed_rps = strtof(values[idx], NULL);
-            motor_config->persistent_config.min_speed_rps = min_speed_rps;
+            new_config.min_speed_rps = strtof(values[idx], NULL);
+            changed = true;
         }
         else if (strcmp(params[idx], "m7") == 0) {
-            float gear_ratio = strtof(values[idx], NULL);
-            motor_config->persistent_config.gear_ratio = gear_ratio;
+            new_config.gear_ratio = strtof(values[idx], NULL);
+            changed = true;
         }
         else if (strcmp(params[idx], "m8") == 0) {
-            bool inverted_enable = string_to_boolean(values[idx]);
-            motor_config->persistent_config.inverted_enable = inverted_enable;
+            new_config.inverted_enable = string_to_boolean(values[idx]);
+            changed = true;
         }
         else if (strcmp(params[idx], "m9") == 0) {
-            bool inverted_direction = string_to_boolean(values[idx]);
-            motor_config->persistent_config.inverted_direction = inverted_direction;
+            new_config.inverted_direction = string_to_boolean(values[idx]);
+            changed = true;
         }
         else if (strcmp(params[idx], "ee") == 0) {
             save_to_eeprom = string_to_boolean(values[idx]);
+        }
+    }
+
+    if (changed) {
+        if (!motor_persistent_config_is_valid(&new_config)) {
+            // Refused whole: the reply shows the settings as they still are, and nothing is stored
+            printf("Motor %u: a setting out of range is refused\n", motor_config->uart_addr);
+            return;
+        }
+
+        // What the driver holds is written when it changes, not at the next start (ADR-012, fault 5)
+        bool driver_changed = new_config.current_ma != motor_config->persistent_config.current_ma ||
+                              new_config.microsteps != motor_config->persistent_config.microsteps ||
+                              new_config.r_sense != motor_config->persistent_config.r_sense;
+
+        motor_config->persistent_config = new_config;
+
+        if (driver_changed) {
+            driver_setup(motor_config);
         }
     }
 

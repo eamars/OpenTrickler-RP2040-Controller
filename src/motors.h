@@ -73,13 +73,10 @@ typedef struct {
     void * tmc_driver;
     uint8_t pulse_channel;      // Its channel of step_pulses
 
-    // Used to store some live data
-    float prev_velocity;
-    bool step_direction;
-
-    // RTOS control
-    TaskHandle_t stepper_speed_control_task_handler;
-    QueueHandle_t stepper_speed_control_queue;
+    // Live data, in the motor's own rev/s, before the gear
+    volatile float target_velocity;     // Set by anyone; the motors' task takes it from here
+    float velocity;                     // The speed now, ramps included: the motors' task's alone
+    bool step_direction;                // The direction pin's level
 } motor_config_t;
 
 
@@ -116,9 +113,9 @@ void motors_fault_stop(void);
 void motor_driver_set_lost(motor_select_t selected_motor, bool lost);
 bool motor_config_init(void);
 bool motor_config_save(void);
-void motor_task(void *p);
 void motor_set_speed(motor_select_t selected_motor, float new_velocity);
-float motor_get_velocity(motor_select_t selected_motor);   // the speed last reached, in the trickler's rev/s
+float motor_get_velocity(motor_select_t selected_motor);        // the speed now, ramps included, in the trickler's rev/s
+float motor_get_shaft_velocity(motor_select_t selected_motor);  // the same, in the motor's own rev/s, before the gear
 uint16_t get_motor_max_speed(motor_select_t selected_motor);
 float get_motor_min_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);

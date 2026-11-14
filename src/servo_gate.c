@@ -126,17 +126,20 @@ void servo_gate_control_task(void *p) {
                 if (ramp_time_us < 1000) {
                     _servo_gate_set_current_state(new_open_ratio);
                 } else {
-                    uint32_t start_time = time_us_32();
-                    uint32_t stop_time  = start_time + ramp_time_us;
+                    // The gate moves toward its end a tick at a time, and the task sleeps between (ADR-012; audit
+                    // G1, G2). The time gone is a difference of tick counts, right across their wrap
+                    TickType_t start_tick = xTaskGetTickCount();
+                    TickType_t ramp_ticks = pdMS_TO_TICKS(ramp_time_us / 1000);
 
                     while (true) {
-                        uint32_t current_time = time_us_32();
-                        if (current_time > stop_time) break;
+                        TickType_t elapsed_ticks = xTaskGetTickCount() - start_tick;
+                        if (elapsed_ticks >= ramp_ticks) break;
 
-                        float percentage = (current_time - start_time) / (float)ramp_time_us;
+                        float percentage = elapsed_ticks / (float)ramp_ticks;
                         float current_ratio = prev_open_ratio + delta * percentage;
 
                         _servo_gate_set_current_state(current_ratio);
+                        vTaskDelay(1);
                     }
 
                     _servo_gate_set_current_state(new_open_ratio);

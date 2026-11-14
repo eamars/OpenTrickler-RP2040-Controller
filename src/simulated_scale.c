@@ -7,8 +7,6 @@
 #include <math.h>
 
 extern scale_config_t scale_config;
-extern motor_config_t coarse_trickler_motor_config;
-extern motor_config_t fine_trickler_motor_config;
 extern charge_mode_config_t charge_mode_config;
 
 static float simulated_scale_weight = 0.0f;
@@ -59,8 +57,8 @@ void simulated_scale_go_quiet(uint32_t ms) {
 
 static float get_current_trickler_flow_rate(void) {
     // Use absolute motor speed as proxy for flow.
-    float coarse_rate = fabsf(coarse_trickler_motor_config.prev_velocity);
-    float fine_rate = fabsf(fine_trickler_motor_config.prev_velocity);
+    float coarse_rate = fabsf(motor_get_shaft_velocity(SELECT_COARSE_TRICKLER_MOTOR));
+    float fine_rate = fabsf(motor_get_shaft_velocity(SELECT_FINE_TRICKLER_MOTOR));
 
     // Scale factors to convert rps to grain/s (tune as needed).
     const float coarse_factor = 5.0f;  // 5 grains/s per rps (approx)
