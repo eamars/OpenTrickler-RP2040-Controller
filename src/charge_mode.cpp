@@ -777,6 +777,34 @@ bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *pa
 }
 
 
+bool charge_mode_start_remote(float target_charge_weight) {
+    if (charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+        return false;
+    }
+
+    charge_mode_config.target_charge_weight = target_charge_weight;
+
+    // Set exit_status for the menu
+    exit_state = APP_STATE_ENTER_CHARGE_MODE_FROM_REST;
+
+    // Then signal the menu to stop
+    ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
+    xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+    return true;
+}
+
+
+bool charge_mode_stop_remote(void) {
+    if (charge_mode_config.charge_mode_state == CHARGE_MODE_EXIT) {
+        return false;
+    }
+
+    ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
+    xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+    return true;
+}
+
+
 bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings
     // s0 (float): Charge weight set point (unitless)
@@ -798,18 +826,12 @@ bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *par
             charge_mode_state_t new_state = (charge_mode_state_t) atoi(values[idx]);
 
             // Exit
-            if (new_state == CHARGE_MODE_EXIT && charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
-                ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
-                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            if (new_state == CHARGE_MODE_EXIT) {
+                charge_mode_stop_remote();
             }
             // Enter
-            else if (new_state == CHARGE_MODE_WAIT_FOR_ZERO && charge_mode_config.charge_mode_state == CHARGE_MODE_EXIT) {
-                // Set exit_status for the menu
-                exit_state = APP_STATE_ENTER_CHARGE_MODE_FROM_REST;
-
-                // Then signal the menu to stop
-                ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
-                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+            else if (new_state == CHARGE_MODE_WAIT_FOR_ZERO) {
+                charge_mode_start_remote(charge_mode_config.target_charge_weight);
             }
 
             charge_mode_config.charge_mode_state = new_state;

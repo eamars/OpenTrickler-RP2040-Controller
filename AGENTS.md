@@ -70,9 +70,11 @@ Changes are proven on a real unit, not only built.
   - `watch <seconds>`: log the console for a time;
   - `snap`: the screen as a PNG under `logs/rc/snaps/`, as a person at the unit sees it;
   - `menu_tour [--save <folder>] [--compare <folder>]`: every menu form in turn, pressing nothing. The Pico W's baseline is `tests/menu_baseline/pico_w/`; compare against it to see what a change did to the menu.
+  - `charge_cycle [--target 30]`: a charge from zero to cup return and the start of the next one, with main's simulated scale switched on for the run (`sim on`), never stored;
+  - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault (they stop on the first two and run on after a hard fault).
 - Console commands to drive the menu: `press <cw|ccw|enc|rst> [n]`, `form` and `form <id>`.
+- Console commands for the motors and charging: `motor <coarse|fine> <rev/s>`, `sim on|off`, `charge <gr>`, `charge stop`.
 - It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).
-- Still to come in ADR-001: `charge_cycle` with a simulated scale (step 5).
 
 ## Decisions and ADRs
 

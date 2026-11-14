@@ -77,6 +77,15 @@ extern "C" {
 bool scale_init();
 
 float scale_get_current_measurement();
+
+/**
+ * @brief The remote control's simulated scale (ADR-001): main's simulated driver stands in for the stored one
+ * until scale_simulation_stop() or a restart. Nothing is stored.
+ * @return false when the stored driver is already the simulated one, or its task could not start.
+ */
+bool scale_simulation_start(void);
+void scale_simulation_stop(void);
+bool scale_simulation_is_on(void);
 bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement);
 
 void set_scale_driver(scale_driver_t scale_driver);

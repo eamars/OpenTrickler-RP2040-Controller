@@ -1,6 +1,6 @@
 # ADR-001: groundwork, so an agent can build, flash, drive and check a unit
 
-Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. The bench was declared ready 2026-11-14. **Revised 2026-11-14 for the bench as it was built (F5), and the revision approved by the owner the same day:** the unit is a Pico W reached by a debug probe only, so steps 3 to 5 use the probe where they used the unit's USB port. Decisions 1, 3, 4 and 7 are changed and decision 8 is new. **Steps 3 and 4 built 2026-11-14**, step 3 except the owner's check by hand ([progress](progress.md)). **Step 5 and decision 2 wait for the owner's word on F2:** main already has a simulated scale.
+Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. The bench was declared ready 2026-11-14. **Revised 2026-11-14 for the bench as it was built (F5), and the revision approved by the owner the same day:** the unit is a Pico W reached by a debug probe only, so steps 3 to 5 use the probe where they used the unit's USB port. Decisions 1, 3, 4 and 7 are changed and decision 8 is new. **Steps 3, 4 and 5 built 2026-11-14**, step 3 except the owner's check by hand ([progress](progress.md)). Step 5 uses main's simulated scale (F2, the owner's word 2026-11-14). Left: step 6, the owner's check and real throw, then closing.
 
 ## What we want
 
@@ -90,7 +90,7 @@ This section was first written against a `main` that was 11 commits behind the r
 Approving the ADR approves these.
 
 1. **The console is always on, over RTT through the debug probe, with no setting.** *(Revised 2026-11-14; it was USB. The bench's unit has no USB cable, and no pin is free for a serial port.)* It needs a probe on the unit, so a user never sees it, and a setting would add a stored field, a menu entry and a web field for nothing. The USB console is not built: nothing here could prove it. It comes with a bench that has a USB cable.
-2. **The simulated scale can be switched on only from the console, is never stored, and is gone after a restart.** Nobody at the unit can end up trickling real powder against a made-up weight. While it is on, the scale's name reads `SIMULATED` wherever the unit shows it. *(Open again: F2. Main's simulated scale is in the menu and is stored.)*
+2. **The simulated scale can be switched on only from the console, is never stored, and is gone after a restart.** Nobody at the unit can end up trickling real powder against a made-up weight. While it is on, the scale's name reads `SIMULATED` wherever the unit shows it. *(Revised 2026-11-14, F2: the console switches main's simulated scale on for one run, never stores it, and a restart brings the stored driver back; its name reads "Simulated Scale". Main's menu and web page can still choose and store it, which a later ADR may guard.)*
 3. **Flashing is through the debug probe, with openocd.** *(Revised 2026-11-14; it was by copying a `.uf2` to the USB loader's drive.)* The probe writes the flash whatever the firmware is doing, so it is also the recovery path, and it covers a hard fault, which the USB path did not. A user still flashes by `.uf2`; nothing changes for them.
 4. **These files are downloaded to this PC**, into `%USERPROFILE%\.pico-sdk`, in the layout the VS Code extension makes, so `configure_env.ps1` stays as it is:
    - Arm GNU toolchain 14.2.Rel1 for `arm-none-eabi`, Windows x64 zip, from Arm's download page;
@@ -108,7 +108,7 @@ Approving the ADR approves these.
 | # | Found | Cause | Now |
 |---|---|---|---|
 | F1 | The ADRs were drafted against old code. Main had gained 11 commits since 2026-04-28: a simulated scale (#107), the coarse trickler's back-off (#108), the back button (#110), a REST query fix (#112), toolchain scripts for macOS | The agent read the local `main` and never fetched. The PR and issue lists came from GitHub and were current; the code was not | Main merged into this branch; both boards rebuilt and measured again; the facts in ADR-001, 002, 003, 005, 006, 009 and 010 corrected; "fetch first" is the first rule in `AGENTS.md` |
-| F2 | Step 5 plans a simulated scale, and main already has one | F1 | **For the owner to decide.** Proposal below |
+| F2 | Step 5 plans a simulated scale, and main already has one | F1 | **Decided by the owner 2026-11-14:** main's simulated scale, switched on per run from the console and never stored ("Yes, use main's"). Step 5 revised. The guard question below is left for a later ADR |
 | F3 | `tools/setup_toolchain.ps1` sat apart from main's `setup_toolchain.sh` | F1 | Moved to the root, beside `configure_env.ps1` and the macOS script |
 | F4 | CI failed on main for every PR | `ubuntu-latest` became Ubuntu 26.04, whose compiler cannot build SDK 2.1.1's `pioasm` | The runner pinned to `ubuntu-24.04` (PR #114, merged). The pin's exit is ADR-011 |
 | F5 | The bench differs from the plan: a Pico W with no USB cable, reached by a debug probe on SWD | The plan was written before the bench was built | Steps 3 to 5 revised to the probe; decisions 1, 3, 4, 7 changed, 8 added. **Waits for the owner's approval** |
@@ -196,23 +196,25 @@ Done when: `menu_tour` finds all 22 forms; run twice, the second run compares eq
 
 ### Step 5: motors, the simulated scale, and a charge cycle
 
-**As approved. The parts about `src/sim_scale.c` and `sim cup` wait for the owner's word on F2.** With the hopper empty a real scale never reaches a target, so the charge cycle needs a simulated scale either way.
+*(Revised 2026-11-14 for F2: the owner chose main's simulated scale.)* With the hopper empty a real scale never reaches a target, so the charge cycle needs a simulated scale.
 
-- `motor <coarse|fine> <rev/s>` calls `motor_set_speed()`; 0 stops it. `motors.c` gets `motor_get_velocity()`, which returns the commanded speed.
-- *(Added 2026-11-14.)* **Do the step pulses stop?** With the coarse motor commanded to 1 rev/s: (a) `reset` through the probe; (b) the assert test build from step 3; (c) the hard-fault test build, which with the probe attached halts at a breakpoint. After each, the runner reads PIO0's control register through the probe and passes when no state machine is running, where one should stop; the owner confirms once by eye. (c) is expected to keep the motor turning (the processor halts, PIO does not): it is measured so ADR-012 starts from a fact.
-- `src/sim_scale.c`: the simulated scale.
-  - `scale_init()` keeps the handle of the driver task it starts. `sim on` suspends that task and starts the simulated one; `sim off` deletes the simulated one and resumes it. Nothing is stored.
-  - Ten readings a second. Each one adds `coarse speed × A + fine speed × B` grains for the time passed, follows that through a short lag, and rounds to 0.02 gr. A, B and the lag are constants in the file, set on the unit so a 30 gr charge with the default profile takes between 10 and 30 s; the values go into `progress.md`. They stand for no real powder.
-  - `sim cup off` reads −50 and empties the pan; `sim cup on` reads 0. The driver's zero function empties the pan.
-  - Replies: `@ok sim=<0|1> cup=<0|1>`. `state` gains `sim=`.
-- `charge <gr>` starts charge mode the way the web does; `charge stop` sends the reset press. `charge_mode.cpp` gets one function for this that the REST handler and the console both call.
-- `scenario charge_cycle [--target 30]`:
-  1. `sim on`, `sim cup on`, `charge <target>`;
-  2. waits for `charge=1` (waiting for zero), then `charge=2` (charging), then `charge=3` (remove cup), 120 s at most;
-  3. `sim cup off`, waits for `charge=4`; `sim cup on`, waits for `charge=1`;
-  4. `charge stop`, waits for `charge=0`; `sim off`.
+- `motor <coarse|fine> <rev/s>` enables the driver and calls `motor_set_speed()`; 0 stops it and disables the driver. It is refused while a mode has the screen. `motors.c` gets `motor_get_velocity()`, the speed last reached; `state` gains `coarse=` and `fine=`.
+- `sim on|off`: main's simulated scale stands in for the stored driver for this run.
+  - `scale_init()` keeps the handle of the driver task it starts.
+  - `sim on` suspends that task, sets the driver to Simulated in RAM, and starts the simulated driver's task. `sim off` deletes it, sets the stored driver back, drops what the UART received meanwhile, and resumes the stored task.
+  - Nothing is stored. A save from the menu or the web while it is on would store it.
+  - Replies `@ok sim=<0|1> scale="<name>"`. `state` gains `sim=`.
+- `charge <gr>` starts charge mode the way the web does; `charge stop` sends the reset press. `charge_mode.cpp` gets `charge_mode_start_remote()` and `charge_mode_stop_remote()`, which the REST handler and the console both call.
+- `charge_cycle [--target 30]`:
+  1. `sim on`, `charge <target>`;
+  2. polls `state` four times a second and waits for the states to come in the order 1, 2, 3, 4, 1 within 120 s. The simulated scale holds the target, then "removes the cup" and puts it back by itself, so the second 1 is the next charge starting;
+  3. `charge stop`, then waits for `charge=0` with both motors at 0, and finally `sim off`.
 
-  It passes when the states came in that order and in time, the last weight is no more than the fine stop threshold under the target, both motors are commanded to 0 at the end, and no failure was counted. The time to target and the overshoot are printed, not judged: they belong to the made-up powder.
+  It passes when the states come in that order and in time, the weight once charging ends is no more than the fine stop threshold under the target, both motors are commanded to 0 at the end, and no failure was counted. The time to target and the overshoot are printed, not judged: they belong to the made-up powder, and main's simulated scale never overshoots.
+- *(Added 2026-11-14.)* **Do the step pulses stop?** `pulses` commands the coarse trickler to 1 rev/s, then tries three things: (a) `reset` through the probe; (b) the assert test build from step 3; (c) the hard-fault test build, which with the probe attached halts at a breakpoint.
+  - After each, the runner samples the STEP pin's GPIO status through the probe, 200 times. A pulsing pin reads high almost always, a stopped one never. (The plan said PIO0's control register, but the LEDs' state machines may share PIO0.)
+  - (a) and (b) pass when the pulses stop.
+  - (c) is expected to keep the motor turning, since the processor halts and PIO does not. It is measured so ADR-012 starts from a fact.
 
 Done when: `charge_cycle` passes five times in a row on the Pico W, with the motors turning; after a `reboot`, `state` shows `sim=0` and the stored scale driver; the step pulses stop on a probe reset and on an assert.
 
@@ -228,7 +230,7 @@ On the Pico W, from a clean clone, with nobody touching the unit: built, flashed
 
 ## Files
 
-- New: `AGENTS.md`, `requirements.txt`, `setup_toolchain.ps1`, `tools/size_report.py`, `tools/remote_control/rc_run.py`, `src/remote_control.c` and `.h`, `src/rc_console.c` and `.h`, `src/sim_scale.c` and `.h` (unless F2 is agreed), `tests/menu_baseline/pico_w/`, `docs/developments_plans/ADR-001-agent_groundwork/progress.md`.
+- New: `AGENTS.md`, `requirements.txt`, `setup_toolchain.ps1`, `tools/size_report.py`, `tools/remote_control/rc_run.py`, `src/remote_control.c` and `.h`, `src/rc_console.c` and `.h`, `tests/menu_baseline/pico_w/`, `docs/developments_plans/ADR-001-agent_groundwork/progress.md`.
 - Changed: `CMakeLists.txt` (console over RTT, its buffer sizes), `setup_toolchain.ps1` (openocd), `src/app.c` (console start, the console task), `src/menu.c` and `src/mini_12864_module.h` (the form id, the jump), `src/scale.c` and `.h` (the driver task's handle, the switch to the simulated scale), `src/motors.c` and `.h` (the getter), `src/charge_mode.cpp` and `.h` (one start function), `.github/workflows/cmake.yml` (the size report), `.gitignore`.
 - No stored struct changes.
 

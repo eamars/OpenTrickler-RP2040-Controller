@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 
 #include <FreeRTOS.h>
 #include <task.h>
@@ -25,6 +26,7 @@
 #include "menu.h"
 #include "display.h"
 #include "mini_12864_module.h"
+#include "motors.h"
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -81,7 +83,7 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
     // unique_id and the profile name are stored without a terminator: print them by their length
     snprintf(reply, reply_size,
              "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%.*s "
-             "up=%lu profile=\"%.*s\" form=%d",
+             "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f",
              (int) charge_mode_config.charge_mode_state,
              scale_config.current_scale_measurement,
              charge_mode_config.target_charge_weight,
@@ -91,7 +93,10 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
              (int) sizeof(metadata.unique_id), metadata.unique_id,
              (unsigned long) up_s,
              (int) sizeof(profile->name), profile->name,
-             menu_get_current_form_id());
+             menu_get_current_form_id(),
+             scale_simulation_is_on() ? 1 : 0,
+             motor_get_velocity(SELECT_COARSE_TRICKLER_MOTOR),
+             motor_get_velocity(SELECT_FINE_TRICKLER_MOTOR));
     return true;
 }
 
@@ -259,6 +264,108 @@ static bool remote_control_snap(const char *args, char *reply, size_t reply_size
 }
 
 
+// `sim on|off`: main's simulated scale stands in for the stored one, for this run only (ADR-001, F2)
+static bool remote_control_sim(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                               void *write_ctx) {
+    if (strcmp(args, "on") == 0) {
+        if (!scale_simulation_start()) {
+            snprintf(reply, reply_size, "@err the simulation cannot start: is the stored driver the simulated one?");
+            return false;
+        }
+    }
+    else if (strcmp(args, "off") == 0) {
+        if (charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+            snprintf(reply, reply_size, "@err charge mode is running");
+            return false;
+        }
+        scale_simulation_stop();
+    }
+    else if (*args != '\0') {
+        snprintf(reply, reply_size, "@err usage: sim [on|off]");
+        return false;
+    }
+
+    snprintf(reply, reply_size, "@ok sim=%d scale=\"%s\"", scale_simulation_is_on() ? 1 : 0, get_scale_driver_string());
+    return true;
+}
+
+
+// `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver
+static bool remote_control_motor(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                 void *write_ctx) {
+    size_t name_len = strcspn(args, " ");
+    motor_select_t selected_motor;
+    if (name_len == 6 && strncmp(args, "coarse", 6) == 0) {
+        selected_motor = SELECT_COARSE_TRICKLER_MOTOR;
+    }
+    else if (name_len == 4 && strncmp(args, "fine", 4) == 0) {
+        selected_motor = SELECT_FINE_TRICKLER_MOTOR;
+    }
+    else {
+        snprintf(reply, reply_size, "@err usage: motor <coarse|fine> <rev/s>");
+        return false;
+    }
+
+    char *end;
+    float speed = strtof(args + name_len, &end);
+    if (end == args + name_len || *end != '\0' || !isfinite(speed) ||
+        fabsf(speed) > get_motor_max_speed(selected_motor)) {
+        snprintf(reply, reply_size, "@err speed: a number of rev/s within the motor's maximum, %u",
+                 (unsigned) get_motor_max_speed(selected_motor));
+        return false;
+    }
+
+    // The modes drive the motors themselves
+    if (menu_get_current_form_id() < 0) {
+        snprintf(reply, reply_size, "@err a mode is running");
+        return false;
+    }
+
+    if (speed == 0.0f) {
+        motor_enable(selected_motor, false);    // also commands speed 0
+    }
+    else {
+        motor_enable(selected_motor, true);
+        motor_set_speed(selected_motor, speed);
+    }
+
+    snprintf(reply, reply_size, "@ok motor");
+    return true;
+}
+
+
+// `charge <gr>` starts charge mode as the web page does; `charge stop` presses reset, as at the unit
+static bool remote_control_charge(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                  void *write_ctx) {
+    if (strcmp(args, "stop") == 0) {
+        if (!charge_mode_stop_remote()) {
+            snprintf(reply, reply_size, "@err charge mode is not running");
+            return false;
+        }
+        snprintf(reply, reply_size, "@ok charge stop");
+        return true;
+    }
+
+    char *end;
+    float target = strtof(args, &end);
+    if (end == args || *end != '\0' || !isfinite(target) || target <= 0.0f || target > 1000.0f) {
+        snprintf(reply, reply_size, "@err usage: charge <0..1000> | charge stop");
+        return false;
+    }
+    if (menu_get_current_form_id() < 0) {
+        snprintf(reply, reply_size, "@err a mode is running");
+        return false;
+    }
+    if (!charge_mode_start_remote(target)) {
+        snprintf(reply, reply_size, "@err charge mode is already running");
+        return false;
+    }
+
+    snprintf(reply, reply_size, "@ok charge target=%.3f", target);
+    return true;
+}
+
+
 static const remote_control_command_t remote_control_commands[] = {
     {"help", remote_control_help},
     {"state", remote_control_state},
@@ -267,6 +374,9 @@ static const remote_control_command_t remote_control_commands[] = {
     {"press", remote_control_press},
     {"form", remote_control_form},
     {"snap", remote_control_snap},
+    {"sim", remote_control_sim},
+    {"motor", remote_control_motor},
+    {"charge", remote_control_charge},
 };
 
 #define REMOTE_CONTROL_COMMAND_COUNT (sizeof(remote_control_commands) / sizeof(remote_control_commands[0]))

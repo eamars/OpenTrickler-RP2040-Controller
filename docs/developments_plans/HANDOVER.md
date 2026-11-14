@@ -5,7 +5,7 @@ Written at the end of a session that stopped early. It says where the work stand
 ## Where things stand
 
 - **Branch:** `adr001_agent_groundwork`, pushed. Main's CI is green with the runner pinned (PR #114).
-- **ADR-001:** open. Steps 1 and 2 are built. The bench is ready (2026-11-14); the revision for the probe bench (F5) was approved; steps 3 and 4 are built, step 3 except the owner's check by hand. Step 5 waits for the owner's word on F2.
+- **ADR-001:** open. Steps 1 and 2 are built. The bench is ready (2026-11-14); the revision for the probe bench (F5) was approved; steps 3, 4 and 5 are built, step 3 except the owner's check by hand. Step 6 (the owner's check, the settings set back, a real throw, closing) is left.
 - **New today, both drafts, not approved:** ADR-011 (the dependencies brought up to date) and ADR-012 (the motor drivers cleaned up).
 - **Order of the work:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** on 2026-11-14 the unit's settings were copied to `logs/unit_backup/`, then it was flashed with this branch through the probe (step 3). Its charge-mode settings are at their defaults now (F6).
@@ -53,8 +53,6 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 - **ADR-011:** SDK 2.3.1 or 2.2.0; whether CI moves to Arm's compiler; the 2023 debug scripts.
 - **ADR-001:**
   - the owner's check by hand for step 3 (the probe's USB out, the unit starts, a charge by hand);
-  - whether step 5 uses main's simulated scale (F2);
-  - whether that scale, selectable and stored by any user, needs a guard;
   - whether steps 1 and 2 go to main now.
 - **Earlier questions still open:**
   - whether anything but the built-in pages calls the REST API;

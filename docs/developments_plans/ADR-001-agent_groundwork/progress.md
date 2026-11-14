@@ -239,6 +239,51 @@ Built 2026-11-14 on the bench's Pico W.
 
 Most of the RAM is the snap's 1 KB copy of the screen.
 
-## Steps 5 and 6
+## Step 5: motors, the simulated scale, and a charge cycle
 
-Not started. Step 5 needs the owner's word on F2.
+Built 2026-11-14 on the bench's Pico W, with main's simulated scale (F2, the owner's word the same day). The coarse trickler turned during the runs; the hopper was empty.
+
+**What was built**
+- `motor <coarse|fine> <rev/s>`: it enables the driver and sets the speed; 0 stops the motor and disables the driver. It is refused while a mode has the screen.
+- `motor_get_velocity()`. `state` gains `coarse=`, `fine=` and `sim=`.
+- `sim on|off`:
+  - `scale_init()` keeps the stored driver's task handle;
+  - `sim on` suspends that task, sets Simulated in RAM, and starts main's simulated driver;
+  - `sim off` reverses that, and drops the UART bytes that came in meanwhile.
+- `charge <gr>` and `charge stop`. The REST handler now calls the same two functions, `charge_mode_start_remote()` and `charge_mode_stop_remote()`, with the same checks as before.
+- `rc_run.py`:
+  - `charge_cycle [--target 30] [--threshold 0.03]`;
+  - `pulses`, which samples each STEP pin's GPIO status through the probe;
+  - `flash` can take another ELF.
+
+**Proof**
+
+| Done when | Result |
+|---|---|
+| `charge_cycle` passes five times in a row, with the motors turning | Passed. Each run went 1 → 2 → 3 → 4 → 1 in about 28 s. The charge ended at 30.000 for a target of 30.000, and charging to the cup prompt took 16.6 to 17.0 s |
+| After a `reboot`, `state` shows `sim=0` and the stored scale driver | Passed. `sim on`, then `reboot`, then `state` gives `sim=0 scale="AND FX-i Std"` |
+| The step pulses stop on a probe reset and on an assert | Passed (below) |
+
+**Do the step pulses stop?** (`pulses`; coarse trickler at 1 rev/s; the coarse STEP pin was high in 100% of 200 samples before each case)
+
+| Case | Coarse STEP pin after | Verdict |
+|---|---|---|
+| (a) `reset` through the probe, sampled 0.5 s after | high in 0% | Stopped |
+| (b) The assert test build: the chip enters the USB loader | high in 0%, 3 s after the assert | Stopped |
+| (c) The hard-fault test build: the core halts at the breakpoint in `isr_hardfault` | high in 100%, 3 s after the fault | **Runs on**, as expected: the processor halts and PIO does not. A unit that hard-faults during a charge keeps its motor turning until power is cut. This is the fact ADR-012 starts from |
+
+- **(a) does not tell the reset apart from the firmware's own start.** 0.5 s after the reset, the firmware has started again and set the motors to 0. Either way the pulses stop.
+- **The owner has not yet seen it by eye.** The pin was measured, not the motor.
+
+**Seen in the first run.** The runner first took the last weight polled while still charging (29.875) as the charge's weight, and failed the run. It now takes the weight once charging has ended, which is what the scale shows before the cup is lifted.
+
+**What the console costs in all** (steps 3 to 5; this PC's compiler)
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Flash: main → this branch | 693.0 → 701.9 KB (+8.9) | 667.7 → 676.4 KB (+8.7) |
+| RAM at link time: main → this branch | 195.0 → 200.6 KB (+5.6) | 195.5 → 201.1 KB (+5.6) |
+
+## Step 6
+
+Not started: the owner's check by hand (left from step 3), the settings set back (F6), and one real throw.

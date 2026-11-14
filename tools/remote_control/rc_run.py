@@ -41,16 +41,29 @@ LOG_DIR = REPO / "logs" / "rc"
 # reset: the writes that make the watchdog reset the whole chip, as watchdog_reboot() does: scratch 4 cleared
 # (a normal boot), every power domain but the oscillators selected, then the trigger. openocd's own `reset run`
 # left core 0 locked up in a double fault on the bench's RP2040 (ADR-001 progress), and resets less of the chip.
+# step_status: the IO_BANK0 GPIOx_STATUS register of each trickler's STEP pin (GP3, GP8); its OUTTOPAD bit is
+# the level driven onto the pin. A stepper's pulse is low for 13 PIO cycles (about 100 ns) and high for the rest
+# of its period, so a running motor samples almost always high and a stopped one always low.
 BOARDS = {
     "pico_w": {
         "target": "target/rp2040.cfg", "build": "build_w", "cores": ["rp2040.core0", "rp2040.core1"],
         "reset": ["mww 0x4005801c 0", "mww 0x40010008 0x1fffc", "mww 0x40058000 0x80000000"],
+        "step_status": {"coarse": 0x40014018, "fine": 0x40014040},
     },
     "pico2_w": {
         "target": "target/rp2350.cfg", "build": "build", "cores": ["rp2350.cm0", "rp2350.cm1"],
         "reset": None,  # not yet worked out for the RP2350: no Pico 2 W on the bench
+        "step_status": None,
     },
 }
+GPIO_STATUS_OUTTOPAD = 0x200
+STEP_SAMPLES = 200
+STEP_RUNNING_FRACTION = 0.5     # a pin high in more than this share of the samples is pulsing
+
+CHARGE_POLL_S = 0.25
+CHARGE_STATE_NAMES = {0: "exit", 1: "waiting for zero", 2: "charging", 3: "waiting for cup removal",
+                      4: "waiting for cup return"}
+CHARGE_CYCLE_ORDER = [1, 2, 3, 4, 1]    # a charge, the cup off and back (by the simulated scale), the next charge
 
 TCL_PORT = 6666
 RTT_PORT = 19021
@@ -319,6 +332,21 @@ class Openocd:
             self.cmd(f"rtt server start {RTT_PORT} 0")
             self._rtt_server = True
 
+    def sample_word(self, address, count):
+        """
+        Read one 32-bit word many times in a row, in one openocd call, with the chip running.
+
+        Args:
+            address: the word's address.
+            count: how many reads.
+
+        Returns:
+            The values read.
+        """
+        script = (f"set r {{}}; for {{set i 0}} {{$i < {count}}} {{incr i}} "
+                  f"{{ lappend r [read_memory {address:#x} 32 1] }}; return $r")
+        return [int(value, 0) for value in self.cmd(script).split()]
+
     def halted_cores(self, elf):
         """
         Find cores that are not running.
@@ -368,6 +396,7 @@ class Console:
         """
         self.log = log
         self.failures = failures
+        self.expect_fault = False   # set while a test build is meant to assert: its line is then not a failure
         self.lines = queue.Queue()
         self.sock = socket.create_connection(("127.0.0.1", RTT_PORT), timeout=10)
         self.sock.settimeout(None)
@@ -387,7 +416,7 @@ class Console:
             for raw in complete:
                 line = raw.decode(errors="replace").rstrip("\r")
                 self.log.write("unit", line)
-                if "assertion" in line.lower() or "PANIC" in line:
+                if ("assertion" in line.lower() or "PANIC" in line) and not self.expect_fault:
                     self.failures.append(f"console: {line}")
                 self.lines.put(line)
 
@@ -496,8 +525,15 @@ class Session:
         self.fail(f"the console did not answer within {CONSOLE_TIMEOUT_S:.0f} s of a restart")
         return None
 
-    def flash(self):
-        """Write the ELF through the probe, start it, and check the unit runs the build's version."""
+    def flash(self, elf=None):
+        """
+        Write an ELF through the probe, start it, and check the unit runs the build's version.
+
+        Args:
+            elf: the ELF to write; by default the session's. It becomes the session's ELF.
+        """
+        if elf is not None:
+            self.elf = Path(elf)
         if not self.elf.exists():
             self.fail(f"{self.elf} does not exist")
             return
@@ -602,6 +638,153 @@ class Session:
             else:
                 self.fail(f"form {form_id} differs from {reference}")
 
+    def state(self):
+        """
+        Ask `state` and parse it.
+
+        Returns:
+            Its fields as a dict of strings, or None (counted as a failure).
+        """
+        reply = self.send("state")
+        if reply is None or not reply.startswith("@ok state"):
+            return None
+        return dict(re.findall(r'(\w+)=("[^"]*"|\S+)', reply))
+
+    def step_activity(self):
+        """
+        Sample each trickler's STEP pin through the probe.
+
+        Returns:
+            For each trickler, the share of samples in which the pin was driven high.
+        """
+        activity = {}
+        for motor, address in self.board["step_status"].items():
+            values = self.openocd.sample_word(address, STEP_SAMPLES)
+            activity[motor] = sum(1 for value in values if value & GPIO_STATUS_OUTTOPAD) / len(values)
+        self.log.write("rc", "step pins high: " + ", ".join(f"{motor} {share:.0%}" for motor, share in activity.items()))
+        return activity
+
+    def charge_cycle(self, target, threshold, timeout_s):
+        """
+        A charge from zero to cup return with the simulated scale, then the start of the next one.
+
+        Passes when the charge states come in CHARGE_CYCLE_ORDER within timeout_s, the weight when the charge ends
+        is no more than `threshold` under the target, and both motors are commanded to 0 at the end. The time to
+        target and the overshoot are printed, not judged: they belong to the made-up powder.
+
+        Args:
+            target: the charge weight.
+            threshold: the fine stop threshold, the most the charge may end under the target.
+            timeout_s: the longest the states may take.
+        """
+        if self.send("sim on") is None or self.failures:
+            return
+        reply = self.send(f"charge {target:g}")
+        if reply is None or not reply.startswith("@ok"):
+            self.send("sim off")
+            return
+
+        seen = []           # the charge states in the order they came
+        entered = {}        # time each state of the cycle was first entered
+        weight_at_end = None
+        started = time.monotonic()
+        while time.monotonic() - started < timeout_s and seen != CHARGE_CYCLE_ORDER:
+            state = self.state()
+            if state is None:
+                break
+            charge = int(state["charge"])
+            weight = float(state["weight"])
+            if not seen or seen[-1] != charge:
+                # The charge's weight is the one on the scale once charging has ended, before the cup is lifted
+                if charge == 3 and seen and seen[-1] == 2:
+                    weight_at_end = weight
+                seen.append(charge)
+                entered.setdefault(len(seen) - 1, time.monotonic() - started)
+                self.log.write("rc", f"charge state {charge} ({CHARGE_STATE_NAMES.get(charge, '?')}) at "
+                                     f"{time.monotonic() - started:.1f} s, weight {weight:.3f}")
+            time.sleep(CHARGE_POLL_S)
+
+        if seen != CHARGE_CYCLE_ORDER:
+            self.fail(f"charge states came as {seen}, expected {CHARGE_CYCLE_ORDER} within {timeout_s:.0f} s")
+        if weight_at_end is not None:
+            self.log.write("rc", f"charge ended at {weight_at_end:.3f} for a target of {target:.3f} "
+                                 f"(overshoot {weight_at_end - target:+.3f}), "
+                                 f"{entered.get(2, 0) - entered.get(1, 0):.1f} s from charging to the cup prompt")
+            if target - weight_at_end > threshold:
+                self.fail(f"the charge ended {target - weight_at_end:.3f} under the target, more than {threshold}")
+        elif seen == CHARGE_CYCLE_ORDER:
+            self.fail("no weight was read when the charge ended")
+
+        self.send("charge stop")
+        deadline = time.monotonic() + 5
+        state = None
+        while time.monotonic() < deadline:
+            state = self.state()
+            if state is not None and state["charge"] == "0" and float(state["coarse"]) == 0 \
+                    and float(state["fine"]) == 0:
+                break
+            time.sleep(CHARGE_POLL_S)
+        else:
+            self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
+        self.send("sim off")
+
+    def pulses(self, assert_elf, hardfault_elf):
+        """
+        Do the step pulses stop? With the coarse trickler commanded to 1 rev/s: (a) a reset through the probe,
+        (b) the assert test build, (c) the hard-fault test build. (a) and (b) pass when the STEP pin stops
+        pulsing; (c) is measured and reported, since a halted core leaves PIO running. Ends on the normal build.
+
+        Args:
+            assert_elf: the ELF built with RC_TEST_FAULT=1.
+            hardfault_elf: the ELF built with RC_TEST_FAULT=2.
+        """
+        if self.board["step_status"] is None:
+            self.fail("the step pins are not worked out for this board")
+            return
+        normal_elf = self.elf
+
+        def start_coarse(case):
+            self.send("motor coarse 1")
+            time.sleep(1.5)     # the ramp
+            if self.step_activity()["coarse"] <= STEP_RUNNING_FRACTION:
+                self.fail(f"{case}: the coarse trickler did not start pulsing")
+                return False
+            return True
+
+        # (a) a reset through the probe
+        if start_coarse("reset"):
+            for write in self.board["reset"]:
+                self.openocd.cmd(write)
+            time.sleep(0.5)
+            stopped = self.step_activity()["coarse"] == 0
+            self.log.write("rc", f"(a) reset through the probe: pulses {'stopped' if stopped else 'RUNNING'}")
+            if not stopped:
+                self.fail("(a) the step pulses ran on after a reset through the probe")
+            self.wait_for_console()
+
+        # (b) a failed assert enters the USB loader
+        self.flash(assert_elf)
+        flashed = time.monotonic()
+        self.console.expect_fault = True
+        if start_coarse("assert"):
+            time.sleep(max(0.0, flashed + 13 - time.monotonic()))
+            stopped = self.step_activity()["coarse"] == 0
+            self.log.write("rc", f"(b) assert: pulses {'stopped' if stopped else 'RUNNING'}")
+            if not stopped:
+                self.fail("(b) the step pulses ran on after an assert")
+        self.console.expect_fault = False
+
+        # (c) a hard fault: the core halts, PIO does not
+        self.flash(hardfault_elf)
+        flashed = time.monotonic()
+        if start_coarse("hard fault"):
+            time.sleep(max(0.0, flashed + 13 - time.monotonic()))
+            share = self.step_activity()["coarse"]
+            self.log.write("rc", f"(c) hard fault: pulses {'RUNNING' if share > STEP_RUNNING_FRACTION else 'stopped'} "
+                                 f"(pin high in {share:.0%} of samples); reported, not judged")
+
+        self.flash(normal_elf)
+
     def finish(self):
         """
         Check the cores, stop openocd, print the verdict.
@@ -638,6 +821,13 @@ def main():
     tour_parser = sub.add_parser("menu_tour", help="snap every form, pressing nothing")
     tour_parser.add_argument("--save", help="keep the pictures in this folder")
     tour_parser.add_argument("--compare", help="fail on a form missing from, or differing from, this folder")
+    cycle_parser = sub.add_parser("charge_cycle", help="a charge with the simulated scale, cup off and back")
+    cycle_parser.add_argument("--target", type=float, default=30.0)
+    cycle_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
+    cycle_parser.add_argument("--timeout", type=float, default=120.0)
+    pulses_parser = sub.add_parser("pulses", help="do the step pulses stop on a reset, an assert, a hard fault?")
+    pulses_parser.add_argument("--assert-elf", default=str(REPO / "build_w_fault1" / "app.elf"))
+    pulses_parser.add_argument("--hardfault-elf", default=str(REPO / "build_w_fault2" / "app.elf"))
     args = parser.parse_args()
 
     session = Session(args, args.command)
@@ -648,6 +838,10 @@ def main():
         session.save_snap(LOG_DIR / "snaps" / f"{session.log.path.stem}.png")
     elif args.command == "menu_tour":
         session.menu_tour(args.save, args.compare)
+    elif args.command == "charge_cycle":
+        session.charge_cycle(args.target, args.threshold, args.timeout)
+    elif args.command == "pulses":
+        session.pulses(args.assert_elf, args.hardfault_elf)
     elif args.command == "flash":
         session.flash()
     elif args.command == "reset":
