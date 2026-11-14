@@ -249,3 +249,6 @@ Built 2026-11-14. Nothing a user sees, so no soak: built, flashed once for the v
 
 - **CI** passes on `ubuntu-latest` (`ubuntu-26.04` on the day) with no pin, and its image is a PC's but for the paths (step 3).
 - **`picotool info`** on each `.uf2`: `pico_board: pico_w` and `pico2_w` (the latter `target chip: RP2350`), `sdk version: 2.3.1`. Neither names the firmware's own version: the firmware does not declare it as binary info. Written into ADR-004, whose update files need it; not changed here, since it changes what the image carries.
+- **The owner's checks** (a real throw, the access point and its wizard from a phone, a flash by BOOTSEL): waived by the owner, 2026-11-15.
+
+**Built** 2026-11-15. Nothing left.

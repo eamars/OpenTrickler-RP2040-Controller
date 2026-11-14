@@ -1,6 +1,6 @@
 # ADR-011: the dependencies brought up to date
 
-Status: **Open** 2026-11-14. Written in full and approved by the owner the same day. Steps 1 to 3 are built and proven on the Pico W; left: step 4, then the Pico 2 W. What is built and measured is in [progress.md](progress.md).
+Status: **Built** 2026-11-15. Written in full and approved by the owner on 2026-11-14; built and proven on the Pico W and the Pico 2 W, nothing left. What was built and measured is in [progress.md](progress.md).
 
 ## What we want
 
@@ -133,8 +133,8 @@ After each step, on the Pico W:
 
 At the end:
 - CI passes on GitHub's newest image, with no pin. Its size report matches this PC's part by part, and a difference has its reason written down.
-- `picotool info` on each board's `.uf2` names the right board and the build's version.
-- The owner's checks, each of which the owner may waive:
+- `picotool info` on each board's `.uf2` names the right board and the build's version. Found at the end: it names the board, the chip and the SDK, not the firmware's version, which the image does not declare; handed to ADR-004.
+- The owner's checks, each of which the owner may waive (all three waived, 2026-11-15):
   - one real throw;
   - Wi-Fi switched off in the menu, the unit's own access point and its wizard seen from a phone, and Wi-Fi switched back on;
   - one flash by the BOOTSEL button, if the unit's USB is connected for it.
