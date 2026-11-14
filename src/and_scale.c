@@ -70,6 +70,8 @@ void _and_scale_listener_task(void *p) {
             if (string_buf_idx == sizeof(scale_standard_data_format_t)) {
                 // Data is ready, send to decode
                 scale_config.current_scale_measurement = _decode_measurement_msg(&frame);
+                scale_tap_frame((const uint8_t *) frame.bytes, sizeof(frame.bytes),
+                                scale_config.current_scale_measurement);
 
                 // Signal the data is ready
                 if (scale_config.scale_measurement_ready) {

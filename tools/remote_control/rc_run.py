@@ -22,6 +22,7 @@ import argparse
 import base64
 import datetime
 import json
+import math
 import queue
 import re
 import shutil
@@ -117,6 +118,11 @@ SOAK_MISS_SHARE = 0.01      # the most of the web reads that may miss
 SOAK_MISS_RUN = 2           # the most misses in a row on one poller
 SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
 
+# scale_frames (ADR-013): the motors as in a throw on the bench's settings (the coarse trickler at its 5 rev/s cap)
+SCALE_FRAMES_COARSE_RPS = 5.0
+SCALE_FRAMES_FINE_RPS = 2.0
+SCALE_FRAMES_TEXTS = 5     # the most frequent texts shown per phase, of the frames that did not read as a number
+
 
 class WebPoller(threading.Thread):
     """
@@ -190,7 +196,7 @@ class SessionLog:
         with self._lock:
             self._file.write(line + "\n")
             self._file.flush()
-            if not text.startswith("@sd "):     # a snap's data: in the file, not on the screen
+            if not text.startswith(("@sd ", "@sf ")):     # a snap's data, a tapped frame: in the file, not on the screen
                 print(line, flush=True)
 
     def close(self):
@@ -558,6 +564,7 @@ class Console:
         self.failures = failures
         self.recover_link = recover_link
         self.expect_fault = False   # set while a test build is meant to assert: its line is then not a failure
+        self.tap_lines = []         # (host time, "@sf ..." line), from the scale tap
         self.lines = queue.Queue()
         self.sock = socket.create_connection(("127.0.0.1", RTT_PORT), timeout=10)
         self.sock.settimeout(None)
@@ -579,6 +586,11 @@ class Console:
                 self.log.write("unit", line)
                 if ("assertion" in line.lower() or "PANIC" in line) and not self.expect_fault:
                     self.failures.append(f"console: {line}")
+                if line.startswith("@sf "):
+                    # A frame from the scale tap (ADR-013): kept apart, with when it was read, so the replies to
+                    # commands are not mixed with them and no drain() loses them
+                    self.tap_lines.append((time.monotonic(), line))
+                    continue
                 self.lines.put(line)
 
     def drain(self):
@@ -1067,6 +1079,84 @@ class Session:
             self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
         self.send("sim off")
 
+    def scale_frames(self, idle_s, handovers, reboots, motors_s):
+        """
+        Record what the scale's driver decodes, through the scale tap (ADR-013), and sum it up by phase: idle;
+        across hand-overs from the simulated scale; across restarts; with both motors turning. A measurement: it
+        fails only when a phase gets no frame or a command fails.
+
+        Args:
+            idle_s: seconds of the idle phase.
+            handovers: how many times the simulated scale takes over for 2 s and gives the scale back.
+            reboots: how many restarts; the tap is not kept across one, so it is switched on as soon as the
+                console answers, and the frames before that are not seen.
+            motors_s: seconds with the coarse trickler at SCALE_FRAMES_COARSE_RPS and the fine at
+                SCALE_FRAMES_FINE_RPS, the hopper empty.
+        """
+        phases = []     # (name, first index into the tap's lines, last index)
+
+        def record(name, action):
+            start = len(self.console.tap_lines)
+            action()
+            phases.append((name, start, len(self.console.tap_lines)))
+
+        def hand_overs():
+            for _ in range(handovers):
+                self.send("sim on")
+                time.sleep(2.0)
+                self.send("sim off")
+                time.sleep(4.0)
+
+        def restarts():
+            for _ in range(reboots):
+                self.send("reboot")         # send() waits for the console to answer again
+                self.send("scale tap on")
+                time.sleep(5.0)
+
+        def motors_turning():
+            self.send(f"motor coarse {SCALE_FRAMES_COARSE_RPS:g}")
+            self.send(f"motor fine {SCALE_FRAMES_FINE_RPS:g}")
+            time.sleep(motors_s)
+            self.send("motor coarse 0")
+            self.send("motor fine 0")
+
+        self.send("scale tap on")
+        record("idle", lambda: time.sleep(idle_s))
+        record("hand-overs", hand_overs)
+        record("restarts", restarts)
+        record("motors turning", motors_turning)
+        self.send("scale tap off")
+
+        for name, first, last in phases:
+            frames = []
+            malformed = 0
+            for _, line in self.console.tap_lines[first:last]:
+                parts = line.split()
+                try:
+                    frames.append((int(parts[1]), float(parts[2]), bytes.fromhex(parts[3]) if len(parts) > 3 else b""))
+                except (IndexError, ValueError):
+                    malformed += 1
+            numbers = sum(1 for _, value, _ in frames if math.isfinite(value))
+            infs = sum(1 for _, value, _ in frames if math.isinf(value))
+            nans = sum(1 for _, value, _ in frames if math.isnan(value))
+            summary = f"scale_frames: {name}: {len(frames)} frames, {numbers} numbers, {infs} inf, {nans} NaN"
+            if malformed:
+                summary += f", {malformed} lines not read"
+            # The rhythm, from the unit's own clock: only where the scale runs on without a break
+            if name in ("idle", "motors turning") and len(frames) > 2:
+                gaps = sorted(b[0] - a[0] for a, b in zip(frames, frames[1:]) if 0 < b[0] - a[0] < 10000)
+                if gaps:
+                    summary += f"; between frames {gaps[len(gaps) // 2]} ms typical, {gaps[-1]} ms longest"
+            self.log.write("rc", summary)
+            texts = {}
+            for _, value, raw in frames:
+                if not math.isfinite(value):
+                    texts[raw] = texts.get(raw, 0) + 1
+            for raw, count in sorted(texts.items(), key=lambda item: -item[1])[:SCALE_FRAMES_TEXTS]:
+                self.log.write("rc", f"scale_frames: {name}: {count} x {raw!r}")
+            if not frames:
+                self.fail(f"scale_frames: {name}: no frame")
+
     def pulses(self, assert_elf, hardfault_elf):
         """
         Do the step pulses stop? With the coarse trickler commanded to 1 rev/s: (a) a reset through the probe,
@@ -1183,6 +1273,11 @@ def main():
                              help="the most of the web reads that may miss, 0 to 1")
     soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
                              help="the most misses in a row one poller may have")
+    frames_parser = sub.add_parser("scale_frames", help="record the scale's frames through the tap, by phase")
+    frames_parser.add_argument("--idle", type=float, default=120.0, help="seconds idle")
+    frames_parser.add_argument("--handovers", type=int, default=5, help="hand-overs from the simulated scale")
+    frames_parser.add_argument("--reboots", type=int, default=2, help="restarts")
+    frames_parser.add_argument("--motors", type=float, default=60.0, help="seconds with both motors turning")
     args = parser.parse_args()
 
     session = Session(args, args.command)
@@ -1207,6 +1302,8 @@ def main():
         session.settings(args.host, args.save, args.compare)
     elif args.command == "soak":
         session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run)
+    elif args.command == "scale_frames":
+        session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     sys.exit(session.finish())
 
 

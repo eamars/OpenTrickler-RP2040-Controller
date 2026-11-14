@@ -290,6 +290,25 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
 }
 
 
+// scale tap on|off: the A&D driver copies each frame to the console as "@sf" lines (ADR-013); never stored
+static bool remote_control_scale(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                 void *write_ctx) {
+    if (strcmp(args, "tap on") == 0) {
+        scale_tap_set(true);
+    }
+    else if (strcmp(args, "tap off") == 0) {
+        scale_tap_set(false);
+    }
+    else if (*args != '\0') {
+        snprintf(reply, reply_size, "@err usage: scale [tap on|tap off]");
+        return false;
+    }
+
+    snprintf(reply, reply_size, "@ok scale tap=%d scale=\"%s\"", scale_tap_is_on() ? 1 : 0, get_scale_driver_string());
+    return true;
+}
+
+
 // `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver
 static bool remote_control_motor(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
@@ -375,6 +394,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"form", remote_control_form},
     {"snap", remote_control_snap},
     {"sim", remote_control_sim},
+    {"scale", remote_control_scale},
     {"motor", remote_control_motor},
     {"charge", remote_control_charge},
 };

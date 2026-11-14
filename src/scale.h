@@ -88,6 +88,19 @@ void scale_simulation_stop(void);
 bool scale_simulation_is_on(void);
 bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement);
 
+/**
+ * @brief The remote control's frame tap (ADR-013): while it is on, a driver that calls scale_tap_frame() copies
+ * each frame it decoded to the console, as it came and with the value it made of it. Nothing is stored.
+ */
+void scale_tap_set(bool on);
+bool scale_tap_is_on(void);
+
+/**
+ * @brief Print one frame as "@sf <ms> <value> <bytes>" when the tap is on: the time since boot in ms, the value
+ * the driver made of it, and the frame's bytes in hex. Does nothing when the tap is off.
+ */
+void scale_tap_frame(const uint8_t * bytes, size_t len, float value);
+
 void set_scale_driver(scale_driver_t scale_driver);
 
 const char * get_scale_driver_string();
