@@ -363,7 +363,7 @@ When reviewing: flag C++ abstractions that make firmware control flow harder to 
 
 ## Rule 14 - Keep CMake changes local and Pico SDK-native
 
-Top-level CMake uses Pico SDK initialization, FreeRTOS import, u8g2, Trinamic interface sources, and `src/CMakeLists.txt` for generated/support targets. Preserve this structure.
+Top-level CMake uses Pico SDK initialization, FreeRTOS import, u8g2, and `src/CMakeLists.txt` for generated/support targets. Preserve this structure.
 
 Prefer:
 

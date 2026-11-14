@@ -8,7 +8,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 
 ## Build, flash
 
-- **Clone** with the submodules: `git submodule update --init --recursive`. `library/` holds the Pico SDK, FreeRTOS, u8g2 and the Trinamic library.
+- **Clone** with the submodules: `git submodule update --init --recursive`. `library/` holds the Pico SDK, FreeRTOS and u8g2.
 - **Toolchain:** every version is written once, in `toolchain.env`: the compiler, CMake, Ninja, `pioasm` and picotool, OpenOCD. The scripts below and CI read it; change a version there and nowhere else.
   - Windows: `setup_toolchain.ps1` fetches them into `%USERPROFILE%\.pico-sdk`, and `configure_env.ps1` puts them on the path. The VS Code Pico extension makes the same folder (README). `-List` prints what it would fetch.
   - Linux (what CI runs): `setup_toolchain.sh` fetches the same set into `.toolchain/` in the repository, and `source ./configure_env.sh` puts it on the path.
@@ -35,7 +35,8 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | `menu.c`, `mui_menu.c` | The menu task and the menu's forms |
 | `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each takes the screen from the menu and draws for itself |
 | `scale.c`, `*_scale.c`, `and_scale_calibrate.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
-| `motors.c`, `stepper.pio` | The two steppers: TMC2209 set-up over its UART, step pulses by PIO |
+| `motors.c`, `stepper.pio` | The two steppers: speeds, ramps, the stored settings, step pulses by PIO |
+| `tmc_uart.c`, `tmc2209.c` | The stepper drivers, our own on Klipper's model (ADR-012): the one-wire frames with every write checked, and the TMC2209's registers as a table. No pins and no RTOS in them |
 | `servo_gate.c`, `neopixel_led.c`, `ws2812.pio` | The servo gate and the LEDs |
 | `profile.c` | The powder profiles |
 | `mini_12864_module.cpp`, `display.c`, `gpio_irq_handler.h` | The display, the encoder and the buttons |
@@ -84,6 +85,7 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - `charge_fault <bad|quiet|cleanup|none> --host <address> --expect seen|not-seen`: a simulated charge with one fault put in at a weight, `state` read every 50 ms, and the charge's own `Charge: ...` lines checked with `--want` and `--want-none` (ADR-013).
 - Console commands to drive the menu: `press <cw|ccw|enc|rst> [n]`, `form` and `form <id>`.
 - Console commands for the motors and charging: `motor <coarse|fine> <rev/s>`, `sim on|off`, `charge <gr>`, `charge stop`.
+- Console commands for the motor drivers (ADR-012): `tmc <coarse|fine>` (the driver's registers by field as `@tmc` lines, then its serial line's counts), `tmc <coarse|fine> setup <n>` (set up n times from the stored settings), and, never stored, `tmc <coarse|fine> lose` and `find` (the driver made to look absent, and found again).
 - Console commands for the scale, never stored (ADR-013): `scale tap on|off` (the A&D driver's frames as `@sf` lines), `sim bad` (the simulated scale's next reading does not parse), `sim quiet <ms>` (it sends nothing for that long), `sim rate <per second>`. `stats` counts `bad_frames`.
 - It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).
 
