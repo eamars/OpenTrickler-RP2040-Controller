@@ -49,6 +49,13 @@ $Parts = @(
         Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.1.1-3/pico-sdk-tools-2.1.1-x64-win.zip'
         Dest = 'tools\2.1.1'
         Probe = 'pioasm\pioasm.exe'
+    },
+    @{
+        # Flashes and reads a unit through a debug probe (ADR-001, decisions 3 and 4)
+        Name = 'OpenOCD 0.12.0+dev (Raspberry Pi build), about 8 MB'
+        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.1.1-3/openocd-0.12.0+dev-x64-win.zip'
+        Dest = 'openocd\0.12.0+dev'
+        Probe = 'openocd.exe'
     }
 )
 

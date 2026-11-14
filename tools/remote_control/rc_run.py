@@ -1,0 +1,499 @@
+"""
+The remote control's host runner (ADR-001, step 3).
+
+Reaches a unit through a debug probe on its SWD port: openocd flashes and resets the chip, and openocd's RTT
+server carries the unit's console. Every session is kept in logs/rc/<time>_<command>.log. A run ends with
+`VERDICT PASS` or `VERDICT FAIL <reasons>` and exits 0 or 1.
+
+Counted as failures: a console line with `assertion` or `PANIC`, a command with no reply within 5 s, an `@err`
+reply, `up=` going backwards when no restart was asked for, and a processor core found halted.
+
+Usage, from the repository root:
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py send "state" ["stats" ...]
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py flash [--elf build_w\\app.elf]
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py reset
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py watch 30
+"""
+import argparse
+import datetime
+import queue
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+
+REPO = Path(__file__).resolve().parents[2]
+PICO_SDK_ROOT = Path.home() / ".pico-sdk"
+OPENOCD_DIR = PICO_SDK_ROOT / "openocd" / "0.12.0+dev"
+TOOLCHAIN_BIN = PICO_SDK_ROOT / "toolchain" / "14_2_Rel1" / "bin"
+LOG_DIR = REPO / "logs" / "rc"
+
+# reset: the writes that make the watchdog reset the whole chip, as watchdog_reboot() does: scratch 4 cleared
+# (a normal boot), every power domain but the oscillators selected, then the trigger. openocd's own `reset run`
+# left core 0 locked up in a double fault on the bench's RP2040 (ADR-001 progress), and resets less of the chip.
+BOARDS = {
+    "pico_w": {
+        "target": "target/rp2040.cfg", "build": "build_w", "cores": ["rp2040.core0", "rp2040.core1"],
+        "reset": ["mww 0x4005801c 0", "mww 0x40010008 0x1fffc", "mww 0x40058000 0x80000000"],
+    },
+    "pico2_w": {
+        "target": "target/rp2350.cfg", "build": "build", "cores": ["rp2350.cm0", "rp2350.cm1"],
+        "reset": None,  # not yet worked out for the RP2350: no Pico 2 W on the bench
+    },
+}
+
+TCL_PORT = 6666
+RTT_PORT = 19021
+REPLY_TIMEOUT_S = 5.0
+CONSOLE_TIMEOUT_S = 20.0    # from a reset until the console answers
+TCL_TERMINATOR = b"\x1a"
+RTT_SEARCH_SIZE = 0x400     # bytes searched for the control block, from the address the ELF gives
+
+
+class SessionLog:
+    """One session's log: every line, timestamped, to the file and to stdout."""
+
+    def __init__(self, name):
+        """
+        Open logs/rc/<time>_<name>.log.
+
+        Args:
+            name: what the session runs, for the file name.
+        """
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.path = LOG_DIR / f"{stamp}_{name}.log"
+        self._file = open(self.path, "w", encoding="utf-8")
+        self._lock = threading.Lock()
+
+    def write(self, source, text):
+        """
+        Write one line.
+
+        Args:
+            source: where the line came from ("unit", "openocd", "rc").
+            text: the line, without its line ending.
+        """
+        stamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        line = f"{stamp} {source:7} {text}"
+        with self._lock:
+            self._file.write(line + "\n")
+            self._file.flush()
+            print(line, flush=True)
+
+    def close(self):
+        self._file.close()
+
+
+def toolchain_tool(name):
+    """
+    Find one of the compiler's tools (nm, addr2line).
+
+    Args:
+        name: the tool's name without the arm-none-eabi- prefix.
+
+    Returns:
+        The tool's path.
+    """
+    candidate = TOOLCHAIN_BIN / f"arm-none-eabi-{name}.exe"
+    if candidate.exists():
+        return str(candidate)
+    found = shutil.which(f"arm-none-eabi-{name}")
+    if found is None:
+        raise FileNotFoundError(f"arm-none-eabi-{name} is not in {TOOLCHAIN_BIN} nor on PATH")
+    return found
+
+
+def elf_symbol_address(elf, symbol):
+    """
+    Read a symbol's address from an ELF.
+
+    Args:
+        elf: the ELF's path.
+        symbol: the symbol's name.
+
+    Returns:
+        The address, or None when the ELF has no such symbol.
+    """
+    output = subprocess.run([toolchain_tool("nm"), str(elf)], capture_output=True, text=True, check=True).stdout
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and parts[2] == symbol:
+            return int(parts[0], 16)
+    return None
+
+
+def elf_function_at(elf, address):
+    """
+    Name the function holding an address.
+
+    Args:
+        elf: the ELF's path.
+        address: the code address.
+
+    Returns:
+        "function at file:line" as addr2line gives it.
+    """
+    output = subprocess.run([toolchain_tool("addr2line"), "-f", "-e", str(elf), hex(address)],
+                            capture_output=True, text=True, check=True).stdout.split()
+    return " at ".join(output)
+
+
+def build_version(build_dir):
+    """
+    Read the version the last build wrote into src/generated/version.c.
+
+    Args:
+        build_dir: unused today; src/generated is shared by both boards' builds, so build the board last.
+
+    Returns:
+        (version_string, vcs_hash).
+    """
+    text = (REPO / "src" / "generated" / "version.c").read_text(encoding="utf-8")
+    version = re.search(r'version_string = "([^"]*)"', text).group(1)
+    vcs = re.search(r'vcs_hash = "([^"]*)"', text).group(1)
+    return version, vcs
+
+
+class Openocd:
+    """One openocd process for the probe and the chip, driven through its Tcl port."""
+
+    def __init__(self, board, log):
+        """
+        Start openocd and connect to its Tcl port. The chip is left running.
+
+        Args:
+            board: an entry of BOARDS.
+            log: the SessionLog.
+        """
+        self.board = board
+        self.log = log
+        self.output = []    # every line openocd printed, for checks such as "Verified OK"
+        exe = OPENOCD_DIR / "openocd.exe"
+        command = [
+            str(exe), "-s", str(OPENOCD_DIR / "scripts"),
+            "-f", "interface/cmsis-dap.cfg", "-f", board["target"],
+            "-c", "adapter speed 5000",
+            "-c", "gdb port disabled", "-c", "telnet port disabled", "-c", f"tcl port {TCL_PORT}",
+            "-c", "init",
+        ]
+        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                        errors="replace")
+        threading.Thread(target=self._read_output, daemon=True).start()
+        self.sock = self._connect()
+
+    def _read_output(self):
+        for line in self.process.stdout:
+            line = line.rstrip()
+            if line.startswith("Warn : ***"):
+                continue    # the old-debugprobe banner, on every start
+            self.output.append(line)
+            self.log.write("openocd", line)
+
+    def _connect(self):
+        deadline = time.monotonic() + 15
+        while True:
+            if self.process.poll() is not None:
+                raise RuntimeError("openocd stopped before its Tcl port opened; see the log")
+            try:
+                return socket.create_connection(("127.0.0.1", TCL_PORT), timeout=60)
+            except ConnectionRefusedError:
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.2)
+
+    def cmd(self, text):
+        """
+        Run one openocd command.
+
+        Args:
+            text: the command.
+
+        Returns:
+            Its result text.
+        """
+        self.sock.sendall(text.encode() + TCL_TERMINATOR)
+        data = b""
+        while not data.endswith(TCL_TERMINATOR):
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise ConnectionError("openocd closed its Tcl port")
+            data += chunk
+        return data[:-1].decode(errors="replace")
+
+    def rtt_start(self, elf):
+        """
+        (Re)start RTT on the control block the ELF names, and its TCP server.
+
+        Args:
+            elf: the ELF running on the unit, for the control block's address.
+        """
+        address = elf_symbol_address(elf, "_SEGGER_RTT")
+        if address is None:
+            raise RuntimeError(f"{elf} has no _SEGGER_RTT: is it a build with the RTT console?")
+        self.cmd("rtt stop")
+        self.cmd(f'rtt setup {address:#x} {RTT_SEARCH_SIZE:#x} "SEGGER RTT"')
+        self.cmd("rtt start")
+        if not getattr(self, "_rtt_server", False):
+            self.cmd(f"rtt server start {RTT_PORT} 0")
+            self._rtt_server = True
+
+    def halted_cores(self, elf):
+        """
+        Find cores that are not running.
+
+        Args:
+            elf: for naming the function a halted core is in.
+
+        Returns:
+            One description per core that is not running.
+        """
+        found = []
+        for core in self.board["cores"]:
+            state = self.cmd(f"{core} curstate").strip()
+            if state == "running":
+                continue
+            description = f"{core} {state}"
+            if state == "halted":
+                self.cmd(f"targets {core}")
+                pc_text = self.cmd("reg pc")
+                match = re.search(r"0x([0-9a-fA-F]+)", pc_text)
+                if match:
+                    pc = int(match.group(1), 16)
+                    description += f" at pc={pc:#010x} ({elf_function_at(elf, pc)})"
+            found.append(description)
+        return found
+
+    def close(self):
+        """Stop openocd. The chip is left as it is."""
+        try:
+            self.cmd("shutdown")
+        except ConnectionError:
+            pass    # it may close the port before it answers
+        self.sock.close()
+        self.process.wait(timeout=10)
+
+
+class Console:
+    """The unit's console, through openocd's RTT server."""
+
+    def __init__(self, log, failures):
+        """
+        Connect to the RTT server and start reading lines.
+
+        Args:
+            log: the SessionLog.
+            failures: the run's list of failure reasons, appended to when a line shows one.
+        """
+        self.log = log
+        self.failures = failures
+        self.lines = queue.Queue()
+        self.sock = socket.create_connection(("127.0.0.1", RTT_PORT), timeout=10)
+        self.sock.settimeout(None)
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        buffer = b""
+        while True:
+            try:
+                chunk = self.sock.recv(4096)
+            except OSError:
+                return
+            if not chunk:
+                return
+            buffer += chunk
+            *complete, buffer = buffer.split(b"\n")
+            for raw in complete:
+                line = raw.decode(errors="replace").rstrip("\r")
+                self.log.write("unit", line)
+                if "assertion" in line.lower() or "PANIC" in line:
+                    self.failures.append(f"console: {line}")
+                self.lines.put(line)
+
+    def drain(self):
+        """Forget lines already read."""
+        while not self.lines.empty():
+            self.lines.get_nowait()
+
+    def command(self, line, timeout=REPLY_TIMEOUT_S):
+        """
+        Send one command line and wait for its reply.
+
+        Args:
+            line: the command line.
+            timeout: seconds to wait.
+
+        Returns:
+            The reply line, or None if none came in time.
+        """
+        name = line.split()[0]
+        self.drain()
+        self.log.write("rc", f"> {line}")
+        self.sock.sendall(line.encode() + b"\n")
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+            try:
+                reply = self.lines.get(timeout=remaining)
+            except queue.Empty:
+                return None
+            if reply.startswith(f"@ok {name}") or reply.startswith("@err"):
+                return reply
+
+    def close(self):
+        self.sock.close()
+
+
+class Session:
+    """One run: openocd, the console, the failures counted, and the verdict."""
+
+    def __init__(self, args, name):
+        self.board = BOARDS[args.board]
+        self.elf = Path(args.elf) if args.elf else REPO / self.board["build"] / "app.elf"
+        self.log = SessionLog(name)
+        self.failures = []
+        self.last_up = None
+        self.log.write("rc", f"board {args.board}, elf {self.elf}")
+        self.openocd = Openocd(self.board, self.log)
+        self.openocd.rtt_start(self.elf)
+        self.console = Console(self.log, self.failures)
+
+    def fail(self, reason):
+        self.log.write("rc", f"FAIL {reason}")
+        self.failures.append(reason)
+
+    def check_up(self, reply):
+        """Count `up=` going backwards in a state reply as a failure (a restart nobody asked for)."""
+        match = re.search(r"\bup=(\d+)", reply)
+        if not match:
+            return
+        up = int(match.group(1))
+        if self.last_up is not None and up < self.last_up:
+            self.fail(f"the unit restarted unasked (up={self.last_up} then up={up})")
+        self.last_up = up
+
+    def send(self, line):
+        """
+        Send one command and judge its reply.
+
+        Returns:
+            The reply, or None.
+        """
+        reply = self.console.command(line)
+        if reply is None:
+            self.fail(f"no reply to \"{line}\" within {REPLY_TIMEOUT_S:.0f} s")
+            return None
+        if reply.startswith("@err"):
+            self.fail(f"\"{line}\": {reply}")
+        if line.split()[0] == "state":
+            self.check_up(reply)
+        if line.split()[0] == "reboot" and reply.startswith("@ok"):
+            time.sleep(1.5)
+            self.wait_for_console()
+        return reply
+
+    def wait_for_console(self):
+        """
+        After a restart: restart RTT and ask `state` until the unit answers.
+
+        Returns:
+            The first state reply, or None.
+        """
+        self.last_up = None
+        deadline = time.monotonic() + CONSOLE_TIMEOUT_S
+        while time.monotonic() < deadline:
+            self.openocd.rtt_start(self.elf)
+            reply = self.console.command("state", timeout=1.0)
+            if reply is not None:
+                self.check_up(reply)
+                return reply
+        self.fail(f"the console did not answer within {CONSOLE_TIMEOUT_S:.0f} s of a restart")
+        return None
+
+    def flash(self):
+        """Write the ELF through the probe, start it, and check the unit runs the build's version."""
+        if not self.elf.exists():
+            self.fail(f"{self.elf} does not exist")
+            return
+        started = time.monotonic()
+        done_before = len(self.openocd.output)
+        self.openocd.cmd(f"program {{{self.elf.as_posix()}}} verify reset")
+        if not any("Verified OK" in line for line in self.openocd.output[done_before:]):
+            self.fail("openocd did not verify the image")
+            return
+        self.log.write("rc", f"flashed and verified in {time.monotonic() - started:.1f} s")
+        reply = self.wait_for_console()
+        if reply is None:
+            return
+        version, vcs = build_version(self.board["build"])
+        if f"ver={version} " not in reply or f"vcs={vcs} " not in reply:
+            self.fail(f"the unit does not run the build: expected ver={version} vcs={vcs}, got: {reply}")
+        else:
+            self.log.write("rc", f"the unit runs {version} at {vcs}, {time.monotonic() - started:.1f} s after the start")
+
+    def reset(self):
+        """Reset the whole chip by its watchdog, through the probe, and wait for the console."""
+        if self.board["reset"] is None:
+            self.fail("reset is not worked out for this board")
+            return
+        for write in self.board["reset"]:
+            self.openocd.cmd(write)
+        time.sleep(1.0)
+        self.wait_for_console()
+
+    def finish(self):
+        """
+        Check the cores, stop openocd, print the verdict.
+
+        Returns:
+            The exit code: 0 for PASS, 1 for FAIL.
+        """
+        for core in self.openocd.halted_cores(self.elf):
+            self.fail(f"core not running: {core}")
+        self.console.close()
+        self.openocd.close()
+        if self.failures:
+            verdict = "VERDICT FAIL " + "; ".join(self.failures)
+        else:
+            verdict = "VERDICT PASS"
+        self.log.write("rc", verdict)
+        self.log.write("rc", f"log: {self.log.path}")
+        self.log.close()
+        return 0 if not self.failures else 1
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Drive a unit through a debug probe (ADR-001).")
+    parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
+    parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
+    sub = parser.add_subparsers(dest="command", required=True)
+    send_parser = sub.add_parser("send", help="send command lines, one after another")
+    send_parser.add_argument("lines", nargs="+")
+    sub.add_parser("flash", help="flash the build through the probe and check it runs")
+    sub.add_parser("reset", help="reset the chip through the probe")
+    watch_parser = sub.add_parser("watch", help="log the console for a time")
+    watch_parser.add_argument("seconds", type=float)
+    args = parser.parse_args()
+
+    session = Session(args, args.command)
+    if args.command == "send":
+        for line in args.lines:
+            session.send(line)
+    elif args.command == "flash":
+        session.flash()
+    elif args.command == "reset":
+        session.reset()
+    elif args.command == "watch":
+        time.sleep(args.seconds)
+    sys.exit(session.finish())
+
+
+if __name__ == "__main__":
+    main()

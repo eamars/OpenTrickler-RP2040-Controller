@@ -115,6 +115,24 @@ target_link_libraries("${TARGET_NAME}"
 )
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
+
+# The console (ADR-001): stdio over RTT, read through a debug probe. Never on UART0, the scale's port
+pico_enable_stdio_rtt("${TARGET_NAME}" 1)
+pico_enable_stdio_uart("${TARGET_NAME}" 0)
+pico_enable_stdio_usb("${TARGET_NAME}" 0)
+target_compile_definitions("${TARGET_NAME}" PRIVATE
+    # A failed assert() enters the USB loader in place of a breakpoint; that resets PIO, so the steps stop
+    PICO_ENTER_USB_BOOT_ON_EXIT=1
+    # RTT buffers: out large enough for a snap's lines, in for a whole command line (SEGGER's are 1 KB and 16 B)
+    BUFFER_SIZE_UP=2048
+    BUFFER_SIZE_DOWN=256
+)
+
+# A test build that faults ten seconds after start-up: -DRC_TEST_FAULT=1 asserts, 2 makes a hard fault
+set(RC_TEST_FAULT "" CACHE STRING "Test build only: 1 asserts, 2 hard-faults ten seconds after start-up")
+if (RC_TEST_FAULT)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_FAULT=${RC_TEST_FAULT})
+endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # Generate extra outputs

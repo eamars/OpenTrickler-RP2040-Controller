@@ -16,10 +16,12 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
   - `.\build_pico_2w.ps1` builds the Pico 2 W image, `build\app.uf2`;
   - `.\build_pico_w.ps1` builds the Pico W image, `build_w\app.uf2`.
   - Both run CMake's configure each time, so a new or removed source file is picked up (sources are found by a glob).
-  - `src/generated/` is made by the build (version, pages, PIO headers) and is not tracked.
+  - `src/generated/` is made by the build (version, pages) and is not tracked. PIO headers go to each board's build folder (`build\src\`, `build_w\src\`): pioasm writes a different one for each chip, and a shared one broke the Pico W image (ADR-001, F7).
 - **Size:** `python tools/size_report.py build/app.elf.map --bin build/app.bin` prints the image's flash by part and the RAM taken at link time. CI prints the same for both boards on every build, in the job summary and in the log (`gh run view <id> --log`).
 - **CI and a PC build different images.** CI runs on a pinned image, `ubuntu-24.04`, with Ubuntu's ARM compiler (13.2.1); a PC set up as above has Arm's 14.2.Rel1. CI's image is about 40 KB smaller, all in the C and C++ runtime. Compare sizes only between builds from the same place. The pin is there because SDK 2.1.1's `pioasm` does not compile on the next image's compiler; do not move it without a build that passes. ADR-011 is the planned update that removes the pin.
-- **Flash:** by hand today. Hold BOOTSEL, plug in USB, copy `app.uf2` to the drive ([manual](manuals/firmware_update_via_usb.md)). This is also how a unit is always recovered. ADR-001's step 3 adds flashing with no hands.
+- **Flash:**
+  - **With a debug probe on the unit's SWD port** (the bench): `venv\Scripts\python tools\remote_control\rc_run.py flash`. It writes `build_w\app.elf` through the probe, verifies it, and passes when the unit's console reports the build's version. This is also how the bench's unit is recovered, from an assert or a hard fault too.
+  - **By hand**, as a user does: hold BOOTSEL, plug in USB, copy `app.uf2` to the drive ([manual](manuals/firmware_update_via_usb.md)).
 - **Host tools:** Python from the venv at the repo root (`venv/`, built from `requirements.txt`). Never a second venv.
 
 ## Where code goes
@@ -59,7 +61,15 @@ Changes are proven on a real unit, not only built.
   - No contact with the hardware (no flashing, no serial port, no debug probe, no call to a unit over the network) until the owner says the bench is ready. Ask again in every new session.
   - An agent's run assumes the hopper is empty. The owner says when there is powder in it.
   - The motors may turn in an agent's run.
-- **The tools** are being built in ADR-001 and are not here yet: a console on the unit's USB port with a remote control (step 3), `menu_tour` (step 4) and `charge_cycle` with a simulated scale (step 5). This section is filled in as each lands.
+- **The bench** (2026-11-14): a Pico W on the motor board with an A&D FX-300i scale, reached only by a Raspberry Pi debugprobe on SWD. Its USB port is not connected.
+- **The console** (ADR-001, step 3) is stdio over RTT: the debug probe reads it from the chip's RAM, with no pin and no cable to the unit. Lines starting with `@` belong to the remote control; everything else is the firmware's log.
+- **`tools/remote_control/rc_run.py`** (run with the venv's Python) starts openocd itself, keeps each session in `logs/rc/`, and ends with `VERDICT PASS` or `VERDICT FAIL <reasons>`, exiting 0 or 1:
+  - `send "state" "stats"`: commands, one after another (`help` lists them);
+  - `flash [--elf <path>]`: write, verify, start, check the version;
+  - `reset`: a whole-chip reset by the watchdog (openocd's own `reset run` locked the RP2040 up, F8);
+  - `watch <seconds>`: log the console for a time.
+- It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).
+- Still to come in ADR-001: `menu_tour` (step 4) and `charge_cycle` with a simulated scale (step 5).
 
 ## Decisions and ADRs
 

@@ -131,6 +131,63 @@ Found 2026-11-13, while opening the PR for the CI pin.
 
 **The CI pin on main.** The pin went to main on its own as PR #114 and was merged by the agent, under the owner's rule of the same day that an update that is not a feature may be merged without asking.
 
-## Steps 3 to 6
+## Step 3: the console, and flashing with no hands
 
-Not started. They need the owner's word that the bench is ready. Step 5 also needs the owner's word on F2.
+Built 2026-11-14 on the bench's Pico W, through the debug probe (the revision for the bench, F5, approved the same day). Left: the owner's check by hand.
+
+**Before any contact**
+- The unit's settings were read from its web API (GET only) and kept in `logs/unit_backup/`, because this branch resets its charge-mode settings (F6).
+- The probe: Raspberry Pi debugprobe, firmware 2.0.1. openocd calls it old and uses a slower workaround for it.
+
+**First contact.** openocd read the chip id through the probe with the unit left running: `0x20002927`, an RP2040 rev B2. The unit's web page kept answering.
+
+**openocd.** `setup_toolchain.ps1` fetched `openocd-0.12.0+dev-x64-win.zip` (decision 4), and a second run fetched nothing.
+
+**What was built**
+- `CMakeLists.txt`: stdio over RTT, the UART and USB consoles off, `PICO_ENTER_USB_BOOT_ON_EXIT=1`, and RTT buffers of 2 KB out and 256 bytes in. `RC_TEST_FAULT=1` or `2` makes the test builds.
+- `src/remote_control.c`: `help`, `state`, `stats`, `reboot`. The unit id and the profile name are stored without a terminator, so they are printed by their length.
+- `src/rc_console.c`: the console task, polling every 20 ms (RTT has no interrupt). It prints `@hello remote control ready` when it starts.
+- `stdio_init_all()` is now the first call in `main()`.
+- `tools/remote_control/rc_run.py`: `send`, `flash`, `reset`, `watch`.
+  - It starts openocd with no gdb or telnet port, drives it through its Tcl port, and finds the RTT control block at the address of `_SEGGER_RTT` in the ELF.
+  - `reset` is a watchdog reset written through the probe (F8).
+
+**F7, found at the first flash: the image did not start.** The boot log ended at `Unable to add program, err: -20` (PIO version mismatch), so the unit stopped at the motor error before any task ran.
+- The cause: both boards wrote their PIO headers to the shared `src/generated/`. The Pico 2 W build had marked `stepper.pio` as PIO version 1, and the Pico W build reused that header.
+- CI's log of main shows the same thing: the second build (Pico W) generates no `stepper.pio.h`. So CI's Pico W image has this fault.
+- The fix: PIO headers go to each build folder. `build\src\stepper.pio.h` now says version 1, and `build_w\src\stepper.pio.h` says 0.
+
+**Proof, on the Pico W** (logs in `logs/rc/`, this PC)
+
+| Done when | Result |
+|---|---|
+| `flash` passes five times in a row, nobody touching the unit | Passed. 11.2 to 12.1 s from start to the console answering with the build's `ver` and `vcs`. Each flash is 10 s of writing and 1 s of verifying |
+| An assert test build puts itself in the USB loader; `flash` brings it back | Passed. The assert's line reached the PC (`assertion "false" failed: ... rc_console.c, line 101`), and the runner counted it. Core 0 was then in the boot ROM (pc 0x20e0) and the web page was gone. `flash` brought the unit back |
+| A hard-fault test build is brought back by `flash` | Passed. With the probe attached, core 1 halted at the breakpoint in `isr_hardfault` (`crt0.S:170`) and openocd halted core 0 with it. The runner named both places. `flash` brought the unit back |
+| `state` and `stats` answer; the log shows the firmware's `printf` lines | Passed. Boot lines, the radio's firmware lines and `connect status` lines are logged. `state` reads the real scale: `weight=0.000`, `scale="AND FX-i Std"` |
+| With the probe's USB cable out, the unit starts and the owner charges by hand | **Waits for the owner** |
+| What the console costs | See below |
+
+Also run:
+- **`reboot`** passes: the next `state` shows `up=1`.
+- **`reset`** passes three times in a row, and it brought back a unit left locked up by openocd's own `reset run` (F8).
+- **An unknown command** gets `@err unknown command "bogus"`, which the runner counts as a failure.
+
+**What the console costs** (`tools/size_report.py`, this PC's compiler)
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Flash, before → after | 693.0 → 697.9 KB (+4.9) | 667.7 → 672.5 KB (+4.8) |
+| RAM at link time, before → after | 195.0 → 199.2 KB (+4.2) | 195.5 → 199.7 KB (+4.2) |
+
+- **The flash:** about 1.8 KB of application, 1.9 KB of SDK (RTT and stdio), and 1.1 KB of FreeRTOS (`uxTaskGetSystemState`).
+- **The RAM:** mostly the RTT buffers (2.3 KB), the task list `stats` reads (0.9 KB), and the reply and line buffers.
+- **Measured on the unit:** `stats` gives a free heap of 97.5 KB, with the lowest stack margin in "Scale Task" (185 words).
+
+**Seen, not chased**
+- Every `program` prints `Execution of event reset-init failed: args[i] option value ('CX') is not valid` from openocd's RP2040 script. Flashing and verifying still pass.
+- openocd prints read errors while the chip restarts (`Failed to select multidrop`, `Polling failed`). It examines the chip again and carries on.
+
+## Steps 4 to 6
+
+Not started. Step 5 needs the owner's word on F2.

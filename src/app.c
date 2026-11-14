@@ -27,11 +27,15 @@
 #include "menu.h"
 #include "profile.h"
 #include "servo_gate.h"
+#include "rc_console.h"
 
 
 int main()
 {
-    // stdio_init_all();
+    // The console, over RTT through the debug probe (ADR-001): first, so every printf below reaches it
+    stdio_init_all();
+    printf("OpenTrickler starting\n");
+
     // Initialize EEPROM first
     eeprom_init();
 
@@ -64,6 +68,9 @@ int main()
 
     // Start menu task
     xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
+
+    // The remote control's console task
+    rc_console_init();
 
     // Start RTOS
     vTaskStartScheduler();

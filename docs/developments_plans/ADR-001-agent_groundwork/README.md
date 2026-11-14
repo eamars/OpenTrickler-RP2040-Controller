@@ -1,6 +1,6 @@
 # ADR-001: groundwork, so an agent can build, flash, drive and check a unit
 
-Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. The bench was declared ready 2026-11-14. **Revised 2026-11-14 for the bench as it was built (F5), and waiting for the owner's approval of the revision:** the unit is a Pico W reached by a debug probe only, so steps 3 to 5 use the probe where they used the unit's USB port. Decisions 1, 3, 4 and 7 are changed and decision 8 is new. **Step 5 and decision 2 wait for the owner's word on F2:** main already has a simulated scale.
+Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. The bench was declared ready 2026-11-14. **Revised 2026-11-14 for the bench as it was built (F5), and the revision approved by the owner the same day:** the unit is a Pico W reached by a debug probe only, so steps 3 to 5 use the probe where they used the unit's USB port. Decisions 1, 3, 4 and 7 are changed and decision 8 is new. **Step 3 built 2026-11-14** except the owner's check by hand ([progress](progress.md)). **Step 5 and decision 2 wait for the owner's word on F2:** main already has a simulated scale.
 
 ## What we want
 
@@ -112,7 +112,9 @@ Approving the ADR approves these.
 | F3 | `tools/setup_toolchain.ps1` sat apart from main's `setup_toolchain.sh` | F1 | Moved to the root, beside `configure_env.ps1` and the macOS script |
 | F4 | CI failed on main for every PR | `ubuntu-latest` became Ubuntu 26.04, whose compiler cannot build SDK 2.1.1's `pioasm` | The runner pinned to `ubuntu-24.04` (PR #114, merged). The pin's exit is ADR-011 |
 | F5 | The bench differs from the plan: a Pico W with no USB cable, reached by a debug probe on SWD | The plan was written before the bench was built | Steps 3 to 5 revised to the probe; decisions 1, 3, 4, 7 changed, 8 added. **Waits for the owner's approval** |
-| F6 | Flashing this branch resets the bench unit's charge-mode settings (its coarse stop threshold of 3 goes back to 5) | The unit runs 1.19.7; PR #108 changed the stored struct | Every setting copied to `logs/unit_backup/` before the first flash. The owner's throw in step 6 is made after setting them back |
+| F6 | Flashing this branch resets the bench unit's charge-mode settings (its coarse stop threshold of 3 goes back to 5) | The unit runs 1.19.7; PR #108 changed the stored struct | Every setting copied to `logs/unit_backup/` before the first flash. Seen at the first flash: "CRC32 mismatch at address 1400", defaults written. The owner's throw in step 6 is made after setting them back |
+| F7 | The first image flashed stopped at start-up with the motor error (`Unable to add program, err: -20`, PIO version mismatch), so no task ran. **CI's Pico W image on main has the same fault** | Both boards' builds wrote the PIO headers into the shared `src/generated/`. pioasm marks `stepper.pio` as PIO version 1 for the RP2350, and the Pico W build, built second, reused that header (CI's log: the Pico W build generates no `stepper.pio.h`) | PIO headers now go to each board's build folder; `src/generated/` is put on the include path by name, which it had only been as a side effect. Fixed on this branch; **whether it goes to main on its own is the owner's call** |
+| F8 | openocd's `reset run` left core 0 locked up in a double fault, its vector table read as 0xFFFFFFFF, and core 1 in the boot ROM | Not known. openocd's RP2040 reset with this debugprobe (firmware 2.0.1, which openocd calls old) | `rc_run.py reset` makes the watchdog reset the whole chip, as `watchdog_reboot()` does. It brought the locked-up unit back, and passes |
 
 **F2, the proposal: use main's simulated scale, and build no second one.**
 - `sim on` chooses it for this run only: the stored driver's task is suspended, the simulated driver's task is started, and the driver is set to Simulated in RAM. `sim off` undoes it. Nothing is saved by the command.
@@ -169,7 +171,7 @@ Done when: both boards build on this PC; the report's total is within 2% of `app
   - starts openocd for the probe and the RP2040 with its RTT server on a local port, talks to the console through that port, and stops openocd when it ends;
   - `send "<line>"`: one command, its reply, exit 0 for `@ok`;
   - `flash`: openocd writes the build's `app.elf` (`build_w\` for the Pico W), verifies it and resets the chip; the runner waits for the console and passes when `state` reports the `ver` and `vcs` in the build's `src/generated/version.c`;
-  - `reset`: resets the chip through the probe;
+  - `reset`: resets the whole chip through the probe, by its watchdog (F8);
   - keeps every session in `logs/rc/<time>_<name>.log`;
   - counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, `up=` going backwards without a `reboot`, `reset` or `flash` asked for, and the processor found halted (it reports where);
   - ends with `VERDICT PASS` or `VERDICT FAIL <reasons>` and exits 0 or 1.
@@ -197,7 +199,7 @@ Done when: `menu_tour` finds all 22 forms; run twice, the second run compares eq
 **As approved. The parts about `src/sim_scale.c` and `sim cup` wait for the owner's word on F2.** With the hopper empty a real scale never reaches a target, so the charge cycle needs a simulated scale either way.
 
 - `motor <coarse|fine> <rev/s>` calls `motor_set_speed()`; 0 stops it. `motors.c` gets `motor_get_velocity()`, which returns the commanded speed.
-- *(Added 2026-11-14.)* **Do the step pulses stop?** With the coarse motor commanded to 1 rev/s: (a) `reset` through the probe; (b) the assert test build from step 3. After each, the runner reads PIO0's control register through the probe and passes when no state machine is running; the owner confirms once by eye that the motor stopped. If (a) leaves them running, `rc_run.py` resets by the watchdog, which resets everything, and that is measured again.
+- *(Added 2026-11-14.)* **Do the step pulses stop?** With the coarse motor commanded to 1 rev/s: (a) `reset` through the probe; (b) the assert test build from step 3; (c) the hard-fault test build, which with the probe attached halts at a breakpoint. After each, the runner reads PIO0's control register through the probe and passes when no state machine is running, where one should stop; the owner confirms once by eye. (c) is expected to keep the motor turning (the processor halts, PIO does not): it is measured so ADR-012 starts from a fact.
 - `src/sim_scale.c`: the simulated scale.
   - `scale_init()` keeps the handle of the driver task it starts. `sim on` suspends that task and starts the simulated one; `sim off` deletes the simulated one and resumes it. Nothing is stored.
   - Ten readings a second. Each one adds `coarse speed × A + fine speed × B` grains for the time passed, follows that through a short lag, and rounds to 0.02 gr. A, B and the lag are constants in the file, set on the unit so a 30 gr charge with the default profile takes between 10 and 30 s; the values go into `progress.md`. They stand for no real powder.
