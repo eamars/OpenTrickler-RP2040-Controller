@@ -64,6 +64,7 @@ static char title_string[30];
 
 static TickType_t charge_start_tick = 0;
 static float last_charge_elapsed_seconds = 0.0f;
+static volatile bool charge_timer_running = false;   // the live timer runs only while a throw does (ADR-013)
 
 // Coarse trickler end-of-trickle backoff
 #define COARSE_STOP_BACKOFF_MAX_MS 15000  // safety cap
@@ -148,9 +149,10 @@ void scale_measurement_render_task(void *p) {
         u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
 
         // Format the timer string based on current state
-        if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
+        if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE && charge_timer_running) {
             format_elapsed_time(time_buffer, sizeof(time_buffer), charge_start_tick);
-        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
+        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE ||
+                   charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_RETURN ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_ZERO) {
             snprintf(time_buffer, sizeof(time_buffer), "%.2f s", last_charge_elapsed_seconds);
@@ -343,6 +345,9 @@ static void charge_mode_scale_fault(const char * reason) {
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
         true
     );
+    // The throw is over: its timer stops, as at a normal end, and the screen shows the time it ran
+    last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+    charge_timer_running = false;
     snprintf(title_string, sizeof(title_string), "%s", reason);
     printf("Charge: ended, %s\n", reason);
 
@@ -356,6 +361,7 @@ static void charge_mode_scale_fault(const char * reason) {
 void charge_mode_wait_for_complete() {
 
     charge_start_tick = xTaskGetTickCount();
+    charge_timer_running = true;
     coarse_backoff_in_progress = false;
 
     // Set colour to under charge
@@ -543,6 +549,7 @@ void charge_mode_wait_for_complete() {
     TickType_t now = xTaskGetTickCount();
     TickType_t elapsed_ticks = now - charge_start_tick;
     last_charge_elapsed_seconds = (float)(elapsed_ticks * portTICK_PERIOD_MS) / 1000.0f;
+    charge_timer_running = false;
 
     // Close the gate if the servo gate is present
     if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
