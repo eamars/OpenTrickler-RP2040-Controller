@@ -134,8 +134,9 @@ void simulated_scale_read_loop_task(void *p) {
 
                 simulated_scale_weight = simulated_powder_weight;
 
-                // No noise once target is reached.
-                if (target_weight > 0.0f && reached_target) {
+                // No noise once target is reached, nor while nothing falls: powder landing jiggles the pan, a pan
+                // with nothing landing on it reads steady (ADR-013's pause waits for that)
+                if ((target_weight > 0.0f && reached_target) || flow_rate <= flow_threshold) {
                     // keep exact value
                 } else if (target_weight <= 0.0f) {
                     float noise = ((float)(rand() % 101) - 50.0f) / 1000.0f;
