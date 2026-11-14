@@ -63,6 +63,8 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - An agent's run assumes the hopper is empty. The owner says when there is powder in it.
   - The motors may turn in an agent's run.
 - **The bench** (2026-11-14): a Pico W on the motor board with an A&D FX-300i scale, reached only by a Raspberry Pi debugprobe on SWD. Its USB port is not connected.
+  - A second unit, a Pico 2 W on a controller board of its own, with its own EEPROM and so its own settings, is put on the probe when the owner is asked. One unit at a time. `rc_run.py --board pico2_w` drives it.
+  - Each unit is on the owner's Wi-Fi with an address of its own, given by DHCP: ask, or read it from the unit's screen.
 - **Reading the unit's web API can change it.** A GET of `/rest/profile_config?pf=N` selects profile N in RAM (audit P2), and handlers act on any parameter they are given. Read a unit through the console where you can, and over the web only with the paths and parameters you mean.
 - **Flashing a unit can reset its settings.** When a stored struct's layout differs from the one on the unit, the defaults are written at once (`common.c`). Copy the unit's settings before the first flash of a newer or older version.
 - **The console** (ADR-001, step 3) is stdio over RTT: the debug probe reads it from the chip's RAM, with no pin and no cable to the unit. Lines starting with `@` belong to the remote control; everything else is the firmware's log.
@@ -72,7 +74,7 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - `reset`: a whole-chip reset by the watchdog (openocd's own `reset run` locked the RP2040 up, F8);
   - `watch <seconds>`: log the console for a time;
   - `snap`: the screen as a PNG under `logs/rc/snaps/`, as a person at the unit sees it;
-  - `menu_tour [--save <folder>] [--compare <folder>]`: every menu form in turn, pressing nothing. The Pico W's baseline is `tests/menu_baseline/pico_w/`; compare against it to see what a change did to the menu.
+  - `menu_tour [--save <folder>] [--compare <folder>]`: every menu form in turn, pressing nothing. The Pico W's baseline is `tests/menu_baseline/pico_w/`, the Pico 2 W's `tests/menu_baseline/pico2_w/`; compare against the unit's own to see what a change did to the menu. They differ in six forms, by the settings the two units store.
   - `charge_cycle [--target 30]`: a charge from zero to cup return and the start of the next one, with main's simulated scale switched on for the run (`sim on`), never stored;
   - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault (they stop on the first two and run on after a hard fault);
   - `settings --host <address> [--save <folder>] [--compare <folder>]`: the stored settings copied over the web API (GET, no parameters) and compared with an earlier copy. Take one before every flash of another version;

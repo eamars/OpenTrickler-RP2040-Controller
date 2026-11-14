@@ -40,6 +40,13 @@ OTA's upload (ADR-004), the web UI (ADR-008) and the tuning pages (ADR-009) all 
 **What both platforms have**
 - lwIP's socket API is on in this build (`LWIP_SOCKETS 1`, with FreeRTOS). ESP-IDF has the same API.
 
+**Measured under load in ADR-011** (2026-11-14; `rc_run.py soak`: charges back to back while two browsers poll, as with the portal open on a phone and a PC; its [progress](../ADR-011-dependency_update/progress.md) has the runs)
+- The server misses reads under that load. On the Pico W, 6.5% of reads went unanswered within 5 s or came back wrong, on main's firmware and after ADR-011 alike. On the Pico 2 W, 4.05% on main's firmware, 6.86% after ADR-011.
+- **Whether ADR-011 made the Pico 2 W worse is not settled.** The two runs were ten minutes apart, one firmware each. The owner accepted ADR-011 with it (2026-11-15): "we shall focus on the WiFi in the later ADR". This ADR settles it: soaks of the two firmwares taken in turn (main, after, main, after), so that a drift in the Wi-Fi falls on both. If it is real, it is the RP2350's: the same SDK, lwIP and radio driver did not change the Pico W. Then the suspects are the RP2350's FreeRTOS port (upstream's community port since ADR-011) and the compiler's code for the M33.
+- **Every JSON handler answers from one static buffer.** It writes the reply into the buffer and gives lwIP a pointer to it; lwIP sends it later. A second request to the same path rewrites the buffer while the first answer is still being sent, and the first client gets a mix. In the soaks, 1.8% to 3.4% of the charge-state reads came back as broken JSON. 13 handlers in 9 files do it. Two phones watching one charge see a wrong state now and then.
+- `/display_buffer` answers with the bare 1,024 bytes and no HTTP header, though its handler says the header is included. A browser takes it; a strict client does not.
+- A browser left open on the unit tripled the timeouts of a soak: the server's room is shared by every client on the network.
+
 ## Ideas
 
 **The server.** Three ways, to be weighed with numbers:
@@ -75,6 +82,7 @@ This replaces the three hand-written lists per module. It is the largest idea he
 - Two browsers at once each see every charge event.
 - The web portal works as before; it is moved to the new API in the same ADR, because a server nothing uses is not proven.
 - `charge_cycle` passes with a browser polling throughout.
+- `rc_run.py soak` with its own limits (1% of reads, 2 in a row), on each board, with nothing else on the unit's pages. No broken JSON.
 - The size report shows what the server costs against today's.
 
 ## Not in this ADR

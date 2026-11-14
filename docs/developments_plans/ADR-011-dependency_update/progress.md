@@ -218,3 +218,34 @@ Built 2026-11-14. Nothing a user sees, so no soak: built, flashed once for the v
 - `.github/dependabot.yml`: the GitHub actions, monthly.
 - `AGENTS.md` was brought up to date with steps 1 to 3: `toolchain.env`, CI with no pin and its image a PC's but for paths, Linux in place of macOS, the soak's conditions.
 - Both boards build with the same 4 warnings inside u8g2. `flash`: the unit runs 1.20.71 at 78ce2e9, `VERDICT PASS`.
+
+## The Pico 2 W
+
+2026-11-14 to 15, on the second unit the owner put on the probe: a Pico 2 W (RP2350, chip id 49933331) on a controller board of its own, so with its own EEPROM and its own settings. Its web API at 192.168.2.167.
+
+**Found on it**
+- 1.19.7 at 3940423, with no RTT console. Its 11 settings paths copied before anything was flashed (`logs/adr011/pico2w/settings_found/`).
+- Its settings differ from the Pico W's in the motors, the display, the LEDs, the servo gate and the profiles. 1.19.7 stores the charge-mode settings in the layout before PR #108, so the first 1.20 image resets them to defaults ("CRC32 mismatch at address 1400", then the defaults written). Of them, only `c13`, the coarse stop's gate ratio, was not a default: 0.5.
+
+**`rc_run.py` on the RP2350.** Its reset and the addresses of its STEP pins, written from the SDK's headers before the board was on the bench, worked the first time: `reset` restarted the unit (`up` 11 to 1) with its console back; in `pulses` the coarse STEP pin read 100% high while running and 0% when stopped.
+
+**Main's image** (built at ac1d07e from main's code, 1.20.57; the "dirty" is a tool file not yet committed then)
+- Flashed; the console up. `reset` passed.
+- `menu_tour --save tests/menu_baseline/pico2_w`: 22 forms, the Pico 2 W's baseline. Six differ from the Pico W's (forms 10, 32, 33, 34, 36, 38), by what the two units store.
+- `soak 600`: `VERDICT PASS`. 23 charges, all passed; `heap_free` 96,240 throughout; 110 of 2,718 web reads missed, 4.05%; longest run 2. Limits for this board from it: 6% and 4 in a row.
+
+**This ADR's image** (1.20.72 at 7d2d442; the firmware as at step 4, a tool changed since)
+- `flash`: `VERDICT PASS`. `settings --compare` with main's: every stored value as before.
+- `menu_tour --compare tests/menu_baseline/pico2_w`: 22 forms equal, form 36 (the version) aside.
+- `charge_cycle`: 30.000 for 30, 14.4 s from charging to the cup prompt (16.7 s on the Pico W).
+- `pulses`: the pulses stop on a reset through the probe and on an assert; run on after a hard fault, as on the RP2040. Every start had its console.
+- **`soak 600`: `VERDICT FAIL`, on the web alone.** 164 of 2,391 reads missed, 6.86%, past this board's 6%; longest run 3. 23 charges, all passed; `heap_free` 96,144 throughout; no restart, no drop of the probe's link. The misses were evenly high, not a burst (timeouts per 2 minutes 21, 20, 31, 27, 17, against main's 23, 19, 10, 15, 8).
+- **Accepted by the owner as it stands** (2026-11-15): "I'd accept as is, as we shall focus on the WiFi in the later ADR." Whether it is this ADR's or a drift in the Wi-Fi is not settled; ADR-003's "What we know" carries it, with the way to settle it (soaks of the two firmwares in turn).
+- A soak was once started from the shell instead of as a tracked task, and stopped after a minute; it had left a charge waiting for the cup with the simulated scale on. Stopped and switched off, no restart.
+
+**Its settings at the end.** `c13 = 0.5` written back over the web with `ee=true`, the unit reset, and read again: every value as the copy taken under 1.19.7, but for `c14` to `c16`, the coarse back-off's three settings, which 1.19.7 did not have, at their defaults. The unit is left on this ADR's image.
+
+## At the end
+
+- **CI** passes on `ubuntu-latest` (`ubuntu-26.04` on the day) with no pin, and its image is a PC's but for the paths (step 3).
+- **`picotool info`** on each `.uf2`: `pico_board: pico_w` and `pico2_w` (the latter `target chip: RP2350`), `sdk version: 2.3.1`. Neither names the firmware's own version: the firmware does not declare it as binary info. Written into ADR-004, whose update files need it; not changed here, since it changes what the image carries.
