@@ -311,8 +311,23 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
             return false;
         }
     }
+    else if (strncmp(args, "weight ", 7) == 0) {
+        // The simulated scale shows this weight until `sim weight off` (ADR-012); never stored
+        if (strcmp(args + 7, "off") == 0) {
+            simulated_scale_force_weight(false, 0.0f);
+        }
+        else {
+            char *end;
+            float weight = strtof(args + 7, &end);
+            if (end == args + 7 || *end != '\0' || !isfinite(weight)) {
+                snprintf(reply, reply_size, "@err usage: sim weight <a number|off>");
+                return false;
+            }
+            simulated_scale_force_weight(true, weight);
+        }
+    }
     else if (*args != '\0') {
-        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>]");
+        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>|weight <a number|off>]");
         return false;
     }
 

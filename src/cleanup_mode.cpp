@@ -81,10 +81,12 @@ void cleanup_render_task(void *p) {
         memset(buf, 0x0, sizeof(buf));
         
         // Convert to weight string with given decimal places
-        char weight_string[WEIGHT_STRING_LEN];
-        float_to_string(weight_string, current_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+        // Room for any weight the scale can send, and written with its length: "-1000.00" is a byte more than the
+        // 8 this had, and a tared container lifted off the pan is that (ADR-012; audit M5)
+        char weight_string[16];
+        weight_to_string(weight_string, sizeof(weight_string), current_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
 
-        sprintf(buf, "Weight: %s", weight_string);
+        snprintf(buf, sizeof(buf), "Weight: %s", weight_string);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 25, buf);
 
@@ -94,18 +96,18 @@ void cleanup_render_task(void *p) {
         float flow_rate = weight_diff / 0.02;  // 20 ms per sampling period, see below
 
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Flow: %0.3f/s", flow_rate);
+        snprintf(buf, sizeof(buf), "Flow: %0.3f/s", flow_rate);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 35, buf);
 
         // Draw current motor speed
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Speed: %0.3f", cleanup_mode_config.trickler_speed);
+        snprintf(buf, sizeof(buf), "Speed: %0.3f", cleanup_mode_config.trickler_speed);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 45, buf);
 
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Servo Gate: %s", gate_state_to_string(servo_gate.gate_state));
+        snprintf(buf, sizeof(buf), "Servo Gate: %s", gate_state_to_string(servo_gate.gate_state));
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 55, buf);
 

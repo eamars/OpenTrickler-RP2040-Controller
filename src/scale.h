@@ -121,6 +121,8 @@ bool scale_tap_is_on(void);
 bool simulated_scale_set_rate(float per_second);
 float simulated_scale_get_rate(void);
 void simulated_scale_send_bad(void);
+// A weight published in place of the simulated powder's, until it is switched off (ADR-012); never stored
+void simulated_scale_force_weight(bool forced, float weight);
 void simulated_scale_go_quiet(uint32_t ms);
 
 /**

@@ -35,6 +35,12 @@ bool string_to_boolean(char * s);
 
 int float_to_string(char * output_decimal_str, float var, decimal_places_t decimal_places);
 
+/*
+    A weight as text, with the buffer's length: never written past it, and an empty string for a number of decimals
+    that is neither (ADR-012; audit M5). float_to_string writes with no length and leaves the buffer as it was.
+*/
+int weight_to_string(char * output_decimal_str, size_t output_size, float var, decimal_places_t decimal_places);
+
 /** 
  * @brief Load configuration from persistent storage. 
  */
