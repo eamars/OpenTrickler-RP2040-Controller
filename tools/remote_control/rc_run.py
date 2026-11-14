@@ -70,7 +70,9 @@ BOARDS = {
 }
 GPIO_STATUS_OUTTOPAD = 0x200
 STEP_SAMPLES = 200
-STEP_RUNNING_FRACTION = 0.5     # a pin high in more than this share of the samples is pulsing
+# A STEP pin is high half the time while its motor turns (ADR-012), and stays low, or high, when it does not
+STEP_RUNNING_FRACTION = 0.1     # a pin high in more than this share of the samples, and in less than
+STEP_STUCK_FRACTION = 0.9       # this share, is pulsing
 
 CHARGE_POLL_S = 0.25
 CHARGE_STATE_NAMES = {0: "exit", 1: "waiting for zero", 2: "charging", 3: "waiting for cup removal",
@@ -1336,8 +1338,9 @@ class Session:
     def pulses(self, assert_elf, hardfault_elf):
         """
         Do the step pulses stop? With the coarse trickler commanded to 1 rev/s: (a) a reset through the probe,
-        (b) the assert test build, (c) the hard-fault test build. (a) and (b) pass when the STEP pin stops
-        pulsing; (c) is measured and reported, since a halted core leaves PIO running. Ends on the normal build.
+        (b) the assert test build, (c) the hard-fault test build. Each passes when the STEP pin stops pulsing:
+        the PIO makes only the steps it is fed, and the hard-fault handler stops it (ADR-012). Ends on the normal
+        build.
 
         Args:
             assert_elf: the ELF built with RC_TEST_FAULT=1.
@@ -1348,10 +1351,13 @@ class Session:
             return
         normal_elf = self.elf
 
+        def pulsing():
+            return STEP_RUNNING_FRACTION < self.step_activity()["coarse"] < STEP_STUCK_FRACTION
+
         def start_coarse(case):
             self.send("motor coarse 1")
             time.sleep(1.5)     # the ramp
-            if self.step_activity()["coarse"] <= STEP_RUNNING_FRACTION:
+            if not pulsing():
                 self.fail(f"{case}: the coarse trickler did not start pulsing")
                 return False
             return True
@@ -1361,7 +1367,7 @@ class Session:
             for write in self.board["reset"]:
                 self.openocd.cmd(write)
             time.sleep(0.5)
-            stopped = self.step_activity()["coarse"] == 0
+            stopped = not pulsing()
             self.log.write("rc", f"(a) reset through the probe: pulses {'stopped' if stopped else 'RUNNING'}")
             if not stopped:
                 self.fail("(a) the step pulses ran on after a reset through the probe")
@@ -1373,20 +1379,21 @@ class Session:
         self.console.expect_fault = True
         if start_coarse("assert"):
             time.sleep(max(0.0, flashed + 13 - time.monotonic()))
-            stopped = self.step_activity()["coarse"] == 0
+            stopped = not pulsing()
             self.log.write("rc", f"(b) assert: pulses {'stopped' if stopped else 'RUNNING'}")
             if not stopped:
                 self.fail("(b) the step pulses ran on after an assert")
         self.console.expect_fault = False
 
-        # (c) a hard fault: the core halts, PIO does not
+        # (c) a hard fault: its handler stops the motors before the core halts
         self.flash(hardfault_elf)
         flashed = time.monotonic()
         if start_coarse("hard fault"):
             time.sleep(max(0.0, flashed + 13 - time.monotonic()))
-            share = self.step_activity()["coarse"]
-            self.log.write("rc", f"(c) hard fault: pulses {'RUNNING' if share > STEP_RUNNING_FRACTION else 'stopped'} "
-                                 f"(pin high in {share:.0%} of samples); reported, not judged")
+            stopped = not pulsing()
+            self.log.write("rc", f"(c) hard fault: pulses {'stopped' if stopped else 'RUNNING'}")
+            if not stopped:
+                self.fail("(c) the step pulses ran on after a hard fault")
 
         self.flash(normal_elf)
 

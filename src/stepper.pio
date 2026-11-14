@@ -1,24 +1,46 @@
-; 13 cycles at low
+; The step pulses of one motor (ADR-012, step 2).
+;
+; The firmware feeds segments of three words: the steps to make less one, the count that sets the time STEP is high,
+; the count that sets the time it is low. The state machine makes that many steps and comes back for the next
+; segment. With nothing to pull it waits with STEP low: a firmware that stops feeding is a motor that stops. No step
+; is made that was not fed.
+;
+; One step, in cycles of the system clock:
+;   STEP high   high + 2    (the mov, then the loop high + 1 times)
+;   STEP low    low + 3     (the mov, the loop low + 1 times, the jump that counts the step)
+;   period      high + low + 5
+; Between two segments STEP is low 5 cycles longer (three pulls, two movs).
+; The firmware makes the two halves equal, so a running motor's STEP pin is high half the time: a probe, a meter or
+; a scope sees it turn. The TMC2209 wants 100 ns each of high and low: 15 cycles at 150 MHz.
+
 .program stepper
 .side_set 1 opt
-init:
-    pull noblock   side 0 ; Read new period from TX FIFO, if no new value then copy from X (previous period)
-                          ; Also set the STEP pin to low
-    mov x, osr            ; Copy the value back from the OSR to X
-    jmp !x init           ; If no X is provided then wrap back to the beginning
 
-    ; Delay (4 + 1 + 4 + 1) cycles (10x8ns=80ns)
-    nop [4]
-    nop [4]
-
-    ; At this point we have dwelled 13 cycles (13*8=104 ns), fufilled typ dwell time at low
-    mov y, x       side 1 ; 
-
-hold_high:                ; Wait for the counter
-    jmp y-- hold_high     ; Hold high while looping
+.wrap_target
+    pull block          side 0      ; steps less one; waits here, STEP low, when not fed
+    mov y, osr
+    pull block                      ; the high time's count, kept in the ISR
+    mov isr, osr
+    pull block                      ; the low time's count, kept in the OSR
+step:
+    mov x, isr          side 1      ; STEP high
+high:
+    jmp x-- high
+    mov x, osr          side 0      ; STEP low
+low:
+    jmp x-- low
+    jmp y-- step
+.wrap
 
 
 % c-sdk {
+// Cycles a step takes beyond its two counts: 2 of them high, 3 low. And the least each count may be, for a high and
+// a low of 16 cycles and more
+#define STEPPER_HIGH_OVERHEAD_CYCLES 2
+#define STEPPER_LOW_OVERHEAD_CYCLES 3
+#define STEPPER_MIN_COUNT 14
+#define STEPPER_SEGMENT_WORDS 3
+
 static inline void stepper_program_init(PIO pio, uint sm, uint offset, uint pin) {
    pio_gpio_init(pio, pin);
 
@@ -28,6 +50,37 @@ static inline void stepper_program_init(PIO pio, uint sm, uint offset, uint pin)
 
    // Use side_step control to save few state machine cycles
    sm_config_set_sideset_pins(&c, pin);
+
+   // Only the TX FIFO is used: joined, it holds a segment waiting with room to spare
+   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
    pio_sm_init(pio, sm, offset, &c);
+}
+%}
+
+
+; The steps made, counted on the STEP pin itself by a second state machine, so the count does not rest on the code
+; that makes the steps. X goes down by one at each falling edge; the firmware reads it by having the state machine
+; push it (step_pulses.c).
+
+.program step_counter
+
+.wrap_target
+next_step:
+    wait 1 pin 0
+    wait 0 pin 0
+    jmp x-- next_step               ; one less whether it jumps or wraps: both lead to the top
+.wrap
+
+
+% c-sdk {
+static inline void step_counter_program_init(PIO pio, uint sm, uint offset, uint pin) {
+   pio_sm_config c = step_counter_program_get_default_config(offset);
+
+   // The pin is the stepper's output: read here, not driven
+   sm_config_set_in_pins(&c, pin);
+   pio_sm_init(pio, sm, offset, &c);
+
+   // X starts at zero, so the steps made are its negative
+   pio_sm_exec(pio, sm, pio_encode_set(pio_x, 0));
 }
 %}

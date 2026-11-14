@@ -35,7 +35,9 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | `menu.c`, `mui_menu.c` | The menu task and the menu's forms |
 | `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each takes the screen from the menu and draws for itself |
 | `scale.c`, `*_scale.c`, `and_scale_calibrate.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
-| `motors.c`, `stepper.pio` | The two steppers: speeds, ramps, the stored settings, step pulses by PIO |
+| `motors.c` | The two steppers: speeds, ramps, the stored settings, and the task that feeds the step pulses every millisecond |
+| `step_pulses.c`, `stepper.pio` | The step pulses by PIO (ADR-012): the PIO makes only the steps it is fed, so a firmware that stops feeding is a motor that stops; a second state machine counts the steps on the pin |
+| `fault_handler.c` | A hard fault stops the motors before the core halts |
 | `tmc_uart.c`, `tmc2209.c` | The stepper drivers, our own on Klipper's model (ADR-012): the one-wire frames with every write checked, and the TMC2209's registers as a table. No pins and no RTOS in them |
 | `servo_gate.c`, `neopixel_led.c`, `ws2812.pio` | The servo gate and the LEDs |
 | `profile.c` | The powder profiles |
@@ -78,13 +80,13 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - `snap`: the screen as a PNG under `logs/rc/snaps/`, as a person at the unit sees it;
   - `menu_tour [--save <folder>] [--compare <folder>]`: every menu form in turn, pressing nothing. The Pico W's baseline is `tests/menu_baseline/pico_w/`, the Pico 2 W's `tests/menu_baseline/pico2_w/`; compare against the unit's own to see what a change did to the menu. They differ in six forms, by the settings the two units store.
   - `charge_cycle [--target 30]`: a charge from zero to cup return and the start of the next one, with main's simulated scale switched on for the run (`sim on`), never stored;
-  - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault (they stop on the first two and run on after a hard fault);
+  - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault. All three are judged. It needs the two test images, built with `-DRC_TEST_FAULT=1` and `=2` into `build_w_fault1` and `build_w_fault2` (`build_2w_fault1` and `2` for the Pico 2 W, given with `--assert-elf` and `--hardfault-elf`);
   - `settings --host <address> [--save <folder>] [--compare <folder>]`: the stored settings copied over the web API (GET, no parameters) and compared with an earlier copy. Take one before every flash of another version;
   - `soak <seconds> --host <address>`: charges back to back with the simulated scale while two browsers use the web pages (the mirror, the charge page's polling, the portal reloaded, the settings read). It fails on a failed charge, on memory that is not given back, and on web reads missed past `--max-miss-share` and `--max-miss-run`. It is not part of every proof: whether a change needs one, how long, and against what limits is decided for that change, for the area it touches. Its web figures compare only when nothing else uses the unit's web pages: a browser left open on the unit tripled the timeouts of ADR-011's step-3 soak.
   - `scale_frames [--idle s] [--handovers n] [--reboots n] [--motors s]`: the scale's frames through the tap, summed up by phase: how many read as a number, the texts of those that did not, the time between frames (ADR-013);
   - `charge_fault <bad|quiet|cleanup|none> --host <address> --expect seen|not-seen`: a simulated charge with one fault put in at a weight, `state` read every 50 ms, and the charge's own `Charge: ...` lines checked with `--want` and `--want-none` (ADR-013).
 - Console commands to drive the menu: `press <cw|ccw|enc|rst> [n]`, `form` and `form <id>`.
-- Console commands for the motors and charging: `motor <coarse|fine> <rev/s>`, `sim on|off`, `charge <gr>`, `charge stop`.
+- Console commands for the motors and charging: `motor <coarse|fine> <rev/s>`, `motor` alone (the steps counted on each STEP pin, the steps fed, the feeds that came late, with the unit's clock: two replies give a speed), `sim on|off`, `charge <gr>`, `charge stop`.
 - Console commands for the motor drivers (ADR-012): `tmc <coarse|fine>` (the driver's registers by field as `@tmc` lines, then its serial line's counts), `tmc <coarse|fine> setup <n>` (set up n times from the stored settings), and, never stored, `tmc <coarse|fine> lose` and `find` (the driver made to look absent, and found again).
 - Console commands for the scale, never stored (ADR-013): `scale tap on|off` (the A&D driver's frames as `@sf` lines), `sim bad` (the simulated scale's next reading does not parse), `sim quiet <ms>` (it sends nothing for that long), `sim rate <per second>`. `stats` counts `bad_frames`.
 - It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).

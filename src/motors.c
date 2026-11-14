@@ -12,16 +12,19 @@
 #include "hardware/uart.h"
 #include "configuration.h"
 #include "hardware/gpio.h"
-#include "hardware/pio.h"
-#include "hardware/clocks.h"
-#include "stepper.pio.h"
+#include "step_pulses.h"
 
 #include "motors.h"
 #include "eeprom.h"
 #include "common.h"
 
-#define STEPPER_LOW_CYCLE_COUNT 13  // Defined as the implementation of stepper.pio
-#define MAX_RESPONSE_TIME   0.01f   // Maximum response time for PIO stepper
+// The task that feeds the step pulses, every tick. Above every task that sets a speed: the pulses of a
+// motor that should turn must not wait for them
+#define MOTOR_STEP_FEED_PRIORITY 10
+
+// A direction is changed with the motor still: this long after the speed is set to zero, so the pulses
+// have stopped
+#define MOTOR_DIR_CHANGE_DELAY_MS 3
 
 // The drivers' serial line: how long a byte may take to come, the driver's answer delay included
 #define MOTOR_UART_BYTE_TIMEOUT_US 2000
@@ -160,30 +163,6 @@ static tmc2209_t * motor_get_driver(motor_select_t selected_motor) {
 }
 
 
-uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_rotation_steps) {
-    // speed: rev/s
-    float step_speed = full_rotation_steps * speed;    // in steps/s
-
-    uint32_t full_cycle_count = lroundf(pio_clock_speed / step_speed);
-
-    // Limit by maximum response time
-    uint32_t max_response_steps = pio_clock_speed * MAX_RESPONSE_TIME;
-    if (full_cycle_count > max_response_steps){ 
-        full_cycle_count = 0;
-    }
-
-    // Avoid wrap around
-    if (full_cycle_count < STEPPER_LOW_CYCLE_COUNT) {
-        full_cycle_count = STEPPER_LOW_CYCLE_COUNT;
-    }
-
-    // High cycle should be calculated as full_cycle - low cycle.
-    uint32_t high_cycle_steps = full_cycle_count - STEPPER_LOW_CYCLE_COUNT;
-
-    return high_cycle_steps;
-}
-
-
 // Write a driver its registers from the stored settings. False if it does not answer or does not take them
 static bool driver_setup(motor_config_t * motor_config) {
     tmc2209_t * driver = (tmc2209_t *) motor_config->tmc_driver;
@@ -229,54 +208,6 @@ bool driver_io_init(motor_config_t * motor_config) {
 
     return true;
 }
-
-bool driver_pio_init(motor_config_t * motor_config) {
-    // Allocate PIO to the stepper
-    PIO pio = MOTOR_PIO;  // Always use specified PIO to ensure the resource is claimed
-    int sm;
-    int offset;
-
-    // Claim an unused state machine
-    sm = pio_claim_unused_sm(pio, true);
-    if (sm < 0) {
-        printf("Unable to claim state machine, err: %d\n", sm);
-        return false;
-    }
-
-    // Load program to the state machine
-    offset = pio_add_program(pio, &stepper_program);
-    if (offset < 0) {
-        printf("Unable to add program, err: %d\n", offset);
-        return false;
-    }
-
-    // is_ok = pio_claim_free_sm_and_add_program_for_gpio_range(
-    //     &stepper_program, 
-    //     &pio, 
-    //     &sm, 
-    //     &offset, 
-    //     motor_config->step_pin, 
-    //     1, 
-    //     true
-    // );
-    // 
-    // if (!is_ok) {
-    //     printf("Unable to claim PIO for stepper motor\n");
-    //     return false;
-    // }
-
-    stepper_program_init(pio, sm, offset, motor_config->step_pin);
-
-    // Start stepper state machine
-    pio_sm_set_enabled(pio, sm, true);
-
-    // Record the PIO configuration
-    motor_config->pio_config.pio = pio;
-    motor_config->pio_config.sm = sm;
-
-    return true;
-}
-
 
 bool motor_config_init(void) {
     bool is_ok = true;
@@ -343,7 +274,7 @@ bool motor_config_save() {
 }
 
 
-void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed, uint32_t pio_speed) {
+void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed) {
     // Calculate ramp param
     float dv = new_speed - prev_speed;
     float ramp_time_s = fabs(dv / motor_config->persistent_config.angular_acceleration);
@@ -355,7 +286,6 @@ void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed
     uint32_t stop_time = start_time + ramp_time_us;
 
     float current_speed;
-    uint32_t current_period;
     while (true) {
         uint32_t current_time = time_us_32();
         if (current_time > stop_time) {
@@ -365,14 +295,10 @@ void speed_ramp(motor_config_t * motor_config, float prev_speed, float new_speed
         float percentage = (current_time - start_time) / (float) ramp_time_us;
 
         current_speed = prev_speed + dv * percentage;
-        current_period = speed_to_period(current_speed, pio_speed, full_rotation_steps);
-        pio_sm_clear_fifos(motor_config->pio_config.pio, motor_config->pio_config.sm);
-        pio_sm_put(motor_config->pio_config.pio, motor_config->pio_config.sm, current_period);
+        step_pulses_set_rate(motor_config->pulse_channel, current_speed * full_rotation_steps);
     }
 
-    current_period = speed_to_period(new_speed, pio_speed, full_rotation_steps);
-    pio_sm_clear_fifos(motor_config->pio_config.pio, motor_config->pio_config.sm);
-    pio_sm_put_blocking(motor_config->pio_config.pio, motor_config->pio_config.sm, current_period);
+    step_pulses_set_rate(motor_config->pulse_channel, new_speed * full_rotation_steps);
 }
 
 
@@ -386,23 +312,20 @@ void stepper_speed_control_task(void * p) {
         // Calculate the speed of the motor
         new_velocity /= ((motor_config_t *) p)->persistent_config.gear_ratio;
 
-        // Get latest PIO speed, in case of the change of system clock
-        uint32_t pio_speed = clock_get_hz(clk_sys);
-
         // Determine if both have same direction (no need to change DIR pin state)
         if ((new_velocity >= 0) == (((motor_config_t *) p)->prev_velocity >= 0)) {
             // Same direction means only speed change
             speed_ramp(((motor_config_t *) p), 
                        fabs(((motor_config_t *) p)->prev_velocity), 
-                       fabs(new_velocity), 
-                       pio_speed);
+                       fabs(new_velocity));
         }
         else {
             // Different direction, then ramp down to 0, change direction then ramp up
             speed_ramp(((motor_config_t *) p), 
                        fabs(((motor_config_t *) p)->prev_velocity),
-                       0.0f,
-                       pio_speed);
+                       0.0f);
+            // The pulses stop at the next feed: the direction changes on a motor that is still
+            vTaskDelay(pdMS_TO_TICKS(MOTOR_DIR_CHANGE_DELAY_MS));
             ((motor_config_t *) p)->step_direction = !((motor_config_t *) p)->step_direction;
 
             // Toggle the direction
@@ -411,14 +334,27 @@ void stepper_speed_control_task(void * p) {
             // Ramp to the new speed
             speed_ramp(((motor_config_t *) p), 
                        0.0f,
-                       fabs(new_velocity),
-                       pio_speed);
+                       fabs(new_velocity));
         }
 
         // Update speed
         ((motor_config_t *) p)->prev_velocity = new_velocity;
     }
 }   
+
+
+/*
+    Feeds the step pulses, every tick. The PIO makes only the steps it is fed (ADR-012): if this task stops,
+    whatever stopped it, the motors stop within a few milliseconds.
+*/
+static void motor_step_feed_task(void * p) {
+    TickType_t last_wake_tick = xTaskGetTickCount();
+
+    while (true) {
+        step_pulses_feed();
+        vTaskDelayUntil(&last_wake_tick, 1);
+    }
+}
 
 
 void motor_set_speed(motor_select_t selected_motor, float new_velocity) {
@@ -530,12 +466,14 @@ void motors_init(void) {
     coarse_trickler_motor_config.step_pin = COARSE_MOTOR_STEP_PIN;
     coarse_trickler_motor_config.uart_addr = COARSE_MOTOR_ADDR;
     coarse_trickler_motor_config.tmc_driver = &coarse_trickler_driver;
+    coarse_trickler_motor_config.pulse_channel = 0;
 
     fine_trickler_motor_config.dir_pin = FINE_MOTOR_DIR_PIN;
     fine_trickler_motor_config.en_pin = FINE_MOTOR_EN_PIN;
     fine_trickler_motor_config.step_pin = FINE_MOTOR_STEP_PIN;
     fine_trickler_motor_config.uart_addr = FINE_MOTOR_ADDR;
     fine_trickler_motor_config.tmc_driver = &fine_trickler_driver;
+    fine_trickler_motor_config.pulse_channel = 1;
 
     // TMC driver doesn't care about the baud rate the host is using
     uart_init(MOTOR_UART, 250000);
@@ -554,7 +492,8 @@ void motors_init(void) {
     driver_io_init(&coarse_trickler_motor_config);
     driver_io_init(&fine_trickler_motor_config);
 
-    if (!driver_pio_init(&coarse_trickler_motor_config) || !driver_pio_init(&fine_trickler_motor_config)) {
+    if (!step_pulses_init(coarse_trickler_motor_config.pulse_channel, coarse_trickler_motor_config.step_pin) ||
+        !step_pulses_init(fine_trickler_motor_config.pulse_channel, fine_trickler_motor_config.step_pin)) {
         printf("Unable to set up the motors' step pulses\n");
     }
 
@@ -566,6 +505,8 @@ void motors_init(void) {
     // Initialize motor related RTOS control
     coarse_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
     fine_trickler_motor_config.stepper_speed_control_queue = xQueueCreate(2, sizeof(stepper_speed_control_t));
+
+    xTaskCreate(motor_step_feed_task, "Step Feed", configMINIMAL_STACK_SIZE, NULL, MOTOR_STEP_FEED_PRIORITY, NULL);
 
     // Create one task for each stepper controller
     xTaskCreate(stepper_speed_control_task,
@@ -581,6 +522,28 @@ void motors_init(void) {
                 (void *) &fine_trickler_motor_config,
                 8,
                 &fine_trickler_motor_config.stepper_speed_control_task_handler);
+}
+
+
+void motors_fault_stop(void) {
+    // Register writes only: the pulses off, then the drivers
+    step_pulses_fault_stop();
+    gpio_put(coarse_trickler_motor_config.en_pin, coarse_trickler_motor_config.persistent_config.inverted_enable ? false : true);
+    gpio_put(fine_trickler_motor_config.en_pin, fine_trickler_motor_config.persistent_config.inverted_enable ? false : true);
+}
+
+
+void motor_get_step_stats(motor_select_t selected_motor, step_pulses_stats_t * stats) {
+    motor_config_t * motor_config = selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
+                                                                                 : &coarse_trickler_motor_config;
+    step_pulses_get_stats(motor_config->pulse_channel, stats);
+}
+
+
+float motor_get_step_rate(motor_select_t selected_motor) {
+    motor_config_t * motor_config = selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
+                                                                                 : &coarse_trickler_motor_config;
+    return step_pulses_get_rate(motor_config->pulse_channel);
 }
 
 

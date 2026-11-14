@@ -339,9 +339,28 @@ static bool remote_control_scale(const char *args, char *reply, size_t reply_siz
 }
 
 
-// `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver
+// `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver.
+// `motor`: the steps made so far
 static bool remote_control_motor(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
+    // Alone: the steps counted on each STEP pin, those fed to the PIO, the feeds that came late, and the rate the
+    // pulses were last fed at, with the unit's clock so that two replies give a speed (ADR-012)
+    if (*args == '\0') {
+        step_pulses_stats_t coarse;
+        step_pulses_stats_t fine;
+        motor_get_step_stats(SELECT_COARSE_TRICKLER_MOTOR, &coarse);
+        motor_get_step_stats(SELECT_FINE_TRICKLER_MOTOR, &fine);
+        snprintf(reply, reply_size,
+                 "@ok motor t_us=%llu counted=%d coarse_made=%lu coarse_fed=%lu coarse_underruns=%lu coarse_rate=%.2f "
+                 "fine_made=%lu fine_fed=%lu fine_underruns=%lu fine_rate=%.2f",
+                 (unsigned long long) time_us_64(), (coarse.counted_on_pin && fine.counted_on_pin) ? 1 : 0,
+                 (unsigned long) coarse.steps_made, (unsigned long) coarse.steps_fed, (unsigned long) coarse.underruns,
+                 motor_get_step_rate(SELECT_COARSE_TRICKLER_MOTOR),
+                 (unsigned long) fine.steps_made, (unsigned long) fine.steps_fed, (unsigned long) fine.underruns,
+                 motor_get_step_rate(SELECT_FINE_TRICKLER_MOTOR));
+        return true;
+    }
+
     size_t name_len = strcspn(args, " ");
     motor_select_t selected_motor;
     if (name_len == 6 && strncmp(args, "coarse", 6) == 0) {
@@ -351,7 +370,7 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
         selected_motor = SELECT_FINE_TRICKLER_MOTOR;
     }
     else {
-        snprintf(reply, reply_size, "@err usage: motor <coarse|fine> <rev/s>");
+        snprintf(reply, reply_size, "@err usage: motor | motor <coarse|fine> <rev/s>");
         return false;
     }
 

@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "http_rest.h"
+#include "step_pulses.h"
 
 #define EEPROM_MOTOR_DATA_REV                     5              // 16 byte 
 
@@ -70,7 +71,7 @@ typedef struct {
 
     // Set at run time
     void * tmc_driver;
-    pio_config_t pio_config;
+    uint8_t pulse_channel;      // Its channel of step_pulses
 
     // Used to store some live data
     float prev_velocity;
@@ -103,6 +104,13 @@ const char * motors_get_fault(void);
 bool motor_driver_setup(motor_select_t selected_motor);
 bool motor_driver_dump(motor_select_t selected_motor, motor_driver_line_fn emit, void * ctx);
 void motor_driver_get_stats(motor_select_t selected_motor, motor_driver_stats_t * stats);
+
+// The steps made and fed, and the rate the pulses were last fed at, in steps a second
+void motor_get_step_stats(motor_select_t selected_motor, step_pulses_stats_t * stats);
+float motor_get_step_rate(motor_select_t selected_motor);
+
+// For a fault handler: the pulses and the drivers off, by register writes alone
+void motors_fault_stop(void);
 
 // For proofs, never stored: a driver made to look absent (asked at an address nobody has), and found again
 void motor_driver_set_lost(motor_select_t selected_motor, bool lost);
