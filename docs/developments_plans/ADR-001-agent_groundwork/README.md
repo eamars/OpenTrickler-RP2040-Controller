@@ -76,7 +76,7 @@ This section was first written against a `main` that was 11 commits behind the r
 - **The unit's firmware** is 1.19.7-dirty, commit 3940423, a Debug build. That is older than v1.20 and than this branch.
 - **The unit's settings:** scale driver A&D FX-i (0) at 19,200 baud; profile 1 (`AR2209,gr`) selected; coarse stop threshold 3.0, where the default is 5. A copy of every setting the web API gives (Wi-Fi left out) is in `logs/unit_backup/` on this PC.
 - **Flashing this branch resets the unit's charge-mode settings for good.** PR #108 added three fields to the stored charge-mode struct. `load_config()` (`common.c:155-173`) checks a CRC over the struct's new size, which fails, so it uses the defaults and writes them to the EEPROM at once. Going back to 1.19.7 would do the same again. The coarse stop threshold goes back to 5, and the coarse back-off is on.
-- **On main, the web page cannot save the charge-mode settings.** The form sends 17 parameters and lwIP takes 16, so "save to EEPROM" is dropped (PR #108). Since PR #112 the query is also cut at 127 characters, which loses the last fields. So after a flash the settings are set back from the unit's menu, not from the web page. (Audit H1 and H2, checked by a second reading 2026-11-14.)
+- **On main, the web page cannot save the charge-mode settings.** The form sends 17 parameters and lwIP takes 16, so "save to EEPROM" is dropped (PR #108). Since PR #112 the query is also cut at 127 characters, which loses the last fields. The unit's menu has no charge-mode settings. So after a flash they are set back by one short request that sends only the changed fields and `ee=true`, which stays within both limits. *(Corrected 2026-11-14: this said "from the unit's menu", which was not checked.)* (Audit H1 and H2, checked by a second reading 2026-11-14.)
 - **The step pulses and a halted core.** The step pulses come from PIO, which runs on whether or not the processor is halted. Whether resetting the chip through the probe stops them is not known; the RP2040 has more than one kind of reset. It is measured in step 5, once a command can turn a motor.
 - **In the SDK, `_exit()` calls `reset_usb_boot()`** when `PICO_ENTER_USB_BOOT_ON_EXIT` is set (`pico_clib_interface/newlib_interface.c`). A failed `assert()` ends there.
 
@@ -220,7 +220,7 @@ Done when: `charge_cycle` passes five times in a row on the Pico W, with the mot
 
 ### Step 6: the owner's check, and closing
 
-- The unit's settings are set back from `logs/unit_backup/`, from the unit's menu, where this branch reset them (F6). Then the owner makes one real throw with the real scale and powder, to see that nothing changed.
+- The unit's settings are set back where this branch reset them (F6): compared with `logs/unit_backup/`, only the charge-mode settings differ. They are set by one request to `/rest/charge_mode_config` with only the changed fields and `ee=true`. Then the owner makes one real throw with the real scale and powder, to see that nothing changed.
 - `AGENTS.md` gets what was learned on the bench.
 - The ADR is closed (Built, here, in `progress.md` and in the registry) in its branch before its PR is opened.
 

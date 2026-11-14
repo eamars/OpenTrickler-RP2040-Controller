@@ -287,3 +287,8 @@ Built 2026-11-14 on the bench's Pico W, with main's simulated scale (F2, the own
 ## Step 6
 
 Not started: the owner's check by hand (left from step 3), the settings set back (F6), and one real throw.
+
+**The settings, compared 2026-11-14** (read-only, against `logs/unit_backup/`):
+- Only the charge-mode settings differ. The coarse stop threshold is 5 (it was 3), and the coarse back-off, new in PR #108, is on (`c14`, `c15`, `c16`). Every other module's settings are as they were.
+- **The comparison itself changed the selected profile, in RAM.** Reading `profile_config?pf=N` selects profile N (audit P2, now seen on the unit), so the reads left profile 3 selected. Nothing was saved, and one more read of profile 1 put it back; `state` shows `AR2209,gr`. The backup on 2026-11-14 did the same on 1.19.7 until the flash restarted the unit.
+- **The menu has no charge-mode settings,** so they are set back by one short web request (`c5`, `c14`, `ee=true`), which stays within lwIP's limits (audit H1, H2).
