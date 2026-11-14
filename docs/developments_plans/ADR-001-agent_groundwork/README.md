@@ -1,12 +1,12 @@
 # ADR-001: groundwork, so an agent can build, flash, drive and check a unit
 
-Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. Left: steps 3 to 6, which need the owner's word that the bench is ready. **Step 5 and decision 2 are open again** ("What building found", F2): main already has a simulated scale.
+Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. The bench was declared ready 2026-11-14. **Revised 2026-11-14 for the bench as it was built (F5), and waiting for the owner's approval of the revision:** the unit is a Pico W reached by a debug probe only, so steps 3 to 5 use the probe where they used the unit's USB port. Decisions 1, 3, 4 and 7 are changed and decision 8 is new. **Step 5 and decision 2 wait for the owner's word on F2:** main already has a simulated scale.
 
 ## What we want
 
 An agent takes a change from source to a verdict on a real unit with no hands: build it, flash it, drive it, read it back, PASS or FAIL. Every later ADR is proven with what this one builds.
 
-Nothing a user sees changes, except that the unit's USB port now shows a serial console.
+Nothing a user sees changes. *(Revised: the console was to show on the unit's USB port; it now runs through the debug probe, which a user does not have.)*
 
 ## Why here
 
@@ -21,6 +21,11 @@ First. Today an agent cannot build on this PC, cannot read a log, and has no way
 - USB always recovers a unit.
 - The USB serial debug feature of the Open Weapon Mount Computer firmware may be asked for here. This ADR builds it.
 
+**The bench as built (2026-11-14):**
+- A Pico W (RP2040), not a Pico 2 W, with a real scale (A&D FX-300i). Its USB port is not connected. A debug probe is connected to its SWD port, and nothing else of the probe is wired.
+- The unit is on the owner's Wi-Fi.
+- "Hopper is empty, and the unit is fully set up." The owner said the bench is ready, SWD sessions and turning motors included.
+
 ## What we know (checked 2026-11-13)
 
 This section was first written against a `main` that was 11 commits behind the remote's (F1 below). It is corrected to today's main; the corrected lines say so.
@@ -33,7 +38,7 @@ This section was first written against a `main` that was 11 commits behind the r
 
 **The console**
 - `stdio_init_all()` is commented out in `app.c`, and no `pico_enable_stdio_*` line is in the build. 109 `printf` calls print nowhere.
-- The SDK's default console is UART0 on GP0 and GP1, which is the scale's port. So the console must be USB, with the UART console off.
+- The SDK's default console is UART0 on GP0 and GP1, which is the scale's port. So the console must be USB, with the UART console off. *(Revised 2026-11-14: or RTT through a probe, which the bench has; see "The bench" below.)*
 - The SDK's USB console restarts the chip into the USB loader when its port is opened at 1200 baud (`PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE`). `reset_usb_boot()` does the same from code.
 - The USB loader is in the chip's ROM. Its drive carries `INFO_UF2.TXT`, which names the board, and a `.uf2` copied to it is flashed and started.
 
@@ -63,6 +68,18 @@ This section was first written against a `main` that was 11 commits behind the r
   - three seconds after reaching the target it "removes the cup" by itself (−150 gr), and three seconds later puts it back (0), so charge mode runs cycle after cycle with nobody there;
   - like every driver, its task is started only if it is the stored driver at start-up.
 
+**The bench** (checked 2026-11-14: the code, this PC's devices, and the unit's web API, read only)
+- **The probe** shows on this PC as USB 2E8A:000C, "CMSIS-DAP v2", which is Raspberry Pi's debugprobe firmware. Its serial port (COM3) is there, but nothing is wired to it.
+- **No pin is free for a console.** The board uses all 26 of the Pico W's header pins (GP0 to 22, GP26 to 28; `targets/raspberrypi_pico_w_config.h`). The one the firmware does not set up, GP16 (the display's SPI input), can only be UART0's TX, and UART0 is the scale's.
+- **The SDK has a console that needs no pin.** SDK 2.1.1 has `pico_stdio_rtt`: SEGGER's RTT, a pair of buffers in RAM that the probe reads and writes while the chip runs. It takes input as well as output. Its buffers are 1 KB out and 16 bytes in unless set otherwise. With no probe reading, output that does not fit is dropped and nothing waits.
+- **This PC has no openocd.** Raspberry Pi's build for Windows, `openocd-0.12.0+dev-x64-win.zip` (8.3 MB), is in the `raspberrypi/pico-sdk-tools` release `v2.1.1-3` that decision 4 already fetches from. The repository's `openocd_start.bat` and `program.bat` already name the RP2040 and a CMSIS-DAP probe.
+- **The unit's firmware** is 1.19.7-dirty, commit 3940423, a Debug build. That is older than v1.20 and than this branch.
+- **The unit's settings:** scale driver A&D FX-i (0) at 19,200 baud; profile 1 (`AR2209,gr`) selected; coarse stop threshold 3.0, where the default is 5. A copy of every setting the web API gives (Wi-Fi left out) is in `logs/unit_backup/` on this PC.
+- **Flashing this branch resets the unit's charge-mode settings for good.** PR #108 added three fields to the stored charge-mode struct. `load_config()` (`common.c:155-173`) checks a CRC over the struct's new size, which fails, so it uses the defaults and writes them to the EEPROM at once. Going back to 1.19.7 would do the same again. The coarse stop threshold goes back to 5, and the coarse back-off is on.
+- **On main, the web page cannot save the charge-mode settings.** The form sends 17 parameters and lwIP takes 16, so "save to EEPROM" is dropped (PR #108). Since PR #112 the query is also cut at 127 characters, which loses the last fields. So after a flash the settings are set back from the unit's menu, not from the web page. (Audit H1 and H2, checked by a second reading 2026-11-14.)
+- **The step pulses and a halted core.** The step pulses come from PIO, which runs on whether or not the processor is halted. Whether resetting the chip through the probe stops them is not known; the RP2040 has more than one kind of reset. It is measured in step 5, once a command can turn a motor.
+- **In the SDK, `_exit()` calls `reset_usb_boot()`** when `PICO_ENTER_USB_BOOT_ON_EXIT` is set (`pico_clib_interface/newlib_interface.c`). A failed `assert()` ends there.
+
 **The reference** (Open Weapon Mount Computer, `main/tools/`, `tools/remote_control/`)
 - Two layers: `remote_control` executes one command line and writes one reply line, and knows no transport; `rc_serial` is a task that reads lines from the console.
 - A reply is one line, `@ok <command> ...` or `@err <reason>`. Lines a command sends before its reply also start with `@` (a snap is `@snap <w> <h> <format>`, then `@sd <base64>` lines). Everything else on the console is log.
@@ -72,17 +89,19 @@ This section was first written against a `main` that was 11 commits behind the r
 
 Approving the ADR approves these.
 
-1. **The console is always on over USB, with no setting.** It needs a cable in the unit, and a setting would add a stored field, a menu entry and a web field for nothing.
+1. **The console is always on, over RTT through the debug probe, with no setting.** *(Revised 2026-11-14; it was USB. The bench's unit has no USB cable, and no pin is free for a serial port.)* It needs a probe on the unit, so a user never sees it, and a setting would add a stored field, a menu entry and a web field for nothing. The USB console is not built: nothing here could prove it. It comes with a bench that has a USB cable.
 2. **The simulated scale can be switched on only from the console, is never stored, and is gone after a restart.** Nobody at the unit can end up trickling real powder against a made-up weight. While it is on, the scale's name reads `SIMULATED` wherever the unit shows it. *(Open again: F2. Main's simulated scale is in the menu and is stored.)*
-3. **Flashing is by copying a `.uf2` to the USB loader's drive.** It needs no driver and no extra tool, and it is the same path a user has, so it is also the recovery path.
+3. **Flashing is through the debug probe, with openocd.** *(Revised 2026-11-14; it was by copying a `.uf2` to the USB loader's drive.)* The probe writes the flash whatever the firmware is doing, so it is also the recovery path, and it covers a hard fault, which the USB path did not. A user still flashes by `.uf2`; nothing changes for them.
 4. **These files are downloaded to this PC**, into `%USERPROFILE%\.pico-sdk`, in the layout the VS Code extension makes, so `configure_env.ps1` stays as it is:
    - Arm GNU toolchain 14.2.Rel1 for `arm-none-eabi`, Windows x64 zip, from Arm's download page;
    - `cmake-3.31.5-windows-x86_64.zip` from Kitware's CMake releases on GitHub;
    - `ninja-win.zip`, v1.12.1, from ninja-build's releases on GitHub;
-   - `picotool-2.1.1-x64-win.zip` and `pico-sdk-tools-2.1.1-x64-win.zip` from `raspberrypi/pico-sdk-tools`, release `v2.1.1-3`.
+   - `picotool-2.1.1-x64-win.zip` and `pico-sdk-tools-2.1.1-x64-win.zip` from `raspberrypi/pico-sdk-tools`, release `v2.1.1-3`;
+   - *(added 2026-11-14)* `openocd-0.12.0+dev-x64-win.zip` (8.3 MB) from the same release, into `openocd\0.12.0+dev`. `setup_toolchain.ps1` fetches it like the others.
 5. **The menu's baseline snaps are tracked** in `tests/menu_baseline/<board>/`, so a later ADR can compare against them. Session logs are not tracked.
 6. **Hopper empty.** An agent's run assumes there is no powder in the trickler. The owner says when there is.
-7. **A failed `assert()` enters the USB loader** (`PICO_ENTER_USB_BOOT_ON_EXIT`). Today it stops at a breakpoint. Either way the unit is dead until its power is cycled. This way an agent can flash it back with no hands, and the step pulses stop. A hard fault is not covered and still needs the BOOTSEL button.
+7. **A failed `assert()` enters the USB loader** (`PICO_ENTER_USB_BOOT_ON_EXIT`). Today it stops at a breakpoint. Either way the unit is dead until its power is cycled. This way the step pulses should stop, because entering the loader resets the chip's peripherals; step 5 measures it. *(Revised 2026-11-14: the recovery is now the probe, which flashes a unit in the loader as well as one stopped by a hard fault.)*
+8. **The bench's unit is the Pico W** *(new 2026-11-14)*. Steps 3 to 5 are proven on it, and the menu's baseline is `tests/menu_baseline/pico_w/`. The Pico 2 W's runs and baseline come when one is on a bench.
 
 ## What building found
 
@@ -92,6 +111,8 @@ Approving the ADR approves these.
 | F2 | Step 5 plans a simulated scale, and main already has one | F1 | **For the owner to decide.** Proposal below |
 | F3 | `tools/setup_toolchain.ps1` sat apart from main's `setup_toolchain.sh` | F1 | Moved to the root, beside `configure_env.ps1` and the macOS script |
 | F4 | CI failed on main for every PR | `ubuntu-latest` became Ubuntu 26.04, whose compiler cannot build SDK 2.1.1's `pioasm` | The runner pinned to `ubuntu-24.04` (PR #114, merged). The pin's exit is ADR-011 |
+| F5 | The bench differs from the plan: a Pico W with no USB cable, reached by a debug probe on SWD | The plan was written before the bench was built | Steps 3 to 5 revised to the probe; decisions 1, 3, 4, 7 changed, 8 added. **Waits for the owner's approval** |
+| F6 | Flashing this branch resets the bench unit's charge-mode settings (its coarse stop threshold of 3 goes back to 5) | The unit runs 1.19.7; PR #108 changed the stored struct | Every setting copied to `logs/unit_backup/` before the first flash. The owner's throw in step 6 is made after setting them back |
 
 **F2, the proposal: use main's simulated scale, and build no second one.**
 - `sim on` chooses it for this run only: the stored driver's task is suspended, the simulated driver's task is started, and the driver is set to Simulated in RAM. `sim off` undoes it. Nothing is saved by the command.
@@ -129,11 +150,12 @@ Done when: both boards build on this PC; the report's total is within 2% of `app
 
 ### Step 3: the console, and flashing with no hands
 
-From here the owner's word that the bench is ready is needed.
+*(Revised 2026-11-14 for the probe, F5.)*
 
-- Build: `pico_enable_stdio_usb(app 1)`, `pico_enable_stdio_uart(app 0)`, `PICO_ENTER_USB_BOOT_ON_EXIT=1`. `stdio_init_all()` is the first call in `main()`.
+- Fetch openocd (decision 4). First contact: openocd reads the chip's id through the probe, with the unit left running.
+- Build: `pico_enable_stdio_rtt(app 1)`, `pico_enable_stdio_uart(app 0)`, `pico_enable_stdio_usb(app 0)`, `PICO_ENTER_USB_BOOT_ON_EXIT=1`. The RTT buffers are set to 2 KB out and 256 bytes in, so a whole command line and a snap's lines fit. `stdio_init_all()` is the first call in `main()`.
 - `src/remote_control.c`, `.h`: `remote_control_execute(line, reply, reply_size, write, ctx)`, as in the reference. No transport in it.
-- `src/rc_serial.c`, `.h`: one task that reads the console a character at a time, gathers a line (128 characters at most), executes it and prints the reply with one `printf`.
+- `src/rc_console.c`, `.h`: one task that reads the console a character at a time, gathers a line (128 characters at most), executes it and prints the reply with one `printf`. It knows nothing of RTT, so a USB console later needs no change here.
 - Commands in this step:
 
 | Command | Reply |
@@ -142,23 +164,23 @@ From here the owner's word that the bench is ready is needed.
 | `state` | `@ok state charge=<0..4> weight=<gr or nan> target=<gr> scale=<driver> ver=<version> vcs=<hash> build=<type> board=<pico_w or pico2_w> id=<unit id> up=<seconds> profile="<name>"` |
 | `stats` | `@ok stats heap_free=<bytes> heap_min=<bytes> stack_min=<task>:<words>` |
 | `reboot` | `@ok reboot`, then the unit restarts |
-| `bootsel` | `@ok bootsel`, then the unit is in the USB loader |
 
 - `tools/remote_control/rc_run.py`:
-  - finds the unit's port by the SDK console's USB id (vendor 2E8A, product 000A on the RP2040 and 0009 on the RP2350), or takes `--port`;
+  - starts openocd for the probe and the RP2040 with its RTT server on a local port, talks to the console through that port, and stops openocd when it ends;
   - `send "<line>"`: one command, its reply, exit 0 for `@ok`;
-  - `flash <pico_w|pico2_w>`: sends `bootsel` (if nothing answers, opens the port at 1200 baud; if the loader's drive is already there, uses it); waits for a drive whose `INFO_UF2.TXT` names the right board; copies the build's `app.uf2`; waits for the console; passes when `state` reports the `ver` and `vcs` in the build's `src/generated/version.c`;
+  - `flash`: openocd writes the build's `app.elf` (`build_w\` for the Pico W), verifies it and resets the chip; the runner waits for the console and passes when `state` reports the `ver` and `vcs` in the build's `src/generated/version.c`;
+  - `reset`: resets the chip through the probe;
   - keeps every session in `logs/rc/<time>_<name>.log`;
-  - counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, and `up=` going backwards without a `reboot` or `flash` asked for;
+  - counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, `up=` going backwards without a `reboot`, `reset` or `flash` asked for, and the processor found halted (it reports where);
   - ends with `VERDICT PASS` or `VERDICT FAIL <reasons>` and exits 0 or 1.
-- The first flash of a unit that has no console yet is by the BOOTSEL button, by the owner.
+- The first flash is through the probe as well. No button is pressed at any point.
 
-Done when, on the Pico 2 W controller:
+Done when, on the Pico W:
 - `flash` passes five times in a row with nobody touching the unit;
-- `flash` passes through the 1200 baud path alone, with the `bootsel` command left out;
 - a test build that asserts ten seconds after start-up puts itself into the USB loader, and `flash` brings the unit back;
+- a test build that makes a hard fault ten seconds after start-up is brought back by `flash`;
 - `state` and `stats` answer, and the log shows the firmware's `printf` lines;
-- with the USB cable out, the unit starts and the owner charges by hand as before;
+- with the probe's USB cable out, the unit starts and the owner charges by hand as before;
 - `progress.md` has what the console costs in flash and RAM, from the size report.
 
 ### Step 4: press, form, snap, and the menu tour
@@ -168,13 +190,14 @@ Done when, on the Pico 2 W controller:
 - `snap` copies the u8g2 buffer and sends `@snap 128 64 u8g2`, four `@sd <base64>` lines, then `@ok snap`. The runner turns it into a PNG under `logs/rc/snaps/`. It snaps twice and keeps the picture only when both are equal, because a single copy can catch a frame half drawn.
 - `scenario menu_tour`: for ids 1 to 99, `form <id>` and, where the form exists, a snap named `form_<id>.png`. It never presses anything, so no setting changes and nothing starts. `--save <folder>` keeps the set; `--compare <folder>` fails on a form that is missing or differs. Forms that show live values (the version, the Wi-Fi address) are listed in the runner and reported, not judged.
 
-Done when: `menu_tour` finds all 22 forms; run twice, the second run compares equal to the first; the set is committed as `tests/menu_baseline/pico2_w/`.
+Done when: `menu_tour` finds all 22 forms; run twice, the second run compares equal to the first; the set is committed as `tests/menu_baseline/pico_w/` *(revised: was `pico2_w`, decision 8)*.
 
 ### Step 5: motors, the simulated scale, and a charge cycle
 
-**As approved. The parts about `src/sim_scale.c` and `sim cup` wait for the owner's word on F2.**
+**As approved. The parts about `src/sim_scale.c` and `sim cup` wait for the owner's word on F2.** With the hopper empty a real scale never reaches a target, so the charge cycle needs a simulated scale either way.
 
 - `motor <coarse|fine> <rev/s>` calls `motor_set_speed()`; 0 stops it. `motors.c` gets `motor_get_velocity()`, which returns the commanded speed.
+- *(Added 2026-11-14.)* **Do the step pulses stop?** With the coarse motor commanded to 1 rev/s: (a) `reset` through the probe; (b) the assert test build from step 3. After each, the runner reads PIO0's control register through the probe and passes when no state machine is running; the owner confirms once by eye that the motor stopped. If (a) leaves them running, `rc_run.py` resets by the watchdog, which resets everything, and that is measured again.
 - `src/sim_scale.c`: the simulated scale.
   - `scale_init()` keeps the handle of the driver task it starts. `sim on` suspends that task and starts the simulated one; `sim off` deletes the simulated one and resumes it. Nothing is stored.
   - Ten readings a second. Each one adds `coarse speed × A + fine speed × B` grains for the time passed, follows that through a short lag, and rounds to 0.02 gr. A, B and the lag are constants in the file, set on the unit so a 30 gr charge with the default profile takes between 10 and 30 s; the values go into `progress.md`. They stand for no real powder.
@@ -189,22 +212,22 @@ Done when: `menu_tour` finds all 22 forms; run twice, the second run compares eq
 
   It passes when the states came in that order and in time, the last weight is no more than the fine stop threshold under the target, both motors are commanded to 0 at the end, and no failure was counted. The time to target and the overshoot are printed, not judged: they belong to the made-up powder.
 
-Done when: `charge_cycle` passes five times in a row on the Pico 2 W controller, with the motors turning; after a `reboot`, `state` shows `sim=0` and the stored scale driver.
+Done when: `charge_cycle` passes five times in a row on the Pico W, with the motors turning; after a `reboot`, `state` shows `sim=0` and the stored scale driver; the step pulses stop on a probe reset and on an assert.
 
 ### Step 6: the owner's check, and closing
 
-- The owner makes one real throw with the real scale and powder, to see that nothing changed.
+- The unit's settings are set back from `logs/unit_backup/`, from the unit's menu, where this branch reset them (F6). Then the owner makes one real throw with the real scale and powder, to see that nothing changed.
 - `AGENTS.md` gets what was learned on the bench.
 - The ADR is closed (Built, here, in `progress.md` and in the registry) in its branch before its PR is opened.
 
 ## How the unit shows it works
 
-On the Pico 2 W controller, from a clean clone, with nobody touching the unit: built, flashed over USB, `menu_tour` equal to its baseline, `charge_cycle` passed, each with a verdict and a log. Then one real throw by the owner.
+On the Pico W, from a clean clone, with nobody touching the unit: built, flashed through the probe, `menu_tour` equal to its baseline, `charge_cycle` passed, each with a verdict and a log. Then one real throw by the owner.
 
 ## Files
 
-- New: `AGENTS.md`, `requirements.txt`, `setup_toolchain.ps1`, `tools/size_report.py`, `tools/remote_control/rc_run.py`, `src/remote_control.c` and `.h`, `src/rc_serial.c` and `.h`, `src/sim_scale.c` and `.h`, `tests/menu_baseline/pico2_w/`, `docs/developments_plans/ADR-001-agent_groundwork/progress.md`.
-- Changed: `CMakeLists.txt` (console over USB), `src/app.c` (console start, the console task), `src/menu.c` and `src/mini_12864_module.h` (the form id, the jump), `src/scale.c` and `.h` (the driver task's handle, the switch to the simulated scale), `src/motors.c` and `.h` (the getter), `src/charge_mode.cpp` and `.h` (one start function), `.github/workflows/cmake.yml` (the size report), `.gitignore`.
+- New: `AGENTS.md`, `requirements.txt`, `setup_toolchain.ps1`, `tools/size_report.py`, `tools/remote_control/rc_run.py`, `src/remote_control.c` and `.h`, `src/rc_console.c` and `.h`, `src/sim_scale.c` and `.h` (unless F2 is agreed), `tests/menu_baseline/pico_w/`, `docs/developments_plans/ADR-001-agent_groundwork/progress.md`.
+- Changed: `CMakeLists.txt` (console over RTT, its buffer sizes), `setup_toolchain.ps1` (openocd), `src/app.c` (console start, the console task), `src/menu.c` and `src/mini_12864_module.h` (the form id, the jump), `src/scale.c` and `.h` (the driver task's handle, the switch to the simulated scale), `src/motors.c` and `.h` (the getter), `src/charge_mode.cpp` and `.h` (one start function), `.github/workflows/cmake.yml` (the size report), `.gitignore`.
 - No stored struct changes.
 
 ## Not in this ADR
@@ -212,6 +235,7 @@ On the Pico 2 W controller, from a clean clone, with nobody touching the unit: b
 - The remote control over Wi-Fi. The reference added it in a later ADR of its own.
 - A watchdog, and stopping the motors whenever the firmware stops. What is known is under "What a failure looks like today". It changes what a user sees, so it is the owner's call and an ADR of its own: ADR-012 carries it.
 - A unit that starts without its motor drivers. Today it stops at the error screen; that stays. ADR-012 asks the question.
-- The debug probe's scripts (`openocd_start.bat`, `program.bat`), which name the RP2040 only. ADR-011 asks whether they are made right or removed.
-- The Pico W. Its baseline and its runs come when a Pico W is on the bench.
+- The debug probe's old scripts (`openocd_start.bat`, `program.bat`), which name the RP2040 only. `rc_run.py` calls openocd itself and does not use them. ADR-011 asks whether they are made right or removed.
+- The USB console (decision 1), and flashing by `.uf2` with no hands. They come with a bench that has a USB cable.
+- The Pico 2 W. Its baseline and its runs come when a Pico 2 W is on a bench.
 - Fixing what the bench turns up. It is written into `progress.md` and brought to the owner.

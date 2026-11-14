@@ -5,10 +5,10 @@ Written at the end of a session that stopped early. It says where the work stand
 ## Where things stand
 
 - **Branch:** `adr001_agent_groundwork`, pushed. Main's CI is green with the runner pinned (PR #114).
-- **ADR-001:** open. Steps 1 and 2 are built. Steps 3 to 6 wait for the owner's word that the bench is ready.
+- **ADR-001:** open. Steps 1 and 2 are built. The bench is ready (2026-11-14); steps 3 to 6 wait for the owner's approval of the revision for the probe bench (F5).
 - **New today, both drafts, not approved:** ADR-011 (the dependencies brought up to date) and ADR-012 (the motor drivers cleaned up).
 - **Order of the work:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
-- **No hardware has been touched.** Nothing has been tried on a unit.
+- **Hardware:** on 2026-11-14 the unit's web API was read (GET only) and its settings copied to `logs/unit_backup/`. Nothing has been flashed or tried on it.
 
 ## Conclusions of today
 
@@ -38,9 +38,9 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 ## To do next, in order
 
-1. `git fetch`, and compare with `origin/main`.
-2. Ask the owner whether the bench is ready before any contact with hardware. He planned to connect a real scale.
-3. Check the audit's findings against the code, its top ten first.
+1. ~~`git fetch`, and compare with `origin/main`.~~ Done 2026-11-14: the branch holds all of origin/main; the local `main` was moved up to it.
+2. ~~Ask the owner whether the bench is ready.~~ Done 2026-11-14: ready, SWD and motors included, hopper empty. The bench is a Pico W reached by a debug probe on SWD only, with an A&D FX-300i; see ADR-001's "The bench". ADR-001 is revised for it (F5) and **waits for the owner's approval**.
+3. ~~Check the audit's findings against the code, its top ten first.~~ Done 2026-11-14 for the top ten plus S2, W1, W3: `logs/audit_2026-11-14_verified.md` (this PC only). 14 confirmed, M5 only partly (ordinary readings fit; the overruns need a lifted tared container, huge readings or a REST target). H2's cause is PR #108, not #112. The audit's other findings are still unchecked.
 4. Propose the cleanup's scope to the owner: which modules, in which ADR, each with a fixed list of faults so it has an end. Say what it costs the waiting PRs: #109 and #113 merge cleanly today, and a cleanup that touches their files ends that.
 5. Write the agreed scope into the ADRs and the registry.
 
@@ -52,6 +52,7 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 - **ADR-012, fault 7:** whether its one-line fix goes in early, since ADR-001's bench restarts a unit without cutting power.
 - **ADR-011:** SDK 2.3.1 or 2.2.0; whether CI moves to Arm's compiler; the 2023 debug scripts.
 - **ADR-001:**
+  - the revision for the probe bench (F5): decisions 1, 3, 4, 7 changed, 8 new, openocd fetched;
   - whether step 5 uses main's simulated scale (F2);
   - whether that scale, selectable and stored by any user, needs a guard;
   - whether steps 1 and 2 go to main now.
