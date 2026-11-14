@@ -149,12 +149,36 @@ uint8_t render_charge_mode_next_button(mui_t * ui, uint8_t msg) {
         case MUIF_MSG_VALUE_INCREMENT:
         case MUIF_MSG_VALUE_DECREMENT:
             mui_SaveForm(ui);
+
+            // Load last charge weight from profile to digits
+            charge_mode_load_digits_from_profile();
+
             if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_2) {
                 ui->arg = 11;  // goto form 11
             }
             else if (charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_3) {
                 ui->arg = 12;  // goto form 12
             }
+            return mui_GotoFormAutoCursorPosition(ui, ui->arg);
+        default:
+            mui_u8g2_btn_goto_wm_fi(ui, msg);
+            break;
+    }
+
+    return 0;
+}
+
+
+uint8_t render_charge_weight_next_button(mui_t * ui, uint8_t msg) {
+    switch (msg) {
+        case MUIF_MSG_CURSOR_SELECT:
+        case MUIF_MSG_VALUE_INCREMENT:
+        case MUIF_MSG_VALUE_DECREMENT:
+            mui_SaveForm(ui);
+
+            // Save digits to profile
+            charge_mode_save_digits_to_profile();
+
             return mui_GotoFormAutoCursorPosition(ui, ui->arg);
         default:
             mui_u8g2_btn_goto_wm_fi(ui, msg);
@@ -253,6 +277,7 @@ muif_t muif_list[] = {
         MUIF_BUTTON("BN", mui_u8g2_btn_goto_wm_fi),
 
         MUIF_BUTTON("B1", render_charge_mode_next_button),
+        MUIF_BUTTON("B2", render_charge_weight_next_button),
 
         // Leave
         MUIF_VARIABLE("LV", &exit_state, mui_u8g2_btn_exit_wm_fi),
@@ -334,7 +359,7 @@ fds_t fds_data[] = {
     MUI_XY("SU", 106, 35)
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",115, 59, 13, "Next")
+    MUI_XYAT("B2",115, 59, 13, "Next")
     MUI_XYAT("BN",14, 59, 10, "Back")
 
     MUI_STYLE(3)
@@ -357,7 +382,7 @@ fds_t fds_data[] = {
     MUI_XY("SU", 106, 35)
 
     MUI_STYLE(0)
-    MUI_XYAT("BN",115, 59, 13, "Next")
+    MUI_XYAT("B2",115, 59, 13, "Next")
     MUI_XYAT("BN",14, 59, 10, "Back")
 
     MUI_STYLE(3)
