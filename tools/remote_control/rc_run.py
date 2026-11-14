@@ -569,6 +569,7 @@ class Console:
         self.recover_link = recover_link
         self.expect_fault = False   # set while a test build is meant to assert: its line is then not a failure
         self.tap_lines = []         # (host time, "@sf ..." line), from the scale tap
+        self.charge_events = []     # (host time, "Charge: ..." line), the charge's pauses and ends
         self.lines = queue.Queue()
         self.sock = socket.create_connection(("127.0.0.1", RTT_PORT), timeout=10)
         self.sock.settimeout(None)
@@ -595,6 +596,8 @@ class Console:
                     # commands are not mixed with them and no drain() loses them
                     self.tap_lines.append((time.monotonic(), line))
                     continue
+                if line.startswith("Charge: "):
+                    self.charge_events.append((time.monotonic(), line))   # a pause, a resume, an end (ADR-013)
                 self.lines.put(line)
 
     def drain(self):
@@ -1083,7 +1086,8 @@ class Session:
             self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
         self.send("sim off")
 
-    def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, cleanup_speed, expect, watch_s):
+    def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, cleanup_speed, expect, watch_s,
+                     repeat=1, want=None, want_none=False):
         """
         A charge with the simulated scale and one fault put in partway (ADR-013), `state` read every
         CHARGE_FAULT_POLL_S from the fault to watch_s after it. Logs each change of the charge's state or of a
@@ -1104,6 +1108,10 @@ class Session:
             cleanup_speed: the cleanup speed sent, for "cleanup".
             expect: "seen" (the code before the fix) or "not-seen" (after it); the other fails.
             watch_s: how long `state` is read after the fault.
+            repeat: how many times the fault goes in, each after the charge resumed from the one before.
+            want: words that must come in the charge's "Charge: ..." lines, in that order ("paused", "resumed").
+            want_none: no pause and no end may come.
+          none: nothing put in, the simulated scale at `rate`. Seen when the charge pauses or ends.
         """
         profile = json.loads(http_get(host, "rest/profile_config"))
         coarse_max = min(float(profile["p7"]), float(json.loads(http_get(host, "rest/coarse_motor_config"))["m4"]))
@@ -1127,21 +1135,35 @@ class Session:
             self.send("charge stop")
             return
 
-        if fault == "bad":
-            self.send("sim bad")
-        elif fault == "quiet":
-            self.send(f"sim quiet {quiet_ms}")
-        else:
-            http_get(host, f"rest/cleanup_mode_state?s1={cleanup_speed:g}")
+        events_from = len(self.console.charge_events)
         started = time.monotonic()
+        samples = []    # (seconds after the first fault, charge, weight, coarse, fine)
 
-        samples = []    # (seconds after the fault, charge, weight, coarse, fine)
-        while time.monotonic() - started < watch_s:
-            state = self.state()
-            if state:
-                samples.append((time.monotonic() - started, state["charge"], state["weight"],
-                                float(state["coarse"]), float(state["fine"])))
-            time.sleep(CHARGE_FAULT_POLL_S)
+        def watch(until_event):
+            """Read state for watch_s, or until a "Charge: resumed" or "Charge: ended" line comes after until_event."""
+            watch_start = time.monotonic()
+            while time.monotonic() - watch_start < watch_s:
+                state = self.state()
+                if state:
+                    samples.append((time.monotonic() - started, state["charge"], state["weight"],
+                                    float(state["coarse"]), float(state["fine"])))
+                if until_event is not None and any(("resumed" in line or "ended" in line)
+                                                   for _, line in self.console.charge_events[until_event:]):
+                    return
+                time.sleep(CHARGE_FAULT_POLL_S)
+
+        for round_idx in range(repeat):
+            round_events = len(self.console.charge_events)
+            if fault == "bad":
+                self.send("sim bad")
+            elif fault == "quiet":
+                self.send(f"sim quiet {quiet_ms}")
+            elif fault == "cleanup":
+                http_get(host, f"rest/cleanup_mode_state?s1={cleanup_speed:g}")
+            watch(round_events if round_idx < repeat - 1 else None)
+            # The next round goes in once the charge pours again
+            if round_idx < repeat - 1:
+                time.sleep(0.5)
 
         last = (before["charge"], before["weight"], float(before["coarse"]), float(before["fine"]))
         self.log.write("rc", f"charge_fault: before: charge {last[0]}, weight {last[1]}, coarse {last[2]:g}, fine {last[3]:g}")
@@ -1168,14 +1190,39 @@ class Session:
             turning = [at for at, _, _, coarse, fine in samples if late < at < quiet_ms / 1000.0 and (coarse or fine)]
             seen = bool(turning)
             how = f"a trickler still turning {turning[-1]:.2f} s into {quiet_ms} ms of quiet" if turning else ""
-        else:
+        elif fault == "cleanup":
             took = [at for at, _, _, coarse, fine in samples
                     if abs(coarse - cleanup_speed) < 0.01 or abs(fine - cleanup_speed) < 0.01]
             seen = bool(took)
             how = f"a trickler at the cleanup speed {took[0]:.2f} s after it was sent" if took else ""
+        else:
+            # none: nothing put in; the fault would be a pause or an end where the scale is only slow
+            stops = [line for _, line in self.console.charge_events[events_from:] if "paused" in line or "ended" in line]
+            seen = bool(stops)
+            how = stops[0] if stops else ""
         self.log.write("rc", f"charge_fault: {fault}: {'SEEN, ' + how if seen else 'not seen'}")
         if (expect == "seen") != seen:
             self.fail(f"charge_fault: {fault}: expected {expect}, was {'seen' if seen else 'not seen'}")
+
+        # The charge's own account (ADR-013): its pauses, resumes and ends, against what was wanted
+        events = [line for _, line in self.console.charge_events[events_from:]]
+        for line in events:
+            self.log.write("rc", f"charge_fault: event: {line}")
+        if want:
+            pos = 0
+            for word in want:
+                found = next((idx for idx in range(pos, len(events)) if word in events[idx]), None)
+                if found is None:
+                    self.fail(f"charge_fault: wanted \"{word}\" after event {pos} and it did not come")
+                    break
+                pos = found + 1
+        if want_none:
+            stops = [line for line in events if "paused" in line or "ended" in line]
+            if stops:
+                self.fail(f"charge_fault: wanted no pause or end, got: {stops[0]}")
+        if any("ended" in line for line in events):
+            # The screen as the user sees it, before the charge is cleared
+            self.save_snap(LOG_DIR / "snaps" / f"{self.log.path.stem}_fault.png")
 
         state = self.state()
         if state and state["charge"] != "0":
@@ -1389,7 +1436,7 @@ def main():
     frames_parser.add_argument("--reboots", type=int, default=2, help="restarts")
     frames_parser.add_argument("--motors", type=float, default=60.0, help="seconds with both motors turning")
     fault_parser = sub.add_parser("charge_fault", help="a simulated charge with one fault put in partway")
-    fault_parser.add_argument("fault", choices=["bad", "quiet", "cleanup"])
+    fault_parser.add_argument("fault", choices=["bad", "quiet", "cleanup", "none"])
     fault_parser.add_argument("--host", required=True, help="the unit's address")
     fault_parser.add_argument("--expect", choices=["seen", "not-seen"], required=True,
                               help="seen: the code before the fix; not-seen: after it")
@@ -1399,6 +1446,9 @@ def main():
     fault_parser.add_argument("--rate", type=float, default=10.0, help="the simulated scale's readings a second")
     fault_parser.add_argument("--cleanup-speed", type=float, default=3.0)
     fault_parser.add_argument("--watch", type=float, default=3.0, help="seconds watched after the fault")
+    fault_parser.add_argument("--repeat", type=int, default=1, help="how many times the fault goes in")
+    fault_parser.add_argument("--want", help="words that must come in the charge's events, in order, comma-separated")
+    fault_parser.add_argument("--want-none", action="store_true", help="no pause and no end may come")
     args = parser.parse_args()
 
     session = Session(args, args.command)
@@ -1428,7 +1478,8 @@ def main():
     elif args.command == "charge_fault":
         at = args.at if args.at is not None else args.target - 1.0
         session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.cleanup_speed,
-                             args.expect, args.watch)
+                             args.expect, args.watch, args.repeat,
+                             args.want.split(",") if args.want else None, args.want_none)
     sys.exit(session.finish())
 
 
