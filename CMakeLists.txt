@@ -50,7 +50,11 @@ add_executable("${TARGET_NAME}")
 # Include source
 include_directories(${SRC_DIRECTORY})
 
-# Pull in FreeRTOS
+# Pull in FreeRTOS. Its location is given, not searched for: upstream's import file (V11.3.3), left to search,
+# finds the kernel as the SDK's sibling on its first pass and stops there with that pass's path to the RP2350 port,
+# which only Raspberry Pi's fork had. Given the location, it tries both paths and takes the RP2350 port from the
+# community ports (ADR-011).
+set(FREERTOS_KERNEL_PATH ${FREERTOS_SRC_DIRECTORY})
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
 # Pull in u8g2
