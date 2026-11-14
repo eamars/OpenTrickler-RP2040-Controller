@@ -5,10 +5,10 @@ First written at the end of a session that stopped early; brought up to date 202
 ## Where things stand
 
 - **ADR-001:** Built and closed 2026-11-14, merged to main by PR #115. Its branch is deleted. The owner waived the real throw and the check by eye (see its progress.md).
-- **Next: ADR-002**, the verdicts on the open PRs. The owner, 2026-11-14: "I will let another agent to pickup ADR-002". It is a draft and not approved, so approval comes first.
+- **Next: ADR-011**, the dependencies brought up to date. The owner, 2026-11-14, when ADR-002 was picked up: "I would like to uprev the dependency per ADR-011 first". ADR-012 and ADR-002 follow, as the registry lists them. ADR-002 now holds the merge strategy discussed that day, as a proposal.
 - **CI:** the Gemini PR reviewer is disabled on GitHub (its API key is invalid) and removed by PR #116. The build workflow is the only check.
 - **New today, both drafts, not approved:** ADR-011 (the dependencies brought up to date) and ADR-012 (the motor drivers cleaned up).
-- **Order of the work, as the registry lists it:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. The owner has picked ADR-002 to go next. An ADR's number is its name and does not change.
+- **Order of the work, as the registry lists it:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. The work follows it, ADR-011 first. An ADR's number is its name and does not change.
 - **Hardware:** the bench's Pico W runs main's ADR-001 code, 1.20.46 at f484e19, flashed through the probe on 2026-11-14. Its charge-mode settings are at their defaults since the first flash (ADR-001, F6); the copy of the old ones is in `logs/unit_backup/`.
 
 ## Conclusions of today
