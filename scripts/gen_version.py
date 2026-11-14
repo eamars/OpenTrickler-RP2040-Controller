@@ -38,7 +38,9 @@ const char * build_type = "{build_type}";
 
 
 def main(output_path, build_type):
-    output = subprocess.check_output(GIT_VERSION_COMMAND, text=True)
+    # git is asked in this script's folder, inside the repository, not in the build's: a build folder outside the
+    # repository has no git to ask (ADR-011)
+    output = subprocess.check_output(GIT_VERSION_COMMAND, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
     logging.debug(f'Raw output: {output}')
     match = re.match(GIT_VERSION_PATTERN_REGEX, output)
 

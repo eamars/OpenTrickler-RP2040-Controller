@@ -9,16 +9,17 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 ## Build, flash
 
 - **Clone** with the submodules: `git submodule update --init --recursive`. `library/` holds the Pico SDK, FreeRTOS, u8g2 and the Trinamic library.
-- **Toolchain:**
-  - Windows: `setup_toolchain.ps1` fetches the versions `configure_env.ps1` names into `%USERPROFILE%\.pico-sdk`. The VS Code Pico extension makes the same folder (README). `-List` prints what it would fetch.
-  - macOS: `setup_toolchain.sh` fetches Arm's compiler into `.toolchain/` in the repository, and `configure_env.sh` sets the environment.
+- **Toolchain:** every version is written once, in `toolchain.env`: the compiler, CMake, Ninja, `pioasm` and picotool, OpenOCD. The scripts below and CI read it; change a version there and nowhere else.
+  - Windows: `setup_toolchain.ps1` fetches them into `%USERPROFILE%\.pico-sdk`, and `configure_env.ps1` puts them on the path. The VS Code Pico extension makes the same folder (README). `-List` prints what it would fetch.
+  - Linux (what CI runs): `setup_toolchain.sh` fetches the same set into `.toolchain/` in the repository, and `source ./configure_env.sh` puts it on the path.
+  - macOS is parked (the owner, 2026-11-14: development is on Windows, integration builds on Linux). Its scripts as last used are in git: `git show 2ad9b0a:setup_toolchain.sh` and `configure_env.sh`. They come back when the owner works on a Mac again.
 - **Build:**
   - `.\build_pico_2w.ps1` builds the Pico 2 W image, `build\app.uf2`;
   - `.\build_pico_w.ps1` builds the Pico W image, `build_w\app.uf2`.
   - Both run CMake's configure each time, so a new or removed source file is picked up (sources are found by a glob).
   - `src/generated/` is made by the build (version, pages) and is not tracked. PIO headers go to each board's build folder (`build\src\`, `build_w\src\`): pioasm writes a different one for each chip, and a shared one broke the Pico W image (ADR-001, F7).
 - **Size:** `python tools/size_report.py build/app.elf.map --bin build/app.bin` prints the image's flash by part and the RAM taken at link time. CI prints the same for both boards on every build, in the job summary and in the log (`gh run view <id> --log`).
-- **CI and a PC build different images.** CI runs on a pinned image, `ubuntu-24.04`, with Ubuntu's ARM compiler (13.2.1); a PC set up as above has Arm's 14.2.Rel1. CI's image is about 40 KB smaller, all in the C and C++ runtime. Compare sizes only between builds from the same place. The pin is there because SDK 2.1.1's `pioasm` does not compile on the next image's compiler; do not move it without a build that passes. ADR-011 is the planned update that removes the pin.
+- **CI builds with what a PC builds with.** It runs on `ubuntu-latest` but uses none of the runner's compiler or tools: `setup_toolchain.sh` fetches the set `toolchain.env` names, kept in GitHub's cache until a version in the file changes (ADR-011). A new runner image does not change the build. CI's image is about 1.3 KB larger than a PC's, and that is all paths: each assert stores its source file's full path, and CI's checkout path is 35 characters longer than `C:/workspace/OpenTrickler-RP2040-Controller` (37 paths in the Pico W image, 34 in the Pico 2 W's; measured 2026-11-14).
 - **Flash:**
   - **With a debug probe on the unit's SWD port** (the bench): `venv\Scripts\python tools\remote_control\rc_run.py flash`. It writes `build_w\app.elf` through the probe, verifies it, and passes when the unit's console reports the build's version. This is also how the bench's unit is recovered, from an assert or a hard fault too.
   - **By hand**, as a user does: hold BOOTSEL, plug in USB, copy `app.uf2` to the drive ([manual](manuals/firmware_update_via_usb.md)).
@@ -62,6 +63,8 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - An agent's run assumes the hopper is empty. The owner says when there is powder in it.
   - The motors may turn in an agent's run.
 - **The bench** (2026-11-14): a Pico W on the motor board with an A&D FX-300i scale, reached only by a Raspberry Pi debugprobe on SWD. Its USB port is not connected.
+  - A second unit, a Pico 2 W on a controller board of its own, with its own EEPROM and so its own settings, is put on the probe when the owner is asked. One unit at a time. `rc_run.py --board pico2_w` drives it.
+  - Each unit is on the owner's Wi-Fi with an address of its own, given by DHCP: ask, or read it from the unit's screen.
 - **Reading the unit's web API can change it.** A GET of `/rest/profile_config?pf=N` selects profile N in RAM (audit P2), and handlers act on any parameter they are given. Read a unit through the console where you can, and over the web only with the paths and parameters you mean.
 - **Flashing a unit can reset its settings.** When a stored struct's layout differs from the one on the unit, the defaults are written at once (`common.c`). Copy the unit's settings before the first flash of a newer or older version.
 - **The console** (ADR-001, step 3) is stdio over RTT: the debug probe reads it from the chip's RAM, with no pin and no cable to the unit. Lines starting with `@` belong to the remote control; everything else is the firmware's log.
@@ -71,9 +74,11 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - `reset`: a whole-chip reset by the watchdog (openocd's own `reset run` locked the RP2040 up, F8);
   - `watch <seconds>`: log the console for a time;
   - `snap`: the screen as a PNG under `logs/rc/snaps/`, as a person at the unit sees it;
-  - `menu_tour [--save <folder>] [--compare <folder>]`: every menu form in turn, pressing nothing. The Pico W's baseline is `tests/menu_baseline/pico_w/`; compare against it to see what a change did to the menu.
+  - `menu_tour [--save <folder>] [--compare <folder>]`: every menu form in turn, pressing nothing. The Pico W's baseline is `tests/menu_baseline/pico_w/`, the Pico 2 W's `tests/menu_baseline/pico2_w/`; compare against the unit's own to see what a change did to the menu. They differ in six forms, by the settings the two units store.
   - `charge_cycle [--target 30]`: a charge from zero to cup return and the start of the next one, with main's simulated scale switched on for the run (`sim on`), never stored;
-  - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault (they stop on the first two and run on after a hard fault).
+  - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault (they stop on the first two and run on after a hard fault);
+  - `settings --host <address> [--save <folder>] [--compare <folder>]`: the stored settings copied over the web API (GET, no parameters) and compared with an earlier copy. Take one before every flash of another version;
+  - `soak <seconds> --host <address>`: charges back to back with the simulated scale while two browsers use the web pages (the mirror, the charge page's polling, the portal reloaded, the settings read). It fails on a failed charge, on memory that is not given back, and on web reads missed past `--max-miss-share` and `--max-miss-run`. It is not part of every proof: whether a change needs one, how long, and against what limits is decided for that change, for the area it touches. Its web figures compare only when nothing else uses the unit's web pages: a browser left open on the unit tripled the timeouts of ADR-011's step-3 soak.
 - Console commands to drive the menu: `press <cw|ccw|enc|rst> [n]`, `form` and `form <id>`.
 - Console commands for the motors and charging: `motor <coarse|fine> <rev/s>`, `sim on|off`, `charge <gr>`, `charge stop`.
 - It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).

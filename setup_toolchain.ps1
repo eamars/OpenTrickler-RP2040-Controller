@@ -1,6 +1,7 @@
 <#
 Fetches the toolchain this repository builds with into %USERPROFILE%\.pico-sdk, in the layout the VS Code Pico
-extension makes, so configure_env.ps1 works unchanged (ADR-001, decision 4).
+extension makes, so configure_env.ps1 finds it (ADR-001, decision 4). The versions are in toolchain.env
+(ADR-011).
 
 A part that is already there is left alone. Nothing outside %USERPROFILE%\.pico-sdk is touched.
 
@@ -8,7 +9,7 @@ Usage:
     .\setup_toolchain.ps1          fetch what is missing
     .\setup_toolchain.ps1 -List    print what would be fetched, and fetch nothing
 
-macOS has its own script, setup_toolchain.sh.
+Linux (CI) has its own script, setup_toolchain.sh.
 #>
 param(
     [switch] $List
@@ -18,43 +19,52 @@ $ErrorActionPreference = 'Stop'
 
 $PicoSdkRoot = Join-Path $env:USERPROFILE '.pico-sdk'
 
+# The versions, from toolchain.env: one NAME=value a line
+$V = @{}
+foreach ($line in Get-Content (Join-Path $PSScriptRoot 'toolchain.env')) {
+    if ($line -match '^([A-Z_]+)=(.+)$') { $V[$Matches[1]] = $Matches[2].Trim() }
+}
+# The VS Code extension names the compiler's folder 15_2_Rel1 for Arm's release 15.2.rel1
+$ArmFolder = ($V.ARM_GCC -replace '\.', '_') -replace 'rel', 'Rel'
+$ToolsUrl = "https://github.com/raspberrypi/pico-sdk-tools/releases/download/$($V.PICO_SDK_TOOLS_RELEASE)"
+
 # Dest is relative to $PicoSdkRoot. Probe is the file that shows the part is there, relative to Dest.
 $Parts = @(
     @{
-        Name = 'Arm GNU toolchain 14.2.Rel1 (arm-none-eabi), about 298 MB'
-        Url = 'https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-mingw-w64-x86_64-arm-none-eabi.zip'
-        Dest = 'toolchain\14_2_Rel1'
+        Name = "Arm GNU toolchain $($V.ARM_GCC) (arm-none-eabi), about 300 MB"
+        Url = "https://developer.arm.com/-/media/Files/downloads/gnu/$($V.ARM_GCC)/binrel/arm-gnu-toolchain-$($V.ARM_GCC)-mingw-w64-x86_64-arm-none-eabi.zip"
+        Dest = "toolchain\$ArmFolder"
         Probe = 'bin\arm-none-eabi-gcc.exe'
     },
     @{
-        Name = 'CMake 3.31.5, about 44 MB'
-        Url = 'https://github.com/Kitware/CMake/releases/download/v3.31.5/cmake-3.31.5-windows-x86_64.zip'
-        Dest = 'cmake\v3.31.5'
+        Name = "CMake $($V.CMAKE)"
+        Url = "https://github.com/Kitware/CMake/releases/download/v$($V.CMAKE)/cmake-$($V.CMAKE)-windows-x86_64.zip"
+        Dest = "cmake\v$($V.CMAKE)"
         Probe = 'bin\cmake.exe'
     },
     @{
-        Name = 'Ninja 1.12.1'
-        Url = 'https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip'
-        Dest = 'ninja\v1.12.1'
+        Name = "Ninja $($V.NINJA)"
+        Url = "https://github.com/ninja-build/ninja/releases/download/v$($V.NINJA)/ninja-win.zip"
+        Dest = "ninja\v$($V.NINJA)"
         Probe = 'ninja.exe'
     },
     @{
-        Name = 'picotool 2.1.1'
-        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.1.1-3/picotool-2.1.1-x64-win.zip'
-        Dest = 'picotool\2.1.1'
+        Name = "picotool $($V.PICO_TOOLS)"
+        Url = "$ToolsUrl/picotool-$($V.PICO_TOOLS)-x64-win.zip"
+        Dest = "picotool\$($V.PICO_TOOLS)"
         Probe = 'picotool\picotool.exe'
     },
     @{
-        Name = 'pioasm 2.1.1 (pico-sdk-tools)'
-        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.1.1-3/pico-sdk-tools-2.1.1-x64-win.zip'
-        Dest = 'tools\2.1.1'
+        Name = "pioasm $($V.PICO_TOOLS) (pico-sdk-tools)"
+        Url = "$ToolsUrl/pico-sdk-tools-$($V.PICO_TOOLS)-x64-win.zip"
+        Dest = "tools\$($V.PICO_TOOLS)"
         Probe = 'pioasm\pioasm.exe'
     },
     @{
         # Flashes and reads a unit through a debug probe (ADR-001, decisions 3 and 4)
-        Name = 'OpenOCD 0.12.0+dev (Raspberry Pi build), about 8 MB'
-        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.1.1-3/openocd-0.12.0+dev-x64-win.zip'
-        Dest = 'openocd\0.12.0+dev'
+        Name = "OpenOCD $($V.OPENOCD) (Raspberry Pi build), about 8 MB"
+        Url = "https://github.com/raspberrypi/pico-sdk-tools/releases/download/$($V.OPENOCD_RELEASE)/openocd-$($V.OPENOCD)-x64-win.zip"
+        Dest = "openocd\$($V.OPENOCD)"
         Probe = 'openocd.exe'
     }
 )

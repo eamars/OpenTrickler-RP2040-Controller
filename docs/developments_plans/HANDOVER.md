@@ -1,15 +1,18 @@
-# Handover, 2026-11-14
+# Handover, 2026-11-15
 
-First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
+First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed, and 2026-11-15 when ADR-011 closed. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
 
 ## Where things stand
 
-- **ADR-001:** Built and closed 2026-11-14, merged to main by PR #115. Its branch is deleted. The owner waived the real throw and the check by eye (see its progress.md).
-- **Next: ADR-011**, the dependencies brought up to date. The owner, 2026-11-14, when ADR-002 was picked up: "I would like to uprev the dependency per ADR-011 first". ADR-012 and ADR-002 follow, as the registry lists them. ADR-002 now holds the merge strategy discussed that day, as a proposal.
-- **CI:** the Gemini PR reviewer is disabled on GitHub (its API key is invalid) and removed by PR #116. The build workflow is the only check.
-- **New today, both drafts, not approved:** ADR-011 (the dependencies brought up to date) and ADR-012 (the motor drivers cleaned up).
-- **Order of the work, as the registry lists it:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. The work follows it, ADR-011 first. An ADR's number is its name and does not change.
-- **Hardware:** the bench's Pico W runs main's ADR-001 code, 1.20.46 at f484e19, flashed through the probe on 2026-11-14. Its charge-mode settings are at their defaults since the first flash (ADR-001, F6); the copy of the old ones is in `logs/unit_backup/`.
+- **ADR-001:** Built and closed 2026-11-14, merged to main by PR #115. The owner waived the real throw and the check by eye (see its progress.md).
+- **ADR-011:** Built and closed 2026-11-15: SDK 2.3.1, FreeRTOS V11.3.3 from upstream, Arm's 15.2.Rel1, every version in `toolchain.env`, CI on `ubuntu-latest` with no pin. Proven on the Pico W and the Pico 2 W. The owner waived the end checks by hand and accepted the Pico 2 W's web soak as it stood; ADR-003 carries that finding. Its PR is the one from the branch `adr011_dependency_update`.
+- **Next: ADR-012**, the motor drivers cleaned up. A draft, not approved: approval first. Then ADR-002, which holds the merge strategy discussed on 2026-11-14 as a proposal.
+- **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
+- **Order of the work, as the registry lists it:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
+- **Hardware:** two units, one on the probe at a time (see `AGENTS.md`, "The bench"):
+  - the Pico W runs ADR-011's step 4, 1.20.71 at 78ce2e9; its web API at 192.168.2.189;
+  - the Pico 2 W, on a controller board and settings of its own, runs ADR-011's end, 1.20.72 at 7d2d442, and was the one on the probe last; its web API at 192.168.2.167. Copies of its settings from before are in `logs/adr011/pico2w/`.
+- **macOS is parked**, by the owner: development on Windows, integration builds on Linux.
 
 ## Conclusions of today
 
@@ -51,7 +54,6 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 - **ADR numbers:** kept fixed, with the table in the order of work. The owner can ask for renumbering; it is cheapest now.
 - **ADR-012, fault 8:** the motor current's reference. Units as they are today, or the stored mA made true.
 - **ADR-012, fault 7:** whether its one-line fix goes in early, since ADR-001's bench restarts a unit without cutting power.
-- **ADR-011:** SDK 2.3.1 or 2.2.0; whether CI moves to Arm's compiler; the 2023 debug scripts.
 - **Earlier questions still open:**
   - whether anything but the built-in pages calls the REST API;
   - the tier rules 2 to 5 (ADR-005);

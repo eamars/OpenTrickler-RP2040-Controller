@@ -16,28 +16,34 @@ on:
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    # Pinned, not "latest": the Pico SDK builds its pioasm tool with the runner's own compiler, and SDK 2.1.1's
-    # pioasm does not compile with GCC 15 (ubuntu-26.04). Move this when the SDK is updated.
-    runs-on: ubuntu-24.04
+    # The runner's own compiler and tools are not used: the build takes the compiler, CMake, Ninja, pioasm and
+    # picotool named in toolchain.env, the same a PC uses (ADR-011). So a new runner image does not change the
+    # build, and the runner is not pinned.
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
-      with: 
+      with:
         fetch-depth: 0          # Fetch all branches and tags
         submodules: recursive   # Automatically pull all submodules
-      
-    - name: Install Build Dependencies
-      run: | 
-        sudo apt-get update
-        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libstdc++-arm-none-eabi-newlib python3
+
+    # Fetched again when a version in toolchain.env or the fetch script changes
+    - name: Cache the toolchain
+      id: toolchain-cache
+      uses: actions/cache@v4
+      with:
+        path: .toolchain
+        key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('toolchain.env', 'setup_toolchain.sh') }}
+
+    - name: Fetch the toolchain named in toolchain.env
+      if: steps.toolchain-cache.outputs.cache-hit != 'true'
+      run: ./setup_toolchain.sh
 
     # Build Pico2 W support package into build_pico2_w
     - name: Build Pico2 W Package
       run: |
-        cmake -B ${{github.workspace}}/build_pico2_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
+        source ./configure_env.sh
+        cmake -B ${{github.workspace}}/build_pico2_w -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
         cmake --build ${{github.workspace}}/build_pico2_w --config Debug
 
     # Flash by part and RAM at link time, in the job summary and in the log (ADR-001).
@@ -62,7 +68,8 @@ jobs:
     # Build Pico W support package into build_pico_w
     - name: Build Pico W Package
       run: |
-        cmake -B ${{github.workspace}}/build_pico_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
+        source ./configure_env.sh
+        cmake -B ${{github.workspace}}/build_pico_w -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
         cmake --build ${{github.workspace}}/build_pico_w --config Debug
 
     - name: Size of the Pico W image

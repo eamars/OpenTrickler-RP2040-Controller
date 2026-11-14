@@ -15,10 +15,13 @@ Usage, from the repository root:
     venv\\Scripts\\python tools\\remote_control\\rc_run.py watch 30
     venv\\Scripts\\python tools\\remote_control\\rc_run.py snap
     venv\\Scripts\\python tools\\remote_control\\rc_run.py menu_tour [--save <folder>] [--compare <folder>]
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py settings --host <address> [--save <folder>] [--compare <folder>]
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py soak <seconds> --host <address>
 """
 import argparse
 import base64
 import datetime
+import json
 import queue
 import re
 import shutil
@@ -28,14 +31,18 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import zlib
 from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[2]
 PICO_SDK_ROOT = Path.home() / ".pico-sdk"
-OPENOCD_DIR = PICO_SDK_ROOT / "openocd" / "0.12.0+dev"
-TOOLCHAIN_BIN = PICO_SDK_ROOT / "toolchain" / "14_2_Rel1" / "bin"
+# The versions, from toolchain.env (ADR-011): one NAME=value a line
+VERSIONS = dict(re.findall(r"^([A-Z_]+)=(\S+)", (REPO / "toolchain.env").read_text(encoding="utf-8"), re.M))
+OPENOCD_DIR = PICO_SDK_ROOT / "openocd" / VERSIONS["OPENOCD"]
+# setup_toolchain.ps1's folder for the compiler: 15_2_Rel1 for Arm's 15.2.rel1, as the VS Code extension names it
+TOOLCHAIN_BIN = PICO_SDK_ROOT / "toolchain" / VERSIONS["ARM_GCC"].replace(".", "_").replace("rel", "Rel") / "bin"
 LOG_DIR = REPO / "logs" / "rc"
 
 # reset: the writes that make the watchdog reset the whole chip, as watchdog_reboot() does: scratch 4 cleared
@@ -50,10 +57,14 @@ BOARDS = {
         "reset": ["mww 0x4005801c 0", "mww 0x40010008 0x1fffc", "mww 0x40058000 0x80000000"],
         "step_status": {"coarse": 0x40014018, "fine": 0x40014040},
     },
+    # The RP2350's registers, from the SDK's headers (watchdog.h, psm.h, io_bank0.h): the same reset as the
+    # RP2040's, every power domain but the two oscillators (PSM_WDSEL_BITS less ROSC and XOSC, as
+    # watchdog_reboot() selects them), and the same STEP pins (one pin map for both boards). Written for
+    # ADR-011's pass on the Pico 2 W; proven when a Pico 2 W is on the bench.
     "pico2_w": {
         "target": "target/rp2350.cfg", "build": "build", "cores": ["rp2350.cm0", "rp2350.cm1"],
-        "reset": None,  # not yet worked out for the RP2350: no Pico 2 W on the bench
-        "step_status": None,
+        "reset": ["mww 0x400d801c 0", "mww 0x40018008 0x01fffff3", "mww 0x400d8000 0x80000000"],
+        "step_status": {"coarse": 0x40028018, "fine": 0x40028040},
     },
 }
 GPIO_STATUS_OUTTOPAD = 0x200
@@ -68,6 +79,7 @@ CHARGE_CYCLE_ORDER = [1, 2, 3, 4, 1]    # a charge, the cup off and back (by the
 TCL_PORT = 6666
 RTT_PORT = 19021
 REPLY_TIMEOUT_S = 5.0
+CORE_STATE_WAIT_S = 5.0   # how long openocd may not know a core's state before it counts as not running
 CONSOLE_TIMEOUT_S = 20.0    # from a reset until the console answers
 TCL_TERMINATOR = b"\x1a"
 RTT_SEARCH_SIZE = 0x400     # bytes searched for the control block, from the address the ELF gives
@@ -78,6 +90,75 @@ PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
 MENU_TOUR_IDS = range(1, 100)
 # Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
 MENU_TOUR_LIVE_FORMS = {36: "version info: the version, hash and build of the image"}
+
+# The web API paths `settings` reads. Each answers a GET with no parameters with what is stored, and does nothing
+# else; a parameter can change the unit (AGENTS.md), so none is sent. profile_config with no parameter gives the
+# selected profile, and profile_summary every profile's name.
+SETTINGS_PATHS = ["charge_mode_config", "coarse_motor_config", "fine_motor_config", "mini_12864_config",
+                  "neopixel_led_config", "profile_config", "profile_summary", "scale_config", "servo_gate_config",
+                  "system_control", "wireless_config"]
+# Fields that change with the image, not with the stored settings: reported, not judged, by --compare
+SETTINGS_LIVE_FIELDS = {"system_control": {"s1": "the version", "s2": "the vcs hash", "s3": "the build type"}}
+HTTP_TIMEOUT_S = 5.0
+SETTINGS_TRIES = 3
+
+MIRROR_BYTES = 128 * 64 // 8    # the 12864 display's buffer, one bit a pixel
+# soak: charges back to back while two browsers use the web pages, as with the portal open on a phone and a PC.
+# Each browser reads the screen's mirror as the mirror page does and polls the charge as the portal's charge page
+# does; one of them reloads the portal, and the settings are read as the settings page does. Reads only.
+SOAK_BROWSERS = 2
+SOAK_MIRROR_S = 1.0         # display_mirror.html: once a second
+SOAK_STATE_S = 0.5          # web_portal.html, while a charge runs: every 500 ms
+SOAK_PAGE_S = 30.0          # the portal page reloaded
+SOAK_SETTINGS_S = 60.0      # every settings path
+# The default limits are what a sound server should meet (ADR-003). Main's server of 2026-11-14 misses about 8% of
+# these reads, so an ADR that does not touch it passes limits taken from a run before its change (ADR-011).
+SOAK_MISS_SHARE = 0.01      # the most of the web reads that may miss
+SOAK_MISS_RUN = 2           # the most misses in a row on one poller
+SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
+
+
+class WebPoller(threading.Thread):
+    """
+    Web reads repeated at an interval until stopped. Each round does its requests one after another, as a page
+    does when it opens, and each request counts as one read, right or missed: so a share or a run of misses
+    means the same for every poller.
+    """
+
+    def __init__(self, name, interval_s, reads, log):
+        """
+        Args:
+            name: what it reads, for the log.
+            interval_s: seconds from the start of one round to the start of the next.
+            reads: (label, function) for each request of a round. A function does one request and returns True
+                when the answer is right; an OSError or a ValueError counts as no answer.
+            log: the SessionLog.
+        """
+        super().__init__(daemon=True)
+        self.name, self.interval_s, self.reads, self.log = name, interval_s, reads, log
+        self.stop_event = threading.Event()
+        self.good = 0
+        self.missed = 0
+        self.run_now = 0        # misses in a row, now
+        self.run_longest = 0
+
+    def run(self):
+        while not self.stop_event.is_set():
+            started = time.monotonic()
+            for label, read in self.reads:
+                try:
+                    ok, why = read(), "a wrong answer"
+                except (OSError, ValueError) as error:
+                    ok, why = False, str(error)
+                if ok:
+                    self.good += 1
+                    self.run_now = 0
+                else:
+                    self.missed += 1
+                    self.run_now += 1
+                    self.run_longest = max(self.run_longest, self.run_now)
+                    self.log.write("rc", f"soak: {self.name}{f' {label}' if label else ''}: {why}")
+            self.stop_event.wait(max(0.0, self.interval_s - (time.monotonic() - started)))
 
 
 class SessionLog:
@@ -232,6 +313,42 @@ def write_png(path, rows):
     Path(path).write_bytes(png)
 
 
+def http_get(host, path):
+    """
+    GET one path of the unit's web API.
+
+    Args:
+        host: the unit's address.
+        path: the path, without its leading slash.
+
+    Returns:
+        The body, as bytes.
+    """
+    with urllib.request.urlopen(f"http://{host}/{path}", timeout=HTTP_TIMEOUT_S) as response:
+        return response.read()
+
+
+def read_mirror(host):
+    """
+    Read the screen's buffer as the mirror page does. /display_buffer answers with the bare buffer and no HTTP
+    header (its handler says the header is included, and it is not), so it is read over a plain socket.
+
+    Args:
+        host: the unit's address.
+
+    Returns:
+        The bytes until the unit closed the connection.
+    """
+    with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as sock:
+        sock.sendall(b"GET /display_buffer HTTP/1.0\r\n\r\n")
+        data = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                return data
+            data += chunk
+
+
 def build_version(build_dir):
     """
     Read the version the last build wrote into src/generated/version.c.
@@ -347,6 +464,47 @@ class Openocd:
                   f"{{ lappend r [read_memory {address:#x} 32 1] }}; return $r")
         return [int(value, 0) for value in self.cmd(script).split()]
 
+    def core_state(self, core):
+        """
+        A core's state as openocd knows it. "unknown" is openocd not knowing yet, not the core's state: upstream
+        FreeRTOS resets core 1 as the scheduler starts (ADR-011, step 2), and on the RP2040, where each core has
+        its own debug port, openocd needs a moment after that to see core 1 again. So "unknown" is asked again
+        until CORE_STATE_WAIT_S has passed.
+
+        Returns:
+            "running", "halted", "reset", or "unknown" when openocd still does not know.
+        """
+        deadline = time.monotonic() + CORE_STATE_WAIT_S
+        while True:
+            state = self.cmd(f"{core} curstate").strip()
+            if state != "unknown" or time.monotonic() > deadline:
+                return state
+            time.sleep(0.5)
+
+    def where_cores_are(self, elf):
+        """
+        Halt each core, read where it is, and let it run on: evidence for a unit that stopped answering.
+
+        Returns:
+            One description per core.
+        """
+        found = []
+        for core in self.board["cores"]:
+            state = self.core_state(core)
+            self.cmd(f"targets {core}")
+            self.cmd("halt")
+            where = []
+            for register in ("pc", "lr"):
+                match = re.search(r"0x([0-9a-fA-F]+)", self.cmd(f"reg {register}"))
+                if match:
+                    value = int(match.group(1), 16)
+                    where.append(f"{register}={value:#010x} ({elf_function_at(elf, value)})")
+            found.append(f"{core} ({state}): " + ", ".join(where))
+        for core in reversed(self.board["cores"]):
+            self.cmd(f"targets {core}")
+            self.cmd("resume")
+        return found
+
     def halted_cores(self, elf):
         """
         Find cores that are not running.
@@ -359,7 +517,7 @@ class Openocd:
         """
         found = []
         for core in self.board["cores"]:
-            state = self.cmd(f"{core} curstate").strip()
+            state = self.core_state(core)
             if state == "running":
                 continue
             description = f"{core} {state}"
@@ -386,16 +544,19 @@ class Openocd:
 class Console:
     """The unit's console, through openocd's RTT server."""
 
-    def __init__(self, log, failures):
+    def __init__(self, log, failures, recover_link=None):
         """
         Connect to the RTT server and start reading lines.
 
         Args:
             log: the SessionLog.
             failures: the run's list of failure reasons, appended to when a line shows one.
+            recover_link: called when a reply is late; returns True when it found the probe's link lost and
+                started RTT again, so the reply can still come.
         """
         self.log = log
         self.failures = failures
+        self.recover_link = recover_link
         self.expect_fault = False   # set while a test build is meant to assert: its line is then not a failure
         self.lines = queue.Queue()
         self.sock = socket.create_connection(("127.0.0.1", RTT_PORT), timeout=10)
@@ -425,13 +586,15 @@ class Console:
         while not self.lines.empty():
             self.lines.get_nowait()
 
-    def command(self, line, timeout=REPLY_TIMEOUT_S):
+    def command(self, line, timeout=REPLY_TIMEOUT_S, recover=True):
         """
-        Send one command line and wait for its reply.
+        Send one command line and wait for its reply. When the reply is late because the probe's link dropped,
+        RTT is started again once and the wait starts over; the line is not sent again, since the unit got it.
 
         Args:
             line: the command line.
             timeout: seconds to wait.
+            recover: False while a restart is awaited, when RTT failing is expected.
 
         Returns:
             The reply line, or None if none came in time.
@@ -442,14 +605,19 @@ class Console:
         self.log.write("rc", f"> {line}")
         self.sock.sendall(line.encode() + b"\n")
         deadline = time.monotonic() + timeout
+        recovered = False
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                if recover and not recovered and self.recover_link is not None and self.recover_link():
+                    recovered = True
+                    deadline = time.monotonic() + timeout
+                    continue
                 return None
             try:
                 reply = self.lines.get(timeout=remaining)
             except queue.Empty:
-                return None
+                continue
             if reply.startswith(f"@ok {name}") or reply.startswith("@err"):
                 return reply
             if reply.startswith("@") and not reply.startswith("@hello"):
@@ -471,7 +639,29 @@ class Session:
         self.log.write("rc", f"board {args.board}, elf {self.elf}")
         self.openocd = Openocd(self.board, self.log)
         self.openocd.rtt_start(self.elf)
-        self.console = Console(self.log, self.failures)
+        self.link_drops = 0
+        self.link_seen = len(self.openocd.output)   # openocd's lines already looked at for a dropped link
+        self.console = Console(self.log, self.failures, self.recover_link)
+
+    def recover_link(self):
+        """
+        A reply is late. If openocd has said since the last look that it could not read RTT, the probe's link
+        dropped while the chip ran (seen once on the bench, mid-soak, with no reset): start RTT again so the
+        reply waiting in the unit's buffer comes through. Counted and reported, not judged: a unit that really
+        stopped answering still fails, because no reply comes after it either.
+
+        Returns:
+            True when RTT was started again.
+        """
+        new = self.openocd.output[self.link_seen:]
+        self.link_seen = len(self.openocd.output)
+        if not any("rtt: Failed" in line for line in new):
+            return False
+        self.link_drops += 1
+        self.log.write("rc", f"the probe's link dropped (openocd could not read RTT): RTT started again, "
+                             f"drop {self.link_drops}")
+        self.openocd.rtt_start(self.elf)
+        return True
 
     def fail(self, reason):
         self.log.write("rc", f"FAIL {reason}")
@@ -516,14 +706,19 @@ class Session:
         """
         self.last_up = None
         deadline = time.monotonic() + CONSOLE_TIMEOUT_S
-        while time.monotonic() < deadline:
-            self.openocd.rtt_start(self.elf)
-            reply = self.console.command("state", timeout=1.0)
-            if reply is not None:
-                self.check_up(reply)
-                return reply
-        self.fail(f"the console did not answer within {CONSOLE_TIMEOUT_S:.0f} s of a restart")
-        return None
+        try:
+            while time.monotonic() < deadline:
+                self.openocd.rtt_start(self.elf)
+                reply = self.console.command("state", timeout=1.0, recover=False)
+                if reply is not None:
+                    self.check_up(reply)
+                    return reply
+            self.fail(f"the console did not answer within {CONSOLE_TIMEOUT_S:.0f} s of a restart")
+            for description in self.openocd.where_cores_are(self.elf):
+                self.log.write("rc", f"with no console: {description}")
+            return None
+        finally:
+            self.link_seen = len(self.openocd.output)   # RTT failing across a restart is not a dropped link
 
     def flash(self, elf=None):
         """
@@ -649,6 +844,150 @@ class Session:
         if reply is None or not reply.startswith("@ok state"):
             return None
         return dict(re.findall(r'(\w+)=("[^"]*"|\S+)', reply))
+
+    def stats(self):
+        """
+        Ask `stats` and parse its numbers.
+
+        Returns:
+            heap_free, heap_min and tasks as ints in a dict, or None (counted as a failure).
+        """
+        reply = self.send("stats")
+        if reply is None or not reply.startswith("@ok stats"):
+            return None
+        return {key: int(value) for key, value in re.findall(r"\b(heap_free|heap_min|tasks)=(\d+)", reply)}
+
+    def settings(self, host, save_dir, compare_dir):
+        """
+        Read the stored settings over the web API, keep them as JSON, and compare them with an earlier copy.
+
+        Args:
+            host: the unit's address.
+            save_dir: where the copy goes (default: logs/rc/settings/<session>/).
+            compare_dir: an earlier copy; a path missing on either side or a field that differs fails, except
+                the fields in SETTINGS_LIVE_FIELDS, which are reported.
+        """
+        out_dir = Path(save_dir) if save_dir else LOG_DIR / "settings" / self.log.path.stem
+        out_dir.mkdir(parents=True, exist_ok=True)
+        read = {}
+        for name in SETTINGS_PATHS:
+            # Up to SETTINGS_TRIES tries: this compares what is stored; how well the web answers is soak's to judge
+            for attempt in range(1, SETTINGS_TRIES + 1):
+                try:
+                    read[name] = json.loads(http_get(host, f"rest/{name}"))
+                    break
+                except (OSError, ValueError) as error:
+                    self.log.write("rc", f"settings: rest/{name}, try {attempt}: {error}")
+            if name not in read:
+                self.fail(f"settings: rest/{name}: no right answer in {SETTINGS_TRIES} tries")
+                continue
+            (out_dir / f"{name}.json").write_text(json.dumps(read[name], indent=1, sort_keys=True) + "\n",
+                                                  encoding="utf-8")
+        self.log.write("rc", f"settings: {len(read)} of {len(SETTINGS_PATHS)} paths read, kept in {out_dir}")
+
+        if compare_dir is None:
+            return
+        for name in SETTINGS_PATHS:
+            reference = Path(compare_dir) / f"{name}.json"
+            if not reference.exists():
+                self.fail(f"settings: {reference} does not exist")
+                continue
+            if name not in read:
+                continue
+            before = json.loads(reference.read_text(encoding="utf-8"))
+            for key in sorted(set(before) | set(read[name])):
+                old, new = before.get(key), read[name].get(key)
+                if old == new:
+                    continue
+                live = SETTINGS_LIVE_FIELDS.get(name, {}).get(key)
+                if live:
+                    self.log.write("rc", f"settings: {name} {key} differs, not judged ({live}): {old!r} -> {new!r}")
+                else:
+                    self.fail(f"settings: {name} {key} was {old!r}, is {new!r}")
+
+    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run):
+        """
+        Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
+        browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
+        Fails on a failed charge, on a restart or an assert, on more than max_miss_share of the web reads with
+        no right answer or max_miss_run in a row on one poller, and when heap_free ends lower than its lowest in
+        the first SOAK_SETTLE_S: memory taken and not given back.
+
+        Args:
+            host: the unit's address.
+            seconds: how long; the charge under way when the time is up is finished.
+            target: each charge's weight.
+            threshold: the unit's fine stop threshold.
+            max_miss_share: the most of the web reads that may miss, 0 to 1.
+            max_miss_run: the most misses in a row one poller may have.
+        """
+        page_size = {}
+
+        def read_page():
+            body = http_get(host, "")
+            page_size.setdefault("first", len(body))
+            return len(body) == page_size["first"] and len(body) > 0
+
+        def read_state():
+            return "s2" in json.loads(http_get(host, "rest/charge_mode_state"))
+
+        def read_setting(name):
+            return lambda: bool(json.loads(http_get(host, f"rest/{name}")))
+
+        def read_mirror_right():
+            return len(read_mirror(host)) == MIRROR_BYTES
+
+        pollers = []
+        for browser in range(1, SOAK_BROWSERS + 1):
+            pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S, [("", read_mirror_right)], self.log))
+            pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)], self.log))
+        pollers.append(WebPoller("portal page", SOAK_PAGE_S, [("", read_page)], self.log))
+        pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
+                                 [(name, read_setting(name)) for name in SETTINGS_PATHS], self.log))
+
+        started = time.monotonic()
+        heap = []   # (seconds since the start, heap_free)
+        cycles = 0
+        for poller in pollers:
+            poller.start()
+        while True:
+            self.state()
+            stats = self.stats()
+            if stats is not None and "heap_free" in stats:
+                heap.append((time.monotonic() - started, stats["heap_free"]))
+            if time.monotonic() - started >= seconds or self.failures:
+                break
+            self.charge_cycle(target, threshold, timeout_s=120.0)
+            cycles += 1
+        for poller in pollers:
+            poller.stop_event.set()
+        for poller in pollers:
+            poller.join(timeout=HTTP_TIMEOUT_S * len(SETTINGS_PATHS) + 1)
+
+        self.log.write("rc", f"soak: {cycles} charges in {time.monotonic() - started:.0f} s")
+        good = sum(poller.good for poller in pollers)
+        missed = sum(poller.missed for poller in pollers)
+        for poller in pollers:
+            self.log.write("rc", f"soak: {poller.name}: {poller.good} right, {poller.missed} missed, "
+                                 f"longest run {poller.run_longest}")
+        share = missed / (good + missed) if good + missed else 1.0
+        self.log.write("rc", f"soak: {missed} of {good + missed} web reads missed ({share:.2%}), longest run "
+                             f"{max(poller.run_longest for poller in pollers)}")
+        if share > max_miss_share:
+            self.fail(f"soak: {share:.2%} of the web reads missed, more than {max_miss_share:.2%}")
+        for poller in pollers:
+            if poller.run_longest > max_miss_run:
+                self.fail(f"soak: {poller.name} missed {poller.run_longest} in a row, more than {max_miss_run}")
+        if len(heap) < 2:
+            self.fail("soak: fewer than two stats read")
+            return
+        settled = [free for at, free in heap if at <= SOAK_SETTLE_S] or [heap[0][1]]
+        low, end = min(settled), heap[-1][1]
+        self.log.write("rc", f"soak: heap_free lowest in the first {SOAK_SETTLE_S:.0f} s {low}, at the end {end}, "
+                             f"lowest of the run {min(free for _, free in heap)}")
+        if end < low:
+            self.fail(f"soak: heap_free ended at {end}, lower than {low}, its lowest in the first "
+                      f"{SOAK_SETTLE_S:.0f} s")
 
     def step_activity(self):
         """
@@ -794,6 +1133,9 @@ class Session:
         """
         for core in self.openocd.halted_cores(self.elf):
             self.fail(f"core not running: {core}")
+        if self.link_drops:
+            self.log.write("rc", f"the probe's link dropped {self.link_drops} times and RTT was started again; "
+                                 "reported, not judged")
         self.console.close()
         self.openocd.close()
         if self.failures:
@@ -828,6 +1170,19 @@ def main():
     pulses_parser = sub.add_parser("pulses", help="do the step pulses stop on a reset, an assert, a hard fault?")
     pulses_parser.add_argument("--assert-elf", default=str(REPO / "build_w_fault1" / "app.elf"))
     pulses_parser.add_argument("--hardfault-elf", default=str(REPO / "build_w_fault2" / "app.elf"))
+    settings_parser = sub.add_parser("settings", help="copy the stored settings over the web API, and compare")
+    settings_parser.add_argument("--host", required=True, help="the unit's address")
+    settings_parser.add_argument("--save", help="keep the copy in this folder")
+    settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
+    soak_parser = sub.add_parser("soak", help="charges back to back while two browsers use the web pages")
+    soak_parser.add_argument("seconds", type=float, help="how long; chosen for the change being proven")
+    soak_parser.add_argument("--host", required=True, help="the unit's address")
+    soak_parser.add_argument("--target", type=float, default=30.0)
+    soak_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
+    soak_parser.add_argument("--max-miss-share", type=float, default=SOAK_MISS_SHARE,
+                             help="the most of the web reads that may miss, 0 to 1")
+    soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
+                             help="the most misses in a row one poller may have")
     args = parser.parse_args()
 
     session = Session(args, args.command)
@@ -848,6 +1203,10 @@ def main():
         session.reset()
     elif args.command == "watch":
         time.sleep(args.seconds)
+    elif args.command == "settings":
+        session.settings(args.host, args.save, args.compare)
+    elif args.command == "soak":
+        session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run)
     sys.exit(session.finish())
 
 
