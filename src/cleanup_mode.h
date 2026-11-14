@@ -1,5 +1,5 @@
 #ifndef CLEANUP_MODE_H_
-#define CLENAUP_MODE_H_
+#define CLEANUP_MODE_H_
 
 #include <stdint.h>
 #include "http_rest.h"

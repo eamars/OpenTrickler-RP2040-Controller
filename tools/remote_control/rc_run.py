@@ -38,8 +38,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 PICO_SDK_ROOT = Path.home() / ".pico-sdk"
-OPENOCD_DIR = PICO_SDK_ROOT / "openocd" / "0.12.0+dev"
-TOOLCHAIN_BIN = PICO_SDK_ROOT / "toolchain" / "14_2_Rel1" / "bin"
+# The versions, from toolchain.env (ADR-011): one NAME=value a line
+VERSIONS = dict(re.findall(r"^([A-Z_]+)=(\S+)", (REPO / "toolchain.env").read_text(encoding="utf-8"), re.M))
+OPENOCD_DIR = PICO_SDK_ROOT / "openocd" / VERSIONS["OPENOCD"]
+# setup_toolchain.ps1's folder for the compiler: 15_2_Rel1 for Arm's 15.2.rel1, as the VS Code extension names it
+TOOLCHAIN_BIN = PICO_SDK_ROOT / "toolchain" / VERSIONS["ARM_GCC"].replace(".", "_").replace("rel", "Rel") / "bin"
 LOG_DIR = REPO / "logs" / "rc"
 
 # reset: the writes that make the watchdog reset the whole chip, as watchdog_reboot() does: scratch 4 cleared

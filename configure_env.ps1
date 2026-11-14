@@ -1,24 +1,26 @@
-# Add compiler to the path
-$env:Path = "${env:USERPROFILE}/.pico-sdk/toolchain/14_2_Rel1/bin;" + $env:Path
+# Puts the toolchain that setup_toolchain.ps1 fetched on the path. The versions are in toolchain.env (ADR-011).
 
-# Specify Ninja path
-$env:Path = "$env:USERPROFILE\.pico-sdk\ninja\v1.13.2;" + $env:Path
+$V = @{}
+foreach ($line in Get-Content (Join-Path $PSScriptRoot 'toolchain.env')) {
+    if ($line -match '^([A-Z_]+)=(.+)$') { $V[$Matches[1]] = $Matches[2].Trim() }
+}
+# The VS Code extension names the compiler's folder 15_2_Rel1 for Arm's release 15.2.rel1
+$ArmFolder = ($V.ARM_GCC -replace '\.', '_') -replace 'rel', 'Rel'
+$PicoSdkRoot = "$env:USERPROFILE\.pico-sdk"
 
-# Specify CMake path
-$env:Path = "$env:USERPROFILE\.pico-sdk\cmake\v4.3.4\bin;" + $env:Path
+# The compiler
+$env:PICO_TOOLCHAIN_PATH = "$PicoSdkRoot\toolchain\$ArmFolder"
+$env:Path = "$env:PICO_TOOLCHAIN_PATH\bin;" + $env:Path
 
-# Specify picotool path
-$env:Path = "$env:USERPROFILE\.pico-sdk\picotool\2.3.1\picotool;" + $env:Path
+# Ninja and CMake
+$env:Path = "$PicoSdkRoot\ninja\v$($V.NINJA);" + $env:Path
+$env:Path = "$PicoSdkRoot\cmake\v$($V.CMAKE)\bin;" + $env:Path
 
-# Specify pioasm path
-$env:Path = "$env:USERPROFILE\.pico-sdk\tools\2.3.1\pioasm;" + $env:Path
+# picotool and pioasm, ready-made: the SDK finds them on the path and does not build them
+$env:Path = "$PicoSdkRoot\picotool\$($V.PICO_TOOLS)\picotool;" + $env:Path
+$env:Path = "$PicoSdkRoot\tools\$($V.PICO_TOOLS)\pioasm;" + $env:Path
 
-# Specify OpenOCD Path
-$OPENOCD_PATH = "$env:USERPROFILE\.pico-sdk\openocd\0.12.0+dev"
+# OpenOCD and its scripts
+$OPENOCD_PATH = "$PicoSdkRoot\openocd\$($V.OPENOCD)"
 $env:Path = "$OPENOCD_PATH;" + $env:Path
-
-# Specify OpenOCD search path
 $env:OPENOCD_SCRIPTS = "$OPENOCD_PATH\scripts"
-
-# Specify PICO_TOOLCHAIN_PATH
-$env:PICO_TOOLCHAIN_PATH="$env:USERPROFILE\.pico-sdk\toolchain\14_2_Rel1"
