@@ -470,6 +470,13 @@ void charge_mode_wait_for_complete() {
         }
         current_sample_tick = xTaskGetTickCount();
 
+        // A motor driver that reports a fault, or no longer answers, ends the throw as a failed scale does (ADR-012)
+        const char * motor_fault = motors_get_fault();
+        if (motor_fault != NULL) {
+            charge_mode_scale_fault(motor_fault);
+            return;
+        }
+
         // Handle coarse trickler backoff stop
         if (coarse_backoff_in_progress && (current_sample_tick >= coarse_backoff_end_tick)) {
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);

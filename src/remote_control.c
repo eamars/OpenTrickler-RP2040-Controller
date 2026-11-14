@@ -84,7 +84,7 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
     // unique_id and the profile name are stored without a terminator: print them by their length
     snprintf(reply, reply_size,
              "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%.*s "
-             "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f",
+             "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f drivers=%s,%s",
              (int) charge_mode_config.charge_mode_state,
              scale_config.current_scale_measurement,
              charge_mode_config.target_charge_weight,
@@ -97,7 +97,9 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
              menu_get_current_form_id(),
              scale_simulation_is_on() ? 1 : 0,
              motor_get_velocity(SELECT_COARSE_TRICKLER_MOTOR),
-             motor_get_velocity(SELECT_FINE_TRICKLER_MOTOR));
+             motor_get_velocity(SELECT_FINE_TRICKLER_MOTOR),
+             motor_driver_get_status_string(SELECT_COARSE_TRICKLER_MOTOR),
+             motor_driver_get_status_string(SELECT_FINE_TRICKLER_MOTOR));
     return true;
 }
 
@@ -423,6 +425,7 @@ static void remote_control_tmc_emit(const char *line, void *ctx) {
  * lines for those that can only be written, then its serial line's counts (ADR-012).
  * `tmc <coarse|fine> setup <n>`: the driver set up n times from the stored settings, nine checked writes each.
  * `tmc <coarse|fine> lose` and `find`: for proofs, the driver made to look absent, and found again. Never stored.
+ * `tmc <coarse|fine> fault <short|hot|reset|supply|none>`: for proofs, the driver read to report a fault. Never stored.
  */
 static bool remote_control_tmc(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                void *write_ctx) {
@@ -435,7 +438,7 @@ static bool remote_control_tmc(const char *args, char *reply, size_t reply_size,
         selected_motor = SELECT_FINE_TRICKLER_MOTOR;
     }
     else {
-        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find]");
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find|fault <word>]");
         return false;
     }
 
@@ -464,16 +467,19 @@ static bool remote_control_tmc(const char *args, char *reply, size_t reply_size,
             }
         }
     }
-    else if (strcmp(rest, "lose") == 0 || strcmp(rest, "find") == 0) {
-        // For proofs, never stored: the driver looks absent until `find`; a mode, or `setup`, then sets it up again
-        if (menu_get_current_form_id() < 0) {
-            snprintf(reply, reply_size, "@err a mode is running");
+    else if (strncmp(rest, "fault ", 6) == 0) {
+        // For proofs, never stored: the driver is read to report this fault until `fault none`
+        if (!motor_driver_inject_fault(selected_motor, rest + 6)) {
+            snprintf(reply, reply_size, "@err fault: short, hot, reset, supply or none");
             return false;
         }
+    }
+    else if (strcmp(rest, "lose") == 0 || strcmp(rest, "find") == 0) {
+        // For proofs, never stored: the driver looks absent until `find`; a mode, or `setup`, then sets it up again
         motor_driver_set_lost(selected_motor, rest[0] == 'l');
     }
     else if (*rest != '\0') {
-        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find]");
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find|fault <word>]");
         return false;
     }
     else {

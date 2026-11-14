@@ -41,6 +41,27 @@ extern "C" {
 #define TMC2209_REG_PWM_SCALE 0x71
 #define TMC2209_REG_PWM_AUTO 0x72
 
+// DRV_STATUS: what the driver reports of itself
+#define TMC2209_DRV_STATUS_OTPW (1u << 0)       // Warm: the warning before it switches off
+#define TMC2209_DRV_STATUS_OT (1u << 1)         // Too hot: switched off
+#define TMC2209_DRV_STATUS_S2GA (1u << 2)       // A coil shorted to ground
+#define TMC2209_DRV_STATUS_S2GB (1u << 3)
+#define TMC2209_DRV_STATUS_S2VSA (1u << 4)      // A coil shorted to the supply
+#define TMC2209_DRV_STATUS_S2VSB (1u << 5)
+#define TMC2209_DRV_STATUS_T120 (1u << 8)       // Temperature thresholds passed
+#define TMC2209_DRV_STATUS_T143 (1u << 9)
+#define TMC2209_DRV_STATUS_T150 (1u << 10)
+#define TMC2209_DRV_STATUS_T157 (1u << 11)
+#define TMC2209_DRV_STATUS_SHORT_MASK (TMC2209_DRV_STATUS_S2GA | TMC2209_DRV_STATUS_S2GB | \
+                                       TMC2209_DRV_STATUS_S2VSA | TMC2209_DRV_STATUS_S2VSB)
+#define TMC2209_DRV_STATUS_WARN_MASK (TMC2209_DRV_STATUS_OTPW | TMC2209_DRV_STATUS_T120 | TMC2209_DRV_STATUS_T143 | \
+                                      TMC2209_DRV_STATUS_T150 | TMC2209_DRV_STATUS_T157)
+
+// GSTAT: what has happened since the flags were last cleared
+#define TMC2209_GSTAT_RESET (1u << 0)           // The driver has started anew: its registers are its own defaults
+#define TMC2209_GSTAT_DRV_ERR (1u << 1)         // It switched off for heat or a short: DRV_STATUS says which
+#define TMC2209_GSTAT_UV_CP (1u << 2)           // Its charge pump's voltage fell: the supply is too low
+
 // The registers the set-up writes, in the order it writes them
 typedef enum {
     TMC2209_WRITTEN_SLAVECONF = 0,
@@ -81,6 +102,12 @@ void tmc2209_init(tmc2209_t *driver, tmc_uart_exchange_fn exchange, uint8_t addr
 bool tmc2209_setup(tmc2209_t *driver, uint16_t current_ma, uint16_t r_sense_mohm, uint16_t microsteps);
 
 bool tmc2209_microsteps_is_valid(uint16_t microsteps);
+
+// DRV_STATUS and GSTAT as the driver holds them now. False if it does not answer
+bool tmc2209_read_status(tmc2209_t *driver, uint32_t *drv_status, uint32_t *gstat);
+
+// Clear flags of GSTAT: each is cleared by writing it as 1
+bool tmc2209_clear_gstat(tmc2209_t *driver, uint32_t flags);
 
 // The run current the driver's 32 steps give for the settings last built, mA RMS
 uint16_t tmc2209_get_run_current_ma(const tmc2209_t *driver);

@@ -36,6 +36,15 @@
 #define MOTOR_MIN_GEAR_RATIO 0.01f
 #define MOTOR_MAX_GEAR_RATIO 100.0f
 
+// The drivers are read this often while the unit runs, by a task below every other of the firmware's own
+#define MOTOR_STATUS_PERIOD_MS 1000
+#define MOTOR_STATUS_TASK_PRIORITY 2
+
+// A fault flag counts when it is read this many times running, and a driver is gone after this many readings with
+// no answer: Klipper's figures (klippy/extras/tmc.py)
+#define MOTOR_STATUS_FAULT_READS 3
+#define MOTOR_STATUS_MISSED_POLLS 3
+
 // The drivers' serial line: how long a byte may take to come, the driver's answer delay included
 #define MOTOR_UART_BYTE_TIMEOUT_US 2000
 
@@ -105,6 +114,37 @@ static tmc2209_t coarse_trickler_driver;
 static tmc2209_t fine_trickler_driver;
 static bool motor_config_loaded = false;
 static uint32_t motor_data_rev = MOTOR_DATA_REV_TRUE_CURRENT;
+
+// What a driver was last found to be. A fault stays until a mode asks motors_ready() again: the charge it came in
+// must see it, even when the driver is well again a second later
+typedef enum {
+    MOTOR_DRIVER_OK = 0,
+    MOTOR_DRIVER_ABSENT,        // It does not answer
+    MOTOR_DRIVER_SHORT,         // It reports a coil shorted to ground or to the supply
+    MOTOR_DRIVER_HOT,           // It reports it switched off for heat
+    MOTOR_DRIVER_RESET,         // It started anew: it lost its supply, and its registers with it
+    MOTOR_DRIVER_SUPPLY,        // It reports its charge pump's voltage fell
+    MOTOR_DRIVER_FAULT_COUNT,
+} motor_driver_fault_t;
+
+static const char * const motor_driver_fault_words[MOTOR_DRIVER_FAULT_COUNT] = {
+    "ok", "absent", "short", "hot", "reset", "supply",
+};
+
+// For the screen's title line: the motor, then the fault, in few enough letters to fit it
+static const char * const motor_driver_fault_titles[2][MOTOR_DRIVER_FAULT_COUNT] = {
+    {NULL, "No coarse driver", "Coarse driver short", "Coarse driver hot", "Coarse driver reset", "Coarse driver supply"},
+    {NULL, "No fine driver", "Fine driver short", "Fine driver hot", "Fine driver reset", "Fine driver supply"},
+};
+
+// By motor: 0 the coarse trickler's, 1 the fine's
+static motor_driver_fault_t motor_driver_faults[2] = {MOTOR_DRIVER_ABSENT, MOTOR_DRIVER_ABSENT};
+static uint32_t motor_driver_last_drv_status[2];
+static uint8_t motor_driver_missed_polls[2];
+
+// For proofs, never stored: flags put into what a driver is read to report
+static uint32_t motor_driver_injected_drv_status[2];
+static uint32_t motor_driver_injected_gstat[2];
 
 // One task at a time talks to the drivers once the scheduler runs
 static SemaphoreHandle_t motor_driver_mutex = NULL;
@@ -181,6 +221,14 @@ static bool driver_setup(motor_config_t * motor_config) {
                                motor_config->persistent_config.r_sense,
                                motor_config->persistent_config.microsteps);
     motor_driver_unlock();
+
+    // A driver that answers is no longer absent; any other fault stays for the mode that must see it
+    if (!is_ok) {
+        motor_driver_faults[motor_config->pulse_channel] = MOTOR_DRIVER_ABSENT;
+    }
+    else if (motor_driver_faults[motor_config->pulse_channel] == MOTOR_DRIVER_ABSENT) {
+        motor_driver_faults[motor_config->pulse_channel] = MOTOR_DRIVER_OK;
+    }
 
     // Said when it changes, and each time it fails
     if (is_ok && !was_ready) {
@@ -479,6 +527,140 @@ float get_motor_min_speed(motor_select_t selected_motor) {
 }
 
 
+/*
+    Read what one driver reports of itself, and keep the first fault found (ADR-012, step 4). A driver that is absent
+    is left alone: motors_ready() tries it again when a mode starts.
+*/
+static void motor_driver_poll(motor_config_t * motor_config) {
+    tmc2209_t * driver = (tmc2209_t *) motor_config->tmc_driver;
+    int idx = motor_config->pulse_channel;
+    uint32_t drv_status = 0;
+    uint32_t gstat = 0;
+    bool answered = false;
+
+    if (!driver->ready) {
+        return;
+    }
+
+    // A fault flag is taken when it is still there on the third reading
+    for (int attempt = 0; attempt < MOTOR_STATUS_FAULT_READS; attempt += 1) {
+        motor_driver_lock();
+        answered = tmc2209_read_status(driver, &drv_status, &gstat);
+        motor_driver_unlock();
+        if (!answered) {
+            break;
+        }
+
+        drv_status |= motor_driver_injected_drv_status[idx];
+        gstat |= motor_driver_injected_gstat[idx];
+        if ((drv_status & (TMC2209_DRV_STATUS_SHORT_MASK | TMC2209_DRV_STATUS_OT)) == 0 &&
+            (gstat & (TMC2209_GSTAT_RESET | TMC2209_GSTAT_UV_CP)) == 0) {
+            break;
+        }
+    }
+
+    if (!answered) {
+        motor_driver_missed_polls[idx] += 1;
+        if (motor_driver_missed_polls[idx] >= MOTOR_STATUS_MISSED_POLLS) {
+            printf("Motor driver %u: no answer to %u readings in a row\n", motor_config->uart_addr, MOTOR_STATUS_MISSED_POLLS);
+            driver->ready = false;
+            motor_driver_faults[idx] = MOTOR_DRIVER_ABSENT;
+        }
+        return;
+    }
+    motor_driver_missed_polls[idx] = 0;
+
+    // The temperature warnings go to the log when they change
+    if ((drv_status ^ motor_driver_last_drv_status[idx]) & TMC2209_DRV_STATUS_WARN_MASK) {
+        printf("Motor driver %u: temperature flags now %03lx (DRV_STATUS %08lx)\n", motor_config->uart_addr,
+               (unsigned long) (drv_status & TMC2209_DRV_STATUS_WARN_MASK), (unsigned long) drv_status);
+    }
+    motor_driver_last_drv_status[idx] = drv_status;
+
+    motor_driver_fault_t fault = MOTOR_DRIVER_OK;
+    if (gstat & TMC2209_GSTAT_RESET) {
+        fault = MOTOR_DRIVER_RESET;
+    }
+    else if (drv_status & TMC2209_DRV_STATUS_SHORT_MASK) {
+        fault = MOTOR_DRIVER_SHORT;
+    }
+    else if (drv_status & TMC2209_DRV_STATUS_OT) {
+        fault = MOTOR_DRIVER_HOT;
+    }
+    else if (gstat & TMC2209_GSTAT_UV_CP) {
+        fault = MOTOR_DRIVER_SUPPLY;
+    }
+    if (fault == MOTOR_DRIVER_OK) {
+        return;
+    }
+
+    if (motor_driver_faults[idx] == MOTOR_DRIVER_OK) {
+        printf("Motor driver %u: %s (DRV_STATUS %08lx, GSTAT %lx)\n", motor_config->uart_addr,
+               motor_driver_fault_words[fault], (unsigned long) drv_status, (unsigned long) gstat);
+        motor_driver_faults[idx] = fault;
+    }
+
+    if (fault == MOTOR_DRIVER_RESET) {
+        // Its registers are its own defaults again: written anew at once, which also clears the flag. The fault
+        // stays, for the charge it came in
+        motor_driver_injected_gstat[idx] &= ~TMC2209_GSTAT_RESET;
+        driver_setup(motor_config);
+    }
+    else if (gstat != 0) {
+        motor_driver_lock();
+        tmc2209_clear_gstat(driver, gstat);
+        motor_driver_unlock();
+    }
+}
+
+
+// The drivers read while the unit runs (ADR-012, step 4)
+static void motor_status_task(void * p) {
+    TickType_t last_wake_tick = xTaskGetTickCount();
+
+    while (true) {
+        vTaskDelayUntil(&last_wake_tick, pdMS_TO_TICKS(MOTOR_STATUS_PERIOD_MS));
+
+        motor_driver_poll(&coarse_trickler_motor_config);
+        motor_driver_poll(&fine_trickler_motor_config);
+    }
+}
+
+
+const char * motor_driver_get_status_string(motor_select_t selected_motor) {
+    return motor_driver_fault_words[motor_driver_faults[motor_get_config(selected_motor)->pulse_channel]];
+}
+
+
+bool motor_driver_inject_fault(motor_select_t selected_motor, const char * fault) {
+    int idx = motor_get_config(selected_motor)->pulse_channel;
+    uint32_t drv_status = 0;
+    uint32_t gstat = 0;
+
+    if (strcmp(fault, "short") == 0) {
+        drv_status = TMC2209_DRV_STATUS_S2GA;
+        gstat = TMC2209_GSTAT_DRV_ERR;
+    }
+    else if (strcmp(fault, "hot") == 0) {
+        drv_status = TMC2209_DRV_STATUS_OT | TMC2209_DRV_STATUS_OTPW;
+        gstat = TMC2209_GSTAT_DRV_ERR;
+    }
+    else if (strcmp(fault, "reset") == 0) {
+        gstat = TMC2209_GSTAT_RESET;
+    }
+    else if (strcmp(fault, "supply") == 0) {
+        gstat = TMC2209_GSTAT_UV_CP;
+    }
+    else if (strcmp(fault, "none") != 0) {
+        return false;
+    }
+
+    motor_driver_injected_drv_status[idx] = drv_status;
+    motor_driver_injected_gstat[idx] = gstat;
+    return true;
+}
+
+
 void motors_init(void) {
     // The stored settings. If they cannot be read the defaults stand in, so the pins and tasks below are still
     // set up, and motors_get_fault() says so: the modes do not start
@@ -532,6 +714,9 @@ void motors_init(void) {
     if (xTaskCreate(motor_control_task, "Motors", configMINIMAL_STACK_SIZE, NULL, MOTOR_TASK_PRIORITY, NULL) != pdPASS) {
         printf("Unable to create the motors' task\n");
     }
+    if (xTaskCreate(motor_status_task, "Motor Status", 2 * configMINIMAL_STACK_SIZE, NULL, MOTOR_STATUS_TASK_PRIORITY, NULL) != pdPASS) {
+        printf("Unable to create the motor drivers' status task\n");
+    }
 }
 
 
@@ -557,23 +742,27 @@ const char * motors_get_fault(void) {
     if (!motor_config_loaded) {
         return "No motor settings";
     }
-    if (!coarse_trickler_driver.ready) {
-        return "No coarse driver";
-    }
-    if (!fine_trickler_driver.ready) {
-        return "No fine driver";
+    for (int idx = 0; idx < 2; idx += 1) {
+        if (motor_driver_faults[idx] != MOTOR_DRIVER_OK) {
+            return motor_driver_fault_titles[idx][motor_driver_faults[idx]];
+        }
     }
     return NULL;
 }
 
 
 bool motors_ready(void) {
-    // A driver that did not answer at start-up may by now: its supply can come after the Pico's
-    if (!coarse_trickler_driver.ready) {
-        driver_setup(&coarse_trickler_motor_config);
-    }
-    if (!fine_trickler_driver.ready) {
-        driver_setup(&fine_trickler_motor_config);
+    motor_config_t * motor_configs[] = {&coarse_trickler_motor_config, &fine_trickler_motor_config};
+
+    for (int idx = 0; idx < 2; idx += 1) {
+        // A driver that did not answer at start-up may by now: its supply can come after the Pico's. And a fault
+        // from before is looked at afresh: the driver is set up again, then read
+        if (motor_driver_faults[idx] != MOTOR_DRIVER_OK) {
+            if (driver_setup(motor_configs[idx])) {
+                motor_driver_faults[idx] = MOTOR_DRIVER_OK;
+                motor_driver_poll(motor_configs[idx]);
+            }
+        }
     }
 
     return motors_get_fault() == NULL;
@@ -593,7 +782,6 @@ void motor_driver_set_lost(motor_select_t selected_motor, bool lost) {
     motor_driver_lock();
     driver->bus.addr = lost ? 3 : addr;
     driver->bus.ifcnt_known = false;
-    driver->ready = false;
     motor_driver_unlock();
 }
 

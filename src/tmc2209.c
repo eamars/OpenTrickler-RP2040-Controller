@@ -341,6 +341,17 @@ bool tmc2209_setup(tmc2209_t *driver, uint16_t current_ma, uint16_t r_sense_mohm
 }
 
 
+bool tmc2209_read_status(tmc2209_t *driver, uint32_t *drv_status, uint32_t *gstat) {
+    return tmc_uart_read(&driver->bus, TMC2209_REG_DRV_STATUS, drv_status) &&
+           tmc_uart_read(&driver->bus, TMC2209_REG_GSTAT, gstat);
+}
+
+
+bool tmc2209_clear_gstat(tmc2209_t *driver, uint32_t flags) {
+    return tmc_uart_write(&driver->bus, TMC2209_REG_GSTAT, flags);
+}
+
+
 uint16_t tmc2209_get_run_current_ma(const tmc2209_t *driver) {
     uint32_t ihold_irun = driver->written[TMC2209_WRITTEN_IHOLD_IRUN];
     uint8_t irun = (ihold_irun >> TMC2209_IRUN_SHIFT) & 0x1F;

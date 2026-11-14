@@ -109,6 +109,13 @@ float motor_get_step_rate(motor_select_t selected_motor);
 // For a fault handler: the pulses and the drivers off, by register writes alone
 void motors_fault_stop(void);
 
+// What a driver was last found to be, in a word for the console: ok, absent, short, hot, reset, supply
+const char * motor_driver_get_status_string(motor_select_t selected_motor);
+
+// For proofs, never stored: flags put into what a driver is read to report, until `none`: "short", "hot", "reset",
+// "supply". False for any other word
+bool motor_driver_inject_fault(motor_select_t selected_motor, const char * fault);
+
 // For proofs, never stored: a driver made to look absent (asked at an address nobody has), and found again
 void motor_driver_set_lost(motor_select_t selected_motor, bool lost);
 bool motor_config_init(void);
