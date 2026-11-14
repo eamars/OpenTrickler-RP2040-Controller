@@ -43,6 +43,11 @@ extern "C" {
  * Wait for button encoder input. 
 */
 ButtonEncoderEvent_t button_wait_for_input(bool block);
+
+/**
+ * Wait for button encoder input for at most this long: BUTTON_NO_EVENT when nothing came.
+*/
+ButtonEncoderEvent_t button_wait_for_input_ms(uint32_t timeout_ms);
 bool mini_12864_module_init(void);
 void button_init(void);
 void display_init(void);

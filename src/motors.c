@@ -210,8 +210,9 @@ static tmc2209_t * motor_get_driver(motor_select_t selected_motor) {
 }
 
 
-// Write a driver its registers from the stored settings. False if it does not answer or does not take them
-static bool driver_setup(motor_config_t * motor_config) {
+// Write a driver its registers from the stored settings. False if it does not answer or does not take them.
+// say_failure: false for the drivers' task, which tries an absent driver again each second and says only when it comes
+static bool driver_setup_said(motor_config_t * motor_config, bool say_failure) {
     tmc2209_t * driver = (tmc2209_t *) motor_config->tmc_driver;
     bool was_ready = driver->ready;
 
@@ -236,11 +237,16 @@ static bool driver_setup(motor_config_t * motor_config) {
                motor_config->uart_addr, motor_config->persistent_config.current_ma,
                tmc2209_get_run_current_ma(driver));
     }
-    else if (!is_ok) {
+    else if (!is_ok && say_failure) {
         printf("Motor driver %u: no answer, or a register not taken\n", motor_config->uart_addr);
     }
 
     return is_ok;
+}
+
+
+static bool driver_setup(motor_config_t * motor_config) {
+    return driver_setup_said(motor_config, true);
 }
 
 
@@ -614,15 +620,33 @@ static void motor_driver_poll(motor_config_t * motor_config) {
 }
 
 
-// The drivers read while the unit runs (ADR-012, step 4)
+/*
+    One driver's turn in the drivers' task. One that answers is read (step 4). One that does not is tried again,
+    quietly (step 6): the menu names an absent driver, and a driver whose supply came after the Pico's must not stay
+    named once it answers. While it is gone a try is one read of five attempts, each waiting out the 2 ms of its
+    answer: about 12 ms a second of this low task.
+*/
+static void motor_driver_check(motor_config_t * motor_config) {
+    tmc2209_t * driver = (tmc2209_t *) motor_config->tmc_driver;
+
+    if (driver->ready) {
+        motor_driver_poll(motor_config);
+    }
+    else {
+        driver_setup_said(motor_config, false);
+    }
+}
+
+
+// The drivers looked at while the unit runs, in every state (ADR-012, steps 4 and 6)
 static void motor_status_task(void * p) {
     TickType_t last_wake_tick = xTaskGetTickCount();
 
     while (true) {
         vTaskDelayUntil(&last_wake_tick, pdMS_TO_TICKS(MOTOR_STATUS_PERIOD_MS));
 
-        motor_driver_poll(&coarse_trickler_motor_config);
-        motor_driver_poll(&fine_trickler_motor_config);
+        motor_driver_check(&coarse_trickler_motor_config);
+        motor_driver_check(&fine_trickler_motor_config);
     }
 }
 

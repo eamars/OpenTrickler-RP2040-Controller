@@ -24,6 +24,18 @@ int menu_get_current_form_id(void);
  */
 bool menu_goto_form(uint8_t form_id, bool *found);
 
+/**
+ * @brief The main menu's title: "OpenTrickler", or the motor driver that is not OK (ADR-012, step 6).
+ */
+const char * menu_main_title(void);
+
+/**
+ * @brief The screen for charge or cleanup asked for with a motor driver not OK (ADR-012, step 6): the driver named,
+ *        and that nothing starts. Waits for a press. Call from the menu task, which owns the screen then.
+ * @return the form to go back to: the main menu.
+ */
+uint8_t menu_motor_fault_view(void);
+
 #ifdef __cplusplus
 }
 #endif

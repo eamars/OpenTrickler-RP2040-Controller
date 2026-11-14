@@ -14,6 +14,10 @@
 #include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "servo_gate.h"
+#include "menu.h"
+
+// How often a running cleanup looks at the motor drivers when no button is pressed (ADR-012, step 6)
+#define CLEANUP_MODE_FAULT_CHECK_MS 100
 
 
 // Memory from other modules
@@ -119,6 +123,16 @@ void cleanup_render_task(void *p) {
 
 
 uint8_t cleanup_mode_menu() {
+    // No cleanup with a motor driver not OK, from the menu or the web (ADR-012): the fault screen, before this mode
+    // draws anything (step 6). motors_ready() sets up again each driver not OK, so a passing fault does not refuse
+    if (!motors_ready()) {
+        printf("Cleanup: not started, %s\n", motors_get_fault());
+        uint8_t exit_form_id = menu_motor_fault_view();
+        // Set after the screen: the web writes the state itself after asking for a cleanup (ADR-003, M10)
+        cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
+        return exit_form_id;
+    }
+
     // If the display task is never created then we shall create one, otherwise we shall resume the task
     if (cleanup_render_task_handler == NULL) {
         // The render task shall have lower priority than the current one
@@ -135,19 +149,6 @@ uint8_t cleanup_mode_menu() {
     // Enter the clean up mode
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_ENTER;
 
-    // No cleanup with a motor driver that does not answer (ADR-012): the screen says which, any button goes back
-    if (!motors_ready()) {
-        snprintf(title_string, sizeof(title_string), "%s", motors_get_fault());
-        printf("Cleanup: not started, %s\n", title_string);
-
-        ButtonEncoderEvent_t button_encoder_event;
-        xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
-
-        cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
-        vTaskSuspend(cleanup_render_task_handler);
-        return 1;
-    }
-
     // Enable both motors
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
@@ -163,9 +164,21 @@ uint8_t cleanup_mode_menu() {
 
     bool quit = false;
     while (!quit) {
-        // Wait if button is pressed
-        ButtonEncoderEvent_t button_encoder_event;
-        xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
+        // Wait for a button, looking at the motor drivers between presses
+        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(CLEANUP_MODE_FAULT_CHECK_MS);
+
+        // A motor driver not OK stops both motors and ends the cleanup, naming it (ADR-012, step 6)
+        const char * motor_fault = motors_get_fault();
+        if (motor_fault != NULL) {
+            cleanup_mode_config.trickler_speed = 0;
+            motor_set_speed(SELECT_BOTH_MOTOR, 0);
+            snprintf(title_string, sizeof(title_string), "%s", motor_fault);
+            printf("Cleanup: ended, %s\n", motor_fault);
+
+            while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
+            }
+            break;
+        }
 
         switch (button_encoder_event) {
             case BUTTON_RST_PRESSED:

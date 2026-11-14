@@ -21,6 +21,7 @@
 #include "profile.h"
 #include "common.h"
 #include "servo_gate.h"
+#include "menu.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -200,6 +201,9 @@ void scale_measurement_render_task(void *p) {
 }
 
 
+static bool charge_mode_end_on_motor_fault(void);
+
+
 void charge_mode_wait_for_zero() {
     // Set colour to not ready
     neopixel_led_set_colour(
@@ -227,6 +231,10 @@ void charge_mode_wait_for_zero() {
         }
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
             scale_config.scale_handle->force_zero();
+        }
+
+        if (charge_mode_end_on_motor_fault()) {
+            return;
         }
 
         // Perform measurement (max delay 300 seconds   )
@@ -330,8 +338,8 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
 
 
 /*
-    The scale failed during a charge (ADR-013): the tricklers stay stopped, the gate closes, the screen says why, and
-    a press of a button (or the console's charge stop) goes back to the menu.
+    The scale failed during a charge (ADR-013), or a motor driver did (ADR-012): the tricklers stay stopped, the gate
+    closes, the screen says why, and a press of a button (or the console's charge stop) goes back to the menu.
 */
 static void charge_mode_scale_fault(const char * reason) {
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
@@ -347,9 +355,12 @@ static void charge_mode_scale_fault(const char * reason) {
         charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
         true
     );
-    // The throw is over: its timer stops, as at a normal end, and the screen shows the time it ran
-    last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
-    charge_timer_running = false;
+    // A throw that was running is over: its timer stops, as at a normal end, and the screen shows the time it ran.
+    // Outside a throw the screen keeps the time of the last one
+    if (charge_timer_running) {
+        last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+        charge_timer_running = false;
+    }
     snprintf(title_string, sizeof(title_string), "%s", reason);
     printf("Charge: ended, %s\n", reason);
 
@@ -357,6 +368,18 @@ static void charge_mode_scale_fault(const char * reason) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
     charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+}
+
+
+// A motor driver that reports a fault, or no longer answers, ends the charge in any of its states (ADR-012: in a
+// throw since step 4; waiting for zero and for the cup since step 6). True when it ended the charge
+static bool charge_mode_end_on_motor_fault(void) {
+    const char * motor_fault = motors_get_fault();
+    if (motor_fault == NULL) {
+        return false;
+    }
+    charge_mode_scale_fault(motor_fault);
+    return true;
 }
 
 
@@ -471,9 +494,7 @@ void charge_mode_wait_for_complete() {
         current_sample_tick = xTaskGetTickCount();
 
         // A motor driver that reports a fault, or no longer answers, ends the throw as a failed scale does (ADR-012)
-        const char * motor_fault = motors_get_fault();
-        if (motor_fault != NULL) {
-            charge_mode_scale_fault(motor_fault);
+        if (charge_mode_end_on_motor_fault()) {
             return;
         }
 
@@ -647,6 +668,10 @@ void charge_mode_wait_for_cup_removal() {
             return;
         }
 
+        if (charge_mode_end_on_motor_fault()) {
+            return;
+        }
+
         // Perform measurement
         float current_weight;
         if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
@@ -703,6 +728,10 @@ void charge_mode_wait_for_cup_return() {
             scale_config.scale_handle->force_zero();
         }
 
+        if (charge_mode_end_on_motor_fault()) {
+            return;
+        }
+
         // Perform measurement
         float current_weight;
         if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
@@ -723,6 +752,16 @@ void charge_mode_wait_for_cup_return() {
 
 
 uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
+    // No charge with a motor driver not OK, from the menu or the web (ADR-012): the fault screen, before this mode
+    // draws anything (step 6). motors_ready() sets up again each driver not OK, so a passing fault does not refuse
+    if (!motors_ready()) {
+        printf("Charge: not started, %s\n", motors_get_fault());
+        uint8_t exit_form_id = menu_motor_fault_view();
+        // Set after the screen: the web writes the state itself after asking for a charge (ADR-003, M10)
+        charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+        return exit_form_id;
+    }
+
     // Create target weight, if the charge mode weight is built by charge_weight_digits
     if (!charge_mode_skip_user_input) {
         switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
@@ -756,24 +795,11 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
         vTaskResume(scale_measurement_render_task_handler);
     }
 
-    if (motors_ready()) {
-        // Enable motor on entering the charge mode
-        motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
-        motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
+    // Enable motor on entering the charge mode
+    motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
+    motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
 
-        charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
-    }
-    else {
-        // No charge with a motor driver that does not answer (ADR-012): the screen says which, and a press of a
-        // button (or the console's charge stop) goes back to the menu
-        snprintf(title_string, sizeof(title_string), "%s", motors_get_fault());
-        printf("Charge: not started, %s\n", title_string);
-
-        while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
-            vTaskDelay(pdMS_TO_TICKS(50));
-        }
-        charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
-    }
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
 
     bool quit = false;
     while (quit == false) {

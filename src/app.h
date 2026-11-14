@@ -17,6 +17,7 @@ typedef enum {
     APP_STATE_ENTER_EEPROM_ERASE = 8,
     APP_STATE_ENTER_REBOOT = 9,
     APP_STATE_ENTER_WIFI_INFO = 10,
+    APP_STATE_VIEW_MOTOR_FAULT = 11,        // Start or Cleanup pressed with a motor driver not OK (ADR-012, step 6)
 } AppState_t;
 
 
