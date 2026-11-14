@@ -7,7 +7,7 @@ First written at the end of a session that stopped early; brought up to date 202
 - **ADR-001:** Built and closed 2026-11-14, merged to main by PR #115. The owner waived the real throw and the check by eye (see its progress.md).
 - **ADR-011:** Built and closed 2026-11-15: SDK 2.3.1, FreeRTOS V11.3.3 from upstream, Arm's 15.2.Rel1, every version in `toolchain.env`, CI on `ubuntu-latest` with no pin. Proven on the Pico W and the Pico 2 W. The owner waived the end checks by hand and accepted the Pico 2 W's web soak as it stood; ADR-003 carries that finding. Merged by PR #119.
 - **ADR-013:** Built and closed 2026-11-15: one door for a reading (a bad frame is dropped and counted), a missing reading pauses the tricklers and a lost scale ends the charge, by the scale's own rhythm, and the web's cleanup speed only in cleanup mode. Proven on both units. A bad frame did opposite wrong things on the two chips before it: full speed on the RP2350, a short throw on the RP2040. Reviewed and merged by the owner, PR #124.
-- **Next: ADR-012**, the motor drivers cleaned up (a draft): approval first. Its fault 7 very likely caused ADR-011's two silent starts. Then ADR-002, which holds the merge strategy discussed on 2026-11-14 as a proposal.
+- **Next: ADR-012**, the motor drivers cleaned up (approved 2026-11-15, open; on the local branch `adr012_motor_drivers`, pushed only when it is closed; its progress.md says how far it is). Its fault 7 very likely caused ADR-011's two silent starts. Then ADR-002, which holds the merge strategy discussed on 2026-11-14 as a proposal.
 - **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
 - **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** two units, one on the probe at a time (see `AGENTS.md`, "The bench"):
@@ -23,7 +23,7 @@ First written at the end of a session that stopped early; brought up to date 202
 4. **The motor code has 14 faults read in the code** (ADR-012). The four that matter most:
    - the speed queue is made for 12-byte items and used with 4-byte floats;
    - a ramp is a loop that never yields, and the charge loop waits behind it;
-   - about one restart in 32 should end at a driver error if the drivers stay powered;
+   - about one restart in 37 should end at a driver error if the drivers stay powered;
    - the stored motor current may only be true with the driver module's trimmer at full scale.
 5. **The owner wants the cleanup to cover more than the motors.** Which modules is not settled.
 
@@ -52,15 +52,13 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 1. ~~`git fetch`, and compare with `origin/main`.~~ Done 2026-11-14: the branch holds all of origin/main; the local `main` was moved up to it.
 2. ~~Ask the owner whether the bench is ready.~~ Done 2026-11-14: ready, SWD and motors included, hopper empty. The bench is a Pico W reached by a debug probe on SWD only, with an A&D FX-300i; see ADR-001's "The bench". ADR-001 is revised for it (F5), approved the same day.
 3. ~~Check the audit's findings against the code, its top ten first.~~ Done 2026-11-14 for the top ten plus S2, W1, W3: `logs/audit_2026-11-14_verified.md` (this PC only). 14 confirmed, M5 only partly (ordinary readings fit; the overruns need a lifted tared container, huge readings or a REST target). H2's cause is PR #108, not #112. The audit's other findings are still unchecked.
-4. Propose the cleanup's scope to the owner: which modules, in which ADR, each with a fixed list of faults so it has an end. Say what it costs the waiting PRs: #109 and #113 merge cleanly today, and a cleanup that touches their files ends that.
-5. Write the agreed scope into the ADRs and the registry.
+4. ~~Propose the cleanup's scope to the owner.~~ Done 2026-11-15: the owner gave the scope to the agent, with no ADR of its own for a small cleanup. It is in ADR-012: six small fixes as its step 5, and every other finding of the audit given to an ADR that exists ("Where the rest of the audit goes"). `charge_mode.cpp` is left alone but for two hooks, and #109 and #113 are test-merged on this PC before ADR-012 closes.
+5. Before ADR-012 closes, write each handed-on finding into the ADR named for it, in words: the audit's files are on this PC only.
 
 ## Waiting on the owner
 
-- **The cleanup's scope**, once step 4 above is ready.
 - **ADR numbers:** kept fixed, with the table in the order of work. The owner can ask for renumbering; it is cheapest now.
-- **ADR-012, fault 8:** the motor current's reference. Units as they are today, or the stored mA made true.
-- **ADR-012, fault 7:** whether its one-line fix goes in early, since ADR-001's bench restarts a unit without cutting power.
+- ~~**ADR-012, fault 7:** whether its one-line fix goes in early.~~ ADR-012 is next and its step 1 comes first: the new transport checks every write, and the fault goes with the old code.
 - **Earlier questions still open:**
   - whether anything but the built-in pages calls the REST API;
   - the tier rules 2 to 5 (ADR-005);

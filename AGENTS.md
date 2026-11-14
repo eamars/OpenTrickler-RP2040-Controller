@@ -96,10 +96,16 @@ Work is planned and recorded as architecture decision records in [docs/developme
 - **Close before the PR:** an ADR is closed (Built, in its README, its progress and the index) in its branch before its PR is opened.
 - **PRs from others** are not merged as they stand. Each is discussed with the owner first (ADR-002).
 - **An update that is not a feature may be merged without asking** (the owner, 2026-11-13: "for no feature update you can just merge the code"). Read here as: a change that leaves what the firmware does for a user as it was, such as CI, build scripts, host tools and documents. Open its PR, see its checks, merge it. A feature, or anything a user can see, waits for the owner.
+- **Push only when it is needed** (the owner, 2026-11-15: GitHub has begun to block accounts that agents push from often, and the owner's must not become one). Read here as:
+  - commit locally as often as the work needs; a local commit never reaches GitHub;
+  - push a branch when its work is ready for its PR, or when the owner asks to see it on GitHub. Not after each commit, and not to keep work in progress safe;
+  - once a PR is open, gather its fixes and push them together;
+  - never push to try something in CI. CI builds with the toolchain a PC builds with, so a local build answers first.
 
 ## Do not
 
 - **Do not edit `src/generated/`.** Change the source (a page, a `.pio` file, `scripts/gen_version.py`) and build.
 - **Do not change anything under `library/`.** It is third-party code in submodules.
 - **Do not change a stored struct's layout without saying so in the ADR** (see "Settings in the EEPROM").
+- **Do not push often.** Push when a branch is ready for its PR, not as you go (see "Decisions and ADRs").
 - **Do not merge a feature, close a PR or an issue of someone else's, or post a comment** without the owner's word. An update that is not a feature is the exception above.
