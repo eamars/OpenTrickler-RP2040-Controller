@@ -1,6 +1,6 @@
 # ADR-001: groundwork, so an agent can build, flash, drive and check a unit
 
-Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. The bench was declared ready 2026-11-14. **Revised 2026-11-14 for the bench as it was built (F5), and the revision approved by the owner the same day:** the unit is a Pico W reached by a debug probe only, so steps 3 to 5 use the probe where they used the unit's USB port. Decisions 1, 3, 4 and 7 are changed and decision 8 is new. **Step 3 built 2026-11-14** except the owner's check by hand ([progress](progress.md)). **Step 5 and decision 2 wait for the owner's word on F2:** main already has a simulated scale.
+Status: **Open**. Approved by the owner 2026-11-13 with the seven decisions below. Steps 1 and 2 built 2026-11-13 ([progress](progress.md)), CI run included. The bench was declared ready 2026-11-14. **Revised 2026-11-14 for the bench as it was built (F5), and the revision approved by the owner the same day:** the unit is a Pico W reached by a debug probe only, so steps 3 to 5 use the probe where they used the unit's USB port. Decisions 1, 3, 4 and 7 are changed and decision 8 is new. **Steps 3 and 4 built 2026-11-14**, step 3 except the owner's check by hand ([progress](progress.md)). **Step 5 and decision 2 wait for the owner's word on F2:** main already has a simulated scale.
 
 ## What we want
 

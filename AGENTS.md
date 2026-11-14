@@ -67,9 +67,12 @@ Changes are proven on a real unit, not only built.
   - `send "state" "stats"`: commands, one after another (`help` lists them);
   - `flash [--elf <path>]`: write, verify, start, check the version;
   - `reset`: a whole-chip reset by the watchdog (openocd's own `reset run` locked the RP2040 up, F8);
-  - `watch <seconds>`: log the console for a time.
+  - `watch <seconds>`: log the console for a time;
+  - `snap`: the screen as a PNG under `logs/rc/snaps/`, as a person at the unit sees it;
+  - `menu_tour [--save <folder>] [--compare <folder>]`: every menu form in turn, pressing nothing. The Pico W's baseline is `tests/menu_baseline/pico_w/`; compare against it to see what a change did to the menu.
+- Console commands to drive the menu: `press <cw|ccw|enc|rst> [n]`, `form` and `form <id>`.
 - It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).
-- Still to come in ADR-001: `menu_tour` (step 4) and `charge_cycle` with a simulated scale (step 5).
+- Still to come in ADR-001: `charge_cycle` with a simulated scale (step 5).
 
 ## Decisions and ADRs
 

@@ -16,6 +16,7 @@ typedef enum {
 
     // Overrides from other sources, used to signal other thread to proceed
     OVERRIDE_FROM_REST,
+    OVERRIDE_GOTO_FORM,     // the remote control's `form <id>`: menu_goto_form() (ADR-001)
 } ButtonEncoderEvent_t;
 
 typedef enum {

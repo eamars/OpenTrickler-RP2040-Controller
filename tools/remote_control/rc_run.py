@@ -13,17 +13,22 @@ Usage, from the repository root:
     venv\\Scripts\\python tools\\remote_control\\rc_run.py flash [--elf build_w\\app.elf]
     venv\\Scripts\\python tools\\remote_control\\rc_run.py reset
     venv\\Scripts\\python tools\\remote_control\\rc_run.py watch 30
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py snap
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py menu_tour [--save <folder>] [--compare <folder>]
 """
 import argparse
+import base64
 import datetime
 import queue
 import re
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import threading
 import time
+import zlib
 from pathlib import Path
 
 
@@ -53,6 +58,13 @@ REPLY_TIMEOUT_S = 5.0
 CONSOLE_TIMEOUT_S = 20.0    # from a reset until the console answers
 TCL_TERMINATOR = b"\x1a"
 RTT_SEARCH_SIZE = 0x400     # bytes searched for the control block, from the address the ELF gives
+RTT_POLL_MS = 10            # how often openocd reads the RTT buffers (its default is 100 ms)
+
+SNAP_TRIES = 4              # snaps taken until two in a row are equal
+PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
+MENU_TOUR_IDS = range(1, 100)
+# Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
+MENU_TOUR_LIVE_FORMS = {36: "version info: the version, hash and build of the image"}
 
 
 class SessionLog:
@@ -84,7 +96,8 @@ class SessionLog:
         with self._lock:
             self._file.write(line + "\n")
             self._file.flush()
-            print(line, flush=True)
+            if not text.startswith("@sd "):     # a snap's data: in the file, not on the screen
+                print(line, flush=True)
 
     def close(self):
         self._file.close()
@@ -142,6 +155,68 @@ def elf_function_at(elf, address):
     output = subprocess.run([toolchain_tool("addr2line"), "-f", "-e", str(elf), hex(address)],
                             capture_output=True, text=True, check=True).stdout.split()
     return " at ".join(output)
+
+
+def snap_rows(data_lines):
+    """
+    Decode a snap: the `@snap <w> <h> u8g2 r=<rotation>` line and its `@sd <base64>` lines.
+
+    u8g2's buffer holds the panel as it is mounted: rows of 8 pixels, one byte per column, lowest bit on top.
+    The rotation u8g2 draws with is undone for R0 and R2 (the 180 degrees of a mini 12864 mounted upside down),
+    so the picture is what a person at the unit sees.
+
+    Args:
+        data_lines: the lines the snap command sent before its reply.
+
+    Returns:
+        The rows, top first, each a list of bools (True for a lit pixel), or None if the snap is incomplete.
+    """
+    if not data_lines:
+        return None
+    match = re.match(r"@snap (\d+) (\d+) u8g2 r=(\d)", data_lines[0])
+    if not match:
+        return None
+    width, height, rotation = (int(group) for group in match.groups())
+    payload = b"".join(base64.b64decode(line[4:]) for line in data_lines[1:] if line.startswith("@sd "))
+    if len(payload) != width * height // 8:
+        return None
+    rows = [[bool(payload[(y // 8) * width + x] >> (y % 8) & 1) for x in range(width)] for y in range(height)]
+    if rotation == 2:
+        rows = [row[::-1] for row in rows[::-1]]
+    return rows
+
+
+def write_png(path, rows):
+    """
+    Write rows of pixels as a 1-bit PNG, lit pixels dark as on the display. The same rows always give the same
+    bytes, so two pictures compare by their files.
+
+    Args:
+        path: the PNG's path.
+        rows: as snap_rows() gives them.
+    """
+    width = len(rows[0]) * PNG_SCALE
+    raw = bytearray()
+    for row in rows:
+        bits = []
+        for lit in row:
+            bits.extend([0 if lit else 1] * PNG_SCALE)
+        line = bytearray([0])   # filter type: none
+        for idx in range(0, width, 8):
+            byte = 0
+            for bit in bits[idx:idx + 8]:
+                byte = (byte << 1) | bit
+            line.append(byte)
+        raw += line * PNG_SCALE
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+    header = struct.pack(">IIBBBBB", width, len(rows) * PNG_SCALE, 1, 0, 0, 0, 0)
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) \
+        + chunk(b"IEND", b"")
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_bytes(png)
 
 
 def build_version(build_dir):
@@ -239,6 +314,7 @@ class Openocd:
         self.cmd("rtt stop")
         self.cmd(f'rtt setup {address:#x} {RTT_SEARCH_SIZE:#x} "SEGGER RTT"')
         self.cmd("rtt start")
+        self.cmd(f"rtt polling_interval {RTT_POLL_MS}")
         if not getattr(self, "_rtt_server", False):
             self.cmd(f"rtt server start {RTT_PORT} 0")
             self._rtt_server = True
@@ -333,6 +409,7 @@ class Console:
         """
         name = line.split()[0]
         self.drain()
+        self.data_lines = []    # the `@` lines the command sent before its reply (a snap's)
         self.log.write("rc", f"> {line}")
         self.sock.sendall(line.encode() + b"\n")
         deadline = time.monotonic() + timeout
@@ -346,6 +423,8 @@ class Console:
                 return None
             if reply.startswith(f"@ok {name}") or reply.startswith("@err"):
                 return reply
+            if reply.startswith("@") and not reply.startswith("@hello"):
+                self.data_lines.append(reply)
 
     def close(self):
         self.sock.close()
@@ -448,6 +527,81 @@ class Session:
         time.sleep(1.0)
         self.wait_for_console()
 
+    def snap(self):
+        """
+        Take snaps until two in a row are equal: a single copy of the buffer can catch a frame half drawn.
+
+        Returns:
+            The rows, as snap_rows() gives them, or None (counted as a failure).
+        """
+        previous = None
+        for _ in range(SNAP_TRIES):
+            reply = self.console.command("snap")
+            if reply is None or not reply.startswith("@ok"):
+                self.fail(f"snap: {reply or 'no reply'}")
+                return None
+            rows = snap_rows(self.console.data_lines)
+            if rows is not None and rows == previous:
+                return rows
+            previous = rows
+        self.fail(f"no two snaps in a row were equal in {SNAP_TRIES} tries")
+        return None
+
+    def save_snap(self, path):
+        """Take a snap and save it as a PNG. Returns the path, or None."""
+        rows = self.snap()
+        if rows is None:
+            return None
+        write_png(path, rows)
+        self.log.write("rc", f"snap saved: {path}")
+        return path
+
+    def menu_tour(self, save_dir, compare_dir):
+        """
+        Show every form in turn and snap it, pressing nothing, so no setting changes and nothing starts.
+
+        Args:
+            save_dir: where the pictures go (default: logs/rc/snaps/<session>/).
+            compare_dir: a folder of earlier pictures; a form missing from either side, or a picture that
+                differs, fails, except the forms in MENU_TOUR_LIVE_FORMS, which are reported.
+        """
+        reply = self.console.command("form")
+        if reply is None or not reply.startswith("@ok form=") or int(reply.split("=")[1]) < 0:
+            self.fail(f"the menu does not have the screen: {reply}")
+            return
+        out_dir = Path(save_dir) if save_dir else LOG_DIR / "snaps" / self.log.path.stem
+        found = []
+        for form_id in MENU_TOUR_IDS:
+            reply = self.console.command(f"form {form_id}")
+            if reply == "@err no such form":
+                continue
+            if reply is None or not reply.startswith("@ok"):
+                self.fail(f"form {form_id}: {reply or 'no reply'}")
+                continue
+            if self.save_snap(out_dir / f"form_{form_id}.png") is not None:
+                found.append(form_id)
+        self.console.command("form 1")
+        self.log.write("rc", f"menu_tour: {len(found)} forms: {' '.join(str(form_id) for form_id in found)}")
+        self.log.write("rc", f"menu_tour: pictures in {out_dir}")
+
+        if compare_dir is None:
+            return
+        compare_dir = Path(compare_dir)
+        baseline = {int(path.stem.split("_")[1]) for path in compare_dir.glob("form_*.png")}
+        for form_id in sorted(baseline - set(found)):
+            self.fail(f"form {form_id} is in {compare_dir} and was not found")
+        for form_id in found:
+            reference = compare_dir / f"form_{form_id}.png"
+            if not reference.exists():
+                self.fail(f"form {form_id} is new: not in {compare_dir}")
+                continue
+            if reference.read_bytes() == (out_dir / f"form_{form_id}.png").read_bytes():
+                continue
+            if form_id in MENU_TOUR_LIVE_FORMS:
+                self.log.write("rc", f"form {form_id} differs, not judged ({MENU_TOUR_LIVE_FORMS[form_id]})")
+            else:
+                self.fail(f"form {form_id} differs from {reference}")
+
     def finish(self):
         """
         Check the cores, stop openocd, print the verdict.
@@ -480,12 +634,20 @@ def main():
     sub.add_parser("reset", help="reset the chip through the probe")
     watch_parser = sub.add_parser("watch", help="log the console for a time")
     watch_parser.add_argument("seconds", type=float)
+    sub.add_parser("snap", help="save the screen as a PNG under logs/rc/snaps/")
+    tour_parser = sub.add_parser("menu_tour", help="snap every form, pressing nothing")
+    tour_parser.add_argument("--save", help="keep the pictures in this folder")
+    tour_parser.add_argument("--compare", help="fail on a form missing from, or differing from, this folder")
     args = parser.parse_args()
 
     session = Session(args, args.command)
     if args.command == "send":
         for line in args.lines:
             session.send(line)
+    elif args.command == "snap":
+        session.save_snap(LOG_DIR / "snaps" / f"{session.log.path.stem}.png")
+    elif args.command == "menu_tour":
+        session.menu_tour(args.save, args.compare)
     elif args.command == "flash":
         session.flash()
     elif args.command == "reset":

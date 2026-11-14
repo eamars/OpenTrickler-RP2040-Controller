@@ -14,6 +14,14 @@
 #include "rc_console.h"
 #include "remote_control.h"
 
+#if LIB_PICO_STDIO_RTT
+#include <string.h>
+#include "SEGGER_RTT.h"
+
+// How long a command's line waits for room in the RTT buffer before it is printed anyway
+#define RC_CONSOLE_WRITE_WAIT_MS 500
+#endif
+
 
 // Large enough for `state`
 #define RC_CONSOLE_REPLY_SIZE 512
@@ -34,6 +42,16 @@ static char rc_console_reply[RC_CONSOLE_REPLY_SIZE];
 
 // A command's lines before its reply, on the console as they come
 static void rc_console_write_line(const char *line, void *ctx) {
+#if LIB_PICO_STDIO_RTT
+    // RTT drops a line that does not fit its buffer. Wait for the probe to make room, a little, so a snap's
+    // lines all arrive; if it never does (no probe reading), the line is dropped as any log line would be
+    for (int waited_ms = 0; waited_ms < RC_CONSOLE_WRITE_WAIT_MS; waited_ms += RC_CONSOLE_POLL_MS) {
+        if (SEGGER_RTT_GetAvailWriteSpace(0) > strlen(line) + 1) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(RC_CONSOLE_POLL_MS));
+    }
+#endif
     printf("%s\n", line);
 }
 

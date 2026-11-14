@@ -188,6 +188,57 @@ Also run:
 - Every `program` prints `Execution of event reset-init failed: args[i] option value ('CX') is not valid` from openocd's RP2040 script. Flashing and verifying still pass.
 - openocd prints read errors while the chip restarts (`Failed to select multidrop`, `Polling failed`). It examines the chip again and carries on.
 
-## Steps 4 to 6
+## Step 4: press, form, snap, and the menu tour
+
+Built 2026-11-14 on the bench's Pico W.
+
+**What was built**
+- `press <cw|ccw|enc|rst> [n]`: the event goes into `encoder_event_queue`, 50 ms apart, so the menu draws between presses.
+- `form` and `form <id>`:
+  - A new event, `OVERRIDE_GOTO_FORM`, is handled in `menu_task`, so only that task touches the `mui_t`.
+  - `menu_task` answers after it has drawn the form, so a snap taken next shows it.
+  - It publishes the form on screen after each draw, and −1 while a mode has the screen.
+  - `state` gains `form=`.
+- `snap`: one copy of the u8g2 buffer, sent as `@snap 128 64 u8g2 r=<rotation>` and four `@sd <base64>` lines.
+  - The runner undoes u8g2's rotation. The bench's display is set to R2, 180°, so a picture is what a person at the unit sees.
+  - A line waits up to 500 ms for room in the RTT buffer instead of being dropped.
+- `rc_run.py`:
+  - `snap` saves a PNG under `logs/rc/snaps/`;
+  - `menu_tour [--save <folder>] [--compare <folder>]`;
+  - a picture is kept only when two snaps in a row are equal;
+  - the PNGs are written byte for byte the same for the same screen, so they compare by their files;
+  - openocd reads the RTT buffers every 10 ms (its default is 100).
+- **No `sscanf` in the firmware.** The first build used it to parse arguments, and it pulled about 39 KB of newlib's scanf into the image. It was replaced by `strtol`.
+
+**Proof**
+
+| Done when | Result |
+|---|---|
+| `menu_tour` finds all 22 forms | Passed: 1, 10 to 13, 20, 30 to 41, 51, 53, 60, 61, in about 6 s |
+| Run twice, the second run compares equal to the first | Passed |
+| The set committed as `tests/menu_baseline/pico_w/` | 22 PNGs, 11.6 KB |
+
+- **`press` checked:**
+  - `form 30`, then `press rst` gives `form=1`: the back button goes up one level.
+  - `press cw 2`, then `press ccw 2` leaves the main menu as it was.
+- **The error replies:** a bad button, a form id out of range and a form that does not exist each get their `@err` reply.
+- **Looked at by eye:**
+  - the main menu, the charge weight entry and the version page are upright and sharp;
+  - the profile pages show the unit's stored profile (`AR2209,gr`: Kp 0.050 and 0.800, Kd 0.300 and 15.000).
+
+**What the baseline depends on**
+- **The unit's settings.** The profile pages show the selected profile, and the charge-weight form shows 2 decimal places (form 11; form 12 is the 3-place one). A unit with other settings differs there.
+- **Form 36 (version info) changes with every build.** `menu_tour` reports it and does not judge it.
+
+**What step 4 costs**
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Flash after step 3 → after step 4 | 697.9 → 699.8 KB (+1.9) | 672.5 → 674.4 KB (+1.9) |
+| RAM at link time, step 3 → step 4 | 199.2 → 200.5 KB (+1.3) | 199.7 → 201.1 KB (+1.4) |
+
+Most of the RAM is the snap's 1 KB copy of the screen.
+
+## Steps 5 and 6
 
 Not started. Step 5 needs the owner's word on F2.

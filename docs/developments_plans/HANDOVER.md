@@ -5,7 +5,7 @@ Written at the end of a session that stopped early. It says where the work stand
 ## Where things stand
 
 - **Branch:** `adr001_agent_groundwork`, pushed. Main's CI is green with the runner pinned (PR #114).
-- **ADR-001:** open. Steps 1 and 2 are built. The bench is ready (2026-11-14); the revision for the probe bench (F5) was approved; step 3 is built except the owner's check by hand. Steps 4 to 6 are next.
+- **ADR-001:** open. Steps 1 and 2 are built. The bench is ready (2026-11-14); the revision for the probe bench (F5) was approved; steps 3 and 4 are built, step 3 except the owner's check by hand. Step 5 waits for the owner's word on F2.
 - **New today, both drafts, not approved:** ADR-011 (the dependencies brought up to date) and ADR-012 (the motor drivers cleaned up).
 - **Order of the work:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** on 2026-11-14 the unit's settings were copied to `logs/unit_backup/`, then it was flashed with this branch through the probe (step 3). Its charge-mode settings are at their defaults now (F6).
