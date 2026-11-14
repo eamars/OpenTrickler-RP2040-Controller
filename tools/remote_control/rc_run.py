@@ -72,6 +72,7 @@ CHARGE_CYCLE_ORDER = [1, 2, 3, 4, 1]    # a charge, the cup off and back (by the
 TCL_PORT = 6666
 RTT_PORT = 19021
 REPLY_TIMEOUT_S = 5.0
+CORE_STATE_WAIT_S = 5.0   # how long openocd may not know a core's state before it counts as not running
 CONSOLE_TIMEOUT_S = 20.0    # from a reset until the console answers
 TCL_TERMINATOR = b"\x1a"
 RTT_SEARCH_SIZE = 0x400     # bytes searched for the control block, from the address the ELF gives
@@ -456,6 +457,47 @@ class Openocd:
                   f"{{ lappend r [read_memory {address:#x} 32 1] }}; return $r")
         return [int(value, 0) for value in self.cmd(script).split()]
 
+    def core_state(self, core):
+        """
+        A core's state as openocd knows it. "unknown" is openocd not knowing yet, not the core's state: upstream
+        FreeRTOS resets core 1 as the scheduler starts (ADR-011, step 2), and on the RP2040, where each core has
+        its own debug port, openocd needs a moment after that to see core 1 again. So "unknown" is asked again
+        until CORE_STATE_WAIT_S has passed.
+
+        Returns:
+            "running", "halted", "reset", or "unknown" when openocd still does not know.
+        """
+        deadline = time.monotonic() + CORE_STATE_WAIT_S
+        while True:
+            state = self.cmd(f"{core} curstate").strip()
+            if state != "unknown" or time.monotonic() > deadline:
+                return state
+            time.sleep(0.5)
+
+    def where_cores_are(self, elf):
+        """
+        Halt each core, read where it is, and let it run on: evidence for a unit that stopped answering.
+
+        Returns:
+            One description per core.
+        """
+        found = []
+        for core in self.board["cores"]:
+            state = self.core_state(core)
+            self.cmd(f"targets {core}")
+            self.cmd("halt")
+            where = []
+            for register in ("pc", "lr"):
+                match = re.search(r"0x([0-9a-fA-F]+)", self.cmd(f"reg {register}"))
+                if match:
+                    value = int(match.group(1), 16)
+                    where.append(f"{register}={value:#010x} ({elf_function_at(elf, value)})")
+            found.append(f"{core} ({state}): " + ", ".join(where))
+        for core in reversed(self.board["cores"]):
+            self.cmd(f"targets {core}")
+            self.cmd("resume")
+        return found
+
     def halted_cores(self, elf):
         """
         Find cores that are not running.
@@ -468,7 +510,7 @@ class Openocd:
         """
         found = []
         for core in self.board["cores"]:
-            state = self.cmd(f"{core} curstate").strip()
+            state = self.core_state(core)
             if state == "running":
                 continue
             description = f"{core} {state}"
@@ -665,6 +707,8 @@ class Session:
                     self.check_up(reply)
                     return reply
             self.fail(f"the console did not answer within {CONSOLE_TIMEOUT_S:.0f} s of a restart")
+            for description in self.openocd.where_cores_are(self.elf):
+                self.log.write("rc", f"with no console: {description}")
             return None
         finally:
             self.link_seen = len(self.openocd.output)   # RTT failing across a restart is not a dropped link
