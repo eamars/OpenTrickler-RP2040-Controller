@@ -1,6 +1,6 @@
 # ADR-011: the dependencies brought up to date
 
-Status: **Open** 2026-11-14. Written in full and approved by the owner the same day. Step 1 is built and proven on the Pico W; left: steps 2 to 4, then the Pico 2 W. What is built and measured is in [progress.md](progress.md).
+Status: **Open** 2026-11-14. Written in full and approved by the owner the same day. Steps 1 and 2 are built and proven on the Pico W; left: steps 3 and 4, then the Pico 2 W. What is built and measured is in [progress.md](progress.md).
 
 ## What we want
 

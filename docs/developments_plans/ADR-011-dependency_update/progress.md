@@ -119,3 +119,45 @@ Built 2026-11-14.
 - **Fixed in `rc_run.py`:** when a reply is late and openocd has reported an RTT read failure, RTT is started again once and the wait starts over, without sending the line again. A unit that truly stopped answering still fails. Tried on the bench by stopping RTT by hand: the late reply came, nothing was sent twice, `VERDICT PASS`.
 
 **Step 1 passes,** judged on the second run's record rather than a third run: every measure of the unit is within its limits (charges, the heap, no restart, the web), and each failure in the verdict is a reply the unit gave and the probe did not carry. Steps 2 and 3 run the soak with the fixed tool.
+
+## Step 2: FreeRTOS from upstream
+
+Built 2026-11-14.
+
+**What moved**
+- `library/FreeRTOS-Kernel` from Raspberry Pi's fork (`4f7299d`, 2024-08-08, the head of its only branch) to `FreeRTOS/FreeRTOS-Kernel` at V11.3.3. The RP2040 port is in the kernel; the RP2350 ports come from its community ports, held at `bae4c7a` (2025-01-14).
+- `.gitmodules` names the new address.
+
+**The build**
+- The Pico W built as it was. The Pico 2 W did not: "does not contain a 'rp2350-arm-s' port here: portable/ThirdParty/GCC/RP2350_ARM_NTZ".
+- **Why.** Upstream's import file searches for the kernel in two passes, the fork's paths first, then the community ports'. On the first pass it found the kernel as the SDK's sibling and stopped there, with the first pass's RP2350 path, which only the fork had. It never tried the second.
+- **Fixed in our `CMakeLists.txt`:** the kernel's location is given (`FREERTOS_KERNEL_PATH`), the case the import file is written for. It then tries both paths and takes the RP2350 port from the community ports. Nothing under `library/` changed.
+- `FreeRTOSConfig.h` needed no change. The same 4 warnings inside u8g2, nothing else.
+
+**Sizes**
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Flash | 647.9 to 649.6 KB (+1.7) | 626.4 to 628.0 KB (+1.6) |
+| RAM at link time | 196.9 KB, unchanged | 197.0 KB, unchanged |
+
+- FreeRTOS +1.5 KB, the SDK +0.2 KB. Two years of upstream: the walk over the task lists reworked (`uxTaskGetSystemState` split into `prvCallForEachTask` and others), the recursive mutex and the queue's delete grown, many functions a few bytes each.
+- **Core 1 is reset before it starts** (`multicore_reset_core1`, 168 bytes, called by upstream's RP2040 port as the scheduler starts; upstream commit f0d79459d, "Fix SMP debugging issue on rp2040").
+
+**CI** ([run 43579297767](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/runs/43579297767)): passed. Pico W 650.5 KB, Pico 2 W 628.7 KB.
+
+**On the unit** (the bench's Pico W, from 22:10)
+- `settings` before, `flash` (1.20.65 at 7913330, 10.3 s after the start), `settings --compare` (every stored value as before; one read needed a second try), `menu_tour --compare` (22 forms equal), `charge_cycle` (30.000 for 30): all passed.
+- **The flash's verdict failed on "core not running: rp2040.core1 unknown".** The core ran: halted and read, it was in FreeRTOS's idle task. Right after a flash openocd answers "unknown" for core 1, even after examining it again, and "running" two seconds later. It follows the reset of core 1 above: each core of the RP2040 has its own debug port, and openocd needs a moment to see core 1 again. `rc_run.py` now asks again for up to 5 s and judges the first real answer; a core still unknown after that fails as before. The flash's verdict then passed.
+- **`pulses`, first run: two starts with no console.** After the assert test image and then the hard-fault one were flashed, the unit printed its start up to the motors' set-up and then nothing; the console never answered. The normal image, flashed after, started at once. Not seen again in 14 more starts of the test images: 8 in a row of the assert image, and two more runs of `pulses`, both `VERDICT PASS` (pulses stop on a reset and on an assert, run on after a hard fault, as on step 1). Not explained. `rc_run.py` now halts both cores and logs where they are when the console does not come back after a restart, so a next one leaves evidence.
+- **The soak** (22:24 to 22:55): `VERDICT PASS`. 62 charges, every one passed, each 30.000 for 30. `heap_free` 97,320 at the start and 96,152 from the first charge on, as on step 1. No restart (`up` from 14 to 1,827), no drop of the probe's link.
+
+| | Baseline | Step 1, second run | Step 2 |
+|---|---|---|---|
+| Web reads missed | 6.51% | 6.03% | 7.02% (471 of 6,705) |
+| Longest run on one poller | 3 | 2 | 4 |
+| Broken JSON among the misses | 100 | 116 | 110 |
+
+- The web stays where it was: the share moves by about a point from run to run, within the limits (10%, 6).
+
+**Step 2 passes.**
