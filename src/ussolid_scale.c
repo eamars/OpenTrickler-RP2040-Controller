@@ -88,12 +88,7 @@ void _ussolid_scale_listener_task(void *p) {
                 // Data is ready, send to decode
                 float weight = _decode_measurement_msg(&frame);
 
-                scale_config.current_scale_measurement = weight;
-
-                // Signal the data is ready
-                if (scale_config.scale_measurement_ready) {
-                    xSemaphoreGive(scale_config.scale_measurement_ready);
-                }
+                scale_publish_measurement(weight);
 
                 // Reset
                 string_buf_idx = 0;

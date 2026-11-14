@@ -22,6 +22,7 @@ import argparse
 import base64
 import datetime
 import json
+import math
 import queue
 import re
 import shutil
@@ -85,7 +86,11 @@ TCL_TERMINATOR = b"\x1a"
 RTT_SEARCH_SIZE = 0x400     # bytes searched for the control block, from the address the ELF gives
 RTT_POLL_MS = 10            # how often openocd reads the RTT buffers (its default is 100 ms)
 
-SNAP_TRIES = 4              # snaps taken until two in a row are equal
+# Snaps taken until two in a row are equal. The console copies the screen's buffer with no lock while a task may
+# be drawing into it, so a copy can catch a frame half drawn. The menu draws on a change; the charge's screen
+# redraws every 20 ms, and 4 tries were not always enough there (ADR-013). The firmware's display lock, which no
+# drawing task takes, is the real cure (the screens' ADR).
+SNAP_TRIES = 10
 PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
 MENU_TOUR_IDS = range(1, 100)
 # Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
@@ -116,6 +121,15 @@ SOAK_SETTINGS_S = 60.0      # every settings path
 SOAK_MISS_SHARE = 0.01      # the most of the web reads that may miss
 SOAK_MISS_RUN = 2           # the most misses in a row on one poller
 SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
+
+# scale_frames (ADR-013): the motors as in a throw on the bench's settings (the coarse trickler at its 5 rev/s cap)
+SCALE_FRAMES_COARSE_RPS = 5.0
+SCALE_FRAMES_FINE_RPS = 2.0
+SCALE_FRAMES_TEXTS = 5     # the most frequent texts shown per phase, of the frames that did not read as a number
+
+# charge_fault (ADR-013)
+CHARGE_FAULT_POLL_S = 0.05     # how often state is read around the fault
+CHARGE_FAULT_RAMP_S = 0.25     # a ramp down from full speed (0.1 s at 50 rev/s2) and a poll or two
 
 
 class WebPoller(threading.Thread):
@@ -190,7 +204,7 @@ class SessionLog:
         with self._lock:
             self._file.write(line + "\n")
             self._file.flush()
-            if not text.startswith("@sd "):     # a snap's data: in the file, not on the screen
+            if not text.startswith(("@sd ", "@sf ")):     # a snap's data, a tapped frame: in the file, not on the screen
                 print(line, flush=True)
 
     def close(self):
@@ -558,6 +572,8 @@ class Console:
         self.failures = failures
         self.recover_link = recover_link
         self.expect_fault = False   # set while a test build is meant to assert: its line is then not a failure
+        self.tap_lines = []         # (host time, "@sf ..." line), from the scale tap
+        self.charge_events = []     # (host time, "Charge: ..." line), the charge's pauses and ends
         self.lines = queue.Queue()
         self.sock = socket.create_connection(("127.0.0.1", RTT_PORT), timeout=10)
         self.sock.settimeout(None)
@@ -579,6 +595,13 @@ class Console:
                 self.log.write("unit", line)
                 if ("assertion" in line.lower() or "PANIC" in line) and not self.expect_fault:
                     self.failures.append(f"console: {line}")
+                if line.startswith("@sf "):
+                    # A frame from the scale tap (ADR-013): kept apart, with when it was read, so the replies to
+                    # commands are not mixed with them and no drain() loses them
+                    self.tap_lines.append((time.monotonic(), line))
+                    continue
+                if line.startswith("Charge: "):
+                    self.charge_events.append((time.monotonic(), line))   # a pause, a resume, an end (ADR-013)
                 self.lines.put(line)
 
     def drain(self):
@@ -1067,6 +1090,249 @@ class Session:
             self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
         self.send("sim off")
 
+    def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, cleanup_speed, expect, watch_s,
+                     repeat=1, want=None, want_none=False):
+        """
+        A charge with the simulated scale and one fault put in partway (ADR-013), `state` read every
+        CHARGE_FAULT_POLL_S from the fault to watch_s after it. Logs each change of the charge's state or of a
+        trickler's speed, and judges whether the fault was seen:
+          bad: a reading that is not a number. Seen when a trickler goes to its full speed, or the charge ends
+              while short of the target by more than the stop threshold;
+          quiet: no reading for quiet_ms. Seen when a trickler still turns 3 intervals and a ramp after the
+              last reading, inside the quiet time;
+          cleanup: the web's cleanup speed sent during the charge. Seen when a trickler takes that speed.
+
+        Args:
+            fault: "bad", "quiet" or "cleanup".
+            host: the unit's address, for the maxima and for the cleanup request.
+            target: the charge's weight.
+            at_weight: the weight at which the fault goes in (charging).
+            quiet_ms: how long the scale is quiet, for "quiet".
+            rate: the simulated scale's readings a second.
+            cleanup_speed: the cleanup speed sent, for "cleanup".
+            expect: "seen" (the code before the fix) or "not-seen" (after it); the other fails.
+            watch_s: how long `state` is read after the fault.
+            repeat: how many times the fault goes in, each after the charge resumed from the one before.
+            want: words that must come in the charge's "Charge: ..." lines, in that order ("paused", "resumed").
+            want_none: no pause and no end may come.
+          none: nothing put in, the simulated scale at `rate`. Seen when the charge pauses or ends.
+        """
+        def read_json(path):
+            # A unit just flashed may not be on Wi-Fi yet: up to SETTINGS_TRIES tries, then a failure, not a crash
+            for attempt in range(1, SETTINGS_TRIES + 1):
+                try:
+                    return json.loads(http_get(host, path))
+                except (OSError, ValueError) as error:
+                    self.log.write("rc", f"charge_fault: {path}, try {attempt}: {error}")
+                    time.sleep(2.0)
+            return None
+
+        readings = [read_json(path) for path in
+                    ("rest/profile_config", "rest/coarse_motor_config", "rest/fine_motor_config", "rest/charge_mode_config")]
+        if any(reading is None for reading in readings):
+            self.fail("charge_fault: the unit's settings could not be read over the web")
+            return
+        profile, coarse_motor, fine_motor, charge_config = readings
+        coarse_max = min(float(profile["p7"]), float(coarse_motor["m4"]))
+        fine_max = min(float(profile["p12"]), float(fine_motor["m4"]))
+        threshold = float(charge_config["c6"])
+        self.log.write("rc", f"charge_fault: {fault} at {at_weight:g} of {target:g}; full speed coarse {coarse_max:g}, "
+                             f"fine {fine_max:g} rev/s; fine stop threshold {threshold:g}; {rate:g} readings a second")
+
+        if self.send("sim on") is None or self.send(f"sim rate {rate:g}") is None or self.failures:
+            return
+        self.send(f"charge {target:g}")
+        deadline = time.monotonic() + 120
+        before = None
+        while time.monotonic() < deadline:
+            before = self.state()
+            if before and before["charge"] == "2" and float(before["weight"]) >= at_weight:
+                break
+            time.sleep(CHARGE_FAULT_POLL_S)
+        else:
+            self.fail(f"charge_fault: the charge did not reach {at_weight:g} within 120 s")
+            self.send("charge stop")
+            return
+
+        events_from = len(self.console.charge_events)
+        started = time.monotonic()
+        samples = []    # (seconds after the first fault, charge, weight, coarse, fine)
+
+        def watch(until_event):
+            """Read state for watch_s, or until a "Charge: resumed" or "Charge: ended" line comes after until_event."""
+            watch_start = time.monotonic()
+            while time.monotonic() - watch_start < watch_s:
+                state = self.state()
+                if state:
+                    samples.append((time.monotonic() - started, state["charge"], state["weight"],
+                                    float(state["coarse"]), float(state["fine"])))
+                if until_event is not None and any(("resumed" in line or "ended" in line)
+                                                   for _, line in self.console.charge_events[until_event:]):
+                    return
+                time.sleep(CHARGE_FAULT_POLL_S)
+
+        for round_idx in range(repeat):
+            round_events = len(self.console.charge_events)
+            if fault == "bad":
+                self.send("sim bad")
+            elif fault == "quiet":
+                self.send(f"sim quiet {quiet_ms}")
+            elif fault == "cleanup":
+                http_get(host, f"rest/cleanup_mode_state?s1={cleanup_speed:g}")
+            watch(round_events if round_idx < repeat - 1 else None)
+            # The next round goes in once the charge pours again
+            if round_idx < repeat - 1:
+                time.sleep(0.5)
+
+        last = (before["charge"], before["weight"], float(before["coarse"]), float(before["fine"]))
+        self.log.write("rc", f"charge_fault: before: charge {last[0]}, weight {last[1]}, coarse {last[2]:g}, fine {last[3]:g}")
+        for at, charge, weight, coarse, fine in samples:
+            if (charge, coarse, fine) != (last[0], last[2], last[3]):
+                self.log.write("rc", f"charge_fault: +{at:.2f} s: charge {charge}, weight {weight}, coarse {coarse:g}, "
+                                     f"fine {fine:g}")
+                last = (charge, weight, coarse, fine)
+
+        def number(text):
+            try:
+                return float(text)
+            except ValueError:
+                return math.nan
+
+        if fault == "bad":
+            full = any(coarse >= 0.98 * coarse_max or fine >= 0.98 * fine_max for _, _, _, coarse, fine in samples)
+            short = any(charge != "2" and number(weight) < target - threshold for _, charge, weight, _, _ in samples
+                        if math.isfinite(number(weight)))
+            seen = full or short
+            how = "a trickler at full speed" if full else ("the charge ended short" if short else "")
+        elif fault == "quiet":
+            late = 3.0 / rate + CHARGE_FAULT_RAMP_S
+            turning = [at for at, _, _, coarse, fine in samples if late < at < quiet_ms / 1000.0 and (coarse or fine)]
+            seen = bool(turning)
+            how = f"a trickler still turning {turning[-1]:.2f} s into {quiet_ms} ms of quiet" if turning else ""
+        elif fault == "cleanup":
+            took = [at for at, _, _, coarse, fine in samples
+                    if abs(coarse - cleanup_speed) < 0.01 or abs(fine - cleanup_speed) < 0.01]
+            seen = bool(took)
+            how = f"a trickler at the cleanup speed {took[0]:.2f} s after it was sent" if took else ""
+        else:
+            # none: nothing put in; the fault would be a pause or an end where the scale is only slow
+            stops = [line for _, line in self.console.charge_events[events_from:] if "paused" in line or "ended" in line]
+            seen = bool(stops)
+            how = stops[0] if stops else ""
+        self.log.write("rc", f"charge_fault: {fault}: {'SEEN, ' + how if seen else 'not seen'}")
+        if (expect == "seen") != seen:
+            self.fail(f"charge_fault: {fault}: expected {expect}, was {'seen' if seen else 'not seen'}")
+
+        # The charge's own account (ADR-013): its pauses, resumes and ends, against what was wanted
+        events = [line for _, line in self.console.charge_events[events_from:]]
+        for line in events:
+            self.log.write("rc", f"charge_fault: event: {line}")
+        if want:
+            pos = 0
+            for word in want:
+                found = next((idx for idx in range(pos, len(events)) if word in events[idx]), None)
+                if found is None:
+                    self.fail(f"charge_fault: wanted \"{word}\" after event {pos} and it did not come")
+                    break
+                pos = found + 1
+        if want_none:
+            stops = [line for line in events if "paused" in line or "ended" in line]
+            if stops:
+                self.fail(f"charge_fault: wanted no pause or end, got: {stops[0]}")
+        if any("ended" in line for line in events):
+            # The screen as the user sees it, before the charge is cleared
+            self.save_snap(LOG_DIR / "snaps" / f"{self.log.path.stem}_fault.png")
+
+        state = self.state()
+        if state and state["charge"] != "0":
+            self.send("charge stop")
+            stop_deadline = time.monotonic() + 10
+            while time.monotonic() < stop_deadline:
+                state = self.state()
+                if state and state["charge"] == "0":
+                    break
+                time.sleep(CHARGE_FAULT_POLL_S)
+        self.send("sim rate 10")
+        self.send("sim off")
+
+    def scale_frames(self, idle_s, handovers, reboots, motors_s):
+        """
+        Record what the scale's driver decodes, through the scale tap (ADR-013), and sum it up by phase: idle;
+        across hand-overs from the simulated scale; across restarts; with both motors turning. A measurement: it
+        fails only when a phase gets no frame or a command fails.
+
+        Args:
+            idle_s: seconds of the idle phase.
+            handovers: how many times the simulated scale takes over for 2 s and gives the scale back.
+            reboots: how many restarts; the tap is not kept across one, so it is switched on as soon as the
+                console answers, and the frames before that are not seen.
+            motors_s: seconds with the coarse trickler at SCALE_FRAMES_COARSE_RPS and the fine at
+                SCALE_FRAMES_FINE_RPS, the hopper empty.
+        """
+        phases = []     # (name, first index into the tap's lines, last index)
+
+        def record(name, action):
+            start = len(self.console.tap_lines)
+            action()
+            phases.append((name, start, len(self.console.tap_lines)))
+
+        def hand_overs():
+            for _ in range(handovers):
+                self.send("sim on")
+                time.sleep(2.0)
+                self.send("sim off")
+                time.sleep(4.0)
+
+        def restarts():
+            for _ in range(reboots):
+                self.send("reboot")         # send() waits for the console to answer again
+                self.send("scale tap on")
+                time.sleep(5.0)
+
+        def motors_turning():
+            self.send(f"motor coarse {SCALE_FRAMES_COARSE_RPS:g}")
+            self.send(f"motor fine {SCALE_FRAMES_FINE_RPS:g}")
+            time.sleep(motors_s)
+            self.send("motor coarse 0")
+            self.send("motor fine 0")
+
+        self.send("scale tap on")
+        record("idle", lambda: time.sleep(idle_s))
+        record("hand-overs", hand_overs)
+        record("restarts", restarts)
+        record("motors turning", motors_turning)
+        self.send("scale tap off")
+
+        for name, first, last in phases:
+            frames = []
+            malformed = 0
+            for _, line in self.console.tap_lines[first:last]:
+                parts = line.split()
+                try:
+                    frames.append((int(parts[1]), float(parts[2]), bytes.fromhex(parts[3]) if len(parts) > 3 else b""))
+                except (IndexError, ValueError):
+                    malformed += 1
+            numbers = sum(1 for _, value, _ in frames if math.isfinite(value))
+            infs = sum(1 for _, value, _ in frames if math.isinf(value))
+            nans = sum(1 for _, value, _ in frames if math.isnan(value))
+            summary = f"scale_frames: {name}: {len(frames)} frames, {numbers} numbers, {infs} inf, {nans} NaN"
+            if malformed:
+                summary += f", {malformed} lines not read"
+            # The rhythm, from the unit's own clock: only where the scale runs on without a break
+            if name in ("idle", "motors turning") and len(frames) > 2:
+                gaps = sorted(b[0] - a[0] for a, b in zip(frames, frames[1:]) if 0 < b[0] - a[0] < 10000)
+                if gaps:
+                    summary += f"; between frames {gaps[len(gaps) // 2]} ms typical, {gaps[-1]} ms longest"
+            self.log.write("rc", summary)
+            texts = {}
+            for _, value, raw in frames:
+                if not math.isfinite(value):
+                    texts[raw] = texts.get(raw, 0) + 1
+            for raw, count in sorted(texts.items(), key=lambda item: -item[1])[:SCALE_FRAMES_TEXTS]:
+                self.log.write("rc", f"scale_frames: {name}: {count} x {raw!r}")
+            if not frames:
+                self.fail(f"scale_frames: {name}: no frame")
+
     def pulses(self, assert_elf, hardfault_elf):
         """
         Do the step pulses stop? With the coarse trickler commanded to 1 rev/s: (a) a reset through the probe,
@@ -1183,6 +1449,25 @@ def main():
                              help="the most of the web reads that may miss, 0 to 1")
     soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
                              help="the most misses in a row one poller may have")
+    frames_parser = sub.add_parser("scale_frames", help="record the scale's frames through the tap, by phase")
+    frames_parser.add_argument("--idle", type=float, default=120.0, help="seconds idle")
+    frames_parser.add_argument("--handovers", type=int, default=5, help="hand-overs from the simulated scale")
+    frames_parser.add_argument("--reboots", type=int, default=2, help="restarts")
+    frames_parser.add_argument("--motors", type=float, default=60.0, help="seconds with both motors turning")
+    fault_parser = sub.add_parser("charge_fault", help="a simulated charge with one fault put in partway")
+    fault_parser.add_argument("fault", choices=["bad", "quiet", "cleanup", "none"])
+    fault_parser.add_argument("--host", required=True, help="the unit's address")
+    fault_parser.add_argument("--expect", choices=["seen", "not-seen"], required=True,
+                              help="seen: the code before the fix; not-seen: after it")
+    fault_parser.add_argument("--target", type=float, default=30.0)
+    fault_parser.add_argument("--at", type=float, help="the weight the fault goes in at (default: 1 short of the target)")
+    fault_parser.add_argument("--quiet-ms", type=int, default=1500)
+    fault_parser.add_argument("--rate", type=float, default=10.0, help="the simulated scale's readings a second")
+    fault_parser.add_argument("--cleanup-speed", type=float, default=3.0)
+    fault_parser.add_argument("--watch", type=float, default=3.0, help="seconds watched after the fault")
+    fault_parser.add_argument("--repeat", type=int, default=1, help="how many times the fault goes in")
+    fault_parser.add_argument("--want", help="words that must come in the charge's events, in order, comma-separated")
+    fault_parser.add_argument("--want-none", action="store_true", help="no pause and no end may come")
     args = parser.parse_args()
 
     session = Session(args, args.command)
@@ -1207,6 +1492,13 @@ def main():
         session.settings(args.host, args.save, args.compare)
     elif args.command == "soak":
         session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run)
+    elif args.command == "scale_frames":
+        session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
+    elif args.command == "charge_fault":
+        at = args.at if args.at is not None else args.target - 1.0
+        session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.cleanup_speed,
+                             args.expect, args.watch, args.repeat,
+                             args.want.split(",") if args.want else None, args.want_none)
     sys.exit(session.finish())
 
 

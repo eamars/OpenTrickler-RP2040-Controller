@@ -30,6 +30,10 @@ cleanup_mode_config_t cleanup_mode_config;
 static char title_string[30];
 TaskHandle_t cleanup_render_task_handler = NULL;
 
+// True only while cleanup mode's own loop runs, its motors enabled (ADR-013). cleanup_mode_state cannot tell it: the
+// web writes ENTER there as soon as it asks for the mode, before the mode has started.
+static volatile bool cleanup_mode_running = false;
+
 
 void cleanup_render_task(void *p) {
     char buf[32];
@@ -111,6 +115,7 @@ uint8_t cleanup_mode_menu() {
     // Enable both motors
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
+    cleanup_mode_running = true;
 
     // Open servo gate (if enabled)
     if (servo_gate.gate_state != GATE_DISABLED) {
@@ -153,6 +158,7 @@ uint8_t cleanup_mode_menu() {
         
     }
 
+    cleanup_mode_running = false;
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
 
@@ -194,8 +200,12 @@ bool http_rest_cleanup_mode_state(struct fs_file *file, int num_params, char *pa
             cleanup_mode_config.cleanup_mode_state = new_state;
         }
         else if (strcmp(params[idx], "s1") == 0) {
+            // Kept at any time; it reaches the motors only while cleanup mode runs, as from the screen (ADR-013).
+            // Before, it set both tricklers whatever ran, a charge too.
             cleanup_mode_config.trickler_speed = strtof(values[idx], NULL);
-            motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
+            if (cleanup_mode_running) {
+                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
+            }
         }
     }
 

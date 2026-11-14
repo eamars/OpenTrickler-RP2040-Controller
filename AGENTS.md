@@ -63,7 +63,8 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - An agent's run assumes the hopper is empty. The owner says when there is powder in it.
   - The motors may turn in an agent's run.
 - **The bench** (2026-11-14): a Pico W on the motor board with an A&D FX-300i scale, reached only by a Raspberry Pi debugprobe on SWD. Its USB port is not connected.
-  - A second unit, a Pico 2 W on a controller board of its own, with its own EEPROM and so its own settings, is put on the probe when the owner is asked. One unit at a time. `rc_run.py --board pico2_w` drives it. It has no scale: its weight reads `nan` until the simulated scale is switched on, and its charges are proven with the simulated scale only.
+  - A second unit, a Pico 2 W on a controller board of its own, with its own EEPROM and so its own settings, is put on the probe when the owner is asked. One unit at a time. `rc_run.py --board pico2_w` drives it.
+  - The A&D goes to whichever unit the owner connects it to. `state` tells: a number when a scale sends, `nan` (`inf` on the Pico W, whose float code treats NaN as infinity) when none does. Charges in proofs use the simulated scale either way.
   - Each unit is on the owner's Wi-Fi with an address of its own, given by DHCP: ask, or read it from the unit's screen.
 - **Reading the unit's web API can change it.** A GET of `/rest/profile_config?pf=N` selects profile N in RAM (audit P2), and handlers act on any parameter they are given. Read a unit through the console where you can, and over the web only with the paths and parameters you mean.
 - **Flashing a unit can reset its settings.** When a stored struct's layout differs from the one on the unit, the defaults are written at once (`common.c`). Copy the unit's settings before the first flash of a newer or older version.
@@ -79,8 +80,11 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault (they stop on the first two and run on after a hard fault);
   - `settings --host <address> [--save <folder>] [--compare <folder>]`: the stored settings copied over the web API (GET, no parameters) and compared with an earlier copy. Take one before every flash of another version;
   - `soak <seconds> --host <address>`: charges back to back with the simulated scale while two browsers use the web pages (the mirror, the charge page's polling, the portal reloaded, the settings read). It fails on a failed charge, on memory that is not given back, and on web reads missed past `--max-miss-share` and `--max-miss-run`. It is not part of every proof: whether a change needs one, how long, and against what limits is decided for that change, for the area it touches. Its web figures compare only when nothing else uses the unit's web pages: a browser left open on the unit tripled the timeouts of ADR-011's step-3 soak.
+  - `scale_frames [--idle s] [--handovers n] [--reboots n] [--motors s]`: the scale's frames through the tap, summed up by phase: how many read as a number, the texts of those that did not, the time between frames (ADR-013);
+  - `charge_fault <bad|quiet|cleanup|none> --host <address> --expect seen|not-seen`: a simulated charge with one fault put in at a weight, `state` read every 50 ms, and the charge's own `Charge: ...` lines checked with `--want` and `--want-none` (ADR-013).
 - Console commands to drive the menu: `press <cw|ccw|enc|rst> [n]`, `form` and `form <id>`.
 - Console commands for the motors and charging: `motor <coarse|fine> <rev/s>`, `sim on|off`, `charge <gr>`, `charge stop`.
+- Console commands for the scale, never stored (ADR-013): `scale tap on|off` (the A&D driver's frames as `@sf` lines), `sim bad` (the simulated scale's next reading does not parse), `sim quiet <ms>` (it sends nothing for that long), `sim rate <per second>`. `stats` counts `bad_frames`.
 - It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).
 
 ## Decisions and ADRs

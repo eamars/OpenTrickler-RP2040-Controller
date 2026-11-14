@@ -1,9 +1,12 @@
 #include <math.h>
+#include <stdio.h>
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <stdlib.h>
 #include <semphr.h>
 #include <inttypes.h>
+
+#include "pico/time.h"
 
 #include "configuration.h"
 #include "scale.h"
@@ -273,6 +276,36 @@ void scale_simulation_stop(void) {
 }
 
 
+// The frame tap (ADR-013): written by the console's task, read by the driver's, a bool either way
+static volatile bool scale_tap_on = false;
+
+
+void scale_tap_set(bool on) {
+    scale_tap_on = on;
+}
+
+
+bool scale_tap_is_on(void) {
+    return scale_tap_on;
+}
+
+
+void scale_tap_frame(const uint8_t * bytes, size_t len, float value) {
+    if (!scale_tap_on) {
+        return;
+    }
+
+    // One line, built whole and printed with one call, so lines of other tasks do not cut into it. Hex, because
+    // a frame that does not parse may hold anything, its line ending included.
+    char line[96];
+    size_t pos = snprintf(line, sizeof(line), "@sf %lu %g ", (unsigned long) (time_us_64() / 1000), value);
+    for (size_t idx = 0; idx < len && pos + 3 < sizeof(line); idx += 1) {
+        pos += snprintf(line + pos, sizeof(line) - pos, "%02x", bytes[idx]);
+    }
+    printf("%s\n", line);
+}
+
+
 bool scale_simulation_is_on(void) {
     return scale_simulation_task_handle != NULL;
 }
@@ -311,6 +344,65 @@ void scale_write(const char * command, size_t len) {
 
 float scale_get_current_measurement() {
     return scale_config.current_scale_measurement;
+}
+
+
+// Frames that did not give a finite number since the start (ADR-013); written by one driver task at a time
+static volatile uint32_t scale_bad_frames = 0;
+
+// The scale's rhythm (ADR-013): the time between its recent readings, kept by the publishing task, read by the
+// charge's. One 32-bit word at a time either way.
+#define SCALE_RHYTHM_INTERVALS 16
+static volatile uint32_t scale_rhythm_ms[SCALE_RHYTHM_INTERVALS];
+static volatile uint32_t scale_rhythm_count = 0;        // intervals kept since the start; the next goes at count % N
+static volatile TickType_t scale_last_reading_tick = 0;
+static volatile bool scale_has_read = false;
+
+
+void scale_publish_measurement(float weight) {
+    if (!isfinite(weight)) {
+        scale_bad_frames += 1;
+        return;
+    }
+
+    TickType_t now = xTaskGetTickCount();
+    if (scale_has_read) {
+        scale_rhythm_ms[scale_rhythm_count % SCALE_RHYTHM_INTERVALS] = (now - scale_last_reading_tick) * portTICK_PERIOD_MS;
+        scale_rhythm_count += 1;
+    }
+    scale_last_reading_tick = now;
+    scale_has_read = true;
+
+    scale_config.current_scale_measurement = weight;
+    if (scale_config.scale_measurement_ready) {
+        xSemaphoreGive(scale_config.scale_measurement_ready);
+    }
+}
+
+
+uint32_t scale_get_bad_frames(void) {
+    return scale_bad_frames;
+}
+
+
+uint32_t scale_get_usual_interval_ms(void) {
+    uint32_t count = scale_rhythm_count < SCALE_RHYTHM_INTERVALS ? scale_rhythm_count : SCALE_RHYTHM_INTERVALS;
+    if (count < SCALE_RHYTHM_MIN_INTERVALS) {
+        return 0;
+    }
+
+    // The median: a gap now and then, or a frame dropped at the door, does not move it
+    uint32_t sorted[SCALE_RHYTHM_INTERVALS];
+    for (uint32_t idx = 0; idx < count; idx += 1) {
+        uint32_t value = scale_rhythm_ms[idx];
+        uint32_t pos = idx;
+        while (pos > 0 && sorted[pos - 1] > value) {
+            sorted[pos] = sorted[pos - 1];
+            pos -= 1;
+        }
+        sorted[pos] = value;
+    }
+    return sorted[count / 2];
 }
 
 

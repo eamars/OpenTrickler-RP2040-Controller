@@ -62,10 +62,7 @@ void _generic_scale_listener_task(void *p) {
 
                 // If the conversion is successful then post the measurement.
                 if (endptr != startptr) {
-                    scale_config.current_scale_measurement = weight;
-                    if (scale_config.scale_measurement_ready) {
-                        xSemaphoreGive(scale_config.scale_measurement_ready);
-                    }
+                    scale_publish_measurement(weight);
                 }
 
                 // Reset buffer index

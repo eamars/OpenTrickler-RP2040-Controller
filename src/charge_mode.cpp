@@ -64,6 +64,7 @@ static char title_string[30];
 
 static TickType_t charge_start_tick = 0;
 static float last_charge_elapsed_seconds = 0.0f;
+static volatile bool charge_timer_running = false;   // the live timer runs only while a throw does (ADR-013)
 
 // Coarse trickler end-of-trickle backoff
 #define COARSE_STOP_BACKOFF_MAX_MS 15000  // safety cap
@@ -148,8 +149,11 @@ void scale_measurement_render_task(void *p) {
         u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
 
         // Format the timer string based on current state
-        if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
+        if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE && charge_timer_running) {
             format_elapsed_time(time_buffer, sizeof(time_buffer), charge_start_tick);
+        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
+            // Ended on a scale fault (ADR-013): the reason takes the whole line
+            time_buffer[0] = '\0';
         } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_RETURN ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_ZERO) {
@@ -246,9 +250,120 @@ void charge_mode_wait_for_zero() {
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
 }
 
+// A missing reading during a charge (ADR-013), judged by the scale's own rhythm, so a slow scale is not a failed one
+#define CHARGE_STALE_INTERVALS 3                // no reading for this many usual intervals: the tricklers pause
+#define CHARGE_LOST_INTERVALS 10                // this many, and
+#define CHARGE_LOST_MIN_MS 1000                 // never under this: the scale is lost
+#define CHARGE_USUAL_INTERVAL_UNKNOWN_MS 250    // the rhythm not known yet: take a slow scale's, a G&G's
+#define CHARGE_PAUSES_BORNE 2                   // a third pause in one throw ends it
+#define CHARGE_STEADY_READINGS 10               // steady after a pause: the zero test less its zero
+#define CHARGE_STEADY_SPACING_MS 300
+#define CHARGE_STEADY_LIMIT_MS (2 * CHARGE_STEADY_READINGS * CHARGE_STEADY_SPACING_MS)  // not steady by then: unsteady
+
+typedef enum {
+    CHARGE_PAUSE_RESUMED = 0,
+    CHARGE_PAUSE_EXIT,          // the reset button, or the console's charge stop
+    CHARGE_PAUSE_LOST,
+    CHARGE_PAUSE_UNSTEADY,
+    CHARGE_PAUSE_UNRELIABLE,
+} charge_pause_result_t;
+
+
+/*
+    A pause (ADR-013): both tricklers to 0, then wait until readings are back and steady, as the zero test judges
+    them less its zero: ten readings 300 ms apart, their spread under set_point_sd_margin. The settled weight is
+    given back for the charge to decide from. A pause cannot take back powder already poured, so the charge never
+    goes on from the first reading back.
+*/
+static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t lost_ms, TickType_t * last_reading_tick,
+                                               float * settled_weight) {
+    motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+    motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+
+    if (pause_count > CHARGE_PAUSES_BORNE) {
+        printf("Charge: pause %u, more than %u in one throw\n", pause_count, CHARGE_PAUSES_BORNE);
+        return CHARGE_PAUSE_UNRELIABLE;
+    }
+    printf("Charge: paused, no reading for %lu ms (pause %u)\n",
+           (unsigned long) ((xTaskGetTickCount() - *last_reading_tick) * portTICK_PERIOD_MS), pause_count);
+    snprintf(title_string, sizeof(title_string), "Paused: no reading");
+
+    FloatRingBuffer steady_buffer(CHARGE_STEADY_READINGS);
+    bool readings_back = false;
+    TickType_t back_tick = 0;
+
+    while (true) {
+        TickType_t loop_tick = xTaskGetTickCount();
+
+        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
+        if (button_encoder_event == BUTTON_RST_PRESSED) {
+            return CHARGE_PAUSE_EXIT;
+        }
+
+        float weight;
+        if (scale_block_wait_for_next_measurement(CHARGE_STEADY_SPACING_MS, &weight)) {
+            *last_reading_tick = xTaskGetTickCount();
+            if (!readings_back) {
+                readings_back = true;
+                back_tick = *last_reading_tick;
+            }
+            steady_buffer.enqueue(weight);
+            if (steady_buffer.getCounter() >= CHARGE_STEADY_READINGS &&
+                steady_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
+                *settled_weight = steady_buffer.getMean();
+                printf("Charge: resumed from a settled %.3f\n", *settled_weight);
+                return CHARGE_PAUSE_RESUMED;
+            }
+        }
+
+        TickType_t now = xTaskGetTickCount();
+        if ((now - *last_reading_tick) * portTICK_PERIOD_MS >= lost_ms) {
+            return CHARGE_PAUSE_LOST;
+        }
+        if (readings_back && (now - back_tick) * portTICK_PERIOD_MS >= CHARGE_STEADY_LIMIT_MS) {
+            return CHARGE_PAUSE_UNSTEADY;
+        }
+
+        vTaskDelayUntil(&loop_tick, pdMS_TO_TICKS(CHARGE_STEADY_SPACING_MS));
+    }
+}
+
+
+/*
+    The scale failed during a charge (ADR-013): the tricklers stay stopped, the gate closes, the screen says why, and
+    a press of a button (or the console's charge stop) goes back to the menu.
+*/
+static void charge_mode_scale_fault(const char * reason) {
+    motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+    motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+
+    if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+        servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, true);
+    }
+
+    neopixel_led_set_colour(
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
+        true
+    );
+    // The throw is over: its timer stops, as at a normal end, and the screen shows the time it ran
+    last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+    charge_timer_running = false;
+    snprintf(title_string, sizeof(title_string), "%s", reason);
+    printf("Charge: ended, %s\n", reason);
+
+    while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+}
+
+
 void charge_mode_wait_for_complete() {
 
     charge_start_tick = xTaskGetTickCount();
+    charge_timer_running = true;
     coarse_backoff_in_progress = false;
 
     // Set colour to under charge
@@ -298,6 +413,21 @@ void charge_mode_wait_for_complete() {
     TickType_t current_sample_tick = last_sample_tick;
     bool should_coarse_trickler_move = true;
 
+    // A missing reading pauses the tricklers, and a lost scale ends the charge, by the scale's own rhythm (ADR-013)
+    uint32_t usual_interval_ms = scale_get_usual_interval_ms();
+    if (usual_interval_ms == 0) {
+        usual_interval_ms = CHARGE_USUAL_INTERVAL_UNKNOWN_MS;
+    }
+    const uint32_t stale_ms = CHARGE_STALE_INTERVALS * usual_interval_ms;
+    uint32_t lost_ms = CHARGE_LOST_INTERVALS * usual_interval_ms;
+    if (lost_ms < CHARGE_LOST_MIN_MS) {
+        lost_ms = CHARGE_LOST_MIN_MS;
+    }
+    uint8_t pause_count = 0;
+    TickType_t last_reading_tick = xTaskGetTickCount();
+    printf("Charge: the scale's usual interval %lu ms; a pause after %lu ms without a reading, lost after %lu ms\n",
+           (unsigned long) usual_interval_ms, (unsigned long) stale_ms, (unsigned long) lost_ms);
+
     while (true) {
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
@@ -307,11 +437,36 @@ void charge_mode_wait_for_complete() {
         }
 
         // Run the PID controlled loop to start charging
-        // Perform the measurement
+        // Perform the measurement: wait no longer than the stale point, and no more than 200 ms between button polls
         float current_weight;
-        if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
-            // If no measurement within 200ms then poll the button and retry
-            continue;
+        bool resumed = false;
+        uint32_t silent_ms = (xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS;
+        uint32_t wait_ms = silent_ms < stale_ms ? stale_ms - silent_ms : 1;
+        if (wait_ms > 200) {
+            wait_ms = 200;
+        }
+        if (scale_block_wait_for_next_measurement(wait_ms, &current_weight)) {
+            last_reading_tick = xTaskGetTickCount();
+        }
+        else {
+            silent_ms = (xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS;
+            if (silent_ms < stale_ms) {
+                continue;
+            }
+
+            pause_count += 1;
+            charge_pause_result_t pause = charge_mode_pause(pause_count, lost_ms, &last_reading_tick, &current_weight);
+            if (pause == CHARGE_PAUSE_EXIT) {
+                charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+                return;
+            }
+            if (pause != CHARGE_PAUSE_RESUMED) {
+                charge_mode_scale_fault(pause == CHARGE_PAUSE_LOST ? "Scale: no reading" :
+                                        pause == CHARGE_PAUSE_UNSTEADY ? "Scale: unsteady" : "Scale: unreliable");
+                return;
+            }
+            snprintf(title_string, sizeof(title_string), "Target: %s", target_weight_string);
+            resumed = true;
         }
         current_sample_tick = xTaskGetTickCount();
 
@@ -323,6 +478,13 @@ void charge_mode_wait_for_complete() {
 
         float coarse_trickler_error = coarse_trickler_target_charge_weight - current_weight;
         float fine_trickler_error = charge_mode_config.target_charge_weight - current_weight;
+
+        // After a pause the D term starts again as on a first reading, so the gap makes no spike; the I term took
+        // nothing during it (ADR-013)
+        if (resumed) {
+            fine_trickler_last_error = fine_trickler_error;
+            coarse_trickler_last_error = coarse_trickler_error;
+        }
 
         // Fine & Coarse trickler stop condition
         if (fine_trickler_error < charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
@@ -389,6 +551,7 @@ void charge_mode_wait_for_complete() {
     TickType_t now = xTaskGetTickCount();
     TickType_t elapsed_ticks = now - charge_start_tick;
     last_charge_elapsed_seconds = (float)(elapsed_ticks * portTICK_PERIOD_MS) / 1000.0f;
+    charge_timer_running = false;
 
     // Close the gate if the servo gate is present
     if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {

@@ -53,12 +53,17 @@ static float _decode_measurement_msg(const char *msg, size_t len) {
         start++;
     }
     
-    // Parse the number using strtof which will stop at the first non-numeric character
-    float value = 0.0f;
-    if (start < len) {
-        value = strtof(&msg[start], NULL);
+    // Parse the number using strtof which will stop at the first non-numeric character. A frame with no number in it
+    // is NaN, as the other drivers say it, not 0.0, which would read as an empty pan (ADR-013)
+    if (start >= len) {
+        return nanf("");
     }
-    
+    char *endptr;
+    float value = strtof(&msg[start], &endptr);
+    if (endptr == &msg[start]) {
+        return nanf("");
+    }
+
     return sign * value;
 }
 
@@ -79,11 +84,8 @@ void _sartorius_scale_listener_task(void *p) {
                     // Decode the measurement
                     float weight = _decode_measurement_msg(buf.buffer, buf.index);
                     
-                    // Update the global measurement
-                    scale_config.current_scale_measurement = weight;
-                    
-                    // Signal that measurement is ready
-                    xSemaphoreGive(scale_config.scale_measurement_ready);
+                    // Publish it; a frame with no number is dropped there
+                    scale_publish_measurement(weight);
                     
                     // Reset buffer
                     buf.index = 0;

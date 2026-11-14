@@ -79,6 +79,23 @@ bool scale_init();
 float scale_get_current_measurement();
 
 /**
+ * @brief The one way a reading is published (ADR-013). Every scale driver and the simulated scale call it, in place
+ * of writing the measurement themselves. A driver says a frame did not parse by giving NaN. A value that is not a
+ * finite number, NaN or an infinity, is not published: the reading is not changed, the charge is not told of a new
+ * one, and it is counted (scale_get_bad_frames()). So a bad frame is a frame that never came.
+ */
+void scale_publish_measurement(float weight);
+uint32_t scale_get_bad_frames(void);
+
+/**
+ * @brief The scale's usual time between readings, in ms: the median of its last 16 published readings' intervals,
+ * so each scale's own rhythm (ADR-013). 0 until SCALE_RHYTHM_MIN_INTERVALS are known; a charge waits for ten steady
+ * readings before it pours, so by then it is known.
+ */
+#define SCALE_RHYTHM_MIN_INTERVALS 4
+uint32_t scale_get_usual_interval_ms(void);
+
+/**
  * @brief The remote control's simulated scale (ADR-001): main's simulated driver stands in for the stored one
  * until scale_simulation_stop() or a restart. Nothing is stored.
  * @return false when the stored driver is already the simulated one, or its task could not start.
@@ -87,6 +104,30 @@ bool scale_simulation_start(void);
 void scale_simulation_stop(void);
 bool scale_simulation_is_on(void);
 bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement);
+
+/**
+ * @brief The remote control's frame tap (ADR-013): while it is on, a driver that calls scale_tap_frame() copies
+ * each frame it decoded to the console, as it came and with the value it made of it. Nothing is stored.
+ */
+void scale_tap_set(bool on);
+bool scale_tap_is_on(void);
+
+/**
+ * @brief Faults the remote control puts into the simulated scale (ADR-013); nothing is stored.
+ * simulated_scale_set_rate(): readings a second, 1 to 50 (100 ms between readings until set); false if out of range.
+ * simulated_scale_send_bad(): its next reading is a frame that did not parse, published as the drivers do.
+ * simulated_scale_go_quiet(): nothing published for that many ms; its powder keeps falling meanwhile.
+ */
+bool simulated_scale_set_rate(float per_second);
+float simulated_scale_get_rate(void);
+void simulated_scale_send_bad(void);
+void simulated_scale_go_quiet(uint32_t ms);
+
+/**
+ * @brief Print one frame as "@sf <ms> <value> <bytes>" when the tap is on: the time since boot in ms, the value
+ * the driver made of it, and the frame's bytes in hex. Does nothing when the tap is off.
+ */
+void scale_tap_frame(const uint8_t * bytes, size_t len, float value);
 
 void set_scale_driver(scale_driver_t scale_driver);
 

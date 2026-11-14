@@ -117,12 +117,13 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
         }
     }
 
-    snprintf(reply, reply_size, "@ok stats heap_free=%u heap_min=%u tasks=%u stack_min=\"%s\":%u",
+    snprintf(reply, reply_size, "@ok stats heap_free=%u heap_min=%u tasks=%u stack_min=\"%s\":%u bad_frames=%lu",
              (unsigned) xPortGetFreeHeapSize(),
              (unsigned) xPortGetMinimumEverFreeHeapSize(),
              (unsigned) task_count,
              remote_control_task_status[min_idx].pcTaskName,
-             (unsigned) remote_control_task_status[min_idx].usStackHighWaterMark);
+             (unsigned) remote_control_task_status[min_idx].usStackHighWaterMark,
+             (unsigned long) scale_get_bad_frames());
     return true;
 }
 
@@ -280,12 +281,59 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
         }
         scale_simulation_stop();
     }
+    // The simulated scale's faults (ADR-013): bad, quiet <ms>, rate <per second>; never stored
+    else if (strcmp(args, "bad") == 0 || strncmp(args, "quiet ", 6) == 0) {
+        if (!scale_simulation_is_on()) {
+            snprintf(reply, reply_size, "@err the simulation is off");
+            return false;
+        }
+        if (args[0] == 'b') {
+            simulated_scale_send_bad();
+        }
+        else {
+            char *end;
+            long ms = strtol(args + 6, &end, 10);
+            if (end == args + 6 || *end != '\0' || ms < 1 || ms > 60000) {
+                snprintf(reply, reply_size, "@err usage: sim quiet <ms, 1 to 60000>");
+                return false;
+            }
+            simulated_scale_go_quiet((uint32_t) ms);
+        }
+    }
+    else if (strncmp(args, "rate ", 5) == 0) {
+        char *end;
+        float per_second = strtof(args + 5, &end);
+        if (end == args + 5 || *end != '\0' || !simulated_scale_set_rate(per_second)) {
+            snprintf(reply, reply_size, "@err usage: sim rate <readings a second, 1 to 50>");
+            return false;
+        }
+    }
     else if (*args != '\0') {
-        snprintf(reply, reply_size, "@err usage: sim [on|off]");
+        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>]");
         return false;
     }
 
-    snprintf(reply, reply_size, "@ok sim=%d scale=\"%s\"", scale_simulation_is_on() ? 1 : 0, get_scale_driver_string());
+    snprintf(reply, reply_size, "@ok sim=%d scale=\"%s\" rate=%.1f", scale_simulation_is_on() ? 1 : 0,
+             get_scale_driver_string(), simulated_scale_get_rate());
+    return true;
+}
+
+
+// scale tap on|off: the A&D driver copies each frame to the console as "@sf" lines (ADR-013); never stored
+static bool remote_control_scale(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                 void *write_ctx) {
+    if (strcmp(args, "tap on") == 0) {
+        scale_tap_set(true);
+    }
+    else if (strcmp(args, "tap off") == 0) {
+        scale_tap_set(false);
+    }
+    else if (*args != '\0') {
+        snprintf(reply, reply_size, "@err usage: scale [tap on|tap off]");
+        return false;
+    }
+
+    snprintf(reply, reply_size, "@ok scale tap=%d scale=\"%s\"", scale_tap_is_on() ? 1 : 0, get_scale_driver_string());
     return true;
 }
 
@@ -375,6 +423,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"form", remote_control_form},
     {"snap", remote_control_snap},
     {"sim", remote_control_sim},
+    {"scale", remote_control_scale},
     {"motor", remote_control_motor},
     {"charge", remote_control_charge},
 };
