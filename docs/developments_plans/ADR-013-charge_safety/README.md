@@ -37,6 +37,13 @@ Status: **Draft** 2026-11-15. Not approved. Captures three faults read in the co
 **The cleanup speed from the web**
 - `/rest/cleanup_mode_state` with `s1` sets the cleanup speed and calls `motor_set_speed(SELECT_BOTH_MOTOR, ...)` whatever the mode (`cleanup_mode.cpp`). During a charge both motors are enabled, so one request sets both tricklers to the cleanup speed. The charge loop sets the fine trickler again at its next reading. The coarse one, once it has stopped for the throw, is not set again, and runs on until the charge ends.
 
+**What the bench's real scale sends** (the Pico W's A&D FX-300i; `state` replies in ADR-011's logs, 2026-11-14)
+- In steady running its readings are numbers: 34 of 34 in a 30-minute run with no restart.
+- For its first readings each time its driver starts, at boot and when the simulated scale hands back to it, it reads `inf`: 287 of the `state` replies of the day, all with no charge running. The field starts as NaN, so `inf` is a frame that was parsed. What those frames hold is not known: the firmware does not keep them.
+- They are harmless where they were seen: a charge first waits for ten steady readings near zero, and `inf` never passes.
+- No charge ran on the real scale that day; every charge used the simulated one. So whether this scale sends a frame that does not parse in the middle of a charge has not been seen either way.
+- The Pico 2 W's unit has no scale.
+
 **What can show it on the bench**
 - The simulated scale publishes a reading every 100 ms through the same field. It cannot yet send a bad frame or go quiet.
 - The real A&D cannot be made to send a bad frame. Pulling its cable is the real test of silence.
@@ -48,6 +55,15 @@ Status: **Draft** 2026-11-15. Not approved. Captures three faults read in the co
 1. **One way to publish a reading.** A function in `scale.c` that every driver and the simulated scale call in place of writing the field. It is given whether the frame parsed and the value. A frame that did not parse, or a value that is not a finite number, is not published, and is counted (`bad_frames` in `stats`). So a bad frame becomes a frame that never came. The Sartorius driver says when it parsed nothing, as the others do.
 2. **A deadline in the charge loop.** No reading for 1 s while the motors may turn: both motors stop at once, the servo gate goes to its closed position if it is enabled, and the charge ends with "Scale: no reading" on the screen and the LEDs in the not-ready colour. A press of a button goes back to the menu. This covers a scale that went quiet and one that sends only nonsense, since its frames are no longer readings.
 3. **The cleanup speed applies only in cleanup mode.** The web may set it at any time; it reaches the motors only while cleanup mode runs, as from the screen.
+
+**The real scale measured first** (the owner, 2026-11-15). Before any fix, what the bench's A&D sends is recorded, so this ADR says how real the bad frame is for it, and not only that the code allows it:
+- A console command, `scale tap on|off`, never stored: while it is on, the A&D driver copies each frame it decodes to the console as it came, with the value it made of it. A test tool, as `sim on` is.
+- `rc_run.py` learns to record the frames for a time and sum them up: how many, how many read as a number, as `inf`, as NaN, and the text of each that did not read as a number.
+- Recorded in three conditions, with the hopper empty:
+  - idle, for some minutes;
+  - across restarts and hand-overs from the simulated scale, where `inf` was seen;
+  - through a minute of a charge on the real scale, with both motors turning, which is the condition of a real throw, noise of the motors on the serial line included. The charge is stopped by the console at the end.
+- What is found is written into "What we know" before the code changes. If the A&D never sends a bad frame mid-charge, fault 1 stays, for the other scales' drivers and for a noisy line, but this ADR says so plainly.
 
 **The faults shown first, then fixed.** Each fault is shown failing on the code as it is, so the proof shows a change:
 - The simulated scale learns `sim bad` (its next reading is a frame that does not parse) and `sim quiet <ms>` (it publishes nothing for that long). Console commands only, never stored, as `sim on` is.
@@ -62,6 +78,7 @@ On the bench's Pico W. The change is the same code on both chips, so no Pico 2 W
 - **The scale quiet for 3 s mid-charge:** both motors at 0 within 1.2 s of the last reading (the deadline and a ramp down), the gate closed if it is enabled, the message on the screen (`snap`), the menu back after a press, and the next charge passes.
 - **A cleanup speed sent from the web mid-charge:** no motor changes speed. In cleanup mode it applies as before.
 - **The same three on the code before the fixes fail,** recorded in `progress.md`.
+- **The real scale's frames,** idle, across restarts and through a minute of charging, summed up in `progress.md`. With the fixes in, the same run shows each frame that does not read as a number counted in `stats` and never reaching the charge.
 - `charge_cycle` passes, `menu_tour --compare` finds every form equal (the message is drawn by charge mode, not a menu form), and the stored settings are unchanged: no stored struct changes.
 - The owner's check, which the owner may waive: the scale's cable pulled during a charge with the hopper empty; the motors stop and the screen says why.
 
