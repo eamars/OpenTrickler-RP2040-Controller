@@ -151,8 +151,10 @@ void scale_measurement_render_task(void *p) {
         // Format the timer string based on current state
         if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE && charge_timer_running) {
             format_elapsed_time(time_buffer, sizeof(time_buffer), charge_start_tick);
-        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE ||
-                   charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
+        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
+            // Ended on a scale fault (ADR-013): the reason takes the whole line
+            time_buffer[0] = '\0';
+        } else if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_REMOVAL ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_CUP_RETURN ||
                    charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_ZERO) {
             snprintf(time_buffer, sizeof(time_buffer), "%.2f s", last_charge_elapsed_seconds);
