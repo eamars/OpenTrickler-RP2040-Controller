@@ -63,7 +63,7 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - An agent's run assumes the hopper is empty. The owner says when there is powder in it.
   - The motors may turn in an agent's run.
 - **The bench** (2026-11-14): a Pico W on the motor board with an A&D FX-300i scale, reached only by a Raspberry Pi debugprobe on SWD. Its USB port is not connected.
-  - A second unit, a Pico 2 W on a controller board of its own, with its own EEPROM and so its own settings, is put on the probe when the owner is asked. One unit at a time. `rc_run.py --board pico2_w` drives it.
+  - A second unit, a Pico 2 W on a controller board of its own, with its own EEPROM and so its own settings, is put on the probe when the owner is asked. One unit at a time. `rc_run.py --board pico2_w` drives it. It has no scale: its weight reads `nan` until the simulated scale is switched on, and its charges are proven with the simulated scale only.
   - Each unit is on the owner's Wi-Fi with an address of its own, given by DHCP: ask, or read it from the unit's screen.
 - **Reading the unit's web API can change it.** A GET of `/rest/profile_config?pf=N` selects profile N in RAM (audit P2), and handlers act on any parameter they are given. Read a unit through the console where you can, and over the web only with the paths and parameters you mean.
 - **Flashing a unit can reset its settings.** When a stored struct's layout differs from the one on the unit, the defaults are written at once (`common.c`). Copy the unit's settings before the first flash of a newer or older version.

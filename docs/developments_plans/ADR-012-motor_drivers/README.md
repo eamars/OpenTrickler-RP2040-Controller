@@ -17,6 +17,7 @@ Status: **Draft** 2026-11-14. Not approved. Captures how the motors are driven t
 
 - **After ADR-001.** Its `motor` command, `charge_cycle` and `reboot` make the proofs below possible with no hands.
 - **After ADR-011.** A functional change on the updated base. ADR-011 leaves the Trinamic library for this ADR to decide.
+- **After ADR-013** (the owner, 2026-11-15). ADR-013 stops the tricklers when the firmware runs but has no real reading; this ADR stops them when the firmware itself stops (fault 1).
 - **Before ADR-002.** Of the open PRs only two touch the motor files: #101, by one line of `stepper.pio`, and the old #28. Cleaning now costs the PRs almost nothing, and the two that drive motors for tuning (#113, #101) are judged against the cleaned interface.
 - **Before ADR-006.** The motor module is the first one split by role. Its seam is the one ADR-006 keeps.
 - **Before ADR-009.** The control loop's faults are measured on motors that do what they are told.
@@ -30,6 +31,10 @@ Status: **Draft** 2026-11-14. Not approved. Captures how the motors are driven t
 - Charge mode and cleanup mode call `motor_enable` and `motor_set_speed`. The simulated scale reads each motor's last speed straight out of the module's structs.
 - `motors.c` is 841 lines and does seven jobs: the serial transport to the drivers, a copy of the library's start-up, the PIO set-up, the ramps and tasks, the stored settings, an error screen drawn with u8g2 and the LEDs, and two REST handlers.
 - With `-Wall` the file compiles without a warning. None of the faults below is one a compiler sees.
+
+**Seen on the bench since** (ADR-011's runs, 2026-11-14; its [progress](../ADR-011-dependency_update/progress.md))
+- **Fault 1, measured on both chips:** with the coarse trickler running, a hard fault halts the cores and its STEP pin keeps pulsing (`rc_run.py pulses`, part c: high in 99% to 100% of samples), on the Pico W and the Pico 2 W alike. A reset through the probe and an assert do stop it.
+- **Fault 7, very likely seen:** in step 2's first `pulses` run, two starts in a row printed up to the motors' settings and then nothing, with no console; the next fourteen starts were normal. That is what fault 7 predicts: the check is `new_cnt - ifcnt == 7` on two `uint8_t`s, which C turns into `int`, so a counter that wraps (252 to 3, say) gives -249 and fails, about one start in 37 with 7 writes a start. The coarse driver fails first and returns before the fine one is set, so the next start fails on the fine driver. `handle_motor_init_error()` then loops for ever before the scheduler starts and prints nothing, so the console never comes. Not confirmed by the screen: the console was not there to snap it.
 
 **Faults that can hurt a charge**
 
