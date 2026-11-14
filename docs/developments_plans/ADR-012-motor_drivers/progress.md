@@ -226,7 +226,17 @@ Each finding was read again in the code first: all six were as the audit said. O
 
 **Seen on the way: the old firmware stopped at its start, as fault 9 says.** The second flash of 1.20.84 (12:09) never reached its console or the Wi-Fi: core 1 still in the boot ROM, core 0 in a timer's busy wait. That is the old `handle_motor_init_error`: a driver error at start is a loop for ever, before the scheduler, blinking the LEDs by busy waits. Which error it showed was not seen. The drivers had been powered through some 50 starts by then and their write counts had wrapped several times, so fault 7's check, which does not allow for the wrap, is the likely one. The flash of this ADR's image after it started at once.
 
-**Left on the Pico W:** the two proofs that need a real scale sending: `scale_frames --handovers 30` (no frame stitched from two) and a ramp to full speed with the scale read (the readings keep their pace).
+**With the A&D sending** (12:28, the owner connected it to the Pico W): `scale_frames --handovers 30`, `VERDICT PASS`. `logs/adr012/picow/scale_frames.log`.
+
+| Phase | Frames | Read as a number | Between frames |
+|---|---|---|---|
+| Idle | 2,512 | all | 40 ms typical, 62 ms longest |
+| 30 hand-overs from the simulated scale | 2,521 | 2,514 | |
+| 2 restarts | 231 | all | |
+| Coarse ramped to 5 rev/s, its full speed, and the fine to 2, for 60 s | 1,258 | all | 40 ms typical, 62 ms longest |
+
+- The 7 lines of the hand-overs that are not frames (`000.00 GN`, `00 GN`, `STST,+00000.00 GN`, `ST,+ST,+00000.00 `, ...) were dropped and counted, none read as a weight; the Pico 2 W had 12 in its 30.
+- The motors leave the scale's pace as it is idle, as on the Pico 2 W (40 ms and 61 ms).
 
 ## Where it stands
 
@@ -244,7 +254,6 @@ Each finding was read again in the code first: all six were as the audit said. O
 On the Pico W every proof above passes but the soak, which fails on the web alone: this ADR's image misses more of the web's reads than the one before it, and resets connections, most when the Wi-Fi is poor ("The Pico W" above). The cause is step 5's room for 20 values in each connection's state; the fix is ADR-003's. The owner accepted it as it is, 2026-11-15: "Yes, leave it to ADR-003".
 
 **Left before the ADR can close**
-- **The Pico W with the A&D sending:** `scale_frames --handovers 30`, and a ramp to full speed with the scale read. It needs the owner to connect the A&D to it.
 - **By the owner's hand:**
   - a driver module lifted with the power off, then a start: the unit must reach the menu and name the driver;
   - a phone on the unit's access point: the unit's page must open by its name (W1);
