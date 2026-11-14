@@ -16,6 +16,7 @@ Status: **Draft** 2026-11-15. Not approved. Captures three faults read in the co
 - **Thresholds for the real failure, not for a slow scale:** "Not all scale can report the same speed like A&D, some slow scales, for example, G&G, can only go about 4 samples per second. Therefore your threshold should be set to accommodate the real failure, not a slow response scale."
 - **Slow and lagging scales are ADR-009's:** "The slow response scale tuning should be a part of ADR-009, for example, the note about G&G JJ223BF note I left in the script. Some scale may still report at the constant speed, but unable to report its up-to-date measurement."
 - **Pausing as a start, bounded to the controller:** "Yes I think pausing is a good start, but the action MAY needed to be bounded to the controller, where ADR-009 will address."
+- **A pause still lets powder fall, and takes time to slow down:** "You know the powder will still drop due to your pause action, and your pause take time due to the deacceleration." So a resume waits for the scale to show what fell, and an intermittent scale has a limit. Asked "Write this resume rule into ADR-013?": "Yes, write it".
 
 ## Why here
 
@@ -64,11 +65,19 @@ Status: **Draft** 2026-11-15. Not approved. Captures three faults read in the co
 
 1. **One way to publish a reading.** A function in `scale.c` that every driver and the simulated scale call in place of writing the field. It is given whether the frame parsed and the value. A frame that did not parse, or a value that is not a finite number, is not published, and is counted (`bad_frames` in `stats`). So a bad frame becomes a frame that never came. The Sartorius driver says when it parsed nothing, as the others do.
    - The same function notes when each reading came, and keeps the scale's usual interval: the median of its recent intervals. A charge waits for ten steady readings near zero before it pours, so the interval is known before the motors start, for whichever scale is fitted.
-2. **Missing readings: pause, then stop.** In the controller's step of the charge loop, the part ADR-009 lifts into its controller module:
-   - **Stale:** no reading for 3 of the scale's usual intervals. Both tricklers are commanded to 0 and the charge waits. The next reading resumes it where it was. A scale that drops out for a moment makes the trickler stutter, not overthrow.
+2. **Missing readings: pause, settle, then go on or stop.** In the controller's step of the charge loop, the part ADR-009 lifts into its controller module.
+   - **Stale:** no reading for 3 of the scale's usual intervals. Both tricklers are commanded to 0 with their usual ramp, and the charge pauses. The servo gate is left where it is.
+   - **What a pause costs.** It cannot take back powder: the tricklers have poured for 3 intervals with no news (one of them as in any running, between two readings), they turn on through the ramp down (0.1 s from the coarse trickler's 5 rev/s at 50 rev/s², about a quarter turn, on the bench's settings), and powder in the air or on the tube's lip lands after they stop, as at every stop. On the bench's settings, about 1.5 coarse turns before the stop on an A&D and 3.75 on a G&G, and under half that on the fine trickler.
+   - **Resume, never on the first reading back.** The charge goes on only when:
+     1. readings are back on the scale's rhythm, several in a row at its usual interval; and
+     2. the weight is steady, by the charge's own zero test less its zero: ten readings taken 300 ms apart (about 3 s), their spread under `set_point_sd_margin` (0.02 by default). The test's mean margin, which asks for zero, does not apply. Then what fell has landed, and a scale that lags has caught up. Each pause so costs the throw at least 3 s.
+
+     The settled weight decides. At or past the fine stop, the throw ends as a normal one, with its verdict. Past the coarse target, the coarse trickler stays stopped and the fine one goes on. Otherwise the charge goes on: the controller's D term starts again as on a first sample, so the gap makes no spike; the I term took nothing during the pause, since no reading came, and goes on as it was.
    - **Lost:** no reading for 10 usual intervals, and never under 1 s. Both stop, the servo gate goes to its closed position if it is enabled, and the charge ends with "Scale: no reading" on the screen and the LEDs in the not-ready colour. A press of a button goes back to the menu.
-   - For the A&D at about 10 a second, that is 0.3 s and 1 s; for the G&G at 4 a second, 0.75 s and 2.5 s. The bench's figures are measured first.
-   - This is a floor, not the controller's answer: on a reading that is not fresh, nothing moves. How the controller should act on missing, slow or late readings beyond that, such as slowing rather than stopping, or allowing for a scale's lag, is ADR-009's.
+   - **Unsteady:** readings came back but are not steady within twice the steady test's time (about 6 s). The throw ends as at a lost scale, with "Scale: unsteady".
+   - **Intermittent:** pauses are counted in a throw. Two are borne; a third ends the throw as at a lost scale, with "Scale: unreliable". A scale that drops out again and again in one throw is not trusted to finish it.
+   - For the A&D at about 10 a second, the figures are 0.3 s and 1 s; for the G&G at 4 a second, 0.75 s and 2.5 s. The bench's are measured first.
+   - **This is a floor, not the controller's answer:** on a reading that is not fresh, nothing moves, and nothing moves again until the weight is known. How much a pause adds on real powder, and how the controller should act beyond the floor, such as slowing rather than stopping, backing the coarse trickler off at a pause, or allowing for what is still falling or for a scale's lag, is ADR-009's.
    - It covers a scale that went quiet and one that sends only nonsense, since its frames are no longer readings.
 3. **The cleanup speed applies only in cleanup mode.** The web may set it at any time; it reaches the motors only while cleanup mode runs, as from the screen.
 
@@ -91,9 +100,12 @@ Status: **Draft** 2026-11-15. Not approved. Captures three faults read in the co
 On the bench's Pico W. The change is the same code on both chips, so no Pico 2 W pass unless the owner asks for one.
 
 - **A bad frame mid-charge:** the charge goes on as if it never came. The throw ends within the stop threshold, as a clean one does, and `stats` counts one bad frame.
-- **A short gap mid-charge** (`sim quiet` for 5 intervals): both motors at 0 within 3 intervals and a ramp of the last reading, then the charge resumes when readings return, and ends within the stop threshold.
+- **A short gap mid-charge** (`sim quiet` for 5 intervals): both motors at 0 within 3 intervals and a ramp of the last reading; no motor moves until readings are back on rhythm and steady; then the charge goes on and ends within the stop threshold.
+- **A gap after the fine stop is passed:** when the settled weight is past it, the throw ends with its verdict and the tricklers do not start again.
 - **A long gap mid-charge** (`sim quiet` for 3 s): the pause as above, then the stop at the lost figure; the gate closed if it is enabled, the message on the screen (`snap`), the menu back after a press, and the next charge passes.
+- **An intermittent scale:** three short gaps in one throw: two pauses that resume, and the third ends the throw with "Scale: unreliable".
 - **A slow scale is not a failed one:** charges with the simulated scale at 4 readings a second pass with no pause and no stop. A gap of 2 intervals at either rate pauses nothing.
+- The simulated scale has no powder in the air and no lag, so these prove the logic: pause, settle, go on or stop, count. How much powder a pause adds is not shown here. Nor is "unsteady": the simulated weight holds still in a pause, so that path is read in the code, not run.
 - **A cleanup speed sent from the web mid-charge:** no motor changes speed. In cleanup mode it applies as before.
 - **The same three on the code before the fixes fail,** recorded in `progress.md`.
 - **The real scale's frames,** idle, across restarts and through a minute of charging, summed up in `progress.md`. With the fixes in, the same run shows each frame that does not read as a number counted in `stats` and never reaching the charge.
@@ -105,11 +117,15 @@ On the bench's Pico W. The change is the same code on both chips, so no Pico 2 W
 - The motors when the firmware itself stops (ADR-012, fault 1), and the rest of the motor code.
 - The audit's other findings, such as the web form cut at 127 characters, storage and Wi-Fi. The cleanup's scope is proposed on its own.
 - The control loop's own faults (ADR-009): the D term's first sample, the I term not scaled by time. No bad reading reaches the loop after this ADR, but its sums are not changed here.
-- Control for slow scales and for scales whose value lags, and how the controller should act on stale readings beyond the pause (ADR-009, by the owner's word).
+- Control for slow scales and for scales whose value lags, and how the controller should act on stale readings beyond the pause: slowing rather than stopping, a back-off at a pause, allowing for what still falls (ADR-009, by the owner's word).
+- How much powder a pause adds on real powder: ADR-009 measures it, with PR #113's powder model and its fall after the stop, and recordings.
+- A stop with no ramp. It would save about a quarter turn; the ramps are ADR-012's.
 - Telling the user outside a charge that the scale is silent.
 
 ## To settle before approval
 
 - **The figures:** pause at 3 of the scale's usual intervals, stop at 10 and never under 1 s, as a first view. They follow each scale's rhythm, so the G&G's 4 a second trips neither. The A&D's rhythm and its longest normal gap, with the motors turning, are measured first; the pause's figure must sit above that longest normal gap.
-- **What the unit does at a lost scale:** first view, stop, close the gate, show why, and back to the menu on a press. A short gap only pauses and goes on (the owner: "pausing is a good start"); a long one is a scale that has failed, and going on after it is the risk this ADR removes.
+- **What the unit does at a lost scale:** first view, stop, close the gate, show why, and back to the menu on a press. A short gap only pauses, and goes on from the settled weight (the owner: "pausing is a good start"); a long one is a scale that has failed, and going on after it is the risk this ADR removes.
+- **How many pauses a throw bears:** two, as a first view; the third ends it.
+- **How "steady" is judged:** first view, the charge's own zero test without its zero: ten readings 300 ms apart, spread under `set_point_sd_margin`, so nothing new is tuned. It costs each pause about 3 s; "unsteady" after about 6 s.
 - **Where the bad-frame count shows** beyond the console's `stats`: the web, the screen, or nowhere.
