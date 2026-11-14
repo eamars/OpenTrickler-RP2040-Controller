@@ -1,6 +1,6 @@
 # ADR-013: the tricklers move only on a real, fresh reading
 
-Status: **Draft** 2026-11-15. Not approved. Captures three faults read in the code that make the tricklers run when they should not, how to fix them, and how the unit shows it. Nothing has been built.
+Status: **Decided** 2026-11-15. Approved by the owner the same day, with the first views below. What is built and measured goes in [progress.md](progress.md).
 
 ## What we want
 
@@ -122,7 +122,9 @@ On the bench's Pico W. The change is the same code on both chips, so no Pico 2 W
 - A stop with no ramp. It would save about a quarter turn; the ramps are ADR-012's.
 - Telling the user outside a charge that the scale is silent.
 
-## To settle before approval
+## Settled at approval (2026-11-15: "Approve")
+
+Each first view below was approved as it stands.
 
 - **The figures:** pause at 3 of the scale's usual intervals, stop at 10 and never under 1 s, as a first view. They follow each scale's rhythm, so the G&G's 4 a second trips neither. The A&D's rhythm and its longest normal gap, with the motors turning, are measured first; the pause's figure must sit above that longest normal gap.
 - **What the unit does at a lost scale:** first view, stop, close the gate, show why, and back to the menu on a press. A short gap only pauses, and goes on from the settled weight (the owner: "pausing is a good start"); a long one is a scale that has failed, and going on after it is the risk this ADR removes.
