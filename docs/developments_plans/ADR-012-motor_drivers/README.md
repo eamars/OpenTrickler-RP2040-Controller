@@ -1,6 +1,6 @@
 # ADR-012: the motor drivers cleaned up
 
-Status: **Open**. Approved by the owner 2026-11-15. All five steps are built, and proven on both units that day, but for the Pico W's soak, which fails on the web alone (its fix is written into ADR-003). Left: the owner's word on that; two proofs on the Pico W with the A&D sending; three by the owner's hand (a driver module lifted before a start, a phone on the unit's access point, real throws). What is built and measured is in [progress](progress.md), which ends with where it stands. The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
+Status: **Open**. Approved by the owner 2026-11-15. All five steps are built, and proven on both units that day, but for the Pico W's soak, which fails on the web alone: accepted by the owner, its fix left to ADR-003. Left: two proofs on the Pico W with the A&D sending; three by the owner's hand (a driver module lifted before a start, a phone on the unit's access point, real throws). What is built and measured is in [progress](progress.md), which ends with where it stands. The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
 
 ## What we want
 
@@ -23,6 +23,9 @@ Status: **Open**. Approved by the owner 2026-11-15. All five steps are built, an
   - **A unit without its drivers reaches the menu and refuses to charge; a driver's fault ends a charge; no watchdog in this ADR.** All three taken as proposed.
   - **Units keep the current they run at today.** The stored figures are converted once, and the default becomes 400 mA ("The stored settings").
   - **The cleanup's scope is the agent's to decide, and a small cleanup gets no ADR of its own.** So the small fixes found by the audit of 2026-11-14 that cannot wait are a step of this ADR (step 5), and every other finding is given to an ADR that exists ("Where the rest of the audit goes").
+- 2026-11-15, after the Pico W's soak (its [progress](progress.md), "The Pico W"):
+  - **A change to the web server belongs to the web server's ADR:** "You don't need to implement the change right away, but to document what, and how in the corresponding ADR." The fix for step 5's cost to the web is written into ADR-003.
+  - **This ADR closes with the Pico W's web as it is,** the fix left to ADR-003: "Yes, leave it to ADR-003".
 
 ## Why here
 

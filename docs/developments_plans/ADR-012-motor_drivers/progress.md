@@ -241,10 +241,9 @@ Each finding was read again in the code first: all six were as the audit said. O
 | `charge_cycle` | Passed, 14.5 s from charging to the cup prompt, as before the ADR |
 | `settings --compare` | The unit's settings are as before the ADR, but for the two currents: 500 became 240, once |
 
-On the Pico W every proof above passes but the soak, which fails on the web alone: this ADR's image misses more of the web's reads than the one before it, and resets connections, most when the Wi-Fi is poor ("The Pico W" above). The cause is step 5's room for 20 values in each connection's state; the fix is ADR-003's.
+On the Pico W every proof above passes but the soak, which fails on the web alone: this ADR's image misses more of the web's reads than the one before it, and resets connections, most when the Wi-Fi is poor ("The Pico W" above). The cause is step 5's room for 20 values in each connection's state; the fix is ADR-003's. The owner accepted it as it is, 2026-11-15: "Yes, leave it to ADR-003".
 
 **Left before the ADR can close**
-- **The owner's word on the web:** close with the Pico W's web as it is, its fix written into ADR-003, or not.
 - **The Pico W with the A&D sending:** `scale_frames --handovers 30`, and a ramp to full speed with the scale read. It needs the owner to connect the A&D to it.
 - **By the owner's hand:**
   - a driver module lifted with the power off, then a start: the unit must reach the menu and name the driver;
