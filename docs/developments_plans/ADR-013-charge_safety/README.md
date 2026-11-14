@@ -1,6 +1,6 @@
 # ADR-013: the tricklers move only on a real, fresh reading
 
-Status: **Decided** 2026-11-15. Approved by the owner the same day, with the first views below. What is built and measured goes in [progress.md](progress.md).
+Status: **Open** 2026-11-15. Approved by the owner the same day, with the first views below. The real scale is measured; left: the faults shown, the three fixes. What is built and measured is in [progress.md](progress.md).
 
 ## What we want
 
@@ -37,7 +37,9 @@ Status: **Decided** 2026-11-15. Approved by the owner the same day, with the fir
 
 **What the charge loop does** (`charge_mode_wait_for_complete()`)
 - Each pass waits up to 200 ms for a reading (`charge_mode.cpp:312`). With none, it polls the buttons and waits again, with no limit. Both motors keep their last speeds the whole time. Only the reset button ends it; that exit disables both motors (`:627`).
-- With a NaN reading both errors are NaN, and every comparison with NaN is false, so neither stop condition fires (`:328`, `:337`). The PID terms are NaN; each trickler's integral keeps the NaN for the rest of the throw (`:358`, `:370`); and `fmaxf(min, fminf(NaN, max))` gives the maximum (`:365`, `:377`). So one bad frame puts the tricklers at full speed until a later good reading crosses the stop threshold. The overthrow is what full speed pours in that time.
+- **What a NaN reading does depends on the chip** (found while measuring, 2026-11-15; to be shown on both by `sim bad`):
+  - **RP2350 (Pico 2 W), with a floating-point unit that follows IEEE:** both errors are NaN, and every comparison with NaN is false, so neither stop condition fires (`:328`, `:337`). The PID terms are NaN; each trickler's integral keeps the NaN for the rest of the throw (`:358`, `:370`); and `fmaxf(min, fminf(NaN, max))` gives the maximum (`:365`, `:377`). So one bad frame puts the tricklers at full speed until a later good reading crosses the stop threshold. The overthrow is what full speed pours in that time.
+  - **RP2040 (Pico W), with no floating-point unit:** the SDK's float code, built without `PICO_FLOAT_PROPAGATE_NANS` (it is not set anywhere here), treats a NaN as infinity. A NaN as the drivers make it, positive, reads as +∞; the fine error is then −∞, the fine stop fires at that reading, and the throw ends short and is taken as done. The reading a second later is a fresh one, so the LEDs would say under. Wrong, but an undercharge, not an overthrow.
 - With a reading of 0.0 in the middle of a charge, that pass's error is the whole target: the P term jumps and the integral takes the whole target once, for the rest of the throw.
 
 **The cleanup speed from the web**
@@ -48,11 +50,11 @@ Status: **Decided** 2026-11-15. Approved by the owner the same day, with the fir
 - **On time but late.** A scale that averages reports at a steady rate a value that trails the pan. The owner's G&G manual (`manuals/configure_g&g_scales.md`) sets the JJ223BF's averaging window (C2) to 1, where its default 4 is the longest, and its sensitivity (C1) to 1. Its timing cannot show it, so no threshold here sees it. ADR-009's.
 - **Missing.** Readings that stop coming, for a moment or for good: a loose cable, a scale switched off, a dead line. Or that come and do not parse. **This ADR's**, and only this.
 
-**What the bench's real scale sends** (the Pico W's A&D FX-300i; `state` replies in ADR-011's logs, 2026-11-14)
-- In steady running its readings are numbers: 34 of 34 in a 30-minute run with no restart.
-- For its first readings each time its driver starts, at boot and when the simulated scale hands back to it, it reads `inf`: 287 of the `state` replies of the day, all with no charge running. The field starts as NaN, so `inf` is a frame that was parsed. What those frames hold is not known: the firmware does not keep them.
-- They are harmless where they were seen: a charge first waits for ten steady readings near zero, and `inf` never passes.
-- No charge ran on the real scale that day; every charge used the simulated one. So whether this scale sends a frame that does not parse in the middle of a charge has not been seen either way.
+**What the bench's real scale sends** (the Pico W's A&D FX-300i; measured with `scale tap` and `rc_run.py scale_frames`, 2026-11-15; [progress](progress.md))
+- **Only numbers.** 4,418 frames, every one parsed as a number: 2,512 idle over 2 minutes, 417 across five hand-overs from the simulated scale, 231 across two restarts, 1,258 over a minute with both motors turning (coarse 5 rev/s, fine 2, the hopper empty). A frame reads `ST,+00000.00 GN` and a CR LF.
+- **About 21 a second:** 41 ms between frames typically, 62 ms at the longest, the same with the motors turning. The driver looks every 20 ms, so the times come in steps of it.
+- **The `inf` of ADR-011's logs was not the scale.** 287 `state` replies read `inf` that day, each right after the simulated scale handed back. The firmware puts NaN in the field then (`scale.c:271`), and the Pico W prints a NaN as `inf` (above). Shown: after a hand-over of 30 s, two `state` replies read `inf` before the scale's first frame, which was 0.0, came. The Pico 2 W prints the same as `nan`.
+- So on this scale a frame that does not parse has not been seen, mid-charge or ever. Fault 1 stays: for the other drivers, for a frame broken on its way, and for the NaN the firmware itself writes.
 - The Pico 2 W's unit has no scale.
 
 **What can show it on the bench**
@@ -67,7 +69,7 @@ Status: **Decided** 2026-11-15. Approved by the owner the same day, with the fir
    - The same function notes when each reading came, and keeps the scale's usual interval: the median of its recent intervals. A charge waits for ten steady readings near zero before it pours, so the interval is known before the motors start, for whichever scale is fitted.
 2. **Missing readings: pause, settle, then go on or stop.** In the controller's step of the charge loop, the part ADR-009 lifts into its controller module.
    - **Stale:** no reading for 3 of the scale's usual intervals. Both tricklers are commanded to 0 with their usual ramp, and the charge pauses. The servo gate is left where it is.
-   - **What a pause costs.** It cannot take back powder: the tricklers have poured for 3 intervals with no news (one of them as in any running, between two readings), they turn on through the ramp down (0.1 s from the coarse trickler's 5 rev/s at 50 rev/s², about a quarter turn, on the bench's settings), and powder in the air or on the tube's lip lands after they stop, as at every stop. On the bench's settings, about 1.5 coarse turns before the stop on an A&D and 3.75 on a G&G, and under half that on the fine trickler.
+   - **What a pause costs.** It cannot take back powder: the tricklers have poured for 3 intervals with no news (one of them as in any running, between two readings), they turn on through the ramp down (0.1 s from the coarse trickler's 5 rev/s at 50 rev/s², about a quarter turn, on the bench's settings), and powder in the air or on the tube's lip lands after they stop, as at every stop. On the bench's settings, about 0.6 coarse turns before the stop on the A&D (3 of its 41 ms) and 3.75 on a G&G (3 of its 250 ms), and under half that on the fine trickler.
    - **Resume, never on the first reading back.** The charge goes on only when:
      1. readings are back on the scale's rhythm, several in a row at its usual interval; and
      2. the weight is steady, by the charge's own zero test less its zero: ten readings taken 300 ms apart (about 3 s), their spread under `set_point_sd_margin` (0.02 by default). The test's mean margin, which asks for zero, does not apply. Then what fell has landed, and a scale that lags has caught up. Each pause so costs the throw at least 3 s.
@@ -76,7 +78,7 @@ Status: **Decided** 2026-11-15. Approved by the owner the same day, with the fir
    - **Lost:** no reading for 10 usual intervals, and never under 1 s. Both stop, the servo gate goes to its closed position if it is enabled, and the charge ends with "Scale: no reading" on the screen and the LEDs in the not-ready colour. A press of a button goes back to the menu.
    - **Unsteady:** readings came back but are not steady within twice the steady test's time (about 6 s). The throw ends as at a lost scale, with "Scale: unsteady".
    - **Intermittent:** pauses are counted in a throw. Two are borne; a third ends the throw as at a lost scale, with "Scale: unreliable". A scale that drops out again and again in one throw is not trusted to finish it.
-   - For the A&D at about 10 a second, the figures are 0.3 s and 1 s; for the G&G at 4 a second, 0.75 s and 2.5 s. The bench's are measured first.
+   - For the bench's A&D, measured at 41 ms between frames (about 21 a second, 62 ms at the longest), the figures are 0.12 s and 1 s; for a G&G at 4 a second, 0.75 s and 2.5 s. The pause's 0.12 s sits above the A&D's longest normal gap, 62 ms.
    - **This is a floor, not the controller's answer:** on a reading that is not fresh, nothing moves, and nothing moves again until the weight is known. How much a pause adds on real powder, and how the controller should act beyond the floor, such as slowing rather than stopping, backing the coarse trickler off at a pause, or allowing for what is still falling or for a scale's lag, is ADR-009's.
    - It covers a scale that went quiet and one that sends only nonsense, since its frames are no longer readings.
 3. **The cleanup speed applies only in cleanup mode.** The web may set it at any time; it reaches the motors only while cleanup mode runs, as from the screen.
@@ -97,7 +99,7 @@ Status: **Decided** 2026-11-15. Approved by the owner the same day, with the fir
 
 ## How the unit shows it works
 
-On the bench's Pico W. The change is the same code on both chips, so no Pico 2 W pass unless the owner asks for one.
+On the bench's Pico W. The fixes are the same code on both chips. The bad frame's fault, though, does not act the same on the two (above), so it is also shown failing on the Pico 2 W, where it is the overthrow, when the owner puts that unit on the bench; its charges use the simulated scale.
 
 - **A bad frame mid-charge:** the charge goes on as if it never came. The throw ends within the stop threshold, as a clean one does, and `stats` counts one bad frame.
 - **A short gap mid-charge** (`sim quiet` for 5 intervals): both motors at 0 within 3 intervals and a ramp of the last reading; no motor moves until readings are back on rhythm and steady; then the charge goes on and ends within the stop threshold.
