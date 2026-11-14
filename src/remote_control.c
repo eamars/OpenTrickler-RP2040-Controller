@@ -403,6 +403,7 @@ static void remote_control_tmc_emit(const char *line, void *ctx) {
  * `tmc <coarse|fine>`: the driver's registers by field, as `@tmc r ...` lines read from the chip now and `@tmc w ...`
  * lines for those that can only be written, then its serial line's counts (ADR-012).
  * `tmc <coarse|fine> setup <n>`: the driver set up n times from the stored settings, nine checked writes each.
+ * `tmc <coarse|fine> lose` and `find`: for proofs, the driver made to look absent, and found again. Never stored.
  */
 static bool remote_control_tmc(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                void *write_ctx) {
@@ -415,7 +416,7 @@ static bool remote_control_tmc(const char *args, char *reply, size_t reply_size,
         selected_motor = SELECT_FINE_TRICKLER_MOTOR;
     }
     else {
-        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>]");
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find]");
         return false;
     }
 
@@ -444,8 +445,16 @@ static bool remote_control_tmc(const char *args, char *reply, size_t reply_size,
             }
         }
     }
+    else if (strcmp(rest, "lose") == 0 || strcmp(rest, "find") == 0) {
+        // For proofs, never stored: the driver looks absent until `find`; a mode, or `setup`, then sets it up again
+        if (menu_get_current_form_id() < 0) {
+            snprintf(reply, reply_size, "@err a mode is running");
+            return false;
+        }
+        motor_driver_set_lost(selected_motor, rest[0] == 'l');
+    }
     else if (*rest != '\0') {
-        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>]");
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find]");
         return false;
     }
     else {

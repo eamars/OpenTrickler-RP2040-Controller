@@ -27,6 +27,13 @@
 #define MOTOR_UART_BYTE_TIMEOUT_US 2000
 
 /*
+    The wire is left idle this long before each frame. A driver that has just answered needs time to listen again:
+    a frame sent on the heels of an answer was lost at every start-up (ADR-012's progress, step 1). Klipper leaves
+    the same 200 us before every frame (src/tmcuart.c).
+*/
+#define MOTOR_UART_IDLE_US 200
+
+/*
     `current_ma` was the current only with the driver module's trimmer at full scale; it is now the current itself
     (ADR-012). A figure stored before that is converted once, by the factory trimmer's share of full scale
     (1.2 V of 2.5 V), and rounded to 10 mA.
@@ -105,6 +112,8 @@ static SemaphoreHandle_t motor_driver_mutex = NULL;
 static bool motor_uart_exchange(const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len) {
     bool is_ok = true;
 
+    busy_wait_us(MOTOR_UART_IDLE_US);
+
     // Whatever is left from before is not this exchange's
     while (uart_is_readable(MOTOR_UART)) {
         uart_getc(MOTOR_UART);
@@ -178,6 +187,7 @@ uint32_t speed_to_period(float speed, uint32_t pio_clock_speed, uint32_t full_ro
 // Write a driver its registers from the stored settings. False if it does not answer or does not take them
 static bool driver_setup(motor_config_t * motor_config) {
     tmc2209_t * driver = (tmc2209_t *) motor_config->tmc_driver;
+    bool was_ready = driver->ready;
 
     motor_driver_lock();
     bool is_ok = tmc2209_setup(driver,
@@ -186,12 +196,13 @@ static bool driver_setup(motor_config_t * motor_config) {
                                motor_config->persistent_config.microsteps);
     motor_driver_unlock();
 
-    if (is_ok) {
+    // Said when it changes, and each time it fails
+    if (is_ok && !was_ready) {
         printf("Motor driver %u: set up, %u mA RMS asked, %u mA given\n",
                motor_config->uart_addr, motor_config->persistent_config.current_ma,
                tmc2209_get_run_current_ma(driver));
     }
-    else {
+    else if (!is_ok) {
         printf("Motor driver %u: no answer, or a register not taken\n", motor_config->uart_addr);
     }
 
@@ -603,6 +614,19 @@ bool motors_ready(void) {
 bool motor_driver_setup(motor_select_t selected_motor) {
     return driver_setup(selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
                                                                      : &coarse_trickler_motor_config);
+}
+
+
+void motor_driver_set_lost(motor_select_t selected_motor, bool lost) {
+    tmc2209_t * driver = motor_get_driver(selected_motor);
+    uint8_t addr = selected_motor == SELECT_FINE_TRICKLER_MOTOR ? FINE_MOTOR_ADDR : COARSE_MOTOR_ADDR;
+
+    // Address 3 is nobody's on this board: asked there, no driver answers
+    motor_driver_lock();
+    driver->bus.addr = lost ? 3 : addr;
+    driver->bus.ifcnt_known = false;
+    driver->ready = false;
+    motor_driver_unlock();
 }
 
 

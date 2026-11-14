@@ -103,6 +103,9 @@ const char * motors_get_fault(void);
 bool motor_driver_setup(motor_select_t selected_motor);
 bool motor_driver_dump(motor_select_t selected_motor, motor_driver_line_fn emit, void * ctx);
 void motor_driver_get_stats(motor_select_t selected_motor, motor_driver_stats_t * stats);
+
+// For proofs, never stored: a driver made to look absent (asked at an address nobody has), and found again
+void motor_driver_set_lost(motor_select_t selected_motor, bool lost);
 bool motor_config_init(void);
 bool motor_config_save(void);
 void motor_task(void *p);
