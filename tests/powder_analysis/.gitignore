@@ -1,0 +1,3 @@
+# The root .gitignore ignores every Makefile, but this one belongs to the repository
+!Makefile
+build/

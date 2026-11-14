@@ -15,6 +15,7 @@
 #include "eeprom.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
+#include "powder_analysis.h"
 #include "eeprom.h"
 #include "wireless.h"
 #include "system_control.h"
@@ -96,6 +97,8 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
         case 53: return 31;
         case 60: return 37;
         case 61: return 37;
+
+        case 70: return 1;
 
         default:
             return 1;
@@ -183,6 +186,9 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_WIFI_INFO:
                     exit_form_id = wireless_view_wifi_info();
+                    break;
+                case APP_STATE_ENTER_POWDER_ANALYSIS:
+                    exit_form_id = powder_analysis_menu();
                     break;
                 default:
                     break;

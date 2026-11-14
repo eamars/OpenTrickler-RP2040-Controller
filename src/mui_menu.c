@@ -298,6 +298,7 @@ fds_t fds_data[] = {
     MUI_DATA("MU", 
         MUI_10 "Start|"
         MUI_20 "Cleanup|"
+        MUI_70 "Powder Analysis|"
         MUI_40 "Wireless|"
         MUI_30 "Settings"
         )
@@ -388,6 +389,17 @@ fds_t fds_data[] = {
     MUI_LABEL(5, 37, "press Next to cleanup")
     MUI_XYAT("BN",14, 59, 1, "Back")
     MUI_XYAT("LV", 115, 59, 5, "Next")  // APP_STATE_ENTER_CLEANUP_MODE
+
+    // Menu 70: Powder Analysis
+    MUI_FORM(70)
+    MUI_STYLE(1)
+    MUI_LABEL(5,10, "Powder Analysis")
+    MUI_XY("HL", 0,13)
+    MUI_STYLE(0)
+    MUI_LABEL(5, 25, "Put pan on the scale and")
+    MUI_LABEL(5, 37, "press Next to set up")
+    MUI_XYAT("BN",14, 59, 1, "Back")
+    MUI_XYAT("LV", 115, 59, 11, "Next")  // APP_STATE_ENTER_POWDER_ANALYSIS
 
     // Menu 30: Configurations
     MUI_FORM(30)

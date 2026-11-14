@@ -108,6 +108,18 @@ static void coarse_trickler_backoff(float min_output_speed_rps) {
 }
 
 
+// Change of the error per millisecond for the D term. 0 on the first sample of a throw and when no
+// time passed since the last sample: on the first loop pass a measurement is often already waiting,
+// so the elapsed time is 0 ms (and the last error still 0). The plain division gave inf/NaN, which
+// sent both tricklers to maximum speed until the next sample.
+static float error_derivative(float error, float last_error, float elapse_time_ms, bool first_sample) {
+    if (first_sample || elapse_time_ms <= 0.0f) {
+        return 0.0f;
+    }
+    return (error - last_error) / elapse_time_ms;
+}
+
+
 // Menu system
 extern AppState_t exit_state;
 extern QueueHandle_t encoder_event_queue;
@@ -297,6 +309,7 @@ void charge_mode_wait_for_complete() {
     TickType_t last_sample_tick = xTaskGetTickCount();
     TickType_t current_sample_tick = last_sample_tick;
     bool should_coarse_trickler_move = true;
+    bool first_sample = true;   // no D term before the second measurement
 
     while (true) {
         // Non block waiting for the input
@@ -356,7 +369,7 @@ void charge_mode_wait_for_complete() {
         // Update fine trickler speed
         float elapse_time_ms = (current_sample_tick - last_sample_tick) / portTICK_RATE_MS;
         fine_trickler_integral += fine_trickler_error;
-        float fine_trickler_derivative = (fine_trickler_error - fine_trickler_last_error) / elapse_time_ms;
+        float fine_trickler_derivative = error_derivative(fine_trickler_error, fine_trickler_last_error, elapse_time_ms, first_sample);
 
         // Update fine trickler speed
         float new_p = current_profile->fine_kp * fine_trickler_error;
@@ -368,7 +381,7 @@ void charge_mode_wait_for_complete() {
         // Update coarse trickler speed
         if (should_coarse_trickler_move && !coarse_backoff_in_progress) {
             coarse_trickler_integral += coarse_trickler_error;
-            float coarse_trickler_derivative = (coarse_trickler_error - coarse_trickler_last_error) / elapse_time_ms;
+            float coarse_trickler_derivative = error_derivative(coarse_trickler_error, coarse_trickler_last_error, elapse_time_ms, first_sample);
 
             new_p = current_profile->coarse_kp * coarse_trickler_error;
             new_i = current_profile->coarse_ki * coarse_trickler_integral;
@@ -383,6 +396,7 @@ void charge_mode_wait_for_complete() {
         last_sample_tick = current_sample_tick;
         fine_trickler_last_error = fine_trickler_error;
         coarse_trickler_last_error = coarse_trickler_error;
+        first_sample = false;
     }
 
     // Stop the timer 
