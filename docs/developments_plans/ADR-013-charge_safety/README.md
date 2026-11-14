@@ -1,6 +1,6 @@
 # ADR-013: the tricklers move only on a real, fresh reading
 
-Status: **Open** 2026-11-15. Approved by the owner the same day, with the first views below. The real scale is measured and the faults are shown on the Pico W; left: the three fixes, and the bad frame on the Pico 2 W. What is built and measured is in [progress.md](progress.md).
+Status: **Built** 2026-11-15. Approved by the owner the same day, with the first views below; built and proven on the Pico W and the Pico 2 W, nothing left. What was built and measured is in [progress.md](progress.md).
 
 ## What we want
 
@@ -112,7 +112,7 @@ On the bench's Pico W. The fixes are the same code on both chips. The bad frame'
 - **The same three on the code before the fixes fail,** recorded in `progress.md`.
 - **The real scale's frames,** idle, across restarts and through a minute of charging, summed up in `progress.md`. With the fixes in, the same run shows each frame that does not read as a number counted in `stats` and never reaching the charge.
 - `charge_cycle` passes, `menu_tour --compare` finds every form equal (the message is drawn by charge mode, not a menu form), and the stored settings are unchanged: no stored struct changes.
-- The owner's check, which the owner may waive: the scale's cable pulled during a charge with the hopper empty; the motors stop and the screen says why.
+- The owner's check, which the owner may waive (waived, 2026-11-15): the scale's cable pulled during a charge with the hopper empty; the motors stop and the screen says why.
 
 ## Not in this ADR
 

@@ -137,3 +137,23 @@ Built 2026-11-15 (9d9b790), proven on the Pico W with image 1.20.95.
 - **The fault screen's snapshot first failed** ("no two snaps in a row were equal in 4 tries"). The screen was steady: five snaps in a row were equal, the sixth torn. The console copies the screen's buffer with no lock while the charge's screen redraws every 20 ms, so a copy can catch a frame half drawn. `snap` now tries 10 times; the display lock that no drawing task takes is the real cure, the screens' ADR's.
 - The screens: "Scale: no reading" over the last weight 29.15, and "Scale: unreliable" over 18.02, each with the profile below.
 - **CI** ([run 43596400677](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/runs/43596400677)): passed. Pico W 653.6 KB of flash, Pico 2 W 631.8 KB: about 3 KB more than at the end of ADR-011 (650.6, 628.7), for the fixes and the test tools (the scale tap, the simulated scale's faults, the console's commands). RAM 197.4 KB on each, 0.1 KB more.
+
+## The Pico 2 W
+
+2026-11-15, the second unit (RP2350, chip id 49933331, its own board and settings), with the A&D connected to it for this pass. The simulated scale for every charge.
+
+**The bad frame before the fix** (image 1.20.84 at a21d14d, the one kept for it): `charge_fault bad --expect seen`, `VERDICT PASS`. At 29.13, the fine trickler at 1.73 rev/s; 0.12 s after the bad frame the weight read `nan` and **the fine trickler went to 3 rev/s, its full speed** on this unit's profile; the charge ended at 30.000 at +0.73 s, the simulated powder held at the target. With a real pan that full speed is the overthrow. So the two chips do opposite wrong things with the same frame: the RP2350 pours at full speed, the RP2040 stops short.
+
+**This ADR's image** (1.20.99 at b2e691a; the firmware as on the Pico W, tool commits since), every run `VERDICT PASS`:
+- `flash`; `settings --compare` with the copy taken before: every stored value as before, `c13` 0.5 kept;
+- `menu_tour --compare tests/menu_baseline/pico2_w`: every form equal but the version's;
+- `charge_cycle`;
+- the bad frame: no full speed, no pause, no end;
+- a gap of 500 ms: paused after 300 ms, resumed from a settled 29.277.
+
+**Found on the way:** the first run on this board crashed in `rc_run.py`: started seconds after a flash, its first web read timed out before the unit was on Wi-Fi, and the error was not caught, which left openocd running. The first reads are now tried three times, and a failure is a failure of the run (b2e691a).
+
+## The end
+
+- The owner's check, the scale's cable pulled in a charge: waived by the owner, 2026-11-15 ("Waive").
+- **Built** 2026-11-15. Nothing left.

@@ -1,17 +1,18 @@
 # Handover, 2026-11-15
 
-First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed, and 2026-11-15 when ADR-011 closed. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
+First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed, and 2026-11-15 when ADR-011 and ADR-013 closed. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
 
 ## Where things stand
 
 - **ADR-001:** Built and closed 2026-11-14, merged to main by PR #115. The owner waived the real throw and the check by eye (see its progress.md).
-- **ADR-011:** Built and closed 2026-11-15: SDK 2.3.1, FreeRTOS V11.3.3 from upstream, Arm's 15.2.Rel1, every version in `toolchain.env`, CI on `ubuntu-latest` with no pin. Proven on the Pico W and the Pico 2 W. The owner waived the end checks by hand and accepted the Pico 2 W's web soak as it stood; ADR-003 carries that finding. Its PR is the one from the branch `adr011_dependency_update`.
-- **Next: ADR-013**, the tricklers moved only on a real, fresh reading: three charge-safety faults, drafted and approved 2026-11-15. Then ADR-012, the motor drivers cleaned up (a draft), then ADR-002, which holds the merge strategy discussed on 2026-11-14 as a proposal. Each needs the owner's approval first.
+- **ADR-011:** Built and closed 2026-11-15: SDK 2.3.1, FreeRTOS V11.3.3 from upstream, Arm's 15.2.Rel1, every version in `toolchain.env`, CI on `ubuntu-latest` with no pin. Proven on the Pico W and the Pico 2 W. The owner waived the end checks by hand and accepted the Pico 2 W's web soak as it stood; ADR-003 carries that finding. Merged by PR #119.
+- **ADR-013:** Built and closed 2026-11-15: one door for a reading (a bad frame is dropped and counted), a missing reading pauses the tricklers and a lost scale ends the charge, by the scale's own rhythm, and the web's cleanup speed only in cleanup mode. Proven on both units. A bad frame did opposite wrong things on the two chips before it: full speed on the RP2350, a short throw on the RP2040. Its PR is the one from the branch `adr013_charge_safety`; it changes what a user sees, so it waits for the owner.
+- **Next: ADR-012**, the motor drivers cleaned up (a draft): approval first. Its fault 7 very likely caused ADR-011's two silent starts. Then ADR-002, which holds the merge strategy discussed on 2026-11-14 as a proposal.
 - **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
 - **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** two units, one on the probe at a time (see `AGENTS.md`, "The bench"):
-  - the Pico W runs ADR-011's step 4, 1.20.71 at 78ce2e9; its web API at 192.168.2.189;
-  - the Pico 2 W, on a controller board and settings of its own, runs ADR-011's end, 1.20.72 at 7d2d442, and was the one on the probe last; its web API at 192.168.2.167. Copies of its settings from before are in `logs/adr011/pico2w/`.
+  - the Pico W runs ADR-013's last image, 1.20.95 at 9d9b790; its web API at 192.168.2.189;
+  - the Pico 2 W, on a controller board and settings of its own, runs ADR-013's, 1.20.99 at b2e691a, and was the one on the probe last, with the A&D connected to it; its web API at 192.168.2.167. Copies of its settings from before are in `logs/adr011/pico2w/` and `logs/adr013/pico2w/`.
 - **macOS is parked**, by the owner: development on Windows, integration builds on Linux.
 
 ## Conclusions of today
