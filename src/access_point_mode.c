@@ -23,8 +23,9 @@ static ip4_addr_t mask;
 static ip_addr_t gw;
 
 extern char ip_addr_string[16];
-extern char first_line_buffer[32];
-extern char second_line_buffer[32];
+// As wireless.c defines them: 35 bytes each. They were declared here as 32
+extern char first_line_buffer[35];
+extern char second_line_buffer[35];
 extern char host_name[18];
 
 bool access_point_mode_start() {
@@ -43,8 +44,8 @@ bool access_point_mode_start() {
     // gone when this function returned: every query then read memory that was no longer its own (ADR-012; audit W1)
     dns_server_init(&dns_server, &gw);
 
-    sprintf(first_line_buffer, ">%s", host_name);
-    sprintf(second_line_buffer, ">%s", ap_password);
+    snprintf(first_line_buffer, sizeof(first_line_buffer), ">%s", host_name);
+    snprintf(second_line_buffer, sizeof(second_line_buffer), ">%s", ap_password);
 
     return true;
 }
