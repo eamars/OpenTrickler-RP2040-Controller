@@ -1,6 +1,6 @@
 # ADR-011: the dependencies brought up to date
 
-Status: **Draft** 2026-11-14. Not approved. Captures what is pinned today, what is newer, and ideas for the update. Nothing here has been built against a newer version.
+Status: **Draft** 2026-11-14, written in full the same day. Not approved. Nothing here has been built against a newer version.
 
 ## What we want
 
@@ -12,6 +12,10 @@ Status: **Draft** 2026-11-14. Not approved. Captures what is pinned today, what 
 
 - A dependency update, with a cleanup, is inserted after ADR-001, before the changes of future PRs are merged.
 - The process keeps a dependency update and a functional change apart. So the cleanup of the motor drivers, which the owner named in the same breath, is ADR-012.
+- This ADR goes before ADR-002: "I would like to uprev the dependency per ADR-011 first."
+- The proof is on the Pico W first. A Pico 2 W is put on the bench when it is asked for; the bench holds one board at a time.
+- The 2023 debug scripts are removed.
+- Dependabot watches the GitHub actions, monthly.
 
 ## Why here
 
@@ -22,94 +26,130 @@ Status: **Draft** 2026-11-14. Not approved. Captures what is pinned today, what 
 
 ## What we know (checked 2026-11-14)
 
-**What is pinned, and what is newer**
+**What is pinned, and the newest**
 
-| What | Pinned at | Newer |
+| What | Pinned at | Newest |
 |---|---|---|
-| Pico SDK | 2.1.1 plus one commit, 2025-02-19 | 2.2.0 (2025-07-29), 2.3.0 (2026-07-03), 2.3.1 (2026-09-04) |
-| picotool and the SDK tools (`pioasm`) | 2.1.1 | 2.3.1 |
-| FreeRTOS kernel | Raspberry Pi's fork, commit `4f7299d`, 2024-08-08. It is that fork's last commit | Upstream's V11.3.3, 2026-10-30 |
-| u8g2 | 2.36.5 plus five commits, 2025-02-22 | Tag 2.37.1; last commit 2026-09-14 |
-| Trinamic-library | Commit `d7debfa`, 2025-02-16 | Five commits newer, the last 2026-04-23 |
-| ARM compiler | Arm's 14.2.Rel1 on a PC and on a Mac; Ubuntu 24.04's 13.2.1 in CI | Not checked |
-| CMake, Ninja | 3.31.5, 1.12.1 | Not checked; nothing asks for newer |
-| GitHub actions | `checkout@v4`, `upload-artifact@v4` | Not checked |
+| Pico SDK | 2.1.1 plus one commit, 2025-02-19 | 2.3.1, 2026-09-04 |
+| picotool and `pioasm`, ready-made (`raspberrypi/pico-sdk-tools`) | 2.1.1, release `v2.1.1-3` | 2.3.1, release `v2.3.1-0`, for Windows, Linux and macOS |
+| OpenOCD, ready-made (the same releases) | 0.12.0+dev from `v2.1.1-3` | 0.12.0+dev from `v2.3.1-0` |
+| FreeRTOS kernel | Raspberry Pi's fork, `4f7299d`, 2024-08-08 | Upstream's V11.3.3, 2026-10-30 |
+| Arm compiler | Arm's 14.2.Rel1 on a PC and on a Mac; Ubuntu 24.04's 13.2.1 in CI | Arm's 15.2.Rel1, for Windows, Linux and macOS. There is no 15.3 |
+| CMake, Ninja | 3.31.5, 1.12.1 | 4.3.4 and 1.13.2 are what Raspberry Pi pairs with SDK 2.3.1 |
+| u8g2 | 2.36.5 plus five commits, 2025-02-22 | Tag 2.37.1 |
+| Trinamic-library | `d7debfa`, 2025-02-16 | Five commits newer, the last 2026-04-23 |
+| GitHub actions | `checkout@v4`, `upload-artifact@v4` | Not checked; Dependabot will say |
+
+- Raspberry Pi's VS Code extension names a set of tools for each SDK. For 2.3.1: Arm 15.2.Rel1, CMake 4.3.4, Ninja 1.13.2, picotool 2.3.1. For 2.1.1 it names 14.2.Rel1, 3.31.5, 1.12.1 and 2.1.1, which is the set this repository uses today. So the newest set is one Raspberry Pi puts together.
 
 **The SDK**
 - The SDK carries lwIP, the radio's driver and firmware, TinyUSB and Mbed TLS as submodules of its own. Moving the SDK moves all of them.
 - From the release notes:
-  - 2.2.0: lwIP to 2.2.1, the radio's driver to 1.1.0, and "GCC 15 is now supported".
-  - 2.3.0: the radio's driver again; the USB reset is taken out of `pico_stdio_usb` into a library of its own. ADR-001's flashing with no hands uses that reset.
-  - 2.3.1: fixes for FreeRTOS on two cores at start-up, and for the radio being shut down and started again.
-- So the places to look for a change in behaviour are Wi-Fi and the USB console.
+  - 2.2.0: lwIP to 2.2.1, the radio's driver to 1.1.0, and GCC 15 supported.
+  - 2.3.0: the radio's driver again; the USB reset is taken out of `pico_stdio_usb` into a library of its own. This firmware has USB stdio switched off (`CMakeLists.txt`; its console is over RTT) and flashes through the probe, so the move does not reach it. The first draft of this ADR said otherwise.
+  - 2.3.1: fixes for FreeRTOS on two cores at start-up, and for the radio being shut down and started again. `__time_critical_func` is put back as 2.1.1 had it. Build folders are to be deleted and made again after the update.
+  - 2.3.1 also found rare races in the FreeRTOS RP2040 and RP2350 ports, still to be fixed in the ports. Until then the SDK works around them, by default (`LOCK_INTERNAL_SPIN_UNLOCK_WITH_NOTIFY_WAKES_ALL`).
+- So the places to look for a change in behaviour are Wi-Fi, lwIP and the start of the second core.
 - `http_rest.c` is a copy of lwIP's HTTP server with about 190 lines added (ADR-003). Whether it still builds and behaves against lwIP 2.2.1 is not known.
 
 **`pioasm` and the CI pin**
 - SDK 2.1.1's `tools/pioasm/pio_types.h` lacks `#include <cstdint>`. 2.2.0 and 2.3.1 have it (read in the source at each tag). That missing line is what GCC 15 rejects.
-- Each SDK version has a tools release with `pioasm` and picotool ready-made for Windows, Linux and macOS (seen for 2.2.0 to 2.3.1).
+- Each SDK version has a tools release with `pioasm` and picotool ready-made for Windows, Linux and macOS.
 - A PC uses the ready-made `pioasm`. CI has none, so the SDK compiles it with the runner's own compiler. That is why only CI broke.
 
 **FreeRTOS**
-- The firmware runs FreeRTOS on both cores.
-- The build takes the port through the fork's import file, which picks the RP2040 or the RP2350 port by the board.
-- Upstream now carries both RP2350 ports among its community ports.
-- SDK 2.3.1's notes say rare race conditions were found that "will need to be fixed in the FreeRTOS RP2040/RP2350 ports". Where those fixes land, the fork or upstream, is not checked.
+- The firmware runs FreeRTOS on both cores, with core affinity, and with no MPU and no TrustZone (`FreeRTOSConfig.h`).
+- Raspberry Pi's fork has one branch, and our pin is its head. Nothing has been pushed to the fork since 2024-11. Our pin was last moved on 2025-02-26, for the RP2350. So the kernel is as new as the fork; the fork stopped.
+- Upstream carries the RP2040 port in the kernel itself (`portable/ThirdParty/GCC/RP2040`), last changed 2026-01-18. The two RP2350 ports are in upstream's community ports, a submodule of the kernel.
+- Upstream's import file at V11.3.3 picks the RP2040 port or an RP2350 one by the board, as the fork's does. The copy in Raspberry Pi's own examples, at SDK 2.3.1, handles both the fork's layout and upstream's.
+- V11.3.3 holds the community ports at their state of 2025-01-14. Three RP2350 commits came after it:
+  - a fix of the path in the ports' `CMakeLists.txt`;
+  - the saved context kept clear of the MPU settings beside it. With no MPU, it does not reach this firmware;
+  - a variable renamed.
 
 **The build**
 - Versions are written in five places: `configure_env.ps1`, `setup_toolchain.ps1`, `setup_toolchain.sh`, `configure_env.sh`, and the CI workflow, which takes whatever Ubuntu ships.
 - CI's image and a PC's differ by about 40 KB, all of it the compiler's runtime. Releases have been PC builds (ADR-005).
 - The clean builds of 2026-11-13, with `-Wall`, gave 4 warnings, all inside u8g2. The firmware's own code gave none.
 - `scripts/gen_version.py` asks git for the version from the build folder. A build folder outside the repository fails (tried 2026-11-14).
-- `debug.sh`, `openocd_start.bat`, `openocd_start.sh`, `program.bat` and `program.sh` were last changed in 2023 and name the RP2040 only.
-- `configure_env.ps1` names an OpenOCD folder that `setup_toolchain.ps1` does not fetch.
+- `debug.sh`, `openocd_start.bat`, `openocd_start.sh`, `program.bat` and `program.sh` were last changed in 2023 and name the RP2040 only. `rc_run.py` does their work and does not use them.
+- `setup_toolchain.ps1` fetches OpenOCD since ADR-001. `configure_env.ps1` and `rc_run.py` name its folder `0.12.0+dev`, the name in both tools releases.
+- `rc_run.py` knows the Pico 2 W's openocd target and build folder, but not its whole-chip reset nor the addresses of its STEP pins. No Pico 2 W has been on the bench.
+- The macOS scripts fetch the compiler only; the SDK builds `pioasm` there with the Mac's own compiler. There is no Mac here to run them on.
 - Today's sizes, the baseline for this ADR, are in ADR-001's progress.
 
-## Ideas
+## What we will do
 
-**One dependency a step,** each built, flashed and proven alone, so a regression names its cause:
-1. The SDK with its tools, to the newest release. They are one set.
-2. The FreeRTOS kernel, to the repository the SDK's own examples use at that release.
-3. The compiler, the same on a PC, on a Mac and in CI.
+One step at a time. Each step is built, flashed and proven on the Pico W alone, and committed alone, so a regression names its cause. The images of every step, for both boards, are kept under `logs/adr011/`, so the Pico 2 W can later be taken through them in turn.
 
-**u8g2 left where it is.** ADR-010 removes it.
+**Step 1: the SDK with its tools.**
+- `library/pico-sdk` to the tag 2.3.1, with its own submodules.
+- picotool and `pioasm` from the tools release `v2.3.1-0`. CMake 4.3.4 and Ninja 1.13.2, as Raspberry Pi pairs them with this SDK.
+- The compiler stays, 14.2.Rel1 on a PC. CI stays on `ubuntu-24.04` with Ubuntu's compiler until step 3.
+- The build folders are deleted once, as the SDK's notes ask.
+- Whatever no longer builds is fixed in our code, never under `library/`. `http_rest.c` against lwIP 2.2.1 is the likely place.
+- `rc_run.py` gets `soak <seconds> --host <address>`: it reads the screen's mirror over the web once a second, as the mirror page does, and reads `stats` at the start and the end. Step 1 is the first change to Wi-Fi and lwIP that needs it; ADR-003 and ADR-004 use it after.
 
-**The Trinamic library left to ADR-012,** which decides whether the library stays.
+**Step 2: FreeRTOS from upstream.**
+- `library/FreeRTOS-Kernel` moves to `FreeRTOS/FreeRTOS-Kernel` at V11.3.3, with its community ports; `.gitmodules` names the new address.
+- `CMakeLists.txt` takes upstream's import file.
+- `FreeRTOSConfig.h` is brought to what V11.3.3 asks for, and nothing it sets changes in effect.
+- The community ports stay where V11.3.3 holds them. If the Pico 2 W's build needs the later path fix, the RP2350 port is taken from the community ports' own repository, as a submodule of ours, and the reason is written down.
 
-**Each version written once.** One file names the versions; the Windows script, the macOS script and CI read it.
+**Step 3: one compiler, its version written once.**
+- Arm's 15.2.Rel1 on a PC, on a Mac and in CI.
+- One file at the root, `toolchain.env`, names every version: the compiler, CMake, Ninja and the tools release. `setup_toolchain.ps1`, `configure_env.ps1`, `setup_toolchain.sh`, `configure_env.sh` and CI read it. OpenOCD comes from the same tools release as picotool and `pioasm`.
+- CI fetches the compiler and the ready-made tools a PC uses, kept in GitHub's cache between runs. The runner's own compiler is no longer used, and the pin goes: `ubuntu-latest`.
+- The stored settings are each struct as the compiler lays it out, so this is the step where they are watched.
+- The Mac's scripts are changed but cannot be run here; that is written down.
 
-**CI fetches the named compiler and the ready-made tools,** as a PC does. Then:
-- CI's image is the release image, which ADR-004 needs;
-- CI no longer depends on the runner's own compiler;
-- the runner pin goes.
+**Step 4: small cleanups, nothing a user sees.**
+- `scripts/gen_version.py` asks git from the source folder, so a build folder outside the repository works.
+- The five 2023 scripts are removed.
+- `.github/dependabot.yml`: the GitHub actions, monthly.
+- `AGENTS.md` brought up to date: the versions, the pin, and "CI and a PC build different images" replaced by what is true after step 3.
 
-**Told when a dependency moves.** A scheduled check, GitHub's Dependabot or a small job of our own, that opens an issue when a submodule or an action has a newer release. The next update is then a decision, not a broken build. To weigh.
-
-**Small cleanups of the build, nothing a user sees:**
-- the version script reads git from the source folder;
-- the 2023 debug scripts made right for both chips, or removed;
-- OpenOCD fetched by the set-up script, or taken out of `configure_env.ps1`.
+**Then the Pico 2 W, when the owner puts one on the bench.**
+- `rc_run.py` learns the RP2350's whole-chip reset and its STEP pins.
+- Main's image from before this ADR is flashed first. Its menu is saved as `tests/menu_baseline/pico2_w/`, and its settings are read.
+- Then this ADR's image, with the same proofs as the Pico W. If one fails, the kept images of each step are flashed in turn to find the step.
 
 ## How the unit shows it works
 
-After each step, on each supported board:
-- Both boards build from clean on a PC and in CI. At the end CI passes on GitHub's newest image, with no pin.
+After each step, on the Pico W:
+- Both boards build from clean on this PC, with no new warning in our own code. CI passes on the branch.
 - The size report before and after, in `progress.md`. A part that grows has its reason written down.
-- `menu_tour --compare` finds every form equal to the baseline. u8g2 is not touched, so the pixels must match.
+- `rc_run.py flash` passes: written, verified, and the console reports the build's version.
+- `menu_tour --compare tests/menu_baseline/pico_w` finds every form equal. u8g2 is not touched, so the pixels must match.
 - `charge_cycle` passes.
-- Flashing with no hands still works, and so does the BOOTSEL button.
-- Wi-Fi: the unit joins the owner's network and serves its pages; with no network it opens its own access point and the wizard works; the display mirror runs for an hour with the free memory in `stats` steady.
-- A unit that had saved settings before the update still has them after. The stored format is the compiler's layout of each struct, so a compiler change is the step to watch.
-- The owner's real throw.
+- `pulses`: the step pulses stop on a probe reset and on an assert, as before. After a hard fault they ran on before this ADR; what they do now is written down, not fixed here.
+- Wi-Fi: the unit joins the owner's network and serves its pages. `soak 3600` passes: an hour of the mirror, with `heap_free` at the end no lower than at the start, no reply missed.
+- The settings read over the web API before the flash (each settings path, GET, no parameters, as ADR-001 did) are the same after it.
+
+At the end:
+- CI passes on GitHub's newest image, with no pin. Its size report matches this PC's part by part, and a difference has its reason written down.
+- `picotool info` on each board's `.uf2` names the right board and the build's version.
+- The owner's checks, each of which the owner may waive:
+  - one real throw;
+  - Wi-Fi switched off in the menu, the unit's own access point and its wizard seen from a phone, and Wi-Fi switched back on;
+  - one flash by the BOOTSEL button, if the unit's USB is connected for it.
+- The Pico 2 W, with the same proofs, once it is on the bench.
 
 ## Not in this ADR
 
 - Anything a user sees.
-- The motor code (ADR-012), the HTTP server (ADR-003), an optimised build (ADR-005), LVGL (ADR-010), the ESP32 (ADR-007).
+- u8g2: ADR-010 removes it.
+- The Trinamic library: ADR-012 decides whether it stays.
+- The motor code (ADR-012), the HTTP server (ADR-003), an optimised build (ADR-005), the ESP32 (ADR-007).
+- A watch on the SDK, FreeRTOS and the compiler. Their versions are in one file, and moving one is a decision.
+
+## Files
+
+- Changed: `.gitmodules`, the pins of `library/pico-sdk` and `library/FreeRTOS-Kernel`, `CMakeLists.txt`, `src/FreeRTOSConfig.h`, `setup_toolchain.ps1`, `configure_env.ps1`, `setup_toolchain.sh`, `configure_env.sh`, `.github/workflows/cmake.yml`, `scripts/gen_version.py`, `tools/remote_control/rc_run.py`, `AGENTS.md`. Perhaps `src/http_rest.c`, if lwIP 2.2.1 asks for it.
+- New: `toolchain.env`, `.github/dependabot.yml`, `progress.md`.
+- Removed: `debug.sh`, `openocd_start.bat`, `openocd_start.sh`, `program.bat`, `program.sh`.
+- No stored struct changes. Step 3 is checked for it on the unit.
 
 ## To settle before approval
 
-- The newest SDK, 2.3.1, or the oldest that removes the pin, 2.2.0. First view: the newest; one update, not two.
-- Whether CI moves to Arm's compiler. First view: yes.
-- Whether u8g2 moves.
-- The 2023 debug scripts: made right, or removed.
-- Which boards the bench has for the proof.
+- **When this ADR closes:** after the Pico W alone, or after the Pico 2 W too. First view: the Pico 2 W too, put on the bench once, at the end. The SDK and FreeRTOS both change RP2350 code, and the Pico 2 W's image is the one the build names first. The cost is one swap of boards on the bench.
