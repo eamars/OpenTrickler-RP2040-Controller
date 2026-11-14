@@ -1117,10 +1117,25 @@ class Session:
             want_none: no pause and no end may come.
           none: nothing put in, the simulated scale at `rate`. Seen when the charge pauses or ends.
         """
-        profile = json.loads(http_get(host, "rest/profile_config"))
-        coarse_max = min(float(profile["p7"]), float(json.loads(http_get(host, "rest/coarse_motor_config"))["m4"]))
-        fine_max = min(float(profile["p12"]), float(json.loads(http_get(host, "rest/fine_motor_config"))["m4"]))
-        threshold = float(json.loads(http_get(host, "rest/charge_mode_config"))["c6"])
+        def read_json(path):
+            # A unit just flashed may not be on Wi-Fi yet: up to SETTINGS_TRIES tries, then a failure, not a crash
+            for attempt in range(1, SETTINGS_TRIES + 1):
+                try:
+                    return json.loads(http_get(host, path))
+                except (OSError, ValueError) as error:
+                    self.log.write("rc", f"charge_fault: {path}, try {attempt}: {error}")
+                    time.sleep(2.0)
+            return None
+
+        readings = [read_json(path) for path in
+                    ("rest/profile_config", "rest/coarse_motor_config", "rest/fine_motor_config", "rest/charge_mode_config")]
+        if any(reading is None for reading in readings):
+            self.fail("charge_fault: the unit's settings could not be read over the web")
+            return
+        profile, coarse_motor, fine_motor, charge_config = readings
+        coarse_max = min(float(profile["p7"]), float(coarse_motor["m4"]))
+        fine_max = min(float(profile["p12"]), float(fine_motor["m4"]))
+        threshold = float(charge_config["c6"])
         self.log.write("rc", f"charge_fault: {fault} at {at_weight:g} of {target:g}; full speed coarse {coarse_max:g}, "
                              f"fine {fine_max:g} rev/s; fine stop threshold {threshold:g}; {rate:g} readings a second")
 
