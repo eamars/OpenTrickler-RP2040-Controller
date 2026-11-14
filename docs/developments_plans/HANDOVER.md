@@ -5,10 +5,10 @@ Written at the end of a session that stopped early. It says where the work stand
 ## Where things stand
 
 - **Branch:** `adr001_agent_groundwork`, pushed. Main's CI is green with the runner pinned (PR #114).
-- **ADR-001:** open. Steps 1 and 2 are built. The bench is ready (2026-11-14); the revision for the probe bench (F5) was approved; steps 3, 4 and 5 are built, step 3 except the owner's check by hand. Step 6 (the owner's check, the settings set back, a real throw, closing) is left.
+- **ADR-001:** Built 2026-11-14 (see its progress.md); its PR is the next step.
 - **New today, both drafts, not approved:** ADR-011 (the dependencies brought up to date) and ADR-012 (the motor drivers cleaned up).
 - **Order of the work:** 001, 011, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
-- **Hardware:** on 2026-11-14 the unit's settings were copied to `logs/unit_backup/`, then it was flashed with this branch through the probe (step 3). Its charge-mode settings are at their defaults now (F6).
+- **Hardware:** the bench's Pico W runs this branch, 1.20.46 at f484e19, flashed through the probe on 2026-11-14. Its charge-mode settings are at their defaults since the first flash (ADR-001, F6); the copy of the old ones is in `logs/unit_backup/`.
 
 ## Conclusions of today
 
@@ -51,9 +51,6 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 - **ADR-012, fault 8:** the motor current's reference. Units as they are today, or the stored mA made true.
 - **ADR-012, fault 7:** whether its one-line fix goes in early, since ADR-001's bench restarts a unit without cutting power.
 - **ADR-011:** SDK 2.3.1 or 2.2.0; whether CI moves to Arm's compiler; the 2023 debug scripts.
-- **ADR-001:**
-  - the owner's check by hand for step 3 (the probe's USB out, the unit starts, a charge by hand);
-  - whether steps 1 and 2 go to main now.
 - **Earlier questions still open:**
   - whether anything but the built-in pages calls the REST API;
   - the tier rules 2 to 5 (ADR-005);

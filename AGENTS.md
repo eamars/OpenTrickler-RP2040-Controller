@@ -55,13 +55,15 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 
 ## Proving a change on a unit
 
-Changes are proven on a real unit, not only built.
+Changes are proven on a real unit, not only built. The usual proof, after a build: `rc_run.py flash`, then `rc_run.py menu_tour --compare tests/menu_baseline/pico_w`, then `rc_run.py charge_cycle`. Each must end `VERDICT PASS`. A change meant to alter a screen updates the baseline in the same commit, with `--save`.
 
 - **The bench rules** hold for every way of reaching a unit, the tools below included:
   - No contact with the hardware (no flashing, no serial port, no debug probe, no call to a unit over the network) until the owner says the bench is ready. Ask again in every new session.
   - An agent's run assumes the hopper is empty. The owner says when there is powder in it.
   - The motors may turn in an agent's run.
 - **The bench** (2026-11-14): a Pico W on the motor board with an A&D FX-300i scale, reached only by a Raspberry Pi debugprobe on SWD. Its USB port is not connected.
+- **Reading the unit's web API can change it.** A GET of `/rest/profile_config?pf=N` selects profile N in RAM (audit P2), and handlers act on any parameter they are given. Read a unit through the console where you can, and over the web only with the paths and parameters you mean.
+- **Flashing a unit can reset its settings.** When a stored struct's layout differs from the one on the unit, the defaults are written at once (`common.c`). Copy the unit's settings before the first flash of a newer or older version.
 - **The console** (ADR-001, step 3) is stdio over RTT: the debug probe reads it from the chip's RAM, with no pin and no cable to the unit. Lines starting with `@` belong to the remote control; everything else is the firmware's log.
 - **`tools/remote_control/rc_run.py`** (run with the venv's Python) starts openocd itself, keeps each session in `logs/rc/`, and ends with `VERDICT PASS` or `VERDICT FAIL <reasons>`, exiting 0 or 1:
   - `send "state" "stats"`: commands, one after another (`help` lists them);

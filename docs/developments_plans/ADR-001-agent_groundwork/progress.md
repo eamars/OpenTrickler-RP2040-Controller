@@ -284,9 +284,33 @@ Built 2026-11-14 on the bench's Pico W, with main's simulated scale (F2, the own
 | Flash: main → this branch | 693.0 → 701.9 KB (+8.9) | 667.7 → 676.4 KB (+8.7) |
 | RAM at link time: main → this branch | 195.0 → 200.6 KB (+5.6) | 195.5 → 201.1 KB (+5.6) |
 
-## Step 6
+## Step 6: the owner's check, and closing
 
-Not started: the owner's check by hand (left from step 3), the settings set back (F6), and one real throw.
+Done 2026-11-14.
+
+**The owner's check by hand.** The owner started a charge at the unit with no powder: the unit started and ran the process.
+- Nothing was reading the console then: no openocd was running, and the last runner session had ended before it. So it also covers the step 3 check "the unit runs as before with no one at the console". With RTT, output nobody reads is dropped and nothing waits.
+- The owner judged that unplugging the probe's USB cable adds nothing. A user's unit has no probe at all.
+
+**The real throw** was waived by the owner, given the proof below ("I don't need to perform the actual throw if you can prove it works").
+
+**The proof from a clean clone.**
+- **The clone:** the branch was cloned, and the four submodules were copied in exactly as committed (each clean; every tracked file checked present).
+- **The build:** it needs nothing outside the commits. It is not dirty: `1.20.46` at `f484e19`. The Pico W image is 717,608 bytes.
+- **The run,** with the clone's own runner and nobody touching the unit:
+
+| Run | Result |
+|---|---|
+| `flash` | PASS: the unit runs 1.20.46 at f484e19, 10.9 s after the start |
+| `menu_tour --compare tests/menu_baseline/pico_w` | PASS: all 22 forms. Form 36 (version) differs, as it does for every build, and is reported, not judged |
+| `charge_cycle` | PASS: 1 → 2 → 3 → 4 → 1 in 28.3 s, the charge ended at 30.000 for 30.000 |
+
+**The unit's settings** are left as this branch made them. The charge-mode settings are at their defaults: a coarse stop threshold of 5 where it was 3, and the coarse back-off on. The owner did not ask for them to be set back, and the old values are in `logs/unit_backup/`.
+
+**Lessons from the bench,** now in `AGENTS.md`:
+- the usual proof of a change (flash, `menu_tour --compare`, `charge_cycle`);
+- that reading the web API can change a unit (P2);
+- that flashing can reset settings (F6).
 
 **The settings, compared 2026-11-14** (read-only, against `logs/unit_backup/`):
 - Only the charge-mode settings differ. The coarse stop threshold is 5 (it was 3), and the coarse back-off, new in PR #108, is on (`c14`, `c15`, `c16`). Every other module's settings are as they were.
