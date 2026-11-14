@@ -71,3 +71,35 @@ Built 2026-11-15 (599c24f), proven on the Pico W.
 - Thirty hand-overs from the simulated scale, half a second each, with the tap on: one stitched frame, `SST,+00000.00 GN\r`. A stale `S` from before the hand-over stood in front of a new frame, the number's field moved, and the frame did not parse. The door dropped it and counted it (2 to 3). It is the second count of the run above.
 - **Why:** the A&D driver takes 17 bytes as a frame, not a frame as what ends in its CR LF. While the simulated scale runs, the driver's task is suspended with a frame half read; on its return the line's input is emptied (`scale.c`), but the driver keeps its count. In use, only a stall of its task long enough to lose input would do the same; that has not been seen.
 - **Not this ADR's to fix:** this one gave a frame that does not parse, which the door now stops. A shift elsewhere could give a wrong number that reads as one, which no door sees. Its fix is in the driver, a frame taken only where its line ending is, and belongs to the cleanup of the scale drivers (the audit's verdict), with the other drivers looked at for the same.
+
+## Fix 2: a missing reading pauses; a lost scale ends the charge
+
+Built 2026-11-15 (13b4b9c, and three small commits after it: 4830c51, 73c55b5, a04540b), proven on the Pico W with image 1.20.93 at a04540b.
+
+**What was built**
+- The door (`scale_publish_measurement()`) keeps the scale's rhythm: the median of the intervals between its last 16 published readings (`scale_get_usual_interval_ms()`).
+- The charge takes it as charging starts and prints it: `Charge: the scale's usual interval 100 ms; a pause after 300 ms without a reading, lost after 1000 ms` for the simulated scale at 10 a second, 250, 750 and 2500 at 4 a second.
+- The charge waits for a reading no longer than to the stale point. At it, `charge_mode_pause()`: both tricklers to 0, "Paused: no reading" on the screen, then ten readings 300 ms apart with their spread under `set_point_sd_margin`, all within 6 s of the first one back. The settled weight goes to the charge's normal stops; the D term starts again (its last error set to the current one, so it is 0 and nothing divides by 0); the I term goes on as it was.
+- Lost, unsteady, or a third pause: `charge_mode_scale_fault()`: tricklers stopped, the gate closed if enabled, the LEDs in the not-ready colour, the reason on the screen, and any button (the console's `charge stop` is one) back to the menu.
+- Each step is printed as a `Charge: ...` line; `rc_run.py charge_fault` checks them with `--want` and `--want-none`.
+
+**Three things found and fixed on the way**
+- **The simulated scale could not settle.** It added up to 0.05 of noise to every reading while charging, falling powder or not: a spread of about 0.029 against the 0.02 margin, so the first short gap ended as "unsteady". It now adds noise only while powder falls (4830c51), as a pan does.
+- **A failed throw's timer ran on.** The fault screen stays in the charging state, where the screen draws a live timer from the throw's start. It now stops, as at a normal end (73c55b5).
+- **The reason ran into the timer** on the top line ("Scale: no reading" over "12.73 s"). At a fault end the timer is not drawn (a04540b).
+
+**On the unit** (target 30, the simulated scale at 10 a second unless said; every run `VERDICT PASS`)
+
+| Test | What happened |
+|---|---|
+| `charge_cycle` | Passed, 30.000 for 30, no pause |
+| A bad frame | No pause, no end; the charge went on |
+| A gap of 500 ms at 29.04 | Fine trickler 0.756 to 0 at +0.31 s. Readings back; settled at 29.137, so 0.10 poured on no reading; resumed at +3.00 s at 0.69 rev/s, and went on |
+| A gap of 3 s | Paused at 300 ms, then "Scale: no reading" at 1 s; the screen below |
+| Three gaps of 500 ms from 12 | Paused and resumed from 13.222, paused and resumed from 16.108, the third: `pause 3, more than 2 in one throw`, "Scale: unreliable" |
+| The simulated scale at 4 a second, a whole charge | Its rhythm read as 250 ms; no pause and no end |
+| A gap of 2 intervals (100 ms quiet at 10 a second) | No pause |
+
+- A quiet of 200 ms at 10 a second gives a gap between readings of 300 ms, not 200: it begins partway between two readings, and the gap runs to the next one after it. That is 3 intervals, and it paused, as the rule says. The test with 100 ms is the 2-interval one.
+- The screen at a lost scale, as a person at the unit sees it (`snap`): the top line "Scale: no reading", the last weight 29.15, the profile.
+- Not run: "unsteady". The simulated weight holds still in a pause, so that path is read in the code.
