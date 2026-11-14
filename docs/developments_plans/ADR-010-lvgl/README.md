@@ -30,6 +30,13 @@ Last of the large changes: the screens then sit on a split application (ADR-006)
 - RAM on Pico W: 194 KB of 256 KB is taken at link time.
 - The reference project runs LVGL 9.6 on its ESP32-S3, with skills for LVGL layout, widgets and embedded UI design in its `.agents/skills`.
 
+**Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Not read a second time. Nothing here was tried on a unit unless it says so.
+- The buttons' interrupts are set up before the queue they write to: a press in the first moments of a start faults.
+- A form names a field `SU` that is not defined: a unit label is never drawn.
+- The display's lock functions are never called, and the web's mirror is served from the buffer being drawn: torn frames.
+- The A&D's "CAL" sequence is offered for every make of scale, and its screen's strings are globals.
+- "Wifi Info" opened before the radio is up reads a network interface that is not there yet.
+
 ## Ideas
 
 - **Measure first.** One LVGL screen on each board, beside u8g2, only to read flash and RAM from the size report and `stats`. Estimate: 120 to 200 KB of flash and 30 to 50 KB of RAM. If Pico W cannot hold it, the owner decides Pico W's future there, by ADR-005's rule 5.

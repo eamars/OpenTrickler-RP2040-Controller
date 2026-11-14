@@ -47,6 +47,21 @@ OTA's upload (ADR-004), the web UI (ADR-008) and the tuning pages (ADR-009) all 
 - `/display_buffer` answers with the bare 1,024 bytes and no HTTP header, though its handler says the header is included. A browser takes it; a strict client does not.
 - A browser left open on the unit tripled the timeouts of a soak: the server's room is shared by every client on the network.
 
+**Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Only the first two were read a second time: read the line before building on any other. Nothing here was tried on a unit unless it says so.
+- **A GET that changes the unit.** Reading a profile with `pf` selects it: the page's "Export config" reads profiles 0 to 7 and leaves 7 selected for the next charge. And `pf` is honoured only when it is the request's first value (`profile.c`).
+- **The charge target is written with no length.** `s0` goes into an 8-byte buffer: `s0=1e30` writes some 26 bytes past it (`charge_mode.cpp`).
+- **Values from the web are used unchecked, and can be stored:**
+  - the scale's driver and baud indexes; a bad baud index sets a rate of 0, and the scale is dead until it is put right;
+  - the servo gate's duty, ratio and speed: a servo driven to its end stop;
+  - the LEDs' colour order and count;
+  - the precharge's time and speed: the precharge is one delay of that time with the motor turning, and RST is ignored for as long;
+  - the number of decimals: a value that is neither 2 nor 3 sends the menu to form 0, and the menu then runs the last mode again, which can be a charge.
+- A profile name of 16 characters is stored without its ending and is read on into the gains.
+- The web writes charge mode's and cleanup mode's state variables directly, and posts button events with no time limit, whatever is running: "exit cleanup" can end a charge.
+- The 404 reply gives its length as 13 for a text of 71 bytes: an unknown path gets `HTTP/1.1 404 ` and nothing more.
+- Handlers run in lwIP's thread, and some block it: queue sends with no time limit; the EEPROM's erase, about 5 s of one core and outside the EEPROM's mutex; erase-and-restart inside the handler, so no reply, with its reply flags `s5` and `s6` swapped.
+- **Done in ADR-012, on the server as it is:** a query was cut at 127 characters and at 16 values, so the charge-mode page's "Save to EEPROM" never arrived (512 and 32 now, and a longer query is refused whole); a Wi-Fi name of 32 characters or a key of 64 was stored without its ending (refused whole now).
+
 ## Ideas
 
 **The server.** Three ways, to be weighed with numbers:

@@ -44,6 +44,9 @@ It changes the flash layout, which costs every user one update by cable. Do that
   - It works on its author's Pico W. Its Pico 2 W build fails in CI.
 - With that layout the application has about 960 KB on Pico W and about 1,980 KB on Pico 2 W.
 
+**Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Read a second time. Nothing here was tried on a unit unless it says so.
+- **A unit that starts before its router stays off Wi-Fi.** It tries to join once, at start-up; when that fails it becomes its own access point and stays one until it is restarted. Nothing joins again (`wireless.c`). An update over Wi-Fi needs a unit that is on Wi-Fi.
+
 ## Ideas
 
 **One update interface, the flash part behind it.**
