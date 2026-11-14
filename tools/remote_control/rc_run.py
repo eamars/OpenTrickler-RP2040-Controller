@@ -16,7 +16,7 @@ Usage, from the repository root:
     venv\\Scripts\\python tools\\remote_control\\rc_run.py snap
     venv\\Scripts\\python tools\\remote_control\\rc_run.py menu_tour [--save <folder>] [--compare <folder>]
     venv\\Scripts\\python tools\\remote_control\\rc_run.py settings --host <address> [--save <folder>] [--compare <folder>]
-    venv\\Scripts\\python tools\\remote_control\\rc_run.py soak 3600 --host <address>
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py soak [1800] --host <address>
 """
 import argparse
 import base64
@@ -92,11 +92,60 @@ SETTINGS_PATHS = ["charge_mode_config", "coarse_motor_config", "fine_motor_confi
 # Fields that change with the image, not with the stored settings: reported, not judged, by --compare
 SETTINGS_LIVE_FIELDS = {"system_control": {"s1": "the version", "s2": "the vcs hash", "s3": "the build type"}}
 HTTP_TIMEOUT_S = 5.0
+SETTINGS_TRIES = 3
 
 MIRROR_BYTES = 128 * 64 // 8    # the 12864 display's buffer, one bit a pixel
-SOAK_POLL_S = 1.0           # the mirror page reads the screen once a second
-SOAK_STATS_S = 60.0         # state and stats once a minute
+# soak: charges back to back while two browsers use the web pages, as with the portal open on a phone and a PC.
+# Each browser reads the screen's mirror as the mirror page does and polls the charge as the portal's charge page
+# does; one of them reloads the portal, and the settings are read as the settings page does. Reads only.
+SOAK_BROWSERS = 2
+SOAK_MIRROR_S = 1.0         # display_mirror.html: once a second
+SOAK_STATE_S = 0.5          # web_portal.html, while a charge runs: every 500 ms
+SOAK_PAGE_S = 30.0          # the portal page reloaded
+SOAK_SETTINGS_S = 60.0      # every settings path
+# The default limits are what a sound server should meet (ADR-003). Main's server of 2026-11-14 misses about 8% of
+# these reads, so an ADR that does not touch it passes limits taken from a run before its change (ADR-011).
+SOAK_MISS_SHARE = 0.01      # the most of the web reads that may miss
+SOAK_MISS_RUN = 2           # the most misses in a row on one poller
 SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
+
+
+class WebPoller(threading.Thread):
+    """One kind of web read, repeated at its interval until stopped; counts the reads with no right answer."""
+
+    def __init__(self, name, interval_s, read, log):
+        """
+        Args:
+            name: what it reads, for the log.
+            interval_s: seconds from the start of one read to the start of the next.
+            read: a function that does one read and returns True when the answer is right; an OSError or a
+                ValueError counts as no answer.
+            log: the SessionLog.
+        """
+        super().__init__(daemon=True)
+        self.name, self.interval_s, self.read, self.log = name, interval_s, read, log
+        self.stop_event = threading.Event()
+        self.good = 0
+        self.missed = 0
+        self.run_now = 0        # misses in a row, now
+        self.run_longest = 0
+
+    def run(self):
+        while not self.stop_event.is_set():
+            started = time.monotonic()
+            try:
+                ok, why = self.read(), "a wrong answer"
+            except (OSError, ValueError) as error:
+                ok, why = False, str(error)
+            if ok:
+                self.good += 1
+                self.run_now = 0
+            else:
+                self.missed += 1
+                self.run_now += 1
+                self.run_longest = max(self.run_longest, self.run_now)
+                self.log.write("rc", f"soak: {self.name}: {why}")
+            self.stop_event.wait(max(0.0, self.interval_s - (time.monotonic() - started)))
 
 
 class SessionLog:
@@ -731,10 +780,15 @@ class Session:
         out_dir.mkdir(parents=True, exist_ok=True)
         read = {}
         for name in SETTINGS_PATHS:
-            try:
-                read[name] = json.loads(http_get(host, f"rest/{name}"))
-            except (OSError, ValueError) as error:
-                self.fail(f"settings: rest/{name}: {error}")
+            # Up to SETTINGS_TRIES tries: this compares what is stored; how well the web answers is soak's to judge
+            for attempt in range(1, SETTINGS_TRIES + 1):
+                try:
+                    read[name] = json.loads(http_get(host, f"rest/{name}"))
+                    break
+                except (OSError, ValueError) as error:
+                    self.log.write("rc", f"settings: rest/{name}, try {attempt}: {error}")
+            if name not in read:
+                self.fail(f"settings: rest/{name}: no right answer in {SETTINGS_TRIES} tries")
                 continue
             (out_dir / f"{name}.json").write_text(json.dumps(read[name], indent=1, sort_keys=True) + "\n",
                                                   encoding="utf-8")
@@ -760,46 +814,76 @@ class Session:
                 else:
                     self.fail(f"settings: {name} {key} was {old!r}, is {new!r}")
 
-    def soak(self, host, seconds):
+    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run):
         """
-        Read the screen's mirror over the web once a second, as its page does, for a time; `state` and `stats`
-        once a minute. Fails on a read with no answer, on a restart (`up=` going backwards), and when heap_free
-        ends lower than its lowest in the first SOAK_SETTLE_S: memory taken and not given back.
+        Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
+        browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
+        Fails on a failed charge, on a restart or an assert, on more than max_miss_share of the web reads with
+        no right answer or max_miss_run in a row on one poller, and when heap_free ends lower than its lowest in
+        the first SOAK_SETTLE_S: memory taken and not given back.
 
         Args:
             host: the unit's address.
-            seconds: how long.
+            seconds: how long; the charge under way when the time is up is finished.
+            target: each charge's weight.
+            threshold: the unit's fine stop threshold.
+            max_miss_share: the most of the web reads that may miss, 0 to 1.
+            max_miss_run: the most misses in a row one poller may have.
         """
-        started = time.monotonic()
-        next_stats = started
-        reads = 0
-        misses = 0
-        heap = []   # (seconds since the start, heap_free)
-        while True:
-            now = time.monotonic()
-            if now >= next_stats:
-                self.state()
-                stats = self.stats()
-                if stats is not None and "heap_free" in stats:
-                    heap.append((now - started, stats["heap_free"]))
-                next_stats += SOAK_STATS_S
-            if now - started >= seconds:
-                break
-            try:
-                size = len(read_mirror(host))
-                if size == MIRROR_BYTES:
-                    reads += 1
-                else:
-                    misses += 1
-                    self.log.write("rc", f"soak: display_buffer gave {size} bytes, not {MIRROR_BYTES}")
-            except OSError as error:
-                misses += 1
-                self.log.write("rc", f"soak: display_buffer: {error}")
-            time.sleep(max(0.0, SOAK_POLL_S - (time.monotonic() - now)))
+        page_size = {}
 
-        self.log.write("rc", f"soak: {reads} reads of the mirror, {misses} with no answer, in {seconds:.0f} s")
-        if misses:
-            self.fail(f"soak: {misses} of {reads + misses} reads of the mirror got no answer")
+        def read_page():
+            body = http_get(host, "")
+            page_size.setdefault("first", len(body))
+            return len(body) == page_size["first"] and len(body) > 0
+
+        def read_state():
+            return "s2" in json.loads(http_get(host, "rest/charge_mode_state"))
+
+        def read_settings():
+            return all(json.loads(http_get(host, f"rest/{name}")) for name in SETTINGS_PATHS)
+
+        pollers = []
+        for browser in range(1, SOAK_BROWSERS + 1):
+            pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S,
+                                     lambda: len(read_mirror(host)) == MIRROR_BYTES, self.log))
+            pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, read_state, self.log))
+        pollers.append(WebPoller("portal page", SOAK_PAGE_S, read_page, self.log))
+        pollers.append(WebPoller("settings", SOAK_SETTINGS_S, read_settings, self.log))
+
+        started = time.monotonic()
+        heap = []   # (seconds since the start, heap_free)
+        cycles = 0
+        for poller in pollers:
+            poller.start()
+        while True:
+            self.state()
+            stats = self.stats()
+            if stats is not None and "heap_free" in stats:
+                heap.append((time.monotonic() - started, stats["heap_free"]))
+            if time.monotonic() - started >= seconds or self.failures:
+                break
+            self.charge_cycle(target, threshold, timeout_s=120.0)
+            cycles += 1
+        for poller in pollers:
+            poller.stop_event.set()
+        for poller in pollers:
+            poller.join(timeout=HTTP_TIMEOUT_S * len(SETTINGS_PATHS) + 1)
+
+        self.log.write("rc", f"soak: {cycles} charges in {time.monotonic() - started:.0f} s")
+        good = sum(poller.good for poller in pollers)
+        missed = sum(poller.missed for poller in pollers)
+        for poller in pollers:
+            self.log.write("rc", f"soak: {poller.name}: {poller.good} right, {poller.missed} missed, "
+                                 f"longest run {poller.run_longest}")
+        share = missed / (good + missed) if good + missed else 1.0
+        self.log.write("rc", f"soak: {missed} of {good + missed} web reads missed ({share:.2%}), longest run "
+                             f"{max(poller.run_longest for poller in pollers)}")
+        if share > max_miss_share:
+            self.fail(f"soak: {share:.2%} of the web reads missed, more than {max_miss_share:.2%}")
+        for poller in pollers:
+            if poller.run_longest > max_miss_run:
+                self.fail(f"soak: {poller.name} missed {poller.run_longest} in a row, more than {max_miss_run}")
         if len(heap) < 2:
             self.fail("soak: fewer than two stats read")
             return
@@ -993,9 +1077,15 @@ def main():
     settings_parser.add_argument("--host", required=True, help="the unit's address")
     settings_parser.add_argument("--save", help="keep the copy in this folder")
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
-    soak_parser = sub.add_parser("soak", help="read the screen's mirror over the web for a time; watch the memory")
-    soak_parser.add_argument("seconds", type=float)
+    soak_parser = sub.add_parser("soak", help="charges back to back while two browsers use the web pages")
+    soak_parser.add_argument("seconds", type=float, nargs="?", default=1800.0)
     soak_parser.add_argument("--host", required=True, help="the unit's address")
+    soak_parser.add_argument("--target", type=float, default=30.0)
+    soak_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
+    soak_parser.add_argument("--max-miss-share", type=float, default=SOAK_MISS_SHARE,
+                             help="the most of the web reads that may miss, 0 to 1")
+    soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
+                             help="the most misses in a row one poller may have")
     args = parser.parse_args()
 
     session = Session(args, args.command)
@@ -1019,7 +1109,7 @@ def main():
     elif args.command == "settings":
         session.settings(args.host, args.save, args.compare)
     elif args.command == "soak":
-        session.soak(args.host, args.seconds)
+        session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run)
     sys.exit(session.finish())
 
 
