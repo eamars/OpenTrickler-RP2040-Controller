@@ -111,19 +111,23 @@ SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the
 
 
 class WebPoller(threading.Thread):
-    """One kind of web read, repeated at its interval until stopped; counts the reads with no right answer."""
+    """
+    Web reads repeated at an interval until stopped. Each round does its requests one after another, as a page
+    does when it opens, and each request counts as one read, right or missed: so a share or a run of misses
+    means the same for every poller.
+    """
 
-    def __init__(self, name, interval_s, read, log):
+    def __init__(self, name, interval_s, reads, log):
         """
         Args:
             name: what it reads, for the log.
-            interval_s: seconds from the start of one read to the start of the next.
-            read: a function that does one read and returns True when the answer is right; an OSError or a
-                ValueError counts as no answer.
+            interval_s: seconds from the start of one round to the start of the next.
+            reads: (label, function) for each request of a round. A function does one request and returns True
+                when the answer is right; an OSError or a ValueError counts as no answer.
             log: the SessionLog.
         """
         super().__init__(daemon=True)
-        self.name, self.interval_s, self.read, self.log = name, interval_s, read, log
+        self.name, self.interval_s, self.reads, self.log = name, interval_s, reads, log
         self.stop_event = threading.Event()
         self.good = 0
         self.missed = 0
@@ -133,18 +137,19 @@ class WebPoller(threading.Thread):
     def run(self):
         while not self.stop_event.is_set():
             started = time.monotonic()
-            try:
-                ok, why = self.read(), "a wrong answer"
-            except (OSError, ValueError) as error:
-                ok, why = False, str(error)
-            if ok:
-                self.good += 1
-                self.run_now = 0
-            else:
-                self.missed += 1
-                self.run_now += 1
-                self.run_longest = max(self.run_longest, self.run_now)
-                self.log.write("rc", f"soak: {self.name}: {why}")
+            for label, read in self.reads:
+                try:
+                    ok, why = read(), "a wrong answer"
+                except (OSError, ValueError) as error:
+                    ok, why = False, str(error)
+                if ok:
+                    self.good += 1
+                    self.run_now = 0
+                else:
+                    self.missed += 1
+                    self.run_now += 1
+                    self.run_longest = max(self.run_longest, self.run_now)
+                    self.log.write("rc", f"soak: {self.name}{f' {label}' if label else ''}: {why}")
             self.stop_event.wait(max(0.0, self.interval_s - (time.monotonic() - started)))
 
 
@@ -840,16 +845,19 @@ class Session:
         def read_state():
             return "s2" in json.loads(http_get(host, "rest/charge_mode_state"))
 
-        def read_settings():
-            return all(json.loads(http_get(host, f"rest/{name}")) for name in SETTINGS_PATHS)
+        def read_setting(name):
+            return lambda: bool(json.loads(http_get(host, f"rest/{name}")))
+
+        def read_mirror_right():
+            return len(read_mirror(host)) == MIRROR_BYTES
 
         pollers = []
         for browser in range(1, SOAK_BROWSERS + 1):
-            pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S,
-                                     lambda: len(read_mirror(host)) == MIRROR_BYTES, self.log))
-            pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, read_state, self.log))
-        pollers.append(WebPoller("portal page", SOAK_PAGE_S, read_page, self.log))
-        pollers.append(WebPoller("settings", SOAK_SETTINGS_S, read_settings, self.log))
+            pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S, [("", read_mirror_right)], self.log))
+            pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)], self.log))
+        pollers.append(WebPoller("portal page", SOAK_PAGE_S, [("", read_page)], self.log))
+        pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
+                                 [(name, read_setting(name)) for name in SETTINGS_PATHS], self.log))
 
         started = time.monotonic()
         heap = []   # (seconds since the start, heap_free)
