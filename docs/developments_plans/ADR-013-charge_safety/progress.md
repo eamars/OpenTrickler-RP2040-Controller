@@ -31,3 +31,23 @@ What was built and measured. The plan is in the [README](README.md). Logs are ke
 - **What follows for this scale:** a frame that does not parse has not been seen on it, in any phase. Fault 1 stays for the other drivers, for a frame broken on the line, and for the firmware's own NaN.
 
 **The figures for the pause, from the rhythm:** 3 of the A&D's 41 ms is 0.12 s, above its longest normal gap of 62 ms; the stop at 10 intervals is under 1 s, so 1 s.
+
+## The faults shown on the code as it is
+
+2026-11-15, on the Pico W, image 1.20.84 at a21d14d: the code before any fix, with the test tools.
+
+**What was built**
+- In the simulated scale, console commands only, never stored: `sim bad` (its next reading is a frame that did not parse, a NaN as the drivers publish one), `sim quiet <ms>` (nothing published for that long; its powder keeps falling) and `sim rate <per second>` (its step follows the interval; 100 ms until set).
+- `rc_run.py charge_fault <bad|quiet|cleanup> --expect seen|not-seen`: a simulated charge, the fault put in at a weight, `state` read every 50 ms, each change logged, and a judgement of whether the fault was seen.
+- `charge_cycle` passed on this image, as before: the simulated scale's change of step altered nothing at its usual 100 ms.
+
+**The three faults** (target 30, fine stop threshold 0.03, the simulated scale at 10 readings a second; all `--expect seen`, `VERDICT PASS`)
+
+| Fault | Put in at | What the tricklers did |
+|---|---|---|
+| Bad frame | 29.07, the fine trickler at 0.74 rev/s | 0.11 s later the charge ended (state 3, waiting for the cup's removal) at 29.07, its weight shown as `inf`. Short, and taken as done: the RP2040's way, as reasoned |
+| Quiet 1.5 s | 29.02, the fine trickler at 0.78 rev/s | It kept 0.78 rev/s through the silence. When readings came back the weight was 29.69: 0.67 poured on no reading |
+| The web's cleanup speed, 0.5 rev/s | 27.58, after the coarse trickler's stop and back-off | 0.03 s later the coarse trickler turned again at 0.5 rev/s, and ran on until the charge ended a second later at 30.00. The fine one took 0.5 too, until the charge loop set it again at its next reading |
+
+- **The cleanup fault needs the coarse trickler's stop and back-off to be over.** Sent at 26.2, during the back-off (`coarse -1`), the charge loop set the coarse trickler to 0 at the back-off's end, over the cleanup speed; sent 1 short of the target at 3 rev/s, the simulated powder reached the target within one step, before a 50 ms read could see the speed. Both runs are kept in the logs; the one above is the test.
+- The RP2350's way with a bad frame, full speed, is shown when the Pico 2 W is on the bench. Its image of this code is kept (`logs/adr013/before_fix/pico2_w/`).

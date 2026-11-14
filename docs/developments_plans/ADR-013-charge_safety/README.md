@@ -1,6 +1,6 @@
 # ADR-013: the tricklers move only on a real, fresh reading
 
-Status: **Open** 2026-11-15. Approved by the owner the same day, with the first views below. The real scale is measured; left: the faults shown, the three fixes. What is built and measured is in [progress.md](progress.md).
+Status: **Open** 2026-11-15. Approved by the owner the same day, with the first views below. The real scale is measured and the faults are shown on the Pico W; left: the three fixes, and the bad frame on the Pico 2 W. What is built and measured is in [progress.md](progress.md).
 
 ## What we want
 
@@ -43,7 +43,7 @@ Status: **Open** 2026-11-15. Approved by the owner the same day, with the first 
 - With a reading of 0.0 in the middle of a charge, that pass's error is the whole target: the P term jumps and the integral takes the whole target once, for the rest of the throw.
 
 **The cleanup speed from the web**
-- `/rest/cleanup_mode_state` with `s1` sets the cleanup speed and calls `motor_set_speed(SELECT_BOTH_MOTOR, ...)` whatever the mode (`cleanup_mode.cpp`). During a charge both motors are enabled, so one request sets both tricklers to the cleanup speed. The charge loop sets the fine trickler again at its next reading. The coarse one, once it has stopped for the throw, is not set again, and runs on until the charge ends.
+- `/rest/cleanup_mode_state` with `s1` sets the cleanup speed and calls `motor_set_speed(SELECT_BOTH_MOTOR, ...)` whatever the mode (`cleanup_mode.cpp`). During a charge both motors are enabled, so one request sets both tricklers to the cleanup speed. The charge loop sets the fine trickler again at its next reading. The coarse one, once its stop and its back-off are over, is not set again, and runs on until the charge ends. Shown on the unit ([progress](progress.md)).
 
 **Three ways a scale fails the controller, and which are this ADR's**
 - **Slow by nature.** Scales report at different rates. The A&D streams on its own; the G&G driver asks for each reading and waits 250 ms between asks (`gng_scale.c`), so it gets at most 4 a second (the owner: "about 4 samples per second"). That is the scale working. Its control is ADR-009's.
