@@ -1,0 +1,9 @@
+# Tells us when a GitHub action this repository uses has a newer release, as a PR (ADR-011). The Pico SDK, FreeRTOS
+# and the compiler are not watched here: their versions are in toolchain.env and the submodules, and moving one is
+# a decision of its own.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
