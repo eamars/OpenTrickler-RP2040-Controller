@@ -350,12 +350,28 @@ float scale_get_current_measurement() {
 // Frames that did not give a finite number since the start (ADR-013); written by one driver task at a time
 static volatile uint32_t scale_bad_frames = 0;
 
+// The scale's rhythm (ADR-013): the time between its recent readings, kept by the publishing task, read by the
+// charge's. One 32-bit word at a time either way.
+#define SCALE_RHYTHM_INTERVALS 16
+static volatile uint32_t scale_rhythm_ms[SCALE_RHYTHM_INTERVALS];
+static volatile uint32_t scale_rhythm_count = 0;        // intervals kept since the start; the next goes at count % N
+static volatile TickType_t scale_last_reading_tick = 0;
+static volatile bool scale_has_read = false;
+
 
 void scale_publish_measurement(float weight) {
     if (!isfinite(weight)) {
         scale_bad_frames += 1;
         return;
     }
+
+    TickType_t now = xTaskGetTickCount();
+    if (scale_has_read) {
+        scale_rhythm_ms[scale_rhythm_count % SCALE_RHYTHM_INTERVALS] = (now - scale_last_reading_tick) * portTICK_PERIOD_MS;
+        scale_rhythm_count += 1;
+    }
+    scale_last_reading_tick = now;
+    scale_has_read = true;
 
     scale_config.current_scale_measurement = weight;
     if (scale_config.scale_measurement_ready) {
@@ -366,6 +382,27 @@ void scale_publish_measurement(float weight) {
 
 uint32_t scale_get_bad_frames(void) {
     return scale_bad_frames;
+}
+
+
+uint32_t scale_get_usual_interval_ms(void) {
+    uint32_t count = scale_rhythm_count < SCALE_RHYTHM_INTERVALS ? scale_rhythm_count : SCALE_RHYTHM_INTERVALS;
+    if (count < SCALE_RHYTHM_MIN_INTERVALS) {
+        return 0;
+    }
+
+    // The median: a gap now and then, or a frame dropped at the door, does not move it
+    uint32_t sorted[SCALE_RHYTHM_INTERVALS];
+    for (uint32_t idx = 0; idx < count; idx += 1) {
+        uint32_t value = scale_rhythm_ms[idx];
+        uint32_t pos = idx;
+        while (pos > 0 && sorted[pos - 1] > value) {
+            sorted[pos] = sorted[pos - 1];
+            pos -= 1;
+        }
+        sorted[pos] = value;
+    }
+    return sorted[count / 2];
 }
 
 

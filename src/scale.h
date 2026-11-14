@@ -88,6 +88,14 @@ void scale_publish_measurement(float weight);
 uint32_t scale_get_bad_frames(void);
 
 /**
+ * @brief The scale's usual time between readings, in ms: the median of its last 16 published readings' intervals,
+ * so each scale's own rhythm (ADR-013). 0 until SCALE_RHYTHM_MIN_INTERVALS are known; a charge waits for ten steady
+ * readings before it pours, so by then it is known.
+ */
+#define SCALE_RHYTHM_MIN_INTERVALS 4
+uint32_t scale_get_usual_interval_ms(void);
+
+/**
  * @brief The remote control's simulated scale (ADR-001): main's simulated driver stands in for the stored one
  * until scale_simulation_stop() or a restart. Nothing is stored.
  * @return false when the stored driver is already the simulated one, or its task could not start.
