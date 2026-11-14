@@ -1058,6 +1058,10 @@ class Session:
                 break
             charge = int(state["charge"])
             weight = float(state["weight"])
+            # Until charge mode has set its first state the unit still shows 0, the last one's exit: it takes the
+            # mode longer to start when it must set a motor driver up again first (ADR-012)
+            if not seen and charge == 0:
+                continue
             if not seen or seen[-1] != charge:
                 # The charge's weight is the one on the scale once charging has ended, before the cup is lifted
                 if charge == 3 and seen and seen[-1] == 2:

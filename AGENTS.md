@@ -35,7 +35,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | `menu.c`, `mui_menu.c` | The menu task and the menu's forms |
 | `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each takes the screen from the menu and draws for itself |
 | `scale.c`, `*_scale.c`, `and_scale_calibrate.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
-| `motors.c` | The two steppers: speeds, ramps, the stored settings, and the task that feeds the step pulses every millisecond |
+| `motors.c` | The two steppers: one task that ramps both speeds and feeds the step pulses every millisecond, the stored settings, and the task that reads the drivers once a second |
 | `step_pulses.c`, `stepper.pio` | The step pulses by PIO (ADR-012): the PIO makes only the steps it is fed, so a firmware that stops feeding is a motor that stops; a second state machine counts the steps on the pin |
 | `fault_handler.c` | A hard fault stops the motors before the core halts |
 | `tmc_uart.c`, `tmc2209.c` | The stepper drivers, our own on Klipper's model (ADR-012): the one-wire frames with every write checked, and the TMC2209's registers as a table. No pins and no RTOS in them |
@@ -87,7 +87,7 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - `charge_fault <bad|quiet|cleanup|none> --host <address> --expect seen|not-seen`: a simulated charge with one fault put in at a weight, `state` read every 50 ms, and the charge's own `Charge: ...` lines checked with `--want` and `--want-none` (ADR-013).
 - Console commands to drive the menu: `press <cw|ccw|enc|rst> [n]`, `form` and `form <id>`.
 - Console commands for the motors and charging: `motor <coarse|fine> <rev/s>`, `motor` alone (the steps counted on each STEP pin, the steps fed, the feeds that came late, with the unit's clock: two replies give a speed), `sim on|off`, `charge <gr>`, `charge stop`.
-- Console commands for the motor drivers (ADR-012): `tmc <coarse|fine>` (the driver's registers by field as `@tmc` lines, then its serial line's counts), `tmc <coarse|fine> setup <n>` (set up n times from the stored settings), and, never stored, `tmc <coarse|fine> lose` and `find` (the driver made to look absent, and found again).
+- Console commands for the motor drivers (ADR-012): `tmc <coarse|fine>` (the driver's registers by field as `@tmc` lines, then its serial line's counts), `tmc <coarse|fine> setup <n>` (set up n times from the stored settings), and, never stored, `tmc <coarse|fine> lose` and `find` (the driver made to look absent, and found again) and `tmc <coarse|fine> fault <short|hot|reset|supply|none>` (the driver read to report a fault). `state` ends with `drivers=<coarse>,<fine>`: what each driver was last found to be.
 - Console commands for the scale, never stored (ADR-013): `scale tap on|off` (the A&D driver's frames as `@sf` lines), `sim bad` (the simulated scale's next reading does not parse), `sim quiet <ms>` (it sends nothing for that long), `sim rate <per second>`. `stats` counts `bad_frames`.
 - It counts as failures: a line with `assertion` or `PANIC`, no reply within 5 s, an `@err` reply, `up=` going backwards unasked, and a core found halted (named with its function).
 

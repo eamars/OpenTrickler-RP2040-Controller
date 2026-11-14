@@ -85,3 +85,65 @@ What was built and measured. The plan is in the [README](README.md). Logs are ke
 **Not done in this step, and why**
 - The steps of a segment cut by a stop are fed and not made. The count on the pin is the true one, and is what `motor` reports as made.
 - The first step after a segment has 5 cycles more of low: 33 ns in 2 ms.
+
+## Step 3: the motors
+
+2026-11-15, on the Pico 2 W, the hopper empty. The Pico W is still to do.
+
+**What was built** (commit bfdc11c; the image 1.20.117)
+- `motors.c`: one task, priority 10, every tick. It moves each motor's speed toward its target by the acceleration and feeds the step pulses. The two per-motor tasks, their queues and the ramp that looped until its time was up are gone, and with them the feed task of step 2.
+- `motor_set_speed` stores the target and returns. A speed that is not a number is refused and said on the console; one past the motor's limit is held to it.
+- A change of direction goes through a stop: the speed is held at zero for the tick in which the pulses end, and the direction pin changes in the next.
+- **Settings are checked.** A set of settings is taken only if every one is in range, at the web and when the stored ones are loaded; a stored set out of range gives that motor the defaults, in RAM only. The ranges are in `motors.c`. A refused set changes nothing and stores nothing, and the web's reply shows the settings as they still are.
+- **Settings are applied when they change.** A new current, microstep count or sense resistor is written to the driver at once.
+- `motor_get_velocity` gives the speed the motor turns at now, ramps included. The simulated scale asks for it (`motor_get_shaft_velocity`) and no longer reads the motors' structs.
+- `cleanup_mode.cpp`: the speed stays a number within the lower of the two motors' limits, from the encoder and from the web (audit M4).
+- `servo_gate.c`: the ramp moves by ticks and sleeps between; its time is a difference of tick counts (audit G1, G2). No servo is on the bench: built and read, not seen to move.
+- `motors.h` lost `motor_task`, declared and never written.
+
+**What the unit showed**
+
+| Proof | Result |
+|---|---|
+| Full speed | Coarse at 5 rev/s: 204,918 steps a second fed, 0.06% over the 204,800 asked (the clock's rounding at a period of 732 cycles) |
+| A ramp | With the acceleration set to 2 rev/s² over the web, `motor` read every 20 ms shows the rate 2,048 steps a second higher each time: 102,400 steps/s², which is 2 rev/s² |
+| Reverse and stop | 5 rev/s to -5 to 0: the speeds follow, no late feed |
+| A setting out of range | `m0=0`, `m7=0`, `m3=7` over the web: each refused, the reply unchanged |
+| A setting applied when it changes | `m3=16`: `tmc coarse` shows `mres=4` at once, and `motor coarse 1` turns at 2,559.99 steps a second (2,560 asked). Put back to 256: `mres` 0 again |
+| Cleanup mode's speed | `s1=99` gives 5, `s1=nan` leaves it, `s1=-99` gives -5; both motors follow |
+| The scale while the motors ramp and turn | `scale_frames`: 40 ms typical and 61 ms longest between frames, idle and with both motors turning alike |
+| `charge_cycle` | Passed, 14.5 s |
+| `menu_tour --compare` | Passed |
+| `settings --compare` against step 1's copy | Nothing differs: the current stays 240, not converted again |
+| `soak 600` | `VERDICT PASS`. 23 charges, every one passed; no late feed in any; `heap_free` 97,464 throughout, 1,320 more than before the ADR; 125 of 2,532 web reads missed, 4.94%, longest run 2 (6.86% and 3 on this board in ADR-011) |
+| The Pico W | Builds, without a warning of ours. Not on the probe yet |
+
+**Seen, not this ADR's:** the task with the least stack to spare is the charge screen's, 64 to 90 words in these runs (audit Y4, given to ADR-005).
+
+## Step 4: the drivers read while running
+
+2026-11-15, on the Pico 2 W, the hopper empty. The Pico W is still to do.
+
+**What was built** (commit 2bb7333, and the tool's fix after it; the image 1.20.118)
+- `motors.c`: a task, priority 2, reads each driver's `DRV_STATUS` and `GSTAT` once a second. A short to ground or to the supply, a switch-off for heat, a fallen supply (`uv_cp`) or a driver that started anew (`reset`) is a fault when it is read three times running; a driver that answers none of three readings in a row is absent. Klipper's figures.
+- **A fault stays until a mode next asks.** The first fault found is kept, so the charge it came in sees it even if the driver is well a second later. `motors_ready()`, which the modes call before they enable a motor, sets a faulted driver up again and reads it afresh.
+- A driver that started anew is written its registers again at once.
+- The temperature warnings go to the console when they change.
+- `charge_mode.cpp`, five lines: the charge loop asks `motors_get_fault()` at each reading and ends the throw as it does for a failed scale, with the driver and the fault in the title.
+- The console: `state` ends with `drivers=<coarse>,<fine>`, each `ok`, `absent`, `short`, `hot`, `reset` or `supply`. `tmc <coarse|fine> fault <short|hot|reset|supply|none>`, for proofs and never stored, puts the flags into what the driver is read to report. `lose` now changes the address and nothing else: the readings find the driver gone, as they would in use.
+- `rc_run.py charge_cycle` no longer counts the state the unit shows before charge mode has set its first: the mode takes longer to start when it sets a driver up again first.
+
+**What the unit showed.** No real short, heat or loss of supply was made: the flags were put in at the reading, and everything after the reading is the firmware's own.
+
+| Proof | Result |
+|---|---|
+| A short during a charge | `tmc coarse fault short` while charging: "Motor driver 0: short", "Charge: ended, Coarse driver short", both motors at 0, the title says so, `drivers=short,ok`. A press goes back to the menu |
+| The fault still there | The next `charge 30`: "Charge: not started, Coarse driver short" |
+| A driver that started anew during a charge | `tmc fine fault reset`: "Charge: ended, Fine driver reset"; the driver was written again |
+| A driver that stops answering during a charge | `tmc fine lose`: after three readings "Motor driver 1: no answer to 3 readings in a row" and "Charge: ended, No fine driver" |
+| Heat, and a fallen supply | `drivers=ok,hot` with the warning logged; `drivers=supply,ok` |
+| After each | `fault none` or `find`, then `charge_cycle`: the driver is set up again by the mode and the charge passes, 14.5 s |
+| No fault that is not one | The charges of this step and `menu_tour` ran with the readings going: none ended by them, and no read of the line retried but those to the driver made absent |
+| `menu_tour --compare` | Passed |
+
+**Not done:** a fault found while charge mode waits for zero or for the cup is seen when the next throw starts, not before. The motors stand still in those states.
