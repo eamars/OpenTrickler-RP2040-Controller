@@ -16,7 +16,7 @@ Usage, from the repository root:
     venv\\Scripts\\python tools\\remote_control\\rc_run.py snap
     venv\\Scripts\\python tools\\remote_control\\rc_run.py menu_tour [--save <folder>] [--compare <folder>]
     venv\\Scripts\\python tools\\remote_control\\rc_run.py settings --host <address> [--save <folder>] [--compare <folder>]
-    venv\\Scripts\\python tools\\remote_control\\rc_run.py soak [1800] --host <address>
+    venv\\Scripts\\python tools\\remote_control\\rc_run.py soak <seconds> --host <address>
 """
 import argparse
 import base64
@@ -1078,7 +1078,7 @@ def main():
     settings_parser.add_argument("--save", help="keep the copy in this folder")
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
     soak_parser = sub.add_parser("soak", help="charges back to back while two browsers use the web pages")
-    soak_parser.add_argument("seconds", type=float, nargs="?", default=1800.0)
+    soak_parser.add_argument("seconds", type=float, help="how long; chosen for the change being proven")
     soak_parser.add_argument("--host", required=True, help="the unit's address")
     soak_parser.add_argument("--target", type=float, default=30.0)
     soak_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
