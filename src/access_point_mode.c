@@ -39,8 +39,8 @@ bool access_point_mode_start() {
     // Start the dhcp server
     dhcp_server_init(&dhcp_server, &gw, &mask);
 
-    // Start the dns server
-    dns_server_t dns_server;
+    // Start the dns server: the one this file keeps. A second, declared here, was handed over instead, and was
+    // gone when this function returned: every query then read memory that was no longer its own (ADR-012; audit W1)
     dns_server_init(&dns_server, &gw);
 
     sprintf(first_line_buffer, ">%s", host_name);
