@@ -1,6 +1,6 @@
 # ADR-011: the dependencies brought up to date
 
-Status: **Draft** 2026-11-14, written in full the same day. Not approved. Nothing here has been built against a newer version.
+Status: **Decided** 2026-11-14. Written in full and approved by the owner the same day. What is built and measured is in [progress.md](progress.md).
 
 ## What we want
 
@@ -16,6 +16,7 @@ Status: **Draft** 2026-11-14, written in full the same day. Not approved. Nothin
 - The proof is on the Pico W first. A Pico 2 W is put on the bench when it is asked for; the bench holds one board at a time.
 - The 2023 debug scripts are removed.
 - Dependabot watches the GitHub actions, monthly.
+- This ADR closes only when the Pico 2 W has passed too (at approval: "Approve, Pico 2 W too").
 
 ## Why here
 
@@ -150,6 +151,6 @@ At the end:
 - Removed: `debug.sh`, `openocd_start.bat`, `openocd_start.sh`, `program.bat`, `program.sh`.
 - No stored struct changes. Step 3 is checked for it on the unit.
 
-## To settle before approval
+## Settled at approval
 
-- **When this ADR closes:** after the Pico W alone, or after the Pico 2 W too. First view: the Pico 2 W too, put on the bench once, at the end. The SDK and FreeRTOS both change RP2350 code, and the Pico 2 W's image is the one the build names first. The cost is one swap of boards on the bench.
+- **When this ADR closes:** after the Pico 2 W has passed too, put on the bench once, at the end. The SDK and FreeRTOS both change RP2350 code, and the Pico 2 W's image is the one the build names first. The cost is one swap of boards on the bench.
