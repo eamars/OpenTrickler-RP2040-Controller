@@ -60,7 +60,8 @@ OTA's upload (ADR-004), the web UI (ADR-008) and the tuning pages (ADR-009) all 
 - The web writes charge mode's and cleanup mode's state variables directly, and posts button events with no time limit, whatever is running: "exit cleanup" can end a charge.
 - The 404 reply gives its length as 13 for a text of 71 bytes: an unknown path gets `HTTP/1.1 404 ` and nothing more.
 - Handlers run in lwIP's thread, and some block it: queue sends with no time limit; the EEPROM's erase, about 5 s of one core and outside the EEPROM's mutex; erase-and-restart inside the handler, so no reply, with its reply flags `s5` and `s6` swapped.
-- **Done in ADR-012, on the server as it is:** a query was cut at 127 characters and at 16 values, so the charge-mode page's "Save to EEPROM" never arrived (512 and 32 now, and a longer query is refused whole); a Wi-Fi name of 32 characters or a key of 64 was stored without its ending (refused whole now).
+- **The web's memory is this tight** (measured in ADR-012, step 5, on the Pico 2 W). Each connection's state comes out of lwIP's heap of 4,000 bytes (`MEM_SIZE`). Room for 32 values a request in place of 16 made that state 128 bytes larger, and a soak then lost 32% to 39% of the web's reads, twice over, in runs of up to 63, where it lost 5% before; with room for 20, 32 bytes more, it lost 5.7%. The charges were not touched either way.
+- **Done in ADR-012, on the server as it is:** a query was cut at 127 characters and at 16 values, so the charge-mode page's "Save to EEPROM" never arrived (512 and 20 now, and a longer query is refused whole); a Wi-Fi name of 32 characters or a key of 64 was stored without its ending (refused whole now).
 
 ## Ideas
 

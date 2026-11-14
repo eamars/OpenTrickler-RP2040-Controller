@@ -1,6 +1,6 @@
 # ADR-012: the motor drivers cleaned up
 
-Status: **Open**. Approved by the owner 2026-11-15; work started that day on the Pico 2 W. What is built and measured is in [progress](progress.md). The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
+Status: **Open**. Approved by the owner 2026-11-15. All five steps are built, and proven on the Pico 2 W that day. Left: the same proofs on the Pico W, and three by the owner's hand (a driver module lifted before a start, a phone on the unit's access point, real throws). What is built and measured is in [progress](progress.md), which ends with where it stands. The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
 
 ## What we want
 

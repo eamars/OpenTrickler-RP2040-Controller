@@ -147,3 +147,54 @@ What was built and measured. The plan is in the [README](README.md). Logs are ke
 | `menu_tour --compare` | Passed |
 
 **Not done:** a fault found while charge mode waits for zero or for the cup is seen when the next throw starts, not before. The motors stand still in those states.
+
+## Step 5: the small fixes that cannot wait
+
+2026-11-15, on the Pico 2 W, the hopper empty, the A&D connected. The Pico W is still to do.
+
+Each finding was read again in the code first: all six were as the audit said. One commit each (baa93ea to 4392a59). Three were shown failing first, on the image of step 4 flashed back for it.
+
+| Fix | Before, on step 4's image | After |
+|---|---|---|
+| **A web form arrives whole** (H1, H2). The query's buffer is 512 bytes and no longer on the stack; a request may carry 20 values; a query longer than the buffer is refused whole | The charge-mode page's 17 values, 157 characters, with `c16=1.0` and "save": the reply showed `c14` false, where `true` was sent and cut; `c16` was not taken; after a restart nothing was stored | The same form: every value taken, and stored after a restart. The unit's settings were put back and compare equal to step 1's copy |
+| **The Generic scale's zero** (S1): a function that does nothing | Generic chosen and stored, then zero over the web: no reply, the unit dead, a core halted. Recovered by flashing | The same: the reply comes and the unit lives. The A&D was chosen and stored again |
+| **The A&D driver takes a frame at its line ending.** A frame is the 17 bytes that end in CR LF; a line of another length is counted as a frame that does not parse | 30 hand-overs from the simulated scale: one frame of 2,522 was `ST,ST,+00000.00 G`, stitched from two | 30 hand-overs: 12 lines that are not frames (`000.00 GN`, `GN`, `ST,+0ST,+00000.00`, ...), every one dropped and counted, none read as a weight. `ST,+0ST,+00000.00` would have read as 0 before |
+| **The cleanup screen writes a weight with its length** (M5), in a buffer with room for any; every line of the screen is written with its length; an unknown number of decimals gives an empty string. `weight_to_string` in `common.c` | Not shown: an overrun of one byte on a task's stack shows nothing by itself | `sim weight -1543.24` and `sim weight 123456.789` in cleanup mode: both drawn whole (`logs/rc/snaps/`) |
+| **The access point's DNS server** (W1): the one the file keeps is the one handed over | Not shown | Not shown: it needs a phone on the unit's access point. Built and read |
+| **The Wi-Fi name and key keep their endings** (W2). One that does not fit with its ending (31 and 63 characters) is refused, and the form with it; stored ones are ended when loaded; the two screen lines are declared in one size | Not shown: it would have stored a name that cannot be joined | A 32-character name with a key, and a 64-character key: refused, the reply unchanged and without a key, "WiFi: a name of 32 characters is refused" on the console |
+
+**Found while proving it: the web has almost no memory to spare**
+- The first fix gave a request room for 32 values. The soak after it lost 38.6% of the web's reads, in runs of up to 63, and 32.4% when run again; every charge passed and `heap_free` did not move.
+- Each value is 8 bytes in every connection's state, and that state comes out of lwIP's heap of 4,000 bytes. 32 values in place of 16 are 128 bytes more a connection.
+- With room for 20, which the longest form's 17 need, a soak lost 5.7%, and the final one 4.5%. ADR-003 has the figures.
+
+**Found while proving it: a refused Wi-Fi name left its key behind.** The first form of the fix refused the name and took the key sent with it, into RAM. The form is now refused whole. The unit was restarted, so the key in use is the stored one.
+
+**Left alone, as planned:** `charge_mode.cpp` is not touched by this step. PRs #109 and #113 were merged into the branch as a test, on this PC and pushed nowhere (`git merge-tree`): both merge without a conflict. #109 conflicted once, in `common.h`, where the new declaration sat beside a line it adds; the declaration was moved.
+
+**The audit's other findings** are written, in words, into ADR-003, 004, 005, 006, 009 and 010, each under "Handed on by ADR-012".
+
+## Where it stands
+
+2026-11-15. All five steps are built. The Pico 2 W runs the last image, 1.20.130 at 8b8395d, and on it:
+
+| Proof | Result |
+|---|---|
+| `soak 600` | `VERDICT PASS`. 23 charges, every one passed; no late feed; `heap_free` 95,272 throughout; 119 of 2,643 web reads missed, 4.50%, longest run 3. The drivers were read some 2,400 times meanwhile: 8 reads were tried twice, none failed |
+| `pulses` (on e5b61a0, with its fault images) | The pulses stop on a reset, on an assert and on a hard fault |
+| `charge_fault none`, `bad`, `quiet` | ADR-013's proofs pass as before |
+| `menu_tour --compare` | Passed; no screen changed in this ADR |
+| `charge_cycle` | Passed, 14.5 s from charging to the cup prompt, as before the ADR |
+| `settings --compare` | The unit's settings are as before the ADR, but for the two currents: 500 became 240, once |
+| The Pico W | Builds without a warning of ours: 679,296 bytes of flash, 205,676 of RAM at link time |
+
+**Left before the ADR can close**
+- **The Pico W:** every proof above, on the other unit. It needs the owner to put it on the probe.
+- **By the owner's hand:**
+  - a driver module lifted with the power off, then a start: the unit must reach the menu and name the driver;
+  - a phone on the unit's access point: the unit's page must open by its name (W1);
+  - real throws, same powder and target, against how the unit threw before: no worse. The motors now run at the current the stored figure says, which the driver gives in a quarter to half of its 32 steps.
+- **Not shown apart:** the hard-fault handler's own stop, since with the probe connected both cores halt and the pulses starve as well.
+- No servo is on the bench: the gate's new ramp is built and read, not seen to move, and "shutter0" and "shutter1" (audit G4) are still unchecked.
+
+Nothing is pushed. The branch is `adr012_motor_drivers`, on this PC.
