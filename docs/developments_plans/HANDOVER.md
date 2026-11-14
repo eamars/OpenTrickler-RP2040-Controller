@@ -38,6 +38,7 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
   - the web page's cleanup speed is applied outside cleanup mode;
   - on main since PR #112, a long web form is cut at 127 characters, so settings are saved wrong or not at all.
 - Its verdicts: the scale drivers and the modes each need a cleanup of their own; storage, the servo gate, Wi-Fi and the system files need a few fixes; the screens can wait for ADR-010.
+- **For the scale drivers' cleanup, seen on the bench in ADR-013** (2026-11-15): the A&D driver takes 17 bytes as a frame, not what ends in its CR LF. A frame stitched across a hand-over from the simulated scale was seen (`SST,+00000.00 GN\r`, 1 in 30). ADR-013's door drops one that does not parse; one that parses as a wrong number it cannot see. Take a frame only at its line ending, and look at the other drivers for the same. See ADR-013's progress.
 - `charge_mode.cpp` is the one file every live PR touches.
 
 ## To do next, in order

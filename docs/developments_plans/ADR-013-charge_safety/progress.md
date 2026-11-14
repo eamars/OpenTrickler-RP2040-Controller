@@ -51,3 +51,23 @@ What was built and measured. The plan is in the [README](README.md). Logs are ke
 
 - **The cleanup fault needs the coarse trickler's stop and back-off to be over.** Sent at 26.2, during the back-off (`coarse -1`), the charge loop set the coarse trickler to 0 at the back-off's end, over the cleanup speed; sent 1 short of the target at 3 rev/s, the simulated powder reached the target within one step, before a 50 ms read could see the speed. Both runs are kept in the logs; the one above is the test.
 - The RP2350's way with a bad frame, full speed, is shown when the Pico 2 W is on the bench. Its image of this code is kept (`logs/adr013/before_fix/pico2_w/`).
+
+## Fix 1: one door for a reading
+
+Built 2026-11-15 (599c24f), proven on the Pico W.
+
+**What was built**
+- `scale_publish_measurement()` in `scale.c` is the one way a reading is published. All nine drivers and the simulated scale call it, in place of writing the shared field and giving the semaphore. A value that is not a finite number is not published, the charge is not told of a new reading, and it is counted: `bad_frames` in the console's `stats`.
+- A driver says a frame did not parse by giving NaN, as seven did already. The door is where the NaN stops: none reaches the charge.
+- The Sartorius driver now gives NaN for a frame with no number in it, where it gave 0.0.
+- Only `scale.c` writes the field now: the door, and the two places that mark it unknown (at power-up and when the simulation stops), which tell no charge of a reading.
+
+**On the unit** (image 599c24f; marked dirty for a document not yet committed, the code as committed)
+- `flash`, and `charge_cycle`: passed, 30.000 for 30.
+- `charge_fault bad --expect not-seen`: `VERDICT PASS`. After the bad frame the charge went on as if it had not come: the fine trickler at 0.2 to 0.25 rev/s near the target, no full speed, no early end.
+- `stats`: `bad_frames=2` after it. One was `sim bad`; the other, a real one, is below.
+
+**A real broken frame, across a hand-over**
+- Thirty hand-overs from the simulated scale, half a second each, with the tap on: one stitched frame, `SST,+00000.00 GN\r`. A stale `S` from before the hand-over stood in front of a new frame, the number's field moved, and the frame did not parse. The door dropped it and counted it (2 to 3). It is the second count of the run above.
+- **Why:** the A&D driver takes 17 bytes as a frame, not a frame as what ends in its CR LF. While the simulated scale runs, the driver's task is suspended with a frame half read; on its return the line's input is emptied (`scale.c`), but the driver keeps its count. In use, only a stall of its task long enough to lose input would do the same; that has not been seen.
+- **Not this ADR's to fix:** this one gave a frame that does not parse, which the door now stops. A shift elsewhere could give a wrong number that reads as one, which no door sees. Its fix is in the driver, a frame taken only where its line ending is, and belongs to the cleanup of the scale drivers (the audit's verdict), with the other drivers looked at for the same.
