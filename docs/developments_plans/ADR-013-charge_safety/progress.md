@@ -103,3 +103,36 @@ Built 2026-11-15 (13b4b9c, and three small commits after it: 4830c51, 73c55b5, a
 - A quiet of 200 ms at 10 a second gives a gap between readings of 300 ms, not 200: it begins partway between two readings, and the gap runs to the next one after it. That is 3 intervals, and it paused, as the rule says. The test with 100 ms is the 2-interval one.
 - The screen at a lost scale, as a person at the unit sees it (`snap`): the top line "Scale: no reading", the last weight 29.15, the profile.
 - Not run: "unsteady". The simulated weight holds still in a pause, so that path is read in the code.
+
+## Fix 3: the web's cleanup speed only in cleanup mode
+
+Built 2026-11-15 (9d9b790), proven on the Pico W with image 1.20.95.
+
+**What was built**
+- `/rest/cleanup_mode_state`'s `s1` keeps the speed at any time and sets the motors only while cleanup mode's own loop runs.
+- That loop alone marks it (`cleanup_mode_running`, on once it has enabled the motors, off before it disables them). `cleanup_mode_state` cannot tell: the web writes `ENTER` there as soon as it asks for the mode, before the mode has started, so a request for the mode and a speed in a charge would still have reached the motors.
+
+**On the unit**
+- `charge_fault cleanup --at 27.5 --cleanup-speed 0.5 --expect not-seen --want-none`: `VERDICT PASS`. The coarse trickler stayed at 0, the fine one went on as the charge set it.
+- Cleanup mode from the web, as before: `s0=1` entered it (the menu's form -1); `s1=0.5` set both tricklers to 0.5 rev/s; `s0=0` stopped them and went back to the menu (form 1).
+
+## All three, on the last image
+
+2026-11-15, the Pico W, image 1.20.95 at 9d9b790, every run `VERDICT PASS`:
+
+| Run | |
+|---|---|
+| `charge_cycle` | 30.000 for 30 |
+| `menu_tour --compare tests/menu_baseline/pico_w` | Every form equal |
+| `settings --compare` with the copy taken before this ADR's first flash | Every stored value as it was: no stored struct changed |
+| A bad frame | No pause, no end; the charge went on |
+| A gap of 500 ms | Paused, resumed from a settled weight |
+| A gap of 3 s | Paused, then "Scale: no reading" |
+| Three gaps of 500 ms | Two pauses resumed, the third "Scale: unreliable" |
+| A gap of 2 intervals | No pause |
+| The simulated scale at 4 a second, a whole charge | No pause, no end |
+| The cleanup speed in a charge | Not applied |
+
+- At the end the real A&D read 0.040 at rest, and `stats` counted 3 bad frames since the flash: the three `sim bad` of the runs.
+- **The fault screen's snapshot first failed** ("no two snaps in a row were equal in 4 tries"). The screen was steady: five snaps in a row were equal, the sixth torn. The console copies the screen's buffer with no lock while the charge's screen redraws every 20 ms, so a copy can catch a frame half drawn. `snap` now tries 10 times; the display lock that no drawing task takes is the real cure, the screens' ADR's.
+- The screens: "Scale: no reading" over the last weight 29.15, and "Scale: unreliable" over 18.02, each with the profile below.
