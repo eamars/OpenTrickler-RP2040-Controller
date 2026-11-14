@@ -11,15 +11,15 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 - **Clone** with the submodules: `git submodule update --init --recursive`. `library/` holds the Pico SDK, FreeRTOS, u8g2 and the Trinamic library.
 - **Toolchain:** every version is written once, in `toolchain.env`: the compiler, CMake, Ninja, `pioasm` and picotool, OpenOCD. The scripts below and CI read it; change a version there and nowhere else.
   - Windows: `setup_toolchain.ps1` fetches them into `%USERPROFILE%\.pico-sdk`, and `configure_env.ps1` puts them on the path. The VS Code Pico extension makes the same folder (README). `-List` prints what it would fetch.
-  - macOS: `setup_toolchain.sh` fetches Arm's compiler into `.toolchain/` in the repository, and `configure_env.sh` sets the environment. CMake is the Mac's own.
-  - Linux (what CI runs): the same two scripts fetch the whole set into `.toolchain/`.
+  - Linux (what CI runs): `setup_toolchain.sh` fetches the same set into `.toolchain/` in the repository, and `source ./configure_env.sh` puts it on the path.
+  - macOS is parked (the owner, 2026-11-14: development is on Windows, integration builds on Linux). Its scripts as last used are in git: `git show 2ad9b0a:setup_toolchain.sh` and `configure_env.sh`. They come back when the owner works on a Mac again.
 - **Build:**
   - `.\build_pico_2w.ps1` builds the Pico 2 W image, `build\app.uf2`;
   - `.\build_pico_w.ps1` builds the Pico W image, `build_w\app.uf2`.
   - Both run CMake's configure each time, so a new or removed source file is picked up (sources are found by a glob).
   - `src/generated/` is made by the build (version, pages) and is not tracked. PIO headers go to each board's build folder (`build\src\`, `build_w\src\`): pioasm writes a different one for each chip, and a shared one broke the Pico W image (ADR-001, F7).
 - **Size:** `python tools/size_report.py build/app.elf.map --bin build/app.bin` prints the image's flash by part and the RAM taken at link time. CI prints the same for both boards on every build, in the job summary and in the log (`gh run view <id> --log`).
-- **CI builds with what a PC builds with.** It runs on `ubuntu-latest` but uses none of the runner's compiler or tools: `setup_toolchain.sh` fetches the set `toolchain.env` names, kept in GitHub's cache until a version in the file changes (ADR-011). A new runner image does not change the build.
+- **CI builds with what a PC builds with.** It runs on `ubuntu-latest` but uses none of the runner's compiler or tools: `setup_toolchain.sh` fetches the set `toolchain.env` names, kept in GitHub's cache until a version in the file changes (ADR-011). A new runner image does not change the build. CI's image is about 1.3 KB larger than a PC's, and that is all paths: each assert stores its source file's full path, and CI's checkout path is 35 characters longer than `C:/workspace/OpenTrickler-RP2040-Controller` (37 paths in the Pico W image, 34 in the Pico 2 W's; measured 2026-11-14).
 - **Flash:**
   - **With a debug probe on the unit's SWD port** (the bench): `venv\Scripts\python tools\remote_control\rc_run.py flash`. It writes `build_w\app.elf` through the probe, verifies it, and passes when the unit's console reports the build's version. This is also how the bench's unit is recovered, from an assert or a hard fault too.
   - **By hand**, as a user does: hold BOOTSEL, plug in USB, copy `app.uf2` to the drive ([manual](manuals/firmware_update_via_usb.md)).

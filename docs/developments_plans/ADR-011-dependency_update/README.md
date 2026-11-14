@@ -18,6 +18,7 @@ Status: **Open** 2026-11-14. Written in full and approved by the owner the same 
 - Dependabot watches the GitHub actions, monthly.
 - This ADR closes only when the Pico 2 W has passed too (at approval: "Approve, Pico 2 W too").
 - The soak is 30 minutes at most, of charges and web traffic together, not an hour of one blind read: "one hour blind soak is not that useful, perhaps consider more aggressive interaction, charge cycles and internet traffic. I noticed in the past the internet traffic is the most fragile path, for which ADR-003 should fix, but before that, I think maximum 30min soak should be acceptable."
+- macOS is parked: "We don't need the Mac script. The development is primarily on Windows and integration building on Linux. We can park the mac support unless I started development on mac again."
 - That soak is this ADR's, not a rule for every change: "the soak test must be case by case basis, and only focus on area that needs focus. Today is a special case where we need the baseline and the tests are for dependency updates."
 
 ## Why here
@@ -100,11 +101,12 @@ One step at a time. Each step is built, flashed and proven on the Pico W alone, 
 - The community ports stay where V11.3.3 holds them. If the Pico 2 W's build needs the later path fix, the RP2350 port is taken from the community ports' own repository, as a submodule of ours, and the reason is written down.
 
 **Step 3: one compiler, its version written once.**
-- Arm's 15.2.Rel1 on a PC, on a Mac and in CI.
-- One file at the root, `toolchain.env`, names every version: the compiler, CMake, Ninja and the tools release. `setup_toolchain.ps1`, `configure_env.ps1`, `setup_toolchain.sh`, `configure_env.sh` and CI read it. OpenOCD comes from the same tools release as picotool and `pioasm`.
+- Arm's 15.2.Rel1 on a PC and in CI.
+- One file at the root, `toolchain.env`, names every version: the compiler, CMake, Ninja, the tools release and OpenOCD. `setup_toolchain.ps1`, `configure_env.ps1`, `setup_toolchain.sh`, `configure_env.sh`, `rc_run.py` and CI read it.
+- OpenOCD stays at the build ADR-001 proved (from tools release `v2.1.1-3`). It is the instrument every proof here goes through, so it does not move in the same step as the compiler. Changed while building step 3; the first view was that it come from the same release as picotool and `pioasm`.
 - CI fetches the compiler and the ready-made tools a PC uses, kept in GitHub's cache between runs. The runner's own compiler is no longer used, and the pin goes: `ubuntu-latest`.
 - The stored settings are each struct as the compiler lays it out, so this is the step where they are watched.
-- The Mac's scripts are changed but cannot be run here; that is written down.
+- macOS is parked: `setup_toolchain.sh` and `configure_env.sh` are for Linux only, and `AGENTS.md` points to the Mac's scripts as last used, in git.
 
 **Step 4: small cleanups, nothing a user sees.**
 - `scripts/gen_version.py` asks git from the source folder, so a build folder outside the repository works.

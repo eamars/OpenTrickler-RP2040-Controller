@@ -27,13 +27,13 @@ jobs:
         fetch-depth: 0          # Fetch all branches and tags
         submodules: recursive   # Automatically pull all submodules
 
-    # Fetched once per toolchain.env: the key changes when a version in it does
+    # Fetched again when a version in toolchain.env or the fetch script changes
     - name: Cache the toolchain
       id: toolchain-cache
       uses: actions/cache@v4
       with:
         path: .toolchain
-        key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('toolchain.env') }}
+        key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('toolchain.env', 'setup_toolchain.sh') }}
 
     - name: Fetch the toolchain named in toolchain.env
       if: steps.toolchain-cache.outputs.cache-hit != 'true'

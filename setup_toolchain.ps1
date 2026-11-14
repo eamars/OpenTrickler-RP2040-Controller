@@ -9,7 +9,7 @@ Usage:
     .\setup_toolchain.ps1          fetch what is missing
     .\setup_toolchain.ps1 -List    print what would be fetched, and fetch nothing
 
-macOS and Linux have their own script, setup_toolchain.sh.
+Linux (CI) has its own script, setup_toolchain.sh.
 #>
 param(
     [switch] $List
