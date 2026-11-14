@@ -40,6 +40,12 @@ jobs:
         cmake -B ${{github.workspace}}/build_pico2_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
         cmake --build ${{github.workspace}}/build_pico2_w --config Debug
 
+    # Flash by part and RAM at link time, in the job summary and in the log (ADR-001).
+    # "shell: bash" runs with pipefail, so a report that fails still fails the step through tee.
+    - name: Size of the Pico2 W image
+      shell: bash
+      run: python3 tools/size_report.py build_pico2_w/app.elf.map --bin build_pico2_w/app.bin --title "Pico 2 W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
+
     - name: Archive Debug Artifact
       uses: actions/upload-artifact@v4
       with: 
@@ -58,6 +64,10 @@ jobs:
       run: |
         cmake -B ${{github.workspace}}/build_pico_w -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
         cmake --build ${{github.workspace}}/build_pico_w --config Debug
+
+    - name: Size of the Pico W image
+      shell: bash
+      run: python3 tools/size_report.py build_pico_w/app.elf.map --bin build_pico_w/app.bin --title "Pico W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
 
     - name: Archive Debug Artifact
       uses: actions/upload-artifact@v4

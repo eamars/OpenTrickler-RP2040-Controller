@@ -488,6 +488,14 @@ void motor_set_speed(motor_select_t selected_motor, float new_velocity) {
 }
 
 
+float motor_get_velocity(motor_select_t selected_motor) {
+    // prev_velocity is the motor's own speed, set once a ramp ends: back to the trickler's, as motor_set_speed takes it
+    motor_config_t *motor_config = selected_motor == SELECT_FINE_TRICKLER_MOTOR ? &fine_trickler_motor_config
+                                                                                : &coarse_trickler_motor_config;
+    return motor_config->prev_velocity * motor_config->persistent_config.gear_ratio;
+}
+
+
 void motor_enable(motor_select_t selected_motor, bool enable) {
     if (selected_motor == SELECT_COARSE_TRICKLER_MOTOR || selected_motor == SELECT_BOTH_MOTOR) {
         bool en_signal = coarse_trickler_motor_config.persistent_config.inverted_enable ? enable : !enable;

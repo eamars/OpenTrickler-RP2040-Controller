@@ -1,7 +1,12 @@
-# Generate PIO headers
-pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
-# Generate PIO headers
-pico_generate_pio_header(app ${SRC_DIRECTORY}/stepper.pio OUTPUT_DIR ${SRC_DIRECTORY}/generated)
+# Generate PIO headers into each board's own build folder, not src/generated: pioasm writes a different
+# header for each chip (PIO version 0 on the RP2040, 1 on the RP2350), and a header shared by both builds
+# is reused by whichever board builds second (ADR-001, F7)
+pico_generate_pio_header(app ${SRC_DIRECTORY}/ws2812.pio)
+pico_generate_pio_header(app ${SRC_DIRECTORY}/stepper.pio)
+
+# The headers that stay in src/generated (version, pages). It was on the include path only as a side effect
+# of the PIO headers' OUTPUT_DIR
+target_include_directories(app PRIVATE ${SRC_DIRECTORY}/generated)
 
 # Find Python, as Python is required to convert pages into source
 find_package (Python COMPONENTS Interpreter REQUIRED)

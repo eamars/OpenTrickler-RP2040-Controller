@@ -26,7 +26,7 @@
 #include <string.h>
 
 #include "neopixel_led.h"
-#include "generated/ws2812.pio.h"
+#include "ws2812.pio.h"
 #include "configuration.h"
 #include "eeprom.h"
 #include "common.h"

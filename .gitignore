@@ -83,3 +83,7 @@ build*/
 
 # Local ARM toolchain download
 .toolchain/
+
+# Host tools: the venv and the remote control's session logs
+venv/
+logs/

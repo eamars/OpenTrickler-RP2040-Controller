@@ -63,6 +63,19 @@ extern "C" {
 
 
 bool charge_mode_config_init(void);
+
+/**
+ * @brief Start charge mode from outside the menu, as the web page and the remote control do: the menu leaves its
+ * form and enters charge mode with this target. Only while charge mode is not running.
+ * @return false when charge mode is already running.
+ */
+bool charge_mode_start_remote(float target_charge_weight);
+
+/**
+ * @brief Leave charge mode from outside the menu: the reset button, as at the unit.
+ * @return false when charge mode is not running.
+ */
+bool charge_mode_stop_remote(void);
 uint8_t charge_mode_menu(bool charge_mode_skip_user_input);
 bool charge_mode_config_save(void);
 

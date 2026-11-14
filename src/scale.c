@@ -24,6 +24,12 @@ extern scale_handle_t sartorius_scale_handle;
 extern scale_handle_t simulated_scale_handle;
 
 scale_config_t scale_config;
+
+// The stored driver's task, and the simulated scale's while the remote control has it on (ADR-001)
+static TaskHandle_t scale_task_handle = NULL;
+static TaskHandle_t scale_simulation_task_handle = NULL;
+static scale_driver_t scale_simulation_stored_driver;
+
 const eeprom_scale_data_t default_scale_persistent_config = {
     .scale_data_rev = 0,
     .scale_driver = SCALE_DRIVER_AND_FXI,
@@ -210,13 +216,65 @@ bool scale_init() {
     printf("Scale driver: %x\n", scale_config.persistent_config.scale_driver);
     set_scale_driver(scale_config.persistent_config.scale_driver);
 
-    // Create the Task for the listener loop
-    xTaskCreate(scale_config.scale_handle->read_loop_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, NULL);
+    // Create the Task for the listener loop. Its handle is kept so the simulation can stand in for it
+    xTaskCreate(scale_config.scale_handle->read_loop_task, "Scale Task", configMINIMAL_STACK_SIZE, NULL, 9, &scale_task_handle);
 
     // Register to eeprom save all
     eeprom_register_handler(scale_config_save);
 
     return is_ok;
+}
+
+
+bool scale_simulation_start(void) {
+    if (scale_simulation_task_handle != NULL) {
+        return true;
+    }
+    // A unit whose stored driver is the simulated one already runs it; there is nothing to stand in for
+    if (scale_task_handle == NULL || scale_config.persistent_config.scale_driver == SCALE_DRIVER_SIMULATED) {
+        return false;
+    }
+
+    scale_simulation_stored_driver = scale_config.persistent_config.scale_driver;
+    vTaskSuspend(scale_task_handle);
+
+    // The simulated scale publishes only while the driver reads Simulated. That is set in RAM only: nothing is
+    // saved here, and a restart brings the stored driver back. A save from the menu or the web while the
+    // simulation is on would store it
+    simulated_scale_handle.force_zero();
+    set_scale_driver(SCALE_DRIVER_SIMULATED);
+
+    if (xTaskCreate(simulated_scale_handle.read_loop_task, "Sim Scale Task", configMINIMAL_STACK_SIZE, NULL, 9,
+                    &scale_simulation_task_handle) != pdPASS) {
+        scale_simulation_task_handle = NULL;
+        set_scale_driver(scale_simulation_stored_driver);
+        vTaskResume(scale_task_handle);
+        return false;
+    }
+    return true;
+}
+
+
+void scale_simulation_stop(void) {
+    if (scale_simulation_task_handle == NULL) {
+        return;
+    }
+
+    vTaskDelete(scale_simulation_task_handle);
+    scale_simulation_task_handle = NULL;
+    set_scale_driver(scale_simulation_stored_driver);
+
+    // Drop what the scale sent while its task was suspended; the reading is unknown until its next frame
+    while (uart_is_readable(SCALE_UART)) {
+        uart_getc(SCALE_UART);
+    }
+    scale_config.current_scale_measurement = NAN;
+    vTaskResume(scale_task_handle);
+}
+
+
+bool scale_simulation_is_on(void) {
+    return scale_simulation_task_handle != NULL;
 }
 
 

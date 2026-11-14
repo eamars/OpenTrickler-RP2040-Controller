@@ -1,0 +1,2 @@
+# Host tools (tools/). Install into the venv at the repo root: venv\Scripts\pip install -r requirements.txt
+pyserial
