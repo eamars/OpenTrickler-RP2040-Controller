@@ -161,3 +161,50 @@ Built 2026-11-14.
 - The web stays where it was: the share moves by about a point from run to run, within the limits (10%, 6).
 
 **Step 2 passes.**
+
+## Step 3: one compiler, its version written once
+
+Built 2026-11-14.
+
+**What moved**
+- The compiler from Arm's 14.2.Rel1 to 15.2.Rel1 (`arm-none-eabi-gcc` 15.2.1 20251203), on a PC and in CI.
+- `toolchain.env` names every version. `setup_toolchain.ps1`, `configure_env.ps1`, `setup_toolchain.sh`, `configure_env.sh`, `rc_run.py` and CI read it; a version is written nowhere else.
+- `setup_toolchain.sh` now works on Linux too, where it fetches the set a Windows PC uses: the compiler, CMake, Ninja, `pioasm` and picotool. CI runs it, keeps `.toolchain/` in GitHub's cache keyed on `toolchain.env`, and builds with Ninja as a PC does. The runner's own compiler is no longer used, and the pin went: `ubuntu-latest`.
+- macOS was parked by the owner the same day: the shell scripts are for Linux only, and the Mac's as last used are in git at 2ad9b0a.
+- `configure_env.sh` no longer sets `set -euo pipefail` in the shell that sources it.
+- OpenOCD did not move: it is the instrument of every proof. Changed from the plan while building.
+
+**The build**
+- GCC 15 found one fault in our code: `cleanup_mode.h` tests `CLEANUP_MODE_H_` and then defines `CLENAUP_MODE_H_`, so its guard never held (`-Wheader-guard`, three times, once a file that includes it). The spelling is fixed. Every other header in `src/` was checked for the same slip; none has it.
+- Then the same 4 warnings inside u8g2 and none of ours.
+
+**Sizes**
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Flash | 649.6 to 649.3 KB (−0.3) | 628.0 to 627.5 KB (−0.5) |
+| RAM at link time | 196.9 to 197.3 KB (+0.4) | 197.0 to 197.3 KB (+0.4) |
+
+- The RAM is newlib's, which comes with the compiler: its locale table (`__global_locale`, 364 to 596 bytes) and its data for the program (`_impure_data`, 320 to 512), 424 of the 456 bytes on Pico W.
+
+**CI** ([run 43583322068](https://github.com/eamars/OpenTrickler-RP2040-Controller/actions/runs/43583322068)): passed on its first run, on `ubuntu-26.04`, the image whose compiler could not build SDK 2.1.1's `pioasm`. It fetched the set from `toolchain.env` and built no `pioasm` of its own.
+
+| | Pico W | Pico 2 W |
+|---|---|---|
+| Flash, CI | 650.6 KB | 628.7 KB |
+| Flash, this PC | 649.3 KB | 627.5 KB |
+| RAM, both | 197.3 KB | 197.3 KB |
+
+- **The 1.3 KB between them is the paths.** An assert stores its source file's full path. CI's checkout path is 35 characters longer than this PC's, and the image holds 37 paths on Pico W and 34 on Pico 2 W: 1,295 and 1,190 bytes, as measured. The parts that differ are the ones with asserts: the radio's driver, the application, the SDK, FreeRTOS. So CI builds the image a PC builds, but for where the tree sits.
+
+**On the unit** (the bench's Pico W, from 23:03)
+- `settings` before; `flash` (1.20.68 at ae1daa8, 10.3 s after the start, `VERDICT PASS`); `settings --compare`: every stored value as before, the version and its hash aside. This was the step to watch for the stored layout, and nothing moved.
+- `menu_tour --compare`: 22 forms equal. `charge_cycle`: 30.000 for 30.
+- `pulses`: stop on a reset and on an assert, run on after a hard fault, as on steps 1 and 2. Every start had its console.
+- **The soak** (23:06 to 23:36): `VERDICT PASS`, but at both limits of the web: 576 of 6,194 reads missed, 9.30%, and 6 in a row. 62 charges, every one passed; `heap_free` as on steps 1 and 2; no restart, no drop of the probe's link.
+- **The misses rose partway through, not from the start.** Misses per 5 minutes: 50, 56, then 87, 122, 127, 121. The timeouts tripled from about 23:16; the broken JSON stayed as in the baseline (15 to 26 per 5 minutes), so no third poller of the charge state. The owner had a browser open on the unit then, and another agent read it once near the end.
+- **A clean run of 5 minutes** (23:40, the browser closed, nothing else on the unit): 91 of 1,131 reads missed, 8.05%, longest run 3, 11 charges passed, `VERDICT PASS`. Per 5 minutes, 63 timeouts and 85 misses: within the baseline's (45 to 66, 62 to 84) and step 2's (51 to 72, 63 to 94), not the 95 to 112 timeouts of the browser's twenty minutes.
+- So the rise was the other client, not the compiler. A soak's web figures compare only when nothing else uses the unit's web pages; `AGENTS.md` says so now.
+- Stopping the diagnostic runs mid-charge left the simulated scale on, and `settings --compare` then showed `scale_config s0` as 9. With `sim off` every stored value was as after step 3's flash: the other agent's read changed nothing stored.
+
+**Step 3 passes.**
