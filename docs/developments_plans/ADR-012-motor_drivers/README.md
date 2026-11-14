@@ -26,6 +26,7 @@ Status: **Open**. Approved by the owner 2026-11-15. All five steps are built, an
 - 2026-11-15, after the Pico W's soak (its [progress](progress.md), "The Pico W"):
   - **A change to the web server belongs to the web server's ADR:** "You don't need to implement the change right away, but to document what, and how in the corresponding ADR." The fix for step 5's cost to the web is written into ADR-003.
   - **This ADR closes with the Pico W's web as it is,** the fix left to ADR-003: "Yes, leave it to ADR-003".
+- 2026-11-15, after testing a unit with a driver module lifted: **fail early.** "If stepper motor driver is missing, then the program should not even be allowed to enter the corresponding function, for example charge mode and cleanup mode." The stop of a trickle when a driver fails during it stays; "I'd also like to warn before the user enters the charge mode or cleanup mode, if the motor is already failed." Step 6, drawn first as the life cycle of the drivers' checks in every state of the firmware.
 
 ## Why here
 
@@ -198,6 +199,103 @@ The audit of 2026-11-14 read every module outside the motors. A finding is fixed
 
 `charge_mode.cpp` is not touched by this step, and by steps 1 and 4 only where a charge must refuse to start or must end: every live PR changes that file. Before this ADR closes, PRs #109 and #113, which merge cleanly today, are merged into its branch on this PC as a test, pushed nowhere, and what that shows is recorded.
 
+### The drivers' checks in every state
+
+What the firmware knows of each driver, and where it looks, from start-up to every mode, once step 6 is built. Read in the code on 2026-11-15 (`motors.c`, `menu.c`, `mui_menu.c`, `charge_mode.cpp`, `cleanup_mode.cpp`); what step 6 changes is marked.
+
+**One driver.** Each of the two is in one of three states. A fault is kept until a mode is next asked for, so the charge it came in sees it even if the driver is well a second later.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Absent: power on
+    Absent --> OK: set up, answered and taken
+    OK --> Absent: no answer to 3 readings in a row, or a set-up not taken
+    OK --> Fault: a flag on 3 readings running
+    Fault --> OK: a mode asked for, set up again, read clean
+    Fault --> Absent: a mode asked for, set up again, no answer
+```
+
+- **Fault** is one of short, hot, supply or reset; the first found is kept. A driver that reports a reset lost its supply and its registers: it is written again at once, and its fault is still kept.
+- **Absent to OK** happens at start-up, when a mode is asked for, and (step 6) on its own: the drivers' task tries an absent driver again each second, so a driver whose supply comes after the Pico's is found without anyone pressing anything.
+
+**The firmware.** Where the drivers are checked, and what a driver that is not OK does there. "Checked" is `motors_ready()`: each driver not OK is set up again and read afresh, so a passing fault does not lock the user out and a driver really gone is refused.
+
+```mermaid
+stateDiagram-v2
+    state "Start-up: both drivers set up" as Boot
+    state "Main menu: its title names a fault (step 6)" as Menu
+    state "Profile, weight, pan warning" as ChargeForms
+    state "Pan warning" as CleanupForm
+    state "Fault screen: names the driver (step 6)" as FaultScreen
+    state "Charge ended: names the driver" as ChargeEnded
+    state "Cleanup ended: names the driver (step 6)" as CleanupEnded
+    state check_start <<choice>>
+    state check_cleanup <<choice>>
+    state check_charge_entry <<choice>>
+    state check_cleanup_entry <<choice>>
+
+    [*] --> Boot
+    Boot --> Menu: whatever the drivers answer
+    Menu --> check_start: Start pressed
+    check_start --> ChargeForms: checked, both OK
+    check_start --> FaultScreen: not OK (step 6)
+    ChargeForms --> check_charge_entry: Next
+    Menu --> check_charge_entry: charge started from the web
+    check_charge_entry --> Charge: checked, both OK
+    check_charge_entry --> FaultScreen: not OK
+    Menu --> check_cleanup: Cleanup pressed
+    check_cleanup --> CleanupForm: checked, both OK
+    check_cleanup --> FaultScreen: not OK (step 6)
+    CleanupForm --> check_cleanup_entry: Next
+    Menu --> check_cleanup_entry: cleanup started from the web
+    check_cleanup_entry --> Cleanup: checked, both OK
+    check_cleanup_entry --> FaultScreen: not OK
+    FaultScreen --> Menu: a press
+
+    state Charge {
+        [*] --> WaitForZero
+        WaitForZero --> Throw
+        Throw --> RemoveCup
+        RemoveCup --> ReturnCup
+        ReturnCup --> WaitForZero
+    }
+    Charge --> ChargeEnded: a driver not OK, in any of its states (step 6, in a throw since step 4)
+    Charge --> Menu: RST
+    ChargeEnded --> Menu: a press
+
+    Cleanup --> CleanupEnded: a driver not OK (step 6)
+    Cleanup --> Menu: RST
+    CleanupEnded --> Menu: a press
+```
+
+| Where | How the drivers are looked at | A driver not OK |
+|---|---|---|
+| Start-up | Each set up once | Absent; the unit goes on to the menu, Wi-Fi and the console (step 1) |
+| Every state, each second | A driver that answers is read (`DRV_STATUS`, `GSTAT`); an absent one is tried again, quietly (step 6) | A flag on 3 readings running becomes its fault; no answer to 3 in a row makes it absent |
+| The main menu | Its title shows the first driver not OK, in place of "OpenTrickler", and is drawn again when that changes (step 6) | Seen before anything is pressed |
+| Start or Cleanup pressed | Checked (step 6) | The fault screen; no profile, weight or warning asked. A press goes back to the menu |
+| Where a mode is entered: the last menu screen's Next, or the web | Checked | The fault screen; the mode is not entered (step 6; before, each mode drew its own refusal and waited inside the mode) |
+| A charge, any of its states | The fault read at each pass of its loop | The motors at 0, "Charge: ended, ...", the title names it; a press goes back to the menu (a throw since step 4; waiting for zero and for the cup, step 6) |
+| Cleanup, running | The fault read each tenth of a second (step 6) | Both motors at 0, "Cleanup: ended, ...", the title names it; a press goes back to the menu |
+| A setting changed: current, microsteps, sense resistor | The driver written at once (step 3) | A write not taken makes it absent |
+| A hard fault | The fault handler | The pulses and the drivers off by register writes, then the core halts (step 2) |
+
+The console's `tmc <coarse|fine> lose`, `find` and `fault` move a driver between these states for the proofs, never stored.
+
+### Step 6: a fault shown before a mode is entered
+
+The owner's test with a driver module lifted (2026-11-15): the unit reached the menu, and Start led through the profile, the weight digit by digit and the pan warning before it said "No fine driver". What the unit knows, it says first.
+
+- **The main menu's title** names a driver that is not OK, in place of "OpenTrickler". The menu task wakes once a second and draws again only when the title has changed. With both drivers OK the menu is as before, and its baselines do not change.
+- **Start and Cleanup check the drivers when pressed.** A driver not OK: a screen names it and says that charge and cleanup cannot start; a press goes back to the menu. Hidden items were weighed and not taken: a trickler whose Start is gone gives no reason, and a press that says why does.
+- **The same check where a mode is entered,** from the last menu screen or from the web, with the same screen, before the mode draws anything; the modes' own refusals go. The screen is drawn as the Wi-Fi information is, not as a menu form, so `menu_tour` finds no new form.
+- **A charge ends on a driver's fault in any of its states:** waiting for zero, for the cup to go and to come back, as well as in a throw. The motors stand still in those states; the point is to say it then, not after the cup is back.
+- **Cleanup mode watches the drivers while it runs.** Today its loop sleeps until a button is pressed. A fault stops both motors and names the driver.
+- **The drivers' task tries an absent driver again each second,** saying so once when it answers and nothing while it does not. Otherwise a title that names an absent driver could stay after the driver came, its supply later than the Pico's.
+- **Kept:** a driver's fault during a throw ends it (step 4); a hard fault stops the motors (step 2).
+- **Not here:** a function whose hardware a board does not carry is not offered at all, and Wi-Fi is the owner's example. It is ADR-005's rule 3; the half found at run time is written there.
+
 ### Where the rest of the audit goes
 
 No finding is left without an ADR. Before this ADR closes, each line below is written into the ADR named, in that ADR's own words; the audit's files are on one PC only and are not the record. The ids are the audit's; those not read a second time are marked.
@@ -245,6 +343,7 @@ On the Pico W and on the Pico 2 W:
   - access point mode, the owner's phone joins: the unit's page opens by its name.
 - **PRs #109 and #113 merged into the branch as a test,** on this PC only: clean, or the conflicts named.
 - **A soak after step 3,** which changes the tasks and their priorities: charges back to back under web load, against the limits of ADR-013's last soak.
+- **Step 6,** with `tmc fine lose` and `fault`: the menu's title names the driver within three seconds and clears after `find`; Start and Cleanup pressed show the fault screen at once; a charge and a cleanup started from the web show it and are not entered; a fault while waiting for zero or for the cup ends the charge; a fault in cleanup stops both motors. With both drivers OK, `menu_tour --compare` and `charge_cycle` pass as before. Then the owner's lifted module once more.
 - **The owner's real throws,** same powder and target, before and after: no worse.
 
 ## Not in this ADR

@@ -12,6 +12,7 @@ Status: **Draft** 2026-11-13. Not approved. Rule 1 below is the owner's; the res
 
 - Boards are supported in tiers: some features only where there is room.
 - The implementation is consistent: a feature is present on a board or absent from it, never built a second way.
+- 2026-11-15, given in ADR-012 (its step 6): **fail early.** "If the Wifi is missing then the WiFi menu should not be made visible (This is just an example)." Rule 3 below says it for what a board is built to carry; the same holds for hardware found missing when the unit starts. One line to keep: a function that is only not set up keeps its menu, since the menu is how it is set up. A radio that does not start is missing; a network not joined is not. Motor drivers, which every board carries, stay offered and refuse at the first press with the reason (ADR-012, step 6).
 
 ## Why here
 
