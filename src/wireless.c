@@ -437,26 +437,30 @@ bool http_rest_wireless_config(struct fs_file *file, int num_params, char *param
     static char wireless_config_json_buffer[256];
     bool save_to_eeprom = false;
 
+    /*
+        A name or a key is taken only if it fits with its ending: 31 characters, and 63, the longest a WPA passphrase
+        can be (ADR-012; audit W2). A longer one is refused, not cut: a cut name is another network's. The form is
+        refused whole, so a name is never left with another name's key.
+    */
+    for (int idx = 0; idx < num_params; idx += 1) {
+        bool is_name = strcmp(params[idx], "w0") == 0;
+        bool is_key = strcmp(params[idx], "w1") == 0;
+        size_t room = is_name ? sizeof(wireless_config.eeprom_wireless_metadata.ssid) :
+                      is_key ? sizeof(wireless_config.eeprom_wireless_metadata.pw) : 0;
+        if ((is_name || is_key) && strlen(values[idx]) >= room) {
+            printf("WiFi: a %s of %u characters is refused\n", is_name ? "name" : "key", (unsigned) strlen(values[idx]));
+            num_params = 0;
+            break;
+        }
+    }
+
     // If the argument includes control, then update the settings
     for (int idx = 0; idx < num_params; idx += 1) {
         if (strcmp(params[idx], "w0") == 0) {
-            // Taken only if it fits with its ending: 31 characters. A longer one is refused, not cut: a cut name
-            // is another network's
-            if (strlen(values[idx]) < sizeof(wireless_config.eeprom_wireless_metadata.ssid)) {
-                strcpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx]);
-            }
-            else {
-                printf("WiFi: a name of %u characters is refused\n", (unsigned) strlen(values[idx]));
-            }
+            strcpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx]);
         }
         else if (strcmp(params[idx], "w1") == 0) {
-            // The same for the key: 63 characters, the longest a WPA passphrase can be
-            if (strlen(values[idx]) < sizeof(wireless_config.eeprom_wireless_metadata.pw)) {
-                strcpy(wireless_config.eeprom_wireless_metadata.pw, values[idx]);
-            }
-            else {
-                printf("WiFi: a key of %u characters is refused\n", (unsigned) strlen(values[idx]));
-            }
+            strcpy(wireless_config.eeprom_wireless_metadata.pw, values[idx]);
         }
         else if (strcmp(params[idx], "w2") == 0) {
             cyw43_auth_t auth = (cyw43_auth_t) atoi(values[idx]);
