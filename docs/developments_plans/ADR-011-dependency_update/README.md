@@ -1,6 +1,6 @@
 # ADR-011: the dependencies brought up to date
 
-Status: **Decided** 2026-11-14. Written in full and approved by the owner the same day. What is built and measured is in [progress.md](progress.md).
+Status: **Open** 2026-11-14. Written in full and approved by the owner the same day. Step 1 is built and proven on the Pico W; left: steps 2 to 4, then the Pico 2 W. What is built and measured is in [progress.md](progress.md).
 
 ## What we want
 
@@ -17,6 +17,8 @@ Status: **Decided** 2026-11-14. Written in full and approved by the owner the sa
 - The 2023 debug scripts are removed.
 - Dependabot watches the GitHub actions, monthly.
 - This ADR closes only when the Pico 2 W has passed too (at approval: "Approve, Pico 2 W too").
+- The soak is 30 minutes at most, of charges and web traffic together, not an hour of one blind read: "one hour blind soak is not that useful, perhaps consider more aggressive interaction, charge cycles and internet traffic. I noticed in the past the internet traffic is the most fragile path, for which ADR-003 should fix, but before that, I think maximum 30min soak should be acceptable."
+- That soak is this ADR's, not a rule for every change: "the soak test must be case by case basis, and only focus on area that needs focus. Today is a special case where we need the baseline and the tests are for dependency updates."
 
 ## Why here
 
@@ -89,7 +91,7 @@ One step at a time. Each step is built, flashed and proven on the Pico W alone, 
 - The compiler stays, 14.2.Rel1 on a PC. CI stays on `ubuntu-24.04` with Ubuntu's compiler until step 3.
 - The build folders are deleted once, as the SDK's notes ask.
 - Whatever no longer builds is fixed in our code, never under `library/`. `http_rest.c` against lwIP 2.2.1 is the likely place.
-- `rc_run.py` gets `soak <seconds> --host <address>`: it reads the screen's mirror over the web once a second, as the mirror page does, and reads `stats` at the start and the end. Step 1 is the first change to Wi-Fi and lwIP that needs it; ADR-003 and ADR-004 use it after.
+- `rc_run.py` gets `settings`, a copy of the stored settings over the web compared with an earlier one, and `soak`: charges back to back with the simulated scale while two browsers use the web pages, as with the portal open on a phone and a PC (the mirror once a second, the charge page's polling every 500 ms, the portal reloaded, the settings read). Step 1 is the first change to Wi-Fi and lwIP that needs them.
 
 **Step 2: FreeRTOS from upstream.**
 - `library/FreeRTOS-Kernel` moves to `FreeRTOS/FreeRTOS-Kernel` at V11.3.3, with its community ports; `.gitmodules` names the new address.
@@ -124,7 +126,7 @@ After each step, on the Pico W:
 - `menu_tour --compare tests/menu_baseline/pico_w` finds every form equal. u8g2 is not touched, so the pixels must match.
 - `charge_cycle` passes.
 - `pulses`: the step pulses stop on a probe reset and on an assert, as before. After a hard fault they ran on before this ADR; what they do now is written down, not fixed here.
-- Wi-Fi: the unit joins the owner's network and serves its pages. `soak 3600` passes: an hour of the mirror, with `heap_free` at the end no lower than at the start, no reply missed.
+- Wi-Fi: the unit joins the owner's network and serves its pages. `soak` passes, 30 minutes: every charge passes, no restart or assert, `heap_free` ends no lower than its lowest of the first five minutes, and the web reads missed are no more than in the same run on the firmware before this ADR. Main's server already misses some under that load; the limits taken from that run are in `progress.md`, and making the server sound is ADR-003's.
 - The settings read over the web API before the flash (each settings path, GET, no parameters, as ADR-001 did) are the same after it.
 
 At the end:
