@@ -57,10 +57,14 @@ BOARDS = {
         "reset": ["mww 0x4005801c 0", "mww 0x40010008 0x1fffc", "mww 0x40058000 0x80000000"],
         "step_status": {"coarse": 0x40014018, "fine": 0x40014040},
     },
+    # The RP2350's registers, from the SDK's headers (watchdog.h, psm.h, io_bank0.h): the same reset as the
+    # RP2040's, every power domain but the two oscillators (PSM_WDSEL_BITS less ROSC and XOSC, as
+    # watchdog_reboot() selects them), and the same STEP pins (one pin map for both boards). Written for
+    # ADR-011's pass on the Pico 2 W; proven when a Pico 2 W is on the bench.
     "pico2_w": {
         "target": "target/rp2350.cfg", "build": "build", "cores": ["rp2350.cm0", "rp2350.cm1"],
-        "reset": None,  # not yet worked out for the RP2350: no Pico 2 W on the bench
-        "step_status": None,
+        "reset": ["mww 0x400d801c 0", "mww 0x40018008 0x01fffff3", "mww 0x400d8000 0x80000000"],
+        "step_status": {"coarse": 0x40028018, "fine": 0x40028040},
     },
 }
 GPIO_STATUS_OUTTOPAD = 0x200

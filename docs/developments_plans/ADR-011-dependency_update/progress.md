@@ -208,3 +208,13 @@ Built 2026-11-14.
 - Stopping the diagnostic runs mid-charge left the simulated scale on, and `settings --compare` then showed `scale_config s0` as 9. With `sim off` every stored value was as after step 3's flash: the other agent's read changed nothing stored.
 
 **Step 3 passes.**
+
+## Step 4: small cleanups
+
+Built 2026-11-14. Nothing a user sees, so no soak: built, flashed once for the version, CI.
+
+- `scripts/gen_version.py` asks git in its own folder, inside the repository. A build in a folder outside the repository, which failed before, built and named its version from git (1.20.70 at 773eb16, before the step was committed).
+- `debug.sh`, `openocd_start.bat`, `openocd_start.sh`, `program.bat` and `program.sh` are removed (the owner's word at approval). Nothing outside the ADRs' records named them.
+- `.github/dependabot.yml`: the GitHub actions, monthly.
+- `AGENTS.md` was brought up to date with steps 1 to 3: `toolchain.env`, CI with no pin and its image a PC's but for paths, Linux in place of macOS, the soak's conditions.
+- Both boards build with the same 4 warnings inside u8g2. `flash`: the unit runs 1.20.71 at 78ce2e9, `VERDICT PASS`.
