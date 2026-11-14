@@ -26,6 +26,37 @@ static simulated_scale_state_t simulated_scale_state = SIM_SCALE_STATE_EMPTY_CUP
 static float simulated_powder_weight = 0.0f;
 static const float simulated_holder_weight = 150.0f; // grains
 
+// Faults the remote control puts in (ADR-013); written by the console's task, read by this one; never stored
+static volatile uint32_t simulated_scale_interval_ms = 100;     // sim rate: the time between readings
+static volatile bool simulated_scale_bad_pending = false;       // sim bad: the next reading is a frame that did not parse
+static volatile TickType_t simulated_scale_quiet_until = 0;     // sim quiet: nothing published before this tick
+static volatile bool simulated_scale_quiet = false;
+
+
+bool simulated_scale_set_rate(float per_second) {
+    if (!(per_second >= 1.0f && per_second <= 50.0f)) {
+        return false;
+    }
+    simulated_scale_interval_ms = (uint32_t) (1000.0f / per_second + 0.5f);
+    return true;
+}
+
+
+float simulated_scale_get_rate(void) {
+    return 1000.0f / (float) simulated_scale_interval_ms;
+}
+
+
+void simulated_scale_send_bad(void) {
+    simulated_scale_bad_pending = true;
+}
+
+
+void simulated_scale_go_quiet(uint32_t ms) {
+    simulated_scale_quiet_until = xTaskGetTickCount() + pdMS_TO_TICKS(ms);
+    simulated_scale_quiet = true;
+}
+
 static float get_current_trickler_flow_rate(void) {
     // Use absolute motor speed as proxy for flow.
     float coarse_rate = fabsf(coarse_trickler_motor_config.prev_velocity);
@@ -45,7 +76,6 @@ void simulated_scale_force_zero(void) {
 }
 
 void simulated_scale_read_loop_task(void *p) {
-    const TickType_t interval = pdMS_TO_TICKS(100);
     const float flow_threshold = 0.2f; // rps-adjusted threshold
     const uint32_t target_hold_ms = 3000;
     const uint32_t cup_removed_ms = 3000;
@@ -54,6 +84,10 @@ void simulated_scale_read_loop_task(void *p) {
     uint32_t time_in_removed_state_ms = 0;
 
     while (true) {
+        // The rate may change between readings (sim rate); the powder falls by the time that passed
+        const uint32_t interval_ms = simulated_scale_interval_ms;
+        const float interval_s = (float) interval_ms / 1000.0f;
+
         if (scale_config.persistent_config.scale_driver == SCALE_DRIVER_SIMULATED) {
             float flow_rate = get_current_trickler_flow_rate();
 
@@ -66,7 +100,7 @@ void simulated_scale_read_loop_task(void *p) {
 
             if (simulated_scale_state == SIM_SCALE_STATE_CHARGING) {
                 float target_weight = charge_mode_config.target_charge_weight;
-                float add_amount = flow_rate * 0.1f; // flow_rate is grains/sec, interval=0.1s
+                float add_amount = flow_rate * interval_s; // flow_rate is grains/sec
                 const float target_tolerance = 0.1f; // snap to target when within 0.1 grains
                 bool reached_target = false;
 
@@ -83,7 +117,7 @@ void simulated_scale_read_loop_task(void *p) {
                     }
 
                     if (reached_target) {
-                        target_reached_ms += 100;
+                        target_reached_ms += interval_ms;
                         if (target_reached_ms >= target_hold_ms) {
                             simulated_scale_state = SIM_SCALE_STATE_POST_CHARGE_WAIT;
                             target_reached_ms = 0;
@@ -113,7 +147,7 @@ void simulated_scale_read_loop_task(void *p) {
             }
             else if (simulated_scale_state == SIM_SCALE_STATE_POST_CHARGE_WAIT) {
                 simulated_scale_weight = simulated_powder_weight;
-                target_reached_ms += 100;
+                target_reached_ms += interval_ms;
 
                 if (target_reached_ms >= cup_removed_ms) {
                     simulated_scale_state = SIM_SCALE_STATE_CUP_REMOVED;
@@ -124,7 +158,7 @@ void simulated_scale_read_loop_task(void *p) {
             }
             else if (simulated_scale_state == SIM_SCALE_STATE_CUP_REMOVED) {
                 simulated_scale_weight = -simulated_holder_weight;
-                time_in_removed_state_ms += 100;
+                time_in_removed_state_ms += interval_ms;
                 if (time_in_removed_state_ms >= cup_removed_ms) {
                     simulated_scale_state = SIM_SCALE_STATE_CUP_EMPTY;
                     simulated_scale_weight = 0.0f;
@@ -142,14 +176,26 @@ void simulated_scale_read_loop_task(void *p) {
                 simulated_scale_weight = 0.0f;
             }
 
-            // Publish measurement
-            scale_config.current_scale_measurement = simulated_scale_weight;
-            if (scale_config.scale_measurement_ready) {
-                xSemaphoreGive(scale_config.scale_measurement_ready);
+            // sim quiet: the powder keeps falling, but nothing is published until the time is up
+            if (simulated_scale_quiet && (int32_t) (xTaskGetTickCount() - simulated_scale_quiet_until) >= 0) {
+                simulated_scale_quiet = false;
+            }
+
+            if (!simulated_scale_quiet) {
+                // Publish measurement. sim bad: a frame that did not parse, published as the drivers do today
+                float published = simulated_scale_weight;
+                if (simulated_scale_bad_pending) {
+                    simulated_scale_bad_pending = false;
+                    published = nanf("");
+                }
+                scale_config.current_scale_measurement = published;
+                if (scale_config.scale_measurement_ready) {
+                    xSemaphoreGive(scale_config.scale_measurement_ready);
+                }
             }
         }
 
-        vTaskDelay(interval);
+        vTaskDelay(pdMS_TO_TICKS(interval_ms));
     }
 }
 

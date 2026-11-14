@@ -96,6 +96,17 @@ void scale_tap_set(bool on);
 bool scale_tap_is_on(void);
 
 /**
+ * @brief Faults the remote control puts into the simulated scale (ADR-013); nothing is stored.
+ * simulated_scale_set_rate(): readings a second, 1 to 50 (100 ms between readings until set); false if out of range.
+ * simulated_scale_send_bad(): its next reading is a frame that did not parse, published as the drivers do.
+ * simulated_scale_go_quiet(): nothing published for that many ms; its powder keeps falling meanwhile.
+ */
+bool simulated_scale_set_rate(float per_second);
+float simulated_scale_get_rate(void);
+void simulated_scale_send_bad(void);
+void simulated_scale_go_quiet(uint32_t ms);
+
+/**
  * @brief Print one frame as "@sf <ms> <value> <bytes>" when the tap is on: the time since boot in ms, the value
  * the driver made of it, and the frame's bytes in hex. Does nothing when the tap is off.
  */
