@@ -341,6 +341,9 @@ static int http_cgi_paramcount;
 #define http_cgi_params     hs->params
 #define http_cgi_param_vals hs->param_vals
 #elif LWIP_HTTPD_CGI_SSI
+// The longest query a request may carry, its ending included (ADR-012; audit H1)
+#define HTTP_REST_MAX_QUERY_LEN 512
+
 static char *http_cgi_params[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Params extracted from the request URI */
 static char *http_cgi_param_vals[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Values for each extracted param */
 #endif /* LWIP_HTTPD_CGI */
@@ -2894,11 +2897,19 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
     path_copy[path_len] = '\0';
     decode_uri(decoded_path, path_copy);
 
-    char params_buf[LWIP_HTTPD_MAX_REQUEST_URI_LEN];
+    // Room for the longest form the pages send, the Wi-Fi name and key at three characters a byte included
+    // (ADR-012; audit H1). It was 128: the charge-mode form is longer, and was cut in the middle of a value.
+    // Not on the stack: the handlers run one at a time, in lwIP's thread.
+    static char params_buf[HTTP_REST_MAX_QUERY_LEN];
     if (query != NULL) {
-        strncpy(params_buf, query + 1, sizeof(params_buf) - 1);
-        params_buf[sizeof(params_buf) - 1] = '\0';
-        params = params_buf;
+        if (strlen(query + 1) < sizeof(params_buf)) {
+            strcpy(params_buf, query + 1);
+            params = params_buf;
+        }
+        else {
+            // Longer still: refused whole. A form cut short would change settings to values nobody sent
+            printf("HTTP: a query of %u characters is refused\n", (unsigned) strlen(query + 1));
+        }
     }
 
     // Look for handler

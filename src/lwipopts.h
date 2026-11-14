@@ -32,6 +32,9 @@
 #define LWIP_HTTPD_DYNAMIC_FILE_READ    0
 #define LWIP_HTTPD_DYNAMIC_HEADERS      0
 #define LWIP_HTTPD_MAX_REQUEST_URI_LEN  128
+// lwIP takes 16 values from a request and drops the rest. The charge-mode page sends 17, and its last is "save to
+// EEPROM" (ADR-012; audit H2)
+#define LWIP_HTTPD_MAX_CGI_PARAMETERS   32
 #define LWIP_HTTPD_DYNAMIC_HEADERS      0
 #define LWIP_SOCKETS 1
 
