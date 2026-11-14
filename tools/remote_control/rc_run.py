@@ -495,16 +495,19 @@ class Openocd:
 class Console:
     """The unit's console, through openocd's RTT server."""
 
-    def __init__(self, log, failures):
+    def __init__(self, log, failures, recover_link=None):
         """
         Connect to the RTT server and start reading lines.
 
         Args:
             log: the SessionLog.
             failures: the run's list of failure reasons, appended to when a line shows one.
+            recover_link: called when a reply is late; returns True when it found the probe's link lost and
+                started RTT again, so the reply can still come.
         """
         self.log = log
         self.failures = failures
+        self.recover_link = recover_link
         self.expect_fault = False   # set while a test build is meant to assert: its line is then not a failure
         self.lines = queue.Queue()
         self.sock = socket.create_connection(("127.0.0.1", RTT_PORT), timeout=10)
@@ -534,13 +537,15 @@ class Console:
         while not self.lines.empty():
             self.lines.get_nowait()
 
-    def command(self, line, timeout=REPLY_TIMEOUT_S):
+    def command(self, line, timeout=REPLY_TIMEOUT_S, recover=True):
         """
-        Send one command line and wait for its reply.
+        Send one command line and wait for its reply. When the reply is late because the probe's link dropped,
+        RTT is started again once and the wait starts over; the line is not sent again, since the unit got it.
 
         Args:
             line: the command line.
             timeout: seconds to wait.
+            recover: False while a restart is awaited, when RTT failing is expected.
 
         Returns:
             The reply line, or None if none came in time.
@@ -551,14 +556,19 @@ class Console:
         self.log.write("rc", f"> {line}")
         self.sock.sendall(line.encode() + b"\n")
         deadline = time.monotonic() + timeout
+        recovered = False
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                if recover and not recovered and self.recover_link is not None and self.recover_link():
+                    recovered = True
+                    deadline = time.monotonic() + timeout
+                    continue
                 return None
             try:
                 reply = self.lines.get(timeout=remaining)
             except queue.Empty:
-                return None
+                continue
             if reply.startswith(f"@ok {name}") or reply.startswith("@err"):
                 return reply
             if reply.startswith("@") and not reply.startswith("@hello"):
@@ -580,7 +590,29 @@ class Session:
         self.log.write("rc", f"board {args.board}, elf {self.elf}")
         self.openocd = Openocd(self.board, self.log)
         self.openocd.rtt_start(self.elf)
-        self.console = Console(self.log, self.failures)
+        self.link_drops = 0
+        self.link_seen = len(self.openocd.output)   # openocd's lines already looked at for a dropped link
+        self.console = Console(self.log, self.failures, self.recover_link)
+
+    def recover_link(self):
+        """
+        A reply is late. If openocd has said since the last look that it could not read RTT, the probe's link
+        dropped while the chip ran (seen once on the bench, mid-soak, with no reset): start RTT again so the
+        reply waiting in the unit's buffer comes through. Counted and reported, not judged: a unit that really
+        stopped answering still fails, because no reply comes after it either.
+
+        Returns:
+            True when RTT was started again.
+        """
+        new = self.openocd.output[self.link_seen:]
+        self.link_seen = len(self.openocd.output)
+        if not any("rtt: Failed" in line for line in new):
+            return False
+        self.link_drops += 1
+        self.log.write("rc", f"the probe's link dropped (openocd could not read RTT): RTT started again, "
+                             f"drop {self.link_drops}")
+        self.openocd.rtt_start(self.elf)
+        return True
 
     def fail(self, reason):
         self.log.write("rc", f"FAIL {reason}")
@@ -625,14 +657,17 @@ class Session:
         """
         self.last_up = None
         deadline = time.monotonic() + CONSOLE_TIMEOUT_S
-        while time.monotonic() < deadline:
-            self.openocd.rtt_start(self.elf)
-            reply = self.console.command("state", timeout=1.0)
-            if reply is not None:
-                self.check_up(reply)
-                return reply
-        self.fail(f"the console did not answer within {CONSOLE_TIMEOUT_S:.0f} s of a restart")
-        return None
+        try:
+            while time.monotonic() < deadline:
+                self.openocd.rtt_start(self.elf)
+                reply = self.console.command("state", timeout=1.0, recover=False)
+                if reply is not None:
+                    self.check_up(reply)
+                    return reply
+            self.fail(f"the console did not answer within {CONSOLE_TIMEOUT_S:.0f} s of a restart")
+            return None
+        finally:
+            self.link_seen = len(self.openocd.output)   # RTT failing across a restart is not a dropped link
 
     def flash(self, elf=None):
         """
@@ -1047,6 +1082,9 @@ class Session:
         """
         for core in self.openocd.halted_cores(self.elf):
             self.fail(f"core not running: {core}")
+        if self.link_drops:
+            self.log.write("rc", f"the probe's link dropped {self.link_drops} times and RTT was started again; "
+                                 "reported, not judged")
         self.console.close()
         self.openocd.close()
         if self.failures:
