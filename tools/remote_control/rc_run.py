@@ -86,7 +86,11 @@ TCL_TERMINATOR = b"\x1a"
 RTT_SEARCH_SIZE = 0x400     # bytes searched for the control block, from the address the ELF gives
 RTT_POLL_MS = 10            # how often openocd reads the RTT buffers (its default is 100 ms)
 
-SNAP_TRIES = 4              # snaps taken until two in a row are equal
+# Snaps taken until two in a row are equal. The console copies the screen's buffer with no lock while a task may
+# be drawing into it, so a copy can catch a frame half drawn. The menu draws on a change; the charge's screen
+# redraws every 20 ms, and 4 tries were not always enough there (ADR-013). The firmware's display lock, which no
+# drawing task takes, is the real cure (the screens' ADR).
+SNAP_TRIES = 10
 PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
 MENU_TOUR_IDS = range(1, 100)
 # Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
