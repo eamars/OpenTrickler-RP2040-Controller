@@ -341,9 +341,6 @@ static int http_cgi_paramcount;
 #define http_cgi_params     hs->params
 #define http_cgi_param_vals hs->param_vals
 #elif LWIP_HTTPD_CGI_SSI
-// The longest query a request may carry, its ending included (ADR-012; audit H1)
-#define HTTP_REST_MAX_QUERY_LEN 512
-
 static char *http_cgi_params[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Params extracted from the request URI */
 static char *http_cgi_param_vals[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Values for each extracted param */
 #endif /* LWIP_HTTPD_CGI */
@@ -2880,6 +2877,9 @@ static void decode_uri_inplace(char *str) {
     *dst = '\0';
 }
 
+
+// The longest query a request may carry, its ending included (ADR-012; audit H1)
+#define HTTP_REST_MAX_QUERY_LEN 512
 
 static err_t http_find_file(struct http_state * hs, const char * uri, int is_09) {
     struct fs_file * file = NULL;
