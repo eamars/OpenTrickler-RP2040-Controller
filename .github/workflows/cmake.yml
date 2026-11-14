@@ -53,7 +53,7 @@ jobs:
       run: python3 tools/size_report.py build_pico2_w/app.elf.map --bin build_pico2_w/app.bin --title "Pico 2 W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
 
     - name: Archive Debug Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with: 
         name: pico2_w_package
         path: |
@@ -77,7 +77,7 @@ jobs:
       run: python3 tools/size_report.py build_pico_w/app.elf.map --bin build_pico_w/app.bin --title "Pico W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
 
     - name: Archive Debug Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with: 
         name: pico_w_package
         path: |
