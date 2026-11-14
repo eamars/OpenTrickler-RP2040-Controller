@@ -49,3 +49,39 @@ What was built and measured. The plan is in the [README](README.md). Logs are ke
 **Left for step 1**
 - The Pico W: the same proofs.
 - A module lifted by hand with the power off, then a start: the unit must reach the menu. `lose` shows the modes' refusal and the driver found again, not the start itself.
+
+## Step 2: step pulses that stop by themselves
+
+2026-11-15, on the Pico 2 W, the hopper empty. The Pico W is still to do, with step 1's.
+
+**What was built** (commit 9c46945; the image 1.20.115)
+- `stepper.pio`, the stepper program: a segment is three words, the steps to make and the counts for the time STEP is high and low. The state machine makes those steps and comes back for the next segment; with nothing to pull it waits with STEP low. No step is made that was not fed. A period is `high + low + 5` clock cycles, one cycle fine, and up to 2^32 cycles long.
+- `stepper.pio`, the counter program: a second state machine counts the falling edges on the STEP pin. It found room on both chips beside the LEDs' two and the radio's one.
+- `step_pulses.c`: the rate asked for is fed 2 ms at a time, and only when nothing waits in the FIFO, so two segments at most are ahead of the pin: a new rate is on the pin within 4 ms, and pulses that are no longer fed stop within 4 ms. The period is worked out from the chip's clock at each feed. A rate of zero drops what waits and stops at the next feed.
+- `motors.c`: a task of its own, priority 10, feeds every tick. The old ramps hand it a rate in steps a second. A direction is changed 3 ms after the speed is set to zero.
+- `fault_handler.c`: `isr_hardfault`, which the SDK leaves weak. It stops the step pulses' state machines, holds the STEP pins low and switches the drivers off, by register writes alone, and then stops at a breakpoint as the SDK's own handler does.
+- The console: `motor` alone gives the steps counted on each pin, the steps fed, the feeds that came late and the rate last fed, with the unit's clock.
+- `rc_run.py pulses`: the hard fault is judged, not only reported; a pin high between 10% and 90% of the samples is pulsing.
+
+**Two things found while building it**
+- **One core's hard fault does not stop the other.** The feed is a task; with one core in its fault handler the other can go on running it. Pulses that stop when they are not fed are therefore not enough for a hard fault on their own, and the handler stops the motors itself. With the probe connected both cores halt, so on the bench both mechanisms act; the handler's own part was not shown apart from the other.
+- **A short STEP pulse cannot be seen through the probe.** The first program held STEP high for 16 cycles of each period, 0.4% of the time at 1 rev/s, and `pulses` took the motor as stopped. The two halves are now equal: a running motor's STEP pin is high half the time, which the probe samples as 48% to 52% and a multimeter reads as half the supply.
+
+**What the unit showed**
+
+| Proof | Result |
+|---|---|
+| Speed, coarse at 2 rev/s (81,920 steps a second asked) | 1,699,042 steps counted on the pin in 20.739979 s of the unit's clock: 81,921.1 a second, 0.001% over. The first program gave 81,921.6 over 20.76 s |
+| Steps made against steps fed | While turning, the count on the pin is behind the count fed by what is ahead of the pin, 170 to 240 steps at this speed. After a stop it is short by the steps of the segment the stop cut: 5 and 6 here |
+| A slow speed | Fine at 0.02 rev/s: 486.4 steps a second, a period of 2 ms. It turns; the old code took anything under 100 steps a second as a stop |
+| Reverse | Fine at -3 rev/s, then +3, then 0: the counts follow, no late feed |
+| Reading the counter | Ten readings with the motors still: the count does not move. An instruction put into a state machine that waits on a pin does not carry it past the wait |
+| Late feeds | None: in 20 s at 2 rev/s, and in a whole `charge_cycle` with the unit on Wi-Fi |
+| `pulses` | The pulses stop on a reset through the probe, on an assert and on a hard fault. `VERDICT PASS` |
+| `charge_cycle` | Passed, 14.5 s from charging to the cup prompt (14.5 s before the ADR) |
+| `menu_tour --compare` | Passed |
+| The Pico W | Builds, without a warning of ours. Not on the probe yet |
+
+**Not done in this step, and why**
+- The steps of a segment cut by a stop are fed and not made. The count on the pin is the true one, and is what `motor` reports as made.
+- The first step after a segment has 5 cycles more of low: 33 ns in 2 ms.
