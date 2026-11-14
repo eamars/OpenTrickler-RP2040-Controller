@@ -174,9 +174,63 @@ Each finding was read again in the code first: all six were as the audit said. O
 
 **The audit's other findings** are written, in words, into ADR-003, 004, 005, 006, 009 and 010, each under "Handed on by ADR-012".
 
+## The Pico W
+
+2026-11-15, 11:25 to 12:20, the bench's Pico W (RP2040, its own board and settings), the hopper empty. No scale sent to it (`weight=inf`): the A&D was on the other unit. The simulated scale for every charge.
+
+**Before anything was changed** (image 1.20.95 at 9d9b790, ADR-013's)
+- The unit's settings copied: `logs/adr012/picow/settings_before/`. Its two motors had 800 mA stored.
+- `charge_cycle` passed, 17.0 s from charging to the cup prompt.
+- Its address had changed (DHCP): 192.168.2.162, read from its Wi-Fi screen. `rc_run` looks for the console's block where the ELF names it, so the image already on a unit is read with the ELF of that image; with none at hand, the block was searched in all of RAM by a wrapper on this PC. The tool is unchanged.
+
+**This ADR's image** (1.20.131 at c919ece; 662.5 KB of flash and 198.6 KB of RAM at link time, 8.9 KB and 1.2 KB more than ADR-013's Pico W image)
+
+| Proof | Result |
+|---|---|
+| `flash` | Passed. "stored current 800 mA converted to 380 mA RMS" for both motors, once: not again on the 40 restarts after it, nor on the six flashes of this ADR's images after it |
+| `tmc coarse`, `tmc fine` | As on the Pico 2 W: `GCONF 000001c0`, `CHOPCONF 10028103`, `PWMCONF c80d0e24`, version 33, `ms1` on the fine driver only |
+| The current | 380 mA asked, 367 mA given: `irun=11`, hold 5. Standing, `cs_actual=5` |
+| 40 restarts, the drivers powered | No driver error, no write retried. One read was tried twice, once (restart 36, the fine driver). `logs/adr012/picow/restarts_40.log` |
+| The write count's wrap | `tmc coarse setup 60` and `tmc fine setup 60`: 549 checked writes to each, none retried; one read tried twice on each |
+| Speed, coarse at 2 rev/s (81,920 steps a second asked) | 1,703,850 steps counted on the pin in 20.801 s of the unit's clock: 81,911.9 a second, 0.01% under. The rate fed is 81,913.5: a period of 1,526 cycles at 125 MHz |
+| A slow speed | Fine at 0.02 rev/s: 563.18 steps a second counted, 563.26 asked |
+| Reverse | Fine at -3 rev/s, then +3, then 0: the counts follow, no late feed |
+| A driver lost during a charge | `tmc fine lose` and at once `charge 30`: the charge started, since the driver was not yet found gone, and after three readings "Motor driver 1: no answer to 3 readings in a row", "Charge: ended, No fine driver" |
+| A driver found absent, then a charge | "Charge: not started, No fine driver"; a press goes back to the menu. After `find`, `charge_cycle` set the driver up on its own and passed |
+| A short during a charge | `tmc coarse fault short` at 16.7: "Charge: ended, Coarse driver short", both motors at 0, `drivers=short,ok`. The next `charge 30`: "Charge: not started, Coarse driver short" |
+| A setting applied when it changes | `m3=16` over the web: `mres=4` at once, `motor coarse 1` at 2,560.01 steps a second (2,560 asked). Put back to 256 |
+| `pulses` | The pulses stop on a reset through the probe, on an assert and on a hard fault. `VERDICT PASS`. In ADR-011 they ran on after a hard fault on this chip |
+| `charge_fault none`, `bad`, `quiet` | ADR-013's proofs pass as before |
+| `menu_tour --compare` | Passed; form 36, the version, reported and not judged |
+| `charge_cycle` | Passed, 16.8 s and 17.1 s from charging to the cup prompt (17.0 s before the ADR) |
+| `settings --compare` | Only the two currents differ: 800 became 380. The copy after: `logs/adr012/picow/settings_after/` |
+| The charge-mode form (H1, H2) | The page's 17 values with `c16=0.9` and "save": every value taken, and stored after a restart. Put back to 1.0 |
+| The Generic scale's zero (S1) | Chosen in RAM, zero over the web: the reply comes and the unit lives. The A&D put back |
+| The cleanup screen's weight (M5) | `sim weight -1543.24` and `123456.789`: the weight line drawn whole. `snap` found no two copies of the screen equal in 10 tries, and the web's mirror caught it mid-redraw too: this chip draws slower than the RP2350, and nothing locks the screen while it is copied (ADR-013 found the same) |
+| A Wi-Fi name of 32 characters, a key of 64 (W2) | Both refused, the reply unchanged and without a key |
+
+**The soak: the web loses more, and the cause is step 5's 32 bytes.** Every charge passed in every run, `heap_free` held (95,264 throughout), no restart. The web is another matter:
+- `soak 600` (11:38): 306 of 1,558 reads missed, 19.6%, in runs of up to 9, and 27 connections reset by the unit. The Pico W lost 6.0% to 7.0% in ADR-011's soaks, the Pico 2 W 4.5% on this ADR's image.
+- Soaks of 300 s in turn then told the day's Wi-Fi apart from the image. The image before this ADR was 1.20.84, ADR-013's code before its fixes, kept in `logs/adr013/before_fix/pico_w/`: the same server.
+
+| From | Image | Web reads missed | Longest run | Connections reset by the unit |
+|---|---|---|---|---|
+| 11:51 | Before this ADR (1.20.84) | 10.1% | 4 | 0 |
+| 11:57 | This ADR (1.20.131) | 15.2% | 12 | 23 |
+| 12:04 | This ADR, a request's values static (tried, not kept) | 4.7% | 2 | 0 |
+| 12:12 | This ADR | 6.9% | 7 | 4 |
+
+- The Wi-Fi was poor until about noon and better after, so images compare only beside each other. Only this ADR's image resets connections, in every run, and most when the Wi-Fi is poor.
+- The cause: a request may carry 20 values since step 5, and every connection's state holds room for them, 32 bytes more out of lwIP's 4,000-byte heap. A connection whose state does not fit is refused, and a client sees a reset. A poor Wi-Fi keeps connections open longer, so more of them share the heap. The values are used only while their request is handled; with them kept static, none is held per connection, and the resets were gone.
+- That fix is the web server's, so it is not built here: it is written, with these runs, into ADR-003 (the owner, 2026-11-15: web server changes belong to the web server's ADR). This ADR's image keeps the cost until then.
+
+**Seen on the way: the old firmware stopped at its start, as fault 9 says.** The second flash of 1.20.84 (12:09) never reached its console or the Wi-Fi: core 1 still in the boot ROM, core 0 in a timer's busy wait. That is the old `handle_motor_init_error`: a driver error at start is a loop for ever, before the scheduler, blinking the LEDs by busy waits. Which error it showed was not seen. The drivers had been powered through some 50 starts by then and their write counts had wrapped several times, so fault 7's check, which does not allow for the wrap, is the likely one. The flash of this ADR's image after it started at once.
+
+**Left on the Pico W:** the two proofs that need a real scale sending: `scale_frames --handovers 30` (no frame stitched from two) and a ramp to full speed with the scale read (the readings keep their pace).
+
 ## Where it stands
 
-2026-11-15. All five steps are built. The Pico 2 W runs the last image, 1.20.130 at 8b8395d, and on it:
+2026-11-15. All five steps are built. Both units run the last image of the branch (the Pico W 1.20.131 at c919ece; the Pico 2 W 1.20.130 at 8b8395d, the same code but for documents). On the Pico 2 W:
 
 | Proof | Result |
 |---|---|
@@ -186,10 +240,12 @@ Each finding was read again in the code first: all six were as the audit said. O
 | `menu_tour --compare` | Passed; no screen changed in this ADR |
 | `charge_cycle` | Passed, 14.5 s from charging to the cup prompt, as before the ADR |
 | `settings --compare` | The unit's settings are as before the ADR, but for the two currents: 500 became 240, once |
-| The Pico W | Builds without a warning of ours: 679,296 bytes of flash, 205,676 of RAM at link time |
+
+On the Pico W every proof above passes but the soak, which fails on the web alone: this ADR's image misses more of the web's reads than the one before it, and resets connections, most when the Wi-Fi is poor ("The Pico W" above). The cause is step 5's room for 20 values in each connection's state; the fix is ADR-003's.
 
 **Left before the ADR can close**
-- **The Pico W:** every proof above, on the other unit. It needs the owner to put it on the probe.
+- **The owner's word on the web:** close with the Pico W's web as it is, its fix written into ADR-003, or not.
+- **The Pico W with the A&D sending:** `scale_frames --handovers 30`, and a ramp to full speed with the scale read. It needs the owner to connect the A&D to it.
 - **By the owner's hand:**
   - a driver module lifted with the power off, then a start: the unit must reach the menu and name the driver;
   - a phone on the unit's access point: the unit's page must open by its name (W1);
