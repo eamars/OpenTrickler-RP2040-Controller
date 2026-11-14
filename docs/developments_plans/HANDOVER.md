@@ -52,7 +52,6 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 - **ADR-012, fault 7:** whether its one-line fix goes in early, since ADR-001's bench restarts a unit without cutting power.
 - **ADR-011:** SDK 2.3.1 or 2.2.0; whether CI moves to Arm's compiler; the 2023 debug scripts.
 - **ADR-001:**
-  - whether the PIO-header fix (F7) goes to main on its own now, since CI's Pico W image has the fault;
   - the owner's check by hand for step 3 (the probe's USB out, the unit starts, a charge by hand);
   - whether step 5 uses main's simulated scale (F2);
   - whether that scale, selectable and stored by any user, needs a guard;
