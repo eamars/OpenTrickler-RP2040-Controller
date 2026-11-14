@@ -11,9 +11,17 @@ void _generic_scale_listener_task(void *p);
 void _generic_scale_init(void *self);
 
 
+/*
+    The Generic driver knows no zero command for its scale: asked to zero, it does nothing. It had no function at
+    all, and its three callers call it unchecked: a zero press jumped to address 0 (ADR-012; audit S1).
+*/
+static void _generic_scale_force_zero(void) {
+}
+
+
 scale_handle_t generic_scale_drv_handle = {
     .read_loop_task = _generic_scale_listener_task,
-    .force_zero = NULL,
+    .force_zero = _generic_scale_force_zero,
 };
 extern scale_config_t scale_config;
 
