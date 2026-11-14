@@ -27,27 +27,27 @@ $Parts = @(
         Probe = 'bin\arm-none-eabi-gcc.exe'
     },
     @{
-        Name = 'CMake 3.31.5, about 44 MB'
-        Url = 'https://github.com/Kitware/CMake/releases/download/v3.31.5/cmake-3.31.5-windows-x86_64.zip'
-        Dest = 'cmake\v3.31.5'
+        Name = 'CMake 4.3.4'
+        Url = 'https://github.com/Kitware/CMake/releases/download/v4.3.4/cmake-4.3.4-windows-x86_64.zip'
+        Dest = 'cmake\v4.3.4'
         Probe = 'bin\cmake.exe'
     },
     @{
-        Name = 'Ninja 1.12.1'
-        Url = 'https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip'
-        Dest = 'ninja\v1.12.1'
+        Name = 'Ninja 1.13.2'
+        Url = 'https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-win.zip'
+        Dest = 'ninja\v1.13.2'
         Probe = 'ninja.exe'
     },
     @{
-        Name = 'picotool 2.1.1'
-        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.1.1-3/picotool-2.1.1-x64-win.zip'
-        Dest = 'picotool\2.1.1'
+        Name = 'picotool 2.3.1'
+        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.3.1-0/picotool-2.3.1-x64-win.zip'
+        Dest = 'picotool\2.3.1'
         Probe = 'picotool\picotool.exe'
     },
     @{
-        Name = 'pioasm 2.1.1 (pico-sdk-tools)'
-        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.1.1-3/pico-sdk-tools-2.1.1-x64-win.zip'
-        Dest = 'tools\2.1.1'
+        Name = 'pioasm 2.3.1 (pico-sdk-tools)'
+        Url = 'https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.3.1-0/pico-sdk-tools-2.3.1-x64-win.zip'
+        Dest = 'tools\2.3.1'
         Probe = 'pioasm\pioasm.exe'
     },
     @{
