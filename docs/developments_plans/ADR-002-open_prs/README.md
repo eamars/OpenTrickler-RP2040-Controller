@@ -76,6 +76,7 @@ An earlier direction, "community PRs land before the restructure (ADR-006)", was
 - The result is infinite, or not a number. The line after it holds the speed between the profile's minimum and maximum, and that turns either into the maximum. So the motors' refusal of a speed that is not a number (ADR-012) never sees it.
 - What that costs at a throw's start, with the default profile and a 30 gr target: the coarse trickler is asked for 5 rev/s where its P term asks for 0.625 (0.025 × 25 gr), until the next reading. The fine trickler's P term is at its maximum there anyway.
 - #113's fix is 18 lines in `charge_mode.cpp` and stands alone: no D term on a throw's first reading, nor when no time has passed.
+- **Seen on the unit since** (2026-11-15, [progress](progress.md)): the fault is there in every throw, but smaller than this reading of the code said. The time was never 0 ms; the first reading's D term gave the coarse trickler up to 1.875 rev/s, not its 5.
 
 **#111 and the flash**
 - It brings a new flash layout. A unit gets a new layout only by cable; every later change to the layout costs every user another update by cable.
