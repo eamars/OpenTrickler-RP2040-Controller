@@ -1,6 +1,6 @@
 # ADR-002: the open PRs, a decision for each
 
-Status: **Draft** 2026-11-13, rewritten 2026-11-15 to the owner's policy of that day. Not approved. Reading and talking need no bench; the one change to the firmware (step 1) needs it.
+Status: **Decided** 2026-11-15: approved by the owner as written ("Approve as written"), with both proposals under "Settled at approval". Drafted 2026-11-13 and rewritten 2026-11-15 to the owner's policy of that day. Reading and talking need no bench; the one change to the firmware (step 1) needs it.
 
 ## What we want
 
@@ -153,7 +153,7 @@ Nothing else in this ADR reaches a unit.
 - Reading #113 and #111 whole. Their ADRs do that when their turn comes, against their own design.
 - The charge profile itself.
 
-## To settle before approval
+## Settled at approval (2026-11-15)
 
-- **The charge profile.** The idea is written nowhere but here. Proposed: a short Draft ADR of its own (ADR-014) that holds the idea as the owner gave it, so #109's note has something to point to. Where it sits in the order is the owner's; a first view is after ADR-006, which changes how settings are stored, so that profiles are migrated once.
-- **The D-term fix here, or in ADR-009.** It is part of a PR, which makes it this ADR's; it changes the charge loop, which is ADR-009's area. Proposed: here, since users have the fault today and ADR-009 is far.
+- **The charge profile** gets a short Draft ADR of its own, ADR-014, that holds the idea as the owner gave it, so #109's note has something to point to. It sits after ADR-006, which changes how settings are stored, so that profiles are migrated once.
+- **The D-term fix is taken here,** not left to ADR-009: it is part of a PR, users have the fault today, and ADR-009 is far.

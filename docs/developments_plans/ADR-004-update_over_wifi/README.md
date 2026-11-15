@@ -47,6 +47,13 @@ It changes the flash layout, which costs every user one update by cable. Do that
 **Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Read a second time. Nothing here was tried on a unit unless it says so.
 - **A unit that starts before its router stays off Wi-Fi.** It tries to join once, at start-up; when that fails it becomes its own access point and stays one until it is restarted. Nothing joins again (`wireless.c`). An update over Wi-Fi needs a unit that is on Wi-Fi.
 
+**Handed on by ADR-002** (2026-11-15)
+- **PR #111 is open and ends here,** with a comment on it that says so. This ADR settles its layout on its own first. Then the PR ends one of three ways: this ADR's branch starts from its head and it is merged with the ADR; or parts are taken in commits that carry a `Co-authored-by:` line and it is closed with a note that names them; or it is closed with thanks.
+- **Nothing of it is merged before.** The owner's first word was to merge it and discard much of it later. Code in the tree can be discarded; a layout on users' units cannot, and each time it moves costs every user an update by cable.
+- **Against main at 1e50b28** it conflicts in `.gitignore`, `configure_env.ps1`, `charge_mode.cpp` and `menu.c`. Its `CLAUDE.md` is not taken.
+- **Its author** wrote on 2026-07-14 that a Pico 2 W was ordered to test with. The owner's question on the PR, whether the Pico W has the room and whether dropping it is acceptable, is still open there.
+- **PR #44 and PR #28 are closed,** pointing here.
+
 ## Ideas
 
 **One update interface, the flash part behind it.**
@@ -88,6 +95,6 @@ First view: #111's design on both, tried on the Pico 2 W first. One design is le
 
 ## To settle before approval
 
-- ADR-002's verdict on PR #111: merged after changes, or rebuilt from its design.
+- How PR #111 ends, once the layout is settled: merged from its head, taken in parts with credit, or closed ("Handed on by ADR-002").
 - The flash part on the RP chips: which of the three ways, after the trial on the Pico 2 W.
 - Whether an older version may be installed over a newer one.

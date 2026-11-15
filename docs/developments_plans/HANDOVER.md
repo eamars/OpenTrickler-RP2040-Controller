@@ -8,9 +8,9 @@ First written at the end of a session that stopped early; brought up to date 202
 - **ADR-011:** Built and closed 2026-11-15: SDK 2.3.1, FreeRTOS V11.3.3 from upstream, Arm's 15.2.Rel1, every version in `toolchain.env`, CI on `ubuntu-latest` with no pin. Proven on the Pico W and the Pico 2 W. The owner waived the end checks by hand and accepted the Pico 2 W's web soak as it stood; ADR-003 carries that finding. Merged by PR #119.
 - **ADR-013:** Built and closed 2026-11-15: one door for a reading (a bad frame is dropped and counted), a missing reading pauses the tricklers and a lost scale ends the charge, by the scale's own rhythm, and the web's cleanup speed only in cleanup mode. Proven on both units. A bad frame did opposite wrong things on the two chips before it: full speed on the RP2350, a short throw on the RP2040. Reviewed and merged by the owner, PR #124.
 - **ADR-012:** Built and closed 2026-11-15, in its branch `adr012_motor_drivers`, pushed for its PR: our own TMC2209 driver on Klipper's model, step pulses that stop when they are not fed, one motor task, the drivers read while running, the audit's small fixes, and a driver's fault shown before a mode is entered (step 6, the owner's "fail early"). Proven on both units. Handed on: the Pico W's web cost from step 5 (20 values a request, 32 bytes more of lwIP's heap a connection) and its measured fix to ADR-003, accepted by the owner; the real throws to ADR-009, its first recorded throws (the owner). Its fault 7 very likely caused ADR-011's two silent starts; the old firmware stopped at its start once more on 2026-11-15.
-- **Next: ADR-002**, which holds the merge strategy discussed on 2026-11-14 as a proposal. PRs #109 and #113 merge into ADR-012's branch without a conflict (tested 2026-11-15).
+- **ADR-002:** Decided 2026-11-15, in its branch `adr002_open_prs`, rewritten that day to the owner's policy: a PR ends in the ADR of its subject, after that ADR's own design. Its progress.md says what is done.
 - **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
-- **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 007, 008, 009, 010. An ADR's number is its name and does not change.
+- **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 014, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** two units, one on the probe at a time (see `AGENTS.md`, "The bench"):
   - the Pico W runs ADR-012's 1.20.137 at 7838689 (the branch's code but for one state's number); its web API at 192.168.2.162, by DHCP;
   - the Pico 2 W, on a controller board and settings of its own, runs ADR-012's last, 1.20.140 at 945dfe6, and is the one on the probe, with the A&D connected to it; its web API at 192.168.2.167. Copies of its settings from before are in `logs/adr011/pico2w/`, `logs/adr013/pico2w/` and `logs/adr012/pico2w/`.
@@ -63,4 +63,4 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 - **Earlier questions still open:**
   - whether anything but the built-in pages calls the REST API;
   - the tier rules 2 to 5 (ADR-005);
-  - the PR verdicts (ADR-002), with closing PR #46 and issue #45.
+  - ~~the PR verdicts (ADR-002), with closing PR #46 and issue #45.~~ ADR-002 was approved 2026-11-15: what happens to each PR is in it, and each close and each note waits for the owner's word.

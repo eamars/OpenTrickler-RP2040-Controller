@@ -12,7 +12,7 @@ Status: **Draft** 2026-11-13. Not approved. Captures how the charge is controlle
 ## Owner's direction (2026-11-13)
 
 - Implement better control tuning and a testing function.
-- PRs are not merged as they stand. Two of them are about tuning (#113, #101); what is kept of them comes from ADR-002.
+- PRs are not merged as they stand. Two of them are about tuning (#113, #101). Since 2026-11-15 nothing is kept of them ahead of this ADR's design ("Handed on by ADR-002").
 
 ## Why here
 
@@ -70,6 +70,27 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 - "The gate is in use" is read from two different fields by cleanup mode and by charge mode: the menu's "Disable" does not stop charge mode from driving it.
 - Charge mode writes weights into 8 bytes with no length, as the cleanup screen did. `weight_to_string` (ADR-012) writes with one.
 
+**Handed on by ADR-002** (2026-11-15). What is said of PR #113 is from its file list, its includes and its charge loop; of PR #101, from its header. Neither was read whole: this ADR reads them, against its own design.
+- **The design comes first, without the PRs** (the owner: "I'd keep your judgement independently from the influence of PRs"). The controller, its recordings and the tuning are designed here as if no PR existed. Then #113 ends one of three ways: this ADR's branch starts from its head and it is merged with the ADR; or parts are taken in commits that carry a `Co-authored-by:` line and it is closed with a note that names them; or it is closed with thanks.
+- **This ADR is not brought forward for #113** (the owner, 2026-11-15: the order of the ADRs stays).
+- **PR #113 is open,** with a comment that says it is decided here. Its author is a first contributor, whom the owner wants encouraged.
+- **Its candidates,** the three parts with no hardware in them (they include only the C library and each other):
+  - the tuner: `src/powder_analysis_tuner.cpp` (750 lines) and `.h` (263), `src/powder_analysis_config.h` (207). It hands out the next trial's settings and takes the trial's result;
+  - its tests on a PC: `tests/powder_analysis/test_powder_analysis_tuner.cpp` (1,318 lines), with a Makefile that calls the PC's own `c++`. CI has no compiler for a PC that `toolchain.env` names (ADR-011); "the PC tests in CI" needs one;
+  - a simulated powder: `tests/powder_analysis/simulated_powder.cpp` and `.h` (168 lines). "Tests on the PC" above already names it as one of two starts.
+- **What its author says is missing:** the thresholds are global and not per profile, fine Kd is not tuned, only stick powders were measured, only an A&D scale was tried.
+- **Not taken, whatever this ADR decides:**
+  - its charge loop, a copy of charge mode's inside `src/powder_analysis.cpp` (2,326 lines). The copy has neither ADR-013's pause on a missing reading (it waits again with the motors at their last speed, until its own 30 s limit for a trial) nor ADR-012's end on a driver's fault. One loop moves the tricklers: this ADR's controller;
+  - its u8g2 screens (ADR-010 builds screens), its page on today's server (ADR-008, ADR-003), and the tools that draw those screens on a PC.
+- **Read it with care.** Its second commit is "Remove concept files created by the ai", and the owner takes much of it to be an agent's work. Whether its tests test what the tuner should do, or only what it does, is for the reading.
+- **The D-term fix is ADR-002's** (its step 1): #113's 18 lines in `charge_mode.cpp`, taken with credit if the unit shows the fault. ADR-002's progress says how it ended; "The faults fixed one at a time" below then starts without it, or with it as a finding.
+- **PR #101 is closed.** Its tuning, as its header gives it (`src/ai_tuning.h` on the PR's branch):
+  - two phases, the coarse trickler alone and then the fine one, each throw judged by its overthrow and its times;
+  - a search that halves its step, for Kp and then for Kd, inside set limits;
+  - the last 50 ordinary charges kept in flash, and new gains suggested from them with no tuning run;
+  - a learned allowance, in grains, for a scale that reports late. That is "stopping early by the amount known to still fall" above, and the scale that is "on time but late".
+- **Both PRs cut at the same place:** "give me the next trial's settings" and "here is the trial's result". Two authors who did not share code arrived at that seam between a tuner and what runs a throw.
+
 ## Ideas
 
 **The controller as a module.** Readings and times in; two speeds and the gate's position out. No FreeRTOS, no motors, no screen in it. Charge mode keeps the states, the buttons and the LEDs, and calls it.
@@ -87,7 +108,7 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 
 **Test functions,** on the screen and the web: a test throw that is recorded, a motor at a set speed for a set time, the scale's readings and their rate.
 
-**Automatic tuning,** from what ADR-002 keeps of #113 and #101, run through the same controller and judged by the same recordings.
+**Automatic tuning,** designed here on its own, run through the same controller and judged by the same recordings. PR #113's tuner is then judged against that design ("Handed on by ADR-002").
 
 ## How the unit shows it works
 

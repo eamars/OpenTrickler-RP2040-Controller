@@ -49,6 +49,9 @@ After the PRs are decided (ADR-002), so nothing waiting to be merged is moved un
   - the Generic driver does not read a sign that is apart from its digits: negative weights, and with them a lifted cup, go unseen.
 - The menu writes one byte into variables that are enums: right only while an enum is one byte.
 
+**Handed on by ADR-002** (2026-11-15)
+- **PR #113 is still open when this ADR moves files.** "After the PRs are decided" under "Why here" holds for the others. #113 ends in ADR-009, which comes later. What may be kept of it is files of its own (a tuner, its tests, a simulated powder); its changes to shared files are not taken. So moving files costs nothing that is kept.
+
 ## Ideas
 
 **A layout by role**, after the reference project's:
