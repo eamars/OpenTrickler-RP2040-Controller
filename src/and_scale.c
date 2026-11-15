@@ -82,6 +82,9 @@ void _and_scale_listener_task(void *p) {
                     float weight = _decode_measurement_msg(&frame);
                     scale_tap_frame((const uint8_t *) frame.bytes, sizeof(frame.bytes), weight);
                     scale_publish_measurement(weight);
+                    if (isfinite(weight)) {
+                        scale_publish_unit(frame.unit, sizeof(frame.unit));    // the frame carries it (gate 4)
+                    }
                 }
                 else if (string_buf_idx > sizeof(frame.terminator)) {
                     size_t len = string_buf_idx < sizeof(frame.bytes) ? string_buf_idx : sizeof(frame.bytes);

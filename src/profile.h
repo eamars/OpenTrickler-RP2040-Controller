@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "http_rest.h"
 
 
 #define PROFILE_NAME_MAX_LEN    16
@@ -61,7 +60,6 @@ const char *profile_get_name(uint16_t idx);
 bool profile_data_is_saved(void);
 
 // REST interface
-bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

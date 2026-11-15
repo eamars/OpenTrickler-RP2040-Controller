@@ -2,7 +2,7 @@
 #define CLEANUP_MODE_H_
 
 #include <stdint.h>
-#include "http_rest.h"
+#include "activity.h"
 #include "motors.h"
 
 
@@ -26,7 +26,30 @@ extern "C" {
 
 uint8_t cleanup_mode_menu();
 
-bool http_rest_cleanup_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]);
+/*
+ * A cleanup asked from outside the menu, by the API or the console (ADR-003, gate 4): handed to the menu with no
+ * wait, or refused. A stop is activity_request_stop(ACTIVITY_CLEANUP, by).
+ */
+typedef enum {
+    CLEANUP_START_OK = 0,
+    CLEANUP_START_BUSY,         // a job runs, a start is asked already, or a person has a mode or a view at the unit
+    CLEANUP_START_DRIVER_FAULT,
+} cleanup_start_result_t;
+cleanup_start_result_t cleanup_mode_request_start(activity_by_t by);
+
+/*
+ * Both tricklers at this speed, within the lower of the two motors' maximum speeds; with time_s (finite), for at
+ * most that long, after which the cleanup stops by itself. False when no cleanup runs.
+ */
+bool cleanup_mode_set_speed(float speed_rps, float time_s);
+
+// The cleanup as GET /api/v1/cleanup gives it
+typedef struct {
+    const char *state;      // idle, starting, running, fault
+    float speed_rps;
+    float time_left_s;      // NAN: a speed with no time
+} cleanup_status_t;
+void cleanup_mode_get_status(cleanup_status_t *status);
 
 #ifdef __cplusplus
 }  // __cplusplus

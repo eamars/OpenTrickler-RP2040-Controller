@@ -16,6 +16,7 @@
 // modules
 #include "activity.h"
 #include "app.h"
+#include "events.h"
 #include "motors.h"
 #include "eeprom.h"
 #include "scale.h"
@@ -37,8 +38,10 @@ int main()
     stdio_init_all();
     printf("OpenTrickler starting\n");
 
-    // What the unit is doing, and the lock its settings' writes share (ADR-003, gate 3): before any task
+    // What the unit is doing, and the lock its settings' writes share (ADR-003, gate 3), and its event log, which
+    // begins with this start (gate 4): before any task
     activity_init();
+    events_init();
 
     // Initialize EEPROM first
     eeprom_init();

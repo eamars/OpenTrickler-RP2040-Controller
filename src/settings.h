@@ -103,6 +103,9 @@ void settings_add_routes(void);
 // Each registered table in turn, for the index (api_v1.c): NULL past the last
 const settings_resource_t *settings_resource_at(size_t idx);
 
+// A setting that applies at the next start differs from what this start read (gate 4: `restart_pending`)
+bool settings_restart_pending(void);
+
 /*
  * The console's `setting` (remote_control.c): `setting` alone lists the resources; `setting <path>` writes each
  * field as an "@setting name=value" line; `setting <path> name=value ...` writes first; `setting <path> save`

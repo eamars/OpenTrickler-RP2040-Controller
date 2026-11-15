@@ -125,36 +125,36 @@
     <h1>Configure WiFi</h1>
 
     <div class="reg-form">
-        <form action="/rest/wireless_config" id="wifi-config">
+        <form id="wifi-config">
             <!-- One "tab" for each step in the form: -->
             <div class="option-group">
                 <span>SSID</span>
-                <input type="text" name="w0" maxlength="32">
+                <input type="text" name="ssid" maxlength="31">
             </div>
 
             <div class="option-group">
                 <span>Password</span>
-                <input type="password" name="w1" maxlength="63" placeholder="********">
+                <input type="password" name="key" maxlength="63" placeholder="********">
             </div>
 
             <div class="option-group">
                 <span>WiFi Authentication Method</span>
-                <select name="w2">
-                    <option value="0">None</option>
-                    <option value="1">WPA-TKIP</option>
-                    <option value="2">WPA2-AES</option>
-                    <option value="3">WPA2-MIXED</option>
+                <select name="auth">
+                    <option value="open">None</option>
+                    <option value="wpa_tkip">WPA-TKIP</option>
+                    <option value="wpa2_aes">WPA2-AES</option>
+                    <option value="wpa2_mixed">WPA2-MIXED</option>
                 </select>
             </div>
 
             <div class="option-group">
                 <span>WiFi Attempt to Connect Timeout (ms)</span>
-                <input type="number" name="w3" step="1000" value="30000">
+                <input type="number" name="timeout_ms" step="1000" value="30000">
             </div>
 
             <div class="option-group">
                 <span>Enable WiFi</span>
-                <select name="w4">
+                <select name="enable">
                     <option value="true">Yes</option>
                     <option value="false">No</option>
                 </select>
@@ -163,86 +163,69 @@
             <div class="button-group">
                 <button type="button" id="submit-btn">Complete & Reboot</button>
             </div>
+            <p id="wifi-status"></p>
         </form>
     </div>
 
 
     <script>
+        // API v1 (ADR-003, gate 4): the Wi-Fi written, stored, and only then the restart asked, each once the last
+        // is answered. A refusal is shown in the unit's own words
+        const jsonHeaders = {"Content-Type": "application/json"};
 
-        // Submit the form data to the action URI
-        function putForm(targetForm, saveToEeprom) {
-            const paramData = new FormData(targetForm);
-
-            // Remove empty param
-            for (const [key, value] of paramData.entries()) {
-                if (value == "") {
-                    paramData.delete(key);
-                }
-            }
-
-            if (saveToEeprom) {
-                paramData.append('ee', true)
-            }
-
-            const queryString = new URLSearchParams(paramData).toString();
-            const uri = new URL(targetForm.action + '?');
-            uri.search = queryString;
-
-            // Post the new param with GET method
-            fetch(uri)
-            .then(response => {
-                return response.json();
-            })
-            .then(data => {
-                // Populate values
-                const uri = targetForm.getAttribute("action");
-                fetch(uri)
-                .then(response => {
-                    return response.json();
-                })
-                .then(data => {
-                    // Populate the form
-                    for (const key in data) {
-                        const element = targetForm.querySelector('[name="' + key + '"]');
-                        if (element) {
-                            element.value = String(data[key]);
-                        }
-                    }
-                })
-            })
+        function showStatus(text) {
+            document.getElementById("wifi-status").textContent = text;
         }
 
-        document.getElementById("submit-btn").addEventListener("click", (event) => {
+        async function refusal(response) {
+            try {
+                const error = (await response.json()).error || {};
+                return (error.field ? error.field + ": " : "") + (error.message || response.status);
+            }
+            catch (exception) {
+                return `refused (${response.status})`;
+            }
+        }
+
+        function wifiBody(form) {
+            const body = {};
+            for (const [key, value] of new FormData(form).entries()) {
+                if (value === "") {
+                    continue;
+                }
+                body[key] = key === "timeout_ms" ? Number(value) : key === "enable" ? value === "true" : value;
+            }
+            return body;
+        }
+
+        document.getElementById("submit-btn").addEventListener("click", async (event) => {
             event.preventDefault();
-
-            const form = document.getElementById("wifi-config")
-
-            putForm(form, true);
-
-            // Send reboot request
-            const uri = "/rest/system_control?s5=true";
-            fetch(uri);
+            const form = document.getElementById("wifi-config");
+            const steps = [["PATCH", "/api/v1/settings/wifi", wifiBody(form), "Not taken"],
+                           ["POST", "/api/v1/settings/wifi/save", {}, "Not stored"],
+                           ["POST", "/api/v1/system/restart", {}, "Stored, but the unit did not restart"]];
+            for (const [method, path, body, title] of steps) {
+                const response = await fetch(path, {method: method, headers: jsonHeaders, body: JSON.stringify(body)});
+                if (!response.ok) {
+                    showStatus(`${title}: ${await refusal(response)}`);
+                    return;
+                }
+            }
+            showStatus("Stored. The unit restarts and joins the network.");
         })
 
         function populateWifiConfig() {
-            // Populate values
-            const form = document.getElementById("wifi-config")
-            if (form) {
-                const uri = form.getAttribute("action");
-                fetch(uri)
-                .then(response => {
-                    return response.json();
-                })
-                .then(data => {
-                    // Populate the form
-                    for (const key in data) {
-                        const element = form.querySelector('[name="' + key + '"]');
-                        if (element) {
-                            element.value = String(data[key]);
-                        }
+            const form = document.getElementById("wifi-config");
+            fetch("/api/v1/settings/wifi")
+            .then(response => response.json())
+            .then(data => {
+                for (const key in data) {
+                    const element = form.querySelector('[name="' + key + '"]');
+                    if (element) {
+                        element.value = String(data[key]);
                     }
-                })
-            }
+                }
+            })
         }
 
         // Start the long polling process when the page loads

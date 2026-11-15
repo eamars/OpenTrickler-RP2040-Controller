@@ -44,54 +44,12 @@ static uint32_t api_v1_now_ms(void) {
 }
 
 
-static const char *api_v1_charge_state(charge_mode_state_t state) {
-    switch (state) {
-        case CHARGE_MODE_EXIT: return "idle";
-        case CHARGE_MODE_WAIT_FOR_ZERO: return "zeroing";
-        case CHARGE_MODE_WAIT_FOR_COMPLETE: return "charging";
-        case CHARGE_MODE_WAIT_FOR_CUP_REMOVAL: return "waiting_for_cup_removal";
-        case CHARGE_MODE_WAIT_FOR_CUP_RETURN: return "waiting_for_cup_return";
-        default: return "other";
-    }
-}
-
-
-// GET /api/v1/charge: what gate 2 has of it; gate 4 adds the rest (api_v1.md, "Charge")
-static void api_v1_get_charge(const http_server_request_t *request, http_server_reply_t *reply) {
-    size_t room;
-    char *out = http_server_reply_buffer(reply, &room);
-    size_t len = 0;
-
-    // The profile's name, ended within its 16 bytes: it may be stored with none (audit)
-    char name[sizeof(profile_get_selected()->name) + 1];
-    memcpy(name, profile_get_selected()->name, sizeof(name) - 1);
-    name[sizeof(name) - 1] = '\0';
-
-    float target = charge_mode_config.target_charge_weight;
-    http_json_raw(out, room, &len, "{\"state\":");
-    http_json_string(out, room, &len, api_v1_charge_state(charge_mode_config.charge_mode_state));
-    http_json_raw(out, room, &len, ",\"target\":");
-    if (target > 0.0f) {
-        http_json_number(out, room, &len, target, 9);
-    }
-    else {
-        http_json_raw(out, room, &len, "null");
-    }
-    http_json_raw(out, room, &len, ",\"powder_profile\":");
-    http_json_integer(out, room, &len, profile_get_selected_idx());
-    http_json_raw(out, room, &len, ",\"powder_profile_name\":");
-    http_json_string(out, room, &len, name);
-    http_json_raw(out, room, &len, ",\"weight\":");
-    http_json_number(out, room, &len, scale_get_current_measurement(), 6);
-    http_json_raw(out, room, &len, ",\"elapsed_s\":");
-    http_json_number(out, room, &len, charge_mode_get_elapsed_s(), 4);
-    http_json_raw(out, room, &len, "}");
-
-    if (!http_json_fits(room, len)) {
-        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
-        return;
-    }
-    http_server_reply_send(reply, 200, "application/json", len);
+const char *api_v1_board_name(void) {
+#if PICO_RP2350
+    return "pico2_w";
+#else
+    return "pico_w";
+#endif
 }
 
 
@@ -302,7 +260,27 @@ static const api_v1_resource_t api_v1_resources[] = {
      "PATCH of each resource in turn"},
     {"/api/v1/settings/save", "[\"POST\"]", "stores every setting and the powder profiles"},
     {"/api/v1/powder_profiles", "[\"GET\"]", "the powder profiles' ids and names, and whether they are stored"},
-    {"/api/v1/charge", "[\"GET\"]", "the charge: its state, target, powder profile, the weight, the throw's time"},
+    {"/api/v1/charge", "[\"GET\",\"PATCH\"]",
+     "the charge: its state, the throw, the target and the powder profile it uses, the weight, the last throw; a "
+     "PATCH sets the target or the profile the next throw uses"},
+    {"/api/v1/charge/start", "[\"POST\"]", "starts a charge: {}, or the target and the powder profile to set first"},
+    {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
+    {"/api/v1/cleanup", "[\"GET\",\"PATCH\"]",
+     "the cleanup: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
+    {"/api/v1/cleanup/start", "[\"POST\"]", "starts a cleanup, at speed 0"},
+    {"/api/v1/cleanup/stop", "[\"POST\"]", "stops the cleanup, and acknowledges its fault; never fails"},
+    {"/api/v1/stop", "[\"POST\"]", "stops whatever job runs; never fails"},
+    {"/api/v1/events", "[\"GET\"]",
+     "the unit's changes after a number (?after=N), held until there is one with ?wait=s"},
+    {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
+    {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
+    {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it"},
+    {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
+    {"/api/v1/system", "[\"GET\"]", "the firmware, the board, the uptime, what the unit is doing, a restart pending"},
+    {"/api/v1/system/restart", "[\"POST\"]", "restarts the unit, once the reply is out"},
+    {"/api/v1/system/erase", "[\"POST\"]",
+     "erases the stored settings and restarts: the unit comes back as its own access point"},
+    {"/api/v1/network", "[\"GET\"]", "the network the unit is on: its mode, name, address, host name, signal"},
     {"/api/v1/display", "[\"GET\"]", "the screen's size and the format of its frame"},
     {"/api/v1/display/frame", "[\"GET\"]", "the screen's frame, as the display holds it"},
 };
@@ -314,10 +292,21 @@ static const char api_v1_guide[] =
     "and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: "
     "the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, "
     "the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the "
-    "scale's own unit. The unit cannot know what is in the cup, nor whether the hopper holds powder. Charges are "
-    "started and stopped at the unit, or over the old /rest/ paths, until API v1's commands come.";
+    "scale's own unit. "
+    "The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start "
+    "once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to "
+    "the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops "
+    "whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at "
+    "the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. "
+    "The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours "
+    "onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.";
 
 static uint32_t api_v1_boot = 0;        // new at each start, so a client sees a restart (api_v1.md, the index)
+
+
+uint32_t api_v1_boot_id(void) {
+    return api_v1_boot;
+}
 
 typedef struct {
     uint8_t phase;      // 0 the head, 1 the guide, 2 api_v1_resources, 3 the settings' paths, 4 their saves, 5 the end
@@ -350,11 +339,9 @@ static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
         http_json_string(buf, room, len, vcs_hash);
         http_json_raw(buf, room, len, ",\"build\":");
         http_json_string(buf, room, len, build_type);
-#if PICO_RP2350
-        http_json_raw(buf, room, len, "},\"board\":\"pico2_w\",\"unit_id\":");
-#else
-        http_json_raw(buf, room, len, "},\"board\":\"pico_w\",\"unit_id\":");
-#endif
+        http_json_raw(buf, room, len, "},\"board\":");
+        http_json_string(buf, room, len, api_v1_board_name());
+        http_json_raw(buf, room, len, ",\"unit_id\":");
         http_json_string(buf, room, len, unit_id);
         http_json_raw(buf, room, len, ",\"hostname\":");
         http_json_string(buf, room, len, host_name);
@@ -452,7 +439,8 @@ bool api_v1_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
     // Every module's settings' table, registered at its start (gate 3)
     settings_add_routes();
-    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/charge", api_v1_get_charge);
+    // The commands, the event log and the unit's reads (gate 4)
+    ok = ok && api_v1_commands_init();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display/frame", api_v1_get_display_frame);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug", api_v1_get_debug);

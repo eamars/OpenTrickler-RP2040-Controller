@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 #include <semphr.h>
-#include "http_rest.h"
 #include "common.h"
 
 #define EEPROM_NEOPIXEL_LED_METADATA_REV                     4              // 16 byte 

@@ -717,7 +717,7 @@
 
                     <!-- System Control Page -->
                     <section class="settings-page" id="settings-system-control" name="System Control" style="display: none;">
-                        <form id="systemControlForm" action="/rest/system_control" class="grid grid-cols-1 gap-3">
+                        <form id="systemControlForm" data-system="true" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Unique ID</span>
                                 <input type="text" class="input input-bordered" name="s0" disabled="disabled" readonly>
@@ -955,39 +955,34 @@
 
 <!-- Scripts to support the webapp -->
 <script>
-    const ChargeModeState = Object.freeze({ 
-        EXIT: 0,
-        WAIT: 1, 
-        CHARGING: 2, 
-        REMOVE_CUP: 3, 
-        RETURN_CUP: 4, 
-    }); 
+    /*
+        API v1's commands (ADR-003, gate 4): the charge, the cleanup, the scale's zero and the gate. A command the
+        unit refuses shows its own words.
+    */
+    const apiJsonHeaders = {"Content-Type": "application/json"};
 
-    const ChargeModeEvent = Object.freeze({ 
-        NO_EVENT: 1 << 0, 
-        UNDER_CHARGE: 1 << 1, 
-        OVER_CHARGE: 1 << 2, 
-    });
+    function apiPost(path, body) {
+        return fetch(path, {method: "POST", headers: apiJsonHeaders, body: JSON.stringify(body || {})});
+    }
 
-    const ScaleAction = Object.freeze({ 
-        NO_ACTION: 0,
-        FORCE_ZERO: 1,
-    });
+    function apiPatch(path, body) {
+        return fetch(path, {method: "PATCH", headers: apiJsonHeaders, body: JSON.stringify(body)});
+    }
 
-    const CleanupModeState = Object.freeze({
-        EXIT: 0,
-        ENTER: 1,
-    });
-
-    const ServoGateState = Object.freeze({
-        GATE_DISABLED: 0,
-        GATE_CLOSE: 1,
-        GATE_OPEN: 2,
-    });
+    async function apiRefusal(response) {
+        try {
+            const error = (await response.json()).error || {};
+            return error.message || `refused (${response.status})`;
+        }
+        catch (exception) {
+            return `refused (${response.status})`;
+        }
+    }
 
     var pollSetTimeoutId;
+    var lastThrowSeen = null;   // the last throw whose verdict the page has seen: its dialog shown once
 
-    // Set Charge Mode Set Point with REST interface
+    // Start a charge at the weight given
     function setChargeWeight() {
         // Read charge weight
         const chargeWeight = document.getElementById("chargeWeightInput").value;
@@ -1000,34 +995,24 @@
             return;
         }
 
-        // Build URI
-        const uri = `/rest/charge_mode_state?s0=${encodeURIComponent(chargeWeight)}&s2=${encodeURIComponent(ChargeModeState.WAIT)}`;
-
-        // Call set charge weight REST
-        fetch(uri)
-        .then(response => {
+        apiPost("/api/v1/charge/start", {target: Number(chargeWeight)})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused("Not started", [await apiRefusal(response)]);
+            }
             _restartPoll();  // Start the poll immediately to update the charge status
         })
         .catch(error => {
-            console.error("Error setting charge weight");
+            console.error("Error starting the charge");
         });
     }
 
     function enterChargeMode(enter) {
-        var charge_mode_status_value = null;
-        if (enter) {
-            charge_mode_status_value = ChargeModeState.WAIT;
-        }
-        else {
-            charge_mode_status_value = ChargeModeState.EXIT;
-        }
-
-        // Build URI
-        const uri = `/rest/charge_mode_state?s2=${encodeURIComponent(charge_mode_status_value)}`;
-
-        // Call set charge weight REST
-        fetch(uri)
-        .then(response => {
+        apiPost(enter ? "/api/v1/charge/start" : "/api/v1/charge/stop", {})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused(enter ? "Not started" : "Not stopped", [await apiRefusal(response)]);
+            }
             _restartPoll();  // Start the poll immediately to update the charge status
         })
         .catch(error => {
@@ -1038,53 +1023,31 @@
     // Helper function to update progress widget
     const PRIMARY_CLASS = "step-primary";
 
+    // The charge's state, as API v1 names it: the steps up to it lit
     function _setChargeModeStateWidget(state) {
-        const chargeModeStateWait = document.getElementById("chargeModeStateWait");
-        const chargeModeStateCharging = document.getElementById("chargeModeStateCharging");
-        const chargeModeStateRemoveCup = document.getElementById("chargeModeStateRemoveCup");
-        const chargeModeStateReturnCup = document.getElementById("chargeModeStateReturnCup");
-
-        switch (state) {
-            case ChargeModeState.WAIT:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.CHARGING:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.REMOVE_CUP:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.RETURN_CUP:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.add(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.EXIT:
-                chargeModeStateWait.classList.remove(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-        }
+        const steps = [document.getElementById("chargeModeStateWait"),
+                       document.getElementById("chargeModeStateCharging"),
+                       document.getElementById("chargeModeStateRemoveCup"),
+                       document.getElementById("chargeModeStateReturnCup")];
+        const lit = {"zeroing": 1, "charging": 2, "waiting_for_cup_removal": 3, "waiting_for_cup_return": 4}[state] || 0;
+        steps.forEach((step, idx) => {
+            if (idx < lit) {
+                step.classList.add(PRIMARY_CLASS);
+            }
+            else {
+                step.classList.remove(PRIMARY_CLASS);
+            }
+        });
     }
-    
+
     // Helper function to set the current weight widget
     function _setCurrentWeight(weight, percentage) {
         var currentWeightDecimal = document.getElementById("currentWeightDecimal");
         currentWeightDecimal.innerText = String(weight);
 
+        // A progress bar takes no NaN: with no reading there is nothing to show
         var currentWeightProgressPencentage = document.getElementById("currentWeightProgressPencentage");
-        currentWeightProgressPencentage.value = percentage;
+        currentWeightProgressPencentage.value = Number.isFinite(percentage) ? percentage : 0;
     }
 
     function _setStartStopButtonWidget(isStart) {
@@ -1118,7 +1081,7 @@
             }
             // Select the current
             quickChangeProfileSelect.value = charge.powder_profile;
-            
+
             // Show the modal
             quickChangeProfileDialog.showModal();
         })
@@ -1127,14 +1090,16 @@
         })
     }
 
+    // The powder profile the next throw uses
     function onQuickProfileSelectConfirmed() {
         const quickChangeProfileSelect = document.getElementById("quickChangeProfileSelect");
 
-        const uri = `/rest/profile_config?pf=${encodeURIComponent(quickChangeProfileSelect.value)}`;
-
-        fetch(uri)
-        .then(response => {
-            return response.json();
+        apiPatch("/api/v1/charge", {powder_profile: Number(quickChangeProfileSelect.value)})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused("Not changed", [await apiRefusal(response)]);
+            }
+            _restartPoll();
         })
         .catch(error => {
             console.error("Error setting profile");
@@ -1143,69 +1108,45 @@
 
     // Function to poll charge mode status (weight, progress, etc)
     function pollChargeModeStatus() {
-        fetch("/rest/charge_mode_state")
+        fetch("/api/v1/charge")
         .then(response => {
             return response.json()
         })
-        .then(data => {
-            // console.log(data);
-            // Parse data
-            const charge_weight_set_point = data["s0"];
-            const current_charge_weight = data["s1"];
-            const charge_mode_state = data["s2"];
-            const charge_mode_event = data["s3"];
-            const profile_name = data["s4"];
-            const charge_time_seconds = data["s5"] || "-.--";
-
-            var percentage = 0;
-            if (charge_weight_set_point == 0) {
-                percentage = 0;
-            }
-            else {
-                percentage = current_charge_weight / charge_weight_set_point * 100.0;
-            }
+        .then(charge => {
+            // No reading, or no target: nothing to show for it, and the rest of the page goes on
+            const weight = charge.weight;
+            const percentage = weight !== null && charge.target ? weight / charge.target * 100.0 : 0;
 
             // Update web element
-            _setCurrentWeight(current_charge_weight, percentage);
-            _setChargeModeStateWidget(charge_mode_state);
+            _setCurrentWeight(weight === null ? "---" : weight, percentage);
+            _setChargeModeStateWidget(charge.state);
 
             profileName = document.getElementById("profileName");
-            profileName.innerText = String(profile_name);
-            
+            profileName.innerText = String(charge.powder_profile_name);
+
             // Find the charge time element and update its text content
             const chargeTimeElement = document.getElementById('chargeTimeValue');
             if (chargeTimeElement) {
-                chargeTimeElement.textContent = `${charge_time_seconds} s`;
+                chargeTimeElement.textContent = `${charge.elapsed_s === null ? "-.--" : charge.elapsed_s.toFixed(2)} s`;
             }
 
-            if (charge_mode_state == ChargeModeState.EXIT) {
-                _setStartStopButtonWidget(false);
-            }
-            else {
-                _setStartStopButtonWidget(true);
-            }
+            _setStartStopButtonWidget(charge.state != "idle");
 
-            // Process event
-            if (charge_mode_event != ChargeModeEvent.NO_EVENT) {
-                var dialog_name = null;
-                if (charge_mode_event == ChargeModeEvent.UNDER_CHARGE) {
-                    dialog_name = "underThrowDialog";
-                }
-                else if (charge_mode_event == ChargeModeEvent.OVER_CHARGE) {
-                    dialog_name = "overThrowDialog";
-                }
-
-                // Show modal
-                const dialogModal = document.getElementById(dialog_name);
+            // A throw's verdict, shown once, as it comes; not one from before the page opened
+            const last = charge.last || {};
+            if (lastThrowSeen !== null && last.throw != lastThrowSeen) {
+                const dialog_name = {"under": "underThrowDialog", "over": "overThrowDialog"}[last.result];
+                const dialogModal = dialog_name ? document.getElementById(dialog_name) : null;
                 if (dialogModal) {
                     dialogModal.showModal();
                 }
             }
+            lastThrowSeen = last.throw;
         })
         .catch(error => {
-            console.error("Error reading charge mode settings");
+            console.error("Error reading the charge");
             _setCurrentWeight("---", 0);
-            _setChargeModeStateWidget(ChargeModeState.WAIT);
+            _setChargeModeStateWidget("idle");
         })
         .finally(() => {
             // Schedule the next event
@@ -1214,48 +1155,25 @@
         })
     }
 
-    // Send scale force zero command
+    // Ask the scale to zero
     function scaleForceZero() {
-        const uri = `/rest/scale_action?a0=${encodeURIComponent(ScaleAction.FORCE_ZERO)}`;
-
-        // Call the scale action URI
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // console.log(data);
-
-            var scale_action_response = data["a0"];
-
-            if (scale_action_response == ScaleAction.FORCE_ZERO) {
-                const dialogModal = document.getElementById("scaleZeroedSuccessDialog");
-                dialogModal.showModal();
+        apiPost("/api/v1/scale/zero", {})
+        .then(async response => {
+            if (response.ok) {
+                document.getElementById("scaleZeroedSuccessDialog").showModal();
             }
             else {
-                const dialogModal = document.getElementById("scaleZeroedFailDialog");
-                dialogModal.showModal();
-        }
+                showSettingsRefused("Not zeroed", [await apiRefusal(response)]);
+            }
         })
         .catch(error => {
             console.error("Error applying force zero");
         });
     }
 
+    // Gate Open (2) and Gate Close (1), as the buttons send them: the gate's ratio, 0 open and 1 closed
     function servoGateSetState(state) {
-        const uri = `/rest/servo_gate_state?g0=${encodeURIComponent(state)}`;
-
-        // Call the scale action URI
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // console.log(data);
-        })
-        .catch(error => {
-            console.error("Error applying servo gate state");
-        });
+        servoGateSetRatio(state == 2 ? 0 : 1);
     }
 // --- Gate Ratio Support ---
     function _clamp01(x) {
@@ -1280,15 +1198,11 @@
 
         _setGateRatioUi(r);
 
-        const uri = `/rest/servo_gate_state?r0=${encodeURIComponent(r.toFixed(3))}`;
-
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // If firmware returns r0 later, you can sync UI like:
-            // if (data["r0"] !== undefined) _setGateRatioUi(_clamp01(data["r0"]));
+        apiPatch("/api/v1/gate", {ratio: Number(r.toFixed(3))})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused("The gate did not move", [await apiRefusal(response)]);
+            }
         })
         .catch(error => {
             console.error("Error applying servo gate ratio");
@@ -1450,6 +1364,9 @@
         if (form && form.dataset.resource) {
             loadSettingsForm(form);
         }
+        else if (form && form.dataset.system) {
+            loadSystemControlForm(form);
+        }
         else if (form) {
             const uri = form.getAttribute("action");
             fetch(uri)
@@ -1587,9 +1504,45 @@
     }
 
     // Submit the form data to the action URI
+    // The unit's facts, from the index (API v1)
+    async function loadSystemControlForm(form) {
+        const index = await (await fetch("/api/v1")).json();
+        const facts = {s0: index.unit_id, s1: index.firmware.version, s2: index.firmware.vcs, s3: index.firmware.build};
+        for (const [name, value] of Object.entries(facts)) {
+            form.querySelector(`[name="${name}"]`).value = value;
+        }
+    }
+
+    // Save all, then erase or restart, as API v1's actions; the unit's words when it refuses
+    async function applySystemControl(form) {
+        const data = new FormData(form);
+        const steps = [];
+        if (data.get("s4") == "true") {
+            steps.push(["Not saved", "/api/v1/settings/save", {}]);
+        }
+        if (data.get("s6") == "true") {
+            steps.push(["Not erased", "/api/v1/system/erase", {confirm: "erase"}]);
+        }
+        else if (data.get("s5") == "true") {
+            steps.push(["Not restarted", "/api/v1/system/restart", {}]);
+        }
+        for (const [title, path, body] of steps) {
+            const response = await apiPost(path, body);
+            if (!response.ok) {
+                showSettingsRefused(title, [await apiRefusal(response)]);
+                return;
+            }
+        }
+        document.getElementById("settingsAppliedSuccessDialog").showModal();
+    }
+
     function putForm(targetForm, saveToEeprom) {
         if (targetForm.dataset.resource) {
             putSettingsForm(targetForm, saveToEeprom);
+            return;
+        }
+        if (targetForm.dataset.system) {
+            applySystemControl(targetForm);
             return;
         }
         const paramData = new FormData(targetForm);
@@ -1722,31 +1675,42 @@
         }
     }
 
-    // Update the trickler move speed in cleanup mode based on the slider input
+    // The cleanup's speed (API v1, gate 4): sent with a short time, and sent again while it is not 0, so a page
+    // that goes, or a phone that leaves the network, leaves no motor turning
+    const CLEANUP_TIME_S = 5;
+    var cleanupResendId = null;
+
+    function _sendCleanupSpeed() {
+        const speed = Number(document.getElementById("tricklerSpeedSlider").value);
+        apiPatch("/api/v1/cleanup", speed == 0 ? {speed_rps: 0} : {speed_rps: speed, time_s: CLEANUP_TIME_S});
+    }
+
     function onTricklerSpeedUpdate() {
-        const new_speed = document.getElementById("tricklerSpeedSlider").value;
-        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(new_speed)}`;
-        fetch(uri);
+        _sendCleanupSpeed();
+        clearInterval(cleanupResendId);
+        const speed = Number(document.getElementById("tricklerSpeedSlider").value);
+        cleanupResendId = speed != 0 ? setInterval(_sendCleanupSpeed, 2000) : null;
     }
     const debouncedOnTricklerSpeedUpdate = debounce(onTricklerSpeedUpdate, 20);
 
     function onStopCleanupButtonClicked() {
+        clearInterval(cleanupResendId);
+        cleanupResendId = null;
         document.getElementById("tricklerSpeedSlider").value = "0";
-        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(0)}`;
-        fetch(uri);
+        apiPatch("/api/v1/cleanup", {speed_rps: 0});
     }
 
     // Enter or exit the clean up mode
     function enterCleanUpMode(enter) {
-        var cleanup_state_value = null;
-        if (enter) {
-            cleanup_state_value = CleanupModeState.ENTER;
-        }
-        else {
-            cleanup_state_value = CleanupModeState.EXIT;
-        }
-        const uri = `/rest/cleanup_mode_state?s0=${encodeURIComponent(cleanup_state_value)}`;
-        fetch(uri);
+        clearInterval(cleanupResendId);
+        cleanupResendId = null;
+        document.getElementById("tricklerSpeedSlider").value = "0";
+        apiPost(enter ? "/api/v1/cleanup/start" : "/api/v1/cleanup/stop", {})
+        .then(async response => {
+            if (!response.ok && enter) {
+                showSettingsRefused("Cleanup not started", [await apiRefusal(response)]);
+            }
+        });
     }
 
     function downloadJson(fileName, value) {

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <semphr.h>
 #include <inttypes.h>
+#include <string.h>
 
 #include "pico/time.h"
 
@@ -119,6 +120,68 @@ void set_scale_driver(scale_driver_t scale_driver) {
 
 scale_driver_t scale_get_running_driver(void) {
     return scale_running_driver;
+}
+
+
+/*
+    The weight's unit, where the make's frame carries it (ADR-003, gate 4): the A&D's, from its last good frame, in
+    lower case and trimmed ("g", "gn"). Every other make cannot tell.
+*/
+static char scale_unit[4] = "";
+
+
+void scale_publish_unit(const char *unit, size_t len) {
+    char trimmed[4];
+    size_t used = 0;
+    for (size_t idx = 0; idx < len && used < sizeof(trimmed) - 1; idx += 1) {
+        char c = unit[idx];
+        if (c == ' ') {
+            continue;
+        }
+        trimmed[used++] = (c >= 'A' && c <= 'Z') ? (char) (c - 'A' + 'a') : c;
+    }
+    trimmed[used] = '\0';
+    memcpy(scale_unit, trimmed, sizeof(scale_unit));
+}
+
+
+const char *scale_get_unit(void) {
+    if (scale_running_driver != SCALE_DRIVER_AND_FXI || scale_unit[0] == '\0') {
+        return NULL;
+    }
+    return scale_unit;
+}
+
+
+/*
+    Each zero asked, at the unit or over the API, counted (gate 4): a charge waiting for zero sees one came, and does
+    not take readings from before it, or a zero still to land, for a steady zero
+*/
+static volatile uint32_t scale_zero_count = 0;
+
+
+void scale_ask_zero(void) {
+    scale_zero_count += 1;
+    scale_config.scale_handle->force_zero();
+}
+
+
+uint32_t scale_get_zero_count(void) {
+    return scale_zero_count;
+}
+
+
+bool scale_can_zero(void) {
+    // Read in the drivers: the others' force_zero does nothing (TODOs, or "Unsupported")
+    switch (scale_running_driver) {
+        case SCALE_DRIVER_AND_FXI:
+        case SCALE_DRIVER_GNG_JJB:
+        case SCALE_DRIVER_RADWAG_PS_R2:
+        case SCALE_DRIVER_SIMULATED:
+            return true;
+        default:
+            return false;
+    }
 }
 
 void set_scale_uart_format(scale_uart_format_t format) {
@@ -288,6 +351,16 @@ static const settings_resource_t scale_settings = {
     .save = scale_config_save,
     .is_saved = scale_settings_is_saved,
 };
+
+
+const char *scale_driver_api_name(scale_driver_t driver) {
+    for (size_t idx = 0; idx < sizeof(scale_driver_choices) / sizeof(scale_driver_choices[0]); idx += 1) {
+        if (scale_driver_choices[idx].held == (int32_t) driver) {
+            return scale_driver_choices[idx].text;
+        }
+    }
+    return "other";
+}
 
 
 bool scale_init() {
@@ -537,42 +610,3 @@ bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * curre
 }
 
 
-bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings:
-    // a0 (scale_action_t): Command to the scale
-    
-    // Control
-    scale_action_t action = SCALE_ACTION_NO_ACTION;
-
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "a0") == 0) {
-            action = (scale_action_t) atoi(values[idx]);
-            
-            switch (action) {
-                case SCALE_ACTION_FORCE_ZERO:
-                    scale_config.scale_handle->force_zero();
-                    break;
-                default: 
-                    break;
-            }
-        }
-    }
-
-    static char json_buffer[64];
-
-    // Response
-    snprintf(json_buffer, 
-             sizeof(json_buffer),
-             "%s"
-             "{\"a0\":%d}",
-             http_json_header,
-             (int) action);
-
-    size_t data_length = strlen(json_buffer);
-    file->data = json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}

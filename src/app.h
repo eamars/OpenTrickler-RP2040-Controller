@@ -11,7 +11,7 @@ typedef enum {
     // button, so it is numbered apart from the states the forms name by number. MUI writes one byte: below 256
     APP_STATE_VIEW_MOTOR_FAULT = 100,
     APP_STATE_ENTER_CHARGE_MODE = 1,
-    APP_STATE_ENTER_CHARGE_MODE_FROM_REST = 2,
+    // 2 is removed: a charge from the web (ADR-003, gate 4: a start request to the menu, activity.h)
     // 3 is removed
     // 4 is removed
     APP_STATE_ENTER_CLEANUP_MODE = 5,

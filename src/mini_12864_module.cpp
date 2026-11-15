@@ -36,7 +36,6 @@
 #include "configuration.h"
 #include "gpio_irq_handler.h"
 #include "mini_12864_module.h"
-#include "http_rest.h"
 #include "eeprom.h"
 #include "common.h"
 #include "mini_12864_module.h"
@@ -421,70 +420,6 @@ void display_init() {
     // u8g2_UpdateDisplay(&display_handler);
 
     printf("done\n");
-}
-
-
-bool http_rest_button_control(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char button_control_json_buffer[256];
-    memset(button_control_json_buffer, 0x0, sizeof(button_control_json_buffer));
-
-    strcat(button_control_json_buffer, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"button_pressed\":[");
-
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "CW") == 0) {
-            if (strcmp(values[idx], "true") == 0){
-                ButtonEncoderEvent_t button_event = BUTTON_ENCODER_ROTATE_CW;
-                xQueueSend(encoder_event_queue, &button_event, 0);
-
-                strcat(button_control_json_buffer, "\"CW\",");
-            }
-        }
-        
-        if (strcmp(params[idx], "CCW") == 0) {
-            if (strcmp(values[idx], "true") == 0){
-                ButtonEncoderEvent_t button_event = BUTTON_ENCODER_ROTATE_CCW;
-                xQueueSend(encoder_event_queue, &button_event, 0);
-
-                strcat(button_control_json_buffer, "\"CCW\",");
-            }
-        }
-
-        if (strcmp(params[idx], "PRESS") == 0) {
-            if (strcmp(values[idx], "true") == 0){
-                ButtonEncoderEvent_t button_event = BUTTON_ENCODER_PRESSED;
-                xQueueSend(encoder_event_queue, &button_event, 0);
-
-                strcat(button_control_json_buffer, "\"PRESS\",");
-            }
-        }
-
-        if (strcmp(params[idx], "RST") == 0) {
-            if (strcmp(values[idx], "true") == 0){
-                ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
-                xQueueSend(encoder_event_queue, &button_event, 0);
-
-                strcat(button_control_json_buffer, "\"RST\",");
-            }
-        }
-    }
-
-    // Remove trailing comma
-    size_t len = strlen(button_control_json_buffer);
-    if (button_control_json_buffer[len-1] == ',') {
-        button_control_json_buffer[len-1] = 0;
-    }
-
-    strcat(button_control_json_buffer, "]}");
-
-    // Send to client
-    len = strlen(button_control_json_buffer);
-
-    file->data = button_control_json_buffer;
-    file->len = len;
-    file->index = len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
 }
 
 

@@ -30,7 +30,7 @@
       // Function to fetch and render the binary data
       function fetchAndRender() {
         // Fetch the binary data from the endpoint
-        fetch("/display_buffer")
+        fetch("/api/v1/display/frame")
           .then((response) => response.arrayBuffer())
           .then((buffer) => {
             // Convert the ArrayBuffer to a Uint8Array

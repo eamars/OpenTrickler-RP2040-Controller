@@ -24,15 +24,62 @@ static size_t resource_count = 0;
 static char settings_etag[48];
 
 
+/*
+    The fields that apply at the next start, as they were when this start read them (gate 4): one that differs now
+    is a restart pending (GET /api/v1/system). Taken as each module registers, right after it read its settings
+*/
+#define SETTINGS_BOOT_BYTES 256
+static uint8_t settings_boot_bytes[SETTINGS_BOOT_BYTES];
+static size_t settings_boot_used = 0;
+
+
+static bool applies_at_restart(const setting_field_t *field) {
+    return field->applies != NULL && strcmp(field->applies, "at_restart") == 0;
+}
+
+
 bool settings_register(const settings_resource_t *resource) {
     if (resource_count >= SETTINGS_RESOURCES_MAX || resource->size > SETTINGS_STRUCT_MAX ||
         resource->field_count > SETTINGS_FIELDS_MAX) {
         printf("Settings: no room for %s\n", resource->path);
         return false;
     }
+    if (resource->id_count == 0) {
+        const uint8_t *base = resource->live(-1);
+        for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+            const setting_field_t *field = &resource->fields[idx];
+            if (applies_at_restart(field) && settings_boot_used + field->size <= SETTINGS_BOOT_BYTES) {
+                memcpy(settings_boot_bytes + settings_boot_used, base + field->offset, field->size);
+                settings_boot_used += field->size;
+            }
+        }
+    }
     resources[resource_count] = resource;
     resource_count += 1;
     return true;
+}
+
+
+bool settings_restart_pending(void) {
+    size_t used = 0;
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        const settings_resource_t *resource = resources[idx];
+        if (resource->id_count != 0) {
+            continue;
+        }
+        const uint8_t *base = resource->live(-1);
+        for (uint8_t field_idx = 0; field_idx < resource->field_count; field_idx += 1) {
+            const setting_field_t *field = &resource->fields[field_idx];
+            if (!applies_at_restart(field) || used + field->size > SETTINGS_BOOT_BYTES) {
+                continue;
+            }
+            if (memcmp(settings_boot_bytes + used, base + field->offset, field->size) != 0) {
+                return true;
+            }
+            used += field->size;
+        }
+    }
+    return false;
 }
 
 

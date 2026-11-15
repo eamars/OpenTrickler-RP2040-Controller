@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "rest_endpoints.h"
-#include "http_rest.h"
 #include "http_server.h"
 #include "api_v1.h"
 #include "charge_mode.h"
@@ -88,18 +87,6 @@ bool rest_endpoints_init(bool default_wizard) {
     http_server_add_route(HTTP_SERVER_GET, "/wizard", rest_get_wizard);
     http_server_add_route(HTTP_SERVER_GET, "/display_mirror", rest_get_mirror);
 
-    // The old paths, through the adapter, until gate 4 (ADR-003). The settings' went in gate 3, their forms on API
-    // v1; profile_config stays for the charge page's choice of profile, wireless_config for the wizard
-    rest_register_handler("/rest/scale_action", http_rest_scale_action);
-    rest_register_handler("/rest/charge_mode_state", http_rest_charge_mode_state);
-    rest_register_handler("/rest/cleanup_mode_state", http_rest_cleanup_mode_state);
-    rest_register_handler("/rest/system_control", http_rest_system_control);
-    rest_register_handler("/rest/button_control", http_rest_button_control);
-    rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
-    rest_register_handler("/rest/profile_config", http_rest_profile_config);
-    rest_register_handler("/rest/servo_gate_state", http_rest_servo_gate_state);
-    rest_register_handler("/display_buffer", http_get_display_buffer);
-
-    // API v1
+    // API v1: the only API (ADR-003, gate 4: the old /rest/ paths, their adapter and handlers are gone)
     return api_v1_init();
 }

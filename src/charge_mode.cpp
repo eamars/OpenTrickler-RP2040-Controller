@@ -11,6 +11,7 @@
 
 #include "activity.h"
 #include "app.h"
+#include "events.h"
 #include "FloatRingBuffer.h"
 #include "mini_12864_module.h"
 #include "display.h"
@@ -70,6 +71,64 @@ static volatile bool charge_timer_running = false;   // the live timer runs only
 // The charge ended on a fault, of the scale or of a motor driver, in whatever state it was: its reason takes the
 // title line, with no time beside it. Set where it ends, cleared when a charge starts (ADR-013, ADR-012 step 6)
 static volatile bool charge_ended_on_fault = false;
+
+/*
+    The charge as API v1 reads it (ADR-003, gate 4): the throw's number, from 1 at each start of the unit; whether it
+    is paused for readings (ADR-013); the last throw's outcome; and how the charge ended, for its event. Written by
+    the charge's task alone.
+*/
+static volatile uint16_t charge_throw_number = 0;
+static volatile bool charge_paused = false;
+static volatile uint16_t charge_last_throw = 0;
+static volatile event_result_t charge_last_result = EVENT_RESULT_NONE;
+static volatile event_reason_t charge_last_reason = EVENT_REASON_NONE;
+static volatile float charge_last_weight = NAN;
+static activity_by_t charge_end_by = ACTIVITY_BY_BUTTON;
+static bool charge_stop_logged = false;     // the charge's stopped event is out: at its fault, or at its end
+
+
+// The reset button at the unit, or a stop asked by the API or the console: either ends the charge (gate 4)
+static bool charge_mode_stop_asked(ButtonEncoderEvent_t event) {
+    if (event == BUTTON_RST_PRESSED) {
+        charge_end_by = ACTIVITY_BY_BUTTON;
+        return true;
+    }
+    activity_by_t by;
+    if (activity_take_stop(&by)) {
+        charge_end_by = by;
+        return true;
+    }
+    return false;
+}
+
+
+// A throw that is under way ends, short of its verdict: its event and its outcome (gate 4)
+static void charge_mode_throw_ended(event_reason_t reason, uint8_t motor, const char * fault) {
+    if (!activity_in_throw()) {
+        return;
+    }
+    charge_paused = false;
+    charge_last_throw = charge_throw_number;
+    charge_last_result = EVENT_RESULT_NONE;
+    charge_last_reason = reason;
+    charge_last_weight = scale_get_current_measurement();
+    event_t ended = {.source = EVENT_SOURCE_THROW, .kind = EVENT_ENDED, .reason = (uint8_t) reason,
+                     .throw_number = charge_throw_number, .number = motor, .text = fault};
+    events_add(&ended);
+    activity_throw_end();
+}
+
+
+// The charge's end, logged once: at a fault, by the unit; else as it was stopped
+static void charge_mode_log_stopped(activity_by_t by, event_reason_t reason) {
+    if (charge_stop_logged) {
+        return;
+    }
+    charge_stop_logged = true;
+    event_t stopped = {.source = EVENT_SOURCE_CHARGE, .kind = EVENT_STOPPED, .by = (uint8_t) by,
+                       .reason = (uint8_t) reason};
+    events_add(&stopped);
+}
 
 // Coarse trickler end-of-trickle backoff
 #define COARSE_STOP_BACKOFF_MAX_MS 15000  // safety cap
@@ -235,18 +294,23 @@ void charge_mode_wait_for_zero() {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Waiting for Zero");
 
+    // A zero asked, at the unit or over the API, starts the count of steady readings again: none from before it, or
+    // from before it lands, makes the zero this throw pours from (ADR-003, gate 4)
+    uint32_t zero_count = scale_get_zero_count();
+    uint8_t readings_since_zero = 0;
+
     // Stop condition: 10 stable measurements in 200ms apart (2 seconds minimum)
     while (true) {
         TickType_t last_measurement_tick = xTaskGetTickCount();
 
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (button_encoder_event == BUTTON_RST_PRESSED) {
+        if (charge_mode_stop_asked(button_encoder_event)) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-            scale_config.scale_handle->force_zero();
+            scale_ask_zero();
         }
 
         if (charge_mode_end_on_motor_fault()) {
@@ -257,21 +321,38 @@ void charge_mode_wait_for_zero() {
         float current_measurement;
         if (scale_block_wait_for_next_measurement(300, &current_measurement)){
             data_buffer.enqueue(current_measurement);
+            if (readings_since_zero < UINT8_MAX) {
+                readings_since_zero += 1;
+            }
+        }
+        if (scale_get_zero_count() != zero_count) {
+            zero_count = scale_get_zero_count();
+            readings_since_zero = 0;
         }
 
         // Generate stop condition
-        if (data_buffer.getCounter() >= 10){
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
+        if (data_buffer.getCounter() >= 10 && readings_since_zero >= 10) {
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
                 abs(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
-                break;
+                // Into pouring under the lock the API's zero takes, and only with no zero asked since: a zero
+                // asked over the API is refused from here on (charging)
+                activity_lock();
+                bool zero_since = scale_get_zero_count() != zero_count;
+                if (!zero_since) {
+                    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
+                }
+                activity_unlock();
+                if (!zero_since) {
+                    return;
+                }
+                zero_count = scale_get_zero_count();
+                readings_since_zero = 0;
             }
         }
 
         // Wait for minimum 300 ms (but can skip if previously wait already)
         vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
     }
-
-    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
 }
 
 // A missing reading during a charge (ADR-013), judged by the scale's own rhythm, so a slow scale is not a failed one
@@ -311,6 +392,10 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
     printf("Charge: paused, no reading for %lu ms (pause %u)\n",
            (unsigned long) ((xTaskGetTickCount() - *last_reading_tick) * portTICK_PERIOD_MS), pause_count);
     snprintf(title_string, sizeof(title_string), "Paused: no reading");
+    charge_paused = true;
+    event_t paused = {.source = EVENT_SOURCE_THROW, .kind = EVENT_PAUSED, .throw_number = charge_throw_number,
+                      .number = pause_count};
+    events_add(&paused);
 
     FloatRingBuffer steady_buffer(CHARGE_STEADY_READINGS);
     bool readings_back = false;
@@ -320,7 +405,7 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
         TickType_t loop_tick = xTaskGetTickCount();
 
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (button_encoder_event == BUTTON_RST_PRESSED) {
+        if (charge_mode_stop_asked(button_encoder_event)) {
             return CHARGE_PAUSE_EXIT;
         }
 
@@ -336,6 +421,10 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
                 steady_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
                 *settled_weight = steady_buffer.getMean();
                 printf("Charge: resumed from a settled %.3f\n", *settled_weight);
+                charge_paused = false;
+                event_t resumed = {.source = EVENT_SOURCE_THROW, .kind = EVENT_RESUMED,
+                                   .throw_number = charge_throw_number, .value = *settled_weight};
+                events_add(&resumed);
                 return CHARGE_PAUSE_RESUMED;
             }
         }
@@ -355,9 +444,12 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
 
 /*
     The scale failed during a charge (ADR-013), or a motor driver did (ADR-012): the tricklers stay stopped, the gate
-    closes, the screen says why, and a press of a button (or the console's charge stop) goes back to the menu.
+    closes, the screen says why, and a press of a button, or a stop asked by the API or the console, goes back to the
+    menu. Until then the charge is in `fault` (ADR-003, gate 4): the throw that ran ended, and the charge logged
+    stopped by the unit, at the fault; its acknowledgment is no event.
 */
-static void charge_mode_scale_fault(const char * reason) {
+static void charge_mode_scale_fault(const char * reason, event_reason_t throw_reason, uint8_t motor,
+                                    const char * fault) {
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
@@ -380,9 +472,10 @@ static void charge_mode_scale_fault(const char * reason) {
     charge_ended_on_fault = true;
     snprintf(title_string, sizeof(title_string), "%s", reason);
     printf("Charge: ended, %s\n", reason);
+    charge_mode_throw_ended(throw_reason, motor, fault);
+    charge_mode_log_stopped(ACTIVITY_BY_UNIT, EVENT_REASON_FAULT);
 
-    while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
-        vTaskDelay(pdMS_TO_TICKS(50));
+    while (button_wait_for_input_ms(50) == BUTTON_NO_EVENT && !activity_take_stop(NULL)) {
     }
     charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
 }
@@ -395,7 +488,11 @@ static bool charge_mode_end_on_motor_fault(void) {
     if (motor_fault == NULL) {
         return false;
     }
-    charge_mode_scale_fault(motor_fault);
+    // Which driver, and its state in the API's words (ok, absent, short, hot, reset, supply)
+    const char * coarse = motor_driver_get_status_string(SELECT_COARSE_TRICKLER_MOTOR);
+    bool coarse_faulted = coarse != NULL && strcmp(coarse, "ok") != 0;
+    const char * status = coarse_faulted ? coarse : motor_driver_get_status_string(SELECT_FINE_TRICKLER_MOTOR);
+    charge_mode_scale_fault(motor_fault, EVENT_REASON_DRIVER_FAULT, coarse_faulted ? 0 : 1, status);
     return true;
 }
 
@@ -472,7 +569,7 @@ void charge_mode_wait_for_complete() {
     while (true) {
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (button_encoder_event == BUTTON_RST_PRESSED) {
+        if (charge_mode_stop_asked(button_encoder_event)) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
@@ -503,7 +600,10 @@ void charge_mode_wait_for_complete() {
             }
             if (pause != CHARGE_PAUSE_RESUMED) {
                 charge_mode_scale_fault(pause == CHARGE_PAUSE_LOST ? "Scale: no reading" :
-                                        pause == CHARGE_PAUSE_UNSTEADY ? "Scale: unsteady" : "Scale: unreliable");
+                                        pause == CHARGE_PAUSE_UNSTEADY ? "Scale: unsteady" : "Scale: unreliable",
+                                        pause == CHARGE_PAUSE_LOST ? EVENT_REASON_SCALE_NO_READING :
+                                        pause == CHARGE_PAUSE_UNSTEADY ? EVENT_REASON_SCALE_UNSTEADY :
+                                        EVENT_REASON_SCALE_UNRELIABLE, 0, NULL);
                 return;
             }
             snprintf(title_string, sizeof(title_string), "Target: %s", target_weight_string);
@@ -676,7 +776,19 @@ void charge_mode_wait_for_cup_removal() {
         charge_mode_config.charge_mode_event &= ~(CHARGE_MODE_EVENT_UNDER_CHARGE | CHARGE_MODE_EVENT_OVER_CHARGE);
     }
 
-    // The verdict is given: the throw is over, and what it read may be written again (ADR-003, gate 3)
+    // The verdict is given, by the test above: the throw is finished, and what it read may be written again
+    // (ADR-003, gates 3 and 4)
+    float fine_stop_threshold = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
+    event_result_t result = error <= -fine_stop_threshold ? EVENT_RESULT_OVER :
+                            error >= fine_stop_threshold ? EVENT_RESULT_UNDER : EVENT_RESULT_GOOD;
+    charge_last_throw = charge_throw_number;
+    charge_last_result = result;
+    charge_last_reason = EVENT_REASON_FINISHED;
+    charge_last_weight = current_measurement;
+    event_t finished = {.source = EVENT_SOURCE_THROW, .kind = EVENT_FINISHED, .throw_number = charge_throw_number,
+                        .result = (uint8_t) result, .value = current_measurement,
+                        .value2 = last_charge_elapsed_seconds};
+    events_add(&finished);
     activity_throw_end();
 
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
@@ -685,7 +797,7 @@ void charge_mode_wait_for_cup_removal() {
 
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (button_encoder_event == BUTTON_RST_PRESSED) {
+        if (charge_mode_stop_asked(button_encoder_event)) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
@@ -742,12 +854,12 @@ void charge_mode_wait_for_cup_return() {
 
         // Non block waiting for the input
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (button_encoder_event == BUTTON_RST_PRESSED) {
+        if (charge_mode_stop_asked(button_encoder_event)) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
         else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-            scale_config.scale_handle->force_zero();
+            scale_ask_zero();
         }
 
         if (charge_mode_end_on_motor_fault()) {
@@ -773,39 +885,18 @@ void charge_mode_wait_for_cup_return() {
 }
 
 
-uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
+uint8_t charge_mode_menu(void) {
     // No charge with a motor driver not OK, from the menu or the web (ADR-012): the fault screen, before this mode
     // draws anything (step 6). motors_ready() sets up again each driver not OK, so a passing fault does not refuse
     if (!motors_ready()) {
         printf("Charge: not started, %s\n", motors_get_fault());
         uint8_t exit_form_id = menu_motor_fault_view();
-        // Set after the screen: the web writes the state itself after asking for a charge (ADR-003, M10)
         charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
         return exit_form_id;
     }
 
-    // Create target weight, if the charge mode weight is built by charge_weight_digits
-    if (!charge_mode_skip_user_input) {
-        switch (charge_mode_config.eeprom_charge_mode_data.decimal_places) {
-            case DP_2:
-                charge_mode_config.target_charge_weight = charge_weight_digits[4] * 100 + \
-                                                charge_weight_digits[3] * 10 + \
-                                                charge_weight_digits[2] * 1 + \
-                                                charge_weight_digits[1] * 0.1 + \
-                                                charge_weight_digits[0] * 0.01;
-                break;
-            case DP_3:
-                charge_mode_config.target_charge_weight = charge_weight_digits[4] * 10 + \
-                                                charge_weight_digits[3] * 1 + \
-                                                charge_weight_digits[2] * 0.1 + \
-                                                charge_weight_digits[1] * 0.01 + \
-                                                charge_weight_digits[0] * 0.001;
-                break;
-            default:
-                charge_mode_config.target_charge_weight = 0;
-                break;
-        }
-    }
+    // One target for the unit (ADR-003, gate 4): the menu's weight digits, which the API sets too
+    charge_mode_config.target_charge_weight = charge_mode_get_target();
 
     // A new charge: no fault of the last one on its screen
     charge_ended_on_fault = false;
@@ -820,8 +911,15 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
         vTaskResume(scale_measurement_render_task_handler);
     }
 
-    // The charge is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile
+    // The charge is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile. Its
+    // start is logged with who asked (gate 4)
     activity_job_begin(ACTIVITY_CHARGE);
+    charge_end_by = ACTIVITY_BY_BUTTON;
+    charge_stop_logged = false;
+    event_t started = {.source = EVENT_SOURCE_CHARGE, .kind = EVENT_STARTED, .by = (uint8_t) activity_job_by(),
+                       .number = (uint8_t) profile_get_selected_idx(),
+                       .value = charge_mode_config.target_charge_weight};
+    events_add(&started);
 
     // Enable motor on entering the charge mode
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
@@ -832,11 +930,20 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
     bool quit = false;
     while (quit == false) {
         switch (charge_mode_config.charge_mode_state) {
-            case CHARGE_MODE_WAIT_FOR_ZERO:
-                // A throw from its zeroing to its verdict: what it reads is not written meanwhile (gate 3)
+            case CHARGE_MODE_WAIT_FOR_ZERO: {
+                // A throw from its zeroing to its verdict: what it reads is not written meanwhile (gate 3). Each is
+                // numbered and logged (gate 4)
                 activity_throw_begin();
+                charge_throw_number += 1;
+                charge_paused = false;
+                event_t throw_started = {.source = EVENT_SOURCE_THROW, .kind = EVENT_STARTED,
+                                         .throw_number = charge_throw_number,
+                                         .number = (uint8_t) profile_get_selected_idx(),
+                                         .value = charge_mode_config.target_charge_weight};
+                events_add(&throw_started);
                 charge_mode_wait_for_zero();
                 break;
+            }
             case CHARGE_MODE_WAIT_FOR_COMPLETE:
                 charge_mode_wait_for_complete();
                 break;
@@ -866,7 +973,9 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
 
-    // The job is over, a throw cut short with it (ADR-003, gate 3)
+    // The job is over, a throw cut short with it (ADR-003, gates 3 and 4): logged, unless a fault logged it
+    charge_mode_throw_ended(EVENT_REASON_STOPPED, 0, NULL);
+    charge_mode_log_stopped(charge_end_by, EVENT_REASON_STOPPED);
     activity_job_end();
 
     return 1;  // return back to main menu
@@ -897,31 +1006,98 @@ bool charge_mode_config_save(void) {
 }
 
 
-bool charge_mode_start_remote(float target_charge_weight) {
-    if (charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+/*
+    One target for the unit (ADR-003, gate 4): the menu's five weight digits, two or three of them decimals, show it
+    and set it, and the API reads and writes the same. 0 when every digit is.
+*/
+static uint32_t charge_mode_digits_scale(void) {
+    return charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_3 ? 1000 : 100;
+}
+
+
+float charge_mode_get_target(void) {
+    uint32_t value = 0;
+    for (int idx = 4; idx >= 0; idx -= 1) {
+        value = value * 10 + charge_weight_digits[idx];
+    }
+    return (float) value / (float) charge_mode_digits_scale();
+}
+
+
+bool charge_mode_target_fits(float target) {
+    double scaled = (double) target * charge_mode_digits_scale();
+    double rounded = round(scaled);
+    // What the digits can show: 0.01 to 999.99 at two decimals, 0.001 to 99.999 at three
+    return isfinite(scaled) && fabs(scaled - rounded) <= 1e-3 && rounded >= 1 && rounded <= 99999;
+}
+
+
+bool charge_mode_set_target(float target) {
+    if (!charge_mode_target_fits(target)) {
         return false;
     }
-
-    charge_mode_config.target_charge_weight = target_charge_weight;
-
-    // Set exit_status for the menu
-    exit_state = APP_STATE_ENTER_CHARGE_MODE_FROM_REST;
-
-    // Then signal the menu to stop
-    ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
-    xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
+    uint32_t value = (uint32_t) round((double) target * charge_mode_digits_scale());
+    for (int idx = 0; idx < 5; idx += 1) {
+        charge_weight_digits[idx] = (uint8_t) (value % 10);
+        value /= 10;
+    }
+    // A charge between throws throws it from the next one on
+    if (charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+        charge_mode_config.target_charge_weight = charge_mode_get_target();
+    }
     return true;
 }
 
 
-bool charge_mode_stop_remote(void) {
-    if (charge_mode_config.charge_mode_state == CHARGE_MODE_EXIT) {
-        return false;
+charge_start_result_t charge_mode_request_start(activity_by_t by) {
+    if (charge_mode_get_target() <= 0.0f) {
+        return CHARGE_START_NO_TARGET;
     }
+    if (motors_get_fault() != NULL) {
+        return CHARGE_START_DRIVER_FAULT;
+    }
+    // A person at the unit in a mode or a view of the menu's: not taken over
+    if (menu_get_current_form_id() < 0) {
+        return CHARGE_START_BUSY;
+    }
+    if (!activity_request_start(ACTIVITY_CHARGE, by)) {
+        return CHARGE_START_BUSY;
+    }
+    menu_wake();
+    return CHARGE_START_OK;
+}
 
-    ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
-    xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
-    return true;
+
+void charge_mode_get_status(charge_status_t * status) {
+    activity_t asked;
+    bool running = activity_get() == ACTIVITY_CHARGE;
+    if (running && charge_ended_on_fault) {
+        status->state = "fault";
+    }
+    else if (!running && activity_start_pending(&asked) && asked == ACTIVITY_CHARGE) {
+        status->state = "starting";
+    }
+    else if (!running) {
+        status->state = "idle";
+    }
+    else {
+        switch (charge_mode_config.charge_mode_state) {
+            case CHARGE_MODE_WAIT_FOR_ZERO: status->state = "zeroing"; break;
+            case CHARGE_MODE_WAIT_FOR_COMPLETE: status->state = "charging"; break;
+            case CHARGE_MODE_WAIT_FOR_CUP_REMOVAL: status->state = "waiting_for_cup_removal"; break;
+            case CHARGE_MODE_WAIT_FOR_CUP_RETURN: status->state = "waiting_for_cup_return"; break;
+            default: status->state = "idle"; break;
+        }
+    }
+    status->in_throw = activity_in_throw();
+    status->throw_number = charge_throw_number;
+    status->paused = charge_paused;
+    status->target = charge_mode_get_target();
+    status->elapsed_s = charge_mode_get_elapsed_s();
+    status->last_throw = charge_last_throw;
+    status->last_result = charge_last_result;
+    status->last_reason = charge_last_reason;
+    status->last_weight = charge_last_weight;
 }
 
 
@@ -930,85 +1106,4 @@ float charge_mode_get_elapsed_s(void) {
         return (float) ((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
     }
     return last_charge_elapsed_seconds;
-}
-
-
-bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings
-    // s0 (float): Charge weight set point (unitless)
-    // s1 (float): Current weight (unitless)
-    // s2 (charge_mode_state_t | int): Charge mode state
-    // s3 (uint32_t): Charge mode event
-    // s4 (string): Profile Name
-    // s5 (string): Elapsed time in seconds, live during charging
-
-    static char charge_mode_json_buffer[160];  // Increased to fit s5
-    char elapsed_time_buffer[16] = {0};
-
-    // Control
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "s0") == 0) {
-            charge_mode_config.target_charge_weight = strtof(values[idx], NULL);
-        }
-        else if (strcmp(params[idx], "s2") == 0) {
-            charge_mode_state_t new_state = (charge_mode_state_t) atoi(values[idx]);
-
-            // Exit
-            if (new_state == CHARGE_MODE_EXIT) {
-                charge_mode_stop_remote();
-            }
-            // Enter
-            else if (new_state == CHARGE_MODE_WAIT_FOR_ZERO) {
-                charge_mode_start_remote(charge_mode_config.target_charge_weight);
-            }
-
-            charge_mode_config.charge_mode_state = new_state;
-        }
-    }
-
-    // Handle the special case
-    float current_measurement = scale_get_current_measurement();
-    char weight_string[16];
-    if (isnanf(current_measurement)) {
-        sprintf(weight_string, "\"nan\"");
-    }
-    else if (isinff(current_measurement)) {
-        sprintf(weight_string, "\"inf\"");
-    }
-    else {
-        sprintf(weight_string, "%0.3f", current_measurement);
-    }
-
-    // Format elapsed time
-    if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE) {
-        TickType_t now = xTaskGetTickCount();
-        float elapsed_seconds = (float)((now - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
-        snprintf(elapsed_time_buffer, sizeof(elapsed_time_buffer), "%.2f", elapsed_seconds);
-    } else {
-        snprintf(elapsed_time_buffer, sizeof(elapsed_time_buffer), "%.2f", last_charge_elapsed_seconds);
-    }
-
-    // Response
-    snprintf(charge_mode_json_buffer, 
-             sizeof(charge_mode_json_buffer),
-             "%s"
-             "{\"s0\":%0.3f,\"s1\":%s,\"s2\":%d,\"s3\":%lu,\"s4\":\"%s\",\"s5\":\"%s\"}",
-             http_json_header,
-             charge_mode_config.target_charge_weight,
-             weight_string,
-             (int) charge_mode_config.charge_mode_state,
-             charge_mode_config.charge_mode_event,
-             profile_get_selected()->name,
-             elapsed_time_buffer);
-
-    // Clear events
-    charge_mode_config.charge_mode_event = 0;
-
-    size_t data_length = strlen(charge_mode_json_buffer);
-    file->data = charge_mode_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
 }

@@ -17,6 +17,7 @@
 #include "motors.h"
 #include "eeprom.h"
 #include "common.h"
+#include "events.h"
 #include "settings.h"
 
 // The motors' task: every tick it moves each speed toward its target and feeds the step pulses. Above every task
@@ -794,15 +795,32 @@ static void motor_driver_check(motor_config_t * motor_config) {
 }
 
 
-// The drivers looked at while the unit runs, in every state (ADR-012, steps 4 and 6)
+// The drivers looked at while the unit runs, in every state (ADR-012, steps 4 and 6). A driver's state that
+// changed, wherever it changed (a reading, a setup, a start's check), is logged once a second at most: a fault as it
+// comes, cleared as it goes (ADR-003, gate 4)
 static void motor_status_task(void * p) {
     TickType_t last_wake_tick = xTaskGetTickCount();
+    motor_driver_fault_t logged[2] = {motor_driver_faults[0], motor_driver_faults[1]};
 
     while (true) {
         vTaskDelayUntil(&last_wake_tick, pdMS_TO_TICKS(MOTOR_STATUS_PERIOD_MS));
 
         motor_driver_check(&coarse_trickler_motor_config);
         motor_driver_check(&fine_trickler_motor_config);
+
+        motor_config_t * configs[2] = {&coarse_trickler_motor_config, &fine_trickler_motor_config};
+        for (int motor = 0; motor < 2; motor += 1) {
+            motor_driver_fault_t now = motor_driver_faults[configs[motor]->pulse_channel];
+            if (now == logged[motor]) {
+                continue;
+            }
+            event_t event = {.source = EVENT_SOURCE_MOTORS,
+                             .kind = now == MOTOR_DRIVER_OK ? EVENT_CLEARED : EVENT_FAULT,
+                             .number = (uint8_t) motor,
+                             .text = motor_driver_fault_words[now == MOTOR_DRIVER_OK ? logged[motor] : now]};
+            events_add(&event);
+            logged[motor] = now;
+        }
     }
 }
 

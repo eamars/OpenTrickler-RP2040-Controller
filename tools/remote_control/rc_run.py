@@ -445,25 +445,32 @@ def raw_exchange(host, payload, timeout_s=5.0, rcvbuf=None, read_limit=None):
     return status, headers, body, None
 
 
-def read_mirror(host):
+def http_call(host, method, path, body=None):
     """
-    Read the screen's buffer as the mirror page does. /display_buffer answers with the bare buffer and no HTTP
-    header (its handler says the header is included, and it is not), so it is read over a plain socket.
+    One request to API v1 with a JSON body (ADR-003, gate 4), its status and its JSON, an error's included.
 
     Args:
         host: the unit's address.
+        method: "POST", "PATCH" or "GET".
+        path: from "/api/v1/...".
+        body: the JSON body, or None.
 
     Returns:
-        The bytes until the unit closed the connection.
+        (status, the reply's JSON or None).
     """
-    with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as sock:
-        sock.sendall(b"GET /display_buffer HTTP/1.0\r\n\r\n")
-        data = b""
-        while True:
-            chunk = sock.recv(4096)
-            if not chunk:
-                return data
-            data += chunk
+    data = None if body is None else json.dumps(body).encode()
+    request = urllib.request.Request(f"http://{host}{path}", data=data, method=method)
+    if data is not None:
+        request.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
+            status, text = reply.status, reply.read()
+    except urllib.error.HTTPError as error:
+        status, text = error.code, error.read()
+    try:
+        return status, json.loads(text)
+    except ValueError:
+        return status, None
 
 
 def build_version(build_dir):
@@ -1193,8 +1200,9 @@ class Session:
             ("an empty PATCH", write(b"PATCH", leds, b"{}"), 200),
             ("a save with a field", write(b"POST", leds + b"/save", b'{"x":1}'), 400),
             ("no such powder profile", write(b"PATCH", b"/api/v1/powder_profiles/9", b"{}"), 404),
-            ("a value with no '='", b"GET /rest/charge_mode_state?ee HTTP/1.1\r\n" + own +
-             b"Connection: close\r\n\r\n", 200),
+            ("a value with no '='", b"GET /api/v1/charge?ee HTTP/1.1\r\n" + own + b"Connection: close\r\n\r\n", 200),
+            ("an old /rest/ path, gone in gate 4", b"GET /rest/charge_mode_state HTTP/1.1\r\n" + own +
+             b"Connection: close\r\n\r\n", 404),
             ("a Cookie of 6 KB, passed over", b"GET /api/v1/charge HTTP/1.1\r\n" + own +
              b"Cookie: a=" + b"x" * 6000 + b"\r\nConnection: close\r\n\r\n", 200),
             ("headers over 8 KB", b"GET /api/v1/charge HTTP/1.1\r\n" + own + b"Cookie: a=" + b"x" * 5000 +
@@ -1640,7 +1648,10 @@ class Session:
             elif fault == "quiet":
                 self.send(f"sim quiet {quiet_ms}")
             elif fault == "cleanup":
-                http_get(host, f"rest/cleanup_mode_state?s1={cleanup_speed:g}")
+                # A cleanup's speed sent during a charge: API v1 refuses it (409 not_running), so no motor sees it
+                status, reply = http_call(host, "PATCH", "/api/v1/cleanup", {"speed_rps": cleanup_speed})
+                self.log.write("rc", f"charge_fault: a cleanup speed during the charge: {status} "
+                                     f"{(reply or {}).get('error', {}).get('code', '')}")
             watch(round_events if round_idx < repeat - 1 else None)
             # The next round goes in once the charge pours again
             if round_idx < repeat - 1:

@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 #include "app.h"
-#include "http_rest.h"
 #include <semphr.h>
 
 #define EEPROM_SCALE_DATA_REV                     3              // 16 byte 
@@ -138,13 +137,23 @@ scale_driver_t scale_get_running_driver(void);
 // The name of the driver that runs
 const char * get_scale_driver_string();
 
+// The weight's unit where the make's frame carries it (the A&D's): "g", "gn"; NULL when it cannot tell (gate 4)
+void scale_publish_unit(const char *unit, size_t len);
+const char *scale_get_unit(void);
+// Whether the driver that runs can ask its scale to zero
+bool scale_can_zero(void);
+// Ask the scale to zero, counted: a charge waiting for zero takes no readings from before one (gate 4)
+void scale_ask_zero(void);
+uint32_t scale_get_zero_count(void);
+// A driver's name in the API ("and_fxi")
+const char *scale_driver_api_name(scale_driver_t driver);
+
 bool scale_config_save(void);
 
 // Low lever handler for writing data to the scale
 void scale_write(const char * command, size_t len);
 
 // REST
-bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 // Features
