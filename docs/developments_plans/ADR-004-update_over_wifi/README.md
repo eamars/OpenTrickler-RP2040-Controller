@@ -1,6 +1,6 @@
 # ADR-004: firmware update over Wi-Fi
 
-Status: **Draft** 2026-11-13, written in full 2026-11-16 from the owner's direction that day, for approval. Not approved.
+Status: **Open** 2026-11-16. Drafted 2026-11-13, written in full 2026-11-16 from the owner's direction that day, and approved by the owner the same day as written ("Approve as written"), starting with gate 1 on the Pico 2 W. What was built and measured is in [progress](progress.md).
 
 ## What we want
 

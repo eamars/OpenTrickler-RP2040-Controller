@@ -37,12 +37,39 @@ const char * build_type = "{build_type}";
 """
 
 
-def main(output_path, build_type):
+def read_version():
+    """
+    The build's version, from git.
+
+    Returns:
+        The regex match of `git describe` (major, minor, patch, short_hash, dirty), or None when it is not a version.
+    """
     # git is asked in this script's folder, inside the repository, not in the build's: a build folder outside the
     # repository has no git to ask (ADR-011)
     output = subprocess.check_output(GIT_VERSION_COMMAND, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
     logging.debug(f'Raw output: {output}')
-    match = re.match(GIT_VERSION_PATTERN_REGEX, output)
+    return re.match(GIT_VERSION_PATTERN_REGEX, output)
+
+
+def block_version():
+    """
+    The version for the image's metadata block (ADR-004): two 16-bit numbers, the release as major x 256 + minor and
+    the commits since its tag, so that every build on a branch orders after the one before.
+
+    Returns:
+        "first;second", a CMake list; "" when git gives no version.
+    """
+    match = read_version()
+    if not match:
+        return ""
+    major, minor, patch = (int(match.group(name)) for name in ("major", "minor", "patch"))
+    if minor > 255 or major * 256 + minor > 0xFFFF or patch > 0xFFFF:
+        raise ValueError(f"{major}.{minor}.{patch} does not fit the metadata block's version")
+    return f"{major * 256 + minor};{patch}"
+
+
+def main(output_path, build_type):
+    match = read_version()
 
     version_string = "unknown"
     hash_string = ""
@@ -86,13 +113,20 @@ def main(output_path, build_type):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-o', '--output_filepath', help="The output filepath that the C header will be written to", required=True)
-    parser.add_argument('--build-type', help="CMake build type", required=True)
+    parser.add_argument('-o', '--output_filepath', help="The output filepath that the C header will be written to")
+    parser.add_argument('--build-type', help="CMake build type")
+    parser.add_argument('--block-version', action='store_true',
+                        help="Print the metadata block's version (ADR-004) as a CMake list, and write nothing")
 
     parser.add_argument('-v', '--verbose', action='count', default=0)
-    
+
 
     args = parser.parse_args()
+    if args.block_version:
+        print(block_version())
+        sys.exit(0)
+    if not args.output_filepath or not args.build_type:
+        parser.error("-o and --build-type are required")
 
     logging_levels = {0: logging.ERROR,
                       1: logging.DEBUG,

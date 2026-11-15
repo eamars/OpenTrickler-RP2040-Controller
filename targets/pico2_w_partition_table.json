@@ -1,0 +1,36 @@
+{
+    "version": [1, 0],
+    "unpartitioned": {
+        "families": ["absolute"],
+        "permissions": {"secure": "rw", "nonsecure": "rw", "bootloader": "rw"}
+    },
+    "partitions": [
+        {
+            "name": "A",
+            "id": 0,
+            "start": "8K",
+            "size": "1792K",
+            "families": ["rp2350-arm-s"],
+            "permissions": {"secure": "rw", "nonsecure": "rw", "bootloader": "rw"}
+        },
+        {
+            "name": "B",
+            "id": 1,
+            "start": "1800K",
+            "size": "1792K",
+            "families": ["rp2350-arm-s"],
+            "permissions": {"secure": "rw", "nonsecure": "rw", "bootloader": "rw"},
+            "link": ["a", 0]
+        },
+        {
+            "name": "Spare",
+            "id": 2,
+            "start": "3592K",
+            "size": "504K",
+            "families": ["data"],
+            "permissions": {"secure": "rw", "nonsecure": "rw", "bootloader": "rw"},
+            "ignored_during_arm_boot": true,
+            "ignored_during_riscv_boot": true
+        }
+    ]
+}

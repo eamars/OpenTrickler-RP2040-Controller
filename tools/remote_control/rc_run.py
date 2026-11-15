@@ -73,8 +73,15 @@ BOARDS = {
         "target": "target/rp2350.cfg", "build": "build", "cores": ["rp2350.cm0", "rp2350.cm1"],
         "reset": ["mww 0x400d801c 0", "mww 0x40018008 0x01fffff3", "mww 0x400d8000 0x80000000"],
         "step_status": {"coarse": 0x40028018, "fine": 0x40028040},
+        # Its flash layout (ADR-004, targets/pico2_w_partition_table.json): the ROM's partition table at the start,
+        # slot A after it, slot B after A. The image is written as its .bin into a slot, not by its ELF, which is
+        # linked at the start of flash, where the ROM maps the slot it boots
+        "layout": {"table": 0x10000000, "slot_a": 0x10002000, "slot_b": 0x101C2000},
     },
 }
+SECTOR_BYTES = 4096
+# picotool, from the tools release toolchain.env names (ADR-011): it reads an image's metadata block
+PICOTOOL = PICO_SDK_ROOT / "picotool" / VERSIONS["PICO_TOOLS"] / "picotool" / "picotool.exe"
 GPIO_STATUS_OUTTOPAD = 0x200
 STEP_SAMPLES = 200
 # A STEP pin is high half the time while its motor turns (ADR-012), and stays low, or high, when it does not
@@ -577,6 +584,38 @@ def build_version(build_dir):
     return version, vcs
 
 
+def block_version(elf):
+    """
+    The version in an image's metadata block (ADR-004), as picotool reads it.
+
+    Args:
+        elf: the image's ELF.
+
+    Returns:
+        "first.second", or None when the image has no version in a block.
+    """
+    output = subprocess.run([str(PICOTOOL), "info", str(elf)], capture_output=True, text=True).stdout
+    found = re.search(r"^\s*version:\s*(\d+\.\d+)\s*$", output, re.M)
+    return found.group(1) if found else None
+
+
+def expected_block_version(version):
+    """
+    The metadata block's version a firmware version is given (scripts/gen_version.py's block_version).
+
+    Args:
+        version: the firmware's version string, "1.20.202" or "1.20.202-dirty".
+
+    Returns:
+        "first.second", or None for a version that is not major.minor.patch.
+    """
+    found = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    if not found:
+        return None
+    major, minor, patch = (int(part) for part in found.groups())
+    return f"{major * 256 + minor}.{patch}"
+
+
 class Openocd:
     """One openocd process for the probe and the chip, driven through its Tcl port."""
 
@@ -953,7 +992,9 @@ class Session:
 
     def flash(self, elf=None):
         """
-        Write an ELF through the probe, start it, and check the unit runs the build's version.
+        Write an image through the probe, start it, and check the unit runs the build's version. On a board with a
+        flash layout (ADR-004) this is the full install: the partition table, the start of slot B blanked, so that
+        slot A boots, and the image's .bin (beside its ELF) in slot A.
 
         Args:
             elf: the ELF to write; by default the session's. It becomes the session's ELF.
@@ -963,17 +1004,37 @@ class Session:
         if not self.elf.exists():
             self.fail(f"{self.elf} does not exist")
             return
+        version, vcs = build_version(self.board["build"])
+        layout = self.board.get("layout")
+        if layout is not None:
+            # The block's version is taken when CMake configures, the version string at every build: a build
+            # that was not configured again carries an old one
+            found, wanted = block_version(self.elf), expected_block_version(version)
+            if found != wanted:
+                self.fail(f"{self.elf}'s metadata block is version {found}, its build {version} wants {wanted}")
+                return
+            table, image = self.elf.parent / "partition_table.bin", self.elf.with_suffix(".bin")
+            for needed in (table, image):
+                if not needed.exists():
+                    self.fail(f"{needed} does not exist")
+                    return
+            writes = [f"program {{{table.as_posix()}}} verify {layout['table']:#x}",
+                      f"flash erase_address {layout['slot_b']:#x} {SECTOR_BYTES:#x}",
+                      f"program {{{image.as_posix()}}} verify reset {layout['slot_a']:#x}"]
+        else:
+            writes = [f"program {{{self.elf.as_posix()}}} verify reset"]
         started = time.monotonic()
         done_before = len(self.openocd.output)
-        self.openocd.cmd(f"program {{{self.elf.as_posix()}}} verify reset")
-        if not any("Verified OK" in line for line in self.openocd.output[done_before:]):
-            self.fail("openocd did not verify the image")
+        for write in writes:
+            self.openocd.cmd(write)
+        verified = sum("Verified OK" in line for line in self.openocd.output[done_before:])
+        if verified != sum(write.startswith("program") for write in writes):
+            self.fail(f"openocd verified {verified} of the writes: {writes}")
             return
         self.log.write("rc", f"flashed and verified in {time.monotonic() - started:.1f} s")
         reply = self.wait_for_console()
         if reply is None:
             return
-        version, vcs = build_version(self.board["build"])
         if f"ver={version} " not in reply or f"vcs={vcs} " not in reply:
             self.fail(f"the unit does not run the build: expected ver={version} vcs={vcs}, got: {reply}")
         else:

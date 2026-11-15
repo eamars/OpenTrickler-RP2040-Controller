@@ -123,5 +123,8 @@ if (RC_TEST_FAULT)
 endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
+# The flash layout and the image's metadata block (ADR-004)
+include(${CMAKE_SOURCE_DIR}/targets/flash_layout.cmake)
+
 # Generate extra outputs
 pico_add_extra_outputs("${TARGET_NAME}")
