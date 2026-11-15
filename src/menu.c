@@ -192,6 +192,9 @@ void menu_task(void *p){
             uint8_t exit_form_id = 1;  // by default it goes to the main menu
             // menu is not active, leave the control to the app
             switch (exit_state) {
+                case APP_STATE_VIEW_MOTOR_FAULT:
+                    exit_form_id = menu_motor_fault_view();
+                    break;
                 case APP_STATE_ENTER_CHARGE_MODE:
                     exit_form_id = charge_mode_menu(false);
                     break;
@@ -215,9 +218,6 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_WIFI_INFO:
                     exit_form_id = wireless_view_wifi_info();
-                    break;
-                case APP_STATE_VIEW_MOTOR_FAULT:
-                    exit_form_id = menu_motor_fault_view();
                     break;
                 default:
                     break;
