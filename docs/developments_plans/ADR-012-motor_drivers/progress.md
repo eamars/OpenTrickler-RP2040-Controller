@@ -238,9 +238,40 @@ Each finding was read again in the code first: all six were as the audit said. O
 - The 7 lines of the hand-overs that are not frames (`000.00 GN`, `00 GN`, `STST,+00000.00 GN`, `ST,+ST,+00000.00 `, ...) were dropped and counted, none read as a weight; the Pico 2 W had 12 in its 30.
 - The motors leave the scale's pace as it is idle, as on the Pico 2 W (40 ms and 61 ms).
 
+## Step 6: a fault shown before a mode is entered
+
+2026-11-15, after the owner's test with a driver module lifted: Start led through profile, weight and pan warning before it said "No fine driver". The life cycle of the drivers' checks was drawn first ([README](README.md), "The drivers' checks in every state"); drawing it found three more gaps, closed in this step: a running cleanup never looked at the drivers; a fault while the charge waited for zero or for the cup was seen only at the next throw; an absent driver was tried again only when a mode started, so a title naming it could stay after the driver came.
+
+**What was built** (commits 5b71bc4 and 7838689; the image 1.20.137)
+- `mui_menu.c`: the main menu's title is a field that draws "OpenTrickler" or the driver not OK, and its entries are u8g2's goto field with a check in front of Start and Cleanup (`motors_ready()`). A driver not OK: the fault screen, before form 10 or 20.
+- `menu.c`: the fault screen, drawn by the menu task as the Wi-Fi information is, so `menu_tour` finds no new form. The menu task wakes once a second and draws again only when the title has changed.
+- `charge_mode.cpp`, `cleanup_mode.cpp`: the same check first thing, from the menu or the web; a driver not OK shows the fault screen and the mode is not entered. Each mode's own refusal is gone. A charge ends on a driver's fault in each of its states; a running cleanup looks at the drivers each tenth of a second.
+- `motors.c`: the drivers' task tries an absent driver again each second, saying so when it answers and nothing while it does not.
+- **Found while proving it: a charge ended outside a throw drew the last throw's time over the fault's name** ("Coarse driver sh▓▓38 s"). The screen inferred "ended on a fault" from a throw whose timer had stopped (ADR-013), which held only while a fault could end nothing but a throw. The end now sets a flag that a charge's start clears, and the screen reads it (7838689).
+- The size: the Pico W image 680,360 bytes of flash, 1,064 more than step 5's; RAM at link time 4 bytes more. The Pico 2 W 658,196, 1,040 more.
+
+**What the Pico 2 W showed** (1.20.136 at 5b71bc4 for the paths, the title fix on top of it for the charge's screens, 1.20.137 for the rest). The faults were put in with `tmc fine lose` and `tmc <coarse|fine> fault`; `logs/adr012/pico2w/step6_proof.log`, the screens in `logs/adr012/pico2w/step6/`.
+
+| Proof | Result |
+|---|---|
+| The fine driver lost | After its 3 missed readings `drivers=ok,absent` and the title reads "No fine driver"; the tries each second after it said nothing |
+| Start pressed | "Menu: No fine driver, charge and cleanup cannot start"; the fault screen at once (the title, "Charge and cleanup cannot start. Press to go back."); a press, the main menu |
+| Cleanup pressed | The same |
+| A charge started from the web (`s2=1`) | "Charge: not started, No fine driver", the fault screen, no charge; after the press the web reads `s2` 0. While the screen is up it reads 1: the web writes the state itself after asking (ADR-003, M10), as before this step |
+| A cleanup started from the web (`s0=1`) | "Cleanup: not started, No fine driver"; after the press `s0` is 0 |
+| The driver found again | Within 4 s of `find`, with nothing pressed: "Motor driver 1: set up", `drivers=ok,ok`, the title "OpenTrickler" |
+| A short while the charge waits for zero | "Charge: ended, Coarse driver short" in state 1; after the press the main menu's title keeps "Coarse driver short", the fault being kept until a mode is asked for. Start then sets the driver up again, reads it clean and goes on to the profile |
+| The fine driver hot while the charge waits for the cup to go | "Charge: ended, Fine driver hot" in state 3 |
+| A short in a throw | "Charge: ended, Coarse driver short" in state 2, as since step 4 |
+| A short in a running cleanup | At 0.5 rev/s: "Cleanup: ended, Coarse driver short", both motors at 0, the title names it |
+| The charge's screens after the fix | The fault's whole name on its own, in states 1, 2 and 3; the scale's "Scale: no reading" as in ADR-013 |
+| With both drivers OK (1.20.137) | `menu_tour --compare` passed, the main menu unchanged; `charge_cycle` 14.5 s; `charge_fault none`, `bad`, `quiet` as before |
+
+**Left for step 6:** the same on the Pico W, and the owner's lifted module once more.
+
 ## Where it stands
 
-2026-11-15. All five steps are built. Both units run the last image of the branch (the Pico W 1.20.131 at c919ece; the Pico 2 W 1.20.130 at 8b8395d, the same code but for documents). On the Pico 2 W:
+2026-11-15. All six steps are built. The Pico 2 W runs 1.20.137 at 7838689, with step 6; the Pico W 1.20.131 at c919ece, without it. Steps 1 to 5 on the Pico 2 W:
 
 | Proof | Result |
 |---|---|
@@ -254,8 +285,9 @@ Each finding was read again in the code first: all six were as the audit said. O
 On the Pico W every proof above passes but the soak, which fails on the web alone: this ADR's image misses more of the web's reads than the one before it, and resets connections, most when the Wi-Fi is poor ("The Pico W" above). The cause is step 5's room for 20 values in each connection's state; the fix is ADR-003's. The owner accepted it as it is, 2026-11-15: "Yes, leave it to ADR-003".
 
 **Left before the ADR can close**
+- **Step 6 on the Pico W:** its fail-early paths and the checks with both drivers OK, as on the Pico 2 W. The probe last failed to reach it (12:54); it needs the owner to put it back on.
 - **By the owner's hand:**
-  - a driver module lifted with the power off, then a start: the unit must reach the menu and name the driver;
+  - a driver module lifted with the power off, then a start: done before step 6 (the unit reached the menu and named the driver only once a mode was asked for, which led to step 6); once more with step 6: the title names it, and Start and Cleanup refuse at the press;
   - a phone on the unit's access point: the unit's page must open by its name (W1);
   - real throws, same powder and target, against how the unit threw before: no worse. The motors now run at the current the stored figure says, which the driver gives in a quarter to half of its 32 steps.
 - **Not shown apart:** the hard-fault handler's own stop, since with the probe connected both cores halt and the pulses starve as well.
