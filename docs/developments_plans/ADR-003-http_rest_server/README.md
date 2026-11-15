@@ -186,14 +186,14 @@ Written in full 2026-11-15, for approval, with the API's table: [api_v1.md](api_
 - **One table a module:** for each setting its name, type, unit, limits or choices, access, when it takes effect, when it is refused, a line on what it is, and where its value lives (the field in the module's struct). The module adds a check for what crosses fields (a minimum speed not above the maximum) and an apply for what follows a change (the driver set up again).
 - **One code for every table:** a GET builds the reply from it, a PATCH checks the whole request on a copy and the module applies it, `saved` is kept, and save stores the module. `GET /api/v1` and `GET /api/v1/schema` are made from the tables.
 - **The console reads and writes the same tables:** `setting <resource>`, and `setting <resource> <name>=<value> ...` (the owner: one table of names for the console and the API).
-- The settings and profiles resources of [api_v1.md](api_v1.md). The portal's forms, its export and import, and `rc_run.py settings` move to them module by module, and each module's old handler goes when its form has moved.
+- The settings and powder profiles resources of [api_v1.md](api_v1.md), and all of them at once (`/api/v1/settings`, the export and import). The schema carries each field's label, group and step now, for ADR-008's forms and ADR-010's screen. The portal's forms, its export and import, and `rc_run.py settings` move to them module by module, and each module's old handler goes when its form has moved.
 - No stored struct changes its layout: the tables point into the structs as they are.
 
 ### Gate 4: commands, events, the switch
 
 - **Commands:** charge start and stop, cleanup start, stop and speed, the scale's zero, the gate, save, restart and erase, as in [api_v1.md](api_v1.md). Each is one entry point to the application, which the web, the console and the menu all use. The made-up button press (`OVERRIDE_FROM_REST`) goes.
-- **Events:** the newest 32 kept and numbered; each client reads from where it left off.
-- `GET /api/v1/scale`, `/gate`, `/motors`, `/system`. The mDNS announcement adds the API's and the firmware's versions.
+- **One event log for the unit:** the newest 64 kept and numbered, with the start's number (`boot`); each client reads from where it left off. The charge's events carry ADR-013's pauses and the reason a throw ended.
+- `GET /api/v1/scale` (with what its make can be asked to do), `/gate`, `/motors`, `/system`, `/network`. The mDNS announcement adds the API's and the firmware's versions, and the host name is made from the id with its ending.
 - **The switch:** the portal, the wizard and the mirror on the new API. The wizard restarts the unit once the Wi-Fi save is answered: today it sends both at once (`wizard.html`), and a restart handled first loses the settings.
 - **The adapter, the old handlers, `http_rest.h` in the modules' headers and lwIP's httpd options are deleted.** The ADR closes only when no copy of lwIP's file server is in the tree (the owner, at gate 1's merge).
 - **The client:** a Python module in `tools/`, which reads the unit's schema and works from it, not from paths written into it. The proof uses it, `rc_run.py` uses it, and an agent can. `tests/web_test.py`, the stand-in for page work, answers v1.
@@ -224,7 +224,9 @@ At the close, on the Pico W, then the Pico 2 W:
 ## For the owner at gate 2's approval
 
 - **The API's table,** [api_v1.md](api_v1.md): every path, method, body, reply and status, with the names. Once approved it is v1, and only grows.
+- **What it must grow into** (api_v1.md): checked 2026-11-15 against every ADR, the menu and the TODOs in `src/`, at the owner's word ("not just satisfy the current use case, but also future expansions"). The rules for growing within v1, and a place now for each later need: ADR-014's charge profiles, ADR-009's recordings, tests and tuning, ADR-004's update, ADR-005's features, ADR-008's and ADR-010's forms.
 - **Settings live until saved,** with `saved` in every reply (its "For the owner", 1).
+- **The names `powder_profiles` and `charge_profiles`,** and what the next throw uses kept in the charge (its "For the owner", 2).
 - **The limits marked *p*** in the table, where today's code has none.
 - **A write is any number of a resource's fields at once,** checked whole; refused during a throw (`zeroing`, `charging`) where the throw reads it, and the motors' during a cleanup too.
 - **Sockets,** with a measured stop at 32 KB of lwIP's heap.
