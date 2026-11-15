@@ -61,6 +61,10 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 
 Changes are proven on a real unit, not only built. The usual proof, after a build: `rc_run.py flash`, then `rc_run.py menu_tour --compare tests/menu_baseline/pico_w`, then `rc_run.py charge_cycle`. Each must end `VERDICT PASS`. A change meant to alter a screen updates the baseline in the same commit, with `--save`.
 
+- **One unit is enough for a change in the application layer** (the owner, 2026-11-15: "We don't need to repeat on Pico W for application layer changes"). Read here as:
+  - a change that touches nothing the two boards differ in (the modes, the control loop, the menu's logic, the profiles) is proven on whichever unit is on the probe;
+  - a change to a driver, the PIO, timing against the chip, memory, the network or the build is proven on both.
+
 - **The bench rules** hold for every way of reaching a unit, the tools below included:
   - No contact with the hardware (no flashing, no serial port, no debug probe, no call to a unit over the network) until the owner says the bench is ready. Ask again in every new session.
   - An agent's run assumes the hopper is empty. The owner says when there is powder in it.
