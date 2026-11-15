@@ -49,4 +49,21 @@
 #define MEMP_NUM_SYS_TIMEOUT (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 8)
 #define MEMP_NUM_TCP_PCB 12
 
+// lwIP's heap and pools counted for the console's `net` (ADR-003, gate 1), whether NDEBUG is defined or not. The
+// counters are 32 bits: a soak's failed allocations can pass 65,535
+#undef LWIP_STATS
+#define LWIP_STATS 1
+#define LWIP_STATS_LARGE 1
+#undef MEM_STATS
+#define MEM_STATS 1
+#undef MEMP_STATS
+#define MEMP_STATS 1
+
+// lwIP's heap (ADR-003, gate 1). It holds each web connection's state, the header of each TCP segment in flight and
+// a copy of each reply from RAM. The Pico examples' 4,000 bytes ran out under two browsers and a charge: 7,404 failed
+// allocations and 8.9% of the web's reads missed in ten minutes. With room to spare the web used 8,824 and 10,364 at
+// most in two soaks of the same load: the most moves with the Wi-Fi. This is the larger and half as much again
+#undef MEM_SIZE
+#define MEM_SIZE 16384
+
 #endif

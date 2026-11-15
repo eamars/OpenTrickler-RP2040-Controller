@@ -20,7 +20,9 @@ Usage, from the repository root:
 """
 import argparse
 import base64
+import collections
 import datetime
+import http.client
 import json
 import math
 import queue
@@ -32,6 +34,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import zlib
 from pathlib import Path
@@ -134,6 +137,29 @@ CHARGE_FAULT_POLL_S = 0.05     # how often state is read around the fault
 CHARGE_FAULT_RAMP_S = 0.25     # a ramp down from full speed (0.1 s at 50 rev/s2) and a poll or two
 
 
+def miss_kind(error):
+    """
+    Name what kind of miss a failed web read was (ADR-003, gate 1).
+
+    Args:
+        error: what the read raised, or None when it answered and the answer was wrong.
+
+    Returns:
+        "timeout", "reset", "refused", "wrong" or "other".
+    """
+    if isinstance(error, urllib.error.URLError) and isinstance(error.reason, BaseException):
+        error = error.reason
+    if error is None or isinstance(error, (ValueError, http.client.HTTPException)):
+        return "wrong"
+    if isinstance(error, (TimeoutError, socket.timeout)):
+        return "timeout"
+    if isinstance(error, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+        return "reset"
+    if isinstance(error, ConnectionRefusedError):
+        return "refused"
+    return "other"
+
+
 class WebPoller(threading.Thread):
     """
     Web reads repeated at an interval until stopped. Each round does its requests one after another, as a page
@@ -147,7 +173,7 @@ class WebPoller(threading.Thread):
             name: what it reads, for the log.
             interval_s: seconds from the start of one round to the start of the next.
             reads: (label, function) for each request of a round. A function does one request and returns True
-                when the answer is right; an OSError or a ValueError counts as no answer.
+                when the answer is right; an OSError, a ValueError or an HTTP error counts as a miss.
             log: the SessionLog.
         """
         super().__init__(daemon=True)
@@ -155,6 +181,7 @@ class WebPoller(threading.Thread):
         self.stop_event = threading.Event()
         self.good = 0
         self.missed = 0
+        self.kinds = collections.Counter()   # misses by miss_kind()
         self.run_now = 0        # misses in a row, now
         self.run_longest = 0
 
@@ -163,14 +190,16 @@ class WebPoller(threading.Thread):
             started = time.monotonic()
             for label, read in self.reads:
                 try:
-                    ok, why = read(), "a wrong answer"
-                except (OSError, ValueError) as error:
-                    ok, why = False, str(error)
+                    ok, why, error = read(), "a wrong answer", None
+                except (OSError, ValueError, http.client.HTTPException) as caught:
+                    # An HTTP error is neither of the other two: uncaught, it ended the poller and its misses
+                    ok, why, error = False, f"{type(caught).__name__}: {caught}", caught
                 if ok:
                     self.good += 1
                     self.run_now = 0
                 else:
                     self.missed += 1
+                    self.kinds[miss_kind(error)] += 1
                     self.run_now += 1
                     self.run_longest = max(self.run_longest, self.run_now)
                     self.log.write("rc", f"soak: {self.name}{f' {label}' if label else ''}: {why}")
@@ -882,6 +911,18 @@ class Session:
             return None
         return {key: int(value) for key, value in re.findall(r"\b(heap_free|heap_min|tasks)=(\d+)", reply)}
 
+    def net(self):
+        """
+        Ask `net` (ADR-003, gate 1): lwIP's heap and pools, each in use, most ever, size and failed allocations.
+
+        Returns:
+            Its numbers as ints in a dict, or None (counted as a failure).
+        """
+        reply = self.send("net")
+        if reply is None or not reply.startswith("@ok net"):
+            return None
+        return {key: int(value) for key, value in re.findall(r"\b(\w+)=(\d+)", reply)}
+
     def settings(self, host, save_dir, compare_dir):
         """
         Read the stored settings over the web API, keep them as JSON, and compare them with an earlier copy.
@@ -935,8 +976,9 @@ class Session:
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
         Fails on a failed charge, on a restart or an assert, on more than max_miss_share of the web reads with
-        no right answer or max_miss_run in a row on one poller, and when heap_free ends lower than its lowest in
-        the first SOAK_SETTLE_S: memory taken and not given back.
+        no right answer or max_miss_run in a row on one poller, when heap_free ends lower than its lowest in
+        the first SOAK_SETTLE_S (memory taken and not given back), and when lwIP's heap or a pool failed an
+        allocation during the run (`net`, ADR-003). Misses are summed by kind: timeout, reset, wrong answer.
 
         Args:
             host: the unit's address.
@@ -970,6 +1012,9 @@ class Session:
         pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
                                  [(name, read_setting(name)) for name in SETTINGS_PATHS], self.log))
 
+        net_start = self.net()
+        if net_start is not None:
+            self.log.write("rc", "soak: net at the start: " + " ".join(f"{k}={v}" for k, v in net_start.items()))
         started = time.monotonic()
         heap = []   # (seconds since the start, heap_free)
         cycles = 0
@@ -992,12 +1037,23 @@ class Session:
         self.log.write("rc", f"soak: {cycles} charges in {time.monotonic() - started:.0f} s")
         good = sum(poller.good for poller in pollers)
         missed = sum(poller.missed for poller in pollers)
+        kinds = collections.Counter()
         for poller in pollers:
+            kinds.update(poller.kinds)
             self.log.write("rc", f"soak: {poller.name}: {poller.good} right, {poller.missed} missed, "
                                  f"longest run {poller.run_longest}")
         share = missed / (good + missed) if good + missed else 1.0
         self.log.write("rc", f"soak: {missed} of {good + missed} web reads missed ({share:.2%}), longest run "
                              f"{max(poller.run_longest for poller in pollers)}")
+        self.log.write("rc", "soak: misses by kind: "
+                             + (", ".join(f"{kind} {count}" for kind, count in kinds.most_common()) or "none"))
+        net_end = self.net()
+        if net_start is not None and net_end is not None:
+            self.log.write("rc", "soak: net at the end: " + " ".join(f"{k}={v}" for k, v in net_end.items()))
+            for key in (key for key in net_end if key.endswith("_err")):
+                rise = net_end[key] - net_start.get(key, 0)
+                if rise > 0:
+                    self.fail(f"soak: lwIP's {key} rose by {rise}: allocations failed during the soak")
         if share > max_miss_share:
             self.fail(f"soak: {share:.2%} of the web reads missed, more than {max_miss_share:.2%}")
         for poller in pollers:
