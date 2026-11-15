@@ -103,6 +103,7 @@ Work is planned and recorded as architecture decision records in [docs/developme
 - **One at a time:** one ADR is open at a time; a functional change and a dependency update are never mixed in one.
 - **Plain form:** plain words. What we want, the owner's direction, what we know (measured or checked in the code), what we do, how the unit shows it works. `progress.md` records what was built and measured.
 - **Close before the PR:** an ADR is closed (Built, in its README, its progress and the index) in its branch before its PR is opened.
+- **Stage gates, not small ADRs** (the owner, 2026-11-15: "Don't use small ADR. If you need staged release, you can have smaller stage gates within ADR-003"). A large ADR is built in gates inside it. A gate is approved and built on its own and may be merged by a PR of its own; the ADR is then Open until its last gate, which closes it before its PR.
 - **PRs from others** are not merged as they stand. Each is discussed with the owner first (ADR-002).
 - **An update that is not a feature may be merged without asking** (the owner, 2026-11-13: "for no feature update you can just merge the code"). Read here as: a change that leaves what the firmware does for a user as it was, such as CI, build scripts, host tools and documents. Open its PR, see its checks, merge it. A feature, or anything a user can see, waits for the owner.
 - **Push only when it is needed** (the owner, 2026-11-15: GitHub has begun to block accounts that agents push from often, and the owner's must not become one). Read here as:
