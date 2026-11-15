@@ -30,8 +30,9 @@
 #define HTTP_SERVER_PORT 80
 
 // Below the menu's task (6), which runs the charge loop, and the charge screen's (5): the server formats floats on a
-// chip with no FPU and must never take the loop's turn. lwIP's own thread is at 7
-#define HTTP_SERVER_TASK_PRIORITY 4
+// chip with no FPU and must never take the loop's turn. Below the cyw43 task too (4, the SDK's), which takes in the
+// network's packets and the ACKs the server's replies wait for. lwIP's own thread is at 7
+#define HTTP_SERVER_TASK_PRIORITY 3
 #define HTTP_SERVER_TASK_STACK_WORDS 1536
 
 #define HTTP_SERVER_ROUTES 48
