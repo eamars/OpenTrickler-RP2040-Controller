@@ -273,11 +273,13 @@ Each finding was read again in the code first: all six were as the audit said. O
 - A short in a running cleanup at 0.5 rev/s: both motors at 0, "Cleanup: ended, Coarse driver short".
 - With both drivers OK: `menu_tour --compare` passed, the main menu unchanged; `charge_cycle` 17.0 s and 16.9 s (17.0 s before the ADR); `charge_fault none`, `bad`, `quiet` as before.
 
-**Left for step 6:** the owner's lifted module once more.
+**The owner's lifted module with step 6** (2026-11-15): "it works as expected".
+
+**The open PRs merged as a test again.** Step 5's test was taken before step 6 touched `charge_mode.cpp`, `menu.c` and `app.h`; it was taken again (`git merge-tree`, in memory, no branch changed). PR #109 merged clean. PR #113 conflicted in `app.h` and `menu.c`, and not only as text: it numbers its powder analysis state 11 and names it so in a form's button, and step 6 had taken 11 too, so a merge keeping both would give two states one number. The fault screen's state is set from code, never by a form's button: it is 100 now, placed where PRs do not append (945dfe6), and both PRs merge without a conflict. On the Pico 2 W (1.20.140 at 945dfe6): `menu_tour --compare` passed, Start with the fine driver lost showed the fault screen, `charge_cycle` 14.5 s. The Pico W runs 1.20.137, the same but for that number.
 
 ## Where it stands
 
-2026-11-15. All six steps are built. Both units run 1.20.137 at 7838689. Steps 1 to 5 on the Pico 2 W:
+2026-11-15. All six steps are built. The Pico 2 W runs 1.20.140 at 945dfe6, the branch's last code; the Pico W 1.20.137 at 7838689, the same but for the fault screen's state number. Steps 1 to 5 on the Pico 2 W:
 
 | Proof | Result |
 |---|---|
@@ -292,12 +294,15 @@ On the Pico W every proof above passes but the soak, which fails on the web alon
 
 Step 6 passes on both units ("Step 6" above).
 
+**By the owner's hand**
+- A driver module lifted with the power off, then a start: done before step 6 (the unit reached the menu and named the driver only once a mode was asked for, which led to step 6), and again with step 6, "it works as expected".
+- Real throws: moved to ADR-009 by the owner, its first recorded throws ("Handed on by ADR-012" there).
+
 **Left before the ADR can close**
-- **By the owner's hand:**
-  - a driver module lifted with the power off, then a start: done before step 6 (the unit reached the menu and named the driver only once a mode was asked for, which led to step 6); once more with step 6: the title names it, and Start and Cleanup refuse at the press;
-  - a phone on the unit's access point: the unit's page must open by its name (W1);
-  - real throws, same powder and target, against how the unit threw before: no worse. The motors now run at the current the stored figure says, which the driver gives in a quarter to half of its 32 steps.
-- **Not shown apart:** the hard-fault handler's own stop, since with the probe connected both cores halt and the pulses starve as well.
-- No servo is on the bench: the gate's new ramp is built and read, not seen to move, and "shutter0" and "shutter1" (audit G4) are still unchecked.
+- **A phone on the unit's access point:** the unit's page must open by its name (W1). The owner's hand.
+
+**Limits of the bench, recorded and not shown**
+- The hard-fault handler's own stop, apart from the starved pulses: with the probe connected both cores halt.
+- No servo is on the bench: the gate's new ramp is built and read, not seen to move, and "shutter0" and "shutter1" (audit G4) are checked when a servo is next connected ("Where the rest of the audit goes").
 
 Nothing is pushed. The branch is `adr012_motor_drivers`, on this PC.

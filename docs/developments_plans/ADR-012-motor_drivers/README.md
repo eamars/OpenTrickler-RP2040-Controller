@@ -1,6 +1,6 @@
 # ADR-012: the motor drivers cleaned up
 
-Status: **Open**. Approved by the owner 2026-11-15. Steps 1 to 5 are built and proven on both units that day, but for the Pico W's soak, which fails on the web alone: accepted by the owner, its fix left to ADR-003. Step 6, a driver's fault shown before a mode is entered, is built and proven on both units. Left: three by the owner's hand (a driver module lifted before a start, a phone on the unit's access point, real throws). What is built and measured is in [progress](progress.md), which ends with where it stands. The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
+Status: **Open**. Approved by the owner 2026-11-15. Steps 1 to 5 are built and proven on both units that day, but for the Pico W's soak, which fails on the web alone: accepted by the owner, its fix left to ADR-003. Step 6, a driver's fault shown before a mode is entered, is built and proven on both units, and by the owner's lifted module. The real throws are moved to ADR-009 by the owner. Left: a phone on the unit's access point. What is built and measured is in [progress](progress.md), which ends with where it stands. The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
 
 ## What we want
 
@@ -27,6 +27,7 @@ Status: **Open**. Approved by the owner 2026-11-15. Steps 1 to 5 are built and p
   - **A change to the web server belongs to the web server's ADR:** "You don't need to implement the change right away, but to document what, and how in the corresponding ADR." The fix for step 5's cost to the web is written into ADR-003.
   - **This ADR closes with the Pico W's web as it is,** the fix left to ADR-003: "Yes, leave it to ADR-003".
 - 2026-11-15, after testing a unit with a driver module lifted: **fail early.** "If stepper motor driver is missing, then the program should not even be allowed to enter the corresponding function, for example charge mode and cleanup mode." The stop of a trickle when a driver fails during it stays; "I'd also like to warn before the user enters the charge mode or cleanup mode, if the motor is already failed." Step 6, drawn first as the life cycle of the drivers' checks in every state of the firmware.
+- 2026-11-15, after step 6: the lifted module once more, "it works as expected". **The real throws move to the tuning stage:** "I won't run the real throw until you have reached the tuning stage." They are ADR-009's first recorded throws, written there under "Handed on by ADR-012".
 
 ## Why here
 
@@ -344,7 +345,7 @@ On the Pico W and on the Pico 2 W:
 - **PRs #109 and #113 merged into the branch as a test,** on this PC only: clean, or the conflicts named.
 - **A soak after step 3,** which changes the tasks and their priorities: charges back to back under web load, against the limits of ADR-013's last soak.
 - **Step 6,** with `tmc fine lose` and `fault`: the menu's title names the driver within three seconds and clears after `find`; Start and Cleanup pressed show the fault screen at once; a charge and a cleanup started from the web show it and are not entered; a fault while waiting for zero or for the cup ends the charge; a fault in cleanup stops both motors. With both drivers OK, `menu_tour --compare` and `charge_cycle` pass as before. Then the owner's lifted module once more.
-- **The owner's real throws,** same powder and target, before and after: no worse.
+- **The owner's real throws,** same powder and target, before and after: no worse. Moved to ADR-009 by the owner, 2026-11-15: its first recorded throws.
 
 ## Not in this ADR
 
