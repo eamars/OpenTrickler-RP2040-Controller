@@ -47,3 +47,18 @@ Built at 0398515 (1.20.155): a request's values static (step 3), a reply in RAM 
 - The refused connection: the PC got a reset to its first packet. Its cause was not found; one in 3,743, with the two timeouts in the same 3 s, looks like the Wi-Fi.
 - **The heap's size:** 8,824 and half as much again, 13,236, rounded up to 13,312 bytes (13 KB). The 24,000 was for this run only.
 - Log: `logs/rc/20261115_153923_soak.log`.
+
+### Step 6: the gate's soak
+
+**First, at 13,312 bytes** (4172a2b, 1.20.156), 15:51 to 16:01: `flash`, `menu_tour --compare` (form 36, the version, not judged), `charge_cycle` and `soak 600` each `VERDICT PASS`.
+
+| | |
+|---|---|
+| Charges | 21, every one passed |
+| Web reads missed | **0 of 3,774** |
+| lwIP's heap | most used **10,364**; no allocation failed; 1,028 at rest at the start and the end |
+| Pools | none failed; TCP connections 12 of 12 at the end, segments up to 7 of 32 |
+
+- The heap's most used moved from 8,824 to 10,364, 17% more, between two soaks of the same load in the same hour: it follows the Wi-Fi, as ADR-012's misses did. 13,312 left 22% over the larger, short of the half over it the rule asks.
+- **So the heap is 16,384 bytes:** 10,364 and half as much again, 15,546, rounded up to 16 KB. 3 KB more of the RAM, of the Pico W's 47 KB left at link time.
+- Log: `logs/rc/20261115_155129_soak.log`.

@@ -61,9 +61,9 @@
 
 // lwIP's heap (ADR-003, gate 1). It holds each web connection's state, the header of each TCP segment in flight and
 // a copy of each reply from RAM. The Pico examples' 4,000 bytes ran out under two browsers and a charge: 7,404 failed
-// allocations and 8.9% of the web's reads missed in ten minutes. With room to spare the web used 8,824 at most under
-// the same load; this is that and half as much again
+// allocations and 8.9% of the web's reads missed in ten minutes. With room to spare the web used 8,824 and 10,364 at
+// most in two soaks of the same load: the most moves with the Wi-Fi. This is the larger and half as much again
 #undef MEM_SIZE
-#define MEM_SIZE 13312
+#define MEM_SIZE 16384
 
 #endif
