@@ -22,6 +22,7 @@
 #include "profile.h"
 #include "scale.h"
 #include "display.h"
+#include "settings.h"
 
 
 extern charge_mode_config_t charge_mode_config;
@@ -275,8 +276,37 @@ static void api_v1_get_debug_wait(const http_server_request_t *request, http_ser
 }
 
 
+// GET /api/v1/powder_profiles: saved, and each profile's id and name (gate 3). Which the next throw uses is the
+// charge's powder_profile
+static void api_v1_get_powder_profiles(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"saved\":");
+    http_json_bool(out, room, &len, profile_data_is_saved());
+    http_json_raw(out, room, &len, ",\"profiles\":[");
+    for (uint16_t idx = 0; idx < MAX_PROFILE_CNT; idx += 1) {
+        http_json_raw(out, room, &len, idx ? ",{\"id\":" : "{\"id\":");
+        http_json_integer(out, room, &len, idx);
+        http_json_raw(out, room, &len, ",\"name\":");
+        http_json_string(out, room, &len, profile_get_name(idx));
+        http_json_raw(out, room, &len, "}");
+    }
+    http_json_raw(out, room, &len, "]}");
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        return;
+    }
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
 bool api_v1_init(void) {
     bool ok = true;
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
+    // Every module's settings' table, registered at its start (gate 3)
+    settings_add_routes();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/charge", api_v1_get_charge);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display/frame", api_v1_get_display_frame);

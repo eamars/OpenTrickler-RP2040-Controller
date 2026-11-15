@@ -14,6 +14,7 @@
 #include "app.h"
 #include "scale.h"
 #include "common.h"
+#include "settings.h"
 
 extern scale_handle_t generic_scale_drv_handle;
 extern scale_handle_t and_fxi_scale_handle;
@@ -41,10 +42,16 @@ const eeprom_scale_data_t default_scale_persistent_config = {
 };
 
 
-void set_scale_driver(scale_driver_t scale_driver) {
-    // Update the persistent settings
-    scale_config.persistent_config.scale_driver = scale_driver;
-    
+/*
+    The driver that runs, which the stored one is but while the remote control's simulated scale stands in for it
+    (ADR-003, gate 3: a test stand-in is never in the stored settings, so no save stores it)
+*/
+static scale_driver_t scale_running_driver = SCALE_DRIVER_AND_FXI;
+
+
+static void scale_use_driver(scale_driver_t scale_driver) {
+    scale_running_driver = scale_driver;
+
     switch (scale_driver) {
         case SCALE_DRIVER_AND_FXI:
         {
@@ -102,6 +109,18 @@ void set_scale_driver(scale_driver_t scale_driver) {
     }
 }
 
+
+void set_scale_driver(scale_driver_t scale_driver) {
+    // Update the persistent settings
+    scale_config.persistent_config.scale_driver = scale_driver;
+    scale_use_driver(scale_driver);
+}
+
+
+scale_driver_t scale_get_running_driver(void) {
+    return scale_running_driver;
+}
+
 void set_scale_uart_format(scale_uart_format_t format) {
     scale_config.persistent_config.scale_uart_format = format;
 
@@ -147,7 +166,7 @@ void set_scale_baudrate(scale_baudrate_t baudrate) {
 const char * get_scale_driver_string() {
     const char * scale_driver_string = NULL;
 
-    switch (scale_config.persistent_config.scale_driver) {
+    switch (scale_running_driver) {
         case SCALE_DRIVER_AND_FXI:
             scale_driver_string = "AND FX-i Std";
             break;
@@ -184,6 +203,91 @@ const char * get_scale_driver_string() {
 
     return scale_driver_string;
 }
+
+
+/*
+    The scale's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/scale). The stored driver
+    only: the simulated scale standing in for it never shows here, and no save stores it.
+*/
+static const setting_choice_t scale_driver_choices[] = {
+    {.held = SCALE_DRIVER_AND_FXI, .text = "and_fxi", .label = "A&D FX-i"},
+    {.held = SCALE_DRIVER_STEINBERG_SBS, .text = "steinberg_sbs", .label = "Steinberg SBS"},
+    {.held = SCALE_DRIVER_GNG_JJB, .text = "gng_jjb", .label = "G&G JJB"},
+    {.held = SCALE_DRIVER_USSOLID_JFDBS, .text = "ussolid_jfdbs", .label = "US Solid JFDBS"},
+    {.held = SCALE_DRIVER_JM_SCIENCE, .text = "jm_science", .label = "JM Science"},
+    {.held = SCALE_DRIVER_CREEDMOOR, .text = "creedmoor", .label = "Creedmoor"},
+    {.held = SCALE_DRIVER_RADWAG_PS_R2, .text = "radwag_ps_r2", .label = "Radwag PS R2"},
+    {.held = SCALE_DRIVER_SARTORIUS, .text = "sartorius", .label = "Sartorius"},
+    {.held = SCALE_DRIVER_GENERIC_DRV, .text = "generic", .label = "Generic"},
+    {.held = SCALE_DRIVER_SIMULATED, .text = "simulated", .label = "Simulated (no scale)"},
+};
+
+static const setting_choice_t scale_baud_choices[] = {
+    {.held = BAUDRATE_4800, .number = 4800, .label = "4800 baud"},
+    {.held = BAUDRATE_9600, .number = 9600, .label = "9600 baud"},
+    {.held = BAUDRATE_19200, .number = 19200, .label = "19200 baud"},
+};
+
+static const setting_choice_t scale_format_choices[] = {
+    {.held = UART_FMT_8D_1S_NP, .text = "8n1", .label = "8 data bits, no parity, 1 stop bit"},
+    {.held = UART_FMT_7D_1S_NP, .text = "7n1", .label = "7 data bits, no parity, 1 stop bit"},
+};
+
+
+#define SCALE_FIELD(member) SETTING_AT(eeprom_scale_data_t, member)
+
+static const setting_field_t scale_fields[] = {
+    {.name = "driver", .label = "Scale", .group = "Scale",
+     .about = "The make of scale, whose driver reads it; its reader is made at the start",
+     .type = SETTING_CHOICE, SCALE_FIELD(scale_driver), SETTING_CHOICES(scale_driver_choices),
+     .applies = "at_restart"},
+    {.name = "baud", .label = "Baud rate", .group = "Serial port",
+     .about = "The scale's serial port speed, as the scale is set",
+     .type = SETTING_CHOICE, SCALE_FIELD(scale_baudrate), SETTING_CHOICES(scale_baud_choices), .applies = "now"},
+    {.name = "format", .label = "Frame format", .group = "Serial port",
+     .about = "The scale's serial frame, as the scale is set",
+     .type = SETTING_CHOICE, SCALE_FIELD(scale_uart_format), SETTING_CHOICES(scale_format_choices),
+     .applies = "now"},
+};
+
+
+static void *scale_settings_live(int32_t id) {
+    (void) id;
+    return &scale_config.persistent_config;
+}
+
+
+static void scale_settings_apply(const void *before, int32_t id) {
+    (void) id;
+    const eeprom_scale_data_t *was = before;
+    if (scale_config.persistent_config.scale_baudrate != was->scale_baudrate) {
+        set_scale_baudrate(scale_config.persistent_config.scale_baudrate);
+    }
+    if (scale_config.persistent_config.scale_uart_format != was->scale_uart_format) {
+        set_scale_uart_format(scale_config.persistent_config.scale_uart_format);
+    }
+}
+
+
+static bool scale_settings_is_saved(void) {
+    return config_is_saved(EEPROM_SCALE_CONFIG_BASE_ADDR, &scale_config.persistent_config,
+                           sizeof(eeprom_scale_data_t));
+}
+
+
+static const settings_resource_t scale_settings = {
+    .path = "/api/v1/settings/scale",
+    .save_path = "/api/v1/settings/scale/save",
+    .label = "Scale",
+    .about = "The scale on the serial port",
+    SETTING_FIELDS(scale_fields),
+    .refused_while = SETTINGS_REFUSED_IN_THROW,
+    .size = sizeof(eeprom_scale_data_t),
+    .live = scale_settings_live,
+    .apply = scale_settings_apply,
+    .save = scale_config_save,
+    .is_saved = scale_settings_is_saved,
+};
 
 
 bool scale_init() {
@@ -224,6 +328,7 @@ bool scale_init() {
 
     // Register to eeprom save all
     eeprom_register_handler(scale_config_save);
+    settings_register(&scale_settings);
 
     return is_ok;
 }
@@ -233,24 +338,23 @@ bool scale_simulation_start(void) {
     if (scale_simulation_task_handle != NULL) {
         return true;
     }
-    // A unit whose stored driver is the simulated one already runs it; there is nothing to stand in for
-    if (scale_task_handle == NULL || scale_config.persistent_config.scale_driver == SCALE_DRIVER_SIMULATED) {
+    // A unit that runs the simulated driver already has it; there is nothing to stand in for
+    if (scale_task_handle == NULL || scale_running_driver == SCALE_DRIVER_SIMULATED) {
         return false;
     }
 
-    scale_simulation_stored_driver = scale_config.persistent_config.scale_driver;
+    scale_simulation_stored_driver = scale_running_driver;
     vTaskSuspend(scale_task_handle);
 
-    // The simulated scale publishes only while the driver reads Simulated. That is set in RAM only: nothing is
-    // saved here, and a restart brings the stored driver back. A save from the menu or the web while the
-    // simulation is on would store it
+    // The simulated scale publishes only while it is the driver that runs. The stored settings do not change
+    // (ADR-003, gate 3): no save stores the stand-in, and a restart brings the driver that ran back
     simulated_scale_handle.force_zero();
-    set_scale_driver(SCALE_DRIVER_SIMULATED);
+    scale_use_driver(SCALE_DRIVER_SIMULATED);
 
     if (xTaskCreate(simulated_scale_handle.read_loop_task, "Sim Scale Task", configMINIMAL_STACK_SIZE, NULL, 9,
                     &scale_simulation_task_handle) != pdPASS) {
         scale_simulation_task_handle = NULL;
-        set_scale_driver(scale_simulation_stored_driver);
+        scale_use_driver(scale_simulation_stored_driver);
         vTaskResume(scale_task_handle);
         return false;
     }
@@ -265,7 +369,7 @@ void scale_simulation_stop(void) {
 
     vTaskDelete(scale_simulation_task_handle);
     scale_simulation_task_handle = NULL;
-    set_scale_driver(scale_simulation_stored_driver);
+    scale_use_driver(scale_simulation_stored_driver);
 
     // Drop what the scale sent while its task was suspended; the reading is unknown until its next frame
     while (uart_is_readable(SCALE_UART)) {

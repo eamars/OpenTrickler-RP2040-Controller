@@ -37,7 +37,7 @@
 #define HTTP_SERVER_TASK_PRIORITY 3
 #define HTTP_SERVER_TASK_STACK_WORDS 1536
 
-#define HTTP_SERVER_ROUTES 48
+#define HTTP_SERVER_ROUTES 80                // gate 3's settings add some 30 to the 32 before them
 #define HTTP_SERVER_LINE_MAX 256            // a header line the server reads; longer ones are passed over
 #define HTTP_SERVER_HEADERS_MAX 8192        // all of a request's headers, read or passed over
 #define HTTP_SERVER_IDLE_MS 5000            // a kept-alive connection with no request in this long is closed
@@ -469,6 +469,11 @@ void http_server_reply_stream(http_server_reply_t *reply, int status, const char
 }
 
 
+void http_server_reply_etag(http_server_reply_t *reply, const char *etag) {
+    reply->etag = etag;
+}
+
+
 void http_server_reply_error(http_server_reply_t *reply, int status, const char *code, const char *message) {
     int len = snprintf(reply_scratch, sizeof(reply_scratch), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
                        code, message);
@@ -615,6 +620,18 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
             break;
         }
         case BODY_STREAM:
+            if (reply->etag != NULL && slot->if_none_match[0]) {
+                // A stream with a tag (the schema, gate 3): unchanged since the client's copy, nothing is made
+                char quoted[52];
+                snprintf(quoted, sizeof(quoted), "\"%s\"", reply->etag);
+                if (strstr(slot->if_none_match, quoted) != NULL || strcmp(slot->if_none_match, "*") == 0) {
+                    slot_make_head(slot, 304, reply->content_type, 0, false, reply->etag, NULL, NULL);
+                    slot->body_kind = BODY_NONE;
+                    slot->body_ptr = NULL;
+                    slot->body_len = 0;
+                    break;
+                }
+            }
             if (slot->http10) {
                 // No chunks for HTTP/1.0: the body ends where the connection does
                 slot->keep_alive = false;
@@ -623,7 +640,7 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
             else {
                 slot->chunked = true;
             }
-            slot_make_head(slot, reply->status, reply->content_type, 0, slot->chunked, NULL, NULL, NULL);
+            slot_make_head(slot, reply->status, reply->content_type, 0, slot->chunked, reply->etag, NULL, NULL);
             if (slot->http10) {
                 // slot_make_head wrote a Content-Length of 0; take it out by remaking the head without one
                 int len = snprintf(slot->line, sizeof(slot->line),

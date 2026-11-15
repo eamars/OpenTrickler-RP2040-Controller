@@ -29,6 +29,7 @@
 #include "display.h"
 #include "mini_12864_module.h"
 #include "motors.h"
+#include "settings.h"
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -587,6 +588,14 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
 }
 
 
+// `setting [<path> [name=value ...|save]]`: the API's settings' tables, read and written (ADR-003, gate 3)
+static bool remote_control_setting(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                   void *write_ctx) {
+    settings_console(args, reply, reply_size, write, write_ctx);
+    return strncmp(reply, "@ok", 3) == 0;
+}
+
+
 static const remote_control_command_t remote_control_commands[] = {
     {"help", remote_control_help},
     {"state", remote_control_state},
@@ -601,6 +610,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"motor", remote_control_motor},
     {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
+    {"setting", remote_control_setting},
 };
 
 #define REMOTE_CONTROL_COMMAND_COUNT (sizeof(remote_control_commands) / sizeof(remote_control_commands[0]))

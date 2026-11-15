@@ -51,6 +51,12 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
  */
 bool save_config(uint16_t addr, void * cfg, size_t size);
 
+/**
+ * @brief Whether the struct in RAM is what was last stored at that address, or read from it at the start: their
+ * CRCs (ADR-003, gate 3: `saved`). So a change from the menu or the console counts as one from the web does.
+ */
+bool config_is_saved(uint16_t addr, const void * cfg, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

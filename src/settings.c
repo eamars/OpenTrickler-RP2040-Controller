@@ -1,0 +1,1151 @@
+/*
+ * Each setting described once (ADR-003, gate 3); see settings.h.
+ */
+#include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "activity.h"
+#include "http_json.h"
+#include "http_server.h"
+#include "settings.h"
+#include "version.h"
+
+#define SETTINGS_API_PREFIX "/api/v1/"
+#define SETTINGS_LOCK_WAIT_MS 100       // a write waits this long for one under way, or for a job's start
+#define SETTINGS_FIELDS_MAX 64
+#define SETTINGS_TEXT_MAX 72            // the longest string a field holds (the Wi-Fi key, 64), and its ending
+
+static const settings_resource_t *resources[SETTINGS_RESOURCES_MAX];
+static size_t resource_count = 0;
+static char settings_etag[48];
+
+
+bool settings_register(const settings_resource_t *resource) {
+    if (resource_count >= SETTINGS_RESOURCES_MAX || resource->size > SETTINGS_STRUCT_MAX ||
+        resource->field_count > SETTINGS_FIELDS_MAX) {
+        printf("Settings: no room for %s\n", resource->path);
+        return false;
+    }
+    resources[resource_count] = resource;
+    resource_count += 1;
+    return true;
+}
+
+
+const settings_resource_t *settings_resource_at(size_t idx) {
+    return idx < resource_count ? resources[idx] : NULL;
+}
+
+
+static bool resource_has_ids(const settings_resource_t *resource) {
+    return strstr(resource->path, "{id}") != NULL;
+}
+
+
+// The resource a path names, with its id (-1 for one without): NULL when none, or when the id is not one of its
+static const settings_resource_t *resource_for_path(const char *path, int32_t *id) {
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        const settings_resource_t *resource = resources[idx];
+        const char *mark = strstr(resource->path, "{id}");
+        if (mark == NULL) {
+            if (strcmp(resource->path, path) == 0) {
+                *id = -1;
+                return resource;
+            }
+            continue;
+        }
+        size_t prefix_len = (size_t) (mark - resource->path);
+        const char *suffix = mark + 4;
+        if (strncmp(resource->path, path, prefix_len) != 0) {
+            continue;
+        }
+        const char *digits = path + prefix_len;
+        char *end = NULL;
+        long value = strtol(digits, &end, 10);
+        if (end == digits || *digits < '0' || *digits > '9' || strcmp(end, suffix) != 0) {
+            continue;
+        }
+        if (value < 0 || value >= resource->id_count) {
+            return NULL;
+        }
+        *id = (int32_t) value;
+        return resource;
+    }
+    return NULL;
+}
+
+
+// --- Values as the structs hold them
+
+static uint32_t held_uint(const uint8_t *at, uint8_t size) {
+    switch (size) {
+        case 1:
+            return at[0];
+        case 2: {
+            uint16_t value;
+            memcpy(&value, at, sizeof(value));
+            return value;
+        }
+        default: {
+            uint32_t value;
+            memcpy(&value, at, sizeof(value));
+            return value;
+        }
+    }
+}
+
+
+static void put_uint(uint8_t *at, uint8_t size, uint32_t value) {
+    switch (size) {
+        case 1:
+            at[0] = (uint8_t) value;
+            break;
+        case 2: {
+            uint16_t narrow = (uint16_t) value;
+            memcpy(at, &narrow, sizeof(narrow));
+            break;
+        }
+        default:
+            memcpy(at, &value, sizeof(value));
+            break;
+    }
+}
+
+
+static float held_float(const uint8_t *at) {
+    float value;
+    memcpy(&value, at, sizeof(value));
+    return value;
+}
+
+
+static const setting_choice_t *choice_held(const setting_field_t *field, uint32_t held) {
+    for (uint8_t idx = 0; idx < field->choice_count; idx += 1) {
+        if ((uint32_t) field->choices[idx].held == held) {
+            return &field->choices[idx];
+        }
+    }
+    return NULL;
+}
+
+
+// A choice's value in JSON
+static void write_choice_value(const setting_choice_t *choice, char *out, size_t room, size_t *len) {
+    if (choice->text != NULL) {
+        http_json_string(out, room, len, choice->text);
+    }
+    else {
+        http_json_integer(out, room, len, choice->number);
+    }
+}
+
+
+// A field's value, as the struct at base holds it, in JSON
+static void write_value(const setting_field_t *field, const uint8_t *base, char *out, size_t room, size_t *len) {
+    const uint8_t *at = base + field->offset;
+    switch (field->type) {
+        case SETTING_NUMBER:
+            if (field->held_as_integer) {
+                http_json_integer(out, room, len, (long) held_uint(at, field->size));
+            }
+            else if (field->nullable && held_float(at) == field->null_held) {
+                http_json_raw(out, room, len, "null");
+            }
+            else {
+                http_json_float(out, room, len, held_float(at));
+            }
+            break;
+        case SETTING_INTEGER:
+            http_json_integer(out, room, len, (long) held_uint(at, field->size));
+            break;
+        case SETTING_BOOLEAN:
+            http_json_bool(out, room, len, at[0] != 0);
+            break;
+        case SETTING_STRING: {
+            // A string stored with no ending (a profile's name of 16, before gate 3) is read to its room only
+            char text[SETTINGS_TEXT_MAX];
+            size_t text_len = strnlen((const char *) at, field->size);
+            if (text_len >= sizeof(text)) {
+                text_len = sizeof(text) - 1;
+            }
+            memcpy(text, at, text_len);
+            text[text_len] = '\0';
+            http_json_string(out, room, len, text);
+            break;
+        }
+        case SETTING_COLOUR: {
+            char text[12];
+            snprintf(text, sizeof(text), "\"#%06lx\"", (unsigned long) (held_uint(at, 4) & 0xffffffu));
+            http_json_raw(out, room, len, text);
+            break;
+        }
+        case SETTING_CHOICE: {
+            const setting_choice_t *choice = choice_held(field, held_uint(at, field->size));
+            if (choice == NULL) {
+                http_json_raw(out, room, len, "null");     // stored before the choices were checked
+            }
+            else {
+                write_choice_value(choice, out, room, len);
+            }
+            break;
+        }
+    }
+}
+
+
+// A resource as its GET gives it: saved, then each field a reply may carry
+static void write_resource(const settings_resource_t *resource, int32_t id, char *out, size_t room, size_t *len) {
+    const uint8_t *base = resource->live(id);
+    http_json_raw(out, room, len, "{\"saved\":");
+    http_json_bool(out, room, len, resource->is_saved());
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        const setting_field_t *field = &resource->fields[idx];
+        if (field->access == SETTING_WRITE_ONLY) {
+            continue;
+        }
+        http_json_raw(out, room, len, ",");
+        http_json_string(out, room, len, field->name);
+        http_json_raw(out, room, len, ":");
+        write_value(field, base, out, room, len);
+    }
+    http_json_raw(out, room, len, "}");
+}
+
+
+// --- A write
+
+typedef struct {
+    int status;
+    const char *code;
+    const setting_field_t *field;
+    char field_name[40];        // the request's, for a field that is none of the resource's
+    char message[112];
+} outcome_t;
+
+
+static void fail(outcome_t *outcome, int status, const char *code, const setting_field_t *field, const char *format,
+                 ...) {
+    outcome->status = status;
+    outcome->code = code;
+    outcome->field = field;
+    va_list args;
+    va_start(args, format);
+    vsnprintf(outcome->message, sizeof(outcome->message), format, args);
+    va_end(args);
+}
+
+
+/*
+ * A member's value as text: a JSON string's, decoded; the console's, as typed. The console types every value as
+ * text, and the field's type reads it: kind is then what the text reads as (a number, true or false, null, text).
+ */
+static bool member_text(const http_json_member_t *member, bool console, char *out, size_t room) {
+    if (!console) {
+        return http_json_string_value(member, out, room);
+    }
+    if (member->value_len >= room) {
+        return false;
+    }
+    memcpy(out, member->value, member->value_len);
+    out[member->value_len] = '\0';
+    return true;
+}
+
+
+static http_json_kind_t member_kind(const http_json_member_t *member, bool console) {
+    if (!console) {
+        return member->kind;
+    }
+    char text[SETTINGS_TEXT_MAX];
+    if (!member_text(member, true, text, sizeof(text))) {
+        return HTTP_JSON_STRING;
+    }
+    if (strcmp(text, "null") == 0) {
+        return HTTP_JSON_NULL;
+    }
+    if (strcmp(text, "true") == 0 || strcmp(text, "false") == 0) {
+        return HTTP_JSON_BOOLEAN;
+    }
+    return http_json_is_number(text, strlen(text)) ? HTTP_JSON_NUMBER : HTTP_JSON_STRING;
+}
+
+
+static bool member_number(const http_json_member_t *member, bool console, double *value) {
+    if (!console) {
+        return http_json_number_value(member, value);
+    }
+    char text[SETTINGS_TEXT_MAX];
+    if (!member_text(member, true, text, sizeof(text))) {
+        return false;
+    }
+    *value = strtod(text, NULL);
+    return isfinite(*value);
+}
+
+
+static bool parse_colour(const char *text, uint32_t *rgb) {
+    if (strlen(text) != 7 || text[0] != '#') {
+        return false;
+    }
+    for (int idx = 1; idx < 7; idx += 1) {
+        char c = text[idx];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+            return false;
+        }
+    }
+    *rgb = (uint32_t) strtoul(text + 1, NULL, 16);
+    return true;
+}
+
+
+// A number as a message gives it: as a reply would (the SDK's printf leaves %g's zeros: "12.0000")
+static const char *number_text(double value, char *buf, size_t room) {
+    size_t len = 0;
+    buf[0] = '\0';
+    http_json_float(buf, room, &len, (float) value);
+    return buf;
+}
+
+
+// A number against its field's limits and step; false with the outcome set
+static bool number_in_limits(const setting_field_t *field, double value, outcome_t *outcome) {
+    char given[24];
+    char limit[24];
+    bool whole = field->type == SETTING_INTEGER || field->held_as_integer;
+    if (whole && value != floor(value)) {
+        fail(outcome, 400, "out_of_range", field, "%s is not a whole number",
+             number_text(value, given, sizeof(given)));
+        return false;
+    }
+    if (!isnan(field->min) && value < field->min) {
+        fail(outcome, 400, "out_of_range", field, "%s is below the least, %s",
+             number_text(value, given, sizeof(given)), number_text(field->min, limit, sizeof(limit)));
+        return false;
+    }
+    if (!isnan(field->max) && value > field->max) {
+        fail(outcome, 400, "out_of_range", field, "%s is above the most, %s",
+             number_text(value, given, sizeof(given)), number_text(field->max, limit, sizeof(limit)));
+        return false;
+    }
+    if (field->step > 0.0f) {
+        double from = isnan(field->min) ? 0.0 : field->min;
+        double steps = (value - from) / field->step;
+        if (fabs(steps - round(steps)) > 1e-4) {
+            fail(outcome, 400, "out_of_range", field, "%s is not in steps of %s",
+                 number_text(value, given, sizeof(given)), number_text(field->step, limit, sizeof(limit)));
+            return false;
+        }
+    }
+    return true;
+}
+
+
+// A member's value into the struct at base, checked against its field; false with the outcome set
+static bool read_value(const setting_field_t *field, const http_json_member_t *member, bool console, uint8_t *base,
+                       outcome_t *outcome) {
+    uint8_t *at = base + field->offset;
+    http_json_kind_t kind = member_kind(member, console);
+    char text[SETTINGS_TEXT_MAX];
+
+    if (kind == HTTP_JSON_NULL) {
+        if (!field->nullable) {
+            fail(outcome, 400, "wrong_type", field, "%s cannot be null", field->name);
+            return false;
+        }
+        memcpy(at, &field->null_held, sizeof(float));
+        return true;
+    }
+
+    switch (field->type) {
+        case SETTING_NUMBER:
+        case SETTING_INTEGER: {
+            double value;
+            if (kind != HTTP_JSON_NUMBER || !member_number(member, console, &value)) {
+                fail(outcome, 400, "wrong_type", field, "%s is a number", field->name);
+                return false;
+            }
+            if (!number_in_limits(field, value, outcome)) {
+                return false;
+            }
+            if (field->type == SETTING_INTEGER || field->held_as_integer) {
+                put_uint(at, field->size, (uint32_t) value);
+            }
+            else {
+                float narrow = (float) value;
+                memcpy(at, &narrow, sizeof(narrow));
+            }
+            return true;
+        }
+        case SETTING_BOOLEAN:
+            if (kind != HTTP_JSON_BOOLEAN) {
+                fail(outcome, 400, "wrong_type", field, "%s is true or false", field->name);
+                return false;
+            }
+            at[0] = member->value[0] == 't' ? 1 : 0;
+            return true;
+        case SETTING_STRING: {
+            if (!console && kind != HTTP_JSON_STRING) {
+                fail(outcome, 400, "wrong_type", field, "%s is a string", field->name);
+                return false;
+            }
+            if (!member_text(member, console, text, sizeof(text)) || strlen(text) + 1 > field->size) {
+                fail(outcome, 400, "out_of_range", field, "%s is longer than %u bytes", field->name,
+                     (unsigned) field->size - 1);
+                return false;
+            }
+            if (strlen(text) < field->length_min) {
+                fail(outcome, 400, "out_of_range", field, "%s is shorter than %u bytes", field->name,
+                     (unsigned) field->length_min);
+                return false;
+            }
+            memset(at, 0, field->size);
+            memcpy(at, text, strlen(text));
+            return true;
+        }
+        case SETTING_COLOUR: {
+            uint32_t rgb;
+            if ((!console && kind != HTTP_JSON_STRING) || !member_text(member, console, text, sizeof(text)) ||
+                !parse_colour(text, &rgb)) {
+                fail(outcome, 400, "wrong_type", field, "%s is a colour, \"#rrggbb\"", field->name);
+                return false;
+            }
+            // The white the LEDs may have is not the API's: kept as it is
+            put_uint(at, 4, (held_uint(at, 4) & 0xff000000u) | rgb);
+            return true;
+        }
+        case SETTING_CHOICE: {
+            const setting_choice_t *found = NULL;
+            if (kind == HTTP_JSON_STRING && member_text(member, console, text, sizeof(text))) {
+                for (uint8_t idx = 0; idx < field->choice_count; idx += 1) {
+                    if (field->choices[idx].text != NULL && strcmp(field->choices[idx].text, text) == 0) {
+                        found = &field->choices[idx];
+                    }
+                }
+            }
+            else if (kind == HTTP_JSON_NUMBER) {
+                double value;
+                if (member_number(member, console, &value)) {
+                    for (uint8_t idx = 0; idx < field->choice_count; idx += 1) {
+                        if (field->choices[idx].text == NULL && field->choices[idx].number == value) {
+                            found = &field->choices[idx];
+                        }
+                    }
+                }
+            }
+            if (found == NULL) {
+                fail(outcome, 400, "not_a_choice", field, "%s is not one of its choices", field->name);
+                return false;
+            }
+            put_uint(at, field->size, (uint32_t) found->held);
+            return true;
+        }
+    }
+    return false;
+}
+
+
+static int field_index(const settings_resource_t *resource, const char *name, size_t name_len) {
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        const char *field_name = resource->fields[idx].name;
+        if (strlen(field_name) == name_len && memcmp(field_name, name, name_len) == 0) {
+            return idx;
+        }
+    }
+    return -1;
+}
+
+
+/*
+ * A write: the whole request checked on a copy of the struct, then only its fields written into the struct in RAM,
+ * all under the activity lock, so no throw or job starts half way through it (activity.h). Refused whole, it
+ * changes nothing.
+ */
+static void settings_patch(const settings_resource_t *resource, int32_t id, const http_json_member_t *members,
+                           size_t count, bool console, outcome_t *outcome) {
+    memset(outcome, 0, sizeof(*outcome));
+    outcome->status = 200;
+    if (!activity_try_lock(SETTINGS_LOCK_WAIT_MS)) {
+        fail(outcome, 409, "busy", NULL, "the settings are being written");
+        return;
+    }
+
+    uint8_t proposed[SETTINGS_STRUCT_MAX];
+    uint8_t before[SETTINGS_STRUCT_MAX];
+    uint8_t *live = resource->live(id);
+    memcpy(proposed, live, resource->size);
+    memcpy(before, live, resource->size);
+    bool given[SETTINGS_FIELDS_MAX] = {false};
+
+    for (size_t idx = 0; idx < count; idx += 1) {
+        const http_json_member_t *member = &members[idx];
+        int field_idx = field_index(resource, member->name, member->name_len);
+        if (field_idx < 0) {
+            size_t name_len = member->name_len < sizeof(outcome->field_name) ? member->name_len :
+                              sizeof(outcome->field_name) - 1;
+            memcpy(outcome->field_name, member->name, name_len);
+            outcome->field_name[name_len] = '\0';
+            fail(outcome, 400, "unknown_field", NULL, "%s has no field %s", resource->path, outcome->field_name);
+            goto done;
+        }
+        const setting_field_t *field = &resource->fields[field_idx];
+        if (field->access == SETTING_READ_ONLY) {
+            fail(outcome, 400, "read_only", field, "%s is read only", field->name);
+            goto done;
+        }
+        if (!read_value(field, member, console, proposed, outcome)) {
+            goto done;
+        }
+        given[field_idx] = true;
+    }
+
+    if (resource->check != NULL) {
+        const char *field_name = NULL;
+        const char *why = resource->check(proposed, id, &field_name);
+        if (why != NULL) {
+            const setting_field_t *field = NULL;
+            if (field_name != NULL) {
+                int field_idx = field_index(resource, field_name, strlen(field_name));
+                field = field_idx >= 0 ? &resource->fields[field_idx] : NULL;
+            }
+            fail(outcome, 400, "out_of_range", field, "%s", why);
+            goto done;
+        }
+    }
+
+    if (resource->refused_while == SETTINGS_REFUSED_IN_THROW && activity_in_throw()) {
+        fail(outcome, 409, "busy", NULL, "%s is refused while a throw is under way", resource->path);
+        goto done;
+    }
+    if (resource->refused_while == SETTINGS_REFUSED_A_JOB_RUNS && activity_get() != ACTIVITY_NONE) {
+        fail(outcome, 409, "busy", NULL, "%s is refused while a job runs", resource->path);
+        goto done;
+    }
+    if (resource->refuse != NULL) {
+        const char *why = resource->refuse(id);
+        if (why != NULL) {
+            fail(outcome, 409, "busy", NULL, "%s", why);
+            goto done;
+        }
+    }
+
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        if (given[idx]) {
+            const setting_field_t *field = &resource->fields[idx];
+            memcpy(live + field->offset, proposed + field->offset, field->size);
+        }
+    }
+    if (resource->apply != NULL && count > 0) {
+        resource->apply(before, id);
+    }
+
+done:
+    activity_unlock();
+}
+
+
+// --- The API's replies
+
+static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"error\":{\"code\":");
+    http_json_string(out, room, &len, outcome->code);
+    const char *field_name = outcome->field != NULL ? outcome->field->name :
+                             outcome->field_name[0] ? outcome->field_name : NULL;
+    if (field_name != NULL) {
+        http_json_raw(out, room, &len, ",\"field\":");
+        http_json_string(out, room, &len, field_name);
+    }
+    http_json_raw(out, room, &len, ",\"message\":");
+    http_json_string(out, room, &len, outcome->message);
+    const setting_field_t *field = outcome->field;
+    if (field != NULL && strcmp(outcome->code, "out_of_range") == 0) {
+        if (!isnan(field->min)) {
+            http_json_raw(out, room, &len, ",\"min\":");
+            http_json_float(out, room, &len, field->min);
+        }
+        if (!isnan(field->max)) {
+            http_json_raw(out, room, &len, ",\"max\":");
+            http_json_float(out, room, &len, field->max);
+        }
+    }
+    if (field != NULL && strcmp(outcome->code, "not_a_choice") == 0) {
+        http_json_raw(out, room, &len, ",\"choices\":[");
+        for (uint8_t idx = 0; idx < field->choice_count; idx += 1) {
+            if (idx) {
+                http_json_raw(out, room, &len, ",");
+            }
+            write_choice_value(&field->choices[idx], out, room, &len);
+        }
+        http_json_raw(out, room, &len, "]");
+    }
+    if (strcmp(outcome->code, "busy") == 0) {
+        http_json_raw(out, room, &len, ",\"activity\":");
+        http_json_string(out, room, &len, activity_name(activity_get()));
+    }
+    http_json_raw(out, room, &len, "}}");
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, outcome->status, outcome->code, "the error did not fit");
+        return;
+    }
+    http_server_reply_send(reply, outcome->status, "application/json", len);
+}
+
+
+static void reply_resource(http_server_reply_t *reply, const settings_resource_t *resource, int32_t id) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    write_resource(resource, id, out, room, &len);
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        return;
+    }
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
+static void settings_get_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+    int32_t id;
+    const settings_resource_t *resource = resource_for_path(request->path, &id);
+    if (resource == NULL) {
+        http_server_reply_error(reply, 404, "not_found", "no such id");
+        return;
+    }
+    reply_resource(reply, resource, id);
+}
+
+
+static void settings_patch_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+    int32_t id;
+    const settings_resource_t *resource = resource_for_path(request->path, &id);
+    if (resource == NULL) {
+        http_server_reply_error(reply, 404, "not_found", "no such id");
+        return;
+    }
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    const char *why;
+    if (!http_json_parse_object(request->body, request->body_len, members, HTTP_JSON_MEMBERS_MAX, &count, &why)) {
+        http_server_reply_error(reply, 400, "bad_json", why);
+        return;
+    }
+    outcome_t outcome;
+    settings_patch(resource, id, members, count, false, &outcome);
+    if (outcome.status != 200) {
+        reply_outcome(reply, &outcome);
+        return;
+    }
+    reply_resource(reply, resource, id);
+}
+
+
+// An action's body: {}, and nothing in it (api_v1.md: unknown fields are refused)
+static bool empty_body(const http_server_request_t *request, http_server_reply_t *reply) {
+    http_json_member_t member;
+    size_t count;
+    const char *why;
+    if (!http_json_parse_object(request->body, request->body_len, &member, 1, &count, &why)) {
+        http_server_reply_error(reply, 400, "bad_json", why);
+        return false;
+    }
+    if (count > 0) {
+        http_server_reply_error(reply, 400, "unknown_field", "this action takes {}");
+        return false;
+    }
+    return true;
+}
+
+
+static void reply_saved(http_server_reply_t *reply) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"saved\":true}");
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
+static void settings_save_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!empty_body(request, reply)) {
+        return;
+    }
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        if (strcmp(resources[idx]->save_path, request->path) == 0) {
+            if (!resources[idx]->save()) {
+                http_server_reply_error(reply, 500, "failed", "the EEPROM did not take it");
+                return;
+            }
+            reply_saved(reply);
+            return;
+        }
+    }
+    http_server_reply_error(reply, 404, "not_found", "nothing is stored there");
+}
+
+
+static void settings_save_all_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!empty_body(request, reply)) {
+        return;
+    }
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        // Resources stored as one block share their save: once each
+        bool done_before = false;
+        for (size_t earlier = 0; earlier < idx; earlier += 1) {
+            done_before = done_before || resources[earlier]->save == resources[idx]->save;
+        }
+        if (!done_before && !resources[idx]->save()) {
+            char message[96];
+            snprintf(message, sizeof(message), "%s: the EEPROM did not take it", resources[idx]->save_path);
+            http_server_reply_error(reply, 500, "failed", message);
+            return;
+        }
+    }
+    reply_saved(reply);
+}
+
+
+// --- The export, GET /api/v1/settings: every resource in one document, made a resource at a time
+
+typedef struct {
+    uint8_t phase;      // 0 its head, 1 the resources, 2 its end
+    uint8_t resource;
+    int16_t id;
+} export_context_t;
+
+
+// Write an item at the end of buf; false, and buf as it was, when it does not fit
+static bool stream_item_fits(char *buf, size_t room, size_t *len, size_t mark) {
+    if (http_json_fits(room, *len)) {
+        return true;
+    }
+    *len = mark;
+    buf[mark] = '\0';
+    return false;
+}
+
+
+static void write_firmware(char *out, size_t room, size_t *len) {
+    http_json_raw(out, room, len, "\"firmware\":{\"version\":");
+    http_json_string(out, room, len, version_string);
+    http_json_raw(out, room, len, ",\"vcs\":");
+    http_json_string(out, room, len, vcs_hash);
+    http_json_raw(out, room, len, ",\"build\":");
+    http_json_string(out, room, len, build_type);
+    http_json_raw(out, room, len, "}");
+}
+
+
+// A resource's path with its id in place of "{id}"
+static void resource_path(const settings_resource_t *resource, int32_t id, char *out, size_t room) {
+    const char *mark = strstr(resource->path, "{id}");
+    if (mark == NULL) {
+        snprintf(out, room, "%s", resource->path);
+        return;
+    }
+    snprintf(out, room, "%.*s%ld%s", (int) (mark - resource->path), resource->path, (long) id, mark + 4);
+}
+
+
+static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len) {
+    export_context_t *export = ctx;
+    *len = 0;
+    if (export->phase == 0) {
+        http_json_raw(buf, room, len, "{\"api\":\"1\",");
+        write_firmware(buf, room, len);
+        http_json_raw(buf, room, len, ",\"resources\":{");
+        export->phase = 1;
+        export->resource = 0;
+        export->id = 0;
+        return true;
+    }
+    if (export->phase == 1) {
+        while (export->resource < resource_count) {
+            const settings_resource_t *resource = resources[export->resource];
+            int32_t id = resource_has_ids(resource) ? export->id : -1;
+            size_t mark = *len;
+            char path[64];
+            resource_path(resource, id, path, sizeof(path));
+            if (export->resource > 0 || export->id > 0) {
+                http_json_raw(buf, room, len, ",");
+            }
+            http_json_string(buf, room, len, path);
+            http_json_raw(buf, room, len, ":");
+            write_resource(resource, id, buf, room, len);
+            if (!stream_item_fits(buf, room, len, mark)) {
+                return true;    // the next chunk begins with it
+            }
+            if (resource_has_ids(resource) && export->id + 1 < resource->id_count) {
+                export->id += 1;
+            }
+            else {
+                export->resource += 1;
+                export->id = 0;
+            }
+        }
+        export->phase = 2;
+        return true;
+    }
+    http_json_raw(buf, room, len, "}}");
+    return false;
+}
+
+
+static void settings_export_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    export_context_t *export = http_server_reply_context(reply, sizeof(export_context_t));
+    memset(export, 0, sizeof(*export));
+    http_server_reply_stream(reply, 200, "application/json", settings_export_more, export);
+}
+
+
+// --- The schema, GET /api/v1/schema: every resource's fields, made a field at a time
+
+static const char *type_name(const setting_field_t *field) {
+    switch (field->type) {
+        case SETTING_NUMBER:
+            return "number";
+        case SETTING_INTEGER:
+            return "integer";
+        case SETTING_BOOLEAN:
+            return "boolean";
+        case SETTING_STRING:
+            return "string";
+        case SETTING_COLOUR:
+            return "colour";
+        case SETTING_CHOICE:
+        default:
+            return "choice";
+    }
+}
+
+
+static const char *access_name(setting_access_t access) {
+    switch (access) {
+        case SETTING_READ_ONLY:
+            return "read";
+        case SETTING_WRITE_ONLY:
+            return "write_only";
+        case SETTING_READ_WRITE:
+        default:
+            return "read_write";
+    }
+}
+
+
+static const char *refused_name(const settings_resource_t *resource) {
+    switch (resource->refused_while) {
+        case SETTINGS_REFUSED_IN_THROW:
+            return resource->refuse != NULL ? "in_throw_when_in_use" : "in_throw";
+        case SETTINGS_REFUSED_A_JOB_RUNS:
+            return "a_job_runs";
+        case SETTINGS_REFUSED_NEVER:
+        default:
+            return resource->refuse != NULL ? "in_throw_when_in_use" : "never";
+    }
+}
+
+
+static void write_optional_string(char *out, size_t room, size_t *len, const char *name, const char *value) {
+    if (value == NULL) {
+        return;
+    }
+    http_json_raw(out, room, len, ",\"");
+    http_json_raw(out, room, len, name);
+    http_json_raw(out, room, len, "\":");
+    http_json_string(out, room, len, value);
+}
+
+
+static void write_optional_float(char *out, size_t room, size_t *len, const char *name, float value) {
+    if (isnan(value)) {
+        return;
+    }
+    http_json_raw(out, room, len, ",\"");
+    http_json_raw(out, room, len, name);
+    http_json_raw(out, room, len, "\":");
+    http_json_float(out, room, len, value);
+}
+
+
+static void write_field_schema(const settings_resource_t *resource, const setting_field_t *field, char *out,
+                               size_t room, size_t *len) {
+    http_json_raw(out, room, len, "{\"name\":");
+    http_json_string(out, room, len, field->name);
+    write_optional_string(out, room, len, "label", field->label);
+    write_optional_string(out, room, len, "group", field->group);
+    write_optional_string(out, room, len, "type", type_name(field));
+    write_optional_string(out, room, len, "unit", field->unit);
+    write_optional_float(out, room, len, "min", field->min);
+    write_optional_float(out, room, len, "max", field->max);
+    if (field->step > 0.0f) {
+        write_optional_float(out, room, len, "step", field->step);
+    }
+    else if (field->type == SETTING_INTEGER || field->held_as_integer) {
+        write_optional_float(out, room, len, "step", 1.0f);
+    }
+    if (field->type == SETTING_STRING) {
+        http_json_raw(out, room, len, ",\"min_length\":");
+        http_json_integer(out, room, len, field->length_min);
+        http_json_raw(out, room, len, ",\"max_length\":");
+        http_json_integer(out, room, len, field->size - 1);
+    }
+    if (field->type == SETTING_CHOICE) {
+        http_json_raw(out, room, len, ",\"choices\":[");
+        for (uint8_t idx = 0; idx < field->choice_count; idx += 1) {
+            if (idx) {
+                http_json_raw(out, room, len, ",");
+            }
+            http_json_raw(out, room, len, "{\"value\":");
+            write_choice_value(&field->choices[idx], out, room, len);
+            write_optional_string(out, room, len, "label", field->choices[idx].label);
+            http_json_raw(out, room, len, "}");
+        }
+        http_json_raw(out, room, len, "]");
+    }
+    if (field->nullable) {
+        http_json_raw(out, room, len, ",\"nullable\":true");
+    }
+    write_optional_string(out, room, len, "access", access_name(field->access));
+    write_optional_string(out, room, len, "applies", field->applies);
+    write_optional_string(out, room, len, "refused_while", refused_name(resource));
+    write_optional_string(out, room, len, "about", field->about);
+    http_json_raw(out, room, len, "}");
+}
+
+
+static const char *const settings_error_codes[] = {
+    "bad_json", "bad_request", "length_required", "unknown_field", "wrong_type", "out_of_range", "not_a_choice",
+    "read_only", "confirm_missing", "not_found", "method_not_allowed", "busy", "not_running", "no_target",
+    "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
+    "wrong_media_type", "failed",
+};
+
+
+typedef struct {
+    uint8_t phase;      // 0 its head, 1 the resources, 2 the actions and the errors
+    uint8_t resource;
+    uint8_t field;      // 0: the resource's head next
+} schema_context_t;
+
+
+static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len) {
+    schema_context_t *schema = ctx;
+    *len = 0;
+    if (schema->phase == 0) {
+        http_json_raw(buf, room, len, "{\"api\":\"1\",");
+        write_firmware(buf, room, len);
+        http_json_raw(buf, room, len, ",\"resources\":[");
+        schema->phase = 1;
+        return true;
+    }
+    if (schema->phase == 1) {
+        while (schema->resource < resource_count) {
+            const settings_resource_t *resource = resources[schema->resource];
+            size_t mark = *len;
+            if (schema->field == 0) {
+                if (schema->resource > 0) {
+                    http_json_raw(buf, room, len, ",");
+                }
+                http_json_raw(buf, room, len, "{\"path\":");
+                http_json_string(buf, room, len, resource->path);
+                http_json_raw(buf, room, len, ",\"methods\":[\"GET\",\"PATCH\"]");
+                write_optional_string(buf, room, len, "save", resource->save_path);
+                write_optional_string(buf, room, len, "label", resource->label);
+                write_optional_string(buf, room, len, "about", resource->about);
+                if (resource_has_ids(resource)) {
+                    http_json_raw(buf, room, len, ",\"ids\":[");
+                    for (int32_t id = 0; id < resource->id_count; id += 1) {
+                        if (id) {
+                            http_json_raw(buf, room, len, ",");
+                        }
+                        http_json_integer(buf, room, len, id);
+                    }
+                    http_json_raw(buf, room, len, "]");
+                }
+                write_optional_string(buf, room, len, "refused_while", refused_name(resource));
+                http_json_raw(buf, room, len, ",\"fields\":[");
+            }
+            else if (schema->field <= resource->field_count) {
+                if (schema->field > 1) {
+                    http_json_raw(buf, room, len, ",");
+                }
+                write_field_schema(resource, &resource->fields[schema->field - 1], buf, room, len);
+            }
+            else {
+                http_json_raw(buf, room, len, "]}");
+            }
+            if (!stream_item_fits(buf, room, len, mark)) {
+                return true;
+            }
+            if (schema->field <= resource->field_count) {
+                schema->field += 1;
+            }
+            else {
+                schema->resource += 1;
+                schema->field = 0;
+            }
+        }
+        schema->phase = 2;
+        return true;
+    }
+    // The actions gate 3 has: each save, and the save of all; gate 4 adds the commands
+    http_json_raw(buf, room, len, "],\"actions\":[");
+    bool first = true;
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        bool done_before = false;
+        for (size_t earlier = 0; earlier < idx; earlier += 1) {
+            done_before = done_before || strcmp(resources[earlier]->save_path, resources[idx]->save_path) == 0;
+        }
+        if (done_before) {
+            continue;
+        }
+        http_json_raw(buf, room, len, first ? "" : ",");
+        first = false;
+        http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
+        http_json_string(buf, room, len, resources[idx]->save_path);
+        http_json_raw(buf, room, len, ",\"body\":{},\"about\":\"stores what was written there\"}");
+    }
+    http_json_raw(buf, room, len, ",{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\",\"body\":{},"
+                                  "\"about\":\"stores every setting and the powder profiles\"}],\"errors\":[");
+    for (size_t idx = 0; idx < sizeof(settings_error_codes) / sizeof(settings_error_codes[0]); idx += 1) {
+        if (idx) {
+            http_json_raw(buf, room, len, ",");
+        }
+        http_json_string(buf, room, len, settings_error_codes[idx]);
+    }
+    http_json_raw(buf, room, len, "]}");
+    return false;
+}
+
+
+static void settings_schema_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    schema_context_t *schema = http_server_reply_context(reply, sizeof(schema_context_t));
+    memset(schema, 0, sizeof(*schema));
+    http_server_reply_stream(reply, 200, "application/json", settings_schema_more, schema);
+    http_server_reply_etag(reply, settings_etag);
+}
+
+
+void settings_add_routes(void) {
+    snprintf(settings_etag, sizeof(settings_etag), "%s-%s", version_string, vcs_hash);
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        const settings_resource_t *resource = resources[idx];
+        http_server_add_route(HTTP_SERVER_GET, resource->path, settings_get_handler);
+        http_server_add_route(HTTP_SERVER_PATCH, resource->path, settings_patch_handler);
+        bool save_before = false;
+        for (size_t earlier = 0; earlier < idx; earlier += 1) {
+            save_before = save_before || strcmp(resources[earlier]->save_path, resource->save_path) == 0;
+        }
+        if (!save_before) {
+            http_server_add_route(HTTP_SERVER_POST, resource->save_path, settings_save_handler);
+        }
+    }
+    http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings", settings_export_handler);
+    http_server_add_route(HTTP_SERVER_POST, "/api/v1/settings/save", settings_save_all_handler);
+    http_server_add_route(HTTP_SERVER_GET, "/api/v1/schema", settings_schema_handler);
+}
+
+
+// --- The console's `setting`
+
+static const char *skip_spaces(const char *text) {
+    while (*text == ' ') {
+        text += 1;
+    }
+    return text;
+}
+
+
+static size_t word_length(const char *text) {
+    size_t len = 0;
+    while (text[len] != '\0' && text[len] != ' ') {
+        len += 1;
+    }
+    return len;
+}
+
+
+static void console_fields(const settings_resource_t *resource, int32_t id, settings_line_fn write, void *ctx) {
+    const uint8_t *base = resource->live(id);
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        const setting_field_t *field = &resource->fields[idx];
+        if (field->access == SETTING_WRITE_ONLY) {
+            continue;
+        }
+        char line[160];
+        size_t len = (size_t) snprintf(line, sizeof(line), "@setting %s=", field->name);
+        write_value(field, base, line, sizeof(line), &len);
+        write(line, ctx);
+    }
+}
+
+
+void settings_console(const char *args, char *reply, size_t reply_size, settings_line_fn write, void *ctx) {
+    args = skip_spaces(args);
+    if (*args == '\0') {
+        for (size_t idx = 0; idx < resource_count; idx += 1) {
+            char line[96];
+            snprintf(line, sizeof(line), "@setting %s", resources[idx]->path + strlen(SETTINGS_API_PREFIX));
+            write(line, ctx);
+        }
+        snprintf(reply, reply_size, "@ok setting resources=%u", (unsigned) resource_count);
+        return;
+    }
+
+    char path[72];
+    size_t path_len = word_length(args);
+    bool prefixed = strncmp(args, SETTINGS_API_PREFIX, strlen(SETTINGS_API_PREFIX)) == 0;
+    snprintf(path, sizeof(path), "%s%.*s", prefixed ? "" : SETTINGS_API_PREFIX, (int) path_len, args);
+    int32_t id;
+    const settings_resource_t *resource = resource_for_path(path, &id);
+    if (resource == NULL) {
+        snprintf(reply, reply_size, "@err not_found no such resource: %s", path);
+        return;
+    }
+    args = skip_spaces(args + path_len);
+
+    if (strncmp(args, "save", 4) == 0 && (args[4] == '\0' || args[4] == ' ')) {
+        if (!resource->save()) {
+            snprintf(reply, reply_size, "@err failed the EEPROM did not take it");
+            return;
+        }
+    }
+    else if (*args != '\0') {
+        // name=value pairs, as the console types them: each value is read by its field's type
+        http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+        size_t count = 0;
+        while (*args != '\0' && count < HTTP_JSON_MEMBERS_MAX) {
+            size_t pair_len = word_length(args);
+            const char *equals = memchr(args, '=', pair_len);
+            if (equals == NULL) {
+                snprintf(reply, reply_size, "@err bad_request usage: setting <path> [name=value ...|save]");
+                return;
+            }
+            members[count].name = args;
+            members[count].name_len = (size_t) (equals - args);
+            members[count].kind = HTTP_JSON_STRING;
+            members[count].value = equals + 1;
+            members[count].value_len = pair_len - members[count].name_len - 1;
+            count += 1;
+            args = skip_spaces(args + pair_len);
+        }
+        outcome_t outcome;
+        settings_patch(resource, id, members, count, true, &outcome);
+        if (outcome.status != 200) {
+            const char *field_name = outcome.field != NULL ? outcome.field->name :
+                                     outcome.field_name[0] ? outcome.field_name : "-";
+            snprintf(reply, reply_size, "@err %s %s %s", outcome.code, field_name, outcome.message);
+            return;
+        }
+    }
+
+    console_fields(resource, id, write, ctx);
+    snprintf(reply, reply_size, "@ok setting %s saved=%s", path + strlen(SETTINGS_API_PREFIX),
+             resource->is_saved() ? "true" : "false");
+}

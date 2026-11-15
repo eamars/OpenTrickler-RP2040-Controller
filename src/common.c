@@ -121,6 +121,44 @@ uint32_t software_crc32(void * data, size_t length) {
 }
 
 
+/*
+    The CRC of what each module last stored, or read at the start (ADR-003, gate 3): `saved` is the struct in RAM
+    against it, so a write from the menu or the console counts as one from the web does. One entry an address.
+*/
+#define CONFIG_STORED_MAX 16
+static struct {
+    uint16_t addr;
+    uint32_t crc;
+} config_stored[CONFIG_STORED_MAX];
+static size_t config_stored_count = 0;
+
+
+static void config_stored_set(uint16_t addr, uint32_t crc) {
+    for (size_t idx = 0; idx < config_stored_count; idx += 1) {
+        if (config_stored[idx].addr == addr) {
+            config_stored[idx].crc = crc;
+            return;
+        }
+    }
+    if (config_stored_count < CONFIG_STORED_MAX) {
+        config_stored[config_stored_count].addr = addr;
+        config_stored[config_stored_count].crc = crc;
+        config_stored_count += 1;
+    }
+}
+
+
+bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
+    uint32_t crc = software_crc32((void *) cfg, size);
+    for (size_t idx = 0; idx < config_stored_count; idx += 1) {
+        if (config_stored[idx].addr == addr) {
+            return config_stored[idx].crc == crc;
+        }
+    }
+    return false;   // never read nor stored
+}
+
+
 bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
     bool is_ok;
     uint32_t calculated_crc32;
@@ -194,6 +232,7 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
         // Copy from buffer to config
         memcpy(cfg, buf, size);
         free(buf);
+        config_stored_set(addr, calculated_crc32);
     }
 
     return true;
@@ -227,6 +266,7 @@ bool save_config(uint16_t addr, void * cfg, size_t size) {
     }
     else {
         printf("Configuration write successfully\n");
+        config_stored_set(addr, calculated_crc32);
     }
 
     free(buf);

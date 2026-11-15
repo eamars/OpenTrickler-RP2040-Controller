@@ -63,6 +63,8 @@ extern "C" {
 
 
 bool charge_mode_config_init(void);
+// Its settings' table, for the API and the console (charge_mode_settings.c; ADR-003, gate 3)
+bool charge_mode_settings_register(void);
 
 /**
  * @brief Start charge mode from outside the menu, as the web page and the remote control do: the menu leaves its

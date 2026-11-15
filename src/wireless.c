@@ -13,6 +13,7 @@
 #include "rest_endpoints.h"
 #include "http_server.h"
 #include "common.h"
+#include "settings.h"
 #include "lwip/apps/mdns.h"
 #include <string.h>
 #include <strings.h>
@@ -158,6 +159,66 @@ void wirelss_info_render_task(void *p) {
 
 
 
+/*
+    The Wi-Fi's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/wifi). Each applies at the
+    next start, when the unit joins the network. The key is written only: never in a reply, nor in the export.
+*/
+static const setting_choice_t wifi_auth_choices[] = {
+    {.held = AUTH_OPEN, .text = "open", .label = "Open"},
+    {.held = AUTH_WPA_TKIP_PSK, .text = "wpa_tkip", .label = "WPA (TKIP)"},
+    {.held = AUTH_WPA2_AES_PSK, .text = "wpa2_aes", .label = "WPA2 (AES)"},
+    {.held = AUTH_WPA2_MIXED_PSK, .text = "wpa2_mixed", .label = "WPA/WPA2 mixed"},
+};
+
+
+#define WIFI_FIELD(member) SETTING_AT(eeprom_wireless_metadata_t, member)
+
+static const setting_field_t wifi_fields[] = {
+    {.name = "enable", .label = "Wi-Fi", .group = "Wi-Fi",
+     .about = "The unit joins this network at its start; off, it is its own access point",
+     .type = SETTING_BOOLEAN, WIFI_FIELD(enable), .applies = "at_restart"},
+    {.name = "ssid", .label = "Network name", .group = "Wi-Fi",
+     .about = "The network's name (SSID)",
+     .type = SETTING_STRING, WIFI_FIELD(ssid), .length_min = 1, .applies = "at_restart"},
+    {.name = "key", .label = "Key", .group = "Wi-Fi",
+     .about = "The network's key; never sent back",
+     .type = SETTING_STRING, WIFI_FIELD(pw), .access = SETTING_WRITE_ONLY, .applies = "at_restart"},
+    {.name = "auth", .label = "Security", .group = "Wi-Fi",
+     .about = "The network's security",
+     .type = SETTING_CHOICE, WIFI_FIELD(auth), SETTING_CHOICES(wifi_auth_choices), .applies = "at_restart"},
+    {.name = "timeout_ms", .label = "Join timeout", .group = "Wi-Fi",
+     .about = "How long the unit tries to join before it gives up",
+     .type = SETTING_INTEGER, WIFI_FIELD(timeout_ms), .unit = "ms", .min = 1000.0f, .max = 120000.0f,
+     .applies = "at_restart"},
+};
+
+
+static void *wifi_settings_live(int32_t id) {
+    (void) id;
+    return &wireless_config.eeprom_wireless_metadata;
+}
+
+
+static bool wifi_settings_is_saved(void) {
+    return config_is_saved(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &wireless_config.eeprom_wireless_metadata,
+                           sizeof(eeprom_wireless_metadata_t));
+}
+
+
+static const settings_resource_t wifi_settings = {
+    .path = "/api/v1/settings/wifi",
+    .save_path = "/api/v1/settings/wifi/save",
+    .label = "Wi-Fi",
+    .about = "The network the unit joins",
+    SETTING_FIELDS(wifi_fields),
+    .refused_while = SETTINGS_REFUSED_NEVER,
+    .size = sizeof(eeprom_wireless_metadata_t),
+    .live = wifi_settings_live,
+    .save = wireless_config_save,
+    .is_saved = wifi_settings_is_saved,
+};
+
+
 bool wireless_init() {
     bool is_ok = true;
 
@@ -181,6 +242,7 @@ bool wireless_init() {
 
     // Register to eeprom save all
     eeprom_register_handler(wireless_config_save);
+    settings_register(&wifi_settings);
 
     // Generate the hostname
     char id[4];

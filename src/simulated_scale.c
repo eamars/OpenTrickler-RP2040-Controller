@@ -94,7 +94,7 @@ void simulated_scale_read_loop_task(void *p) {
         const uint32_t interval_ms = simulated_scale_interval_ms;
         const float interval_s = (float) interval_ms / 1000.0f;
 
-        if (scale_config.persistent_config.scale_driver == SCALE_DRIVER_SIMULATED) {
+        if (scale_get_running_driver() == SCALE_DRIVER_SIMULATED) {
             float flow_rate = get_current_trickler_flow_rate();
 
             if (simulated_scale_state == SIM_SCALE_STATE_EMPTY_CUP || simulated_scale_state == SIM_SCALE_STATE_CUP_EMPTY) {

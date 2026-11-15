@@ -8,6 +8,7 @@
 #include "eeprom.h"
 #include "common.h"
 #include "servo_gate.h"
+#include "settings.h"
 
 // Attributes
 servo_gate_t servo_gate;
@@ -169,6 +170,79 @@ bool servo_gate_config_save(void) {
     return is_ok;
 }
 
+/*
+    The servo gate's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/gate)
+*/
+#define GATE_FIELD(member) SETTING_AT(eeprom_servo_gate_config_t, member)
+
+static const setting_field_t gate_fields[] = {
+    {.name = "enable", .label = "Servo gate", .group = "Gate",
+     .about = "The unit has a servo gate, and uses it",
+     .type = SETTING_BOOLEAN, GATE_FIELD(servo_gate_enable), .applies = "now"},
+    {.name = "shutter0_close_duty", .label = "Shutter 0 closed", .group = "Shutters",
+     .about = "Shutter 0's servo pulse when closed, as a share of the PWM's period (a servo's pulse at 50 Hz)",
+     .type = SETTING_NUMBER, GATE_FIELD(shutter0_close_duty_cycle), .unit = "of the PWM's period", .min = 0.02f,
+     .max = 0.13f, .applies = "the next move"},
+    {.name = "shutter0_open_duty", .label = "Shutter 0 open", .group = "Shutters",
+     .about = "Shutter 0's servo pulse when open",
+     .type = SETTING_NUMBER, GATE_FIELD(shutter0_open_duty_cycle), .unit = "of the PWM's period", .min = 0.02f,
+     .max = 0.13f, .applies = "the next move"},
+    {.name = "shutter1_close_duty", .label = "Shutter 1 closed", .group = "Shutters",
+     .about = "Shutter 1's servo pulse when closed",
+     .type = SETTING_NUMBER, GATE_FIELD(shutter1_close_duty_cycle), .unit = "of the PWM's period", .min = 0.02f,
+     .max = 0.13f, .applies = "the next move"},
+    {.name = "shutter1_open_duty", .label = "Shutter 1 open", .group = "Shutters",
+     .about = "Shutter 1's servo pulse when open",
+     .type = SETTING_NUMBER, GATE_FIELD(shutter1_open_duty_cycle), .unit = "of the PWM's period", .min = 0.02f,
+     .max = 0.13f, .applies = "the next move"},
+    {.name = "close_speed_per_s", .label = "Closing speed", .group = "Speed",
+     .about = "How fast the gate closes: 1 is its whole travel in a second",
+     .type = SETTING_NUMBER, GATE_FIELD(shutter_close_speed_pct_s), .unit = "full travels a second", .min = 0.01f,
+     .max = 100.0f, .applies = "the next move"},
+    {.name = "open_speed_per_s", .label = "Opening speed", .group = "Speed",
+     .about = "How fast the gate opens",
+     .type = SETTING_NUMBER, GATE_FIELD(shutter_open_speed_pct_s), .unit = "full travels a second", .min = 0.01f,
+     .max = 100.0f, .applies = "the next move"},
+};
+
+
+static void *gate_settings_live(int32_t id) {
+    (void) id;
+    return &servo_gate.eeprom_servo_gate_config;
+}
+
+
+static void gate_settings_apply(const void *before, int32_t id) {
+    (void) id;
+    const eeprom_servo_gate_config_t *was = before;
+    // Turned on or off, the gate's state is as a start leaves it: the servo is not moved
+    if (servo_gate.eeprom_servo_gate_config.servo_gate_enable != was->servo_gate_enable) {
+        servo_gate.gate_state = servo_gate.eeprom_servo_gate_config.servo_gate_enable ? GATE_OPEN : GATE_DISABLED;
+    }
+}
+
+
+static bool gate_settings_is_saved(void) {
+    return config_is_saved(EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, &servo_gate.eeprom_servo_gate_config,
+                           sizeof(servo_gate.eeprom_servo_gate_config));
+}
+
+
+static const settings_resource_t gate_settings = {
+    .path = "/api/v1/settings/gate",
+    .save_path = "/api/v1/settings/gate/save",
+    .label = "Servo gate",
+    .about = "The gate between the tricklers and the cup",
+    SETTING_FIELDS(gate_fields),
+    .refused_while = SETTINGS_REFUSED_IN_THROW,
+    .size = sizeof(eeprom_servo_gate_config_t),
+    .live = gate_settings_live,
+    .apply = gate_settings_apply,
+    .save = servo_gate_config_save,
+    .is_saved = gate_settings_is_saved,
+};
+
+
 bool servo_gate_config_init() {
     bool is_ok = true;
 
@@ -182,6 +256,7 @@ bool servo_gate_config_init() {
 
     // Register to eeprom save all
     eeprom_register_handler(servo_gate_config_save);
+    settings_register(&gate_settings);
 
     // Initialize settings
     if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {

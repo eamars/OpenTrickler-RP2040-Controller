@@ -88,6 +88,8 @@ void http_server_reply_static(http_server_reply_t *reply, int status, const char
 // Send a reply written as it is made, chunked
 void http_server_reply_stream(http_server_reply_t *reply, int status, const char *content_type,
                               http_server_more_t more, void *ctx);
+// Give a stream a tag (the schema, the build's hash): answered 304 with nothing made when the client has it
+void http_server_reply_etag(http_server_reply_t *reply, const char *etag);
 // An error, in api_v1.md's form: {"error": {"code": ..., "message": ...}}
 void http_server_reply_error(http_server_reply_t *reply, int status, const char *code, const char *message);
 // Bytes as they are, with no status line or header of ours, and the connection closed after them: an old handler's

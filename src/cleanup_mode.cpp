@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include "activity.h"
 #include "app.h"
 #include "u8g2.h"
 #include "mini_12864_module.h"
@@ -149,6 +150,9 @@ uint8_t cleanup_mode_menu() {
     // Enter the clean up mode
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_ENTER;
 
+    // The cleanup is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile
+    activity_job_begin(ACTIVITY_CLEANUP);
+
     // Enable both motors
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
@@ -212,6 +216,7 @@ uint8_t cleanup_mode_menu() {
     cleanup_mode_running = false;
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
+    activity_job_end();
 
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
 

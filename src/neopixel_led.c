@@ -30,7 +30,8 @@
 #include "configuration.h"
 #include "eeprom.h"
 #include "common.h"
-
+#include "activity.h"
+#include "settings.h"
 
 
 // The parameters for updating the NeoPixel LED colors (including the target LED information)
@@ -126,6 +127,80 @@ void neopixel_led_set_colour(rgbw_u32_t mini12864_backlight_colour, rgbw_u32_t l
 }
 
 
+/*
+    The LEDs' settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/leds)
+*/
+static const setting_choice_t led_colour_order_choices[] = {
+    {.held = NEOPIXEL_COLOUR_ORDER_RGB, .text = "rgb", .label = "RGB"},
+    {.held = NEOPIXEL_COLOUR_ORDER_GRB, .text = "grb", .label = "GRB"},
+};
+
+
+#define LED_FIELD(member) SETTING_AT(eeprom_neopixel_led_metadata_t, member)
+#define LED_COLOUR_APPLIES "now when no mode has the LEDs; otherwise when it gives them back"
+
+static const setting_field_t led_fields[] = {
+    {.name = "backlight_colour", .label = "Backlight", .group = "Display",
+     .about = "The display's backlight",
+     .type = SETTING_COLOUR, LED_FIELD(default_led_colours.mini12864_backlight_colour),
+     .applies = LED_COLOUR_APPLIES},
+    {.name = "led1_colour", .label = "LED 1", .group = "Display",
+     .about = "The display board's first LED, by the encoder, when no mode colours it; PWM3's LEDs follow it",
+     .type = SETTING_COLOUR, LED_FIELD(default_led_colours.led1_colour), .applies = LED_COLOUR_APPLIES},
+    {.name = "led2_colour", .label = "LED 2", .group = "Display",
+     .about = "The display board's second LED, when no mode colours it",
+     .type = SETTING_COLOUR, LED_FIELD(default_led_colours.led2_colour), .applies = LED_COLOUR_APPLIES},
+    {.name = "pwm3_chain_count", .label = "PWM3 LEDs", .group = "PWM3",
+     .about = "How many LEDs are chained on the PWM3 output",
+     .type = SETTING_INTEGER, LED_FIELD(pwm_out_led_chain_count), .min = 1.0f, .max = 16.0f, .applies = "now"},
+    {.name = "pwm3_colour_order", .label = "PWM3 colour order", .group = "PWM3",
+     .about = "The order the PWM3 LEDs take their colours in",
+     .type = SETTING_CHOICE, LED_FIELD(pwm_out_led_colour_order), SETTING_CHOICES(led_colour_order_choices),
+     .applies = "now"},
+    {.name = "pwm3_rgbw", .label = "PWM3 RGBW", .group = "PWM3",
+     .about = "The PWM3 LEDs have a white as well as red, green and blue",
+     .type = SETTING_BOOLEAN, LED_FIELD(pwm_out_led_is_rgbw), .applies = "at_restart"},
+};
+
+
+static void *led_settings_live(int32_t id) {
+    (void) id;
+    return &neopixel_led_config.eeprom_neopixel_led_metadata;
+}
+
+
+static void led_settings_apply(const void *before, int32_t id) {
+    (void) before;
+    (void) id;
+    // A mode colours the LEDs while it runs, and paints these back when it gives them up
+    if (activity_get() == ACTIVITY_NONE) {
+        const neopixel_led_colours_t *colours = &neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours;
+        neopixel_led_set_colour(colours->mini12864_backlight_colour, colours->led1_colour, colours->led2_colour, true);
+    }
+}
+
+
+static bool led_settings_is_saved(void) {
+    return config_is_saved(EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, &neopixel_led_config.eeprom_neopixel_led_metadata,
+                           sizeof(eeprom_neopixel_led_metadata_t));
+}
+
+
+static const settings_resource_t led_settings = {
+    .path = "/api/v1/settings/leds",
+    .save_path = "/api/v1/settings/leds/save",
+    .label = "LEDs",
+    .about = "The display's backlight and LEDs, and the LEDs on PWM3",
+    SETTING_FIELDS(led_fields),
+    .refused_while = SETTINGS_REFUSED_NEVER,
+    .size = sizeof(eeprom_neopixel_led_metadata_t),
+    .live = led_settings_live,
+    .apply = led_settings_apply,
+    .save = neopixel_led_config_save,
+    .is_saved = led_settings_is_saved,
+};
+
+
 bool neopixel_led_init(void) {
     bool is_ok = true;
     
@@ -195,6 +270,7 @@ bool neopixel_led_init(void) {
 
     // Register to eeprom save all
     eeprom_register_handler(neopixel_led_config_save);
+    settings_register(&led_settings);
 
     return true;
 }

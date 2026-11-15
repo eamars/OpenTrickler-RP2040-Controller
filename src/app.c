@@ -14,6 +14,7 @@
 #include "u8g2.h"
 
 // modules
+#include "activity.h"
 #include "app.h"
 #include "motors.h"
 #include "eeprom.h"
@@ -35,6 +36,9 @@ int main()
     // The console, over RTT through the debug probe (ADR-001): first, so every printf below reaches it
     stdio_init_all();
     printf("OpenTrickler starting\n");
+
+    // What the unit is doing, and the lock its settings' writes share (ADR-003, gate 3): before any task
+    activity_init();
 
     // Initialize EEPROM first
     eeprom_init();

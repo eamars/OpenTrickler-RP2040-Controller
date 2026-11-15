@@ -9,6 +9,7 @@
 #include <u8g2.h>
 #include <math.h>
 
+#include "activity.h"
 #include "app.h"
 #include "FloatRingBuffer.h"
 #include "mini_12864_module.h"
@@ -675,6 +676,9 @@ void charge_mode_wait_for_cup_removal() {
         charge_mode_config.charge_mode_event &= ~(CHARGE_MODE_EVENT_UNDER_CHARGE | CHARGE_MODE_EVENT_OVER_CHARGE);
     }
 
+    // The verdict is given: the throw is over, and what it read may be written again (ADR-003, gate 3)
+    activity_throw_end();
+
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
     while (true) {
         TickType_t last_sample_tick = xTaskGetTickCount();
@@ -816,6 +820,9 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
         vTaskResume(scale_measurement_render_task_handler);
     }
 
+    // The charge is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile
+    activity_job_begin(ACTIVITY_CHARGE);
+
     // Enable motor on entering the charge mode
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
@@ -826,6 +833,8 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
     while (quit == false) {
         switch (charge_mode_config.charge_mode_state) {
             case CHARGE_MODE_WAIT_FOR_ZERO:
+                // A throw from its zeroing to its verdict: what it reads is not written meanwhile (gate 3)
+                activity_throw_begin();
                 charge_mode_wait_for_zero();
                 break;
             case CHARGE_MODE_WAIT_FOR_COMPLETE:
@@ -857,6 +866,9 @@ uint8_t charge_mode_menu(bool charge_mode_skip_user_input) {
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
 
+    // The job is over, a throw cut short with it (ADR-003, gate 3)
+    activity_job_end();
+
     return 1;  // return back to main menu
 }
 
@@ -873,6 +885,7 @@ bool charge_mode_config_init(void) {
 
     // Register to eeprom save all
     eeprom_register_handler(charge_mode_config_save);
+    charge_mode_settings_register();
 
     return true;
 }
