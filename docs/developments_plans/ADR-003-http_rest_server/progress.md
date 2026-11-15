@@ -168,3 +168,7 @@ Measured at 1.20.179. The load is what `--load` pulls back to back: 82,391 bytes
 - **Making the stream is half its time during a charge.** `stream_make_ms` over the load soak's 29 loads: 3.66 s of each 7.33 s, 65 ms a chunk. On a quiet unit 1.12 s of 3.14 s: 117 µs a number with newlib's `%g`, 20 ms a chunk. The server's task is at 3, below the charge's tasks, as gate 2 wants: during a charge it makes a chunk 3.3 times slower. The rest of the stream's time is its sends, two segments in flight (`TCP_SND_BUF`), and the next chunk made only once the last is with lwIP.
 - **A small read waits for the server's passes, not for a connection.** The connect takes 16 ms; the reply waits while the one task makes the stream's two chunks a pass, and a new connection needs two passes (accepted, then read and answered). The more clients, the more each pass does.
 - **No Nagle stall:** small reads on one kept-alive connection, as a browser polls, 86 ms at the median against 62 ms with a connection each (quiet unit).
+
+### Gate 2: where it stands
+
+**Built on the Pico W, 2026-11-15, and closed by the owner** ("Close gate 2"). Its proof is 1.20.179's, above. What a tuning session's load costs the web goes to ADR-009, which decides a recording's format and size (its "Handed on by ADR-003"); the protocol needs no change for it. Gate 2 merges with gates 3 and 4 in this ADR's PR. Left for it: its run on the Pico 2 W, with gate 1's, before the ADR closes.
