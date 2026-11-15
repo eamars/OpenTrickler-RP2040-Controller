@@ -288,7 +288,7 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 
 ## Experiments and recordings, for ADR-009 (reserved)
 
-Written 2026-11-15 at the owner's challenge ("does the API capable of supporting the ADR-009 and the future AI agent assisted development and tuning needs?") and his word to fix it with the reviewer so that ADR-009 needs "minimum changes later". **ADR-003 builds none of this.** It fixes the paths and the shapes now, so that ADR-009 builds to them and only adds: columns, marks, summary fields, override fields, as the growth rules allow. Nothing here changes a path or a shape of the sections above.
+Written 2026-11-15 at the owner's challenge ("does the API capable of supporting the ADR-009 and the future AI agent assisted development and tuning needs?") and the owner's word to fix it with the reviewer so that ADR-009 needs "minimum changes later". **ADR-003 builds none of this.** It fixes the paths and the shapes now, so that ADR-009 builds to them and only adds: columns, marks, summary fields, override fields, as the growth rules allow. Nothing here changes a path or a shape of the sections above.
 
 **One primitive for every experiment.** PR #113's tuner and PR #101's both cut at "give me the next trial's settings" and "here is the trial's result" (ADR-009, "Handed on by ADR-002"). So the API has one call that takes a trial's settings and one record that is its result: a **test throw** and its **recording**. An agent tuning off the unit, and ADR-009's tuner on it, use the same two, and their data are the same.
 
