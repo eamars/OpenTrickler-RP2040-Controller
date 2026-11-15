@@ -200,7 +200,7 @@ Written in full 2026-11-15, for approval, with the API's table: [api_v1.md](api_
 
 ### Gate 4: commands, events, the switch
 
-- **Commands:** charge start and stop, cleanup start (with its optional time), stop and speed, the scale's zero, the gate, save, restart and erase, and `POST /api/v1/stop`, as in [api_v1.md](api_v1.md). Each is one entry point to the application, which the web, the console and the menu all use, and which knows who asked (`by`). The made-up button press (`OVERRIDE_FROM_REST`) goes.
+- **Commands:** charge start and stop, cleanup start, stop and speed (with its optional time), the scale's zero, the gate, save, restart and erase, and `POST /api/v1/stop`, as in [api_v1.md](api_v1.md). Each is one entry point to the application, which the web, the console and the menu all use, and which knows who asked (`by`). The made-up button press (`OVERRIDE_FROM_REST`) goes.
 - **One job at a time, said by the unit:** `activity` in `GET /api/v1/system`; a stop never fails; a charge or a cleanup that ended on a fault is in `fault` until a stop or a press acknowledges it.
 - **One target:** the charge's `target` is the one the menu's weight digits show and set, so a start at the unit throws what the API set, and the other way.
 - **One event log for the unit:** the newest 64 kept and numbered, with `boot` and `now_ms`; each client reads from where it left off. An event is a change, not a state. The charge and each numbered throw have their own events, with ADR-013's pauses and the reason a throw ended.

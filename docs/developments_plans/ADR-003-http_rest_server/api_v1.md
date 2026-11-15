@@ -48,13 +48,14 @@ What may change within v1, and what a client does about it:
 | 200 | A read, a write, an action done; a stop with nothing to stop |
 | 202 | An action under way: a charge started or stopped, a restart |
 | 304 | The schema or a page, unchanged since the `ETag` the client gave |
-| 400 | Not JSON, an unknown field, a wrong type, a value outside its limits, a missing confirmation |
+| 400 | Not JSON, an unknown field, a wrong type, a value outside its limits, a missing confirmation, a start with no target |
 | 403 | A `Host` that is not the unit's |
 | 404 | No such path on this build, or no such id |
 | 405 | The path exists, the method does not; `Allow` lists the methods |
 | 409 | Refused at this moment: another job runs, a throw is under way, no job runs that the command needs, a driver is at fault, the gate is disabled |
 | 411 | A body with no `Content-Length` (a chunked one included) |
-| 413 | A request larger than the unit takes: a JSON body over 1 KB, a header line over 512 bytes, headers over 8 KB in all |
+| 413 | A request larger than the unit takes: a JSON body over 1 KB; headers over 8 KB in all; one of the headers the unit reads, longer than its line. Other headers, a long `Cookie:` line among them, are passed over unread |
+| 414 | A request line over 256 bytes |
 | 415 | A write not sent as `application/json` (or `application/octet-stream` where bytes are taken) |
 | 500 | The unit failed to do it, such as a save the EEPROM did not take |
 | 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor and Sartorius drivers cannot zero their scale (TODOs in their code) |
@@ -65,15 +66,15 @@ Every error has the same body:
 {"error": {"code": "out_of_range", "field": "fine_stop_threshold", "message": "12 is above the most, 10", "min": 0, "max": 10}}
 ```
 
-The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
+The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
 
 ## What the unit is
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1` | | `api` ("1"); `firmware` {`version`, `vcs`, `build`}; `board` (pico_w, pico2_w; esp32_s3_pico with ADR-007); `unit_id`; `hostname`; `boot`, a 64-bit random number new at each start (the SDK's `pico_rand`); `uptime_s`; `features`, a list of names of the optional parts this board carries (ADR-005; empty today: every board carries every part); `guide`, a page of plain words for a client new to the unit (the job cycle, what stop does, what the unit cannot know); `resources`: each path with its methods and a line on what it is |
+| `GET /api/v1` | | `api` ("1"); `firmware` {`version`, `vcs`, `build`}; `board` (pico_w, pico2_w; esp32_s3_pico with ADR-007); `unit_id`; `hostname`; `boot`, a 32-bit random number new at each start (the SDK's `pico_rand`; 32 bits, since a browser's JSON keeps only 53); `uptime_s`; `features`, a list of names of the optional parts this board carries (ADR-005; empty today: every board carries every part); `guide`, a page of plain words for a client new to the unit (the job cycle, what stop does, what the unit cannot know); `resources`: each path with its methods and a line on what it is |
 | `GET /api/v1/schema` | | Every resource's fields **and every action's body**: `name`, `label`, `group`, `type` (number, integer, boolean, string, colour, choice), `unit`, `min`, `max`, `step`, `choices` (each `{value, label}`), `access` (read, read_write, write_only), `applies` (now, at_restart, or as the field says), `refused_while` (in_throw, a_job_runs, or never), and a line on what it is. Each settings resource names its save path. Also every state and what it means, every event kind and what it carries, and every error code. ADR-008's forms and ADR-010's settings screen are drawn from it. It changes only with the firmware |
-| `GET /api/v1/system` | | `firmware`, `board`, `unit_id`, `uptime_s`; `activity` (none, charge, cleanup, scale_calibration; more later); `restart_pending` (a setting that applies at restart was changed) |
+| `GET /api/v1/system` | | `firmware`, `board`, `unit_id`, `uptime_s`; `activity` (none, charge, cleanup, scale_calibration, view; more later); `restart_pending` (a setting that applies at restart was changed). `view`: a person has a screen open at the unit that is not a job and not the menu's forms (the Wi-Fi information, a driver's fault), and a start is refused until it is closed there. A job in `fault` is still that job's `activity`: the mode holds the screen and the motors until it is acknowledged |
 | `GET /api/v1/network` | | `mode` (station, access_point), `ssid`, `address`, `hostname` (the mDNS name), `rssi`: the menu's Wi-Fi info, and how a person or an agent finds which unit is which |
 | `POST /api/v1/stop` | `{}` | Stops whatever job runs. A stop: never refused (the rule above) |
 | `POST /api/v1/system/restart` | `{}` | 202; the unit restarts once the reply is out. 409 `busy` while a job runs: stop it first |
@@ -93,14 +94,14 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | Source | Kind | Carries |
 |---|---|---|
 | charge | started | `by` (button, api, console), `target`, `powder_profile` |
-| charge | stopped | `by` (button, api, console, or the unit itself), `reason` (stopped, fault) |
+| charge | stopped | `by` (button, api, console, or the unit itself), `reason` (stopped, fault). A charge that ends on a fault is logged stopped at the fault, `by` the unit; its acknowledgment is no event |
 | throw | started | `throw`, `target`, `powder_profile` |
 | throw | paused | `throw`, the pause's number in it (ADR-013: no reading for 3 of the scale's intervals) |
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
 | throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault), and for a driver's fault its `motor` and `fault` |
-| cleanup | started | `by`, `seconds` when given |
-| cleanup | stopped | `by`, `reason` (stopped, time, fault) |
+| cleanup | started | `by` |
+| cleanup | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
 | motors | fault, cleared | `motor`, `fault` |
 | system | started | `firmware`, at each start |
 
@@ -123,22 +124,32 @@ ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_prof
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/cleanup` | | `state` (idle, running, fault), `speed_rps`, `seconds_left` (null when it runs until stopped) |
-| `POST /api/v1/cleanup/start` | `{}`, or `{"seconds": 60}` | 202. With `seconds` (1 to 600 *p*), the cleanup stops by itself after that time, so a client that loses the network leaves no motor turning. Without it, it runs until stopped, as at the unit. 409 `busy` while another job runs; 409 `driver_fault` |
+| `GET /api/v1/cleanup` | | `state` (idle, running, fault), `speed_rps`, `time_left_s` (null when the speed was given with no time) |
+| `POST /api/v1/cleanup/start` | `{}` | 202. The cleanup runs, at speed 0 until a PATCH gives one. 409 `busy` while another job runs; 409 `driver_fault` |
 | `POST /api/v1/cleanup/stop` | `{}` | A stop; it acknowledges `fault` |
-| `PATCH /api/v1/cleanup` | `{"speed_rps": 2.0}` | 200. Both tricklers turn at that speed, within ± the lower of the two motors' `max_speed_rps` at that moment. 409 `not_running` when idle |
+| `PATCH /api/v1/cleanup` | `{"speed_rps": 2.0}`, or `{"speed_rps": 2.0, "time_s": 30}` | 200. Both tricklers turn at that speed, within ± the lower of the two motors' `max_speed_rps` at that moment. With `time_s` (1 to 600 *p*), for at most that long: a new PATCH before then sets a new speed and a new time, and when the time runs out with none, the cleanup stops by itself (`cleanup stopped`, `by` the unit, `reason` time). A client with no person at the unit gives a short time and sends the speed again while it wants it, so a client that loses the network leaves no motor turning for longer than its last time. Without `time_s` it turns until stopped, as at the unit. 409 `not_running` when idle |
 
 ## The scale, the gate, the motors, the screen
 
 | Method and path | Body | Reply |
 |---|---|---|
 | `GET /api/v1/scale` | | `weight` (null with no reading); `unit` (gn, g, or null when the make cannot tell: null for all but the A&D, whose frame carries it); `driver`, the one that runs; `simulated` (the console's stand-in is running in its place); `usual_interval_ms` (the scale's rhythm, ADR-013); `bad_frames`; `actions`, what this make can be asked to do (zero now; its calibration, its display, its fast report later) |
-| `POST /api/v1/scale/zero` | `{}` | 200. Taken when no job runs and in `zeroing` (a cup that reads 0.05 is put right, as the encoder's press does). Refused with 409 `busy` in `charging`, `waiting_for_cup_removal` and `waiting_for_cup_return`: the unit cannot tell whether a cup is on the pan, and a zero while it waits for the cup starts the next throw at once. 501 `not_supported` when the make cannot |
-| `GET /api/v1/gate` | | `state` (open, closed, partial, released, disabled), `ratio` (0 open to 1 closed; null when released or disabled). `released`: not driven, the menu's "Disable"; `disabled`: off in its settings (`settings/gate.enable`), so charge mode does not use it |
-| `PATCH /api/v1/gate` | `{"ratio": 0.5}`, or `{"ratio": null}` to release it | 200. 409 `gate_disabled` when it is off in its settings; 409 `busy` while `in_throw` |
+| `POST /api/v1/scale/zero` | `{}` | 200: the scale was asked to zero, not that it did (some scales do not zero while unsteady); a client reads the weight after. When it is taken is in the table below. 501 `not_supported` when the make cannot |
+| `GET /api/v1/gate` | | `state` (open, closed, partial, held, disabled), `ratio` (0 open to 1 closed; null when disabled). `held`: the menu's "Disable", which moves the servo no more and leaves it at its last duty, `ratio` the last one (`servo_gate.c`); charge mode moves it again when it needs it. `disabled`: off in its settings (`settings/gate.enable`), so charge mode does not use it |
+| `PATCH /api/v1/gate` | `{"ratio": 0.5}`, or `{"ratio": null}` to hold it, as the menu's "Disable" | 200. 409 `gate_disabled` when it is off in its settings; 409 `busy` while `in_throw` |
 | `GET /api/v1/motors` | | For `coarse` and `fine`: `speed_rps` (now, ramps included), `driver` (ok, absent, short, hot, reset, supply) |
 | `GET /api/v1/display` | | `width`, `height`, `format` (`u8g2_tiles`: one bit a pixel, in u8g2's tiles). When LVGL draws the screen (ADR-010), or a larger screen comes, `format` says so |
 | `GET /api/v1/display/frame` | | The screen's bytes, as `application/octet-stream`, in the `format` above |
+
+**A zero over the API.** The unit cannot tell whether a cup is on the pan, and a zero can start a throw, so it is taken only where it cannot pour onto a bare pan. The encoder's press at the unit is not changed: the person there sees the pan.
+
+| State | A zero over the API |
+|---|---|
+| No job, a cleanup, `fault` | Taken (the page's Scale Zero is on the purge page too, for the container) |
+| `zeroing` | Taken only while the weight is within ±1 *p* of zero: a drift, such as a cup that reads 0.05, is put right. Otherwise 409 `weight_off_zero`, with `weight`: "the scale reads -152.3; over the API a zero puts right only a drift; put the cup on, or zero at the unit". A remote start passes no "Put pan on the scale" form, and with the cup off the scale reads about minus the cup: a zero there would pour onto the pan |
+| `charging`, `waiting_for_cup_removal`, `waiting_for_cup_return` | 409 `busy`. While it waits for the cup's return the unit takes the cup to be away, and a zero there starts the next throw at once |
+
+The bound is by the weight's distance from zero, not by the unit's test for a lifted cup: that test is a fixed 10 in the scale's unit (`charge_mode.cpp`, the cup's removal), and misses a cup under 10 g. What no rule can close, and the guide says: a zero while idle and then a start, or a start on a scale zeroed bare, pours onto whatever is on the pan. Start only when a person has said a cup is on it.
 
 ## Powder profiles
 
@@ -292,7 +303,8 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 2. **The words.** `powder_profiles` and, with ADR-014, `charge_profiles`, in your words for the two. The **charge** is the job (charge mode), a **throw** is one cup, numbered.
 3. **The limits marked *p*.** The code has none for them today; these are first figures.
 4. **What is refused, and when.** While `in_throw` (from zeroing to the verdict): the charge's settings, the profile in use, the scale's and the gate's settings, the gate, a zero after `zeroing`. While any job runs: the motors' settings, another job, a restart, an erase. Between throws, a profile's gains can be changed, as ADR-009's tuning will need.
-5. **A remote zero is refused while the unit waits for the cup's return** (the review's S3, argued below). A remote caller fixes a drifted cup by stop, start, zero.
+5. **A zero over the API** (the review's S3, argued out in two rounds): taken while idle, during a cleanup and in `fault`; in `zeroing` only to put right a drift within ±1 *p* of zero; refused once a throw pours and while the unit waits for the cup. So no remote call pours onto a bare pan through a zero. A zero while idle and then a start still can, and the guide says so.
+6. **A cleanup's time is given with its speed** (`time_s` on the PATCH): a client that loses the network leaves the motors turning no longer than the time it last gave.
 
 ## The review (2026-11-15)
 
@@ -306,7 +318,7 @@ A second model (Fable 5.2, a session of its own, read only) reviewed the table a
 | B4 | The profile chosen was said to be stored as the menu's is: the menu's is not, and it shares a block with all profiles | Live until saved, like the rest |
 | S1 | The charge read one shape and wrote another; the menu's digits are a second target | GET's fields are PATCH's; one target, the menu's digits read and write it |
 | S2 | "Refused during a throw" was a check, then a write | One lock for what a throw reads, held by the throw (gate 3) |
-| S3 | Zero refused in `zeroing`, where it is used; taken while waiting for the cup, where it starts a throw | Taken idle and in `zeroing`; refused after (the author refused it in `waiting_for_cup_return` too) |
+| S3 | Zero refused in `zeroing`, where it is used; taken while waiting for the cup, where it starts a throw | Round 1: refused while waiting for the cup too (the author; conceded). Round 2: the reviewer showed a zero in `zeroing` after a remote start, cup off, pours onto the pan; in `zeroing` only a drift within ±1 is put right (the author's bound, in place of the lifted-cup test, which misses a cup under 10 g); taken during a cleanup and in `fault` |
 | S4 | DNS rebinding passes the cross-site guard | `Host` checked, 403; page requests redirected; 415 for a POST with no type |
 | S5 | A save during `sim on` stores the simulated scale | A stand-in is never stored |
 | S6 | A colour write paints over a verdict | Colours apply when no mode has the LEDs |
@@ -319,4 +331,5 @@ A second model (Fable 5.2, a session of its own, read only) reviewed the table a
 | S13 | A stalled reply, six idle connections, long headers, `select` and the heap, pools | Gate 2's server (README) |
 | S14 | No weight unit, though the A&D's frame carries one | `unit` in the scale |
 | S15 | Restart taken mid-throw; erase's effects unsaid | Restart refused while a job runs; erase says what follows |
-| M1 to M9 | Names, `rev`, the frame, limits, 404 against 501, growth rules, the gate's states, server details, two things said plainly | In the tables above; the author's rule for unit suffixes; `seconds` on a cleanup (the author's) |
+| M1 to M9 | Names, `rev`, the frame, limits, 404 against 501, growth rules, the gate's states, server details, two things said plainly | In the tables above; the author's rule for unit suffixes; a cleanup's time (the author's), put on the speed at the reviewer's word, since a start turns nothing |
+| R1 to R7 (round 2) | 413 against a long cookie; zero refused during a cleanup; `activity` in `fault`; `busy` with nothing running; `released` that is not released; `boot` past 53 bits; 400's line | 413 and 414 as the README's server; zero taken in a cleanup and `fault`; a job in `fault` is its activity, logged stopped at the fault; `view`; `held`; 32 bits; `no_target` |
