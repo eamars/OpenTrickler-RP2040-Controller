@@ -36,7 +36,7 @@ What may change within v1, and what a client does about it:
 - **Limits, defaults and steps are the schema's, not the contract's.** They may change from one build to another; the schema is the truth for its build.
 - **A part a board does not carry** (ADR-005) is absent: its paths answer 404, and the index and the schema do not list it. A client learns what is there from `GET /api/v1`, not from this file.
 - **Every job has one shape:** a resource with a `state`, `POST .../start` and `POST .../stop`, `fault` when it ended on one, refusals with 409, its events in the unit's one event log, and a place in `activity` and in `POST /api/v1/stop`.
-- **Bytes are sent with PUT** (ADR-004's image), as `application/octet-stream`.
+- **Bytes are sent with PUT** (ADR-004's image), as `application/octet-stream`, and handed to their route in pieces as they come (gate 4): the server holds none of it whole, and the route says how much it takes (413 `too_large`).
 - **A resource may gain a representation,** asked for with `?format=` (a link can carry it, a header cannot); JSON stays the default.
 - **What is under `/api/v1/debug` is not part of v1.** It may change or go in any build.
 - **A password,** if its own ADR adds one, comes as a header (`Authorization`). Paths and bodies stay as they are; a client adds the header.
@@ -59,7 +59,7 @@ What may change within v1, and what a client does about it:
 | 414 | A request line over 256 bytes |
 | 415 | A write not sent as `application/json` (or `application/octet-stream` where bytes are taken) |
 | 500 | The unit failed to do it, such as a save the EEPROM did not take |
-| 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor and Sartorius drivers cannot zero their scale (TODOs in their code) |
+| 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor, Sartorius, US Solid, JM Science and generic drivers cannot zero their scale (TODOs in their code); `actions` in `GET /api/v1/scale` says which can |
 
 Every error has the same body:
 
@@ -77,9 +77,9 @@ The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out
 | `GET /api/v1/schema` | | Every resource's fields **and every action's body**: `name`, `label`, `group`, `type` (number, integer, boolean, string, colour, choice), `unit`, `min`, `max`, `step`, `choices` (each `{value, label}`), `access` (read, read_write, write_only), `applies` (now, at_restart, or as the field says), `refused_while` (in_throw, a_job_runs, or never), and a line on what it is. Each settings resource names its save path. Also every state and what it means, every event kind and what it carries, and every error code. ADR-008's forms and ADR-010's settings screen are drawn from it. It changes only with the firmware |
 | `GET /api/v1/system` | | `firmware`, `board`, `unit_id`, `uptime_s`; `activity` (none, charge, cleanup, scale_calibration, view; more later); `restart_pending` (a setting that applies at restart was changed). `view`: a person has a screen open at the unit that is not a job and not the menu's forms (the Wi-Fi information, a driver's fault), and a start is refused until it is closed there. A job in `fault` is still that job's `activity`: the mode holds the screen and the motors until it is acknowledged |
 | `GET /api/v1/network` | | `mode` (station, access_point), `ssid`, `address`, `hostname` (the mDNS name), `rssi`: the menu's Wi-Fi info, and how a person or an agent finds which unit is which |
-| `POST /api/v1/stop` | `{}` | Stops whatever job runs. A stop: never refused (the rule above) |
-| `POST /api/v1/system/restart` | `{}` | 202; the unit restarts once the reply is out. 409 `busy` while a job runs: stop it first |
-| `POST /api/v1/system/erase` | `{"confirm": "erase"}` | 202. The stored settings are erased, then the unit restarts. **It then leaves the network and comes back as its own access point, with a new id and host name** (the id is kept in the EEPROM, and the name is made from it). 400 `confirm_missing` without the confirmation; 409 `busy` while a job runs |
+| `POST /api/v1/stop` | `{}` | Stops whatever job runs, or a start asked and not yet begun. A stop: never refused (the rule above). `{"stopped": true\|false, "activity"}`: 202 when it stopped one, 200 when there was nothing |
+| `POST /api/v1/system/restart` | `{}` | 202 `{"restarting": true}`; the unit restarts once the reply is out. 409 `busy` while a job runs: stop it first |
+| `POST /api/v1/system/erase` | `{"confirm": "erase"}` | 202 `{"erasing": true}`. The stored settings are erased, then the unit restarts. **It then leaves the network and comes back as its own access point, with a new id and host name** (the id is kept in the EEPROM, and the name is made from it). 400 `confirm_missing` without the confirmation; 409 `busy` while a job runs |
 | `GET /api/v1/debug` | | Not part of v1: today `heap_free` (FreeRTOS) and `net` (lwIP's heap and pools, as the console's `net`) |
 
 ## The event log
@@ -97,7 +97,7 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | charge | started | `by` (button, api, console), `target`, `powder_profile` |
 | charge | stopped | `by` (button, api, console, or the unit itself), `reason` (stopped, fault). A charge that ends on a fault is logged stopped at the fault, `by` the unit; its acknowledgment is no event |
 | throw | started | `throw`, `target`, `powder_profile` |
-| throw | paused | `throw`, the pause's number in it (ADR-013: no reading for 3 of the scale's intervals) |
+| throw | paused | `throw`, `pause`: its number in the throw (ADR-013: no reading for 3 of the scale's intervals) |
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
 | throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault), and for a driver's fault its `motor` and `fault` |
@@ -112,9 +112,9 @@ Later ADRs add sources and kinds (the rules above). **`?wait=s`** (1 to 30): the
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/charge` | | `state` (idle, zeroing, charging, waiting_for_cup_removal, waiting_for_cup_return, fault); `in_throw`; `throw`, the number of this throw or the last; `paused` (true while a throw waits for readings); `target` (null until set); `powder_profile` (its id) and `powder_profile_name`; `weight` (null with no reading); `elapsed_s` (this throw, or the last); `last` {`throw`, `result` (good, under, over, none), `reason` (finished, or as a throw's `ended`), `weight`}; `event_seq`, the newest event's number |
+| `GET /api/v1/charge` | | `state` (idle, starting, zeroing, charging, waiting_for_cup_removal, waiting_for_cup_return, fault); `in_throw`; `throw`, the number of this throw or the last; `paused` (true while a throw waits for readings); `target` (null until set); `powder_profile` (its id) and `powder_profile_name`; `weight` (null with no reading); `elapsed_s` (this throw, or the last); `last` {`throw`, `result` (good, under, over, none), `reason` (finished, or as a throw's `ended`), `weight`}; `event_seq`, the newest event's number |
 | `PATCH /api/v1/charge` | `{"target": 30.0}`, `{"powder_profile": 3}`, or both | 200. What the next throw uses. One target for the unit: the menu's weight digits show it and set it. `target` from 0.001 to 999.99 at two decimal places, 99.999 at three: what the menu can show. The powder profile chosen is live until saved, with the profiles (`powder_profiles.saved`). 409 `busy` while `in_throw` |
-| `POST /api/v1/charge/start` | `{}`, or `target` and `powder_profile` to set them first | 202 with the charge. 409 `busy` while another job runs or the menu is not at its forms (a person is in a mode at the unit); 409 `driver_fault`; 400 `no_target` when no target is set |
+| `POST /api/v1/charge/start` | `{}`, or `target` and `powder_profile` to set them first | 202 with the charge, in `starting` until the menu begins it. A target or a powder profile given is written only if the start is taken. 409 `busy` while another job runs or the menu is not at its forms (a person is in a mode at the unit); 409 `driver_fault`; 400 `no_target` when no target is set |
 | `POST /api/v1/charge/stop` | `{}` | A stop (the rule above). It also acknowledges `fault`, as a press at the unit does |
 
 The charge in `fault` has ended on one: it waits, as the screen does, to be acknowledged by a stop or a press, and `last.reason` says why. It is not a throw: settings are written.
@@ -125,7 +125,7 @@ ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_prof
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/cleanup` | | `state` (idle, running, fault), `speed_rps`, `time_left_s` (null when the speed was given with no time) |
+| `GET /api/v1/cleanup` | | `state` (idle, starting, running, fault), `speed_rps`, `time_left_s` (null when the speed was given with no time) |
 | `POST /api/v1/cleanup/start` | `{}` | 202. The cleanup runs, at speed 0 until a PATCH gives one. 409 `busy` while another job runs; 409 `driver_fault` |
 | `POST /api/v1/cleanup/stop` | `{}` | A stop; it acknowledges `fault` |
 | `PATCH /api/v1/cleanup` | `{"speed_rps": 2.0}`, or `{"speed_rps": 2.0, "time_s": 30}` | 200. Both tricklers turn at that speed, within ± the lower of the two motors' `max_speed_rps` at that moment. With `time_s` (1 to 600 *p*), for at most that long: a new PATCH before then sets a new speed and a new time, and when the time runs out with none, the cleanup stops by itself (`cleanup stopped`, `by` the unit, `reason` time). A client with no person at the unit gives a short time and sends the speed again while it wants it, so a client that loses the network leaves no motor turning for longer than its last time. Without `time_s` it turns until stopped, as at the unit. 409 `not_running` when idle |
@@ -184,7 +184,8 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 - **The shapes, as built in gate 3:**
   - `GET /api/v1/settings` is `{"api": "1", "firmware": {"version", "vcs", "build"}, "unit_id", "resources": {...}}`, each resource under its path (`"/api/v1/settings/charge"`, `"/api/v1/powder_profiles/0"`) as its own GET gives it. An import PATCHes each path with its fields, `saved` left out.
   - A save, and `POST /api/v1/settings/save`, answer 200 `{"saved": true}`, or 500 `failed`; their body is `{}`, and a field in it is refused (400 `unknown_field`). `saved` sent in a PATCH is 400 `read_only`.
-  - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies. `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles `in_throw_when_in_use`. The states and the events come with gate 4.
+  - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies. `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles `in_throw_when_in_use`.
+  - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_cleanup_runs` for the cleanup's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `cleanup`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. A client works from these (`tools/remote_control/unit_api.py`).
   - `GET /api/v1/powder_profiles/{id}` gives `saved` (all eight are one block) and its fields; `GET /api/v1/powder_profiles` gives `saved` and each profile's `id` and `name`.
 
 ### `/api/v1/settings/charge`, saved at `/api/v1/settings/charge/save` (refused while `in_throw`)
@@ -285,7 +286,7 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | A colour or larger screen, or LVGL's frame | ADR-010 | `format` in `GET /api/v1/display`; the bytes apart at `/display/frame` |
 | Another chip | ADR-007 | `board`, `features`; what is chip-only (lwIP's pools) is under `debug` |
 | The scale's own calibration (the A&D's CAL), its display, its fast report (TODOs in `and_scale.c`, `gng_scale.c`) | the menu, the scale drivers | `actions` in `GET /api/v1/scale`, and `POST /api/v1/scale/{action}` for each make that can; the calibration a job |
-| Zero on scales whose drivers cannot yet (Steinberg, Creedmoor, Sartorius: TODOs) | the scale drivers | 501 `not_supported` now; `actions` lists zero once a driver can |
+| Zero on scales whose drivers cannot yet (Steinberg, Creedmoor, Sartorius, US Solid, JM Science, generic: TODOs) | the scale drivers | 501 `not_supported` now; `actions` lists zero once a driver can |
 | The weight's unit for every make | the scale drivers | `unit`, null today but for the A&D |
 | Which unit is which, among several | OWMC's ADR-013 (the owner's review) | `hostname` and `unit_id` in the index, `GET /api/v1/network`, and the mDNS announcement with the API's and the firmware's versions |
 | The console and the API saying the same | ADR-001, the owner | One table of names for both (gate 3) |
@@ -384,20 +385,21 @@ For an agent developing the firmware over the network, with no probe: the log, t
 - **It is never turned on over the network,** only at the unit (the menu) or at the console. How long it stays on, across a flash included, is its ADR's: off at every restart would defeat an agent that flashes over Wi-Fi (ADR-004).
 - **While it is on, the screen and `GET /api/v1/system` say so.**
 
-Today's `GET /api/v1/debug`, which only reads figures (lwIP's pools, the FreeRTOS heap), is always there: the soak reads it. None of it is part of v1.
+Today's `GET /api/v1/debug`, which only reads figures (lwIP's pools, the FreeRTOS heap, the server's counts, the uploads whole and cut off), is always there: the soak reads it. So are gate 2's and gate 4's routes for the proofs: `debug/load` (a reply the size of a throw's samples), `debug/wait` (a parked request), and `PUT debug/upload` (bytes taken in pieces, answered with their count and CRC-32, and dropped). None of it is part of v1.
 
 ### What gate 2 and gate 4 build for it
 
 So that ADR-009 changes nothing in the server:
 - **Gate 2: a slot that can be parked.** A request may be held, with a deadline and a condition, until there is something to send; the server's task looks at parked slots at least every 50 ms, so no other task wakes it. At most two are parked; a third request with `wait` is answered at once. The stall rule becomes "a reply that makes no progress while the unit has something to send". Built and proven in gate 2 (README).
 - **Gate 2: the server's task below the menu's**, which runs the charge loop (6), so at 5 or under, and the load proven: a reply the size of a throw's samples (600 rows of 16 numbers, from a route under `debug`) pulled back to back, and a client asking four times a second, through `charge_cycle` and a soak, with no late feed of the step pulses (`motor`), the scale's readings as regular as without it, each charge's time and weight as without it, and no allocation failed (`net`).
+- **Gate 4: a body in pieces.** A route may take its body as it comes, a piece at a time (`http_server_add_upload`: begin, piece, end, and abort when the client goes): ADR-004's image is 700 KB, the slot's buffer 1.5 KB. Built and proven in gate 4: 45 uploads of 700 KB back to back during a soak's charges, each whole by its CRC-32 (progress).
 - **Gate 4: `?wait=s` on the event log,** with the owner's leave (below): an agent waits for `throw finished`, and the portal's charge page for its next event, in place of asking twice a second. Every reply is a whole JSON document, so every client and every agent's tool can use it. ADR-009 then uses the same for a recording's samples.
 
 ### What ADR-009 then changes in the API
 
 Only additions: recordings and their columns, marks and summary fields; `recording` in the throw's events and in `last`; `ctl_` columns for its controller; override fields as new parameters come (each also a field of its resource); tuning's own fields; the cup, test throws, motor runs and scale recordings as built here; new `activity` values (test_throw, tuning, motor_run, scale_record); new error codes (`no_cup`, `cup_full`, `cup_changed`); 410 in the status table; `?wait=s` on samples; other formats by `?format=` if measured. No path moves, no field changes its meaning.
 
-**Found while checking** (`wireless.c`, `eeprom.c`): the unit's host name is `opentrickler-` and the first four characters of its id, copied into `char id[4]` with no ending and printed with `%s`. `snprintf` reads on past the four bytes, and only its limit of 18 keeps the name right. Two units match in those four characters about once in 65,536, if the id is random. The bench's Pico W has the id `9CE00000`, its last five characters 0, so how random `rnd()` makes it (`eeprom.c`) is to be read first. For gate 4, where the mDNS announcement changes: the id written with its ending, and enough of it to tell units apart.
+**Found while checking** (`wireless.c`, `eeprom.c`): the unit's host name is `opentrickler-` and the first four characters of its id, copied into `char id[4]` with no ending and printed with `%s`. `snprintf` reads on past the four bytes, and only its limit of 18 keeps the name right. Two units match in those four characters about once in 65,536, if the id is random. The bench's Pico W has the id `9CE00000`, its last five characters 0, so how random `rnd()` makes it (`eeprom.c`) is to be read first. For gate 4, where the mDNS announcement changes: the id written with its ending, and enough of it to tell units apart. **Built in gate 4:** the ending (`opentrickler-9CE0`); the name keeps its four characters, as units are known by it today. **Read since:** `rnd()` reads the ring oscillator's random bit 32 times in a row with no wait, and the bench's `9CE00000` ends in five zeros, so the bit did not change between reads: the four characters carry fewer than 16 random bits. A new id from the SDK's `get_rand_32()` is the id's own area's change, not this ADR's (raised with the owner).
 
 ## Pages, not the API
 
