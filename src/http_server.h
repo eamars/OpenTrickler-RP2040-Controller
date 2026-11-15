@@ -115,7 +115,7 @@ typedef struct {
     uint32_t closed_for_room;   // the idlest closed to take a new client
     uint32_t aborted_stalled;   // replies that made no progress
     uint32_t refused;           // requests answered with 4xx by the server itself (not by a handler)
-    uint32_t send_no_memory;    // sends lwIP had no memory for, tried again
+    uint32_t send_no_memory;    // sends that wrote nothing though select() said writable (lwIP's heap full): waited
     uint32_t send_failed;       // sends that failed otherwise: the connection closed
     uint8_t slots_used;
     uint8_t slots_parked;

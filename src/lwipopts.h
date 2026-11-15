@@ -42,11 +42,13 @@
 #define DEFAULT_UDP_RECVMBOX_SIZE 8
 // Six clients, the listener, one waiting to be taken, and room for one being closed
 #define MEMP_NUM_NETCONN 10
-// A socket's send copies what it sends into lwIP's heap, up to its send buffer. At the examples' 8 segments
-// (11.7 KB) one page load took the heap to 14,888 of its 16,384 bytes, and two at once would run it out. 4 segments
-// (5.8 KB): two page loads at once fit beside everything else. TCP_SND_QUEUELEN follows it (common header)
+// A socket's send copies what it sends into lwIP's heap, up to its send buffer, so the heap holds every connection's
+// send buffer at once. At the examples' 8 segments (11.7 KB) one page load took the heap to 14,888 of its 16,384
+// bytes; at 4, a soak with a tuning session's load ran it out 340 times and missed 43% of the web's reads. At 2
+// segments (2.9 KB, lwIP's least that runs smoothly) the server's six connections hold at most about 19 KB together.
+// TCP_SND_QUEUELEN follows it (common header)
 #undef TCP_SND_BUF
-#define TCP_SND_BUF (4 * TCP_MSS)
+#define TCP_SND_BUF (2 * TCP_MSS)
 
 // MDNS
 #define LWIP_MDNS_RESPONDER 1
@@ -67,11 +69,12 @@
 #undef MEMP_STATS
 #define MEMP_STATS 1
 
-// lwIP's heap (ADR-003, gate 1). It holds each web connection's state, the header of each TCP segment in flight and
-// a copy of each reply from RAM. The Pico examples' 4,000 bytes ran out under two browsers and a charge: 7,404 failed
-// allocations and 8.9% of the web's reads missed in ten minutes. With room to spare the web used 8,824 and 10,364 at
-// most in two soaks of the same load: the most moves with the Wi-Fi. This is the larger and half as much again
+// lwIP's heap (ADR-003). Gate 1, on lwIP's file server: the Pico examples' 4,000 bytes ran out under two browsers and
+// a charge (7,404 failed allocations, 8.9% of the web's reads missed); 16,384, the most two soaks used and half as much
+// again, ran out none. Gate 2, on sockets: every byte sent is copied into this heap, up to each connection's send
+// buffer, so it is sized by that, not by a soak: six connections of 2 segments with their headers, about 19 KB, and
+// lwIP's own (the stack's state at rest is 1 KB; ARP, DHCP, mDNS and the ACKs it sends)
 #undef MEM_SIZE
-#define MEM_SIZE 16384
+#define MEM_SIZE 24576
 
 #endif

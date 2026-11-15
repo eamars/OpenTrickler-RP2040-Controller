@@ -1039,6 +1039,7 @@ static bool slot_next_chunk(slot_t *slot) {
 
 // Send what the socket takes. True when the reply is all out
 static bool slot_send_some(slot_t *slot) {
+    bool sent_any = false;
     while (true) {
         const char *ptr;
         size_t left;
@@ -1062,6 +1063,7 @@ static bool slot_send_some(slot_t *slot) {
 
         int sent = lwip_send(slot->fd, ptr, left, MSG_DONTWAIT);
         if (sent > 0) {
+            sent_any = true;
             slot->last_progress_ms = now_ms();
             if (slot->head_sent < slot->head_len) {
                 slot->head_sent += (size_t) sent;
@@ -1071,13 +1073,14 @@ static bool slot_send_some(slot_t *slot) {
             }
             continue;
         }
-        if (sent < 0 && errno == ENOMEM) {
-            // select() says writable by the send window, not by lwIP's heap: wait a tick, or the task would spin
-            stats.send_no_memory += 1;
-            slot->no_memory_until_ms = now_ms() + HTTP_SERVER_NO_MEMORY_WAIT_MS;
-            return false;
-        }
-        if (sent < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+        if (sent < 0 && (errno == ENOMEM || errno == EWOULDBLOCK || errno == EAGAIN)) {
+            if (!sent_any) {
+                // Nothing went, though select() said writable: select() looks at the send window, not at lwIP's
+                // heap, and a non-blocking send that finds no heap says "would block" (api_msg.c). Wait a tick, or
+                // the task would spin
+                stats.send_no_memory += 1;
+                slot->no_memory_until_ms = now_ms() + HTTP_SERVER_NO_MEMORY_WAIT_MS;
+            }
             return false;
         }
         stats.send_failed += 1;

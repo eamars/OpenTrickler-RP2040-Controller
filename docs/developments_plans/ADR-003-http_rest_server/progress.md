@@ -90,3 +90,30 @@ Built at 0398515 (1.20.155): a request's values static (step 3), a reply in RAM 
 - No stored struct changed; the unit's settings are as they were.
 - **Left of gate 1:** its image on the Pico 2 W, when the owner next puts that unit on the probe, before this ADR closes (the owner, 2026-11-15). Not a condition of its merge.
 - **Merged by the owner** 2026-11-15: PR #128, merge 0d02bdb, on the condition that `http_rest.c` is deleted in a later gate ("As long as the module is deleted, then I'm happy to merge"). Gates 2 to 4 go on in the same branch, from the merge.
+
+## Gate 2: our own server
+
+Approved by the owner 2026-11-15 ("Yes to both": gate 2, and `?wait` on the event log in gate 4). Built and proven on the Pico W.
+
+### What was built
+
+At 89dbf75 and ce67426:
+- **`http_server.c`**: one task at priority 4 (below the menu's 6, which runs the charge loop, and the charge screen's 5), `select()` over the listener and 6 slots, waking every 50 ms. The slots, 2.1 KB each, come out of the FreeRTOS heap at start, not out of the RAM taken at link time. Headers are read a line at a time; the server keeps `Host`, `Content-Length`, `Content-Type`, `Connection`, `If-None-Match`, `Expect` and `Transfer-Encoding`, and passes over the rest, up to 8 KB. Keep-alive with a 5 s idle limit; a 10 s stall limit that resets the connection, so lwIP frees what it held; the idlest connection closed to take a new client; `Host` checked (403 for the API and the old paths, a redirect for pages); 415 for a write that is not JSON; 405 with `Allow`; routes with `{id}`; replies from the slot's buffer, from flash with an `ETag` (304 when unchanged), or chunked as they are made; parked requests, two at most.
+- **`rest_adapter.c`** serves the old `/rest/...` handlers: the query split and decoded as `http_rest.c` did (20 values, 511 characters), each reply copied at once (so the next request to the same path cannot rewrite one in flight), sent again with our headers and kept alive. A value with no `=` is given as `""`: `http_rest.c` gave the handlers NULL, which every handler used as a string. `http_rest.h` keeps only the old handlers' shape.
+- **`http_rest.c` is deleted.** lwIP's httpd options are gone from `lwipopts.h`.
+- **`api_v1.c`**: `GET /api/v1/charge` (what gate 2 has of it: state, target, powder profile and its name, weight, elapsed), `/api/v1/display` and `/api/v1/display/frame`; `/api/v1/debug` (the FreeRTOS heap, lwIP's heap and pools with the netconns, the server's counts), `/debug/load` (rows of numbers as a recording's samples will be) and `/debug/wait` (a parked request).
+- The pages are served from flash by routes of their own, the generated header (html2header.py) passed over.
+- **lwIP:** `LWIP_SOCKET` and `LWIP_NETCONN` on (the old `LWIP_SOCKETS 1` was no lwIP option), lwIP's names only, `SO_LINGER` for the resets, mailboxes of 8, 10 netconns, and a socket's send buffer of 4 segments (below).
+
+### Found on the way
+
+- **lwIP keeps an errno of its own.** The SDK builds it with `LWIP_PROVIDE_ERRNO=1` (`pico_cyw43_arch`'s CMake), so lwIP's sockets set the `int errno` lwIP declares, not newlib's (a macro over `__errno()`); the image holds both. Read with newlib's, a send that would block read as errno 0 and was taken for a failure: every page longer than the send buffer was cut off, after 2,920 to 30,660 bytes. The server now reads lwIP's, and fails to build if newlib's is in scope.
+- **A socket copies what it sends into lwIP's heap.** One page load at the examples' send buffer of 8 segments (11.7 KB) took the heap to 14,888 of its 16,384 bytes. At 4 segments (5.8 KB) two page loads at once take it to the same 14,888 (eight segments in flight either way), each in about half a second, with no allocation failed.
+- The first image made of the new code built with no warning, on both boards.
+
+### Shown on the Pico W, 1.20.172 at ce67426
+
+- `flash`, `menu_tour --compare tests/menu_baseline/pico_w` (form 36, the version, not judged) and `charge_cycle`: `VERDICT PASS`. `settings --compare` against the copy from before gate 1: nothing changed, read through the adapter.
+- **The portal by hand** in a browser: the page and its polling; the Scale and the Charge Mode forms filled with the unit's values through the old paths. The charge-mode form's query, 148 characters and 16 values, sent back unchanged: taken, nothing changed.
+- **`rc_run.py web_robust`** (new), `VERDICT PASS`: a value with no `=` (200), a Cookie of 6 KB passed over (200), headers over 8 KB (413), a Host of 300 bytes (413), a request line of 700 bytes (414), an unknown method and OPTIONS (405), HTTP/2.0 (400), another Host for the API and an old path (403) and for a page (302 to the unit's address), a POST with no type and one of text (415), a JSON POST to a path that only reads and one with a body longer than it said (405), a chunked body (411), a body of 5,000 bytes (413), a request cut off (closed), no such path (404), HTTP/1.0 with no Host (200), the page with its ETag (304, no body); the unit answering after each; seven clients at once, all answered; a client that stops reading part way through a page and one that sends less of a body than it said, both reset by the stall limit within 14 s, lwIP's heap back to 1,028 at rest; parked requests woken by their condition after 1.50 s and by their time after 2.06 s, two held 3.08 s and a third answered at once (0.06 s).
+- **Size** (`size_report.py`): flash 708.4 KB, RAM at link time 214.2 KB, against gate 1's 665.0 and 211.4. lwIP 133.0 KB (106.4 before: its sockets and netconn), the server 12.8 KB (the old one 4.6). The slots take 12.6 KB and the task's stack 6 KB of the FreeRTOS heap: 76,944 bytes free after start, about 95,000 before.
