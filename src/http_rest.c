@@ -98,6 +98,8 @@
 
 #include "lwip/altcp.h"
 #include "lwip/altcp_tcp.h"
+
+#include "hardware/regs/addressmap.h"
 #if HTTPD_ENABLE_HTTPS
 #include "lwip/altcp_tls.h"
 #endif
@@ -132,8 +134,11 @@
 /* This defines checks whether tcp_write has to copy data or not */
 
 #ifndef HTTP_IS_DATA_VOLATILE
-/** tcp_write does not have to copy data when sent from rom-file-system directly */
-#define HTTP_IS_DATA_VOLATILE(hs)       (HTTP_IS_DYNAMIC_FILE(hs) ? TCP_WRITE_FLAG_COPY : 0)
+// A reply in RAM is copied as it is sent (ADR-003, gate 1). The handlers answer from static buffers, and the next
+// request to the same path rewrites one while lwIP may still be sending the last reply from it, or sending a lost
+// segment of it again: given only a pointer, a client got a mix of two replies. The pages, in flash, are sent from
+// flash
+#define HTTP_IS_DATA_VOLATILE(hs)       (((uintptr_t) (hs)->file >= SRAM_BASE) ? TCP_WRITE_FLAG_COPY : 0)
 #endif
 /** Default: dynamic headers are sent from ROM (non-dynamic headers are handled like file data) */
 #ifndef HTTP_IS_HDR_VOLATILE
@@ -263,10 +268,6 @@ struct http_state {
 #if LWIP_HTTPD_SSI
   struct http_ssi_state *ssi;
 #endif /* LWIP_HTTPD_SSI */
-#if LWIP_HTTPD_CGI
-  char *params[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Params extracted from the request URI */
-  char *param_vals[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Values for each extracted param */
-#endif /* LWIP_HTTPD_CGI */
 #if LWIP_HTTPD_DYNAMIC_HEADERS
   const char *hdrs[NUM_FILE_HDR_STRINGS]; /* HTTP headers to be sent. */
   char hdr_content_len[LWIP_HTTPD_MAX_CONTENT_LEN_SIZE];
@@ -338,8 +339,11 @@ const struct http_ssi_tag_description http_ssi_tag_desc[] = {
 static const tCGI *httpd_cgis;
 static int httpd_num_cgis;
 static int http_cgi_paramcount;
-#define http_cgi_params     hs->params
-#define http_cgi_param_vals hs->param_vals
+// A request's values belong to the request being handled, not to its connection (ADR-003, gate 1): they are split
+// and used in http_find_file, in lwIP's thread, before the next request is read, as params_buf there is. In each
+// connection's state they took 160 bytes of lwIP's heap
+static char *http_cgi_params[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Params extracted from the request URI */
+static char *http_cgi_param_vals[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Values for each extracted param */
 #elif LWIP_HTTPD_CGI_SSI
 static char *http_cgi_params[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Params extracted from the request URI */
 static char *http_cgi_param_vals[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Values for each extracted param */
@@ -2924,7 +2928,7 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
             }
         }
 
-        rest_handler(&hs->file_handle, http_cgi_paramcount, hs->params, hs->param_vals);
+        rest_handler(&hs->file_handle, http_cgi_paramcount, http_cgi_params, http_cgi_param_vals);
         file = &hs->file_handle;
     }
 
@@ -2932,7 +2936,7 @@ static err_t http_find_file(struct http_state * hs, const char * uri, int is_09)
         rest_handler = rest_get_handler("/404");
         LWIP_ASSERT("Missing 404 handler", file == NULL);
 
-        rest_handler(&hs->file_handle, http_cgi_paramcount, hs->params, hs->param_vals);
+        rest_handler(&hs->file_handle, http_cgi_paramcount, http_cgi_params, http_cgi_param_vals);
 
         file = &hs->file_handle;
 

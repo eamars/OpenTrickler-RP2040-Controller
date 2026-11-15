@@ -59,4 +59,8 @@
 #undef MEMP_STATS
 #define MEMP_STATS 1
 
+// lwIP's heap (ADR-003, gate 1). 24,000 bytes to measure what the web takes under a soak, not to keep
+#undef MEM_SIZE
+#define MEM_SIZE 24000
+
 #endif
