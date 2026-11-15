@@ -33,7 +33,7 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 - A profile holds Kp, Ki, Kd and the speed limits for each trickler. Eight profiles. The two stop thresholds are global.
 
 **Known faults**
-- The D term divides by the milliseconds since the last reading. That can be 0, and at the first reading the last error is 0, so the first D term is a spike. PR #113 reports both tricklers briefly at full speed at the start of a throw and fixes the division.
+- The D term divides by the milliseconds since the last reading. That can be 0, and at the first reading the last error is 0, so the first D term is a spike. PR #113 reports both tricklers briefly at full speed at the start of a throw and fixes the division. **Fixed by ADR-002** (2026-11-15) with #113's fix: no D term on a throw's first reading, nor when no time has passed.
 - The I term adds the error once per reading, not scaled by time, so its weight changes with the scale's reading rate. It is not limited while the output sits at its maximum.
 - The loop's pace is the scale's. A scale that reports half as often is controlled half as often, with the same gains.
 - Nothing records a throw. The only trace is the elapsed time on the screen.
@@ -83,7 +83,8 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
   - its charge loop, a copy of charge mode's inside `src/powder_analysis.cpp` (2,326 lines). The copy has neither ADR-013's pause on a missing reading (it waits again with the motors at their last speed, until its own 30 s limit for a trial) nor ADR-012's end on a driver's fault. One loop moves the tricklers: this ADR's controller;
   - its u8g2 screens (ADR-010 builds screens), its page on today's server (ADR-008, ADR-003), and the tools that draw those screens on a PC.
 - **Read it with care.** Its second commit is "Remove concept files created by the ai", and the owner takes much of it to be an agent's work. Whether its tests test what the tuner should do, or only what it does, is for the reading.
-- **The D-term fix is ADR-002's** (its step 1): #113's 18 lines in `charge_mode.cpp`, taken with credit if the unit shows the fault. ADR-002's progress says how it ended; "The faults fixed one at a time" below then starts without it, or with it as a finding.
+- **The D-term fix is in** (ADR-002, step 1; commit adc5f56, credited to #113's author). On the Pico 2 W with the A&D, the first reading's D term gave the coarse trickler 0.79 to 1.88 rev/s where its P term asks for 0.625, in 20 throws of 20; after the fix, 0.625 in all 20. The division by 0 was not seen in 42 throws: the first reading came 5 to 36 ms into the throw, never at 0.
+- **The simulated scale at 10 readings a second is in step with the wait for zero:** its first reading comes 74 ms into every throw. So `charge_cycle` showed that fault least, and no proof before ADR-002's showed it. A simulated powder for this ADR's tests on a PC should not be in step with the loop.
 - **PR #101 is closed.** Its tuning, as its header gives it (`src/ai_tuning.h` on the PR's branch):
   - two phases, the coarse trickler alone and then the fine one, each throw judged by its overthrow and its times;
   - a search that halves its step, for Kp and then for Kd, inside set limits;
@@ -99,7 +100,7 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 
 **Every throw recorded.** Time, weight, both speeds and the three terms of each loop, per reading, in RAM for the last throw; downloadable, and drawn on the tuning page. How many throws are kept, and where, depends on the board (ADR-005).
 
-**The faults fixed one at a time,** each against recordings of the same powder before and after: the D term's first sample and its division, the I term scaled by time and limited, gains that do not depend on the scale's reading rate.
+**The faults fixed one at a time,** each against recordings of the same powder before and after: the I term scaled by time and limited, gains that do not depend on the scale's reading rate.
 
 **Ideas to try, not promised:**
 - a top-up when the throw ends under the target;

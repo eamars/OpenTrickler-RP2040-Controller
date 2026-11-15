@@ -7,11 +7,44 @@ What was done and measured. The plan is in the [README](README.md). Logs are kep
 | Step | State | Waits for |
 |---|---|---|
 | 1. The D-term fix | Done 2026-11-15: shown and fixed on the Pico 2 W (commit adc5f56). Not repeated on the Pico W, by the owner | Nothing |
-| 2. The notes and comments | Read and approved by the owner 2026-11-15 ([notes.md](notes.md)). #101's posted by the owner | This branch's merge: then #113's, #111's, #109's, #28's and issue #45's are posted |
+| 2. The notes and comments | Read and approved by the owner 2026-11-15 ([notes.md](notes.md)). #101's posted by the owner | Nothing in the repository. #113's, #111's, #109's, #28's and issue #45's are posted right after the merge |
 | 3. What each later ADR starts from | Done 2026-11-15 | Nothing |
-| 4. The closes | #101, #44 and #46 closed by the owner 2026-11-15 | This branch's merge: then #109, #28 and issue #45, each with its note |
-| 5. The branches | Not started | The owner's word |
+| 4. The closes | #101, #44 and #46 closed by the owner 2026-11-15 | Nothing in the repository. #109, #28 and issue #45 are closed right after the merge, each with its note |
+| 5. The branches | Done 2026-11-15: all 13 deleted, on the owner's word | Nothing |
 | ADR-014, the charge profile (settled at approval) | Drafted 2026-11-15 | Nothing |
+
+## Step 5: the branches
+
+2026-11-15, on the owner's word ("All 13"). Every branch on the remote but `main` was deleted, in one push. Each belonged to a PR that is merged or closed, and GitHub keeps a closed PR's commits under the PR.
+
+| Branch | Tip | Its PR | Commits not on main |
+|---|---|---|---|
+| `add_auto_tare` | f7a7395 | #46, closed | 2 |
+| `add_bootloader` | 5823f65 | #44, closed | 13 |
+| `codex/sub-pr-86` | 7bbd72a | #87, closed | 1: a bot's empty "Initial plan" |
+| `fix_pio_issue` | 5af5642 | #97, closed | 1: a change to CI's artifact |
+| `pr_94_review` | 892ee79 | #96, closed | 1: a merge commit whose two sides are on main |
+| `add_motor_init_failure_display` | 6bf8be1 | #61, merged | 0 |
+| `add_pico2w_support` | eb24d3c | #57, merged | 0 |
+| `dependabot/github_actions/actions/checkout-7` | 13af025 | #122, merged | 0 |
+| `fix_build_on_windows` | 4e0dc6f | #59, merged | 0 |
+| `fix_coarse_trickler_pid` | 3940423 | #99, merged | 0 |
+| `fix_mui_and_servo_gate` | de9df9e | #58, merged | 0 |
+| `fix_pio_driver` | 57d52ae | #63, merged | 0 |
+| `fix_pio_init_error` | 3240e38 | #98, merged | 0 |
+
+The README counted seven with nothing of their own; the eighth is dependabot's, merged on 2026-11-14 after that count.
+
+## Closed
+
+2026-11-15: **Built.** The owner's two words at the close:
+- one PR for the whole ADR ("I don't need the PR just for the plan. Perhaps one PR for the entire ADR-002 closure would be sufficient");
+- the notes posted, and #109, #28 and issue #45 closed, right after that PR is merged (README, "At the merge").
+
+Handed on:
+- **ADR-009** has the D-term fix's result, and that the simulated scale at 10 readings a second is in step with the wait for zero, so `charge_cycle` cannot show a fault of a throw's first reading.
+- **ADR-014** holds the charge profile.
+- **PR #113 and PR #111 are open,** to end in ADR-009 and ADR-004.
 
 ## Step 3: what each later ADR starts from
 

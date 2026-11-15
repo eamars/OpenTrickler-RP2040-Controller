@@ -1,6 +1,6 @@
 # ADR-002: the open PRs, a decision for each
 
-Status: **Decided** 2026-11-15: approved by the owner as written ("Approve as written"), with both proposals under "Settled at approval". Drafted 2026-11-13 and rewritten 2026-11-15 to the owner's policy of that day. Reading and talking need no bench; the one change to the firmware (step 1) needs it.
+Status: **Built** 2026-11-15. Approved by the owner that day as written ("Approve as written"), after it was rewritten to the owner's policy of that day; drafted 2026-11-13. What was done and measured is in [progress.md](progress.md). The approved notes are posted right after this ADR's PR is merged: see "At the merge".
 
 ## What we want
 
@@ -153,6 +153,17 @@ Nothing else in this ADR reaches a unit.
 - Designing anything. A PR's subject is designed in its own ADR: tuning in ADR-009, OTA in ADR-004.
 - Reading #113 and #111 whole. Their ADRs do that when their turn comes, against their own design.
 - The charge profile itself.
+
+## At the merge
+
+The owner, 2026-11-15: one PR for the whole of this ADR, and the notes posted right after it is merged. Two of them say what is true only then: #113's, that its fix goes into main, and #109's, which points to ADR-014.
+
+Right after the merge, from [notes.md](notes.md) as the owner approved it:
+- the comments on #113 and #111, which stay open;
+- #109 and #28 closed, each with its note;
+- issue #45 closed with its line.
+
+GitHub holds what was posted and when. Nothing more is written here for it.
 
 ## Settled at approval (2026-11-15)
 
