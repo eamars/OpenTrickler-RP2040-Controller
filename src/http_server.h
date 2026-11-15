@@ -117,6 +117,8 @@ typedef struct {
     uint32_t refused;           // requests answered with 4xx by the server itself (not by a handler)
     uint32_t send_no_memory;    // sends that wrote nothing though select() said writable (lwIP's heap full): waited
     uint32_t send_failed;       // sends that failed otherwise: the connection closed
+    uint32_t stream_make_ms;    // time in the handlers' `more`, making streamed chunks, the task's preemption included
+    uint32_t stream_bytes;      // the bytes they made
     uint8_t slots_used;
     uint8_t slots_parked;
 } http_server_stats_t;

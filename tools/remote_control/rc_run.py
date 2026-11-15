@@ -188,17 +188,28 @@ class WebPoller(threading.Thread):
         self.kinds = collections.Counter()   # misses by miss_kind()
         self.run_now = 0        # misses in a row, now
         self.run_longest = 0
+        self.seconds = []       # how long each right read took, from the connection to the last byte
+
+    def times(self):
+        """The right reads' median, 95th percentile and longest, in seconds, as text."""
+        if not self.seconds:
+            return "no right read timed"
+        ordered = sorted(self.seconds)
+        return (f"{ordered[len(ordered) // 2]:.2f} s median, {ordered[int(0.95 * (len(ordered) - 1))]:.2f} s 95%, "
+                f"{ordered[-1]:.2f} s longest")
 
     def run(self):
         while not self.stop_event.is_set():
             started = time.monotonic()
             for label, read in self.reads:
+                read_started = time.monotonic()
                 try:
                     ok, why, error = read(), "a wrong answer", None
                 except (OSError, ValueError, http.client.HTTPException) as caught:
                     # An HTTP error is neither of the other two: uncaught, it ended the poller and its misses
                     ok, why, error = False, f"{type(caught).__name__}: {caught}", caught
                 if ok:
+                    self.seconds.append(time.monotonic() - read_started)
                     self.good += 1
                     self.run_now = 0
                 else:
@@ -1241,6 +1252,11 @@ class Session:
             pollers.append(WebPoller("tuning load", 0.0, [("", read_load)], self.log))
             pollers.append(WebPoller("fast client", SOAK_LOAD_FAST_S, [("", read_state)], self.log))
 
+        # The first charge after a start creates the charge screen's task, kept for good (charge_mode.cpp): read
+        # quiet before the run, its 1,168 bytes were memory not given back (ADR-003, gate 2). So one charge first
+        self.charge_cycle(target, threshold, timeout_s=120.0)
+        if self.failures:
+            return
         quiet_start = self.stats()
         motor_start = self.send("motor")
         net_start = self.net()
@@ -1274,7 +1290,7 @@ class Session:
         for poller in pollers:
             kinds.update(poller.kinds)
             self.log.write("rc", f"soak: {poller.name}: {poller.good} right, {poller.missed} missed, "
-                                 f"longest run {poller.run_longest}")
+                                 f"longest run {poller.run_longest}; {poller.times()}")
         share = missed / (good + missed) if good + missed else 1.0
         self.log.write("rc", f"soak: {missed} of {good + missed} web reads missed ({share:.2%}), longest run "
                              f"{max(poller.run_longest for poller in pollers)}")

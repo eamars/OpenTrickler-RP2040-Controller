@@ -14,6 +14,8 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include "pico/time.h"
+
 #include "lwip/sockets.h"
 #include "lwip/errno.h"
 
@@ -158,6 +160,7 @@ static slot_t *slots = NULL;
 static char reply_scratch[HTTP_SERVER_REPLY_MAX];
 static http_server_network_t network;
 static http_server_stats_t stats;
+static uint64_t stream_make_us;     // stats.stream_make_ms, kept in microseconds: a chunk takes some milliseconds
 static TaskHandle_t server_task_handle = NULL;
 
 
@@ -548,6 +551,7 @@ bool http_server_query_value(const char *query, const char *name, char *out, siz
 
 void http_server_get_stats(http_server_stats_t *out) {
     *out = stats;
+    out->stream_make_ms = (uint32_t) (stream_make_us / 1000);
     out->slots_used = 0;
     out->slots_parked = 0;
     if (slots != NULL) {
@@ -1026,7 +1030,10 @@ static bool slot_next_chunk(slot_t *slot) {
     size_t len = 0;
     char *data = slot->buf + HTTP_SERVER_CHUNK_HEAD;
     size_t room = sizeof(slot->buf) - HTTP_SERVER_CHUNK_HEAD - 2;
+    uint64_t started_us = time_us_64();
     slot->more_done = !slot->more(slot->more_ctx, data, room, &len);
+    stream_make_us += time_us_64() - started_us;
+    stats.stream_bytes += (uint32_t) len;
     if (len == 0) {
         return slot_next_chunk(slot);
     }
