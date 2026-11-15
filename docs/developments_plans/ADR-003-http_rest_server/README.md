@@ -1,6 +1,6 @@
 # ADR-003: a real HTTP REST server
 
-Status: **Draft** 2026-11-13, written again 2026-11-15 from the owner's answers. The direction is settled ("Settled with the owner"). Gate 1 is written in full and waits for the owner's approval; it is built first, on the Pico W, and merged by a PR of its own, and the ADR is Open after it. Gates 2 to 4 are a first view; each is written in full, the API's table with gate 2, and approved before it is built.
+Status: **Draft** 2026-11-13, written again 2026-11-15 from the owner's answers. The direction is settled ("Settled with the owner"). **Gate 1 approved** by the owner 2026-11-15 ("Approve gate 1") and being built on the Pico W; what was built and measured is in [progress.md](progress.md). It is merged by a PR of its own, and the ADR is Open after it. Gates 2 to 4 are a first view; each is written in full, the API's table with gate 2, and approved before it is built.
 
 ## What we want
 

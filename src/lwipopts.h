@@ -59,8 +59,11 @@
 #undef MEMP_STATS
 #define MEMP_STATS 1
 
-// lwIP's heap (ADR-003, gate 1). 24,000 bytes to measure what the web takes under a soak, not to keep
+// lwIP's heap (ADR-003, gate 1). It holds each web connection's state, the header of each TCP segment in flight and
+// a copy of each reply from RAM. The Pico examples' 4,000 bytes ran out under two browsers and a charge: 7,404 failed
+// allocations and 8.9% of the web's reads missed in ten minutes. With room to spare the web used 8,824 at most under
+// the same load; this is that and half as much again
 #undef MEM_SIZE
-#define MEM_SIZE 24000
+#define MEM_SIZE 13312
 
 #endif
