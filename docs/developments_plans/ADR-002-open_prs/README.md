@@ -109,9 +109,9 @@ An earlier direction, "community PRs land before the restructure (ADR-006)", was
 | #109 | Closed, with a note | The charge profile, the owner's idea, which no ADR holds yet (see "To settle") |
 | #113 | Its D-term fix is taken, credited. The PR stays open, with a comment that says what happens to it and when | ADR-009 designs its controller first, then judges the tuner, its tests and the simulated powder against that design, and ends the PR by the rule. Its loop, screens and page are not taken: ADR-009, ADR-010 and ADR-008 build those |
 | #111 | Nothing. The PR stays open, with a comment | ADR-004 settles its layout first, then ends the PR by the rule. ADR-004 is two ADRs away |
-| #101 | Closed, with a note | Its tuning ideas are listed in ADR-009 |
+| #101 | Closed, with a note (by the owner, 2026-11-15) | Its tuning ideas are listed in ADR-009 |
 | #44, #28 | Closed, with a note for #28 | ADR-004 |
-| #46 | Closed, with issue #45 | Dropped |
+| #46 | Closed (by the owner, 2026-11-15), with issue #45 | Dropped |
 
 **#109.** Not merged. Its weight is in the wrong table for the owner's idea, and it would cost users a change of the stored profiles now and a second one when charge profiles come. Its author has three PRs in main; the note says where the idea goes.
 

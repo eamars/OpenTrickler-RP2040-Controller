@@ -1,8 +1,8 @@
-# ADR-002: the notes and comments, as drafts
+# ADR-002: the notes and comments
 
 Each is shown to the owner before it is posted, and none is posted without the owner's word (README, step 2). They are written to be posted from the owner's account. The links point to main, so they work once this ADR's branch is merged.
 
-Status of each: **draft**, until the owner has read it. `progress.md` records what was posted and when.
+Status: **read and approved by the owner** on 2026-11-15 ("Notes are good"), to be posted once this ADR's branch is merged. The owner posted #101's and closed #101, #44 and #46 the same day. `progress.md` records what was posted and when.
 
 ## PR #113, a comment (the PR stays open)
 
@@ -38,9 +38,9 @@ Status of each: **draft**, until the owner has read it. `progress.md` records wh
 >
 > The need you built this for, not dialling the weight in at every start, is written into that plan ([ADR-014](https://github.com/eamars/OpenTrickler-RP2040-Controller/blob/main/docs/developments_plans/ADR-014-charge_profiles/README.md)). Your view on what a charge profile should hold is welcome there.
 
-## PR #101, a closing note
+## PR #101, a closing note (posted)
 
-It is the owner's own PR, opened to compare Jump73's port. Whether Jump73 is named with an `@`, and so notified, is the owner's choice.
+Posted by the owner as written here, and the PR closed, 2026-11-15. Jump73 is named without an `@`.
 
 > Closing this. Automatic tuning is planned as its own step ([ADR-009](https://github.com/eamars/OpenTrickler-RP2040-Controller/blob/main/docs/developments_plans/ADR-009-controller_and_tuning/README.md)), built on one control loop that is tested on a PC. The ideas of this port are written into it: tuning the coarse trickler alone and then the fine one, the search that halves its step, new gains suggested from ordinary charges, and the allowance for a scale that reports late. Thank you, Jump73, for the work behind it.
 
@@ -48,12 +48,12 @@ It is the owner's own PR, opened to compare Jump73's port. Whether Jump73 is nam
 
 > Thank you for this, and sorry it stayed open so long. Update over Wi-Fi is planned as its own step ([ADR-004](https://github.com/eamars/OpenTrickler-RP2040-Controller/blob/main/docs/developments_plans/ADR-004-update_over_wifi/README.md)), with the upload in the browser and a small bootloader. The bootloader here carries a Wi-Fi stack of its own, about 400 KB, which the Pico W cannot spare. What this PR showed is written into that plan.
 
-## PR #44 and PR #46, the owner's own
+## PR #44 and PR #46, the owner's own (closed)
 
-No note. #44 is closed for ADR-004; #46 is dropped.
+Closed by the owner 2026-11-15, in the owner's words: #44 "Closed and will be replaced by ADR-004.", #46 "Dropped".
 
 ## Issue #45, one line
 
-The owner's reason for dropping auto tare is not written anywhere, so it is left for the owner to give:
+The owner gave no reason beyond "Dropped" on PR #46, so the line gives none:
 
-> Closing: auto tare is not planned. (reason)
+> Closing: auto tare is not planned.

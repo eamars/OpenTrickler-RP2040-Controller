@@ -7,9 +7,9 @@ What was done and measured. The plan is in the [README](README.md). Logs are kep
 | Step | State | Waits for |
 |---|---|---|
 | 1. The D-term fix | Done 2026-11-15: shown and fixed on the Pico 2 W (commit adc5f56). Not repeated on the Pico W, by the owner | Nothing |
-| 2. The notes and comments | Drafted in [notes.md](notes.md), none posted | The owner reading each |
+| 2. The notes and comments | Read and approved by the owner 2026-11-15 ([notes.md](notes.md)). #101's posted by the owner | This branch's merge: then #113's, #111's, #109's, #28's and issue #45's are posted |
 | 3. What each later ADR starts from | Done 2026-11-15 | Nothing |
-| 4. The closes | Not started | The owner's word for each |
+| 4. The closes | #101, #44 and #46 closed by the owner 2026-11-15 | This branch's merge: then #109, #28 and issue #45, each with its note |
 | 5. The branches | Not started | The owner's word |
 | ADR-014, the charge profile (settled at approval) | Drafted 2026-11-15 | Nothing |
 
