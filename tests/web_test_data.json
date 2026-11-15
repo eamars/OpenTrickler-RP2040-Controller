@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "1.20.190-dirty",
-   "vcs": "dd3dab6",
+   "version": "1.20.198",
+   "vcs": "2873306",
    "build": "Debug"
   },
-  "board": "pico_w",
-  "unit_id": "9CE00000",
-  "hostname": "opentrickler-9CE0",
-  "boot": 269510654,
-  "uptime_s": 17,
+  "board": "pico2_w",
+  "unit_id": "49933331",
+  "hostname": "opentrickler-4993",
+  "boot": 1139569619,
+  "uptime_s": 13,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -311,8 +311,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "1.20.190-dirty",
-   "vcs": "dd3dab6",
+   "version": "1.20.198",
+   "vcs": "2873306",
    "build": "Debug"
   },
   "resources": [
@@ -332,8 +332,6 @@
       "label": "Backlight",
       "group": "Display",
       "type": "colour",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
       "refused_while": "never",
@@ -344,8 +342,6 @@
       "label": "LED 1",
       "group": "Display",
       "type": "colour",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
       "refused_while": "never",
@@ -356,8 +352,6 @@
       "label": "LED 2",
       "group": "Display",
       "type": "colour",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
       "refused_while": "never",
@@ -381,8 +375,6 @@
       "label": "PWM3 colour order",
       "group": "PWM3",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": "rgb",
@@ -403,8 +395,6 @@
       "label": "PWM3 RGBW",
       "group": "PWM3",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "at_restart",
       "refused_while": "never",
@@ -428,8 +418,6 @@
       "label": "Invert the encoder",
       "group": "Display",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "never",
@@ -441,8 +429,6 @@
       "group": "Display",
       "type": "choice",
       "unit": "degrees",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": 0,
@@ -476,8 +462,6 @@
       "label": "Wi-Fi",
       "group": "Wi-Fi",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "at_restart",
       "refused_while": "never",
@@ -488,8 +472,6 @@
       "label": "Network name",
       "group": "Wi-Fi",
       "type": "string",
-      "min": 0,
-      "max": 0,
       "min_length": 1,
       "max_length": 31,
       "access": "read_write",
@@ -502,8 +484,6 @@
       "label": "Key",
       "group": "Wi-Fi",
       "type": "string",
-      "min": 0,
-      "max": 0,
       "min_length": 0,
       "max_length": 63,
       "access": "write_only",
@@ -516,8 +496,6 @@
       "label": "Security",
       "group": "Wi-Fi",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": "open",
@@ -601,8 +579,6 @@
       "label": "Microsteps",
       "group": "Driver",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": 1,
@@ -717,8 +693,6 @@
       "label": "Invert direction",
       "group": "Wiring",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "a_job_runs",
@@ -729,8 +703,6 @@
       "label": "Invert enable",
       "group": "Wiring",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "when the motor is next enabled",
       "refused_while": "a_job_runs",
@@ -782,8 +754,6 @@
       "label": "Microsteps",
       "group": "Driver",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": 1,
@@ -898,8 +868,6 @@
       "label": "Invert direction",
       "group": "Wiring",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "a_job_runs",
@@ -910,8 +878,6 @@
       "label": "Invert enable",
       "group": "Wiring",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "when the motor is next enabled",
       "refused_while": "a_job_runs",
@@ -935,8 +901,6 @@
       "label": "Scale",
       "group": "Scale",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": "and_fxi",
@@ -989,8 +953,6 @@
       "label": "Baud rate",
       "group": "Serial port",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": 4800,
@@ -1015,8 +977,6 @@
       "label": "Frame format",
       "group": "Serial port",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": "8n1",
@@ -1102,8 +1062,6 @@
       "label": "Decimal places",
       "group": "Display",
       "type": "choice",
-      "min": 0,
-      "max": 0,
       "choices": [
        {
         "value": 2,
@@ -1117,7 +1075,7 @@
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
-      "about": "Decimals of the weight and of the target on the screen"
+      "about": "Decimals of the weight and of the target on the screen. A change keeps the target as a weight, and is refused when the target cannot be shown at the new decimals"
      },
      {
       "name": "coarse_stop_gate_ratio",
@@ -1137,8 +1095,6 @@
       "label": "Back off at the coarse stop",
       "group": "Coarse stop",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1176,8 +1132,6 @@
       "label": "Precharge",
       "group": "Precharge",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1215,8 +1169,6 @@
       "label": "Good throw",
       "group": "Colours",
       "type": "colour",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1227,8 +1179,6 @@
       "label": "Under",
       "group": "Colours",
       "type": "colour",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1239,8 +1189,6 @@
       "label": "Over",
       "group": "Colours",
       "type": "colour",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1251,8 +1199,6 @@
       "label": "Not ready",
       "group": "Colours",
       "type": "colour",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1286,8 +1232,6 @@
       "label": "Name",
       "group": "Profile",
       "type": "string",
-      "min": 0,
-      "max": 0,
       "min_length": 1,
       "max_length": 15,
       "access": "read_write",
@@ -1431,8 +1375,6 @@
       "label": "Servo gate",
       "group": "Gate",
       "type": "boolean",
-      "min": 0,
-      "max": 0,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1650,7 +1592,7 @@
       "type": "number",
       "unit": "rev/s",
       "required": true,
-      "about": "both tricklers, within plus or minus the lower of the two motors' max_speed_rps"
+      "about": "both tricklers; beyond plus or minus the lower of the two motors' max_speed_rps, turned at it: the reply gives the speed taken"
      },
      {
       "name": "time_s",
@@ -1662,7 +1604,7 @@
      }
     ],
     "refused_while": "no_cleanup_runs",
-    "about": "the cleanup's speed; 409 not_running when none runs"
+    "about": "the cleanup's speed; 409 not_running when none runs, and in its fault, where the motors stay stopped until it is acknowledged"
    },
    {
     "method": "POST",
@@ -1864,7 +1806,7 @@
      "target",
      "powder_profile"
     ],
-    "about": "throw: its number in the charge, from 1"
+    "about": "throw: its number, from 1 at each start of the unit"
    },
    {
     "source": "throw",
@@ -1977,17 +1919,17 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "1.20.190-dirty",
-   "vcs": "dd3dab6",
+   "version": "1.20.198",
+   "vcs": "2873306",
    "build": "Debug"
   },
-  "unit_id": "9CE00000",
+  "unit_id": "49933331",
   "resources": {
    "/api/v1/settings/leds": {
     "saved": true,
     "backlight_colour": "#ffffff",
-    "led1_colour": "#ffffff",
-    "led2_colour": "#f21818",
+    "led1_colour": "#0f0f0f",
+    "led2_colour": "#0f0f0f",
     "pwm3_chain_count": 2,
     "pwm3_colour_order": "rgb",
     "pwm3_rgbw": true
@@ -1995,7 +1937,7 @@
    "/api/v1/settings/display": {
     "saved": true,
     "invert_encoder": false,
-    "rotation": 180
+    "rotation": 0
    },
    "/api/v1/settings/wifi": {
     "saved": true,
@@ -2007,7 +1949,7 @@
    "/api/v1/settings/motors/coarse": {
     "saved": true,
     "full_steps_per_rotation": 200,
-    "current_ma": 380,
+    "current_ma": 240,
     "microsteps": 256,
     "max_speed_rps": 5,
     "r_sense_mohm": 110,
@@ -2020,13 +1962,13 @@
    "/api/v1/settings/motors/fine": {
     "saved": true,
     "full_steps_per_rotation": 200,
-    "current_ma": 380,
+    "current_ma": 240,
     "microsteps": 256,
     "max_speed_rps": 5,
     "r_sense_mohm": 110,
     "acceleration_rps2": 50,
-    "min_speed_rps": 0.01,
-    "gear_ratio": 1.818,
+    "min_speed_rps": 0.1,
+    "gear_ratio": 2.105263,
     "invert_direction": false,
     "invert_enable": false
    },
@@ -2043,7 +1985,7 @@
     "steady_sd_margin": 0.02,
     "zero_mean_margin": 0.02,
     "decimal_places": 2,
-    "coarse_stop_gate_ratio": 0,
+    "coarse_stop_gate_ratio": 0.5,
     "coarse_stop_backoff_enable": true,
     "coarse_stop_backoff_turns": 0.25,
     "coarse_stop_backoff_speed_rps": 1,
@@ -2060,6 +2002,20 @@
     "name": "AR2208,gr",
     "coarse_kp": 0.025,
     "coarse_ki": 0,
+    "coarse_kd": 0.25,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 5,
+    "fine_kp": 2,
+    "fine_ki": 0,
+    "fine_kd": 10,
+    "fine_min_speed_rps": 0.1,
+    "fine_max_speed_rps": 3
+   },
+   "/api/v1/powder_profiles/1": {
+    "saved": true,
+    "name": "AR2209,gr",
+    "coarse_kp": 0.02,
+    "coarse_ki": 0,
     "coarse_kd": 0.3,
     "coarse_min_speed_rps": 0.1,
     "coarse_max_speed_rps": 5,
@@ -2069,47 +2025,33 @@
     "fine_min_speed_rps": 0.08,
     "fine_max_speed_rps": 5
    },
-   "/api/v1/powder_profiles/1": {
-    "saved": true,
-    "name": "AR2209,gr",
-    "coarse_kp": 0.05,
-    "coarse_ki": 0,
-    "coarse_kd": 0.3,
-    "coarse_min_speed_rps": 0.1,
-    "coarse_max_speed_rps": 8,
-    "fine_kp": 0.8,
-    "fine_ki": 0,
-    "fine_kd": 15,
-    "fine_min_speed_rps": 0.08,
-    "fine_max_speed_rps": 2
-   },
    "/api/v1/powder_profiles/2": {
     "saved": true,
-    "name": "8208,gr",
-    "coarse_kp": 0.05,
+    "name": "NewProfile2",
+    "coarse_kp": 0,
     "coarse_ki": 0,
-    "coarse_kd": 0.3,
-    "coarse_min_speed_rps": 0.1,
-    "coarse_max_speed_rps": 5,
-    "fine_kp": 2,
+    "coarse_kd": 0,
+    "coarse_min_speed_rps": 0,
+    "coarse_max_speed_rps": 0,
+    "fine_kp": 0,
     "fine_ki": 0,
-    "fine_kd": 12,
-    "fine_min_speed_rps": 0.06,
-    "fine_max_speed_rps": 5
+    "fine_kd": 0,
+    "fine_min_speed_rps": 0,
+    "fine_max_speed_rps": 0
    },
    "/api/v1/powder_profiles/3": {
     "saved": true,
-    "name": "Benchmark2,gr",
-    "coarse_kp": 0.06,
+    "name": "NewProfile3",
+    "coarse_kp": 0,
     "coarse_ki": 0,
-    "coarse_kd": 0.3,
-    "coarse_min_speed_rps": 0.1,
-    "coarse_max_speed_rps": 5,
-    "fine_kp": 1.1,
+    "coarse_kd": 0,
+    "coarse_min_speed_rps": 0,
+    "coarse_max_speed_rps": 0,
+    "fine_kp": 0,
     "fine_ki": 0,
-    "fine_kd": 15,
-    "fine_min_speed_rps": 0.05,
-    "fine_max_speed_rps": 5
+    "fine_kd": 0,
+    "fine_min_speed_rps": 0,
+    "fine_max_speed_rps": 0
    },
    "/api/v1/powder_profiles/4": {
     "saved": true,
@@ -2170,10 +2112,10 @@
    "/api/v1/settings/gate": {
     "saved": true,
     "enable": false,
-    "shutter0_close_duty": 0.032,
-    "shutter0_open_duty": 0.09,
-    "shutter1_close_duty": 0.09,
-    "shutter1_open_duty": 0.032,
+    "shutter0_close_duty": 0.09,
+    "shutter0_open_duty": 0.05,
+    "shutter1_close_duty": 0.05,
+    "shutter1_open_duty": 0.09,
     "close_speed_per_s": 3,
     "open_speed_per_s": 5
    }
@@ -2192,11 +2134,11 @@
    },
    {
     "id": 2,
-    "name": "8208,gr"
+    "name": "NewProfile2"
    },
    {
     "id": 3,
-    "name": "Benchmark2,gr"
+    "name": "NewProfile3"
    },
    {
     "id": 4,
@@ -2222,9 +2164,9 @@
   "throw": 0,
   "paused": false,
   "target": null,
-  "powder_profile": 1,
-  "powder_profile_name": "AR2209,gr",
-  "weight": null,
+  "powder_profile": 0,
+  "powder_profile_name": "AR2208,gr",
+  "weight": 0,
   "elapsed_s": 0,
   "last": {
    "throw": 0,
@@ -2236,16 +2178,17 @@
  },
  "/api/v1/cleanup": {
   "state": "idle",
+  "by": null,
   "speed_rps": 0,
   "time_left_s": null
  },
  "/api/v1/scale": {
-  "weight": null,
-  "unit": null,
+  "weight": 0,
+  "unit": "gn",
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 0,
-  "bad_frames": 0,
+  "usual_interval_ms": 40,
+  "bad_frames": 1,
   "actions": [
    "zero"
   ]
@@ -2266,13 +2209,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "1.20.190-dirty",
-   "vcs": "dd3dab6",
+   "version": "1.20.198",
+   "vcs": "2873306",
    "build": "Debug"
   },
-  "board": "pico_w",
-  "unit_id": "9CE00000",
-  "uptime_s": 20,
+  "board": "pico2_w",
+  "unit_id": "49933331",
+  "uptime_s": 15,
   "activity": "none",
   "restart_pending": false
  },
@@ -2280,8 +2223,8 @@
   "mode": "station",
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
-  "hostname": "opentrickler-9CE0",
-  "rssi": -53
+  "hostname": "opentrickler-4993",
+  "rssi": -63
  },
  "/api/v1/display": {
   "width": 128,
@@ -2289,13 +2232,13 @@
   "format": "u8g2_tiles"
  },
  "/api/v1/display/frame": {
-  "base64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALBISJAA/JIKCvAA+AAAgPgA+AAI+AAACPgAANBISPAAcIiIiDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBgIABAAGBgAAAAYGAAQCFAAGHgQABBwGAAIEBAIACBASEAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAsUFAkACxQUCQANFBQPAH8ADRQUDwAQCB8AX2AcAwR4BAMcYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8AgIkP4A+AgI8AD4AACA+AjwSEgwANBISPAA+AAQCAgICPAAAAAAAADw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8fHw8fDx8PDx8PDxcXDx8PDxcXHwcHHx8HB38PL0dHR08/Dw8PDw8P/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////vgO//7/fg//Dr6+z/74Dv/9i3t7fM////////BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMTEBITERMSEBMTERMSEBMTEBMRExIQExMQEBMTEBAQExMQEBATExATExASExETEhASExET09AQEhMRExIQEBAQEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgMBw8ABg4KDwcAPz8ACA0HPz8ADAgPBwAvLwgMBw8AICA/PyAgAAcPCAcPAAYOCg8HAAcPCAcPAA8fMCAwHw8AAAAAAA=="
+  "base64": "AAAAAADw+AwEDPjwAPDgEPDgAODwUHBgAPDgEPDgAAQE/PwEBADw4DAQ9PQA4PAQMAD8/OCwEAD8/ADg8FBwYADw4DAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICAgICAhIyIjISAgLy8iIyEgISMiIyEgIyMgIyMgICAjIyAgICMjICAjIyAhIyIjICMjICEjIiMjICEjIiMhICMjICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIP///////zPt7e0b//cB9/8319cP/wfv9//3Aff/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////Dw8PDw8Pzy4uLi9PD+4OD4+ODg+Ojo8PD48Ojo8PD48PD48Pjw+Pjw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8AAAAAAAAPEBAQEAgAHwAPEhILAAwSEg8QHwEAAB8ADxAQHwB/CRAQDwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABjjAIB4gwDgG+gD4EAgA8CgosAD+APAoKLAAkCgo0ACQKCjQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwCEgIEABAICBAAGA4IAAgeGAAKEAgAGBgAAAAYGAAIABAYCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMERERDgAPEhILAAAfEAAAHxAAHwAfAQAAHwAPUFBJPwAJEhINAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
  },
  "/api/v1/settings/leds": {
   "saved": true,
   "backlight_colour": "#ffffff",
-  "led1_colour": "#ffffff",
-  "led2_colour": "#f21818",
+  "led1_colour": "#0f0f0f",
+  "led2_colour": "#0f0f0f",
   "pwm3_chain_count": 2,
   "pwm3_colour_order": "rgb",
   "pwm3_rgbw": true
@@ -2303,7 +2246,7 @@
  "/api/v1/settings/display": {
   "saved": true,
   "invert_encoder": false,
-  "rotation": 180
+  "rotation": 0
  },
  "/api/v1/settings/wifi": {
   "saved": true,
@@ -2315,7 +2258,7 @@
  "/api/v1/settings/motors/coarse": {
   "saved": true,
   "full_steps_per_rotation": 200,
-  "current_ma": 380,
+  "current_ma": 240,
   "microsteps": 256,
   "max_speed_rps": 5,
   "r_sense_mohm": 110,
@@ -2328,13 +2271,13 @@
  "/api/v1/settings/motors/fine": {
   "saved": true,
   "full_steps_per_rotation": 200,
-  "current_ma": 380,
+  "current_ma": 240,
   "microsteps": 256,
   "max_speed_rps": 5,
   "r_sense_mohm": 110,
   "acceleration_rps2": 50,
-  "min_speed_rps": 0.01,
-  "gear_ratio": 1.818,
+  "min_speed_rps": 0.1,
+  "gear_ratio": 2.105263,
   "invert_direction": false,
   "invert_enable": false
  },
@@ -2351,7 +2294,7 @@
   "steady_sd_margin": 0.02,
   "zero_mean_margin": 0.02,
   "decimal_places": 2,
-  "coarse_stop_gate_ratio": 0,
+  "coarse_stop_gate_ratio": 0.5,
   "coarse_stop_backoff_enable": true,
   "coarse_stop_backoff_turns": 0.25,
   "coarse_stop_backoff_speed_rps": 1,
@@ -2368,6 +2311,20 @@
   "name": "AR2208,gr",
   "coarse_kp": 0.025,
   "coarse_ki": 0,
+  "coarse_kd": 0.25,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 5,
+  "fine_kp": 2,
+  "fine_ki": 0,
+  "fine_kd": 10,
+  "fine_min_speed_rps": 0.1,
+  "fine_max_speed_rps": 3
+ },
+ "/api/v1/powder_profiles/1": {
+  "saved": true,
+  "name": "AR2209,gr",
+  "coarse_kp": 0.02,
+  "coarse_ki": 0,
   "coarse_kd": 0.3,
   "coarse_min_speed_rps": 0.1,
   "coarse_max_speed_rps": 5,
@@ -2377,47 +2334,33 @@
   "fine_min_speed_rps": 0.08,
   "fine_max_speed_rps": 5
  },
- "/api/v1/powder_profiles/1": {
-  "saved": true,
-  "name": "AR2209,gr",
-  "coarse_kp": 0.05,
-  "coarse_ki": 0,
-  "coarse_kd": 0.3,
-  "coarse_min_speed_rps": 0.1,
-  "coarse_max_speed_rps": 8,
-  "fine_kp": 0.8,
-  "fine_ki": 0,
-  "fine_kd": 15,
-  "fine_min_speed_rps": 0.08,
-  "fine_max_speed_rps": 2
- },
  "/api/v1/powder_profiles/2": {
   "saved": true,
-  "name": "8208,gr",
-  "coarse_kp": 0.05,
+  "name": "NewProfile2",
+  "coarse_kp": 0,
   "coarse_ki": 0,
-  "coarse_kd": 0.3,
-  "coarse_min_speed_rps": 0.1,
-  "coarse_max_speed_rps": 5,
-  "fine_kp": 2,
+  "coarse_kd": 0,
+  "coarse_min_speed_rps": 0,
+  "coarse_max_speed_rps": 0,
+  "fine_kp": 0,
   "fine_ki": 0,
-  "fine_kd": 12,
-  "fine_min_speed_rps": 0.06,
-  "fine_max_speed_rps": 5
+  "fine_kd": 0,
+  "fine_min_speed_rps": 0,
+  "fine_max_speed_rps": 0
  },
  "/api/v1/powder_profiles/3": {
   "saved": true,
-  "name": "Benchmark2,gr",
-  "coarse_kp": 0.06,
+  "name": "NewProfile3",
+  "coarse_kp": 0,
   "coarse_ki": 0,
-  "coarse_kd": 0.3,
-  "coarse_min_speed_rps": 0.1,
-  "coarse_max_speed_rps": 5,
-  "fine_kp": 1.1,
+  "coarse_kd": 0,
+  "coarse_min_speed_rps": 0,
+  "coarse_max_speed_rps": 0,
+  "fine_kp": 0,
   "fine_ki": 0,
-  "fine_kd": 15,
-  "fine_min_speed_rps": 0.05,
-  "fine_max_speed_rps": 5
+  "fine_kd": 0,
+  "fine_min_speed_rps": 0,
+  "fine_max_speed_rps": 0
  },
  "/api/v1/powder_profiles/4": {
   "saved": true,
@@ -2478,10 +2421,10 @@
  "/api/v1/settings/gate": {
   "saved": true,
   "enable": false,
-  "shutter0_close_duty": 0.032,
-  "shutter0_open_duty": 0.09,
-  "shutter1_close_duty": 0.09,
-  "shutter1_open_duty": 0.032,
+  "shutter0_close_duty": 0.09,
+  "shutter0_open_duty": 0.05,
+  "shutter1_close_duty": 0.05,
+  "shutter1_open_duty": 0.09,
   "close_speed_per_s": 3,
   "open_speed_per_s": 5
  }
