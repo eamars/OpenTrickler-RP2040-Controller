@@ -43,6 +43,7 @@
 #define HTTP_SERVER_PARK_MAX 2
 #define HTTP_SERVER_TICK_MS 50              // select() wakes at least this often, for the timers and parked slots
 #define HTTP_SERVER_NO_MEMORY_WAIT_MS 10    // a send lwIP had no memory for waits this long
+#define HTTP_SERVER_DRAIN_MS 2000           // the longest a refused request's unread rest is read before the close
 #define HTTP_SERVER_CHUNK_HEAD 8            // room before a chunk for its length: "ffff\r\n"
 
 
@@ -51,6 +52,7 @@ typedef enum {
     SLOT_REQUEST,       // reading a request, or waiting for the next one on a kept-alive connection
     SLOT_PARKED,
     SLOT_SENDING,
+    SLOT_DRAINING,      // the reply is out, the request was not all read: what is left is read and dropped
 } slot_state_t;
 
 typedef enum {
@@ -85,6 +87,8 @@ typedef struct {
     bool http10;
     bool keep_alive;
     bool close_after;
+    bool drain;                            // input may be left unread: close by reading it first
+    uint32_t drain_until_ms;
     bool has_host;
     char host[64];
     char content_type[48];
@@ -315,6 +319,7 @@ static void slot_reset_request(slot_t *slot) {
     slot->http10 = false;
     slot->keep_alive = false;
     slot->close_after = false;
+    slot->drain = false;
     slot->has_host = false;
     slot->host[0] = '\0';
     slot->content_type[0] = '\0';
@@ -653,6 +658,7 @@ static void slot_refuse(slot_t *slot, int status, const char *code, const char *
     http_server_reply_error(&reply, status, code, message);
     stats.refused += 1;
     slot->keep_alive = false;   // what is left of the request is not read
+    slot->drain = true;
     slot_take_reply(slot, &reply);
 }
 
@@ -891,6 +897,7 @@ static void slot_feed(slot_t *slot, const char *data, size_t len) {
         if (slot->state != SLOT_REQUEST) {
             // A request is complete and more came behind it: no pipelining; closed once the reply is out
             slot->close_after = true;
+            slot->drain = true;
             return;
         }
         char ch = data[idx];
@@ -979,8 +986,12 @@ static void slot_receive(slot_t *slot) {
     int got = lwip_recv(slot->fd, data, sizeof(data), 0);
     if (got > 0) {
         slot->last_progress_ms = now_ms();
+        if (slot->state == SLOT_DRAINING) {
+            return;     // dropped
+        }
         if (slot->state == SLOT_PARKED || slot->state == SLOT_SENDING) {
             slot->close_after = true;   // more came while a reply was being made: no pipelining
+            slot->drain = true;
             return;
         }
         slot_feed(slot, data, (size_t) got);
@@ -1110,6 +1121,13 @@ static void slot_after_send(slot_t *slot) {
         slot_reset_request(slot);
         slot->last_progress_ms = now_ms();
     }
+    else if (slot->drain) {
+        // Closed with the client's bytes unread, lwIP answers with a reset, which can reach the client before the
+        // reply it has not read yet (a 413 lost so). Stop sending, read what is left, and close at its end
+        lwip_shutdown(slot->fd, SHUT_WR);
+        slot->state = SLOT_DRAINING;
+        slot->drain_until_ms = now_ms() + HTTP_SERVER_DRAIN_MS;
+    }
     else {
         slot_close(slot, false);
     }
@@ -1224,6 +1242,11 @@ static void server_timers(void) {
                 // A reply that makes no progress while there is something to send: lwIP frees what it holds
                 if (quiet > HTTP_SERVER_STALL_MS) {
                     stats.aborted_stalled += 1;
+                    slot_close(slot, true);
+                }
+                break;
+            case SLOT_DRAINING:
+                if ((int32_t) (now - slot->drain_until_ms) >= 0) {
                     slot_close(slot, true);
                 }
                 break;
