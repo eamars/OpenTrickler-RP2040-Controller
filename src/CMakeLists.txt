@@ -62,6 +62,22 @@ add_custom_command(
 add_dependencies("${TARGET_NAME}" generate_display_mirror)
 
 
+# powder_analysis.html
+add_custom_target(
+    generate_powder_analysis_header ALL
+    DEPENDS "${SRC_DIRECTORY}/generated/powder_analysis.html.h"
+)
+
+add_custom_command(
+    OUTPUT "${SRC_DIRECTORY}/generated/powder_analysis.html.h"
+    DEPENDS "${SRC_DIRECTORY}/html/powder_analysis.html"
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/powder_analysis.html -o ${SRC_DIRECTORY}/generated/powder_analysis.html.h
+    COMMENT "Generating powder_analysis.html header"
+)
+
+add_dependencies("${TARGET_NAME}" generate_powder_analysis_header)
+
+
 # Generate version
 MESSAGE("Python_EXECUTABLE: ${Python_EXECUTABLE}")
 add_custom_command(

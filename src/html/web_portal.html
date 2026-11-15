@@ -131,6 +131,12 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- Powder Analysis (own page) -->
+			<div class="grid grid-cols-1 gap-2 px-4 pb-8">
+				<div class="divider">Powder Analysis</div>
+				<a class="btn btn-neutral" href="/powder_analysis">Open Powder Analysis</a>
+			</div>
 		</div>
 
         
@@ -1800,12 +1806,20 @@
         input.click();
     }
 
-    // Start the long polling process when the page loads
+    // Start the long polling process when the page loads. /#trickler, /#settings or /#purge opens
+    // that tab directly (deep link from the powder analysis page), otherwise the Trickler tab.
+    function onPageLoaded() {
+        const hash = location.hash.substring(1);
+        onNavButtonClicked(['trickler', 'settings', 'purge'].includes(hash) ? hash : 'trickler');
+        if (hash) {
+            history.replaceState(null, '', '/');    // a reload must not re-enter purge or cleanup
+        }
+    }
     if (document.readyState != "loading") {
-        onNavButtonClicked('trickler');
+        onPageLoaded();
     }
     else {
-        document.addEventListener('DOMContentLoaded', function() {onNavButtonClicked('trickler');});
+        document.addEventListener('DOMContentLoaded', onPageLoaded);
     }
 
 </script>

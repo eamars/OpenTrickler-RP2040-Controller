@@ -48,6 +48,8 @@ Join our [discord server](https://discord.gg/ZhdThA2vrW) for help and developmen
 
 * Cleanup Mode
 
+* Powder Analysis: automatic tuning of a powder profile, see the manual in [English](manuals/powder_analysis.md) or [German](manuals/powder_analysis_de.md) (developers: [notes](manuals/powder_analysis_developer.md))
+
 ## Get Started
 
 ### Use with mini 12864 display

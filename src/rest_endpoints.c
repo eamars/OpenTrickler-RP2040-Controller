@@ -14,11 +14,13 @@
 #include "cleanup_mode.h"
 #include "servo_gate.h"
 #include "system_control.h"
+#include "powder_analysis.h"
 
 // Generated headers by html2header.py under scripts
 #include "display_mirror.html.h"
 #include "web_portal.html.h"
 #include "wizard.html.h"
+#include "powder_analysis.html.h"
 
 
 bool http_404_error(struct fs_file *file, int num_params, char *params[], char *values[]) {
@@ -69,6 +71,18 @@ bool http_wizard(struct fs_file *file, int num_params, char *params[], char *val
 }
 
 
+bool http_powder_analysis_page(struct fs_file *file, int num_params, char *params[], char *values[]) {
+    size_t len = strlen(html_powder_analysis_html);
+
+    file->data = html_powder_analysis_html;
+    file->len = len;
+    file->index = len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+
+    return true;
+}
+
+
 
 bool rest_endpoints_init(bool default_wizard) {
     if (default_wizard) {
@@ -99,6 +113,10 @@ bool rest_endpoints_init(bool default_wizard) {
     rest_register_handler("/rest/servo_gate_config", http_rest_servo_gate_config);
     rest_register_handler("/display_buffer", http_get_display_buffer);
     rest_register_handler("/display_mirror", http_display_mirror);
+    rest_register_handler("/powder_analysis", http_powder_analysis_page);
+    rest_register_handler("/rest/powder_analysis_state", http_rest_powder_analysis_state);
+    rest_register_handler("/rest/powder_analysis_trials", http_rest_powder_analysis_trials);
+    rest_register_handler("/rest/powder_analysis_trace", http_rest_powder_analysis_trace);
 
     return true;
 }
