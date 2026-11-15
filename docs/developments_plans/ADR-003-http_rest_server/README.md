@@ -1,6 +1,6 @@
 # ADR-003: a real HTTP REST server
 
-Status: **Draft** 2026-11-13, written again 2026-11-15 from the owner's answers. The direction is settled ("Settled with the owner"). **Gate 1 approved** by the owner 2026-11-15 ("Approve gate 1") and being built on the Pico W; what was built and measured is in [progress.md](progress.md). It is merged by a PR of its own, and the ADR is Open after it. Gates 2 to 4 are a first view; each is written in full, the API's table with gate 2, and approved before it is built.
+Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 from the owner's answers; the direction is settled ("Settled with the owner"). **Gate 1 is built**: approved by the owner 2026-11-15 ("Approve gate 1"), built and proven on the Pico W the same day, and merged by a PR of its own. lwIP's heap was the web's fault: at 4,000 bytes it failed 7,404 allocations and 8.92% of the web's reads were missed in a soak; at 16,384, none and 0 of 3,774. Its Pico 2 W run is left, before the ADR closes. What was built and measured is in [progress.md](progress.md). **Left:** gates 2 to 4, a first view; each is written in full, the API's table with gate 2, and approved before it is built.
 
 ## What we want
 
@@ -131,7 +131,7 @@ Four gates, each proven on the Pico W before the next. Gate 1 is merged on its o
 
 ### Gate 1: the web's memory, on today's server
 
-Written in full, for approval. It makes lwIP's memory visible, takes the two causes the code shows out of it, and sizes it from what is measured. No path, page or stored setting changes. Its numbers are the floor the new server is held to.
+**Built 2026-11-15** on the Pico W, as written below; lwIP's heap is 16,384 bytes, from the larger of two soaks' most used (8,824 and 10,364) and half as much again ([progress](progress.md)). It makes lwIP's memory visible, takes the two causes the code shows out of it, and sizes it from what is measured. No path, page or stored setting changes. Its numbers are the floor the new server is held to.
 
 1. **lwIP's memory in the console.**
    - A console command `net` (the `stats` line is long already) gives lwIP's heap: its size, what is in use, the most ever used, and the allocations that failed. The same for the pools of TCP connections, TCP segments and receive buffers.

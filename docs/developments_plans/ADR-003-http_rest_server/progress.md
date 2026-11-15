@@ -62,3 +62,30 @@ Built at 0398515 (1.20.155): a request's values static (step 3), a reply in RAM 
 - The heap's most used moved from 8,824 to 10,364, 17% more, between two soaks of the same load in the same hour: it follows the Wi-Fi, as ADR-012's misses did. 13,312 left 22% over the larger, short of the half over it the rule asks.
 - **So the heap is 16,384 bytes:** 10,364 and half as much again, 15,546, rounded up to 16 KB. 3 KB more of the RAM, of the Pico W's 47 KB left at link time.
 - Log: `logs/rc/20261115_155129_soak.log`.
+
+**Then at 16,384 bytes** (2a8ccba, 1.20.157), the image gate 1 merges, 16:03 to 16:13: `flash`, `menu_tour --compare` (form 36 not judged), `charge_cycle`, `soak 600` and `settings --compare` against the copy from before each `VERDICT PASS`.
+
+| | |
+|---|---|
+| Charges | 21, every one passed |
+| Web reads missed | **0 of 3,774** |
+| lwIP's heap | most used 10,364 of 16,384 (63%); no allocation failed; 1,028 at rest at the start and the end |
+| Pools | none failed; TCP connections 12 of 12 at the end, segments up to 7 of 32 |
+| FreeRTOS heap | 95,272 free throughout |
+| Size (`size_report.py`) | flash 665.0 KB, RAM at link time 211.4 KB; main at d60151a: 663.6 KB and 198.6 KB |
+
+### Gate 1: where it stands
+
+**Built on the Pico W, 2026-11-15.** The four soaks, beside each other within the hour:
+
+| Image | lwIP's heap | Most used | Failed allocations | Web reads missed |
+|---|---|---|---|---|
+| 1.20.154, `net` only | 4,000 | 3,920 | 7,404 | 8.92% (190 of 2,129) |
+| 1.20.155, the two fixes | 24,000 | 8,824 | 0 | 0.08% (3 of 3,743) |
+| 1.20.156, the two fixes | 13,312 | 10,364 | 0 | 0 of 3,774 |
+| 1.20.157, the two fixes | 16,384 | 10,364 | 0 | 0 of 3,774 |
+
+- The web's misses on the Pico W were lwIP's heap: the Pico examples' 4,000 bytes, of which under 3,000 were left after start-up.
+- The pool of TCP connections ends each soak full, 12 of 12, most in TIME_WAIT, and lwIP takes the oldest of those when it needs one: it never failed. The server of gate 2 is measured against it with `net`.
+- No stored struct changed; the unit's settings are as they were.
+- **Left of gate 1:** its image on the Pico 2 W, when the owner next puts that unit on the probe, before this ADR closes (the owner, 2026-11-15). Not a condition of its merge.
