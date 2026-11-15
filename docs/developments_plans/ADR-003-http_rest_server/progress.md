@@ -117,3 +117,54 @@ At 89dbf75 and ce67426:
 - **The portal by hand** in a browser: the page and its polling; the Scale and the Charge Mode forms filled with the unit's values through the old paths. The charge-mode form's query, 148 characters and 16 values, sent back unchanged: taken, nothing changed.
 - **`rc_run.py web_robust`** (new), `VERDICT PASS`: a value with no `=` (200), a Cookie of 6 KB passed over (200), headers over 8 KB (413), a Host of 300 bytes (413), a request line of 700 bytes (414), an unknown method and OPTIONS (405), HTTP/2.0 (400), another Host for the API and an old path (403) and for a page (302 to the unit's address), a POST with no type and one of text (415), a JSON POST to a path that only reads and one with a body longer than it said (405), a chunked body (411), a body of 5,000 bytes (413), a request cut off (closed), no such path (404), HTTP/1.0 with no Host (200), the page with its ETag (304, no body); the unit answering after each; seven clients at once, all answered; a client that stops reading part way through a page and one that sends less of a body than it said, both reset by the stall limit within 14 s, lwIP's heap back to 1,028 at rest; parked requests woken by their condition after 1.50 s and by their time after 2.06 s, two held 3.08 s and a third answered at once (0.06 s).
 - **Size** (`size_report.py`): flash 708.4 KB, RAM at link time 214.2 KB, against gate 1's 665.0 and 211.4. lwIP 133.0 KB (106.4 before: its sockets and netconn), the server 12.8 KB (the old one 4.6). The slots take 12.6 KB and the task's stack 6 KB of the FreeRTOS heap: 76,944 bytes free after start, about 95,000 before.
+
+### The soaks, and what each changed (1.20.172 to 1.20.178)
+
+From 18:16 to 19:58, `soak 600` and `soak 600 --load` (new: what a tuning session asks of the unit, a reply of 600 rows of 16 numbers pulled back to back and a client reading the charge four times a second), a pair to each image. The version's last number is the commit count:
+
+| Image | lwIP's heap, send buffer | Soak | Most of the heap used | Failed allocations | Reads missed |
+|---|---|---|---|---|---|
+| 1.20.172 (ce67426) | 16,384, 4 segments | gate | 14,972 | heap 8 | 0 of 3,780 |
+| | | load | 15,212 | heap 340 | 43.13% |
+| 1.20.173 (59848e1) | 24,576, 2 segments | gate | 19,508 | none | 1 of 3,645 |
+| | | load | 24,212 | heap 54 | 8.46% |
+| 1.20.175 (6354fbb) | 40,960, 2 segments | gate | 14,888 | none | 0 of 3,752 |
+| | | load | 28,748 | TCP connections 5 | 5.31% |
+| 1.20.178 (b33a262) | 40,960, 2 segments | gate | 19,508 | none | 0 of 3,790 |
+| | | load | 27,208 | none | 0 of 3,148 |
+
+What each found:
+- **A socket holds what it sends in lwIP's heap until the client acknowledges it, and so does a connection the server has closed.** lwIP keeps up to 12 TCP connections (`MEMP_NUM_TCP_PCB`), closed ones included, so the heap is sized for 12 send buffers of 2 segments with their headers, about 37 KB, and lwIP's own: 40,960 bytes (e2977b8). The 16 KB more came out of the FreeRTOS heap (128 to 112 KB). The most any soak used is 28,748, under the 32 KB at which this gate was to stop and come back with netconn's case.
+- **A send that finds no heap says "would block"**, and `select` says writable again at once: the task spun. A send that wrote nothing waits 10 ms (59848e1).
+- **A netconn lives until its connection has closed**, not until the server lets go of it: 10 ran out 17 times in a soak. 16 (e2977b8).
+- The load's JSON was invalid, its column names unquoted, so every load read at 1.20.173 was a miss (e2977b8).
+- The server's task at 4 shared its priority with the cyw43 task, which takes in the clients' ACKs: 3 (6354fbb).
+- **One stream held the server.** At 1.20.175, small requests beside a stream waited 0.33 s at the median and up to 1.4 s (one client beside the load, a measurement from the PC): on a good Wi-Fi the ACKs came back as fast as chunks were made, and the stream went on for its whole 1.8 s. One chunk a pass let the others in but took the stream to 4 s, one segment in flight whose ACK the PC delays (2234c44). Two a pass fill the send buffer (f77b815): small requests 0.125 s at the median and 0.20 s at most beside the stream, the stream 2.3 to 3.1 s. The 5 connections refused at 1.20.175 went with it.
+- **A refusal could be lost to a reset** (b33a262). Closed with the client's bytes unread, lwIP answers with a reset, which can overtake the reply: a 413 for headers of 8 KB was lost so. A refusal that leaves input unread now stops sending, reads and drops what is left for up to 2 s, and closes at its end. `web_robust` passed three times in a row.
+- **The soak's check of memory** compared the FreeRTOS heap at the end with its lowest in the first 300 s, and each open socket holds a FreeRTOS queue or two: it failed at 1.20.173 on 128 bytes. It compares two quiet moments now, before the browsers and 10 s after they stop (e2977b8).
+- **`tcp_pcb` at 12 of 12** at the start and the end of every soak is no fault. Closed connections wait out TIME_WAIT there, and lwIP takes back the oldest for a new one, counting a failure only when none can be taken (`tcp_alloc`, lwIP's `tcp.c`).
+
+The charge, at 1.20.175 and 1.20.178, with the load and without: no late feed of the step pulses (`motor`'s underruns 0), the scale's interval 100 ms in every charge with no pause, 21 charges a soak, each to 30.000. At 1.20.178 a charge took 16.905 s on average both ways (sd 0.097 s without the load, 0.169 s with it), 16.7 to 17.2 s.
+
+### Shown on the Pico W, 1.20.179 at 4db625f
+
+The image's sources are 4db625f's; its version reads `-dirty` for two documents not yet committed. 4db625f adds the time a stream takes to make to `/api/v1/debug`, each soak read's time, and a charge before the soak's first quiet reading: the first charge after a start creates the charge screen's task, kept for good, and a soak run straight after a flash read its 1,168 bytes as memory not given back.
+- `flash`, `menu_tour --compare tests/menu_baseline/pico_w` (form 36, the version, not judged), `charge_cycle` and `web_robust`: `VERDICT PASS`, 20:18 to 20:19.
+- **The gate's soak**, `soak 600`, 20:19 to 20:30: `VERDICT PASS`. 0 of 3,780 reads missed. lwIP's heap at most 16,428 of 40,960, no allocation failed; the FreeRTOS heap 59,480 quiet before and after. 22 charges (the first before the browsers), each to 30.000, 16.882 s on average (sd 0.101); the scale's interval 100 ms, no pause; no late feed of the step pulses.
+- **With a tuning session's load**, `soak 600 --load`, 20:30 to 20:41: `VERDICT PASS`. 0 of 3,083 reads missed. lwIP's heap at most 27,208, no allocation failed; the FreeRTOS heap 59,480 quiet before and after. 22 charges, each to 30.000, 16.841 s on average (sd 0.171); the scale's interval 100 ms, no pause; no late feed. **The charge is as without the load.**
+- **Size:** flash 708.8 KB, RAM at link time 222.7 KB, against gate 1's 665.0 and 211.4: the RAM is lwIP's heap, 24 KB more, less the 16 KB taken from the FreeRTOS heap.
+
+### What a tuning session's load costs the web
+
+Measured at 1.20.179. The load is what `--load` pulls back to back: 82,391 bytes, 9,600 numbers.
+
+| | Small reads, median by poller (95%; the longest of all) | The load, median |
+|---|---|---|
+| Soak, no load | 0.11 to 0.12 s (0.25 to 0.26 s; 2.69 s) | |
+| Soak, with the load | 1.02 to 1.08 s (1.62 to 1.66 s; 4.20 s) | 7.98 s |
+| Quiet unit, one client beside the load (1.20.178) | 0.125 s (longest 0.20 s) | 2.3 to 3.1 s |
+| During two charges, one client beside the load | connect 0.016 s, reply 0.438 s (longest 0.61 s) | |
+
+- **Making the stream is half its time during a charge.** `stream_make_ms` over the load soak's 29 loads: 3.66 s of each 7.33 s, 65 ms a chunk. On a quiet unit 1.12 s of 3.14 s: 117 µs a number with newlib's `%g`, 20 ms a chunk. The server's task is at 3, below the charge's tasks, as gate 2 wants: during a charge it makes a chunk 3.3 times slower. The rest of the stream's time is its sends, two segments in flight (`TCP_SND_BUF`), and the next chunk made only once the last is with lwIP.
+- **A small read waits for the server's passes, not for a connection.** The connect takes 16 ms; the reply waits while the one task makes the stream's two chunks a pass, and a new connection needs two passes (accepted, then read and answered). The more clients, the more each pass does.
+- **No Nagle stall:** small reads on one kept-alive connection, as a browser polls, 86 ms at the median against 62 ms with a connection each (quiet unit).
