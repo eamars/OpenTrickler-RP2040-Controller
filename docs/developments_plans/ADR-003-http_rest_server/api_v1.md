@@ -23,7 +23,8 @@ Each field below comes from today's stored structs, read in the code on 2026-11-
 - **Choices** are strings or numbers from a list in the schema, each with a label: `"driver": "and_fxi"` ("A&D FX-i"), `"baud": 9600`. No indexes.
 - **Weights** are in the scale's own unit: `GET /api/v1/scale` says which, or `null` when the scale cannot tell. A client does not assume.
 - **Colours** are `"#rrggbb"`.
-- **Ids are opaque numbers.** Powder profiles have the ids 0 to 7 today, but a client reads the list and does not count on that.
+- **Ids:** a powder profile's is an opaque number (0 to 7 today, but a client reads the list and does not count on that); a motor's is its name, `coarse` or `fine`. Each is listed at its collection's path: `GET /api/v1/powder_profiles`, `GET /api/v1/settings/motors`.
+- **What a request reads or writes is named in its path; what an action works on is a field of its body.** `PATCH /api/v1/settings/motors/fine` writes the fine motor's settings. `POST /api/v1/motor_run/start` takes `{"motor": "fine", ...}`: the run is the job, and the motor its parameter (ADR-009). A GET carries no body. An id is the same in a path, a body, a reply and an event (owner's review of PR #129, 2026-11-16).
 - **Unknown fields in a request are refused** (400 `unknown_field`), so a typo is caught rather than ignored.
 - **API replies carry `Cache-Control: no-store`.** The schema and the pages carry an `ETag`, the build's hash, and are answered 304 when unchanged.
 
@@ -187,6 +188,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
   - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies: `min`, `max` and `step` for numbers only. `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles `in_throw_when_in_use`.
   - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_cleanup_runs` for the cleanup's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `cleanup`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. A client works from these (`tools/remote_control/unit_api.py`).
   - `GET /api/v1/powder_profiles/{id}` gives `saved` (all eight are one block) and its fields; `GET /api/v1/powder_profiles` gives `saved` and each profile's `id` and `name`.
+  - `GET /api/v1/settings/motors/coarse` and `/fine` give `saved` (the two are one block) and their fields; `GET /api/v1/settings/motors` gives `saved` and each motor's `id` and `label`.
 
 ### `/api/v1/settings/charge`, saved at `/api/v1/settings/charge/save` (refused while `in_throw`)
 
@@ -208,7 +210,14 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
 
-The two are stored as one block, so they are saved together. Between throws the motors are still enabled, and some of these set the driver up again, so they are refused while charge mode or cleanup runs at all, as the console's `tmc ... setup` is. Today's checks (`motor_persistent_config_is_valid`) stay.
+| Method and path | Body | Reply |
+|---|---|---|
+| `GET /api/v1/settings/motors` | | `saved`, and `motors`: for each its `id` (`coarse`, `fine`) and `label`. A board lists the motors it carries |
+| `GET /api/v1/settings/motors/{motor}` | | Its fields, below; 404 for another name |
+| `PATCH /api/v1/settings/motors/{motor}` | Fields, below | 200; 409 `busy` while a job runs |
+| `POST /api/v1/settings/motors/save` | `{}` | 200: both stored |
+
+The two are stored as one block, so they are saved together, and each one's `saved` is the block's. Between throws the motors are still enabled, and some of these set the driver up again, so they are refused while charge mode or cleanup runs at all, as the console's `tmc ... setup` is. Today's checks (`motor_persistent_config_is_valid`) stay.
 
 | Field | Type | Unit | Limits | When | Today |
 |---|---|---|---|---|---|

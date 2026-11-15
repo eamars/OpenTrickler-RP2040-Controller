@@ -1488,6 +1488,13 @@ class Session:
         if name == "motors":
             return [f"{motor}'s driver {reply[motor]['driver']} is not in the schema's" for motor in ("coarse", "fine")
                     if reply[motor]["driver"] not in unit.states("driver")]
+        if name == "settings/motors":
+            # The motors listed are the motors' settings resources the schema has, by their ids and labels
+            prefix = unit_api.full_path("settings/motors/")
+            listed = {motor["id"]: motor["label"] for motor in reply["motors"]}
+            held = {resource["path"][len(prefix):]: resource["label"] for resource in unit.schema["resources"]
+                    if resource["path"].startswith(prefix)}
+            return [] if listed == held else [f"it lists {listed}; the schema's motors are {held}"]
         if name == "system":
             return [] if reply["activity"] in unit.states("activity") else [f"activity {reply['activity']}"]
         if name == "events":

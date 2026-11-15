@@ -1,8 +1,8 @@
 /*
- * API v1's routes (ADR-003): the index, the powder profiles, the display and its frame; the settings' come from their
- * tables, the commands' from api_v1_commands.c. Under /api/v1/debug, which is not part of v1, the figures and the
- * routes for the proofs: a reply the size of a throw's samples (/debug/load), a parked request (/debug/wait), and a
- * body taken in pieces (/debug/upload).
+ * API v1's routes (ADR-003): the index, the powder profiles, the motors' settings listed, the display and its frame;
+ * the settings' come from their tables, the commands' from api_v1_commands.c. Under /api/v1/debug, which is not part
+ * of v1, the figures and the routes for the proofs: a reply the size of a throw's samples (/debug/load), a parked
+ * request (/debug/wait), and a body taken in pieces (/debug/upload).
  */
 #include <math.h>
 #include <stdio.h>
@@ -338,7 +338,9 @@ static const api_v1_resource_t api_v1_resources[] = {
      "PATCH of each resource in turn"},
     {"/api/v1/settings/save", "[\"POST\"]", "stores every setting and the powder profiles"},
     {"/api/v1/powder_profiles", "[\"GET\"]", "the powder profiles' ids and names, and whether they are stored"},
-    {"/api/v1/charge", "[\"GET\",\"PATCH\"]",
+    {"/api/v1/settings/motors", "[\"GET\"]",
+     "the motors whose settings the unit holds, each by its id and label, and whether they are stored"},
+    {"/api/v1/charge","[\"GET\",\"PATCH\"]",
      "the charge: its state, the throw, the target and the powder profile it uses, the weight, the last throw; a "
      "PATCH sets the target or the profile the next throw uses"},
     {"/api/v1/charge/start", "[\"POST\"]", "starts a charge: {}, or the target and the powder profile to set first"},
@@ -466,8 +468,15 @@ static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
                 return true;    // stored with another: listed once
             }
         }
+        // Named with every resource stored with it: the motors' save stores both
         char about[96];
-        snprintf(about, sizeof(about), "stores %s", resource->label);
+        size_t used = (size_t) snprintf(about, sizeof(about), "stores %s", resource->label);
+        for (size_t later = index->idx; settings_resource_at(later) != NULL && used < sizeof(about); later += 1) {
+            const settings_resource_t *other = settings_resource_at(later);
+            if (strcmp(other->save_path, resource->save_path) == 0) {
+                used += (size_t) snprintf(about + used, sizeof(about) - used, " and %s", other->label);
+            }
+        }
         api_v1_index_resource(buf, room, len, false, resource->save_path, "[\"POST\"]", about);
         return true;
     }
@@ -510,11 +519,61 @@ static void api_v1_get_powder_profiles(const http_server_request_t *request, htt
 }
 
 
+// The motors' settings resources: their paths are this, then the motor's id, the name the motors' state, the events
+// and the actions call it by
+#define API_V1_MOTOR_SETTINGS_PREFIX "/api/v1/settings/motors/"
+
+static bool api_v1_is_motor_settings(const settings_resource_t *resource) {
+    return strncmp(resource->path, API_V1_MOTOR_SETTINGS_PREFIX, strlen(API_V1_MOTOR_SETTINGS_PREFIX)) == 0;
+}
+
+
+// GET /api/v1/settings/motors: saved, and each motor's id and label. Found from the resources registered, so a
+// board lists the motors it carries (ADR-005). They are stored as one block, so saved is the block's, as each
+// motor's own is
+static void api_v1_get_motor_settings(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    bool saved = true;
+    for (size_t idx = 0; settings_resource_at(idx) != NULL; idx += 1) {
+        const settings_resource_t *resource = settings_resource_at(idx);
+        if (api_v1_is_motor_settings(resource)) {
+            saved = saved && resource->is_saved();
+        }
+    }
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"saved\":");
+    http_json_bool(out, room, &len, saved);
+    http_json_raw(out, room, &len, ",\"motors\":[");
+    bool first = true;
+    for (size_t idx = 0; settings_resource_at(idx) != NULL; idx += 1) {
+        const settings_resource_t *resource = settings_resource_at(idx);
+        if (!api_v1_is_motor_settings(resource)) {
+            continue;
+        }
+        http_json_raw(out, room, &len, first ? "{\"id\":" : ",{\"id\":");
+        http_json_string(out, room, &len, resource->path + strlen(API_V1_MOTOR_SETTINGS_PREFIX));
+        http_json_raw(out, room, &len, ",\"label\":");
+        http_json_string(out, room, &len, resource->label);
+        http_json_raw(out, room, &len, "}");
+        first = false;
+    }
+    http_json_raw(out, room, &len, "]}");
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        return;
+    }
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
 bool api_v1_init(void) {
     bool ok = true;
     api_v1_boot = get_rand_32();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1", api_v1_get_index);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings/motors", api_v1_get_motor_settings);
     // Every module's settings' table, registered at its start (gate 3)
     settings_add_routes();
     // The commands, the event log and the unit's reads (gate 4)
