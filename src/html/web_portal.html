@@ -1118,7 +1118,8 @@
             const percentage = weight !== null && charge.target ? weight / charge.target * 100.0 : 0;
 
             // Update web element
-            _setCurrentWeight(weight === null ? "---" : weight, percentage);
+            // To three decimals at most, as the page showed it before API v1 (the old reply's "%0.3f")
+            _setCurrentWeight(weight === null ? "---" : Number(weight.toFixed(3)), percentage);
             _setChargeModeStateWidget(charge.state);
 
             profileName = document.getElementById("profileName");
