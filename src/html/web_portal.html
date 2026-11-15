@@ -1681,31 +1681,76 @@
     const CLEANUP_TIME_S = 5;
     var cleanupResendId = null;
 
+    function _stopCleanupResend() {
+        clearInterval(cleanupResendId);
+        cleanupResendId = null;
+        document.getElementById("tricklerSpeedSlider").value = "0";
+    }
+
     function _sendCleanupSpeed() {
         const speed = Number(document.getElementById("tricklerSpeedSlider").value);
-        apiPatch("/api/v1/cleanup", speed == 0 ? {speed_rps: 0} : {speed_rps: speed, time_s: CLEANUP_TIME_S});
+        return apiPatch("/api/v1/cleanup", speed == 0 ? {speed_rps: 0} : {speed_rps: speed, time_s: CLEANUP_TIME_S})
+        .then(response => {
+            // Refused (no cleanup runs, or it ended on a fault): the page sends no more, and shows 0
+            if (!response.ok) {
+                _stopCleanupResend();
+            }
+        })
+        .catch(error => _stopCleanupResend());
+    }
+
+    // Sent again only to a cleanup that still runs and was started from the web: never to one a person started at
+    // the unit after this page's had ended (review D4, 2026-11-16)
+    function _resendCleanupSpeed() {
+        fetch("/api/v1/cleanup")
+        .then(response => response.json())
+        .then(cleanup => {
+            if (cleanup.state == "running" && cleanup.by == "api") {
+                _sendCleanupSpeed();
+            }
+            else {
+                _stopCleanupResend();
+            }
+        })
+        .catch(error => _stopCleanupResend());
     }
 
     function onTricklerSpeedUpdate() {
         _sendCleanupSpeed();
         clearInterval(cleanupResendId);
         const speed = Number(document.getElementById("tricklerSpeedSlider").value);
-        cleanupResendId = speed != 0 ? setInterval(_sendCleanupSpeed, 2000) : null;
+        cleanupResendId = speed != 0 ? setInterval(_resendCleanupSpeed, 2000) : null;
     }
     const debouncedOnTricklerSpeedUpdate = debounce(onTricklerSpeedUpdate, 20);
 
     function onStopCleanupButtonClicked() {
-        clearInterval(cleanupResendId);
-        cleanupResendId = null;
-        document.getElementById("tricklerSpeedSlider").value = "0";
+        _stopCleanupResend();
         apiPatch("/api/v1/cleanup", {speed_rps: 0});
     }
 
+    // A stop is taken by the charge at its next loop (a precharge's 5 s at most), so a cleanup asked at once after it
+    // found the charge still running, and was refused. Asked once the charge is idle (review C3, 2026-11-16)
+    async function _waitForChargeIdle(timeoutMs) {
+        const until = Date.now() + timeoutMs;
+        while (Date.now() < until) {
+            try {
+                const charge = await (await fetch("/api/v1/charge")).json();
+                if (charge.state == "idle") {
+                    return;
+                }
+            }
+            catch (error) {
+            }
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+    }
+
     // Enter or exit the clean up mode
-    function enterCleanUpMode(enter) {
-        clearInterval(cleanupResendId);
-        cleanupResendId = null;
-        document.getElementById("tricklerSpeedSlider").value = "0";
+    async function enterCleanUpMode(enter) {
+        _stopCleanupResend();
+        if (enter) {
+            await _waitForChargeIdle(10000);
+        }
         apiPost(enter ? "/api/v1/cleanup/start" : "/api/v1/cleanup/stop", {})
         .then(async response => {
             if (!response.ok && enter) {

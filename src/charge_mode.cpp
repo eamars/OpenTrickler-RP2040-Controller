@@ -105,6 +105,11 @@ static bool charge_mode_stop_asked(ButtonEncoderEvent_t event) {
 // A throw that is under way ends, short of its verdict: its event and its outcome (gate 4)
 static void charge_mode_throw_ended(event_reason_t reason, uint8_t motor, const char * fault) {
     if (!activity_in_throw()) {
+        // Between throws no throw ends, but a fault ends the charge: `last.reason` says why, `last.result` stays the
+        // last throw's verdict (api_v1.md; review C2)
+        if (reason != EVENT_REASON_STOPPED) {
+            charge_last_reason = reason;
+        }
         return;
     }
     charge_paused = false;
@@ -895,9 +900,6 @@ uint8_t charge_mode_menu(void) {
         return exit_form_id;
     }
 
-    // One target for the unit (ADR-003, gate 4): the menu's weight digits, which the API sets too
-    charge_mode_config.target_charge_weight = charge_mode_get_target();
-
     // A new charge: no fault of the last one on its screen
     charge_ended_on_fault = false;
 
@@ -913,7 +915,12 @@ uint8_t charge_mode_menu(void) {
 
     // The charge is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile. Its
     // start is logged with who asked (gate 4)
+    // One target for the unit (ADR-003, gate 4): the menu's weight digits, which the API sets too. Copied as the job
+    // begins, under the lock the API writes the target under (review D2)
+    activity_lock();
+    charge_mode_config.target_charge_weight = charge_mode_get_target();
     activity_job_begin(ACTIVITY_CHARGE);
+    activity_unlock();
     charge_end_by = ACTIVITY_BY_BUTTON;
     charge_stop_logged = false;
     event_t started = {.source = EVENT_SOURCE_CHARGE, .kind = EVENT_STARTED, .by = (uint8_t) activity_job_by(),
@@ -1008,27 +1015,48 @@ bool charge_mode_config_save(void) {
 
 /*
     One target for the unit (ADR-003, gate 4): the menu's five weight digits, two or three of them decimals, show it
-    and set it, and the API reads and writes the same. 0 when every digit is.
+    and set it, and the API reads and writes the same. 0 when every digit is. The target is a weight: the digits are
+    its view at the decimals the screen shows, and a change of the decimals over the API or the console keeps the
+    weight (charge_mode_settings.c; review D2, 2026-11-16).
 */
-static uint32_t charge_mode_digits_scale(void) {
-    return charge_mode_config.eeprom_charge_mode_data.decimal_places == DP_3 ? 1000 : 100;
+static uint32_t charge_mode_digits_scale(decimal_places_t places) {
+    return places == DP_3 ? 1000 : 100;
 }
 
 
-float charge_mode_get_target(void) {
+float charge_mode_target_at(decimal_places_t places) {
     uint32_t value = 0;
     for (int idx = 4; idx >= 0; idx -= 1) {
         value = value * 10 + charge_weight_digits[idx];
     }
-    return (float) value / (float) charge_mode_digits_scale();
+    return (float) value / (float) charge_mode_digits_scale(places);
+}
+
+
+float charge_mode_get_target(void) {
+    return charge_mode_target_at(charge_mode_config.eeprom_charge_mode_data.decimal_places);
+}
+
+
+bool charge_mode_target_fits_at(float target, decimal_places_t places) {
+    double scaled = (double) target * charge_mode_digits_scale(places);
+    double rounded = round(scaled);
+    // What the digits can show: 0.01 to 999.99 at two decimals, 0.001 to 99.999 at three
+    return isfinite(scaled) && fabs(scaled - rounded) <= 1e-3 && rounded >= 1 && rounded <= 99999;
 }
 
 
 bool charge_mode_target_fits(float target) {
-    double scaled = (double) target * charge_mode_digits_scale();
-    double rounded = round(scaled);
-    // What the digits can show: 0.01 to 999.99 at two decimals, 0.001 to 99.999 at three
-    return isfinite(scaled) && fabs(scaled - rounded) <= 1e-3 && rounded >= 1 && rounded <= 99999;
+    return charge_mode_target_fits_at(target, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+}
+
+
+static void charge_mode_write_digits(float target, decimal_places_t places) {
+    uint32_t value = (uint32_t) round((double) target * charge_mode_digits_scale(places));
+    for (int idx = 0; idx < 5; idx += 1) {
+        charge_weight_digits[idx] = (uint8_t) (value % 10);
+        value /= 10;
+    }
 }
 
 
@@ -1036,16 +1064,23 @@ bool charge_mode_set_target(float target) {
     if (!charge_mode_target_fits(target)) {
         return false;
     }
-    uint32_t value = (uint32_t) round((double) target * charge_mode_digits_scale());
-    for (int idx = 0; idx < 5; idx += 1) {
-        charge_weight_digits[idx] = (uint8_t) (value % 10);
-        value /= 10;
-    }
-    // A charge between throws throws it from the next one on
-    if (charge_mode_config.charge_mode_state != CHARGE_MODE_EXIT) {
+    activity_lock();
+    charge_mode_write_digits(target, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+    // A charge that runs throws it from its next throw on. Its own copy is taken under this lock as it begins
+    // (charge_mode_menu), so a target written as a charge starts is never left out of it (review D2)
+    if (activity_get() == ACTIVITY_CHARGE) {
         charge_mode_config.target_charge_weight = charge_mode_get_target();
     }
+    activity_unlock();
     return true;
+}
+
+
+void charge_mode_keep_target(decimal_places_t before) {
+    float target = charge_mode_target_at(before);
+    if (target > 0.0f) {
+        charge_mode_write_digits(target, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+    }
 }
 
 

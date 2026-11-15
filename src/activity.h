@@ -74,6 +74,9 @@ void activity_throw_begin(void);
 void activity_throw_end(void);
 
 activity_t activity_get(void);
+// A job runs: the charge, a cleanup, the scale's calibration. A view (a screen a person has open) is none: it refuses
+// a start, as the menu is not at its forms, and nothing else
+bool activity_job_runs(void);
 bool activity_in_throw(void);
 // "none", "charge", "cleanup", "scale_calibration", "view": the API's names (api_v1.md, `activity`)
 const char *activity_name(activity_t activity);

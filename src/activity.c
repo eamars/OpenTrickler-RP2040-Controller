@@ -152,7 +152,10 @@ bool activity_request_stop(activity_t job, activity_by_t by) {
         }
         stopped = true;
     }
-    if (activity_now != ACTIVITY_NONE && (job == ACTIVITY_NONE || job == activity_now)) {
+    // Only the charge and the cleanup take a stop, where they read the reset button. The scale's calibration and a
+    // view are a person's at the unit: stopped=false, rather than a stop said and not done (review C1)
+    bool takes_stop = activity_now == ACTIVITY_CHARGE || activity_now == ACTIVITY_CLEANUP;
+    if (takes_stop && (job == ACTIVITY_NONE || job == activity_now)) {
         activity_stop_asked = true;
         activity_stop_by = by;
         stopped = true;
@@ -193,6 +196,12 @@ void activity_throw_end(void) {
 
 activity_t activity_get(void) {
     return activity_now;
+}
+
+
+bool activity_job_runs(void) {
+    activity_t now = activity_now;
+    return now == ACTIVITY_CHARGE || now == ACTIVITY_CLEANUP || now == ACTIVITY_SCALE_CALIBRATION;
 }
 
 

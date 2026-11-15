@@ -113,22 +113,27 @@ static bool api_only(http_server_reply_t *reply, const http_json_member_t *membe
 }
 
 
+const char *api_v1_job_state(void) {
+    activity_t activity = activity_get();
+    if (activity == ACTIVITY_CHARGE) {
+        charge_status_t charge;
+        charge_mode_get_status(&charge);
+        return charge.state;
+    }
+    if (activity == ACTIVITY_CLEANUP) {
+        cleanup_status_t cleanup;
+        cleanup_mode_get_status(&cleanup);
+        return cleanup.state;
+    }
+    return "idle";
+}
+
+
 // 409 busy, with the activity and the job's state
 static void api_busy(http_server_reply_t *reply, const char *message) {
     char extra[96];
-    charge_status_t charge;
-    charge_mode_get_status(&charge);
-    activity_t activity = activity_get();
-    const char *state = "idle";
-    if (activity == ACTIVITY_CHARGE) {
-        state = charge.state;
-    }
-    else if (activity == ACTIVITY_CLEANUP) {
-        cleanup_status_t cleanup;
-        cleanup_mode_get_status(&cleanup);
-        state = cleanup.state;
-    }
-    snprintf(extra, sizeof(extra), "\"activity\":\"%s\",\"state\":\"%s\"", activity_name(activity), state);
+    snprintf(extra, sizeof(extra), "\"activity\":\"%s\",\"state\":\"%s\"", activity_name(activity_get()),
+             api_v1_job_state());
     api_error(reply, 409, "busy", NULL, message, extra);
 }
 
@@ -355,6 +360,13 @@ static void reply_cleanup(http_server_reply_t *reply, int status) {
     size_t len = 0;
     http_json_raw(out, room, &len, "{\"state\":");
     http_json_string(out, room, &len, cleanup.state);
+    http_json_raw(out, room, &len, ",\"by\":");
+    if (cleanup.by != NULL) {
+        http_json_string(out, room, &len, cleanup.by);
+    }
+    else {
+        http_json_raw(out, room, &len, "null");
+    }
     http_json_raw(out, room, &len, ",\"speed_rps\":");
     http_json_float(out, room, &len, cleanup.speed_rps);
     http_json_raw(out, room, &len, ",\"time_left_s\":");
@@ -399,7 +411,11 @@ static void api_v1_patch_cleanup(const http_server_request_t *request, http_serv
         time_s = (float) value;
     }
     if (!cleanup_mode_set_speed((float) speed, time_s)) {
-        api_error(reply, 409, "not_running", NULL, "no cleanup runs: start one first", NULL);
+        cleanup_status_t cleanup;
+        cleanup_mode_get_status(&cleanup);
+        api_error(reply, 409, "not_running", NULL, strcmp(cleanup.state, "fault") == 0 ?
+                  "the cleanup ended on a driver's fault: stop it to acknowledge, then start another" :
+                  "no cleanup runs: start one first", NULL);
         return;
     }
     reply_cleanup(reply, 200);
@@ -551,7 +567,9 @@ static void api_v1_get_events(const http_server_request_t *request, http_server_
             api_error(reply, 400, "out_of_range", "wait", "wait is 1 to 30 s", "\"min\":1,\"max\":30");
             return;
         }
-        if (events_latest_seq() <= after) {
+        // Held only when the client is up to date. After a number above the newest it read before a restart: answered
+        // at once, so it sees the new boot now, not when its hold ends (review Q2)
+        if (events_latest_seq() == after) {
             uint32_t *held_after = http_server_reply_context(reply, sizeof(uint32_t));
             *held_after = after;
             http_server_reply_park(reply, api_v1_events_ready, held_after, (uint32_t) wait_s * 1000,
@@ -619,17 +637,18 @@ static void api_v1_scale_zero(const http_server_request_t *request, http_server_
     float band = API_V1_ZERO_BAND_MARGINS * charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
     const char *refused = NULL;
     bool off_zero = false;
+    // A charge asked and not yet begun (`starting`) is before its pour, as `zeroing` is: its first throw pours from
+    // this zero, so only a drift is zeroed. Before, a zero then was taken whatever the pan held (review D3)
+    bool before_pour = strcmp(charge.state, "starting") == 0 || strcmp(charge.state, "zeroing") == 0;
     if (activity == ACTIVITY_SCALE_CALIBRATION) {
         refused = "the scale is being calibrated";
     }
+    else if (before_pour) {
+        off_zero = !(fabsf(weight) <= band);
+    }
     else if (activity == ACTIVITY_CHARGE && strcmp(charge.state, "fault") != 0) {
-        if (strcmp(charge.state, "zeroing") != 0) {
-            refused = "a throw pours, or the unit waits for the cup: a zero now would start a throw on whatever is "
-                      "on the pan";
-        }
-        else if (!(fabsf(weight) <= band)) {
-            off_zero = true;
-        }
+        refused = "a throw pours, or the unit waits for the cup: a zero now would start a throw on whatever is on "
+                  "the pan";
     }
     if (refused == NULL && !off_zero) {
         scale_ask_zero();
@@ -815,8 +834,7 @@ static void api_v1_system_restart(const http_server_request_t *request, http_ser
     if (!api_empty(request, reply)) {
         return;
     }
-    if (activity_get() == ACTIVITY_CHARGE || activity_get() == ACTIVITY_CLEANUP ||
-        activity_get() == ACTIVITY_SCALE_CALIBRATION) {
+    if (activity_job_runs()) {
         api_busy(reply, "a job runs: stop it first");
         return;
     }
@@ -846,8 +864,7 @@ static void api_v1_system_erase(const http_server_request_t *request, http_serve
         api_error(reply, 400, "confirm_missing", "confirm", "send {\"confirm\": \"erase\"}: it cannot be undone", NULL);
         return;
     }
-    if (activity_get() == ACTIVITY_CHARGE || activity_get() == ACTIVITY_CLEANUP ||
-        activity_get() == ACTIVITY_SCALE_CALIBRATION) {
+    if (activity_job_runs()) {
         api_busy(reply, "a job runs: stop it first");
         return;
     }
@@ -924,11 +941,13 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/cleanup/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
     "\"about\":\"starts a cleanup (202), at speed 0 until a PATCH gives one; 409 driver_fault\"}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/cleanup\",\"fields\":[{\"name\":\"speed_rps\",\"type\":\"number\","
-    "\"unit\":\"rev/s\",\"required\":true,\"about\":\"both tricklers, within plus or minus the lower of the two "
-    "motors' max_speed_rps\"},{\"name\":\"time_s\",\"type\":\"number\",\"unit\":\"s\",\"min\":1,\"max\":600,"
+    "\"unit\":\"rev/s\",\"required\":true,\"about\":\"both tricklers; beyond plus or minus the lower of the two "
+    "motors' max_speed_rps, turned at it: the reply gives the speed taken\"},"
+    "{\"name\":\"time_s\",\"type\":\"number\",\"unit\":\"s\",\"min\":1,\"max\":600,"
     "\"about\":\"for at most this long, then the cleanup stops by itself; without it, until stopped. A client with no "
     "person at the unit gives a short time and sends the speed again while it wants it\"}],"
-    "\"refused_while\":\"no_cleanup_runs\",\"about\":\"the cleanup's speed; 409 not_running when none runs\"}",
+    "\"refused_while\":\"no_cleanup_runs\",\"about\":\"the cleanup's speed; 409 not_running when none runs, and in its "
+    "fault, where the motors stay stopped until it is acknowledged\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/cleanup/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the cleanup (202), or 200 with nothing to stop; it acknowledges the cleanup's fault\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/stop\",\"fields\":[],\"refused_while\":\"never\","
@@ -976,7 +995,7 @@ static const char *const api_v1_schema_events[] = {
     "{\"source\":\"charge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"by: button, api, "
     "console, or unit when it ended itself; reason: stopped, fault\"}",
     "{\"source\":\"throw\",\"kind\":\"started\",\"carries\":[\"throw\",\"target\",\"powder_profile\"],"
-    "\"about\":\"throw: its number in the charge, from 1\"}",
+    "\"about\":\"throw: its number, from 1 at each start of the unit\"}",
     "{\"source\":\"throw\",\"kind\":\"paused\",\"carries\":[\"throw\",\"pause\"],\"about\":\"no reading for 3 of the "
     "scale's intervals; pause: its number in the throw\"}",
     "{\"source\":\"throw\",\"kind\":\"resumed\",\"carries\":[\"throw\",\"weight\"],\"about\":\"weight: the settled "

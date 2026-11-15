@@ -48,6 +48,12 @@
 #define HTTP_SERVER_NO_MEMORY_WAIT_MS 10    // a send lwIP had no memory for waits this long
 #define HTTP_SERVER_DRAIN_MS 2000           // the longest a refused request's unread rest is read before the close
 #define HTTP_SERVER_CHUNK_HEAD 8            // room before a chunk for its length: "ffff\r\n"
+// A stream may give an empty chunk where it only moves on (from its events to its end); this many in a row is one
+// that makes no progress: an item larger than a chunk, a fault of the build. The reply is cut off (review Q1)
+#define HTTP_SERVER_EMPTY_CHUNKS_MAX 8
+// A request's line and headers come within this of its first byte, however slowly (review Q5): a client that sends
+// a byte every few seconds held a slot for hours. Its body is the stall limit's, as an upload of 700 KB is long
+#define HTTP_SERVER_HEAD_MS 30000
 
 
 typedef enum {
@@ -88,6 +94,7 @@ typedef struct {
     bool line_skip;                        // passing over a header line too long to keep
     size_t headers_total;
     bool started;                          // a byte of this request has come
+    uint32_t started_ms;                   // when it did
     bool http10;
     bool keep_alive;
     bool close_after;
@@ -145,7 +152,6 @@ struct http_server_reply {
     const char *data;
     size_t data_len;
     const char *etag;
-    bool raw;
     http_server_more_t more;
     void *more_ctx;
     char location[48];
@@ -507,18 +513,6 @@ void http_server_reply_error(http_server_reply_t *reply, int status, const char 
 }
 
 
-void http_server_reply_raw(http_server_reply_t *reply, const char *data, size_t len) {
-    if (len > sizeof(reply_scratch)) {
-        len = sizeof(reply_scratch);
-    }
-    memmove(reply_scratch, data, len);
-    reply->done = true;
-    reply->raw = true;
-    reply->kind = BODY_BUFFER;
-    reply->len = len;
-}
-
-
 void http_server_reply_park(http_server_reply_t *reply, http_server_ready_t ready, void *ctx, uint32_t wait_ms,
                             http_server_handler_t resume) {
     reply->parked = true;
@@ -610,20 +604,6 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
 
     if (!reply->done) {
         http_server_reply_error(reply, 500, "failed", "the handler gave no reply");
-    }
-    if (reply->raw) {
-        // An old handler's bytes, as they are, and the connection closed after them
-        memcpy(slot->buf, reply_scratch, reply->len);
-        slot->head_len = 0;
-        slot->head_sent = 0;
-        slot->body_kind = BODY_BUFFER;
-        slot->body_ptr = slot->buf;
-        slot->body_len = reply->len;
-        slot->body_sent = 0;
-        slot->body_suppressed = false;
-        slot->keep_alive = false;
-        slot->state = SLOT_SENDING;
-        return;
     }
 
     switch (reply->kind) {
@@ -1059,6 +1039,9 @@ static void slot_feed(slot_t *slot, const char *data, size_t len) {
                 if (!slot->started && (ch == '\r' || ch == '\n')) {
                     break;      // an empty line between requests
                 }
+                if (!slot->started) {
+                    slot->started_ms = now_ms();
+                }
                 slot->started = true;
                 if (ch == '\n') {
                     size_t end = slot->buf_len;
@@ -1213,11 +1196,25 @@ static bool slot_next_chunk(slot_t *slot) {
     char *data = slot->buf + HTTP_SERVER_CHUNK_HEAD;
     size_t room = sizeof(slot->buf) - HTTP_SERVER_CHUNK_HEAD - 2;
     uint64_t started_us = time_us_64();
-    slot->more_done = !slot->more(slot->more_ctx, data, room, &len);
+    for (int empty = 0; empty < HTTP_SERVER_EMPTY_CHUNKS_MAX; empty += 1) {
+        len = 0;
+        slot->more_done = !slot->more(slot->more_ctx, data, room, &len);
+        if (len > 0 || slot->more_done) {
+            break;
+        }
+    }
     stream_make_us += time_us_64() - started_us;
+    // Written past its room (the JSON writer then marks it full, len == room), or no progress: cut off, so the
+    // client sees the reply unfinished, not stale bytes as JSON nor a server's task out of stack
+    if (len >= room || (len == 0 && !slot->more_done)) {
+        stats.stream_failed += 1;
+        printf("HTTP: a streamed reply %s; it is cut off\n", len >= room ? "overflowed its chunk" : "made no progress");
+        slot_close(slot, true);
+        return false;
+    }
     stats.stream_bytes += (uint32_t) len;
     if (len == 0) {
-        return slot_next_chunk(slot);
+        return slot_next_chunk(slot);   // done, with nothing more: the last chunk
     }
     if (!slot->chunked) {
         slot->body_ptr = data;
@@ -1415,6 +1412,11 @@ static void server_timers(void) {
                     slot_close(slot, false);
                 }
                 else if (slot->started && quiet > HTTP_SERVER_STALL_MS) {
+                    stats.aborted_stalled += 1;
+                    slot_close(slot, true);
+                }
+                else if (slot->started && (slot->phase == PHASE_LINE || slot->phase == PHASE_HEADERS) &&
+                         now - slot->started_ms > HTTP_SERVER_HEAD_MS) {
                     stats.aborted_stalled += 1;
                     slot_close(slot, true);
                 }

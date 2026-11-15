@@ -114,9 +114,6 @@ void http_server_reply_stream(http_server_reply_t *reply, int status, const char
 void http_server_reply_etag(http_server_reply_t *reply, const char *etag);
 // An error, in api_v1.md's form: {"error": {"code": ..., "message": ...}}
 void http_server_reply_error(http_server_reply_t *reply, int status, const char *code, const char *message);
-// Bytes as they are, with no status line or header of ours, and the connection closed after them: an old handler's
-// reply that is not HTTP (the screen's bare buffer)
-void http_server_reply_raw(http_server_reply_t *reply, const char *data, size_t len);
 // Hold the request until ready(ctx) is true or wait_ms has passed, then call resume to make the reply
 void http_server_reply_park(http_server_reply_t *reply, http_server_ready_t ready, void *ctx, uint32_t wait_ms,
                             http_server_handler_t resume);
@@ -143,6 +140,7 @@ typedef struct {
     uint32_t send_failed;       // sends that failed otherwise: the connection closed
     uint32_t stream_make_ms;    // time in the handlers' `more`, making streamed chunks, the task's preemption included
     uint32_t stream_bytes;      // the bytes they made
+    uint32_t stream_failed;     // streams cut off: a chunk that overflowed, or no progress (a fault of the build)
     uint8_t slots_used;
     uint8_t slots_parked;
 } http_server_stats_t;

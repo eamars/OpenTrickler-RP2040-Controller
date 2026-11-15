@@ -40,7 +40,8 @@ static const setting_field_t charge_fields[] = {
      .type = SETTING_NUMBER, CHARGE_FIELD(set_point_mean_margin), .unit = "weight", .min = 0.0f, .max = 1.0f,
      .applies = "now"},
     {.name = "decimal_places", .label = "Decimal places", .group = "Display",
-     .about = "Decimals of the weight and of the target on the screen",
+     .about = "Decimals of the weight and of the target on the screen. A change keeps the target as a weight, and "
+              "is refused when the target cannot be shown at the new decimals",
      .type = SETTING_CHOICE, CHARGE_FIELD(decimal_places), SETTING_CHOICES(decimal_places_choices),
      .applies = "now"},
     {.name = "coarse_stop_gate_ratio", .label = "Gate at the coarse stop", .group = "Coarse stop",
@@ -97,6 +98,36 @@ static bool charge_settings_is_saved(void) {
 }
 
 
+/*
+    The decimals are the target's view (charge_mode.cpp): a change of them keeps the target's weight, and is refused
+    when that weight cannot be shown at the new decimals (review D2, 2026-11-16). Before, 9.875 at three decimals
+    read 98.75 at two, and a start threw that
+*/
+static const char *charge_settings_check(const void *proposed, int32_t id, const char **field) {
+    (void) id;
+    const eeprom_charge_mode_data_t *next = proposed;
+    decimal_places_t now = charge_mode_config.eeprom_charge_mode_data.decimal_places;
+    if (next->decimal_places == now) {
+        return NULL;
+    }
+    float target = charge_mode_target_at(now);
+    if (target > 0.0f && !charge_mode_target_fits_at(target, next->decimal_places)) {
+        *field = "decimal_places";
+        return "the charge's target cannot be shown at those decimals: set one that can be first";
+    }
+    return NULL;
+}
+
+
+static void charge_settings_apply(const void *before, int32_t id) {
+    (void) id;
+    const eeprom_charge_mode_data_t *was = before;
+    if (was->decimal_places != charge_mode_config.eeprom_charge_mode_data.decimal_places) {
+        charge_mode_keep_target(was->decimal_places);
+    }
+}
+
+
 static const settings_resource_t charge_settings = {
     .path = "/api/v1/settings/charge",
     .save_path = "/api/v1/settings/charge/save",
@@ -106,6 +137,8 @@ static const settings_resource_t charge_settings = {
     .refused_while = SETTINGS_REFUSED_IN_THROW,
     .size = sizeof(eeprom_charge_mode_data_t),
     .live = charge_settings_live,
+    .check = charge_settings_check,
+    .apply = charge_settings_apply,
     .save = charge_mode_config_save,
     .is_saved = charge_settings_is_saved,
 };

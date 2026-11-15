@@ -46,6 +46,7 @@ bool cleanup_mode_set_speed(float speed_rps, float time_s);
 // The cleanup as GET /api/v1/cleanup gives it
 typedef struct {
     const char *state;      // idle, starting, running, fault
+    const char *by;         // who started it (button, api, console); NULL with none
     float speed_rps;
     float time_left_s;      // NAN: a speed with no time
 } cleanup_status_t;

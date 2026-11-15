@@ -574,7 +574,7 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
         fail(outcome, 409, "busy", NULL, "%s is refused while a throw is under way", resource->path);
         goto done;
     }
-    if (resource->refused_while == SETTINGS_REFUSED_A_JOB_RUNS && activity_get() != ACTIVITY_NONE) {
+    if (resource->refused_while == SETTINGS_REFUSED_A_JOB_RUNS && activity_job_runs()) {
         fail(outcome, 409, "busy", NULL, "%s is refused while a job runs", resource->path);
         goto done;
     }
@@ -641,6 +641,8 @@ static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) 
     if (strcmp(outcome->code, "busy") == 0) {
         http_json_raw(out, room, &len, ",\"activity\":");
         http_json_string(out, room, &len, activity_name(activity_get()));
+        http_json_raw(out, room, &len, ",\"state\":");
+        http_json_string(out, room, &len, api_v1_job_state());
     }
     http_json_raw(out, room, &len, "}}");
     if (!http_json_fits(room, len)) {

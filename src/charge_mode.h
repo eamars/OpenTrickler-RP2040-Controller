@@ -81,6 +81,11 @@ float charge_mode_get_elapsed_s(void);
 float charge_mode_get_target(void);
 bool charge_mode_target_fits(float target);
 bool charge_mode_set_target(float target);
+// The same at other decimals: for a change of decimal places, which keeps the target's weight (review D2)
+float charge_mode_target_at(decimal_places_t places);
+bool charge_mode_target_fits_at(float target, decimal_places_t places);
+// After the decimals changed from before: the digits written again for the same weight
+void charge_mode_keep_target(decimal_places_t before);
 
 /*
  * A charge asked from outside the menu, by the API or the console (gate 4): handed to the menu with no wait, or

@@ -273,3 +273,37 @@ Its settings were copied before the first image of this gate's close: `logs/adr0
   - **The fix, shown** with `soak 180 --load --upload`, both at once, the heaviest start: the two followers saw the same 42 events, the 7 throws' verdicts among them, through 8 failed reads tried again. That run's verdict is a failure of another kind, below.
 - **Found: a tuning session's load and an upload at once are more than the Pico W's network takes.** With both at once, 31% of the web reads were missed, lwIP's receive buffers (`pbuf_pool`) ran out 71 times and its TCP connections 15 times. The charges were untouched: each to 30.000 in 16.7 to 17.0 s, no late feed. Either alone passes its soak. Not this ADR's to change: ADR-004 decides when an upload is taken (it refuses an install while a job runs; whether it takes an upload while a client pulls a throw's samples is its own).
 - **Size:** flash 772.2 KB, RAM at link time 222.5 KB, against gate 3's 748.0 and 221.7, and main's before this ADR (d60151a) 663.6 and 198.6: 108.6 KB of flash and 23.9 KB of RAM for the whole ADR. lwIP 133.3 KB (its sockets and netconn), the pages 99.2, the commands 18.9, the server 14.6, the settings' code 14.6. The Pico 2 W's image: flash 747.6 KB, RAM 222.5 KB.
+
+### The independent review, 2026-11-16
+
+At the owner's word ("perform the independent code review with a card session, then fix any issues against ADR and code"), a session of its own on another model (Fable 5.2) read the branch's code, `git diff 0d02bdb 413a83e`, against this README, api_v1.md and AGENTS.md, read only and away from the bench. Its report: `logs/adr003/code_review_2026-11-16.md` (this PC only). 4 device faults, 6 of the contract and 6 of quality, each read in the code; the author read each again before fixing it.
+
+- **D1, fixed.** A cleanup that ended on a driver's fault still took a speed: the flag that said it ran also said its motors could be driven, and stayed set in `fault`, so the portal's speed, sent again every 2 s, turned both motors again under the fault's screen, with no time limit. Now the fault clears it under the activity lock, and a speed in `fault` is 409 `not_running`.
+- **D4, fixed.** The portal sent the cleanup's speed again every 2 s with no end on a refusal, so it landed on the next cleanup, whoever started it. Now any refusal ends it, and it is sent again only to a cleanup still `running` and started from the web: `by`, added to `GET /api/v1/cleanup`.
+- **D2, fixed.** The target was the menu's digits, whose scale is `decimal_places`: 9.875 at three decimals read 98.75 at two, and a start threw that. Now a change of the decimals over the API or the console keeps the target's weight (the digits written again), and is refused when it cannot be shown at the new decimals. The charge's own copy is taken as its job begins, under the lock the API writes the target under, so a target written as a charge starts is never left out of it.
+- **D3, fixed.** A zero while a charge was `starting` was taken whatever the pan held, and its first throw poured from it. Now `starting` is as `zeroing`: only a drift.
+- **C1, fixed.** A stop in the scale's calibration or a view was answered "stopped" and stopped nothing. Only the charge and the cleanup take one; otherwise 200, `stopped` false. A view is no job (`activity_job_runs`): it refuses a start and nothing else, where the motors' settings were refused during one.
+- **C2, fixed.** A charge that ended on a fault between throws left `last.reason` as the last throw's. Now it says why the charge ended; `last.result` stays the verdict.
+- **C3, fixed.** The purge tab asked a cleanup at once after the charge's stop, which the charge takes at its next loop: refused 409 `busy`. Now asked once the charge is idle.
+- **C4, fixed.** The schema numbered throws "in the charge"; they count from each start of the unit.
+- **C5, fixed.** A settings write refused with `busy` now carries `state` beside `activity`, from one function the commands use too.
+- **C6, kept, and said in api_v1.md.** A cleanup speed beyond the motors' limit is turned at the limit, not refused: the limit follows the motors' settings, so the schema cannot give it, and the reply's `speed_rps` is the speed taken. Refusing it would make every client read the motors' settings first.
+- **Q1, fixed.** A stream that made no progress (an item larger than a chunk) made the server's task call itself until its stack ran out, halting the core; and a chunk written past its room went out with stale bytes as JSON. Now the server cuts such a reply off and counts it (`stream_failed` in `/api/v1/debug`). Not reachable at today's sizes: the largest item is 695 bytes of a chunk's 1,526.
+- **Q2, fixed.** A held read of the event log after a number from before a restart waited its whole hold; now it is answered at once, with the new `boot`.
+- **Q3, fixed.** The cleanup's deadline: its tick is written before its flag, as the loop reads both on the other core.
+- **Q5, fixed.** A request's line and headers must come within 30 s of its first byte; a byte every 9 s held a slot for hours.
+- **Q6, fixed.** The adapter's raw reply is gone with the adapter.
+- **Q4, handed on.** A gate PATCH between throws can replace a move the charge's fault path waits for (`servo_gate.c` overwrites the queued move). It is the gate's queue, not the API's; the window is a move's length. For the gate's module, with the owner.
+- **Seen, from before this ADR:** the EEPROM's erase runs outside its mutex (README, from gate 1's reading); gate 4's erase runs it in a task of its own, and a save during its 5 s can interleave. For the EEPROM's module, with the owner.
+
+### Shown on the Pico 2 W, 1.20.194 at 1b6fc8f
+
+Put on the probe by the owner, at 192.168.2.166. It ran 1.20.146 (adc5f56, ADR-002), with the old paths: its settings were copied first with the `rc_run.py` of 4db625f, the last before gate 3, into `logs/adr003/pico2w/before_adr003/` (this PC only). Its console could not be read with the new image's ELF until the flash, as expected.
+- `flash`: the new image read all nine stored settings at its start, none reset (no struct's layout changed since 1.20.146).
+- `menu_tour --compare tests/menu_baseline/pico2_w`, `charge_cycle`, `web_robust`, `settings_roundtrip`, `settings --save` (its API v1 copy, `logs/adr003/pico2w/after_flash_v1/`), `api_check`, and `settings --compare` with that copy after: each `VERDICT PASS`, 00:11 to 00:13.
+- **The soaks,** 00:13 to 00:46, each `VERDICT PASS`:
+  - `soak 600`: 23 charges.
+  - `soak 600 --load`: 23 charges, 1 of 6,357 reads missed, both event followers 138 events, the same.
+  - `soak 600 --upload`: 23 charges, 119 uploads of 700 KB, every one whole (5.1 s at the median: the Pico 2 W takes them faster than the Pico W's 13.4 s), 1 of 3,885 reads missed, both followers 138 events.
+  - In all three: lwIP's heap at most 27,208, no allocation failed, no late feed, the FreeRTOS heap given back. Every charge of the 69 ended at 30.000.
+- **Size:** flash 747.6 KB, RAM at link time 222.5 KB.

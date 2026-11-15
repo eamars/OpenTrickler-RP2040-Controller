@@ -198,8 +198,14 @@ uint8_t cleanup_mode_menu() {
         // fault, by the unit, and in `fault` until a press or a stop acknowledges it (gate 4)
         const char * motor_fault = motors_get_fault();
         if (motor_fault != NULL) {
+            // From here no speed is taken: the motors stay at 0 until the cleanup is acknowledged and ends. Before,
+            // a speed sent by the web in `fault` turned both motors again (review D1, 2026-11-16)
+            activity_lock();
+            cleanup_mode_running = false;
+            cleanup_has_deadline = false;
             cleanup_mode_config.trickler_speed = 0;
             motor_set_speed(SELECT_BOTH_MOTOR, 0);
+            activity_unlock();
             snprintf(title_string, sizeof(title_string), "%s", motor_fault);
             printf("Cleanup: ended, %s\n", motor_fault);
             cleanup_in_fault = true;
@@ -299,10 +305,11 @@ bool cleanup_mode_set_speed(float speed_rps, float time_s) {
     bool running = cleanup_mode_running;
     if (running) {
         cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(speed_rps, cleanup_mode_config.trickler_speed);
-        cleanup_has_deadline = isfinite(time_s);
-        if (cleanup_has_deadline) {
+        // The tick before the flag: the cleanup's loop reads them on the other core, without the lock
+        if (isfinite(time_s)) {
             cleanup_deadline_tick = xTaskGetTickCount() + pdMS_TO_TICKS((uint32_t) (time_s * 1000.0f));
         }
+        cleanup_has_deadline = isfinite(time_s);
         motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
     }
     activity_unlock();
@@ -325,6 +332,7 @@ void cleanup_mode_get_status(cleanup_status_t * status) {
     else {
         status->state = "idle";
     }
+    status->by = running ? activity_by_name(activity_job_by()) : NULL;
     status->speed_rps = running ? cleanup_mode_config.trickler_speed : 0.0f;
     status->time_left_s = NAN;
     if (running && cleanup_has_deadline) {

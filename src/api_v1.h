@@ -25,6 +25,9 @@ typedef enum {
 } api_v1_schema_part_t;
 const char *api_v1_schema_item(api_v1_schema_part_t part, size_t idx);
 
+// The state of the job that runs (the charge's or the cleanup's), "idle" when none: what a 409 busy carries
+const char *api_v1_job_state(void);
+
 // A random number new at each start, so a client sees a restart (the index's and the event log's `boot`)
 uint32_t api_v1_boot_id(void);
 // "pico_w", "pico2_w"
