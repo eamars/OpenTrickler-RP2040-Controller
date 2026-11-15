@@ -79,6 +79,9 @@ bool charge_mode_stop_remote(void);
 uint8_t charge_mode_menu(bool charge_mode_skip_user_input);
 bool charge_mode_config_save(void);
 
+// The seconds of the throw under way, or of the last one (ADR-003's GET /api/v1/charge; the screen's own figure)
+float charge_mode_get_elapsed_s(void);
+
 // REST interface
 bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]);

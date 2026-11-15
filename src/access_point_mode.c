@@ -6,7 +6,6 @@
 #include "dnsserver.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
-#include "lwip/apps/httpd.h"
 
 #include "app.h"
 #include "mini_12864_module.h"

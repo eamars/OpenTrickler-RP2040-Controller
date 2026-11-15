@@ -11,8 +11,11 @@
 #include "mini_12864_module.h"
 #include "http_rest.h"
 #include "rest_endpoints.h"
+#include "http_server.h"
 #include "common.h"
 #include "lwip/apps/mdns.h"
+#include <string.h>
+#include <strings.h>
 
 
 #ifdef CYW43_HOST_NAME
@@ -270,6 +273,44 @@ void led_interface_task(void *p) {
 }
 
 
+// The unit's address on the network it is on: its station's, or its own access point's
+static bool wireless_own_address(char *buf, size_t len) {
+    int itf = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN ? CYW43_ITF_AP : CYW43_ITF_STA;
+    const ip4_addr_t *addr = netif_ip4_addr(&cyw43_state.netif[itf]);
+    if (addr == NULL || ip4_addr_isany(addr)) {
+        return false;
+    }
+    return ip4addr_ntoa_r(addr, buf, (int) len) != NULL;
+}
+
+
+// Whether a request's Host is the unit's own: its address, or its host name with or without ".local", any port
+// (ADR-003: a page that has pointed its own name at the unit is refused)
+static bool wireless_host_is_own(const char *host) {
+    char name[64];
+    size_t len = strcspn(host, ":");
+    if (len >= sizeof(name)) {
+        return false;
+    }
+    memcpy(name, host, len);
+    name[len] = '\0';
+    if (len > 0 && name[len - 1] == '.') {
+        name[--len] = '\0';     // a fully qualified name's trailing dot
+    }
+
+    char address[24];
+    if (wireless_own_address(address, sizeof(address)) && strcmp(name, address) == 0) {
+        return true;
+    }
+    size_t host_len = strlen(host_name);
+    if (strncasecmp(name, host_name, host_len) == 0 &&
+        (name[host_len] == '\0' || strcasecmp(name + host_len, ".local") == 0)) {
+        return true;
+    }
+    return false;
+}
+
+
 static void srv_txt(struct mdns_service *service, void *txt_userdata)
 {
   err_t res;
@@ -369,10 +410,12 @@ void wireless_task(void *p) {
     // If the current wireless state is AP mode then we will map / to the wifi configuration
     rest_endpoints_init(wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN);
 
-    // Start the HTTP server
-    cyw43_arch_lwip_begin();
-    httpd_init();
-    cyw43_arch_lwip_end();
+    // Start our own HTTP server (ADR-003, gate 2), in its own task, on lwIP's sockets
+    static const http_server_network_t http_network = {
+        .host_is_own = wireless_host_is_own,
+        .own_address = wireless_own_address,
+    };
+    http_server_start(&http_network);
 
     while (true) {
         wireless_ctrl_t wireless_ctrl;

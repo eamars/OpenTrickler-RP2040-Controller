@@ -25,20 +25,23 @@
 #define LWIP_SO_RCVTIMEO 1
 #endif
 
-// Lwip features
-#define LWIP_HTTPD_CGI                  1    // Enable HTTPCGI
-#define LWIP_HTTPD_SUPPORT_POST         0    // Enable POST
-#define LWIP_HTTPD_CUSTOM_FILES         0   
-#define LWIP_HTTPD_DYNAMIC_FILE_READ    0
-#define LWIP_HTTPD_DYNAMIC_HEADERS      0
-#define LWIP_HTTPD_MAX_REQUEST_URI_LEN  128
-// lwIP takes 16 values from a request and drops the rest. The charge-mode page sends 17, and its last is "save to
-// EEPROM" (ADR-012; audit H2). No more than the pages need: each value is 8 bytes in every connection's state, which
-// comes out of lwIP's 4,000-byte heap. At 32 a third of the web's reads were lost under two browsers (ADR-012's
-// progress, step 5)
-#define LWIP_HTTPD_MAX_CGI_PARAMETERS   20
-#define LWIP_HTTPD_DYNAMIC_HEADERS      0
-#define LWIP_SOCKETS 1
+// lwIP's sockets, for our own server (ADR-003, gate 2). This said `LWIP_SOCKETS 1`, which is no lwIP option: the
+// sockets and the netconn layer under them were off. lwIP's names only (lwip_socket, lwip_close...), so no other file
+// gets macros named close, read or select
+#undef LWIP_SOCKET
+#define LWIP_SOCKET 1
+#undef LWIP_NETCONN
+#define LWIP_NETCONN 1
+#define LWIP_COMPAT_SOCKETS 0
+#define LWIP_POSIX_SOCKETS_IO_NAMES 0
+// A reset in place of a close for a reply that stalls, so lwIP frees what it held at once
+#define LWIP_SO_LINGER 1
+// The mailboxes a socket's data and its new connections wait in: lwIP's 0 would make none
+#define DEFAULT_TCP_RECVMBOX_SIZE 8
+#define DEFAULT_ACCEPTMBOX_SIZE 8
+#define DEFAULT_UDP_RECVMBOX_SIZE 8
+// Six clients, the listener, one waiting to be taken, and room for one being closed
+#define MEMP_NUM_NETCONN 10
 
 // MDNS
 #define LWIP_MDNS_RESPONDER 1

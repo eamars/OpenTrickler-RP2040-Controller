@@ -1035,6 +1035,14 @@ bool charge_mode_stop_remote(void) {
 }
 
 
+float charge_mode_get_elapsed_s(void) {
+    if (charge_mode_config.charge_mode_state == CHARGE_MODE_WAIT_FOR_COMPLETE && charge_timer_running) {
+        return (float) ((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+    }
+    return last_charge_elapsed_seconds;
+}
+
+
 bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings
     // s0 (float): Charge weight set point (unitless)
