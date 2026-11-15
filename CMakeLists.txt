@@ -34,7 +34,6 @@ set(SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/src")
 set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
 set(U8G2_SRC_DIRECYTORY "${CMAKE_SOURCE_DIR}/library/u8g2")
 set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
-set(TMC_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/Trinamic-library")
 set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 
@@ -59,19 +58,6 @@ include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel
 
 # Pull in u8g2
 add_subdirectory(${U8G2_SRC_DIRECYTORY})
-
-# Pull in Trinamic library (we don't use CMakeLists provided by TMC library as I don't want hal stuff)
-add_library(trinamic INTERFACE)
-target_sources(trinamic INTERFACE
-    ${TMC_SRC_DIRECTORY}/common.c
-    ${TMC_SRC_DIRECTORY}/tmc_interface.c
-    ${TMC_SRC_DIRECTORY}/tmc2130.c
-    ${TMC_SRC_DIRECTORY}/tmc2209.c
-    ${TMC_SRC_DIRECTORY}/tmc5160.c
-)
-target_include_directories(trinamic INTERFACE ${TMC_SRC_DIRECTORY})
-
-
 
 # Pull in u8g2 mui
 add_library(u8g2_mui
@@ -108,7 +94,6 @@ target_link_libraries("${TARGET_NAME}"
     FreeRTOS-Kernel-Heap4
     u8g2
     u8g2_mui
-    trinamic
     app_version
 
     # Required by cyw43 wireless module

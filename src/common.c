@@ -39,6 +39,23 @@ bool string_to_boolean(char * s) {
 }
 
 
+int weight_to_string(char * output_decimal_str, size_t output_size, float var, decimal_places_t decimal_places) {
+    if (output_size == 0) {
+        return 0;
+    }
+
+    switch (decimal_places) {
+        case DP_2:
+            return snprintf(output_decimal_str, output_size, "%0.02f", var);
+        case DP_3:
+            return snprintf(output_decimal_str, output_size, "%0.03f", var);
+        default:
+            output_decimal_str[0] = '\0';
+            return 0;
+    }
+}
+
+
 int float_to_string(char * output_decimal_str, float var, decimal_places_t decimal_places) {
     int return_value = 0;
     

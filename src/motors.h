@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "http_rest.h"
+#include "step_pulses.h"
 
 #define EEPROM_MOTOR_DATA_REV                     5              // 16 byte 
 
@@ -22,13 +23,18 @@ typedef enum {
     NUM_OF_MOTOR_SELECT,
 } motor_select_t;
 
-typedef enum {
-    MOTOR_INIT_OK = 0,
-    MOTOR_INIT_CFG_ERR = 2,
-    MOTOR_INIT_COARSE_DRV_ERR = 3,
-    MOTOR_INIT_FINE_DRV_ERR = 4,
-    MOTOR_INIT_PIO_ERR = 5,
-} motor_init_err_t;
+// One line of a driver's registers, without a line ending (motor_driver_dump)
+typedef void (*motor_driver_line_fn)(const char *line, void *ctx);
+
+// What the console shows of a driver and its serial line, counted since start-up
+typedef struct {
+    bool ready;                 // The driver answered and took every register
+    uint16_t current_ma;        // The run current its registers give, mA RMS
+    uint32_t writes;            // Writes the driver was seen to take
+    uint32_t write_retries;     // Tries of a write its count did not confirm
+    uint32_t read_retries;      // Tries of a read that brought no good answer
+    uint32_t failures;          // Reads and writes given up
+} motor_driver_stats_t;
 
 
 typedef struct {
@@ -65,15 +71,12 @@ typedef struct {
 
     // Set at run time
     void * tmc_driver;
-    pio_config_t pio_config;
+    uint8_t pulse_channel;      // Its channel of step_pulses
 
-    // Used to store some live data
-    float prev_velocity;
-    bool step_direction;
-
-    // RTOS control
-    TaskHandle_t stepper_speed_control_task_handler;
-    QueueHandle_t stepper_speed_control_queue;
+    // Live data, in the motor's own rev/s, before the gear
+    volatile float target_velocity;     // Set by anyone; the motors' task takes it from here
+    float velocity;                     // The speed now, ramps included: the motors' task's alone
+    bool step_direction;                // The direction pin's level
 } motor_config_t;
 
 
@@ -83,17 +86,47 @@ typedef struct {
 extern "C" {
 #endif
 
-motor_init_err_t motors_init(void);
+void motors_init(void);
+
+/*
+    A motor driver that does not answer, or settings that could not be read, do not stop the unit (ADR-012): the
+    modes ask before they turn a motor.
+    motors_ready() tries again a driver that did not answer; true when both have their registers.
+    motors_get_fault() names what is missing in a few words for the screen, NULL when nothing is.
+*/
+bool motors_ready(void);
+const char * motors_get_fault(void);
+
+// For the console: a driver set up again from the stored settings, its registers by field, its line's counts
+bool motor_driver_setup(motor_select_t selected_motor);
+bool motor_driver_dump(motor_select_t selected_motor, motor_driver_line_fn emit, void * ctx);
+void motor_driver_get_stats(motor_select_t selected_motor, motor_driver_stats_t * stats);
+
+// The steps made and fed, and the rate the pulses were last fed at, in steps a second
+void motor_get_step_stats(motor_select_t selected_motor, step_pulses_stats_t * stats);
+float motor_get_step_rate(motor_select_t selected_motor);
+
+// For a fault handler: the pulses and the drivers off, by register writes alone
+void motors_fault_stop(void);
+
+// What a driver was last found to be, in a word for the console: ok, absent, short, hot, reset, supply
+const char * motor_driver_get_status_string(motor_select_t selected_motor);
+
+// For proofs, never stored: flags put into what a driver is read to report, until `none`: "short", "hot", "reset",
+// "supply". False for any other word
+bool motor_driver_inject_fault(motor_select_t selected_motor, const char * fault);
+
+// For proofs, never stored: a driver made to look absent (asked at an address nobody has), and found again
+void motor_driver_set_lost(motor_select_t selected_motor, bool lost);
 bool motor_config_init(void);
 bool motor_config_save(void);
-void motor_task(void *p);
 void motor_set_speed(motor_select_t selected_motor, float new_velocity);
-float motor_get_velocity(motor_select_t selected_motor);   // the speed last reached, in the trickler's rev/s
+float motor_get_velocity(motor_select_t selected_motor);        // the speed now, ramps included, in the trickler's rev/s
+float motor_get_shaft_velocity(motor_select_t selected_motor);  // the same, in the motor's own rev/s, before the gear
 uint16_t get_motor_max_speed(motor_select_t selected_motor);
 float get_motor_min_speed(motor_select_t selected_motor);
 void motor_enable(motor_select_t selected_motor, bool enable);
 const char * get_motor_select_string(motor_select_t selected_motor);
-void handle_motor_init_error(motor_init_err_t err);
 
 // REST interface
 bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);

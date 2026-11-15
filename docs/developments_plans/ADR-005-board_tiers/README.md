@@ -12,6 +12,7 @@ Status: **Draft** 2026-11-13. Not approved. Rule 1 below is the owner's; the res
 
 - Boards are supported in tiers: some features only where there is room.
 - The implementation is consistent: a feature is present on a board or absent from it, never built a second way.
+- 2026-11-15, given in ADR-012 (its step 6): **fail early.** "If the Wifi is missing then the WiFi menu should not be made visible (This is just an example)." Rule 3 below says it for what a board is built to carry; the same holds for hardware found missing when the unit starts. One line to keep: a function that is only not set up keeps its menu, since the menu is how it is set up. A radio that does not start is missing; a network not joined is not. Motor drivers, which every board carries, stay offered and refuse at the first press with the reason (ADR-012, step 6).
 
 ## Why here
 
@@ -50,6 +51,9 @@ After ADR-004 the application's room on each board is a known number, so "does i
 | RAM | 264 KB | 520 KB | 512 KB and 2 MB PSRAM |
 | Image today | 693 KB | 668 KB | none yet |
 | Room for the application beside OTA (PR #111's layout) | about 960 KB | about 1,980 KB | set in ADR-007 |
+
+**Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Not read a second time; the figures are from ADR-012's runs. Nothing here was tried on a unit unless it says so.
+- **The tasks' stacks are unmeasured.** Tasks that format floats and draw have 1 KB (256 words), with FreeRTOS's weakest overflow check. The console's `stats` names the task with the least to spare: in ADR-012's runs on the Pico 2 W it was the charge screen's, with 64 to 90 words left, and the A&D scale's with 56 while its frame tap printed. A RAM budget has these margins in it.
 
 ## The rules
 

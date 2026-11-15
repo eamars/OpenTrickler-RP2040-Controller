@@ -56,29 +56,39 @@ static float _decode_measurement_msg(scale_standard_data_format_t * msg) {
 
 
 void _and_scale_listener_task(void *p) {
-    uint8_t string_buf_idx = 0;
+    uint8_t string_buf_idx = 0;     // Bytes since the last line ending; past a frame's length it only counts
     scale_standard_data_format_t frame;
 
     while (true) {
-        // Read all data 
+        // Read all data
         while (uart_is_readable(SCALE_UART)) {
             char ch = uart_getc(SCALE_UART);
 
-            frame.bytes[string_buf_idx++] = ch;
-
-            // If we have received 17 bytes then we can decode the message
-            if (string_buf_idx == sizeof(scale_standard_data_format_t)) {
-                // Data is ready, send to decode
-                float weight = _decode_measurement_msg(&frame);
-                scale_tap_frame((const uint8_t *) frame.bytes, sizeof(frame.bytes), weight);
-                scale_publish_measurement(weight);
-
-                // Reset
-                string_buf_idx = 0;
+            if (string_buf_idx < sizeof(frame.bytes)) {
+                frame.bytes[string_buf_idx] = ch;
+            }
+            if (string_buf_idx < UINT8_MAX) {
+                string_buf_idx += 1;
             }
 
-            // \n is the terminator. We shall reset the receive of message on receiving any of those character.
-            if (ch =='\n') {
+            /*
+                A frame is taken at its line ending, and only a whole one: 15 characters, CR, LF (ADR-012). Before,
+                any 17 bytes were a frame: a byte left over from before, or lost, shifted the next frame and it was
+                read as it stood. A line of another length is not a reading: it is counted as a frame that does
+                not parse.
+            */
+            if (ch == '\n') {
+                if (string_buf_idx == sizeof(frame.bytes) && frame.terminator[0] == '\r') {
+                    float weight = _decode_measurement_msg(&frame);
+                    scale_tap_frame((const uint8_t *) frame.bytes, sizeof(frame.bytes), weight);
+                    scale_publish_measurement(weight);
+                }
+                else if (string_buf_idx > sizeof(frame.terminator)) {
+                    size_t len = string_buf_idx < sizeof(frame.bytes) ? string_buf_idx : sizeof(frame.bytes);
+                    scale_tap_frame((const uint8_t *) frame.bytes, len, NAN);
+                    scale_publish_measurement(NAN);
+                }
+
                 string_buf_idx = 0;
             }
         }

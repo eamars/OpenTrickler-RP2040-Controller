@@ -14,6 +14,8 @@
 #include "common.h"
 #include "profile.h"
 #include "servo_gate.h"
+#include "motors.h"
+#include "menu.h"
 
 
 // External modules/varaibles
@@ -23,6 +25,47 @@ extern charge_mode_config_t charge_mode_config;
 extern servo_gate_t servo_gate;
 extern scale_config_t scale_config;
 extern eeprom_profile_data_t profile_data;
+
+
+// The forms Start and Cleanup lead to: the first of each path into a mode that turns the motors
+#define MENU_FORM_CHARGE_FIRST 10
+#define MENU_FORM_CLEANUP_FIRST 20
+
+
+const char * menu_main_title(void) {
+    const char * motor_fault = motors_get_fault();
+    return motor_fault != NULL ? motor_fault : "OpenTrickler";
+}
+
+
+// The main menu's title: a motor driver that is not OK is named before anything is pressed (ADR-012, step 6)
+uint8_t render_main_title(mui_t * ui, uint8_t msg) {
+    if (msg == MUIF_MSG_DRAW) {
+        u8g2_DrawUTF8(mui_get_U8g2(ui), mui_get_x(ui), mui_get_y(ui), menu_main_title());
+    }
+    return 0;
+}
+
+
+/*
+    The main menu's entries, as u8g2's goto field, but Start and Cleanup look at the motor drivers first (ADR-012,
+    step 6). With one not OK the fault screen is shown at once, before a profile, a weight or a warning is asked for.
+    motors_ready() sets up again each driver that is not OK, so a passing fault does not keep the user out.
+*/
+uint8_t render_main_menu_entry(mui_t * ui, uint8_t msg) {
+    if (msg == MUIF_MSG_CURSOR_SELECT &&
+        mui_GetSelectableFieldTextOption(ui, ui->last_form_fds, ui->arg + ui->form_scroll_top)) {
+        uint8_t form_id = (uint8_t) ui->text[0];
+        if ((form_id == MENU_FORM_CHARGE_FIRST || form_id == MENU_FORM_CLEANUP_FIRST) && !motors_ready()) {
+            printf("Menu: %s, charge and cleanup cannot start\n", motors_get_fault());
+            exit_state = APP_STATE_VIEW_MOTOR_FAULT;
+            mui_SaveForm(ui);
+            mui_LeaveForm(ui);
+            return 0;
+        }
+    }
+    return mui_u8g2_goto_form_w1_pi(ui, msg);
+}
 
 
 const char * get_selected_profile_name(void * data, uint16_t idx) {
@@ -248,6 +291,8 @@ muif_t muif_list[] = {
         /* main menu */
         MUIF_RO("MU",mui_u8g2_goto_data),
         MUIF_BUTTON("GC", mui_u8g2_goto_form_w1_pi),
+        MUIF_BUTTON("GM", render_main_menu_entry),
+        MUIF_RO("MT", render_main_title),
 
         /* Goto Form Button where the width is equal to the size of the text, spaces can be used to extend the size */
         MUIF_BUTTON("BN", mui_u8g2_btn_goto_wm_fi),
@@ -291,20 +336,20 @@ fds_t fds_data[] = {
     // Main menu
     MUI_FORM(1)
     MUI_STYLE(1)
-    MUI_LABEL(5,10, "OpenTrickler")
+    MUI_XY("MT", 5, 10)  // "OpenTrickler", or the motor driver that is not OK
     MUI_XY("HL", 0,13)
 
     MUI_STYLE(0)
-    MUI_DATA("MU", 
+    MUI_DATA("MU",
         MUI_10 "Start|"
         MUI_20 "Cleanup|"
         MUI_40 "Wireless|"
         MUI_30 "Settings"
         )
-    MUI_XYA("GC", 5, 25, 0) 
-    MUI_XYA("GC", 5, 37, 1) 
-    MUI_XYA("GC", 5, 49, 2) 
-    MUI_XYA("GC", 5, 61, 3)
+    MUI_XYA("GM", 5, 25, 0)
+    MUI_XYA("GM", 5, 37, 1)
+    MUI_XYA("GM", 5, 49, 2)
+    MUI_XYA("GM", 5, 61, 3)
 
     // Menu 10: Select profile
     MUI_FORM(10)

@@ -18,7 +18,12 @@
 #include "eeprom.h"
 #include "wireless.h"
 #include "system_control.h"
+#include "motors.h"
 #include "menu.h"
+
+// How often the menu wakes with nothing pressed, to draw the main menu's title again if a motor driver's state
+// changed it (ADR-012, step 6)
+#define MENU_TITLE_CHECK_MS 1000
 
 // External variables
 extern muif_t muif_list[];
@@ -66,6 +71,27 @@ bool menu_goto_form(uint8_t form_id, bool *found) {
     *found = menu_goto_form_found;
     return true;
 }
+
+uint8_t menu_motor_fault_view(void) {
+    u8g2_t * display_handler = get_display_handler();
+    const char * motor_fault = motors_get_fault();
+
+    u8g2_ClearBuffer(display_handler);
+    u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
+    u8g2_DrawStr(display_handler, 5, 10, motor_fault != NULL ? motor_fault : "Motor drivers");
+    u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
+    u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
+    u8g2_DrawStr(display_handler, 5, 25, "Charge and cleanup");
+    u8g2_DrawStr(display_handler, 5, 37, "cannot start.");
+    u8g2_DrawStr(display_handler, 5, 49, "Press to go back.");
+    u8g2_SendBuffer(display_handler);
+
+    while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
+    }
+
+    return 1;  // the main menu, whose title names the driver
+}
+
 
 static uint8_t menu_get_parent_form_id(uint8_t form_id) {
     // Parent relationships for "one level up" navigation.
@@ -118,14 +144,20 @@ void menu_task(void *p){
     mui_Draw(&mui);
     u8g2_SendBuffer(display_handler);
     menu_current_form_id = mui_GetCurrentFormId(&mui);
+    const char * drawn_title = menu_main_title();
 
     while (true) {
         bool goto_form_asked = false;
 
         if (mui_IsFormActive(&mui)) {
-            // Block wait for the user input
-            ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(true);
-            if (button_encoder_event == BUTTON_ENCODER_ROTATE_CW) {
+            // Wait for the user input; with none, the menu is drawn again only if the main menu's title changed
+            ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(MENU_TITLE_CHECK_MS);
+            if (button_encoder_event == BUTTON_NO_EVENT) {
+                if (mui_GetCurrentFormId(&mui) != 1 || menu_main_title() == drawn_title) {
+                    continue;
+                }
+            }
+            else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CW) {
                 mui_NextField(&mui);
             }
             else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CCW) {
@@ -160,6 +192,9 @@ void menu_task(void *p){
             uint8_t exit_form_id = 1;  // by default it goes to the main menu
             // menu is not active, leave the control to the app
             switch (exit_state) {
+                case APP_STATE_VIEW_MOTOR_FAULT:
+                    exit_form_id = menu_motor_fault_view();
+                    break;
                 case APP_STATE_ENTER_CHARGE_MODE:
                     exit_form_id = charge_mode_menu(false);
                     break;
@@ -191,6 +226,8 @@ void menu_task(void *p){
             mui_GotoForm(&mui, exit_form_id, 0);
         }
 
+        // The title is read before the draw: a change after it is drawn at the next check, not lost
+        drawn_title = menu_main_title();
         u8g2_ClearBuffer(display_handler);
         mui_Draw(&mui);
         u8g2_SendBuffer(display_handler);

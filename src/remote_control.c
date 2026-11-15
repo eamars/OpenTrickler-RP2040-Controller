@@ -66,6 +66,7 @@ extern QueueHandle_t encoder_event_queue;
 extern mini_12864_module_config_t mini_12864_module_config;
 
 static bool remote_control_reboot_pending = false;
+static char remote_control_tmc_line[256];
 static TaskStatus_t remote_control_task_status[REMOTE_CONTROL_MAX_TASKS];
 static uint8_t remote_control_snap_buffer[REMOTE_CONTROL_SNAP_BUFFER_SIZE];
 static char remote_control_snap_line[8 + (REMOTE_CONTROL_SNAP_CHUNK + 2) / 3 * 4 + 1];
@@ -83,7 +84,7 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
     // unique_id and the profile name are stored without a terminator: print them by their length
     snprintf(reply, reply_size,
              "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%.*s "
-             "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f",
+             "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f drivers=%s,%s",
              (int) charge_mode_config.charge_mode_state,
              scale_config.current_scale_measurement,
              charge_mode_config.target_charge_weight,
@@ -96,7 +97,9 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
              menu_get_current_form_id(),
              scale_simulation_is_on() ? 1 : 0,
              motor_get_velocity(SELECT_COARSE_TRICKLER_MOTOR),
-             motor_get_velocity(SELECT_FINE_TRICKLER_MOTOR));
+             motor_get_velocity(SELECT_FINE_TRICKLER_MOTOR),
+             motor_driver_get_status_string(SELECT_COARSE_TRICKLER_MOTOR),
+             motor_driver_get_status_string(SELECT_FINE_TRICKLER_MOTOR));
     return true;
 }
 
@@ -308,8 +311,23 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
             return false;
         }
     }
+    else if (strncmp(args, "weight ", 7) == 0) {
+        // The simulated scale shows this weight until `sim weight off` (ADR-012); never stored
+        if (strcmp(args + 7, "off") == 0) {
+            simulated_scale_force_weight(false, 0.0f);
+        }
+        else {
+            char *end;
+            float weight = strtof(args + 7, &end);
+            if (end == args + 7 || *end != '\0' || !isfinite(weight)) {
+                snprintf(reply, reply_size, "@err usage: sim weight <a number|off>");
+                return false;
+            }
+            simulated_scale_force_weight(true, weight);
+        }
+    }
     else if (*args != '\0') {
-        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>]");
+        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>|weight <a number|off>]");
         return false;
     }
 
@@ -338,9 +356,28 @@ static bool remote_control_scale(const char *args, char *reply, size_t reply_siz
 }
 
 
-// `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver
+// `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver.
+// `motor`: the steps made so far
 static bool remote_control_motor(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
+    // Alone: the steps counted on each STEP pin, those fed to the PIO, the feeds that came late, and the rate the
+    // pulses were last fed at, with the unit's clock so that two replies give a speed (ADR-012)
+    if (*args == '\0') {
+        step_pulses_stats_t coarse;
+        step_pulses_stats_t fine;
+        motor_get_step_stats(SELECT_COARSE_TRICKLER_MOTOR, &coarse);
+        motor_get_step_stats(SELECT_FINE_TRICKLER_MOTOR, &fine);
+        snprintf(reply, reply_size,
+                 "@ok motor t_us=%llu counted=%d coarse_made=%lu coarse_fed=%lu coarse_underruns=%lu coarse_rate=%.2f "
+                 "fine_made=%lu fine_fed=%lu fine_underruns=%lu fine_rate=%.2f",
+                 (unsigned long long) time_us_64(), (coarse.counted_on_pin && fine.counted_on_pin) ? 1 : 0,
+                 (unsigned long) coarse.steps_made, (unsigned long) coarse.steps_fed, (unsigned long) coarse.underruns,
+                 motor_get_step_rate(SELECT_COARSE_TRICKLER_MOTOR),
+                 (unsigned long) fine.steps_made, (unsigned long) fine.steps_fed, (unsigned long) fine.underruns,
+                 motor_get_step_rate(SELECT_FINE_TRICKLER_MOTOR));
+        return true;
+    }
+
     size_t name_len = strcspn(args, " ");
     motor_select_t selected_motor;
     if (name_len == 6 && strncmp(args, "coarse", 6) == 0) {
@@ -350,7 +387,7 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
         selected_motor = SELECT_FINE_TRICKLER_MOTOR;
     }
     else {
-        snprintf(reply, reply_size, "@err usage: motor <coarse|fine> <rev/s>");
+        snprintf(reply, reply_size, "@err usage: motor | motor <coarse|fine> <rev/s>");
         return false;
     }
 
@@ -379,6 +416,103 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
 
     snprintf(reply, reply_size, "@ok motor");
     return true;
+}
+
+
+typedef struct {
+    remote_control_write_fn write;
+    void *write_ctx;
+} remote_control_tmc_ctx_t;
+
+
+static void remote_control_tmc_emit(const char *line, void *ctx) {
+    remote_control_tmc_ctx_t *tmc_ctx = (remote_control_tmc_ctx_t *) ctx;
+
+    snprintf(remote_control_tmc_line, sizeof(remote_control_tmc_line), "@tmc %s", line);
+    if (tmc_ctx->write) {
+        tmc_ctx->write(remote_control_tmc_line, tmc_ctx->write_ctx);
+    }
+}
+
+
+/*
+ * `tmc <coarse|fine>`: the driver's registers by field, as `@tmc r ...` lines read from the chip now and `@tmc w ...`
+ * lines for those that can only be written, then its serial line's counts (ADR-012).
+ * `tmc <coarse|fine> setup <n>`: the driver set up n times from the stored settings, nine checked writes each.
+ * `tmc <coarse|fine> lose` and `find`: for proofs, the driver made to look absent, and found again. Never stored.
+ * `tmc <coarse|fine> fault <short|hot|reset|supply|none>`: for proofs, the driver read to report a fault. Never stored.
+ */
+static bool remote_control_tmc(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                               void *write_ctx) {
+    size_t name_len = strcspn(args, " ");
+    motor_select_t selected_motor;
+    if (name_len == 6 && strncmp(args, "coarse", 6) == 0) {
+        selected_motor = SELECT_COARSE_TRICKLER_MOTOR;
+    }
+    else if (name_len == 4 && strncmp(args, "fine", 4) == 0) {
+        selected_motor = SELECT_FINE_TRICKLER_MOTOR;
+    }
+    else {
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find|fault <word>]");
+        return false;
+    }
+
+    const char *rest = args + name_len;
+    while (*rest == ' ') {
+        rest += 1;
+    }
+
+    int setups_failed = 0;
+    if (strncmp(rest, "setup ", 6) == 0) {
+        // The motors are still: a driver is not written while a mode turns it
+        if (menu_get_current_form_id() < 0) {
+            snprintf(reply, reply_size, "@err a mode is running");
+            return false;
+        }
+
+        char *end;
+        long count = strtol(rest + 6, &end, 10);
+        if (end == rest + 6 || *end != '\0' || count < 1 || count > 1000) {
+            snprintf(reply, reply_size, "@err setup: 1 to 1000 times");
+            return false;
+        }
+        for (long idx = 0; idx < count; idx += 1) {
+            if (!motor_driver_setup(selected_motor)) {
+                setups_failed += 1;
+            }
+        }
+    }
+    else if (strncmp(rest, "fault ", 6) == 0) {
+        // For proofs, never stored: the driver is read to report this fault until `fault none`
+        if (!motor_driver_inject_fault(selected_motor, rest + 6)) {
+            snprintf(reply, reply_size, "@err fault: short, hot, reset, supply or none");
+            return false;
+        }
+    }
+    else if (strcmp(rest, "lose") == 0 || strcmp(rest, "find") == 0) {
+        // For proofs, never stored: the driver looks absent until `find`; a mode, or `setup`, then sets it up again
+        motor_driver_set_lost(selected_motor, rest[0] == 'l');
+    }
+    else if (*rest != '\0') {
+        snprintf(reply, reply_size, "@err usage: tmc <coarse|fine> [setup <n>|lose|find|fault <word>]");
+        return false;
+    }
+    else {
+        remote_control_tmc_ctx_t tmc_ctx = {write, write_ctx};
+        if (!motor_driver_dump(selected_motor, remote_control_tmc_emit, &tmc_ctx)) {
+            snprintf(reply, reply_size, "@err the %s driver does not answer", get_motor_select_string(selected_motor));
+            return false;
+        }
+    }
+
+    motor_driver_stats_t stats;
+    motor_driver_get_stats(selected_motor, &stats);
+    snprintf(reply, reply_size,
+             "@ok tmc ready=%d ma=%u writes=%lu write_retries=%lu read_retries=%lu failures=%lu setups_failed=%d",
+             stats.ready ? 1 : 0, (unsigned) stats.current_ma,
+             (unsigned long) stats.writes, (unsigned long) stats.write_retries,
+             (unsigned long) stats.read_retries, (unsigned long) stats.failures, setups_failed);
+    return setups_failed == 0;
 }
 
 
@@ -425,6 +559,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"sim", remote_control_sim},
     {"scale", remote_control_scale},
     {"motor", remote_control_motor},
+    {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
 };
 

@@ -33,6 +33,22 @@ After the PRs are decided (ADR-002), so nothing waiting to be merged is moved un
 - The simulated scale reads the motors' speeds straight out of `motors.c`'s structs (`extern motor_config_t`), and charge mode's target the same way.
 - The stored charge-mode struct gained three fields in the middle with PR #108, which changes its layout.
 
+**Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. The first and the third of the storage lines were read a second time; read the line before building on any other. Nothing here was tried on a unit unless it says so.
+- **Storage** (`common.c`, `eeprom.c`, `cat24c256_eeprom.c`, `app.c`):
+  - a CRC that does not match makes the defaults be written at once. One bad read, or an image with another struct layout (a downgrade too), wipes that module's settings for good;
+  - data whose first two bytes equal the old revision number is taken with no CRC and no check of its size;
+  - every start-up result is ignored. With an EEPROM that does not answer, the inits return before the display, the buttons, the mutexes and the semaphores exist: a blank unit, then calls through NULL. ADR-012 took the motors' share: motor settings that cannot be read are a state the modes ask about;
+  - the I2C calls have no time limit: a stuck bus hangs the start-up;
+  - `eeprom_save_all` ignores what each handler returns: a failed save is reported as done;
+  - the unit's id is printed with `%s` and has no ending.
+- **A radio that fails stops a core:** `exit(-1)` in the wireless task. With the EEPROM line above, this is the class of ADR-012's fault 9: a part that does not answer must not stop the unit.
+- **The scale drivers as one reader, with a parser a make** (`scale.c`, the `*_scale.c` files):
+  - the reader loop is copied seven times, each with `strtof` on a field that has no ending;
+  - a frame is taken at its line ending by the A&D driver only, since ADR-012. Seen on the bench there: every hand-over from the simulated scale leaves partial lines, and before the fix one in 30 was read as a frame;
+  - the reader task is made once, at start-up. A change of make over the web changes the handle and not the task: zero goes to one driver and the frames are read by another;
+  - the Generic driver does not read a sign that is apart from its digits: negative weights, and with them a lifted cup, go unseen.
+- The menu writes one byte into variables that are enums: right only while an enum is one byte.
+
 ## Ideas
 
 **A layout by role**, after the reference project's:

@@ -30,6 +30,12 @@ typedef struct {
 */
 void delay_ms(uint32_t ms, BaseType_t scheduler_state);
 
+/*
+    A weight as text, with the buffer's length: never written past it, and an empty string for a number of decimals
+    that is neither (ADR-012; audit M5). float_to_string writes with no length and leaves the buffer as it was.
+*/
+int weight_to_string(char * output_decimal_str, size_t output_size, float var, decimal_places_t decimal_places);
+
 const char * boolean_to_string(bool var);
 bool string_to_boolean(char * s);
 

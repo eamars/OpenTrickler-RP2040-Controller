@@ -47,6 +47,41 @@ OTA's upload (ADR-004), the web UI (ADR-008) and the tuning pages (ADR-009) all 
 - `/display_buffer` answers with the bare 1,024 bytes and no HTTP header, though its handler says the header is included. A browser takes it; a strict client does not.
 - A browser left open on the unit tripled the timeouts of a soak: the server's room is shared by every client on the network.
 
+**Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Only the first two were read a second time: read the line before building on any other. Nothing here was tried on a unit unless it says so.
+- **A GET that changes the unit.** Reading a profile with `pf` selects it: the page's "Export config" reads profiles 0 to 7 and leaves 7 selected for the next charge. And `pf` is honoured only when it is the request's first value (`profile.c`).
+- **The charge target is written with no length.** `s0` goes into an 8-byte buffer: `s0=1e30` writes some 26 bytes past it (`charge_mode.cpp`).
+- **Values from the web are used unchecked, and can be stored:**
+  - the scale's driver and baud indexes; a bad baud index sets a rate of 0, and the scale is dead until it is put right;
+  - the servo gate's duty, ratio and speed: a servo driven to its end stop;
+  - the LEDs' colour order and count;
+  - the precharge's time and speed: the precharge is one delay of that time with the motor turning, and RST is ignored for as long;
+  - the number of decimals: a value that is neither 2 nor 3 sends the menu to form 0, and the menu then runs the last mode again, which can be a charge.
+- A profile name of 16 characters is stored without its ending and is read on into the gains.
+- The web writes charge mode's and cleanup mode's state variables directly, and posts button events with no time limit, whatever is running: "exit cleanup" can end a charge.
+- The 404 reply gives its length as 13 for a text of 71 bytes: an unknown path gets `HTTP/1.1 404 ` and nothing more.
+- Handlers run in lwIP's thread, and some block it: queue sends with no time limit; the EEPROM's erase, about 5 s of one core and outside the EEPROM's mutex; erase-and-restart inside the handler, so no reply, with its reply flags `s5` and `s6` swapped.
+- **The web's memory is this tight** (measured in ADR-012, step 5, on the Pico 2 W). Each connection's state comes out of lwIP's heap of 4,000 bytes (`MEM_SIZE`). Room for 32 values a request in place of 16 made that state 128 bytes larger, and a soak then lost 32% to 39% of the web's reads, twice over, in runs of up to 63, where it lost 5% before; with room for 20, 32 bytes more, it lost 5.7%. The charges were not touched either way.
+- **The Pico W pays more for those 32 bytes** (measured 2026-11-15, ADR-012's Pico W pass: `rc_run.py soak` for 300 s each, one image after another within the hour; ADR-012's [progress](../ADR-012-motor_drivers/progress.md) has the runs):
+
+  | From | Image | Web reads missed | Longest run | Connections reset by the unit |
+  |---|---|---|---|---|
+  | 11:38 (600 s) | ADR-012 (1.20.131) | 19.6% | 9 | 27 |
+  | 11:51 | Before ADR-012 (1.20.84, ADR-013's code before its fixes; the same server) | 10.1% | 4 | 0 |
+  | 11:57 | ADR-012 | 15.2% | 12 | 23 |
+  | 12:04 | ADR-012 with a request's values static, below | 4.7% | 2 | 0 |
+  | 12:12 | ADR-012 | 6.9% | 7 | 4 |
+
+  - The Wi-Fi changed within the hour: ADR-012's image lost 15.2% before noon and 6.9% after. So images compare only beside each other: before ADR-012 and ADR-012 at 11:51 and 11:57; static values and ADR-012 at 12:04 and 12:12. A run of the image before ADR-012 after noon was lost: it hung at its start (ADR-012's faults 7 and 9), so whether static values do better than before ADR-012 is not settled.
+  - Only ADR-012's image resets connections, in every run, most when the Wi-Fi is poor: a slow connection holds its state longer, so more of them share the heap. A connection whose state the heap cannot hold is refused: `http_accept` returns `ERR_MEM` and lwIP aborts it (`LWIP_HTTPD_KILL_OLD_ON_CONNECTIONS_EXCEEDED` is off), which a client sees as a reset.
+  - Every charge passed in every run.
+- **What to do first: a request's values out of each connection's state.**
+  - `struct http_state` holds `params[]` and `param_vals[]`: two arrays of `LWIP_HTTPD_MAX_CGI_PARAMETERS` pointers, 160 bytes at 20, in every connection, all of it from the heap.
+  - They are used only in `http_find_file`, which splits the query, decodes it and calls the handler, in lwIP's thread, before the next request is read. The query they point into, `params_buf`, is static already for that reason. lwIP itself keeps them static when CGI is reached through SSI.
+  - **How**, in `http_rest.c`: delete the two fields from `struct http_state`; under `#if LWIP_HTTPD_CGI`, declare `http_cgi_params` and `http_cgi_param_vals` as static arrays of `LWIP_HTTPD_MAX_CGI_PARAMETERS`, in place of the two `#define`s that point them at `hs->`; pass the static arrays to the two `rest_handler` calls in `http_find_file`. Seven lines.
+  - It holds while every handler runs to its end in lwIP's thread. A server of our own (Ideas) makes the same choice: a request's values belong to the request being handled, not to the connection.
+  - Tried on the Pico W in ADR-012 (the table's third row) and not built in: web server changes belong to this ADR (the owner, 2026-11-15). The Pico 2 W has not run it.
+- **Done in ADR-012, on the server as it is:** a query was cut at 127 characters and at 16 values, so the charge-mode page's "Save to EEPROM" never arrived (512 and 20 now, and a longer query is refused whole); a Wi-Fi name of 32 characters or a key of 64 was stored without its ending (refused whole now).
+
 ## Ideas
 
 **The server.** Three ways, to be weighed with numbers:

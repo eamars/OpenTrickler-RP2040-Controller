@@ -7,6 +7,9 @@
 
 typedef enum {
     APP_STATE_DEFAULT = 0,
+    // Start or Cleanup pressed with a motor driver not OK (ADR-012, step 6). Set from code, never by a form's exit
+    // button, so it is numbered apart from the states the forms name by number. MUI writes one byte: below 256
+    APP_STATE_VIEW_MOTOR_FAULT = 100,
     APP_STATE_ENTER_CHARGE_MODE = 1,
     APP_STATE_ENTER_CHARGE_MODE_FROM_REST = 2,
     // 3 is removed

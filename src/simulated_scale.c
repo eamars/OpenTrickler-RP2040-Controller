@@ -7,8 +7,6 @@
 #include <math.h>
 
 extern scale_config_t scale_config;
-extern motor_config_t coarse_trickler_motor_config;
-extern motor_config_t fine_trickler_motor_config;
 extern charge_mode_config_t charge_mode_config;
 
 static float simulated_scale_weight = 0.0f;
@@ -31,6 +29,8 @@ static volatile uint32_t simulated_scale_interval_ms = 100;     // sim rate: the
 static volatile bool simulated_scale_bad_pending = false;       // sim bad: the next reading is a frame that did not parse
 static volatile TickType_t simulated_scale_quiet_until = 0;     // sim quiet: nothing published before this tick
 static volatile bool simulated_scale_quiet = false;
+static volatile bool simulated_scale_weight_forced = false;     // sim weight: this is published, whatever the powder does
+static volatile float simulated_scale_forced_weight = 0.0f;
 
 
 bool simulated_scale_set_rate(float per_second) {
@@ -47,6 +47,12 @@ float simulated_scale_get_rate(void) {
 }
 
 
+void simulated_scale_force_weight(bool forced, float weight) {
+    simulated_scale_forced_weight = weight;
+    simulated_scale_weight_forced = forced;
+}
+
+
 void simulated_scale_send_bad(void) {
     simulated_scale_bad_pending = true;
 }
@@ -59,8 +65,8 @@ void simulated_scale_go_quiet(uint32_t ms) {
 
 static float get_current_trickler_flow_rate(void) {
     // Use absolute motor speed as proxy for flow.
-    float coarse_rate = fabsf(coarse_trickler_motor_config.prev_velocity);
-    float fine_rate = fabsf(fine_trickler_motor_config.prev_velocity);
+    float coarse_rate = fabsf(motor_get_shaft_velocity(SELECT_COARSE_TRICKLER_MOTOR));
+    float fine_rate = fabsf(motor_get_shaft_velocity(SELECT_FINE_TRICKLER_MOTOR));
 
     // Scale factors to convert rps to grain/s (tune as needed).
     const float coarse_factor = 5.0f;  // 5 grains/s per rps (approx)
@@ -184,7 +190,7 @@ void simulated_scale_read_loop_task(void *p) {
 
             if (!simulated_scale_quiet) {
                 // Publish measurement. sim bad: a frame that did not parse, published as the drivers do today
-                float published = simulated_scale_weight;
+                float published = simulated_scale_weight_forced ? simulated_scale_forced_weight : simulated_scale_weight;
                 if (simulated_scale_bad_pending) {
                     simulated_scale_bad_pending = false;
                     published = nanf("");

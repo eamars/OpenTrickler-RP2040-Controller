@@ -14,6 +14,10 @@
 #include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "servo_gate.h"
+#include "menu.h"
+
+// How often a running cleanup looks at the motor drivers when no button is pressed (ADR-012, step 6)
+#define CLEANUP_MODE_FAULT_CHECK_MS 100
 
 
 // Memory from other modules
@@ -33,6 +37,27 @@ TaskHandle_t cleanup_render_task_handler = NULL;
 // True only while cleanup mode's own loop runs, its motors enabled (ADR-013). cleanup_mode_state cannot tell it: the
 // web writes ENTER there as soon as it asks for the mode, before the mode has started.
 static volatile bool cleanup_mode_running = false;
+
+
+/*
+    The speed cleanup mode asks for stays one the motors will turn at: a number, within the lower of their two limits
+    (ADR-012; audit M4). Before, each click added 1 rev/s with no end, and the web could send anything.
+*/
+static float cleanup_mode_limit_speed(float speed, float fallback) {
+    if (!isfinite(speed)) {
+        return fallback;
+    }
+
+    float max_speed = fminf(get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR),
+                            get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR));
+    if (speed > max_speed) {
+        return max_speed;
+    }
+    if (speed < -max_speed) {
+        return -max_speed;
+    }
+    return speed;
+}
 
 
 void cleanup_render_task(void *p) {
@@ -60,10 +85,12 @@ void cleanup_render_task(void *p) {
         memset(buf, 0x0, sizeof(buf));
         
         // Convert to weight string with given decimal places
-        char weight_string[WEIGHT_STRING_LEN];
-        float_to_string(weight_string, current_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
+        // Room for any weight the scale can send, and written with its length: "-1000.00" is a byte more than the
+        // 8 this had, and a tared container lifted off the pan is that (ADR-012; audit M5)
+        char weight_string[16];
+        weight_to_string(weight_string, sizeof(weight_string), current_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
 
-        sprintf(buf, "Weight: %s", weight_string);
+        snprintf(buf, sizeof(buf), "Weight: %s", weight_string);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 25, buf);
 
@@ -73,18 +100,18 @@ void cleanup_render_task(void *p) {
         float flow_rate = weight_diff / 0.02;  // 20 ms per sampling period, see below
 
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Flow: %0.3f/s", flow_rate);
+        snprintf(buf, sizeof(buf), "Flow: %0.3f/s", flow_rate);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 35, buf);
 
         // Draw current motor speed
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Speed: %0.3f", cleanup_mode_config.trickler_speed);
+        snprintf(buf, sizeof(buf), "Speed: %0.3f", cleanup_mode_config.trickler_speed);
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 45, buf);
 
         memset(buf, 0x0, sizeof(buf));
-        sprintf(buf, "Servo Gate: %s", gate_state_to_string(servo_gate.gate_state));
+        snprintf(buf, sizeof(buf), "Servo Gate: %s", gate_state_to_string(servo_gate.gate_state));
         u8g2_SetFont(display_handler, u8g2_font_profont11_tf);
         u8g2_DrawStr(display_handler, 5, 55, buf);
 
@@ -96,6 +123,16 @@ void cleanup_render_task(void *p) {
 
 
 uint8_t cleanup_mode_menu() {
+    // No cleanup with a motor driver not OK, from the menu or the web (ADR-012): the fault screen, before this mode
+    // draws anything (step 6). motors_ready() sets up again each driver not OK, so a passing fault does not refuse
+    if (!motors_ready()) {
+        printf("Cleanup: not started, %s\n", motors_get_fault());
+        uint8_t exit_form_id = menu_motor_fault_view();
+        // Set after the screen: the web writes the state itself after asking for a cleanup (ADR-003, M10)
+        cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
+        return exit_form_id;
+    }
+
     // If the display task is never created then we shall create one, otherwise we shall resume the task
     if (cleanup_render_task_handler == NULL) {
         // The render task shall have lower priority than the current one
@@ -127,9 +164,21 @@ uint8_t cleanup_mode_menu() {
 
     bool quit = false;
     while (!quit) {
-        // Wait if button is pressed
-        ButtonEncoderEvent_t button_encoder_event;
-        xQueueReceive(encoder_event_queue, &button_encoder_event, portMAX_DELAY);
+        // Wait for a button, looking at the motor drivers between presses
+        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(CLEANUP_MODE_FAULT_CHECK_MS);
+
+        // A motor driver not OK stops both motors and ends the cleanup, naming it (ADR-012, step 6)
+        const char * motor_fault = motors_get_fault();
+        if (motor_fault != NULL) {
+            cleanup_mode_config.trickler_speed = 0;
+            motor_set_speed(SELECT_BOTH_MOTOR, 0);
+            snprintf(title_string, sizeof(title_string), "%s", motor_fault);
+            printf("Cleanup: ended, %s\n", motor_fault);
+
+            while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
+            }
+            break;
+        }
 
         switch (button_encoder_event) {
             case BUTTON_RST_PRESSED:
@@ -139,11 +188,13 @@ uint8_t cleanup_mode_menu() {
 
                 break;
             case BUTTON_ENCODER_ROTATE_CW:
-                cleanup_mode_config.trickler_speed += 1;
+                cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed + 1,
+                                                                              cleanup_mode_config.trickler_speed);
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
             case BUTTON_ENCODER_ROTATE_CCW:
-                cleanup_mode_config.trickler_speed -= 1;
+                cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed - 1,
+                                                                              cleanup_mode_config.trickler_speed);
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
 
@@ -202,7 +253,8 @@ bool http_rest_cleanup_mode_state(struct fs_file *file, int num_params, char *pa
         else if (strcmp(params[idx], "s1") == 0) {
             // Kept at any time; it reaches the motors only while cleanup mode runs, as from the screen (ADR-013).
             // Before, it set both tricklers whatever ran, a charge too.
-            cleanup_mode_config.trickler_speed = strtof(values[idx], NULL);
+            cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(strtof(values[idx], NULL),
+                                                                          cleanup_mode_config.trickler_speed);
             if (cleanup_mode_running) {
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
             }
