@@ -72,7 +72,9 @@
 /* Memory allocation related definitions. */
 #define configSUPPORT_STATIC_ALLOCATION         0
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
-#define configTOTAL_HEAP_SIZE                   (128*1024)
+// 16 KB of it given to lwIP's heap (lwipopts.h, ADR-003 gate 2), which on sockets holds every byte sent until it is
+// acknowledged: the FreeRTOS heap had some 75 KB free through every soak, the web server's slots and task included
+#define configTOTAL_HEAP_SIZE                   (112*1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */

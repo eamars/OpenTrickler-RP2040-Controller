@@ -125,7 +125,7 @@ SOAK_SETTINGS_S = 60.0      # every settings path
 # these reads, so an ADR that does not touch it passes limits taken from a run before its change (ADR-011).
 SOAK_MISS_SHARE = 0.01      # the most of the web reads that may miss
 SOAK_MISS_RUN = 2           # the most misses in a row on one poller
-SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
+SOAK_QUIET_S = 10.0         # after the browsers stop, the server's idle connections closed (5 s), heap_free read
 # --load (ADR-003, gate 2): what a tuning session asks of the unit while it charges
 SOAK_LOAD_ROWS = 600         # a throw's samples: 600 rows ...
 SOAK_LOAD_COLUMNS = 16       # ... of 16 numbers, pulled back to back
@@ -1198,8 +1198,8 @@ class Session:
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
         Fails on a failed charge, on a restart or an assert, on more than max_miss_share of the web reads with
-        no right answer or max_miss_run in a row on one poller, when heap_free ends lower than its lowest in
-        the first SOAK_SETTLE_S (memory taken and not given back), and when lwIP's heap or a pool failed an
+        no right answer or max_miss_run in a row on one poller, when heap_free read quiet after the run is lower
+        than read quiet before it (memory taken and not given back), and when lwIP's heap or a pool failed an
         allocation during the run (`net`, ADR-003). Misses are summed by kind: timeout, reset, wrong answer.
 
         Args:
@@ -1241,6 +1241,7 @@ class Session:
             pollers.append(WebPoller("tuning load", 0.0, [("", read_load)], self.log))
             pollers.append(WebPoller("fast client", SOAK_LOAD_FAST_S, [("", read_state)], self.log))
 
+        quiet_start = self.stats()
         motor_start = self.send("motor")
         net_start = self.net()
         if net_start is not None:
@@ -1263,6 +1264,8 @@ class Session:
             poller.stop_event.set()
         for poller in pollers:
             poller.join(timeout=HTTP_TIMEOUT_S * len(SETTINGS_PATHS) + 1)
+        time.sleep(SOAK_QUIET_S)
+        quiet_end = self.stats()
 
         self.log.write("rc", f"soak: {cycles} charges in {time.monotonic() - started:.0f} s")
         good = sum(poller.good for poller in pollers)
@@ -1299,16 +1302,17 @@ class Session:
         for poller in pollers:
             if poller.run_longest > max_miss_run:
                 self.fail(f"soak: {poller.name} missed {poller.run_longest} in a row, more than {max_miss_run}")
-        if len(heap) < 2:
-            self.fail("soak: fewer than two stats read")
+        if len(heap) < 2 or quiet_start is None or quiet_end is None:
+            self.fail("soak: too few stats read")
             return
-        settled = [free for at, free in heap if at <= SOAK_SETTLE_S] or [heap[0][1]]
-        low, end = min(settled), heap[-1][1]
-        self.log.write("rc", f"soak: heap_free lowest in the first {SOAK_SETTLE_S:.0f} s {low}, at the end {end}, "
-                             f"lowest of the run {min(free for _, free in heap)}")
-        if end < low:
-            self.fail(f"soak: heap_free ended at {end}, lower than {low}, its lowest in the first "
-                      f"{SOAK_SETTLE_S:.0f} s")
+        # Each open socket holds a FreeRTOS queue or two, so heap_free moves with the connections open when it is
+        # read (ADR-003, gate 2). Memory not given back is judged between two quiet moments: before the browsers,
+        # and SOAK_QUIET_S after they stop, when the server has closed its idle connections
+        self.log.write("rc", f"soak: heap_free quiet before {quiet_start['heap_free']}, quiet after "
+                             f"{quiet_end['heap_free']}, lowest of the run {min(free for _, free in heap)}")
+        if quiet_end["heap_free"] < quiet_start["heap_free"]:
+            self.fail(f"soak: heap_free quiet after the run {quiet_end['heap_free']}, lower than "
+                      f"{quiet_start['heap_free']} before it: memory not given back")
 
     def step_activity(self):
         """

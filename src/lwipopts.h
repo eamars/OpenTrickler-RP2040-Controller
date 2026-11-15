@@ -40,8 +40,10 @@
 #define DEFAULT_TCP_RECVMBOX_SIZE 8
 #define DEFAULT_ACCEPTMBOX_SIZE 8
 #define DEFAULT_UDP_RECVMBOX_SIZE 8
-// Six clients, the listener, one waiting to be taken, and room for one being closed
-#define MEMP_NUM_NETCONN 10
+// A netconn lives until its connection has closed, not until the server lets go of it: with clients that open a
+// connection a request (urllib, curl), 10 ran out 17 times in a soak. One for each TCP connection lwIP keeps, and the
+// listener and more
+#define MEMP_NUM_NETCONN 16
 // A socket's send copies what it sends into lwIP's heap, up to its send buffer, so the heap holds every connection's
 // send buffer at once. At the examples' 8 segments (11.7 KB) one page load took the heap to 14,888 of its 16,384
 // bytes; at 4, a soak with a tuning session's load ran it out 340 times and missed 43% of the web's reads. At 2
@@ -71,10 +73,13 @@
 
 // lwIP's heap (ADR-003). Gate 1, on lwIP's file server: the Pico examples' 4,000 bytes ran out under two browsers and
 // a charge (7,404 failed allocations, 8.9% of the web's reads missed); 16,384, the most two soaks used and half as much
-// again, ran out none. Gate 2, on sockets: every byte sent is copied into this heap, up to each connection's send
-// buffer, so it is sized by that, not by a soak: six connections of 2 segments with their headers, about 19 KB, and
-// lwIP's own (the stack's state at rest is 1 KB; ARP, DHCP, mDNS and the ACKs it sends)
+// again, ran out none. Gate 2, on sockets: every byte sent is copied into this heap and held there until the client
+// acknowledges it, by every TCP connection lwIP keeps, those the server has closed and that still wait for their last
+// acknowledgment included. So it is sized by that bound, not by a soak: MEMP_NUM_TCP_PCB (12) connections of
+// TCP_SND_BUF (2 segments) with their headers, about 37 KB, and lwIP's own (1 KB at rest; ARP, DHCP, mDNS, the ACKs).
+// 24 KB, sized for the server's six slots alone, ran out 54 times under a tuning session's load. The 16 KB more is
+// taken from the FreeRTOS heap (FreeRTOSConfig.h), which had some 75 KB free through every soak
 #undef MEM_SIZE
-#define MEM_SIZE 24576
+#define MEM_SIZE 40960
 
 #endif

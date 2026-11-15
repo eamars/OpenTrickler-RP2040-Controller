@@ -181,7 +181,7 @@ static bool api_v1_load_more(void *ctx, char *buf, size_t room, size_t *len) {
         http_json_raw(buf, room, len, "{\"columns\":[");
         for (uint16_t col = 0; col < load->columns; col += 1) {
             char name[12];
-            snprintf(name, sizeof(name), "%sc%u", col ? "," : "", (unsigned) col);
+            snprintf(name, sizeof(name), "%s\"c%u\"", col ? "," : "", (unsigned) col);
             http_json_raw(buf, room, len, name);
         }
         http_json_raw(buf, room, len, "],\"rows\":[");
