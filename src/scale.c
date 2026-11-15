@@ -537,59 +537,6 @@ bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * curre
 }
 
 
-bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings:
-    // s0 (int): driver index
-    // s1 (int): baud rate index
-    // s2 (int): uart format index
-    // ee (bool): save to eeprom
-
-    static char scale_config_to_json_buffer[256];
-    bool save_to_eeprom = false;
-
-    // Set value
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "s0") == 0) {
-            scale_driver_t driver_idx = (scale_driver_t) atoi(values[idx]);
-            set_scale_driver(driver_idx);
-        }
-        else if (strcmp(params[idx], "s1") == 0) {
-            scale_baudrate_t baudrate_idx = (scale_baudrate_t) atoi(values[idx]);
-            set_scale_baudrate(baudrate_idx);
-        }
-        else if (strcmp(params[idx], "s2") == 0) {
-            scale_uart_format_t uart_format_idx = (scale_uart_format_t) atoi(values[idx]);
-            set_scale_uart_format(uart_format_idx);
-        }
-        else if (strcmp(params[idx], "ee") == 0) {
-            save_to_eeprom = string_to_boolean(values[idx]);
-        }
-    }
-
-    // Perform action
-    if (save_to_eeprom) {
-        scale_config_save();
-    }
-
-    snprintf(scale_config_to_json_buffer, 
-             sizeof(scale_config_to_json_buffer),
-             "%s"
-             "{\"s0\":%d,\"s1\":%d,\"s2\":%d}", 
-             http_json_header,
-             scale_config.persistent_config.scale_driver, 
-             scale_config.persistent_config.scale_baudrate,
-             scale_config.persistent_config.scale_uart_format);
-    
-    size_t data_length = strlen(scale_config_to_json_buffer);
-    file->data = scale_config_to_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}
-
-
 bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]) {
     // Mappings:
     // a0 (scale_action_t): Command to the scale

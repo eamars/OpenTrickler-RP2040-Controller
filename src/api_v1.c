@@ -22,10 +22,16 @@
 #include "profile.h"
 #include "scale.h"
 #include "display.h"
+#include "eeprom.h"
 #include "settings.h"
+#include "version.h"
+
+#include "pico/rand.h"
+#include "pico/time.h"
 
 
 extern charge_mode_config_t charge_mode_config;
+extern char host_name[18];
 
 // /debug/load's bounds: well past a throw's 650 rows of 16 columns
 #define API_V1_LOAD_ROWS_MAX 2000
@@ -276,6 +282,143 @@ static void api_v1_get_debug_wait(const http_server_request_t *request, http_ser
 }
 
 
+/*
+    GET /api/v1, the index (gate 3): what the unit is, a guide in plain words, and each path with its methods. The
+    settings' paths come from their tables; the rest are below. /api/v1/debug is not part of v1, and not listed.
+*/
+typedef struct {
+    const char *path;
+    const char *methods;    // as JSON: a list
+    const char *about;
+} api_v1_resource_t;
+
+static const api_v1_resource_t api_v1_resources[] = {
+    {"/api/v1", "[\"GET\"]", "this index"},
+    {"/api/v1/schema", "[\"GET\"]",
+     "every settings resource's fields: type, unit, limits or choices, access, when each applies and when it is "
+     "refused; the actions' bodies; the error codes"},
+    {"/api/v1/settings", "[\"GET\"]",
+     "every setting and powder profile in one document, with the firmware's version: the export. An import is a "
+     "PATCH of each resource in turn"},
+    {"/api/v1/settings/save", "[\"POST\"]", "stores every setting and the powder profiles"},
+    {"/api/v1/powder_profiles", "[\"GET\"]", "the powder profiles' ids and names, and whether they are stored"},
+    {"/api/v1/charge", "[\"GET\"]", "the charge: its state, target, powder profile, the weight, the throw's time"},
+    {"/api/v1/display", "[\"GET\"]", "the screen's size and the format of its frame"},
+    {"/api/v1/display/frame", "[\"GET\"]", "the screen's frame, as the display holds it"},
+};
+
+static const char api_v1_guide[] =
+    "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at "
+    "once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or "
+    "when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, "
+    "and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: "
+    "the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, "
+    "the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the "
+    "scale's own unit. The unit cannot know what is in the cup, nor whether the hopper holds powder. Charges are "
+    "started and stopped at the unit, or over the old /rest/ paths, until API v1's commands come.";
+
+static uint32_t api_v1_boot = 0;        // new at each start, so a client sees a restart (api_v1.md, the index)
+
+typedef struct {
+    uint8_t phase;      // 0 the head, 1 the guide, 2 api_v1_resources, 3 the settings' paths, 4 their saves, 5 the end
+    uint8_t idx;
+} api_v1_index_t;
+
+
+static void api_v1_index_resource(char *out, size_t room, size_t *len, bool first, const char *path,
+                                  const char *methods, const char *about) {
+    http_json_raw(out, room, len, first ? "{\"path\":" : ",{\"path\":");
+    http_json_string(out, room, len, path);
+    http_json_raw(out, room, len, ",\"methods\":");
+    http_json_raw(out, room, len, methods);
+    http_json_raw(out, room, len, ",\"about\":");
+    http_json_string(out, room, len, about);
+    http_json_raw(out, room, len, "}");
+}
+
+
+static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_index_t *index = ctx;
+    *len = 0;
+    if (index->phase == 0) {
+        char unit_id[9];
+        eeprom_get_board_id(unit_id, 8);
+        unit_id[8] = '\0';
+        http_json_raw(buf, room, len, "{\"api\":\"1\",\"firmware\":{\"version\":");
+        http_json_string(buf, room, len, version_string);
+        http_json_raw(buf, room, len, ",\"vcs\":");
+        http_json_string(buf, room, len, vcs_hash);
+        http_json_raw(buf, room, len, ",\"build\":");
+        http_json_string(buf, room, len, build_type);
+#if PICO_RP2350
+        http_json_raw(buf, room, len, "},\"board\":\"pico2_w\",\"unit_id\":");
+#else
+        http_json_raw(buf, room, len, "},\"board\":\"pico_w\",\"unit_id\":");
+#endif
+        http_json_string(buf, room, len, unit_id);
+        http_json_raw(buf, room, len, ",\"hostname\":");
+        http_json_string(buf, room, len, host_name);
+        http_json_raw(buf, room, len, ",\"boot\":");
+        http_json_integer(buf, room, len, (long) api_v1_boot);
+        http_json_raw(buf, room, len, ",\"uptime_s\":");
+        http_json_integer(buf, room, len, (long) (time_us_64() / 1000000u));
+        http_json_raw(buf, room, len, ",\"features\":[],\"guide\":");
+        index->phase = 1;
+        return true;
+    }
+    if (index->phase == 1) {
+        http_json_string(buf, room, len, api_v1_guide);
+        http_json_raw(buf, room, len, ",\"resources\":[");
+        index->phase = 2;
+        return true;
+    }
+    if (index->phase == 2) {
+        // A path a chunk
+        const api_v1_resource_t *resource = &api_v1_resources[index->idx];
+        api_v1_index_resource(buf, room, len, index->idx == 0, resource->path, resource->methods, resource->about);
+        index->idx += 1;
+        if (index->idx >= sizeof(api_v1_resources) / sizeof(api_v1_resources[0])) {
+            index->phase = 3;
+            index->idx = 0;
+        }
+        return true;
+    }
+    if (index->phase == 3 || index->phase == 4) {
+        // A settings' path a chunk: its GET and PATCH, then its save path where it is the first to have it
+        const settings_resource_t *resource = settings_resource_at(index->idx);
+        if (resource == NULL) {
+            index->phase = index->phase == 3 ? 4 : 5;
+            index->idx = 0;
+            return true;
+        }
+        index->idx += 1;
+        if (index->phase == 3) {
+            api_v1_index_resource(buf, room, len, false, resource->path, "[\"GET\",\"PATCH\"]", resource->about);
+            return true;
+        }
+        for (size_t earlier = 0; earlier + 1 < index->idx; earlier += 1) {
+            if (strcmp(settings_resource_at(earlier)->save_path, resource->save_path) == 0) {
+                return true;    // stored with another: listed once
+            }
+        }
+        char about[96];
+        snprintf(about, sizeof(about), "stores %s", resource->label);
+        api_v1_index_resource(buf, room, len, false, resource->save_path, "[\"POST\"]", about);
+        return true;
+    }
+    http_json_raw(buf, room, len, "]}");
+    return false;
+}
+
+
+static void api_v1_get_index(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    api_v1_index_t *index = http_server_reply_context(reply, sizeof(api_v1_index_t));
+    memset(index, 0, sizeof(*index));
+    http_server_reply_stream(reply, 200, "application/json", api_v1_index_more, index);
+}
+
+
 // GET /api/v1/powder_profiles: saved, and each profile's id and name (gate 3). Which the next throw uses is the
 // charge's powder_profile
 static void api_v1_get_powder_profiles(const http_server_request_t *request, http_server_reply_t *reply) {
@@ -304,6 +447,8 @@ static void api_v1_get_powder_profiles(const http_server_request_t *request, htt
 
 bool api_v1_init(void) {
     bool ok = true;
+    api_v1_boot = get_rand_32();
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1", api_v1_get_index);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
     // Every module's settings' table, registered at its start (gate 3)
     settings_add_routes();

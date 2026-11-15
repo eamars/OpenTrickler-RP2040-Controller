@@ -101,14 +101,14 @@ MENU_TOUR_IDS = range(1, 100)
 # Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
 MENU_TOUR_LIVE_FORMS = {36: "version info: the version, hash and build of the image"}
 
-# The web API paths `settings` reads. Each answers a GET with no parameters with what is stored, and does nothing
-# else; a parameter can change the unit (AGENTS.md), so none is sent. profile_config with no parameter gives the
-# selected profile, and profile_summary every profile's name.
-SETTINGS_PATHS = ["charge_mode_config", "coarse_motor_config", "fine_motor_config", "mini_12864_config",
-                  "neopixel_led_config", "profile_config", "profile_summary", "scale_config", "servo_gate_config",
-                  "system_control", "wireless_config"]
-# Fields that change with the image, not with the stored settings: reported, not judged, by --compare
-SETTINGS_LIVE_FIELDS = {"system_control": {"s1": "the version", "s2": "the vcs hash", "s3": "the build type"}}
+# The settings over API v1 (ADR-003, gate 3). GET /api/v1/settings gives every settings resource and powder profile
+# in one document, which `settings` keeps and compares field by field; a GET changes nothing (api_v1.md). The
+# settings page reads a resource as its section is opened: the soak reads them so
+SETTINGS_EXPORT = "api/v1/settings"
+SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse", "api/v1/settings/motors/fine",
+                       "api/v1/settings/scale", "api/v1/settings/gate", "api/v1/settings/leds",
+                       "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
+                       "api/v1/powder_profiles/0"]
 HTTP_TIMEOUT_S = 5.0
 SETTINGS_TRIES = 3
 
@@ -1007,41 +1007,41 @@ class Session:
         """
         out_dir = Path(save_dir) if save_dir else LOG_DIR / "settings" / self.log.path.stem
         out_dir.mkdir(parents=True, exist_ok=True)
-        read = {}
-        for name in SETTINGS_PATHS:
-            # Up to SETTINGS_TRIES tries: this compares what is stored; how well the web answers is soak's to judge
-            for attempt in range(1, SETTINGS_TRIES + 1):
-                try:
-                    read[name] = json.loads(http_get(host, f"rest/{name}"))
-                    break
-                except (OSError, ValueError) as error:
-                    self.log.write("rc", f"settings: rest/{name}, try {attempt}: {error}")
-            if name not in read:
-                self.fail(f"settings: rest/{name}: no right answer in {SETTINGS_TRIES} tries")
-                continue
-            (out_dir / f"{name}.json").write_text(json.dumps(read[name], indent=1, sort_keys=True) + "\n",
-                                                  encoding="utf-8")
-        self.log.write("rc", f"settings: {len(read)} of {len(SETTINGS_PATHS)} paths read, kept in {out_dir}")
+        read = None
+        # Up to SETTINGS_TRIES tries: this compares what is stored; how well the web answers is soak's to judge
+        for attempt in range(1, SETTINGS_TRIES + 1):
+            try:
+                read = json.loads(http_get(host, SETTINGS_EXPORT))
+                break
+            except (OSError, ValueError) as error:
+                self.log.write("rc", f"settings: {SETTINGS_EXPORT}, try {attempt}: {error}")
+        if read is None or "resources" not in read:
+            self.fail(f"settings: {SETTINGS_EXPORT}: no right answer in {SETTINGS_TRIES} tries")
+            return
+        (out_dir / "settings.json").write_text(json.dumps(read, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        self.log.write("rc", f"settings: {len(read['resources'])} resources read, firmware "
+                             f"{read['firmware']['version']}, kept in {out_dir}")
 
         if compare_dir is None:
             return
-        for name in SETTINGS_PATHS:
-            reference = Path(compare_dir) / f"{name}.json"
-            if not reference.exists():
-                self.fail(f"settings: {reference} does not exist")
+        reference = Path(compare_dir) / "settings.json"
+        if not reference.exists():
+            self.fail(f"settings: {reference} does not exist (a copy of API v1's export)")
+            return
+        before = json.loads(reference.read_text(encoding="utf-8"))
+        # The firmware's version is not a setting: reported, not judged
+        if before.get("firmware") != read.get("firmware"):
+            self.log.write("rc", f"settings: the firmware differs, not judged: {before.get('firmware')} -> "
+                                 f"{read.get('firmware')}")
+        old_resources, new_resources = before["resources"], read["resources"]
+        for path in sorted(set(old_resources) | set(new_resources)):
+            if path not in old_resources or path not in new_resources:
+                self.fail(f"settings: {path} is {'gone' if path in old_resources else 'new'}")
                 continue
-            if name not in read:
-                continue
-            before = json.loads(reference.read_text(encoding="utf-8"))
-            for key in sorted(set(before) | set(read[name])):
-                old, new = before.get(key), read[name].get(key)
-                if old == new:
-                    continue
-                live = SETTINGS_LIVE_FIELDS.get(name, {}).get(key)
-                if live:
-                    self.log.write("rc", f"settings: {name} {key} differs, not judged ({live}): {old!r} -> {new!r}")
-                else:
-                    self.fail(f"settings: {name} {key} was {old!r}, is {new!r}")
+            old, new = old_resources[path], new_resources[path]
+            for key in sorted(set(old) | set(new)):
+                if old.get(key) != new.get(key):
+                    self.fail(f"settings: {path} {key} was {old.get(key)!r}, is {new.get(key)!r}")
 
     def web_debug(self, host):
         """
@@ -1056,6 +1056,113 @@ class Session:
             self.log.write("rc", f"api/v1/debug: {error}")
             return None
 
+    def settings_roundtrip(self, host, target):
+        """
+        The proof of gate 3's tables (ADR-003): every setting read, written back as it was read, and read again,
+        unchanged; for each field a value outside its limits refused, the resource unchanged; a write during a
+        throw refused; and each resource as saved at the end as at the start. Nothing on the unit is changed.
+
+        Args:
+            host: the unit's address.
+            target: the charge started for the write during a throw, with the simulated scale.
+        """
+        def call(method, path, body=None):
+            data = None if body is None else json.dumps(body).encode()
+            request = urllib.request.Request(f"http://{host}{path}", data=data, method=method)
+            if data is not None:
+                request.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
+                    return reply.status, json.loads(reply.read())
+            except urllib.error.HTTPError as error:
+                return error.code, json.loads(error.read())
+
+        def outside(field):
+            """A value of the field's that it must refuse, and why; None when it has none to refuse."""
+            kind = field["type"]
+            if kind in ("number", "integer"):
+                if "max" in field:
+                    return field["max"] + max(1, abs(field["max"]) // 2), "above its most"
+                if "min" in field:
+                    return field["min"] - 1, "below its least"
+                return None
+            if kind == "choice":
+                numbers = isinstance(field["choices"][0]["value"], (int, float))
+                return (123457 if numbers else "not_a_choice"), "not one of its choices"
+            if kind == "string":
+                return "x" * (field["max_length"] + 1), "too long"
+            if kind == "boolean":
+                return "yes", "not true or false"
+            if kind == "colour":
+                return "red", "not #rrggbb"
+            return None
+
+        status, schema = call("GET", "/api/v1/schema")
+        status_export, export = call("GET", "/api/v1/settings")
+        if status != 200 or status_export != 200:
+            self.fail(f"settings_roundtrip: the schema ({status}) or the export ({status_export}) not read")
+            return
+        fields_of = {resource["path"]: resource["fields"] for resource in schema["resources"]}
+        written = refused = 0
+        for path, before in export["resources"].items():
+            fields = fields_of[re.sub(r"/\d+$", "/{id}", path)]
+            writable = {f["name"] for f in fields if f.get("access") == "read_write"}
+            body = {name: value for name, value in before.items() if name in writable}
+            status, reply = call("PATCH", path, body)
+            status_again, again = call("GET", path)
+            if status != 200 or again != before:
+                changed = {k: (before.get(k), again.get(k)) for k in set(before) | set(again)
+                           if before.get(k) != again.get(k)}
+                self.fail(f"settings_roundtrip: {path} written back: {status} {reply.get('error')}, changed {changed}")
+            written += len(body)
+            for field in fields:
+                bad = outside(field)
+                if bad is None:
+                    continue
+                value, why = bad
+                status, reply = call("PATCH", path, {field["name"]: value})
+                status_again, again = call("GET", path)
+                if status != 400 or again != before:
+                    self.fail(f"settings_roundtrip: {path} {field['name']}={value!r} ({why}): {status}, "
+                              f"{'unchanged' if again == before else 'CHANGED'}")
+                refused += 1
+        self.log.write("rc", f"settings_roundtrip: {len(export['resources'])} resources, {written} fields written back "
+                             f"unchanged, {refused} values outside their limits refused")
+
+        # A write during a throw: the charge's settings and the motors' refused, the charge undisturbed
+        charge_settings = export["resources"]["/api/v1/settings/charge"]
+        if self.send("sim on") is None or self.send(f"charge {target:g}") is None or self.failures:
+            return
+        deadline = time.monotonic() + 30
+        state = None
+        while time.monotonic() < deadline:
+            state = call("GET", "/api/v1/charge")[1].get("state")
+            if state == "charging":
+                break
+            time.sleep(0.2)
+        if state != "charging":
+            self.fail(f"settings_roundtrip: the charge did not start pouring ({state})")
+        else:
+            for path, body in (("/api/v1/settings/charge",
+                                {"fine_stop_threshold": charge_settings["fine_stop_threshold"]}),
+                               ("/api/v1/settings/motors/coarse",
+                                {"current_ma": export["resources"]["/api/v1/settings/motors/coarse"]["current_ma"]})):
+                status, reply = call("PATCH", path, body)
+                self.log.write("rc", f"settings_roundtrip: {path} during a throw: {status} "
+                                     f"{reply.get('error', {}).get('message', '')}")
+                if status != 409:
+                    self.fail(f"settings_roundtrip: {path} written during a throw: {status}, not 409")
+        self.send("charge stop")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and call("GET", "/api/v1/charge")[1].get("state") != "idle":
+            time.sleep(0.2)
+        self.send("sim off")
+
+        # Nothing changed: each resource as stored as it was
+        status, after = call("GET", "/api/v1/settings")
+        if after.get("resources") != export["resources"]:
+            self.fail("settings_roundtrip: the settings at the end differ from those at the start")
+
     def web_robust(self, host):
         """
         Requests that are wrong, cut off or awkward (ADR-003, gate 2), each answered or closed, with the unit still
@@ -1067,9 +1174,26 @@ class Session:
             host: the unit's address.
         """
         own = f"Host: {host}\r\n".encode()
+
+        def write(method, path, body, content_type=b"application/json"):
+            return (method + b" " + path + b" HTTP/1.1\r\n" + own + b"Content-Type: " + content_type +
+                    b"\r\nContent-Length: " + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body)
+
+        # The writes (gate 3) are each refused, or change nothing: the unit's settings are as they were
+        leds = b"/api/v1/settings/leds"
         cases = [
-            ("a value with no '='", b"GET /rest/scale_config?ee HTTP/1.1\r\n" + own + b"Connection: close\r\n\r\n",
-             200),
+            ("a write that is not JSON", write(b"PATCH", leds, b"{nope"), 400),
+            ("a JSON list", write(b"PATCH", leds, b"[1,2]"), 400),
+            ("a field that is an object", write(b"PATCH", leds, b'{"led1_colour":{"r":1}}'), 400),
+            ("a field given twice", write(b"PATCH", leds, b'{"pwm3_chain_count":2,"pwm3_chain_count":3}'), 400),
+            ("an unknown field", write(b"PATCH", leds, b'{"nope":1}'), 400),
+            ("a value of the wrong type", write(b"PATCH", leds, b'{"pwm3_chain_count":"2"}'), 400),
+            ("a PATCH of text", write(b"PATCH", leds, b"{}", b"text/plain"), 415),
+            ("an empty PATCH", write(b"PATCH", leds, b"{}"), 200),
+            ("a save with a field", write(b"POST", leds + b"/save", b'{"x":1}'), 400),
+            ("no such powder profile", write(b"PATCH", b"/api/v1/powder_profiles/9", b"{}"), 404),
+            ("a value with no '='", b"GET /rest/charge_mode_state?ee HTTP/1.1\r\n" + own +
+             b"Connection: close\r\n\r\n", 200),
             ("a Cookie of 6 KB, passed over", b"GET /api/v1/charge HTTP/1.1\r\n" + own +
              b"Cookie: a=" + b"x" * 6000 + b"\r\nConnection: close\r\n\r\n", 200),
             ("headers over 8 KB", b"GET /api/v1/charge HTTP/1.1\r\n" + own + b"Cookie: a=" + b"x" * 5000 +
@@ -1082,7 +1206,8 @@ class Session:
              b"\r\n", 405),
             ("HTTP/2.0", b"GET /api/v1/charge HTTP/2.0\r\n" + own + b"\r\n", 400),
             ("another Host, the API", b"GET /api/v1/charge HTTP/1.1\r\nHost: evil.example\r\n\r\n", 403),
-            ("another Host, an old path", b"GET /rest/scale_config HTTP/1.1\r\nHost: evil.example\r\n\r\n", 403),
+            ("another Host, an old path", b"GET /rest/charge_mode_state HTTP/1.1\r\nHost: evil.example\r\n\r\n",
+             403),
             ("another Host, a page", b"GET / HTTP/1.1\r\nHost: evil.example\r\nConnection: close\r\n\r\n", 302),
             ("a POST with no type", b"POST /api/v1/charge HTTP/1.1\r\n" + own + b"Content-Length: 0\r\n\r\n", 415),
             ("a POST of text from a form", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
@@ -1125,6 +1250,16 @@ class Session:
         self.log.write("rc", f"web_robust: the page again with its ETag {etag}: {status}, {len(body)} bytes")
         if status != 304 or body:
             self.fail(f"web_robust: the page with its ETag gave {status} and {len(body)} bytes, not 304 and none")
+
+        # The schema's ETag (gate 3): a stream, answered 304 with nothing made
+        status, headers, _, _ = raw_exchange(host, b"GET /api/v1/schema HTTP/1.1\r\n" + own +
+                                             b"Connection: close\r\n\r\n")
+        etag = headers.get("etag", "")
+        status, _, body, _ = raw_exchange(host, b"GET /api/v1/schema HTTP/1.1\r\n" + own + b"If-None-Match: " +
+                                          etag.encode() + b"\r\nConnection: close\r\n\r\n")
+        self.log.write("rc", f"web_robust: the schema again with its ETag {etag}: {status}, {len(body)} bytes")
+        if not etag or status != 304 or body:
+            self.fail(f"web_robust: the schema with its ETag {etag!r} gave {status} and {len(body)} bytes, not 304")
 
         # Seven clients at once, each with a request: six slots, so the seventh waits its turn or takes an idle one
         socks = []
@@ -1231,8 +1366,9 @@ class Session:
         def read_state():
             return "state" in json.loads(http_get(host, "api/v1/charge"))
 
-        def read_setting(name):
-            return lambda: bool(json.loads(http_get(host, f"rest/{name}")))
+        def read_setting(path):
+            # A settings resource carries saved; the export, its resources
+            return lambda: bool(set(json.loads(http_get(host, path))) & {"saved", "resources"})
 
         def read_mirror_right():
             return len(http_get(host, "api/v1/display/frame")) == MIRROR_BYTES
@@ -1247,7 +1383,8 @@ class Session:
             pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)], self.log))
         pollers.append(WebPoller("portal page", SOAK_PAGE_S, [("", read_page)], self.log))
         pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
-                                 [(name, read_setting(name)) for name in SETTINGS_PATHS], self.log))
+                                 [(path, read_setting(path)) for path in SETTINGS_PAGE_PATHS + [SETTINGS_EXPORT]],
+                                 self.log))
         if load:
             pollers.append(WebPoller("tuning load", 0.0, [("", read_load)], self.log))
             pollers.append(WebPoller("fast client", SOAK_LOAD_FAST_S, [("", read_state)], self.log))
@@ -1279,7 +1416,7 @@ class Session:
         for poller in pollers:
             poller.stop_event.set()
         for poller in pollers:
-            poller.join(timeout=HTTP_TIMEOUT_S * len(SETTINGS_PATHS) + 1)
+            poller.join(timeout=HTTP_TIMEOUT_S * (len(SETTINGS_PAGE_PATHS) + 1) + 1)
         time.sleep(SOAK_QUIET_S)
         quiet_end = self.stats()
 
@@ -1449,15 +1586,17 @@ class Session:
                     time.sleep(2.0)
             return None
 
+        charge = read_json("api/v1/charge")
         readings = [read_json(path) for path in
-                    ("rest/profile_config", "rest/coarse_motor_config", "rest/fine_motor_config", "rest/charge_mode_config")]
-        if any(reading is None for reading in readings):
+                    (f"api/v1/powder_profiles/{charge['powder_profile'] if charge else 0}",
+                     "api/v1/settings/motors/coarse", "api/v1/settings/motors/fine", "api/v1/settings/charge")]
+        if charge is None or any(reading is None for reading in readings):
             self.fail("charge_fault: the unit's settings could not be read over the web")
             return
         profile, coarse_motor, fine_motor, charge_config = readings
-        coarse_max = min(float(profile["p7"]), float(coarse_motor["m4"]))
-        fine_max = min(float(profile["p12"]), float(fine_motor["m4"]))
-        threshold = float(charge_config["c6"])
+        coarse_max = min(float(profile["coarse_max_speed_rps"]), float(coarse_motor["max_speed_rps"]))
+        fine_max = min(float(profile["fine_max_speed_rps"]), float(fine_motor["max_speed_rps"]))
+        threshold = float(charge_config["fine_stop_threshold"])
         self.log.write("rc", f"charge_fault: {fault} at {at_weight:g} of {target:g}; full speed coarse {coarse_max:g}, "
                              f"fine {fine_max:g} rev/s; fine stop threshold {threshold:g}; {rate:g} readings a second")
 
@@ -1769,6 +1908,11 @@ def main():
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
     robust_parser = sub.add_parser("web_robust", help="wrong and awkward requests, each answered or closed (ADR-003)")
     robust_parser.add_argument("--host", required=True, help="the unit's address")
+    roundtrip_parser = sub.add_parser("settings_roundtrip",
+                                      help="every setting written back unchanged, each value outside its limits "
+                                           "refused, a write during a throw refused (ADR-003, gate 3)")
+    roundtrip_parser.add_argument("--host", required=True, help="the unit's address")
+    roundtrip_parser.add_argument("--target", type=float, default=30.0, help="the charge's weight for the throw")
     soak_parser = sub.add_parser("soak", help="charges back to back while two browsers use the web pages")
     soak_parser.add_argument("seconds", type=float, help="how long; chosen for the change being proven")
     soak_parser.add_argument("--host", required=True, help="the unit's address")
@@ -1824,6 +1968,8 @@ def main():
         session.settings(args.host, args.save, args.compare)
     elif args.command == "web_robust":
         session.web_robust(args.host)
+    elif args.command == "settings_roundtrip":
+        session.settings_roundtrip(args.host, args.target)
     elif args.command == "soak":
         session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run,
                      args.load)

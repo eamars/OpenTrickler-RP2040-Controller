@@ -63,7 +63,6 @@ extern fds_t fds_data[];
 extern const size_t muif_cnt;
 
 
-
 void _isr_on_encoder_update(uint gpio, uint32_t event){
     static uint8_t state = 2;
     static int8_t count = 0;
@@ -243,7 +242,6 @@ void button_init() {
 }
 
 
-
 uint8_t u8x8_gpio_and_delay(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
     switch(msg)
@@ -353,7 +351,6 @@ uint8_t u8x8_byte_pico_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *
 }
 
 
-
 void display_init() {
     // Configure 12864
     printf("Initializing Display Task -- ");
@@ -427,7 +424,6 @@ void display_init() {
 }
 
 
-
 bool http_rest_button_control(struct fs_file *file, int num_params, char *params[], char *values[]) {
     static char button_control_json_buffer[256];
     memset(button_control_json_buffer, 0x0, sizeof(button_control_json_buffer));
@@ -492,46 +488,3 @@ bool http_rest_button_control(struct fs_file *file, int num_params, char *params
 }
 
 
-bool http_rest_mini_12864_module_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings:
-    // b0 (bool): inverted_encoder_direction
-    // ee (bool): save to eeprom
-    static char buf[128];
-    bool save_to_eeprom = false;
-
-    // Control
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "b0") == 0) {
-            bool inverted_encoder_direction = string_to_boolean(values[idx]);
-            mini_12864_module_config.inverted_encoder_direction = inverted_encoder_direction;
-        }
-        if (strcmp(params[idx], "b1") == 0) {
-            display_rotation_t display_rotation = (display_rotation_t) atoi(values[idx]);
-            mini_12864_module_config.display_rotation = display_rotation;
-        }
-        else if (strcmp(params[idx], "ee") == 0) {
-            save_to_eeprom = string_to_boolean(values[idx]);
-        }
-    }
-
-    // Perform action
-    if (save_to_eeprom) {
-        mini_12864_module_config_save();
-    }
-
-    // Response
-    snprintf(buf, sizeof(buf), 
-             "%s"
-             "{\"b0\":%s, \"b1\":%d}", 
-             http_json_header,
-             boolean_to_string(mini_12864_module_config.inverted_encoder_direction),
-             mini_12864_module_config.display_rotation);
-    
-    size_t response_len = strlen(buf);
-    file->data = buf;
-    file->len = response_len;
-    file->index = response_len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}

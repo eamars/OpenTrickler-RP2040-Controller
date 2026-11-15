@@ -145,7 +145,6 @@ void scale_write(const char * command, size_t len);
 
 // REST
 bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 // Features

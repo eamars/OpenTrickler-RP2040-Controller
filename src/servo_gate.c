@@ -71,7 +71,6 @@ static void _servo_gate_set_current_state(float open_ratio) {
 }
 
 
-
 void servo_gate_set_ratio(gate_ratio_t ratio, bool block_wait) {
     float r = (ratio == SERVO_GATE_RATIO_DISABLED) ? SERVO_GATE_RATIO_DISABLED : clamp01(ratio);
     
@@ -351,74 +350,3 @@ bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *para
 }
 
 
-bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings
-    // c0 (bool): servo_gate_enable
-    // c1 (float): shutter0_close_duty_cycle
-    // c2 (float): shutter0_open_duty_cycle
-    // c3 (float): shutter1_close_duty_cycle
-    // c4 (float): shutter1_open_duty_cycle
-    // c5 (float): shutter_close_speed_pct_s
-    // c6 (float): shutter_open_speed_pct_s
-    // ee (bool): save_to_eeprom
-
-    static char servo_gate_json_buffer[256];
-    bool save_to_eeprom = false;
-
-
-    // Control
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "c0") == 0) {
-            bool enable = string_to_boolean(values[idx]);
-            servo_gate.eeprom_servo_gate_config.servo_gate_enable = enable;
-        }
-        else if (strcmp(params[idx], "c1") == 0) {
-            servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle = strtof(values[idx], NULL);;
-        }
-        else if (strcmp(params[idx], "c2") == 0) {
-            servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle = strtof(values[idx], NULL);;
-        }
-        else if (strcmp(params[idx], "c3") == 0) {
-            servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle = strtof(values[idx], NULL);;
-        }
-        else if (strcmp(params[idx], "c4") == 0) {
-            servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle = strtof(values[idx], NULL);;
-        }
-        else if (strcmp(params[idx], "c5") == 0) {
-            servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s = strtof(values[idx], NULL);;
-        }
-        else if (strcmp(params[idx], "c6") == 0) {
-            servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s = strtof(values[idx], NULL);;
-        }
-        else if (strcmp(params[idx], "ee") == 0) {
-            save_to_eeprom = string_to_boolean(values[idx]);
-        }
-    }
-
-    // Perform action
-    if (save_to_eeprom) {
-        servo_gate_config_save();  // Note: this will save settings for both
-    }
-    
-    // Response
-    snprintf(servo_gate_json_buffer, 
-             sizeof(servo_gate_json_buffer),
-             "%s"
-             "{\"c0\":%s,\"c1\":%0.3f,\"c2\":%0.3f,\"c3\":%0.3f,\"c4\":%0.3f,\"c5\":%0.3f,\"c6\":%0.3f}",
-             http_json_header,
-             boolean_to_string(servo_gate.eeprom_servo_gate_config.servo_gate_enable),
-             servo_gate.eeprom_servo_gate_config.shutter0_close_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.shutter0_open_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.shutter1_close_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.shutter1_open_duty_cycle,
-             servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s,
-             servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s);
-
-    size_t data_length = strlen(servo_gate_json_buffer);
-    file->data = servo_gate_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}

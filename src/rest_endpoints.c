@@ -88,23 +88,16 @@ bool rest_endpoints_init(bool default_wizard) {
     http_server_add_route(HTTP_SERVER_GET, "/wizard", rest_get_wizard);
     http_server_add_route(HTTP_SERVER_GET, "/display_mirror", rest_get_mirror);
 
-    // The old paths, through the adapter, until gate 4 (ADR-003)
+    // The old paths, through the adapter, until gate 4 (ADR-003). The settings' went in gate 3, their forms on API
+    // v1; profile_config stays for the charge page's choice of profile, wireless_config for the wizard
     rest_register_handler("/rest/scale_action", http_rest_scale_action);
-    rest_register_handler("/rest/scale_config", http_rest_scale_config);
-    rest_register_handler("/rest/charge_mode_config", http_rest_charge_mode_config);
     rest_register_handler("/rest/charge_mode_state", http_rest_charge_mode_state);
     rest_register_handler("/rest/cleanup_mode_state", http_rest_cleanup_mode_state);
     rest_register_handler("/rest/system_control", http_rest_system_control);
-    rest_register_handler("/rest/coarse_motor_config", http_rest_coarse_motor_config);
-    rest_register_handler("/rest/fine_motor_config", http_rest_fine_motor_config);
     rest_register_handler("/rest/button_control", http_rest_button_control);
-    rest_register_handler("/rest/mini_12864_config", http_rest_mini_12864_module_config);
     rest_register_handler("/rest/wireless_config", http_rest_wireless_config);
-    rest_register_handler("/rest/neopixel_led_config", http_rest_neopixel_led_config);
     rest_register_handler("/rest/profile_config", http_rest_profile_config);
-    rest_register_handler("/rest/profile_summary", http_rest_profile_summary);
     rest_register_handler("/rest/servo_gate_state", http_rest_servo_gate_state);
-    rest_register_handler("/rest/servo_gate_config", http_rest_servo_gate_config);
     rest_register_handler("/display_buffer", http_get_display_buffer);
 
     // API v1

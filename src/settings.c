@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "activity.h"
+#include "eeprom.h"
 #include "http_json.h"
 #include "http_server.h"
 #include "settings.h"
@@ -755,8 +756,13 @@ static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len)
     export_context_t *export = ctx;
     *len = 0;
     if (export->phase == 0) {
+        char unit_id[9];
+        eeprom_get_board_id(unit_id, 8);
+        unit_id[8] = '\0';
         http_json_raw(buf, room, len, "{\"api\":\"1\",");
         write_firmware(buf, room, len);
+        http_json_raw(buf, room, len, ",\"unit_id\":");
+        http_json_string(buf, room, len, unit_id);
         http_json_raw(buf, room, len, ",\"resources\":{");
         export->phase = 1;
         export->resource = 0;

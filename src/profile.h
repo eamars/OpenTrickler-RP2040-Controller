@@ -62,7 +62,6 @@ bool profile_data_is_saved(void);
 
 // REST interface
 bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_profile_summary(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus
