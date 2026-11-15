@@ -89,3 +89,4 @@ Built at 0398515 (1.20.155): a request's values static (step 3), a reply in RAM 
 - The pool of TCP connections ends each soak full, 12 of 12, most in TIME_WAIT, and lwIP takes the oldest of those when it needs one: it never failed. The server of gate 2 is measured against it with `net`.
 - No stored struct changed; the unit's settings are as they were.
 - **Left of gate 1:** its image on the Pico 2 W, when the owner next puts that unit on the probe, before this ADR closes (the owner, 2026-11-15). Not a condition of its merge.
+- **Merged by the owner** 2026-11-15: PR #128, merge 0d02bdb, on the condition that `http_rest.c` is deleted in a later gate ("As long as the module is deleted, then I'm happy to merge"). Gates 2 to 4 go on in the same branch, from the merge.

@@ -1,6 +1,6 @@
 # ADR-003: a real HTTP REST server
 
-Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 from the owner's answers; the direction is settled ("Settled with the owner"). **Gate 1 is built**: approved by the owner 2026-11-15 ("Approve gate 1"), built and proven on the Pico W the same day, and merged by a PR of its own. lwIP's heap was the web's fault: at 4,000 bytes it failed 7,404 allocations and 8.92% of the web's reads were missed in a soak; at 16,384, none and 0 of 3,774. Its Pico 2 W run is left, before the ADR closes. What was built and measured is in [progress.md](progress.md). **Left:** gates 2 to 4, a first view; each is written in full, the API's table with gate 2, and approved before it is built.
+Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 from the owner's answers; the direction is settled ("Settled with the owner"). **Gate 1 is built**: approved by the owner 2026-11-15 ("Approve gate 1"), built and proven on the Pico W the same day, and merged by the owner by its own PR (#128, merge 0d02bdb). lwIP's heap was the web's fault: at 4,000 bytes it failed 7,404 allocations and 8.92% of the web's reads were missed in a soak; at 16,384, none and 0 of 3,774. Its Pico 2 W run is left, before the ADR closes. What was built and measured is in [progress.md](progress.md). **Left:** gates 2 to 4, a first view; each is written in full, the API's table with gate 2, and approved before it is built.
 
 ## What we want
 
@@ -32,6 +32,7 @@ Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 fro
 - **Today's paths and codes go,** with no time beside the new ones. Nothing outside the built-in pages calls them now ("Not right now"). The owner's OWMC firmware, not released, finds units by mDNS `_opentrickler._tcp` and polls `/rest/charge_mode_state` for `s0` to `s5` (`main/ui/views/opentrickler_remote_controller_view.c`). It moves to the new API when it comes back. The mDNS service stays.
 - **Each setting described once,** in this ADR.
 - **The REST API is the agent's door.** The console over Wi-Fi, as OWMC's ADR-013 built it, is not in this ADR. The console and the API share one table of names, so the two say the same.
+- **`http_rest.c` is deleted, not refactored** (the owner, merging gate 1: "As long as the module is deleted, then I'm happy to merge"). Gate 1's changes to it are a stopgap until gate 4. The ADR does not close while the file, or any copy of lwIP's file server, is in the tree.
 - **Gate 1 first,** on the Pico W, merged by its own PR. Gates 2 to 4 are reached in this ADR's branch and merged in one PR at its close, so no release carries two servers or half an API.
 - **The soaks of ADR-011's two firmwares in turn are dropped.** They change no decision: ADR-011 stays, and the old server goes. In their place both boards meet the same soak limits at the end. If the Pico 2 W alone does not, the RP2350's FreeRTOS port is the first suspect.
 
@@ -160,6 +161,7 @@ How the unit shows it works:
 - A request's body is read in pieces and handed to its handler; a reply is written in pieces.
 - Sockets with `select`, or lwIP's netconn: chosen in gate 2's text, on the trial's flash, RAM and soak.
 - The trial image serves the paths the soak reads, in the new API's form, with the old server off.
+- From gate 2 to gate 4, in this ADR's branch, the new server also serves the old `/rest/...` handlers through a thin adapter, so the portal works while its pages move one module at a time. The adapter, the old handlers and `http_rest.c` are deleted together in gate 4. Not a second server on another port: that would cost lwIP's memory twice. (Agreed by the owner 2026-11-15.)
 - It passes when the soak is within gate 1's limits on the Pico W, with flash and RAM given against gate 1's image.
 
 ### Gate 3: the API, each setting described once (first view)
