@@ -38,6 +38,12 @@ bool string_to_boolean(char * s);
 
 int float_to_string(char * output_decimal_str, float var, decimal_places_t decimal_places);
 
+/**
+ * @brief CRC-32 (zlib's) of bytes that come in pieces: the CRC so far, 0 at the start. The same value as Python's
+ * zlib.crc32 of the whole
+ */
+uint32_t software_crc32_continue(uint32_t crc, const void * data, size_t length);
+
 /** 
  * @brief Load configuration from persistent storage. 
  */

@@ -195,6 +195,13 @@ void http_json_integer(char *out, size_t room, size_t *len, long value) {
 }
 
 
+void http_json_unsigned(char *out, size_t room, size_t *len, uint32_t value) {
+    char text[16];
+    int n = snprintf(text, sizeof(text), "%lu", (unsigned long) value);
+    http_json_put(out, room, len, text, (size_t) n);
+}
+
+
 void http_json_bool(char *out, size_t room, size_t *len, bool value) {
     http_json_raw(out, room, len, value ? "true" : "false");
 }

@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "activity.h"
+#include "api_v1.h"
 #include "eeprom.h"
 #include "http_json.h"
 #include "http_server.h"
@@ -986,7 +987,8 @@ static const char *const settings_error_codes[] = {
 
 
 typedef struct {
-    uint8_t phase;      // 0 its head, 1 the resources, 2 the actions and the errors
+    uint8_t phase;      // 0 its head, 1 the resources, 2 the saves, 3 to 5 the commands, the states, the events
+                        // (api_v1_commands.c), 6 the errors
     uint8_t resource;
     uint8_t field;      // 0: the resource's head next
 } schema_context_t;
@@ -1052,25 +1054,63 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
         schema->phase = 2;
         return true;
     }
-    // The actions gate 3 has: each save, and the save of all; gate 4 adds the commands
-    http_json_raw(buf, room, len, "],\"actions\":[");
-    bool first = true;
-    for (size_t idx = 0; idx < resource_count; idx += 1) {
-        bool done_before = false;
-        for (size_t earlier = 0; earlier < idx; earlier += 1) {
-            done_before = done_before || strcmp(resources[earlier]->save_path, resources[idx]->save_path) == 0;
+    if (schema->phase == 2) {
+        // The actions: each save, and the save of all, then the commands'
+        http_json_raw(buf, room, len, "],\"actions\":[");
+        bool first = true;
+        for (size_t idx = 0; idx < resource_count; idx += 1) {
+            bool done_before = false;
+            for (size_t earlier = 0; earlier < idx; earlier += 1) {
+                done_before = done_before || strcmp(resources[earlier]->save_path, resources[idx]->save_path) == 0;
+            }
+            if (done_before) {
+                continue;
+            }
+            http_json_raw(buf, room, len, first ? "" : ",");
+            first = false;
+            http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
+            http_json_string(buf, room, len, resources[idx]->save_path);
+            http_json_raw(buf, room, len, ",\"fields\":[],\"refused_while\":\"never\","
+                                          "\"about\":\"stores what was written there\"}");
         }
-        if (done_before) {
-            continue;
-        }
-        http_json_raw(buf, room, len, first ? "" : ",");
-        first = false;
-        http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
-        http_json_string(buf, room, len, resources[idx]->save_path);
-        http_json_raw(buf, room, len, ",\"body\":{},\"about\":\"stores what was written there\"}");
+        http_json_raw(buf, room, len, ",{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\",\"fields\":[],"
+                                      "\"refused_while\":\"never\","
+                                      "\"about\":\"stores every setting and the powder profiles\"}");
+        schema->phase = 3;
+        schema->resource = 0;
+        return true;
     }
-    http_json_raw(buf, room, len, ",{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\",\"body\":{},"
-                                  "\"about\":\"stores every setting and the powder profiles\"}],\"errors\":[");
+    if (schema->phase <= 5) {
+        // The commands' actions, the states, the events (api_v1_commands.c), as many items as fit a chunk
+        static const char *const heads[] = {"", "],\"states\":{", "},\"events\":["};
+        static const api_v1_schema_part_t parts[] = {API_V1_SCHEMA_ACTIONS, API_V1_SCHEMA_STATES,
+                                                     API_V1_SCHEMA_EVENTS};
+        while (schema->phase <= 5) {
+            size_t part = schema->phase - 3;
+            const char *item = api_v1_schema_item(parts[part], schema->resource);
+            size_t mark = *len;
+            if (schema->resource == 0) {
+                http_json_raw(buf, room, len, heads[part]);
+            }
+            if (item != NULL) {
+                // The first item of the actions follows the saves'; the first of the others, its part's head
+                http_json_raw(buf, room, len, schema->resource > 0 || part == 0 ? "," : "");
+                http_json_raw(buf, room, len, item);
+            }
+            if (!stream_item_fits(buf, room, len, mark)) {
+                return true;
+            }
+            if (item != NULL) {
+                schema->resource += 1;
+            }
+            else {
+                schema->phase += 1;
+                schema->resource = 0;
+            }
+        }
+        return true;
+    }
+    http_json_raw(buf, room, len, "],\"errors\":[");
     for (size_t idx = 0; idx < sizeof(settings_error_codes) / sizeof(settings_error_codes[0]); idx += 1) {
         if (idx) {
             http_json_raw(buf, room, len, ",");

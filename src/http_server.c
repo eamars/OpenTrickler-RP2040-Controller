@@ -1,8 +1,9 @@
 /*
  * Our own HTTP server (ADR-003, gate 2): one task, lwIP's sockets, select() over the listener and up to
  * HTTP_SERVER_SLOTS clients. A request is read a line at a time; the headers the server uses are kept and the rest
- * passed over. A reply is a status and headers of ours, then a body from the slot's buffer, from flash, or written as
- * it is made (chunked). Keep-alive, an idle limit, a stall limit, and requests that can be parked.
+ * passed over. A body is held whole up to 1 KB, or handed to an upload's route in pieces as it comes (gate 4). A reply
+ * is a status and headers of ours, then a body from the slot's buffer, from flash, or written as it is made
+ * (chunked). Keep-alive, an idle limit, a stall limit, and requests that can be parked.
  */
 #include <ctype.h>
 #include <stdarg.h>
@@ -61,6 +62,7 @@ typedef enum {
     PHASE_LINE = 0,
     PHASE_HEADERS,
     PHASE_BODY,
+    PHASE_UPLOAD,       // a body handed to its upload route in pieces
 } slot_phase_t;
 
 typedef enum {
@@ -101,6 +103,11 @@ typedef struct {
     bool connection_close;
     bool connection_keep_alive;
     http_server_request_t request;
+
+    // A body taken in pieces
+    const http_server_upload_t *upload;
+    size_t upload_left;
+    bool upload_open;                      // begin took it; neither end nor abort has been called
 
     // The reply
     size_t head_len;
@@ -151,6 +158,7 @@ typedef struct {
     size_t prefix_len;          // before "{id}", or the whole path
     const char *suffix;         // after "{id}", or NULL
     http_server_handler_t handler;
+    const http_server_upload_t *upload;     // a body in pieces, in place of handler; or NULL
 } route_t;
 
 
@@ -231,6 +239,7 @@ bool http_server_add_route(http_server_method_t method, const char *path, http_s
     route->method = method;
     route->path = path;
     route->handler = handler;
+    route->upload = NULL;
     const char *id = strstr(path, "{id}");
     if (id != NULL) {
         route->prefix_len = (size_t) (id - path);
@@ -241,6 +250,15 @@ bool http_server_add_route(http_server_method_t method, const char *path, http_s
         route->suffix = NULL;
     }
     route_count += 1;
+    return true;
+}
+
+
+bool http_server_add_upload(http_server_method_t method, const char *path, const http_server_upload_t *upload) {
+    if (!http_server_add_route(method, path, NULL)) {
+        return false;
+    }
+    routes[route_count - 1].upload = upload;
     return true;
 }
 
@@ -333,6 +351,9 @@ static void slot_reset_request(slot_t *slot) {
     slot->connection_close = false;
     slot->connection_keep_alive = false;
     memset(&slot->request, 0, sizeof(slot->request));
+    slot->upload = NULL;
+    slot->upload_left = 0;
+    slot->upload_open = false;
     slot->head_len = 0;
     slot->head_sent = 0;
     slot->body_kind = BODY_NONE;
@@ -350,6 +371,11 @@ static void slot_reset_request(slot_t *slot) {
 
 
 static void slot_close(slot_t *slot, bool abort) {
+    if (slot->upload_open) {
+        // An upload cut off: its handler lets go of what it began. Every way a slot ends comes here
+        slot->upload_open = false;
+        slot->upload->abort(slot->context);
+    }
     if (slot->fd >= 0) {
         if (abort) {
             // A reset, so lwIP frees what the connection holds at once
@@ -684,11 +710,33 @@ static void slot_refuse(slot_t *slot, int status, const char *code, const char *
 }
 
 
-static void slot_dispatch(slot_t *slot) {
-    http_server_request_t *request = &slot->request;
-    http_server_reply_t reply;
-    reply_init(&reply, slot);
+// The method a route is looked up by: a HEAD is a GET whose body is not sent
+static http_server_method_t route_method(http_server_method_t method) {
+    return method == HTTP_SERVER_HEAD ? HTTP_SERVER_GET : method;
+}
 
+
+// The upload route this request goes to, or NULL. The same match as slot_dispatch's, so a request for an upload's
+// route never reaches slot_dispatch with its method
+static const route_t *route_upload(http_server_request_t *request) {
+    http_server_method_t wanted = route_method(request->method);
+    for (int idx = 0; idx < route_count; idx += 1) {
+        int32_t id;
+        if (routes[idx].method == wanted && route_matches(&routes[idx], request->path, &id)) {
+            if (routes[idx].upload == NULL) {
+                return NULL;    // the first route that takes it is the one slot_dispatch would call
+            }
+            request->path_id = id;
+            return &routes[idx];
+        }
+    }
+    return NULL;
+}
+
+
+// The checks every request passes before its route. False when it was refused, with the reply made
+static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
+    http_server_request_t *request = &slot->request;
     const bool is_api = strncmp(request->path, "/api/", 5) == 0 || strncmp(request->path, "/rest/", 6) == 0;
 
     // Only the unit's own name is served: a page that has pointed its own name at the unit (DNS rebinding) is so
@@ -696,14 +744,14 @@ static void slot_dispatch(slot_t *slot) {
     if (slot->has_host && network.host_is_own != NULL && !network.host_is_own(slot->host)) {
         if (is_api) {
             slot_refuse(slot, 403, "wrong_host", "this is not the unit's own name");
-            return;
+            return false;
         }
         char address[24];
         if (network.own_address != NULL && network.own_address(address, sizeof(address))) {
-            snprintf(reply.location, sizeof(reply.location), "http://%s/", address);
-            http_server_reply_send(&reply, 302, NULL, 0);
-            slot_take_reply(slot, &reply);
-            return;
+            snprintf(reply->location, sizeof(reply->location), "http://%s/", address);
+            http_server_reply_send(reply, 302, NULL, 0);
+            slot_take_reply(slot, reply);
+            return false;
         }
     }
 
@@ -717,13 +765,25 @@ static void slot_dispatch(slot_t *slot) {
                      strncasecmp(slot->content_type, "application/octet-stream", 24) == 0;
         if (!json && !bytes && request->method != HTTP_SERVER_DELETE) {
             slot_refuse(slot, 415, "wrong_media_type", "a write is sent as application/json");
-            return;
+            return false;
         }
         request->body_is_json = json;
     }
+    return true;
+}
+
+
+static void slot_dispatch(slot_t *slot) {
+    http_server_request_t *request = &slot->request;
+    http_server_reply_t reply;
+    reply_init(&reply, slot);
+
+    if (!slot_admit(slot, &reply)) {
+        return;
+    }
 
     // The route
-    http_server_method_t wanted = request->method == HTTP_SERVER_HEAD ? HTTP_SERVER_GET : request->method;
+    http_server_method_t wanted = route_method(request->method);
     const route_t *found = NULL;
     size_t allow_len = 0;
     for (int idx = 0; idx < route_count; idx += 1) {
@@ -759,7 +819,7 @@ static void slot_dispatch(slot_t *slot) {
     }
     reply.allow[0] = '\0';
 
-    found->handler(request, &reply);
+    found->handler(request, &reply);     // never an upload's route: those are taken at their headers
     stats.requests += 1;
 
     if (reply.parked) {
@@ -876,6 +936,69 @@ static bool header_is_kept(const char *line, size_t len) {
 }
 
 
+// An upload's body is all in, or its handler stopped it: the handler's reply
+static void slot_upload_end(slot_t *slot) {
+    http_server_reply_t reply;
+    reply_init(&reply, slot);
+    slot->upload_open = false;
+    slot->upload->end(&slot->request, &reply);
+    stats.requests += 1;
+    slot_take_reply(slot, &reply);
+}
+
+
+// The next piece of an upload's body, to its handler
+static void slot_upload_piece(slot_t *slot, const char *data, size_t len) {
+    if (!slot->upload->piece(slot->context, data, len)) {
+        slot->keep_alive = false;   // the rest is read and dropped, then the connection closed
+        slot->drain = true;
+        slot_upload_end(slot);
+        return;
+    }
+    slot->upload_left -= len;
+    if (slot->upload_left == 0) {
+        slot_upload_end(slot);
+    }
+}
+
+
+// The headers of a request for an upload's route are in: its handler takes the body, or refuses it
+static void slot_upload_begin(slot_t *slot, const route_t *route) {
+    http_server_request_t *request = &slot->request;
+    http_server_reply_t reply;
+    reply_init(&reply, slot);
+
+    // A refusal leaves the body unread: the reply says the connection closes, and the rest is read and dropped
+    bool keep_alive = slot->keep_alive;
+    slot->keep_alive = false;
+    slot->drain = true;
+    if (!slot_admit(slot, &reply)) {
+        return;
+    }
+    request->body = NULL;
+    request->body_len = (size_t) slot->content_length;
+    if (!route->upload->begin(request, &reply)) {
+        stats.requests += 1;
+        slot_take_reply(slot, &reply);
+        return;
+    }
+    slot->keep_alive = keep_alive;
+    slot->drain = false;
+    slot->upload = route->upload;
+    slot->upload_left = request->body_len;
+    slot->upload_open = true;
+    if (slot->upload_left == 0) {
+        slot_upload_end(slot);
+        return;
+    }
+    if (slot->expect_continue) {
+        static const char cont[] = "HTTP/1.1 100 Continue\r\n\r\n";
+        lwip_send(slot->fd, cont, sizeof(cont) - 1, 0);
+    }
+    slot->phase = PHASE_UPLOAD;
+}
+
+
 // The headers are all in: decide the body and go on
 static void slot_headers_done(slot_t *slot) {
     if (!slot_parse_request_line(slot)) {
@@ -892,7 +1015,16 @@ static void slot_headers_done(slot_t *slot) {
         slot_refuse(slot, 411, "length_required", "a body needs a Content-Length");
         return;
     }
-    if (slot->content_length < 0 || slot->content_length > HTTP_SERVER_BODY_MAX ||
+    if (slot->content_length < 0) {
+        slot_refuse(slot, 400, "bad_request", "the Content-Length is not a length");
+        return;
+    }
+    const route_t *upload = route_upload(&slot->request);
+    if (upload != NULL) {
+        slot_upload_begin(slot, upload);
+        return;
+    }
+    if (slot->content_length > HTTP_SERVER_BODY_MAX ||
         slot->line_end + 1 + (size_t) slot->content_length > sizeof(slot->buf)) {
         slot_refuse(slot, 413, "too_large", "the body is larger than the unit takes");
         return;
@@ -997,12 +1129,45 @@ static void slot_feed(slot_t *slot, const char *data, size_t len) {
                     slot_dispatch(slot);
                 }
                 break;
+
+            case PHASE_UPLOAD: {
+                // The rest of what came behind the headers, up to the body's end, as one piece
+                size_t piece = len - idx;
+                if (piece > slot->upload_left) {
+                    piece = slot->upload_left;
+                }
+                slot_upload_piece(slot, data + idx, piece);
+                idx += piece - 1;   // and the loop's own 1
+                break;
+            }
         }
     }
 }
 
 
 static void slot_receive(slot_t *slot) {
+    if (slot->state == SLOT_REQUEST && slot->phase == PHASE_UPLOAD) {
+        // An upload's body straight into the slot's buffer behind the request line, so a piece is as long as the
+        // room there (some 900 bytes or more), and never past the body's end
+        char *area = slot->buf + slot->line_end + 1;
+        size_t room = sizeof(slot->buf) - (slot->line_end + 1);
+        if (room > slot->upload_left) {
+            room = slot->upload_left;
+        }
+        int got = lwip_recv(slot->fd, area, room, 0);
+        if (got > 0) {
+            slot->last_progress_ms = now_ms();
+            slot_upload_piece(slot, area, (size_t) got);
+        }
+        else if (got == 0) {
+            slot_close(slot, false);    // the client went before its body was all in
+        }
+        else if (errno != EWOULDBLOCK && errno != EAGAIN) {
+            slot_close(slot, true);
+        }
+        return;
+    }
+
     char data[256];
     int got = lwip_recv(slot->fd, data, sizeof(data), 0);
     if (got > 0) {

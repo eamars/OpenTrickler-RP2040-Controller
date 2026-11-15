@@ -1,7 +1,8 @@
 /*
- * API v1's routes, gate 2's share (ADR-003): GET /api/v1/charge, /api/v1/display and /api/v1/display/frame, and
- * under /api/v1/debug, which is not part of v1, the figures and two routes for gate 2's proofs: a reply the size of
- * a throw's samples (/debug/load) and a parked request (/debug/wait).
+ * API v1's routes (ADR-003): the index, the powder profiles, the display and its frame; the settings' come from their
+ * tables, the commands' from api_v1_commands.c. Under /api/v1/debug, which is not part of v1, the figures and the
+ * routes for the proofs: a reply the size of a throw's samples (/debug/load), a parked request (/debug/wait), and a
+ * body taken in pieces (/debug/upload).
  */
 #include <math.h>
 #include <stdio.h>
@@ -19,6 +20,7 @@
 #include "http_server.h"
 #include "http_json.h"
 #include "charge_mode.h"
+#include "common.h"
 #include "profile.h"
 #include "scale.h"
 #include "display.h"
@@ -37,6 +39,10 @@ extern char host_name[18];
 #define API_V1_LOAD_ROWS_MAX 2000
 #define API_V1_LOAD_COLUMNS_MAX 32
 #define API_V1_WAIT_S_MAX 30
+
+// /debug/upload's: those whole, and those cut off (the client gone, or stalled)
+static uint32_t api_v1_uploads_done = 0;
+static uint32_t api_v1_uploads_aborted = 0;
 
 
 static uint32_t api_v1_now_ms(void) {
@@ -115,12 +121,15 @@ static void api_v1_get_debug(const http_server_request_t *request, http_server_r
     snprintf(text, sizeof(text), "},\"server\":{\"accepted\":%lu,\"requests\":%lu,\"closed_idle\":%lu,"
              "\"closed_for_room\":%lu,\"aborted_stalled\":%lu,\"refused\":%lu,\"send_no_memory\":%lu,"
              "\"send_failed\":%lu,\"stream_make_ms\":%lu,\"stream_bytes\":%lu,\"slots_used\":%u,"
-             "\"slots_parked\":%u}}",
+             "\"slots_parked\":%u},",
              (unsigned long) server.accepted, (unsigned long) server.requests, (unsigned long) server.closed_idle,
              (unsigned long) server.closed_for_room, (unsigned long) server.aborted_stalled,
              (unsigned long) server.refused, (unsigned long) server.send_no_memory,
              (unsigned long) server.send_failed, (unsigned long) server.stream_make_ms,
              (unsigned long) server.stream_bytes, server.slots_used, server.slots_parked);
+    http_json_raw(out, room, &len, text);
+    snprintf(text, sizeof(text), "\"uploads\":{\"done\":%lu,\"aborted\":%lu}}", (unsigned long) api_v1_uploads_done,
+             (unsigned long) api_v1_uploads_aborted);
     http_json_raw(out, room, &len, text);
 
     if (!http_json_fits(room, len)) {
@@ -241,6 +250,74 @@ static void api_v1_get_debug_wait(const http_server_request_t *request, http_ser
 
 
 /*
+    PUT /api/v1/debug/upload: bytes taken in pieces as they come, counted and summed by CRC-32, and dropped. Gate 4
+    shows with it what ADR-004's image will go through: a body of 700 KB during a charge. The counts of those whole and
+    those cut off are in /api/v1/debug
+*/
+#define API_V1_UPLOAD_MAX (4u * 1024u * 1024u)
+
+typedef struct {
+    uint32_t bytes;
+    uint32_t crc;
+    uint32_t pieces;
+    uint32_t largest;
+    uint32_t started_ms;
+} api_v1_upload_t;
+
+static bool api_v1_upload_begin(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (request->body_is_json) {
+        http_server_reply_error(reply, 415, "wrong_media_type", "the bytes are sent as application/octet-stream");
+        return false;
+    }
+    if (request->body_len > API_V1_UPLOAD_MAX) {
+        http_server_reply_error(reply, 413, "too_large", "4 MB at most");
+        return false;
+    }
+    api_v1_upload_t *upload = http_server_reply_context(reply, sizeof(api_v1_upload_t));
+    memset(upload, 0, sizeof(*upload));
+    upload->started_ms = api_v1_now_ms();
+    return true;
+}
+
+
+static bool api_v1_upload_piece(void *ctx, const char *data, size_t len) {
+    api_v1_upload_t *upload = ctx;
+    upload->crc = software_crc32_continue(upload->crc, data, len);
+    upload->bytes += (uint32_t) len;
+    upload->pieces += 1;
+    if (len > upload->largest) {
+        upload->largest = (uint32_t) len;
+    }
+    return true;
+}
+
+
+static void api_v1_upload_end(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_upload_t *upload = http_server_reply_context(reply, sizeof(api_v1_upload_t));
+    api_v1_uploads_done += 1;
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    int len = snprintf(out, room, "{\"bytes\":%lu,\"crc32\":%lu,\"pieces\":%lu,\"largest\":%lu,\"ms\":%lu}",
+                       (unsigned long) upload->bytes, (unsigned long) upload->crc, (unsigned long) upload->pieces,
+                       (unsigned long) upload->largest, (unsigned long) (api_v1_now_ms() - upload->started_ms));
+    http_server_reply_send(reply, 200, "application/json", (size_t) len);
+}
+
+
+static void api_v1_upload_abort(void *ctx) {
+    api_v1_uploads_aborted += 1;
+}
+
+
+static const http_server_upload_t api_v1_debug_upload = {
+    .begin = api_v1_upload_begin,
+    .piece = api_v1_upload_piece,
+    .end = api_v1_upload_end,
+    .abort = api_v1_upload_abort,
+};
+
+
+/*
     GET /api/v1, the index (gate 3): what the unit is, a guide in plain words, and each path with its methods. The
     settings' paths come from their tables; the rest are below. /api/v1/debug is not part of v1, and not listed.
 */
@@ -254,7 +331,7 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1", "[\"GET\"]", "this index"},
     {"/api/v1/schema", "[\"GET\"]",
      "every settings resource's fields: type, unit, limits or choices, access, when each applies and when it is "
-     "refused; the actions' bodies; the error codes"},
+     "refused; every action with its body's fields; every state and event kind; the error codes"},
     {"/api/v1/settings", "[\"GET\"]",
      "every setting and powder profile in one document, with the firmware's version: the export. An import is a "
      "PATCH of each resource in turn"},
@@ -346,7 +423,7 @@ static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
         http_json_raw(buf, room, len, ",\"hostname\":");
         http_json_string(buf, room, len, host_name);
         http_json_raw(buf, room, len, ",\"boot\":");
-        http_json_integer(buf, room, len, (long) api_v1_boot);
+        http_json_unsigned(buf, room, len, api_v1_boot);
         http_json_raw(buf, room, len, ",\"uptime_s\":");
         http_json_integer(buf, room, len, (long) (time_us_64() / 1000000u));
         http_json_raw(buf, room, len, ",\"features\":[],\"guide\":");
@@ -446,5 +523,6 @@ bool api_v1_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug", api_v1_get_debug);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug/load", api_v1_get_debug_load);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug/wait", api_v1_get_debug_wait);
+    ok = ok && http_server_add_upload(HTTP_SERVER_PUT, "/api/v1/debug/upload", &api_v1_debug_upload);
     return ok;
 }

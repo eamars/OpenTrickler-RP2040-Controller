@@ -1049,18 +1049,31 @@ bool charge_mode_set_target(float target) {
 }
 
 
-charge_start_result_t charge_mode_request_start(activity_by_t by) {
-    if (charge_mode_get_target() <= 0.0f) {
-        return CHARGE_START_NO_TARGET;
+charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile) {
+    // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over
+    activity_t asked_before;
+    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
+        return CHARGE_START_BUSY;
     }
     if (motors_get_fault() != NULL) {
         return CHARGE_START_DRIVER_FAULT;
     }
-    // A person at the unit in a mode or a view of the menu's: not taken over
-    if (menu_get_current_form_id() < 0) {
-        return CHARGE_START_BUSY;
+    if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {
+        return CHARGE_START_NO_TARGET;
     }
-    if (!activity_request_start(ACTIVITY_CHARGE, by)) {
+    // The menu takes a start under the activity lock, so the target and the profile are in before it can
+    activity_lock();
+    bool asked = activity_request_start(ACTIVITY_CHARGE, by);
+    if (asked) {
+        if (!isnan(target)) {
+            charge_mode_set_target(target);
+        }
+        if (powder_profile >= 0) {
+            profile_select((uint8_t) powder_profile);
+        }
+    }
+    activity_unlock();
+    if (!asked) {
         return CHARGE_START_BUSY;
     }
     menu_wake();

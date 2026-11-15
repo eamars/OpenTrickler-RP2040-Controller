@@ -319,26 +319,7 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
         !charge_fields(reply, members, count, &has_target, &target, &has_profile, &profile)) {
         return;
     }
-    activity_t asked;
-    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked) || menu_get_current_form_id() < 0) {
-        api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
-        return;
-    }
-    if (motors_get_fault() != NULL) {
-        api_driver_fault(reply);
-        return;
-    }
-    if (!has_target && charge_mode_get_target() <= 0.0f) {
-        api_error(reply, 400, "no_target", "target", "no target is set: give one", NULL);
-        return;
-    }
-    if (has_target) {
-        charge_mode_set_target(target);
-    }
-    if (has_profile) {
-        profile_select((uint8_t) profile);
-    }
-    switch (charge_mode_request_start(ACTIVITY_BY_API)) {
+    switch (charge_mode_request_start(ACTIVITY_BY_API, has_target ? target : NAN, has_profile ? (int) profile : -1)) {
         case CHARGE_START_OK:
             reply_charge(reply, 202);
             return;
@@ -349,7 +330,7 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
             api_error(reply, 400, "no_target", "target", "no target is set: give one", NULL);
             return;
         default:
-            api_busy(reply, "another job runs, or a person has a screen open at the unit");
+            api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
             return;
     }
 }
@@ -487,7 +468,7 @@ static bool api_v1_events_more(void *ctx, char *buf, size_t room, size_t *len) {
     if (events->phase == 0) {
         uint32_t first = events_first_seq();
         http_json_raw(buf, room, len, "{\"boot\":");
-        http_json_integer(buf, room, len, (long) api_v1_boot_id());
+        http_json_unsigned(buf, room, len, api_v1_boot_id());
         http_json_raw(buf, room, len, ",\"now_ms\":");
         write_u64(buf, room, len, time_us_64() / 1000u);
         http_json_raw(buf, room, len, ",\"first\":");
@@ -913,6 +894,123 @@ static void api_v1_get_network(const http_server_request_t *request, http_server
     }
     http_json_raw(out, room, &len, "}");
     api_send(reply, 200, room, len);
+}
+
+
+/*
+    The commands' share of GET /api/v1/schema (gate 4): each action with its body's fields, in the shape of a
+    resource's; each kind of state with what each value means; each event kind with what it carries. JSON as sent,
+    one item a text, each well under a chunk (settings.c writes them one at a time). `refused_while` is the
+    resources' words, and `no_cleanup_runs` for the cleanup's speed; the zero's rule is in its `about`.
+*/
+_Static_assert(MAX_PROFILE_CNT == 8, "the schema below gives the powder profiles' ids as 0 to 7");
+
+#define API_V1_SCHEMA_CHARGE_FIELDS \
+    "\"fields\":[{\"name\":\"target\",\"type\":\"number\",\"min\":0.001,\"max\":999.99,\"about\":\"in the scale's " \
+    "unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three " \
+    "(settings/charge decimal_places)\"},{\"name\":\"powder_profile\",\"type\":\"integer\",\"min\":0,\"max\":7," \
+    "\"about\":\"a powder profile's id (GET /api/v1/powder_profiles)\"}]"
+
+static const char *const api_v1_schema_actions[] = {
+    "{\"method\":\"PATCH\",\"path\":\"/api/v1/charge\"," API_V1_SCHEMA_CHARGE_FIELDS ",\"refused_while\":\"in_throw\","
+    "\"about\":\"what the next throw uses, either field or both; one target for the unit: the menu's digits show "
+    "it\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/charge/start\"," API_V1_SCHEMA_CHARGE_FIELDS ","
+    "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a target or a powder profile given is set "
+    "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 "
+    "no_target when none is set\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/cleanup/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
+    "\"about\":\"starts a cleanup (202), at speed 0 until a PATCH gives one; 409 driver_fault\"}",
+    "{\"method\":\"PATCH\",\"path\":\"/api/v1/cleanup\",\"fields\":[{\"name\":\"speed_rps\",\"type\":\"number\","
+    "\"unit\":\"rev/s\",\"required\":true,\"about\":\"both tricklers, within plus or minus the lower of the two "
+    "motors' max_speed_rps\"},{\"name\":\"time_s\",\"type\":\"number\",\"unit\":\"s\",\"min\":1,\"max\":600,"
+    "\"about\":\"for at most this long, then the cleanup stops by itself; without it, until stopped. A client with no "
+    "person at the unit gives a short time and sends the speed again while it wants it\"}],"
+    "\"refused_while\":\"no_cleanup_runs\",\"about\":\"the cleanup's speed; 409 not_running when none runs\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/cleanup/stop\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"stops the cleanup (202), or 200 with nothing to stop; it acknowledges the cleanup's fault\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/stop\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"stops whatever job runs, or a start asked and not yet begun; never fails\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/scale/zero\",\"fields\":[],\"about\":\"asks the scale to zero, not "
+    "that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times "
+    "zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the "
+    "cup, and in the scale's calibration; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
+    "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
+    "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
+    "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/system/restart\",\"fields\":[],\"refused_while\":\"a_job_runs\","
+    "\"about\":\"restarts the unit once the reply is out (202)\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/system/erase\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
+    "\"choices\":[{\"value\":\"erase\",\"label\":\"Erase\"}],\"required\":true}],\"refused_while\":\"a_job_runs\","
+    "\"about\":\"erases the stored settings and restarts (202): the unit then leaves the network and comes back as "
+    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation\"}",
+};
+
+static const char *const api_v1_schema_states[] = {
+    "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
+    "{\"value\":\"cleanup\"},{\"value\":\"scale_calibration\",\"about\":\"the scale's own calibration, from the "
+    "menu\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
+    "information, a driver's fault): a start is refused until it is closed there\"}]",
+    "\"charge\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
+    "yet\"},{\"value\":\"zeroing\",\"about\":\"a throw waits for the scale to read zero, steady\"},"
+    "{\"value\":\"charging\",\"about\":\"a throw pours to the target\"},{\"value\":\"waiting_for_cup_removal\","
+    "\"about\":\"the throw's verdict is given: the cup is to be lifted\"},{\"value\":\"waiting_for_cup_return\","
+    "\"about\":\"the cup is away; the next throw begins when it is back\"},{\"value\":\"fault\",\"about\":\"the "
+    "charge ended on a fault (last.reason) and waits for a stop or a press to acknowledge it\"}]",
+    "\"cleanup\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
+    "yet\"},{\"value\":\"running\"},{\"value\":\"fault\",\"about\":\"ended on a driver's fault, waiting for a stop or "
+    "a press\"}]",
+    "\"gate\":[{\"value\":\"open\"},{\"value\":\"closed\"},{\"value\":\"partial\"},{\"value\":\"held\",\"about\":"
+    "\"the menu's Disable: the servo is moved no more and stays at its last ratio until charge mode moves it\"},"
+    "{\"value\":\"disabled\",\"about\":\"off in settings/gate: charge mode does not use it\"}]",
+    "\"driver\":[{\"value\":\"ok\"},{\"value\":\"absent\",\"about\":\"the driver does not answer on its serial "
+    "line\"},{\"value\":\"short\"},{\"value\":\"hot\"},{\"value\":\"reset\",\"about\":\"the driver restarted and "
+    "lost its set-up\"},{\"value\":\"supply\",\"about\":\"its motor supply is too low\"}]",
+};
+
+static const char *const api_v1_schema_events[] = {
+    "{\"source\":\"charge\",\"kind\":\"started\",\"carries\":[\"by\",\"target\",\"powder_profile\"],"
+    "\"about\":\"by: button, api, console\"}",
+    "{\"source\":\"charge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"by: button, api, "
+    "console, or unit when it ended itself; reason: stopped, fault\"}",
+    "{\"source\":\"throw\",\"kind\":\"started\",\"carries\":[\"throw\",\"target\",\"powder_profile\"],"
+    "\"about\":\"throw: its number in the charge, from 1\"}",
+    "{\"source\":\"throw\",\"kind\":\"paused\",\"carries\":[\"throw\",\"pause\"],\"about\":\"no reading for 3 of the "
+    "scale's intervals; pause: its number in the throw\"}",
+    "{\"source\":\"throw\",\"kind\":\"resumed\",\"carries\":[\"throw\",\"weight\"],\"about\":\"weight: the settled "
+    "weight it went on from\"}",
+    "{\"source\":\"throw\",\"kind\":\"finished\",\"carries\":[\"throw\",\"result\",\"weight\",\"elapsed_s\"],"
+    "\"about\":\"the verdict; result: good, under, over\"}",
+    "{\"source\":\"throw\",\"kind\":\"ended\",\"carries\":[\"throw\",\"reason\",\"motor\",\"fault\"],\"about\":\"a "
+    "throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and "
+    "fault only with driver_fault\"}",
+    "{\"source\":\"cleanup\",\"kind\":\"started\",\"carries\":[\"by\"]}",
+    "{\"source\":\"cleanup\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"reason: stopped, time "
+    "(its time ran out: by the unit), fault\"}",
+    "{\"source\":\"motors\",\"kind\":\"fault\",\"carries\":[\"motor\",\"fault\"],\"about\":\"a driver's fault "
+    "appeared; motor: coarse, fine; fault: as the driver states\"}",
+    "{\"source\":\"motors\",\"kind\":\"cleared\",\"carries\":[\"motor\",\"fault\"],\"about\":\"fault: the one that "
+    "cleared\"}",
+    "{\"source\":\"system\",\"kind\":\"started\",\"carries\":[\"firmware\"],\"about\":\"the unit started; the first "
+    "event after each start\"}",
+};
+
+
+const char *api_v1_schema_item(api_v1_schema_part_t part, size_t idx) {
+    switch (part) {
+        case API_V1_SCHEMA_ACTIONS:
+            return idx < sizeof(api_v1_schema_actions) / sizeof(api_v1_schema_actions[0]) ?
+                   api_v1_schema_actions[idx] : NULL;
+        case API_V1_SCHEMA_STATES:
+            return idx < sizeof(api_v1_schema_states) / sizeof(api_v1_schema_states[0]) ?
+                   api_v1_schema_states[idx] : NULL;
+        case API_V1_SCHEMA_EVENTS:
+        default:
+            return idx < sizeof(api_v1_schema_events) / sizeof(api_v1_schema_events[0]) ?
+                   api_v1_schema_events[idx] : NULL;
+    }
 }
 
 

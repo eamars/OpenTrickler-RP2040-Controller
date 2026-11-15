@@ -6,6 +6,7 @@
  */
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,8 @@ void http_json_number(char *out, size_t room, size_t *len, float value, int digi
 // (api_v1.md: a number a GET gives, PATCHed back, changes nothing); null when it is not finite
 void http_json_float(char *out, size_t room, size_t *len, float value);
 void http_json_integer(char *out, size_t room, size_t *len, long value);
+// A 32-bit number with no sign (the boot's id): a long is 32 bits here, and would print the top half negative
+void http_json_unsigned(char *out, size_t room, size_t *len, uint32_t value);
 void http_json_bool(char *out, size_t room, size_t *len, bool value);
 // True when the buffer was not filled
 bool http_json_fits(size_t room, size_t len);

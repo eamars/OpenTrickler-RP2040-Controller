@@ -84,7 +84,9 @@ bool charge_mode_set_target(float target);
 
 /*
  * A charge asked from outside the menu, by the API or the console (gate 4): handed to the menu with no wait, or
- * refused. A stop is activity_request_stop(ACTIVITY_CHARGE, by).
+ * refused. target (NAN: the one set) and powder_profile (-1: the one chosen) are written only once the start is
+ * taken, so a start refused writes nothing; the caller has checked them. A stop is
+ * activity_request_stop(ACTIVITY_CHARGE, by).
  */
 typedef enum {
     CHARGE_START_OK = 0,
@@ -92,7 +94,7 @@ typedef enum {
     CHARGE_START_DRIVER_FAULT,
     CHARGE_START_NO_TARGET,
 } charge_start_result_t;
-charge_start_result_t charge_mode_request_start(activity_by_t by);
+charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
 
 // The charge as GET /api/v1/charge gives it
 typedef struct {

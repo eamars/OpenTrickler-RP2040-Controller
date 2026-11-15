@@ -6,6 +6,7 @@
  * commands, the event log and the unit's reads in api_v1_commands.c.
  */
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -14,6 +15,15 @@ extern "C" {
 
 bool api_v1_init(void);
 bool api_v1_commands_init(void);
+
+// The commands' share of GET /api/v1/schema (gate 4): JSON texts the schema's stream writes one at a time. Actions
+// and events are objects; states are members ("charge":[...]). NULL past the last
+typedef enum {
+    API_V1_SCHEMA_ACTIONS,
+    API_V1_SCHEMA_STATES,
+    API_V1_SCHEMA_EVENTS,
+} api_v1_schema_part_t;
+const char *api_v1_schema_item(api_v1_schema_part_t part, size_t idx);
 
 // A random number new at each start, so a client sees a restart (the index's and the event log's `boot`)
 uint32_t api_v1_boot_id(void);

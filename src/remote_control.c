@@ -579,11 +579,11 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         snprintf(reply, reply_size, "@err a mode is running");
         return false;
     }
-    if (!charge_mode_set_target(target)) {
+    if (!charge_mode_target_fits(target)) {
         snprintf(reply, reply_size, "@err %.3f is not a target the menu's digits can show", target);
         return false;
     }
-    switch (charge_mode_request_start(ACTIVITY_BY_CONSOLE)) {
+    switch (charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1)) {
         case CHARGE_START_OK:
             break;
         case CHARGE_START_DRIVER_FAULT:

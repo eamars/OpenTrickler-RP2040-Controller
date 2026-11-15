@@ -1,0 +1,2488 @@
+{
+ "/api/v1": {
+  "api": "1",
+  "firmware": {
+   "version": "1.20.190-dirty",
+   "vcs": "dd3dab6",
+   "build": "Debug"
+  },
+  "board": "pico_w",
+  "unit_id": "9CE00000",
+  "hostname": "opentrickler-9CE0",
+  "boot": 269510654,
+  "uptime_s": 17,
+  "features": [],
+  "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
+  "resources": [
+   {
+    "path": "/api/v1",
+    "methods": [
+     "GET"
+    ],
+    "about": "this index"
+   },
+   {
+    "path": "/api/v1/schema",
+    "methods": [
+     "GET"
+    ],
+    "about": "every settings resource's fields: type, unit, limits or choices, access, when each applies and when it is refused; every action with its body's fields; every state and event kind; the error codes"
+   },
+   {
+    "path": "/api/v1/settings",
+    "methods": [
+     "GET"
+    ],
+    "about": "every setting and powder profile in one document, with the firmware's version: the export. An import is a PATCH of each resource in turn"
+   },
+   {
+    "path": "/api/v1/settings/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores every setting and the powder profiles"
+   },
+   {
+    "path": "/api/v1/powder_profiles",
+    "methods": [
+     "GET"
+    ],
+    "about": "the powder profiles' ids and names, and whether they are stored"
+   },
+   {
+    "path": "/api/v1/charge",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "the charge: its state, the throw, the target and the powder profile it uses, the weight, the last throw; a PATCH sets the target or the profile the next throw uses"
+   },
+   {
+    "path": "/api/v1/charge/start",
+    "methods": [
+     "POST"
+    ],
+    "about": "starts a charge: {}, or the target and the powder profile to set first"
+   },
+   {
+    "path": "/api/v1/charge/stop",
+    "methods": [
+     "POST"
+    ],
+    "about": "stops the charge, and acknowledges its fault; never fails"
+   },
+   {
+    "path": "/api/v1/cleanup",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "the cleanup: its state and speed; a PATCH sets the speed, with a time to run no longer than"
+   },
+   {
+    "path": "/api/v1/cleanup/start",
+    "methods": [
+     "POST"
+    ],
+    "about": "starts a cleanup, at speed 0"
+   },
+   {
+    "path": "/api/v1/cleanup/stop",
+    "methods": [
+     "POST"
+    ],
+    "about": "stops the cleanup, and acknowledges its fault; never fails"
+   },
+   {
+    "path": "/api/v1/stop",
+    "methods": [
+     "POST"
+    ],
+    "about": "stops whatever job runs; never fails"
+   },
+   {
+    "path": "/api/v1/events",
+    "methods": [
+     "GET"
+    ],
+    "about": "the unit's changes after a number (?after=N), held until there is one with ?wait=s"
+   },
+   {
+    "path": "/api/v1/scale",
+    "methods": [
+     "GET"
+    ],
+    "about": "the scale: its weight and unit, the driver that runs, its rhythm"
+   },
+   {
+    "path": "/api/v1/scale/zero",
+    "methods": [
+     "POST"
+    ],
+    "about": "asks the scale to zero, where it may: see the guide"
+   },
+   {
+    "path": "/api/v1/gate",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "the servo gate: its state and ratio; a PATCH moves it"
+   },
+   {
+    "path": "/api/v1/motors",
+    "methods": [
+     "GET"
+    ],
+    "about": "each motor's speed and its driver's state"
+   },
+   {
+    "path": "/api/v1/system",
+    "methods": [
+     "GET"
+    ],
+    "about": "the firmware, the board, the uptime, what the unit is doing, a restart pending"
+   },
+   {
+    "path": "/api/v1/system/restart",
+    "methods": [
+     "POST"
+    ],
+    "about": "restarts the unit, once the reply is out"
+   },
+   {
+    "path": "/api/v1/system/erase",
+    "methods": [
+     "POST"
+    ],
+    "about": "erases the stored settings and restarts: the unit comes back as its own access point"
+   },
+   {
+    "path": "/api/v1/network",
+    "methods": [
+     "GET"
+    ],
+    "about": "the network the unit is on: its mode, name, address, host name, signal"
+   },
+   {
+    "path": "/api/v1/display",
+    "methods": [
+     "GET"
+    ],
+    "about": "the screen's size and the format of its frame"
+   },
+   {
+    "path": "/api/v1/display/frame",
+    "methods": [
+     "GET"
+    ],
+    "about": "the screen's frame, as the display holds it"
+   },
+   {
+    "path": "/api/v1/settings/leds",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "The display's backlight and LEDs, and the LEDs on PWM3"
+   },
+   {
+    "path": "/api/v1/settings/display",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "The display and its encoder"
+   },
+   {
+    "path": "/api/v1/settings/wifi",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "The network the unit joins"
+   },
+   {
+    "path": "/api/v1/settings/motors/coarse",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "The coarse trickler's motor and its driver"
+   },
+   {
+    "path": "/api/v1/settings/motors/fine",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "The fine trickler's motor and its driver"
+   },
+   {
+    "path": "/api/v1/settings/scale",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "The scale on the serial port"
+   },
+   {
+    "path": "/api/v1/settings/charge",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "How a throw is poured and judged"
+   },
+   {
+    "path": "/api/v1/powder_profiles/{id}",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "How a powder flows, and the controller's gains for it"
+   },
+   {
+    "path": "/api/v1/settings/gate",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "The gate between the tricklers and the cup"
+   },
+   {
+    "path": "/api/v1/settings/leds/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores LEDs"
+   },
+   {
+    "path": "/api/v1/settings/display/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Display"
+   },
+   {
+    "path": "/api/v1/settings/wifi/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Wi-Fi"
+   },
+   {
+    "path": "/api/v1/settings/motors/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Coarse trickler motor"
+   },
+   {
+    "path": "/api/v1/settings/scale/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Scale"
+   },
+   {
+    "path": "/api/v1/settings/charge/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Charge"
+   },
+   {
+    "path": "/api/v1/powder_profiles/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Powder profile"
+   },
+   {
+    "path": "/api/v1/settings/gate/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Servo gate"
+   }
+  ]
+ },
+ "/api/v1/schema": {
+  "api": "1",
+  "firmware": {
+   "version": "1.20.190-dirty",
+   "vcs": "dd3dab6",
+   "build": "Debug"
+  },
+  "resources": [
+   {
+    "path": "/api/v1/settings/leds",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/leds/save",
+    "label": "LEDs",
+    "about": "The display's backlight and LEDs, and the LEDs on PWM3",
+    "refused_while": "never",
+    "fields": [
+     {
+      "name": "backlight_colour",
+      "label": "Backlight",
+      "group": "Display",
+      "type": "colour",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now when no mode has the LEDs; otherwise when it gives them back",
+      "refused_while": "never",
+      "about": "The display's backlight"
+     },
+     {
+      "name": "led1_colour",
+      "label": "LED 1",
+      "group": "Display",
+      "type": "colour",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now when no mode has the LEDs; otherwise when it gives them back",
+      "refused_while": "never",
+      "about": "The display board's first LED, by the encoder, when no mode colours it; PWM3's LEDs follow it"
+     },
+     {
+      "name": "led2_colour",
+      "label": "LED 2",
+      "group": "Display",
+      "type": "colour",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now when no mode has the LEDs; otherwise when it gives them back",
+      "refused_while": "never",
+      "about": "The display board's second LED, when no mode colours it"
+     },
+     {
+      "name": "pwm3_chain_count",
+      "label": "PWM3 LEDs",
+      "group": "PWM3",
+      "type": "integer",
+      "min": 1,
+      "max": 16,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "never",
+      "about": "How many LEDs are chained on the PWM3 output"
+     },
+     {
+      "name": "pwm3_colour_order",
+      "label": "PWM3 colour order",
+      "group": "PWM3",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": "rgb",
+        "label": "RGB"
+       },
+       {
+        "value": "grb",
+        "label": "GRB"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "never",
+      "about": "The order the PWM3 LEDs take their colours in"
+     },
+     {
+      "name": "pwm3_rgbw",
+      "label": "PWM3 RGBW",
+      "group": "PWM3",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "at_restart",
+      "refused_while": "never",
+      "about": "The PWM3 LEDs have a white as well as red, green and blue"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/settings/display",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/display/save",
+    "label": "Display",
+    "about": "The display and its encoder",
+    "refused_while": "never",
+    "fields": [
+     {
+      "name": "invert_encoder",
+      "label": "Invert the encoder",
+      "group": "Display",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "never",
+      "about": "The encoder's knob turns the other way"
+     },
+     {
+      "name": "rotation",
+      "label": "Rotation",
+      "group": "Display",
+      "type": "choice",
+      "unit": "degrees",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": 0,
+        "label": "As mounted"
+       },
+       {
+        "value": 180,
+        "label": "Upside down"
+       }
+      ],
+      "access": "read_write",
+      "applies": "at_restart",
+      "refused_while": "never",
+      "about": "The screen's turn, in degrees"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/settings/wifi",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/wifi/save",
+    "label": "Wi-Fi",
+    "about": "The network the unit joins",
+    "refused_while": "never",
+    "fields": [
+     {
+      "name": "enable",
+      "label": "Wi-Fi",
+      "group": "Wi-Fi",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "at_restart",
+      "refused_while": "never",
+      "about": "The unit joins this network at its start; off, it is its own access point"
+     },
+     {
+      "name": "ssid",
+      "label": "Network name",
+      "group": "Wi-Fi",
+      "type": "string",
+      "min": 0,
+      "max": 0,
+      "min_length": 1,
+      "max_length": 31,
+      "access": "read_write",
+      "applies": "at_restart",
+      "refused_while": "never",
+      "about": "The network's name (SSID)"
+     },
+     {
+      "name": "key",
+      "label": "Key",
+      "group": "Wi-Fi",
+      "type": "string",
+      "min": 0,
+      "max": 0,
+      "min_length": 0,
+      "max_length": 63,
+      "access": "write_only",
+      "applies": "at_restart",
+      "refused_while": "never",
+      "about": "The network's key; never sent back"
+     },
+     {
+      "name": "auth",
+      "label": "Security",
+      "group": "Wi-Fi",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": "open",
+        "label": "Open"
+       },
+       {
+        "value": "wpa_tkip",
+        "label": "WPA (TKIP)"
+       },
+       {
+        "value": "wpa2_aes",
+        "label": "WPA2 (AES)"
+       },
+       {
+        "value": "wpa2_mixed",
+        "label": "WPA/WPA2 mixed"
+       }
+      ],
+      "access": "read_write",
+      "applies": "at_restart",
+      "refused_while": "never",
+      "about": "The network's security"
+     },
+     {
+      "name": "timeout_ms",
+      "label": "Join timeout",
+      "group": "Wi-Fi",
+      "type": "integer",
+      "unit": "ms",
+      "min": 1000,
+      "max": 120000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "at_restart",
+      "refused_while": "never",
+      "about": "How long the unit tries to join before it gives up"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/settings/motors/coarse",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/motors/save",
+    "label": "Coarse trickler motor",
+    "about": "The coarse trickler's motor and its driver",
+    "refused_while": "a_job_runs",
+    "fields": [
+     {
+      "name": "full_steps_per_rotation",
+      "label": "Full steps a rotation",
+      "group": "Motor",
+      "type": "integer",
+      "unit": "steps",
+      "min": 20,
+      "max": 2000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The motor's full steps in one turn of its shaft"
+     },
+     {
+      "name": "current_ma",
+      "label": "Current",
+      "group": "Driver",
+      "type": "integer",
+      "unit": "mA RMS",
+      "min": 10,
+      "max": 2000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now: the driver is set up again",
+      "refused_while": "a_job_runs",
+      "about": "The driver's run current"
+     },
+     {
+      "name": "microsteps",
+      "label": "Microsteps",
+      "group": "Driver",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": 1,
+        "label": "1"
+       },
+       {
+        "value": 2,
+        "label": "2"
+       },
+       {
+        "value": 4,
+        "label": "4"
+       },
+       {
+        "value": 8,
+        "label": "8"
+       },
+       {
+        "value": 16,
+        "label": "16"
+       },
+       {
+        "value": 32,
+        "label": "32"
+       },
+       {
+        "value": 64,
+        "label": "64"
+       },
+       {
+        "value": 128,
+        "label": "128"
+       },
+       {
+        "value": 256,
+        "label": "256"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now: the driver is set up again",
+      "refused_while": "a_job_runs",
+      "about": "Microsteps a full step"
+     },
+     {
+      "name": "max_speed_rps",
+      "label": "Maximum speed",
+      "group": "Motor",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The fastest the motor is turned, whatever a profile asks"
+     },
+     {
+      "name": "r_sense_mohm",
+      "label": "Sense resistor",
+      "group": "Driver",
+      "type": "integer",
+      "unit": "mOhm",
+      "min": 50,
+      "max": 1000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now: the driver is set up again",
+      "refused_while": "a_job_runs",
+      "about": "The driver board's sense resistor, from which the current is set"
+     },
+     {
+      "name": "acceleration_rps2",
+      "label": "Acceleration",
+      "group": "Motor",
+      "type": "number",
+      "unit": "rev/s2",
+      "min": 0.1,
+      "max": 10000,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "How fast the motor's speed changes"
+     },
+     {
+      "name": "min_speed_rps",
+      "label": "Minimum speed",
+      "group": "Motor",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The slowest the motor turns while it turns at all; not above the maximum speed"
+     },
+     {
+      "name": "gear_ratio",
+      "label": "Gear ratio",
+      "group": "Motor",
+      "type": "number",
+      "min": 0.01,
+      "max": 100,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "Turns of the trickler a turn of the motor: a speed asked of the trickler is divided by it"
+     },
+     {
+      "name": "invert_direction",
+      "label": "Invert direction",
+      "group": "Wiring",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The motor turns the other way"
+     },
+     {
+      "name": "invert_enable",
+      "label": "Invert enable",
+      "group": "Wiring",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "when the motor is next enabled",
+      "refused_while": "a_job_runs",
+      "about": "The driver's enable pin is active high"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/settings/motors/fine",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/motors/save",
+    "label": "Fine trickler motor",
+    "about": "The fine trickler's motor and its driver",
+    "refused_while": "a_job_runs",
+    "fields": [
+     {
+      "name": "full_steps_per_rotation",
+      "label": "Full steps a rotation",
+      "group": "Motor",
+      "type": "integer",
+      "unit": "steps",
+      "min": 20,
+      "max": 2000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The motor's full steps in one turn of its shaft"
+     },
+     {
+      "name": "current_ma",
+      "label": "Current",
+      "group": "Driver",
+      "type": "integer",
+      "unit": "mA RMS",
+      "min": 10,
+      "max": 2000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now: the driver is set up again",
+      "refused_while": "a_job_runs",
+      "about": "The driver's run current"
+     },
+     {
+      "name": "microsteps",
+      "label": "Microsteps",
+      "group": "Driver",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": 1,
+        "label": "1"
+       },
+       {
+        "value": 2,
+        "label": "2"
+       },
+       {
+        "value": 4,
+        "label": "4"
+       },
+       {
+        "value": 8,
+        "label": "8"
+       },
+       {
+        "value": 16,
+        "label": "16"
+       },
+       {
+        "value": 32,
+        "label": "32"
+       },
+       {
+        "value": 64,
+        "label": "64"
+       },
+       {
+        "value": 128,
+        "label": "128"
+       },
+       {
+        "value": 256,
+        "label": "256"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now: the driver is set up again",
+      "refused_while": "a_job_runs",
+      "about": "Microsteps a full step"
+     },
+     {
+      "name": "max_speed_rps",
+      "label": "Maximum speed",
+      "group": "Motor",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The fastest the motor is turned, whatever a profile asks"
+     },
+     {
+      "name": "r_sense_mohm",
+      "label": "Sense resistor",
+      "group": "Driver",
+      "type": "integer",
+      "unit": "mOhm",
+      "min": 50,
+      "max": 1000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now: the driver is set up again",
+      "refused_while": "a_job_runs",
+      "about": "The driver board's sense resistor, from which the current is set"
+     },
+     {
+      "name": "acceleration_rps2",
+      "label": "Acceleration",
+      "group": "Motor",
+      "type": "number",
+      "unit": "rev/s2",
+      "min": 0.1,
+      "max": 10000,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "How fast the motor's speed changes"
+     },
+     {
+      "name": "min_speed_rps",
+      "label": "Minimum speed",
+      "group": "Motor",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The slowest the motor turns while it turns at all; not above the maximum speed"
+     },
+     {
+      "name": "gear_ratio",
+      "label": "Gear ratio",
+      "group": "Motor",
+      "type": "number",
+      "min": 0.01,
+      "max": 100,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "Turns of the trickler a turn of the motor: a speed asked of the trickler is divided by it"
+     },
+     {
+      "name": "invert_direction",
+      "label": "Invert direction",
+      "group": "Wiring",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "a_job_runs",
+      "about": "The motor turns the other way"
+     },
+     {
+      "name": "invert_enable",
+      "label": "Invert enable",
+      "group": "Wiring",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "when the motor is next enabled",
+      "refused_while": "a_job_runs",
+      "about": "The driver's enable pin is active high"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/settings/scale",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/scale/save",
+    "label": "Scale",
+    "about": "The scale on the serial port",
+    "refused_while": "in_throw",
+    "fields": [
+     {
+      "name": "driver",
+      "label": "Scale",
+      "group": "Scale",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": "and_fxi",
+        "label": "A&D FX-i"
+       },
+       {
+        "value": "steinberg_sbs",
+        "label": "Steinberg SBS"
+       },
+       {
+        "value": "gng_jjb",
+        "label": "G&G JJB"
+       },
+       {
+        "value": "ussolid_jfdbs",
+        "label": "US Solid JFDBS"
+       },
+       {
+        "value": "jm_science",
+        "label": "JM Science"
+       },
+       {
+        "value": "creedmoor",
+        "label": "Creedmoor"
+       },
+       {
+        "value": "radwag_ps_r2",
+        "label": "Radwag PS R2"
+       },
+       {
+        "value": "sartorius",
+        "label": "Sartorius"
+       },
+       {
+        "value": "generic",
+        "label": "Generic"
+       },
+       {
+        "value": "simulated",
+        "label": "Simulated (no scale)"
+       }
+      ],
+      "access": "read_write",
+      "applies": "at_restart",
+      "refused_while": "in_throw",
+      "about": "The make of scale, whose driver reads it; its reader is made at the start"
+     },
+     {
+      "name": "baud",
+      "label": "Baud rate",
+      "group": "Serial port",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": 4800,
+        "label": "4800 baud"
+       },
+       {
+        "value": 9600,
+        "label": "9600 baud"
+       },
+       {
+        "value": 19200,
+        "label": "19200 baud"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The scale's serial port speed, as the scale is set"
+     },
+     {
+      "name": "format",
+      "label": "Frame format",
+      "group": "Serial port",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": "8n1",
+        "label": "8 data bits, no parity, 1 stop bit"
+       },
+       {
+        "value": "7n1",
+        "label": "7 data bits, no parity, 1 stop bit"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The scale's serial frame, as the scale is set"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/settings/charge",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/charge/save",
+    "label": "Charge",
+    "about": "How a throw is poured and judged",
+    "refused_while": "in_throw",
+    "fields": [
+     {
+      "name": "coarse_stop_threshold",
+      "label": "Coarse stop threshold",
+      "group": "Thresholds",
+      "type": "number",
+      "unit": "weight",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The coarse trickler stops this far below the target"
+     },
+     {
+      "name": "fine_stop_threshold",
+      "label": "Fine stop threshold",
+      "group": "Thresholds",
+      "type": "number",
+      "unit": "weight",
+      "min": 0,
+      "max": 10,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The fine trickler stops this far below the target; a throw further off than it is over or under"
+     },
+     {
+      "name": "steady_sd_margin",
+      "label": "Steady margin (SD)",
+      "group": "Thresholds",
+      "type": "number",
+      "unit": "weight",
+      "min": 0,
+      "max": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The readings are steady when their standard deviation is below it: for the zero, the cup's removal and the resume after a pause"
+     },
+     {
+      "name": "zero_mean_margin",
+      "label": "Zero margin (mean)",
+      "group": "Thresholds",
+      "type": "number",
+      "unit": "weight",
+      "min": 0,
+      "max": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The scale reads zero when the mean of its readings is this near it"
+     },
+     {
+      "name": "decimal_places",
+      "label": "Decimal places",
+      "group": "Display",
+      "type": "choice",
+      "min": 0,
+      "max": 0,
+      "choices": [
+       {
+        "value": 2,
+        "label": "2 decimals"
+       },
+       {
+        "value": 3,
+        "label": "3 decimals"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "Decimals of the weight and of the target on the screen"
+     },
+     {
+      "name": "coarse_stop_gate_ratio",
+      "label": "Gate at the coarse stop",
+      "group": "Coarse stop",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "nullable": true,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "Where the gate goes when the coarse trickler stops: 0 open, 1 closed; null, it is not moved"
+     },
+     {
+      "name": "coarse_stop_backoff_enable",
+      "label": "Back off at the coarse stop",
+      "group": "Coarse stop",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The coarse trickler turns back a little when it stops"
+     },
+     {
+      "name": "coarse_stop_backoff_turns",
+      "label": "Back-off turns",
+      "group": "Coarse stop",
+      "type": "number",
+      "unit": "turns",
+      "min": 0.125,
+      "max": 2,
+      "step": 0.125,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How far it turns back"
+     },
+     {
+      "name": "coarse_stop_backoff_speed_rps",
+      "label": "Back-off speed",
+      "group": "Coarse stop",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How fast it turns back; 0 is the coarse motor's minimum speed, and it is used up to its maximum"
+     },
+     {
+      "name": "precharge_enable",
+      "label": "Precharge",
+      "group": "Precharge",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "At a throw's end, with the gate closed, the coarse trickler runs a while so powder waits behind the gate for the next; only with the servo gate enabled"
+     },
+     {
+      "name": "precharge_time_ms",
+      "label": "Precharge time",
+      "group": "Precharge",
+      "type": "integer",
+      "unit": "ms",
+      "min": 0,
+      "max": 5000,
+      "step": 1,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "How long the precharge runs; the RST button is not read meanwhile"
+     },
+     {
+      "name": "precharge_speed_rps",
+      "label": "Precharge speed",
+      "group": "Precharge",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The coarse trickler's speed in the precharge, used up to its maximum"
+     },
+     {
+      "name": "colour_good",
+      "label": "Good throw",
+      "group": "Colours",
+      "type": "colour",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The LEDs' colour after a throw within the fine stop threshold"
+     },
+     {
+      "name": "colour_under",
+      "label": "Under",
+      "group": "Colours",
+      "type": "colour",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The LEDs' colour after a throw under the target"
+     },
+     {
+      "name": "colour_over",
+      "label": "Over",
+      "group": "Colours",
+      "type": "colour",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The LEDs' colour after a throw over the target"
+     },
+     {
+      "name": "colour_not_ready",
+      "label": "Not ready",
+      "group": "Colours",
+      "type": "colour",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The LEDs' colour while the unit waits for the cup"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/powder_profiles/{id}",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/powder_profiles/save",
+    "label": "Powder profile",
+    "about": "How a powder flows, and the controller's gains for it",
+    "ids": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "refused_while": "in_throw_when_in_use",
+    "fields": [
+     {
+      "name": "name",
+      "label": "Name",
+      "group": "Profile",
+      "type": "string",
+      "min": 0,
+      "max": 0,
+      "min_length": 1,
+      "max_length": 15,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The profile's name, as the menu shows it: printable ASCII, the screen's font draws nothing else"
+     },
+     {
+      "name": "coarse_kp",
+      "label": "Coarse Kp",
+      "group": "Coarse trickler",
+      "type": "number",
+      "min": 0,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The coarse trickler's proportional gain"
+     },
+     {
+      "name": "coarse_ki",
+      "label": "Coarse Ki",
+      "group": "Coarse trickler",
+      "type": "number",
+      "min": 0,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The coarse trickler's integral gain"
+     },
+     {
+      "name": "coarse_kd",
+      "label": "Coarse Kd",
+      "group": "Coarse trickler",
+      "type": "number",
+      "min": 0,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The coarse trickler's derivative gain"
+     },
+     {
+      "name": "coarse_min_speed_rps",
+      "label": "Coarse minimum speed",
+      "group": "Coarse trickler",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The coarse trickler's slowest while it pours; not above its maximum"
+     },
+     {
+      "name": "coarse_max_speed_rps",
+      "label": "Coarse maximum speed",
+      "group": "Coarse trickler",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The coarse trickler's fastest, used up to the coarse motor's max_speed_rps"
+     },
+     {
+      "name": "fine_kp",
+      "label": "Fine Kp",
+      "group": "Fine trickler",
+      "type": "number",
+      "min": 0,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The fine trickler's proportional gain"
+     },
+     {
+      "name": "fine_ki",
+      "label": "Fine Ki",
+      "group": "Fine trickler",
+      "type": "number",
+      "min": 0,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The fine trickler's integral gain"
+     },
+     {
+      "name": "fine_kd",
+      "label": "Fine Kd",
+      "group": "Fine trickler",
+      "type": "number",
+      "min": 0,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The fine trickler's derivative gain"
+     },
+     {
+      "name": "fine_min_speed_rps",
+      "label": "Fine minimum speed",
+      "group": "Fine trickler",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The fine trickler's slowest while it pours; not above its maximum"
+     },
+     {
+      "name": "fine_max_speed_rps",
+      "label": "Fine maximum speed",
+      "group": "Fine trickler",
+      "type": "number",
+      "unit": "rev/s",
+      "min": 0,
+      "max": 100,
+      "access": "read_write",
+      "applies": "the next throw",
+      "refused_while": "in_throw_when_in_use",
+      "about": "The fine trickler's fastest, used up to the fine motor's max_speed_rps"
+     }
+    ]
+   },
+   {
+    "path": "/api/v1/settings/gate",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/gate/save",
+    "label": "Servo gate",
+    "about": "The gate between the tricklers and the cup",
+    "refused_while": "in_throw",
+    "fields": [
+     {
+      "name": "enable",
+      "label": "Servo gate",
+      "group": "Gate",
+      "type": "boolean",
+      "min": 0,
+      "max": 0,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "in_throw",
+      "about": "The unit has a servo gate, and uses it"
+     },
+     {
+      "name": "shutter0_close_duty",
+      "label": "Shutter 0 closed",
+      "group": "Shutters",
+      "type": "number",
+      "unit": "of the PWM's period",
+      "min": 0.02,
+      "max": 0.13,
+      "access": "read_write",
+      "applies": "the next move",
+      "refused_while": "in_throw",
+      "about": "Shutter 0's servo pulse when closed, as a share of the PWM's period (a servo's pulse at 50 Hz)"
+     },
+     {
+      "name": "shutter0_open_duty",
+      "label": "Shutter 0 open",
+      "group": "Shutters",
+      "type": "number",
+      "unit": "of the PWM's period",
+      "min": 0.02,
+      "max": 0.13,
+      "access": "read_write",
+      "applies": "the next move",
+      "refused_while": "in_throw",
+      "about": "Shutter 0's servo pulse when open"
+     },
+     {
+      "name": "shutter1_close_duty",
+      "label": "Shutter 1 closed",
+      "group": "Shutters",
+      "type": "number",
+      "unit": "of the PWM's period",
+      "min": 0.02,
+      "max": 0.13,
+      "access": "read_write",
+      "applies": "the next move",
+      "refused_while": "in_throw",
+      "about": "Shutter 1's servo pulse when closed"
+     },
+     {
+      "name": "shutter1_open_duty",
+      "label": "Shutter 1 open",
+      "group": "Shutters",
+      "type": "number",
+      "unit": "of the PWM's period",
+      "min": 0.02,
+      "max": 0.13,
+      "access": "read_write",
+      "applies": "the next move",
+      "refused_while": "in_throw",
+      "about": "Shutter 1's servo pulse when open"
+     },
+     {
+      "name": "close_speed_per_s",
+      "label": "Closing speed",
+      "group": "Speed",
+      "type": "number",
+      "unit": "full travels a second",
+      "min": 0.01,
+      "max": 100,
+      "access": "read_write",
+      "applies": "the next move",
+      "refused_while": "in_throw",
+      "about": "How fast the gate closes: 1 is its whole travel in a second"
+     },
+     {
+      "name": "open_speed_per_s",
+      "label": "Opening speed",
+      "group": "Speed",
+      "type": "number",
+      "unit": "full travels a second",
+      "min": 0.01,
+      "max": 100,
+      "access": "read_write",
+      "applies": "the next move",
+      "refused_while": "in_throw",
+      "about": "How fast the gate opens"
+     }
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/leds/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/display/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/wifi/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/motors/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/scale/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/charge/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/powder_profiles/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/gate/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores every setting and the powder profiles"
+   },
+   {
+    "method": "PATCH",
+    "path": "/api/v1/charge",
+    "fields": [
+     {
+      "name": "target",
+      "type": "number",
+      "min": 0.001,
+      "max": 999.99,
+      "about": "in the scale's unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (settings/charge decimal_places)"
+     },
+     {
+      "name": "powder_profile",
+      "type": "integer",
+      "min": 0,
+      "max": 7,
+      "about": "a powder profile's id (GET /api/v1/powder_profiles)"
+     }
+    ],
+    "refused_while": "in_throw",
+    "about": "what the next throw uses, either field or both; one target for the unit: the menu's digits show it"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/charge/start",
+    "fields": [
+     {
+      "name": "target",
+      "type": "number",
+      "min": 0.001,
+      "max": 999.99,
+      "about": "in the scale's unit; what the menu's digits can show: 0.01 to 999.99 at two decimal places, 0.001 to 99.999 at three (settings/charge decimal_places)"
+     },
+     {
+      "name": "powder_profile",
+      "type": "integer",
+      "min": 0,
+      "max": 7,
+      "about": "a powder profile's id (GET /api/v1/powder_profiles)"
+     }
+    ],
+    "refused_while": "a_job_runs",
+    "about": "starts a charge (202); a target or a powder profile given is set only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 no_target when none is set"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/charge/stop",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/cleanup/start",
+    "fields": [],
+    "refused_while": "a_job_runs",
+    "about": "starts a cleanup (202), at speed 0 until a PATCH gives one; 409 driver_fault"
+   },
+   {
+    "method": "PATCH",
+    "path": "/api/v1/cleanup",
+    "fields": [
+     {
+      "name": "speed_rps",
+      "type": "number",
+      "unit": "rev/s",
+      "required": true,
+      "about": "both tricklers, within plus or minus the lower of the two motors' max_speed_rps"
+     },
+     {
+      "name": "time_s",
+      "type": "number",
+      "unit": "s",
+      "min": 1,
+      "max": 600,
+      "about": "for at most this long, then the cleanup stops by itself; without it, until stopped. A client with no person at the unit gives a short time and sends the speed again while it wants it"
+     }
+    ],
+    "refused_while": "no_cleanup_runs",
+    "about": "the cleanup's speed; 409 not_running when none runs"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/cleanup/stop",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stops the cleanup (202), or 200 with nothing to stop; it acknowledges the cleanup's fault"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/stop",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stops whatever job runs, or a start asked and not yet begun; never fails"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/scale/zero",
+    "fields": [],
+    "about": "asks the scale to zero, not that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup, and in the scale's calibration; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
+   },
+   {
+    "method": "PATCH",
+    "path": "/api/v1/gate",
+    "fields": [
+     {
+      "name": "ratio",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "required": true,
+      "about": "0 open, 1 closed"
+     }
+    ],
+    "refused_while": "in_throw",
+    "about": "moves the servo gate; 409 gate_disabled when it is off in settings/gate"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/system/restart",
+    "fields": [],
+    "refused_while": "a_job_runs",
+    "about": "restarts the unit once the reply is out (202)"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/system/erase",
+    "fields": [
+     {
+      "name": "confirm",
+      "type": "choice",
+      "choices": [
+       {
+        "value": "erase",
+        "label": "Erase"
+       }
+      ],
+      "required": true
+     }
+    ],
+    "refused_while": "a_job_runs",
+    "about": "erases the stored settings and restarts (202): the unit then leaves the network and comes back as its own access point, with a new id and host name. 400 confirm_missing without the confirmation"
+   }
+  ],
+  "states": {
+   "activity": [
+    {
+     "value": "none",
+     "about": "no job: the menu's forms"
+    },
+    {
+     "value": "charge"
+    },
+    {
+     "value": "cleanup"
+    },
+    {
+     "value": "scale_calibration",
+     "about": "the scale's own calibration, from the menu"
+    },
+    {
+     "value": "view",
+     "about": "a person has a screen open at the unit that is not a job (the Wi-Fi information, a driver's fault): a start is refused until it is closed there"
+    }
+   ],
+   "charge": [
+    {
+     "value": "idle"
+    },
+    {
+     "value": "starting",
+     "about": "asked, and the menu has not begun it yet"
+    },
+    {
+     "value": "zeroing",
+     "about": "a throw waits for the scale to read zero, steady"
+    },
+    {
+     "value": "charging",
+     "about": "a throw pours to the target"
+    },
+    {
+     "value": "waiting_for_cup_removal",
+     "about": "the throw's verdict is given: the cup is to be lifted"
+    },
+    {
+     "value": "waiting_for_cup_return",
+     "about": "the cup is away; the next throw begins when it is back"
+    },
+    {
+     "value": "fault",
+     "about": "the charge ended on a fault (last.reason) and waits for a stop or a press to acknowledge it"
+    }
+   ],
+   "cleanup": [
+    {
+     "value": "idle"
+    },
+    {
+     "value": "starting",
+     "about": "asked, and the menu has not begun it yet"
+    },
+    {
+     "value": "running"
+    },
+    {
+     "value": "fault",
+     "about": "ended on a driver's fault, waiting for a stop or a press"
+    }
+   ],
+   "gate": [
+    {
+     "value": "open"
+    },
+    {
+     "value": "closed"
+    },
+    {
+     "value": "partial"
+    },
+    {
+     "value": "held",
+     "about": "the menu's Disable: the servo is moved no more and stays at its last ratio until charge mode moves it"
+    },
+    {
+     "value": "disabled",
+     "about": "off in settings/gate: charge mode does not use it"
+    }
+   ],
+   "driver": [
+    {
+     "value": "ok"
+    },
+    {
+     "value": "absent",
+     "about": "the driver does not answer on its serial line"
+    },
+    {
+     "value": "short"
+    },
+    {
+     "value": "hot"
+    },
+    {
+     "value": "reset",
+     "about": "the driver restarted and lost its set-up"
+    },
+    {
+     "value": "supply",
+     "about": "its motor supply is too low"
+    }
+   ]
+  },
+  "events": [
+   {
+    "source": "charge",
+    "kind": "started",
+    "carries": [
+     "by",
+     "target",
+     "powder_profile"
+    ],
+    "about": "by: button, api, console"
+   },
+   {
+    "source": "charge",
+    "kind": "stopped",
+    "carries": [
+     "by",
+     "reason"
+    ],
+    "about": "by: button, api, console, or unit when it ended itself; reason: stopped, fault"
+   },
+   {
+    "source": "throw",
+    "kind": "started",
+    "carries": [
+     "throw",
+     "target",
+     "powder_profile"
+    ],
+    "about": "throw: its number in the charge, from 1"
+   },
+   {
+    "source": "throw",
+    "kind": "paused",
+    "carries": [
+     "throw",
+     "pause"
+    ],
+    "about": "no reading for 3 of the scale's intervals; pause: its number in the throw"
+   },
+   {
+    "source": "throw",
+    "kind": "resumed",
+    "carries": [
+     "throw",
+     "weight"
+    ],
+    "about": "weight: the settled weight it went on from"
+   },
+   {
+    "source": "throw",
+    "kind": "finished",
+    "carries": [
+     "throw",
+     "result",
+     "weight",
+     "elapsed_s"
+    ],
+    "about": "the verdict; result: good, under, over"
+   },
+   {
+    "source": "throw",
+    "kind": "ended",
+    "carries": [
+     "throw",
+     "reason",
+     "motor",
+     "fault"
+    ],
+    "about": "a throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and fault only with driver_fault"
+   },
+   {
+    "source": "cleanup",
+    "kind": "started",
+    "carries": [
+     "by"
+    ]
+   },
+   {
+    "source": "cleanup",
+    "kind": "stopped",
+    "carries": [
+     "by",
+     "reason"
+    ],
+    "about": "reason: stopped, time (its time ran out: by the unit), fault"
+   },
+   {
+    "source": "motors",
+    "kind": "fault",
+    "carries": [
+     "motor",
+     "fault"
+    ],
+    "about": "a driver's fault appeared; motor: coarse, fine; fault: as the driver states"
+   },
+   {
+    "source": "motors",
+    "kind": "cleared",
+    "carries": [
+     "motor",
+     "fault"
+    ],
+    "about": "fault: the one that cleared"
+   },
+   {
+    "source": "system",
+    "kind": "started",
+    "carries": [
+     "firmware"
+    ],
+    "about": "the unit started; the first event after each start"
+   }
+  ],
+  "errors": [
+   "bad_json",
+   "bad_request",
+   "length_required",
+   "unknown_field",
+   "wrong_type",
+   "out_of_range",
+   "not_a_choice",
+   "read_only",
+   "confirm_missing",
+   "not_found",
+   "method_not_allowed",
+   "busy",
+   "not_running",
+   "no_target",
+   "weight_off_zero",
+   "driver_fault",
+   "gate_disabled",
+   "not_supported",
+   "wrong_host",
+   "too_large",
+   "wrong_media_type",
+   "failed"
+  ]
+ },
+ "/api/v1/settings": {
+  "api": "1",
+  "firmware": {
+   "version": "1.20.190-dirty",
+   "vcs": "dd3dab6",
+   "build": "Debug"
+  },
+  "unit_id": "9CE00000",
+  "resources": {
+   "/api/v1/settings/leds": {
+    "saved": true,
+    "backlight_colour": "#ffffff",
+    "led1_colour": "#ffffff",
+    "led2_colour": "#f21818",
+    "pwm3_chain_count": 2,
+    "pwm3_colour_order": "rgb",
+    "pwm3_rgbw": true
+   },
+   "/api/v1/settings/display": {
+    "saved": true,
+    "invert_encoder": false,
+    "rotation": 180
+   },
+   "/api/v1/settings/wifi": {
+    "saved": true,
+    "enable": true,
+    "ssid": "dummy_ssid",
+    "auth": "wpa2_mixed",
+    "timeout_ms": 30000
+   },
+   "/api/v1/settings/motors/coarse": {
+    "saved": true,
+    "full_steps_per_rotation": 200,
+    "current_ma": 380,
+    "microsteps": 256,
+    "max_speed_rps": 5,
+    "r_sense_mohm": 110,
+    "acceleration_rps2": 50,
+    "min_speed_rps": 0.1,
+    "gear_ratio": 1.25,
+    "invert_direction": false,
+    "invert_enable": false
+   },
+   "/api/v1/settings/motors/fine": {
+    "saved": true,
+    "full_steps_per_rotation": 200,
+    "current_ma": 380,
+    "microsteps": 256,
+    "max_speed_rps": 5,
+    "r_sense_mohm": 110,
+    "acceleration_rps2": 50,
+    "min_speed_rps": 0.01,
+    "gear_ratio": 1.818,
+    "invert_direction": false,
+    "invert_enable": false
+   },
+   "/api/v1/settings/scale": {
+    "saved": true,
+    "driver": "and_fxi",
+    "baud": 19200,
+    "format": "8n1"
+   },
+   "/api/v1/settings/charge": {
+    "saved": true,
+    "coarse_stop_threshold": 5,
+    "fine_stop_threshold": 0.03,
+    "steady_sd_margin": 0.02,
+    "zero_mean_margin": 0.02,
+    "decimal_places": 2,
+    "coarse_stop_gate_ratio": 0,
+    "coarse_stop_backoff_enable": true,
+    "coarse_stop_backoff_turns": 0.25,
+    "coarse_stop_backoff_speed_rps": 1,
+    "precharge_enable": false,
+    "precharge_time_ms": 1000,
+    "precharge_speed_rps": 2,
+    "colour_good": "#00ff00",
+    "colour_under": "#ffff00",
+    "colour_over": "#ff0000",
+    "colour_not_ready": "#0000ff"
+   },
+   "/api/v1/powder_profiles/0": {
+    "saved": true,
+    "name": "AR2208,gr",
+    "coarse_kp": 0.025,
+    "coarse_ki": 0,
+    "coarse_kd": 0.3,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 5,
+    "fine_kp": 2,
+    "fine_ki": 0,
+    "fine_kd": 10,
+    "fine_min_speed_rps": 0.08,
+    "fine_max_speed_rps": 5
+   },
+   "/api/v1/powder_profiles/1": {
+    "saved": true,
+    "name": "AR2209,gr",
+    "coarse_kp": 0.05,
+    "coarse_ki": 0,
+    "coarse_kd": 0.3,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 8,
+    "fine_kp": 0.8,
+    "fine_ki": 0,
+    "fine_kd": 15,
+    "fine_min_speed_rps": 0.08,
+    "fine_max_speed_rps": 2
+   },
+   "/api/v1/powder_profiles/2": {
+    "saved": true,
+    "name": "8208,gr",
+    "coarse_kp": 0.05,
+    "coarse_ki": 0,
+    "coarse_kd": 0.3,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 5,
+    "fine_kp": 2,
+    "fine_ki": 0,
+    "fine_kd": 12,
+    "fine_min_speed_rps": 0.06,
+    "fine_max_speed_rps": 5
+   },
+   "/api/v1/powder_profiles/3": {
+    "saved": true,
+    "name": "Benchmark2,gr",
+    "coarse_kp": 0.06,
+    "coarse_ki": 0,
+    "coarse_kd": 0.3,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 5,
+    "fine_kp": 1.1,
+    "fine_ki": 0,
+    "fine_kd": 15,
+    "fine_min_speed_rps": 0.05,
+    "fine_max_speed_rps": 5
+   },
+   "/api/v1/powder_profiles/4": {
+    "saved": true,
+    "name": "NewProfile4",
+    "coarse_kp": 0,
+    "coarse_ki": 0,
+    "coarse_kd": 0,
+    "coarse_min_speed_rps": 0,
+    "coarse_max_speed_rps": 0,
+    "fine_kp": 0,
+    "fine_ki": 0,
+    "fine_kd": 0,
+    "fine_min_speed_rps": 0,
+    "fine_max_speed_rps": 0
+   },
+   "/api/v1/powder_profiles/5": {
+    "saved": true,
+    "name": "NewProfile5",
+    "coarse_kp": 0,
+    "coarse_ki": 0,
+    "coarse_kd": 0,
+    "coarse_min_speed_rps": 0,
+    "coarse_max_speed_rps": 0,
+    "fine_kp": 0,
+    "fine_ki": 0,
+    "fine_kd": 0,
+    "fine_min_speed_rps": 0,
+    "fine_max_speed_rps": 0
+   },
+   "/api/v1/powder_profiles/6": {
+    "saved": true,
+    "name": "NewProfile6",
+    "coarse_kp": 0,
+    "coarse_ki": 0,
+    "coarse_kd": 0,
+    "coarse_min_speed_rps": 0,
+    "coarse_max_speed_rps": 0,
+    "fine_kp": 0,
+    "fine_ki": 0,
+    "fine_kd": 0,
+    "fine_min_speed_rps": 0,
+    "fine_max_speed_rps": 0
+   },
+   "/api/v1/powder_profiles/7": {
+    "saved": true,
+    "name": "NewProfile7",
+    "coarse_kp": 0,
+    "coarse_ki": 0,
+    "coarse_kd": 0,
+    "coarse_min_speed_rps": 0,
+    "coarse_max_speed_rps": 0,
+    "fine_kp": 0,
+    "fine_ki": 0,
+    "fine_kd": 0,
+    "fine_min_speed_rps": 0,
+    "fine_max_speed_rps": 0
+   },
+   "/api/v1/settings/gate": {
+    "saved": true,
+    "enable": false,
+    "shutter0_close_duty": 0.032,
+    "shutter0_open_duty": 0.09,
+    "shutter1_close_duty": 0.09,
+    "shutter1_open_duty": 0.032,
+    "close_speed_per_s": 3,
+    "open_speed_per_s": 5
+   }
+  }
+ },
+ "/api/v1/powder_profiles": {
+  "saved": true,
+  "profiles": [
+   {
+    "id": 0,
+    "name": "AR2208,gr"
+   },
+   {
+    "id": 1,
+    "name": "AR2209,gr"
+   },
+   {
+    "id": 2,
+    "name": "8208,gr"
+   },
+   {
+    "id": 3,
+    "name": "Benchmark2,gr"
+   },
+   {
+    "id": 4,
+    "name": "NewProfile4"
+   },
+   {
+    "id": 5,
+    "name": "NewProfile5"
+   },
+   {
+    "id": 6,
+    "name": "NewProfile6"
+   },
+   {
+    "id": 7,
+    "name": "NewProfile7"
+   }
+  ]
+ },
+ "/api/v1/charge": {
+  "state": "idle",
+  "in_throw": false,
+  "throw": 0,
+  "paused": false,
+  "target": null,
+  "powder_profile": 1,
+  "powder_profile_name": "AR2209,gr",
+  "weight": null,
+  "elapsed_s": 0,
+  "last": {
+   "throw": 0,
+   "result": "none",
+   "reason": "none",
+   "weight": null
+  },
+  "event_seq": 1
+ },
+ "/api/v1/cleanup": {
+  "state": "idle",
+  "speed_rps": 0,
+  "time_left_s": null
+ },
+ "/api/v1/scale": {
+  "weight": null,
+  "unit": null,
+  "driver": "and_fxi",
+  "simulated": false,
+  "usual_interval_ms": 0,
+  "bad_frames": 0,
+  "actions": [
+   "zero"
+  ]
+ },
+ "/api/v1/gate": {
+  "state": "disabled",
+  "ratio": null
+ },
+ "/api/v1/motors": {
+  "coarse": {
+   "speed_rps": 0,
+   "driver": "ok"
+  },
+  "fine": {
+   "speed_rps": 0,
+   "driver": "ok"
+  }
+ },
+ "/api/v1/system": {
+  "firmware": {
+   "version": "1.20.190-dirty",
+   "vcs": "dd3dab6",
+   "build": "Debug"
+  },
+  "board": "pico_w",
+  "unit_id": "9CE00000",
+  "uptime_s": 20,
+  "activity": "none",
+  "restart_pending": false
+ },
+ "/api/v1/network": {
+  "mode": "station",
+  "ssid": "dummy_ssid",
+  "address": "192.168.4.1",
+  "hostname": "opentrickler-9CE0",
+  "rssi": -53
+ },
+ "/api/v1/display": {
+  "width": 128,
+  "height": 64,
+  "format": "u8g2_tiles"
+ },
+ "/api/v1/display/frame": {
+  "base64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALBISJAA/JIKCvAA+AAAgPgA+AAI+AAACPgAANBISPAAcIiIiDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBgIABAAGBgAAAAYGAAQCFAAGHgQABBwGAAIEBAIACBASEAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAsUFAkACxQUCQANFBQPAH8ADRQUDwAQCB8AX2AcAwR4BAMcYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8AgIkP4A+AgI8AD4AACA+AjwSEgwANBISPAA+AAQCAgICPAAAAAAAADw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8fHw8fDx8PDx8PDxcXDx8PDxcXHwcHHx8HB38PL0dHR08/Dw8PDw8P/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////vgO//7/fg//Dr6+z/74Dv/9i3t7fM////////BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMTEBITERMSEBMTERMSEBMTEBMRExIQExMQEBMTEBAQExMQEBATExATExASExETEhASExET09AQEhMRExIQEBAQEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgMBw8ABg4KDwcAPz8ACA0HPz8ADAgPBwAvLwgMBw8AICA/PyAgAAcPCAcPAAYOCg8HAAcPCAcPAA8fMCAwHw8AAAAAAA=="
+ },
+ "/api/v1/settings/leds": {
+  "saved": true,
+  "backlight_colour": "#ffffff",
+  "led1_colour": "#ffffff",
+  "led2_colour": "#f21818",
+  "pwm3_chain_count": 2,
+  "pwm3_colour_order": "rgb",
+  "pwm3_rgbw": true
+ },
+ "/api/v1/settings/display": {
+  "saved": true,
+  "invert_encoder": false,
+  "rotation": 180
+ },
+ "/api/v1/settings/wifi": {
+  "saved": true,
+  "enable": true,
+  "ssid": "dummy_ssid",
+  "auth": "wpa2_mixed",
+  "timeout_ms": 30000
+ },
+ "/api/v1/settings/motors/coarse": {
+  "saved": true,
+  "full_steps_per_rotation": 200,
+  "current_ma": 380,
+  "microsteps": 256,
+  "max_speed_rps": 5,
+  "r_sense_mohm": 110,
+  "acceleration_rps2": 50,
+  "min_speed_rps": 0.1,
+  "gear_ratio": 1.25,
+  "invert_direction": false,
+  "invert_enable": false
+ },
+ "/api/v1/settings/motors/fine": {
+  "saved": true,
+  "full_steps_per_rotation": 200,
+  "current_ma": 380,
+  "microsteps": 256,
+  "max_speed_rps": 5,
+  "r_sense_mohm": 110,
+  "acceleration_rps2": 50,
+  "min_speed_rps": 0.01,
+  "gear_ratio": 1.818,
+  "invert_direction": false,
+  "invert_enable": false
+ },
+ "/api/v1/settings/scale": {
+  "saved": true,
+  "driver": "and_fxi",
+  "baud": 19200,
+  "format": "8n1"
+ },
+ "/api/v1/settings/charge": {
+  "saved": true,
+  "coarse_stop_threshold": 5,
+  "fine_stop_threshold": 0.03,
+  "steady_sd_margin": 0.02,
+  "zero_mean_margin": 0.02,
+  "decimal_places": 2,
+  "coarse_stop_gate_ratio": 0,
+  "coarse_stop_backoff_enable": true,
+  "coarse_stop_backoff_turns": 0.25,
+  "coarse_stop_backoff_speed_rps": 1,
+  "precharge_enable": false,
+  "precharge_time_ms": 1000,
+  "precharge_speed_rps": 2,
+  "colour_good": "#00ff00",
+  "colour_under": "#ffff00",
+  "colour_over": "#ff0000",
+  "colour_not_ready": "#0000ff"
+ },
+ "/api/v1/powder_profiles/0": {
+  "saved": true,
+  "name": "AR2208,gr",
+  "coarse_kp": 0.025,
+  "coarse_ki": 0,
+  "coarse_kd": 0.3,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 5,
+  "fine_kp": 2,
+  "fine_ki": 0,
+  "fine_kd": 10,
+  "fine_min_speed_rps": 0.08,
+  "fine_max_speed_rps": 5
+ },
+ "/api/v1/powder_profiles/1": {
+  "saved": true,
+  "name": "AR2209,gr",
+  "coarse_kp": 0.05,
+  "coarse_ki": 0,
+  "coarse_kd": 0.3,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 8,
+  "fine_kp": 0.8,
+  "fine_ki": 0,
+  "fine_kd": 15,
+  "fine_min_speed_rps": 0.08,
+  "fine_max_speed_rps": 2
+ },
+ "/api/v1/powder_profiles/2": {
+  "saved": true,
+  "name": "8208,gr",
+  "coarse_kp": 0.05,
+  "coarse_ki": 0,
+  "coarse_kd": 0.3,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 5,
+  "fine_kp": 2,
+  "fine_ki": 0,
+  "fine_kd": 12,
+  "fine_min_speed_rps": 0.06,
+  "fine_max_speed_rps": 5
+ },
+ "/api/v1/powder_profiles/3": {
+  "saved": true,
+  "name": "Benchmark2,gr",
+  "coarse_kp": 0.06,
+  "coarse_ki": 0,
+  "coarse_kd": 0.3,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 5,
+  "fine_kp": 1.1,
+  "fine_ki": 0,
+  "fine_kd": 15,
+  "fine_min_speed_rps": 0.05,
+  "fine_max_speed_rps": 5
+ },
+ "/api/v1/powder_profiles/4": {
+  "saved": true,
+  "name": "NewProfile4",
+  "coarse_kp": 0,
+  "coarse_ki": 0,
+  "coarse_kd": 0,
+  "coarse_min_speed_rps": 0,
+  "coarse_max_speed_rps": 0,
+  "fine_kp": 0,
+  "fine_ki": 0,
+  "fine_kd": 0,
+  "fine_min_speed_rps": 0,
+  "fine_max_speed_rps": 0
+ },
+ "/api/v1/powder_profiles/5": {
+  "saved": true,
+  "name": "NewProfile5",
+  "coarse_kp": 0,
+  "coarse_ki": 0,
+  "coarse_kd": 0,
+  "coarse_min_speed_rps": 0,
+  "coarse_max_speed_rps": 0,
+  "fine_kp": 0,
+  "fine_ki": 0,
+  "fine_kd": 0,
+  "fine_min_speed_rps": 0,
+  "fine_max_speed_rps": 0
+ },
+ "/api/v1/powder_profiles/6": {
+  "saved": true,
+  "name": "NewProfile6",
+  "coarse_kp": 0,
+  "coarse_ki": 0,
+  "coarse_kd": 0,
+  "coarse_min_speed_rps": 0,
+  "coarse_max_speed_rps": 0,
+  "fine_kp": 0,
+  "fine_ki": 0,
+  "fine_kd": 0,
+  "fine_min_speed_rps": 0,
+  "fine_max_speed_rps": 0
+ },
+ "/api/v1/powder_profiles/7": {
+  "saved": true,
+  "name": "NewProfile7",
+  "coarse_kp": 0,
+  "coarse_ki": 0,
+  "coarse_kd": 0,
+  "coarse_min_speed_rps": 0,
+  "coarse_max_speed_rps": 0,
+  "fine_kp": 0,
+  "fine_ki": 0,
+  "fine_kd": 0,
+  "fine_min_speed_rps": 0,
+  "fine_max_speed_rps": 0
+ },
+ "/api/v1/settings/gate": {
+  "saved": true,
+  "enable": false,
+  "shutter0_close_duty": 0.032,
+  "shutter0_open_duty": 0.09,
+  "shutter1_close_duty": 0.09,
+  "shutter1_open_duty": 0.032,
+  "close_speed_per_s": 3,
+  "open_speed_per_s": 5
+ }
+}

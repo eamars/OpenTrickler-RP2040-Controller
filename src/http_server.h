@@ -17,8 +17,8 @@ extern "C" {
 // As many clients as a browser opens to one host
 #define HTTP_SERVER_SLOTS 6
 
-// A request line and the body that follows it, in one slot's buffer: an old path's query is up to 512 characters,
-// a JSON body up to 1 KB, never both
+// A request line and the body behind it share one slot's buffer: a line up to 640 characters, a JSON body up to 1 KB,
+// not both at their longest. A longer body goes to an upload route in pieces (http_server_add_upload)
 #define HTTP_SERVER_REQUEST_LINE_MAX 640
 #define HTTP_SERVER_BODY_MAX 1024
 #define HTTP_SERVER_BUFFER_SIZE 1536
@@ -70,6 +70,28 @@ typedef struct {
  * @return false when the table is full
  */
 bool http_server_add_route(http_server_method_t method, const char *path, http_server_handler_t handler);
+
+// A route that takes its body in pieces as it comes, never held whole: ADR-004's image, a PUT of bytes of any length.
+// The handler keeps its state in the request's context (http_server_reply_context in begin and end; ctx in piece and
+// abort). Once begin has taken a body, exactly one of end and abort is called
+typedef struct {
+    // The headers are in, none of the body: take it (true), or refuse it with a reply made (false), and the body is
+    // read and dropped. request->body_len is the body's length; request->body is NULL throughout
+    bool (*begin)(const http_server_request_t *request, http_server_reply_t *reply);
+    // The next piece of the body, in order. False stops the upload: end is called at once, and the rest of the body
+    // is read and dropped
+    bool (*piece)(void *ctx, const char *data, size_t len);
+    // The body is all in, or a piece stopped it: make the reply
+    void (*end)(const http_server_request_t *request, http_server_reply_t *reply);
+    // The connection went before the body was all in, or stalled: no reply goes
+    void (*abort)(void *ctx);
+} http_server_upload_t;
+
+/**
+ * @brief Add a route whose body comes to its handler in pieces (see http_server_upload_t). upload is kept, not copied
+ * @return false when the table is full
+ */
+bool http_server_add_upload(http_server_method_t method, const char *path, const http_server_upload_t *upload);
 
 /**
  * @brief Start the server's task. Called once, when the network is up.

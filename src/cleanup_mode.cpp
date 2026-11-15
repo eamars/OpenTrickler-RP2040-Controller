@@ -277,11 +277,16 @@ uint8_t cleanup_mode_menu() {
 
 
 cleanup_start_result_t cleanup_mode_request_start(activity_by_t by) {
+    // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over. In
+    // the charge's order: busy, then a driver's fault
+    activity_t asked_before;
+    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
+        return CLEANUP_START_BUSY;
+    }
     if (motors_get_fault() != NULL) {
         return CLEANUP_START_DRIVER_FAULT;
     }
-    // A person at the unit in a mode or a view of the menu's: not taken over
-    if (menu_get_current_form_id() < 0 || !activity_request_start(ACTIVITY_CLEANUP, by)) {
+    if (!activity_request_start(ACTIVITY_CLEANUP, by)) {
         return CLEANUP_START_BUSY;
     }
     menu_wake();

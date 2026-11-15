@@ -2,8 +2,6 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
-// #include <lwip/apps/httpd.h>
-
 #include "wireless.h"
 #include "eeprom.h"
 #include "access_point_mode.h"

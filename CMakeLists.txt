@@ -100,7 +100,6 @@ target_link_libraries("${TARGET_NAME}"
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_freertos
     pico_lwip_mdns
-    # pico_lwip_http
 )
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)

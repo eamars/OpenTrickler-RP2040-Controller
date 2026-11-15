@@ -25,6 +25,7 @@ import datetime
 import http.client
 import json
 import math
+import os
 import queue
 import re
 import shutil
@@ -38,6 +39,8 @@ import urllib.error
 import urllib.request
 import zlib
 from pathlib import Path
+
+import unit_api
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -130,6 +133,16 @@ SOAK_QUIET_S = 10.0         # after the browsers stop, the server's idle connect
 SOAK_LOAD_ROWS = 600         # a throw's samples: 600 rows ...
 SOAK_LOAD_COLUMNS = 16       # ... of 16 numbers, pulled back to back
 SOAK_LOAD_FAST_S = 0.25      # and a client asking for the charge four times a second
+# api_check (ADR-003, gate 4): what may move between two reads of the same path with nothing done between them
+API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usual_interval_ms"}
+API_CHECK_STATE_S = 15.0        # a state looked for after an action
+API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
+# Two clients follow the event log through every soak with held reads (ADR-003, gate 4): each must see every event
+SOAK_FOLLOWERS = 2
+SOAK_EVENTS_WAIT_S = 10
+# --upload (ADR-003, gate 4): ADR-004's image, a body taken in pieces, sent back to back
+SOAK_UPLOAD_BYTES = 700 * 1024
+SOAK_UPLOAD_TIMEOUT_S = 30.0    # Python's sendall times the whole body: some 4 s at the bench's 190 KB/s
 
 # scale_frames (ADR-013): the motors as in a throw on the bench's settings (the coarse trickler at its 5 rev/s cap)
 SCALE_FRAMES_COARSE_RPS = 5.0
@@ -219,6 +232,54 @@ class WebPoller(threading.Thread):
                     self.run_longest = max(self.run_longest, self.run_now)
                     self.log.write("rc", f"soak: {self.name}{f' {label}' if label else ''}: {why}")
             self.stop_event.wait(max(0.0, self.interval_s - (time.monotonic() - started)))
+
+
+class EventFollower(threading.Thread):
+    """
+    A client that follows the unit's event log with held reads (?wait), as a page that shows each change does
+    (ADR-003, gate 4). A read that fails is tried again from where it left off, so an event is missed only when it
+    is no longer kept; what it saw is judged at the end.
+    """
+
+    def __init__(self, name, host, log):
+        """
+        Args:
+            name: which follower, for the log.
+            host: the unit's address.
+            log: the SessionLog.
+        """
+        super().__init__(daemon=True)
+        self.name, self.log = name, log
+        self.unit = unit_api.Unit(host)
+        self.stop_event = threading.Event()
+        self.events = []
+        self.failed_reads = 0
+
+    def run(self):
+        self.unit.start_following()
+        while not self.stop_event.is_set():
+            try:
+                for event in self.unit.follow(wait_s=SOAK_EVENTS_WAIT_S, for_s=SOAK_EVENTS_WAIT_S):
+                    self.events.append(event)
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError) as error:
+                self.failed_reads += 1
+                self.log.write("rc", f"soak: {self.name}: {type(error).__name__}: {error}")
+
+    def problems(self):
+        """
+        What is wrong with what it saw: a gap in the numbers, or an event the schema does not list as it came.
+
+        Returns:
+            The problems found; empty when there is none.
+        """
+        found = []
+        numbers = [event["seq"] for event in self.events]
+        gaps = [(a, b) for a, b in zip(numbers, numbers[1:]) if b != a + 1]
+        if gaps:
+            found.append(f"gaps in the numbers: {gaps[:5]}")
+        for event in self.events:
+            found.extend(self.unit.event_problems(event))
+        return found
 
 
 class SessionLog:
@@ -464,6 +525,32 @@ def http_call(host, method, path, body=None):
         request.add_header("Content-Type", "application/json")
     try:
         with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
+            status, text = reply.status, reply.read()
+    except urllib.error.HTTPError as error:
+        status, text = error.code, error.read()
+    try:
+        return status, json.loads(text)
+    except ValueError:
+        return status, None
+
+
+def http_put_bytes(host, path, data, timeout_s):
+    """
+    A PUT of bytes as application/octet-stream (ADR-003, gate 4: a body taken in pieces), its status and its JSON.
+
+    Args:
+        host: the unit's address.
+        path: from "/api/v1/...".
+        data: the bytes.
+        timeout_s: for the whole body, which Python's sendall times as one.
+
+    Returns:
+        (status, the reply's JSON or None).
+    """
+    request = urllib.request.Request(f"http://{host}{path}", data=data, method="PUT")
+    request.add_header("Content-Type", "application/octet-stream")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as reply:
             status, text = reply.status, reply.read()
     except urllib.error.HTTPError as error:
         status, text = error.code, error.read()
@@ -1170,6 +1257,234 @@ class Session:
         if after.get("resources") != export["resources"]:
             self.fail("settings_roundtrip: the settings at the end differ from those at the start")
 
+    def api_check(self, host, target):
+        """
+        The close's proof of API v1 (ADR-003, gate 4), by the client that works from the unit's own description
+        (unit_api.py). Every GET path the index lists is read twice: each answer checked against the schema's
+        tables (a settings resource's fields; a state among its kind's; each event among the kinds, carrying what
+        its kind does), the two reads the same, and the settings and the event log unchanged after: a GET changes
+        nothing. Then every action the schema lists, each where it is safe, with the answer api_v1.md gives: the
+        stops with nothing to stop; refusals with their codes, changing nothing; the saves of what is stored; the
+        gate; the zero; a charge and a cleanup started and stopped, with their events; and last a restart, after
+        which the boot is new and the system's start is the log's first event. Fails on an action the schema lists
+        and this did not call. The hopper is taken to be empty; the simulated scale stands in for the scale.
+
+        Args:
+            host: the unit's address.
+            target: the charge's target, set when none is (the menu's digits are not stored: none after a start).
+        """
+        unit = unit_api.Unit(host)
+        index, schema = unit.index, unit.schema
+        errors = set(schema["errors"])
+        for name in ("api", "firmware", "board", "unit_id", "hostname", "boot", "uptime_s", "features", "guide",
+                     "resources"):
+            if name not in index:
+                self.fail(f"api_check: the index has no {name}")
+        self.log.write("rc", f"api_check: {index['hostname']}, {index['board']}, firmware "
+                             f"{index['firmware']['version']}: {len(index['resources'])} paths, "
+                             f"{len(schema['resources'])} settings resources, {len(schema['actions'])} actions")
+        if unit.read("charge")["state"] != "idle" or unit.read("system")["activity"] != "none":
+            self.fail("api_check: the unit is not idle at the menu")
+            return
+
+        # Every GET twice: each answer against the tables, and a GET changes nothing
+        export_before = unit.read("settings")
+        unit.start_following()
+        display = unit.read("display")
+        frame_bytes = display["width"] * display["height"] // 8
+        paths = unit.paths("GET")
+        for path in paths:
+            first = unit.read(path)
+            second = unit.read(path)
+            for problem in self.api_answer_problems(unit, path, first, frame_bytes):
+                self.fail(f"api_check: {path}: {problem}")
+            if self.api_stable(first) != self.api_stable(second):
+                self.fail(f"api_check: {path} read twice, and the two differ")
+        new_events = unit.events()["events"]
+        if new_events:
+            self.fail(f"api_check: the reads were followed by events: {new_events}")
+        if unit.read("settings") != export_before:
+            self.fail("api_check: the settings differ after the reads")
+        self.log.write("rc", f"api_check: {len(paths)} paths read twice, each answer as the schema says, nothing "
+                             "changed")
+
+        # Every action
+        called = set()
+
+        def expect(method, path, body, status, code=None):
+            """One action sent as given, unchecked by the client; its answer judged. Returns the reply."""
+            called.add((method, unit_api.full_path(path)))
+            got_status, reply = unit.request(method, path, body)
+            got_code = reply.get("error", {}).get("code") if isinstance(reply, dict) else None
+            self.log.write("rc", f"api_check: {method} {path} {json.dumps(body)}: {got_status} {got_code or ''}")
+            if got_code is not None and got_code not in errors:
+                self.fail(f"api_check: {method} {path}: the code {got_code} is not in the schema's errors")
+            if got_status != status or (code is not None and got_code != code):
+                self.fail(f"api_check: {method} {path} {json.dumps(body)}: {got_status} {got_code}, not {status} "
+                          f"{code or ''}")
+            return reply
+
+        def wait_state(path, wanted):
+            """Read path until its state is one of wanted; the last state read."""
+            deadline = time.monotonic() + API_CHECK_STATE_S
+            state = None
+            while time.monotonic() < deadline:
+                state = unit.read(path)["state"]
+                if state in wanted:
+                    return state
+                time.sleep(0.2)
+            self.fail(f"api_check: {path} stayed {state}, not {wanted}")
+            return state
+
+        def wait_event(source, kind, **carries):
+            """Follow the log to the next such event; fail when what it carries is not as given."""
+            def done(event):
+                return (event["source"], event["kind"]) == (source, kind)
+
+            for event in unit.follow(wait_s=2, until=done, for_s=API_CHECK_STATE_S):
+                for problem in unit.event_problems(event):
+                    self.fail(f"api_check: event {event}: {problem}")
+                if (event["source"], event["kind"]) == (source, kind):
+                    wrong = {name: event.get(name) for name, value in carries.items() if event.get(name) != value}
+                    self.log.write("rc", f"api_check: event {json.dumps(event)}")
+                    if wrong:
+                        self.fail(f"api_check: {source} {kind} carried {wrong}, not {carries}")
+                    return event
+            self.fail(f"api_check: no {source} {kind} event within {API_CHECK_STATE_S:.0f} s")
+            return None
+
+        expect("POST", "charge/stop", {}, 200)
+        expect("POST", "cleanup/stop", {}, 200)
+        expect("POST", "stop", {}, 200)
+        if unit.read("charge")["target"] is None:
+            expect("PATCH", "charge", {"target": target}, 200)
+        charge = unit.read("charge")
+        expect("PATCH", "charge", {"target": charge["target"], "powder_profile": charge["powder_profile"]}, 200)
+        expect("PATCH", "charge", {"target": 1000}, 400, "out_of_range")
+        expect("POST", "charge/start", {"target": 0}, 400, "out_of_range")
+        try:
+            unit.write("charge", target=1000)
+        except ValueError as error:
+            self.log.write("rc", f"api_check: the client refused it before sending: {error}")
+        else:
+            self.fail("api_check: the client sent a target over the schema's most")
+        after = unit.read("charge")
+        if (after["state"], after["target"]) != ("idle", charge["target"]):
+            self.fail(f"api_check: the refused writes changed the charge: {after['state']}, {after['target']}")
+        expect("PATCH", "cleanup", {"speed_rps": 1}, 409, "not_running")
+        expect("POST", "system/erase", {}, 400, "confirm_missing")
+        gate = unit.read("gate")
+        if gate["state"] == "disabled":
+            expect("PATCH", "gate", {"ratio": 0.5}, 409, "gate_disabled")
+        else:
+            expect("PATCH", "gate", {"ratio": gate["ratio"]}, 200)
+        for path, resource in export_before["resources"].items():
+            save = unit.resource(path)["save"]
+            if resource["saved"] and ("POST", save) not in called:
+                expect("POST", save, {}, 200)
+        if all(resource["saved"] for resource in export_before["resources"].values()):
+            expect("POST", "settings/save", {}, 200)
+        if unit.read("settings") != export_before:
+            self.fail("api_check: the settings differ after the refusals and the saves")
+
+        # A charge and a cleanup, by the API, with the simulated scale
+        if self.send("sim on") is None:
+            return
+        scale = unit.read("scale")
+        expect("POST", "scale/zero", {}, 200 if "zero" in scale["actions"] else 501)
+        expect("POST", "charge/start", {}, 202)
+        wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"])
+        wait_state("charge", ("zeroing", "charging"))
+        expect("POST", "charge/start", {}, 409, "busy")
+        expect("POST", "cleanup/start", {}, 409, "busy")
+        expect("POST", "system/restart", {}, 409, "busy")
+        expect("POST", "charge/stop", {}, 202)
+        wait_event("charge", "stopped", by="api", reason="stopped")
+        wait_state("charge", ("idle",))
+        expect("POST", "cleanup/start", {}, 202)
+        wait_event("cleanup", "started", by="api")
+        wait_state("cleanup", ("running",))
+        expect("PATCH", "cleanup", {"speed_rps": 1, "time_s": 2}, 200)
+        wait_event("cleanup", "stopped", by="unit", reason="time")
+        wait_state("cleanup", ("idle",))
+        expect("POST", "cleanup/start", {}, 202)
+        wait_state("cleanup", ("running",))
+        expect("POST", "stop", {}, 202)
+        wait_event("cleanup", "stopped", by="api", reason="stopped")
+        wait_state("cleanup", ("idle",))
+        self.send("sim off")
+
+        # Last, a restart: a new boot, and the system's start the log's first event
+        boot = index["boot"]
+        expect("POST", "system/restart", {}, 202)
+        time.sleep(1.5)
+        self.wait_for_console()
+        unit.forget()
+        deadline = time.monotonic() + API_CHECK_BACK_S
+        back = None
+        while back is None and time.monotonic() < deadline:
+            try:
+                back = unit.index
+            except OSError:
+                time.sleep(1.0)
+        if back is None:
+            self.fail(f"api_check: the unit did not answer within {API_CHECK_BACK_S:.0f} s of its restart")
+            return
+        first = unit.events(after=0)["events"][0]
+        self.log.write("rc", f"api_check: back after the restart, boot {boot} then {back['boot']}, its first event "
+                             f"{json.dumps(first)}")
+        if back["boot"] == boot or (first["seq"], first["source"], first["kind"]) != (1, "system", "started") or \
+                first["firmware"] != back["firmware"]["version"]:
+            self.fail("api_check: after the restart, not a new boot with the system's start first")
+        if unit.read("settings") != export_before:
+            self.fail("api_check: the settings differ after the restart")
+
+        listed = {(action["method"], action["path"]) for action in schema["actions"]}
+        for method, path in sorted(listed - called):
+            self.fail(f"api_check: the schema's {method} {path} was not called")
+        self.log.write("rc", f"api_check: {len(called & listed)} of the schema's {len(listed)} actions called")
+
+    @staticmethod
+    def api_stable(reply):
+        """A reply without what moves between two reads with nothing done (API_CHECK_VOLATILE); bytes by length."""
+        if isinstance(reply, bytes):
+            return len(reply)
+        return {name: value for name, value in reply.items() if name not in API_CHECK_VOLATILE}
+
+    @staticmethod
+    def api_answer_problems(unit, path, reply, frame_bytes):
+        """
+        An answer against the schema's tables.
+
+        Args:
+            unit: the unit_api.Unit.
+            path: the path read.
+            reply: what it answered.
+            frame_bytes: the display frame's length.
+
+        Returns:
+            The problems found; empty when there is none.
+        """
+        resource = unit.resource(path)
+        if resource is not None:
+            return unit_api.fields_problems(resource["fields"], reply, writing=False)
+        name = path[len(unit_api.API) + 1:]
+        if name == "settings":
+            return [f"{inner}: {problem}" for inner, fields in reply["resources"].items()
+                    for problem in unit_api.fields_problems(unit.resource(inner)["fields"], fields, writing=False)]
+        if name in ("charge", "cleanup", "gate"):
+            return [] if reply["state"] in unit.states(name) else [f"state {reply['state']} is not in the schema's"]
+        if name == "motors":
+            return [f"{motor}'s driver {reply[motor]['driver']} is not in the schema's" for motor in ("coarse", "fine")
+                    if reply[motor]["driver"] not in unit.states("driver")]
+        if name == "system":
+            return [] if reply["activity"] in unit.states("activity") else [f"activity {reply['activity']}"]
+        if name == "events":
+            return [problem for event in reply["events"] for problem in unit.event_problems(event)]
+        if name == "display/frame":
+            return [] if isinstance(reply, bytes) and len(reply) == frame_bytes else ["not the display's frame"]
+        return []
+
     def web_robust(self, host):
         """
         Requests that are wrong, cut off or awkward (ADR-003, gate 2), each answered or closed, with the unit still
@@ -1348,7 +1663,7 @@ class Session:
         if state is None:
             self.fail("web_robust: the console did not answer at the end")
 
-    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False):
+    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False, upload=False):
         """
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
@@ -1364,6 +1679,8 @@ class Session:
             threshold: the unit's fine stop threshold.
             max_miss_share: the most of the web reads that may miss, 0 to 1.
             max_miss_run: the most misses in a row one poller may have.
+            load: also a tuning session's load (SOAK_LOAD_*).
+            upload: also ADR-004's image, SOAK_UPLOAD_BYTES sent back to back, each checked by its CRC-32.
         """
         page_size = {}
 
@@ -1386,6 +1703,13 @@ class Session:
             reply = json.loads(http_get(host, f"api/v1/debug/load?rows={SOAK_LOAD_ROWS}&columns={SOAK_LOAD_COLUMNS}"))
             return len(reply["rows"]) == SOAK_LOAD_ROWS and len(reply["rows"][-1]) == SOAK_LOAD_COLUMNS
 
+        upload_data = os.urandom(SOAK_UPLOAD_BYTES)
+        upload_crc = zlib.crc32(upload_data)
+
+        def read_upload():
+            status, reply = http_put_bytes(host, "/api/v1/debug/upload", upload_data, SOAK_UPLOAD_TIMEOUT_S)
+            return status == 200 and reply["bytes"] == len(upload_data) and reply["crc32"] == upload_crc
+
         pollers = []
         for browser in range(1, SOAK_BROWSERS + 1):
             pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S, [("", read_mirror_right)], self.log))
@@ -1397,6 +1721,10 @@ class Session:
         if load:
             pollers.append(WebPoller("tuning load", 0.0, [("", read_load)], self.log))
             pollers.append(WebPoller("fast client", SOAK_LOAD_FAST_S, [("", read_state)], self.log))
+        if upload:
+            pollers.append(WebPoller("upload 700 KB", 0.0, [("", read_upload)], self.log))
+
+        followers = [EventFollower(f"events {n}", host, self.log) for n in range(1, SOAK_FOLLOWERS + 1)]
 
         # The first charge after a start creates the charge screen's task, kept for good (charge_mode.cpp): read
         # quiet before the run, its 1,168 bytes were memory not given back (ADR-003, gate 2). So one charge first
@@ -1411,7 +1739,7 @@ class Session:
         started = time.monotonic()
         heap = []   # (seconds since the start, heap_free)
         cycles = 0
-        for poller in pollers:
+        for poller in pollers + followers:
             poller.start()
         while True:
             self.state()
@@ -1422,10 +1750,12 @@ class Session:
                 break
             self.charge_cycle(target, threshold, timeout_s=120.0)
             cycles += 1
-        for poller in pollers:
+        for poller in pollers + followers:
             poller.stop_event.set()
         for poller in pollers:
-            poller.join(timeout=HTTP_TIMEOUT_S * (len(SETTINGS_PAGE_PATHS) + 1) + 1)
+            poller.join(timeout=max(HTTP_TIMEOUT_S * (len(SETTINGS_PAGE_PATHS) + 1), SOAK_UPLOAD_TIMEOUT_S) + 1)
+        for follower in followers:
+            follower.join(timeout=2 * SOAK_EVENTS_WAIT_S + HTTP_TIMEOUT_S)
         time.sleep(SOAK_QUIET_S)
         quiet_end = self.stats()
 
@@ -1442,6 +1772,18 @@ class Session:
                              f"{max(poller.run_longest for poller in pollers)}")
         self.log.write("rc", "soak: misses by kind: "
                              + (", ".join(f"{kind} {count}" for kind, count in kinds.most_common()) or "none"))
+        # Each follower saw every event, the same as the other: the charges' and each throw's, with no gap
+        seen = [[event["seq"] for event in follower.events] for follower in followers]
+        for follower in followers:
+            throws = sum(1 for event in follower.events if (event["source"], event["kind"]) == ("throw", "finished"))
+            self.log.write("rc", f"soak: {follower.name}: {len(follower.events)} events, {throws} throws finished, "
+                                 f"{follower.failed_reads} reads failed and tried again")
+            for problem in follower.problems():
+                self.fail(f"soak: {follower.name}: {problem}")
+            if throws < cycles:
+                self.fail(f"soak: {follower.name} saw {throws} throws finished in {cycles} charges")
+        if any(numbers != seen[0] for numbers in seen):
+            self.fail("soak: the event followers did not see the same events")
         net_end = self.net()
         motor_end = self.send("motor")
         late = {}
@@ -1920,6 +2262,10 @@ def main():
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
     robust_parser = sub.add_parser("web_robust", help="wrong and awkward requests, each answered or closed (ADR-003)")
     robust_parser.add_argument("--host", required=True, help="the unit's address")
+    api_parser = sub.add_parser("api_check", help="every path the index lists read twice and checked against the "
+                                                  "schema; every action called (ADR-003, gate 4); ends with a restart")
+    api_parser.add_argument("--host", required=True, help="the unit's address")
+    api_parser.add_argument("--target", type=float, default=30.0, help="the charge's target, set when none is")
     roundtrip_parser = sub.add_parser("settings_roundtrip",
                                       help="every setting written back unchanged, each value outside its limits "
                                            "refused, a write during a throw refused (ADR-003, gate 3)")
@@ -1935,6 +2281,9 @@ def main():
     soak_parser.add_argument("--load", action="store_true",
                              help="also a tuning session's load: a throw's samples pulled back to back, and a "
                                   "client asking four times a second (ADR-003, gate 2)")
+    soak_parser.add_argument("--upload", action="store_true",
+                             help="also ADR-004's image: 700 KB sent back to back as a body in pieces, each checked "
+                                  "by its CRC-32 (ADR-003, gate 4)")
     soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
                              help="the most misses in a row one poller may have")
     frames_parser = sub.add_parser("scale_frames", help="record the scale's frames through the tap, by phase")
@@ -1980,11 +2329,13 @@ def main():
         session.settings(args.host, args.save, args.compare)
     elif args.command == "web_robust":
         session.web_robust(args.host)
+    elif args.command == "api_check":
+        session.api_check(args.host, args.target)
     elif args.command == "settings_roundtrip":
         session.settings_roundtrip(args.host, args.target)
     elif args.command == "soak":
         session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run,
-                     args.load)
+                     args.load, args.upload)
     elif args.command == "scale_frames":
         session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     elif args.command == "charge_fault":
