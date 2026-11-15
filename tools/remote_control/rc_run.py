@@ -35,6 +35,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
 import zlib
@@ -256,7 +257,7 @@ class EventFollower(threading.Thread):
         self.failed_reads = 0
 
     def run(self):
-        self.unit.start_following()
+        # Its starting point is taken before it starts (soak), so a first read that fails here is tried again
         while not self.stop_event.is_set():
             try:
                 for event in self.unit.follow(wait_s=SOAK_EVENTS_WAIT_S, for_s=SOAK_EVENTS_WAIT_S):
@@ -855,6 +856,9 @@ class Session:
         self.elf = Path(args.elf) if args.elf else REPO / self.board["build"] / "app.elf"
         self.log = SessionLog(name)
         self.failures = []
+        # A thread that dies (a poller, an event follower) fails the session, its traceback in the log: an uncaught
+        # exception would otherwise end it with a line on stderr only, and its counts would read as nothing seen
+        threading.excepthook = self.thread_died
         self.last_up = None
         self.log.write("rc", f"board {args.board}, elf {self.elf}")
         self.openocd = Openocd(self.board, self.log)
@@ -882,6 +886,13 @@ class Session:
                              f"drop {self.link_drops}")
         self.openocd.rtt_start(self.elf)
         return True
+
+    def thread_died(self, args):
+        """threading.excepthook: log a thread's uncaught exception and count it as a failure."""
+        text = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)).rstrip()
+        self.log.write("rc", f"a thread died: {args.thread.name if args.thread else '?'}\n{text}")
+        self.fail(f"the thread {args.thread.name if args.thread else '?'} died: {args.exc_type.__name__}: "
+                  f"{args.exc_value}")
 
     def fail(self, reason):
         self.log.write("rc", f"FAIL {reason}")
@@ -1739,6 +1750,10 @@ class Session:
         started = time.monotonic()
         heap = []   # (seconds since the start, heap_free)
         cycles = 0
+        # The followers' starting point, taken while the unit is quiet: both from the same event, and a read that
+        # fails here ends the soak rather than leaving a follower that never began (two did, the first time)
+        for follower in followers:
+            follower.unit.start_following()
         for poller in pollers + followers:
             poller.start()
         while True:
