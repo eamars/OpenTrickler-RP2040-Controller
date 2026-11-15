@@ -298,11 +298,14 @@ Step 6 passes on both units ("Step 6" above).
 - A driver module lifted with the power off, then a start: done before step 6 (the unit reached the menu and named the driver only once a mode was asked for, which led to step 6), and again with step 6, "it works as expected".
 - Real throws: moved to ADR-009 by the owner, its first recorded throws ("Handed on by ADR-012" there).
 
-**Left before the ADR can close**
-- **A phone on the unit's access point:** the unit's page must open by its name (W1). The owner's hand.
+- A phone on the unit's access point (W1), 2026-11-15, the Pico 2 W at 1.20.140: Wi-Fi stored off over the web and the unit restarted, its screen "AP Mode Listen", `opentrickler-4993` at 192.168.4.1. The owner's phone joined it and opened `http://opentrickler-4993/` by its name: "Yes, by name". The owner switched Wi-Fi back on from that page; the unit restarted onto the owner's network at 192.168.2.167, `w4` stored true. (A first try was by the address, so it showed nothing of the DNS server; it was taken again.)
 
 **Limits of the bench, recorded and not shown**
 - The hard-fault handler's own stop, apart from the starved pulses: with the probe connected both cores halt.
 - No servo is on the bench: the gate's new ramp is built and read, not seen to move, and "shutter0" and "shutter1" (audit G4) are checked when a servo is next connected ("Where the rest of the audit goes").
 
-Nothing is pushed. The branch is `adr012_motor_drivers`, on this PC.
+## The end
+
+- Proven on the Pico W and the Pico 2 W; the Pico 2 W runs the branch's last code (1.20.140 at 945dfe6), the Pico W 1.20.137, the same but for one state's number.
+- Handed on: the web's cost from step 5 and its fix to ADR-003 (the owner: "Yes, leave it to ADR-003"); the real throws to ADR-009, its first recorded throws (the owner: "I won't run the real throw until you have reached the tuning stage"); running the menu only for what the hardware carries, Wi-Fi first, to ADR-005; every other finding of the audit to the ADR named for it in the README.
+- **Built** 2026-11-15. Nothing left.

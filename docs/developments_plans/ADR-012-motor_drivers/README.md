@@ -1,6 +1,6 @@
 # ADR-012: the motor drivers cleaned up
 
-Status: **Open**. Approved by the owner 2026-11-15. Steps 1 to 5 are built and proven on both units that day, but for the Pico W's soak, which fails on the web alone: accepted by the owner, its fix left to ADR-003. Step 6, a driver's fault shown before a mode is entered, is built and proven on both units, and by the owner's lifted module. The real throws are moved to ADR-009 by the owner. Left: a phone on the unit's access point. What is built and measured is in [progress](progress.md), which ends with where it stands. The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
+Status: **Built** 2026-11-15. Approved by the owner the same day; six steps built and proven on the Pico W and the Pico 2 W, nothing left. The Pico W's soak fails on the web alone, accepted by the owner, its fix left to ADR-003; the real throws are moved to ADR-009 by the owner. What was built and measured is in [progress](progress.md). The faults were read in the code; two of them have since been seen on the bench (ADR-011's runs).
 
 ## What we want
 

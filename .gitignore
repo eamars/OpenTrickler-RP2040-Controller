@@ -87,3 +87,6 @@ build*/
 # Host tools: the venv and the remote control's session logs
 venv/
 logs/
+
+# Python caches
+__pycache__/
