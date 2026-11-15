@@ -181,6 +181,11 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 - **An import is the client's work:** a PATCH of each resource and each profile in turn, leaving out fields the schema marks read-only or does not list, and saying what it left out. A bulk write may come later, as a new method on this path.
 - **`POST /api/v1/settings/save`** `{}`: every settings resource and the powder profiles stored. 500 names the one that failed.
 - **A test stand-in is never stored.** The console's simulated scale runs in place of the stored driver and never shows in `settings/scale`, and no save stores it.
+- **The shapes, as built in gate 3:**
+  - `GET /api/v1/settings` is `{"api": "1", "firmware": {"version", "vcs", "build"}, "unit_id", "resources": {...}}`, each resource under its path (`"/api/v1/settings/charge"`, `"/api/v1/powder_profiles/0"`) as its own GET gives it. An import PATCHes each path with its fields, `saved` left out.
+  - A save, and `POST /api/v1/settings/save`, answer 200 `{"saved": true}`, or 500 `failed`; their body is `{}`, and a field in it is refused (400 `unknown_field`). `saved` sent in a PATCH is 400 `read_only`.
+  - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies. `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles `in_throw_when_in_use`. The states and the events come with gate 4.
+  - `GET /api/v1/powder_profiles/{id}` gives `saved` (all eight are one block) and its fields; `GET /api/v1/powder_profiles` gives `saved` and each profile's `id` and `name`.
 
 ### `/api/v1/settings/charge`, saved at `/api/v1/settings/charge/save` (refused while `in_throw`)
 
