@@ -1,6 +1,6 @@
 # ADR-003: a real HTTP REST server
 
-Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 from the owner's answers; the direction is settled ("Settled with the owner"). **Gate 1 is built**: approved by the owner 2026-11-15 ("Approve gate 1"), built and proven on the Pico W the same day, and merged by the owner by its own PR (#128, merge 0d02bdb). lwIP's heap was the web's fault: at 4,000 bytes it failed 7,404 allocations and 8.92% of the web's reads were missed in a soak; at 16,384, none and 0 of 3,774. Its Pico 2 W run is left, before the ADR closes. What was built and measured is in [progress.md](progress.md). **Left:** gates 2 to 4. Gate 2 is written in full with the API's table ([api_v1.md](api_v1.md)) and waits for the owner's approval; gates 3 and 4 build to the same table.
+Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 from the owner's answers; the direction is settled ("Settled with the owner"). **Gate 1 is built**: approved by the owner 2026-11-15 ("Approve gate 1"), built and proven on the Pico W the same day, and merged by the owner by its own PR (#128, merge 0d02bdb). lwIP's heap was the web's fault: at 4,000 bytes it failed 7,404 allocations and 8.92% of the web's reads were missed in a soak; at 16,384, none and 0 of 3,774. Its Pico 2 W run is left, before the ADR closes. What was built and measured is in [progress.md](progress.md). **Gate 2 approved** by the owner 2026-11-15 ("Yes to both": gate 2, and `?wait=s` on the event log in gate 4), with the API's table ([api_v1.md](api_v1.md)) agreed by the author and a second model in five rounds, and the rest of the interface approved by the owner ("the rest of the interface looks good to me"). Being built on the Pico W. **Left:** gates 2 to 4; gates 3 and 4 build to the same table.
 
 ## What we want
 
@@ -236,7 +236,7 @@ At the close, on the Pico W, then the Pico 2 W:
 - The console over Wi-Fi (the owner, 2026-11-15).
 - What the modes do inside (ADR-009).
 
-## For the owner at gate 2's approval
+## Settled at gate 2's approval (2026-11-15: "Yes to both")
 
 - **The API's table,** [api_v1.md](api_v1.md): every path, method, body, reply and status, with the names. Once approved it is v1, and only grows.
 - **What it must grow into** (api_v1.md): checked 2026-11-15 against every ADR, the menu and the TODOs in `src/`, at the owner's word ("not just satisfy the current use case, but also future expansions"). The rules for growing within v1, and a place now for each later need: ADR-014's charge profiles, ADR-009's recordings, tests and tuning, ADR-004's update, ADR-005's features, ADR-008's and ADR-010's forms.
