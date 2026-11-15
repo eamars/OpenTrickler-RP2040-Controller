@@ -267,9 +267,10 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | A charge profile: a name, a weight, the powder profile it uses | ADR-014 | `/api/v1/charge_profiles`; `charge_profile` beside `target` and `powder_profile` in the charge. Powder profiles are named apart now so it has room |
 | The target weight kept, with the charge profile | ADR-014, PR #109's need | The charge's `target` is there now; whether it is stored is ADR-014's |
 | Stop thresholds per profile | ADR-009, ADR-014 | A profile's own field, `null` for "the default in `settings/charge`", which stays |
-| Every throw recorded, downloaded, drawn | ADR-009, ADR-008 | `/api/v1/throws` (a list with each throw's summary) and `/api/v1/throws/{throw}` (its samples, written as they are read out, chunked), by the throw's number the charge and its events carry now |
-| Test functions: a recorded test throw, a motor at a speed for a time, the scale's readings and rate | ADR-009 | Jobs: `POST /api/v1/motors/{coarse|fine}/run`; a test throw is a charge whose start asks for a recording; the scale's rate is in `GET /api/v1/scale` now |
-| Automatic tuning | ADR-009 | A job: `/api/v1/tuning`, with its trials' events in the log and its result saved to a powder profile |
+| Every throw recorded, downloaded, drawn | ADR-009, ADR-008 | Recordings, below |
+| Test functions: a recorded test throw, a motor at a speed for a time, the scale's readings and rate | ADR-009 | Test throws, motor runs and scale recordings, below |
+| Automatic tuning, on the unit or by an agent off it | ADR-009 | Tuning, below: both run test throws, so both give the same recordings |
+| An agent developing the firmware with no probe: the log, the simulated scale and its faults, presses, the drivers' registers | ADR-001's console, the owner | `/api/v1/debug`, below |
 | A press to skip the current charge (issue #75); ladder loading (issue #106) | ADR-009's list | Actions on the charge job, or a series of charge profiles; added, not changed |
 | An update from the browser: upload, check, install; refused while a job runs | ADR-004 | A job: `/api/v1/update` (the running and the staged version), its image `PUT` as `application/octet-stream` in pieces, `POST .../install` |
 | What a board carries | ADR-005 | `features` in the index; absent parts answer 404 and are not listed |
@@ -284,6 +285,62 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | The console and the API saying the same | ADR-001, the owner | One table of names for both (gate 3) |
 | A password | its own ADR | A header, paths unchanged |
 | Waiting for news in place of polling | ADR-008, ADR-009 | `?wait=` on the event log, or a push channel |
+
+## Experiments and recordings, for ADR-009 (reserved)
+
+Written 2026-11-15 at the owner's challenge ("does the API capable of supporting the ADR-009 and the future AI agent assisted development and tuning needs?") and his word to fix it with the reviewer so that ADR-009 needs "minimum changes later". **ADR-003 builds none of this.** It fixes the paths and the shapes now, so that ADR-009 builds to them and only adds: columns, marks, summary fields, override fields, as the growth rules allow. Nothing here changes a path or a shape of the sections above.
+
+**One primitive for every experiment.** PR #113's tuner and PR #101's both cut at "give me the next trial's settings" and "here is the trial's result" (ADR-009, "Handed on by ADR-002"). So the API has one call that takes a trial's settings and one record that is its result: a **test throw** and its **recording**. An agent tuning off the unit, and ADR-009's tuner on it, use the same two, and their data are the same.
+
+### Recordings
+
+Every throw is recorded (ADR-009: "every throw recorded"), and so is each motor run and scale recording below. A recording is a list of samples, one per scale reading, with named columns, and what was in force when it was made.
+
+| Method and path | Reply |
+|---|---|
+| `GET /api/v1/recordings` | `boot`; `recordings`, newest first: for each its `id`, `kind` (throw, motor_run, scale), `job` (charge, test_throw, tuning, motor_run, scale_record), `throw` (for a throw), `tag`, `started_at_ms`, `duration_ms`, `rows`, `complete` (false while it is being made), `samples_kept`, and its `summary` |
+| `GET /api/v1/recordings/{id}` | The same, and `settings`: every field the experiment used, with the firmware's version, the powder profile's fields, the charge's settings, the scale's driver and usual interval, the motors' speed limits, and each override it was given (named as in their resources); and `marks`: what happened in it, each with `t_ms` and `kind` (coarse_stop, gate_moved, backoff_done, paused, resumed, fine_stop, verdict; more later) |
+| `GET /api/v1/recordings/{id}/samples?after=N` | `columns`, `rows` (arrays of numbers, in the columns' order) after row N, `next`, `complete`. Readable while the recording is made, so a client follows a throw live. Chunked |
+
+- **A throw's columns** now: `t_ms` (since the throw's start), `weight`, `coarse_rps`, `fine_rps`, and for each trickler the controller's `_p`, `_i` and `_d` terms (`coarse_p`, ..., `fine_d`), in rev/s. ADR-009 adds columns; a client reads them by name.
+- **A throw's summary** now: `target`, `weight`, `error` (weight less target), `result`, `reason`, `elapsed_s`, `pauses`. ADR-009 adds its own (overshoot, the time to the coarse stop, what fell after the stop).
+- **What is kept.** Summaries of the newest 32 *p*; samples within a fixed budget of RAM, the oldest dropped first (`samples_kept` false, and the samples' path answers 410). A recording is capped at a number of rows, so a stuck throw cannot take the budget. The Pico W's budget is ADR-005's and ADR-009's (a throw of 600 readings of 10 columns is about 24 KB). A client that needs every throw's samples reads each before the next is made; a test throw, whose start is the client's, gives it the time.
+- **The same JSON is ADR-009's test data.** A recording downloaded from a unit is a fixture for the controller's tests on a PC, so a fault seen on powder can be replayed there.
+
+### Test throws
+
+A job: one throw to a target, recorded, with **no cup cycle** (no removal, no return), with a trial's settings given in its start and not stored. Charge mode needs the cup lifted and put back between throws, which an agent cannot do; a test throw is how an agent, or the tuner, runs a series of trials.
+
+| Method and path | Body | Reply |
+|---|---|---|
+| `GET /api/v1/test_throw` | | `state` (idle, zeroing, charging, settling, fault), `in_throw`, `throw`, `recording`, `cup` {`capacity`, `poured`} (null when no cup is declared), `last` (its summary) |
+| `POST /api/v1/test_throw/cup` | `{"capacity": 200}` | 200. **Declares a new, empty cup on the pan:** the scale is zeroed with it, and `poured` is 0. It is the caller's word that a person has put an empty cup there, and the guide says so. 409 `busy` while a job runs |
+| `POST /api/v1/test_throw/start` | `{"target": 10.0}`, and any of `powder_profile`, `tag` (up to 31 bytes), and any writable field of a powder profile or of `settings/charge`, by its own name, for this throw only | 202. The unit zeroes on top of what is in the cup, throws to the target with the overrides, records, gives the verdict, and is idle again, with `poured` grown by the weight. Refused: 400 `no_cup` when no cup is declared; 409 `cup_full` when `poured` and the target would pass `capacity`; 409 `cup_changed` when the weight before its zero is not the weight the last test throw left (within 5 times `zero_mean_margin`): the cup was touched, emptied or taken, and a new cup is declared; 409 `busy`, `driver_fault` as a charge's start |
+| `POST /api/v1/test_throw/stop` | `{}` | A stop |
+
+- **The one place the unit zeroes on top of powder,** by design. It is safe only as far as the cup's declaration is true. So the unit holds three checks: no test throw without a declared cup, none past its capacity, and none when the cup's weight has changed since the last one.
+- A test throw runs through the same controller and the same floor as a charge's throw (ADR-013's pause and stop, ADR-012's driver faults), takes the same lock, and is a throw in the event log (`throw started` with `job` and `tag`).
+- An override is checked against the field's own limits, and refused whole, as a PATCH.
+
+### Tuning
+
+A job, ADR-009's to design: `/api/v1/tuning`, with `state`, `start` (a powder profile, a target, the tuner's own fields) and `stop`. Its trials are test throws: the same recordings, with `job` tuning and a tag per trial, so its data are the same as an agent's. Its result is written into the powder profile live and kept by the profile's save, as every setting is.
+
+### Motor runs and scale recordings
+
+- **`POST /api/v1/motors/{coarse|fine}/run`** `{"speed_rps": 2.0, "time_s": 5}`: a job; that motor at that speed for that time (1 to 60 s *p*), recorded with the scale's weight (`t_ms`, `weight`, `speed_rps`). A step of speed and the scale's answer give the powder's flow rate and the scale's lag (ADR-009's "slow" and "late" scales). Refused while another job runs. A stop.
+- **`POST /api/v1/scale/record`** `{"time_s": 10}`: a job that moves nothing; the scale's readings for that time (`t_ms`, `weight`, `interval_ms`), for its rate, its noise and its gaps (ADR-013's rhythm). Refused while another job runs.
+
+### Development: `/api/v1/debug` (reserved, not part of v1)
+
+What an agent developing the firmware over the network, with no probe, would need: the log (`/debug/log?after=N`), the simulated scale and its faults (`/debug/sim`), presses for the menu (`/debug/press`), a driver's registers (`/debug/drivers/{coarse|fine}`), lwIP's pools (`/debug` today). The rules for it:
+- **Off unless turned on at the unit** (the menu) or at the console, and never over the network. Off by default and after a restart. OWMC's remote control over Wi-Fi is off by default the same way (its ADR-013).
+- Not part of v1: any of it may change or go in any build.
+- Built in its own ADR, as the console over Wi-Fi would be (the owner, 2026-11-15: not in ADR-003). ADR-003 builds only `GET /api/v1/debug` as it stands above.
+
+### What ADR-009 then changes in the API
+
+Only additions: columns, marks and summary fields of a throw's recording; override fields as new controller parameters come (each also a field of its resource); tuning's own fields; new `activity` values (test_throw, tuning, motor_run, scale_record); new error codes (`no_cup`, `cup_full`, `cup_changed`). No path moves, no field changes its meaning.
 
 **Found while checking** (`wireless.c`, `eeprom.c`): the unit's host name is `opentrickler-` and the first four characters of its id, copied into `char id[4]` with no ending and printed with `%s`. `snprintf` reads on past the four bytes, and only its limit of 18 keeps the name right. Two units match in those four characters about once in 65,536, if the id is random. The bench's Pico W has the id `9CE00000`, its last five characters 0, so how random `rnd()` makes it (`eeprom.c`) is to be read first. For gate 4, where the mDNS announcement changes: the id written with its ending, and enough of it to tell units apart.
 
