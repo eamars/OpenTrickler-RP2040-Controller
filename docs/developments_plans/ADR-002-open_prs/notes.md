@@ -10,7 +10,7 @@ Status of each: **draft**, until the owner has read it. `progress.md` records wh
 >
 > Where it stands:
 >
-> **Taken now.** Your fix for the D term in `charge_mode.cpp` (no D term on a throw's first reading, nor when no time has passed) goes into main on its own, in a commit that credits you, once we have shown the fault on a unit.
+> **Taken now.** Your fix for the D term in `charge_mode.cpp` (no D term on a throw's first reading, nor when no time has passed) goes into main on its own, in a commit that credits you. We measured it on the bench first: with an A&D scale, the coarse trickler was given up to three times what its P term asks on the first reading of every throw, 20 of 20, and after your fix it gets what P asks in all 20. The division by zero itself we did not see there; the first reading always came a few milliseconds into the throw.
 >
 > **Not merged as it stands,** for two reasons:
 > - The analysis runs its own copy of charge mode's loop. Since you opened the PR, charge mode's loop has learned to pause the tricklers when the scale's reading goes missing and to end a charge when a motor driver reports a fault. A copy does not have that, and we want one loop to move the tricklers.
