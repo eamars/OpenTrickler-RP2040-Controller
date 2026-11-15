@@ -126,6 +126,10 @@ SOAK_SETTINGS_S = 60.0      # every settings path
 SOAK_MISS_SHARE = 0.01      # the most of the web reads that may miss
 SOAK_MISS_RUN = 2           # the most misses in a row on one poller
 SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
+# --load (ADR-003, gate 2): what a tuning session asks of the unit while it charges
+SOAK_LOAD_ROWS = 600         # a throw's samples: 600 rows ...
+SOAK_LOAD_COLUMNS = 16       # ... of 16 numbers, pulled back to back
+SOAK_LOAD_FAST_S = 0.25      # and a client asking for the charge four times a second
 
 # scale_frames (ADR-013): the motors as in a throw on the bench's settings (the coarse trickler at its 5 rev/s cap)
 SCALE_FRAMES_COARSE_RPS = 5.0
@@ -371,6 +375,63 @@ def http_get(host, path):
     """
     with urllib.request.urlopen(f"http://{host}/{path}", timeout=HTTP_TIMEOUT_S) as response:
         return response.read()
+
+
+def raw_exchange(host, payload, timeout_s=5.0, rcvbuf=None, read_limit=None):
+    """
+    One request sent as bytes, as given, and what came back (ADR-003, gate 2's wrong requests).
+
+    Args:
+        host: the unit's address.
+        payload: the bytes to send, the request as it is.
+        timeout_s: how long to wait for each read.
+        rcvbuf: a receive buffer this small, to stop a reply part way (a client that does not read).
+        read_limit: read no more than this, then return with the socket still open in the third value.
+
+    Returns:
+        (status, headers, body, sock): the status (None when no reply came), headers as a lower-cased dict, the
+        body read, and the socket when read_limit kept it open, else None.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if rcvbuf is not None:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, rcvbuf)
+    sock.settimeout(timeout_s)
+    sock.connect((host, 80))
+    sock.sendall(payload)
+    data = b""
+    try:
+        while b"\r\n\r\n" not in data:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+            if read_limit is not None and len(data) >= read_limit:
+                break
+    except (socket.timeout, OSError):
+        pass
+    head, _, body = data.partition(b"\r\n\r\n")
+    lines = head.decode("latin-1").split("\r\n") if head else []
+    status = None
+    if lines and lines[0].startswith("HTTP/"):
+        parts = lines[0].split(" ")
+        status = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
+    headers = {}
+    for line in lines[1:]:
+        name, _, value = line.partition(":")
+        headers[name.strip().lower()] = value.strip()
+    if read_limit is not None:
+        return status, headers, body, sock
+    length = int(headers.get("content-length", "-1"))
+    try:
+        while length < 0 or len(body) < length:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            body += chunk
+    except (socket.timeout, OSError):
+        pass
+    sock.close()
+    return status, headers, body, None
 
 
 def read_mirror(host):
@@ -971,7 +1032,168 @@ class Session:
                 else:
                     self.fail(f"settings: {name} {key} was {old!r}, is {new!r}")
 
-    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run):
+    def web_debug(self, host):
+        """
+        GET /api/v1/debug (ADR-003): lwIP's heap and pools and the server's own counts.
+
+        Returns:
+            The reply as a dict, or None.
+        """
+        try:
+            return json.loads(http_get(host, "api/v1/debug"))
+        except (OSError, ValueError) as error:
+            self.log.write("rc", f"api/v1/debug: {error}")
+            return None
+
+    def web_robust(self, host):
+        """
+        Requests that are wrong, cut off or awkward (ADR-003, gate 2), each answered or closed, with the unit still
+        answering after each and its console still counting `up=`. Then a client that stops reading part way
+        through a page, and one that sends less of a body than it said: each must be aborted by the stall limit,
+        and lwIP's heap given back.
+
+        Args:
+            host: the unit's address.
+        """
+        own = f"Host: {host}\r\n".encode()
+        cases = [
+            ("a value with no '='", b"GET /rest/scale_config?ee HTTP/1.1\r\n" + own + b"Connection: close\r\n\r\n",
+             200),
+            ("a Cookie of 6 KB, passed over", b"GET /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Cookie: a=" + b"x" * 6000 + b"\r\nConnection: close\r\n\r\n", 200),
+            ("headers over 8 KB", b"GET /api/v1/charge HTTP/1.1\r\n" + own + b"Cookie: a=" + b"x" * 5000 +
+             b"\r\nCookie: b=" + b"y" * 4000 + b"\r\n\r\n", 413),
+            ("a Host of 300 bytes", b"GET /api/v1/charge HTTP/1.1\r\nHost: " + b"h" * 300 + b"\r\n\r\n", 413),
+            ("a request line of 700 bytes", b"GET /api/v1/charge?x=" + b"a" * 700 + b" HTTP/1.1\r\n" + own +
+             b"\r\n", 414),
+            ("an unknown method", b"BREW /api/v1/charge HTTP/1.1\r\n" + own + b"\r\n", 405),
+            ("OPTIONS (no CORS)", b"OPTIONS /api/v1/charge HTTP/1.1\r\n" + own + b"Origin: http://evil.example\r\n"
+             b"\r\n", 405),
+            ("HTTP/2.0", b"GET /api/v1/charge HTTP/2.0\r\n" + own + b"\r\n", 400),
+            ("another Host, the API", b"GET /api/v1/charge HTTP/1.1\r\nHost: evil.example\r\n\r\n", 403),
+            ("another Host, an old path", b"GET /rest/scale_config HTTP/1.1\r\nHost: evil.example\r\n\r\n", 403),
+            ("another Host, a page", b"GET / HTTP/1.1\r\nHost: evil.example\r\nConnection: close\r\n\r\n", 302),
+            ("a POST with no type", b"POST /api/v1/charge HTTP/1.1\r\n" + own + b"Content-Length: 0\r\n\r\n", 415),
+            ("a POST of text from a form", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: text/plain\r\nContent-Length: 2\r\n\r\n{}", 415),
+            ("a JSON POST to a path that only reads", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}", 405),
+            ("a body longer than it says", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}" + b"z" * 20, 405),
+            ("a chunked body", b"POST /api/v1/charge HTTP/1.1\r\n" + own + b"Content-Type: application/json\r\n"
+             b"Transfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n", 411),
+            ("a body of 5,000 bytes", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: application/json\r\nContent-Length: 5000\r\n\r\n", 413),
+            ("a request cut off", b"GET /api/v1/ch", None),
+            ("no such path", b"GET /nothing HTTP/1.1\r\n" + own + b"\r\n", 404),
+            ("HTTP/1.0 with no Host", b"GET /api/v1/charge HTTP/1.0\r\n\r\n", 200),
+        ]
+        before = self.web_debug(host)
+        for name, payload, want in cases:
+            try:
+                status, headers, _, _ = raw_exchange(host, payload, timeout_s=3.0)
+            except OSError as error:
+                status, headers = None, {}
+                self.log.write("rc", f"web_robust: {name}: {error}")
+            ok = status == want
+            if want == 302 and ok:
+                ok = headers.get("location") == f"http://{host}/"
+            self.log.write("rc", f"web_robust: {name}: {status} (want {want}){'' if ok else ' FAIL'}")
+            if not ok:
+                self.fail(f"web_robust: {name}: {status}, not {want}")
+            try:
+                json.loads(http_get(host, "api/v1/charge"))
+            except (OSError, ValueError) as error:
+                self.fail(f"web_robust: the unit did not answer after \"{name}\": {error}")
+
+        # The page's ETag: unchanged since, so 304 and no body
+        status, headers, _, _ = raw_exchange(host, b"GET / HTTP/1.1\r\n" + own + b"Connection: close\r\n\r\n")
+        etag = headers.get("etag", "")
+        status, _, body, _ = raw_exchange(host, b"GET / HTTP/1.1\r\n" + own + b"If-None-Match: " + etag.encode() +
+                                          b"\r\nConnection: close\r\n\r\n")
+        self.log.write("rc", f"web_robust: the page again with its ETag {etag}: {status}, {len(body)} bytes")
+        if status != 304 or body:
+            self.fail(f"web_robust: the page with its ETag gave {status} and {len(body)} bytes, not 304 and none")
+
+        # Seven clients at once, each with a request: six slots, so the seventh waits its turn or takes an idle one
+        socks = []
+        for _ in range(7):
+            sock = socket.create_connection((host, 80), timeout=10.0)
+            sock.sendall(b"GET /api/v1/charge HTTP/1.1\r\n" + own + b"\r\n")
+            socks.append(sock)
+        answered = 0
+        for sock in socks:
+            try:
+                data = sock.recv(4096)
+                answered += data.startswith(b"HTTP/1.1 200")
+            except OSError:
+                pass
+            sock.close()
+        self.log.write("rc", f"web_robust: seven clients at once: {answered} answered")
+        if answered != 7:
+            self.fail(f"web_robust: seven clients at once: {answered} of 7 answered")
+
+        # Parked requests (gate 2's slot, for ?wait): woken by their condition, by their time, and with two held a
+        # third answered at once
+        def wait_request(until_ms, wait_s, results, key):
+            started = time.monotonic()
+            try:
+                reply = json.loads(http_get(host, f"api/v1/debug/wait?until_ms={until_ms}&wait={wait_s}"))
+                results[key] = (reply.get("woke"), time.monotonic() - started, reply.get("uptime_ms", 0))
+            except (OSError, ValueError) as error:
+                results[key] = (f"no answer: {error}", time.monotonic() - started, 0)
+
+        results = {}
+        wait_request(0, 1, results, "now")
+        uptime = results["now"][2]
+        wait_request(uptime + 1500, 4, results, "condition")
+        wait_request(uptime + 10_000_000, 2, results, "time")
+        threads = [threading.Thread(target=wait_request, args=(uptime + 10_000_000, 3, results, f"held {n}"))
+                   for n in (1, 2)]
+        for thread in threads:
+            thread.start()
+        time.sleep(0.5)
+        wait_request(uptime + 10_000_000, 3, results, "third")
+        for thread in threads:
+            thread.join()
+        for key in ("condition", "time", "held 1", "held 2", "third"):
+            woke, took, _ = results[key]
+            self.log.write("rc", f"web_robust: parked, {key}: woke by {woke} after {took:.2f} s")
+        checks = [
+            results["condition"][0] == "condition" and 1.2 < results["condition"][1] < 2.5,
+            results["time"][0] == "time" and 1.8 < results["time"][1] < 3.0,
+            all(results[f"held {n}"][0] == "time" and 2.8 < results[f"held {n}"][1] < 4.0 for n in (1, 2)),
+            results["third"][0] == "time" and results["third"][1] < 1.0,
+        ]
+        if not all(checks):
+            self.fail(f"web_robust: parked requests not as expected: {checks}")
+
+        # A client that stops reading part way through a page, and one that sends less of a body than it said
+        _, _, _, stalled_read = raw_exchange(host, b"GET / HTTP/1.1\r\n" + own + b"\r\n", rcvbuf=1024,
+                                             read_limit=1024)
+        short = socket.create_connection((host, 80), timeout=5.0)
+        short.sendall(b"POST /api/v1/charge HTTP/1.1\r\n" + own + b"Content-Type: application/json\r\n"
+                      b"Content-Length: 100\r\n\r\n{\"a\":")
+        time.sleep(14.0)
+        after = self.web_debug(host)
+        for sock in (stalled_read, short):
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if before is None or after is None:
+            self.fail("web_robust: api/v1/debug did not answer")
+            return
+        aborted = after["server"]["aborted_stalled"] - before["server"]["aborted_stalled"]
+        self.log.write("rc", f"web_robust: stalled and aborted: {aborted}; lwIP's heap {after['net']['heap']}; "
+                             f"server {after['server']}")
+        if aborted < 2:
+            self.fail(f"web_robust: {aborted} of the 2 stalled connections aborted within 14 s")
+        state = self.state()
+        if state is None:
+            self.fail("web_robust: the console did not answer at the end")
+
+    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False):
         """
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
@@ -996,13 +1218,17 @@ class Session:
             return len(body) == page_size["first"] and len(body) > 0
 
         def read_state():
-            return "s2" in json.loads(http_get(host, "rest/charge_mode_state"))
+            return "state" in json.loads(http_get(host, "api/v1/charge"))
 
         def read_setting(name):
             return lambda: bool(json.loads(http_get(host, f"rest/{name}")))
 
         def read_mirror_right():
-            return len(read_mirror(host)) == MIRROR_BYTES
+            return len(http_get(host, "api/v1/display/frame")) == MIRROR_BYTES
+
+        def read_load():
+            reply = json.loads(http_get(host, f"api/v1/debug/load?rows={SOAK_LOAD_ROWS}&columns={SOAK_LOAD_COLUMNS}"))
+            return len(reply["rows"]) == SOAK_LOAD_ROWS and len(reply["rows"][-1]) == SOAK_LOAD_COLUMNS
 
         pollers = []
         for browser in range(1, SOAK_BROWSERS + 1):
@@ -1011,7 +1237,11 @@ class Session:
         pollers.append(WebPoller("portal page", SOAK_PAGE_S, [("", read_page)], self.log))
         pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
                                  [(name, read_setting(name)) for name in SETTINGS_PATHS], self.log))
+        if load:
+            pollers.append(WebPoller("tuning load", 0.0, [("", read_load)], self.log))
+            pollers.append(WebPoller("fast client", SOAK_LOAD_FAST_S, [("", read_state)], self.log))
 
+        motor_start = self.send("motor")
         net_start = self.net()
         if net_start is not None:
             self.log.write("rc", "soak: net at the start: " + " ".join(f"{k}={v}" for k, v in net_start.items()))
@@ -1048,6 +1278,16 @@ class Session:
         self.log.write("rc", "soak: misses by kind: "
                              + (", ".join(f"{kind} {count}" for kind, count in kinds.most_common()) or "none"))
         net_end = self.net()
+        motor_end = self.send("motor")
+        late = {}
+        for reply, at in ((motor_start, "start"), (motor_end, "end")):
+            if reply is not None:
+                self.log.write("rc", f"soak: motor at the {at}: {reply}")
+                late[at] = {key: int(value) for key, value in re.findall(r"\b(\w+_underruns)=(\d+)", reply)}
+        if "start" in late and "end" in late:
+            for key, value in late["end"].items():
+                if value > late["start"].get(key, 0):
+                    self.fail(f"soak: {key} rose by {value - late['start'].get(key, 0)}: step pulses were fed late")
         if net_start is not None and net_end is not None:
             self.log.write("rc", "soak: net at the end: " + " ".join(f"{k}={v}" for k, v in net_end.items()))
             for key in (key for key in net_end if key.endswith("_err")):
@@ -1507,6 +1747,8 @@ def main():
     settings_parser.add_argument("--host", required=True, help="the unit's address")
     settings_parser.add_argument("--save", help="keep the copy in this folder")
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
+    robust_parser = sub.add_parser("web_robust", help="wrong and awkward requests, each answered or closed (ADR-003)")
+    robust_parser.add_argument("--host", required=True, help="the unit's address")
     soak_parser = sub.add_parser("soak", help="charges back to back while two browsers use the web pages")
     soak_parser.add_argument("seconds", type=float, help="how long; chosen for the change being proven")
     soak_parser.add_argument("--host", required=True, help="the unit's address")
@@ -1514,6 +1756,9 @@ def main():
     soak_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
     soak_parser.add_argument("--max-miss-share", type=float, default=SOAK_MISS_SHARE,
                              help="the most of the web reads that may miss, 0 to 1")
+    soak_parser.add_argument("--load", action="store_true",
+                             help="also a tuning session's load: a throw's samples pulled back to back, and a "
+                                  "client asking four times a second (ADR-003, gate 2)")
     soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
                              help="the most misses in a row one poller may have")
     frames_parser = sub.add_parser("scale_frames", help="record the scale's frames through the tap, by phase")
@@ -1557,8 +1802,11 @@ def main():
         time.sleep(args.seconds)
     elif args.command == "settings":
         session.settings(args.host, args.save, args.compare)
+    elif args.command == "web_robust":
+        session.web_robust(args.host)
     elif args.command == "soak":
-        session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run)
+        session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run,
+                     args.load)
     elif args.command == "scale_frames":
         session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     elif args.command == "charge_fault":

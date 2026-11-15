@@ -5,7 +5,6 @@
  * it is made (chunked). Keep-alive, an idle limit, a stall limit, and requests that can be parked.
  */
 #include <ctype.h>
-#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,8 +15,16 @@
 #include <task.h>
 
 #include "lwip/sockets.h"
+#include "lwip/errno.h"
 
 #include "http_server.h"
+
+// lwIP is built with an errno of its own (LWIP_PROVIDE_ERRNO, set by the SDK's cyw43_arch_lwip): its sockets set the
+// int `errno` lwIP declares, not newlib's, which is a macro over __errno(). Read with newlib's, a send that would
+// block read as errno 0, and every page longer than the send buffer was cut off (ADR-003, gate 2)
+#if defined(errno)
+#error "newlib's errno is in scope here: lwIP's sockets set their own"
+#endif
 
 
 #define HTTP_SERVER_PORT 80
@@ -1073,6 +1080,9 @@ static bool slot_send_some(slot_t *slot) {
         if (sent < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
             return false;
         }
+        stats.send_failed += 1;
+        printf("HTTP: a send failed (%d, errno %d) after %u bytes of the body; the connection is closed\n", sent,
+               sent < 0 ? errno : 0, (unsigned) slot->body_sent);
         slot_close(slot, true);
         return false;
     }

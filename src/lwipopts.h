@@ -42,6 +42,11 @@
 #define DEFAULT_UDP_RECVMBOX_SIZE 8
 // Six clients, the listener, one waiting to be taken, and room for one being closed
 #define MEMP_NUM_NETCONN 10
+// A socket's send copies what it sends into lwIP's heap, up to its send buffer. At the examples' 8 segments
+// (11.7 KB) one page load took the heap to 14,888 of its 16,384 bytes, and two at once would run it out. 4 segments
+// (5.8 KB): two page loads at once fit beside everything else. TCP_SND_QUEUELEN follows it (common header)
+#undef TCP_SND_BUF
+#define TCP_SND_BUF (4 * TCP_MSS)
 
 // MDNS
 #define LWIP_MDNS_RESPONDER 1

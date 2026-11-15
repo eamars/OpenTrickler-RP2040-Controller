@@ -149,11 +149,11 @@ static void api_v1_get_debug(const http_server_request_t *request, http_server_r
     api_v1_json_pool(out, room, &len, "netconn", MEMP_NETCONN);
     snprintf(text, sizeof(text), "},\"server\":{\"accepted\":%lu,\"requests\":%lu,\"closed_idle\":%lu,"
              "\"closed_for_room\":%lu,\"aborted_stalled\":%lu,\"refused\":%lu,\"send_no_memory\":%lu,"
-             "\"slots_used\":%u,\"slots_parked\":%u}}",
+             "\"send_failed\":%lu,\"slots_used\":%u,\"slots_parked\":%u}}",
              (unsigned long) server.accepted, (unsigned long) server.requests, (unsigned long) server.closed_idle,
              (unsigned long) server.closed_for_room, (unsigned long) server.aborted_stalled,
-             (unsigned long) server.refused, (unsigned long) server.send_no_memory, server.slots_used,
-             server.slots_parked);
+             (unsigned long) server.refused, (unsigned long) server.send_no_memory,
+             (unsigned long) server.send_failed, server.slots_used, server.slots_parked);
     http_json_raw(out, room, &len, text);
 
     if (!http_json_fits(room, len)) {
