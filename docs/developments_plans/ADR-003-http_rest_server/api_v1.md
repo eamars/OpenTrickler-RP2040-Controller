@@ -306,7 +306,7 @@ The figures, from the A&D at 21 readings a second: a throw is 400 to 650 rows, 2
 - **The unit is the source, not the store.** It keeps a short ring; the client keeps the data. The scripted client in `tools/` writes each recording to a folder as it reads it, in the same JSON that is ADR-009's test fixture on a PC, so "is it better" is answered from files and nothing depends on what a unit still holds. A board with more room (ADR-005's extended tier, ADR-007's PSRAM) keeps more, and `samples_kept` and 410 say what is there.
 - **A rich summary is the answer to "huge".** A tuner decides from a few figures a throw (both PRs judge a throw by its overthrow and its times), and ADR-009's tuner on a Pico W cannot hold hundreds of throws' samples. So the summary is where ADR-009 spends its fields, and samples are pulled for the throws someone studies.
 - **No silent loss.** Rows are numbered, so a gap is seen. **The samples of the last complete recording are not dropped before the next experiment starts**, so a client that reads each recording before it starts the next loses nothing. A hold kept by the caller (`"hold": true` on a start, released by `DELETE /api/v1/recordings/{id}`) may come with ADR-009 if it is needed; never a hold released by a read, since a read changes nothing.
-- **Recordings are keyed by `boot` and `id`.** Each recording carries the `boot` it was made in, and an `id` unique within it. A board that keeps recordings across a restart keeps their `boot`.
+- **An `id` is unique among the recordings the unit holds,** so `/recordings/{id}` names one. A unit that keeps none across a restart starts its ids again, so a client that keeps recordings keys them by `boot` and `id`; each recording carries the `boot` it was made in. A board that keeps recordings across a restart keeps their `boot` and goes on from the highest `id` it kept.
 
 ### Recordings
 
@@ -463,4 +463,6 @@ A second model (Fable 5.2, a session of its own, read only) reviewed the table a
 | E20 | Representations by `Accept`, which a link cannot set | `?format=` |
 | E21 | The server "below lwIP's" may share the charge loop's priority | Below the menu's task (6), so 5 or under; the load proven in gate 2 |
 
-Two findings crossed, E16 (histories that outlive a restart) and the data part (ids that start again at a restart); the author keyed recordings by `boot` and `id`, each recording carrying its `boot`.
+Two findings crossed, E16 (histories that outlive a restart) and the data part (ids that start again at a restart). Round 5: an `id` is unique among the recordings the unit holds; a client keys what it keeps by `boot` and `id`; a board that keeps recordings across a restart goes on from the highest `id` it kept (the reviewer's words).
+
+**Agreed** by both on experiments and data, 2026-11-15, after round 5: the reviewer's word, "With it in I am satisfied, and I do not need to read it again."
