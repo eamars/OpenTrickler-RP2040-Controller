@@ -16,9 +16,6 @@ typedef enum {
 extern "C" {
 #endif
 
-// "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-extern const char * http_json_header;
-
 typedef struct {
     PIO pio;
     int sm;
@@ -41,6 +38,12 @@ bool string_to_boolean(char * s);
 
 int float_to_string(char * output_decimal_str, float var, decimal_places_t decimal_places);
 
+/**
+ * @brief CRC-32 (zlib's) of bytes that come in pieces: the CRC so far, 0 at the start. The same value as Python's
+ * zlib.crc32 of the whole
+ */
+uint32_t software_crc32_continue(uint32_t crc, const void * data, size_t length);
+
 /** 
  * @brief Load configuration from persistent storage. 
  */
@@ -50,6 +53,12 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
  * @brief Save configuration to persistent storage
  */
 bool save_config(uint16_t addr, void * cfg, size_t size);
+
+/**
+ * @brief Whether the struct in RAM is what was last stored at that address, or read from it at the start: their
+ * CRCs (ADR-003, gate 3: `saved`). So a change from the menu or the console counts as one from the web does.
+ */
+bool config_is_saved(uint16_t addr, const void * cfg, size_t size);
 
 #ifdef __cplusplus
 }

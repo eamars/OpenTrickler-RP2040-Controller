@@ -4,7 +4,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include "activity.h"
 #include "app.h"
+#include "events.h"
 #include "u8g2.h"
 #include "mini_12864_module.h"
 #include "motors.h"
@@ -122,13 +124,28 @@ void cleanup_render_task(void *p) {
 }
 
 
+/*
+    The cleanup as API v1 reads and drives it (ADR-003, gate 4): a speed with a time runs no longer than that time,
+    so a client that loses the network leaves no motor turning; in `fault` until a press or a stop acknowledges it.
+*/
+static volatile bool cleanup_in_fault = false;
+static volatile bool cleanup_has_deadline = false;
+static volatile TickType_t cleanup_deadline_tick = 0;
+
+
+static void cleanup_mode_log(event_kind_t kind, activity_by_t by, event_reason_t reason) {
+    event_t event = {.source = EVENT_SOURCE_CLEANUP, .kind = (uint8_t) kind, .by = (uint8_t) by,
+                     .reason = (uint8_t) reason};
+    events_add(&event);
+}
+
+
 uint8_t cleanup_mode_menu() {
     // No cleanup with a motor driver not OK, from the menu or the web (ADR-012): the fault screen, before this mode
     // draws anything (step 6). motors_ready() sets up again each driver not OK, so a passing fault does not refuse
     if (!motors_ready()) {
         printf("Cleanup: not started, %s\n", motors_get_fault());
         uint8_t exit_form_id = menu_motor_fault_view();
-        // Set after the screen: the web writes the state itself after asking for a cleanup (ADR-003, M10)
         cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
         return exit_form_id;
     }
@@ -145,9 +162,19 @@ uint8_t cleanup_mode_menu() {
 
     // Initialize the cleanup mode config
     memset(&cleanup_mode_config, 0x0, sizeof(cleanup_mode_config));
+    cleanup_in_fault = false;
+    cleanup_has_deadline = false;
 
     // Enter the clean up mode
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_ENTER;
+
+    // The cleanup is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile. Its
+    // start is logged with who asked (gate 4)
+    activity_job_begin(ACTIVITY_CLEANUP);
+    cleanup_mode_log(EVENT_STARTED, activity_job_by(), EVENT_REASON_NONE);
+    activity_by_t end_by = ACTIVITY_BY_BUTTON;
+    event_reason_t end_reason = EVENT_REASON_STOPPED;
+    bool stop_logged = false;
 
     // Enable both motors
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
@@ -167,17 +194,40 @@ uint8_t cleanup_mode_menu() {
         // Wait for a button, looking at the motor drivers between presses
         ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(CLEANUP_MODE_FAULT_CHECK_MS);
 
-        // A motor driver not OK stops both motors and ends the cleanup, naming it (ADR-012, step 6)
+        // A motor driver not OK stops both motors and ends the cleanup, naming it (ADR-012, step 6); stopped at the
+        // fault, by the unit, and in `fault` until a press or a stop acknowledges it (gate 4)
         const char * motor_fault = motors_get_fault();
         if (motor_fault != NULL) {
+            // From here no speed is taken: the motors stay at 0 until the cleanup is acknowledged and ends. Before,
+            // a speed sent by the web in `fault` turned both motors again (review D1, 2026-11-16)
+            activity_lock();
+            cleanup_mode_running = false;
+            cleanup_has_deadline = false;
             cleanup_mode_config.trickler_speed = 0;
             motor_set_speed(SELECT_BOTH_MOTOR, 0);
+            activity_unlock();
             snprintf(title_string, sizeof(title_string), "%s", motor_fault);
             printf("Cleanup: ended, %s\n", motor_fault);
+            cleanup_in_fault = true;
+            cleanup_mode_log(EVENT_STOPPED, ACTIVITY_BY_UNIT, EVENT_REASON_FAULT);
+            stop_logged = true;
 
-            while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
+            while (button_wait_for_input_ms(50) == BUTTON_NO_EVENT && !activity_take_stop(NULL)) {
             }
             break;
+        }
+
+        // A stop asked by the API or the console, as the reset button
+        activity_by_t stop_by;
+        if (activity_take_stop(&stop_by)) {
+            button_encoder_event = BUTTON_RST_PRESSED;
+            end_by = stop_by;
+        }
+        // A speed given with a time runs out: the cleanup stops by itself
+        else if (cleanup_has_deadline && (int32_t) (xTaskGetTickCount() - cleanup_deadline_tick) >= 0) {
+            button_encoder_event = BUTTON_RST_PRESSED;
+            end_by = ACTIVITY_BY_UNIT;
+            end_reason = EVENT_REASON_TIME;
         }
 
         switch (button_encoder_event) {
@@ -188,30 +238,42 @@ uint8_t cleanup_mode_menu() {
 
                 break;
             case BUTTON_ENCODER_ROTATE_CW:
+                // A person at the unit: until stopped, as there
+                cleanup_has_deadline = false;
                 cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed + 1,
                                                                               cleanup_mode_config.trickler_speed);
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
             case BUTTON_ENCODER_ROTATE_CCW:
+                cleanup_has_deadline = false;
                 cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed - 1,
                                                                               cleanup_mode_config.trickler_speed);
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
                 break;
 
             case BUTTON_ENCODER_PRESSED:
+                cleanup_has_deadline = false;
                 cleanup_mode_config.trickler_speed = 0;
                 motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
-                
+
                 break;
             default:
                 break;
         }
-        
+
     }
 
+    activity_lock();
     cleanup_mode_running = false;
+    cleanup_has_deadline = false;
+    activity_unlock();
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
+    if (!stop_logged) {
+        cleanup_mode_log(EVENT_STOPPED, end_by, end_reason);
+    }
+    cleanup_in_fault = false;
+    activity_job_end();
 
     cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
 
@@ -220,63 +282,62 @@ uint8_t cleanup_mode_menu() {
 }
 
 
-bool http_rest_cleanup_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mappings
-    // s0 (cleanup_mode_state_t | int): Cleanup mode state
-    // s1 (float): Trickler speed
-
-    static char cleanup_mode_json_buffer[128];
-
-    // Control
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "s0") == 0) {
-            cleanup_mode_state_t new_state = (cleanup_mode_state_t) atoi(values[idx]);
-
-            // Exit
-            if (new_state == CLEANUP_MODE_EXIT && cleanup_mode_config.cleanup_mode_state != CLEANUP_MODE_EXIT) {
-                ButtonEncoderEvent_t button_event = BUTTON_RST_PRESSED;
-                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
-            }
-
-            // Enter
-            else if (new_state == CLEANUP_MODE_ENTER && cleanup_mode_config.cleanup_mode_state != CLEANUP_MODE_ENTER) {
-                // Set exit_status for the menu
-                exit_state = APP_STATE_ENTER_CLEANUP_MODE;
-
-                // Then signal the menu to stop
-                ButtonEncoderEvent_t button_event = OVERRIDE_FROM_REST;
-                xQueueSend(encoder_event_queue, &button_event, portMAX_DELAY);
-            }
-
-            cleanup_mode_config.cleanup_mode_state = new_state;
-        }
-        else if (strcmp(params[idx], "s1") == 0) {
-            // Kept at any time; it reaches the motors only while cleanup mode runs, as from the screen (ADR-013).
-            // Before, it set both tricklers whatever ran, a charge too.
-            cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(strtof(values[idx], NULL),
-                                                                          cleanup_mode_config.trickler_speed);
-            if (cleanup_mode_running) {
-                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
-            }
-        }
+cleanup_start_result_t cleanup_mode_request_start(activity_by_t by) {
+    // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over. In
+    // the charge's order: busy, then a driver's fault
+    activity_t asked_before;
+    if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
+        return CLEANUP_START_BUSY;
     }
-
-    // Response
-    snprintf(cleanup_mode_json_buffer, 
-             sizeof(cleanup_mode_json_buffer),
-             "%s"
-             "{\"s0\":%d,\"s1\":%0.3f}",
-             http_json_header,
-             (int) cleanup_mode_config.cleanup_mode_state,
-             cleanup_mode_config.trickler_speed);
-
-
-    size_t data_length = strlen(cleanup_mode_json_buffer);
-    file->data = cleanup_mode_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+    // Looked at afresh, as at the unit (charge_mode_request_start)
+    if (!motors_ready()) {
+        return CLEANUP_START_DRIVER_FAULT;
+    }
+    if (!activity_request_start(ACTIVITY_CLEANUP, by)) {
+        return CLEANUP_START_BUSY;
+    }
+    menu_wake();
+    return CLEANUP_START_OK;
+}
 
 
-    return true;
+bool cleanup_mode_set_speed(float speed_rps, float time_s) {
+    activity_lock();
+    bool running = cleanup_mode_running;
+    if (running) {
+        cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(speed_rps, cleanup_mode_config.trickler_speed);
+        // The tick before the flag: the cleanup's loop reads them on the other core, without the lock
+        if (isfinite(time_s)) {
+            cleanup_deadline_tick = xTaskGetTickCount() + pdMS_TO_TICKS((uint32_t) (time_s * 1000.0f));
+        }
+        cleanup_has_deadline = isfinite(time_s);
+        motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
+    }
+    activity_unlock();
+    return running;
+}
+
+
+void cleanup_mode_get_status(cleanup_status_t * status) {
+    activity_t asked;
+    bool running = activity_get() == ACTIVITY_CLEANUP;
+    if (running && cleanup_in_fault) {
+        status->state = "fault";
+    }
+    else if (running) {
+        status->state = "running";
+    }
+    else if (activity_start_pending(&asked) && asked == ACTIVITY_CLEANUP) {
+        status->state = "starting";
+    }
+    else {
+        status->state = "idle";
+    }
+    status->by = running ? activity_by_name(activity_job_by()) : NULL;
+    status->speed_rps = running ? cleanup_mode_config.trickler_speed : 0.0f;
+    status->time_left_s = NAN;
+    if (running && cleanup_has_deadline) {
+        int32_t left_ticks = (int32_t) (cleanup_deadline_tick - xTaskGetTickCount());
+        status->time_left_s = left_ticks > 0 ? (float) (left_ticks * portTICK_PERIOD_MS) / 1000.0f : 0.0f;
+    }
 }

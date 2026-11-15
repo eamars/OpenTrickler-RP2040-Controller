@@ -36,6 +36,12 @@ const char * menu_main_title(void);
  */
 uint8_t menu_motor_fault_view(void);
 
+/**
+ * @brief Wake the menu to look at a start asked from outside it (activity_request_start(); ADR-003, gate 4). Never
+ *        waits: with its queue full, the menu still looks within a second.
+ */
+void menu_wake(void);
+
 #ifdef __cplusplus
 }
 #endif

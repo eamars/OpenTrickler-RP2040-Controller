@@ -1,0 +1,588 @@
+/*
+ * API v1's routes (ADR-003): the index, the powder profiles, the motors' settings listed, the display and its frame;
+ * the settings' come from their tables, the commands' from api_v1_commands.c. Under /api/v1/debug, which is not part
+ * of v1, the figures and the routes for the proofs: a reply the size of a throw's samples (/debug/load), a parked
+ * request (/debug/wait), and a body taken in pieces (/debug/upload).
+ */
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <FreeRTOS.h>
+#include <task.h>
+#include <u8g2.h>
+
+#include "lwip/stats.h"
+#include "lwip/memp.h"
+
+#include "api_v1.h"
+#include "http_server.h"
+#include "http_json.h"
+#include "charge_mode.h"
+#include "common.h"
+#include "profile.h"
+#include "scale.h"
+#include "display.h"
+#include "eeprom.h"
+#include "settings.h"
+#include "version.h"
+
+#include "pico/rand.h"
+#include "pico/time.h"
+
+
+extern charge_mode_config_t charge_mode_config;
+extern char host_name[18];
+
+// /debug/load's bounds: well past a throw's 650 rows of 16 columns
+#define API_V1_LOAD_ROWS_MAX 2000
+#define API_V1_LOAD_COLUMNS_MAX 32
+#define API_V1_WAIT_S_MAX 30
+
+// /debug/upload's: those whole, and those cut off (the client gone, or stalled)
+static uint32_t api_v1_uploads_done = 0;
+static uint32_t api_v1_uploads_aborted = 0;
+
+
+static uint32_t api_v1_now_ms(void) {
+    return (uint32_t) (xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
+
+
+const char *api_v1_board_name(void) {
+#if PICO_RP2350
+    return "pico2_w";
+#else
+    return "pico_w";
+#endif
+}
+
+
+// GET /api/v1/display
+static void api_v1_get_display(const http_server_request_t *request, http_server_reply_t *reply) {
+    u8g2_t *display = get_display_handler();
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    int len = snprintf(out, room, "{\"width\":%u,\"height\":%u,\"format\":\"u8g2_tiles\"}",
+                       (unsigned) u8g2_GetBufferTileWidth(display) * 8,
+                       (unsigned) u8g2_GetBufferTileHeight(display) * 8);
+    http_server_reply_send(reply, 200, "application/json", (size_t) len);
+}
+
+
+// GET /api/v1/display/frame: the screen's bytes, copied at once, so the reply is one frame
+static void api_v1_get_display_frame(const http_server_request_t *request, http_server_reply_t *reply) {
+    u8g2_t *display = get_display_handler();
+    size_t size = 8 * (size_t) u8g2_GetBufferTileHeight(display) * u8g2_GetBufferTileWidth(display);
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    if (size > room) {
+        http_server_reply_error(reply, 500, "failed", "the frame is larger than a reply");
+        return;
+    }
+    memcpy(out, u8g2_GetBufferPtr(display), size);
+    http_server_reply_send(reply, 200, "application/octet-stream", size);
+}
+
+
+static void api_v1_json_pool(char *out, size_t room, size_t *len, const char *name, memp_t pool) {
+    const struct stats_mem *mem = lwip_stats.memp[pool];
+    char text[112];
+    snprintf(text, sizeof(text), "\"%s\":{\"used\":%u,\"max\":%u,\"size\":%u,\"err\":%lu}", name,
+             (unsigned) mem->used, (unsigned) mem->max, (unsigned) mem->avail, (unsigned long) mem->err);
+    http_json_raw(out, room, len, text);
+}
+
+
+// GET /api/v1/debug: figures for the soak and the proofs. Not part of v1
+static void api_v1_get_debug(const http_server_request_t *request, http_server_reply_t *reply) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_server_stats_t server;
+    http_server_get_stats(&server);
+    char text[384];     // the server's line, every count at 10 digits: about 305
+
+    snprintf(text, sizeof(text), "{\"heap_free\":%u,\"heap_min\":%u,\"net\":{\"heap\":{\"used\":%u,\"max\":%u,"
+             "\"size\":%u,\"err\":%lu},", (unsigned) xPortGetFreeHeapSize(),
+             (unsigned) xPortGetMinimumEverFreeHeapSize(), (unsigned) lwip_stats.mem.used,
+             (unsigned) lwip_stats.mem.max, (unsigned) lwip_stats.mem.avail, (unsigned long) lwip_stats.mem.err);
+    http_json_raw(out, room, &len, text);
+    api_v1_json_pool(out, room, &len, "tcp_pcb", MEMP_TCP_PCB);
+    http_json_raw(out, room, &len, ",");
+    api_v1_json_pool(out, room, &len, "tcp_seg", MEMP_TCP_SEG);
+    http_json_raw(out, room, &len, ",");
+    api_v1_json_pool(out, room, &len, "pbuf", MEMP_PBUF);
+    http_json_raw(out, room, &len, ",");
+    api_v1_json_pool(out, room, &len, "pbuf_pool", MEMP_PBUF_POOL);
+    http_json_raw(out, room, &len, ",");
+    api_v1_json_pool(out, room, &len, "netconn", MEMP_NETCONN);
+    snprintf(text, sizeof(text), "},\"server\":{\"accepted\":%lu,\"requests\":%lu,\"closed_idle\":%lu,"
+             "\"closed_for_room\":%lu,\"aborted_stalled\":%lu,\"refused\":%lu,\"send_no_memory\":%lu,"
+             "\"send_failed\":%lu,\"stream_make_ms\":%lu,\"stream_bytes\":%lu,\"stream_failed\":%lu,\"slots_used\":%u,"
+             "\"slots_parked\":%u},",
+             (unsigned long) server.accepted, (unsigned long) server.requests, (unsigned long) server.closed_idle,
+             (unsigned long) server.closed_for_room, (unsigned long) server.aborted_stalled,
+             (unsigned long) server.refused, (unsigned long) server.send_no_memory,
+             (unsigned long) server.send_failed, (unsigned long) server.stream_make_ms,
+             (unsigned long) server.stream_bytes, (unsigned long) server.stream_failed, server.slots_used,
+             server.slots_parked);
+    http_json_raw(out, room, &len, text);
+    snprintf(text, sizeof(text), "\"uploads\":{\"done\":%lu,\"aborted\":%lu}}", (unsigned long) api_v1_uploads_done,
+             (unsigned long) api_v1_uploads_aborted);
+    http_json_raw(out, room, &len, text);
+
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        return;
+    }
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
+// /debug/load: rows of numbers written as a recording's samples will be (six significant digits), so the cost of
+// a tuning session's data to the charge can be measured now (ADR-003, gate 2)
+typedef struct {
+    uint16_t rows;
+    uint16_t columns;
+    uint16_t row;
+    uint8_t phase;          // 0 the columns, 1 the rows, 2 the end
+} api_v1_load_t;
+
+
+static bool api_v1_load_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_load_t *load = ctx;
+    *len = 0;
+    if (load->phase == 0) {
+        http_json_raw(buf, room, len, "{\"columns\":[");
+        for (uint16_t col = 0; col < load->columns; col += 1) {
+            char name[12];
+            snprintf(name, sizeof(name), "%s\"c%u\"", col ? "," : "", (unsigned) col);
+            http_json_raw(buf, room, len, name);
+        }
+        http_json_raw(buf, room, len, "],\"rows\":[");
+        load->phase = 1;
+        return true;
+    }
+    if (load->phase == 1) {
+        // A row of 16 columns is about 120 bytes: rows while one more surely fits
+        while (load->row < load->rows && *len + 16 + 14 * (size_t) load->columns < room) {
+            http_json_raw(buf, room, len, load->row ? ",[" : "[");
+            for (uint16_t col = 0; col < load->columns; col += 1) {
+                if (col) {
+                    http_json_raw(buf, room, len, ",");
+                }
+                float value = 30.0f * sinf(0.01f * (float) load->row + 0.7f * (float) col) + (float) col;
+                http_json_number(buf, room, len, value, 6);
+            }
+            http_json_raw(buf, room, len, "]");
+            load->row += 1;
+        }
+        if (load->row >= load->rows) {
+            load->phase = 2;
+        }
+        return true;
+    }
+    http_json_raw(buf, room, len, "]}");
+    return false;
+}
+
+
+static long api_v1_query_long(const char *query, const char *name, long fallback) {
+    char value[16];
+    if (!http_server_query_value(query, name, value, sizeof(value)) || value[0] == '\0') {
+        return fallback;
+    }
+    return strtol(value, NULL, 10);
+}
+
+
+// GET /api/v1/debug/load?rows=600&columns=16
+static void api_v1_get_debug_load(const http_server_request_t *request, http_server_reply_t *reply) {
+    long rows = api_v1_query_long(request->query, "rows", 600);
+    long columns = api_v1_query_long(request->query, "columns", 16);
+    if (rows < 1 || rows > API_V1_LOAD_ROWS_MAX || columns < 1 || columns > API_V1_LOAD_COLUMNS_MAX) {
+        http_server_reply_error(reply, 400, "out_of_range", "rows 1 to 2000, columns 1 to 32");
+        return;
+    }
+    api_v1_load_t *load = http_server_reply_context(reply, sizeof(api_v1_load_t));
+    load->rows = (uint16_t) rows;
+    load->columns = (uint16_t) columns;
+    load->row = 0;
+    load->phase = 0;
+    http_server_reply_stream(reply, 200, "application/json", api_v1_load_more, load);
+}
+
+
+// /debug/wait: a parked request, woken by a condition (the unit's clock past a time) or by its own time
+typedef struct {
+    uint32_t until_ms;
+} api_v1_wait_t;
+
+
+static bool api_v1_wait_ready(void *ctx) {
+    const api_v1_wait_t *wait = ctx;
+    return (int32_t) (api_v1_now_ms() - wait->until_ms) >= 0;
+}
+
+
+static void api_v1_wait_resume(const http_server_request_t *request, http_server_reply_t *reply) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    int len = snprintf(out, room, "{\"woke\":\"%s\",\"uptime_ms\":%lu}",
+                       http_server_reply_woke_ready(reply) ? "condition" : "time", (unsigned long) api_v1_now_ms());
+    http_server_reply_send(reply, 200, "application/json", (size_t) len);
+}
+
+
+// GET /api/v1/debug/wait?until_ms=N&wait=S: held until the unit's clock reaches N ms, or for S seconds at most
+static void api_v1_get_debug_wait(const http_server_request_t *request, http_server_reply_t *reply) {
+    long until_ms = api_v1_query_long(request->query, "until_ms", 0);
+    long wait_s = api_v1_query_long(request->query, "wait", 5);
+    if (wait_s < 1 || wait_s > API_V1_WAIT_S_MAX || until_ms < 0) {
+        http_server_reply_error(reply, 400, "out_of_range", "wait 1 to 30 s, until_ms 0 or more");
+        return;
+    }
+    api_v1_wait_t *wait = http_server_reply_context(reply, sizeof(api_v1_wait_t));
+    wait->until_ms = (uint32_t) until_ms;
+    http_server_reply_park(reply, api_v1_wait_ready, wait, (uint32_t) wait_s * 1000, api_v1_wait_resume);
+}
+
+
+/*
+    PUT /api/v1/debug/upload: bytes taken in pieces as they come, counted and summed by CRC-32, and dropped. Gate 4
+    shows with it what ADR-004's image will go through: a body of 700 KB during a charge. The counts of those whole and
+    those cut off are in /api/v1/debug
+*/
+#define API_V1_UPLOAD_MAX (4u * 1024u * 1024u)
+
+typedef struct {
+    uint32_t bytes;
+    uint32_t crc;
+    uint32_t pieces;
+    uint32_t largest;
+    uint32_t started_ms;
+} api_v1_upload_t;
+
+static bool api_v1_upload_begin(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (request->body_is_json) {
+        http_server_reply_error(reply, 415, "wrong_media_type", "the bytes are sent as application/octet-stream");
+        return false;
+    }
+    if (request->body_len > API_V1_UPLOAD_MAX) {
+        http_server_reply_error(reply, 413, "too_large", "4 MB at most");
+        return false;
+    }
+    api_v1_upload_t *upload = http_server_reply_context(reply, sizeof(api_v1_upload_t));
+    memset(upload, 0, sizeof(*upload));
+    upload->started_ms = api_v1_now_ms();
+    return true;
+}
+
+
+static bool api_v1_upload_piece(void *ctx, const char *data, size_t len) {
+    api_v1_upload_t *upload = ctx;
+    upload->crc = software_crc32_continue(upload->crc, data, len);
+    upload->bytes += (uint32_t) len;
+    upload->pieces += 1;
+    if (len > upload->largest) {
+        upload->largest = (uint32_t) len;
+    }
+    return true;
+}
+
+
+static void api_v1_upload_end(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_upload_t *upload = http_server_reply_context(reply, sizeof(api_v1_upload_t));
+    api_v1_uploads_done += 1;
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    int len = snprintf(out, room, "{\"bytes\":%lu,\"crc32\":%lu,\"pieces\":%lu,\"largest\":%lu,\"ms\":%lu}",
+                       (unsigned long) upload->bytes, (unsigned long) upload->crc, (unsigned long) upload->pieces,
+                       (unsigned long) upload->largest, (unsigned long) (api_v1_now_ms() - upload->started_ms));
+    http_server_reply_send(reply, 200, "application/json", (size_t) len);
+}
+
+
+static void api_v1_upload_abort(void *ctx) {
+    api_v1_uploads_aborted += 1;
+}
+
+
+static const http_server_upload_t api_v1_debug_upload = {
+    .begin = api_v1_upload_begin,
+    .piece = api_v1_upload_piece,
+    .end = api_v1_upload_end,
+    .abort = api_v1_upload_abort,
+};
+
+
+/*
+    GET /api/v1, the index (gate 3): what the unit is, a guide in plain words, and each path with its methods. The
+    settings' paths come from their tables; the rest are below. /api/v1/debug is not part of v1, and not listed.
+*/
+typedef struct {
+    const char *path;
+    const char *methods;    // as JSON: a list
+    const char *about;
+} api_v1_resource_t;
+
+static const api_v1_resource_t api_v1_resources[] = {
+    {"/api/v1", "[\"GET\"]", "this index"},
+    {"/api/v1/schema", "[\"GET\"]",
+     "every settings resource's fields: type, unit, limits or choices, access, when each applies and when it is "
+     "refused; every action with its body's fields; every state and event kind; the error codes"},
+    {"/api/v1/settings", "[\"GET\"]",
+     "every setting and powder profile in one document, with the firmware's version: the export. An import is a "
+     "PATCH of each resource in turn"},
+    {"/api/v1/settings/save", "[\"POST\"]", "stores every setting and the powder profiles"},
+    {"/api/v1/powder_profiles", "[\"GET\"]", "the powder profiles' ids and names, and whether they are stored"},
+    {"/api/v1/settings/motors", "[\"GET\"]",
+     "the motors whose settings the unit holds, each by its id and label, and whether they are stored"},
+    {"/api/v1/charge","[\"GET\",\"PATCH\"]",
+     "the charge: its state, the throw, the target and the powder profile it uses, the weight, the last throw; a "
+     "PATCH sets the target or the profile the next throw uses"},
+    {"/api/v1/charge/start", "[\"POST\"]", "starts a charge: {}, or the target and the powder profile to set first"},
+    {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
+    {"/api/v1/cleanup", "[\"GET\",\"PATCH\"]",
+     "the cleanup: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
+    {"/api/v1/cleanup/start", "[\"POST\"]", "starts a cleanup, at speed 0"},
+    {"/api/v1/cleanup/stop", "[\"POST\"]", "stops the cleanup, and acknowledges its fault; never fails"},
+    {"/api/v1/stop", "[\"POST\"]", "stops whatever job runs; never fails"},
+    {"/api/v1/events", "[\"GET\"]",
+     "the unit's changes after a number (?after=N), held until there is one with ?wait=s"},
+    {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
+    {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
+    {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it"},
+    {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
+    {"/api/v1/system", "[\"GET\"]", "the firmware, the board, the uptime, what the unit is doing, a restart pending"},
+    {"/api/v1/system/restart", "[\"POST\"]", "restarts the unit, once the reply is out"},
+    {"/api/v1/system/erase", "[\"POST\"]",
+     "erases the stored settings and restarts: the unit comes back as its own access point"},
+    {"/api/v1/network", "[\"GET\"]", "the network the unit is on: its mode, name, address, host name, signal"},
+    {"/api/v1/display", "[\"GET\"]", "the screen's size and the format of its frame"},
+    {"/api/v1/display/frame", "[\"GET\"]", "the screen's frame, as the display holds it"},
+};
+
+static const char api_v1_guide[] =
+    "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at "
+    "once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or "
+    "when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, "
+    "and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: "
+    "the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, "
+    "the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the "
+    "scale's own unit. "
+    "The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start "
+    "once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to "
+    "the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops "
+    "whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at "
+    "the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. "
+    "The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours "
+    "onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.";
+
+static uint32_t api_v1_boot = 0;        // new at each start, so a client sees a restart (api_v1.md, the index)
+
+
+uint32_t api_v1_boot_id(void) {
+    return api_v1_boot;
+}
+
+typedef struct {
+    uint8_t phase;      // 0 the head, 1 the guide, 2 api_v1_resources, 3 the settings' paths, 4 their saves, 5 the end
+    uint8_t idx;
+} api_v1_index_t;
+
+
+static void api_v1_index_resource(char *out, size_t room, size_t *len, bool first, const char *path,
+                                  const char *methods, const char *about) {
+    http_json_raw(out, room, len, first ? "{\"path\":" : ",{\"path\":");
+    http_json_string(out, room, len, path);
+    http_json_raw(out, room, len, ",\"methods\":");
+    http_json_raw(out, room, len, methods);
+    http_json_raw(out, room, len, ",\"about\":");
+    http_json_string(out, room, len, about);
+    http_json_raw(out, room, len, "}");
+}
+
+
+static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_index_t *index = ctx;
+    *len = 0;
+    if (index->phase == 0) {
+        char unit_id[9];
+        eeprom_get_board_id(unit_id, 8);
+        unit_id[8] = '\0';
+        http_json_raw(buf, room, len, "{\"api\":\"1\",\"firmware\":{\"version\":");
+        http_json_string(buf, room, len, version_string);
+        http_json_raw(buf, room, len, ",\"vcs\":");
+        http_json_string(buf, room, len, vcs_hash);
+        http_json_raw(buf, room, len, ",\"build\":");
+        http_json_string(buf, room, len, build_type);
+        http_json_raw(buf, room, len, "},\"board\":");
+        http_json_string(buf, room, len, api_v1_board_name());
+        http_json_raw(buf, room, len, ",\"unit_id\":");
+        http_json_string(buf, room, len, unit_id);
+        http_json_raw(buf, room, len, ",\"hostname\":");
+        http_json_string(buf, room, len, host_name);
+        http_json_raw(buf, room, len, ",\"boot\":");
+        http_json_unsigned(buf, room, len, api_v1_boot);
+        http_json_raw(buf, room, len, ",\"uptime_s\":");
+        http_json_integer(buf, room, len, (long) (time_us_64() / 1000000u));
+        http_json_raw(buf, room, len, ",\"features\":[],\"guide\":");
+        index->phase = 1;
+        return true;
+    }
+    if (index->phase == 1) {
+        http_json_string(buf, room, len, api_v1_guide);
+        http_json_raw(buf, room, len, ",\"resources\":[");
+        index->phase = 2;
+        return true;
+    }
+    if (index->phase == 2) {
+        // A path a chunk
+        const api_v1_resource_t *resource = &api_v1_resources[index->idx];
+        api_v1_index_resource(buf, room, len, index->idx == 0, resource->path, resource->methods, resource->about);
+        index->idx += 1;
+        if (index->idx >= sizeof(api_v1_resources) / sizeof(api_v1_resources[0])) {
+            index->phase = 3;
+            index->idx = 0;
+        }
+        return true;
+    }
+    if (index->phase == 3 || index->phase == 4) {
+        // A settings' path a chunk: its GET and PATCH, then its save path where it is the first to have it
+        const settings_resource_t *resource = settings_resource_at(index->idx);
+        if (resource == NULL) {
+            index->phase = index->phase == 3 ? 4 : 5;
+            index->idx = 0;
+            return true;
+        }
+        index->idx += 1;
+        if (index->phase == 3) {
+            api_v1_index_resource(buf, room, len, false, resource->path, "[\"GET\",\"PATCH\"]", resource->about);
+            return true;
+        }
+        for (size_t earlier = 0; earlier + 1 < index->idx; earlier += 1) {
+            if (strcmp(settings_resource_at(earlier)->save_path, resource->save_path) == 0) {
+                return true;    // stored with another: listed once
+            }
+        }
+        // Named with every resource stored with it: the motors' save stores both
+        char about[96];
+        size_t used = (size_t) snprintf(about, sizeof(about), "stores %s", resource->label);
+        for (size_t later = index->idx; settings_resource_at(later) != NULL && used < sizeof(about); later += 1) {
+            const settings_resource_t *other = settings_resource_at(later);
+            if (strcmp(other->save_path, resource->save_path) == 0) {
+                used += (size_t) snprintf(about + used, sizeof(about) - used, " and %s", other->label);
+            }
+        }
+        api_v1_index_resource(buf, room, len, false, resource->save_path, "[\"POST\"]", about);
+        return true;
+    }
+    http_json_raw(buf, room, len, "]}");
+    return false;
+}
+
+
+static void api_v1_get_index(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    api_v1_index_t *index = http_server_reply_context(reply, sizeof(api_v1_index_t));
+    memset(index, 0, sizeof(*index));
+    http_server_reply_stream(reply, 200, "application/json", api_v1_index_more, index);
+}
+
+
+// GET /api/v1/powder_profiles: saved, and each profile's id and name (gate 3). Which the next throw uses is the
+// charge's powder_profile
+static void api_v1_get_powder_profiles(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"saved\":");
+    http_json_bool(out, room, &len, profile_data_is_saved());
+    http_json_raw(out, room, &len, ",\"profiles\":[");
+    for (uint16_t idx = 0; idx < MAX_PROFILE_CNT; idx += 1) {
+        http_json_raw(out, room, &len, idx ? ",{\"id\":" : "{\"id\":");
+        http_json_integer(out, room, &len, idx);
+        http_json_raw(out, room, &len, ",\"name\":");
+        http_json_string(out, room, &len, profile_get_name(idx));
+        http_json_raw(out, room, &len, "}");
+    }
+    http_json_raw(out, room, &len, "]}");
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        return;
+    }
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
+// The motors' settings resources: their paths are this, then the motor's id, the name the motors' state, the events
+// and the actions call it by
+#define API_V1_MOTOR_SETTINGS_PREFIX "/api/v1/settings/motors/"
+
+static bool api_v1_is_motor_settings(const settings_resource_t *resource) {
+    return strncmp(resource->path, API_V1_MOTOR_SETTINGS_PREFIX, strlen(API_V1_MOTOR_SETTINGS_PREFIX)) == 0;
+}
+
+
+// GET /api/v1/settings/motors: saved, and each motor's id and label. Found from the resources registered, so a
+// board lists the motors it carries (ADR-005). They are stored as one block, so saved is the block's, as each
+// motor's own is
+static void api_v1_get_motor_settings(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    bool saved = true;
+    for (size_t idx = 0; settings_resource_at(idx) != NULL; idx += 1) {
+        const settings_resource_t *resource = settings_resource_at(idx);
+        if (api_v1_is_motor_settings(resource)) {
+            saved = saved && resource->is_saved();
+        }
+    }
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"saved\":");
+    http_json_bool(out, room, &len, saved);
+    http_json_raw(out, room, &len, ",\"motors\":[");
+    bool first = true;
+    for (size_t idx = 0; settings_resource_at(idx) != NULL; idx += 1) {
+        const settings_resource_t *resource = settings_resource_at(idx);
+        if (!api_v1_is_motor_settings(resource)) {
+            continue;
+        }
+        http_json_raw(out, room, &len, first ? "{\"id\":" : ",{\"id\":");
+        http_json_string(out, room, &len, resource->path + strlen(API_V1_MOTOR_SETTINGS_PREFIX));
+        http_json_raw(out, room, &len, ",\"label\":");
+        http_json_string(out, room, &len, resource->label);
+        http_json_raw(out, room, &len, "}");
+        first = false;
+    }
+    http_json_raw(out, room, &len, "]}");
+    if (!http_json_fits(room, len)) {
+        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
+        return;
+    }
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
+bool api_v1_init(void) {
+    bool ok = true;
+    api_v1_boot = get_rand_32();
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1", api_v1_get_index);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/powder_profiles", api_v1_get_powder_profiles);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings/motors", api_v1_get_motor_settings);
+    // Every module's settings' table, registered at its start (gate 3)
+    settings_add_routes();
+    // The commands, the event log and the unit's reads (gate 4)
+    ok = ok && api_v1_commands_init();
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display/frame", api_v1_get_display_frame);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug", api_v1_get_debug);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug/load", api_v1_get_debug_load);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug/wait", api_v1_get_debug_wait);
+    ok = ok && http_server_add_upload(HTTP_SERVER_PUT, "/api/v1/debug/upload", &api_v1_debug_upload);
+    return ok;
+}

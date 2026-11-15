@@ -2,7 +2,6 @@
 #define REST_ENDPOINTS_H_
 
 #include <stdbool.h>
-#include "lwip/apps/httpd.h"
 
 
 

@@ -6,7 +6,6 @@
 #include <queue.h>
 
 #include "common.h"
-#include "http_rest.h"
 #include "step_pulses.h"
 
 #define EEPROM_MOTOR_DATA_REV                     5              // 16 byte 
@@ -129,8 +128,6 @@ void motor_enable(motor_select_t selected_motor, bool enable);
 const char * get_motor_select_string(motor_select_t selected_motor);
 
 // REST interface
-bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

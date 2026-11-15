@@ -25,6 +25,7 @@ import datetime
 import http.client
 import json
 import math
+import os
 import queue
 import re
 import shutil
@@ -34,10 +35,13 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
 import zlib
 from pathlib import Path
+
+import unit_api
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -101,14 +105,14 @@ MENU_TOUR_IDS = range(1, 100)
 # Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
 MENU_TOUR_LIVE_FORMS = {36: "version info: the version, hash and build of the image"}
 
-# The web API paths `settings` reads. Each answers a GET with no parameters with what is stored, and does nothing
-# else; a parameter can change the unit (AGENTS.md), so none is sent. profile_config with no parameter gives the
-# selected profile, and profile_summary every profile's name.
-SETTINGS_PATHS = ["charge_mode_config", "coarse_motor_config", "fine_motor_config", "mini_12864_config",
-                  "neopixel_led_config", "profile_config", "profile_summary", "scale_config", "servo_gate_config",
-                  "system_control", "wireless_config"]
-# Fields that change with the image, not with the stored settings: reported, not judged, by --compare
-SETTINGS_LIVE_FIELDS = {"system_control": {"s1": "the version", "s2": "the vcs hash", "s3": "the build type"}}
+# The settings over API v1 (ADR-003, gate 3). GET /api/v1/settings gives every settings resource and powder profile
+# in one document, which `settings` keeps and compares field by field; a GET changes nothing (api_v1.md). The
+# settings page reads a resource as its section is opened: the soak reads them so
+SETTINGS_EXPORT = "api/v1/settings"
+SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse", "api/v1/settings/motors/fine",
+                       "api/v1/settings/scale", "api/v1/settings/gate", "api/v1/settings/leds",
+                       "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
+                       "api/v1/powder_profiles/0"]
 HTTP_TIMEOUT_S = 5.0
 SETTINGS_TRIES = 3
 
@@ -125,7 +129,21 @@ SOAK_SETTINGS_S = 60.0      # every settings path
 # these reads, so an ADR that does not touch it passes limits taken from a run before its change (ADR-011).
 SOAK_MISS_SHARE = 0.01      # the most of the web reads that may miss
 SOAK_MISS_RUN = 2           # the most misses in a row on one poller
-SOAK_SETTLE_S = 300.0       # heap_free may not end lower than its lowest in the first five minutes
+SOAK_QUIET_S = 10.0         # after the browsers stop, the server's idle connections closed (5 s), heap_free read
+# --load (ADR-003, gate 2): what a tuning session asks of the unit while it charges
+SOAK_LOAD_ROWS = 600         # a throw's samples: 600 rows ...
+SOAK_LOAD_COLUMNS = 16       # ... of 16 numbers, pulled back to back
+SOAK_LOAD_FAST_S = 0.25      # and a client asking for the charge four times a second
+# api_check (ADR-003, gate 4): what may move between two reads of the same path with nothing done between them
+API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usual_interval_ms"}
+API_CHECK_STATE_S = 15.0        # a state looked for after an action
+API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
+# Two clients follow the event log through every soak with held reads (ADR-003, gate 4): each must see every event
+SOAK_FOLLOWERS = 2
+SOAK_EVENTS_WAIT_S = 10
+# --upload (ADR-003, gate 4): ADR-004's image, a body taken in pieces, sent back to back
+SOAK_UPLOAD_BYTES = 700 * 1024
+SOAK_UPLOAD_TIMEOUT_S = 30.0    # Python's sendall times the whole body: some 4 s at the bench's 190 KB/s
 
 # scale_frames (ADR-013): the motors as in a throw on the bench's settings (the coarse trickler at its 5 rev/s cap)
 SCALE_FRAMES_COARSE_RPS = 5.0
@@ -184,17 +202,28 @@ class WebPoller(threading.Thread):
         self.kinds = collections.Counter()   # misses by miss_kind()
         self.run_now = 0        # misses in a row, now
         self.run_longest = 0
+        self.seconds = []       # how long each right read took, from the connection to the last byte
+
+    def times(self):
+        """The right reads' median, 95th percentile and longest, in seconds, as text."""
+        if not self.seconds:
+            return "no right read timed"
+        ordered = sorted(self.seconds)
+        return (f"{ordered[len(ordered) // 2]:.2f} s median, {ordered[int(0.95 * (len(ordered) - 1))]:.2f} s 95%, "
+                f"{ordered[-1]:.2f} s longest")
 
     def run(self):
         while not self.stop_event.is_set():
             started = time.monotonic()
             for label, read in self.reads:
+                read_started = time.monotonic()
                 try:
                     ok, why, error = read(), "a wrong answer", None
                 except (OSError, ValueError, http.client.HTTPException) as caught:
                     # An HTTP error is neither of the other two: uncaught, it ended the poller and its misses
                     ok, why, error = False, f"{type(caught).__name__}: {caught}", caught
                 if ok:
+                    self.seconds.append(time.monotonic() - read_started)
                     self.good += 1
                     self.run_now = 0
                 else:
@@ -204,6 +233,54 @@ class WebPoller(threading.Thread):
                     self.run_longest = max(self.run_longest, self.run_now)
                     self.log.write("rc", f"soak: {self.name}{f' {label}' if label else ''}: {why}")
             self.stop_event.wait(max(0.0, self.interval_s - (time.monotonic() - started)))
+
+
+class EventFollower(threading.Thread):
+    """
+    A client that follows the unit's event log with held reads (?wait), as a page that shows each change does
+    (ADR-003, gate 4). A read that fails is tried again from where it left off, so an event is missed only when it
+    is no longer kept; what it saw is judged at the end.
+    """
+
+    def __init__(self, name, host, log):
+        """
+        Args:
+            name: which follower, for the log.
+            host: the unit's address.
+            log: the SessionLog.
+        """
+        super().__init__(daemon=True)
+        self.name, self.log = name, log
+        self.unit = unit_api.Unit(host)
+        self.stop_event = threading.Event()
+        self.events = []
+        self.failed_reads = 0
+
+    def run(self):
+        # Its starting point is taken before it starts (soak), so a first read that fails here is tried again
+        while not self.stop_event.is_set():
+            try:
+                for event in self.unit.follow(wait_s=SOAK_EVENTS_WAIT_S, for_s=SOAK_EVENTS_WAIT_S):
+                    self.events.append(event)
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError) as error:
+                self.failed_reads += 1
+                self.log.write("rc", f"soak: {self.name}: {type(error).__name__}: {error}")
+
+    def problems(self):
+        """
+        What is wrong with what it saw: a gap in the numbers, or an event the schema does not list as it came.
+
+        Returns:
+            The problems found; empty when there is none.
+        """
+        found = []
+        numbers = [event["seq"] for event in self.events]
+        gaps = [(a, b) for a, b in zip(numbers, numbers[1:]) if b != a + 1]
+        if gaps:
+            found.append(f"gaps in the numbers: {gaps[:5]}")
+        for event in self.events:
+            found.extend(self.unit.event_problems(event))
+        return found
 
 
 class SessionLog:
@@ -373,25 +450,115 @@ def http_get(host, path):
         return response.read()
 
 
-def read_mirror(host):
+def raw_exchange(host, payload, timeout_s=5.0, rcvbuf=None, read_limit=None):
     """
-    Read the screen's buffer as the mirror page does. /display_buffer answers with the bare buffer and no HTTP
-    header (its handler says the header is included, and it is not), so it is read over a plain socket.
+    One request sent as bytes, as given, and what came back (ADR-003, gate 2's wrong requests).
 
     Args:
         host: the unit's address.
+        payload: the bytes to send, the request as it is.
+        timeout_s: how long to wait for each read.
+        rcvbuf: a receive buffer this small, to stop a reply part way (a client that does not read).
+        read_limit: read no more than this, then return with the socket still open in the third value.
 
     Returns:
-        The bytes until the unit closed the connection.
+        (status, headers, body, sock): the status (None when no reply came), headers as a lower-cased dict, the
+        body read, and the socket when read_limit kept it open, else None.
     """
-    with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as sock:
-        sock.sendall(b"GET /display_buffer HTTP/1.0\r\n\r\n")
-        data = b""
-        while True:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if rcvbuf is not None:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, rcvbuf)
+    sock.settimeout(timeout_s)
+    sock.connect((host, 80))
+    sock.sendall(payload)
+    data = b""
+    try:
+        while b"\r\n\r\n" not in data:
             chunk = sock.recv(4096)
             if not chunk:
-                return data
+                break
             data += chunk
+            if read_limit is not None and len(data) >= read_limit:
+                break
+    except (socket.timeout, OSError):
+        pass
+    head, _, body = data.partition(b"\r\n\r\n")
+    lines = head.decode("latin-1").split("\r\n") if head else []
+    status = None
+    if lines and lines[0].startswith("HTTP/"):
+        parts = lines[0].split(" ")
+        status = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
+    headers = {}
+    for line in lines[1:]:
+        name, _, value = line.partition(":")
+        headers[name.strip().lower()] = value.strip()
+    if read_limit is not None:
+        return status, headers, body, sock
+    length = int(headers.get("content-length", "-1"))
+    try:
+        while length < 0 or len(body) < length:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            body += chunk
+    except (socket.timeout, OSError):
+        pass
+    sock.close()
+    return status, headers, body, None
+
+
+def http_call(host, method, path, body=None):
+    """
+    One request to API v1 with a JSON body (ADR-003, gate 4), its status and its JSON, an error's included.
+
+    Args:
+        host: the unit's address.
+        method: "POST", "PATCH" or "GET".
+        path: from "/api/v1/...".
+        body: the JSON body, or None.
+
+    Returns:
+        (status, the reply's JSON or None).
+    """
+    data = None if body is None else json.dumps(body).encode()
+    request = urllib.request.Request(f"http://{host}{path}", data=data, method=method)
+    if data is not None:
+        request.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
+            status, text = reply.status, reply.read()
+    except urllib.error.HTTPError as error:
+        status, text = error.code, error.read()
+    try:
+        return status, json.loads(text)
+    except ValueError:
+        return status, None
+
+
+def http_put_bytes(host, path, data, timeout_s):
+    """
+    A PUT of bytes as application/octet-stream (ADR-003, gate 4: a body taken in pieces), its status and its JSON.
+
+    Args:
+        host: the unit's address.
+        path: from "/api/v1/...".
+        data: the bytes.
+        timeout_s: for the whole body, which Python's sendall times as one.
+
+    Returns:
+        (status, the reply's JSON or None).
+    """
+    request = urllib.request.Request(f"http://{host}{path}", data=data, method="PUT")
+    request.add_header("Content-Type", "application/octet-stream")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as reply:
+            status, text = reply.status, reply.read()
+    except urllib.error.HTTPError as error:
+        status, text = error.code, error.read()
+    try:
+        return status, json.loads(text)
+    except ValueError:
+        return status, None
 
 
 def build_version(build_dir):
@@ -689,6 +856,9 @@ class Session:
         self.elf = Path(args.elf) if args.elf else REPO / self.board["build"] / "app.elf"
         self.log = SessionLog(name)
         self.failures = []
+        # A thread that dies (a poller, an event follower) fails the session, its traceback in the log: an uncaught
+        # exception would otherwise end it with a line on stderr only, and its counts would read as nothing seen
+        threading.excepthook = self.thread_died
         self.last_up = None
         self.log.write("rc", f"board {args.board}, elf {self.elf}")
         self.openocd = Openocd(self.board, self.log)
@@ -716,6 +886,13 @@ class Session:
                              f"drop {self.link_drops}")
         self.openocd.rtt_start(self.elf)
         return True
+
+    def thread_died(self, args):
+        """threading.excepthook: log a thread's uncaught exception and count it as a failure."""
+        text = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)).rstrip()
+        self.log.write("rc", f"a thread died: {args.thread.name if args.thread else '?'}\n{text}")
+        self.fail(f"the thread {args.thread.name if args.thread else '?'} died: {args.exc_type.__name__}: "
+                  f"{args.exc_value}")
 
     def fail(self, reason):
         self.log.write("rc", f"FAIL {reason}")
@@ -935,49 +1112,582 @@ class Session:
         """
         out_dir = Path(save_dir) if save_dir else LOG_DIR / "settings" / self.log.path.stem
         out_dir.mkdir(parents=True, exist_ok=True)
-        read = {}
-        for name in SETTINGS_PATHS:
-            # Up to SETTINGS_TRIES tries: this compares what is stored; how well the web answers is soak's to judge
-            for attempt in range(1, SETTINGS_TRIES + 1):
-                try:
-                    read[name] = json.loads(http_get(host, f"rest/{name}"))
-                    break
-                except (OSError, ValueError) as error:
-                    self.log.write("rc", f"settings: rest/{name}, try {attempt}: {error}")
-            if name not in read:
-                self.fail(f"settings: rest/{name}: no right answer in {SETTINGS_TRIES} tries")
-                continue
-            (out_dir / f"{name}.json").write_text(json.dumps(read[name], indent=1, sort_keys=True) + "\n",
-                                                  encoding="utf-8")
-        self.log.write("rc", f"settings: {len(read)} of {len(SETTINGS_PATHS)} paths read, kept in {out_dir}")
+        read = None
+        # Up to SETTINGS_TRIES tries: this compares what is stored; how well the web answers is soak's to judge
+        for attempt in range(1, SETTINGS_TRIES + 1):
+            try:
+                read = json.loads(http_get(host, SETTINGS_EXPORT))
+                break
+            except (OSError, ValueError) as error:
+                self.log.write("rc", f"settings: {SETTINGS_EXPORT}, try {attempt}: {error}")
+        if read is None or "resources" not in read:
+            self.fail(f"settings: {SETTINGS_EXPORT}: no right answer in {SETTINGS_TRIES} tries")
+            return
+        (out_dir / "settings.json").write_text(json.dumps(read, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        self.log.write("rc", f"settings: {len(read['resources'])} resources read, firmware "
+                             f"{read['firmware']['version']}, kept in {out_dir}")
 
         if compare_dir is None:
             return
-        for name in SETTINGS_PATHS:
-            reference = Path(compare_dir) / f"{name}.json"
-            if not reference.exists():
-                self.fail(f"settings: {reference} does not exist")
+        reference = Path(compare_dir) / "settings.json"
+        if not reference.exists():
+            self.fail(f"settings: {reference} does not exist (a copy of API v1's export)")
+            return
+        before = json.loads(reference.read_text(encoding="utf-8"))
+        # The firmware's version is not a setting: reported, not judged
+        if before.get("firmware") != read.get("firmware"):
+            self.log.write("rc", f"settings: the firmware differs, not judged: {before.get('firmware')} -> "
+                                 f"{read.get('firmware')}")
+        old_resources, new_resources = before["resources"], read["resources"]
+        for path in sorted(set(old_resources) | set(new_resources)):
+            if path not in old_resources or path not in new_resources:
+                self.fail(f"settings: {path} is {'gone' if path in old_resources else 'new'}")
                 continue
-            if name not in read:
-                continue
-            before = json.loads(reference.read_text(encoding="utf-8"))
-            for key in sorted(set(before) | set(read[name])):
-                old, new = before.get(key), read[name].get(key)
-                if old == new:
-                    continue
-                live = SETTINGS_LIVE_FIELDS.get(name, {}).get(key)
-                if live:
-                    self.log.write("rc", f"settings: {name} {key} differs, not judged ({live}): {old!r} -> {new!r}")
-                else:
-                    self.fail(f"settings: {name} {key} was {old!r}, is {new!r}")
+            old, new = old_resources[path], new_resources[path]
+            for key in sorted(set(old) | set(new)):
+                if old.get(key) != new.get(key):
+                    self.fail(f"settings: {path} {key} was {old.get(key)!r}, is {new.get(key)!r}")
 
-    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run):
+    def web_debug(self, host):
+        """
+        GET /api/v1/debug (ADR-003): lwIP's heap and pools and the server's own counts.
+
+        Returns:
+            The reply as a dict, or None.
+        """
+        try:
+            return json.loads(http_get(host, "api/v1/debug"))
+        except (OSError, ValueError) as error:
+            self.log.write("rc", f"api/v1/debug: {error}")
+            return None
+
+    def settings_roundtrip(self, host, target):
+        """
+        The proof of gate 3's tables (ADR-003): every setting read, written back as it was read, and read again,
+        unchanged; for each field a value outside its limits refused, the resource unchanged; a write during a
+        throw refused; and each resource as saved at the end as at the start. Nothing on the unit is changed.
+
+        Args:
+            host: the unit's address.
+            target: the charge started for the write during a throw, with the simulated scale.
+        """
+        def call(method, path, body=None):
+            data = None if body is None else json.dumps(body).encode()
+            request = urllib.request.Request(f"http://{host}{path}", data=data, method=method)
+            if data is not None:
+                request.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as reply:
+                    return reply.status, json.loads(reply.read())
+            except urllib.error.HTTPError as error:
+                return error.code, json.loads(error.read())
+
+        def outside(field):
+            """A value of the field's that it must refuse, and why; None when it has none to refuse."""
+            kind = field["type"]
+            if kind in ("number", "integer"):
+                if "max" in field:
+                    return field["max"] + max(1, abs(field["max"]) // 2), "above its most"
+                if "min" in field:
+                    return field["min"] - 1, "below its least"
+                return None
+            if kind == "choice":
+                numbers = isinstance(field["choices"][0]["value"], (int, float))
+                return (123457 if numbers else "not_a_choice"), "not one of its choices"
+            if kind == "string":
+                return "x" * (field["max_length"] + 1), "too long"
+            if kind == "boolean":
+                return "yes", "not true or false"
+            if kind == "colour":
+                return "red", "not #rrggbb"
+            return None
+
+        status, schema = call("GET", "/api/v1/schema")
+        status_export, export = call("GET", "/api/v1/settings")
+        if status != 200 or status_export != 200:
+            self.fail(f"settings_roundtrip: the schema ({status}) or the export ({status_export}) not read")
+            return
+        fields_of = {resource["path"]: resource["fields"] for resource in schema["resources"]}
+        written = refused = 0
+        for path, before in export["resources"].items():
+            fields = fields_of[re.sub(r"/\d+$", "/{id}", path)]
+            writable = {f["name"] for f in fields if f.get("access") == "read_write"}
+            body = {name: value for name, value in before.items() if name in writable}
+            status, reply = call("PATCH", path, body)
+            status_again, again = call("GET", path)
+            if status != 200 or again != before:
+                changed = {k: (before.get(k), again.get(k)) for k in set(before) | set(again)
+                           if before.get(k) != again.get(k)}
+                self.fail(f"settings_roundtrip: {path} written back: {status} {reply.get('error')}, changed {changed}")
+            written += len(body)
+            for field in fields:
+                bad = outside(field)
+                if bad is None:
+                    continue
+                value, why = bad
+                status, reply = call("PATCH", path, {field["name"]: value})
+                status_again, again = call("GET", path)
+                if status != 400 or again != before:
+                    self.fail(f"settings_roundtrip: {path} {field['name']}={value!r} ({why}): {status}, "
+                              f"{'unchanged' if again == before else 'CHANGED'}")
+                refused += 1
+        self.log.write("rc", f"settings_roundtrip: {len(export['resources'])} resources, {written} fields written back "
+                             f"unchanged, {refused} values outside their limits refused")
+
+        # A write during a throw: the charge's settings and the motors' refused, the charge undisturbed
+        charge_settings = export["resources"]["/api/v1/settings/charge"]
+        if self.send("sim on") is None or self.send(f"charge {target:g}") is None or self.failures:
+            return
+        deadline = time.monotonic() + 30
+        state = None
+        while time.monotonic() < deadline:
+            state = call("GET", "/api/v1/charge")[1].get("state")
+            if state == "charging":
+                break
+            time.sleep(0.2)
+        if state != "charging":
+            self.fail(f"settings_roundtrip: the charge did not start pouring ({state})")
+        else:
+            for path, body in (("/api/v1/settings/charge",
+                                {"fine_stop_threshold": charge_settings["fine_stop_threshold"]}),
+                               ("/api/v1/settings/motors/coarse",
+                                {"current_ma": export["resources"]["/api/v1/settings/motors/coarse"]["current_ma"]})):
+                status, reply = call("PATCH", path, body)
+                self.log.write("rc", f"settings_roundtrip: {path} during a throw: {status} "
+                                     f"{reply.get('error', {}).get('message', '')}")
+                if status != 409:
+                    self.fail(f"settings_roundtrip: {path} written during a throw: {status}, not 409")
+        self.send("charge stop")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and call("GET", "/api/v1/charge")[1].get("state") != "idle":
+            time.sleep(0.2)
+        self.send("sim off")
+
+        # Nothing changed: each resource as stored as it was
+        status, after = call("GET", "/api/v1/settings")
+        if after.get("resources") != export["resources"]:
+            self.fail("settings_roundtrip: the settings at the end differ from those at the start")
+
+    def api_check(self, host, target):
+        """
+        The close's proof of API v1 (ADR-003, gate 4), by the client that works from the unit's own description
+        (unit_api.py). Every GET path the index lists is read twice: each answer checked against the schema's
+        tables (a settings resource's fields; a state among its kind's; each event among the kinds, carrying what
+        its kind does), the two reads the same, and the settings and the event log unchanged after: a GET changes
+        nothing. Then every action the schema lists, each where it is safe, with the answer api_v1.md gives: the
+        stops with nothing to stop; refusals with their codes, changing nothing; the saves of what is stored; the
+        gate; the zero; a charge and a cleanup started and stopped, with their events; and last a restart, after
+        which the boot is new and the system's start is the log's first event. Fails on an action the schema lists
+        and this did not call. The hopper is taken to be empty; the simulated scale stands in for the scale.
+
+        Args:
+            host: the unit's address.
+            target: the charge's target, set when none is (the menu's digits are not stored: none after a start).
+        """
+        unit = unit_api.Unit(host)
+        index, schema = unit.index, unit.schema
+        errors = set(schema["errors"])
+        for name in ("api", "firmware", "board", "unit_id", "hostname", "boot", "uptime_s", "features", "guide",
+                     "resources"):
+            if name not in index:
+                self.fail(f"api_check: the index has no {name}")
+        self.log.write("rc", f"api_check: {index['hostname']}, {index['board']}, firmware "
+                             f"{index['firmware']['version']}: {len(index['resources'])} paths, "
+                             f"{len(schema['resources'])} settings resources, {len(schema['actions'])} actions")
+        if unit.read("charge")["state"] != "idle" or unit.read("system")["activity"] != "none":
+            self.fail("api_check: the unit is not idle at the menu")
+            return
+
+        # Every GET twice: each answer against the tables, and a GET changes nothing
+        export_before = unit.read("settings")
+        unit.start_following()
+        display = unit.read("display")
+        frame_bytes = display["width"] * display["height"] // 8
+        paths = unit.paths("GET")
+        for path in paths:
+            first = unit.read(path)
+            second = unit.read(path)
+            for problem in self.api_answer_problems(unit, path, first, frame_bytes):
+                self.fail(f"api_check: {path}: {problem}")
+            if self.api_stable(first) != self.api_stable(second):
+                self.fail(f"api_check: {path} read twice, and the two differ")
+        new_events = unit.events()["events"]
+        if new_events:
+            self.fail(f"api_check: the reads were followed by events: {new_events}")
+        if unit.read("settings") != export_before:
+            self.fail("api_check: the settings differ after the reads")
+        self.log.write("rc", f"api_check: {len(paths)} paths read twice, each answer as the schema says, nothing "
+                             "changed")
+
+        # Every action
+        called = set()
+
+        def expect(method, path, body, status, code=None):
+            """One action sent as given, unchecked by the client; its answer judged. Returns the reply."""
+            called.add((method, unit_api.full_path(path)))
+            got_status, reply = unit.request(method, path, body)
+            got_code = reply.get("error", {}).get("code") if isinstance(reply, dict) else None
+            self.log.write("rc", f"api_check: {method} {path} {json.dumps(body)}: {got_status} {got_code or ''}")
+            if got_code is not None and got_code not in errors:
+                self.fail(f"api_check: {method} {path}: the code {got_code} is not in the schema's errors")
+            if got_status != status or (code is not None and got_code != code):
+                self.fail(f"api_check: {method} {path} {json.dumps(body)}: {got_status} {got_code}, not {status} "
+                          f"{code or ''}")
+            return reply
+
+        def wait_state(path, wanted):
+            """Read path until its state is one of wanted; the last state read."""
+            deadline = time.monotonic() + API_CHECK_STATE_S
+            state = None
+            while time.monotonic() < deadline:
+                state = unit.read(path)["state"]
+                if state in wanted:
+                    return state
+                time.sleep(0.2)
+            self.fail(f"api_check: {path} stayed {state}, not {wanted}")
+            return state
+
+        def wait_event(source, kind, **carries):
+            """Follow the log to the next such event; fail when what it carries is not as given."""
+            def done(event):
+                return (event["source"], event["kind"]) == (source, kind)
+
+            for event in unit.follow(wait_s=2, until=done, for_s=API_CHECK_STATE_S):
+                for problem in unit.event_problems(event):
+                    self.fail(f"api_check: event {event}: {problem}")
+                if (event["source"], event["kind"]) == (source, kind):
+                    wrong = {name: event.get(name) for name, value in carries.items() if event.get(name) != value}
+                    self.log.write("rc", f"api_check: event {json.dumps(event)}")
+                    if wrong:
+                        self.fail(f"api_check: {source} {kind} carried {wrong}, not {carries}")
+                    return event
+            self.fail(f"api_check: no {source} {kind} event within {API_CHECK_STATE_S:.0f} s")
+            return None
+
+        expect("POST", "charge/stop", {}, 200)
+        expect("POST", "cleanup/stop", {}, 200)
+        expect("POST", "stop", {}, 200)
+        if unit.read("charge")["target"] is None:
+            expect("PATCH", "charge", {"target": target}, 200)
+        charge = unit.read("charge")
+        expect("PATCH", "charge", {"target": charge["target"], "powder_profile": charge["powder_profile"]}, 200)
+        expect("PATCH", "charge", {"target": 1000}, 400, "out_of_range")
+        expect("POST", "charge/start", {"target": 0}, 400, "out_of_range")
+        try:
+            unit.write("charge", target=1000)
+        except ValueError as error:
+            self.log.write("rc", f"api_check: the client refused it before sending: {error}")
+        else:
+            self.fail("api_check: the client sent a target over the schema's most")
+        after = unit.read("charge")
+        if (after["state"], after["target"]) != ("idle", charge["target"]):
+            self.fail(f"api_check: the refused writes changed the charge: {after['state']}, {after['target']}")
+        expect("PATCH", "cleanup", {"speed_rps": 1}, 409, "not_running")
+        expect("POST", "system/erase", {}, 400, "confirm_missing")
+        gate = unit.read("gate")
+        if gate["state"] == "disabled":
+            expect("PATCH", "gate", {"ratio": 0.5}, 409, "gate_disabled")
+        else:
+            expect("PATCH", "gate", {"ratio": gate["ratio"]}, 200)
+        for path, resource in export_before["resources"].items():
+            save = unit.resource(path)["save"]
+            if resource["saved"] and ("POST", save) not in called:
+                expect("POST", save, {}, 200)
+        if all(resource["saved"] for resource in export_before["resources"].values()):
+            expect("POST", "settings/save", {}, 200)
+        if unit.read("settings") != export_before:
+            self.fail("api_check: the settings differ after the refusals and the saves")
+
+        # A charge and a cleanup, by the API, with the simulated scale
+        if self.send("sim on") is None:
+            return
+        scale = unit.read("scale")
+        expect("POST", "scale/zero", {}, 200 if "zero" in scale["actions"] else 501)
+        expect("POST", "charge/start", {}, 202)
+        wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"])
+        wait_state("charge", ("zeroing", "charging"))
+        expect("POST", "charge/start", {}, 409, "busy")
+        expect("POST", "cleanup/start", {}, 409, "busy")
+        expect("POST", "system/restart", {}, 409, "busy")
+        expect("POST", "charge/stop", {}, 202)
+        wait_event("charge", "stopped", by="api", reason="stopped")
+        wait_state("charge", ("idle",))
+        expect("POST", "cleanup/start", {}, 202)
+        wait_event("cleanup", "started", by="api")
+        wait_state("cleanup", ("running",))
+        expect("PATCH", "cleanup", {"speed_rps": 1, "time_s": 2}, 200)
+        wait_event("cleanup", "stopped", by="unit", reason="time")
+        wait_state("cleanup", ("idle",))
+        expect("POST", "cleanup/start", {}, 202)
+        wait_state("cleanup", ("running",))
+        expect("POST", "stop", {}, 202)
+        wait_event("cleanup", "stopped", by="api", reason="stopped")
+        wait_state("cleanup", ("idle",))
+        self.send("sim off")
+
+        # Last, a restart: a new boot, and the system's start the log's first event
+        boot = index["boot"]
+        expect("POST", "system/restart", {}, 202)
+        time.sleep(1.5)
+        self.wait_for_console()
+        unit.forget()
+        deadline = time.monotonic() + API_CHECK_BACK_S
+        back = None
+        while back is None and time.monotonic() < deadline:
+            try:
+                back = unit.index
+            except OSError:
+                time.sleep(1.0)
+        if back is None:
+            self.fail(f"api_check: the unit did not answer within {API_CHECK_BACK_S:.0f} s of its restart")
+            return
+        first = unit.events(after=0)["events"][0]
+        self.log.write("rc", f"api_check: back after the restart, boot {boot} then {back['boot']}, its first event "
+                             f"{json.dumps(first)}")
+        if back["boot"] == boot or (first["seq"], first["source"], first["kind"]) != (1, "system", "started") or \
+                first["firmware"] != back["firmware"]["version"]:
+            self.fail("api_check: after the restart, not a new boot with the system's start first")
+        if unit.read("settings") != export_before:
+            self.fail("api_check: the settings differ after the restart")
+
+        listed = {(action["method"], action["path"]) for action in schema["actions"]}
+        for method, path in sorted(listed - called):
+            self.fail(f"api_check: the schema's {method} {path} was not called")
+        self.log.write("rc", f"api_check: {len(called & listed)} of the schema's {len(listed)} actions called")
+
+    @staticmethod
+    def api_stable(reply):
+        """A reply without what moves between two reads with nothing done (API_CHECK_VOLATILE); bytes by length."""
+        if isinstance(reply, bytes):
+            return len(reply)
+        return {name: value for name, value in reply.items() if name not in API_CHECK_VOLATILE}
+
+    @staticmethod
+    def api_answer_problems(unit, path, reply, frame_bytes):
+        """
+        An answer against the schema's tables.
+
+        Args:
+            unit: the unit_api.Unit.
+            path: the path read.
+            reply: what it answered.
+            frame_bytes: the display frame's length.
+
+        Returns:
+            The problems found; empty when there is none.
+        """
+        resource = unit.resource(path)
+        if resource is not None:
+            return unit_api.fields_problems(resource["fields"], reply, writing=False)
+        name = path[len(unit_api.API) + 1:]
+        if name == "settings":
+            return [f"{inner}: {problem}" for inner, fields in reply["resources"].items()
+                    for problem in unit_api.fields_problems(unit.resource(inner)["fields"], fields, writing=False)]
+        if name in ("charge", "cleanup", "gate"):
+            return [] if reply["state"] in unit.states(name) else [f"state {reply['state']} is not in the schema's"]
+        if name == "motors":
+            return [f"{motor}'s driver {reply[motor]['driver']} is not in the schema's" for motor in ("coarse", "fine")
+                    if reply[motor]["driver"] not in unit.states("driver")]
+        if name == "settings/motors":
+            # The motors listed are the motors' settings resources the schema has, by their ids and labels
+            prefix = unit_api.full_path("settings/motors/")
+            listed = {motor["id"]: motor["label"] for motor in reply["motors"]}
+            held = {resource["path"][len(prefix):]: resource["label"] for resource in unit.schema["resources"]
+                    if resource["path"].startswith(prefix)}
+            return [] if listed == held else [f"it lists {listed}; the schema's motors are {held}"]
+        if name == "system":
+            return [] if reply["activity"] in unit.states("activity") else [f"activity {reply['activity']}"]
+        if name == "events":
+            return [problem for event in reply["events"] for problem in unit.event_problems(event)]
+        if name == "display/frame":
+            return [] if isinstance(reply, bytes) and len(reply) == frame_bytes else ["not the display's frame"]
+        return []
+
+    def web_robust(self, host):
+        """
+        Requests that are wrong, cut off or awkward (ADR-003, gate 2), each answered or closed, with the unit still
+        answering after each and its console still counting `up=`. Then a client that stops reading part way
+        through a page, and one that sends less of a body than it said: each must be aborted by the stall limit,
+        and lwIP's heap given back.
+
+        Args:
+            host: the unit's address.
+        """
+        own = f"Host: {host}\r\n".encode()
+
+        def write(method, path, body, content_type=b"application/json"):
+            return (method + b" " + path + b" HTTP/1.1\r\n" + own + b"Content-Type: " + content_type +
+                    b"\r\nContent-Length: " + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body)
+
+        # The writes (gate 3) are each refused, or change nothing: the unit's settings are as they were
+        leds = b"/api/v1/settings/leds"
+        cases = [
+            ("a write that is not JSON", write(b"PATCH", leds, b"{nope"), 400),
+            ("a JSON list", write(b"PATCH", leds, b"[1,2]"), 400),
+            ("a field that is an object", write(b"PATCH", leds, b'{"led1_colour":{"r":1}}'), 400),
+            ("a field given twice", write(b"PATCH", leds, b'{"pwm3_chain_count":2,"pwm3_chain_count":3}'), 400),
+            ("an unknown field", write(b"PATCH", leds, b'{"nope":1}'), 400),
+            ("saved, sent back with a GET's fields", write(b"PATCH", leds, b'{"saved":true}'), 400),
+            ("a value of the wrong type", write(b"PATCH", leds, b'{"pwm3_chain_count":"2"}'), 400),
+            ("a PATCH of text", write(b"PATCH", leds, b"{}", b"text/plain"), 415),
+            ("an empty PATCH", write(b"PATCH", leds, b"{}"), 200),
+            ("a save with a field", write(b"POST", leds + b"/save", b'{"x":1}'), 400),
+            ("no such powder profile", write(b"PATCH", b"/api/v1/powder_profiles/9", b"{}"), 404),
+            ("a value with no '='", b"GET /api/v1/charge?ee HTTP/1.1\r\n" + own + b"Connection: close\r\n\r\n", 200),
+            ("an old /rest/ path, gone in gate 4", b"GET /rest/charge_mode_state HTTP/1.1\r\n" + own +
+             b"Connection: close\r\n\r\n", 404),
+            ("a Cookie of 6 KB, passed over", b"GET /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Cookie: a=" + b"x" * 6000 + b"\r\nConnection: close\r\n\r\n", 200),
+            ("headers over 8 KB", b"GET /api/v1/charge HTTP/1.1\r\n" + own + b"Cookie: a=" + b"x" * 5000 +
+             b"\r\nCookie: b=" + b"y" * 4000 + b"\r\n\r\n", 413),
+            ("a Host of 300 bytes", b"GET /api/v1/charge HTTP/1.1\r\nHost: " + b"h" * 300 + b"\r\n\r\n", 413),
+            ("a request line of 700 bytes", b"GET /api/v1/charge?x=" + b"a" * 700 + b" HTTP/1.1\r\n" + own +
+             b"\r\n", 414),
+            ("an unknown method", b"BREW /api/v1/charge HTTP/1.1\r\n" + own + b"\r\n", 405),
+            ("OPTIONS (no CORS)", b"OPTIONS /api/v1/charge HTTP/1.1\r\n" + own + b"Origin: http://evil.example\r\n"
+             b"\r\n", 405),
+            ("HTTP/2.0", b"GET /api/v1/charge HTTP/2.0\r\n" + own + b"\r\n", 400),
+            ("another Host, the API", b"GET /api/v1/charge HTTP/1.1\r\nHost: evil.example\r\n\r\n", 403),
+            ("another Host, an old path", b"GET /rest/charge_mode_state HTTP/1.1\r\nHost: evil.example\r\n\r\n",
+             403),
+            ("another Host, a page", b"GET / HTTP/1.1\r\nHost: evil.example\r\nConnection: close\r\n\r\n", 302),
+            ("a POST with no type", b"POST /api/v1/charge HTTP/1.1\r\n" + own + b"Content-Length: 0\r\n\r\n", 415),
+            ("a POST of text from a form", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: text/plain\r\nContent-Length: 2\r\n\r\n{}", 415),
+            ("a JSON POST to a path that only reads", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}", 405),
+            ("a body longer than it says", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}" + b"z" * 20, 405),
+            ("a chunked body", b"POST /api/v1/charge HTTP/1.1\r\n" + own + b"Content-Type: application/json\r\n"
+             b"Transfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n", 411),
+            ("a body of 5,000 bytes", b"POST /api/v1/charge HTTP/1.1\r\n" + own +
+             b"Content-Type: application/json\r\nContent-Length: 5000\r\n\r\n", 413),
+            ("a request cut off", b"GET /api/v1/ch", None),
+            ("no such path", b"GET /nothing HTTP/1.1\r\n" + own + b"\r\n", 404),
+            ("HTTP/1.0 with no Host", b"GET /api/v1/charge HTTP/1.0\r\n\r\n", 200),
+        ]
+        before = self.web_debug(host)
+        for name, payload, want in cases:
+            try:
+                status, headers, _, _ = raw_exchange(host, payload, timeout_s=3.0)
+            except OSError as error:
+                status, headers = None, {}
+                self.log.write("rc", f"web_robust: {name}: {error}")
+            ok = status == want
+            if want == 302 and ok:
+                ok = headers.get("location") == f"http://{host}/"
+            self.log.write("rc", f"web_robust: {name}: {status} (want {want}){'' if ok else ' FAIL'}")
+            if not ok:
+                self.fail(f"web_robust: {name}: {status}, not {want}")
+            try:
+                json.loads(http_get(host, "api/v1/charge"))
+            except (OSError, ValueError) as error:
+                self.fail(f"web_robust: the unit did not answer after \"{name}\": {error}")
+
+        # The page's ETag: unchanged since, so 304 and no body
+        status, headers, _, _ = raw_exchange(host, b"GET / HTTP/1.1\r\n" + own + b"Connection: close\r\n\r\n")
+        etag = headers.get("etag", "")
+        status, _, body, _ = raw_exchange(host, b"GET / HTTP/1.1\r\n" + own + b"If-None-Match: " + etag.encode() +
+                                          b"\r\nConnection: close\r\n\r\n")
+        self.log.write("rc", f"web_robust: the page again with its ETag {etag}: {status}, {len(body)} bytes")
+        if status != 304 or body:
+            self.fail(f"web_robust: the page with its ETag gave {status} and {len(body)} bytes, not 304 and none")
+
+        # The schema's ETag (gate 3): a stream, answered 304 with nothing made
+        status, headers, _, _ = raw_exchange(host, b"GET /api/v1/schema HTTP/1.1\r\n" + own +
+                                             b"Connection: close\r\n\r\n")
+        etag = headers.get("etag", "")
+        status, _, body, _ = raw_exchange(host, b"GET /api/v1/schema HTTP/1.1\r\n" + own + b"If-None-Match: " +
+                                          etag.encode() + b"\r\nConnection: close\r\n\r\n")
+        self.log.write("rc", f"web_robust: the schema again with its ETag {etag}: {status}, {len(body)} bytes")
+        if not etag or status != 304 or body:
+            self.fail(f"web_robust: the schema with its ETag {etag!r} gave {status} and {len(body)} bytes, not 304")
+
+        # Seven clients at once, each with a request: six slots, so the seventh waits its turn or takes an idle one
+        socks = []
+        for _ in range(7):
+            sock = socket.create_connection((host, 80), timeout=10.0)
+            sock.sendall(b"GET /api/v1/charge HTTP/1.1\r\n" + own + b"\r\n")
+            socks.append(sock)
+        answered = 0
+        for sock in socks:
+            try:
+                data = sock.recv(4096)
+                answered += data.startswith(b"HTTP/1.1 200")
+            except OSError:
+                pass
+            sock.close()
+        self.log.write("rc", f"web_robust: seven clients at once: {answered} answered")
+        if answered != 7:
+            self.fail(f"web_robust: seven clients at once: {answered} of 7 answered")
+
+        # Parked requests (gate 2's slot, for ?wait): woken by their condition, by their time, and with two held a
+        # third answered at once
+        def wait_request(until_ms, wait_s, results, key):
+            started = time.monotonic()
+            try:
+                reply = json.loads(http_get(host, f"api/v1/debug/wait?until_ms={until_ms}&wait={wait_s}"))
+                results[key] = (reply.get("woke"), time.monotonic() - started, reply.get("uptime_ms", 0))
+            except (OSError, ValueError) as error:
+                results[key] = (f"no answer: {error}", time.monotonic() - started, 0)
+
+        results = {}
+        wait_request(0, 1, results, "now")
+        uptime = results["now"][2]
+        wait_request(uptime + 1500, 4, results, "condition")
+        wait_request(uptime + 10_000_000, 2, results, "time")
+        threads = [threading.Thread(target=wait_request, args=(uptime + 10_000_000, 3, results, f"held {n}"))
+                   for n in (1, 2)]
+        for thread in threads:
+            thread.start()
+        time.sleep(0.5)
+        wait_request(uptime + 10_000_000, 3, results, "third")
+        for thread in threads:
+            thread.join()
+        for key in ("condition", "time", "held 1", "held 2", "third"):
+            woke, took, _ = results[key]
+            self.log.write("rc", f"web_robust: parked, {key}: woke by {woke} after {took:.2f} s")
+        checks = [
+            results["condition"][0] == "condition" and 1.2 < results["condition"][1] < 2.5,
+            results["time"][0] == "time" and 1.8 < results["time"][1] < 3.0,
+            all(results[f"held {n}"][0] == "time" and 2.8 < results[f"held {n}"][1] < 4.0 for n in (1, 2)),
+            results["third"][0] == "time" and results["third"][1] < 1.0,
+        ]
+        if not all(checks):
+            self.fail(f"web_robust: parked requests not as expected: {checks}")
+
+        # A client that stops reading part way through a page, and one that sends less of a body than it said
+        _, _, _, stalled_read = raw_exchange(host, b"GET / HTTP/1.1\r\n" + own + b"\r\n", rcvbuf=1024,
+                                             read_limit=1024)
+        short = socket.create_connection((host, 80), timeout=5.0)
+        short.sendall(b"POST /api/v1/charge HTTP/1.1\r\n" + own + b"Content-Type: application/json\r\n"
+                      b"Content-Length: 100\r\n\r\n{\"a\":")
+        time.sleep(14.0)
+        after = self.web_debug(host)
+        for sock in (stalled_read, short):
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if before is None or after is None:
+            self.fail("web_robust: api/v1/debug did not answer")
+            return
+        aborted = after["server"]["aborted_stalled"] - before["server"]["aborted_stalled"]
+        self.log.write("rc", f"web_robust: stalled and aborted: {aborted}; lwIP's heap {after['net']['heap']}; "
+                             f"server {after['server']}")
+        if aborted < 2:
+            self.fail(f"web_robust: {aborted} of the 2 stalled connections aborted within 14 s")
+        state = self.state()
+        if state is None:
+            self.fail("web_robust: the console did not answer at the end")
+
+    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False, upload=False):
         """
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
         Fails on a failed charge, on a restart or an assert, on more than max_miss_share of the web reads with
-        no right answer or max_miss_run in a row on one poller, when heap_free ends lower than its lowest in
-        the first SOAK_SETTLE_S (memory taken and not given back), and when lwIP's heap or a pool failed an
+        no right answer or max_miss_run in a row on one poller, when heap_free read quiet after the run is lower
+        than read quiet before it (memory taken and not given back), and when lwIP's heap or a pool failed an
         allocation during the run (`net`, ADR-003). Misses are summed by kind: timeout, reset, wrong answer.
 
         Args:
@@ -987,6 +1697,8 @@ class Session:
             threshold: the unit's fine stop threshold.
             max_miss_share: the most of the web reads that may miss, 0 to 1.
             max_miss_run: the most misses in a row one poller may have.
+            load: also a tuning session's load (SOAK_LOAD_*).
+            upload: also ADR-004's image, SOAK_UPLOAD_BYTES sent back to back, each checked by its CRC-32.
         """
         page_size = {}
 
@@ -996,13 +1708,25 @@ class Session:
             return len(body) == page_size["first"] and len(body) > 0
 
         def read_state():
-            return "s2" in json.loads(http_get(host, "rest/charge_mode_state"))
+            return "state" in json.loads(http_get(host, "api/v1/charge"))
 
-        def read_setting(name):
-            return lambda: bool(json.loads(http_get(host, f"rest/{name}")))
+        def read_setting(path):
+            # A settings resource carries saved; the export, its resources
+            return lambda: bool(set(json.loads(http_get(host, path))) & {"saved", "resources"})
 
         def read_mirror_right():
-            return len(read_mirror(host)) == MIRROR_BYTES
+            return len(http_get(host, "api/v1/display/frame")) == MIRROR_BYTES
+
+        def read_load():
+            reply = json.loads(http_get(host, f"api/v1/debug/load?rows={SOAK_LOAD_ROWS}&columns={SOAK_LOAD_COLUMNS}"))
+            return len(reply["rows"]) == SOAK_LOAD_ROWS and len(reply["rows"][-1]) == SOAK_LOAD_COLUMNS
+
+        upload_data = os.urandom(SOAK_UPLOAD_BYTES)
+        upload_crc = zlib.crc32(upload_data)
+
+        def read_upload():
+            status, reply = http_put_bytes(host, "/api/v1/debug/upload", upload_data, SOAK_UPLOAD_TIMEOUT_S)
+            return status == 200 and reply["bytes"] == len(upload_data) and reply["crc32"] == upload_crc
 
         pollers = []
         for browser in range(1, SOAK_BROWSERS + 1):
@@ -1010,15 +1734,34 @@ class Session:
             pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)], self.log))
         pollers.append(WebPoller("portal page", SOAK_PAGE_S, [("", read_page)], self.log))
         pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
-                                 [(name, read_setting(name)) for name in SETTINGS_PATHS], self.log))
+                                 [(path, read_setting(path)) for path in SETTINGS_PAGE_PATHS + [SETTINGS_EXPORT]],
+                                 self.log))
+        if load:
+            pollers.append(WebPoller("tuning load", 0.0, [("", read_load)], self.log))
+            pollers.append(WebPoller("fast client", SOAK_LOAD_FAST_S, [("", read_state)], self.log))
+        if upload:
+            pollers.append(WebPoller("upload 700 KB", 0.0, [("", read_upload)], self.log))
 
+        followers = [EventFollower(f"events {n}", host, self.log) for n in range(1, SOAK_FOLLOWERS + 1)]
+
+        # The first charge after a start creates the charge screen's task, kept for good (charge_mode.cpp): read
+        # quiet before the run, its 1,168 bytes were memory not given back (ADR-003, gate 2). So one charge first
+        self.charge_cycle(target, threshold, timeout_s=120.0)
+        if self.failures:
+            return
+        quiet_start = self.stats()
+        motor_start = self.send("motor")
         net_start = self.net()
         if net_start is not None:
             self.log.write("rc", "soak: net at the start: " + " ".join(f"{k}={v}" for k, v in net_start.items()))
         started = time.monotonic()
         heap = []   # (seconds since the start, heap_free)
         cycles = 0
-        for poller in pollers:
+        # The followers' starting point, taken while the unit is quiet: both from the same event, and a read that
+        # fails here ends the soak rather than leaving a follower that never began (two did, the first time)
+        for follower in followers:
+            follower.unit.start_following()
+        for poller in pollers + followers:
             poller.start()
         while True:
             self.state()
@@ -1029,10 +1772,14 @@ class Session:
                 break
             self.charge_cycle(target, threshold, timeout_s=120.0)
             cycles += 1
-        for poller in pollers:
+        for poller in pollers + followers:
             poller.stop_event.set()
         for poller in pollers:
-            poller.join(timeout=HTTP_TIMEOUT_S * len(SETTINGS_PATHS) + 1)
+            poller.join(timeout=max(HTTP_TIMEOUT_S * (len(SETTINGS_PAGE_PATHS) + 1), SOAK_UPLOAD_TIMEOUT_S) + 1)
+        for follower in followers:
+            follower.join(timeout=2 * SOAK_EVENTS_WAIT_S + HTTP_TIMEOUT_S)
+        time.sleep(SOAK_QUIET_S)
+        quiet_end = self.stats()
 
         self.log.write("rc", f"soak: {cycles} charges in {time.monotonic() - started:.0f} s")
         good = sum(poller.good for poller in pollers)
@@ -1041,13 +1788,35 @@ class Session:
         for poller in pollers:
             kinds.update(poller.kinds)
             self.log.write("rc", f"soak: {poller.name}: {poller.good} right, {poller.missed} missed, "
-                                 f"longest run {poller.run_longest}")
+                                 f"longest run {poller.run_longest}; {poller.times()}")
         share = missed / (good + missed) if good + missed else 1.0
         self.log.write("rc", f"soak: {missed} of {good + missed} web reads missed ({share:.2%}), longest run "
                              f"{max(poller.run_longest for poller in pollers)}")
         self.log.write("rc", "soak: misses by kind: "
                              + (", ".join(f"{kind} {count}" for kind, count in kinds.most_common()) or "none"))
+        # Each follower saw every event, the same as the other: the charges' and each throw's, with no gap
+        seen = [[event["seq"] for event in follower.events] for follower in followers]
+        for follower in followers:
+            throws = sum(1 for event in follower.events if (event["source"], event["kind"]) == ("throw", "finished"))
+            self.log.write("rc", f"soak: {follower.name}: {len(follower.events)} events, {throws} throws finished, "
+                                 f"{follower.failed_reads} reads failed and tried again")
+            for problem in follower.problems():
+                self.fail(f"soak: {follower.name}: {problem}")
+            if throws < cycles:
+                self.fail(f"soak: {follower.name} saw {throws} throws finished in {cycles} charges")
+        if any(numbers != seen[0] for numbers in seen):
+            self.fail("soak: the event followers did not see the same events")
         net_end = self.net()
+        motor_end = self.send("motor")
+        late = {}
+        for reply, at in ((motor_start, "start"), (motor_end, "end")):
+            if reply is not None:
+                self.log.write("rc", f"soak: motor at the {at}: {reply}")
+                late[at] = {key: int(value) for key, value in re.findall(r"\b(\w+_underruns)=(\d+)", reply)}
+        if "start" in late and "end" in late:
+            for key, value in late["end"].items():
+                if value > late["start"].get(key, 0):
+                    self.fail(f"soak: {key} rose by {value - late['start'].get(key, 0)}: step pulses were fed late")
         if net_start is not None and net_end is not None:
             self.log.write("rc", "soak: net at the end: " + " ".join(f"{k}={v}" for k, v in net_end.items()))
             for key in (key for key in net_end if key.endswith("_err")):
@@ -1059,16 +1828,17 @@ class Session:
         for poller in pollers:
             if poller.run_longest > max_miss_run:
                 self.fail(f"soak: {poller.name} missed {poller.run_longest} in a row, more than {max_miss_run}")
-        if len(heap) < 2:
-            self.fail("soak: fewer than two stats read")
+        if len(heap) < 2 or quiet_start is None or quiet_end is None:
+            self.fail("soak: too few stats read")
             return
-        settled = [free for at, free in heap if at <= SOAK_SETTLE_S] or [heap[0][1]]
-        low, end = min(settled), heap[-1][1]
-        self.log.write("rc", f"soak: heap_free lowest in the first {SOAK_SETTLE_S:.0f} s {low}, at the end {end}, "
-                             f"lowest of the run {min(free for _, free in heap)}")
-        if end < low:
-            self.fail(f"soak: heap_free ended at {end}, lower than {low}, its lowest in the first "
-                      f"{SOAK_SETTLE_S:.0f} s")
+        # Each open socket holds a FreeRTOS queue or two, so heap_free moves with the connections open when it is
+        # read (ADR-003, gate 2). Memory not given back is judged between two quiet moments: before the browsers,
+        # and SOAK_QUIET_S after they stop, when the server has closed its idle connections
+        self.log.write("rc", f"soak: heap_free quiet before {quiet_start['heap_free']}, quiet after "
+                             f"{quiet_end['heap_free']}, lowest of the run {min(free for _, free in heap)}")
+        if quiet_end["heap_free"] < quiet_start["heap_free"]:
+            self.fail(f"soak: heap_free quiet after the run {quiet_end['heap_free']}, lower than "
+                      f"{quiet_start['heap_free']} before it: memory not given back")
 
     def step_activity(self):
         """
@@ -1189,15 +1959,17 @@ class Session:
                     time.sleep(2.0)
             return None
 
+        charge = read_json("api/v1/charge")
         readings = [read_json(path) for path in
-                    ("rest/profile_config", "rest/coarse_motor_config", "rest/fine_motor_config", "rest/charge_mode_config")]
-        if any(reading is None for reading in readings):
+                    (f"api/v1/powder_profiles/{charge['powder_profile'] if charge else 0}",
+                     "api/v1/settings/motors/coarse", "api/v1/settings/motors/fine", "api/v1/settings/charge")]
+        if charge is None or any(reading is None for reading in readings):
             self.fail("charge_fault: the unit's settings could not be read over the web")
             return
         profile, coarse_motor, fine_motor, charge_config = readings
-        coarse_max = min(float(profile["p7"]), float(coarse_motor["m4"]))
-        fine_max = min(float(profile["p12"]), float(fine_motor["m4"]))
-        threshold = float(charge_config["c6"])
+        coarse_max = min(float(profile["coarse_max_speed_rps"]), float(coarse_motor["max_speed_rps"]))
+        fine_max = min(float(profile["fine_max_speed_rps"]), float(fine_motor["max_speed_rps"]))
+        threshold = float(charge_config["fine_stop_threshold"])
         self.log.write("rc", f"charge_fault: {fault} at {at_weight:g} of {target:g}; full speed coarse {coarse_max:g}, "
                              f"fine {fine_max:g} rev/s; fine stop threshold {threshold:g}; {rate:g} readings a second")
 
@@ -1240,7 +2012,10 @@ class Session:
             elif fault == "quiet":
                 self.send(f"sim quiet {quiet_ms}")
             elif fault == "cleanup":
-                http_get(host, f"rest/cleanup_mode_state?s1={cleanup_speed:g}")
+                # A cleanup's speed sent during a charge: API v1 refuses it (409 not_running), so no motor sees it
+                status, reply = http_call(host, "PATCH", "/api/v1/cleanup", {"speed_rps": cleanup_speed})
+                self.log.write("rc", f"charge_fault: a cleanup speed during the charge: {status} "
+                                     f"{(reply or {}).get('error', {}).get('code', '')}")
             watch(round_events if round_idx < repeat - 1 else None)
             # The next round goes in once the charge pours again
             if round_idx < repeat - 1:
@@ -1507,6 +2282,17 @@ def main():
     settings_parser.add_argument("--host", required=True, help="the unit's address")
     settings_parser.add_argument("--save", help="keep the copy in this folder")
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
+    robust_parser = sub.add_parser("web_robust", help="wrong and awkward requests, each answered or closed (ADR-003)")
+    robust_parser.add_argument("--host", required=True, help="the unit's address")
+    api_parser = sub.add_parser("api_check", help="every path the index lists read twice and checked against the "
+                                                  "schema; every action called (ADR-003, gate 4); ends with a restart")
+    api_parser.add_argument("--host", required=True, help="the unit's address")
+    api_parser.add_argument("--target", type=float, default=30.0, help="the charge's target, set when none is")
+    roundtrip_parser = sub.add_parser("settings_roundtrip",
+                                      help="every setting written back unchanged, each value outside its limits "
+                                           "refused, a write during a throw refused (ADR-003, gate 3)")
+    roundtrip_parser.add_argument("--host", required=True, help="the unit's address")
+    roundtrip_parser.add_argument("--target", type=float, default=30.0, help="the charge's weight for the throw")
     soak_parser = sub.add_parser("soak", help="charges back to back while two browsers use the web pages")
     soak_parser.add_argument("seconds", type=float, help="how long; chosen for the change being proven")
     soak_parser.add_argument("--host", required=True, help="the unit's address")
@@ -1514,6 +2300,12 @@ def main():
     soak_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
     soak_parser.add_argument("--max-miss-share", type=float, default=SOAK_MISS_SHARE,
                              help="the most of the web reads that may miss, 0 to 1")
+    soak_parser.add_argument("--load", action="store_true",
+                             help="also a tuning session's load: a throw's samples pulled back to back, and a "
+                                  "client asking four times a second (ADR-003, gate 2)")
+    soak_parser.add_argument("--upload", action="store_true",
+                             help="also ADR-004's image: 700 KB sent back to back as a body in pieces, each checked "
+                                  "by its CRC-32 (ADR-003, gate 4)")
     soak_parser.add_argument("--max-miss-run", type=int, default=SOAK_MISS_RUN,
                              help="the most misses in a row one poller may have")
     frames_parser = sub.add_parser("scale_frames", help="record the scale's frames through the tap, by phase")
@@ -1557,8 +2349,15 @@ def main():
         time.sleep(args.seconds)
     elif args.command == "settings":
         session.settings(args.host, args.save, args.compare)
+    elif args.command == "web_robust":
+        session.web_robust(args.host)
+    elif args.command == "api_check":
+        session.api_check(args.host, args.target)
+    elif args.command == "settings_roundtrip":
+        session.settings_roundtrip(args.host, args.target)
     elif args.command == "soak":
-        session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run)
+        session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run,
+                     args.load, args.upload)
     elif args.command == "scale_frames":
         session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     elif args.command == "charge_fault":

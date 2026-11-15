@@ -1,6 +1,6 @@
-# Handover, 2026-11-15
+# Handover, 2026-11-16
 
-First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed, and 2026-11-15 when ADR-011 and ADR-013 closed. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
+First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed, 2026-11-15 when ADR-011 and ADR-013 closed, and 2026-11-16 when ADR-003 closed. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
 
 ## Where things stand
 
@@ -9,12 +9,12 @@ First written at the end of a session that stopped early; brought up to date 202
 - **ADR-013:** Built and closed 2026-11-15: one door for a reading (a bad frame is dropped and counted), a missing reading pauses the tricklers and a lost scale ends the charge, by the scale's own rhythm, and the web's cleanup speed only in cleanup mode. Proven on both units. A bad frame did opposite wrong things on the two chips before it: full speed on the RP2350, a short throw on the RP2040. Reviewed and merged by the owner, PR #124.
 - **ADR-012:** Built and closed 2026-11-15, in its branch `adr012_motor_drivers`, pushed for its PR: our own TMC2209 driver on Klipper's model, step pulses that stop when they are not fed, one motor task, the drivers read while running, the audit's small fixes, and a driver's fault shown before a mode is entered (step 6, the owner's "fail early"). Proven on both units. Handed on: the Pico W's web cost from step 5 (20 values a request, 32 bytes more of lwIP's heap a connection) and its measured fix to ADR-003, accepted by the owner; the real throws to ADR-009, its first recorded throws (the owner). Its fault 7 very likely caused ADR-011's two silent starts; the old firmware stopped at its start once more on 2026-11-15.
 - **ADR-002:** Built and closed 2026-11-15, in its branch `adr002_open_prs`, in one PR. A PR ends in the ADR of its subject, after that ADR's own design. PR #113's D-term fix is in, shown on the Pico 2 W first; #113 and #111 stay open for ADR-009 and ADR-004; the others are closed; the charge profile, the owner's idea, is Draft ADR-014. Its approved notes are posted right after its PR is merged (its README, "At the merge").
-- **ADR-003:** Open. Gate 1, the web's memory on today's server, built 2026-11-15 on the Pico W and merged by a PR of its own: lwIP's heap 16,384 bytes in place of 4,000, a request's values static, replies from RAM copied, and `net` in the console. **Next:** gate 2's text in full, with the API's table, for the owner's approval; gate 1's image on the Pico 2 W when that unit is on the probe. Every code of today's API, collected for the table and not yet read a second time: `logs/adr003/rest_inventory_2026-11-15_unverified.md` (this PC only).
+- **ADR-003:** Built and closed 2026-11-16, in its branch `adr003_http_rest_server`, pushed for its PR (gates 2 to 4; gate 1 was merged by #128). Our own server on lwIP's sockets in place of the copy of lwIP's file server, and API v1, stable from now on, which the unit describes itself (`GET /api/v1`, `/api/v1/schema`): each setting described once, one entry point for each command, one event log, uploads in pieces, the pages on v1, the old `/rest/` paths gone. Proven on both units, reviewed by a second model, its fixes proven on the Pico 2 W. The client `tools/remote_control/unit_api.py`, `rc_run.py api_check`, and the stand-in for page work `tests/web_test.py` came with it. Its progress.md has every figure.
 - **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
 - **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 014, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** two units, one on the probe at a time (see `AGENTS.md`, "The bench"):
-  - the Pico W is the one on the probe (2026-11-15), with no scale sending to it, and runs ADR-003 gate 1's 1.20.157 at 2a8ccba; its web API at 192.168.2.162, by DHCP. A copy of its settings from before gate 1 is in `logs/adr003/picow/before_gate1/`;
-  - the Pico 2 W, on a controller board and settings of its own, runs ADR-002's 1.20.146 at adc5f56; its web API at 192.168.2.167. Copies of its settings from before are in `logs/adr011/pico2w/`, `logs/adr013/pico2w/` and `logs/adr012/pico2w/`.
+  - the Pico 2 W is the one on the probe (2026-11-16), on a controller board and settings of its own, and runs ADR-003's last image, 1.20.198 at 2873306; its web API at 192.168.2.166, by DHCP (it was .167 before). Copies of its settings: `logs/adr003/pico2w/before_adr003/` (the old paths, at 1.20.146) and `after_flash_v1/` (API v1);
+  - the Pico W runs ADR-003's 1.20.194 at 1b6fc8f, before the review's fixes; its web API at 192.168.2.162. Copies of its settings: `logs/adr003/picow/before_gate1/`, `before_gate3_v1/` and `before_close/`.
 - **macOS is parked**, by the owner: development on Windows, integration builds on Linux.
 
 ## Conclusions of today
@@ -58,6 +58,14 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 5. ~~Before ADR-012 closes, write each handed-on finding into the ADR named for it.~~ Done 2026-11-15: ADR-003, 004, 005, 006, 009 and 010 each have a "Handed on by ADR-012".
 
 ## Waiting on the owner
+
+- **ADR-003's PR** (gates 2 to 4), opened 2026-11-16 at the owner's word for their review and merge.
+- **Found in ADR-003 and handed on**, each to decide where it goes:
+  - a tuning session's load and an upload at once overrun the Pico W's network (31% of reads missed, the charge untouched): ADR-004 decides when an upload is taken;
+  - the gate's move queue lets a write replace a move a mode waits for (`servo_gate.c`);
+  - the EEPROM's erase runs outside its mutex, and the API's erase runs it beside the server;
+  - `rnd()` (`eeprom.c`) gives ids with few random bits: the bench's is `9CE00000`, and the host name shows four characters of it.
+- **Next ADR, as the registry lists it:** 004, a Draft that needs the owner's approval first.
 
 - **ADR numbers:** kept fixed, with the table in the order of work. The owner can ask for renumbering; it is cheapest now.
 - ~~**ADR-012, fault 7:** whether its one-line fix goes in early.~~ ADR-012 is next and its step 1 comes first: the new transport checks every write, and the fault goes with the old code.

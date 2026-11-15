@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "http_rest.h"
 
 
 #define PROFILE_NAME_MAX_LEN    16
@@ -54,10 +53,13 @@ bool profile_data_save();
 
 profile_t * profile_select(uint8_t idx);
 profile_t * profile_get_selected();
+uint16_t profile_get_selected_idx();
+// A profile's name, ended even when it was stored with none; NULL for no such profile. Good until the next call
+const char *profile_get_name(uint16_t idx);
+// The profiles in RAM as stored, the one chosen with them (ADR-003, gate 3: `saved`)
+bool profile_data_is_saved(void);
 
 // REST interface
-bool http_rest_profile_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_profile_summary(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 #ifdef __cplusplus

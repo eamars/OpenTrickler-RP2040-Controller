@@ -1,8 +1,8 @@
 #ifndef WIRELESS_H_
 #define WIRELESS_H_
 
+#include <stdbool.h>
 #include <stdint.h>
-#include "http_rest.h"
 
 #define EEPROM_WIRELESS_CONFIG_METADATA_REV                     2              // 16 byte 
 
@@ -38,7 +38,16 @@ bool wireless_init(void);
 bool wireless_config_save();
 uint8_t wireless_view_wifi_info(void);
 
-bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]);
+// The network the unit is on, as GET /api/v1/network gives it (ADR-003, gate 4)
+typedef struct {
+    const char *mode;       // "station", "access_point", "none"
+    char ssid[33];
+    char address[24];       // "" with none
+    const char *hostname;   // the mDNS name, and the access point's
+    bool has_rssi;
+    int32_t rssi;           // dBm, as a station
+} wireless_info_t;
+void wireless_get_info(wireless_info_t *info);
 
 #ifdef __cplusplus
 }

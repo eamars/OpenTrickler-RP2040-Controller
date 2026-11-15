@@ -9,8 +9,6 @@
 
 #include "eeprom.h"
 
-const char * http_json_header = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n";
-
 
 void delay_ms(uint32_t ms, BaseType_t scheduler_state) {
     if (scheduler_state == taskSCHEDULER_RUNNING){
@@ -109,15 +107,58 @@ const uint32_t crc32_table[256] = {
 0xBDBDF21C,0xCABAC28A,0x53B39330,0x24B4A3A6,0xBAD03605,0xCDD70693,0x54DE5729,0x23D967BF,
 0xB3667A2E,0xC4614AB8,0x5D681B02,0x2A6F2B94,0xB40BBE37,0xC30C8EA1,0x5A05DF1B,0x2D02EF8D
 };
-uint32_t software_crc32(void * data, size_t length) {
+uint32_t software_crc32_continue(uint32_t crc, const void * data, size_t length) {
     const uint8_t *p = (const uint8_t *)data;
-    uint32_t crc = 0xffffffff;
+    crc ^= 0xffffffff;
 
     while (length--) {
         crc = crc32_table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
     }
 
     return crc ^ 0xffffffff;
+}
+
+
+uint32_t software_crc32(void * data, size_t length) {
+    return software_crc32_continue(0, data, length);
+}
+
+
+/*
+    The CRC of what each module last stored, or read at the start (ADR-003, gate 3): `saved` is the struct in RAM
+    against it, so a write from the menu or the console counts as one from the web does. One entry an address.
+*/
+#define CONFIG_STORED_MAX 16
+static struct {
+    uint16_t addr;
+    uint32_t crc;
+} config_stored[CONFIG_STORED_MAX];
+static size_t config_stored_count = 0;
+
+
+static void config_stored_set(uint16_t addr, uint32_t crc) {
+    for (size_t idx = 0; idx < config_stored_count; idx += 1) {
+        if (config_stored[idx].addr == addr) {
+            config_stored[idx].crc = crc;
+            return;
+        }
+    }
+    if (config_stored_count < CONFIG_STORED_MAX) {
+        config_stored[config_stored_count].addr = addr;
+        config_stored[config_stored_count].crc = crc;
+        config_stored_count += 1;
+    }
+}
+
+
+bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
+    uint32_t crc = software_crc32((void *) cfg, size);
+    for (size_t idx = 0; idx < config_stored_count; idx += 1) {
+        if (config_stored[idx].addr == addr) {
+            return config_stored[idx].crc == crc;
+        }
+    }
+    return false;   // never read nor stored
 }
 
 
@@ -194,6 +235,7 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
         // Copy from buffer to config
         memcpy(cfg, buf, size);
         free(buf);
+        config_stored_set(addr, calculated_crc32);
     }
 
     return true;
@@ -227,6 +269,7 @@ bool save_config(uint16_t addr, void * cfg, size_t size) {
     }
     else {
         printf("Configuration write successfully\n");
+        config_stored_set(addr, calculated_crc32);
     }
 
     free(buf);

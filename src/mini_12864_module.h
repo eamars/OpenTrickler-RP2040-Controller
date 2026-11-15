@@ -4,7 +4,6 @@
 
 #define EEPROM_MINI_12864_MODULE_DATA_REV           2
 
-#include "http_rest.h"
 
 
 typedef enum {
@@ -14,9 +13,10 @@ typedef enum {
     BUTTON_ENCODER_PRESSED,
     BUTTON_RST_PRESSED,
 
-    // Overrides from other sources, used to signal other thread to proceed
-    OVERRIDE_FROM_REST,
-    OVERRIDE_GOTO_FORM,     // the remote control's `form <id>`: menu_goto_form() (ADR-001)
+    // Not presses: the menu woken to look at a start asked from outside it (menu_wake(); ADR-003, gate 4), and the
+    // remote control's `form <id>` (menu_goto_form(); ADR-001). A mode that reads either ignores it
+    MENU_WAKE,
+    OVERRIDE_GOTO_FORM,
 } ButtonEncoderEvent_t;
 
 typedef enum {
@@ -51,9 +51,10 @@ ButtonEncoderEvent_t button_wait_for_input_ms(uint32_t timeout_ms);
 bool mini_12864_module_init(void);
 void button_init(void);
 void display_init(void);
-bool http_rest_button_control(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_mini_12864_module_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 bool button_config_save();
+bool mini_12864_module_config_save(void);
+// Its settings' table, for the API and the console (mini_12864_settings.c; ADR-003, gate 3)
+bool mini_12864_settings_register(void);
 
 #ifdef __cplusplus
 }

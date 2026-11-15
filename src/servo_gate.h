@@ -5,7 +5,6 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <semphr.h>
-#include "http_rest.h"
 
 #include <stdbool.h>    
 
@@ -69,8 +68,6 @@ extern "C" {
 
 bool servo_gate_init(void);
 bool servo_gate_config_save(void);
-bool http_rest_servo_gate_state(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_servo_gate_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 const char * gate_state_to_string(gate_state_t);
 
 

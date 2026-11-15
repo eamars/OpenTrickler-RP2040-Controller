@@ -29,6 +29,8 @@
 #include "display.h"
 #include "mini_12864_module.h"
 #include "motors.h"
+#include "settings.h"
+#include "activity.h"
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -555,11 +557,11 @@ static bool remote_control_tmc(const char *args, char *reply, size_t reply_size,
 }
 
 
-// `charge <gr>` starts charge mode as the web page does; `charge stop` presses reset, as at the unit
+// `charge <gr>` starts charge mode as the API does; `charge stop` stops it, as the API's stop does (ADR-003, gate 4)
 static bool remote_control_charge(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                   void *write_ctx) {
     if (strcmp(args, "stop") == 0) {
-        if (!charge_mode_stop_remote()) {
+        if (!activity_request_stop(ACTIVITY_CHARGE, ACTIVITY_BY_CONSOLE)) {
             snprintf(reply, reply_size, "@err charge mode is not running");
             return false;
         }
@@ -573,17 +575,35 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         snprintf(reply, reply_size, "@err usage: charge <0..1000> | charge stop");
         return false;
     }
-    if (menu_get_current_form_id() < 0) {
+    if (activity_get() != ACTIVITY_NONE || menu_get_current_form_id() < 0) {
         snprintf(reply, reply_size, "@err a mode is running");
         return false;
     }
-    if (!charge_mode_start_remote(target)) {
-        snprintf(reply, reply_size, "@err charge mode is already running");
+    if (!charge_mode_target_fits(target)) {
+        snprintf(reply, reply_size, "@err %.3f is not a target the menu's digits can show", target);
         return false;
+    }
+    switch (charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1)) {
+        case CHARGE_START_OK:
+            break;
+        case CHARGE_START_DRIVER_FAULT:
+            snprintf(reply, reply_size, "@err a motor driver is not OK: %s", motors_get_fault());
+            return false;
+        default:
+            snprintf(reply, reply_size, "@err charge mode is already running or asked");
+            return false;
     }
 
     snprintf(reply, reply_size, "@ok charge target=%.3f", target);
     return true;
+}
+
+
+// `setting [<path> [name=value ...|save]]`: the API's settings' tables, read and written (ADR-003, gate 3)
+static bool remote_control_setting(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                   void *write_ctx) {
+    settings_console(args, reply, reply_size, write, write_ctx);
+    return strncmp(reply, "@ok", 3) == 0;
 }
 
 
@@ -601,6 +621,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"motor", remote_control_motor},
     {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
+    {"setting", remote_control_setting},
 };
 
 #define REMOTE_CONTROL_COMMAND_COUNT (sizeof(remote_control_commands) / sizeof(remote_control_commands[0]))

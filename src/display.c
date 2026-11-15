@@ -6,7 +6,6 @@
 #include <semphr.h>
 
 #include "display.h"
-#include "http_rest.h"
 
 
 // Local variables
@@ -58,12 +57,3 @@ void release_display_buffer_access() {
                 print()
 
 */
-bool http_get_display_buffer(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    size_t buffer_size = 8 * u8g2_GetBufferTileHeight(&display_handler) * u8g2_GetBufferTileWidth(&display_handler);
-    file->data = (const char *) u8g2_GetBufferPtr(&display_handler);
-    file->len = buffer_size;
-    file->index = buffer_size;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}

@@ -154,37 +154,37 @@
                 <div class="grid grid-cols-1 px-6 gap-2">
                     <!-- Scale Settings -->
                     <section class="settings-page" id="settings-scale" name="Scale">
-                        <form id="scaleConfigForm" action="/rest/scale_config" class="grid grid-cols-1 gap-3">
+                        <form id="scaleConfigForm" data-resource="/api/v1/settings/scale" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Scale Driver</span>
-                                <select class="select select-bordered" name="s0">
-                                    <option value="0">AND FX-i Std</option>
-                                    <option value="1">Steinberg SBS</option>
-                                    <option value="2">GNG JJB</option>
-                                    <option value="3">US Solid JFDBS</option>
-                                    <option value="4">JM Science</option>
-                                    <option value="5">Creedmoore</option>
-                                    <option value="6">Radwag PS R2</option>
-				                    <option value="7">Sartorius</option>
-                                    <option value="8">Generic Scale Driver</option>
-                                    <option value="9">Simulated Scale Driver</option>
+                                <select class="select select-bordered" name="driver">
+                                    <option value="and_fxi">A&amp;D FX-i</option>
+                                    <option value="steinberg_sbs">Steinberg SBS</option>
+                                    <option value="gng_jjb">G&amp;G JJB</option>
+                                    <option value="ussolid_jfdbs">US Solid JFDBS</option>
+                                    <option value="jm_science">JM Science</option>
+                                    <option value="creedmoor">Creedmoor</option>
+                                    <option value="radwag_ps_r2">Radwag PS R2</option>
+				                    <option value="sartorius">Sartorius</option>
+                                    <option value="generic">Generic Scale Driver</option>
+                                    <option value="simulated">Simulated Scale Driver</option>
                                 </select>
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Serial Baudrate</span>
-                                <select class="select select-bordered" name="s1">
-                                    <option value="0">4800</option>
-                                    <option value="1">9600</option>
-                                    <option value="2">19200</option>
+                                <select class="select select-bordered" name="baud">
+                                    <option value="4800">4800</option>
+                                    <option value="9600">9600</option>
+                                    <option value="19200">19200</option>
                                 </select>
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Serial Format</span>
-                                <select class="select select-bordered" name="s2">
-                                    <option value="0">8 data bits, 1 stop bit, no parity bit</option>
-                                    <option value="1">7 data bits, 1 stop bit, no parity bit</option>
+                                <select class="select select-bordered" name="format">
+                                    <option value="8n1">8 data bits, 1 stop bit, no parity bit</option>
+                                    <option value="7n1">7 data bits, 1 stop bit, no parity bit</option>
                                 </select>
                             </div>
 
@@ -194,7 +194,7 @@
 
                     <!-- Profile Settings -->
                     <section class="settings-page" id="settings-profile" name="Profiles" style="display: none;">
-                        <form id="profileConfigForm" action="/rest/profile_config" class="grid grid-cols-1 gap-3">
+                        <form id="profileConfigForm" data-resource="/api/v1/powder_profiles/{id}" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-2">
                                 <div role="alert" class="alert">
                                     <svg
@@ -231,57 +231,57 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Profile Name</span>
-                                <input type="text" class="input input-bordered" name="p2" maxlength="16">
+                                <input type="text" class="input input-bordered" name="name" maxlength="15">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Trickler Kp</span>
-                                <input type="number" class="input input-bordered" name="p3" step="0.001">
+                                <input type="number" class="input input-bordered" name="coarse_kp" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Trickler Ki</span>
-                                <input type="number" class="input input-bordered" name="p4" step="0.001">
+                                <input type="number" class="input input-bordered" name="coarse_ki" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Trickler Kd</span>
-                                <input type="number" class="input input-bordered" name="p5" step="0.001">
+                                <input type="number" class="input input-bordered" name="coarse_kd" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Trickler Min Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p6" step="0.001">
+                                <input type="number" class="input input-bordered" name="coarse_min_speed_rps" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Trickler Max Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p7" step="0.001">
+                                <input type="number" class="input input-bordered" name="coarse_max_speed_rps" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Fine Trickler Kp</span>
-                                <input type="number" class="input input-bordered" name="p8" step="0.001">
+                                <input type="number" class="input input-bordered" name="fine_kp" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Fine Trickler Ki</span>
-                                <input type="number" class="input input-bordered" name="p9" step="0.001">
+                                <input type="number" class="input input-bordered" name="fine_ki" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Fine Trickler Kd</span>
-                                <input type="number" class="input input-bordered" name="p10" step="0.001">
+                                <input type="number" class="input input-bordered" name="fine_kd" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Fine Trickler Min Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p11" step="0.001">
+                                <input type="number" class="input input-bordered" name="fine_min_speed_rps" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Fine Trickler Max Flow Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="p12" step="0.001">
+                                <input type="number" class="input input-bordered" name="fine_max_speed_rps" step="0.001">
                             </div>
 
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
@@ -290,54 +290,54 @@
 
                     <!-- Charge Mode Settings -->
                     <section class="settings-page" id="settings-charge-mode" name="Charge Mode" style="display: none;">
-                        <form id="chargeModeConfigForm" action="/rest/charge_mode_config" class="grid grid-cols-1 gap-3">
+                        <form id="chargeModeConfigForm" data-resource="/api/v1/settings/charge" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">Neopixel LED Normal Charge Colour</span>
-                                <input type="color" class="input w-full" name="c1">
+                                <input type="color" class="input w-full" name="colour_good">
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">Neopixel LED Under Charge Colour</span>
-                                <input type="color" class="input w-full" name="c2">
+                                <input type="color" class="input w-full" name="colour_under">
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">Neopixel LED Over Charge Colour</span>
-                                <input type="color" class="input w-full" name="c3">
+                                <input type="color" class="input w-full" name="colour_over">
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">Neopixel LED Not Ready Colour</span>
-                                <input type="color" class="input w-full" name="c4">
+                                <input type="color" class="input w-full" name="colour_not_ready">
                             </div>
 
                             <div class="divider"></div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Trickler Stop Threshold</span>
-                                <input type="number" class="input input-bordered" name="c5" step="0.001">
+                                <input type="number" class="input input-bordered" name="coarse_stop_threshold" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Fine Trickler Stop Threshold</span>
-                                <input type="number" class="input input-bordered" name="c6" step="0.001">
+                                <input type="number" class="input input-bordered" name="fine_stop_threshold" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Set Point Accuracy (Standard Deviation)</span>
-                                <input type="number" class="input input-bordered" name="c7" step="0.001">
+                                <input type="number" class="input input-bordered" name="steady_sd_margin" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Set Point Accuracy (Mean)</span>
-                                <input type="number" class="input input-bordered" name="c8" step="0.001">
+                                <input type="number" class="input input-bordered" name="zero_mean_margin" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Decimal Places</span>
-                                <select class="select select-bordered" name="c9">
-                                    <option value="0">2</option>
-                                    <option value="1">3</option>
+                                <select class="select select-bordered" name="decimal_places">
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
                                 </select>
                             </div>
 
@@ -345,7 +345,7 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Enable Pre-Charge (requires servo gate)</span>
-                                <select class="select select-bordered" name="c10">
+                                <select class="select select-bordered" name="precharge_enable">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -353,23 +353,23 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Pre-Charge Duration (ms)</span>
-                                <input type="number" class="input input-bordered" name="c11" step="1">
+                                <input type="number" class="input input-bordered" name="precharge_time_ms" step="1">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Pre-Charge Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="c12" step="0.001">
+                                <input type="number" class="input input-bordered" name="precharge_speed_rps" step="0.001">
                             </div>
 							<div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Mid-stage Servo Gate Position (0=open, 1=close)</span>
-                                <input type="number" class="input input-bordered" name="c13" step="0.001" min="0" max="1">
+                                <input type="number" class="input input-bordered" name="coarse_stop_gate_ratio" step="0.001" min="0" max="1">
                             </div>
 
                             <div class="divider"></div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Stop Backoff Enable</span>
-                                <select class="select select-bordered" name="c14">
+                                <select class="select select-bordered" name="coarse_stop_backoff_enable">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -377,17 +377,17 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Stop Backoff Size (turns)</span>
-                                <select class="select select-bordered" name="c15">
+                                <select class="select select-bordered" name="coarse_stop_backoff_turns">
                                     <option value="0.125">1/8</option>
                                     <option value="0.25">1/4</option>
                                     <option value="0.5">1/2</option>
-                                    <option value="1.0">1</option>
+                                    <option value="1">1</option>
                                 </select>
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Coarse Stop Backoff Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="c16" step="0.001" min="0">
+                                <input type="number" class="input input-bordered" name="coarse_stop_backoff_speed_rps" step="0.001" min="0">
                             </div>
 
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
@@ -396,10 +396,10 @@
 
                     <!-- Wireless Settings -->
                     <section class="settings-page" id="settings-wireless" name="Wireless" style="display: none;">
-                        <form id="wirelessConfigForm" action="/rest/wireless_config" class="grid grid-cols-1 gap-3">
+                        <form id="wirelessConfigForm" data-resource="/api/v1/settings/wifi" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">WiFi SSID</span>
-                                <input type="text" class="input input-bordered" name="w0" maxlength="32">
+                                <input type="text" class="input input-bordered" name="ssid" maxlength="31">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
@@ -407,27 +407,27 @@
                                     <div class="badge badge-neutral">Write Only</div>
                                     <span class="label-text">WiFi Password</span> 
                                 </div>
-                                <input type="password" class="input input-bordered" name="w1" maxlength="63" placeholder="********">
+                                <input type="password" class="input input-bordered" name="key" maxlength="63" placeholder="********">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">WiFi Authentication Method</span>
-                                <select class="select select-bordered" name="w2">
-                                    <option value="0">None</option>
-                                    <option value="1">WPA-TKIP</option>
-                                    <option value="2">WPA2-AES</option>
-                                    <option value="3">WPA2-MIXED</option>
+                                <select class="select select-bordered" name="auth">
+                                    <option value="open">None</option>
+                                    <option value="wpa_tkip">WPA-TKIP</option>
+                                    <option value="wpa2_aes">WPA2-AES</option>
+                                    <option value="wpa2_mixed">WPA2-MIXED</option>
                                 </select>
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">WiFi Attempt to Connect Timeout (ms)</span>
-                                <input type="number" class="input input-bordered" name="w3" step="1000">
+                                <input type="number" class="input input-bordered" name="timeout_ms" step="1000">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Enable WiFi</span>
-                                <select class="select select-bordered" name="w4">
+                                <select class="select select-bordered" name="enable">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -439,15 +439,15 @@
 
                     <!-- Coarse Trickler Motor Settings -->
                     <section class="settings-page" id="settings-coarse-motor" name="Coarse Trickler Motor" style="display: none;">
-                        <form id="coarseMotorConfigForm" action="/rest/coarse_motor_config" class="grid grid-cols-1 gap-3">
+                        <form id="coarseMotorConfigForm" data-resource="/api/v1/settings/motors/coarse" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Angular Acceleration (rps/s)</span>
-                                <input type="number" class="input input-bordered" name="m0" step="0.001">
+                                <input type="number" class="input input-bordered" name="acceleration_rps2" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Full Steps per Rotation</span>
-                                <select class="select select-bordered" name="m1">
+                                <select class="select select-bordered" name="full_steps_per_rotation">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
                                 </select>
@@ -455,12 +455,12 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Current (mA RMS)</span>
-                                <input type="number" class="input input-bordered" name="m2" step="1">
+                                <input type="number" class="input input-bordered" name="current_ma" step="1">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Microsteps</span>
-                                <select class="select select-bordered" name="m3">
+                                <select class="select select-bordered" name="microsteps">
                                     <option value="16">16</option>
                                     <option value="32">32</option>
                                     <option value="64">64</option>
@@ -471,27 +471,27 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Max Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="m4" step="0.001">
+                                <input type="number" class="input input-bordered" name="max_speed_rps" step="1">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Min Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="m6" step="0.001"> 
+                                <input type="number" class="input input-bordered" name="min_speed_rps" step="0.001"> 
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Current Sensing Resistor (mOhm)</span>
-                                <input type="number" class="input input-bordered" name="m5" step="1"> 
+                                <input type="number" class="input input-bordered" name="r_sense_mohm" step="1"> 
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Gear Ratio</span>
-                                <input type="number" class="input input-bordered" name="m7" step="0.0000001"> 
+                                <input type="number" class="input input-bordered" name="gear_ratio" step="0.0000001"> 
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Inverted Enable Pin</span>
-                                <select class="select select-bordered" name="m8">
+                                <select class="select select-bordered" name="invert_enable">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -499,7 +499,7 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Inverted Step Direction Pin</span>
-                                <select class="select select-bordered" name="m9">
+                                <select class="select select-bordered" name="invert_direction">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -511,15 +511,15 @@
 
                     <!-- Fine Trickler motor Settings -->
                     <section class="settings-page" id="settings-fine-motor" name="Fine Trickler Motor" style="display: none;">
-                        <form id="fineMotorConfigForm" action="/rest/fine_motor_config" class="grid grid-cols-1 gap-3">
+                        <form id="fineMotorConfigForm" data-resource="/api/v1/settings/motors/fine" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Angular Acceleration (rps/s)</span>
-                                <input type="number" class="input input-bordered" name="m0" step="0.001">
+                                <input type="number" class="input input-bordered" name="acceleration_rps2" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Full Steps per Rotation</span>
-                                <select class="select select-bordered" name="m1">
+                                <select class="select select-bordered" name="full_steps_per_rotation">
                                     <option value="200">200</option>
                                     <option value="400">400</option>
                                 </select>
@@ -527,12 +527,12 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Current (mA RMS)</span>
-                                <input type="number" class="input input-bordered" name="m2" step="1">
+                                <input type="number" class="input input-bordered" name="current_ma" step="1">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Microsteps</span>
-                                <select class="select select-bordered" name="m3">
+                                <select class="select select-bordered" name="microsteps">
                                     <option value="16">16</option>
                                     <option value="32">32</option>
                                     <option value="64">64</option>
@@ -543,27 +543,27 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Max Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="m4" step="0.001">
+                                <input type="number" class="input input-bordered" name="max_speed_rps" step="1">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Min Speed (rps)</span>
-                                <input type="number" class="input input-bordered" name="m6" step="0.001"> 
+                                <input type="number" class="input input-bordered" name="min_speed_rps" step="0.001"> 
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Current Sensing Resistor (mOhm)</span>
-                                <input type="number" class="input input-bordered" name="m5" step="1"> 
+                                <input type="number" class="input input-bordered" name="r_sense_mohm" step="1"> 
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Gear Ratio</span>
-                                <input type="number" class="input input-bordered" name="m7" step="0.0000001"> 
+                                <input type="number" class="input input-bordered" name="gear_ratio" step="0.0000001"> 
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Inverted Enable Pin</span>
-                                <select class="select select-bordered" name="m8">
+                                <select class="select select-bordered" name="invert_enable">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -571,7 +571,7 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Inverted Step Direction Pin</span>
-                                <select class="select select-bordered" name="m9">
+                                <select class="select select-bordered" name="invert_direction">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -583,7 +583,7 @@
 
                     <!-- Neopxiel LED Settings -->
                     <section class="settings-page" id="settings-neopixel-led" name="Neopixel LED" style="display: none;">
-                        <form id="neopixelLedConfigForm" action="/rest/neopixel_led_config" class="grid grid-cols-1 gap-3">
+                        <form id="neopixelLedConfigForm" data-resource="/api/v1/settings/leds" class="grid grid-cols-1 gap-3">
                             <div role="alert" class="alert">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 <span>The default Neopxiel LED colour can be overridden by Charge Mode Functions.</span>
@@ -591,24 +591,24 @@
 
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">Mini 12864 Display Background Colour</span>
-                                <input type="color" class="input w-full" name="bl">
+                                <input type="color" class="input w-full" name="backlight_colour">
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">LED1 Default Colour</span>
-                                <input type="color" class="input w-full" name="l1">
+                                <input type="color" class="input w-full" name="led1_colour">
                             </div>
 
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">LED2 Default Colour</span>
-                                <input type="color" class="input w-full" name="l2">
+                                <input type="color" class="input w-full" name="led2_colour">
                             </div>
 
                             <div class="divider"></div>
 
                             <div class="grid grid-cols-2 gap-1">
                                 <span class="label-text">PWM OUT Chain Count</span>
-                                <select class="select select-bordered" name="l3">
+                                <select class="select select-bordered" name="pwm3_chain_count">
                                     <option value="1">1</option>
                                     <option value="2">2</option>
                                     <option value="3">3</option>
@@ -630,17 +630,17 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">PWM OUT Is RGBW LED? (WS2812B or SK6812)</span>
-                                <select class="select select-bordered" name="l4">
-                                    <option value=true>Yes</option>
-                                    <option value=false>No</option>
+                                <select class="select select-bordered" name="pwm3_rgbw">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
                                 </select>
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">PWM OUT Neopixel LED Colour Order</span>
-                                <select class="select select-bordered" name="l5">
-                                    <option value="0">RGB</option>
-                                    <option value="1">GRB</option>
+                                <select class="select select-bordered" name="pwm3_colour_order">
+                                    <option value="rgb">RGB</option>
+                                    <option value="grb">GRB</option>
                                 </select>
                             </div>
 
@@ -650,10 +650,10 @@
 
                     <!-- Mini 12864 Module Settings -->
                     <section class="settings-page" id="settings-mini-12864-module" name="Mini 12864 Module" style="display: none;">
-                        <form id="mini12864ModuleConfigForm" action="/rest/mini_12864_config" class="grid grid-cols-1 gap-3">
+                        <form id="mini12864ModuleConfigForm" data-resource="/api/v1/settings/display" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Inverted Rotary Button Direction</span>
-                                <select class="select select-bordered" name="b0">
+                                <select class="select select-bordered" name="invert_encoder">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -661,9 +661,9 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Display Rotation (deg)</span>
-                                <select class="select select-bordered" name="b1">
+                                <select class="select select-bordered" name="rotation">
                                     <option value="0">0</option>
-                                    <option value="2">180</option>
+                                    <option value="180">180</option>
                                 </select>
                             </div>
 
@@ -672,10 +672,10 @@
                     </section>
 
                     <section class="settings-page" id="settings-servo-gate" name="Servo Gate" style="display: none;">
-                        <form id="servoGateConfigForm" action="/rest/servo_gate_config" class="grid grid-cols-1 gap-3">
+                        <form id="servoGateConfigForm" data-resource="/api/v1/settings/gate" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Servo Gate Enable</span>
-                                <select class="select select-bordered" name="c0">
+                                <select class="select select-bordered" name="enable">
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
@@ -683,32 +683,32 @@
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Shutter 0 Close Duty Cycle</span>
-                                <input type="number" class="input input-bordered" name="c1" step="0.001">
+                                <input type="number" class="input input-bordered" name="shutter0_close_duty" step="0.001">
                             </div>
                             
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Shutter 0 Open Duty Cycle</span>
-                                <input type="number" class="input input-bordered" name="c2" step="0.001">
+                                <input type="number" class="input input-bordered" name="shutter0_open_duty" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Shutter 1 Close Duty Cycle</span>
-                                <input type="number" class="input input-bordered" name="c3" step="0.001">
+                                <input type="number" class="input input-bordered" name="shutter1_close_duty" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Shutter 1 Open Duty Cycle</span>
-                                <input type="number" class="input input-bordered" name="c4" step="0.001">
+                                <input type="number" class="input input-bordered" name="shutter1_open_duty" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter Close Speed (%/s)</span>
-                                <input type="number" class="input input-bordered" name="c5" step="0.001">
+                                <span class="label-text">Shutter Close Speed (full travels/s)</span>
+                                <input type="number" class="input input-bordered" name="close_speed_per_s" step="0.001">
                             </div>
 
                             <div class="grid grid-cols-1 gap-1">
-                                <span class="label-text">Shutter Open Speed (%/s)</span>
-                                <input type="number" class="input input-bordered" name="c6" step="0.001">
+                                <span class="label-text">Shutter Open Speed (full travels/s)</span>
+                                <input type="number" class="input input-bordered" name="open_speed_per_s" step="0.001">
                             </div>
 
                             <button class="btn btn-neutral settings-apply-btn">Apply</button>
@@ -717,7 +717,7 @@
 
                     <!-- System Control Page -->
                     <section class="settings-page" id="settings-system-control" name="System Control" style="display: none;">
-                        <form id="systemControlForm" action="/rest/system_control" class="grid grid-cols-1 gap-3">
+                        <form id="systemControlForm" data-system="true" class="grid grid-cols-1 gap-3">
                             <div class="grid grid-cols-1 gap-1">
                                 <span class="label-text">Unique ID</span>
                                 <input type="text" class="input input-bordered" name="s0" disabled="disabled" readonly>
@@ -955,39 +955,34 @@
 
 <!-- Scripts to support the webapp -->
 <script>
-    const ChargeModeState = Object.freeze({ 
-        EXIT: 0,
-        WAIT: 1, 
-        CHARGING: 2, 
-        REMOVE_CUP: 3, 
-        RETURN_CUP: 4, 
-    }); 
+    /*
+        API v1's commands (ADR-003, gate 4): the charge, the cleanup, the scale's zero and the gate. A command the
+        unit refuses shows its own words.
+    */
+    const apiJsonHeaders = {"Content-Type": "application/json"};
 
-    const ChargeModeEvent = Object.freeze({ 
-        NO_EVENT: 1 << 0, 
-        UNDER_CHARGE: 1 << 1, 
-        OVER_CHARGE: 1 << 2, 
-    });
+    function apiPost(path, body) {
+        return fetch(path, {method: "POST", headers: apiJsonHeaders, body: JSON.stringify(body || {})});
+    }
 
-    const ScaleAction = Object.freeze({ 
-        NO_ACTION: 0,
-        FORCE_ZERO: 1,
-    });
+    function apiPatch(path, body) {
+        return fetch(path, {method: "PATCH", headers: apiJsonHeaders, body: JSON.stringify(body)});
+    }
 
-    const CleanupModeState = Object.freeze({
-        EXIT: 0,
-        ENTER: 1,
-    });
-
-    const ServoGateState = Object.freeze({
-        GATE_DISABLED: 0,
-        GATE_CLOSE: 1,
-        GATE_OPEN: 2,
-    });
+    async function apiRefusal(response) {
+        try {
+            const error = (await response.json()).error || {};
+            return error.message || `refused (${response.status})`;
+        }
+        catch (exception) {
+            return `refused (${response.status})`;
+        }
+    }
 
     var pollSetTimeoutId;
+    var lastThrowSeen = null;   // the last throw whose verdict the page has seen: its dialog shown once
 
-    // Set Charge Mode Set Point with REST interface
+    // Start a charge at the weight given
     function setChargeWeight() {
         // Read charge weight
         const chargeWeight = document.getElementById("chargeWeightInput").value;
@@ -1000,34 +995,24 @@
             return;
         }
 
-        // Build URI
-        const uri = `/rest/charge_mode_state?s0=${encodeURIComponent(chargeWeight)}&s2=${encodeURIComponent(ChargeModeState.WAIT)}`;
-
-        // Call set charge weight REST
-        fetch(uri)
-        .then(response => {
+        apiPost("/api/v1/charge/start", {target: Number(chargeWeight)})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused("Not started", [await apiRefusal(response)]);
+            }
             _restartPoll();  // Start the poll immediately to update the charge status
         })
         .catch(error => {
-            console.error("Error setting charge weight");
+            console.error("Error starting the charge");
         });
     }
 
     function enterChargeMode(enter) {
-        var charge_mode_status_value = null;
-        if (enter) {
-            charge_mode_status_value = ChargeModeState.WAIT;
-        }
-        else {
-            charge_mode_status_value = ChargeModeState.EXIT;
-        }
-
-        // Build URI
-        const uri = `/rest/charge_mode_state?s2=${encodeURIComponent(charge_mode_status_value)}`;
-
-        // Call set charge weight REST
-        fetch(uri)
-        .then(response => {
+        apiPost(enter ? "/api/v1/charge/start" : "/api/v1/charge/stop", {})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused(enter ? "Not started" : "Not stopped", [await apiRefusal(response)]);
+            }
             _restartPoll();  // Start the poll immediately to update the charge status
         })
         .catch(error => {
@@ -1038,53 +1023,31 @@
     // Helper function to update progress widget
     const PRIMARY_CLASS = "step-primary";
 
+    // The charge's state, as API v1 names it: the steps up to it lit
     function _setChargeModeStateWidget(state) {
-        const chargeModeStateWait = document.getElementById("chargeModeStateWait");
-        const chargeModeStateCharging = document.getElementById("chargeModeStateCharging");
-        const chargeModeStateRemoveCup = document.getElementById("chargeModeStateRemoveCup");
-        const chargeModeStateReturnCup = document.getElementById("chargeModeStateReturnCup");
-
-        switch (state) {
-            case ChargeModeState.WAIT:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.CHARGING:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.REMOVE_CUP:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.RETURN_CUP:
-                chargeModeStateWait.classList.add(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.add(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.add(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.add(PRIMARY_CLASS)
-                break;
-            case ChargeModeState.EXIT:
-                chargeModeStateWait.classList.remove(PRIMARY_CLASS);
-                chargeModeStateCharging.classList.remove(PRIMARY_CLASS)
-                chargeModeStateRemoveCup.classList.remove(PRIMARY_CLASS)
-                chargeModeStateReturnCup.classList.remove(PRIMARY_CLASS)
-                break;
-        }
+        const steps = [document.getElementById("chargeModeStateWait"),
+                       document.getElementById("chargeModeStateCharging"),
+                       document.getElementById("chargeModeStateRemoveCup"),
+                       document.getElementById("chargeModeStateReturnCup")];
+        const lit = {"zeroing": 1, "charging": 2, "waiting_for_cup_removal": 3, "waiting_for_cup_return": 4}[state] || 0;
+        steps.forEach((step, idx) => {
+            if (idx < lit) {
+                step.classList.add(PRIMARY_CLASS);
+            }
+            else {
+                step.classList.remove(PRIMARY_CLASS);
+            }
+        });
     }
-    
+
     // Helper function to set the current weight widget
     function _setCurrentWeight(weight, percentage) {
         var currentWeightDecimal = document.getElementById("currentWeightDecimal");
         currentWeightDecimal.innerText = String(weight);
 
+        // A progress bar takes no NaN: with no reading there is nothing to show
         var currentWeightProgressPencentage = document.getElementById("currentWeightProgressPencentage");
-        currentWeightProgressPencentage.value = percentage;
+        currentWeightProgressPencentage.value = Number.isFinite(percentage) ? percentage : 0;
     }
 
     function _setStartStopButtonWidget(isStart) {
@@ -1105,31 +1068,20 @@
         const quickChangeProfileDialog = document.getElementById("quickChangeProfileDialog");
         const quickChangeProfileSelect = document.getElementById("quickChangeProfileSelect");
 
-        // Populate the dialog option and show the modal
-        fetch("/rest/profile_summary")
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            const all_profiles = data["s0"];
-            const current_profile_idx = data["s1"];
-            // First remove existing options
-            var length = quickChangeProfileSelect.options.length;
-            for(var i = 0; i < length; i += 1) {
-                quickChangeProfileSelect.remove(i);     
-            }
+        // Populate the dialog option and show the modal: the profiles' names, and the charge's profile (API v1)
+        Promise.all([fetch("/api/v1/powder_profiles").then(response => response.json()),
+                     fetch("/api/v1/charge").then(response => response.json())])
+        .then(([profiles, charge]) => {
             quickChangeProfileSelect.options.length = 0;
-
-            // Then populate according to the new list
-            for (const idx in all_profiles) {
+            for (const profile of profiles.profiles) {
                 var option = document.createElement("option");
-                option.value = idx;
-                option.innerText = all_profiles[idx];
+                option.value = profile.id;
+                option.innerText = profile.name;
                 quickChangeProfileSelect.appendChild(option);
             }
             // Select the current
-            quickChangeProfileSelect.value = current_profile_idx;
-            
+            quickChangeProfileSelect.value = charge.powder_profile;
+
             // Show the modal
             quickChangeProfileDialog.showModal();
         })
@@ -1138,14 +1090,16 @@
         })
     }
 
+    // The powder profile the next throw uses
     function onQuickProfileSelectConfirmed() {
         const quickChangeProfileSelect = document.getElementById("quickChangeProfileSelect");
 
-        const uri = `/rest/profile_config?pf=${encodeURIComponent(quickChangeProfileSelect.value)}`;
-
-        fetch(uri)
-        .then(response => {
-            return response.json();
+        apiPatch("/api/v1/charge", {powder_profile: Number(quickChangeProfileSelect.value)})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused("Not changed", [await apiRefusal(response)]);
+            }
+            _restartPoll();
         })
         .catch(error => {
             console.error("Error setting profile");
@@ -1154,69 +1108,46 @@
 
     // Function to poll charge mode status (weight, progress, etc)
     function pollChargeModeStatus() {
-        fetch("/rest/charge_mode_state")
+        fetch("/api/v1/charge")
         .then(response => {
             return response.json()
         })
-        .then(data => {
-            // console.log(data);
-            // Parse data
-            const charge_weight_set_point = data["s0"];
-            const current_charge_weight = data["s1"];
-            const charge_mode_state = data["s2"];
-            const charge_mode_event = data["s3"];
-            const profile_name = data["s4"];
-            const charge_time_seconds = data["s5"] || "-.--";
-
-            var percentage = 0;
-            if (charge_weight_set_point == 0) {
-                percentage = 0;
-            }
-            else {
-                percentage = current_charge_weight / charge_weight_set_point * 100.0;
-            }
+        .then(charge => {
+            // No reading, or no target: nothing to show for it, and the rest of the page goes on
+            const weight = charge.weight;
+            const percentage = weight !== null && charge.target ? weight / charge.target * 100.0 : 0;
 
             // Update web element
-            _setCurrentWeight(current_charge_weight, percentage);
-            _setChargeModeStateWidget(charge_mode_state);
+            // To three decimals at most, as the page showed it before API v1 (the old reply's "%0.3f")
+            _setCurrentWeight(weight === null ? "---" : Number(weight.toFixed(3)), percentage);
+            _setChargeModeStateWidget(charge.state);
 
             profileName = document.getElementById("profileName");
-            profileName.innerText = String(profile_name);
-            
+            profileName.innerText = String(charge.powder_profile_name);
+
             // Find the charge time element and update its text content
             const chargeTimeElement = document.getElementById('chargeTimeValue');
             if (chargeTimeElement) {
-                chargeTimeElement.textContent = `${charge_time_seconds} s`;
+                chargeTimeElement.textContent = `${charge.elapsed_s === null ? "-.--" : charge.elapsed_s.toFixed(2)} s`;
             }
 
-            if (charge_mode_state == ChargeModeState.EXIT) {
-                _setStartStopButtonWidget(false);
-            }
-            else {
-                _setStartStopButtonWidget(true);
-            }
+            _setStartStopButtonWidget(charge.state != "idle");
 
-            // Process event
-            if (charge_mode_event != ChargeModeEvent.NO_EVENT) {
-                var dialog_name = null;
-                if (charge_mode_event == ChargeModeEvent.UNDER_CHARGE) {
-                    dialog_name = "underThrowDialog";
-                }
-                else if (charge_mode_event == ChargeModeEvent.OVER_CHARGE) {
-                    dialog_name = "overThrowDialog";
-                }
-
-                // Show modal
-                const dialogModal = document.getElementById(dialog_name);
+            // A throw's verdict, shown once, as it comes; not one from before the page opened
+            const last = charge.last || {};
+            if (lastThrowSeen !== null && last.throw != lastThrowSeen) {
+                const dialog_name = {"under": "underThrowDialog", "over": "overThrowDialog"}[last.result];
+                const dialogModal = dialog_name ? document.getElementById(dialog_name) : null;
                 if (dialogModal) {
                     dialogModal.showModal();
                 }
             }
+            lastThrowSeen = last.throw;
         })
         .catch(error => {
-            console.error("Error reading charge mode settings");
+            console.error("Error reading the charge");
             _setCurrentWeight("---", 0);
-            _setChargeModeStateWidget(ChargeModeState.WAIT);
+            _setChargeModeStateWidget("idle");
         })
         .finally(() => {
             // Schedule the next event
@@ -1225,48 +1156,25 @@
         })
     }
 
-    // Send scale force zero command
+    // Ask the scale to zero
     function scaleForceZero() {
-        const uri = `/rest/scale_action?a0=${encodeURIComponent(ScaleAction.FORCE_ZERO)}`;
-
-        // Call the scale action URI
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // console.log(data);
-
-            var scale_action_response = data["a0"];
-
-            if (scale_action_response == ScaleAction.FORCE_ZERO) {
-                const dialogModal = document.getElementById("scaleZeroedSuccessDialog");
-                dialogModal.showModal();
+        apiPost("/api/v1/scale/zero", {})
+        .then(async response => {
+            if (response.ok) {
+                document.getElementById("scaleZeroedSuccessDialog").showModal();
             }
             else {
-                const dialogModal = document.getElementById("scaleZeroedFailDialog");
-                dialogModal.showModal();
-        }
+                showSettingsRefused("Not zeroed", [await apiRefusal(response)]);
+            }
         })
         .catch(error => {
             console.error("Error applying force zero");
         });
     }
 
+    // Gate Open (2) and Gate Close (1), as the buttons send them: the gate's ratio, 0 open and 1 closed
     function servoGateSetState(state) {
-        const uri = `/rest/servo_gate_state?g0=${encodeURIComponent(state)}`;
-
-        // Call the scale action URI
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // console.log(data);
-        })
-        .catch(error => {
-            console.error("Error applying servo gate state");
-        });
+        servoGateSetRatio(state == 2 ? 0 : 1);
     }
 // --- Gate Ratio Support ---
     function _clamp01(x) {
@@ -1291,15 +1199,11 @@
 
         _setGateRatioUi(r);
 
-        const uri = `/rest/servo_gate_state?r0=${encodeURIComponent(r.toFixed(3))}`;
-
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // If firmware returns r0 later, you can sync UI like:
-            // if (data["r0"] !== undefined) _setGateRatioUi(_clamp01(data["r0"]));
+        apiPatch("/api/v1/gate", {ratio: Number(r.toFixed(3))})
+        .then(async response => {
+            if (!response.ok) {
+                showSettingsRefused("The gate did not move", [await apiRefusal(response)]);
+            }
         })
         .catch(error => {
             console.error("Error applying servo gate ratio");
@@ -1458,7 +1362,13 @@
 
         // Populate values
         const form = targetSection.querySelector("form");
-        if (form) {
+        if (form && form.dataset.resource) {
+            loadSettingsForm(form);
+        }
+        else if (form && form.dataset.system) {
+            loadSystemControlForm(form);
+        }
+        else if (form) {
             const uri = form.getAttribute("action");
             fetch(uri)
             .then(response => {
@@ -1478,27 +1388,164 @@
 
     // Function to retrieve the profile values when the index is updated
     function populateProfileSelection(select) {
-        const profileIdx = select.value;
-        const form = select.form;
+        loadSettingsForm(select.form);
+    }
 
-        const uri = form.getAttribute("action") + `?pf=${encodeURIComponent(profileIdx)}`
-        fetch(uri)
-        .then(response => {
-            return response.json();
-        })
-        .then(data => {
-            // Populate the form
-            for (const key in data) {
-                const element = form.querySelector('[name="' + key + '"]');
-                if (element) {
-                    element.value = String(data[key]);
+    /*
+        API v1's settings (ADR-003, gate 3). Each settings form names its resource (data-resource), its inputs are
+        named as the resource's fields, and the schema says each field's type, so a form's text is sent as JSON of
+        the right types. Apply is a PATCH, and "Save to EEPROM" then a POST to the resource's save path.
+    */
+    const settingsJsonHeaders = {"Content-Type": "application/json"};
+    let settingsSchema = null;
+
+    async function loadSettingsSchema() {
+        if (settingsSchema === null) {
+            const schema = await (await fetch("/api/v1/schema")).json();
+            settingsSchema = {};
+            for (const resource of schema.resources) {
+                const fields = {};
+                for (const field of resource.fields) {
+                    fields[field.name] = field;
+                }
+                settingsSchema[resource.path] = {save: resource.save, fields: fields};
+            }
+        }
+        return settingsSchema;
+    }
+
+    // The resource a form writes: for the powder profiles, the one chosen in the form
+    function settingsResourcePath(form) {
+        const profileSelect = form.querySelector('[name="pf"]');
+        return profileSelect ? form.dataset.resource.replace("{id}", profileSelect.value) : form.dataset.resource;
+    }
+
+    function fillSettingsForm(form, data) {
+        for (const key in data) {
+            const element = form.querySelector('[name="' + key + '"]');
+            if (element && element.type !== "password") {
+                element.value = data[key] === null ? "" : String(data[key]);
+            }
+        }
+    }
+
+    async function loadSettingsForm(form) {
+        const profileSelect = form.querySelector('[name="pf"]');
+        if (profileSelect) {
+            // The profiles' names in their selector
+            const profiles = (await (await fetch("/api/v1/powder_profiles")).json()).profiles;
+            for (const profile of profiles) {
+                const option = profileSelect.querySelector(`option[value="${profile.id}"]`);
+                if (option) {
+                    option.textContent = `#${profile.id} ${profile.name}`;
                 }
             }
-        })
+        }
+        fillSettingsForm(form, await (await fetch(settingsResourcePath(form))).json());
+    }
+
+    // The form's fields as JSON, each of its schema's type; an empty one is left as it is
+    function settingsFormBody(form, fields) {
+        const body = {};
+        for (const [key, value] of new FormData(form).entries()) {
+            const field = fields[key];
+            if (value === "" || field === undefined) {
+                continue;
+            }
+            const numericChoice = field.type === "choice" && field.choices.length > 0 &&
+                                  typeof field.choices[0].value === "number";
+            if (field.type === "number" || field.type === "integer" || numericChoice) {
+                body[key] = Number(value);
+            }
+            else if (field.type === "boolean") {
+                body[key] = value === "true";
+            }
+            else {
+                body[key] = value;
+            }
+        }
+        return body;
+    }
+
+    // The unit's words when it refused a write, in the dialog the import's failures use
+    function showSettingsRefused(title, lines) {
+        const dialog = document.getElementById("settingsRestoreFailedDialog");
+        const text = document.getElementById("settingsRestoreFailedText");
+        text.replaceChildren();
+        const heading = document.createElement("h3");
+        heading.className = "font-bold text-lg";
+        heading.textContent = title;
+        text.appendChild(heading);
+        for (const line of lines) {
+            const paragraph = document.createElement("p");
+            paragraph.className = "py-1";
+            paragraph.textContent = line;
+            text.appendChild(paragraph);
+        }
+        dialog.showModal();
+    }
+
+    async function putSettingsForm(form, saveToEeprom) {
+        const resource = (await loadSettingsSchema())[form.dataset.resource];
+        const path = settingsResourcePath(form);
+        let response = await fetch(path, {method: "PATCH", headers: settingsJsonHeaders,
+                                          body: JSON.stringify(settingsFormBody(form, resource.fields))});
+        let data = await response.json();
+        if (response.ok && saveToEeprom) {
+            response = await fetch(resource.save, {method: "POST", headers: settingsJsonHeaders, body: "{}"});
+            data = response.ok ? await (await fetch(path)).json() : await response.json();
+        }
+        if (!response.ok) {
+            const error = data.error || {};
+            showSettingsRefused("Not applied", [error.field ? `${error.field}: ${error.message}` : error.message]);
+            return;
+        }
+        fillSettingsForm(form, data);
+        document.getElementById("settingsAppliedSuccessDialog").showModal();
     }
 
     // Submit the form data to the action URI
+    // The unit's facts, from the index (API v1)
+    async function loadSystemControlForm(form) {
+        const index = await (await fetch("/api/v1")).json();
+        const facts = {s0: index.unit_id, s1: index.firmware.version, s2: index.firmware.vcs, s3: index.firmware.build};
+        for (const [name, value] of Object.entries(facts)) {
+            form.querySelector(`[name="${name}"]`).value = value;
+        }
+    }
+
+    // Save all, then erase or restart, as API v1's actions; the unit's words when it refuses
+    async function applySystemControl(form) {
+        const data = new FormData(form);
+        const steps = [];
+        if (data.get("s4") == "true") {
+            steps.push(["Not saved", "/api/v1/settings/save", {}]);
+        }
+        if (data.get("s6") == "true") {
+            steps.push(["Not erased", "/api/v1/system/erase", {confirm: "erase"}]);
+        }
+        else if (data.get("s5") == "true") {
+            steps.push(["Not restarted", "/api/v1/system/restart", {}]);
+        }
+        for (const [title, path, body] of steps) {
+            const response = await apiPost(path, body);
+            if (!response.ok) {
+                showSettingsRefused(title, [await apiRefusal(response)]);
+                return;
+            }
+        }
+        document.getElementById("settingsAppliedSuccessDialog").showModal();
+    }
+
     function putForm(targetForm, saveToEeprom) {
+        if (targetForm.dataset.resource) {
+            putSettingsForm(targetForm, saveToEeprom);
+            return;
+        }
+        if (targetForm.dataset.system) {
+            applySystemControl(targetForm);
+            return;
+        }
         const paramData = new FormData(targetForm);
 
         // Remove empty param
@@ -1629,111 +1676,221 @@
         }
     }
 
-    // Update the trickler move speed in cleanup mode based on the slider input
+    // The cleanup's speed (API v1, gate 4): sent with a short time, and sent again while it is not 0, so a page
+    // that goes, or a phone that leaves the network, leaves no motor turning
+    const CLEANUP_TIME_S = 5;
+    var cleanupResendId = null;
+
+    function _stopCleanupResend() {
+        clearInterval(cleanupResendId);
+        cleanupResendId = null;
+        document.getElementById("tricklerSpeedSlider").value = "0";
+    }
+
+    function _sendCleanupSpeed() {
+        const speed = Number(document.getElementById("tricklerSpeedSlider").value);
+        return apiPatch("/api/v1/cleanup", speed == 0 ? {speed_rps: 0} : {speed_rps: speed, time_s: CLEANUP_TIME_S})
+        .then(response => {
+            // Refused (no cleanup runs, or it ended on a fault): the page sends no more, and shows 0
+            if (!response.ok) {
+                _stopCleanupResend();
+            }
+        })
+        .catch(error => _stopCleanupResend());
+    }
+
+    // Sent again only to a cleanup that still runs and was started from the web: never to one a person started at
+    // the unit after this page's had ended (review D4, 2026-11-16)
+    function _resendCleanupSpeed() {
+        fetch("/api/v1/cleanup")
+        .then(response => response.json())
+        .then(cleanup => {
+            if (cleanup.state == "running" && cleanup.by == "api") {
+                _sendCleanupSpeed();
+            }
+            else {
+                _stopCleanupResend();
+            }
+        })
+        .catch(error => _stopCleanupResend());
+    }
+
     function onTricklerSpeedUpdate() {
-        const new_speed = document.getElementById("tricklerSpeedSlider").value;
-        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(new_speed)}`;
-        fetch(uri);
+        _sendCleanupSpeed();
+        clearInterval(cleanupResendId);
+        const speed = Number(document.getElementById("tricklerSpeedSlider").value);
+        cleanupResendId = speed != 0 ? setInterval(_resendCleanupSpeed, 2000) : null;
     }
     const debouncedOnTricklerSpeedUpdate = debounce(onTricklerSpeedUpdate, 20);
 
     function onStopCleanupButtonClicked() {
-        document.getElementById("tricklerSpeedSlider").value = "0";
-        const uri = `/rest/cleanup_mode_state?s1=${encodeURIComponent(0)}`;
-        fetch(uri);
+        _stopCleanupResend();
+        apiPatch("/api/v1/cleanup", {speed_rps: 0});
+    }
+
+    // A stop is taken by the charge at its next loop (a precharge's 5 s at most), so a cleanup asked at once after it
+    // found the charge still running, and was refused. Asked once the charge is idle (review C3, 2026-11-16)
+    async function _waitForChargeIdle(timeoutMs) {
+        const until = Date.now() + timeoutMs;
+        while (Date.now() < until) {
+            try {
+                const charge = await (await fetch("/api/v1/charge")).json();
+                if (charge.state == "idle") {
+                    return;
+                }
+            }
+            catch (error) {
+            }
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
     }
 
     // Enter or exit the clean up mode
-    function enterCleanUpMode(enter) {
-        var cleanup_state_value = null;
+    async function enterCleanUpMode(enter) {
+        _stopCleanupResend();
         if (enter) {
-            cleanup_state_value = CleanupModeState.ENTER;
+            await _waitForChargeIdle(10000);
         }
-        else {
-            cleanup_state_value = CleanupModeState.EXIT;
-        }
-        const uri = `/rest/cleanup_mode_state?s0=${encodeURIComponent(cleanup_state_value)}`;
-        fetch(uri);
+        apiPost(enter ? "/api/v1/cleanup/start" : "/api/v1/cleanup/stop", {})
+        .then(async response => {
+            if (!response.ok && enter) {
+                showSettingsRefused("Cleanup not started", [await apiRefusal(response)]);
+            }
+        });
     }
 
+    function downloadJson(fileName, value) {
+        const blob = new Blob([JSON.stringify(value, null, "\t")], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // One profile, as the export holds it: imported back, it is written to the same profile
     async function onExportProfileBtnClicked(event) {
         // Skip the default response
         event.preventDefault();
 
-        const config = {};
-
-        // Read metadata
-        let response = await fetch("/rest/system_control");
-        const system_control_data = await response.json();
-        config["unique_id"] = system_control_data["s0"];
-        config["firmware_version"] = system_control_data["s1"];
-        config["vcs_hash"] = system_control_data["s2"];
-        config["config"] = {};
-
-        // get current selected profile
-        const select_profile = document.getElementById("select_profile_option");
-
-        // Fetch data from endpoints
-        const url_string = `/rest/profile_config?pf=${select_profile.value}`
-        response = await fetch(url_string);
-        const profile_data = await response.json();
-        config["config"][url_string] = profile_data;
-
-        // download as a file
-        const blob = new Blob([JSON.stringify(config, null, "\t")], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = profile_data["p2"] + ".json"
-        a.click();
-        URL.revokeObjectURL(url);
+        const selectProfile = document.getElementById("select_profile_option");
+        const path = `/api/v1/powder_profiles/${selectProfile.value}`;
+        const index = await (await fetch("/api/v1")).json();
+        const profile = await (await fetch(path)).json();
+        downloadJson(profile.name + ".json",
+                     {api: "1", firmware: index.firmware, unit_id: index.unit_id, resources: {[path]: profile}});
     }
 
+    // Every setting and profile, as the unit gives them (GET /api/v1/settings): no Wi-Fi key
     async function onExportConfigClicked() {
-        const config = {};
+        const settings = await (await fetch("/api/v1/settings")).json();
+        downloadJson(`opentrickler_${settings.unit_id}_settings.json`, settings);
+    }
 
-        const endpoints = [
-            "/rest/scale_config",
-            "/rest/charge_mode_config",
-            "/rest/coarse_motor_config",
-            "/rest/fine_motor_config",
-            "/rest/mini_12864_config",
-            "/rest/wireless_config",
-            "/rest/neopixel_led_config",
-            "/rest/profile_config?pf=0",
-            "/rest/profile_config?pf=1",
-            "/rest/profile_config?pf=2",
-            "/rest/profile_config?pf=3",
-            "/rest/profile_config?pf=4",
-            "/rest/profile_config?pf=5",
-            "/rest/profile_config?pf=6",
-            "/rest/profile_config?pf=7",
-            "/rest/servo_gate_config",
-        ]
+    /*
+        An export from before API v1 (gate 3) held each old path's codes. Each is read as v1's fields here, so a
+        backup taken before still restores: [the v1 path, {code: field, or [field, the values by their old index]}]
+    */
+    const oldExportMotor = {m0: "acceleration_rps2", m1: "full_steps_per_rotation", m2: "current_ma",
+                            m3: "microsteps", m4: "max_speed_rps", m5: "r_sense_mohm", m6: "min_speed_rps",
+                            m7: "gear_ratio", m8: "invert_enable", m9: "invert_direction"};
+    const oldExportPaths = {
+        "/rest/scale_config": ["/api/v1/settings/scale", {
+            s0: ["driver", ["and_fxi", "steinberg_sbs", "gng_jjb", "ussolid_jfdbs", "jm_science", "creedmoor",
+                            "radwag_ps_r2", "sartorius", "generic", "simulated"]],
+            s1: ["baud", [4800, 9600, 19200]], s2: ["format", ["8n1", "7n1"]]}],
+        "/rest/charge_mode_config": ["/api/v1/settings/charge", {
+            c1: "colour_good", c2: "colour_under", c3: "colour_over", c4: "colour_not_ready",
+            c5: "coarse_stop_threshold", c6: "fine_stop_threshold", c7: "steady_sd_margin", c8: "zero_mean_margin",
+            c9: ["decimal_places", [2, 3]], c10: "precharge_enable", c11: "precharge_time_ms",
+            c12: "precharge_speed_rps", c13: "coarse_stop_gate_ratio", c14: "coarse_stop_backoff_enable",
+            c15: "coarse_stop_backoff_turns", c16: "coarse_stop_backoff_speed_rps"}],
+        "/rest/coarse_motor_config": ["/api/v1/settings/motors/coarse", oldExportMotor],
+        "/rest/fine_motor_config": ["/api/v1/settings/motors/fine", oldExportMotor],
+        "/rest/mini_12864_config": ["/api/v1/settings/display", {
+            b0: "invert_encoder", b1: ["rotation", [0, null, 180, null]]}],
+        "/rest/wireless_config": ["/api/v1/settings/wifi", {
+            w0: "ssid", w2: ["auth", ["open", "wpa_tkip", "wpa2_aes", "wpa2_mixed"]], w3: "timeout_ms",
+            w4: "enable"}],
+        "/rest/neopixel_led_config": ["/api/v1/settings/leds", {
+            bl: "backlight_colour", l1: "led1_colour", l2: "led2_colour", l3: "pwm3_chain_count", l4: "pwm3_rgbw",
+            l5: ["pwm3_colour_order", ["rgb", "grb"]]}],
+        "/rest/servo_gate_config": ["/api/v1/settings/gate", {
+            c0: "enable", c1: "shutter0_close_duty", c2: "shutter0_open_duty", c3: "shutter1_close_duty",
+            c4: "shutter1_open_duty", c5: "close_speed_per_s", c6: "open_speed_per_s"}],
+    };
+    const oldExportProfile = {p2: "name", p3: "coarse_kp", p4: "coarse_ki", p5: "coarse_kd",
+                              p6: "coarse_min_speed_rps", p7: "coarse_max_speed_rps", p8: "fine_kp", p9: "fine_ki",
+                              p10: "fine_kd", p11: "fine_min_speed_rps", p12: "fine_max_speed_rps"};
 
-        // Read metadata
-        const response = await fetch("/rest/system_control");
-        const system_control_data = await response.json();
-        config["unique_id"] = system_control_data["s0"];
-        config["firmware_version"] = system_control_data["s1"];
-        config["vcs_hash"] = system_control_data["s2"];
-        config["config"] = {};
-
-        // Fetch data from endpoints
-        for (const endpoint of endpoints) {
-            const response = await fetch(endpoint);
-            const data = await response.json();
-            config["config"][endpoint] = data;
+    function oldExportToV1(config) {
+        const resources = {};
+        for (const [endpoint, values] of Object.entries(config)) {
+            const profile = endpoint.match(/^\/rest\/profile_config\?pf=(\d+)$/);
+            const [path, codes] = profile ? [`/api/v1/powder_profiles/${profile[1]}`, oldExportProfile] :
+                                  (oldExportPaths[endpoint] || [null, null]);
+            if (path === null) {
+                continue;
+            }
+            resources[path] = {};
+            for (const [code, value] of Object.entries(values)) {
+                const field = codes[code];
+                if (Array.isArray(field)) {
+                    const mapped = field[1][value];
+                    if (mapped !== undefined && mapped !== null) {
+                        resources[path][field[0]] = mapped;
+                    }
+                }
+                else if (field === "coarse_stop_gate_ratio" && value < 0) {
+                    resources[path][field] = null;     // -1: the gate is not moved
+                }
+                else if (field) {
+                    resources[path][field] = value;
+                }
+            }
         }
+        return resources;
+    }
 
-        // download as a file
-        const blob = new Blob([JSON.stringify(config, null, "\t")], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "opentrickler_"+config["unique_id"]+"_config.json";
-        a.click();
-        URL.revokeObjectURL(url);
+    /*
+        An import is the client's work (api_v1.md): a PATCH of each resource in turn, with the fields this unit's
+        schema has and may write. A field the unit refuses is left out and named, and the rest written.
+    */
+    async function importSettings(resources) {
+        const schema = await loadSettingsSchema();
+        const leftOut = [];
+        for (const [path, values] of Object.entries(resources)) {
+            const resource = schema[path.replace(/\/\d+$/, "/{id}")];
+            if (!resource) {
+                leftOut.push(`${path}: not on this unit`);
+                continue;
+            }
+            const body = {};
+            for (const [key, value] of Object.entries(values)) {
+                const field = resource.fields[key];
+                if (field && field.access !== "read") {
+                    body[key] = value;
+                }
+                else if (key !== "saved") {
+                    leftOut.push(`${path} ${key}: not a setting of this unit`);
+                }
+            }
+            while (Object.keys(body).length > 0) {
+                const response = await fetch(path, {method: "PATCH", headers: settingsJsonHeaders,
+                                                    body: JSON.stringify(body)});
+                if (response.ok) {
+                    break;
+                }
+                const error = (await response.json()).error || {};
+                leftOut.push(`${path} ${error.field || ""}: ${error.message}`);
+                if (!error.field || !(error.field in body)) {
+                    break;
+                }
+                delete body[error.field];
+            }
+        }
+        return leftOut;
     }
 
     async function onImportConfigClicked() {
@@ -1750,28 +1907,15 @@
 
             // Setup the callbacks
             const reader = new FileReader();
-            reader.onload = (event2) => {
+            reader.onload = async (event2) => {
                 try {
                     const data = JSON.parse(reader.result);
-    
-                    // Process data
-                    const source_firmware_version = data["firmware_version"];
-                    const source_unique_id = data["unique_id"];
-                    const source_vcs_hash = data["vcs_hash"];
-                    const config = data["config"];
 
-                    // Restore settings
-                    for (const [endpoint, config_data] of Object.entries(config)) {
-                        const paramData = new FormData();
-                        for (const [key, value] of Object.entries(config_data)) {
-                            paramData.append(key, value);
-                        }
-
-                        // Create URI
-                        const queryString = new URLSearchParams(paramData).toString();
-                        const uri = new URL(endpoint + "?", window.location.origin);
-                        uri.search = queryString;
-                        fetch(uri);
+                    // API v1's export, or one from before it
+                    const resources = data["resources"] || oldExportToV1(data["config"] || {});
+                    const leftOut = await importSettings(resources);
+                    if (leftOut.length > 0) {
+                        showSettingsRefused("Restored, but for these", leftOut);
                     }
 
                     // Update form

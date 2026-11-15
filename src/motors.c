@@ -17,6 +17,8 @@
 #include "motors.h"
 #include "eeprom.h"
 #include "common.h"
+#include "events.h"
+#include "settings.h"
 
 // The motors' task: every tick it moves each speed toward its target and feeds the step pulses. Above every task
 // that sets a speed: the pulses of a motor that should turn must not wait for them
@@ -270,6 +272,11 @@ bool driver_io_init(motor_config_t * motor_config) {
     return true;
 }
 
+// The motors' settings' tables, below motor_config_save() (ADR-003, gate 3)
+static const settings_resource_t coarse_motor_settings;
+static const settings_resource_t fine_motor_settings;
+
+
 static bool motor_persistent_config_is_valid(const motor_persistent_config_t * config) {
     return isfinite(config->angular_acceleration) &&
            config->angular_acceleration >= MOTOR_MIN_ACCELERATION && config->angular_acceleration <= MOTOR_MAX_ACCELERATION &&
@@ -338,6 +345,8 @@ bool motor_config_init(void) {
 
     // Register to eeprom save all
     eeprom_register_handler(motor_config_save);
+    settings_register(&coarse_motor_settings);
+    settings_register(&fine_motor_settings);
 
     return is_ok;
 }
@@ -358,6 +367,154 @@ bool motor_config_save() {
 
     return is_ok;
 }
+
+
+/*
+    The motors' settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/motors/coarse and /fine).
+    The two are stored as one block, so they share a save. Refused while a job runs: between throws the motors are
+    still enabled, and some of these set the driver up again.
+*/
+static const setting_choice_t motor_microsteps_choices[] = {
+    {.held = 1, .number = 1, .label = "1"},     {.held = 2, .number = 2, .label = "2"},
+    {.held = 4, .number = 4, .label = "4"},     {.held = 8, .number = 8, .label = "8"},
+    {.held = 16, .number = 16, .label = "16"},  {.held = 32, .number = 32, .label = "32"},
+    {.held = 64, .number = 64, .label = "64"},  {.held = 128, .number = 128, .label = "128"},
+    {.held = 256, .number = 256, .label = "256"},
+};
+
+
+#define MOTOR_FIELD(member) SETTING_AT(motor_persistent_config_t, member)
+
+static const setting_field_t motor_fields[] = {
+    {.name = "full_steps_per_rotation", .label = "Full steps a rotation", .group = "Motor",
+     .about = "The motor's full steps in one turn of its shaft",
+     .type = SETTING_INTEGER, MOTOR_FIELD(full_steps_per_rotation), .unit = "steps",
+     .min = MOTOR_MIN_FULL_STEPS, .max = MOTOR_MAX_FULL_STEPS, .applies = "now"},
+    {.name = "current_ma", .label = "Current", .group = "Driver",
+     .about = "The driver's run current",
+     .type = SETTING_INTEGER, MOTOR_FIELD(current_ma), .unit = "mA RMS", .min = MOTOR_MIN_CURRENT_MA,
+     .max = MOTOR_MAX_CURRENT_MA, .applies = "now: the driver is set up again"},
+    {.name = "microsteps", .label = "Microsteps", .group = "Driver",
+     .about = "Microsteps a full step",
+     .type = SETTING_CHOICE, MOTOR_FIELD(microsteps), SETTING_CHOICES(motor_microsteps_choices),
+     .applies = "now: the driver is set up again"},
+    {.name = "max_speed_rps", .label = "Maximum speed", .group = "Motor",
+     .about = "The fastest the motor is turned, whatever a profile asks",
+     .type = SETTING_NUMBER, MOTOR_FIELD(max_speed_rps), .held_as_integer = true, .unit = "rev/s",
+     .min = MOTOR_MIN_MAX_SPEED_RPS, .max = MOTOR_MAX_MAX_SPEED_RPS, .step = 1.0f, .applies = "now"},
+    {.name = "r_sense_mohm", .label = "Sense resistor", .group = "Driver",
+     .about = "The driver board's sense resistor, from which the current is set",
+     .type = SETTING_INTEGER, MOTOR_FIELD(r_sense), .unit = "mOhm", .min = MOTOR_MIN_R_SENSE,
+     .max = MOTOR_MAX_R_SENSE, .applies = "now: the driver is set up again"},
+    {.name = "acceleration_rps2", .label = "Acceleration", .group = "Motor",
+     .about = "How fast the motor's speed changes",
+     .type = SETTING_NUMBER, MOTOR_FIELD(angular_acceleration), .unit = "rev/s2", .min = MOTOR_MIN_ACCELERATION,
+     .max = MOTOR_MAX_ACCELERATION, .applies = "now"},
+    {.name = "min_speed_rps", .label = "Minimum speed", .group = "Motor",
+     .about = "The slowest the motor turns while it turns at all; not above the maximum speed",
+     .type = SETTING_NUMBER, MOTOR_FIELD(min_speed_rps), .unit = "rev/s", .min = 0.0f,
+     .max = MOTOR_MAX_MAX_SPEED_RPS, .applies = "now"},
+    {.name = "gear_ratio", .label = "Gear ratio", .group = "Motor",
+     .about = "Turns of the trickler a turn of the motor: a speed asked of the trickler is divided by it",
+     .type = SETTING_NUMBER, MOTOR_FIELD(gear_ratio), .min = MOTOR_MIN_GEAR_RATIO, .max = MOTOR_MAX_GEAR_RATIO,
+     .applies = "now"},
+    {.name = "invert_direction", .label = "Invert direction", .group = "Wiring",
+     .about = "The motor turns the other way",
+     .type = SETTING_BOOLEAN, MOTOR_FIELD(inverted_direction), .applies = "now"},
+    {.name = "invert_enable", .label = "Invert enable", .group = "Wiring",
+     .about = "The driver's enable pin is active high",
+     .type = SETTING_BOOLEAN, MOTOR_FIELD(inverted_enable), .applies = "when the motor is next enabled"},
+};
+
+
+static void *coarse_motor_settings_live(int32_t id) {
+    (void) id;
+    return &coarse_trickler_motor_config.persistent_config;
+}
+
+
+static void *fine_motor_settings_live(int32_t id) {
+    (void) id;
+    return &fine_trickler_motor_config.persistent_config;
+}
+
+
+static const char *motor_settings_check(const void *proposed, int32_t id, const char **field) {
+    (void) id;
+    const motor_persistent_config_t *config = proposed;
+    if (config->min_speed_rps > config->max_speed_rps) {
+        *field = "min_speed_rps";
+        return "min_speed_rps is above max_speed_rps";
+    }
+    return NULL;
+}
+
+
+// What the driver holds is written when it changes, not at the next start (ADR-012, fault 5)
+static void motor_settings_apply_to(motor_config_t *motor_config, const motor_persistent_config_t *before) {
+    const motor_persistent_config_t *now = &motor_config->persistent_config;
+    if (now->current_ma != before->current_ma || now->microsteps != before->microsteps ||
+        now->r_sense != before->r_sense) {
+        driver_setup(motor_config);
+    }
+}
+
+
+static void coarse_motor_settings_apply(const void *before, int32_t id) {
+    (void) id;
+    motor_settings_apply_to(&coarse_trickler_motor_config, before);
+}
+
+
+static void fine_motor_settings_apply(const void *before, int32_t id) {
+    (void) id;
+    motor_settings_apply_to(&fine_trickler_motor_config, before);
+}
+
+
+static bool motor_settings_is_saved(void) {
+    // The block as motor_config_save() stores it
+    eeprom_motor_data_t eeprom_motor_data;
+    memset(&eeprom_motor_data, 0x0, sizeof(eeprom_motor_data));
+    eeprom_motor_data.motor_data_rev = motor_data_rev;
+    memcpy(&eeprom_motor_data.motor_data[0], &coarse_trickler_motor_config.persistent_config,
+           sizeof(motor_persistent_config_t));
+    memcpy(&eeprom_motor_data.motor_data[1], &fine_trickler_motor_config.persistent_config,
+           sizeof(motor_persistent_config_t));
+    return config_is_saved(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, sizeof(eeprom_motor_data));
+}
+
+
+static const settings_resource_t coarse_motor_settings = {
+    .path = "/api/v1/settings/motors/coarse",
+    .save_path = "/api/v1/settings/motors/save",
+    .label = "Coarse trickler motor",
+    .about = "The coarse trickler's motor and its driver",
+    SETTING_FIELDS(motor_fields),
+    .refused_while = SETTINGS_REFUSED_A_JOB_RUNS,
+    .size = sizeof(motor_persistent_config_t),
+    .live = coarse_motor_settings_live,
+    .check = motor_settings_check,
+    .apply = coarse_motor_settings_apply,
+    .save = motor_config_save,
+    .is_saved = motor_settings_is_saved,
+};
+
+
+static const settings_resource_t fine_motor_settings = {
+    .path = "/api/v1/settings/motors/fine",
+    .save_path = "/api/v1/settings/motors/save",
+    .label = "Fine trickler motor",
+    .about = "The fine trickler's motor and its driver",
+    SETTING_FIELDS(motor_fields),
+    .refused_while = SETTINGS_REFUSED_A_JOB_RUNS,
+    .size = sizeof(motor_persistent_config_t),
+    .live = fine_motor_settings_live,
+    .check = motor_settings_check,
+    .apply = fine_motor_settings_apply,
+    .save = motor_config_save,
+    .is_saved = motor_settings_is_saved,
+};
 
 
 /*
@@ -638,15 +795,32 @@ static void motor_driver_check(motor_config_t * motor_config) {
 }
 
 
-// The drivers looked at while the unit runs, in every state (ADR-012, steps 4 and 6)
+// The drivers looked at while the unit runs, in every state (ADR-012, steps 4 and 6). A driver's state that
+// changed, wherever it changed (a reading, a setup, a start's check), is logged once a second at most: a fault as it
+// comes, cleared as it goes (ADR-003, gate 4)
 static void motor_status_task(void * p) {
     TickType_t last_wake_tick = xTaskGetTickCount();
+    motor_driver_fault_t logged[2] = {motor_driver_faults[0], motor_driver_faults[1]};
 
     while (true) {
         vTaskDelayUntil(&last_wake_tick, pdMS_TO_TICKS(MOTOR_STATUS_PERIOD_MS));
 
         motor_driver_check(&coarse_trickler_motor_config);
         motor_driver_check(&fine_trickler_motor_config);
+
+        motor_config_t * configs[2] = {&coarse_trickler_motor_config, &fine_trickler_motor_config};
+        for (int motor = 0; motor < 2; motor += 1) {
+            motor_driver_fault_t now = motor_driver_faults[configs[motor]->pulse_channel];
+            if (now == logged[motor]) {
+                continue;
+            }
+            event_t event = {.source = EVENT_SOURCE_MOTORS,
+                             .kind = now == MOTOR_DRIVER_OK ? EVENT_CLEARED : EVENT_FAULT,
+                             .number = (uint8_t) motor,
+                             .text = motor_driver_fault_words[now == MOTOR_DRIVER_OK ? logged[motor] : now]};
+            events_add(&event);
+            logged[motor] = now;
+        }
     }
 }
 
@@ -848,143 +1022,3 @@ const char * get_motor_select_string(motor_select_t selected_motor) {
 }
 
 
-void populate_rest_motor_config(motor_config_t * motor_config, char * buf, size_t max_len) {
-    // Mappings:
-    // m0 (float): angular_acceleration
-    // m1 (int): full_steps_per_rotation
-    // m2 (int): current_ma
-    // m3 (int): microsteps
-    // m4 (int): max_speed_rps
-    // m5 (int): r_sense
-    // m6 (float): min_speed_rps
-    // m7 (float): gear_ratio
-    // m8 (bool): inverted_enable
-    // m9 (bool): inverted_direction
-    // ee (bool): save to eeprom
-
-    // Build response
-    snprintf(buf, 
-             max_len,
-             "%s"
-             "{\"m0\":%0.3f,\"m1\":%ld,\"m2\":%d,\"m3\":%d,\"m4\":%d,\"m5\":%d,\"m6\":%0.3f,\"m7\":%0.7f,\"m8\":%s,\"m9\":%s}",
-             http_json_header,
-             motor_config->persistent_config.angular_acceleration, 
-             motor_config->persistent_config.full_steps_per_rotation,
-             motor_config->persistent_config.current_ma,
-             motor_config->persistent_config.microsteps,
-             motor_config->persistent_config.max_speed_rps,
-             motor_config->persistent_config.r_sense,
-             motor_config->persistent_config.min_speed_rps,
-             motor_config->persistent_config.gear_ratio,
-             boolean_to_string(motor_config->persistent_config.inverted_enable),
-             boolean_to_string(motor_config->persistent_config.inverted_direction));
-}
-
-void apply_rest_motor_config(motor_config_t * motor_config, int num_params, char *params[], char *values[]) {
-    bool save_to_eeprom = false;
-    bool changed = false;
-
-    // The settings as they would be: taken only if every one of them is in range
-    motor_persistent_config_t new_config = motor_config->persistent_config;
-
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "m0") == 0) {
-            new_config.angular_acceleration = strtof(values[idx], NULL);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m1") == 0) {
-            new_config.full_steps_per_rotation = strtol(values[idx], NULL, 10);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m2") == 0) {
-            new_config.current_ma = (uint16_t) atoi(values[idx]);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m3") == 0) {
-            new_config.microsteps = (uint16_t) atoi(values[idx]);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m4") == 0) {
-            new_config.max_speed_rps = (uint16_t) atoi(values[idx]);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m5") == 0) {
-            new_config.r_sense = (uint16_t) atoi(values[idx]);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m6") == 0) {
-            new_config.min_speed_rps = strtof(values[idx], NULL);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m7") == 0) {
-            new_config.gear_ratio = strtof(values[idx], NULL);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m8") == 0) {
-            new_config.inverted_enable = string_to_boolean(values[idx]);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "m9") == 0) {
-            new_config.inverted_direction = string_to_boolean(values[idx]);
-            changed = true;
-        }
-        else if (strcmp(params[idx], "ee") == 0) {
-            save_to_eeprom = string_to_boolean(values[idx]);
-        }
-    }
-
-    if (changed) {
-        if (!motor_persistent_config_is_valid(&new_config)) {
-            // Refused whole: the reply shows the settings as they still are, and nothing is stored
-            printf("Motor %u: a setting out of range is refused\n", motor_config->uart_addr);
-            return;
-        }
-
-        // What the driver holds is written when it changes, not at the next start (ADR-012, fault 5)
-        bool driver_changed = new_config.current_ma != motor_config->persistent_config.current_ma ||
-                              new_config.microsteps != motor_config->persistent_config.microsteps ||
-                              new_config.r_sense != motor_config->persistent_config.r_sense;
-
-        motor_config->persistent_config = new_config;
-
-        if (driver_changed) {
-            driver_setup(motor_config);
-        }
-    }
-
-    // Perform action
-    if (save_to_eeprom) {
-        motor_config_save();  // Note: this will save settings for both
-    }
-}
-
-
-bool http_rest_coarse_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char json_buffer[256];
-
-    apply_rest_motor_config(&coarse_trickler_motor_config, num_params, params, values);
-    populate_rest_motor_config(&coarse_trickler_motor_config, json_buffer, sizeof(json_buffer));
-
-    size_t response_len = strlen(json_buffer);
-    file->data = json_buffer;
-    file->len = response_len;
-    file->index = response_len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}
-
-bool http_rest_fine_motor_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    static char json_buffer[256];
-
-    apply_rest_motor_config(&fine_trickler_motor_config, num_params, params, values);
-    populate_rest_motor_config(&fine_trickler_motor_config, json_buffer, sizeof(json_buffer));
-
-    size_t response_len = strlen(json_buffer);
-    file->data = json_buffer;
-    file->len = response_len;
-    file->index = response_len;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}

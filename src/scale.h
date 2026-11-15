@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 #include "app.h"
-#include "http_rest.h"
 #include <semphr.h>
 
 #define EEPROM_SCALE_DATA_REV                     3              // 16 byte 
@@ -132,8 +131,22 @@ void simulated_scale_go_quiet(uint32_t ms);
 void scale_tap_frame(const uint8_t * bytes, size_t len, float value);
 
 void set_scale_driver(scale_driver_t scale_driver);
+// The driver that runs: the stored one, or the simulated scale while the remote control has it on (ADR-003, gate 3)
+scale_driver_t scale_get_running_driver(void);
 
+// The name of the driver that runs
 const char * get_scale_driver_string();
+
+// The weight's unit where the make's frame carries it (the A&D's): "g", "gn"; NULL when it cannot tell (gate 4)
+void scale_publish_unit(const char *unit, size_t len);
+const char *scale_get_unit(void);
+// Whether the driver that runs can ask its scale to zero
+bool scale_can_zero(void);
+// Ask the scale to zero, counted: a charge waiting for zero takes no readings from before one (gate 4)
+void scale_ask_zero(void);
+uint32_t scale_get_zero_count(void);
+// A driver's name in the API ("and_fxi")
+const char *scale_driver_api_name(scale_driver_t driver);
 
 bool scale_config_save(void);
 
@@ -141,8 +154,6 @@ bool scale_config_save(void);
 void scale_write(const char * command, size_t len);
 
 // REST
-bool http_rest_scale_action(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_scale_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
 
 // Features

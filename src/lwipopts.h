@@ -25,20 +25,32 @@
 #define LWIP_SO_RCVTIMEO 1
 #endif
 
-// Lwip features
-#define LWIP_HTTPD_CGI                  1    // Enable HTTPCGI
-#define LWIP_HTTPD_SUPPORT_POST         0    // Enable POST
-#define LWIP_HTTPD_CUSTOM_FILES         0   
-#define LWIP_HTTPD_DYNAMIC_FILE_READ    0
-#define LWIP_HTTPD_DYNAMIC_HEADERS      0
-#define LWIP_HTTPD_MAX_REQUEST_URI_LEN  128
-// lwIP takes 16 values from a request and drops the rest. The charge-mode page sends 17, and its last is "save to
-// EEPROM" (ADR-012; audit H2). No more than the pages need: each value is 8 bytes in every connection's state, which
-// comes out of lwIP's 4,000-byte heap. At 32 a third of the web's reads were lost under two browsers (ADR-012's
-// progress, step 5)
-#define LWIP_HTTPD_MAX_CGI_PARAMETERS   20
-#define LWIP_HTTPD_DYNAMIC_HEADERS      0
-#define LWIP_SOCKETS 1
+// lwIP's sockets, for our own server (ADR-003, gate 2). This said `LWIP_SOCKETS 1`, which is no lwIP option: the
+// sockets and the netconn layer under them were off. lwIP's names only (lwip_socket, lwip_close...), so no other file
+// gets macros named close, read or select
+#undef LWIP_SOCKET
+#define LWIP_SOCKET 1
+#undef LWIP_NETCONN
+#define LWIP_NETCONN 1
+#define LWIP_COMPAT_SOCKETS 0
+#define LWIP_POSIX_SOCKETS_IO_NAMES 0
+// A reset in place of a close for a reply that stalls, so lwIP frees what it held at once
+#define LWIP_SO_LINGER 1
+// The mailboxes a socket's data and its new connections wait in: lwIP's 0 would make none
+#define DEFAULT_TCP_RECVMBOX_SIZE 8
+#define DEFAULT_ACCEPTMBOX_SIZE 8
+#define DEFAULT_UDP_RECVMBOX_SIZE 8
+// A netconn lives until its connection has closed, not until the server lets go of it: with clients that open a
+// connection a request (urllib, curl), 10 ran out 17 times in a soak. One for each TCP connection lwIP keeps, and the
+// listener and more
+#define MEMP_NUM_NETCONN 16
+// A socket's send copies what it sends into lwIP's heap, up to its send buffer, so the heap holds every connection's
+// send buffer at once. At the examples' 8 segments (11.7 KB) one page load took the heap to 14,888 of its 16,384
+// bytes; at 4, a soak with a tuning session's load ran it out 340 times and missed 43% of the web's reads. At 2
+// segments (2.9 KB, lwIP's least that runs smoothly) the server's six connections hold at most about 19 KB together.
+// TCP_SND_QUEUELEN follows it (common header)
+#undef TCP_SND_BUF
+#define TCP_SND_BUF (2 * TCP_MSS)
 
 // MDNS
 #define LWIP_MDNS_RESPONDER 1
@@ -59,11 +71,15 @@
 #undef MEMP_STATS
 #define MEMP_STATS 1
 
-// lwIP's heap (ADR-003, gate 1). It holds each web connection's state, the header of each TCP segment in flight and
-// a copy of each reply from RAM. The Pico examples' 4,000 bytes ran out under two browsers and a charge: 7,404 failed
-// allocations and 8.9% of the web's reads missed in ten minutes. With room to spare the web used 8,824 and 10,364 at
-// most in two soaks of the same load: the most moves with the Wi-Fi. This is the larger and half as much again
+// lwIP's heap (ADR-003). Gate 1, on lwIP's file server: the Pico examples' 4,000 bytes ran out under two browsers and
+// a charge (7,404 failed allocations, 8.9% of the web's reads missed); 16,384, the most two soaks used and half as much
+// again, ran out none. Gate 2, on sockets: every byte sent is copied into this heap and held there until the client
+// acknowledges it, by every TCP connection lwIP keeps, those the server has closed and that still wait for their last
+// acknowledgment included. So it is sized by that bound, not by a soak: MEMP_NUM_TCP_PCB (12) connections of
+// TCP_SND_BUF (2 segments) with their headers, about 37 KB, and lwIP's own (1 KB at rest; ARP, DHCP, mDNS, the ACKs).
+// 24 KB, sized for the server's six slots alone, ran out 54 times under a tuning session's load. The 16 KB more is
+// taken from the FreeRTOS heap (FreeRTOSConfig.h), which had some 75 KB free through every soak
 #undef MEM_SIZE
-#define MEM_SIZE 16384
+#define MEM_SIZE 40960
 
 #endif

@@ -2,8 +2,9 @@
 #define CHARGE_MODE_H_
 
 #include <stdint.h>
-#include "http_rest.h"
+#include "activity.h"
 #include "common.h"
+#include "events.h"
 #include "neopixel_led.h"
 
 
@@ -63,25 +64,57 @@ extern "C" {
 
 
 bool charge_mode_config_init(void);
+// Its settings' table, for the API and the console (charge_mode_settings.c; ADR-003, gate 3)
+bool charge_mode_settings_register(void);
 
-/**
- * @brief Start charge mode from outside the menu, as the web page and the remote control do: the menu leaves its
- * form and enters charge mode with this target. Only while charge mode is not running.
- * @return false when charge mode is already running.
- */
-bool charge_mode_start_remote(float target_charge_weight);
-
-/**
- * @brief Leave charge mode from outside the menu: the reset button, as at the unit.
- * @return false when charge mode is not running.
- */
-bool charge_mode_stop_remote(void);
-uint8_t charge_mode_menu(bool charge_mode_skip_user_input);
+uint8_t charge_mode_menu(void);
 bool charge_mode_config_save(void);
 
-// REST interface
-bool http_rest_charge_mode_config(struct fs_file *file, int num_params, char *params[], char *values[]);
-bool http_rest_charge_mode_state(struct fs_file *file, int num_params, char *params[], char *values[]);
+// The seconds of the throw under way, or of the last one (ADR-003's GET /api/v1/charge; the screen's own figure)
+float charge_mode_get_elapsed_s(void);
+
+/*
+ * One target for the unit (ADR-003, gate 4): the menu's weight digits show it and set it. 0 when unset. Setting it
+ * fails for a target the digits cannot show: 0.01 to 999.99 at two decimals, 0.001 to 99.999 at three, in their
+ * steps. Between throws it is the next throw's.
+ */
+float charge_mode_get_target(void);
+bool charge_mode_target_fits(float target);
+bool charge_mode_set_target(float target);
+// The same at other decimals: for a change of decimal places, which keeps the target's weight (review D2)
+float charge_mode_target_at(decimal_places_t places);
+bool charge_mode_target_fits_at(float target, decimal_places_t places);
+// After the decimals changed from before: the digits written again for the same weight
+void charge_mode_keep_target(decimal_places_t before);
+
+/*
+ * A charge asked from outside the menu, by the API or the console (gate 4): handed to the menu with no wait, or
+ * refused. target (NAN: the one set) and powder_profile (-1: the one chosen) are written only once the start is
+ * taken, so a start refused writes nothing; the caller has checked them. A stop is
+ * activity_request_stop(ACTIVITY_CHARGE, by).
+ */
+typedef enum {
+    CHARGE_START_OK = 0,
+    CHARGE_START_BUSY,          // a job runs, a start is asked already, or a person has a mode or a view at the unit
+    CHARGE_START_DRIVER_FAULT,
+    CHARGE_START_NO_TARGET,
+} charge_start_result_t;
+charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
+
+// The charge as GET /api/v1/charge gives it
+typedef struct {
+    const char *state;      // idle, starting, zeroing, charging, waiting_for_cup_removal, waiting_for_cup_return, fault
+    bool in_throw;
+    uint16_t throw_number;  // this throw's, or the last's: from 1 at each start of the unit
+    bool paused;            // a throw waits for readings (ADR-013)
+    float target;           // 0: unset
+    float elapsed_s;
+    uint16_t last_throw;
+    event_result_t last_result;
+    event_reason_t last_reason;
+    float last_weight;
+} charge_status_t;
+void charge_mode_get_status(charge_status_t *status);
 
 
 #ifdef __cplusplus

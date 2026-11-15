@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "http_rest.h"
 
 #define EEPROM_METADATA_BASE_ADDR               0 * 1024       // 0K
 #define EEPROM_SCALE_CONFIG_BASE_ADDR           1 * 1024       // 1K

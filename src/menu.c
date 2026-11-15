@@ -7,6 +7,7 @@
 #include <mui.h>
 #include <mui_u8g2.h>
 
+#include "activity.h"
 #include "app.h"
 #include "configuration.h"
 #include "scale.h"
@@ -72,7 +73,16 @@ bool menu_goto_form(uint8_t form_id, bool *found) {
     return true;
 }
 
+void menu_wake(void) {
+    // No wait: with the queue full the menu still looks within MENU_TITLE_CHECK_MS, while the request is fresh
+    ButtonEncoderEvent_t button_encoder_event = MENU_WAKE;
+    xQueueSend(encoder_event_queue, &button_encoder_event, 0);
+}
+
+
 uint8_t menu_motor_fault_view(void) {
+    // A view at the unit: no start is taken over it (ADR-003, gate 4)
+    activity_job_begin(ACTIVITY_VIEW);
     u8g2_t * display_handler = get_display_handler();
     const char * motor_fault = motors_get_fault();
 
@@ -89,6 +99,7 @@ uint8_t menu_motor_fault_view(void) {
     while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
     }
 
+    activity_job_end();
     return 1;  // the main menu, whose title names the driver
 }
 
@@ -152,7 +163,14 @@ void menu_task(void *p){
         if (mui_IsFormActive(&mui)) {
             // Wait for the user input; with none, the menu is drawn again only if the main menu's title changed
             ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(MENU_TITLE_CHECK_MS);
-            if (button_encoder_event == BUTTON_NO_EVENT) {
+            activity_t asked;
+            if (activity_take_start(&asked)) {
+                // A start asked by the API or the console (ADR-003, gate 4): the mode, as its form's button enters it
+                exit_state = asked == ACTIVITY_CLEANUP ? APP_STATE_ENTER_CLEANUP_MODE : APP_STATE_ENTER_CHARGE_MODE;
+                mui_SaveForm(&mui);          // store the current form and position so that the child can jump back
+                mui_LeaveForm(&mui);
+            }
+            else if (button_encoder_event == BUTTON_NO_EVENT || button_encoder_event == MENU_WAKE) {
                 if (mui_GetCurrentFormId(&mui) != 1 || menu_main_title() == drawn_title) {
                     continue;
                 }
@@ -174,11 +192,6 @@ void menu_task(void *p){
                     mui_GotoForm(&mui, parent_form_id, 0);
                 }
             }
-            else if (button_encoder_event == OVERRIDE_FROM_REST) {
-                // Assuming the caller code will set the exit_state
-                mui_SaveForm(&mui);          // store the current form and position so that the child can jump back
-                mui_LeaveForm(&mui);
-            }
             else if (button_encoder_event == OVERRIDE_GOTO_FORM) {
                 // A form that does not exist leaves the current one on screen
                 menu_goto_form_found = mui_GotoForm(&mui, menu_goto_form_id, 0);
@@ -196,16 +209,15 @@ void menu_task(void *p){
                     exit_form_id = menu_motor_fault_view();
                     break;
                 case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_form_id = charge_mode_menu(false);
-                    break;
-                case APP_STATE_ENTER_CHARGE_MODE_FROM_REST:
-                    exit_form_id = charge_mode_menu(true);
+                    exit_form_id = charge_mode_menu();
                     break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
                     exit_form_id = cleanup_mode_menu();
                     break;
                 case APP_STATE_ENTER_SCALE_CALIBRATION:
+                    activity_job_begin(ACTIVITY_SCALE_CALIBRATION);
                     exit_form_id = scale_calibrate_with_external_weight();
+                    activity_job_end();
                     break;
                 case APP_STATE_ENTER_EEPROM_SAVE: 
                     exit_form_id = eeprom_save_all();
@@ -217,12 +229,16 @@ void menu_task(void *p){
                     exit_form_id = software_reboot();
                     break;
                 case APP_STATE_ENTER_WIFI_INFO:
+                    activity_job_begin(ACTIVITY_VIEW);
                     exit_form_id = wireless_view_wifi_info();
+                    activity_job_end();
                     break;
                 default:
                     break;
             }
 
+            // A start the mode did not begin (a driver not OK) is done with: it never starts later
+            activity_clear_start();
             mui_GotoForm(&mui, exit_form_id, 0);
         }
 

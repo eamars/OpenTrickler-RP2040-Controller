@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 #include <semphr.h>
-#include "http_rest.h"
 #include "common.h"
 
 #define EEPROM_NEOPIXEL_LED_METADATA_REV                     4              // 16 byte 
@@ -93,9 +92,7 @@ extern "C" {
 bool neopixel_led_init(void);
 bool neopixel_led_config_save();
 void neopixel_led_set_colour(rgbw_u32_t mini12864_backlight_colour, rgbw_u32_t led1_colour, rgbw_u32_t led2_colour, bool block_wait);
-bool http_rest_neopixel_led_config(struct fs_file *file, int num_params, char *params[], char *values[]);
 
-uint32_t hex_string_to_decimal(char * string);
 
 // Low level function to bypass RTOS to configure colour directly
 void _neopixel_led_set_colour(uint32_t led1_colour, uint32_t led2_colour, uint32_t mini12864_backlight_colour);

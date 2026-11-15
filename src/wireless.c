@@ -2,17 +2,19 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
-// #include <lwip/apps/httpd.h>
-
 #include "wireless.h"
 #include "eeprom.h"
 #include "access_point_mode.h"
 #include "display.h"
 #include "mini_12864_module.h"
-#include "http_rest.h"
 #include "rest_endpoints.h"
+#include "http_server.h"
 #include "common.h"
+#include "settings.h"
+#include "version.h"
 #include "lwip/apps/mdns.h"
+#include <string.h>
+#include <strings.h>
 
 
 #ifdef CYW43_HOST_NAME
@@ -154,6 +156,65 @@ void wirelss_info_render_task(void *p) {
 }
 
 
+/*
+    The Wi-Fi's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/settings/wifi). Each applies at the
+    next start, when the unit joins the network. The key is written only: never in a reply, nor in the export.
+*/
+static const setting_choice_t wifi_auth_choices[] = {
+    {.held = AUTH_OPEN, .text = "open", .label = "Open"},
+    {.held = AUTH_WPA_TKIP_PSK, .text = "wpa_tkip", .label = "WPA (TKIP)"},
+    {.held = AUTH_WPA2_AES_PSK, .text = "wpa2_aes", .label = "WPA2 (AES)"},
+    {.held = AUTH_WPA2_MIXED_PSK, .text = "wpa2_mixed", .label = "WPA/WPA2 mixed"},
+};
+
+
+#define WIFI_FIELD(member) SETTING_AT(eeprom_wireless_metadata_t, member)
+
+static const setting_field_t wifi_fields[] = {
+    {.name = "enable", .label = "Wi-Fi", .group = "Wi-Fi",
+     .about = "The unit joins this network at its start; off, it is its own access point",
+     .type = SETTING_BOOLEAN, WIFI_FIELD(enable), .applies = "at_restart"},
+    {.name = "ssid", .label = "Network name", .group = "Wi-Fi",
+     .about = "The network's name (SSID)",
+     .type = SETTING_STRING, WIFI_FIELD(ssid), .length_min = 1, .applies = "at_restart"},
+    {.name = "key", .label = "Key", .group = "Wi-Fi",
+     .about = "The network's key; never sent back",
+     .type = SETTING_STRING, WIFI_FIELD(pw), .access = SETTING_WRITE_ONLY, .applies = "at_restart"},
+    {.name = "auth", .label = "Security", .group = "Wi-Fi",
+     .about = "The network's security",
+     .type = SETTING_CHOICE, WIFI_FIELD(auth), SETTING_CHOICES(wifi_auth_choices), .applies = "at_restart"},
+    {.name = "timeout_ms", .label = "Join timeout", .group = "Wi-Fi",
+     .about = "How long the unit tries to join before it gives up",
+     .type = SETTING_INTEGER, WIFI_FIELD(timeout_ms), .unit = "ms", .min = 1000.0f, .max = 120000.0f,
+     .applies = "at_restart"},
+};
+
+
+static void *wifi_settings_live(int32_t id) {
+    (void) id;
+    return &wireless_config.eeprom_wireless_metadata;
+}
+
+
+static bool wifi_settings_is_saved(void) {
+    return config_is_saved(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &wireless_config.eeprom_wireless_metadata,
+                           sizeof(eeprom_wireless_metadata_t));
+}
+
+
+static const settings_resource_t wifi_settings = {
+    .path = "/api/v1/settings/wifi",
+    .save_path = "/api/v1/settings/wifi/save",
+    .label = "Wi-Fi",
+    .about = "The network the unit joins",
+    SETTING_FIELDS(wifi_fields),
+    .refused_while = SETTINGS_REFUSED_NEVER,
+    .size = sizeof(eeprom_wireless_metadata_t),
+    .live = wifi_settings_live,
+    .save = wireless_config_save,
+    .is_saved = wifi_settings_is_saved,
+};
+
 
 bool wireless_init() {
     bool is_ok = true;
@@ -178,10 +239,13 @@ bool wireless_init() {
 
     // Register to eeprom save all
     eeprom_register_handler(wireless_config_save);
+    settings_register(&wifi_settings);
 
-    // Generate the hostname
-    char id[4];
-    eeprom_get_board_id(id, sizeof(id));
+    // Generate the hostname: the id's first four characters, with their ending (ADR-003, gate 4). The id was printed
+    // with %s from four bytes and no ending, and whatever lay after them on the stack went into the name
+    char id[5];
+    eeprom_get_board_id(id, 4);
+    id[4] = '\0';
     snprintf(host_name, sizeof(host_name), "opentrickler-%s", id);
 
 
@@ -270,6 +334,44 @@ void led_interface_task(void *p) {
 }
 
 
+// The unit's address on the network it is on: its station's, or its own access point's
+static bool wireless_own_address(char *buf, size_t len) {
+    int itf = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN ? CYW43_ITF_AP : CYW43_ITF_STA;
+    const ip4_addr_t *addr = netif_ip4_addr(&cyw43_state.netif[itf]);
+    if (addr == NULL || ip4_addr_isany(addr)) {
+        return false;
+    }
+    return ip4addr_ntoa_r(addr, buf, (int) len) != NULL;
+}
+
+
+// Whether a request's Host is the unit's own: its address, or its host name with or without ".local", any port
+// (ADR-003: a page that has pointed its own name at the unit is refused)
+static bool wireless_host_is_own(const char *host) {
+    char name[64];
+    size_t len = strcspn(host, ":");
+    if (len >= sizeof(name)) {
+        return false;
+    }
+    memcpy(name, host, len);
+    name[len] = '\0';
+    if (len > 0 && name[len - 1] == '.') {
+        name[--len] = '\0';     // a fully qualified name's trailing dot
+    }
+
+    char address[24];
+    if (wireless_own_address(address, sizeof(address)) && strcmp(name, address) == 0) {
+        return true;
+    }
+    size_t host_len = strlen(host_name);
+    if (strncasecmp(name, host_name, host_len) == 0 &&
+        (name[host_len] == '\0' || strcasecmp(name + host_len, ".local") == 0)) {
+        return true;
+    }
+    return false;
+}
+
+
 static void srv_txt(struct mdns_service *service, void *txt_userdata)
 {
   err_t res;
@@ -277,6 +379,47 @@ static void srv_txt(struct mdns_service *service, void *txt_userdata)
 
   res = mdns_resp_add_service_txtitem(service, "path=/", 6);
   LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
+
+  // The API's version and the firmware's, so a client finds which unit runs what before it asks (ADR-003, gate 4)
+  res = mdns_resp_add_service_txtitem(service, "api=1", 5);
+  LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
+  char firmware[64];
+  int len = snprintf(firmware, sizeof(firmware), "firmware=%s", version_string);
+  if (len > 0 && len < (int) sizeof(firmware)) {
+      res = mdns_resp_add_service_txtitem(service, firmware, (u8_t) len);
+      LWIP_ERROR("mdns add service txt failed\n", (res == ERR_OK), return);
+  }
+}
+
+
+void wireless_get_info(wireless_info_t *info) {
+    memset(info, 0, sizeof(*info));
+    info->hostname = host_name;
+    switch (wireless_config.current_wireless_state) {
+        case WIRELESS_STATE_STA_MODE_INIT:
+        case WIRELESS_STATE_STA_MODE_LISTEN:
+            info->mode = "station";
+            snprintf(info->ssid, sizeof(info->ssid), "%s", wireless_config.eeprom_wireless_metadata.ssid);
+            break;
+        case WIRELESS_STATE_AP_MODE_INIT:
+        case WIRELESS_STATE_AP_MODE_LISTEN:
+            info->mode = "access_point";
+            snprintf(info->ssid, sizeof(info->ssid), "%s", host_name);     // the access point is named so
+            break;
+        default:
+            info->mode = "none";
+            break;
+    }
+    if (!wireless_own_address(info->address, sizeof(info->address))) {
+        info->address[0] = '\0';
+    }
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
+        int32_t rssi = 0;
+        cyw43_arch_lwip_begin();
+        info->has_rssi = cyw43_wifi_get_rssi(&cyw43_state, &rssi) == 0;
+        cyw43_arch_lwip_end();
+        info->rssi = rssi;
+    }
 }
 
 void wireless_task(void *p) {
@@ -369,10 +512,12 @@ void wireless_task(void *p) {
     // If the current wireless state is AP mode then we will map / to the wifi configuration
     rest_endpoints_init(wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN);
 
-    // Start the HTTP server
-    cyw43_arch_lwip_begin();
-    httpd_init();
-    cyw43_arch_lwip_end();
+    // Start our own HTTP server (ADR-003, gate 2), in its own task, on lwIP's sockets
+    static const http_server_network_t http_network = {
+        .host_is_own = wireless_host_is_own,
+        .own_address = wireless_own_address,
+    };
+    http_server_start(&http_network);
 
     while (true) {
         wireless_ctrl_t wireless_ctrl;
@@ -425,82 +570,3 @@ uint8_t wireless_view_wifi_info(void) {
 }
 
 
-bool http_rest_wireless_config(struct fs_file *file, int num_params, char *params[], char *values[]) {
-    // Mapping
-    // w0 (str): ssid
-    // w1 (str): pw
-    // w2 (int): auth
-    // w3 (int): timeout_ms
-    // w4 (bool): enable
-    // ee (bool): save to eeprom
-
-    static char wireless_config_json_buffer[256];
-    bool save_to_eeprom = false;
-
-    /*
-        A name or a key is taken only if it fits with its ending: 31 characters, and 63, the longest a WPA passphrase
-        can be (ADR-012; audit W2). A longer one is refused, not cut: a cut name is another network's. The form is
-        refused whole, so a name is never left with another name's key.
-    */
-    for (int idx = 0; idx < num_params; idx += 1) {
-        bool is_name = strcmp(params[idx], "w0") == 0;
-        bool is_key = strcmp(params[idx], "w1") == 0;
-        size_t room = is_name ? sizeof(wireless_config.eeprom_wireless_metadata.ssid) :
-                      is_key ? sizeof(wireless_config.eeprom_wireless_metadata.pw) : 0;
-        if ((is_name || is_key) && strlen(values[idx]) >= room) {
-            printf("WiFi: a %s of %u characters is refused\n", is_name ? "name" : "key", (unsigned) strlen(values[idx]));
-            num_params = 0;
-            break;
-        }
-    }
-
-    // If the argument includes control, then update the settings
-    for (int idx = 0; idx < num_params; idx += 1) {
-        if (strcmp(params[idx], "w0") == 0) {
-            strcpy(wireless_config.eeprom_wireless_metadata.ssid, values[idx]);
-        }
-        else if (strcmp(params[idx], "w1") == 0) {
-            strcpy(wireless_config.eeprom_wireless_metadata.pw, values[idx]);
-        }
-        else if (strcmp(params[idx], "w2") == 0) {
-            cyw43_auth_t auth = (cyw43_auth_t) atoi(values[idx]);
-            wireless_config.eeprom_wireless_metadata.auth = auth;
-        }
-        else if (strcmp(params[idx], "w3") == 0) {
-            int timeout_ms = (uint16_t) atoi(values[idx]);
-            wireless_config.eeprom_wireless_metadata.timeout_ms = timeout_ms;
-        }
-        else if (strcmp(params[idx], "w4") == 0) {
-            bool enable = string_to_boolean(values[idx]);
-            wireless_config.eeprom_wireless_metadata.enable = enable;
-        }
-        else if (strcmp(params[idx], "ee") == 0) {
-            save_to_eeprom = string_to_boolean(values[idx]);
-        }
-    }
-
-    // Perform action
-    if (save_to_eeprom) {
-        wireless_config_save();
-    }
-
-    // Response
-    snprintf(wireless_config_json_buffer, 
-             sizeof(wireless_config_json_buffer),
-             "%s"
-             "{\"w0\":\"%s\",\"w2\":%d,\"w3\":%"PRId32",\"w4\":%s}",
-             http_json_header,
-             wireless_config.eeprom_wireless_metadata.ssid,
-            //  wireless_config.eeprom_wireless_metadata.pw,  // No, we don't send the password over anymore
-             wireless_config.eeprom_wireless_metadata.auth,
-             wireless_config.eeprom_wireless_metadata.timeout_ms,
-             boolean_to_string(wireless_config.eeprom_wireless_metadata.enable));
-
-    size_t data_length = strlen(wireless_config_json_buffer);
-    file->data = wireless_config_json_buffer;
-    file->len = data_length;
-    file->index = data_length;
-    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
-
-    return true;
-}
