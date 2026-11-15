@@ -267,11 +267,17 @@ Each finding was read again in the code first: all six were as the audit said. O
 | The charge's screens after the fix | The fault's whole name on its own, in states 1, 2 and 3; the scale's "Scale: no reading" as in ADR-013 |
 | With both drivers OK (1.20.137) | `menu_tour --compare` passed, the main menu unchanged; `charge_cycle` 14.5 s; `charge_fault none`, `bad`, `quiet` as before |
 
-**Left for step 6:** the same on the Pico W, and the owner's lifted module once more.
+**What the Pico W showed** (1.20.137 at 7838689, 13:05 to 13:12, its settings copied before the flash and unchanged since this ADR's first; `logs/adr012/picow/step6_regress.log`, `step6_proof.log`, the screens in `logs/adr012/picow/step6/`): every case of the Pico 2 W's table, with the same result.
+- The title "No fine driver" after the 3 missed readings, the tries after it silent; Start and Cleanup refused at the press with the fault screen; the web's charge and cleanup refused, their states 0 after the press; the driver found again by itself 4 s after `find`.
+- A short while waiting for zero, "hot" while waiting for the cup to go, a short in a throw: each "Charge: ended, ..." in that state (1, 3, 2), the fault's whole name on the screen. The title kept the short until Start looked again, then went on to the profile.
+- A short in a running cleanup at 0.5 rev/s: both motors at 0, "Cleanup: ended, Coarse driver short".
+- With both drivers OK: `menu_tour --compare` passed, the main menu unchanged; `charge_cycle` 17.0 s and 16.9 s (17.0 s before the ADR); `charge_fault none`, `bad`, `quiet` as before.
+
+**Left for step 6:** the owner's lifted module once more.
 
 ## Where it stands
 
-2026-11-15. All six steps are built. The Pico 2 W runs 1.20.137 at 7838689, with step 6; the Pico W 1.20.131 at c919ece, without it. Steps 1 to 5 on the Pico 2 W:
+2026-11-15. All six steps are built. Both units run 1.20.137 at 7838689. Steps 1 to 5 on the Pico 2 W:
 
 | Proof | Result |
 |---|---|
@@ -284,8 +290,9 @@ Each finding was read again in the code first: all six were as the audit said. O
 
 On the Pico W every proof above passes but the soak, which fails on the web alone: this ADR's image misses more of the web's reads than the one before it, and resets connections, most when the Wi-Fi is poor ("The Pico W" above). The cause is step 5's room for 20 values in each connection's state; the fix is ADR-003's. The owner accepted it as it is, 2026-11-15: "Yes, leave it to ADR-003".
 
+Step 6 passes on both units ("Step 6" above).
+
 **Left before the ADR can close**
-- **Step 6 on the Pico W:** its fail-early paths and the checks with both drivers OK, as on the Pico 2 W. The probe last failed to reach it (12:54); it needs the owner to put it back on.
 - **By the owner's hand:**
   - a driver module lifted with the power off, then a start: done before step 6 (the unit reached the menu and named the driver only once a mode was asked for, which led to step 6); once more with step 6: the title names it, and Start and Cleanup refuse at the press;
   - a phone on the unit's access point: the unit's page must open by its name (W1);
