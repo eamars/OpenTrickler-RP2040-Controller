@@ -603,6 +603,12 @@ done:
 
 // --- The API's replies
 
+// A field with limits: a number, or an integer
+static bool field_is_number(const setting_field_t *field) {
+    return field->type == SETTING_NUMBER || field->type == SETTING_INTEGER;
+}
+
+
 static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) {
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
@@ -618,7 +624,7 @@ static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) 
     http_json_raw(out, room, &len, ",\"message\":");
     http_json_string(out, room, &len, outcome->message);
     const setting_field_t *field = outcome->field;
-    if (field != NULL && strcmp(outcome->code, "out_of_range") == 0) {
+    if (field != NULL && field_is_number(field) && strcmp(outcome->code, "out_of_range") == 0) {
         if (!isnan(field->min)) {
             http_json_raw(out, room, &len, ",\"min\":");
             http_json_float(out, room, &len, field->min);
@@ -942,13 +948,16 @@ static void write_field_schema(const settings_resource_t *resource, const settin
     write_optional_string(out, room, len, "group", field->group);
     write_optional_string(out, room, len, "type", type_name(field));
     write_optional_string(out, room, len, "unit", field->unit);
-    write_optional_float(out, room, len, "min", field->min);
-    write_optional_float(out, room, len, "max", field->max);
-    if (field->step > 0.0f) {
-        write_optional_float(out, room, len, "step", field->step);
-    }
-    else if (field->type == SETTING_INTEGER || field->held_as_integer) {
-        write_optional_float(out, room, len, "step", 1.0f);
+    // Limits and a step are a number's: a table leaves them 0 for a field of another type
+    if (field_is_number(field)) {
+        write_optional_float(out, room, len, "min", field->min);
+        write_optional_float(out, room, len, "max", field->max);
+        if (field->step > 0.0f) {
+            write_optional_float(out, room, len, "step", field->step);
+        }
+        else if (field->type == SETTING_INTEGER || field->held_as_integer) {
+            write_optional_float(out, room, len, "step", 1.0f);
+        }
     }
     if (field->type == SETTING_STRING) {
         http_json_raw(out, room, len, ",\"min_length\":");

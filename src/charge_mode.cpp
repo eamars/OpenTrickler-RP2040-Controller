@@ -1090,7 +1090,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
         return CHARGE_START_BUSY;
     }
-    if (motors_get_fault() != NULL) {
+    // The drivers looked at afresh, as a start at the unit does: a fault is remembered until a mode asks, so the
+    // remembered one refused every start over the API after a driver's passing reset (found trying the review's fixes)
+    if (!motors_ready()) {
         return CHARGE_START_DRIVER_FAULT;
     }
     if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {

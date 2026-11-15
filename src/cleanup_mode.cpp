@@ -289,7 +289,8 @@ cleanup_start_result_t cleanup_mode_request_start(activity_by_t by) {
     if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
         return CLEANUP_START_BUSY;
     }
-    if (motors_get_fault() != NULL) {
+    // Looked at afresh, as at the unit (charge_mode_request_start)
+    if (!motors_ready()) {
         return CLEANUP_START_DRIVER_FAULT;
     }
     if (!activity_request_start(ACTIVITY_CLEANUP, by)) {
