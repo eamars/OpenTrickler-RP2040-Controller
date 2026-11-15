@@ -483,6 +483,12 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
     for (size_t idx = 0; idx < count; idx += 1) {
         const http_json_member_t *member = &members[idx];
         int field_idx = field_index(resource, member->name, member->name_len);
+        if (field_idx < 0 && member->name_len == 5 && memcmp(member->name, "saved", 5) == 0) {
+            // In every GET, so a client may send it back with the rest: worked out, never written
+            fail(outcome, 400, "read_only", NULL, "saved is worked out, not written");
+            strcpy(outcome->field_name, "saved");
+            goto done;
+        }
         if (field_idx < 0) {
             size_t name_len = member->name_len < sizeof(outcome->field_name) ? member->name_len :
                               sizeof(outcome->field_name) - 1;

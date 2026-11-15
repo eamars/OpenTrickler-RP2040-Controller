@@ -1187,6 +1187,7 @@ class Session:
             ("a field that is an object", write(b"PATCH", leds, b'{"led1_colour":{"r":1}}'), 400),
             ("a field given twice", write(b"PATCH", leds, b'{"pwm3_chain_count":2,"pwm3_chain_count":3}'), 400),
             ("an unknown field", write(b"PATCH", leds, b'{"nope":1}'), 400),
+            ("saved, sent back with a GET's fields", write(b"PATCH", leds, b'{"saved":true}'), 400),
             ("a value of the wrong type", write(b"PATCH", leds, b'{"pwm3_chain_count":"2"}'), 400),
             ("a PATCH of text", write(b"PATCH", leds, b"{}", b"text/plain"), 415),
             ("an empty PATCH", write(b"PATCH", leds, b"{}"), 200),
