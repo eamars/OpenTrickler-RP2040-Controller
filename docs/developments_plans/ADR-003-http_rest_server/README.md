@@ -1,6 +1,6 @@
 # ADR-003: a real HTTP REST server
 
-Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 from the owner's answers; the direction is settled ("Settled with the owner"). **Gate 1 is built**: approved by the owner 2026-11-15 ("Approve gate 1"), built and proven on the Pico W the same day, and merged by the owner by its own PR (#128, merge 0d02bdb). lwIP's heap was the web's fault: at 4,000 bytes it failed 7,404 allocations and 8.92% of the web's reads were missed in a soak; at 16,384, none and 0 of 3,774. Its Pico 2 W run is left, before the ADR closes. What was built and measured is in [progress.md](progress.md). **Left:** gates 2 to 4, a first view; each is written in full, the API's table with gate 2, and approved before it is built.
+Status: **Open** 2026-11-15. Drafted 2026-11-13 and written again 2026-11-15 from the owner's answers; the direction is settled ("Settled with the owner"). **Gate 1 is built**: approved by the owner 2026-11-15 ("Approve gate 1"), built and proven on the Pico W the same day, and merged by the owner by its own PR (#128, merge 0d02bdb). lwIP's heap was the web's fault: at 4,000 bytes it failed 7,404 allocations and 8.92% of the web's reads were missed in a soak; at 16,384, none and 0 of 3,774. Its Pico 2 W run is left, before the ADR closes. What was built and measured is in [progress.md](progress.md). **Left:** gates 2 to 4. Gate 2 is written in full with the API's table ([api_v1.md](api_v1.md)) and waits for the owner's approval; gates 3 and 4 build to the same table.
 
 ## What we want
 
@@ -155,30 +155,49 @@ How the unit shows it works:
 - If step 6 misses the limits while lwIP reports no failure, the misses left are not memory's. It comes back to the owner with the numbers, to merge on what it fixed or not.
 - The Pico 2 W runs gate 1's image when the owner next puts it on the probe, before this ADR closes. That is not a condition of gate 1's merge (the owner, 2026-11-15: the Pico 2 W is the lower risk).
 
-### Gate 2: our own server, tried (first view)
+### Gate 2: our own server
 
-- One task, a few connections at once, a table of method, path and handler. Handlers run in the server's task, not in lwIP's: a slow one, such as the EEPROM's erase, holds the web, not the network.
-- A request's body is read in pieces and handed to its handler; a reply is written in pieces.
-- Sockets with `select`, or lwIP's netconn: chosen in gate 2's text, on the trial's flash, RAM and soak.
-- The trial image serves the paths the soak reads, in the new API's form, with the old server off.
-- From gate 2 to gate 4, in this ADR's branch, the new server also serves the old `/rest/...` handlers through a thin adapter, so the portal works while its pages move one module at a time. The adapter, the old handlers and `http_rest.c` are deleted together in gate 4. Not a second server on another port: that would cost lwIP's memory twice. (Agreed by the owner 2026-11-15.)
-- It passes when the soak is within gate 1's limits on the Pico W, with flash and RAM given against gate 1's image.
+Written in full 2026-11-15, for approval, with the API's table: [api_v1.md](api_v1.md). Gates 2 to 4 build to that table.
 
-### Gate 3: the API, each setting described once (first view)
+**The server** (`http_server.c` and `.h`, new):
+- One FreeRTOS task, below lwIP's in priority. It waits in `select` on the listening socket and on up to 6 clients, as many as a browser opens to one host; a seventh waits in lwIP's backlog.
+- **On lwIP's sockets,** with `LWIP_SOCKET` and `LWIP_NETCONN` turned on. One task serves every client through `select`, and a send that does not fit waits while the others go on: a phone on a poor Wi-Fi loading the portal holds up nobody. lwIP's netconn has no `select`: it would take a task a client, or callbacks in lwIP's own thread, which is what this ADR leaves. Sockets are also what ESP-IDF's own server uses.
+- **What sockets cost is measured, not guessed:** their flash, their RAM, and lwIP's heap. `lwip_send` copies every reply into that heap, and the pages are 91 KB. Each connection's queue is held to `TCP_SND_BUF` (8 segments, 11.7 KB); if two page loads at once take too much of the heap, `TCP_SND_BUF` comes down.
+- **A client's state is in the server's own table,** 6 slots, not in lwIP's heap: its request (1 KB for the request line and the headers, 2 KB for a JSON body) and where its reply stands.
+- **HTTP/1.1, and a connection stays open between requests** (keep-alive), closed after 5 s idle. A page that polls every 500 ms then keeps one connection, where today each poll is a new one and the unit holds the last in TIME_WAIT (gate 1's pool of TCP connections, full at the end of each soak).
+- A reply of known length carries `Content-Length`; one written as it is made (the schema; later ADR-009's recordings) is sent chunked.
+- **Our own small parsers:** the request line and the headers the server uses (`Content-Length`, `Content-Type`, `Connection`; a body with no `Content-Length`, chunked included, is refused with 411), and JSON for flat objects (strings, numbers, true, false, null). No library: a new dependency would be its own ADR, and what is parsed is small.
+- **Routes** are a table of method, path (with `{index}` for a profile) and handler: 404 for no such path, 405 with `Allow` for no such method.
+- **A handler** gets the request (method, path, index, query, body) and writes its reply through the server's calls: a status, a header, bytes, JSON. It sees no lwIP and no socket. It runs in the server's task, so a slow one (the EEPROM's erase, 5 s) holds the web, not the network.
+- A body larger than 2 KB is handed to its handler in pieces as it comes, for ADR-004's upload. None of the routes takes one yet: 413.
+- The pages are sent from flash, in pieces as the socket takes them.
 
-- Paths under `/api/v1/`, bodies in JSON. A read is a GET and changes nothing. A write sends a JSON body and is refused unless it is sent as `application/json`: the guard against other sites, above.
-- A wrong value is refused with 400: a code, the field, its limits and a sentence. Nothing in that request is written.
-- One table a module: for each setting a name, a type, a unit, its limits, whether it can be written, a line on what it is, and where its value lives. Reads, writes, the checks and the unit's own description all come from it. A write goes to the module that owns the setting, not into its struct from the server's task.
-- No stored struct changes its layout: the tables point into them.
-- The portal's settings forms and `rc_run.py settings` move to it, module by module.
+**The old paths, through an adapter, until gate 4** (agreed by the owner 2026-11-15). `http_rest.c` leaves the build in this gate: one server runs, ours. The old handlers keep their signature; an adapter (`rest_adapter.c`) splits and decodes the query as `http_rest.c` did, calls the old handler, and sends the bytes it points at. An old reply has no length, so it ends its connection, as today. The adapter and the old handlers go in gate 4. No second server on another port: that would cost lwIP's memory twice.
 
-### Gate 4: commands, events, the switch (first view)
+**How the unit shows it works:**
+- The image: our server on port 80; `GET /api/v1/charge` and `GET /api/v1/display` as the first new paths, the pages, and every old path through the adapter. The soak reads `/api/v1/charge` and `/api/v1/display` in place of their old two, and the settings through the old paths.
+- On the Pico W: `flash`, `menu_tour --compare`, `charge_cycle`, each `VERDICT PASS`. The portal, used by hand from a browser: its pages and forms work as before.
+- `soak 600` within the limits, no allocation failed in lwIP; `net`'s heap and pools, the flash and the RAM, given against gate 1's image (665.0 KB, 211.4 KB).
+- Requests that are wrong are answered or closed, and the unit goes on (`up=` keeps counting): a value with no `=`, headers of 2 KB, a body shorter or longer than it says, a request cut off, an unknown method, seven clients at once.
+- **If sockets need more than 32 KB of lwIP's heap to pass the soak, gate 2 stops** and comes back to the owner with netconn's case.
 
-- Start a charge at a weight, stop it, start and stop cleanup, set its speed: requests to the application, which the web, the console and the menu all use, in place of made-up button presses. While a charge runs, a write that the charge reads is refused with 409 and the state.
-- A charge and a cleanup are each a resource with a state. Their events are numbered, and a client reads on from where it left off (`?after=N`), so no client takes another's.
-- `GET /api/v1` describes the unit: the API's version, the firmware's, the board, what it carries, and every resource with its fields, from the tables. The mDNS announcement adds the API's and the firmware's versions.
-- The portal, the wizard and the mirror on the new API. The old server, `http_rest.c`, the old handlers and lwIP's httpd options deleted.
-- The scripted client is a Python module in `tools/`, driven by the unit's description, not by a list of paths written into it. The proof uses it, `rc_run.py` uses it, and an agent can. `tests/web_test.py` answers the new API.
+### Gate 3: the API, each setting described once
+
+- **One table a module:** for each setting its name, type, unit, limits or choices, access, when it takes effect, when it is refused, a line on what it is, and where its value lives (the field in the module's struct). The module adds a check for what crosses fields (a minimum speed not above the maximum) and an apply for what follows a change (the driver set up again).
+- **One code for every table:** a GET builds the reply from it, a PATCH checks the whole request on a copy and the module applies it, `saved` is kept, and save stores the module. `GET /api/v1` and `GET /api/v1/schema` are made from the tables.
+- **The console reads and writes the same tables:** `setting <resource>`, and `setting <resource> <name>=<value> ...` (the owner: one table of names for the console and the API).
+- The settings and profiles resources of [api_v1.md](api_v1.md). The portal's forms, its export and import, and `rc_run.py settings` move to them module by module, and each module's old handler goes when its form has moved.
+- No stored struct changes its layout: the tables point into the structs as they are.
+
+### Gate 4: commands, events, the switch
+
+- **Commands:** charge start and stop, cleanup start, stop and speed, the scale's zero, the gate, save, restart and erase, as in [api_v1.md](api_v1.md). Each is one entry point to the application, which the web, the console and the menu all use. The made-up button press (`OVERRIDE_FROM_REST`) goes.
+- **Events:** the newest 32 kept and numbered; each client reads from where it left off.
+- `GET /api/v1/scale`, `/gate`, `/motors`, `/system`. The mDNS announcement adds the API's and the firmware's versions.
+- **The switch:** the portal, the wizard and the mirror on the new API. The wizard restarts the unit once the Wi-Fi save is answered: today it sends both at once (`wizard.html`), and a restart handled first loses the settings.
+- **The adapter, the old handlers, `http_rest.h` in the modules' headers and lwIP's httpd options are deleted.** The ADR closes only when no copy of lwIP's file server is in the tree (the owner, at gate 1's merge).
+- **The client:** a Python module in `tools/`, which reads the unit's schema and works from it, not from paths written into it. The proof uses it, `rc_run.py` uses it, and an agent can. `tests/web_test.py`, the stand-in for page work, answers v1.
+- The proof at the close (below) runs on both boards, with gate 1's Pico 2 W run done before it.
 
 ## How the unit shows it works
 
@@ -202,9 +221,10 @@ At the close, on the Pico W, then the Pico 2 W:
 - The console over Wi-Fi (the owner, 2026-11-15).
 - What the modes do inside (ADR-009).
 
-## To settle before gate 2 is approved
+## For the owner at gate 2's approval
 
-- The API's table: every path, method, body, reply and status, with the names.
-- Sockets or netconn: the trial's design and what decides it.
-- A write: one setting at a time, a module's at once, or either.
-- Which writes are refused while a charge or a cleanup runs.
+- **The API's table,** [api_v1.md](api_v1.md): every path, method, body, reply and status, with the names. Once approved it is v1, and only grows.
+- **Settings live until saved,** with `saved` in every reply (its "For the owner", 1).
+- **The limits marked *p*** in the table, where today's code has none.
+- **A write is any number of a resource's fields at once,** checked whole; refused during a throw (`zeroing`, `charging`) where the throw reads it, and the motors' during a cleanup too.
+- **Sockets,** with a measured stop at 32 KB of lwIP's heap.
