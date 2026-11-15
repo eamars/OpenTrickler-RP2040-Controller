@@ -30,6 +30,7 @@
 #include "profile.h"
 #include "servo_gate.h"
 #include "rc_console.h"
+#include "update.h"
 
 
 int main()
@@ -42,6 +43,9 @@ int main()
     // begins with this start (gate 4): before any task
     activity_init();
     events_init();
+
+    // The image slots (ADR-004): on a trial, the watchdog is armed now, before the slow parts of the start-up
+    update_init();
 
     // Initialize EEPROM first
     eeprom_init();

@@ -11,6 +11,19 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
     COMMAND_ERROR_IS_FATAL ANY
 )
+# A test build only: a block version of its own, so a trial image built from the running image's commit is newer
+set(RC_TEST_BLOCK_VERSION "" CACHE STRING "Test build only: the metadata block's version, first;second, in place of git's")
+if (RC_TEST_BLOCK_VERSION)
+    set(APP_BLOCK_VERSION "${RC_TEST_BLOCK_VERSION}")
+endif()
+
+# An update image (ADR-004) carries the try-before-you-buy mark: it boots once, on a restart that asks for a trial,
+# and stays only if it confirms itself. A full install's image carries none, so it boots at once
+option(APP_TRIAL_IMAGE "An update image, marked try-before-you-buy" OFF)
+if (APP_TRIAL_IMAGE)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE PICO_CRT0_IMAGE_TYPE_TBYB=1)
+    message("An update image: marked try-before-you-buy")
+endif()
 if (APP_BLOCK_VERSION)
     list(GET APP_BLOCK_VERSION 0 APP_BLOCK_VERSION_MAJOR)
     list(GET APP_BLOCK_VERSION 1 APP_BLOCK_VERSION_MINOR)

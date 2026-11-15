@@ -720,7 +720,8 @@ class Openocd:
         A core's state as openocd knows it. "unknown" is openocd not knowing yet, not the core's state: upstream
         FreeRTOS resets core 1 as the scheduler starts (ADR-011, step 2), and on the RP2040, where each core has
         its own debug port, openocd needs a moment after that to see core 1 again. So "unknown" is asked again
-        until CORE_STATE_WAIT_S has passed.
+        until CORE_STATE_WAIT_S has passed. On the RP2350 openocd names that moment "reset" (seen 0.2 s after a
+        restart, ADR-004), so "reset" is asked again too.
 
         Returns:
             "running", "halted", "reset", or "unknown" when openocd still does not know.
@@ -728,7 +729,7 @@ class Openocd:
         deadline = time.monotonic() + CORE_STATE_WAIT_S
         while True:
             state = self.cmd(f"{core} curstate").strip()
-            if state != "unknown" or time.monotonic() > deadline:
+            if state not in ("unknown", "reset") or time.monotonic() > deadline:
                 return state
             time.sleep(0.5)
 
@@ -962,7 +963,7 @@ class Session:
             self.fail(f"\"{line}\": {reply}")
         if line.split()[0] == "state":
             self.check_up(reply)
-        if line.split()[0] == "reboot" and reply.startswith("@ok"):
+        if (line.split()[0] == "reboot" or line.split()[:2] == ["update", "try"]) and reply.startswith("@ok"):
             time.sleep(1.5)
             self.wait_for_console()
         return reply
@@ -2293,6 +2294,137 @@ class Session:
 
         self.flash(normal_elf)
 
+    def update_state(self, elf, wait_s):
+        """
+        The unit's slots, from the console's `update`, asked of the image `elf` names until it answers. An image's
+        RTT control block lies where its own ELF says, and RAM keeps the last image's across a restart, so the
+        console is looked for at the address of the image expected to run. Never a failure by itself: a caller
+        looking across a restart judges what it finds.
+
+        Args:
+            elf: the ELF of the image expected to run; it becomes the session's.
+            wait_s: how long to ask.
+
+        Returns:
+            Its fields as a dict ("slot", "trial", "confirmed", "block", "free", ...), or None.
+        """
+        self.elf = Path(elf)
+        deadline = time.monotonic() + wait_s
+        while time.monotonic() < deadline:
+            self.openocd.rtt_start(self.elf)
+            reply = self.console.command("update", timeout=1.0, recover=False)
+            if reply is not None and reply.startswith("@ok update"):
+                self.last_up = None     # a restart was looked for: up= starts again
+                self.link_seen = len(self.openocd.output)
+                return dict(field.split("=", 1) for field in reply.split()[2:] if "=" in field)
+        self.link_seen = len(self.openocd.output)
+        return None
+
+    def slot_trial(self, image_elf, expect, corrupt):
+        """
+        A trial of an image in the other slot (ADR-004, gate 1). The image's .bin is written through the probe into
+        the slot the unit does not run from, the unit is restarted on what it runs, and a trial is asked
+        (`update try`). Judged by what runs after:
+          confirmed: the new image runs, confirms itself once on its network, and still runs after a restart;
+          back: the new image runs on trial, does not confirm itself, and the unit goes back to the old one when the
+                trial's watchdog runs out;
+          refused: the new image never runs (with --corrupt: a byte changed, so its hash does not hold).
+        The session's ELF (--elf) is the image the unit runs at the start.
+
+        Args:
+            image_elf: the update image's ELF, built with APP_TRIAL_IMAGE; its .bin beside it is what is written.
+            expect: "confirmed", "back" or "refused".
+            corrupt: change one byte in the middle of the image before writing it.
+        """
+        if self.board.get("layout") is None:
+            self.fail("slot_trial: this board has no slots")
+            return
+        old_elf, new_elf = self.elf, Path(image_elf)
+        before = self.update_state(old_elf, 5)
+        if before is None or before.get("known") != "1":
+            self.fail(f"slot_trial: the unit does not know its slots: {before}")
+            return
+        old_slot = before["slot"]
+        new_slot = "b" if old_slot == "a" else "a"
+        free_offset = int(before["free"].split("+")[0], 16)
+        image = new_elf.with_suffix(".bin")
+        data = bytearray(image.read_bytes())
+        new_block = block_version(new_elf)
+        if corrupt:
+            data[len(data) // 2] ^= 0x01
+            image = LOG_DIR / f"{self.log.path.stem}_corrupt.bin"
+            image.write_bytes(bytes(data))
+        self.log.write("rc", f"slot_trial: running slot {old_slot} (block {before['block']}); writing {image.name} "
+                             f"(block {new_block}{', one byte changed' if corrupt else ''}) into slot {new_slot} "
+                             f"at {free_offset:#x}")
+
+        # Written, then the unit restarted on what it runs: the new image, on trial, boots only when asked for
+        done_before = len(self.openocd.output)
+        self.openocd.cmd(f"program {{{image.as_posix()}}} verify {0x10000000 + free_offset:#x}")
+        if not any("Verified OK" in line for line in self.openocd.output[done_before:]):
+            self.fail("slot_trial: openocd did not verify the image")
+            return
+        self.reset()
+        after_write = self.update_state(old_elf, 5)
+        if after_write is None or after_write["slot"] != old_slot:
+            self.fail(f"slot_trial: after the write and a restart the unit should run slot {old_slot}: {after_write}")
+            return
+
+        self.log.write("rc", "> update try")
+        asked = self.console.command("update try", timeout=REPLY_TIMEOUT_S, recover=False)
+        if asked is None or not asked.startswith("@ok"):
+            self.fail(f"slot_trial: update try: {asked}")
+            return
+        started = time.monotonic()
+        time.sleep(1.5)     # the restart, 100 ms after the reply
+
+        if expect == "refused":
+            state = self.update_state(old_elf, CONSOLE_TIMEOUT_S)
+            self.log.write("rc", f"slot_trial: after the trial was asked: {state}")
+            if state is None or state["slot"] != old_slot or state["trial"] != "0":
+                self.fail(f"slot_trial: the image should have been refused, slot {old_slot} still running: {state}")
+            return
+
+        tried = self.update_state(new_elf, CONSOLE_TIMEOUT_S)
+        self.log.write("rc", f"slot_trial: after the trial was asked: {tried}")
+        if tried is None or tried["slot"] != new_slot or tried["trial"] != "1":
+            self.fail(f"slot_trial: slot {new_slot} should run on trial: {tried}")
+            return
+        if expect == "confirmed":
+            deadline = started + 60
+            state = tried
+            while state is not None and state["confirmed"] != "1" and time.monotonic() < deadline:
+                time.sleep(1.0)
+                state = self.update_state(new_elf, 5)
+            if state is None or state["confirmed"] != "1":
+                self.fail(f"slot_trial: slot {new_slot} did not confirm itself within 60 s: {state}")
+                return
+            self.log.write("rc", f"slot_trial: slot {new_slot} confirmed {time.monotonic() - started:.1f} s after "
+                                 "the trial was asked")
+            self.reset()
+            kept = self.update_state(new_elf, 5)
+            if kept is None or kept["slot"] != new_slot or kept["trial"] != "0" or kept["block"] != new_block:
+                self.fail(f"slot_trial: after a restart slot {new_slot} (block {new_block}) should run: {kept}")
+                return
+            self.log.write("rc", f"slot_trial: after a restart the unit runs slot {new_slot}, block {kept['block']}")
+            return
+
+        # back: the trial's watchdog is fed for its minute, then it restarts the unit into the old image
+        deadline = started + 120
+        state = tried
+        while time.monotonic() < deadline:
+            time.sleep(2.0)
+            state = self.update_state(new_elf, 3)
+            if state is None:
+                state = self.update_state(old_elf, CONSOLE_TIMEOUT_S)
+            if state is not None and state["slot"] == old_slot:
+                break
+        if state is None or state["slot"] != old_slot or state["trial"] != "0":
+            self.fail(f"slot_trial: the unit should be back on slot {old_slot} within 120 s: {state}")
+            return
+        self.log.write("rc", f"slot_trial: back on slot {old_slot} {time.monotonic() - started:.1f} s after the "
+                             f"trial was asked, block {state['block']}")
+
     def finish(self):
         """
         Check the cores, stop openocd, print the verdict.
@@ -2339,6 +2471,11 @@ def main():
     pulses_parser = sub.add_parser("pulses", help="do the step pulses stop on a reset, an assert, a hard fault?")
     pulses_parser.add_argument("--assert-elf", default=str(REPO / "build_w_fault1" / "app.elf"))
     pulses_parser.add_argument("--hardfault-elf", default=str(REPO / "build_w_fault2" / "app.elf"))
+    trial_parser = sub.add_parser("slot_trial", help="an image written into the other slot and tried (ADR-004)")
+    trial_parser.add_argument("--image", required=True,
+                              help="the update image's ELF (built with APP_TRIAL_IMAGE); its .bin is written")
+    trial_parser.add_argument("--expect", choices=["confirmed", "back", "refused"], required=True)
+    trial_parser.add_argument("--corrupt", action="store_true", help="change one byte of the image first")
     settings_parser = sub.add_parser("settings", help="copy the stored settings over the web API, and compare")
     settings_parser.add_argument("--host", required=True, help="the unit's address")
     settings_parser.add_argument("--save", help="keep the copy in this folder")
@@ -2402,6 +2539,8 @@ def main():
         session.charge_cycle(args.target, args.threshold, args.timeout)
     elif args.command == "pulses":
         session.pulses(args.assert_elf, args.hardfault_elf)
+    elif args.command == "slot_trial":
+        session.slot_trial(args.image, args.expect, args.corrupt)
     elif args.command == "flash":
         session.flash()
     elif args.command == "reset":

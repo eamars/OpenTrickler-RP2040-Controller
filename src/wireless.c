@@ -12,6 +12,7 @@
 #include "common.h"
 #include "settings.h"
 #include "version.h"
+#include "update.h"
 #include "lwip/apps/mdns.h"
 #include <string.h>
 #include <strings.h>
@@ -345,6 +346,17 @@ static bool wireless_own_address(char *buf, size_t len) {
 }
 
 
+// The server listens (ADR-004): an image on trial confirms itself once the unit is on the network it is set up
+// for, a station when Wi-Fi is set up, its own access point when it is not. A unit set up for Wi-Fi that could not
+// join, and fell back to its own access point, leaves its trial, and goes back
+static void wireless_server_listening(void) {
+    bool on_its_network = wireless_config.eeprom_wireless_metadata.enable
+                              ? wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN
+                              : wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
+    update_network_ready(on_its_network);
+}
+
+
 // Whether a request's Host is the unit's own: its address, or its host name with or without ".local", any port
 // (ADR-003: a page that has pointed its own name at the unit is refused)
 static bool wireless_host_is_own(const char *host) {
@@ -516,6 +528,7 @@ void wireless_task(void *p) {
     static const http_server_network_t http_network = {
         .host_is_own = wireless_host_is_own,
         .own_address = wireless_own_address,
+        .listening = wireless_server_listening,
     };
     http_server_start(&http_network);
 

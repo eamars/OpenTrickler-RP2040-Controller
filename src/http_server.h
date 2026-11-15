@@ -63,6 +63,7 @@ typedef bool (*http_server_ready_t)(void *ctx);
 typedef struct {
     bool (*host_is_own)(const char *host);           // the unit's address or host name, with or without .local
     bool (*own_address)(char *buf, size_t len);      // the unit's address, for a redirect
+    void (*listening)(void);                         // once, when the server first listens; may be NULL
 } http_server_network_t;
 
 /**
