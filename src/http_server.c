@@ -1038,13 +1038,16 @@ static bool slot_next_chunk(slot_t *slot) {
 }
 
 
-// Send what the socket takes. True when the reply is all out. A streamed reply makes one chunk a call, so the other
-// clients have their turn between two: on a good Wi-Fi the ACKs come back faster than chunks are made, and a stream
-// that went on while lwIP took its bytes held the server for its whole length (1.8 s for a throw's samples), every
-// other request waiting behind it (ADR-003, gate 2's load soak)
+// A streamed reply makes this many chunks a pass, then the other clients have their turn. On a good Wi-Fi the ACKs
+// come back faster than chunks are made, and a stream that went on while lwIP took its bytes held the server for its
+// whole length (1.8 s for a throw's samples), every other request waiting behind it. One chunk a pass is one segment
+// in flight, whose ACK the client delays: the stream took 4 s. Two fill the send buffer (TCP_SND_BUF, 2 segments)
+#define HTTP_SERVER_CHUNKS_PER_PASS 2
+
+// Send what the socket takes. True when the reply is all out
 static bool slot_send_some(slot_t *slot) {
     bool sent_any = false;
-    bool made_chunk = false;
+    int chunks_made = 0;
     while (true) {
         const char *ptr;
         size_t left;
@@ -1059,12 +1062,13 @@ static bool slot_send_some(slot_t *slot) {
             ptr = slot->body_ptr + slot->body_sent;
             left = slot->body_len - slot->body_sent;
         }
-        else if (slot->body_kind == BODY_STREAM && !made_chunk && slot_next_chunk(slot)) {
-            made_chunk = true;
+        else if (slot->body_kind == BODY_STREAM && chunks_made < HTTP_SERVER_CHUNKS_PER_PASS &&
+                 slot_next_chunk(slot)) {
+            chunks_made += 1;
             continue;
         }
-        else if (slot->body_kind == BODY_STREAM && made_chunk && !slot->last_chunk_sent) {
-            return false;   // the next chunk on the next pass, after the others
+        else if (slot->body_kind == BODY_STREAM && chunks_made > 0 && !slot->last_chunk_sent) {
+            return false;   // the next chunks on the next pass, after the others
         }
         else {
             return true;
