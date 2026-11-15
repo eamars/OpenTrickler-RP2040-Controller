@@ -16,6 +16,8 @@
 
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
+#include "lwip/stats.h"
+#include "lwip/memp.h"
 
 #include "remote_control.h"
 #include "charge_mode.h"
@@ -127,6 +129,43 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
              remote_control_task_status[min_idx].pcTaskName,
              (unsigned) remote_control_task_status[min_idx].usStackHighWaterMark,
              (unsigned long) scale_get_bad_frames());
+    return true;
+}
+
+
+// The pools `net` reports: those every web connection takes from
+static const struct {
+    const char *name;
+    memp_t pool;
+} remote_control_net_pools[] = {
+    {"tcp_pcb", MEMP_TCP_PCB},
+    {"tcp_seg", MEMP_TCP_SEG},
+    {"pbuf", MEMP_PBUF},
+    {"pbuf_pool", MEMP_PBUF_POOL},
+};
+
+
+static bool remote_control_net(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                               void *write_ctx) {
+    // lwIP's heap and pools (ADR-003, gate 1): in use now, the most ever in use, the size, and the allocations
+    // that failed. Read without lwIP's lock: counters, only read here
+    size_t len = snprintf(reply, reply_size, "@ok net heap_used=%u heap_max=%u heap_size=%u heap_err=%lu",
+                          (unsigned) lwip_stats.mem.used,
+                          (unsigned) lwip_stats.mem.max,
+                          (unsigned) lwip_stats.mem.avail,
+                          (unsigned long) lwip_stats.mem.err);
+    for (size_t idx = 0; idx < sizeof(remote_control_net_pools) / sizeof(remote_control_net_pools[0]); idx += 1) {
+        const struct stats_mem *pool = lwip_stats.memp[remote_control_net_pools[idx].pool];
+        const char *name = remote_control_net_pools[idx].name;
+        if (len >= reply_size) {
+            break;
+        }
+        len += snprintf(reply + len, reply_size - len, " %s_used=%u %s_max=%u %s_size=%u %s_err=%lu",
+                        name, (unsigned) pool->used,
+                        name, (unsigned) pool->max,
+                        name, (unsigned) pool->avail,
+                        name, (unsigned long) pool->err);
+    }
     return true;
 }
 
@@ -552,6 +591,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"help", remote_control_help},
     {"state", remote_control_state},
     {"stats", remote_control_stats},
+    {"net", remote_control_net},
     {"reboot", remote_control_reboot},
     {"press", remote_control_press},
     {"form", remote_control_form},
