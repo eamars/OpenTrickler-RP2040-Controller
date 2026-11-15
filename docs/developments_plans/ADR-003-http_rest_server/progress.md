@@ -221,6 +221,6 @@ e6533c6 adds one thing to the image above: `saved` sent in a PATCH, as a client 
 
 ### Gate 3: where it stands
 
-**Built and proven on the Pico W, 2026-11-15**: the proof above, every item of the README's gate 3 built. It merges with gates 2 and 4 in this ADR's PR. Left for it: its run on the Pico 2 W with gates 1 and 2, before the ADR closes.
+**Built and proven on the Pico W, 2026-11-15, and closed by the owner** ("Close gate 3 and proceed to gate 4 and until the closure of ADR"): the proof above, every item of the README's gate 3 built. It merges with gates 2 and 4 in this ADR's PR. Left for it: its run on the Pico 2 W with gates 1 and 2, before the ADR closes.
 
 - **Found, for gate 4:** with no scale sending, the charge page's poll throws on every reply: the old `charge_mode_state` gives the weight as `"nan"`, the page sets its progress bar to NaN, and the browser refuses it, so the rest of the poll's update (the state, the profile, the button) is not done. It is the same before gate 3 (the old server gave the same `"nan"`). Gate 4 moves the charge page to `GET /api/v1/charge`, whose weight is `null` when there is none, and the page must take that.
