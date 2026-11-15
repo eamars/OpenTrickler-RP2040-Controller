@@ -1038,9 +1038,13 @@ static bool slot_next_chunk(slot_t *slot) {
 }
 
 
-// Send what the socket takes. True when the reply is all out
+// Send what the socket takes. True when the reply is all out. A streamed reply makes one chunk a call, so the other
+// clients have their turn between two: on a good Wi-Fi the ACKs come back faster than chunks are made, and a stream
+// that went on while lwIP took its bytes held the server for its whole length (1.8 s for a throw's samples), every
+// other request waiting behind it (ADR-003, gate 2's load soak)
 static bool slot_send_some(slot_t *slot) {
     bool sent_any = false;
+    bool made_chunk = false;
     while (true) {
         const char *ptr;
         size_t left;
@@ -1055,8 +1059,12 @@ static bool slot_send_some(slot_t *slot) {
             ptr = slot->body_ptr + slot->body_sent;
             left = slot->body_len - slot->body_sent;
         }
-        else if (slot->body_kind == BODY_STREAM && slot_next_chunk(slot)) {
+        else if (slot->body_kind == BODY_STREAM && !made_chunk && slot_next_chunk(slot)) {
+            made_chunk = true;
             continue;
+        }
+        else if (slot->body_kind == BODY_STREAM && made_chunk && !slot->last_chunk_sent) {
+            return false;   // the next chunk on the next pass, after the others
         }
         else {
             return true;
