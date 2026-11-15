@@ -126,7 +126,7 @@ An earlier direction, "community PRs land before the restructure (ADR-006)", was
 1. **The D-term fix,** in a branch of this ADR:
    - shown first on the unit as it is today: a charge with the simulated scale, and the speed the coarse trickler is given at the throw's first reading. If the unit does not show the fault, the fix is not taken here and goes to ADR-009 as a finding;
    - then #113's 18 lines as one commit with a `Co-authored-by:` line for its author, and the same charge again;
-   - then the usual proof on both units.
+   - then the usual proof, on one unit (see "How the unit shows it works").
 2. **The notes and comments,** each shown to the owner before it is posted:
    - #113: a comment. What is taken now, what ADR-009 will judge, and why the loop, the screens and the page are not taken;
    - #111: a comment. That ADR-004 is where it is decided, and the owner's open question on the Pico W;
@@ -142,7 +142,7 @@ No stored struct changes in this ADR.
 
 ## How the unit shows it works
 
-For the D-term fix, on the Pico W and the Pico 2 W:
+For the D-term fix, on one unit (the owner, 2026-11-15, after the Pico 2 W passed: "We don't need to repeat on Pico W for application layer changes"):
 - the coarse trickler's first speed in a throw is what its P term asks for, where before it was the maximum;
 - `menu_tour --compare` against the unit's baseline and `charge_cycle` end `VERDICT PASS`.
 

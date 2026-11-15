@@ -6,7 +6,7 @@ What was done and measured. The plan is in the [README](README.md). Logs are kep
 
 | Step | State | Waits for |
 |---|---|---|
-| 1. The D-term fix | Shown and fixed on the Pico 2 W, 2026-11-15 (commit adc5f56) | The Pico W on the probe: one swap, asked of the owner |
+| 1. The D-term fix | Done 2026-11-15: shown and fixed on the Pico 2 W (commit adc5f56). Not repeated on the Pico W, by the owner | Nothing |
 | 2. The notes and comments | Drafted in [notes.md](notes.md), none posted | The owner reading each |
 | 3. What each later ADR starts from | Done 2026-11-15 | Nothing |
 | 4. The closes | Not started | The owner's word for each |
@@ -28,7 +28,7 @@ What was done and measured. The plan is in the [README](README.md). Logs are kep
 
 ## Step 1: the D-term fix
 
-2026-11-15, on the bench's Pico 2 W, the hopper empty, the A&D connected. The Pico W is still to do.
+2026-11-15, on the bench's Pico 2 W, the hopper empty, the A&D connected. The Pico W was not done: the owner, asked for the swap, said "We don't need to repeat on Pico W for application layer changes." Its image builds; it was not flashed. That rule is now in `AGENTS.md`, under "Proving a change on a unit".
 
 **Before anything was changed** (image 1.20.140 at 945dfe6, whose `src/` is main's)
 - The unit's settings copied: `logs/adr002/pico2w/settings_before/`. Its selected profile: coarse Kp 0.025, Kd 0.25, limits 0.1 to 5 rev/s; fine Kp 2, Kd 10, limits 0.1 to 3. Coarse stop threshold 5, no precharge. Both motors: 5 rev/s at most, 50 rev/s2.
