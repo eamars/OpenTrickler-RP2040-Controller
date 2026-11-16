@@ -276,3 +276,26 @@ The owner: the power pulls are made by the debug probe, halting the CPU and rest
   - **during a trial:** 2.0.254 running on trial from B, the power cut; the unit back on 2.0.2 from A 8.9 s later, not after the trial's 75 s, the settings unchanged. Its upload went into the slot the first cut had left half-written.
 - **Found:** after a power cut during a trial, `last` is empty: the note that says the image tried was left lives in registers a power cut clears. The unit is back on its old version, and the offer would show the newer release again; only the message is lost. Kept so.
 - **The Pico W's two cuts: skipped by the owner** ("the power loss can always be restored using the full reinstall"). What its bootloader does at a start was shown otherwise: an image on trial that does not confirm itself is left (gate 1, 68.2 s; gate 2, 74.3 s), a trial is asked only through a scratch register the bootloader clears as it reads it, and with no image to boot it starts the USB loader. Its test build was deleted.
+
+## Closed (2026-11-16)
+
+Closed at the owner's word ("Close it, open the PR"), in its branch `adr004_update_over_wifi`, before its PR.
+
+- **Built, and shown on both units:**
+  - two image slots on both chips: the RP2350's own by its ROM and partition table; on the RP2040 our bootloader (6,488 bytes of 16 KB), which reads both slots, never writes flash, and starts the USB loader when no image boots;
+  - one image format, the SDK's metadata block with the version and the try-before-you-buy mark, sealed with its SHA-256; an image checked before it is tried, a trial confirmed once the unit is on its network, and left by the watchdog otherwise;
+  - the update as a job of the API: start, the image taken in pieces into the free slot, checked as it comes and once whole, install into a trial; its refusals each with its code;
+  - Wi-Fi joins again when its network comes back;
+  - releases: tags `vX.Y.Z`, notes written by hand, CI drafting a pre-release with each board's full install (the whole flash), the update images (the Pico W's two), the manifest with each file's address and `SHA256SUMS`, each file named with its version. Candidates v2.0.0 to v2.0.2 are published as pre-releases, and both units have been updated from a release's address and installed by USB from its files.
+- **Waived or changed by the owner, 2026-11-16:**
+  - no downgrade: its manual and the erase files removed;
+  - the full install wipes the flash: the factory state, no other image kept;
+  - the power pulls made by the probe; the Pico W's skipped (a full install restores a unit whatever a power loss left);
+  - the first install's manual followed by no one else: the agent-facing document is sufficient.
+- **Not in this ADR, handed on:**
+  - the offer, on the web page and on the screen, and the unit's own fetch with TLS: ADR-008 and ADR-010 ("Handed on by ADR-004");
+  - the cost of the build's `-O0`, measured on SHA-256: ADR-005;
+  - after a power cut during a trial, `last` is empty (its note lives in registers a power cut clears): kept so.
+- **Release:** none for users, and no instructions given, until every ADR is closed (the owner). The final is a candidate promoted.
+- **At the merge, on the owner's word:** PR #111 closed with thanks and a note naming what was taken (its RP2040 jump, with a `Co-authored-by:` line in the bootloader's commit).
+
