@@ -8,11 +8,20 @@
 #include "activity.h"
 
 /*
-    The menu's navigator (ADR-010, gate 4; menu_design.md). The pages as one table, the stack of what is open (pages,
-    a choice's list, the number editor, a message, a job's screen) with each one's focus, and the four keys. It knows
-    no pixels and no toolkit: it fills a screen model (menu_screen_t) that a view draws (menu_view_12864.c, one per
-    kind of display) and the console prints (`screen`). What it does is the API's own entry points, by button.
-    Only the menu's task calls it.
+    The menu's navigator (ADR-010, gate 4; menu_design.md; the skill embedded-ui-design for how a screen looks). The
+    pages as one table, the stack of what is open (pages, a choice's list, the number editor, a message, a job's
+    screen) with each one's focus, and the four keys. It knows no pixels and no toolkit: it fills a screen model
+    (menu_screen_t) that a view draws (menu_view_12864.c, one per kind of display) and the console prints (`screen`).
+    What it does is the API's own entry points, by button. Only the menu's task calls it.
+
+    Six kinds of screen, as the design has them:
+      list    a title and rows of label and value, one focused
+      card    read-only lines, no focus, scrolled by the knob
+      dialog  a message of one or two lines, and two softkeys
+      notes   lines that end in a button, reached only by scrolling to it
+      edit    a number, digit by digit, as a figure; two softkeys
+      job     the title is the status; one figure and its unit; one line under it; two softkeys
+    The left softkey says what Back does (the reset button, or the knob held), the right what a click does.
 */
 
 typedef enum {
@@ -22,40 +31,52 @@ typedef enum {
     MENU_KEY_BACK,      // the reset button, or the knob held
 } menu_key_t;
 
-#define MENU_ROWS_MAX 12
+#define MENU_ROWS_MAX 14
 #define MENU_TEXT 28
 
 typedef enum {
-    MENU_SCREEN_LIST,   // a page of rows, a choice's list, a message
-    MENU_SCREEN_EDIT,   // a number, digit by digit
-    MENU_SCREEN_JOB,    // the charge, a cleanup, an update
+    MENU_SCREEN_LIST,
+    MENU_SCREEN_CARD,
+    MENU_SCREEN_DIALOG,
+    MENU_SCREEN_NOTES,
+    MENU_SCREEN_EDIT,
+    MENU_SCREEN_JOB,
 } menu_screen_kind_t;
 
 // What is on screen, in words: what a view draws and the console prints
 typedef struct {
     menu_screen_kind_t kind;
     char id[32];                            // the page's id ("settings/scale"), or "job/charge", "edit", "message"
-    char title[MENU_TEXT];
+    char title[MENU_TEXT];                  // on a job's screen, its status
     bool title_back;                        // the title is a Back target ("< Settings")
 
-    // A list: its rows, each a label and a value; the focused row (-1: the title, which is Back)
+    /*
+        The rows: a list's, each a label and a value; a card's or notes' lines, each a label (a value only on a
+        card, after its label); a dialog's message, in its labels. The focused row on a list (-1: the title, which is
+        Back); the first line shown on a card or notes
+    */
     uint8_t row_count;
     char row_label[MENU_ROWS_MAX][MENU_TEXT];
     char row_value[MENU_ROWS_MAX][MENU_TEXT];
     bool row_opens[MENU_ROWS_MAX];          // opens a page, a list or the editor
+    bool row_bold[MENU_ROWS_MAX];           // a heading, on notes
     int8_t focus;
+    uint8_t first;
 
-    // The editor: the number as its digits show it, the one being set (an index into edit_text)
-    char edit_text[12];
-    int8_t edit_at;
+    // Notes: the button their lines end in, and whether it is reached (shown, and a click presses it)
+    char button[MENU_TEXT];
+    bool button_reached;
 
-    // A job: its state, its large figure, three lines, and the action a click does now ("" for none)
-    char job_state[MENU_TEXT];
-    char job_big[16];
-    char job_line[3][MENU_TEXT];
-    char job_action[MENU_TEXT];
-    bool job_actions_more;                  // the knob moves between more than one action
-    bool job_back_stops;                    // Back stops the job now (not while an update installs)
+    // The editor and a job: the figure, its unit, the line under it; the digit being set (an index into figure)
+    char figure[16];
+    char unit[8];
+    char context[MENU_TEXT];
+    bool context_bold;                      // a verdict, not a fact
+    int8_t edit_at;                         // -1 on a job
+
+    // The softkeys: what Back does, what a click does ("" for nothing)
+    char softkey_left[MENU_TEXT];
+    char softkey_right[MENU_TEXT];
 
     // The marks on every screen (menu_design.md, "Status on every screen")
     bool mark_station;                      // joined a network
@@ -66,12 +87,21 @@ typedef struct {
     uint32_t version;                       // changes when another screen is open: a view builds it again
 } menu_screen_t;
 
+/*
+    A text's width in the view's faces, so the navigator can wrap notes into the lines it scrolls through and still
+    know no pixels: the view gives it at its start (menu_view_init), with the width a line may take
+*/
+typedef int (*menu_text_width_fn)(const char *text, bool bold);
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // The main menu open
 void menu_nav_init(void);
+
+// The view's measure of text, and the widest line a card or notes may hold, in its pixels
+void menu_nav_set_text_width(menu_text_width_fn width, int line_width, uint8_t lines_shown);
 
 // A key, from the knob, the buttons or the console
 void menu_nav_key(menu_key_t key);

@@ -50,6 +50,8 @@ static SemaphoreHandle_t menu_screen_lock = NULL;
 static menu_screen_t menu_screen_drawn;
 static menu_screen_t menu_screen_now;
 static uint32_t menu_lvgl_heap_max = 0;
+// The least LVGL's heap had free in one piece: a glyph is drawn through a buffer taken from it (up to 384 bytes)
+static uint32_t menu_lvgl_biggest_free_min = UINT32_MAX;
 
 // The remote control's `screen <id>`: asked from its task, answered after the draw
 static volatile int menu_current_form_id = -1;
@@ -131,6 +133,11 @@ void menu_screen_copy(menu_screen_t *screen, uint32_t *lvgl_heap_max) {
     *screen = menu_screen_drawn;
     *lvgl_heap_max = menu_lvgl_heap_max;
     xSemaphoreGive(menu_screen_lock);
+}
+
+
+uint32_t menu_lvgl_biggest_free(void) {
+    return menu_lvgl_biggest_free_min;
 }
 
 
@@ -282,6 +289,9 @@ void menu_task(void *p) {
             lv_mem_monitor(&heap);
             xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
             menu_lvgl_heap_max = (uint32_t) heap.max_used;
+            if (heap.free_biggest_size < menu_lvgl_biggest_free_min) {
+                menu_lvgl_biggest_free_min = (uint32_t) heap.free_biggest_size;
+            }
             xSemaphoreGive(menu_screen_lock);
         }
     }

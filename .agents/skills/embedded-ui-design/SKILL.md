@@ -77,7 +77,8 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
     - Erasing asks in a dialog whose message says it cannot be undone.
     - **Why:** the owner, 2026-11-17: Install "to the bottom of the page so the user will have to read the note and warnings properly".
 11. **A scroll bar on everything that runs on.**
-    - At the right edge: a 1 px dotted track and a 2 px thumb, as long as the share shown.
+    - At the right edge: a 1 px track and a 3 px thumb, as long as the share shown. A dotted track was drawn first;
+      dotted lines need LVGL's complex drawing, which is off to save flash, so the unit draws the track solid.
     - Content keeps 2 px from it, and a page never shows half a row.
     - **Why:** the owner accepted dense pages "with the scroll bar".
 12. **Read-only pages have no focus.** A row in reverse means a click does something.
@@ -111,6 +112,11 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 
 ## This project's design language
 
+- **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/lv_conf.h`). It holds every object of the view,
+  a frame's draw tasks while it draws, and a glyph's working buffer (384 bytes for an 18 px figure). When it runs
+  short, LVGL silently skips the glyphs it cannot buffer: the redesigned view in 12 KB drew its figures as a lone "."
+  and lost a title's first letter (2026-11-17). After adding objects to the view, read `screen`'s
+  `lvgl_biggest_free_min` on every kind of screen; keep it above about 1.5 KB (2,656 bytes at 14 KB).
 - **Fonts are u8g2's.** The design's three are among its BDF files (`library/u8g2/tools/font/bdf`), which the
   firmware's generator reads (`scripts/bdf2lvgl.py`). `tools/ui_mock/panel.py` also reads u8g2's compiled catalogue
   (`library/u8g2/csrc/u8g2_fonts.c`, about 2,000 faces), for trying a face; a face from the catalogue alone needs the

@@ -366,9 +366,42 @@ def print_glyphs(font, chars):
         print("  ".join(line))
 
 
+def read_snap(path, scale=4):
+    """
+    A snap of the unit's screen (rc_run.py's PNG: one bit a pixel, each screen pixel `scale` by `scale`, lit dark)
+    as a Panel.
+
+    Args:
+        path: the PNG.
+        scale: its pixels to a screen pixel.
+
+    Returns:
+        The Panel.
+    """
+    data = Path(path).read_bytes()
+    at, idat, width = 8, b"", 0
+    while at < len(data):
+        length, tag = struct.unpack(">I4s", data[at:at + 8])
+        if tag == b"IHDR":
+            width = struct.unpack(">I", data[at + 8:at + 12])[0]
+        elif tag == b"IDAT":
+            idat += data[at + 8:at + 8 + length]
+        at += 12 + length
+    raw = zlib.decompress(idat)
+    stride = 1 + (width + 7) // 8
+    panel = Panel()
+    for y in range(H):
+        line = raw[y * scale * stride + 1:(y * scale + 1) * stride]
+        for x in range(W):
+            bit = (line[(x * scale) // 8] >> (7 - (x * scale) % 8)) & 1
+            panel.px[y][x] = bit == 0
+    return panel
+
+
 def main():
     """
-    The command line: `glyphs <font> <characters>`, a u8g2 catalogue name or a BDF name.
+    The command line: `glyphs <font> <characters>` (a u8g2 catalogue name or a BDF name), or `sheet <out.png>
+    <snap.png>...`, the unit's snaps on one sheet, each captioned with its file's name, to set beside the mock-ups.
 
     Returns:
         The exit code.
@@ -378,9 +411,16 @@ def main():
     glyphs = sub.add_parser("glyphs", help="print a font's glyphs")
     glyphs.add_argument("font", help="u8g2 catalogue name (NokiaSmallPlain_tr) or BDF name (helvB08)")
     glyphs.add_argument("chars")
+    sheet = sub.add_parser("sheet", help="the unit's snaps on one sheet")
+    sheet.add_argument("out", type=Path)
+    sheet.add_argument("snaps", type=Path, nargs="+")
     args = parser.parse_args()
-    font = Font.load(args.font)
-    print_glyphs(font, args.chars)
+    if args.command == "glyphs":
+        print_glyphs(Font.load(args.font), args.chars)
+        return 0
+    panels = [read_snap(path) for path in args.snaps]
+    write_sheet(args.out, panels, [path.stem for path in args.snaps], Font.bdf("helvR14"))
+    print(args.out)
     return 0
 
 

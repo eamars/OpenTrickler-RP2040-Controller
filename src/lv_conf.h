@@ -11,10 +11,12 @@
 // One bit a pixel, rows of bytes as LVGL draws them; the panel's columns are a conversion at the flush
 #define LV_COLOR_FORMAT_DEFAULT LV_COLOR_FORMAT_I1
 
-// LVGL's own heap, a static block. A settings page of seven rows held 7,636 bytes at most (gate 1); `screen` says
-// how much the menu's screens take
+// LVGL's own heap, a static block. It holds the view's objects, a frame's draw tasks while it draws, and a glyph's
+// working buffer (up to 384 bytes for an 18 px figure). A settings page of seven rows held 7,636 bytes at most (gate
+// 1). The redesigned view (33 objects) left 620 bytes in one piece at rest in 12 KB, and its larger glyphs failed to
+// draw; 14 KB since. `screen` says the most used and the least free in one piece
 #define LV_USE_STDLIB_MALLOC LV_STDLIB_BUILTIN
-#define LV_MEM_SIZE (12 * 1024)
+#define LV_MEM_SIZE (14 * 1024)
 
 // One task draws, the menu's: no locking
 #define LV_USE_OS LV_OS_NONE
@@ -52,7 +54,7 @@
 // The menu's fonts, made from u8g2's BDF sources (scripts/bdf2lvgl.py); none of LVGL's own
 #define LV_FONT_MONTSERRAT_14 0
 #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(menu_font_regular) LV_FONT_DECLARE(menu_font_bold) \
-                               LV_FONT_DECLARE(menu_font_large)
+                               LV_FONT_DECLARE(menu_font_figure)
 #define LV_FONT_DEFAULT &menu_font_regular
 
 // Labels only

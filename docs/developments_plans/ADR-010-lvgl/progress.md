@@ -418,3 +418,60 @@ owner's word.
   - the view is rebuilt to the design, in faces the font generator already reads;
   - the navigator gains dialogs and notes, and softkeys in place of the job screens' action marks;
   - the menu baseline is saved again.
+
+## The screens built to the design (2026-11-17)
+
+On the owner's word ("Yes, build it"), the menu was rebuilt to the design in all Helvetica.
+
+- **Built:**
+  - **The faces:** helvR08 for text, helvB08 for titles, helvB18 for figures, from u8g2's BDF files by the
+    existing generator; ProFont 22 is gone.
+  - **The screen model** (`menu_nav.h`) has the design's six kinds (list, card, dialog, notes, edit, job), two
+    softkeys, and a figure with its unit and one line under it. The job screens' old action marks are gone.
+  - **Pages say their kind in the table:**
+    - the cups' acknowledgements and the factory reset are dialogs (Cancel, Start or Erase);
+    - Wi-Fi is a card;
+    - Firmware and the update's offer are notes, ending in their button. The offer's Install is reached only by
+      scrolling through its notes and warnings; a click before it turns a page.
+    - Messages are dialogs with OK.
+    - Focus passes over rows that do nothing.
+  - **Notes and cards are wrapped by the navigator** with the view's measure of text
+    (`menu_nav_set_text_width`), so it counts their lines and still knows no pixels.
+  - **The charge:**
+    - its status is the title;
+    - its figure is in the scale's unit ("gr" for grains; none from the simulated scale, which reports none);
+    - the line under the figure is "of 30.00", or after a throw its verdict ("Good", "Over by 0.04");
+    - the throw's weight stays while the cup is away;
+    - the softkeys are Stop and Zero, Change or OK.
+  - **The cleanup:** "Cleanup" or "Cleanup: running", the speed in rev/s, Stop and Pause.
+  - **The update:** "Connecting", "Downloading 9.0.0", "Checking", "Installing", the percentage, "Keep the power
+    on".
+  - **The view** (`menu_view_12864.c`) is rebuilt to the grid, every text placed by its baseline as the mock-up tool
+    places it.
+  - **The console's `screen`** prints the new model. Its reply gives LVGL's heap: the most used and the least free in
+    one piece.
+- **Where it departs from menu_design.md:**
+  - **Between throws, the knob no longer cycles hidden actions.** The right softkey reads Change and opens a page with
+    Target and Powder, which closes when the next throw begins, as the editor did.
+  - **Who started a job is shown only by the remote mark (R),** no longer in words: the title is the status.
+  - **The scroll bar is a 1 px track and a 3 px thumb.** The mock-up's dotted track needs LVGL's complex drawing,
+    which is off; the mock-up and the skill now draw it as the unit does.
+- **Found on the unit and fixed: LVGL's heap was too small for the new view.**
+  - The figures drew as a lone "." and two titles lost their first letter.
+  - LVGL's log, on for one build, said why: no memory for a glyph's working buffer (384 bytes for an 18 px digit).
+    The heap had 620 bytes free in one piece at rest.
+  - The new view's 33 objects (30 before), with a frame's draw tasks, filled 12 KB.
+  - LV_MEM_SIZE is 14 KB now: 2,656 bytes free in one piece at worst through every screen and a whole throw.
+  - The skill records the budget and how to read it.
+- **Proven on the Pico W,** from the knob, each screen snapped and set beside the mock-up:
+  - every page;
+  - a throw: the target set digit by digit, the cup's dialog, waiting for zero, charging, "Lift the cup" with
+    "Good" and Change, the Change page and back, the next throw's zero, a stop by holding the knob;
+  - a cleanup idle, running and paused;
+  - a driver's fault as a dialog;
+  - an update found on the local OTA server: the main menu's row, the notes scrolled to Install, the download.
+- **Figures (the Pico W):**
+  - flash 966.6 KB of the 1,016 KB slot (959.4 before);
+  - RAM at link 258.5 KB of 256 KB with the C library's 2 KB minimum heap, which leaves that heap about 5.7 KB.
+- **Seen in passing, not this work's:** after the console cleared a simulated driver fault (`tmc coarse fault
+  none`), the main title still named the fault 30 s later. ADR-012's fault display; noted for its area.

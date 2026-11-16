@@ -41,6 +41,8 @@ bool menu_goto_screen(const char *id, bool *found);
  * @brief The screen last drawn, in words, and the most LVGL's heap has held: the remote control's `screen`. Any task.
  */
 void menu_screen_copy(menu_screen_t *screen, uint32_t *lvgl_heap_max);
+// The least LVGL's heap has had free in one piece since the start, sampled each second
+uint32_t menu_lvgl_biggest_free(void);
 
 /**
  * @brief The remote control's `press hold`: the knob's button down, then up after `ms` (a hold is Back).

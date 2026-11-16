@@ -1,70 +1,107 @@
 /*
-    The mini 12864's view (ADR-010, gate 4). A fixed set of labels on a black screen, white text, the focused row in
-    reverse, as the menu was drawn by u8g2 (its fonts, made from their BDF sources). White is a lit pixel.
+    The mini 12864's view (ADR-010): the navigator's screen drawn with LVGL on 128 x 64 one-bit pixels, as the skill
+    embedded-ui-design sets it and tools/ui_mock/menu_12864.py draws it. White is a lit pixel.
 
-    Layout, 128 x 64:
-      0-10    the title in bold, "< " before it when it is a Back target; the marks at the right, Wi-Fi's an icon
-      11      a line
-      13-62   a list: five rows of 10 pixels, label left, value right; ">" for a row that opens something
-              the editor: the number in ProFont 22, a bar under the digit being set, a hint
-              a job: its state, its figure in ProFont 22, two lines, what a click does at the right of the last
+    One family, Helvetica: 8 regular for text, 8 bold for titles and emphasis, 18 bold for a job's figure. The grid:
+      0-10    the title in bold ("< " before it when it is a Back target), the marks at the right; its baseline 9
+      11      a rule
+      13-63   a list: four rows of 13 px, label left, value right, ">" for a row that opens something
+              a card or notes: lines of 11 px (the text's 10 and 1), notes ending in their button; a scroll bar
+              a dialog: two lines centred, on baselines 29 and 40
+              the editor and a job: the figure and its unit on baseline 38, a line under it on 49
+      53-63   the softkeys: Back's at the left, plain; a click's at the right, in reverse
+    Every text is placed by its baseline, so the faces' heights decide nothing else.
 */
 #include <stdio.h>
 #include <string.h>
 
 #include "menu_view_12864.h"
 
-#define VIEW_WIDTH 128
+#define VIEW_W 128
+#define VIEW_H 64
+#define VIEW_TITLE_BASE 9
 #define VIEW_TITLE_H 11
-#define VIEW_ROWS_Y 13
-#define VIEW_ROW_H 10
-#define VIEW_ROWS 5
-#define VIEW_MARGIN 2
+#define VIEW_RULE_Y 11
+#define VIEW_CONTENT_TOP 13
+#define VIEW_ROW_H 13
+#define VIEW_ROWS 4
+#define VIEW_LINE_H 11
+#define VIEW_LINES 4
+#define VIEW_LINE_WIDTH (VIEW_W - 3 - 5)        // a card's or notes' line, clear of the scroll bar
+#define VIEW_MESSAGE_BASE_1 29
+#define VIEW_MESSAGE_BASE_2 40
+#define VIEW_FIGURE_BASE 38
+#define VIEW_CONTEXT_BASE 49
+#define VIEW_SOFTKEY_TOP 53
+#define VIEW_SOFTKEY_BASE 61
+#define VIEW_MARGIN 3
 // The regular font's icons (scripts/bdf2lvgl.py, ICONS), U+E000 and U+E001 in UTF-8
 #define VIEW_ICON_STATION "\xEE\x80\x80"
 #define VIEW_ICON_ACCESS_POINT "\xEE\x80\x81"
 
 extern const lv_font_t menu_font_regular;
 extern const lv_font_t menu_font_bold;
-extern const lv_font_t menu_font_large;
+extern const lv_font_t menu_font_figure;
 
 static lv_obj_t *view_title_box;
 static lv_obj_t *view_title;
 static lv_obj_t *view_marks;
-static lv_obj_t *view_rule;
-static lv_obj_t *view_row_box[VIEW_ROWS];
+static lv_obj_t *view_rows[VIEW_ROWS];          // a list's rows, a card's or notes' lines
 static lv_obj_t *view_row_label[VIEW_ROWS];
 static lv_obj_t *view_row_value[VIEW_ROWS];
-static lv_obj_t *view_big;
-static lv_obj_t *view_bar;
-static lv_obj_t *view_lines[4];         // a job's state and lines, or the editor's hint
-static lv_obj_t *view_action;
-static lv_obj_t *view_verdict;
+static lv_obj_t *view_row_more[VIEW_ROWS];      // ">"
+static lv_obj_t *view_button;                   // notes' button
+static lv_obj_t *view_button_label;
+static lv_obj_t *view_track;
+static lv_obj_t *view_thumb;
+static lv_obj_t *view_message[2];
+static lv_obj_t *view_figure;
+static lv_obj_t *view_unit;
+static lv_obj_t *view_cursor;
+static lv_obj_t *view_context;
+static lv_obj_t *view_softkey_left;
+static lv_obj_t *view_softkey_box;
+static lv_obj_t *view_softkey_right;
 static uint32_t view_version = 0;
-static int view_first = 0;              // the list's first row shown
+static int view_first = 0;                      // a list's first row shown
 
 
-static lv_obj_t *view_box(lv_obj_t *parent, int x, int y, int w, int h) {
+// --- Helpers
+
+static lv_obj_t *view_box(lv_obj_t *parent, int x, int y, int w, int h, bool lit) {
     lv_obj_t *box = lv_obj_create(parent);
     lv_obj_remove_style_all(box);
     lv_obj_set_scrollable(box, false);
     lv_obj_set_pos(box, x, y);
     lv_obj_set_size(box, w, h);
     lv_obj_set_style_bg_color(box, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(box, lit ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     return box;
 }
 
 
-static lv_obj_t *view_label(lv_obj_t *parent, const lv_font_t *font, int x, int y, int w, lv_text_align_t align) {
+static lv_obj_t *view_label(lv_obj_t *parent, const lv_font_t *font, lv_text_align_t align) {
     lv_obj_t *label = lv_label_create(parent);
     lv_obj_set_style_text_font(label, font, 0);
     lv_obj_set_style_text_color(label, lv_color_white(), 0);
     lv_obj_set_style_text_align(label, align, 0);
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_CLIP);
-    lv_obj_set_pos(label, x, y);
-    lv_obj_set_width(label, w);
     lv_label_set_text(label, "");
     return label;
+}
+
+
+// A label's top for its text to stand on `base`: its font's ascent above it (as the mock-up places text)
+static int view_top(const lv_font_t *font, int base) {
+    return base - (int) (font->line_height - font->base_line) + 1;
+}
+
+
+// A label placed: its left edge, its width, its baseline (in its parent)
+static void view_place(lv_obj_t *label, int x, int width, int base) {
+    const lv_font_t *font = lv_obj_get_style_text_font(label, 0);
+    lv_obj_set_pos(label, x, view_top(font, base));
+    lv_obj_set_size(label, width, (int) font->line_height);
 }
 
 
@@ -97,10 +134,23 @@ static int view_text_width(const char *text, size_t length, const lv_font_t *fon
 }
 
 
+// The navigator's measure, for wrapping cards and notes (menu_nav_set_text_width)
+static int view_measure(const char *text, bool bold) {
+    return view_text_width(text, strlen(text), bold ? &menu_font_bold : &menu_font_regular);
+}
+
+
 // A text set only when it changed: LVGL draws again only what changed
 static void view_text(lv_obj_t *label, const char *text) {
     if (strcmp(lv_label_get_text(label), text) != 0) {
         lv_label_set_text(label, text);
+    }
+}
+
+
+static void view_font(lv_obj_t *label, const lv_font_t *font) {
+    if (lv_obj_get_style_text_font(label, 0) != font) {
+        lv_obj_set_style_text_font(label, font, 0);
     }
 }
 
@@ -111,15 +161,19 @@ static void view_show(lv_obj_t *obj, bool shown) {
 
 
 // A box in reverse (lit, its text dark), or plain
-static void view_reverse(lv_obj_t *box, lv_obj_t *label, lv_obj_t *value, bool reverse) {
+static void view_reverse(lv_obj_t *box, bool reverse, lv_obj_t *a, lv_obj_t *b, lv_obj_t *c) {
     lv_obj_set_style_bg_opa(box, reverse ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     lv_color_t text = reverse ? lv_color_black() : lv_color_white();
-    lv_obj_set_style_text_color(label, text, 0);
-    if (value != NULL) {
-        lv_obj_set_style_text_color(value, text, 0);
+    lv_obj_t *labels[] = {a, b, c};
+    for (size_t idx = 0; idx < 3; idx += 1) {
+        if (labels[idx] != NULL) {
+            lv_obj_set_style_text_color(labels[idx], text, 0);
+        }
     }
 }
 
+
+// --- The objects
 
 void menu_view_init(lv_display_t *display) {
     lv_obj_t *screen = lv_display_get_screen_active(display);
@@ -128,48 +182,78 @@ void menu_view_init(lv_display_t *display) {
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
     lv_obj_set_scrollable(screen, false);
 
-    view_title_box = view_box(screen, 0, 0, VIEW_WIDTH, VIEW_TITLE_H);
-    view_title = view_label(view_title_box, &menu_font_bold, VIEW_MARGIN, 0, VIEW_WIDTH - VIEW_MARGIN, LV_TEXT_ALIGN_LEFT);
-    view_marks = view_label(view_title_box, &menu_font_regular, 64, 0, VIEW_WIDTH - 64 - VIEW_MARGIN,
-                            LV_TEXT_ALIGN_RIGHT);
-    view_rule = view_box(screen, 0, VIEW_TITLE_H, VIEW_WIDTH, 1);
-    lv_obj_set_style_bg_opa(view_rule, LV_OPA_COVER, 0);
+    view_title_box = view_box(screen, 0, 0, VIEW_W, VIEW_TITLE_H, false);
+    view_title = view_label(view_title_box, &menu_font_bold, LV_TEXT_ALIGN_LEFT);
+    view_marks = view_label(view_title_box, &menu_font_regular, LV_TEXT_ALIGN_RIGHT);
+    view_place(view_marks, 64, VIEW_W - 64 - 1, VIEW_TITLE_BASE);
+    view_box(screen, 0, VIEW_RULE_Y, VIEW_W, 1, true);
 
     for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
-        view_row_box[idx] = view_box(screen, 0, VIEW_ROWS_Y + idx * VIEW_ROW_H, VIEW_WIDTH, VIEW_ROW_H);
-        view_row_label[idx] = view_label(view_row_box[idx], &menu_font_regular, VIEW_MARGIN, -1,
-                                         VIEW_WIDTH - 2 * VIEW_MARGIN, LV_TEXT_ALIGN_LEFT);
-        view_row_value[idx] = view_label(view_row_box[idx], &menu_font_regular, 40, -1, VIEW_WIDTH - 40 - VIEW_MARGIN,
-                                         LV_TEXT_ALIGN_RIGHT);
+        view_rows[idx] = view_box(screen, 0, VIEW_CONTENT_TOP + idx * VIEW_ROW_H, VIEW_W, VIEW_ROW_H - 1, false);
+        view_row_label[idx] = view_label(view_rows[idx], &menu_font_regular, LV_TEXT_ALIGN_LEFT);
+        view_row_value[idx] = view_label(view_rows[idx], &menu_font_regular, LV_TEXT_ALIGN_RIGHT);
+        view_row_more[idx] = view_label(view_rows[idx], &menu_font_regular, LV_TEXT_ALIGN_RIGHT);
+        lv_label_set_text(view_row_more[idx], ">");
     }
+    view_button = view_box(screen, 2, 0, VIEW_W - 8, VIEW_LINE_H, true);
+    view_button_label = view_label(view_button, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
+    lv_obj_set_style_text_color(view_button_label, lv_color_black(), 0);
+    view_track = view_box(screen, VIEW_W - 1, VIEW_CONTENT_TOP, 1, VIEW_H - VIEW_CONTENT_TOP, true);
+    view_thumb = view_box(screen, VIEW_W - 3, VIEW_CONTENT_TOP, 3, 8, true);
 
-    view_big = view_label(screen, &menu_font_large, 0, 22, VIEW_WIDTH, LV_TEXT_ALIGN_CENTER);
-    view_bar = view_box(screen, 0, 44, 10, 2);
-    lv_obj_set_style_bg_opa(view_bar, LV_OPA_COVER, 0);
-    view_lines[0] = view_label(screen, &menu_font_regular, VIEW_MARGIN, 12, VIEW_WIDTH - VIEW_MARGIN, LV_TEXT_ALIGN_LEFT);
-    view_lines[1] = view_label(screen, &menu_font_regular, VIEW_MARGIN, 44, VIEW_WIDTH - VIEW_MARGIN, LV_TEXT_ALIGN_LEFT);
-    view_lines[2] = view_label(screen, &menu_font_regular, VIEW_MARGIN, 54, 80, LV_TEXT_ALIGN_LEFT);
-    view_lines[3] = view_label(screen, &menu_font_regular, VIEW_MARGIN, 54, VIEW_WIDTH - VIEW_MARGIN,
-                               LV_TEXT_ALIGN_LEFT);
-    view_action = view_label(screen, &menu_font_bold, 64, 54, VIEW_WIDTH - 64 - VIEW_MARGIN, LV_TEXT_ALIGN_RIGHT);
-    view_verdict = view_label(screen, &menu_font_regular, 64, 12, VIEW_WIDTH - 64 - VIEW_MARGIN, LV_TEXT_ALIGN_RIGHT);
+    for (int idx = 0; idx < 2; idx += 1) {
+        view_message[idx] = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
+        view_place(view_message[idx], 0, VIEW_W, idx == 0 ? VIEW_MESSAGE_BASE_1 : VIEW_MESSAGE_BASE_2);
+    }
+    view_figure = view_label(screen, &menu_font_figure, LV_TEXT_ALIGN_LEFT);
+    view_unit = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
+    view_cursor = view_box(screen, 0, VIEW_FIGURE_BASE + 3, 8, 2, true);
+    view_context = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
+    view_place(view_context, 0, VIEW_W, VIEW_CONTEXT_BASE);
+
+    view_softkey_left = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
+    view_place(view_softkey_left, 1, 60, VIEW_SOFTKEY_BASE);
+    view_softkey_box = view_box(screen, 64, VIEW_SOFTKEY_TOP, 64, VIEW_H - VIEW_SOFTKEY_TOP, true);
+    view_softkey_right = view_label(view_softkey_box, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
+    lv_obj_set_style_text_color(view_softkey_right, lv_color_black(), 0);
+
+    menu_nav_set_text_width(view_measure, VIEW_LINE_WIDTH, VIEW_LINES);
 }
 
 
+// --- The parts of a screen
+
 static void view_title_and_marks(const menu_screen_t *screen, bool focused) {
-    char title[MENU_TEXT + 4];
-    snprintf(title, sizeof(title), "%s%s", screen->title_back ? "< " : "", screen->title);
-    view_text(view_title, title);
-    // Wi-Fi as an icon of the regular font (scripts/bdf2lvgl.py): full signal bars joined as a station, with no
-    // strength (the owner: clearest on the small screen), a hotspot as its own access point
-    char marks[16];
+    // Wi-Fi as an icon of the regular font: full signal bars joined as a station, with no strength (the owner:
+    // clearest on the small screen), a hotspot as its own access point
+    char marks[24];
     snprintf(marks, sizeof(marks), "%s%s%s", screen->mark_simulated ? "SIM " : "", screen->mark_remote ? "R " : "",
              screen->mark_station ? VIEW_ICON_STATION : (screen->mark_access_point ? VIEW_ICON_ACCESS_POINT : ""));
     view_text(view_marks, marks);
-    // The marks are drawn over the title's end: the title is clipped short of them
-    lv_obj_set_width(view_title, VIEW_WIDTH - VIEW_MARGIN - view_text_width(marks, strlen(marks), &menu_font_regular)
-                     - 4);
-    view_reverse(view_title_box, view_title, view_marks, focused);
+    char title[MENU_TEXT + 4];
+    snprintf(title, sizeof(title), "%s%s", screen->title_back ? "< " : "", screen->title);
+    view_text(view_title, title);
+    // The title is clipped short of the marks
+    int marks_w = view_text_width(marks, strlen(marks), &menu_font_regular);
+    view_place(view_title, 1, VIEW_W - 1 - marks_w - (marks_w > 0 ? 4 : 0), VIEW_TITLE_BASE);
+    view_reverse(view_title_box, focused, view_title, view_marks, NULL);
+}
+
+
+// A scroll bar at the right edge when there is more than is shown: a track, and a thumb as long as the share shown
+static void view_scrollbar(int first, int shown, int total) {
+    bool scrolls = total > shown;
+    view_show(view_track, scrolls);
+    view_show(view_thumb, scrolls);
+    if (!scrolls) {
+        return;
+    }
+    int span = VIEW_H - VIEW_CONTENT_TOP;
+    int length = span * shown / total;
+    length = length < 4 ? 4 : length;
+    int at = VIEW_CONTENT_TOP + (span - length) * first / (total - shown);
+    lv_obj_set_pos(view_thumb, VIEW_W - 3, at);
+    lv_obj_set_height(view_thumb, length);
 }
 
 
@@ -185,51 +269,110 @@ static void view_list(const menu_screen_t *screen) {
     if (view_first > screen->row_count - VIEW_ROWS) {
         view_first = screen->row_count > VIEW_ROWS ? screen->row_count - VIEW_ROWS : 0;
     }
+    bool scrolls = screen->row_count > VIEW_ROWS;
+    int edge = scrolls ? VIEW_W - 5 : VIEW_W - VIEW_MARGIN;
     for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
         int row = view_first + idx;
         bool shown = row < screen->row_count;
-        view_show(view_row_box[idx], shown);
+        view_show(view_rows[idx], shown);
         if (!shown) {
             continue;
         }
+        lv_obj_set_pos(view_rows[idx], 0, VIEW_CONTENT_TOP + idx * VIEW_ROW_H);
+        lv_obj_set_size(view_rows[idx], edge + 2, VIEW_ROW_H - 1);
+        view_font(view_row_label[idx], &menu_font_regular);
         view_text(view_row_label[idx], screen->row_label[row]);
-        const char *value = screen->row_value[row];
-        view_text(view_row_value[idx], value[0] == '\0' && screen->row_opens[row] ? ">" : value);
-        view_reverse(view_row_box[idx], view_row_label[idx], view_row_value[idx], row == screen->focus);
+        view_text(view_row_value[idx], screen->row_value[row]);
+        view_show(view_row_value[idx], true);      // a card hides it
+        // The text centred in the row's 12 px: its baseline 9 below the row's top
+        int more_w = screen->row_opens[row] ? view_text_width(">", 1, &menu_font_regular) + 3 : 0;
+        view_show(view_row_more[idx], screen->row_opens[row]);
+        view_place(view_row_more[idx], edge - 10, 10, 9);
+        view_place(view_row_value[idx], 40, edge - 40 - more_w, 9);
+        int value_w = view_text_width(screen->row_value[row], strlen(screen->row_value[row]), &menu_font_regular);
+        view_place(view_row_label[idx], VIEW_MARGIN, edge - VIEW_MARGIN - more_w - (value_w > 0 ? value_w + 3 : 0),
+                   9);
+        view_reverse(view_rows[idx], row == screen->focus, view_row_label[idx], view_row_value[idx],
+                     view_row_more[idx]);
+    }
+    view_scrollbar(view_first, VIEW_ROWS, screen->row_count);
+}
+
+
+// A card or notes: four lines of 11 px from the first shown; notes end in their button, a line of its own
+static void view_lines(const menu_screen_t *screen) {
+    bool notes = screen->kind == MENU_SCREEN_NOTES;
+    int total = screen->row_count + (notes && screen->button[0] != '\0' ? 1 : 0);
+    bool button_shown = false;
+    for (int idx = 0; idx < VIEW_LINES; idx += 1) {
+        int line = screen->first + idx;
+        int top = VIEW_CONTENT_TOP + idx * VIEW_LINE_H;
+        bool text = line < screen->row_count;
+        view_show(view_rows[idx], text);
+        if (line == screen->row_count && notes && screen->button[0] != '\0') {
+            lv_obj_set_pos(view_button, 2, top);
+            view_text(view_button_label, screen->button);
+            view_place(view_button_label, 0, VIEW_W - 8, VIEW_LINE_H - 3);
+            button_shown = true;
+        }
+        if (!text) {
+            continue;
+        }
+        lv_obj_set_pos(view_rows[idx], 0, top);
+        lv_obj_set_size(view_rows[idx], VIEW_W - 5, VIEW_LINE_H);
+        view_reverse(view_rows[idx], false, view_row_label[idx], NULL, NULL);
+        view_font(view_row_label[idx], screen->row_bold[line] ? &menu_font_bold : &menu_font_regular);
+        view_text(view_row_label[idx], screen->row_label[line]);
+        view_place(view_row_label[idx], VIEW_MARGIN, VIEW_LINE_WIDTH, VIEW_LINE_H - 3);
+        view_show(view_row_value[idx], false);
+        view_show(view_row_more[idx], false);
+    }
+    view_show(view_button, button_shown);
+    view_scrollbar(screen->first, VIEW_LINES, total);
+}
+
+
+static void view_dialog(const menu_screen_t *screen) {
+    for (int idx = 0; idx < 2; idx += 1) {
+        view_text(view_message[idx], idx < screen->row_count ? screen->row_label[idx] : "");
     }
 }
 
 
-static void view_edit(const menu_screen_t *screen) {
-    view_text(view_big, screen->edit_text);
-    // The bar under the digit being set: the text is centred, so its start is half the space left
-    int width = view_text_width(screen->edit_text, strlen(screen->edit_text), &menu_font_large);
-    int x = (VIEW_WIDTH - width) / 2;
-    int at = view_text_width(screen->edit_text, (size_t) screen->edit_at, &menu_font_large);
-    int digit = (int) lv_font_get_glyph_width(&menu_font_large, (uint32_t) screen->edit_text[screen->edit_at], 0);
-    lv_obj_set_pos(view_bar, x + at, 45);
-    lv_obj_set_width(view_bar, digit);
-    view_text(view_lines[3], "Turn: set  Click: next");
+// The figure and its unit, centred together; the editor's digit underlined
+static void view_figure_and_unit(const menu_screen_t *screen) {
+    int figure_w = view_text_width(screen->figure, strlen(screen->figure), &menu_font_figure);
+    int unit_w = screen->unit[0] != '\0' ? view_text_width(screen->unit, strlen(screen->unit), &menu_font_regular) + 2
+                                         : 0;
+    int x = (VIEW_W - figure_w - unit_w) / 2;
+    view_text(view_figure, screen->figure);
+    view_place(view_figure, x, figure_w + 2, VIEW_FIGURE_BASE);
+    view_text(view_unit, screen->unit);
+    view_place(view_unit, x + figure_w + 2, unit_w + 2, VIEW_FIGURE_BASE);
+    bool editing = screen->kind == MENU_SCREEN_EDIT && screen->edit_at >= 0;
+    view_show(view_cursor, editing);
+    if (editing) {
+        int at = view_text_width(screen->figure, (size_t) screen->edit_at, &menu_font_figure);
+        int digit = (int) lv_font_get_glyph_width(&menu_font_figure, (uint32_t) screen->figure[screen->edit_at], 0);
+        lv_obj_set_pos(view_cursor, x + at, VIEW_FIGURE_BASE + 3);
+        lv_obj_set_width(view_cursor, digit - 1);
+    }
+    view_font(view_context, screen->context_bold ? &menu_font_bold : &menu_font_regular);
+    view_text(view_context, screen->context);
 }
 
 
-static void view_job(const menu_screen_t *screen) {
-    view_text(view_lines[0], screen->job_state);
-    view_text(view_big, screen->job_big);
-    view_text(view_lines[1], screen->job_line[0]);
-    view_text(view_lines[2], screen->job_line[1]);
-    // The last throw's weight and verdict, at the right of the state ("#3 20.02 good": the weight and the word)
-    const char *verdict = strchr(screen->job_line[2], ' ');
-    view_text(view_verdict, verdict != NULL ? verdict + 1 : "");
-    // What a click does; with nothing to click, how to stop: this panel's reset button
-    char action[MENU_TEXT + 4];
-    if (screen->job_action[0] == '\0') {
-        snprintf(action, sizeof(action), "%s", screen->job_back_stops ? "RST: stop" : "");
+static void view_softkeys(const menu_screen_t *screen) {
+    view_text(view_softkey_left, screen->softkey_left);
+    bool right = screen->softkey_right[0] != '\0';
+    view_show(view_softkey_box, right);
+    if (right) {
+        int width = view_text_width(screen->softkey_right, strlen(screen->softkey_right), &menu_font_regular) + 6;
+        lv_obj_set_pos(view_softkey_box, VIEW_W - width, VIEW_SOFTKEY_TOP);
+        lv_obj_set_width(view_softkey_box, width);
+        view_text(view_softkey_right, screen->softkey_right);
+        view_place(view_softkey_right, 0, width, VIEW_SOFTKEY_BASE - VIEW_SOFTKEY_TOP);
     }
-    else {
-        snprintf(action, sizeof(action), screen->job_actions_more ? "<%s>" : "[%s]", screen->job_action);
-    }
-    view_text(view_action, action);
 }
 
 
@@ -239,29 +382,47 @@ void menu_view_draw(const menu_screen_t *screen) {
         view_first = 0;
     }
     bool list = screen->kind == MENU_SCREEN_LIST;
-    bool edit = screen->kind == MENU_SCREEN_EDIT;
-    bool job = screen->kind == MENU_SCREEN_JOB;
+    bool lines = screen->kind == MENU_SCREEN_CARD || screen->kind == MENU_SCREEN_NOTES;
+    bool dialog = screen->kind == MENU_SCREEN_DIALOG;
+    bool figure = screen->kind == MENU_SCREEN_EDIT || screen->kind == MENU_SCREEN_JOB;
 
     view_title_and_marks(screen, list && screen->focus < 0);
-    for (int idx = 0; idx < VIEW_ROWS && !list; idx += 1) {
-        view_show(view_row_box[idx], false);
+    if (!list && !lines) {
+        for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
+            view_show(view_rows[idx], false);
+        }
+        view_show(view_track, false);
+        view_show(view_thumb, false);
     }
-    view_show(view_big, edit || job);
-    view_show(view_bar, edit);
-    view_show(view_lines[0], job);
-    view_show(view_lines[1], job);
-    view_show(view_lines[2], job);
-    view_show(view_lines[3], edit);
-    view_show(view_action, job);
-    view_show(view_verdict, job);
+    if (!lines) {
+        view_show(view_button, false);
+    }
+    view_show(view_message[0], dialog);
+    view_show(view_message[1], dialog);
+    view_show(view_figure, figure);
+    view_show(view_unit, figure);
+    view_show(view_context, figure);
+    if (!figure) {
+        view_show(view_cursor, false);
+    }
+    view_show(view_softkey_left, dialog || figure);
+    if (!dialog && !figure) {
+        view_show(view_softkey_box, false);
+    }
 
     if (list) {
         view_list(screen);
     }
-    else if (edit) {
-        view_edit(screen);
+    else if (lines) {
+        view_lines(screen);
+    }
+    else if (dialog) {
+        view_dialog(screen);
     }
     else {
-        view_job(screen);
+        view_figure_and_unit(screen);
+    }
+    if (dialog || figure) {
+        view_softkeys(screen);
     }
 }

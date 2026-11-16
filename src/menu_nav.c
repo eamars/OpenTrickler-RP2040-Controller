@@ -1,7 +1,8 @@
 /*
     The menu's navigator (ADR-010, gate 4): the tree of menu_design.md as one table, what is open, and the keys.
     Every write goes through the entry point the API uses for the same thing, by button; a setting is stored when it
-    is confirmed (D2). No row draws: menu_nav_screen() says what is on screen, in words.
+    is confirmed (D2). No row draws: menu_nav_screen() says what is on screen, in words, in the kinds of screen the
+    skill embedded-ui-design sets (lists, cards, dialogs, notes, the editor, jobs).
 */
 #include <math.h>
 #include <stdio.h>
@@ -67,9 +68,19 @@ struct menu_row {
     const char *(*option)(int idx);
     int (*current)(void);
     const char *(*choose)(int idx);                                         // NULL when done, else why not
+    bool bold;                                                              // a heading, on notes
 };
 
+// What kind of screen a page is drawn as (the skill embedded-ui-design, rule 5)
+typedef enum {
+    PAGE_LIST = 0,      // rows, one focused
+    PAGE_CARD,          // read-only lines, scrolled
+    PAGE_DIALOG,        // its info rows the message, its action the right softkey, Back the left (Cancel)
+    PAGE_NOTES,         // lines, wrapped, that end in its action row: the button, reached only by scrolling
+} page_kind_t;
+
 struct menu_page {
+    page_kind_t kind;
     const char *id;
     const char *title;
     const char *(*title_now)(void);                                         // a title that changes; NULL: title
@@ -95,12 +106,17 @@ typedef struct {
     int8_t digit_at;
     char message[3][MENU_TEXT];         // FRAME_MESSAGE: a title and two lines
     activity_t job;                     // FRAME_JOB
-    int8_t job_action;
+    uint8_t first;                      // FRAME_PAGE, a card or notes: the first line shown
 } frame_t;
 
 static frame_t frames[MENU_FRAMES_MAX];
 static int frame_depth = 0;
 static uint32_t screen_version = 1;
+
+// The view's measure of text (menu_nav_set_text_width), to wrap cards and notes into the lines they scroll through
+static menu_text_width_fn nav_text_width = NULL;
+static int nav_line_width = 120;
+static uint8_t nav_lines_shown = 4;
 
 
 // --- Pushing and popping what is open
@@ -337,10 +353,15 @@ static bool shown_update_found(void) {
 }
 
 
-// "Update available", or "Important update" for a critical release: no pop-up, a row (the owner)
+// "Update 9.0.1", or "Important update" for a critical release: no pop-up, a row (the owner)
 static const char *update_row_label(void) {
+    static char label[MENU_TEXT];
     update_poll_status_t poll;
-    return update_found(&poll) && poll.critical ? "Important update" : "Update available";
+    if (update_found(&poll) && poll.critical) {
+        return "Important update";
+    }
+    snprintf(label, sizeof(label), "Update %.15s", poll.version);
+    return label;
 }
 
 
@@ -353,32 +374,6 @@ static bool shown_on_station(void) {
 
 static bool shown_not_on_station(void) {
     return !shown_on_station();
-}
-
-
-static void value_check_update(const menu_row_t *row, char *out, size_t room) {
-    (void) row;
-    update_poll_status_t poll;
-    update_poll_status(&poll);
-    switch (poll.state) {
-        case UPDATE_POLL_CHECKING:
-            snprintf(out, room, "Checking...");
-            break;
-        case UPDATE_POLL_UP_TO_DATE:
-            snprintf(out, room, "Up to date");
-            break;
-        case UPDATE_POLL_FOUND:
-            snprintf(out, room, "%s found", poll.version);
-            break;
-        case UPDATE_POLL_FAILED:
-            snprintf(out, room, "Failed");
-            break;
-        case UPDATE_POLL_IDLE:
-        default:
-            // What a click does: "Check for update" and its answer did not fit one row of the 12864
-            snprintf(out, room, "Check now");
-            break;
-    }
 }
 
 
@@ -401,71 +396,25 @@ static void value_channel(const menu_row_t *row, char *out, size_t room) {
 }
 
 
-static void value_found_version(const menu_row_t *row, char *out, size_t room) {
-    (void) row;
+// The offer's heading: the version, and whether it matters
+static const char *offer_heading(void) {
+    static char line[MENU_TEXT];
     update_poll_status_t poll;
-    if (update_found(&poll)) {
-        snprintf(out, room, "%s", poll.version);
-    }
-    else {
-        out[0] = '\0';
-    }
-}
-
-
-/*
- * The note's first lines (the whole is on the web): two rows of what fits, cut at a space where one is near. Each
- * row's text is the label, so it takes the row's width
- */
-#define UPDATE_NOTE_ROW 24
-
-static void update_note_row(int which, char *out, size_t room) {
-    update_poll_status_t poll;
-    out[0] = '\0';
     if (!update_found(&poll)) {
-        return;
+        return "No update is found";        // the page opened by its id (the console), with nothing to offer
     }
-    const char *text = poll.note;
-    for (int row = 0; row <= which; row += 1) {
-        while (*text == ' ' || *text == '\n') {
-            text += 1;
-        }
-        size_t len = strcspn(text, "\n");
-        if (len > UPDATE_NOTE_ROW) {
-            len = UPDATE_NOTE_ROW;
-            size_t cut = len;
-            while (cut > UPDATE_NOTE_ROW / 2 && text[cut] != ' ') {
-                cut -= 1;
-            }
-            if (text[cut] == ' ') {
-                len = cut;
-            }
-        }
-        if (row == which) {
-            snprintf(out, room, "%.*s", (int) len, text);
-            return;
-        }
-        text += len;
-    }
-}
-
-
-static const char *update_note_first(void) {
-    static char line[MENU_TEXT];
-    update_note_row(0, line, sizeof(line));
+    snprintf(line, sizeof(line), "%.15s%s", poll.version, poll.critical ? ", important" : " is ready");
     return line;
 }
 
 
-static const char *update_note_second(void) {
-    static char line[MENU_TEXT];
-    update_note_row(1, line, sizeof(line));
-    return line;
-}
-
-
-static bool shown_note_second(void) {
-    return update_note_second()[0] != '\0';
+// The note as the release gives it, wrapped where it is shown (its start: the whole is on the web)
+static const char *offer_note(void) {
+    static char note[UPDATE_NOTE_MAX];
+    update_poll_status_t poll;
+    update_found(&poll);
+    snprintf(note, sizeof(note), "%s", poll.note);
+    return note;
 }
 
 
@@ -479,10 +428,10 @@ static bool shown_update_went_back(void) {
 
 
 static const char *update_went_back_label(void) {
-    static char line[MENU_TEXT];
+    static char line[48];
     update_poll_status_t poll;
     update_found(&poll);
-    snprintf(line, sizeof(line), "%.13s did not start", poll.version);
+    snprintf(line, sizeof(line), "%.15s did not start last time.", poll.version);
     return line;
 }
 
@@ -520,6 +469,35 @@ static void act_update_install(const menu_row_t *row) {
 
 
 static const menu_page_t page_update;
+
+// The Firmware page's Update line: what the poll knows
+static void value_update_state(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    update_poll_status_t poll;
+    update_poll_status(&poll);
+    static const char *const states[] = {"not checked", "checking...", "up to date", "", "failed"};
+    if (poll.state == UPDATE_POLL_FOUND) {
+        snprintf(out, room, "%.15s found", poll.version);
+    }
+    else {
+        snprintf(out, room, "%s", states[poll.state]);
+    }
+}
+
+
+// Its button: a poll, or the offer once one is found
+static const char *check_update_label(void) {
+    static char label[MENU_TEXT];
+    update_poll_status_t poll;
+    if (update_found(&poll)) {
+        snprintf(label, sizeof(label), "Update to %.15s", poll.version);
+    }
+    else {
+        snprintf(label, sizeof(label), "Check for update");
+    }
+    return label;
+}
+
 
 // Check for update: a poll, or the offer once one is found
 static void act_check_update(const menu_row_t *row) {
@@ -577,13 +555,13 @@ static void value_wifi_mode(const menu_row_t *row, char *out, size_t room) {
     wireless_info_t info;
     wireless_get_link(&info);
     if (strcmp(info.mode, "access_point") == 0) {
-        snprintf(out, room, "own access point");
+        snprintf(out, room, "Its own access point");
     }
     else if (strcmp(info.mode, "station") == 0) {
-        snprintf(out, room, "%s", info.address[0] != '\0' ? "joined" : "joining");
+        snprintf(out, room, "%s %s", info.address[0] != '\0' ? "Joined" : "Joining", info.ssid);
     }
     else {
-        snprintf(out, room, "none");
+        snprintf(out, room, "Not joined");
     }
 }
 
@@ -610,11 +588,12 @@ static void value_wifi_address(const menu_row_t *row, char *out, size_t room) {
 }
 
 
+// The name the unit answers to on the network: what a browser is given
 static void value_wifi_name(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     wireless_info_t info;
     wireless_get_link(&info);
-    snprintf(out, room, "%s", info.hostname != NULL ? info.hostname : "");
+    snprintf(out, room, "%s.local", info.hostname != NULL ? info.hostname : "");
 }
 
 
@@ -683,7 +662,6 @@ static void push_edit(const menu_row_t *row);
 
 // The charge page's Target and Powder, which the charge's own screen opens too between throws
 #define ROW_TARGET (&rows_charge[1])
-#define ROW_POWDER (&rows_charge[2])
 
 
 static void act_charge_start(const menu_row_t *row) {
@@ -803,19 +781,22 @@ static void value_setting_toggle(const menu_row_t *row, char *out, size_t room) 
 
 // --- The tree (menu_design.md)
 
+// The start's acknowledgement, a dialog: a safety step, never cut (the owner)
 static const menu_row_t rows_ack_charge[] = {
-    {.label = "Put the cup on the scale", .kind = ROW_INFO},
-    {.label = "Cup is on: start", .kind = ROW_ACTION, .act = act_ack_charge},
+    {.label = "Put the empty cup", .kind = ROW_INFO},
+    {.label = "on the scale", .kind = ROW_INFO},
+    {.label = "Start", .kind = ROW_ACTION, .act = act_ack_charge},
 };
-static const menu_page_t page_ack_charge = {.id = "ack/charge", .title = "Charge", .rows = rows_ack_charge,
-                                            .row_count = 2};
+static const menu_page_t page_ack_charge = {.kind = PAGE_DIALOG, .id = "ack/charge", .title = "Charge",
+                                            .rows = rows_ack_charge, .row_count = 3};
 
 static const menu_row_t rows_ack_cleanup[] = {
     {.label = "Put the cup on the scale", .kind = ROW_INFO},
-    {.label = "Cup is on: start", .kind = ROW_ACTION, .act = act_ack_cleanup},
+    {.label = "to catch the powder", .kind = ROW_INFO},
+    {.label = "Start", .kind = ROW_ACTION, .act = act_ack_cleanup},
 };
-static const menu_page_t page_ack_cleanup = {.id = "ack/cleanup", .title = "Cleanup", .rows = rows_ack_cleanup,
-                                             .row_count = 2};
+static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/cleanup", .title = "Cleanup",
+                                             .rows = rows_ack_cleanup, .row_count = 3};
 
 static const menu_row_t rows_charge[3] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_charge_start},
@@ -825,15 +806,21 @@ static const menu_row_t rows_charge[3] = {
 };
 static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows = rows_charge, .row_count = 3};
 
+// Between throws, the charge's Change: its target and powder. It closes when the next throw begins
+static const menu_page_t page_charge_change = {.id = "charge/change", .title = "Change", .rows = &rows_charge[1],
+                                               .row_count = 2};
+
+// A card: each line says what it is, read only
 static const menu_row_t rows_wifi[] = {
-    {.label = "Wi-Fi", .kind = ROW_INFO, .value = value_wifi_mode},
-    {.label = "Network", .kind = ROW_INFO, .value = value_wifi_network},
+    {.label = "", .kind = ROW_INFO, .value = value_wifi_mode},
+    {.label = "Network", .kind = ROW_INFO, .value = value_wifi_network, .shown = wifi_is_access_point},
     {.label = "Key", .kind = ROW_INFO, .value = value_wifi_key, .shown = wifi_is_access_point},
-    {.label = "Address", .kind = ROW_INFO, .value = value_wifi_address},
-    {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
+    {.label = "IP", .kind = ROW_INFO, .value = value_wifi_address},
+    {.label = "", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
 };
-static const menu_page_t page_wifi = {.id = "wifi", .title = "Wi-Fi", .rows = rows_wifi, .row_count = 6};
+static const menu_page_t page_wifi = {.kind = PAGE_CARD, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
+                                      .row_count = 6};
 
 static const menu_row_t rows_scale[] = {
     {.label = "Reading", .kind = ROW_INFO, .value = value_reading},
@@ -858,39 +845,46 @@ static const menu_row_t rows_display[] = {
 static const menu_page_t page_display = {.id = "settings/display", .title = "Display", .rows = rows_display,
                                          .row_count = 3};
 
+// Notes: the facts, then the update's button at the end
 static const menu_row_t rows_firmware[] = {
     {.label = "Version", .kind = ROW_INFO, .value = value_version},
-    {.label = "Update", .kind = ROW_ACTION, .value = value_check_update, .act = act_check_update,
-     .shown = shown_on_station},
+    {.label = "Update", .kind = ROW_INFO, .value = value_update_state, .shown = shown_on_station},
     {.label = "Update", .kind = ROW_INFO, .value = value_update_needs_network, .shown = shown_not_on_station},
     {.label = "Last update", .kind = ROW_INFO, .value = value_last_update, .shown = shown_last_update},
     {.label = "Channel", .kind = ROW_INFO, .value = value_channel, .shown = shown_channel_beta},
     {.label = "Board", .kind = ROW_INFO, .value = value_board},
     {.label = "Unit", .kind = ROW_INFO, .value = value_unit_id},
     {.label = "Build", .kind = ROW_INFO, .value = value_build},
+    {.label = "Check for update", .kind = ROW_ACTION, .act = act_check_update, .label_now = check_update_label,
+     .shown = shown_on_station},
 };
-static const menu_page_t page_firmware = {.id = "settings/firmware", .title = "Firmware", .rows = rows_firmware,
-                                          .row_count = 8};
+static const menu_page_t page_firmware = {.kind = PAGE_NOTES, .id = "settings/firmware", .title = "Firmware",
+                                          .rows = rows_firmware, .row_count = 9};
 
-// The offer: the version, the note's first lines, Install and Later (menu_design.md)
+/*
+ * The offer, notes: what the release says and what to know before installing, then Install, reached only by
+ * scrolling through them (the owner, 2026-11-17). Back is Later, throughout
+ */
 static const menu_row_t rows_update[] = {
-    {.label = "Version", .kind = ROW_INFO, .value = value_found_version},
-    {.label = "", .kind = ROW_INFO, .label_now = update_note_first},
-    {.label = "", .kind = ROW_INFO, .label_now = update_note_second, .shown = shown_note_second},
+    {.label = "", .kind = ROW_INFO, .label_now = offer_heading, .bold = true},
+    {.label = "", .kind = ROW_INFO, .label_now = offer_note},
     {.label = "", .kind = ROW_INFO, .label_now = update_went_back_label, .shown = shown_update_went_back},
-    {.label = "The last try failed", .kind = ROW_INFO, .shown = shown_update_failed},
+    {.label = "The last try failed: see the web page.", .kind = ROW_INFO, .shown = shown_update_failed},
+    {.label = "Before you install", .kind = ROW_INFO, .bold = true},
+    {.label = "Keep the power on until the unit has restarted.", .kind = ROW_INFO},
+    {.label = "Your settings are kept.", .kind = ROW_INFO},
     {.label = "Install", .kind = ROW_ACTION, .act = act_update_install},
-    {.label = "Later", .kind = ROW_ACTION, .act = act_back},
 };
-static const menu_page_t page_update = {.id = "update", .title = "Update", .rows = rows_update, .row_count = 7};
+static const menu_page_t page_update = {.kind = PAGE_NOTES, .id = "update", .title = "Update", .rows = rows_update,
+                                        .row_count = 8};
 
 static const menu_row_t rows_factory_reset[] = {
-    {.label = "Erases every setting", .kind = ROW_INFO},
-    {.label = "Cancel", .kind = ROW_ACTION, .act = act_back},
+    {.label = "Erase every setting?", .kind = ROW_INFO},
+    {.label = "It cannot be undone", .kind = ROW_INFO},
     {.label = "Erase", .kind = ROW_ACTION, .act = act_erase},
 };
-static const menu_page_t page_factory_reset = {.id = "settings/factory_reset", .title = "Factory reset",
-                                               .rows = rows_factory_reset, .row_count = 3};
+static const menu_page_t page_factory_reset = {.kind = PAGE_DIALOG, .id = "settings/factory_reset",
+                                               .title = "Factory reset", .rows = rows_factory_reset, .row_count = 3};
 
 static const menu_row_t rows_settings[] = {
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
@@ -925,6 +919,93 @@ static const menu_page_t *const all_pages[] = {
     &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
+
+
+// --- Cards and notes: their rows as lines, wrapped to the view's width
+
+void menu_nav_set_text_width(menu_text_width_fn width, int line_width, uint8_t lines_shown) {
+    nav_text_width = width;
+    nav_line_width = line_width;
+    nav_lines_shown = lines_shown;
+}
+
+
+static int text_width(const char *text, bool bold) {
+    // Before the view gives its measure (the console alone): about 5 pixels a character
+    return nav_text_width != NULL ? nav_text_width(text, bold) : (int) strlen(text) * 5;
+}
+
+
+// A paragraph's lines, broken at spaces to the view's width, into lines[count...]; the new count
+static uint8_t wrap_into(const char *text, bool bold, char lines[][MENU_TEXT], bool *bolds, uint8_t count) {
+    char line[MENU_TEXT] = "";
+    while (*text != '\0' && count < MENU_ROWS_MAX) {
+        while (*text == ' ') {
+            text += 1;
+        }
+        size_t word = strcspn(text, " ");
+        if (word == 0) {
+            break;
+        }
+        char trial[MENU_TEXT];
+        snprintf(trial, sizeof(trial), "%s%s%.*s", line, line[0] != '\0' ? " " : "", (int) word, text);
+        bool too_wide = text_width(trial, bold) > nav_line_width || strlen(line) + 1 + word >= MENU_TEXT;
+        if (too_wide && line[0] != '\0') {
+            snprintf(lines[count], MENU_TEXT, "%s", line);
+            bolds[count] = bold;
+            count += 1;
+            line[0] = '\0';
+            continue;
+        }
+        snprintf(line, sizeof(line), "%s", trial);     // a word wider than a line is cut there
+        text += word;
+    }
+    if (line[0] != '\0' && count < MENU_ROWS_MAX) {
+        snprintf(lines[count], MENU_TEXT, "%s", line);
+        bolds[count] = bold;
+        count += 1;
+    }
+    return count;
+}
+
+
+/*
+ * A card's or notes' lines: each shown info row as its label and value, wrapped; on notes, the action row is the
+ * button at the end (*button, NULL when none is shown). The lines' count
+ */
+static uint8_t page_lines(const menu_page_t *page, char lines[][MENU_TEXT], bool *bolds,
+                          const menu_row_t **button) {
+    const menu_row_t *rows[MENU_ROWS_MAX];
+    uint8_t shown = shown_rows(page, rows);
+    uint8_t count = 0;
+    *button = NULL;
+    for (uint8_t idx = 0; idx < shown; idx += 1) {
+        const menu_row_t *row = rows[idx];
+        if (row->kind == ROW_ACTION) {
+            *button = row;
+            continue;
+        }
+        char value[MENU_TEXT] = "";
+        if (row->value != NULL) {
+            row->value(row, value, sizeof(value));
+        }
+        const char *label = row->label_now != NULL ? row->label_now() : row->label;
+        char text[UPDATE_NOTE_MAX + MENU_TEXT];
+        snprintf(text, sizeof(text), "%s%s%s", label, label[0] != '\0' && value[0] != '\0' ? " " : "", value);
+        count = wrap_into(text, row->bold, lines, bolds, count);
+    }
+    return count;
+}
+
+
+// The first line a card or notes may show: the button, on notes, is a line of its own after the rest
+static uint8_t page_last_first(const menu_page_t *page) {
+    char lines[MENU_ROWS_MAX][MENU_TEXT];
+    bool bolds[MENU_ROWS_MAX];
+    const menu_row_t *button;
+    uint8_t count = page_lines(page, lines, bolds, &button) + (button != NULL ? 1 : 0);
+    return count > nav_lines_shown ? (uint8_t) (count - nav_lines_shown) : 0;
+}
 
 
 // --- The number editor: the target, digit by digit as the menu always set it
@@ -995,51 +1076,45 @@ static void edit_key(frame_t *frame, menu_key_t key) {
 // --- A job's screen: what a click does, by the job and its state (menu_design.md, "The jobs' screens")
 
 typedef enum {
+    JOB_ACTION_NONE,
     JOB_ACTION_ZERO,
-    JOB_ACTION_TARGET,
-    JOB_ACTION_POWDER,
+    JOB_ACTION_CHANGE,
     JOB_ACTION_ACKNOWLEDGE,
 } job_action_t;
 
 
-static uint8_t charge_actions(job_action_t *out) {
+// What a click does on the charge's screen now: its right softkey
+static job_action_t charge_action(void) {
     charge_status_t charge;
     charge_mode_get_status(&charge);
-    uint8_t count = 0;
     if (strcmp(charge.state, "fault") == 0) {
-        out[count++] = JOB_ACTION_ACKNOWLEDGE;
-        return count;
+        return JOB_ACTION_ACKNOWLEDGE;
     }
-    bool zeroing = strcmp(charge.state, "zeroing") == 0;
-    bool cup_return = strcmp(charge.state, "waiting_for_cup_return") == 0;
-    bool cup_removal = strcmp(charge.state, "waiting_for_cup_removal") == 0;
     // A zero while the charge waits for zero, to tare the cup on the pan. Not while it waits for the cup's return:
     // the charge takes a reading of 0 as the cup back, so a zero with the pan bare would start a throw on it. The API
     // refuses that zero for the same reason (review of ADR-010's gate 4)
-    if (zeroing) {
-        out[count++] = JOB_ACTION_ZERO;
+    if (strcmp(charge.state, "zeroing") == 0) {
+        return JOB_ACTION_ZERO;
     }
-    // Between throws only: the API refuses both in a throw
-    if ((cup_return || cup_removal) && !activity_in_throw()) {
-        out[count++] = JOB_ACTION_TARGET;
-        out[count++] = JOB_ACTION_POWDER;
+    // Between throws only: the API refuses a target or a powder in a throw
+    bool between = strcmp(charge.state, "waiting_for_cup_return") == 0 ||
+                   strcmp(charge.state, "waiting_for_cup_removal") == 0;
+    if (between && !activity_in_throw()) {
+        return JOB_ACTION_CHANGE;
     }
-    return count;
+    return JOB_ACTION_NONE;
 }
 
 
 static const char *job_action_name(job_action_t action) {
     switch (action) {
         case JOB_ACTION_ZERO: return "Zero";
-        case JOB_ACTION_TARGET: return "Target";
-        case JOB_ACTION_POWDER: return "Powder";
+        case JOB_ACTION_CHANGE: return "Change";
         case JOB_ACTION_ACKNOWLEDGE: return "OK";
+        case JOB_ACTION_NONE:
+        default: return "";
     }
-    return "";
 }
-
-
-static void push_choice(const menu_row_t *row);
 
 
 static void job_key(frame_t *frame, menu_key_t key) {
@@ -1075,22 +1150,8 @@ static void job_key(frame_t *frame, menu_key_t key) {
     }
 
     if (frame->job == ACTIVITY_CHARGE) {
-        job_action_t actions[4];
-        uint8_t count = charge_actions(actions);
-        if (count == 0) {
-            return;
-        }
-        if (frame->job_action >= count) {
-            frame->job_action = 0;
-        }
-        if (key == MENU_KEY_NEXT) {
-            frame->job_action = (int8_t) ((frame->job_action + 1) % count);
-        }
-        else if (key == MENU_KEY_PREV) {
-            frame->job_action = (int8_t) ((frame->job_action + count - 1) % count);
-        }
-        else if (key == MENU_KEY_ENTER) {
-            switch (actions[frame->job_action]) {
+        if (key == MENU_KEY_ENTER) {
+            switch (charge_action()) {
                 case JOB_ACTION_ZERO: {
                     // Under the lock the charge starts its pour under, and only while it still waits for zero: a zero
                     // landing as the pour begins would pour a whole target on top (as POST /api/v1/scale/zero)
@@ -1103,14 +1164,13 @@ static void job_key(frame_t *frame, menu_key_t key) {
                     activity_unlock();
                     break;
                 }
-                case JOB_ACTION_TARGET:
-                    push_edit(ROW_TARGET);
-                    break;
-                case JOB_ACTION_POWDER:
-                    push_choice(ROW_POWDER);
+                case JOB_ACTION_CHANGE:
+                    push_page(&page_charge_change);
                     break;
                 case JOB_ACTION_ACKNOWLEDGE:
                     activity_request_stop(ACTIVITY_CHARGE, ACTIVITY_BY_BUTTON);
+                    break;
+                case JOB_ACTION_NONE:
                     break;
             }
         }
@@ -1165,18 +1225,35 @@ static int choice_shown_count(const menu_row_t *row) {
 
 // --- Keys on a list: a page, a choice, a message
 
+// Whether a page's shown row at idx does something: focus passes over the rest (the skill, rule 12)
+static bool row_acts(const frame_t *frame, int idx) {
+    if (frame->kind != FRAME_PAGE) {
+        return true;
+    }
+    const menu_row_t *rows[MENU_ROWS_MAX];
+    uint8_t count = shown_rows(frame->page, rows);
+    return idx < count && rows[idx]->kind != ROW_INFO;
+}
+
+
 static void list_key(frame_t *frame, menu_key_t key, int count) {
     switch (key) {
         case MENU_KEY_NEXT:
-            if (frame->focus < count - 1) {
-                frame->focus += 1;
+            for (int idx = frame->focus + 1; idx < count; idx += 1) {
+                if (row_acts(frame, idx)) {
+                    frame->focus = (int8_t) idx;
+                    break;
+                }
             }
             return;
-        case MENU_KEY_PREV:
-            if (frame->focus > -1) {
-                frame->focus -= 1;
+        case MENU_KEY_PREV: {
+            int idx = frame->focus - 1;
+            while (idx >= 0 && !row_acts(frame, idx)) {
+                idx -= 1;
             }
+            frame->focus = (int8_t) idx;      // -1: the title, which is Back
             return;
+        }
         case MENU_KEY_BACK:
             pop();
             return;
@@ -1229,8 +1306,56 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
 }
 
 
+// A card, a dialog or notes: their own keys
+static void page_kind_key(frame_t *frame, menu_key_t key) {
+    const menu_page_t *page = frame->page;
+    if (key == MENU_KEY_BACK) {
+        pop();
+        return;
+    }
+    if (page->kind == PAGE_DIALOG) {
+        // A click is its action; the knob does nothing
+        if (key == MENU_KEY_ENTER) {
+            for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
+                if (page->rows[idx].kind == ROW_ACTION) {
+                    page->rows[idx].act(&page->rows[idx]);
+                    return;
+                }
+            }
+        }
+        return;
+    }
+    uint8_t last = page_last_first(page);
+    if (key == MENU_KEY_NEXT && frame->first < last) {
+        frame->first += 1;
+    }
+    else if (key == MENU_KEY_PREV && frame->first > 0) {
+        frame->first -= 1;
+    }
+    else if (key == MENU_KEY_ENTER && page->kind == PAGE_NOTES) {
+        // At the end a click presses the button; before it, it turns the page, so the notes are read on the way
+        if (frame->first >= last) {
+            char lines[MENU_ROWS_MAX][MENU_TEXT];
+            bool bolds[MENU_ROWS_MAX];
+            const menu_row_t *button;
+            page_lines(page, lines, bolds, &button);
+            if (button != NULL) {
+                button->act(button);
+            }
+        }
+        else {
+            frame->first = (uint8_t) (frame->first + nav_lines_shown < last ? frame->first + nav_lines_shown : last);
+        }
+    }
+}
+
+
 void menu_nav_key(menu_key_t key) {
     frame_t *frame = top();
+    if (frame->kind == FRAME_PAGE && frame->page->kind != PAGE_LIST) {
+        page_kind_key(frame, key);
+        return;
+    }
     switch (frame->kind) {
         case FRAME_EDIT:
             edit_key(frame, key);
@@ -1406,11 +1531,50 @@ static void screen_row(menu_screen_t *screen, const char *label, const char *val
 }
 
 
+// A dialog: its info rows the message, its action the right softkey, Back the left
+static void screen_dialog(menu_screen_t *screen, const menu_page_t *page) {
+    screen->kind = MENU_SCREEN_DIALOG;
+    for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
+        const menu_row_t *row = &page->rows[idx];
+        if (row->kind == ROW_ACTION) {
+            snprintf(screen->softkey_right, MENU_TEXT, "%s", row->label);
+        }
+        else {
+            screen_row(screen, row->label, "", false);
+        }
+    }
+    snprintf(screen->softkey_left, MENU_TEXT, "Cancel");
+}
+
+
+// A card or notes: its lines from the first shown; notes end in their button
+static void screen_lines(menu_screen_t *screen, const frame_t *frame) {
+    const menu_page_t *page = frame->page;
+    screen->kind = page->kind == PAGE_NOTES ? MENU_SCREEN_NOTES : MENU_SCREEN_CARD;
+    const menu_row_t *button;
+    screen->row_count = page_lines(page, screen->row_label, screen->row_bold, &button);
+    uint8_t last = page_last_first(page);
+    screen->first = frame->first < last ? frame->first : last;
+    if (button != NULL) {
+        snprintf(screen->button, MENU_TEXT, "%s", button->label_now != NULL ? button->label_now() : button->label);
+        screen->button_reached = screen->first >= last;
+    }
+}
+
+
 static void screen_page(menu_screen_t *screen, const frame_t *frame) {
     const menu_page_t *page = frame->page;
     snprintf(screen->id, sizeof(screen->id), "%s", page->id);
     snprintf(screen->title, sizeof(screen->title), "%s", page->title_now != NULL ? page->title_now() : page->title);
-    screen->title_back = frame_depth > 1;
+    screen->title_back = frame_depth > 1 && page->kind != PAGE_DIALOG;
+    if (page->kind == PAGE_DIALOG) {
+        screen_dialog(screen, page);
+        return;
+    }
+    if (page->kind != PAGE_LIST) {
+        screen_lines(screen, frame);
+        return;
+    }
     const menu_row_t *rows[MENU_ROWS_MAX];
     uint8_t count = shown_rows(page, rows);
     for (uint8_t idx = 0; idx < count; idx += 1) {
@@ -1442,36 +1606,50 @@ static void screen_choice(menu_screen_t *screen, const frame_t *frame) {
 }
 
 
+// The scale's unit as a person reads it: "gr" for grains, as the powder profiles write it; "" when not known
+static const char *unit_text(void) {
+    const char *unit = scale_get_unit();
+    if (unit == NULL) {
+        return "";
+    }
+    return strcmp(unit, "gn") == 0 ? "gr" : unit;
+}
+
+
 static void screen_edit(menu_screen_t *screen, const frame_t *frame) {
     screen->kind = MENU_SCREEN_EDIT;
     snprintf(screen->id, sizeof(screen->id), "edit");
     snprintf(screen->title, sizeof(screen->title), "%s", frame->row->label);
-    screen->title_back = true;
-    // The digits with their point: 024.35 or 24.350
+    // The digits with their point: 024.35 or 24.350; the one being set
     size_t len = 0;
     int whole = MENU_EDIT_DIGITS - frame->decimals;
     for (int idx = 0; idx < MENU_EDIT_DIGITS; idx += 1) {
         if (idx == whole) {
-            screen->edit_text[len++] = '.';
+            screen->figure[len++] = '.';
         }
         if (idx == frame->digit_at) {
             screen->edit_at = (int8_t) len;
         }
-        screen->edit_text[len++] = (char) ('0' + frame->digits[idx]);
+        screen->figure[len++] = (char) ('0' + frame->digits[idx]);
     }
-    screen->edit_text[len] = '\0';
+    screen->figure[len] = '\0';
+    snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
+    // Back steps back a digit, and leaves at the first; a click goes on, and sets at the last
+    snprintf(screen->softkey_left, MENU_TEXT, "%s", frame->digit_at == 0 ? "Cancel" : "Back");
+    snprintf(screen->softkey_right, MENU_TEXT, "%s", frame->digit_at == MENU_EDIT_DIGITS - 1 ? "Set" : "Next");
 }
 
 
+// A message, as a dialog: a click or Back closes it
 static void screen_message(menu_screen_t *screen, const frame_t *frame) {
+    screen->kind = MENU_SCREEN_DIALOG;
     snprintf(screen->id, sizeof(screen->id), "message");
     snprintf(screen->title, sizeof(screen->title), "%s", frame->message[0]);
     screen_row(screen, frame->message[1], "", false);
     if (frame->message[2][0] != '\0') {
         screen_row(screen, frame->message[2], "", false);
     }
-    screen_row(screen, "OK", "", false);
-    screen->focus = (int8_t) (screen->row_count - 1);
+    snprintf(screen->softkey_right, MENU_TEXT, "OK");
 }
 
 
@@ -1483,10 +1661,10 @@ static const char *charge_state_text(const char *state) {
         return "Charging";
     }
     if (strcmp(state, "waiting_for_cup_removal") == 0) {
-        return "Remove the cup";
+        return "Lift the cup";
     }
     if (strcmp(state, "waiting_for_cup_return") == 0) {
-        return "Return the cup";
+        return "Put the cup back";
     }
     if (strcmp(state, "starting") == 0) {
         return "Starting";
@@ -1495,45 +1673,53 @@ static const char *charge_state_text(const char *state) {
 }
 
 
+/*
+ * A job's screen (the skill, rule 5): its status as the title, one figure and its unit, one line under it, two
+ * softkeys. Who started it shows as the remote mark, not in words
+ */
 static void screen_job(menu_screen_t *screen, frame_t *frame) {
     screen->kind = MENU_SCREEN_JOB;
-    char weight[16];
-    format_weight(scale_get_current_measurement(), weight, sizeof(weight));
-    const char *by = activity_job_by() == ACTIVITY_BY_API ? ", from the web" :
-                     (activity_job_by() == ACTIVITY_BY_CONSOLE ? ", from the console" : "");
+    screen->edit_at = -1;
+    snprintf(screen->softkey_left, MENU_TEXT, "Stop");
 
     if (frame->job == ACTIVITY_CHARGE) {
         charge_status_t charge;
         charge_mode_get_status(&charge);
         snprintf(screen->id, sizeof(screen->id), "job/charge");
-        snprintf(screen->title, sizeof(screen->title), "Charge%s", by);
-        if (strcmp(charge.state, "fault") == 0) {
-            snprintf(screen->job_state, MENU_TEXT, "%s", charge_mode_get_title());
+        bool fault = strcmp(charge.state, "fault") == 0;
+        if (fault) {
+            snprintf(screen->title, sizeof(screen->title), "%s", charge_mode_get_title());
         }
         else {
-            snprintf(screen->job_state, MENU_TEXT, "%s%s", charge_state_text(charge.state),
+            snprintf(screen->title, sizeof(screen->title), "%s%s", charge_state_text(charge.state),
                      charge.paused ? ", paused" : "");
         }
-        snprintf(screen->job_big, sizeof(screen->job_big), "%s", weight);
-        char target[16];
-        format_weight(charge.target, target, sizeof(target));
-        snprintf(screen->job_line[0], MENU_TEXT, "Target %s  %.1f s", target, (double) charge.elapsed_s);
-        snprintf(screen->job_line[1], MENU_TEXT, "%s", profile_get_name(profile_get_selected_idx()));
-        if (charge.last_throw > 0 && charge.last_result != EVENT_RESULT_NONE) {
-            char last[16];
-            format_weight(charge.last_weight, last, sizeof(last));
-            const char *verdict = charge.last_result == EVENT_RESULT_GOOD ? "good" :
-                                  (charge.last_result == EVENT_RESULT_UNDER ? "under" : "over");
-            snprintf(screen->job_line[2], MENU_TEXT, "#%u %s %s", (unsigned) charge.last_throw, last, verdict);
+        // Between throws the throw's weight stays, with its verdict: with the cup off, the pan's reading means
+        // nothing to a person
+        bool between = strcmp(charge.state, "waiting_for_cup_removal") == 0 ||
+                       strcmp(charge.state, "waiting_for_cup_return") == 0;
+        bool verdict = between && charge.last_throw > 0 && charge.last_result != EVENT_RESULT_NONE;
+        format_weight(verdict ? charge.last_weight : scale_get_current_measurement(), screen->figure,
+                      sizeof(screen->figure));
+        snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
+        if (verdict) {
+            char off[16];
+            format_weight(fabsf(charge.last_weight - charge.target), off, sizeof(off));
+            if (charge.last_result == EVENT_RESULT_GOOD) {
+                snprintf(screen->context, MENU_TEXT, "Good");
+            }
+            else {
+                snprintf(screen->context, MENU_TEXT, "%s by %s",
+                         charge.last_result == EVENT_RESULT_OVER ? "Over" : "Under", off);
+            }
+            screen->context_bold = true;
         }
-        job_action_t actions[4];
-        uint8_t count = charge_actions(actions);
-        if (frame->job_action >= count) {
-            frame->job_action = 0;
+        else if (!fault && charge.target > 0.0f) {
+            char target[16];
+            format_weight(charge.target, target, sizeof(target));
+            snprintf(screen->context, MENU_TEXT, "of %s", target);
         }
-        snprintf(screen->job_action, MENU_TEXT, "%s", count > 0 ? job_action_name(actions[frame->job_action]) : "");
-        screen->job_actions_more = count > 1;
-        screen->job_back_stops = true;
+        snprintf(screen->softkey_right, MENU_TEXT, "%s", job_action_name(charge_action()));
         return;
     }
 
@@ -1541,51 +1727,56 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         cleanup_status_t cleanup;
         cleanup_mode_get_status(&cleanup);
         snprintf(screen->id, sizeof(screen->id), "job/cleanup");
-        snprintf(screen->title, sizeof(screen->title), "Cleanup%s", by);
         bool fault = strcmp(cleanup.state, "fault") == 0;
-        snprintf(screen->job_state, MENU_TEXT, "%s", fault ? cleanup_mode_get_title() : "Turn to run");
-        snprintf(screen->job_big, sizeof(screen->job_big), "%.1f rev/s", (double) cleanup.speed_rps);
-        snprintf(screen->job_line[0], MENU_TEXT, "Weight %s", weight);
-        snprintf(screen->job_line[1], MENU_TEXT, "Gate %s", gate_state_to_string(servo_gate.gate_state));
-        snprintf(screen->job_action, MENU_TEXT, "%s", fault ? "OK" : "Stop the motors");
-        screen->job_back_stops = true;
+        bool running = cleanup.speed_rps != 0.0f;
+        snprintf(screen->title, sizeof(screen->title), "%s", fault ? cleanup_mode_get_title() :
+                                                             (running ? "Cleanup: running" : "Cleanup"));
+        snprintf(screen->figure, sizeof(screen->figure), "%.1f", (double) cleanup.speed_rps);
+        snprintf(screen->unit, sizeof(screen->unit), "rev/s");
+        if (!fault) {
+            snprintf(screen->context, MENU_TEXT, "%s", running ? "Turn the knob for speed" : "Turn the knob to run");
+        }
+        // A click sets the speed to 0: the motors stop, the cleanup stays
+        snprintf(screen->softkey_right, MENU_TEXT, "%s", fault ? "OK" : (running ? "Pause" : ""));
         return;
     }
 
     update_status_t update;
     update_status(&update);
     snprintf(screen->id, sizeof(screen->id), "job/update");
-    snprintf(screen->title, sizeof(screen->title), "Firmware update");
-    if (update.download) {
-        update_poll_status_t poll;
-        if (update_found(&poll)) {
-            snprintf(screen->job_big, sizeof(screen->job_big), "%.15s", poll.version);
-        }
-    }
+    update_poll_status_t poll;
+    bool found = update.download && update_found(&poll);
     switch (update.state) {
         case UPDATE_RECEIVING:
-            if (update.expected > 0) {
-                snprintf(screen->job_state, MENU_TEXT, "%s %lu%%", update.download ? "Downloading" : "Receiving",
-                         (unsigned long) ((uint64_t) update.received * 100u / update.expected));
+            if (update.expected == 0) {
+                snprintf(screen->title, sizeof(screen->title), "%s", update.download ? "Connecting" :
+                                                                     "Waiting for the image");
+            }
+            else if (found) {
+                snprintf(screen->title, sizeof(screen->title), "Downloading %.15s", poll.version);
             }
             else {
-                snprintf(screen->job_state, MENU_TEXT, "%s", update.download ? "Connecting" :
-                                                             "Waiting for the image");
+                snprintf(screen->title, sizeof(screen->title), "%s", update.download ? "Downloading" : "Receiving");
             }
             break;
         case UPDATE_READY:
-            snprintf(screen->job_state, MENU_TEXT, "Ready to install");
+            snprintf(screen->title, sizeof(screen->title), "%s", update.download ? "Checking" : "Ready to install");
             break;
         case UPDATE_INSTALLING:
-            snprintf(screen->job_state, MENU_TEXT, "Installing, restarting");
+            snprintf(screen->title, sizeof(screen->title), "Installing");
             break;
         default:
-            snprintf(screen->job_state, MENU_TEXT, "Waiting for the image");
+            snprintf(screen->title, sizeof(screen->title), "Waiting for the image");
             break;
     }
-    screen->job_back_stops = update.state != UPDATE_INSTALLING;
-    snprintf(screen->job_line[0], MENU_TEXT, "Keep the power on.");
-    snprintf(screen->job_line[1], MENU_TEXT, "Running %s", update.version);
+    if (update.expected > 0) {
+        snprintf(screen->figure, sizeof(screen->figure), "%lu",
+                 (unsigned long) ((uint64_t) update.received * 100u / update.expected));
+        snprintf(screen->unit, sizeof(screen->unit), "%%");
+    }
+    snprintf(screen->context, MENU_TEXT, "Keep the power on");
+    // Back stops it until it installs
+    snprintf(screen->softkey_left, MENU_TEXT, "%s", update.state != UPDATE_INSTALLING ? "Stop" : "");
 }
 
 

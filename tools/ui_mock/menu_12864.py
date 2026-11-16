@@ -80,7 +80,8 @@ def title(panel, text, back=False, sim=False):
 
 def scrollbar(panel, first, shown, total, top=CONTENT_TOP):
     """
-    A scroll bar at the right edge, on a page that runs on: a dotted track and a thumb as long as the share shown.
+    A scroll bar at the right edge, on a page that runs on: a 1 px track and a 3 px thumb as long as the share shown,
+    as the unit draws it (a dotted track needs LVGL's complex drawing, off to save flash).
 
     Args:
         panel: the Panel.
@@ -94,9 +95,8 @@ def scrollbar(panel, first, shown, total, top=CONTENT_TOP):
     span = H - top
     length = max(4, span * shown // total)
     at = top + (span - length) * first // max(1, total - shown)
-    for y in range(top, H, 2):
-        panel.set(W - 1, y)
-    panel.rect(W - 2, at, 2, length)
+    panel.rect(W - 1, top, 1, span)
+    panel.rect(W - 3, at, 3, length)
 
 
 def rows(panel, items, focus, first=0, total=None):
