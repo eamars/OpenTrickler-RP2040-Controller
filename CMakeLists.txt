@@ -109,6 +109,10 @@ target_link_libraries("${TARGET_NAME}"
     pico_mbedtls_headers
 )
 
+# SHA-256 optimised: at the build's -O0 an image's check took 5 s on the Pico W, and the web server, whose task it
+# runs in, answered nothing meanwhile (ADR-004). It is third-party code nobody steps through
+set_source_files_properties("${PICO_SDK_PATH}/lib/mbedtls/library/sha256.c" PROPERTIES COMPILE_OPTIONS "-O2")
+
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 
 # The console (ADR-001): stdio over RTT, read through a debug probe. Never on UART0, the scale's port

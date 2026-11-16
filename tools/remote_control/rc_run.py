@@ -716,6 +716,14 @@ class Openocd:
         self.board = board
         self.log = log
         self.output = []    # every line openocd printed, for checks such as "Verified OK"
+        # Another openocd on the Tcl port holds the probe, and this session's commands would go to it unseen: one
+        # left by a session that died at its start flashed a unit while its own openocd found no probe (ADR-004)
+        try:
+            socket.create_connection(("127.0.0.1", TCL_PORT), timeout=1).close()
+        except OSError:
+            pass
+        else:
+            raise RuntimeError(f"another openocd holds the Tcl port {TCL_PORT}: stop it first")
         exe = OPENOCD_DIR / "openocd.exe"
         command = [
             str(exe), "-s", str(OPENOCD_DIR / "scripts"),
@@ -988,7 +996,11 @@ class Session:
         self.last_up = None
         self.log.write("rc", f"board {args.board}, elf {self.elf}")
         self.openocd = Openocd(self.board, self.log)
-        self.openocd.rtt_start(self.elf)
+        try:
+            self.openocd.rtt_start(self.elf)
+        except Exception:
+            self.openocd.close()    # or it holds the probe and the Tcl port for the next session
+            raise
         self.link_drops = 0
         self.link_seen = len(self.openocd.output)   # openocd's lines already looked at for a dropped link
         self.console = Console(self.log, self.failures, self.recover_link)
@@ -2940,6 +2952,24 @@ def main():
     args = parser.parse_args()
 
     session = Session(args, args.command)
+    try:
+        run_command(session, args)
+    except Exception:
+        # A run that raises fails with its traceback in the log, and still stops its openocd, which would otherwise
+        # hold the probe and the Tcl port for the next session (ADR-004)
+        session.log.write("rc", traceback.format_exc().rstrip())
+        session.fail(f"rc_run raised: {traceback.format_exc().strip().splitlines()[-1]}")
+    sys.exit(session.finish())
+
+
+def run_command(session, args):
+    """
+    Run the command the arguments name.
+
+    Args:
+        session: the Session.
+        args: the parsed arguments.
+    """
     if args.command == "send":
         for line in args.lines:
             session.send(line)
@@ -2979,7 +3009,6 @@ def main():
         session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.cleanup_speed,
                              args.expect, args.watch, args.repeat,
                              args.want.split(",") if args.want else None, args.want_none)
-    sys.exit(session.finish())
 
 
 if __name__ == "__main__":
