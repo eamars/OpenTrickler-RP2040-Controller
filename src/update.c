@@ -12,11 +12,21 @@
 #include <FreeRTOS.h>
 #include <timers.h>
 
+#include "boot/picobin.h"
 #include "hardware/watchdog.h"
+#include "mbedtls/sha256.h"
 
 #include "activity.h"
+#include "picobin_image.h"
 #include "update_slots.h"
 #include "version.h"
+
+#if PICO_RP2350
+#define UPDATE_CHIP PICOBIN_IMAGE_TYPE_EXE_CHIP_RP2350
+#else
+#define UPDATE_CHIP PICOBIN_IMAGE_TYPE_EXE_CHIP_RP2040
+#endif
+#define UPDATE_HASH_BYTES 32
 
 #define UPDATE_TRIAL_WATCHDOG_MS 8000       // the watchdog while on trial: the RP2040's longest is 8.3 s
 #define UPDATE_TRIAL_FEED_MS 1000
@@ -39,6 +49,83 @@ static TimerHandle_t update_feed_timer = NULL;
 
 static char update_slot_name(int8_t slot) {
     return slot == 0 ? 'a' : (slot == 1 ? 'b' : '-');
+}
+
+
+/*
+ * An image's SHA-256, as picotool seals it (bintool.cpp, 2.3.1): the data of each load map entry from where it is
+ * stored (a cleared region by its size), then the block's words up to and including the hash definition, with the
+ * try-before-you-buy mark cleared in the copy hashed, so the hash holds once the image is confirmed. Checked against
+ * an image picotool verified (progress, 2026-11-16). Only relative load maps, stored inside the slot, are taken
+ */
+static bool update_hash_holds(const picobin_image_t *image, uintptr_t start, uint32_t size) {
+    if (image->load_map == NULL || image->hash_def == NULL || image->hash_value == NULL ||
+        (image->hash_def[0] >> 24) != PICOBIN_HASH_SHA256) {
+        return false;
+    }
+    uint32_t header = image->load_map[0];
+    uint32_t entries = (header << 1) >> 25;
+    if ((header >> 31) != 0) {
+        return false;
+    }
+    mbedtls_sha256_context sha;
+    mbedtls_sha256_init(&sha);
+    bool held = mbedtls_sha256_starts(&sha, 0) == 0;
+    for (uint32_t idx = 0; held && idx < entries; idx += 1) {
+        int32_t storage_rel = (int32_t) image->load_map[1 + 3 * idx];
+        uint32_t bytes = image->load_map[3 + 3 * idx];
+        if (storage_rel == 0) {
+            held = mbedtls_sha256_update(&sha, (const uint8_t *) &bytes, sizeof(bytes)) == 0;
+            continue;
+        }
+        uintptr_t stored = (uintptr_t) image->load_map + storage_rel;
+        held = stored >= start && stored + bytes <= start + size &&
+               mbedtls_sha256_update(&sha, (const uint8_t *) stored, bytes) == 0;
+    }
+    uint32_t block_words = image->hash_def[1] & 0xffff;
+    for (uint32_t idx = 0; held && idx < block_words; idx += 1) {
+        uint32_t word = image->block[idx];
+        if (idx == 1 && (word & 0xff) == PICOBIN_BLOCK_ITEM_1BS_IMAGE_TYPE) {
+            word &= ~((uint32_t) PICOBIN_IMAGE_TYPE_EXE_TBYB_BITS << 16);
+        }
+        held = mbedtls_sha256_update(&sha, (const uint8_t *) &word, sizeof(word)) == 0;
+    }
+    uint8_t digest[UPDATE_HASH_BYTES];
+    held = held && mbedtls_sha256_finish(&sha, digest) == 0 && memcmp(digest, image->hash_value, sizeof(digest)) == 0;
+    mbedtls_sha256_free(&sha);
+    return held;
+}
+
+
+/*
+ * The image in the free slot, checked before it is tried: an executable for this chip, marked for a trial, newer
+ * than the one running, linked for the free slot, its hash holding. NULL when it may be tried, else why not
+ */
+static const char *update_check_free(void) {
+    picobin_image_t image;
+    if (!picobin_image_read(update_slots.free_read_at, update_slots.free_size, &image)) {
+        return "no image in the free slot";
+    }
+    if (image.chip != UPDATE_CHIP) {
+        return "an image for the other chip";
+    }
+    if (!image.trial) {
+        return "not an update image (no try-before-you-buy mark)";
+    }
+    uint32_t running = ((uint32_t) PICO_CRT0_VERSION_MAJOR << 16) | PICO_CRT0_VERSION_MINOR;
+    if (picobin_image_version(&image) <= running) {
+        return "not newer than the image running";
+    }
+    // The first load map entry is the image's start, where it runs: the slot's address on the RP2040, flash's start
+    // on the RP2350, which maps the slot there
+    if (image.load_map == NULL || ((image.load_map[0] << 1) >> 25) == 0 ||
+        image.load_map[2] != update_slots.free_runs_at) {
+        return "not linked for the free slot";
+    }
+    if (!update_hash_holds(&image, update_slots.free_read_at, update_slots.free_size)) {
+        return "its hash does not hold";
+    }
+    return NULL;
 }
 
 
@@ -120,6 +207,11 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
         }
         if (!update_slots_known) {
             snprintf(reply, reply_size, "@err not_found update try: the slots are not known");
+            return false;
+        }
+        const char *refused = update_check_free();
+        if (refused != NULL) {
+            snprintf(reply, reply_size, "@err refused update try: %s", refused);
             return false;
         }
         printf("@ok update try: restarting into a trial of slot %c\n", update_slot_name(1 - update_slots.running));

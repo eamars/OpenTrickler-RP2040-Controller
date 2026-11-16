@@ -104,6 +104,9 @@ target_link_libraries("${TARGET_NAME}"
     # flash_safe_execute(): flash written with the other core held off it, as the ROM's confirmation of an image
     # does (ADR-004)
     pico_flash
+    # The SHA-256 an image is checked by before it is tried (ADR-004): mbedTLS's, with src/mbedtls_config.h
+    pico_mbedtls_crypto
+    pico_mbedtls_headers
 )
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)

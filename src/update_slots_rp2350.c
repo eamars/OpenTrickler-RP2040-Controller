@@ -63,6 +63,8 @@ bool update_slots_read(update_slots_t *slots) {
     slots->on_trial = false;
     slots->free_offset = 0;
     slots->free_size = 0;
+    slots->free_read_at = 0;
+    slots->free_runs_at = XIP_BASE;     // the ROM maps whichever slot it boots to the start of flash
 
     boot_info_t info;
     if (!rom_get_boot_info(&info)) {
@@ -70,15 +72,18 @@ bool update_slots_read(update_slots_t *slots) {
     }
     slots->on_trial = (info.tbyb_and_update_info & BOOT_TBYB_AND_UPDATE_FLAG_BUY_PENDING) != 0;
     int b = rom_get_b_partition(0);
+    bool found = false;
     if (info.partition == 0 && b > 0) {
         slots->running = 0;
-        return update_slots_location((uint8_t) b, &slots->free_offset, &slots->free_size);
-    }
-    if (info.partition >= 0 && info.partition == b) {
+        found = update_slots_location((uint8_t) b, &slots->free_offset, &slots->free_size);
+    } else if (info.partition >= 0 && info.partition == b) {
         slots->running = 1;
-        return update_slots_location(0, &slots->free_offset, &slots->free_size);
+        found = update_slots_location(0, &slots->free_offset, &slots->free_size);
     }
-    return false;
+    if (found) {
+        slots->free_read_at = XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE + slots->free_offset;
+    }
+    return found;
 }
 
 

@@ -14,6 +14,8 @@ typedef struct {
     bool on_trial;              // this start is a trial: the image confirms itself, or the unit goes back
     uint32_t free_offset;       // the other slot, in flash: its offset from the start and its size
     uint32_t free_size;
+    uintptr_t free_read_at;     // where the other slot is read as it lies (the RP2350's window skips its mapping)
+    uint32_t free_runs_at;      // the address an image in the other slot must be linked for
 } update_slots_t;
 
 #ifdef __cplusplus

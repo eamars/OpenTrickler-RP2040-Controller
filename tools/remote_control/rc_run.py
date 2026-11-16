@@ -2372,6 +2372,13 @@ class Session:
 
         self.log.write("rc", "> update try")
         asked = self.console.command("update try", timeout=REPLY_TIMEOUT_S, recover=False)
+        if expect == "refused" and asked is not None and asked.startswith("@err refused"):
+            # The firmware checks the image before it asks the trial: refused there, nothing restarts
+            self.log.write("rc", f"slot_trial: refused before the trial: {asked}")
+            state = self.update_state(old_elf, 5)
+            if state is None or state["slot"] != old_slot or state["trial"] != "0":
+                self.fail(f"slot_trial: after the refusal slot {old_slot} should run: {state}")
+            return
         if asked is None or not asked.startswith("@ok"):
             self.fail(f"slot_trial: update try: {asked}")
             return
