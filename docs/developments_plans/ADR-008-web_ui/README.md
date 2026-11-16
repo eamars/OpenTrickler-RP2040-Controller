@@ -51,7 +51,7 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost;
   - no downgrade: going back is a USB install with the settings erased (`manuals/firmware_downgrade.md`), and the page may point to that manual.
 - **To find out first:**
-  - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured before it is built (ADR-005); the Pico W's slot has 209.5 KB left (ADR-010's hand-on). A mirror on the owner's network can serve plain HTTP and needs no TLS.
+  - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured before it is built (ADR-005); the Pico W's slot has 216.7 KB left at 1.20.218 (ADR-010's hand-on). A mirror on the owner's network can serve plain HTTP and needs no TLS.
   - On the unit's own access point there is no internet: no poll there, but the upload by hand works.
   - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check a file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
 

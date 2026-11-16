@@ -1,6 +1,6 @@
 # Handover, 2026-11-16
 
-First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed, 2026-11-15 when ADR-011 and ADR-013 closed, 2026-11-16 when ADR-003 closed, and again that day when it was merged and ADR-004 was written for approval. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
+First written at the end of a session that stopped early; brought up to date 2026-11-14 when ADR-001 closed, 2026-11-15 when ADR-011 and ADR-013 closed, 2026-11-16 when ADR-003 closed, and again that day when it was merged and ADR-004 was written for approval, and that evening when the Pico W ran ADR-004's gates. It says where the work stands and what comes next. Delete this file once its to-do list is done or has moved into an ADR; it is not part of the registry.
 
 ## Where things stand
 
@@ -13,8 +13,8 @@ First written at the end of a session that stopped early; brought up to date 202
 - **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
 - **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 014, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** two units, one on the probe at a time (see `AGENTS.md`, "The bench"):
-  - the Pico 2 W is the one on the probe (2026-11-16), on a controller board and settings of its own, and runs 1.20.199, ADR-003's last image with the review's change (built from the working tree on 9c367fe); its web API at 192.168.2.166, by DHCP (it was .167 before), also `opentrickler-4993.local`. Copies of its settings: `logs/adr003/pico2w/before_adr003/` (the old paths, at 1.20.146) and `after_flash_v1/` (API v1);
-  - the Pico W runs ADR-003's 1.20.194 at 1b6fc8f, before the review's fixes; its web API at 192.168.2.162. Copies of its settings: `logs/adr003/picow/before_gate1/`, `before_gate3_v1/` and `before_close/`.
+  - the Pico W is the one on the probe (since 2026-11-16, 18:40), and runs ADR-004's release 1.20.218 (59ec8a6) from slot A, its bootloader at the start of flash; its web API at 192.168.2.168, by DHCP (it was .162 before). Copies of its settings: `logs/adr003/picow/before_gate1/`, `before_gate3_v1/`, `before_close/`, and `logs/adr004/picow/before_adr004/` (at 1.20.194, before the new layout);
+  - the Pico 2 W, on a controller board and settings of its own, runs 1.20.212, ADR-004's review fixes, from slot A; its web API at 192.168.2.166, by DHCP, also `opentrickler-4993.local`. Copies of its settings: `logs/adr003/pico2w/before_adr003/` (the old paths, at 1.20.146), `after_flash_v1/` (API v1) and `logs/adr004/pico2w/before_review/`.
 - **macOS is parked**, by the owner: development on Windows, integration builds on Linux.
 
 ## Conclusions of today
@@ -61,7 +61,8 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 - **ADR-004, open** (approved 2026-11-16 as written; gates 2 and 3 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. All three gates are built; its progress.md has every figure. What waits for the owner's hands:
   - the Pico 2 W's USB checks: the full install (`release/pico2_w_full_install.uf2`, or `build/full_install.uf2`) dragged onto a unit running a newer image in slot B, which must boot slot A; both slots blanked through the probe, the drive appearing without BOOTSEL; the erase (`release/pico2_w_erase.uf2`), after which the drive comes back by itself;
-  - the Pico W on the probe: gate 1's half (its bootloader and images: `build_w`, `build_w_trial_b`, `build_w_noconfirm_a`, `build_w_trial2_a`, to be built again with the review's fixes, and one with `-DRC_TEST_HANG_AT_START=ON`, which only the bootloader's own watchdog brings back) and gate 2's, with the other slot's image refused in its first 4 KB (`--expect refused --refused-code wrong_slot`), then the update from `release/manifest.json`, then its USB checks;
+  - the Pico W's USB checks, as the Pico 2 W's: the full install (`release/pico_w_full_install.uf2`) over a unit running a newer image in slot B, the drive appearing without BOOTSEL, the erase. Its runs through the probe and over Wi-Fi are done (progress.md, "The Pico W");
+  - the Pico 2 W on the probe again, for SHA-256 now compiled at `-O2` (found on the Pico W): a confirmed update and `slot_trial --corrupt`;
   - gate 2's power pulls, during an upload and during a trial;
   - gate 3: each manual followed by someone who did not write it; CI's release step runs on the PR's first push, and a tag's draft release when the owner tags one.
 - **Found in ADR-003 and handed on**, each to decide where it goes:

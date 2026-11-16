@@ -53,7 +53,7 @@ Last of the large changes: the screens then sit on a split application (ADR-006)
   - the update's screen rebuilt, read from `update_status()` rather than drawn by `update.c` (services stop drawing, below);
   - the version running, and how the last update ended (confirmed, or back on the version it had), where a person can find them, with no pop-up.
 - **To find out first:**
-  - **The poll needs the unit to fetch a release itself,** over HTTPS from GitHub, with TLS on the unit. On the Pico W that competes with LVGL for room: its image is 806.5 KB of its 1,016 KB slot, 209.5 KB left (the `.bin` with ADR-004's review fixes, 2026-11-16), against LVGL's estimate of 120 to 200 KB. Measure both before deciding the Pico W's offer. A source on the owner's network served over plain HTTP needs no TLS.
+  - **The poll needs the unit to fetch a release itself,** over HTTPS from GitHub, with TLS on the unit. On the Pico W that competes with LVGL for room: its image is 799.3 KB of its 1,016 KB slot, 216.7 KB left (the release 1.20.218, 2026-11-16), against LVGL's estimate of 120 to 200 KB. Measure both before deciding the Pico W's offer. A source on the owner's network served over plain HTTP needs no TLS.
 
 ## Ideas
 

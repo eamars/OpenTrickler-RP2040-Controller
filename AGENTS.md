@@ -87,7 +87,7 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
 - **A GET changes nothing** (api_v1.md): read a unit over the web freely. A unit with a firmware from before ADR-003's gate 4 still has the old `/rest/` paths, which do change it (a GET of `/rest/profile_config?pf=N` selects profile N): read such a unit through the console, and copy its settings with an `rc_run.py` of its own time (below).
 - **Flashing a unit can reset its settings.** When a stored struct's layout differs from the one on the unit, the defaults are written at once (`common.c`). Copy the unit's settings before the first flash of a newer or older version.
 - **The console** (ADR-001, step 3) is stdio over RTT: the debug probe reads it from the chip's RAM, with no pin and no cable to the unit. Lines starting with `@` belong to the remote control; everything else is the firmware's log.
-- **`tools/remote_control/rc_run.py`** (run with the venv's Python) starts openocd itself, keeps each session in `logs/rc/`, and ends with `VERDICT PASS` or `VERDICT FAIL <reasons>`, exiting 0 or 1:
+- **`tools/remote_control/rc_run.py`** (run with the venv's Python) starts openocd itself, keeps each session in `logs/rc/`, and ends with `VERDICT PASS` or `VERDICT FAIL <reasons>`, exiting 0 or 1. It does not start while another openocd holds its Tcl port, which would take its commands; a run that raises fails with its traceback in the log and stops its openocd:
   - `send "state" "stats"`: commands, one after another (`help` lists them);
   - `flash [--elf <path>]`: write, verify, start, check the version;
   - `reset`: a whole-chip reset by the watchdog (openocd's own `reset run` locked the RP2040 up, F8);

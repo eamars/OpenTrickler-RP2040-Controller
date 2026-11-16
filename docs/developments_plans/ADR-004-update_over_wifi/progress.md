@@ -162,3 +162,31 @@ The owner's later direction (README, "Owner's direction") puts a file uploaded b
 - **Checked on the PC:** the images on disk for slot A start at 0x10004213, those for slot B at 0x10102213; the rule takes each for its own slot only. Both boards build with no warnings; the bootloader is 6,488 bytes.
 - **Not shown:** on the Pico W, the refusal within the first 4 KB (`update --expect refused --refused-code wrong_slot`, with the other slot's image), with its other runs.
 
+## The Pico W, shown 2026-11-16 (1.20.217, built on c1c7962; then the release, 1.20.218 at 59ec8a6)
+
+The owner put the Pico W on the probe at 18:40; gates 1 and 2 ran on it together, then the release. Its address is now 192.168.2.168 (DHCP; .162 before).
+
+- **Before the first flash:** its settings copied over the web, 16 resources at 1.20.194 (`logs/adr004/picow/before_adr004/`), in `rc_run.py settings`' form but by hand: a session needs the running image's ELF for its console, and 1.20.194's is not kept.
+- **Gate 1, through the probe** (`flash`, then `slot_trial`), each `VERDICT PASS`, 18:43 to 18:48:
+  - `flash`: the bootloader, the start of slot B blanked, 1.20.217 in A;
+  - **confirmed, into B** (276.900 over 276.217): on trial, confirmed 4.8 s after the trial was asked, still B after a restart;
+  - **back** (276.901, never confirming, into A over B): fed for its minute, then the bootloader's watchdog (8 s) restarted the unit: back on B 68.2 s after the trial was asked;
+  - **refused:** the same image with one byte changed, refused before any restart by its hash (`hash_mismatch`); the check took 4.9 s;
+  - **confirmed, into A** (276.902 over 276.900): 4.7 s, kept after a restart;
+  - **the full install wins:** `flash` of 1.20.217 over the two newer images booted it from A.
+- **Gate 2, over Wi-Fi** (`update`), 18:48 to 18:54:
+  - **wrong slot:** a slot A image (276.902) given where the unit takes `pico_w_b`: 400 `wrong_slot` 0.1 s into the body, the job ended, nothing installed, the settings unchanged (`VERDICT PASS`);
+  - **second:** half the image sent; a second upload 409 `busy`, one larger than the slot 413; the first then taken whole (826,108 bytes), and stopped, nothing installed (`VERDICT PASS`);
+  - **back by the bootloader's watchdog:** the image that hangs at its first line (276.903; 40 KB, as nothing after its loop is linked): back on 1.20.217 in A and on the network 14.5 s after the install, `last` back naming 1.20.903 (`VERDICT PASS`). Only the watchdog the bootloader arms could restart it;
+  - **confirmed, into B, with two browsers on the pages:** confirmed 8.5 s after the install, but `VERDICT FAIL`: 4 of 98 web reads missed (the limit is 1%), each of the four pollers once, all together in the upload's last 5 s (found, below);
+  - **back** (276.901 into A over B at 276.900): a start during the trial 409 `busy` (the review's D2), back 74.3 s after the install (`VERDICT PASS`);
+  - **confirmed, into A** (276.902 over 276.900): 8.5 s after the install (`VERDICT PASS`).
+- **Found:**
+  - **The image's check took 5 s on the Pico W,** in the web server's task, which answered no one meanwhile: the browsers, the event log's held reads, the upload's own reply. The firmware is built at `-O0` (the root `CMakeLists.txt`, since the template; ADR-005 lists it), and mbedTLS with it. SHA-256 alone is now compiled at `-O2`: the check takes 1.4 s (`update try` with a changed byte), the image is 6.4 KB smaller, and the confirmed update with two browsers passed, 0 of 92 reads missed, the longest 1.7 s, the image sent in 16.3 s instead of 20.5 s, confirmed 8.4 s after the install. The build's `-O0` itself is ADR-005's (handed on there).
+  - **`rc_run.py` drove another session's openocd.** A session that died at its start (an ELF with no console) left its openocd running. The next session's own openocd found no free probe and quit, but its connection to the Tcl port had reached the one left behind, which flashed the unit while the session reported no write verified. A session now refuses to start while the Tcl port is taken, and a run that raises fails with its traceback in the log and stops its openocd. Seen once more before the second fix: an update's process ended at its start with no output kept and its openocd left behind; why is not known, and such a run now ends in `VERDICT FAIL` with its traceback.
+- **The normal build again** (SHA-256 at `-O2`, 1.20.217 from the working tree), each `VERDICT PASS`, 18:58 to 19:00: `slot_trial --corrupt` (`hash_mismatch`), `menu_tour` against `tests/menu_baseline/pico_w` (22 forms; the version form differs, not judged), `api_check` (32 paths read twice, 24 of 24 actions), `charge_cycle` (30.000 for 30), and the settings compared with the copy taken before the first flash: the same.
+- **Wi-Fi joins again** (the review's C2 and D3, on the RP2040): the build that skips its start's join tried again 59 s after its start and joined 3 s later; the root page was the portal again (`VERDICT PASS`). `flash`'s check of the version failed on that build, by its known rule: it expects what the last build wrote into the shared `src/generated/version.c`, and the last build was another.
+- **The release** (`scripts/build_release.py` at 59ec8a6, 1.20.218; every file checked by `sha256sum -c SHA256SUMS`), each `VERDICT PASS`, 19:04 to 19:07: `update --manifest release/manifest.json` from 1.20.217 in A, the unit taking `pico_w_b_update.bin` (819,692 bytes) in 12.9 s and confirmed 8.5 s after the install; then the release's full install through the probe (`--elf build_release/pico_w/app.elf flash`) over the newer slot B, which booted 1.20.218 from A; then `menu_tour`, `charge_cycle` (30.000 for 30), `api_check` and the settings compare.
+- Size: the Pico W image 799.3 KB of its 1,016 KB slot (216.7 KB left), the Pico 2 W's 775.4 KB of 1,792 KB; the bootloader 6,488 bytes.
+- **Not shown:** the Pico 2 W with SHA-256 at `-O2` (the same flag on both chips; its check had not stalled the web, 0 of 87 missed); the USB checks on both units; the power pulls; `pulses` on the Pico W's new layout (its fault images are from before it).
+

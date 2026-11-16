@@ -55,6 +55,8 @@ After ADR-004 the application's room on each board is a known number, so "does i
 **Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Not read a second time; the figures are from ADR-012's runs. Nothing here was tried on a unit unless it says so.
 - **The tasks' stacks are unmeasured.** Tasks that format floats and draw have 1 KB (256 words), with FreeRTOS's weakest overflow check. The console's `stats` names the task with the least to spare: in ADR-012's runs on the Pico 2 W it was the charge screen's, with 64 to 90 words left, and the A&D scale's with 56 while its frame tap printed. A RAM budget has these margins in it.
 
+**Handed on by ADR-004** (2026-11-16): what `-O0` costs, measured in one place. mbedTLS's SHA-256 checks an update image (826 KB) in 4.9 s on the Pico W at `-O0` and in 1.4 s at `-O2`, and the image is 6.4 KB smaller. At 5 s it stalled the web server, whose task runs the check, and browsers' reads timed out. `sha256.c` alone is now compiled at `-O2` (the root `CMakeLists.txt`); once this ADR sets the build's level, that line goes.
+
 ## The rules
 
 1. **One firmware, one screen UI, one web UI, one HTTP server.** A feature is present on a board or absent from it. It is never built a second way for a small board. The code that touches the chip (flash, pins, the radio) is the only code that differs between boards. *(The owner's, 2026-11-13.)*
