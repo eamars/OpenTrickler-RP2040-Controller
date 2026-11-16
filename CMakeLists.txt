@@ -128,6 +128,11 @@ set(RC_TEST_FAULT "" CACHE STRING "Test build only: 1 asserts, 2 hard-faults ten
 if (RC_TEST_FAULT)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_FAULT=${RC_TEST_FAULT})
 endif()
+# A test build whose start skips its Wi-Fi join, as if the router were down (ADR-004): it joins again later
+option(RC_TEST_WIFI_FIRST_JOIN_FAILS "Test build only: the start's Wi-Fi join is skipped" OFF)
+if (RC_TEST_WIFI_FIRST_JOIN_FAILS)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_WIFI_FIRST_JOIN_FAILS=1)
+endif()
 # A test build that never confirms itself on trial (ADR-004): the unit goes back to the other slot
 option(RC_TEST_NO_CONFIRM "Test build only: an image on trial never confirms itself" OFF)
 if (RC_TEST_NO_CONFIRM)

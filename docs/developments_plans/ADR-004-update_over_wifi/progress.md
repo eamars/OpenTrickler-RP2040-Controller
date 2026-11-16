@@ -59,9 +59,18 @@ Approved by the owner 2026-11-16 ("Start gate 2"), to build on the Pico 2 W whil
   - **`POST /api/v1/stop` did not stop an update:** `activity.c` named only the charge and the cleanup as jobs that take a stop. The update takes one.
   - `rc_run.py update` run straight after a flash met a unit not yet on the network: its waits take a reply cut short (`http.client.HTTPException`, as ADR-003's soak met) and a start's answers not yet 200.
 - **Shown**, each `VERDICT PASS`, 13:52 to 14:09:
-  - **confirmed:** the image (798 KB) sent in 13.8 s, 56 KB/s; the unit back on the network 8.4 s after the install and confirmed; with two browsers reading the screen's mirror and the charge state as the portal does, 0 of 87 reads missed and no lwIP allocation failed (`net` before and after); then `api_check` (32 paths read twice, 24 of 24 actions called), `menu_tour`, `charge_cycle` and the settings compared with the morning's copy.
+  - **confirmed:** the image (798,428 bytes) sent in 13.8 s, 56 KB/s; the unit back on the network 8.4 s after the install and confirmed; with two browsers reading the screen's mirror and the charge state as the portal does, 0 of 87 reads missed and no lwIP allocation failed (`net` before and after); then `api_check` (32 paths read twice, 24 of 24 actions called), `menu_tour`, `charge_cycle` and the settings compared with the morning's copy.
   - **back:** an image that never confirms itself: on trial, then back on the image before 75 s after the install, `last` and the event log saying `back` with the version tried.
   - **refused**, each with its code, the job ended and nothing installed: another chip's image (`wrong_chip`), an image naming another board (`wrong_board`), a full install's image (`not_an_update`), an older one (`not_newer`), a changed byte (`hash_mismatch`, once the whole image was in). The first three in the first 4 KB, 0.1 s after the start of the body.
   - **cut off:** half the image and the connection closed: the job stays `receiving`, then ends by its time 33 s later, nothing installed.
   - **busy:** a start during a charge, 409 `busy`.
-- Size: the Pico 2 W's image 799.2 KB of its 1,792 KB slot.
+- Size: the Pico 2 W's image 779.7 KB of its 1,792 KB slot (`tools/size_report.py`).
+
+### Wi-Fi joins again (ADR-012's hand-on), shown on the Pico 2 W 2026-11-16 (1.20.208)
+
+- **Built:** while Wi-Fi is set up and the station is not joined, `wireless.c` tries to join again every 60 s *p*, by its own clock in the Wi-Fi task. The access point stays up while it tries, so a person can still reach the unit; once the station joins, the access point and its DHCP and DNS servers stop, the root page is the portal again (`rest_endpoints_set_root_wizard`), mDNS is announced on the station, once, and an image on trial is told it is on its network. The console's `wifi leave` makes the station leave, as when its router goes away. A test build (`RC_TEST_WIFI_FIRST_JOIN_FAILS`) skips the start's join, as when the router is down at the start.
+- **Found:** the first retry waited for the Wi-Fi task's queue to be quiet for 60 s. As its own access point the unit blinks its LED through that queue, which is never quiet that long, so it never tried again; the router leaving while it ran was caught, the router down at the start was not. The retry keeps its own time now.
+- **Shown**, each by its own run, 14:13 to 14:24:
+  - `wifi leave`: the unit off the network, back as a station at its address 63 s later.
+  - The test build: as its own access point 15 s after its start, joined 67 s after it, the root page the portal; then `rc_run.py update` to it, confirmed (`VERDICT PASS`).
+  - Then the normal build again: `api_check`, `menu_tour`, `charge_cycle` and the settings compare, each `VERDICT PASS`.
