@@ -151,3 +151,14 @@ The owner: "Fix them now", in one pass, proven on the Pico 2 W.
   - Then the normal build through the probe, 15:34 to 15:36: `menu_tour` against the Pico 2 W's baseline, `api_check` (32 paths read twice, 24 of 24 actions), `slot_trial --corrupt` refused by its hash (`hash_mismatch`), `charge_cycle`, and the settings compared with the copy taken before the first flash.
 - **Left as they were:** the RP2350's confirmation holds both cores' interrupts for a sector's erase and program, once, a few seconds after a trial's start (the report's Q6: known, no harm seen). The Pico W's fault images (`build_w_fault1`, `build_w_fault2`) are from before the layout and are built again before `pulses` runs on it.
 - **Not shown:** on the Pico W, all of it (it is read and built, not run), and the bootloader's own watchdog with the image that hangs.
+
+### The manifest's block version, and the wrong slot told in the first 4 KB (2026-11-16)
+
+The owner's later direction (README, "Owner's direction") puts a file uploaded by hand on the web page, beside the offer. On the Pico W the file it takes changes with its free slot after every update, so a wrong one is the likeliest mistake.
+
+- **Built:**
+  - each update image's entry in `manifest.json` gives its block version, read from the image itself and written as `running.block` is, so a unit knows whether a release is newer before it fetches it. The script refuses an image with none; `rc_run.py update` checks the figure against the image it sends;
+  - the Pico W refuses an image linked for the other slot in its first 4 KB, as it refuses another chip's. The first sector holds the image's vector table, and its reset handler lies in the slot it is linked for. The bootloader's rule for a bootable image and the update's are one function (`update_boot_vectors_fit`, `update_boot.h`); the whole check's look at the load map stays. The Pico 2 W's images run from either slot.
+- **Checked on the PC:** the images on disk for slot A start at 0x10004213, those for slot B at 0x10102213; the rule takes each for its own slot only. Both boards build with no warnings; the bootloader is 6,488 bytes.
+- **Not shown:** on the Pico W, the refusal within the first 4 KB (`update --expect refused --refused-code wrong_slot`, with the other slot's image), with its other runs.
+

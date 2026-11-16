@@ -35,9 +35,7 @@ static bool bootloader_image(int slot, picobin_image_t *image) {
         return false;
     }
     // Its vector table: a stack in RAM, a reset handler inside the slot
-    const uint32_t *vectors = (const uint32_t *) (start + UPDATE_BOOT_VECTORS_AT);
-    return vectors[0] > SRAM_BASE && vectors[0] <= SRAM_END && vectors[1] > start &&
-           vectors[1] < start + UPDATE_SLOT_SIZE;
+    return update_boot_vectors_fit((const uint32_t *) (start + UPDATE_BOOT_VECTORS_AT), start);
 }
 
 

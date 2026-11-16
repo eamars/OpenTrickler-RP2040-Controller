@@ -42,6 +42,15 @@ bool update_slots_read(update_slots_t *slots) {
 }
 
 
+bool update_slots_first_fits(const uint8_t *first, uint32_t bytes) {
+    if (bytes < UPDATE_BOOT_VECTORS_AT + 8) {
+        return false;
+    }
+    return update_boot_vectors_fit((const uint32_t *) (first + UPDATE_BOOT_VECTORS_AT),
+                                   XIP_BASE + update_boot_slot_offset(1 - APP_SLOT_INDEX));
+}
+
+
 int update_slots_try_other(void) {
     uint32_t asked = UPDATE_BOOT_TRY_MAGIC | (uint32_t) (1 - APP_SLOT_INDEX);
     watchdog_hw->scratch[UPDATE_BOOT_SCRATCH_TRY] = asked;

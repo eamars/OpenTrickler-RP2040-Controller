@@ -479,6 +479,9 @@ static bool update_write_sector(void) {
         picobin_image_t first;
         picobin_image_read_first((uintptr_t) update_sector, FLASH_SECTOR_SIZE, &first);
         update_upload_refusal = update_check_first(&first);
+        if (update_upload_refusal.code == NULL && !update_slots_first_fits(update_sector, FLASH_SECTOR_SIZE)) {
+            update_upload_refusal = update_refuse("wrong_slot", "not linked for the free slot");
+        }
         if (update_upload_refusal.code != NULL) {
             return false;
         }

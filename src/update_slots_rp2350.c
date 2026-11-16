@@ -88,6 +88,14 @@ bool update_slots_read(update_slots_t *slots) {
 }
 
 
+bool update_slots_first_fits(const uint8_t *first, uint32_t bytes) {
+    // Every image is linked for the start of flash, where the ROM maps whichever slot it boots
+    (void) first;
+    (void) bytes;
+    return true;
+}
+
+
 int update_slots_try_other(void) {
     update_slots_t slots;
     if (!update_slots_read(&slots)) {

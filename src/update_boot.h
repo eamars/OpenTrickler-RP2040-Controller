@@ -11,7 +11,10 @@
  * A trial is asked through the watchdog's scratch registers 0 and 1, which a watchdog restart keeps and a power cut
  * clears (the SDK's own reboots use 4 to 7). The bootloader clears them as it reads them: a trial is one start.
  */
+#include <stdbool.h>
 #include <stdint.h>
+
+#include "hardware/regs/addressmap.h"
 
 #ifndef UPDATE_SLOT_A_OFFSET
 #error "UPDATE_SLOT_A_OFFSET, UPDATE_SLOT_B_OFFSET and UPDATE_SLOT_SIZE come from targets/flash_layout.cmake"
@@ -26,6 +29,16 @@
 
 static inline uint32_t update_boot_slot_offset(int slot) {
     return slot == 0 ? UPDATE_SLOT_A_OFFSET : UPDATE_SLOT_B_OFFSET;
+}
+
+/*
+ * Whether an image's vector table is one linked for the slot that starts at slot_start (an XIP address): a stack in
+ * RAM, a reset handler inside the slot. The bootloader boots no image that fails it, and an update refuses one in its
+ * first 4 KB, which hold it (`wrong_slot`), rather than once the whole image is in
+ */
+static inline bool update_boot_vectors_fit(const uint32_t *vectors, uintptr_t slot_start) {
+    return vectors[0] > SRAM_BASE && vectors[0] <= SRAM_END && vectors[1] > slot_start &&
+           vectors[1] < slot_start + UPDATE_SLOT_SIZE;
 }
 
 #endif  // UPDATE_BOOT_H_
