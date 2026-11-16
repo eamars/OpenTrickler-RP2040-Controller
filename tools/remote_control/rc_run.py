@@ -69,6 +69,8 @@ BOARDS = {
         # Its flash layout (ADR-004, src/update_boot.h): our bootloader at the start, slot A after it, slot B after
         # A. A full install writes the bootloader and slot A's image (built with APP_SLOT=A)
         "layout": {"first": "bootloader.bin", "slot_a": 0x10004000, "slot_b": 0x10102000, "flash_bytes": 0x200000},
+        # What a watchdog restart keeps and a power cut clears: the watchdog's eight scratch registers
+        "power_scratch": [0x4005800C],
     },
     # The RP2350's registers, from the SDK's headers (watchdog.h, psm.h, io_bank0.h): the same reset as the
     # RP2040's, every power domain but the two oscillators (PSM_WDSEL_BITS less ROSC and XOSC, as
@@ -82,6 +84,9 @@ BOARDS = {
         # slot A after it, slot B after A. The image is written as its .bin into a slot, not by its ELF, which is
         # linked at the start of flash, where the ROM maps the slot it boots
         "layout": {"first": "partition_table.bin", "slot_a": 0x10002000, "slot_b": 0x101C2000, "flash_bytes": 0x400000},
+        # What a watchdog restart keeps and a power cut clears: the watchdog's eight scratch registers and the power
+        # manager's, where the update's note lives (src/update_slots_rp2350.c)
+        "power_scratch": [0x400D800C, 0x401000B0],
     },
 }
 SECTOR_BYTES = 4096
@@ -1181,6 +1186,49 @@ class Session:
             self.openocd.cmd(write)
         time.sleep(1.0)
         self.wait_for_console()
+
+    def power_cut(self):
+        """
+        A power cut, as near as the probe comes (ADR-004, gate 2): both cores halted where they are, the scratch
+        registers a watchdog restart keeps and a power cut clears set to zero, then the whole chip restarted by its
+        watchdog. Not emulated: a flash erase or program cut half-way, since the flash chip keeps its power.
+        """
+        for core in self.board["cores"]:
+            self.openocd.cmd(f"targets {core}")
+            self.openocd.cmd("halt")
+        for base in self.board["power_scratch"]:
+            for index in range(8):
+                self.openocd.cmd(f"mww {base + 4 * index:#x} 0")
+        for write in self.board["reset"]:
+            self.openocd.cmd(write)
+        self.last_up = None     # a restart asked for: up= starts again
+        self.log.write("rc", "power cut: the cores halted, the scratch registers cleared, the chip restarted")
+
+    def back_after(self, host, boot_before, since):
+        """
+        The unit once it is back on the network with a new boot.
+
+        Args:
+            host: the unit's address.
+            boot_before: GET /api/v1's `boot` before the restart.
+            since: when the restart was made (time.monotonic()).
+
+        Returns:
+            (its unit_api.Unit, its GET /api/v1/update), or (None, None) when it is not back within
+            UPDATE_BACK_ON_NETWORK_S.
+        """
+        while time.monotonic() < since + UPDATE_BACK_ON_NETWORK_S:
+            time.sleep(1.0)
+            try:
+                back = unit_api.Unit(host)
+                if back.index["boot"] == boot_before:
+                    continue
+                status, state = back.request("GET", "update")
+                if status == 200:
+                    return back, state
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError):
+                continue
+        return None, None
 
     def snap(self):
         """
@@ -2719,6 +2767,28 @@ class Session:
                 self.fail(f"update: after the stop nothing should be installed: {ended}")
             return
 
+        if expect == "power-upload":
+            # Half the image in, then the power cut as the rest comes: the unit comes back on the image it ran, the
+            # free slot's half image not booted, the job gone with the RAM it lived in, the settings as they were
+            head = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/octet-stream\r\n"
+                    f"Content-Length: {len(image)}\r\nConnection: close\r\n\r\n").encode()
+            with socket.create_connection((host, 80), timeout=UPDATE_UPLOAD_TIMEOUT_S) as sock:
+                sock.sendall(head + image[:len(image) // 2])
+                time.sleep(1.0)
+                _, during = unit.request("GET", "update")
+                self.log.write("rc", f"update: half the image sent: {during}")
+                if during["state"] != "receiving" or not during["received"]:
+                    self.fail(f"update: the job should be taking the image when the power goes: {during}")
+                cut = time.monotonic()
+                self.power_cut()
+            back_unit, back = self.back_after(host, boot_before, cut)
+            self.log.write("rc", f"update: {time.monotonic() - cut:.1f} s after the power cut: {back}")
+            if back is None or back["state"] != "idle" or back["running"] != before["running"]:
+                self.fail(f"update: after the power cut the unit should be back on its image, idle: {back}")
+            elif back_unit.read("settings") != export_before:
+                self.fail("update: the settings differ after the power cut")
+            return
+
         if expect == "cut":
             # Half the image, then the connection closed: the job waits for it again, then ends by its time
             head = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/octet-stream\r\n"
@@ -2821,6 +2891,30 @@ class Session:
             self.fail(f"update: the unit did not come back on the network within {UPDATE_BACK_ON_NETWORK_S:.0f} s")
             return
         self.log.write("rc", f"update: back on the network {time.monotonic() - installed:.1f} s after the install")
+        if expect == "power-trial":
+            # The image sent running on trial, then the power cut: the unit comes back on the image it ran at once,
+            # not after the trial's minute. An image that confirms itself would be past its trial before this
+            # looks, so the image sent is one that never does (RC_TEST_NO_CONFIRM)
+            on_trial = None
+            try:
+                _, on_trial = unit_api.Unit(host).request("GET", "update")
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError) as error:
+                self.log.write("rc", f"update: the unit on trial did not answer: {error}")
+            self.log.write("rc", f"update: on trial: {on_trial}")
+            if on_trial is None or not on_trial["running"]["trial"] or \
+                    on_trial["running"]["block"] != block_version_text(image):
+                self.fail(f"update: the image sent should be running on trial: {on_trial}")
+                return
+            boot_trial = unit_api.Unit(host).index["boot"]
+            cut = time.monotonic()
+            self.power_cut()
+            back_unit, back = self.back_after(host, boot_trial, cut)
+            self.log.write("rc", f"update: {time.monotonic() - cut:.1f} s after the power cut: {back}")
+            if back is None or back["running"] != before["running"]:
+                self.fail(f"update: after the power cut the unit should be back on the image it ran: {back}")
+            elif back_unit.read("settings") != export_before:
+                self.fail("update: the settings differ after the power cut")
+            return
         if expect == "back":
             # The image on trial is not confirmed: the free slot is the way back, and no update may write it (review D2)
             try:
@@ -2919,10 +3013,13 @@ def main():
     update_parser.add_argument("--host", required=True, help="the unit's address")
     update_parser.add_argument("--manifest", required=True,
                                help="the release's manifest.json, its files beside it, or its address")
-    update_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "cut", "busy", "second"],
+    update_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "cut", "busy", "second",
+                                                    "power-upload", "power-trial"],
                                default="confirmed",
                                help="cut: half the image, the connection closed; busy: a start during a charge; "
-                                    "second: a second upload while the first is open")
+                                    "second: a second upload while the first is open; power-upload, power-trial: "
+                                    "the power cut by the probe half-way through the upload, or while the image "
+                                    "sent runs on trial (one that never confirms itself)")
     update_parser.add_argument("--refused-code", help="with --expect refused: the error code it must give")
     update_parser.add_argument("--new-elf", help="the installed image's ELF, to find its console after the restart")
     update_parser.add_argument("--browsers", action="store_true",

@@ -43,6 +43,10 @@ This ADR builds what that rests on: the flash layout, the boot path, the image's
 **2026-11-16**, later, on the full install:
 - The full install wipes the flash and installs the latest: on both boards it writes the bootloader (or the partition table), wipes the flash, and writes the firmware into slot A. It resets the unit to its factory state, which keeps no other image: slot B is erased, filled with 0xFF.
 
+**2026-11-16**, later, on the last checks:
+- The power pulls are made by the debug probe: the CPU halted and the chip restarted.
+- The first install's manual needs no one else to follow it: the agent-facing document is sufficient. The manual stays as it is, with a step added to tell the boards apart and so download the right file.
+
 **2026-11-16**, later, on the downgrade:
 - No downgrade. There is little to no point going below 2.0.0, so the downgrade is removed unless it is an absolute need. It replaces the first direction's "a downgrade is a full erase": its manual and the erase files go.
 
@@ -215,7 +219,7 @@ Nothing goes to users yet. Before the final firmware, release candidates go out 
 
 **Gate 2: the update through the API.** The job, the checks, the trial and its confirmation, Wi-Fi joining again, `rc_run.py update`.
 
-**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual, tried by someone following only the manual. Its release candidates on GitHub (above), added and approved 2026-11-16.
+**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual. Its release candidates on GitHub (above), added and approved 2026-11-16.
 
 ## How the unit shows it works
 
@@ -233,7 +237,7 @@ Each on the Pico W and the Pico 2 W.
 **Gate 2**
 - `rc_run.py update` from a local build's manifest: the unit comes back on the new version, confirmed, with its settings as they were; `menu_tour` and `charge_cycle` pass after.
 - Refused, each with its code and nothing installed: another board's image, the other slot's, a cut-off upload, a changed byte, an older version, an update during a charge (409).
-- The owner pulls the power during an upload, and during a trial: each time the unit comes back on its old image.
+- The power cut during an upload, and during a trial, by the probe (the owner, 2026-11-16: both cores halted, the scratch registers a power cut clears set to zero, the chip restarted): each time the unit comes back on its old image.
 - A unit started with its network off joins when the network comes back, and can then be updated.
 - An upload while two browsers use the web pages: the pages go on answering, and lwIP's heap holds (`net`).
 
@@ -243,7 +247,7 @@ Each on the Pico W and the Pico 2 W.
 - Once it is published, `releases/latest/download/manifest.json` does not lead to it.
 - `rc_run.py update` from the release's address on both units.
 - The owner's USB checks (gate 1's) made with the release's own files.
-- A unit on v1.20 moved by the manual alone, by someone who did not write it.
+- The first install's manual, with a step to tell the boards apart (the owner, 2026-11-16: the agent-facing document is sufficient; no one else follows it).
 
 ## Not in this ADR
 
