@@ -60,7 +60,7 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 ## Waiting on the owner
 
-- **PR #111's close note** (ADR-004 is merged): PR #111 is closed with thanks and a note naming what was taken, its RP2040 jump (credited in the bootloader's commit 91b9514), on the owner's word.
+- **PR #111 stays open** (the owner, 2026-11-17) until the web and screen updates are in place and the whole OTA flow is shown end to end, from the offer to the unit confirmed (ADR-008, ADR-010). Then it is closed with thanks and a note naming what was taken, its RP2040 jump (credited in the bootloader's commit 91b9514), on the owner's word.
 - **Found in ADR-003 and handed on**, each to decide where it goes:
   - ~~a tuning session's load and an upload at once overrun the Pico W's network~~: ADR-004 makes the update a job, so the two never run together;
   - the gate's move queue lets a write replace a move a mode waits for (`servo_gate.c`);
