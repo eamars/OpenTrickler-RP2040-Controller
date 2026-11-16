@@ -37,6 +37,7 @@ Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu
   - **the web page's missing acknowledgement** is documented in ADR-008;
   - **the QR code goes to a later ADR** on commissioning (ADR-015): "I'd like to design the commissioning process properly, not ad-hoc".
 - **Update tests use a local OTA server,** so they do not hammer GitHub's releases. A debug image goes onto a unit by the probe.
+- **After gate 1: LVGL and mbedTLS are compiled at -Os in the shipping build,** in place of ADR-005's whole-image optimised build ("Yes, libraries at -Os"). Our own code stays at -O0. ADR-005's trigger therefore does not fire for this ADR: the Pico W's image is 971 of 1,016 KB.
 
 ## Why here
 
@@ -139,5 +140,5 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 
 ## To settle before approval
 
-- The Pico W, from gate 1's figures (progress.md): the third-party libraries at -Os in every build, in place of ADR-005's whole-image optimised build; and the three RAM trims.
+- ~~The Pico W, from gate 1's figures.~~ Settled 2026-11-17: the libraries at -Os (the owner); the three RAM trims are built with the poll and measured there (gate 5).
 - The beta channel as proposed, and the remote mark's 30 s.

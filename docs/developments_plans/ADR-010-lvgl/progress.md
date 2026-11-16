@@ -96,6 +96,11 @@ On the Pico W, 12.2 KB is left for the C library's heap.
   - **With them,** about 14 KB is left at the fetch's peak at rest (1.9 + 4 + 5.5 + 3.3), and about 7 KB under a soak's load with the update's sector held. That margin is thin and computed, not measured: the poll's gate (5) measures it on the Pico W.
 - **Speed is not measured on the Pico W.** Its Cortex-M0+ at 133 MHz multiplies slower than the M33, so its handshakes will take several times the Pico 2 W's. A background poll at start can wait that long.
 
+### Decided
+
+- **The owner, 2026-11-17:** LVGL and mbedTLS are compiled at -Os in the shipping build ("Yes, libraries at -Os"), in place of ADR-005's whole-image optimised build.
+- **Gate 1's code** was merged by its own PR: the measure build, the local OTA server, the size report's new parts, and `rc_run.py send`'s `pause`.
+
 ### Found along the way
 
 - **`sscanf` costs 30 KB.** newlib's brings its wide-character tables (`jp2uc`, `categories`). The measure code first used it to read an HTTP status line; firmware code should not use it.
