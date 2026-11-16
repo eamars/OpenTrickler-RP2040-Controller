@@ -13,8 +13,8 @@ First written at the end of a session that stopped early; brought up to date 202
 - **CI:** the build workflow is the only check. It fetches its toolchain from `toolchain.env` and does not depend on the runner's compiler.
 - **Order of the work, as the registry lists it:** 001, 011, 013, 012, 002, 003, 004, 005, 006, 014, 007, 008, 009, 010. An ADR's number is its name and does not change.
 - **Hardware:** two units, one on the probe at a time (see `AGENTS.md`, "The bench"):
-  - the Pico 2 W is the one on the probe again (2026-11-16, 19:30), and runs the candidate 2.0.0 from slot A, updated from the GitHub release's address;
-  - the Pico W runs the same release from slot A, its bootloader at the start of flash; its web API at 192.168.2.168, by DHCP (it was .162 before). Copies of its settings: `logs/adr003/picow/before_gate1/`, `before_gate3_v1/`, `before_close/`, and `logs/adr004/picow/before_adr004/` (at 1.20.194, before the new layout);
+  - the Pico W is the one on the probe again (2026-11-16, 20:55), and runs the candidate 2.0.0 from slot B, updated from the GitHub release's address; its bootloader at the start of flash; its web API at 192.168.2.168, by DHCP (it was .162 before);
+  - the Pico 2 W runs the candidate 2.0.0 from slot A, updated from the release's address too. Copies of its settings: `logs/adr003/picow/before_gate1/`, `before_gate3_v1/`, `before_close/`, and `logs/adr004/picow/before_adr004/` (at 1.20.194, before the new layout);
   - the Pico 2 W is on a controller board and settings of its own; its web API at 192.168.2.166, by DHCP, also `opentrickler-4993.local`. Copies of its settings: `logs/adr003/pico2w/before_adr003/` (the old paths, at 1.20.146), `after_flash_v1/` (API v1), `logs/adr004/pico2w/before_review/` and `before_o2/` (at 1.20.212).
 - **macOS is parked**, by the owner: development on Windows, integration builds on Linux.
 
@@ -60,7 +60,7 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 ## Waiting on the owner
 
-- **ADR-004, open** (approved 2026-11-16 as written; gates 2 and 3 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. All three gates are built; its progress.md has every figure. Gate 3's release candidates on GitHub are approved and built (README, "Release candidates on GitHub"; progress.md). The first candidate, `v2.0.0` (tag on 21c5117), is drafted by CI and published by the owner as a pre-release; the Pico 2 W runs it, updated from its address. Next: the Pico W updated from its address once it is on the probe; the USB checks below made with its files. What waits for the owner's hands:
+- **ADR-004, open** (approved 2026-11-16 as written; gates 2 and 3 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. All three gates are built; its progress.md has every figure. Gate 3's release candidates on GitHub are approved and built (README, "Release candidates on GitHub"; progress.md). The first candidate, `v2.0.0` (tag on 21c5117), is drafted by CI and published by the owner as a pre-release; both units run it, each updated from its address. Next: the USB checks below, made with its files. What waits for the owner's hands:
   - the Pico 2 W's USB checks: the candidate's full install (`OpenTrickler-2.0.0-pico2_w_full_install.uf2`) dragged onto a unit running a newer image in slot B, which must boot slot A; both slots blanked through the probe, the drive appearing without BOOTSEL; the erase (`...-pico2_w_erase.uf2`), after which the drive comes back by itself;
   - the Pico W's USB checks, as the Pico 2 W's: the candidate's full install (`OpenTrickler-2.0.0-pico_w_full_install.uf2`) over a unit running a newer image in slot B, the drive appearing without BOOTSEL, the erase. Its runs through the probe and over Wi-Fi are done (progress.md, "The Pico W");
   - gate 2's power pulls, during an upload and during a trial;
