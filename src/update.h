@@ -41,7 +41,7 @@ typedef struct {
     update_result_t result;
     const char *code;           // a refusal's, or NULL
     const char *message;
-    const char *version;        // the version tried, or NULL
+    uint32_t version;           // the block version tried, or 0
 } update_last_t;
 
 typedef struct {
@@ -60,6 +60,7 @@ typedef enum {
     UPDATE_START_OK = 0,
     UPDATE_START_BUSY,          // a job runs, a start is asked, or a person is in a mode or a view at the unit
     UPDATE_START_NO_SLOTS,      // the slots are not known: no update can be written
+    UPDATE_START_ON_TRIAL,      // the image running is on trial: the free slot is the way back until it is confirmed
 } update_start_result_t;
 
 #ifdef __cplusplus
@@ -85,11 +86,15 @@ update_start_result_t update_request_start(activity_by_t by);
 // false when it is not ready: 409 not_ready
 bool update_install(void);
 
-// The image in pieces (api_v1_update.c's upload): begin's status is 200 when it is taken
-update_refusal_t update_image_begin(uint32_t bytes, int *status);
-bool update_image_piece(const uint8_t *data, size_t len);
-update_refusal_t update_image_end(int *status);
-void update_image_abort(void);
+// The image in pieces (api_v1_commands.c's upload): begin's status is 200 when it is taken, and its token names the
+// upload in its pieces, its end or its abort. One upload at a time: another's token changes nothing
+update_refusal_t update_image_begin(uint32_t bytes, int *status, uint32_t *token);
+bool update_image_piece(uint32_t token, const uint8_t *data, size_t len);
+update_refusal_t update_image_end(uint32_t token, int *status);
+void update_image_abort(uint32_t token);
+
+// A block version as the firmware's version string has it: 276.900 is 1.20.900
+void update_version_text(uint32_t version, char *out, size_t size);
 
 /**
  * @brief The update's mode (menu.c): holds the screen while the job runs, the reset button stops it

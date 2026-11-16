@@ -61,7 +61,7 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 - **ADR-004, open** (approved 2026-11-16 as written; gates 2 and 3 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. All three gates are built; its progress.md has every figure. What waits for the owner's hands:
   - the Pico 2 W's USB checks: the full install (`release/pico2_w_full_install.uf2`, or `build/full_install.uf2`) dragged onto a unit running a newer image in slot B, which must boot slot A; both slots blanked through the probe, the drive appearing without BOOTSEL; the erase (`release/pico2_w_erase.uf2`), after which the drive comes back by itself;
-  - the Pico W on the probe: gate 1's half (its bootloader and images are built: `build_w`, `build_w_trial_b`, `build_w_noconfirm_a`, `build_w_trial2_a`) and gate 2's, then the update from `release/manifest.json`, then its USB checks;
+  - the Pico W on the probe: gate 1's half (its bootloader and images: `build_w`, `build_w_trial_b`, `build_w_noconfirm_a`, `build_w_trial2_a`, to be built again with the review's fixes, and one with `-DRC_TEST_HANG_AT_START=ON`, which only the bootloader's own watchdog brings back) and gate 2's, then the update from `release/manifest.json`, then its USB checks;
   - gate 2's power pulls, during an upload and during a trial;
   - gate 3: each manual followed by someone who did not write it; CI's release step runs on the PR's first push, and a tag's draft release when the owner tags one.
 - **Found in ADR-003 and handed on**, each to decide where it goes:

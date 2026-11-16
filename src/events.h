@@ -69,7 +69,8 @@ typedef struct {
     uint8_t result;         // event_result_t
     float value;            // a target, a weight
     float value2;           // a throw's seconds
-    const char *text;       // a driver's fault ("short"), the firmware's version: a string that lives on
+    const char *text;       // a driver's fault ("short"), the firmware's version: a string that never changes
+    uint32_t version;       // an update's image, its block version: kept as a number, so the event never changes
 } event_t;
 
 #ifdef __cplusplus

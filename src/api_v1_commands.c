@@ -114,6 +114,9 @@ static bool api_only(http_server_reply_t *reply, const http_json_member_t *membe
 }
 
 
+static const char *update_state_name(update_state_t state);
+
+
 const char *api_v1_job_state(void) {
     activity_t activity = activity_get();
     if (activity == ACTIVITY_CHARGE) {
@@ -129,7 +132,7 @@ const char *api_v1_job_state(void) {
     if (activity == ACTIVITY_UPDATE) {
         update_status_t update;
         update_status(&update);
-        return update.state == UPDATE_READY ? "ready" : "receiving";
+        return update_state_name(update.state);
     }
     return "idle";
 }
@@ -857,8 +860,12 @@ static void reply_update(http_server_reply_t *reply, int status) {
     else {
         http_json_raw(out, room, &len, "{\"result\":");
         http_json_string(out, room, &len, update_result_name(update.last.result));
+        char version[16];
+        if (update.last.version != 0) {
+            update_version_text(update.last.version, version, sizeof(version));
+        }
         http_json_raw(out, room, &len, ",\"version\":");
-        write_text_or_null(out, room, &len, update.last.version);
+        write_text_or_null(out, room, &len, update.last.version != 0 ? version : NULL);
         http_json_raw(out, room, &len, ",\"code\":");
         write_text_or_null(out, room, &len, update.last.code);
         http_json_raw(out, room, &len, ",\"message\":");
@@ -887,6 +894,10 @@ static void api_v1_update_start(const http_server_request_t *request, http_serve
         case UPDATE_START_NO_SLOTS:
             api_error(reply, 500, "failed", NULL, "the image slots are not known: no update can be written", NULL);
             break;
+        case UPDATE_START_ON_TRIAL:
+            api_error(reply, 409, "busy", NULL,
+                      "the image running is on trial: an update waits until it is confirmed on its network", NULL);
+            break;
         case UPDATE_START_BUSY:
         default:
             api_busy(reply, "a job runs, a start is asked, or a person is in a mode or a view at the unit");
@@ -911,6 +922,12 @@ static void api_v1_update_stop(const http_server_request_t *request, http_server
     if (!api_empty(request, reply)) {
         return;
     }
+    update_status_t update;
+    update_status(&update);
+    if (update.state == UPDATE_INSTALLING) {
+        api_error(reply, 409, "busy", NULL, "installing: the restart into its trial is under way", NULL);
+        return;
+    }
     reply_update(reply, activity_request_stop(ACTIVITY_UPDATE, ACTIVITY_BY_API) ? 202 : 200);
 }
 
@@ -921,8 +938,13 @@ static bool api_v1_update_image_begin(const http_server_request_t *request, http
         http_server_reply_error(reply, 415, "wrong_media_type", "the image is sent as application/octet-stream");
         return false;
     }
+    uint32_t *token = http_server_reply_context(reply, sizeof(uint32_t));
+    if (token == NULL) {
+        api_error(reply, 500, "failed", NULL, "no room for the upload's state", NULL);
+        return false;
+    }
     int status;
-    update_refusal_t refused = update_image_begin((uint32_t) request->body_len, &status);
+    update_refusal_t refused = update_image_begin((uint32_t) request->body_len, &status, token);
     if (refused.code != NULL) {
         api_error(reply, status, refused.code, NULL, refused.message, NULL);
         return false;
@@ -932,15 +954,15 @@ static bool api_v1_update_image_begin(const http_server_request_t *request, http
 
 
 static bool api_v1_update_image_piece(void *ctx, const char *data, size_t len) {
-    (void) ctx;
-    return update_image_piece((const uint8_t *) data, len);
+    return update_image_piece(*(const uint32_t *) ctx, (const uint8_t *) data, len);
 }
 
 
 static void api_v1_update_image_end(const http_server_request_t *request, http_server_reply_t *reply) {
     (void) request;
+    const uint32_t *token = http_server_reply_context(reply, sizeof(uint32_t));
     int status;
-    update_refusal_t refused = update_image_end(&status);
+    update_refusal_t refused = update_image_end(token != NULL ? *token : 0, &status);
     if (refused.code != NULL) {
         api_error(reply, status, refused.code, NULL, refused.message, NULL);
         return;
@@ -950,8 +972,7 @@ static void api_v1_update_image_end(const http_server_request_t *request, http_s
 
 
 static void api_v1_update_image_abort(void *ctx) {
-    (void) ctx;
-    update_image_abort();
+    update_image_abort(*(const uint32_t *) ctx);
 }
 
 

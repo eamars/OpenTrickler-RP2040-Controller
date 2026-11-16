@@ -35,6 +35,12 @@
 
 int main()
 {
+#if RC_TEST_HANG_AT_START
+    // A test build (rc_run.py update --expect back): it never starts, and only the boot's own watchdog ends its trial
+    while (true) {
+        tight_loop_contents();
+    }
+#endif
     // The console, over RTT through the debug probe (ADR-001): first, so every printf below reaches it
     stdio_init_all();
     printf("OpenTrickler starting\n");

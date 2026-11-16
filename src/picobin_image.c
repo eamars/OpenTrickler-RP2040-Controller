@@ -19,10 +19,11 @@ static bool picobin_image_inside(uintptr_t address, uint32_t bytes, uintptr_t st
 }
 
 
-// One block's items. Returns the address of the next block, or 0 when the block is not whole
+// One block's items. Returns the address of the next block, or 0 when the block is not whole. A block lies on a
+// word: a link that is not a multiple of 4 is a damaged one, and the RP2040 faults on the read it would ask (review D1)
 static uintptr_t picobin_image_block(uintptr_t at, uintptr_t start, uint32_t size, picobin_image_t *found) {
     const uint32_t *word = (const uint32_t *) at;
-    if (!picobin_image_inside(at, 4, start, size) || word[0] != PICOBIN_BLOCK_MARKER_START) {
+    if ((at & 3u) != 0 || !picobin_image_inside(at, 4, start, size) || word[0] != PICOBIN_BLOCK_MARKER_START) {
         return 0;
     }
     picobin_image_t block = {.block = word};

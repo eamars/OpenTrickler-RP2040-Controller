@@ -11,6 +11,7 @@
 #include "activity.h"
 #include "events.h"
 #include "http_json.h"
+#include "update.h"
 #include "version.h"
 
 static event_t events_ring[EVENTS_KEPT];
@@ -207,8 +208,12 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                     http_json_string(out, room, len, event->text != NULL ? event->text : "");
                 }
             } else if (event->kind != EVENT_STARTED) {
+                char version[16] = "";
+                if (event->version != 0) {
+                    update_version_text(event->version, version, sizeof(version));
+                }
                 write_member(out, room, len, "version");
-                http_json_string(out, room, len, event->text != NULL ? event->text : "");
+                http_json_string(out, room, len, version);
             }
             break;
         case EVENT_SOURCE_SYSTEM:

@@ -551,6 +551,28 @@ def http_call(host, method, path, body=None):
         return status, None
 
 
+def read_until_closed(sock):
+    """
+    What a unit sends on a connection until it closes it, or until the socket's timeout.
+
+    Args:
+        sock: a connected socket, with its timeout set.
+
+    Returns:
+        The bytes.
+    """
+    got = b""
+    try:
+        while True:
+            more = sock.recv(4096)
+            if not more:
+                break
+            got += more
+    except OSError:
+        pass
+    return got
+
+
 def http_put_bytes(host, path, data, timeout_s):
     """
     A PUT of bytes as application/octet-stream (ADR-003, gate 4: a body taken in pieces), its status and its JSON.
@@ -605,7 +627,36 @@ def block_version(elf):
     Returns:
         "first.second", or None when the image has no version in a block.
     """
-    data = Path(elf).with_suffix(".bin").read_bytes()
+    return block_version_of(Path(elf).with_suffix(".bin").read_bytes())
+
+
+def block_version_text(data):
+    """
+    An image's block version as the firmware writes it (`running.block`, `last.version`): 276.210 is "1.20.210".
+
+    Args:
+        data: the image's bytes.
+
+    Returns:
+        The text, or None when the image has no version in a block.
+    """
+    version = block_version_of(data)
+    if version is None:
+        return None
+    first, second = (int(part) for part in version.split("."))
+    return f"{first >> 8}.{first & 0xFF}.{second}"
+
+
+def block_version_of(data):
+    """
+    The version in an image's metadata block, from its bytes (block_version).
+
+    Args:
+        data: the image's bytes.
+
+    Returns:
+        "first.second", or None when the image has no version in a block.
+    """
     first = next((at for at in range(0, min(len(data), 0x1000) - 3, 4)
                   if struct.unpack_from("<I", data, at)[0] == PICOBIN_BLOCK_START), None)
     if first is None:
@@ -2434,8 +2485,11 @@ class Session:
         self.log.write("rc", "> update try")
         asked = self.console.command("update try", timeout=REPLY_TIMEOUT_S, recover=False)
         if expect == "refused" and asked is not None and asked.startswith("@err refused"):
-            # The firmware checks the image before it asks the trial: refused there, nothing restarts
+            # The firmware checks the image before it asks the trial: refused there, nothing restarts. A corrupted
+            # image is refused by its hash, not for another reason (review Q5)
             self.log.write("rc", f"slot_trial: refused before the trial: {asked}")
+            if corrupt and "hash_mismatch" not in asked:
+                self.fail(f"slot_trial: a corrupted image should be refused by its hash: {asked}")
             state = self.update_state(old_elf, 5)
             if state is None or state["slot"] != old_slot or state["trial"] != "0":
                 self.fail(f"slot_trial: after the refusal slot {old_slot} should run: {state}")
@@ -2504,7 +2558,8 @@ class Session:
         Args:
             host: the unit's address.
             manifest_path: the release's manifest.json, its files beside it.
-            expect: "confirmed", "back" or "refused".
+            expect: "confirmed", "back" (and a start during the trial refused), "refused", "cut", "busy", or "second"
+                (a second upload while the first is open refused, and one too large, the first then taken whole).
             refused_code: with "refused", the error code the image must be refused with.
             new_elf: the ELF of the image installed, so the console is found again after the restart; or None.
             browsers: two browsers use the web pages while the image is sent, as the soak's do: their reads judged
@@ -2570,6 +2625,51 @@ class Session:
             _, state = unit.request("GET", "update")
         if state["state"] != "receiving":
             self.fail(f"update: the menu did not begin the job: {state}")
+            return
+
+        if expect == "second":
+            # The first upload open; a second, and one larger than the slot, refused while it is; then the first
+            # taken whole: they changed nothing of it (review Q1). The job then stopped, nothing installed
+            head = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/octet-stream\r\n"
+                    f"Content-Length: {len(image)}\r\nConnection: close\r\n\r\n").encode()
+            half = len(image) // 2
+            with socket.create_connection((host, 80), timeout=UPDATE_UPLOAD_TIMEOUT_S) as sock:
+                sock.sendall(head + image[:half])
+                time.sleep(1.0)
+                # The second's head only: it is answered as soon as its headers are in
+                with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as other:
+                    other.sendall(head)
+                    second = read_until_closed(other).decode(errors="replace")
+                self.log.write("rc", f"update: a second upload while the first is open: {second!r}")
+                if " 409 " not in second.split("\r\n")[0] or '"busy"' not in second:
+                    self.fail(f"update: a second upload should be 409 busy: {second!r}")
+                too_large = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\n"
+                             f"Content-Type: application/octet-stream\r\nContent-Length: {before['free_bytes'] + 1}\r\n"
+                             f"Connection: close\r\n\r\n").encode()
+                with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as other:
+                    other.sendall(too_large)
+                    answer = read_until_closed(other).decode(errors="replace").split("\r\n")[0]
+                self.log.write("rc", f"update: one larger than the slot while the first is open: {answer}")
+                if " 413 " not in answer:
+                    self.fail(f"update: an upload larger than the slot should be 413: {answer}")
+                sock.sendall(image[half:])
+                reply = b""
+                while b"\r\n\r\n" not in reply:
+                    got = sock.recv(4096)
+                    if not got:
+                        break
+                    reply += got
+            first_line = reply.decode(errors="replace").split("\r\n")[0]
+            _, ready = unit.request("GET", "update")
+            self.log.write("rc", f"update: the first upload: {first_line}; {ready}")
+            if " 200 " not in first_line or ready["state"] != "ready" or ready["received"] != len(image):
+                self.fail(f"update: the first upload should be taken whole: {first_line} {ready}")
+            unit.request("POST", "update/stop", body={})
+            time.sleep(2.0)
+            _, ended = unit.request("GET", "update")
+            if ended["state"] != "idle" or (ended["last"] or {}).get("result") != "stopped" or \
+                    ended["running"] != before["running"]:
+                self.fail(f"update: after the stop nothing should be installed: {ended}")
             return
 
         if expect == "cut":
@@ -2674,6 +2774,20 @@ class Session:
             self.fail(f"update: the unit did not come back on the network within {UPDATE_BACK_ON_NETWORK_S:.0f} s")
             return
         self.log.write("rc", f"update: back on the network {time.monotonic() - installed:.1f} s after the install")
+        if expect == "back":
+            # The image on trial is not confirmed: the free slot is the way back, and no update may write it (review D2)
+            try:
+                trial_unit = unit_api.Unit(host)
+                _, on_trial = trial_unit.request("GET", "update")
+                if on_trial["running"]["trial"]:
+                    status, refused = trial_unit.request("POST", "update/start", body={})
+                    self.log.write("rc", f"update: a start during the trial: {status} {refused}")
+                    if status != 409 or (refused or {}).get("error", {}).get("code") != "busy":
+                        self.fail(f"update: a start during the trial should be 409 busy: {status} {refused}")
+                else:
+                    self.log.write("rc", f"update: back on the old image already: {on_trial['running']}")
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError) as error:
+                self.log.write("rc", f"update: the unit on trial did not answer: {error}")
 
         # The trial ends: confirmed once on its network, or left after its minute
         settled = None
@@ -2690,7 +2804,11 @@ class Session:
         if settled is None or settled["last"] is None or settled["last"]["result"] != expect:
             self.fail(f"update: the trial should have ended {expect}: {settled}")
             return
-        wanted_block = settled["last"]["version"] if expect == "confirmed" else before["running"]["block"]
+        # Judged by the image sent, not by what the firmware says of itself (review Q5)
+        sent_block = block_version_text(image)
+        if settled["last"]["version"] != sent_block:
+            self.fail(f"update: `last` should name the image sent, {sent_block}: {settled['last']}")
+        wanted_block = sent_block if expect == "confirmed" else before["running"]["block"]
         if settled["running"]["block"] != wanted_block:
             self.fail(f"update: the unit should run {wanted_block}: {settled['running']}")
         events = unit_api.Unit(host).events()["events"]
@@ -2753,8 +2871,10 @@ def main():
     update_parser = sub.add_parser("update", help="an update through the API, from a release's manifest (ADR-004)")
     update_parser.add_argument("--host", required=True, help="the unit's address")
     update_parser.add_argument("--manifest", required=True, help="the release's manifest.json, its files beside it")
-    update_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "cut", "busy"], default="confirmed",
-                               help="cut: half the image, the connection closed; busy: a start during a charge")
+    update_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "cut", "busy", "second"],
+                               default="confirmed",
+                               help="cut: half the image, the connection closed; busy: a start during a charge; "
+                                    "second: a second upload while the first is open")
     update_parser.add_argument("--refused-code", help="with --expect refused: the error code it must give")
     update_parser.add_argument("--new-elf", help="the installed image's ELF, to find its console after the restart")
     update_parser.add_argument("--browsers", action="store_true",

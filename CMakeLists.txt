@@ -138,6 +138,12 @@ option(RC_TEST_NO_CONFIRM "Test build only: an image on trial never confirms its
 if (RC_TEST_NO_CONFIRM)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_NO_CONFIRM=1)
 endif()
+# A test build that hangs at its first line (ADR-004, review Q5): only the boot's own watchdog, the RP2040 bootloader's
+# or the RP2350 ROM's, ends its trial
+option(RC_TEST_HANG_AT_START "Test build only: the image hangs before it starts anything" OFF)
+if (RC_TEST_HANG_AT_START)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_HANG_AT_START=1)
+endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
 
 # The flash layout and the image's metadata block (ADR-004)

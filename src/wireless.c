@@ -353,6 +353,13 @@ static bool wireless_own_address(char *buf, size_t len) {
 }
 
 
+/*
+ * The Wi-Fi settings the unit started with. A write to them applies at the restart, as their table says: the retry and
+ * the trial's confirmation read this copy, never a write not yet saved, nor one half made (review C2)
+ */
+static eeprom_wireless_metadata_t wireless_started_with;
+
+
 // mDNS on the station, once: the unit's name, and its two services
 static void wireless_station_mdns(void) {
     static bool announced = false;
@@ -381,15 +388,13 @@ static void wireless_station_mdns(void) {
  * person can still reach the unit; once the station joins, it stops, and the root page is the portal again
  */
 static void wireless_rejoin(void) {
-    if (!wireless_config.eeprom_wireless_metadata.enable ||
-        cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP) {
+    if (!wireless_started_with.enable || cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP) {
         return;
     }
-    const char *password = wireless_config.eeprom_wireless_metadata.auth != AUTH_OPEN ?
-                           wireless_config.eeprom_wireless_metadata.pw : NULL;
-    printf("Wi-Fi: not joined; trying %s again\n", wireless_config.eeprom_wireless_metadata.ssid);
-    int joined = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid, password,
-                                                    get_cyw43_auth(wireless_config.eeprom_wireless_metadata.auth),
+    const char *password = wireless_started_with.auth != AUTH_OPEN ? wireless_started_with.pw : NULL;
+    printf("Wi-Fi: not joined; trying %s again\n", wireless_started_with.ssid);
+    int joined = cyw43_arch_wifi_connect_timeout_ms(wireless_started_with.ssid, password,
+                                                    get_cyw43_auth(wireless_started_with.auth),
                                                     WIRELESS_REJOIN_TIMEOUT_MS);
     if (joined != PICO_OK) {
         printf("Wi-Fi: not joined (%d)\n", joined);
@@ -402,7 +407,7 @@ static void wireless_rejoin(void) {
     }
     wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
     wireless_station_mdns();
-    printf("Wi-Fi: joined %s\n", wireless_config.eeprom_wireless_metadata.ssid);
+    printf("Wi-Fi: joined %s\n", wireless_started_with.ssid);
     // An image on trial is on its network now
     update_network_ready(true);
 }
@@ -421,7 +426,7 @@ bool wireless_station_leave(void) {
 // for, a station when Wi-Fi is set up, its own access point when it is not. A unit set up for Wi-Fi that could not
 // join, and fell back to its own access point, leaves its trial, and goes back
 static void wireless_server_listening(void) {
-    bool on_its_network = wireless_config.eeprom_wireless_metadata.enable
+    bool on_its_network = wireless_started_with.enable
                               ? wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN
                               : wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
     update_network_ready(on_its_network);
@@ -529,6 +534,9 @@ void wireless_task(void *p) {
     else {
         vTaskResume(led_interface_task_handler);
     }
+
+    // What the unit starts with is what it keeps until its restart (the settings' at_restart)
+    wireless_started_with = wireless_config.eeprom_wireless_metadata;
 
     // Start default initialize pattern
     if (wireless_config.eeprom_wireless_metadata.enable) {

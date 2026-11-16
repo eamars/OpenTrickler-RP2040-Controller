@@ -74,11 +74,18 @@ static TimerHandle_t update_feed_timer = NULL;
 // The job, under the activity lock
 static volatile update_state_t update_state = UPDATE_IDLE;
 static update_last_t update_last = {.result = UPDATE_RESULT_NONE};
-static char update_last_version[16];        // the version the last update tried, as the events and `last` give it
+static uint32_t update_job_version = 0;     // the block version of the image the job takes: 0 until its first block is in
 static uint8_t *update_sector = NULL;       // a sector of the image as it comes: from the heap at the first job, kept
 static uint32_t update_sector_fill = 0;
 static uint32_t update_written = 0;         // the bytes written into the free slot, whole sectors
+static uint32_t update_taken = 0;           // the image's bytes taken so far: `received`
 static uint32_t update_expected = 0;        // the image's length, as its PUT gives it
+/*
+ * The upload the job takes, by its token (review Q1): one at a time. A second is refused, and a piece, end or abort
+ * of any other (a second connection, or one left from a job that ended) changes nothing. 0 when none is open
+ */
+static uint32_t update_upload_token = 0;
+static uint32_t update_upload_tokens = 0;
 static TickType_t update_tick = 0;          // the job's last bytes, or when it became ready
 static update_refusal_t update_upload_refusal = {0};
 static volatile bool update_giving_back = false;   // the mode has returned; the menu is not yet back at its forms
@@ -97,7 +104,7 @@ static uint32_t update_running_version(void) {
 
 
 // A block version as the firmware's version string has it: 276.900 is 1.20.900 (scripts/gen_version.py)
-static void update_version_text(uint32_t version, char *out, size_t size) {
+void update_version_text(uint32_t version, char *out, size_t size) {
     uint32_t major = version >> 16;
     snprintf(out, size, "%lu.%lu.%lu", (unsigned long) (major >> 8), (unsigned long) (major & 0xffu),
              (unsigned long) (version & 0xffffu));
@@ -117,9 +124,11 @@ static bool update_hash_holds(const picobin_image_t *image, uintptr_t start, uin
         (image->hash_def[0] >> 24) != PICOBIN_HASH_SHA256) {
         return false;
     }
+    // Every length and place below is the image's own: each is held inside its item and the slot (review Q3)
     uint32_t header = image->load_map[0];
     uint32_t entries = (header << 1) >> 25;
-    if ((header >> 31) != 0) {
+    uint32_t item_words = (header >> 8) & 0xffu;
+    if ((header >> 31) != 0 || 1 + 3 * entries > item_words) {
         return false;
     }
     mbedtls_sha256_context sha;
@@ -133,10 +142,11 @@ static bool update_hash_holds(const picobin_image_t *image, uintptr_t start, uin
             continue;
         }
         uintptr_t stored = (uintptr_t) image->load_map + storage_rel;
-        held = stored >= start && stored + bytes <= start + size &&
+        held = stored >= start && bytes <= size && stored - start <= size - bytes &&
                mbedtls_sha256_update(&sha, (const uint8_t *) stored, bytes) == 0;
     }
     uint32_t block_words = image->hash_def[1] & 0xffff;
+    held = held && (uintptr_t) image->block >= start && block_words <= (start + size - (uintptr_t) image->block) / 4;
     for (uint32_t idx = 0; held && idx < block_words; idx += 1) {
         uint32_t word = image->block[idx];
         if (idx == 1 && (word & 0xff) == PICOBIN_BLOCK_ITEM_1BS_IMAGE_TYPE) {
@@ -165,14 +175,15 @@ static bool update_image_board(uintptr_t read_at, uint32_t size, uint32_t runs_a
         if (words[idx] != BINARY_INFO_MARKER_START || words[idx + 4] != BINARY_INFO_MARKER_END) {
             continue;
         }
+        // The image's own pointers: each on a word and inside the slot, or not read (review Q3)
         uint32_t start = words[idx + 1];
         uint32_t end = words[idx + 2];
-        if (start < runs_at || end > runs_at + size || end < start) {
+        if (start < runs_at || end < start || end - runs_at > size || ((start | end) & 3u) != 0) {
             return false;
         }
         for (uint32_t at = start; at < end; at += 4) {
             uint32_t entry = *(const uint32_t *) (read_at + (at - runs_at));
-            if (entry < runs_at || entry + 12 > runs_at + size) {
+            if (entry < runs_at || entry - runs_at > size - 12 || (entry & 3u) != 0) {
                 continue;   // one kept in RAM: not the board's
             }
             const uint32_t *item = (const uint32_t *) (read_at + (entry - runs_at));
@@ -182,7 +193,7 @@ static bool update_image_board(uintptr_t read_at, uint32_t size, uint32_t runs_a
             }
             uint32_t text = item[2];
             size_t len = 0;
-            while (len + 1 < out_size && text >= runs_at && text + len < runs_at + size &&
+            while (len + 1 < out_size && text >= runs_at && text - runs_at < size - len &&
                    ((const char *) (read_at + (text - runs_at)))[len] != '\0') {
                 out[len] = ((const char *) (read_at + (text - runs_at)))[len];
                 len += 1;
@@ -251,21 +262,27 @@ static update_refusal_t update_check_free(picobin_image_t *image) {
 
 // --- A trial, and the note it leaves for the next start
 
-// Restart into a trial of the free slot's image, leaving the note. Returns only when the restart was refused
-static int update_try(uint32_t version) {
-    update_slots_note_write(UPDATE_NOTE_MAGIC | (uint32_t) (1 - update_slots.running), version);
-    return update_slots_try_other();
-}
-
-
 static void update_clear_note(void) {
     update_slots_note_write(0, 0);
 }
 
 
-static void update_event(event_kind_t kind, activity_by_t by, event_reason_t reason, const char *text) {
+// Restart into a trial of the free slot's image, leaving the note. Returns only when the restart was refused, and then
+// the note goes too: no trial ran (review C3)
+static int update_try(uint32_t version) {
+    update_slots_note_write(UPDATE_NOTE_MAGIC | (uint32_t) (1 - update_slots.running), version);
+    int refused = update_slots_try_other();
+    update_clear_note();
+    return refused;
+}
+
+
+// An update's event: a refusal's code, or the block version of the image (kept as a number, so a kept event never
+// changes; review C1)
+static void update_event(event_kind_t kind, activity_by_t by, event_reason_t reason, const char *code,
+                         uint32_t version) {
     event_t event = {.source = EVENT_SOURCE_UPDATE, .kind = (uint8_t) kind, .by = (uint8_t) by,
-                     .reason = (uint8_t) reason, .text = text};
+                     .reason = (uint8_t) reason, .text = code, .version = version};
     events_add(&event);
 }
 
@@ -279,15 +296,15 @@ static void update_read_note(void) {
         return;
     }
     int8_t tried = (int8_t) (note & 0xffu);
-    update_version_text(version, update_last_version, sizeof(update_last_version));
     if (tried == update_slots.running && update_slots.on_trial) {
         return;
     }
     update_clear_note();
-    update_last = (update_last_t) {.result = UPDATE_RESULT_BACK, .version = update_last_version};
-    update_event(EVENT_BACK, ACTIVITY_BY_UNIT, EVENT_REASON_NONE, update_last_version);
-    printf("Update: the image tried (%s) was left: back on slot %c\n", update_last_version,
-           update_slot_name(update_slots.running));
+    update_last = (update_last_t) {.result = UPDATE_RESULT_BACK, .version = version};
+    update_event(EVENT_BACK, ACTIVITY_BY_UNIT, EVENT_REASON_NONE, NULL, version);
+    char text[16];
+    update_version_text(version, text, sizeof(text));
+    printf("Update: the image tried (%s) was left: back on slot %c\n", text, update_slot_name(update_slots.running));
 }
 
 
@@ -348,11 +365,10 @@ void update_network_ready(bool on_its_network) {
     update_confirmed = true;
     watchdog_disable();
     update_clear_note();
-    update_version_text(update_running_version(), update_last_version, sizeof(update_last_version));
     activity_lock();
-    update_last = (update_last_t) {.result = UPDATE_RESULT_CONFIRMED, .version = update_last_version};
+    update_last = (update_last_t) {.result = UPDATE_RESULT_CONFIRMED, .version = update_running_version()};
     activity_unlock();
-    update_event(EVENT_CONFIRMED, ACTIVITY_BY_UNIT, EVENT_REASON_NONE, update_last_version);
+    update_event(EVENT_CONFIRMED, ACTIVITY_BY_UNIT, EVENT_REASON_NONE, NULL, update_running_version());
     printf("Update: slot %c confirmed\n", update_slot_name(update_slots.running));
 }
 
@@ -363,12 +379,12 @@ void update_status(update_status_t *status) {
     activity_lock();
     status->state = update_state;
     activity_t asked;
-    if (status->state == UPDATE_STARTING && activity_get() != ACTIVITY_UPDATE && !activity_start_pending(&asked)) {
-        // A start the menu did not take in time, or stopped before it began
-        update_state = UPDATE_IDLE;
-        status->state = UPDATE_IDLE;
+    if (status->state == UPDATE_IDLE && activity_start_pending(&asked) && asked == ACTIVITY_UPDATE) {
+        // Asked, and the menu has not begun it: read from the request itself, so a start dropped or stopped before it
+        // began is idle again at once (review C3)
+        status->state = UPDATE_STARTING;
     }
-    if (status->state == UPDATE_IDLE && update_giving_back) {
+    else if (status->state == UPDATE_IDLE && update_giving_back) {
         // Idle once the menu is back at its forms, where a start is taken again
         if (menu_get_current_form_id() >= 0) {
             update_giving_back = false;
@@ -380,7 +396,7 @@ void update_status(update_status_t *status) {
     status->slot = update_slot_name(update_slots.running);
     status->on_trial = update_slots.on_trial && !update_confirmed;
     status->free_bytes = update_slots_known ? update_slots.free_size : 0;
-    status->received = update_written + update_sector_fill;
+    status->received = status->state == UPDATE_IDLE || status->state == UPDATE_STARTING ? 0 : update_taken;
     status->last = update_last;
     activity_unlock();
     status->version = version_string;
@@ -399,15 +415,16 @@ update_start_result_t update_request_start(activity_by_t by) {
     if (!update_slots_known) {
         return UPDATE_START_NO_SLOTS;
     }
+    if (update_slots.on_trial && !update_confirmed) {
+        // The free slot holds the image the unit goes back to until this one is confirmed: it is not written (review D2)
+        return UPDATE_START_ON_TRIAL;
+    }
     activity_t asked_before;
     if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
         return UPDATE_START_BUSY;
     }
     activity_lock();
     bool asked = update_state == UPDATE_IDLE && activity_request_start(ACTIVITY_UPDATE, by);
-    if (asked) {
-        update_state = UPDATE_STARTING;
-    }
     activity_unlock();
     if (!asked) {
         return UPDATE_START_BUSY;
@@ -420,11 +437,12 @@ update_start_result_t update_request_start(activity_by_t by) {
 // The job ends: under the activity lock, from either task. The mode sees the state and gives the screen back
 static void update_end_locked(update_result_t result, activity_by_t by, update_refusal_t refusal) {
     update_state = UPDATE_ENDING;
+    update_upload_token = 0;    // an upload still open is the ended job's: nothing of it is taken now
     update_last = (update_last_t) {.result = result, .code = refusal.code, .message = refusal.message,
-                                   .version = update_last_version[0] != '\0' ? update_last_version : NULL};
+                                   .version = update_job_version};
     event_reason_t reason = result == UPDATE_RESULT_REFUSED ? EVENT_REASON_REFUSED :
                             (result == UPDATE_RESULT_TIME ? EVENT_REASON_TIME : EVENT_REASON_STOPPED);
-    update_event(EVENT_STOPPED, by, reason, refusal.code);
+    update_event(EVENT_STOPPED, by, reason, refusal.code, 0);
     menu_wake();    // the mode gives the screen back now, not at its next tick
 }
 
@@ -434,7 +452,7 @@ bool update_install(void) {
     bool ready = update_state == UPDATE_READY;
     if (ready) {
         update_state = UPDATE_INSTALLING;
-        update_event(EVENT_INSTALLING, ACTIVITY_BY_API, EVENT_REASON_NONE, update_last_version);
+        update_event(EVENT_INSTALLING, ACTIVITY_BY_API, EVENT_REASON_NONE, NULL, update_job_version);
     }
     activity_unlock();
     return ready;
@@ -450,8 +468,13 @@ static void update_flash_sector(void *param) {
 }
 
 
-// The sector in the buffer, into the free slot. The first is checked before it is written
+// The sector in the buffer, into the free slot. The first is checked before it is written. Nothing outside the free
+// slot is ever written: the bound is held here, where flash is written (review Q1)
 static bool update_write_sector(void) {
+    if (update_written + FLASH_SECTOR_SIZE > update_slots.free_size) {
+        update_upload_refusal = update_refuse("too_large", "larger than the free slot");
+        return false;
+    }
     if (update_written == 0) {
         picobin_image_t first;
         picobin_image_read_first((uintptr_t) update_sector, FLASH_SECTOR_SIZE, &first);
@@ -459,7 +482,7 @@ static bool update_write_sector(void) {
         if (update_upload_refusal.code != NULL) {
             return false;
         }
-        update_version_text(picobin_image_version(&first), update_last_version, sizeof(update_last_version));
+        update_job_version = picobin_image_version(&first);
     }
     uint32_t offset = update_slots.free_offset + update_written;
     // Flash is written with the other core held off it; no job but this one runs, so no motor waits for a feed
@@ -473,12 +496,30 @@ static bool update_write_sector(void) {
 }
 
 
-update_refusal_t update_image_begin(uint32_t bytes, int *status) {
+update_refusal_t update_image_begin(uint32_t bytes, int *status, uint32_t *token) {
+    *token = 0;
+    // The size first: a body refused changes nothing of the job (review Q1)
+    if (bytes > update_slots.free_size) {
+        *status = 413;
+        return update_refuse("too_large", "larger than the free slot");
+    }
+    if (bytes == 0) {
+        *status = 400;
+        return update_refuse("not_an_image", "an empty body");
+    }
     activity_lock();
     bool receiving = update_state == UPDATE_RECEIVING;
-    if (receiving) {
+    bool taken = receiving && update_upload_token == 0;
+    if (taken) {
+        update_upload_tokens += 1;
+        if (update_upload_tokens == 0) {
+            update_upload_tokens = 1;
+        }
+        update_upload_token = update_upload_tokens;
+        *token = update_upload_token;
         update_written = 0;
         update_sector_fill = 0;
+        update_taken = 0;
         update_expected = bytes;
         update_tick = xTaskGetTickCount();
         update_upload_refusal = update_refuse(NULL, NULL);
@@ -488,22 +529,19 @@ update_refusal_t update_image_begin(uint32_t bytes, int *status) {
         *status = 409;
         return update_refuse("not_running", "no update is receiving: POST /api/v1/update/start first");
     }
-    if (bytes > update_slots.free_size) {
-        *status = 413;
-        return update_refuse("too_large", "larger than the free slot");
-    }
-    if (bytes == 0) {
-        *status = 400;
-        return update_refuse("not_an_image", "an empty body");
+    if (!taken) {
+        *status = 409;
+        return update_refuse("busy", "another upload of the image is under way: one at a time");
     }
     *status = 200;
     return update_refuse(NULL, NULL);
 }
 
 
-bool update_image_piece(const uint8_t *data, size_t len) {
+bool update_image_piece(uint32_t token, const uint8_t *data, size_t len) {
     while (len > 0) {
-        if (update_state != UPDATE_RECEIVING || update_written + update_sector_fill + len > update_expected) {
+        if (update_state != UPDATE_RECEIVING || token != update_upload_token ||
+            update_taken + len > update_expected) {
             if (update_upload_refusal.code == NULL) {
                 update_upload_refusal = update_refuse("not_running", "the update was stopped");
             }
@@ -515,6 +553,7 @@ bool update_image_piece(const uint8_t *data, size_t len) {
         }
         memcpy(update_sector + update_sector_fill, data, take);
         update_sector_fill += (uint32_t) take;
+        update_taken += (uint32_t) take;
         data += take;
         len -= take;
         if (update_sector_fill == FLASH_SECTOR_SIZE && !update_write_sector()) {
@@ -526,7 +565,12 @@ bool update_image_piece(const uint8_t *data, size_t len) {
 }
 
 
-update_refusal_t update_image_end(int *status) {
+update_refusal_t update_image_end(uint32_t token, int *status) {
+    if (token != update_upload_token) {
+        // An upload the job no longer takes: its job ended while it came
+        *status = 409;
+        return update_refuse("not_running", "the update was stopped");
+    }
     picobin_image_t image;
     update_refusal_t refusal = update_upload_refusal;
     if (refusal.code == NULL && update_sector_fill > 0) {
@@ -540,14 +584,16 @@ update_refusal_t update_image_end(int *status) {
         refusal = update_check_free(&image);
     }
     activity_lock();
-    if (update_state != UPDATE_RECEIVING) {
+    bool ours = token == update_upload_token;
+    update_upload_token = ours ? 0 : update_upload_token;
+    if (update_state != UPDATE_RECEIVING || !ours) {
         // Stopped, or ended by its time, while the image came
         refusal = update_refuse("not_running", "the update was stopped");
         *status = 409;
     } else if (refusal.code == NULL) {
         update_state = UPDATE_READY;
         update_tick = xTaskGetTickCount();
-        update_event(EVENT_RECEIVED, ACTIVITY_BY_API, EVENT_REASON_NONE, update_last_version);
+        update_event(EVENT_RECEIVED, ACTIVITY_BY_API, EVENT_REASON_NONE, NULL, update_job_version);
         *status = 200;
     } else {
         // A refused image ends the job: nothing of it is installed
@@ -559,10 +605,16 @@ update_refusal_t update_image_end(int *status) {
 }
 
 
-void update_image_abort(void) {
-    // The client went: the job waits for the image again, from its start
-    update_written = 0;
-    update_sector_fill = 0;
+void update_image_abort(uint32_t token) {
+    // The client went: the job waits for the image again, from its start. Another's going changes nothing
+    activity_lock();
+    if (token == update_upload_token) {
+        update_upload_token = 0;
+        update_written = 0;
+        update_sector_fill = 0;
+        update_taken = 0;
+    }
+    activity_unlock();
 }
 
 
@@ -578,11 +630,13 @@ static void update_draw(update_state_t state) {
     u8g2_SetFont(display, u8g2_font_helvR08_tr);
     if (state == UPDATE_RECEIVING && update_expected > 0) {
         snprintf(line, sizeof(line), "Receiving %lu%%",
-                 (unsigned long) ((update_written + update_sector_fill) * 100u / update_expected));
+                 (unsigned long) ((uint64_t) update_taken * 100u / update_expected));
     } else if (state == UPDATE_RECEIVING || state == UPDATE_STARTING) {
         snprintf(line, sizeof(line), "Waiting for the image");
     } else if (state == UPDATE_READY) {
-        snprintf(line, sizeof(line), "Ready: %s", update_last_version);
+        char version[16];
+        update_version_text(update_job_version, version, sizeof(version));
+        snprintf(line, sizeof(line), "Ready: %s", version);
     } else {
         snprintf(line, sizeof(line), "Installing, restarting");
     }
@@ -606,10 +660,12 @@ uint8_t update_mode_menu(void) {
         update_state = UPDATE_RECEIVING;
         update_written = 0;
         update_sector_fill = 0;
+        update_taken = 0;
         update_expected = 0;
-        update_last_version[0] = '\0';
+        update_upload_token = 0;    // an upload left open from an earlier job is not this one's
+        update_job_version = 0;
         update_tick = xTaskGetTickCount();
-        update_event(EVENT_STARTED, by, EVENT_REASON_NONE, NULL);
+        update_event(EVENT_STARTED, by, EVENT_REASON_NONE, NULL, 0);
     }
     activity_unlock();
 
@@ -640,13 +696,15 @@ uint8_t update_mode_menu(void) {
             stop = true;
             stop_by = ACTIVITY_BY_BUTTON;
         }
-        TickType_t since = xTaskGetTickCount() - update_tick;
         activity_lock();
+        // Signed: the server's task may set update_tick after the tick count was read (review Q2)
+        int32_t since = (int32_t) (xTaskGetTickCount() - update_tick);
         if (update_state == UPDATE_RECEIVING || update_state == UPDATE_READY) {
             if (stop) {
                 update_end_locked(UPDATE_RESULT_STOPPED, stop_by, update_refuse(NULL, NULL));
-            } else if ((update_state == UPDATE_RECEIVING && since >= pdMS_TO_TICKS(UPDATE_RECEIVING_IDLE_MS)) ||
-                       (update_state == UPDATE_READY && since >= pdMS_TO_TICKS(UPDATE_READY_LIMIT_MS))) {
+            } else if ((update_state == UPDATE_RECEIVING &&
+                        since >= (int32_t) pdMS_TO_TICKS(UPDATE_RECEIVING_IDLE_MS)) ||
+                       (update_state == UPDATE_READY && since >= (int32_t) pdMS_TO_TICKS(UPDATE_READY_LIMIT_MS))) {
                 update_end_locked(UPDATE_RESULT_TIME, ACTIVITY_BY_UNIT, update_refuse(NULL, NULL));
             }
         }
@@ -680,6 +738,10 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
         return true;
     }
     if (strcmp(args, "try") == 0) {
+        if (update_slots.on_trial && !update_confirmed) {
+            snprintf(reply, reply_size, "@err busy update try: the image running is on trial, not yet confirmed");
+            return false;
+        }
         if (activity_get() != ACTIVITY_NONE) {
             snprintf(reply, reply_size, "@err busy update try: %s runs", activity_name(activity_get()));
             return false;
@@ -691,7 +753,7 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
         picobin_image_t image;
         update_refusal_t refused = update_check_free(&image);
         if (refused.code != NULL) {
-            snprintf(reply, reply_size, "@err refused update try: %s", refused.message);
+            snprintf(reply, reply_size, "@err refused update try: %s: %s", refused.code, refused.message);
             return false;
         }
         printf("@ok update try: restarting into a trial of slot %c\n", update_slot_name(1 - update_slots.running));

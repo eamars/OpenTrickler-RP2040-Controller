@@ -92,3 +92,62 @@ Approved by the owner 2026-11-16 ("Start gate 3"), while the bench waits for the
 - **Found:** written on Windows, `SHA256SUMS` had CRLF line endings, and `sha256sum -c` read every name with a carriage return in it. The release's text files are written with LF on every system.
 - **Shown:** the release built on the PC as CI builds it (14:33): the five images at the same block version (276.210), every file and the manifest checked by `sha256sum -c SHA256SUMS`. `rc_run.py update` from that folder's manifest on the Pico 2 W (1.20.208 to 1.20.210, confirmed, 8.5 s after the install); then the release's full install through the probe (`--elf build_release/pico2_w/app.elf flash`), `menu_tour`, `charge_cycle` and `api_check`: each `VERDICT PASS`.
 - **Not yet shown:** CI's run of the release step (on the PR's first push), a tag's draft release (the owner's tag), the full install and the erase by USB, and each manual followed by someone who did not write it; the Pico W's updates from the release's manifest.
+
+## The review (2026-11-16)
+
+A second model (Fable) read the three gates' code at 7aff78e; its report is `logs/adr004/code_review_2026-11-16.md` (this PC only). Each finding was then read again in the code (Opus), and each holds. All are fixed (below, "The review's fixes"). In order of harm:
+
+- **Device:**
+  - **The upload has no owner** (the report's Q1, raised here). The server takes an upload on each of its six connections, and `update_image_begin` sets the job's counters before it checks the size. Two uploads open at once, then a third PUT refused as too large, leave the limit larger than the slot, and the two go on writing past the free slot's end: on the Pico W into the running slot, or past the end of flash and so around to the bootloader. Read, not shown.
+  - **D1:** the image parser checks that a block's link stays inside the slot, not that it is a multiple of 4. The RP2040 faults on an unaligned read, and the bootloader reads both slots before it picks: one damaged block in either slot, and neither boots until BOOTSEL and a full install.
+  - **D2:** an update is taken while the running image is still on trial. The free slot is then the confirmed image the unit would go back to; its first sector is erased by the upload, and when the trial ends neither slot boots. Both chips. The window: a trial already failing (fallen back to its own access point) and a client starting an update within its minute.
+  - **D3:** when the station joins from the fallback access point, its DHCP and DNS servers are removed without lwIP's lock, while the other core may be answering a query on them. Microseconds, once per such join.
+- **Contract:**
+  - **C1:** every update event and `last` point at one buffer that the next job rewrites, so an old `confirmed` event later shows another version.
+  - **C2:** the Wi-Fi settings say `at_restart`, but the retry joins with what a PATCH wrote, saved or not. The wizard saves and restarts at once, so it rarely matters.
+  - **C3:**
+    - `received` is rounded up to a sector once the image is whole;
+    - a stop while `installing` answers 202 and stops nothing;
+    - `POST /api/v1/stop` before the menu takes a start leaves the job `starting`, and later starts get 409 until someone reads `GET /api/v1/update`;
+    - a restart into a trial that was refused leaves its note, and the next start reports `back` for a trial that never ran;
+    - `GET /api/v1` names an update `receiving` while it is `installing`.
+- **Quality:**
+  - **Q2:** the job's idle time can come out negative on a race, and a good upload ends by `time`. Rare.
+  - **Q3:** the whole-image check trusts the image's own lengths and pointers, so a made-up image can fault the server's task. Same cause as D1.
+  - **Q4:** a three-part tag (`v1.21.1`; `v1.5.1` is in the history) gives the version `unknown` and block 0.0, and CI still drafts the release.
+  - **Q5:** `slot_trial --expect refused` takes any refusal; `update --expect confirmed` compares the running block with a figure the firmware copies from itself; nothing shows the bootloader's own trial watchdog, which only an image that hangs before `update_init` would.
+- **Known, and not written in the README:** an update is not authenticated. The hash shows the image is whole, not whose it is, and the API has no login, so anyone on the unit's network can install an image they built and sealed themselves. That is why D1, Q1 and Q3 matter as accidents, and for the bootloader's promise, more than as attacks.
+
+### The review's fixes (1.20.212, built from the working tree on 7aff78e)
+
+The owner: "Fix them now", in one pass, proven on the Pico 2 W.
+
+- **Built:**
+  - **The image's own figures are held before they are used:** a block that does not lie on a word is no block (`picobin_image.c`), so the bootloader takes that slot as empty; the whole check holds each load map entry inside its item and the slot without wrapping, the hashed words inside the slot, and the binary information's pointers on a word and inside it (D1, Q3).
+  - **One upload at a time** (Q1): an upload holds the job by a token, kept in its request's context; a second is 409 `busy`, and a piece, end or abort of any other changes nothing, nor does one left from a job that has ended. The size is checked before anything of the job changes, and the sector's write refuses anything past the free slot, where flash is written.
+  - **No update while the image running is on trial** (D2): 409 `busy` until it is confirmed, the console's `update try` too.
+  - The access point's DHCP and DNS servers are started and removed under lwIP's lock (D3).
+  - An event and `last` keep an image's block version as a number, written as text only in a reply (C1). The Wi-Fi's retry and the trial's check of its network read the settings the unit started with (C2).
+  - The small ones (C3):
+    - `received` is the image's bytes taken, 0 while idle;
+    - a stop while `installing` is 409 `busy`;
+    - `starting` is read from the start's request itself, so a start dropped or stopped is idle again at once;
+    - a restart into a trial that was refused clears its note;
+    - `GET /api/v1` names the update's state as `GET /api/v1/update` does.
+  - The idle time is signed (Q2). An update image with no version stops CMake: a release's tag is `vMAJOR.MINOR` (Q4).
+  - `rc_run.py` (Q5):
+    - `slot_trial --corrupt` wants the hash's refusal;
+    - `update` judges by the block version of the image it sent;
+    - `--expect back` has a start during the trial refused;
+    - `--expect second` sends a second upload while the first is open.
+  - A test image that hangs at its first line (`-DRC_TEST_HANG_AT_START=ON`).
+  - `api_v1.md` says each new refusal.
+- **Shown on the Pico 2 W**, each `VERDICT PASS`, 15:28 to 15:34:
+  - **The Wi-Fi's retry, under the lock:** the build that skips its start's join came up as its own access point, then joined 60 s after its start, the access point stopped.
+  - **second:** half the image sent; a second upload 409 `busy`, one larger than the slot 413; then the first taken whole (`received` 801,540, its length), and stopped, nothing installed.
+  - **back:** an image that never confirms: back on the network 8.4 s after the install, a start then 409 `busy` ("on trial"), back on the image before 75.4 s after the install, `last` naming the image tried (1.20.901).
+  - **back by the ROM's watchdog:** the image that hangs at its first line: back on the image before 26.4 s after the install. On the Pico W the same image shows the bootloader's watchdog.
+  - **confirmed:** 1.20.900 sent in 14.2 s, confirmed 8.5 s after the install, the block running and `last` both the image sent.
+  - Then the normal build through the probe, 15:34 to 15:36: `menu_tour` against the Pico 2 W's baseline, `api_check` (32 paths read twice, 24 of 24 actions), `slot_trial --corrupt` refused by its hash (`hash_mismatch`), `charge_cycle`, and the settings compared with the copy taken before the first flash.
+- **Left as they were:** the RP2350's confirmation holds both cores' interrupts for a sector's erase and program, once, a few seconds after a trial's start (the report's Q6: known, no harm seen). The Pico W's fault images (`build_w_fault1`, `build_w_fault2`) are from before the layout and are built again before `pulses` runs on it.
+- **Not shown:** on the Pico W, all of it (it is read and built, not run), and the bootloader's own watchdog with the image that hangs.
