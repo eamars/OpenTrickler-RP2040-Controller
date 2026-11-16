@@ -80,6 +80,8 @@ _deps
 
 # Build directory
 build*/
+# A release's folder (scripts/build_release.py)
+release/
 
 # Local ARM toolchain download
 .toolchain/

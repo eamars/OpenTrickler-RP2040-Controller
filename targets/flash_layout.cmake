@@ -99,21 +99,29 @@ elseif (PICO_RP2040)
 endif()
 
 # The full install (ADR-004): one .uf2 for the USB drive, made from a full install's image (not an update image,
-# and slot A's on the Pico W): what starts flash, slot A's image, and the start of slot B written as erased flash
+# and slot A's on the Pico W): what starts flash, slot A's image, and the start of slot B written as erased flash.
+# Beside it the erase: the start of flash and of both slots written as erased flash, so nothing boots and the unit
+# comes back as its USB drive, for a release from before ADR-004 (manuals/firmware_downgrade.md)
 if (NOT APP_TRIAL_IMAGE AND (PICO_RP2350 OR APP_SLOT STREQUAL "A"))
     if (PICO_RP2350)
         set(FULL_INSTALL_ARGS --family absolute --part "${CMAKE_BINARY_DIR}/partition_table.bin@0x10000000"
             --part "${CMAKE_BINARY_DIR}/${TARGET_NAME}.bin@0x10002000" --blank 0x101C2000:0x1000)
+        set(ERASE_ARGS --family absolute --blank 0x10000000:0x2000 --blank 0x10002000:0x1000
+            --blank 0x101C2000:0x1000)
         set(FULL_INSTALL_DEPENDS "${TARGET_NAME}" partition_table)
     else()
         set(FULL_INSTALL_ARGS --family rp2040 --part "${CMAKE_BINARY_DIR}/bootloader.bin@0x10000000"
             --part "${CMAKE_BINARY_DIR}/${TARGET_NAME}.bin@0x10004000" --blank 0x10102000:0x1000)
+        set(ERASE_ARGS --family rp2040 --blank 0x10000000:0x1000 --blank 0x10004000:0x1000
+            --blank 0x10102000:0x1000)
         set(FULL_INSTALL_DEPENDS "${TARGET_NAME}" bootloader)
     endif()
     add_custom_target(full_install ALL
         COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/full_install_uf2.py" ${FULL_INSTALL_ARGS}
                 --out "${CMAKE_BINARY_DIR}/full_install.uf2"
-        COMMENT "Making the full install"
+        COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/full_install_uf2.py" ${ERASE_ARGS}
+                --out "${CMAKE_BINARY_DIR}/erase.uf2"
+        COMMENT "Making the full install and the erase"
         VERBATIM
     )
     add_dependencies(full_install ${FULL_INSTALL_DEPENDS})

@@ -1,7 +1,9 @@
 """
 The full install (ADR-004): one .uf2 a person drags onto the unit's USB drive, with what starts flash (the Pico 2 W's
 partition table, the Pico W's bootloader), slot A's image, and the start of slot B written as erased flash, so that
-slot A boots whatever slot B held. Every block carries the file's own count and its place in it.
+slot A boots whatever slot B held. With no parts, only regions written as erased flash: the erase, after which nothing
+boots and the unit comes back as its USB drive, for a release from before ADR-004. Every block carries the file's own
+count and its place in it.
 """
 import argparse
 import struct
@@ -95,10 +97,12 @@ def uf2(written, family):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--family", choices=sorted(FAMILIES), required=True)
-    parser.add_argument("--part", action="append", type=parse_part, required=True, help="file@address")
+    parser.add_argument("--part", action="append", type=parse_part, default=[], help="file@address")
     parser.add_argument("--blank", action="append", type=parse_blank, default=[], help="address:bytes")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
+    if not args.part and not args.blank:
+        parser.error("give a --part or a --blank")
     written = pages(args.part, args.blank)
     args.out.write_bytes(uf2(written, FAMILIES[args.family]))
     print(f"{args.out}: {len(written)} blocks, {', '.join(f'{path.name}@{address:#x}' for path, address in args.part)}"
