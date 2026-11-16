@@ -86,8 +86,7 @@ Main menu                        title: OpenTrickler, or the motor driver that i
 │  ├─ Address       192.168.2.168
 │  ├─ Name          opentrickler-4993.local
 │  ├─ Signal        -58 dBm      as a station only
-│  ├─ Network, Key               as its own access point only: opentrickler-4993, opentrickler
-│  └─ Open on a phone ›          a QR code: the page's address, or how to join the access point
+│  └─ Network, Key               as its own access point only: opentrickler-4993, opentrickler
 └─ Settings ›
    ├─ Scale ›
    │  ├─ Reading    24.35 gr     live; "no reading" while the scale sends nothing
@@ -106,7 +105,6 @@ Main menu                        title: OpenTrickler, or the motor driver that i
    │  ├─ Last update   2.0.2 confirmed    once there was one; or "went back to 2.0.1"
    │  ├─ Channel       beta      only while on beta; set on the web
    │  └─ Board, Unit id
-   ├─ More on the web ›          → the Wi-Fi page's QR code
    ├─ Restart                    "Restart to apply" while a setting waits for it
    └─ Factory reset ›            → Cancel, Erase
 ```
@@ -194,7 +192,8 @@ When a job was not started from the knob, its screen's state line also says who 
 - **Leaving beta downgrades nothing.** The unit keeps its version, and nothing is offered until a stable release is newer than it.
 - **Where it is set:** on the web and through the API, beside the update's source. The screen sets no source (the owner, 2026-11-16). The Firmware page shows the channel only while it is beta, so a person can see why pre-releases are offered.
 - **One stored struct for the channel and the source,** laid out once in a module's own slot. It is built with the poll here; ADR-008's page sets it. The source is GitHub by default, or another manifest's address, such as a mirror on the owner's network.
-- **Until every ADR closes, every release is a candidate,** so stable finds nothing. The bench tries the poll on beta, or on a test source that serves made-up newer manifests.
+- **Until every ADR closes, every release is a candidate,** so stable finds nothing.
+- **Tests never use GitHub's releases** (the owner, 2026-11-17). The bench points the unit's source at a local OTA server on the PC, which serves `release\` in GitHub's layout and made-up newer manifests (README, gate 1).
 
 ## The split (MVC, roughly)
 
@@ -264,7 +263,7 @@ When a job was not started from the knob, its screen's state line also says who 
 
 ## Still open
 
-- **D5. The QR code** to open the page or to join the access point. Recommended: it costs a few KB, to be measured. With most settings on the web, it puts the web one scan away.
+- ~~**D5. The QR code** to open the page or to join the access point.~~ Moved to ADR-015 (the owner, 2026-11-17: "Perhaps that's a feature for future ADR. I'd like to design the commissioning process properly, not ad-hoc"). Until then the Wi-Fi page gives the address, the name and the access point's key as text, as today, and the screen offers no "more on the web" row: how a person finds the web is ADR-015's.
 - **The beta channel** as proposed above, and the remote mark's 30 s.
 - **How the look is mocked,** after the measurement (below).
 

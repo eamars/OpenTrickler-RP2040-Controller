@@ -34,7 +34,9 @@ Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu
   - **perhaps a pre-release channel** for the update, as phones have a beta channel;
   - **the rework is agreed:** the new menu is built directly. A better layout is welcome wherever it makes better use of the screen;
   - **perhaps an interactive mockup** after the measurement, as a tool for designing the UI without updating the unit;
-  - **the web page's missing acknowledgement** is documented in ADR-008.
+  - **the web page's missing acknowledgement** is documented in ADR-008;
+  - **the QR code goes to a later ADR** on commissioning (ADR-015): "I'd like to design the commissioning process properly, not ad-hoc".
+- **Update tests use a local OTA server,** so they do not hammer GitHub's releases. A debug image goes onto a unit by the probe.
 
 ## Why here
 
@@ -95,7 +97,12 @@ ADR-008 keeps the page's offer, the page where the source and the channel are se
 
 The design is [menu_design.md](menu_design.md): the principles, the knob's four keys, the tree, the jobs' screens, the status marks, what leaves the screen and where it goes, the update with its channel, and the split. Built in gates, each approved and built on its own:
 
-1. **Measure.** LVGL trimmed to what a 128 × 64 mono screen shows, one list screen beside u8g2, and TLS fetching one file over HTTPS. Both are measured on both boards, on the shipping build and MinSizeRel: flash from the size report, RAM at link time and the FreeRTOS heap's high-water mark from `stats`. What was trimmed is listed for the feature table. A report goes to the owner if the Pico W does not fit. This gate runs before approval.
+1. **Measure.** This gate runs before approval.
+   - **The local OTA server first,** a host tool after the Open Weapon Mount Computer's `scripts/ota_host.py`. It serves `release\` (from `build_release.py`) in GitHub's layout (`releases/latest/download/`, `releases/download/<tag>/`) over HTTP and HTTPS, prints every request, and can serve a made-up newer manifest for tests. The unit reaches it through its source setting, not by a name it always tries first, so no test path is left in a user's unit. Every update test from here on uses it, never GitHub's releases (the owner).
+   - **What is measured:** LVGL trimmed to what a 128 × 64 mono screen shows, with one list screen beside u8g2; and TLS, fetching one file over HTTPS from the local server with a certificate chain of the same kind as GitHub's.
+   - **How:** on both boards, on the shipping build and on MinSizeRel. Flash comes from the size report; RAM from the link and from `stats`, which gives the FreeRTOS heap's high-water mark.
+   - **One fetch from GitHub,** at the end, confirms the figure against GitHub's own chain.
+   - **The report:** what was trimmed is listed for the feature table, and a report goes to the owner if the Pico W does not fit.
 2. **Services stop drawing and reading buttons.**
    - The mode loops leave the menu's task for a job task of their own.
    - The screen sends the API's commands, `by` button, and reads the same status the API reads.
@@ -120,7 +127,7 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 - `charge_cycle` passes, and the charge screen shows the weight no later than it does today.
 - A charge and a cleanup started over the API take the screen, which marks them as remote. A stop at the knob ends them.
 - The owner uses every screen by hand with the knob, once with the reset button and once without it.
-- An update found by the poll (on the beta channel, or from a test source) is offered at the screen, installed and confirmed. One that does not start comes back, and the offer says so.
+- An update found by the poll on the local OTA server, on each channel, is offered at the screen, installed and confirmed. One that does not start comes back, and the offer says so. The images under test go onto the unit by the probe; only the update itself goes over the air.
 - The size report and `stats` show flash and RAM inside each board's budget.
 - On each supported board.
 
@@ -133,5 +140,4 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 ## To settle before approval
 
 - The Pico W, from gate 1's numbers, and what is trimmed.
-- The QR code (menu_design.md, D5).
 - The beta channel as proposed, and the remote mark's 30 s.
