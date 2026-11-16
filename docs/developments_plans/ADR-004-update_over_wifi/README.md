@@ -25,6 +25,12 @@ This ADR builds what that rests on: the flash layout, the boot path, the image's
 - The first install is a bundle on GitHub, the bootloader and the application together.
 - PR #111 is a good reference; it is not merged if it does not fit the roadmap.
 
+**2026-11-16**, later, on the offer's hand-on to ADR-008 and ADR-010:
+- The web page sets the update source, GitHub's releases by default.
+- The web page also takes a firmware file uploaded by hand, for "prosumers": beside the offer, not in its place. The first draft's verdict above stands for the offer itself.
+- The screen only polls the source the web set, and offers the update from a row in the main menu, as the Open Weapon Mount Computer does; never a pop-up at every start.
+- No authentication for now: the unit has no password, and a PIN would make the screen mandatory. Perhaps an optional feature later.
+
 ## Why here
 
 It changes the flash layout, which costs every user one install by cable. Do that once, before the large changes, and every release after it can reach units over Wi-Fi. It comes after ADR-003 because the upload needs a server that takes a body in pieces, and before ADR-005 because a board's room is only known once its layout is.
@@ -139,7 +145,7 @@ The spare part costs nothing today and keeps a later need from changing the tabl
 For each board:
 - **the full install,** one `.uf2`: the bootloader (Pico W) or the partition table (Pico 2 W), the image in slot A with its mark cleared, and the start of slot B blanked;
 - **the update images:** the Pico W's for slot A and for slot B, the Pico 2 W's one;
-- and once for the release, **`manifest.json`:** the version, a note, an importance (normal, critical), and for each board and slot its file, size and SHA-256. The offer (ADR-008, ADR-010) reads it; until then `rc_run.py` does.
+- and once for the release, **`manifest.json`:** the version, a note, an importance (normal, critical), and for each board and slot its file, size, SHA-256 and block version (written as `GET /api/v1/update` writes `running.block`, read from the image itself), so a unit knows whether it is newer before it fetches it. The offer (ADR-008, ADR-010) reads it; until then `rc_run.py` does.
 
 The start of slot B is blanked because the higher version boots: an older or equal image put in slot A by USB would otherwise lose to a newer one left in B. So a USB install always wins, and the full install is also how a unit is brought back.
 

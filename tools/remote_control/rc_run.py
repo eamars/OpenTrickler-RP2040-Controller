@@ -2589,6 +2589,10 @@ class Session:
         if hashlib.sha256(image).hexdigest() != image_entry["sha256"] or len(image) != image_entry["size"]:
             self.fail(f"update: {image_entry['file']} is not the file the manifest names")
             return
+        if "block" in image_entry and image_entry["block"] != block_version_text(image):
+            self.fail(f"update: the manifest's block {image_entry['block']} is not the image's, "
+                      f"{block_version_text(image)}")
+            return
         export_before = unit.read("settings")
         boot_before = unit.index["boot"]
         self.log.write("rc", f"update: {host} runs {before['running']} and takes {before['takes']}: "

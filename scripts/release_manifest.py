@@ -11,10 +11,12 @@ import argparse
 import hashlib
 import json
 import shutil
+import struct
 import sys
 from pathlib import Path
 
 MANIFEST_VERSION = 1
+PICOBIN_BLOCK_START = 0xFFFFDED3
 NOTES = """OpenTrickler firmware {version}
 
 {note}
@@ -47,6 +49,48 @@ def named_file(text):
     return name, Path(path)
 
 
+def block_version(data):
+    """
+    An update image's block version (ADR-004), as the unit gives its own in GET /api/v1/update (`running.block`):
+    276.210 is "1.20.210". Read as src/picobin_image.c reads it: the first block within the first 4 KB, then the
+    block loop, the last image definition's version. The unit decides "newer" by this, before it fetches the image.
+
+    Args:
+        data: the image's bytes.
+
+    Returns:
+        The text, or None when the image has no version in a block.
+    """
+    first = next((at for at in range(0, min(len(data), 0x1000) - 3, 4)
+                  if struct.unpack_from("<I", data, at)[0] == PICOBIN_BLOCK_START), None)
+    if first is None:
+        return None
+    version, at = None, first
+    for _ in range(8):
+        index = at + 4
+        image_def, found = False, None
+        while index + 8 <= len(data):
+            header = struct.unpack_from("<I", data, index)[0]
+            kind = header & 0xFF
+            words = (header >> 8) & (0xFFFF if kind & 0x80 else 0xFF)
+            if kind == 0xFF:    # the last item: then the link to the next block
+                at += struct.unpack_from("<i", data, index + 4)[0]
+                break
+            if kind == 0x42 and (header >> 16) & 0xF == 1:     # an executable's image type
+                image_def = True
+            if kind == 0x48:
+                minor, major = struct.unpack_from("<2H", data, index + 4)
+                found = f"{major >> 8}.{major & 0xFF}.{minor}"
+            index += max(words, 1) * 4
+        else:
+            return None
+        if image_def:
+            version = found
+        if at == first:
+            return version
+    return None
+
+
 def entry(source, out_dir, file_name):
     """
     A file copied into the release, and its entry.
@@ -76,12 +120,18 @@ def main():
     parser.add_argument("--erase", action="append", type=named_file, default=[], help="board=erase.uf2")
     args = parser.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    images = {}
+    for name, path in args.image:
+        images[name] = entry(path, args.out_dir, f"{name}_update.bin")
+        images[name]["block"] = block_version(path.read_bytes())
+        if images[name]["block"] is None:
+            sys.exit(f"{path}: no version in its metadata block; an update image needs one")
     manifest = {
         "manifest_version": MANIFEST_VERSION,
         "version": args.version,
         "note": args.note,
         "importance": args.importance,
-        "images": {name: entry(path, args.out_dir, f"{name}_update.bin") for name, path in args.image},
+        "images": images,
         "full_installs": {board: entry(path, args.out_dir, f"{board}_full_install.uf2")
                           for board, path in args.full_install},
         "erases": {board: entry(path, args.out_dir, f"{board}_erase.uf2") for board, path in args.erase},
