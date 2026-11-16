@@ -27,6 +27,7 @@
 #include "settings.h"
 #include "system_control.h"
 #include "update.h"
+#include "update_poll.h"
 #include "version.h"
 #include "wireless.h"
 
@@ -319,6 +320,218 @@ static void value_last_update(const menu_row_t *row, char *out, size_t room) {
     int result = (int) update.last.result;
     snprintf(out, room, "%s", result >= 0 && result < (int) (sizeof(results) / sizeof(results[0])) ?
              results[result] : "?");
+}
+
+
+// --- The update at the screen (ADR-010, gate 5; menu_design.md, "The update at the screen")
+
+static bool update_found(update_poll_status_t *poll) {
+    update_poll_status(poll);
+    return poll->state == UPDATE_POLL_FOUND;
+}
+
+
+static bool shown_update_found(void) {
+    update_poll_status_t poll;
+    return update_found(&poll);
+}
+
+
+// "Update available", or "Important update" for a critical release: no pop-up, a row (the owner)
+static const char *update_row_label(void) {
+    update_poll_status_t poll;
+    return update_found(&poll) && poll.critical ? "Important update" : "Update available";
+}
+
+
+static bool shown_on_station(void) {
+    wireless_info_t info;
+    wireless_get_link(&info);
+    return strcmp(info.mode, "station") == 0 && info.address[0] != '\0';
+}
+
+
+static bool shown_not_on_station(void) {
+    return !shown_on_station();
+}
+
+
+static void value_check_update(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    update_poll_status_t poll;
+    update_poll_status(&poll);
+    switch (poll.state) {
+        case UPDATE_POLL_CHECKING:
+            snprintf(out, room, "Checking...");
+            break;
+        case UPDATE_POLL_UP_TO_DATE:
+            snprintf(out, room, "Up to date");
+            break;
+        case UPDATE_POLL_FOUND:
+            snprintf(out, room, "%s found", poll.version);
+            break;
+        case UPDATE_POLL_FAILED:
+            snprintf(out, room, "Failed");
+            break;
+        case UPDATE_POLL_IDLE:
+        default:
+            // What a click does: "Check for update" and its answer did not fit one row of the 12864
+            snprintf(out, room, "Check now");
+            break;
+    }
+}
+
+
+static void value_update_needs_network(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "needs a network");
+}
+
+
+static bool shown_channel_beta(void) {
+    char channel[16];
+    return settings_read_text("settings/update", "channel", channel, sizeof(channel)) &&
+           strcmp(channel, "beta") == 0;
+}
+
+
+static void value_channel(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "beta");
+}
+
+
+static void value_found_version(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    update_poll_status_t poll;
+    if (update_found(&poll)) {
+        snprintf(out, room, "%s", poll.version);
+    }
+    else {
+        out[0] = '\0';
+    }
+}
+
+
+/*
+ * The note's first lines (the whole is on the web): two rows of what fits, cut at a space where one is near. Each
+ * row's text is the label, so it takes the row's width
+ */
+#define UPDATE_NOTE_ROW 24
+
+static void update_note_row(int which, char *out, size_t room) {
+    update_poll_status_t poll;
+    out[0] = '\0';
+    if (!update_found(&poll)) {
+        return;
+    }
+    const char *text = poll.note;
+    for (int row = 0; row <= which; row += 1) {
+        while (*text == ' ' || *text == '\n') {
+            text += 1;
+        }
+        size_t len = strcspn(text, "\n");
+        if (len > UPDATE_NOTE_ROW) {
+            len = UPDATE_NOTE_ROW;
+            size_t cut = len;
+            while (cut > UPDATE_NOTE_ROW / 2 && text[cut] != ' ') {
+                cut -= 1;
+            }
+            if (text[cut] == ' ') {
+                len = cut;
+            }
+        }
+        if (row == which) {
+            snprintf(out, room, "%.*s", (int) len, text);
+            return;
+        }
+        text += len;
+    }
+}
+
+
+static const char *update_note_first(void) {
+    static char line[MENU_TEXT];
+    update_note_row(0, line, sizeof(line));
+    return line;
+}
+
+
+static const char *update_note_second(void) {
+    static char line[MENU_TEXT];
+    update_note_row(1, line, sizeof(line));
+    return line;
+}
+
+
+static bool shown_note_second(void) {
+    return update_note_second()[0] != '\0';
+}
+
+
+// The last try of this release went back: the offer says so (menu_design.md)
+static bool shown_update_went_back(void) {
+    update_poll_status_t poll;
+    update_status_t update;
+    update_status(&update);
+    return update_found(&poll) && update.last.result == UPDATE_RESULT_BACK && update.last.version == poll.block;
+}
+
+
+static const char *update_went_back_label(void) {
+    static char line[MENU_TEXT];
+    update_poll_status_t poll;
+    update_found(&poll);
+    snprintf(line, sizeof(line), "%.13s did not start", poll.version);
+    return line;
+}
+
+
+// The last try failed before its restart: what failed is on the web (GET /api/v1/update, last)
+static bool shown_update_failed(void) {
+    update_status_t update;
+    update_status(&update);
+    return shown_update_found() &&
+           (update.last.result == UPDATE_RESULT_REFUSED || update.last.result == UPDATE_RESULT_TIME);
+}
+
+
+static void act_update_install(const menu_row_t *row) {
+    (void) row;
+    switch (update_request_download(ACTIVITY_BY_BUTTON)) {
+        case UPDATE_START_OK:
+            // The menu's task takes it, and the update's screen comes
+            break;
+        case UPDATE_START_ON_TRIAL:
+            push_message("Update", "This version is on trial:", "try again in a minute");
+            break;
+        case UPDATE_START_NOTHING_FOUND:
+            push_message("Update", "Nothing to install:", "check for update again");
+            break;
+        case UPDATE_START_NO_SLOTS:
+            push_message("Update", "No update can be", "written on this unit");
+            break;
+        case UPDATE_START_BUSY:
+        default:
+            push_message("Update", "The unit is busy:", "try again");
+            break;
+    }
+}
+
+
+static const menu_page_t page_update;
+
+// Check for update: a poll, or the offer once one is found
+static void act_check_update(const menu_row_t *row) {
+    (void) row;
+    if (shown_update_found()) {
+        push_page(&page_update);
+        return;
+    }
+    update_poll_ask_t asked = update_poll_ask();
+    if (asked == UPDATE_POLL_NO_NETWORK) {
+        push_message("Update", "Join a network first:", "no internet here");
+    }
 }
 
 
@@ -647,13 +860,29 @@ static const menu_page_t page_display = {.id = "settings/display", .title = "Dis
 
 static const menu_row_t rows_firmware[] = {
     {.label = "Version", .kind = ROW_INFO, .value = value_version},
+    {.label = "Update", .kind = ROW_ACTION, .value = value_check_update, .act = act_check_update,
+     .shown = shown_on_station},
+    {.label = "Update", .kind = ROW_INFO, .value = value_update_needs_network, .shown = shown_not_on_station},
     {.label = "Last update", .kind = ROW_INFO, .value = value_last_update, .shown = shown_last_update},
+    {.label = "Channel", .kind = ROW_INFO, .value = value_channel, .shown = shown_channel_beta},
     {.label = "Board", .kind = ROW_INFO, .value = value_board},
     {.label = "Unit", .kind = ROW_INFO, .value = value_unit_id},
     {.label = "Build", .kind = ROW_INFO, .value = value_build},
 };
 static const menu_page_t page_firmware = {.id = "settings/firmware", .title = "Firmware", .rows = rows_firmware,
-                                          .row_count = 5};
+                                          .row_count = 8};
+
+// The offer: the version, the note's first lines, Install and Later (menu_design.md)
+static const menu_row_t rows_update[] = {
+    {.label = "Version", .kind = ROW_INFO, .value = value_found_version},
+    {.label = "", .kind = ROW_INFO, .label_now = update_note_first},
+    {.label = "", .kind = ROW_INFO, .label_now = update_note_second, .shown = shown_note_second},
+    {.label = "", .kind = ROW_INFO, .label_now = update_went_back_label, .shown = shown_update_went_back},
+    {.label = "The last try failed", .kind = ROW_INFO, .shown = shown_update_failed},
+    {.label = "Install", .kind = ROW_ACTION, .act = act_update_install},
+    {.label = "Later", .kind = ROW_ACTION, .act = act_back},
+};
+static const menu_page_t page_update = {.id = "update", .title = "Update", .rows = rows_update, .row_count = 7};
 
 static const menu_row_t rows_factory_reset[] = {
     {.label = "Erases every setting", .kind = ROW_INFO},
@@ -680,18 +909,20 @@ static const char *main_title(void) {
 }
 
 static const menu_row_t rows_main[] = {
+    {.label = "Update available", .kind = ROW_PAGE, .page = &page_update, .label_now = update_row_label,
+     .shown = shown_update_found},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge},
     {.label = "Cleanup", .kind = ROW_ACTION, .act = act_cleanup_start},
     {.label = "Wi-Fi", .kind = ROW_PAGE, .page = &page_wifi},
     {.label = "Settings", .kind = ROW_PAGE, .page = &page_settings},
 };
 static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .title_now = main_title,
-                                      .rows = rows_main, .row_count = 4};
+                                      .rows = rows_main, .row_count = 5};
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
     &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_display, &page_firmware,
-    &page_factory_reset, &page_ack_charge, &page_ack_cleanup,
+    &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
 
@@ -1325,14 +1556,21 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
     update_status(&update);
     snprintf(screen->id, sizeof(screen->id), "job/update");
     snprintf(screen->title, sizeof(screen->title), "Firmware update");
+    if (update.download) {
+        update_poll_status_t poll;
+        if (update_found(&poll)) {
+            snprintf(screen->job_big, sizeof(screen->job_big), "%.15s", poll.version);
+        }
+    }
     switch (update.state) {
         case UPDATE_RECEIVING:
             if (update.expected > 0) {
-                snprintf(screen->job_state, MENU_TEXT, "Receiving %lu%%",
+                snprintf(screen->job_state, MENU_TEXT, "%s %lu%%", update.download ? "Downloading" : "Receiving",
                          (unsigned long) ((uint64_t) update.received * 100u / update.expected));
             }
             else {
-                snprintf(screen->job_state, MENU_TEXT, "Waiting for the image");
+                snprintf(screen->job_state, MENU_TEXT, "%s", update.download ? "Connecting" :
+                                                             "Waiting for the image");
             }
             break;
         case UPDATE_READY:

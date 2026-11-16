@@ -33,9 +33,6 @@
 #include "activity.h"
 #include "update.h"
 #include "wireless.h"
-#if ADR010_MEASURE
-#include "measure_tls.h"
-#endif
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -121,6 +118,22 @@ static bool remote_control_stats(const char *args, char *reply, size_t reply_siz
     if (task_count == 0) {
         snprintf(reply, reply_size, "@err more than %d tasks", REMOTE_CONTROL_MAX_TASKS);
         return false;
+    }
+
+    // `stats tasks`: each task's stack never touched, in bytes, first (ADR-010, gate 5: the job task's and the poll's
+    // stacks were sized from it)
+    while (*args == ' ') {
+        args += 1;
+    }
+    if (strcmp(args, "tasks") == 0) {
+        for (UBaseType_t idx = 0; idx < task_count; idx += 1) {
+            char line[80];
+            snprintf(line, sizeof(line), "@task name=\"%s\" stack_left=%lu priority=%u",
+                     remote_control_task_status[idx].pcTaskName,
+                     (unsigned long) (remote_control_task_status[idx].usStackHighWaterMark * sizeof(StackType_t)),
+                     (unsigned) remote_control_task_status[idx].uxCurrentPriority);
+            write(line, write_ctx);
+        }
     }
 
     // The task closest to overflowing its stack
@@ -710,10 +723,6 @@ static const remote_control_command_t remote_control_commands[] = {
     {"setting", remote_control_setting},
     {"update", remote_control_update},
     {"wifi", remote_control_wifi},
-#if ADR010_MEASURE
-    // ADR-010, gate 1: TLS measured on the unit (measure/)
-    {"tls", measure_tls_console},
-#endif
 };
 
 #define REMOTE_CONTROL_COMMAND_COUNT (sizeof(remote_control_commands) / sizeof(remote_control_commands[0]))

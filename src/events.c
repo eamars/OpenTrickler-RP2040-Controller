@@ -71,7 +71,7 @@ static const char *source_name(uint8_t source) {
 
 static const char *kind_name(uint8_t kind) {
     static const char *const names[] = {"started", "stopped", "paused", "resumed", "finished", "ended", "fault",
-                                        "cleared", "received", "installing", "confirmed", "back"};
+                                        "cleared", "received", "installing", "confirmed", "back", "found"};
     return kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "other";
 }
 

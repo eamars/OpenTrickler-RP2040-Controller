@@ -160,6 +160,7 @@ SOAK_LOAD_FAST_S = 0.25      # and a client asking for the charge four times a s
 API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usual_interval_ms"}
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
 API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
+API_CHECK_POLL_S = 45.0         # an update's poll: three HTTPS handshakes took 15 s on the Pico W (ADR-010, gate 5)
 # Two clients follow the event log through every soak with held reads (ADR-003, gate 4): each must see every event
 SOAK_FOLLOWERS = 2
 SOAK_EVENTS_WAIT_S = 10
@@ -1708,6 +1709,25 @@ class Session:
         expect("POST", "stop", {}, 202)
         wait_event("update", "stopped", by="api", reason="stopped")
         wait_state("update", ("idle",))
+
+        # The poll (ADR-010, gate 5): asked, and waited out. A download is asked only where it cannot start: a wrong
+        # type, and true only while nothing is found (rc_run.py offer installs one)
+        network = unit.read("network")
+        if network.get("mode") == "station":
+            expect("POST", "update/check", {}, 202)
+            deadline = time.monotonic() + API_CHECK_POLL_S
+            poll = unit.read("update")["poll"]
+            while poll["state"] == "checking" and time.monotonic() < deadline:
+                time.sleep(0.5)
+                poll = unit.read("update")["poll"]
+            self.log.write("rc", f"api_check: the poll ended {json.dumps(poll)}")
+            if poll["state"] == "checking":
+                self.fail(f"api_check: the poll still checks after {API_CHECK_POLL_S:.0f} s")
+        else:
+            expect("POST", "update/check", {}, 409, "no_network")
+        expect("POST", "update/start", {"download": "yes"}, 400, "wrong_type")
+        if unit.read("update")["found"] is None:
+            expect("POST", "update/start", {"download": True}, 409, "not_found")
 
         # Last, a restart: a new boot, and the system's start the log's first event
         boot = index["boot"]

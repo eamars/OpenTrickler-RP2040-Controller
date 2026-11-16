@@ -3,7 +3,7 @@
     reverse, as the menu was drawn by u8g2 (its fonts, made from their BDF sources). White is a lit pixel.
 
     Layout, 128 x 64:
-      0-10    the title in bold, "< " before it when it is a Back target; the marks at the right
+      0-10    the title in bold, "< " before it when it is a Back target; the marks at the right, Wi-Fi's an icon
       11      a line
       13-62   a list: five rows of 10 pixels, label left, value right; ">" for a row that opens something
               the editor: the number in ProFont 22, a bar under the digit being set, a hint
@@ -20,6 +20,9 @@
 #define VIEW_ROW_H 10
 #define VIEW_ROWS 5
 #define VIEW_MARGIN 2
+// The regular font's icons (scripts/bdf2lvgl.py, ICONS), U+E000 and U+E001 in UTF-8
+#define VIEW_ICON_STATION "\xEE\x80\x80"
+#define VIEW_ICON_ACCESS_POINT "\xEE\x80\x81"
 
 extern const lv_font_t menu_font_regular;
 extern const lv_font_t menu_font_bold;
@@ -65,11 +68,30 @@ static lv_obj_t *view_label(lv_obj_t *parent, const lv_font_t *font, int x, int 
 }
 
 
-// A text's width in a font: its glyphs' widths summed (LVGL's own measure is not in its public headers)
+// The character at text[*idx], read as UTF-8 (the icons are three bytes), *idx moved past it
+static uint32_t view_next_char(const char *text, size_t *idx) {
+    uint8_t first = (uint8_t) text[*idx];
+    size_t more = first >= 0xF0 ? 3 : (first >= 0xE0 ? 2 : (first >= 0xC0 ? 1 : 0));
+    uint32_t code = more == 0 ? first : first & (0x3Fu >> more);
+    *idx += 1;
+    for (size_t part = 0; part < more && text[*idx] != '\0'; part += 1) {
+        code = (code << 6) | ((uint8_t) text[*idx] & 0x3Fu);
+        *idx += 1;
+    }
+    return code;
+}
+
+
+// A text's width in a font: its glyphs' widths summed (LVGL's own measure is not in its public headers). Length is
+// in bytes
 static int view_text_width(const char *text, size_t length, const lv_font_t *font) {
     int width = 0;
-    for (size_t idx = 0; idx < length && text[idx] != '\0'; idx += 1) {
-        width += (int) lv_font_get_glyph_width(font, (uint8_t) text[idx], (uint8_t) text[idx + 1]);
+    size_t idx = 0;
+    while (idx < length && text[idx] != '\0') {
+        uint32_t code = view_next_char(text, &idx);
+        size_t after = idx;
+        uint32_t next = idx < length && text[idx] != '\0' ? view_next_char(text, &after) : 0;
+        width += (int) lv_font_get_glyph_width(font, code, next);
     }
     return width;
 }
@@ -138,9 +160,11 @@ static void view_title_and_marks(const menu_screen_t *screen, bool focused) {
     char title[MENU_TEXT + 4];
     snprintf(title, sizeof(title), "%s%s", screen->title_back ? "< " : "", screen->title);
     view_text(view_title, title);
+    // Wi-Fi as an icon of the regular font (scripts/bdf2lvgl.py): full signal bars joined as a station, with no
+    // strength (the owner: clearest on the small screen), a hotspot as its own access point
     char marks[16];
     snprintf(marks, sizeof(marks), "%s%s%s", screen->mark_simulated ? "SIM " : "", screen->mark_remote ? "R " : "",
-             screen->mark_station ? "W" : (screen->mark_access_point ? "AP" : ""));
+             screen->mark_station ? VIEW_ICON_STATION : (screen->mark_access_point ? VIEW_ICON_ACCESS_POINT : ""));
     view_text(view_marks, marks);
     // The marks are drawn over the title's end: the title is clipped short of them
     lv_obj_set_width(view_title, VIEW_WIDTH - VIEW_MARGIN - view_text_width(marks, strlen(marks), &menu_font_regular)

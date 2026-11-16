@@ -32,6 +32,7 @@
 #include "servo_gate.h"
 #include "rc_console.h"
 #include "update.h"
+#include "update_poll.h"
 #include "jobs.h"
 
 
@@ -81,6 +82,11 @@ int main()
 
     // Initialize the servo
     servo_gate_init();
+
+    // The update's channel and source, and its poll (ADR-010, gate 5): it polls once Wi-Fi joins
+    if (!update_poll_init()) {
+        printf("Update: no room for the poll's lock\n");
+    }
 
     // The job task, where the charge, a cleanup and an update run, then the screen's (ADR-010, gate 2)
     if (!jobs_init()) {

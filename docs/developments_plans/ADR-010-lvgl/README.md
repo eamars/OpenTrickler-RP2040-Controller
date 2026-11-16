@@ -1,6 +1,6 @@
 # ADR-010: the screen's menu designed again, on LVGL
 
-Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Gate 1, the measurement, was run before approval, 2026-11-17: the Pico W fits, its flash with LVGL and mbedTLS at -Os inside the shipping build, its RAM with trims. Gates 2 and 4 were built the same night at the owner's word, ahead of approval, which the owner gives on PR #132, and proven on both units; gates 3 (the mock) and 5 (the poll) are left ([progress.md](progress.md)).
+Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Gate 1, the measurement, was run before approval, 2026-11-17: the Pico W fits, its flash with LVGL and mbedTLS at -Os inside the shipping build, its RAM with trims. Gates 2 and 4 were built the same night at the owner's word, ahead of approval, which the owner gives on PR #132, and proven on both units. Gate 3 (the mock) is dropped by the owner, since gate 4 was built ahead of it. Gate 5 (the update at the screen) was built and proven on the Pico W the next day; the Pico 2 W's run is left ([progress.md](progress.md)).
 
 ## What we want
 
@@ -40,6 +40,8 @@ Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu
 - **After gate 1: LVGL and mbedTLS are compiled at -Os in the shipping build,** in place of ADR-005's whole-image optimised build ("Yes, libraries at -Os"). Our own code stays at -O0. ADR-005's trigger therefore does not fire for this ADR: the Pico W's image is 971 of 1,016 KB.
 - **The scale's calibration is removed:** "The calibration should be removed as no scale supports that".
 - **Overnight, one PR** (2026-11-17): "prioritize on everything you could do without my involvement first, then ask for my approval tomorrow ... focus on the functional build if no technical blockers". So the gates are built before this ADR's approval, which the owner gives on the PR.
+- **Gate 3 is dropped** (2026-11-17, the next morning): "The mock WAS supposed to be designed ahead of the deployment. Now given you made changes to the firmware directly then there is no point of designing the mock anymore." Gate 4 was built ahead of it overnight, which was a mistake: the mock was where the owner settles the layouts before they are built. The owner settles them on the unit instead.
+- **Gate 5 goes ahead, with the beta channel as proposed** (2026-11-17: "Yes continue with gate 5").
 
 ## Why here
 
@@ -111,7 +113,7 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
    - The screen sends the API's commands, `by` button, and reads the same status the API reads.
    - A job started anywhere takes the screen; the `view` activity goes.
    - The screens stay as they are, so `menu_tour` compares against today's baseline and `charge_cycle` passes.
-3. **The menu on the PC.**
+3. ~~**The menu on the PC.**~~ Dropped by the owner, 2026-11-17: gate 4 was built ahead of it, so the layouts are settled on the unit.
    - The tree as a table, the navigator, and the 12864's view, built for the PC as well, fed by a recording of a unit. The owner settles the layouts there by using them, before the unit's screens change.
    - The way it runs (a browser page by Emscripten, or a window by SDL) is chosen after gate 1. The browser is recommended.
 4. **The menu on the unit.**
@@ -143,4 +145,4 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 ## To settle before approval
 
 - ~~The Pico W, from gate 1's figures.~~ Settled 2026-11-17: the libraries at -Os (the owner); the three RAM trims are built with the poll and measured there (gate 5).
-- The beta channel as proposed, and the remote mark's 30 s.
+- ~~The beta channel as proposed~~ (the owner, 2026-11-17: yes), and the remote mark's 30 s.

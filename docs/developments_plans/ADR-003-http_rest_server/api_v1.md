@@ -68,7 +68,7 @@ Every error has the same body:
 {"error": {"code": "out_of_range", "field": "fine_stop_threshold", "message": "12 is above the most, 10", "min": 0, "max": 10}}
 ```
 
-The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`; for an update's image (ADR-004) `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update`, `not_newer`, `wrong_slot`, `hash_mismatch` and `not_ready`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
+The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`; for an update's image (ADR-004) `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update`, `not_newer`, `wrong_slot`, `hash_mismatch` and `not_ready`; for the update's poll (ADR-010) `no_network`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
 
 ## What the unit is
 
@@ -112,6 +112,7 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | update | installing | `version`: the unit restarts into a trial of it |
 | update | confirmed | `version`: after the restart, the image confirmed itself once on its network |
 | update | back | `version`: after the restart, the image tried was left, and the one before runs |
+| update | found | `version`: the poll found a newer release, now offered (ADR-010, gate 5) |
 
 Later ADRs add sources and kinds (the rules above). **`?wait=s`** (1 to 30): the request is held until there is an event after N, or the time is out, and then answered whole, as any other. Built in gate 4 with the owner's leave ("For the owner", 7); without it, reserved, and the server built to take it.
 
@@ -161,18 +162,20 @@ The band is two-sided and in the scale's own unit, through the setting the user 
 
 ## Firmware updates (ADR-004)
 
-Through the API only, for debugging, until the offer comes with the web UI (ADR-008) and the screens (ADR-010). An update is a job: one at a time, with the job's shape, and while it runs no other job starts. It holds the screen at the unit, as a mode does, so nobody starts a charge there during it, and the reset button stops it. The image is written into the slot the unit does not run from; the slot it runs from is never written.
+Offered at the screen since ADR-010's gate 5, from the unit's own poll; the web page's offer comes with ADR-008. An update is a job: one at a time, with the job's shape, and while it runs no other job starts. It holds the screen at the unit, as a mode does, so nobody starts a charge there during it, and the reset button stops it. The image is written into the slot the unit does not run from; the slot it runs from is never written.
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/update` | | `state` (idle, starting, receiving, ready, installing, ending: the job has ended and the screen is being given back, a start taken again once it is idle); `running`: `version`, `block` (the version its metadata block carries, which an update must exceed, written as the version is), `slot` (a, b), `trial` (true while the image runs on trial, until it confirms itself); `takes`: the release manifest's name for the image this unit takes (`pico2_w`, `pico_w_a`, `pico_w_b`); `free_bytes`, the largest image; `received`, the bytes of the image taken so far (0 until a job takes some); `last`: how the last update ended, `result` (confirmed, back, refused, stopped, time), `version`, and for a refusal its `code` and `message`, or null |
-| `POST /api/v1/update/start` | `{}` | 202, `starting` until the menu begins it, then `receiving`. 409 `busy` while another job runs, a person has a screen open at the unit, or the image running is on trial (until it is confirmed, the free slot holds the image the unit goes back to) |
+| `GET /api/v1/update` | | `state` (idle, starting, receiving, ready, installing, ending: the job has ended and the screen is being given back, a start taken again once it is idle); `running`: `version`, `block` (the version its metadata block carries, which an update must exceed, written as the version is), `slot` (a, b), `trial` (true while the image runs on trial, until it confirms itself); `takes`: the release manifest's name for the image this unit takes (`pico2_w`, `pico_w_a`, `pico_w_b`); `free_bytes`, the largest image; `received`, the bytes of the image taken so far (0 until a job takes some), and `expected`, its length once the upload or the download says it (0 before); `download`, true while the job fetches the image itself; `poll`: `state` (idle, checking, up_to_date, found, failed) and `error` (why it failed, or null); `found`: the release the poll found and offers, `version`, `block` (its image's), `note`, `importance` (normal, critical) and `channel`, or null; `last`: how the last update ended, `result` (confirmed, back, refused, stopped, time), `version`, and for a refusal its `code` and `message`, or null |
+| `POST /api/v1/update/start` | `{}`, or `{"download": true}` | 202, `starting` until the menu begins it, then `receiving`. With `download` (ADR-010, gate 5) the job fetches the image of the release `found` names itself, checks it as an upload is and against its manifest's SHA-256, and installs it with no further word, as the offer's Install at the screen does; 409 `not_found` when nothing is found. 409 `busy` while another job runs, a poll runs, a person has a screen open at the unit, or the image running is on trial (until it is confirmed, the free slot holds the image the unit goes back to) |
+| `POST /api/v1/update/check` | `{}` | 202: the unit polls its source now (`settings/update`), and `poll` and `found` say what came of it; a release found is also an event. It polls once each start by itself, when it joins its network as a station. 409 `busy` while a poll or the update runs; 409 `no_network` unless it is a station on its network (its own access point has no internet) |
 | `PUT /api/v1/update/image` | the image (`app.bin`), `application/octet-stream` | Written into the free slot as it comes; its first block checked in its first 4 KB, the whole once it is in. 200 with the state `ready`. 409 `not_running` unless `receiving`; 409 `busy` while another upload of the image is open (one at a time); 413 `too_large` beyond the free slot; 400, nothing installed and the job ended, with `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update` (no try-before-you-buy mark), `not_newer`, `wrong_slot` (linked for the other slot, on the RP2040; told by the image's first 4 KB) or `hash_mismatch`. A body cut off leaves the job `receiving`, for the image again from its start |
 | `POST /api/v1/update/install` | `{}` | 202: the unit restarts into a trial of the image. It comes back on it, confirmed once it is on its network, or on the image before; `last` and the event log say which. 409 `not_ready` unless `ready` |
 | `POST /api/v1/update/stop` | `{}` | A stop: 202, or 200 with nothing to stop. The image written stays in the free slot, never booted. 409 `busy` while `installing`: the restart is under way |
 
 - **Time limits** *p*: a job `receiving` that gets no bytes for 30 s, or `ready` and not installed within 60 s, ends by itself (`time`).
 - **The image** is the release's update image for the unit's board and free slot (ADR-004): the release's manifest names each, and `takes` says which one this unit wants. A newer version only: going back is a full erase and a USB install.
+- **The poll** (ADR-010, gate 5) reads the source's releases as GitHub lays them out. Stable reads `releases/latest/download/manifest.json`, which GitHub never resolves to a pre-release; none there is no stable release yet, `up_to_date`. Beta reads the newest release's tag from GitHub's list of releases (`api.github.com/repos/<owner>/<repo>/releases?per_page=1` for github.com, `/api/v3/repos/...` on any other host, as GitHub Enterprise has it), then that release's manifest. A release no newer than the image running is `up_to_date`. Over HTTPS the unit trusts GitHub's two roots only; it has no clock, so a certificate's dates are not checked.
 
 ## Powder profiles
 
@@ -284,6 +287,15 @@ The two are stored as one block, so they are saved together, and each one's `sav
 |---|---|---|---|---|
 | `invert_encoder` | boolean | | now | `b0` |
 | `rotation` | choice | 0, 180 (90 and 270 turn a 128 by 64 screen on its side) | at restart | `b1` (an index) |
+
+### `/api/v1/settings/update`, saved at `/api/v1/settings/update/save` (ADR-010, gate 5)
+
+| Field | Type | Limits | When | Today |
+|---|---|---|---|---|
+| `channel` | choice | stable, beta (pre-releases too) | now: what was found is forgotten | new |
+| `source` | string | 8 to 127 bytes; an `http://` or `https://` address with a host | now: what was found is forgotten | new: a repository's address, its releases laid out under it as GitHub's are; `https://github.com/eamars/OpenTrickler-RP2040-Controller` by default |
+
+Its own slot in the EEPROM (11 KB): no other module's stored layout changed.
 
 ### `/api/v1/settings/wifi`, saved at `/api/v1/settings/wifi/save`
 

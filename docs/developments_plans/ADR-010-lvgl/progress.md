@@ -272,9 +272,103 @@ after. Its image is 944.9 KB of the slot, and RAM at link is 247.3 KB of 256.
     and the update's 4 KB flash sector while it writes, and 5 to 7 KB are left.
   - This is what gate 1 computed, but its base is now measured on the Pico W. Gate 5 measures its own build.
 
-## Gate 5, the poll: what it waits on
+## Gate 5, the poll: what it waited on
 
-- ~~**The Pico W's FreeRTOS heap with gate 4.**~~ Measured 2026-11-17, above. The job task would do the download
-  itself, with no task of its own for TLS, and its stack's high-water mark decides its size.
-- **The stored channel and source:** a struct in a module's own slot in the EEPROM, said in this ADR when built.
-- **The owner's answers:** the beta channel as proposed, and the ADR's approval (on PR #132).
+- ~~**The Pico W's FreeRTOS heap with gate 4.**~~ Measured 2026-11-17, above.
+- ~~**The stored channel and source.**~~ Built: below.
+- ~~**The owner's answers.**~~ The beta channel as proposed, and gate 5 to go ahead ("Yes continue with gate 5",
+  2026-11-17). Gate 3 is dropped (README). The ADR's approval is still the owner's, on PR #132.
+
+## Gate 5: the update at the screen (2026-11-17)
+
+- **Built:**
+  - **The client,** `https_client.c`: gate 1's measure grown into the unit's own GET over HTTPS or HTTP. It runs in
+    its caller's task, follows redirects, takes a chunked body, hands the body over in pieces, and stops when its
+    caller says. Every mbedTLS allocation is still counted. The measure build and `measure/` are gone: mbedTLS's TLS
+    client, at -Os, is in every build.
+  - **The roots:** GitHub's two (`src/github_roots.pem`) in every build, made into a header by `CMakeLists.txt`. The
+    local server's test roots are only in a build made with `-DHTTPS_TEST_CA=ON`; such a build can also name its
+    default source (`-DUPDATE_TEST_SOURCE`), so a bench unit's first start never polls GitHub.
+  - **The stored channel and source,** `update_poll.c`: one struct, `eeprom_update_config_t`, in a new slot of its
+    own at 11 KB of the EEPROM. **No other module's stored layout changed.** `settings/update` comes from its table.
+  - **The poll:** once each start when the station joins, and from the Firmware page's Update row or `POST
+    /api/v1/update/check`. It runs in a task of its own, at priority 2 with a 5 KB stack, deleted at its end.
+    - Stable reads `releases/latest/download/manifest.json`; a 404 there is no stable release yet, so up to date.
+    - Beta reads GitHub's list of releases, then that tag's manifest: api.github.com for github.com, `/api/v3` on
+      any other host.
+    - The JSON is read as it comes, never held whole. A release no newer than the image running is up to date.
+  - **The download** (`update.c`): the job fetches the image the poll found itself, in the job task, into the free
+    slot as an upload goes. It is checked against the manifest's SHA-256, then as an upload is, then installed with
+    no second word. Back stops it until it installs.
+  - **The API** (api_v1.md), within v1:
+    - `GET /api/v1/update` gains `expected`, `download`, `poll` and `found`;
+    - `POST /api/v1/update/check`;
+    - `POST /api/v1/update/start` takes `download`;
+    - the code `no_network`, the event `found`, and `settings/update`.
+  - **The screens:**
+    - the main menu's first row, "Update available" or "Important update" for a critical release, while one is
+      found;
+    - the offer: the version, the note's first two rows, "9.0.1 did not start" when the last try went back, "The
+      last try failed" when it failed, Install, Later;
+    - the Firmware page's Update row and Channel (while beta);
+    - the update's screen: Connecting, Downloading n%, the version large.
+  - **The test tools:**
+    - the local OTA server lists releases as GitHub's API does, in its shape and sent chunked, and marks pre-releases;
+    - `api_check` calls the new actions;
+    - the console has `update check`, `update poll` and `stats tasks`.
+- **Where it departs from menu_design.md:**
+  - **"Check for update" is "Update"**, with what it is or does as its value: "Check now", "Checking...", "Up to
+    date", "9.0.0 found", "Failed", and "needs a network" off a station. The label and "Up to date" overlapped on the
+    12864.
+  - **No "Checking" on the update's screen:** the check of the image downloaded takes under a second, and the screen
+    goes straight to installing.
+- **The Wi-Fi mark is an icon** (the owner, 2026-11-17, from renders of both): signal bars, always full, with no
+  strength ("It is most clear solution on the tiny screen"), when joined as a station; a hotspot as the unit's own
+  access point. Both are glyphs of the regular font at U+E000 and U+E001 (`scripts/bdf2lvgl.py`): LVGL draws nothing
+  below U+0020. The console's `marks=W` and `AP` are unchanged. Every page's title changed, so the Pico W's baseline
+  was saved again.
+- **Proven on the Pico W,** through the local OTA server, with v9.0.0 (stable, confirms itself) and v9.0.1 (a
+  pre-release that never confirms itself), both kept in `logs/adr010/gate5_releases/`:
+  - **stable over HTTP:** the start's poll found 9.0.0, offered on the main menu, the offer page and the Firmware
+    page;
+  - **beta over HTTPS:** the list then the manifest found 9.0.1, "Important update" (critical). Install from the
+    screen by the keys: Connecting, Downloading n%, installing, a trial that never confirmed, and back on slot A.
+    `last` back, the event log back then found, the offer "9.0.1 did not start", Firmware "went back" and Channel
+    "beta";
+  - **stable over HTTP through the API** (`start {"download": true}`): downloaded in about 14 s, confirmed 9.0.0 on
+    slot B;
+  - **stable over HTTPS through the API,** with two clients on the pages throughout: confirmed. No web read missed
+    (the portal's slowest 4.75 s), and no lwIP allocation failed;
+  - **the shipping build, with no test roots,** refused the test server's chain (`-0x2700`, "not trusted");
+  - **beta against a list in GitHub's own shape** (nested authors and assets, escapes, a character outside ASCII,
+    4,785 bytes sent in 100-byte chunks): the right tag, then its manifest;
+  - **then the shipping build:**
+    - `menu_tour` against its baseline, the offer page added;
+    - `charge_cycle`;
+    - `api_check`, 26 of 26 actions;
+    - the settings unchanged, `settings/update` new;
+    - the icons on the unit, as a station and as its own access point, with Wi-Fi turned off for one start and on
+      again, the settings the same after.
+- **Figures** (the Pico W, Debug):
+  - **flash:** 959.4 KB of the 1,016 KB slot (861.3 KB at gate 4); mbedTLS 69.8 KB. The Pico 2 W's is 930.7 KB of
+    1,792;
+  - **RAM at link:** 247.7 KB of 256 (241.0 at gate 4): the client's buffers and mbedTLS's contexts. That leaves
+    about 8 KB for the C library's heap, whose users are small (the settings' reads, the charge's ring buffers);
+  - **the FreeRTOS heap:** 53,592 bytes free at rest (53,784 at gate 4);
+  - **a poll over HTTPS:** 8,168 bytes free at its low mark, with the poll's task and the test build's four roots,
+    against the local chains. With GitHub's chains (1,952 bytes more) and only its two roots (about 3.3 KB less),
+    about 9.5 KB. Beta's list then manifest takes no more: each fetch ends before the next;
+  - **a download over HTTPS:** 985 KB in 33 s (handshakes 6.8 s and 2.3 s), about 14 s over HTTP. With two clients
+    on the pages, the heap's low mark stayed at the poll's 8,168;
+  - **mbedTLS's peak:** 38,788 bytes, as in gate 1. The handshakes took 6.1 to 6.8 s (ECDSA) and 2.1 to 2.3 s (RSA);
+  - **stacks** (`stats tasks`, measured with 8 KB each first):
+    - the poll used 3,352 bytes, over HTTP and HTTPS alike, so its task has 5 KB;
+    - the job task used 2,952 for a download with its check, 984 for a charge, so it stays at 4 KB, as gate 1's trim
+      planned.
+- **Left:**
+  - **The Pico 2 W's run** (a network and memory change, so both units): `flash`, `menu_tour` with its baseline saved
+    again (the icon, the offer page), `charge_cycle`, `api_check`, and an update found and installed from the local
+    server. It waits on the owner putting it on the probe.
+  - **The owner's use by hand of the screens.**
+  - **GitHub itself:** the shipping roots against GitHub's real chains were measured in gate 1, one fetch. The poll
+    against GitHub's API and releases is not run, by the owner's rule; its first contact is a user's.

@@ -7,7 +7,8 @@
  *
  * An update is a job (api_v1.md, "Firmware updates"): the API asks it, the menu takes it and update_mode_menu() holds
  * the screen while the image comes in pieces through the web server's task and is written into the free slot, a
- * sector at a time. Its first block is checked in its first 4 KB, the whole once it is in. Install restarts into a
+ * sector at a time. Or the job fetches the image itself, the one the poll found (ADR-010, gate 5; update_poll.c), in
+ * the job task, and installs it once checked. Its first block is checked in its first 4 KB, the whole once it is in. Install restarts into a
  * trial of it. Before that restart a note is left where a watchdog restart keeps it (update_slots_note_write), so
  * the image that runs after it can say whether the one tried was kept (confirmed) or left (back).
  */
@@ -33,10 +34,12 @@
 #include "api_v1.h"
 #include "display.h"
 #include "events.h"
+#include "https_client.h"
 #include "menu.h"
 #include "jobs.h"
 #include "mini_12864_module.h"
 #include "picobin_image.h"
+#include "update_poll.h"
 #include "update_slots.h"
 #include "version.h"
 
@@ -90,6 +93,9 @@ static uint32_t update_upload_tokens = 0;
 static TickType_t update_tick = 0;          // the job's last bytes, or when it became ready
 static update_refusal_t update_upload_refusal = {0};
 static volatile bool update_giving_back = false;   // the mode has returned; the menu is not yet back at its forms
+// A download (ADR-010, gate 5), under the activity lock: asked with the start, and the job's while it fetches
+static bool update_download_asked = false;
+static volatile bool update_downloading = false;
 
 
 // --- Versions and the slots' names
@@ -104,6 +110,11 @@ static uint32_t update_running_version(void) {
 }
 
 
+uint32_t update_running_block(void) {
+    return update_running_version();
+}
+
+
 // A block version as the firmware's version string has it: 276.900 is 1.20.900 (scripts/gen_version.py)
 void update_version_text(uint32_t version, char *out, size_t size) {
     // X.Y.Z, and -N for a build N commits after its tag (scripts/gen_version.py's block_text)
@@ -114,6 +125,42 @@ void update_version_text(uint32_t version, char *out, size_t size) {
     if ((second & 0xffu) != 0 && len > 0 && (size_t) len < size) {
         snprintf(out + len, size - (size_t) len, "-%lu", (unsigned long) (second & 0xffu));
     }
+}
+
+
+// One part of a version: digits, at most 255. The text after it, or NULL
+static const char *update_version_part(const char *text, uint32_t *part) {
+    if (*text < '0' || *text > '9') {
+        return NULL;
+    }
+    uint32_t value = 0;
+    while (*text >= '0' && *text <= '9') {
+        value = value * 10 + (uint32_t) (*text - '0');
+        if (value > 0xffu) {
+            return NULL;
+        }
+        text += 1;
+    }
+    *part = value;
+    return text;
+}
+
+
+bool update_version_parse(const char *text, uint32_t *version) {
+    uint32_t major, minor, patch, after = 0;
+    if ((text = update_version_part(text, &major)) == NULL || *text++ != '.' ||
+        (text = update_version_part(text, &minor)) == NULL || *text++ != '.' ||
+        (text = update_version_part(text, &patch)) == NULL) {
+        return false;
+    }
+    if (*text == '-' && (text = update_version_part(text + 1, &after)) == NULL) {
+        return false;
+    }
+    if (*text != '\0') {
+        return false;
+    }
+    *version = (((major << 8) | minor) << 16) | (patch << 8) | after;
+    return true;
 }
 
 
@@ -404,6 +451,7 @@ void update_status(update_status_t *status) {
     status->free_bytes = update_slots_known ? update_slots.free_size : 0;
     status->received = status->state == UPDATE_IDLE || status->state == UPDATE_STARTING ? 0 : update_taken;
     status->expected = status->received > 0 ? update_expected : 0;
+    status->download = update_downloading;
     status->last = update_last;
     activity_unlock();
     status->version = version_string;
@@ -418,7 +466,8 @@ void update_status(update_status_t *status) {
 }
 
 
-update_start_result_t update_request_start(activity_by_t by) {
+// A start asked: a download is marked with its request, so a start dropped never makes a later one a download
+static update_start_result_t update_request(activity_by_t by, bool download) {
     if (!update_slots_known) {
         return UPDATE_START_NO_SLOTS;
     }
@@ -432,12 +481,31 @@ update_start_result_t update_request_start(activity_by_t by) {
     }
     activity_lock();
     bool asked = update_state == UPDATE_IDLE && activity_request_start(ACTIVITY_UPDATE, by);
+    if (asked) {
+        update_download_asked = download;
+    }
     activity_unlock();
     if (!asked) {
         return UPDATE_START_BUSY;
     }
     menu_wake();
     return UPDATE_START_OK;
+}
+
+
+update_start_result_t update_request_start(activity_by_t by) {
+    return update_request(by, false);
+}
+
+
+update_start_result_t update_request_download(activity_by_t by) {
+    update_poll_image_t image;
+    if (!update_poll_found_image(&image)) {
+        update_poll_status_t poll;
+        update_poll_status(&poll);
+        return poll.state == UPDATE_POLL_CHECKING ? UPDATE_START_BUSY : UPDATE_START_NOTHING_FOUND;
+    }
+    return update_request(by, true);
 }
 
 
@@ -454,12 +522,12 @@ static void update_end_locked(update_result_t result, activity_by_t by, update_r
 }
 
 
-bool update_install(void) {
+bool update_install(activity_by_t by) {
     activity_lock();
     bool ready = update_state == UPDATE_READY;
     if (ready) {
         update_state = UPDATE_INSTALLING;
-        update_event(EVENT_INSTALLING, ACTIVITY_BY_API, EVENT_REASON_NONE, NULL, update_job_version);
+        update_event(EVENT_INSTALLING, by, EVENT_REASON_NONE, NULL, update_job_version);
     }
     activity_unlock();
     return ready;
@@ -603,12 +671,12 @@ update_refusal_t update_image_end(uint32_t token, int *status) {
     } else if (refusal.code == NULL) {
         update_state = UPDATE_READY;
         update_tick = xTaskGetTickCount();
-        update_event(EVENT_RECEIVED, ACTIVITY_BY_API, EVENT_REASON_NONE, NULL, update_job_version);
+        update_event(EVENT_RECEIVED, activity_job_by(), EVENT_REASON_NONE, NULL, update_job_version);
         *status = 200;
     } else {
         // A refused image ends the job: nothing of it is installed
         *status = strcmp(refusal.code, "failed") == 0 ? 500 : 400;
-        update_end_locked(UPDATE_RESULT_REFUSED, ACTIVITY_BY_API, refusal);
+        update_end_locked(UPDATE_RESULT_REFUSED, update_downloading ? ACTIVITY_BY_UNIT : ACTIVITY_BY_API, refusal);
     }
     activity_unlock();
     return refusal;
@@ -628,7 +696,150 @@ void update_image_abort(uint32_t token) {
 }
 
 
-// --- The mode: the job holds the screen (the menu's task)
+// --- The download: the image the poll found, fetched by the job itself in the job task (ADR-010, gate 5)
+
+typedef struct {
+    update_poll_image_t image;
+    uint32_t token;
+    bool begun;                 // the image's upload into the free slot is open
+    bool stopped;
+    activity_by_t stop_by;
+    update_refusal_t refusal;
+    char message[96];           // a refusal's line, kept for `last` until the next download
+    mbedtls_sha256_context sha;
+} update_download_t;
+
+static update_download_t update_download;   // the job task's own
+
+
+static bool update_download_begin(void *ctx, int status, long length) {
+    update_download_t *download = ctx;
+    if (activity_take_stop(&download->stop_by)) {
+        download->stopped = true;
+        return false;
+    }
+    if (status != 200) {
+        snprintf(download->message, sizeof(download->message), "the image's address answered %d", status);
+        download->refusal = update_refuse("failed", download->message);
+        return false;
+    }
+    if (length >= 0 && (uint32_t) length != download->image.size) {
+        download->refusal = update_refuse("failed", "the image's length is not the manifest's");
+        return false;
+    }
+    int http_status;
+    download->refusal = update_image_begin(download->image.size, &http_status, &download->token);
+    if (download->refusal.code != NULL) {
+        return false;
+    }
+    download->begun = true;
+    return mbedtls_sha256_starts(&download->sha, 0) == 0;
+}
+
+
+static bool update_download_piece(void *ctx, const uint8_t *data, size_t len) {
+    update_download_t *download = ctx;
+    // A stop, by the screen's Back or the API's: taken here, where the job is while it fetches
+    if (activity_take_stop(&download->stop_by)) {
+        download->stopped = true;
+        return false;
+    }
+    if (mbedtls_sha256_update(&download->sha, data, len) != 0) {
+        download->refusal = update_refuse("failed", "the image's SHA-256 could not be taken");
+        return false;
+    }
+    if (!update_image_piece(download->token, data, len)) {
+        // Why is the upload's: its first block refused, larger than the slot, or the flash not written
+        download->refusal = update_upload_refusal.code != NULL ? update_upload_refusal :
+                            update_refuse("failed", "the image was not taken");
+        return false;
+    }
+    return true;
+}
+
+
+// The download, then the install: the job is ready and installing, or ended with why
+static void update_download_run(activity_by_t by) {
+    memset(&update_download, 0, sizeof(update_download));
+    mbedtls_sha256_init(&update_download.sha);
+    activity_lock();
+    update_downloading = true;
+    activity_unlock();
+
+    bool fetched = false;
+    bool sha_holds = false;
+    if (!update_poll_found_image(&update_download.image)) {
+        update_download.refusal = update_refuse("failed", "nothing was found to download");
+    }
+    else {
+        https_sink_t sink = {.begin = update_download_begin, .piece = update_download_piece,
+                             .ctx = &update_download};
+        fetched = https_get(update_download.image.url, &sink);
+        uint8_t digest[UPDATE_HASH_BYTES];
+        sha_holds = fetched && mbedtls_sha256_finish(&update_download.sha, digest) == 0 &&
+                    memcmp(digest, update_download.image.sha256, sizeof(digest)) == 0;
+    }
+    mbedtls_sha256_free(&update_download.sha);
+
+    if (update_download.stopped || !fetched || !sha_holds) {
+        update_refusal_t refusal = update_download.refusal;
+        if (update_download.stopped) {
+            refusal = update_refuse(NULL, NULL);
+        }
+        else if (fetched) {
+            refusal = update_refuse("hash_mismatch", "not the image its release's manifest names");
+        }
+        else if (refusal.code == NULL) {
+            https_report_t report;
+            https_last_report(&report);
+            snprintf(update_download.message, sizeof(update_download.message), "the download failed: %.70s",
+                     report.error);
+            refusal = update_refuse("failed", update_download.message);
+        }
+        if (update_download.begun) {
+            update_image_abort(update_download.token);
+        }
+        activity_lock();
+        if (update_state == UPDATE_RECEIVING) {
+            if (update_download.stopped) {
+                update_end_locked(UPDATE_RESULT_STOPPED, update_download.stop_by, refusal);
+            }
+            else {
+                update_end_locked(UPDATE_RESULT_REFUSED, ACTIVITY_BY_UNIT, refusal);
+            }
+        }
+        update_downloading = false;
+        activity_unlock();
+        printf("Update: the download ended: %s\n", update_download.stopped ? "stopped" : refusal.message);
+        return;
+    }
+
+    // What it took, said before the restart wipes it (as the console's `update poll` says the poll's)
+    https_report_t report;
+    https_last_report(&report);
+    printf("Update: downloaded %lu bytes in %lu ms, %u hops, handshakes %lu and %lu ms, mbedTLS peak %lu, heap "
+           "low mark %lu, the job task's stack left %lu\n", (unsigned long) report.bytes,
+           (unsigned long) report.total_ms, (unsigned) report.hops, (unsigned long) report.handshake_ms[0],
+           (unsigned long) report.handshake_ms[1], (unsigned long) report.mbedtls_peak,
+           (unsigned long) report.heap_min_after, (unsigned long) report.stack_left);
+
+    // Checked as an upload is: its blocks, its slot, its board, its hash. Ready, then installed at once: the person
+    // said Install, or the API asked for the download
+    int status;
+    update_refusal_t refused = update_image_end(update_download.token, &status);
+    activity_lock();
+    update_downloading = false;
+    activity_unlock();
+    if (refused.code == NULL) {
+        update_install(by);
+    }
+    else {
+        printf("Update: the image downloaded was refused: %s\n", refused.message);
+    }
+}
+
+
+// --- The mode: the job holds the screen (the job task)
 
 uint8_t update_mode_menu(void) {
     activity_lock();
@@ -650,7 +861,13 @@ uint8_t update_mode_menu(void) {
         update_tick = xTaskGetTickCount();
         update_event(EVENT_STARTED, by, EVENT_REASON_NONE, NULL, 0);
     }
+    bool download = update_download_asked && update_state == UPDATE_RECEIVING;
+    update_download_asked = false;
     activity_unlock();
+
+    if (download) {
+        update_download_run(by);
+    }
 
     while (true) {
         update_state_t state = update_state;
@@ -658,6 +875,9 @@ uint8_t update_mode_menu(void) {
             break;
         }
         if (state == UPDATE_INSTALLING) {
+            // The job task's deepest, said before the restart wipes it: a download and its check run here (gate 5)
+            printf("Update: installing; the job task's stack left %lu bytes\n",
+                   (unsigned long) (uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
             vTaskDelay(pdMS_TO_TICKS(UPDATE_INSTALL_DELAY_MS));
             picobin_image_t image;
             picobin_image_read(update_slots.free_read_at, update_slots.free_size, &image);
@@ -740,6 +960,20 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
         snprintf(reply, reply_size, "@err failed update try: the restart was refused (%d)", result);
         return false;
     }
-    snprintf(reply, reply_size, "@err usage update [try]");
+    // The poll (ADR-010, gate 5): `update check` asks one, `update poll` says how the last went and what its fetch took
+    if (strcmp(args, "check") == 0) {
+        update_poll_ask_t asked = update_poll_ask();
+        if (asked == UPDATE_POLL_ASKED) {
+            snprintf(reply, reply_size, "@ok update check: asked");
+            return true;
+        }
+        snprintf(reply, reply_size, asked == UPDATE_POLL_BUSY ? "@err busy update check: a poll or the update runs" :
+                                    "@err no_network update check: not joined to a network as a station");
+        return false;
+    }
+    if (strcmp(args, "poll") == 0) {
+        return update_poll_console(reply, reply_size);
+    }
+    snprintf(reply, reply_size, "@err usage update [try|check|poll]");
     return false;
 }

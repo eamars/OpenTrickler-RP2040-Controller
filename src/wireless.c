@@ -13,6 +13,7 @@
 #include "settings.h"
 #include "version.h"
 #include "update.h"
+#include "update_poll.h"
 #include "lwip/apps/mdns.h"
 #include <string.h>
 #include <strings.h>
@@ -332,8 +333,9 @@ static void wireless_rejoin(void) {
     wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
     wireless_station_mdns();
     printf("Wi-Fi: joined %s\n", wireless_started_with.ssid);
-    // An image on trial is on its network now
+    // An image on trial is on its network now; the start's poll, if it has not run (ADR-010, gate 5)
     update_network_ready(true);
+    update_poll_station_joined();
 }
 
 
@@ -354,6 +356,10 @@ static void wireless_server_listening(void) {
                               ? wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN
                               : wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
     update_network_ready(on_its_network);
+    // The update's poll, once each start, as a station only: its own access point has no internet (ADR-010, gate 5)
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
+        update_poll_station_joined();
+    }
 }
 
 

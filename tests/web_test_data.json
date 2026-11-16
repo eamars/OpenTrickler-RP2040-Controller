@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-23-dirty",
-   "vcs": "f1a3b6c",
+   "version": "2.0.2-27-dirty",
+   "vcs": "81cddf8",
    "build": "Debug"
   },
-  "board": "pico2_w",
-  "unit_id": "49933331",
-  "hostname": "opentrickler-4993",
-  "boot": 2764082589,
-  "uptime_s": 204,
+  "board": "pico_w",
+  "unit_id": "9CE00000",
+  "hostname": "opentrickler-9CE0",
+  "boot": 184592176,
+  "uptime_s": 48,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -183,7 +183,14 @@
     "methods": [
      "POST"
     ],
-    "about": "starts an update: the menu takes it, then the image is PUT"
+    "about": "starts an update: the menu takes it, then the image is PUT, or the job downloads the release found"
+   },
+   {
+    "path": "/api/v1/update/check",
+    "methods": [
+     "POST"
+    ],
+    "about": "polls the update's source now for a newer release"
    },
    {
     "path": "/api/v1/update/image",
@@ -293,6 +300,14 @@
     "about": "The gate between the tricklers and the cup"
    },
    {
+    "path": "/api/v1/settings/update",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "about": "Where the unit looks for a firmware update, and which releases it offers"
+   },
+   {
     "path": "/api/v1/settings/leds/save",
     "methods": [
      "POST"
@@ -347,14 +362,21 @@
      "POST"
     ],
     "about": "stores Servo gate"
+   },
+   {
+    "path": "/api/v1/settings/update/save",
+    "methods": [
+     "POST"
+    ],
+    "about": "stores Update"
    }
   ]
  },
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-23-dirty",
-   "vcs": "f1a3b6c",
+   "version": "2.0.2-27-dirty",
+   "vcs": "81cddf8",
    "build": "Debug"
   },
   "resources": [
@@ -1501,6 +1523,51 @@
       "about": "How fast the gate opens"
      }
     ]
+   },
+   {
+    "path": "/api/v1/settings/update",
+    "methods": [
+     "GET",
+     "PATCH"
+    ],
+    "save": "/api/v1/settings/update/save",
+    "label": "Update",
+    "about": "Where the unit looks for a firmware update, and which releases it offers",
+    "refused_while": "never",
+    "fields": [
+     {
+      "name": "channel",
+      "label": "Channel",
+      "group": "Update",
+      "type": "choice",
+      "choices": [
+       {
+        "value": "stable",
+        "label": "Stable"
+       },
+       {
+        "value": "beta",
+        "label": "Beta: pre-releases too"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "never",
+      "about": "Which releases are offered: stable ones, or the newest of all with pre-releases (beta). Leaving beta goes back to no version: nothing is offered until a stable release is newer than the one running"
+     },
+     {
+      "name": "source",
+      "label": "Source",
+      "group": "Update",
+      "type": "string",
+      "min_length": 8,
+      "max_length": 127,
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "never",
+      "about": "Where the releases are: a repository's address, its releases laid out under it as GitHub lays them out (releases/latest/download/manifest.json). GitHub's own by default"
+     }
+    ]
    }
   ],
   "actions": [
@@ -1556,6 +1623,13 @@
    {
     "method": "POST",
     "path": "/api/v1/settings/gate/save",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/update/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
@@ -1687,9 +1761,22 @@
    {
     "method": "POST",
     "path": "/api/v1/update/start",
-    "fields": [],
+    "fields": [
+     {
+      "name": "download",
+      "type": "boolean",
+      "about": "true: the job fetches the release the poll found itself (found in GET /api/v1/update), checks it and installs it, as the offer's Install at the screen does"
+     }
+    ],
     "refused_while": "a_job_runs",
-    "about": "starts a firmware update (202): the menu takes it and it holds the screen; then PUT the image. 409 busy also while a person has a screen open at the unit"
+    "about": "starts a firmware update (202): the menu takes it and it holds the screen; then PUT the image, unless it downloads. 409 busy also while a person has a screen open at the unit or a poll runs; 409 not_found for a download with nothing found"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/update/check",
+    "fields": [],
+    "refused_while": "never",
+    "about": "polls the update's source now (202): GET /api/v1/update's poll and found say what came of it. It also polls once each start, when the station joins. 409 busy while a poll or the update runs; 409 no_network on the unit's own access point"
    },
    {
     "method": "PUT",
@@ -2032,6 +2119,14 @@
      "version"
     ],
     "about": "after the restart, the image tried was left, and the one before runs"
+   },
+   {
+    "source": "update",
+    "kind": "found",
+    "carries": [
+     "version"
+    ],
+    "about": "the poll found a newer release, now offered: GET /api/v1/update, found"
    }
   ],
   "errors": [
@@ -2064,23 +2159,24 @@
    "not_newer",
    "wrong_slot",
    "hash_mismatch",
-   "not_ready"
+   "not_ready",
+   "no_network"
   ]
  },
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-23-dirty",
-   "vcs": "f1a3b6c",
+   "version": "2.0.2-27-dirty",
+   "vcs": "81cddf8",
    "build": "Debug"
   },
-  "unit_id": "49933331",
+  "unit_id": "9CE00000",
   "resources": {
    "/api/v1/settings/leds": {
     "saved": true,
     "backlight_colour": "#ffffff",
-    "led1_colour": "#0f0f0f",
-    "led2_colour": "#0f0f0f",
+    "led1_colour": "#ffffff",
+    "led2_colour": "#f21818",
     "pwm3_chain_count": 2,
     "pwm3_colour_order": "rgb",
     "pwm3_rgbw": true
@@ -2088,7 +2184,7 @@
    "/api/v1/settings/display": {
     "saved": true,
     "invert_encoder": false,
-    "rotation": 0
+    "rotation": 180
    },
    "/api/v1/settings/wifi": {
     "saved": true,
@@ -2100,7 +2196,7 @@
    "/api/v1/settings/motors/coarse": {
     "saved": true,
     "full_steps_per_rotation": 200,
-    "current_ma": 240,
+    "current_ma": 380,
     "microsteps": 256,
     "max_speed_rps": 5,
     "r_sense_mohm": 110,
@@ -2113,13 +2209,13 @@
    "/api/v1/settings/motors/fine": {
     "saved": true,
     "full_steps_per_rotation": 200,
-    "current_ma": 240,
+    "current_ma": 380,
     "microsteps": 256,
     "max_speed_rps": 5,
     "r_sense_mohm": 110,
     "acceleration_rps2": 50,
-    "min_speed_rps": 0.1,
-    "gear_ratio": 2.105263,
+    "min_speed_rps": 0.01,
+    "gear_ratio": 1.818,
     "invert_direction": false,
     "invert_enable": false
    },
@@ -2136,7 +2232,7 @@
     "steady_sd_margin": 0.02,
     "zero_mean_margin": 0.02,
     "decimal_places": 2,
-    "coarse_stop_gate_ratio": 0.5,
+    "coarse_stop_gate_ratio": 0,
     "coarse_stop_backoff_enable": true,
     "coarse_stop_backoff_turns": 0.25,
     "coarse_stop_backoff_speed_rps": 1,
@@ -2153,20 +2249,6 @@
     "name": "AR2208,gr",
     "coarse_kp": 0.025,
     "coarse_ki": 0,
-    "coarse_kd": 0.25,
-    "coarse_min_speed_rps": 0.1,
-    "coarse_max_speed_rps": 5,
-    "fine_kp": 2,
-    "fine_ki": 0,
-    "fine_kd": 10,
-    "fine_min_speed_rps": 0.1,
-    "fine_max_speed_rps": 3
-   },
-   "/api/v1/powder_profiles/1": {
-    "saved": true,
-    "name": "AR2209,gr",
-    "coarse_kp": 0.02,
-    "coarse_ki": 0,
     "coarse_kd": 0.3,
     "coarse_min_speed_rps": 0.1,
     "coarse_max_speed_rps": 5,
@@ -2176,33 +2258,47 @@
     "fine_min_speed_rps": 0.08,
     "fine_max_speed_rps": 5
    },
+   "/api/v1/powder_profiles/1": {
+    "saved": true,
+    "name": "AR2209,gr",
+    "coarse_kp": 0.05,
+    "coarse_ki": 0,
+    "coarse_kd": 0.3,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 8,
+    "fine_kp": 0.8,
+    "fine_ki": 0,
+    "fine_kd": 15,
+    "fine_min_speed_rps": 0.08,
+    "fine_max_speed_rps": 2
+   },
    "/api/v1/powder_profiles/2": {
     "saved": true,
-    "name": "NewProfile2",
-    "coarse_kp": 0,
+    "name": "8208,gr",
+    "coarse_kp": 0.05,
     "coarse_ki": 0,
-    "coarse_kd": 0,
-    "coarse_min_speed_rps": 0,
-    "coarse_max_speed_rps": 0,
-    "fine_kp": 0,
+    "coarse_kd": 0.3,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 5,
+    "fine_kp": 2,
     "fine_ki": 0,
-    "fine_kd": 0,
-    "fine_min_speed_rps": 0,
-    "fine_max_speed_rps": 0
+    "fine_kd": 12,
+    "fine_min_speed_rps": 0.06,
+    "fine_max_speed_rps": 5
    },
    "/api/v1/powder_profiles/3": {
     "saved": true,
-    "name": "NewProfile3",
-    "coarse_kp": 0,
+    "name": "Benchmark2,gr",
+    "coarse_kp": 0.06,
     "coarse_ki": 0,
-    "coarse_kd": 0,
-    "coarse_min_speed_rps": 0,
-    "coarse_max_speed_rps": 0,
-    "fine_kp": 0,
+    "coarse_kd": 0.3,
+    "coarse_min_speed_rps": 0.1,
+    "coarse_max_speed_rps": 5,
+    "fine_kp": 1.1,
     "fine_ki": 0,
-    "fine_kd": 0,
-    "fine_min_speed_rps": 0,
-    "fine_max_speed_rps": 0
+    "fine_kd": 15,
+    "fine_min_speed_rps": 0.05,
+    "fine_max_speed_rps": 5
    },
    "/api/v1/powder_profiles/4": {
     "saved": true,
@@ -2263,12 +2359,17 @@
    "/api/v1/settings/gate": {
     "saved": true,
     "enable": false,
-    "shutter0_close_duty": 0.09,
-    "shutter0_open_duty": 0.05,
-    "shutter1_close_duty": 0.05,
-    "shutter1_open_duty": 0.09,
+    "shutter0_close_duty": 0.032,
+    "shutter0_open_duty": 0.09,
+    "shutter1_close_duty": 0.09,
+    "shutter1_open_duty": 0.032,
     "close_speed_per_s": 3,
     "open_speed_per_s": 5
+   },
+   "/api/v1/settings/update": {
+    "saved": true,
+    "channel": "stable",
+    "source": "http://192.168.2.13:8080/a/b"
    }
   }
  },
@@ -2285,11 +2386,11 @@
    },
    {
     "id": 2,
-    "name": "NewProfile2"
+    "name": "8208,gr"
    },
    {
     "id": 3,
-    "name": "NewProfile3"
+    "name": "Benchmark2,gr"
    },
    {
     "id": 4,
@@ -2328,8 +2429,8 @@
   "throw": 0,
   "paused": false,
   "target": null,
-  "powder_profile": 0,
-  "powder_profile_name": "AR2208,gr",
+  "powder_profile": 1,
+  "powder_profile_name": "AR2209,gr",
   "weight": null,
   "elapsed_s": 0,
   "last": {
@@ -2373,13 +2474,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.2-23-dirty",
-   "vcs": "f1a3b6c",
+   "version": "2.0.2-27-dirty",
+   "vcs": "81cddf8",
    "build": "Debug"
   },
-  "board": "pico2_w",
-  "unit_id": "49933331",
-  "uptime_s": 206,
+  "board": "pico_w",
+  "unit_id": "9CE00000",
+  "uptime_s": 51,
   "activity": "none",
   "restart_pending": false
  },
@@ -2387,20 +2488,27 @@
   "mode": "station",
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
-  "hostname": "opentrickler-4993",
-  "rssi": -56
+  "hostname": "opentrickler-9CE0",
+  "rssi": -55
  },
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.2-23-dirty",
-   "block": "2.0.2-23",
+   "version": "2.0.2-27-dirty",
+   "block": "2.0.2-27",
    "slot": "a",
    "trial": false
   },
-  "takes": "pico2_w",
-  "free_bytes": 1835008,
+  "takes": "pico_w_b",
+  "free_bytes": 1040384,
   "received": 0,
+  "expected": 0,
+  "download": false,
+  "poll": {
+   "state": "up_to_date",
+   "error": null
+  },
+  "found": null,
   "last": null
  },
  "/api/v1/display": {
@@ -2414,8 +2522,8 @@
  "/api/v1/settings/leds": {
   "saved": true,
   "backlight_colour": "#ffffff",
-  "led1_colour": "#0f0f0f",
-  "led2_colour": "#0f0f0f",
+  "led1_colour": "#ffffff",
+  "led2_colour": "#f21818",
   "pwm3_chain_count": 2,
   "pwm3_colour_order": "rgb",
   "pwm3_rgbw": true
@@ -2423,7 +2531,7 @@
  "/api/v1/settings/display": {
   "saved": true,
   "invert_encoder": false,
-  "rotation": 0
+  "rotation": 180
  },
  "/api/v1/settings/wifi": {
   "saved": true,
@@ -2435,7 +2543,7 @@
  "/api/v1/settings/motors/coarse": {
   "saved": true,
   "full_steps_per_rotation": 200,
-  "current_ma": 240,
+  "current_ma": 380,
   "microsteps": 256,
   "max_speed_rps": 5,
   "r_sense_mohm": 110,
@@ -2448,13 +2556,13 @@
  "/api/v1/settings/motors/fine": {
   "saved": true,
   "full_steps_per_rotation": 200,
-  "current_ma": 240,
+  "current_ma": 380,
   "microsteps": 256,
   "max_speed_rps": 5,
   "r_sense_mohm": 110,
   "acceleration_rps2": 50,
-  "min_speed_rps": 0.1,
-  "gear_ratio": 2.105263,
+  "min_speed_rps": 0.01,
+  "gear_ratio": 1.818,
   "invert_direction": false,
   "invert_enable": false
  },
@@ -2471,7 +2579,7 @@
   "steady_sd_margin": 0.02,
   "zero_mean_margin": 0.02,
   "decimal_places": 2,
-  "coarse_stop_gate_ratio": 0.5,
+  "coarse_stop_gate_ratio": 0,
   "coarse_stop_backoff_enable": true,
   "coarse_stop_backoff_turns": 0.25,
   "coarse_stop_backoff_speed_rps": 1,
@@ -2488,20 +2596,6 @@
   "name": "AR2208,gr",
   "coarse_kp": 0.025,
   "coarse_ki": 0,
-  "coarse_kd": 0.25,
-  "coarse_min_speed_rps": 0.1,
-  "coarse_max_speed_rps": 5,
-  "fine_kp": 2,
-  "fine_ki": 0,
-  "fine_kd": 10,
-  "fine_min_speed_rps": 0.1,
-  "fine_max_speed_rps": 3
- },
- "/api/v1/powder_profiles/1": {
-  "saved": true,
-  "name": "AR2209,gr",
-  "coarse_kp": 0.02,
-  "coarse_ki": 0,
   "coarse_kd": 0.3,
   "coarse_min_speed_rps": 0.1,
   "coarse_max_speed_rps": 5,
@@ -2511,33 +2605,47 @@
   "fine_min_speed_rps": 0.08,
   "fine_max_speed_rps": 5
  },
+ "/api/v1/powder_profiles/1": {
+  "saved": true,
+  "name": "AR2209,gr",
+  "coarse_kp": 0.05,
+  "coarse_ki": 0,
+  "coarse_kd": 0.3,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 8,
+  "fine_kp": 0.8,
+  "fine_ki": 0,
+  "fine_kd": 15,
+  "fine_min_speed_rps": 0.08,
+  "fine_max_speed_rps": 2
+ },
  "/api/v1/powder_profiles/2": {
   "saved": true,
-  "name": "NewProfile2",
-  "coarse_kp": 0,
+  "name": "8208,gr",
+  "coarse_kp": 0.05,
   "coarse_ki": 0,
-  "coarse_kd": 0,
-  "coarse_min_speed_rps": 0,
-  "coarse_max_speed_rps": 0,
-  "fine_kp": 0,
+  "coarse_kd": 0.3,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 5,
+  "fine_kp": 2,
   "fine_ki": 0,
-  "fine_kd": 0,
-  "fine_min_speed_rps": 0,
-  "fine_max_speed_rps": 0
+  "fine_kd": 12,
+  "fine_min_speed_rps": 0.06,
+  "fine_max_speed_rps": 5
  },
  "/api/v1/powder_profiles/3": {
   "saved": true,
-  "name": "NewProfile3",
-  "coarse_kp": 0,
+  "name": "Benchmark2,gr",
+  "coarse_kp": 0.06,
   "coarse_ki": 0,
-  "coarse_kd": 0,
-  "coarse_min_speed_rps": 0,
-  "coarse_max_speed_rps": 0,
-  "fine_kp": 0,
+  "coarse_kd": 0.3,
+  "coarse_min_speed_rps": 0.1,
+  "coarse_max_speed_rps": 5,
+  "fine_kp": 1.1,
   "fine_ki": 0,
-  "fine_kd": 0,
-  "fine_min_speed_rps": 0,
-  "fine_max_speed_rps": 0
+  "fine_kd": 15,
+  "fine_min_speed_rps": 0.05,
+  "fine_max_speed_rps": 5
  },
  "/api/v1/powder_profiles/4": {
   "saved": true,
@@ -2598,11 +2706,16 @@
  "/api/v1/settings/gate": {
   "saved": true,
   "enable": false,
-  "shutter0_close_duty": 0.09,
-  "shutter0_open_duty": 0.05,
-  "shutter1_close_duty": 0.05,
-  "shutter1_open_duty": 0.09,
+  "shutter0_close_duty": 0.032,
+  "shutter0_open_duty": 0.09,
+  "shutter1_close_duty": 0.09,
+  "shutter1_open_duty": 0.032,
   "close_speed_per_s": 3,
   "open_speed_per_s": 5
+ },
+ "/api/v1/settings/update": {
+  "saved": true,
+  "channel": "stable",
+  "source": "http://192.168.2.13:8080/a/b"
  }
 }

@@ -6,8 +6,12 @@ and download, and `rc_run.py update`, are pointed here instead, through the unit
 What it serves, under any owner and repository, as GitHub does:
     /<owner>/<repo>/releases/latest/download/<file>    the latest release's file
     /<owner>/<repo>/releases/download/<tag>/<file>      that release's file
+    /api/v3/repos/<owner>/<repo>/releases?per_page=N   the releases, newest first, as GitHub's API lists them (its
+                                                        path on GitHub Enterprise; github.com's is api.github.com):
+                                                        each item's tag_name, prerelease and draft, sent chunked
 The releases are the subfolders of --root, one per tag, each as build_release.py's `release` folder is laid out
-(manifest.json, SHA256SUMS and the images). The latest is --latest, or else the highest tag.
+(manifest.json, SHA256SUMS and the images). A folder holding a file named `prerelease` is a pre-release: listed, but
+never the latest, as on GitHub. The latest is --latest, or else the highest tag that is not a pre-release.
 
 As on GitHub, a download is answered with a 302 to an asset host, which serves the file: a second port, with a
 certificate chain of its own. GitHub's own host has an ECDSA chain (a P-256 leaf and intermediate under a P-384 root),
@@ -29,6 +33,7 @@ Plain HTTP and test certificates: run it only on a network you trust.
 """
 import argparse
 import http.server
+import json
 import re
 import shutil
 import ssl
@@ -46,6 +51,8 @@ DEFAULT_CERT_DIR = REPO / "logs" / "ota_server" / "certs"
 CONNECTION_TIMEOUT_S = 300
 
 RELEASE_PATH = re.compile(r"^/[^/]+/[^/]+/releases/(?:latest/download|download/(?P<tag>[^/]+))/(?P<file>[^/?]+)$")
+RELEASES_LIST_PATH = re.compile(r"^/api/v3/repos/[^/]+/[^/]+/releases(?:\?(?P<query>.*))?$")
+PRERELEASE_MARK = "prerelease"
 ASSET_PATH = re.compile(r"^/assets/(?P<tag>[^/]+)/(?P<file>[^/?]+)$")
 
 # Each chain: the root's key and digest, the intermediate's key and the digest the root signs it with, the leaf's
@@ -87,6 +94,15 @@ class Releases:
         """Returns: the tags, lowest first."""
         return sorted((path.name for path in self.root.iterdir() if path.is_dir()), key=tag_key)
 
+    def is_prerelease(self, tag: str) -> bool:
+        """Args:
+            tag: a release's tag.
+
+        Returns:
+            Whether its folder is marked a pre-release.
+        """
+        return (self.root / tag / PRERELEASE_MARK).is_file()
+
     def resolve(self, tag: str | None, file: str) -> tuple:
         """Find a release's file.
 
@@ -98,7 +114,8 @@ class Releases:
             (tag, path) where path is the file, or (tag, None) when the release or the file does not exist.
         """
         if tag is None:
-            tags = self.tags()
+            # GitHub's latest is never a pre-release
+            tags = [name for name in self.tags() if not self.is_prerelease(name)]
             tag = self.latest or (tags[-1] if tags else None)
         if tag is None:
             return None, None
@@ -106,6 +123,41 @@ class Releases:
         if path.parent.parent != self.root or not path.is_file():
             return tag, None
         return tag, path
+
+
+def github_release(tag: str, prerelease: bool, files: list) -> dict:
+    """A release as GitHub's API lists it, in its shape and order: the author before tag_name, nested objects, an
+    asset for each file with its uploader, and a note with escapes and a character outside ASCII, so a unit's reader
+    meets what GitHub sends (read from GitHub's REST documentation, "List releases").
+
+    Args:
+        tag: the release's tag.
+        prerelease: whether it is a pre-release.
+        files: the release's files.
+
+    Returns:
+        The release as a dict, for JSON.
+    """
+    user = {"login": "owner", "id": 1, "node_id": "U_1", "avatar_url": "https://example.invalid/u/1",
+            "type": "User", "site_admin": False}
+    return {
+        "url": f"https://example.invalid/repos/a/b/releases/{tag}",
+        "html_url": f"https://example.invalid/a/b/releases/tag/{tag}",
+        "id": abs(hash(tag)) % 10 ** 9,
+        "author": user,
+        "node_id": "RE_1",
+        "tag_name": tag,
+        "target_commitish": "main",
+        "name": tag,
+        "draft": False,
+        "prerelease": prerelease,
+        "created_at": "2026-11-17T00:00:00Z",
+        "published_at": "2026-11-17T00:00:00Z",
+        "assets": [{"name": name, "label": "", "uploader": user, "content_type": "application/octet-stream",
+                    "state": "uploaded", "size": 0, "download_count": 0} for name in files],
+        "tarball_url": f"https://example.invalid/repos/a/b/tarball/{tag}",
+        "body": f"## {tag}\r\n\r\nServed by the local OTA server: \"a quoted word\", a back\\slash, caf\u00e9.",
+    }
 
 
 def make_handler(releases: Releases, role: str, asset_base: str):
@@ -160,12 +212,45 @@ def make_handler(releases: Releases, role: str, asset_base: str):
             """A GET of a release's file."""
             self.answer(send_body=True)
 
+        def send_list(self, query: str | None, send_body: bool):
+            """The releases, newest first, as GitHub's API lists them, sent chunked as GitHub's API may send it.
+
+            Args:
+                query: the request's query (per_page=N), or None.
+                send_body: False for a HEAD.
+            """
+            per_page = 30
+            for part in (query or "").split("&"):
+                name, _, value = part.partition("=")
+                if name == "per_page" and value.isdigit():
+                    per_page = max(1, min(100, int(value)))
+            items = [github_release(tag, releases.is_prerelease(tag), sorted(path.name for path in
+                                                                              (releases.root / tag).iterdir()))
+                     for tag in reversed(releases.tags())][:per_page]
+            body = json.dumps(items, indent=2).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            if send_body:
+                # Chunks of 100 bytes, so a name or a value is cut across two of them
+                for at in range(0, len(body), 100):
+                    piece = body[at:at + 100]
+                    self.wfile.write(f"{len(piece):x}\r\n".encode("ascii") + piece + b"\r\n")
+                self.wfile.write(b"0\r\n\r\n")
+            self.send_done(200, len(body) if send_body else 0)
+
         def answer(self, send_body: bool):
-            """Redirect a download to the asset host, or serve the file from it.
+            """Redirect a download to the asset host, or serve the file from it; or list the releases.
 
             Args:
                 send_body: False for a HEAD.
             """
+            if role == "main":
+                listing = RELEASES_LIST_PATH.match(self.path)
+                if listing is not None:
+                    self.send_list(listing.group("query"), send_body)
+                    return
             pattern = RELEASE_PATH if role == "main" else ASSET_PATH
             match = pattern.match(self.path)
             if match is None:

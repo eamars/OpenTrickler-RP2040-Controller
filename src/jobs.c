@@ -10,7 +10,8 @@
 #include "menu.h"
 #include "update.h"
 
-// As the menu's task had for the modes, which ran in it before (ADR-010, gate 2)
+// As the menu's task had for the modes, which ran in it before (ADR-010, gate 2). On the Pico W a charge used 984
+// bytes of it, an update's download over HTTPS with its check 2,952 (gate 5, progress.md)
 #define JOBS_TASK_STACK_WORDS 1024
 #define JOBS_TASK_PRIORITY 6
 
