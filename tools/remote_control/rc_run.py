@@ -68,7 +68,7 @@ BOARDS = {
         "step_status": {"coarse": 0x40014018, "fine": 0x40014040},
         # Its flash layout (ADR-004, src/update_boot.h): our bootloader at the start, slot A after it, slot B after
         # A. A full install writes the bootloader and slot A's image (built with APP_SLOT=A)
-        "layout": {"first": "bootloader.bin", "slot_a": 0x10004000, "slot_b": 0x10102000},
+        "layout": {"first": "bootloader.bin", "slot_a": 0x10004000, "slot_b": 0x10102000, "flash_bytes": 0x200000},
     },
     # The RP2350's registers, from the SDK's headers (watchdog.h, psm.h, io_bank0.h): the same reset as the
     # RP2040's, every power domain but the two oscillators (PSM_WDSEL_BITS less ROSC and XOSC, as
@@ -81,7 +81,7 @@ BOARDS = {
         # Its flash layout (ADR-004, targets/pico2_w_partition_table.json): the ROM's partition table at the start,
         # slot A after it, slot B after A. The image is written as its .bin into a slot, not by its ELF, which is
         # linked at the start of flash, where the ROM maps the slot it boots
-        "layout": {"first": "partition_table.bin", "slot_a": 0x10002000, "slot_b": 0x101C2000},
+        "layout": {"first": "partition_table.bin", "slot_a": 0x10002000, "slot_b": 0x101C2000, "flash_bytes": 0x400000},
     },
 }
 SECTOR_BYTES = 4096
@@ -1120,9 +1120,8 @@ class Session:
     def flash(self, elf=None):
         """
         Write an image through the probe, start it, and check the unit runs the build's version. On a board with a
-        flash layout (ADR-004) this is the full install: what starts flash (the Pico 2 W's partition table, the Pico
-        W's bootloader, beside the ELF), the start of slot B blanked, so that slot A boots, and the image's .bin
-        (beside its ELF) in slot A.
+        flash layout (ADR-004) this is the full install: the whole flash erased, then what starts it (the Pico 2 W's
+        partition table, the Pico W's bootloader, beside the ELF) and the image's .bin (beside its ELF) in slot A.
 
         Args:
             elf: the ELF to write; by default the session's. It becomes the session's ELF.
@@ -1146,8 +1145,10 @@ class Session:
                 if not needed.exists():
                     self.fail(f"{needed} does not exist")
                     return
-            writes = [f"program {{{first.as_posix()}}} verify 0x10000000",
-                      f"flash erase_address {layout['slot_b']:#x} {SECTOR_BYTES:#x}",
+            # As the full install by USB does: the whole flash erased, so no other image is kept (the owner). The
+            # erase needs the chip halted, which program does for itself
+            writes = ["halt", f"flash erase_address 0x10000000 {layout['flash_bytes']:#x}",
+                      f"program {{{first.as_posix()}}} verify 0x10000000",
                       f"program {{{image.as_posix()}}} verify reset {layout['slot_a']:#x}"]
         else:
             writes = [f"program {{{self.elf.as_posix()}}} verify reset"]
@@ -1155,9 +1156,12 @@ class Session:
         done_before = len(self.openocd.output)
         for write in writes:
             self.openocd.cmd(write)
-        verified = sum("Verified OK" in line for line in self.openocd.output[done_before:])
-        if verified != sum(write.startswith("program") for write in writes):
-            self.fail(f"openocd verified {verified} of the writes: {writes}")
+        said = self.openocd.output[done_before:]
+        verified = sum("Verified OK" in line for line in said)
+        erased = sum(line.startswith("erased address") for line in said)
+        if verified != sum(write.startswith("program") for write in writes) or \
+                erased != sum(write.startswith("flash erase_address") for write in writes):
+            self.fail(f"openocd verified {verified} and erased {erased} of the writes: {writes}")
             return
         self.log.write("rc", f"flashed and verified in {time.monotonic() - started:.1f} s")
         reply = self.wait_for_console()

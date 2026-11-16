@@ -40,6 +40,9 @@ This ADR builds what that rests on: the flash layout, the boot path, the image's
 - The owner's USB checks on both units are made with a candidate's baseline.
 - Agreed the same day, on the agent's proposal: a candidate is an ordinary version published as a pre-release, public, its notes saying it is a test build; its tag is pushed on this ADR's branch, before the ADR closes.
 
+**2026-11-16**, later, on the full install:
+- The full install wipes the flash and installs the latest: on both boards it writes the bootloader (or the partition table), wipes the flash, and writes the firmware into slot A. It resets the unit to its factory state, which keeps no other image: slot B is erased, filled with 0xFF.
+
 **2026-11-16**, later, on the downgrade:
 - No downgrade. There is little to no point going below 2.0.0, so the downgrade is removed unless it is an absolute need. It replaces the first direction's "a downgrade is a full erase": its manual and the erase files go.
 
@@ -155,11 +158,11 @@ The spare part costs nothing today and keeps a later need from changing the tabl
 ### The files a release carries
 
 For each board:
-- **the full install,** one `.uf2`: the bootloader (Pico W) or the partition table (Pico 2 W), the image in slot A with its mark cleared, and the start of slot B blanked. It writes whole 4 KB sectors: the Pico W's ROM erased a sector again where the file split it (gate 3, the first install by USB);
+- **the full install,** one `.uf2` that writes the whole flash: the bootloader (Pico W) or the partition table (Pico 2 W), the image in slot A with its mark cleared, and every other page erased: slot B, the rest of A, the Pico 2 W's spare. The unit is left in its factory state, no other image kept (the owner). It is a page of the file for every page of flash, so it writes whole 4 KB sectors; the Pico W's ROM erased a sector again where an earlier file split it (gate 3, the first install by USB);
 - **the update images:** the Pico W's for slot A and for slot B, the Pico 2 W's one;
 - and once for the release, **`manifest.json`:** the version, a note, an importance (normal, critical), and for each board and slot its file, size, SHA-256 and block version (written as `GET /api/v1/update` writes `running.block`, read from the image itself), so a unit knows whether it is newer before it fetches it. The offer (ADR-008, ADR-010) reads it; until then `rc_run.py` does.
 
-The start of slot B is blanked because the higher version boots: an older or equal image put in slot A by USB would otherwise lose to a newer one left in B. So a USB install always wins, and the full install is also how a unit is brought back.
+Slot B is erased whole because the higher version boots: an older or equal image put in slot A by USB would otherwise lose to a newer one left in B. So a USB install always wins, and the full install is also how a unit is brought back. The probe's install on the bench (`rc_run.py flash`) erases the whole flash the same way.
 
 **The first install** is today's manual (`manuals/firmware_update_via_usb.md`, BOOTSEL and one file), with the full install as its file. The settings in the EEPROM stay, unless a stored struct changed. Why PR #111's combined `.uf2` failed is looked for in gate 1, before ours is trusted. A first guess, that the merged file kept each part's own block count, is wrong: its script numbers the blocks across the whole file (`scripts/merge_initial_flash_uf2.py` at its head, read 2026-11-16). Ours is judged on the unit, by USB.
 

@@ -1,7 +1,8 @@
 """
-The full install (ADR-004): one .uf2 a person drags onto the unit's USB drive, with what starts flash (the Pico 2 W's
-partition table, the Pico W's bootloader), slot A's image, and the start of slot B written as erased flash, so that
-slot A boots whatever slot B held. Every block carries the file's own count and its place in it.
+The full install (ADR-004): one .uf2 a person drags onto the unit's USB drive. It writes the whole flash: what starts
+it (the Pico 2 W's partition table, the Pico W's bootloader) and slot A's image where they go, and every other page as
+erased flash: slot B, the rest of slot A, the Pico 2 W's spare. The unit is left in its factory state, no other image
+kept (the owner, ADR-004). Every block carries the file's own count and its place in it.
 """
 import argparse
 import struct
@@ -33,9 +34,9 @@ def parse_part(text):
     return Path(path), int(address, 0)
 
 
-def parse_blank(text):
+def parse_flash(text):
     """
-    A region written as erased flash, "address:bytes".
+    The flash's range, "address:bytes".
 
     Args:
         text: the argument as given.
@@ -47,35 +48,36 @@ def parse_blank(text):
     return int(address, 0), int(size, 0)
 
 
-def pages(parts, blanks):
+def pages(parts, flash):
     """
-    The 256-byte pages to write, by address, whole 4 KB sectors. Each sector a part only begins or ends in is filled
-    out as erased flash.
+    Every 256-byte page of the flash, by address: the parts' where they are, erased flash elsewhere. So every 4 KB
+    sector is written whole, its 16 pages 16 blocks in a row that begin a 16-block stretch of the file, as in a UF2
+    the SDK makes. A sector that straddled two stretches lost the pages written before the second began: the Pico W's
+    ROM had erased it again there (ADR-004, its first install by USB).
 
     Args:
         parts: (path, address) pairs.
-        blanks: (address, bytes) pairs.
+        flash: (address, bytes), the flash's range, whole sectors.
 
     Returns:
-        {address: 256 bytes}, refusing parts that overlap or are not page-aligned.
+        {address: 256 bytes}, refusing parts that overlap, are not page-aligned or lie outside the flash.
     """
+    start, size = flash
+    if start % FLASH_SECTOR or size % FLASH_SECTOR:
+        raise ValueError(f"the flash {start:#x}+{size:#x} is not whole {FLASH_SECTOR}-byte sectors")
     written = {}
-    regions = [(address, path.read_bytes()) for path, address in parts]
-    regions += [(address, bytes([ERASED]) * size) for address, size in blanks]
-    for address, data in regions:
+    for path, address in parts:
+        data = path.read_bytes()
         if address % UF2_PAYLOAD:
             raise ValueError(f"{address:#x} is not on a {UF2_PAYLOAD}-byte page")
+        if address < start or address + len(data) > start + size:
+            raise ValueError(f"{path.name} at {address:#x} does not lie inside the flash")
         for offset in range(0, len(data), UF2_PAYLOAD):
-            page = data[offset:offset + UF2_PAYLOAD].ljust(UF2_PAYLOAD, bytes([ERASED]))
             if address + offset in written:
                 raise ValueError(f"two parts write the page at {address + offset:#x}")
-            written[address + offset] = page
-    # Every sector it touches is written whole, so a sector's 16 pages are 16 blocks in a row that begin a 16-block
-    # stretch of the file, as in a UF2 the SDK makes. A sector that straddled two stretches lost the pages written
-    # before the second began: the Pico W's ROM had erased it again there (ADR-004, its first install by USB)
-    for sector in {address - address % FLASH_SECTOR for address in written}:
-        for address in range(sector, sector + FLASH_SECTOR, UF2_PAYLOAD):
-            written.setdefault(address, bytes([ERASED]) * UF2_PAYLOAD)
+            written[address + offset] = data[offset:offset + UF2_PAYLOAD].ljust(UF2_PAYLOAD, bytes([ERASED]))
+    for address in range(start, start + size, UF2_PAYLOAD):
+        written.setdefault(address, bytes([ERASED]) * UF2_PAYLOAD)
     return written
 
 
@@ -103,16 +105,16 @@ def uf2(written, family):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--family", choices=sorted(FAMILIES), required=True)
+    parser.add_argument("--flash", type=parse_flash, required=True, help="address:bytes, the whole flash")
     parser.add_argument("--part", action="append", type=parse_part, default=[], help="file@address")
-    parser.add_argument("--blank", action="append", type=parse_blank, default=[], help="address:bytes")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if not args.part:
         parser.error("give a --part")
-    written = pages(args.part, args.blank)
+    written = pages(args.part, args.flash)
     args.out.write_bytes(uf2(written, FAMILIES[args.family]))
     print(f"{args.out}: {len(written)} blocks, {', '.join(f'{path.name}@{address:#x}' for path, address in args.part)}"
-          f"{''.join(f', blank {address:#x}+{size:#x}' for address, size in args.blank)}")
+          f", the rest of {args.flash[0]:#x}+{args.flash[1]:#x} erased")
 
 
 if __name__ == "__main__":

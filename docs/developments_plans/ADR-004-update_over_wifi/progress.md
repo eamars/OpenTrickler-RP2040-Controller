@@ -251,3 +251,12 @@ The owner, asked what the erase is for: there is little to no point going below 
 - **Read first:** the erase's one real use was going back to v1.20 or older on the Pico 2 W, whose ROM reads the partition table a 2.x full install writes; an older 2.x release needs none, its full install blanks slot B. v1.20 has faults ADR-013 fixed (a reading that does not parse sends both tricklers to full speed), so no user should be sent back to it. Raspberry Pi's own `flash_nuke.uf2` erases a Pico's flash for anyone who truly must.
 - **Removed:** `manuals/firmware_downgrade.md`; the erase files (`erase.uf2` in each build, `<board>_erase.uf2` in a release, the manifest's `erases`); the first install manual's note on older releases' `app.uf2`. The settings erase at the unit stays: it is a feature of its own (the menu, `POST /api/v1/system/erase`).
 
+### The full install wipes the flash (2026-11-16)
+
+The owner, asked whether a full install should put the same firmware into both slots: no; it should reset the unit to its factory state, which keeps no other image (README, "Owner's direction"). Until now it blanked only slot B's first 4 KB, enough for slot A to boot but leaving the rest of an older image there.
+- **Built:** `scripts/full_install_uf2.py` takes the flash's range and writes every page of it: the parts where they lie, erased flash elsewhere (2 MB on the Pico W, 4 MB on the Pico 2 W, `targets/flash_layout.cmake`). Every sector is then whole by construction. `rc_run.py flash`, the same install through the probe, erases the whole flash before it writes.
+- **Found:** the first try left the flash as it was. openocd refuses an erase while the chip runs ("Target not halted"; `program` halts it for itself), and `rc_run.py flash` counted only the programs' "Verified OK". It now halts first, and fails a flash whose erase does not report itself done.
+- **Shown:**
+  - both boards' full installs (built on 2464e6f) write every page of their flash in order, numbered right, the parts as built and everything else erased: the Pico W's 4.0 MB with 8,192 blocks, the Pico 2 W's 8.0 MB with 16,384;
+  - `rc_run.py flash` on the Pico W, whose slot B held the test image 2.0.255: the 2 MB erased in 6.1 s, the whole install in 19.6 s (13.3 s before); its flash read back whole: the bootloader and slot A as built, everything else erased, slot B's 1,016 KB included.
+- **Not yet shown:** the whole-flash full install by USB, on either unit, and how long its drag takes. It comes with the next candidate, `v2.0.2` (its notes written).
