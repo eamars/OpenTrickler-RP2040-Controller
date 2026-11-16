@@ -237,5 +237,11 @@ Approved by the owner as written ("Approve, build it"; README, "Release candidat
   - Shown: the release's own Pico W pages laid out by the fixed script (3,264 blocks, 14 erased pages added), dragged on by the owner. The unit booted 2.0.0 (21c5117) from A, not on trial, and every page of the file read back from flash the same.
   - Both boards' builds now make full installs of whole sectors (204 and 197).
 - **The second candidate, `v2.0.1`,** carries the fix; `v2.0.0`'s files stay as published. Tagged on cccb64e and pushed with the owner's word ("make a new tag for rc2"): CI's run 43831856123 passed and drafted it as a pre-release. From the draft: all eight sums hold, each manifest entry matches its file and its address under `v2.0.1`, the update images carry block 2.0.1, and both full installs and both erases are whole sectors (204, 197, 3 and 4).
-- **Not yet shown:** the owner's USB checks with v2.0.1's files on both units: the full install over a newer image in B, the drive appearing without BOOTSEL, the erase.
+- **The Pico W's full install by USB, shown with v2.0.1's own file** (21:40), published by the owner as a pre-release:
+  - set up through the probe: 2.0.0 in A, the test image 2.0.255 (newer than 2.0.1) confirmed in B and kept after a restart;
+  - the owner dragged `OpenTrickler-2.0.1-pico_w_full_install.uf2` onto the drive. The unit runs 2.0.1 (CI's build at cccb64e) from A, not on trial: the newer image in B did not win;
+  - all 3,264 pages of the file read back from flash the same, and the settings are those copied before the Pico W's first ADR-004 flash (`settings --compare logs/adr004/picow/before_adr004`);
+  - the release's addresses answer through GitHub's redirect, and `releases/latest` still leads to v1.20.
+- **Seen with v2.0.0's failed install:** the bootloader starting the USB loader when neither slot boots. Its own pages were whole, so the ROM ran it; slot A's first page was erased and slot B blanked, and the unit came up as its drive without BOOTSEL.
+- **Not yet shown:** the Pico W's erase by USB; the Pico 2 W's USB checks with v2.0.1's files (the full install over a newer image in B, the drive without BOOTSEL, the erase); the power pulls.
 
