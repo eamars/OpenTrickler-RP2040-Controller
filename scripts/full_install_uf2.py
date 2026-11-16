@@ -18,6 +18,7 @@ UF2_PAYLOAD = 256
 UF2_DATA_ROOM = 476
 FAMILIES = {"rp2040": 0xE48BFF56, "absolute": 0xE48BFF57}
 ERASED = 0xFF
+FLASH_SECTOR = 4096
 
 
 def parse_part(text):
@@ -50,7 +51,8 @@ def parse_blank(text):
 
 def pages(parts, blanks):
     """
-    The 256-byte pages to write, by address. A file's last page is filled out as erased flash.
+    The 256-byte pages to write, by address, whole 4 KB sectors. Each sector a part only begins or ends in is filled
+    out as erased flash.
 
     Args:
         parts: (path, address) pairs.
@@ -70,6 +72,12 @@ def pages(parts, blanks):
             if address + offset in written:
                 raise ValueError(f"two parts write the page at {address + offset:#x}")
             written[address + offset] = page
+    # Every sector it touches is written whole, so a sector's 16 pages are 16 blocks in a row that begin a 16-block
+    # stretch of the file, as in a UF2 the SDK makes. A sector that straddled two stretches lost the pages written
+    # before the second began: the Pico W's ROM had erased it again there (ADR-004, its first install by USB)
+    for sector in {address - address % FLASH_SECTOR for address in written}:
+        for address in range(sector, sector + FLASH_SECTOR, UF2_PAYLOAD):
+            written.setdefault(address, bytes([ERASED]) * UF2_PAYLOAD)
     return written
 
 

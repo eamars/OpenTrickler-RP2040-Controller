@@ -220,5 +220,22 @@ Approved by the owner as written ("Approve, build it"; README, "Release candidat
 - **Published by the owner as a pre-release** (20:46). Without a login, the manifest and the files answer 200 through one redirect to GitHub's download host (`release-assets.githubusercontent.com`); `releases/latest` still leads to v1.20, so `releases/latest/download/manifest.json` answers 404 and a unit's default source never sees the candidate.
 - **The Pico 2 W from the release's address** (`VERDICT PASS`, 20:48): `rc_run.py update --manifest https://github.com/eamars/OpenTrickler-RP2040-Controller/releases/download/v2.0.0/manifest.json`, from 1.20.0-222 in B: `OpenTrickler-2.0.0-pico2_w_update.bin` fetched by its `url`, sent in 12.6 s, confirmed 8.4 s after the install; the unit runs 2.0.0 from A, `version` and `block` both 2.0.0.
 - **The Pico W from the release's address** (`VERDICT PASS`, 20:57), from 1.20.218 in A: it took `OpenTrickler-2.0.0-pico_w_b_update.bin`, the image for its free slot, sent in 13.3 s, confirmed 8.8 s after the install; it runs 2.0.0 from B and now takes `pico_w_a`.
-- **Not yet shown:** the owner's USB checks with the release's files.
+
+### The first install by USB, and the second candidate (2026-11-16)
+
+- **v2.0.0's full install failed on the Pico W.** Set up for the owner's check (2.0.0 in A through the probe, then a test image 2.0.255 confirmed in B), the owner dragged `OpenTrickler-2.0.0-pico_w_full_install.uf2` onto its drive; the unit came back as its USB drive.
+- **What the probe showed:**
+  - core 0 in the boot ROM's USB code, core 1 parked in the ROM, the watchdog's reset (the ROM's restart after a download);
+  - the flash read through the ROM's own routines (`rp2xxx rom_api_call IF`, then `CX`). openocd's flash driver and plain reads gave only zeros there, since the ROM's USB mode leaves the flash unmapped;
+  - the bootloader's pages right, and slot B's first sector erased as meant. But 1,206 of slot A's 3,208 pages were erased: in every 4 KB sector the first 6, the other 10 right. So the bootloader found no image in either slot and started the USB loader, as it should.
+- **Why:** the lost pages are blocks 10 to 15 of every 16-block (8 KB) stretch of the file.
+  - The bootloader is 26 pages, not whole sectors, so every slot A sector began in one stretch and ended in the next, and the sector was erased again where the second began. A UF2 the SDK makes starts on a sector and runs on unbroken, so each sector lies within one stretch.
+  - The Pico 2 W's full install had the same fault from its first sector (its partition table is not whole sectors); it was not tried by USB. The erases were whole sectors already.
+  - Very likely what failed PR #111's combined `.uf2` too.
+  - Our full installs had only been written through the probe, never by USB, until the owner's check.
+- **Fixed:** `scripts/full_install_uf2.py` writes every sector it touches whole, the missing pages as erased flash.
+  - Shown: the release's own Pico W pages laid out by the fixed script (3,264 blocks, 14 erased pages added), dragged on by the owner. The unit booted 2.0.0 (21c5117) from A, not on trial, and every page of the file read back from flash the same.
+  - Both boards' builds now make full installs of whole sectors (204 and 197).
+- **The second candidate, `v2.0.1`,** carries the fix; `v2.0.0`'s files stay as published.
+- **Not yet shown:** the owner's USB checks with v2.0.1's files on both units: the full install over a newer image in B, the drive appearing without BOOTSEL, the erase.
 

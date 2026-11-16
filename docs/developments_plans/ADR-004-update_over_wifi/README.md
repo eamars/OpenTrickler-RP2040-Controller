@@ -152,7 +152,7 @@ The spare part costs nothing today and keeps a later need from changing the tabl
 ### The files a release carries
 
 For each board:
-- **the full install,** one `.uf2`: the bootloader (Pico W) or the partition table (Pico 2 W), the image in slot A with its mark cleared, and the start of slot B blanked;
+- **the full install,** one `.uf2`: the bootloader (Pico W) or the partition table (Pico 2 W), the image in slot A with its mark cleared, and the start of slot B blanked. It writes whole 4 KB sectors: the Pico W's ROM erased a sector again where the file split it (gate 3, the first install by USB);
 - **the update images:** the Pico W's for slot A and for slot B, the Pico 2 W's one;
 - and once for the release, **`manifest.json`:** the version, a note, an importance (normal, critical), and for each board and slot its file, size, SHA-256 and block version (written as `GET /api/v1/update` writes `running.block`, read from the image itself), so a unit knows whether it is newer before it fetches it. The offer (ADR-008, ADR-010) reads it; until then `rc_run.py` does.
 
