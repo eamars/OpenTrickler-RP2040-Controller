@@ -44,7 +44,7 @@ This ADR builds what that rests on: the flash layout, the boot path, the image's
 - The full install wipes the flash and installs the latest: on both boards it writes the bootloader (or the partition table), wipes the flash, and writes the firmware into slot A. It resets the unit to its factory state, which keeps no other image: slot B is erased, filled with 0xFF.
 
 **2026-11-16**, later, on the last checks:
-- The power pulls are made by the debug probe: the CPU halted and the chip restarted.
+- The power pulls are made by the debug probe: the CPU halted and the chip restarted. Then, on the Pico W's: skipped, since a unit a power loss leaves in any state is restored by the full install.
 - The first install's manual needs no one else to follow it: the agent-facing document is sufficient. The manual stays as it is, with a step added to tell the boards apart and so download the right file.
 
 **2026-11-16**, later, on the downgrade:
@@ -237,7 +237,7 @@ Each on the Pico W and the Pico 2 W.
 **Gate 2**
 - `rc_run.py update` from a local build's manifest: the unit comes back on the new version, confirmed, with its settings as they were; `menu_tour` and `charge_cycle` pass after.
 - Refused, each with its code and nothing installed: another board's image, the other slot's, a cut-off upload, a changed byte, an older version, an update during a charge (409).
-- The power cut during an upload, and during a trial, by the probe (the owner, 2026-11-16: both cores halted, the scratch registers a power cut clears set to zero, the chip restarted): each time the unit comes back on its old image.
+- The power cut during an upload, and during a trial, by the probe (the owner, 2026-11-16: both cores halted, the scratch registers a power cut clears set to zero, the chip restarted): each time the unit comes back on its old image. On the Pico 2 W; the Pico W's skipped by the owner (a full install restores a unit whatever a power loss left).
 - A unit started with its network off joins when the network comes back, and can then be updated.
 - An upload while two browsers use the web pages: the pages go on answering, and lwIP's heap holds (`net`).
 
