@@ -7,4 +7,9 @@
  */
 #define MBEDTLS_SHA256_C
 
+// ADR-010's measure build adds a TLS client (measure/)
+#if ADR010_MEASURE
+#include "measure_mbedtls_config.h"
+#endif
+
 #endif  // MBEDTLS_CONFIG_H_

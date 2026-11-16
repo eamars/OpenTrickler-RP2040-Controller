@@ -7,3 +7,7 @@
 [submodule "library/u8g2"]
 	path = library/u8g2
 	url = https://github.com/olikraus/u8g2.git
+[submodule "library/lvgl"]
+	path = library/lvgl
+	url = https://github.com/lvgl/lvgl.git
+	shallow = true

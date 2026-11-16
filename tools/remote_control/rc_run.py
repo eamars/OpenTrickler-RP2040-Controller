@@ -2992,7 +2992,7 @@ def main():
     parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
     parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
     sub = parser.add_subparsers(dest="command", required=True)
-    send_parser = sub.add_parser("send", help="send command lines, one after another")
+    send_parser = sub.add_parser("send", help="send command lines, one after another; `pause <seconds>` waits")
     send_parser.add_argument("lines", nargs="+")
     sub.add_parser("flash", help="flash the build through the probe and check it runs")
     sub.add_parser("reset", help="reset the chip through the probe")
@@ -3101,7 +3101,12 @@ def run_command(session, args):
     """
     if args.command == "send":
         for line in args.lines:
-            session.send(line)
+            # `pause <seconds>` waits on the PC between lines, for a command whose work outlasts its reply
+            if line.startswith("pause "):
+                session.log.write("rc", f"pause {float(line.split()[1]):.1f} s")
+                time.sleep(float(line.split()[1]))
+            else:
+                session.send(line)
     elif args.command == "snap":
         session.save_snap(LOG_DIR / "snaps" / f"{session.log.path.stem}.png")
     elif args.command == "menu_tour":

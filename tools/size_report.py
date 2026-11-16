@@ -43,6 +43,8 @@ PARTS = (
     ("lwIP", re.compile(r"^library/pico-sdk/lib/lwip/|pico_lwip")),
     ("TinyUSB", re.compile(r"^library/pico-sdk/lib/tinyusb/")),
     ("u8g2 and MUI", re.compile(r"u8g2")),
+    ("LVGL", re.compile(r"^library/lvgl/|liblvgl")),
+    ("mbedTLS", re.compile(r"^library/pico-sdk/lib/mbedtls/")),
     ("FreeRTOS", re.compile(r"^library/FreeRTOS-Kernel/")),
     ("Trinamic", re.compile(r"^library/Trinamic-library/")),
     ("Pico SDK", re.compile(r"pico-sdk/")),

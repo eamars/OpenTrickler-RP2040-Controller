@@ -33,6 +33,10 @@
 #include "activity.h"
 #include "update.h"
 #include "wireless.h"
+#if ADR010_MEASURE
+#include "measure_lvgl.h"
+#include "measure_tls.h"
+#endif
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -653,6 +657,11 @@ static const remote_control_command_t remote_control_commands[] = {
     {"setting", remote_control_setting},
     {"update", remote_control_update},
     {"wifi", remote_control_wifi},
+#if ADR010_MEASURE
+    // ADR-010, gate 1: LVGL and TLS measured on the unit (measure/)
+    {"lvgl", measure_lvgl_console},
+    {"tls", measure_tls_console},
+#endif
 };
 
 #define REMOTE_CONTROL_COMMAND_COUNT (sizeof(remote_control_commands) / sizeof(remote_control_commands[0]))
