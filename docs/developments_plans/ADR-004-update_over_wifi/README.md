@@ -1,6 +1,6 @@
 # ADR-004: firmware update over Wi-Fi
 
-Status: **Built** 2026-11-16, closed in its branch; its PR is opened at the owner's word ("Close it, open the PR"). Drafted 2026-11-13, written in full 2026-11-16 from the owner's direction that day, and approved by the owner the same day as written ("Approve as written"), starting with gate 1 on the Pico 2 W. Gate 3's release candidates on GitHub were added later that day from the owner's direction, and approved by the owner the same day ("Approve, build it"; "Release candidates on GitHub"). What was built and measured is in [progress](progress.md).
+Status: **Built** 2026-11-16, and merged by #130 the same day, reviewed by the owner. Its PR was opened at the owner's word ("Close it, open the PR"). Drafted 2026-11-13, written in full 2026-11-16 from the owner's direction that day, and approved by the owner the same day as written ("Approve as written"), starting with gate 1 on the Pico 2 W. Gate 3's release candidates on GitHub were added later that day from the owner's direction, and approved by the owner the same day ("Approve, build it"; "Release candidates on GitHub"). What was built and measured is in [progress](progress.md).
 
 ## What we want
 

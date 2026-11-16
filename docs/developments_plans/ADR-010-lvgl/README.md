@@ -55,6 +55,10 @@ Last of the large changes: the screens then sit on a split application (ADR-006)
 - **To find out first:**
   - **The poll needs the unit to fetch a release itself,** over HTTPS from GitHub, with TLS on the unit. On the Pico W that competes with LVGL for room: its image is 799.3 KB of its 1,016 KB slot, 216.7 KB left (the release 1.20.218, 2026-11-16), against LVGL's estimate of 120 to 200 KB. Measure both before deciding the Pico W's offer. A source on the owner's network served over plain HTTP needs no TLS.
 
+**Handed on by ADR-005** (2026-11-17, closed as a scoping ADR):
+- **LVGL is measured on two builds,** the shipping one and a size-optimised one (MinSizeRel), and the Pico W decided on the second. At `-O0` its size and speed would both be overstated. If it fits only optimised, ADR-005's optimised build is made first.
+- **RAM is the Pico W's tighter limit:** 224 of 256 KB taken at link time on either build, 112 KB of it the FreeRTOS heap, whose high-water mark is not known. This ADR's first step measures it, beside LVGL's buffers.
+
 ## Ideas
 
 - **Measure first.** One LVGL screen on each board, beside u8g2, only to read flash and RAM from the size report and `stats`. Estimate: 120 to 200 KB of flash and 30 to 50 KB of RAM. If Pico W cannot hold it, the owner decides Pico W's future there, by ADR-005's rule 5.

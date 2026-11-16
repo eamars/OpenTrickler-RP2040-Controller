@@ -40,6 +40,7 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - The web page also takes a firmware file uploaded by hand, for those who want it ("prosumers").
   - The screen only polls the source the web set, and offers an update from a row in the main menu (ADR-010), never a pop-up at every start.
   - No authentication for now: the unit has no password either, and a PIN would make the screen mandatory, which some users may not want. Perhaps an optional feature later.
+- **PR #111 stays open until this ADR's offer works** (the owner, 2026-11-17): the whole OTA flow shown end to end, from the offer on the page to the unit confirmed on the new version. Then it is closed with its note, on the owner's word.
 - **What follows, and is recommended here:** the unit polls the source, not the browser. The screen needs the unit to poll anyway, so the web page shows the same offer the screen does. That is one implementation, not two, and the page then needs no access to GitHub of its own. The poll, the download into the free slot and the source setting are firmware, and come with this ADR, which is built before ADR-010.
 - **What the page has to do,** so a person needs to know none of it (the owner's "too prosumer" list: where firmware comes from, which file is theirs, that the power must stay on, the wrong board):
   - **the source:** GitHub's latest release by default, or another manifest's address (a mirror on the owner's network, as the Open Weapon Mount Computer's bench host `ota_host.py` is). It is a stored setting: give it a module's own slot, or say so in this ADR if it changes a stored struct's layout (AGENTS.md);
@@ -54,6 +55,11 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured before it is built (ADR-005); the Pico W's slot has 216.7 KB left at 1.20.218 (ADR-010's hand-on). A mirror on the owner's network can serve plain HTTP and needs no TLS.
   - On the unit's own access point there is no internet: no poll there, but the upload by hand works.
   - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check a file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
+
+**Handed on by ADR-005** (2026-11-17, closed as a scoping ADR):
+- **The feature table and the unit's report** of what it carries (ADR-005's rule 3) are built here, as their first reader: build options with a default per board, one generated header, one answer from the unit. The page shows only what is there.
+- **The pages' size is this ADR's.** Today's 101 KB in the Pico W image are our own pages, unminified and uncompressed (19 KB gzipped). Tailwind and DaisyUI are not in the image; the browser fetches them from CDNs, so a page that works offline adds them, trimmed to what it uses.
+- **What this ADR adds** (the pages, and HTTPS for the unit's own fetch) is measured on two builds, the shipping one and a size-optimised one (MinSizeRel), and decided on the second. If it fits only optimised, ADR-005's optimised build is made first.
 
 ## Ideas
 
