@@ -200,3 +200,21 @@ The owner put the Pico 2 W back on the probe at 19:30, for the build's change fo
 - a confirmed update with two browsers on the pages (1.20.900): 0 of 88 web reads missed, the longest 0.53 s, confirmed 8.4 s after the install;
 - the release's full install through the probe over the newer slot A image, which booted 1.20.218 from A; then `menu_tour` against `tests/menu_baseline/pico2_w` (the version form differs, not judged), `charge_cycle` (30.000 for 30), `api_check` (32 paths read twice, 24 of 24 actions) and the settings compared with the copy: the same.
 
+## Gate 3's release candidates on GitHub, built (2026-11-16)
+
+Approved by the owner as written ("Approve, build it"; README, "Release candidates on GitHub"), with each file's name carrying its version.
+
+- **Built** (dc6db4f, 8f4d4a4):
+  - **versions of three numbers** (`scripts/gen_version.py`): `X.Y.Z` at a tag `vX.Y.Z`, `X.Y.Z-N` a build N commits after it. A tag `vX.Y` counts as `X.Y.0`, so this branch's builds are 1.20.0-N and keep their block numbers (276, N). The metadata block carries `X × 256 + Y` and `Z × 256 + N`, N held at 255. The firmware writes it as text the same way (`running.block`, `last.version`), as `release_manifest.py` and `rc_run.py` do;
+  - **each release file named with its version** (`OpenTrickler-<version>-...`); `manifest.json` and `SHA256SUMS` keep their names. On a tag's release each manifest entry also gives its address (`url`);
+  - **`build_release.py --tag vX.Y.Z`** refuses a tag without its notes (`docs/releases/<tag>.md`, `<tag>_note.txt`) and a firmware that does not report the tag; it takes the manifest's note from the note file and gives the addresses. CI runs it on a tag, then drafts a pre-release: the notes, the SHA-256 in its text, every file. The generated `RELEASE_NOTES.md`, which gave install steps, is gone;
+  - **`docs/releases/`:** its README (the steps, as the Open Weapon Mount Computer's), `v2.0.0.md` and `v2.0.0_note.txt` (a test build, not for use, no install steps). The manuals name a file by the end of its name;
+  - **`rc_run.py update --manifest <address>`:** the manifest, and the file the unit takes, fetched by their addresses (an entry's `url`, or beside the manifest).
+- **Found:** `release_manifest.py` read no image's version after the change: the version's two numbers had been named as the first block's offset, so its block loop never found its way back. Its own refusal of an image with no version stopped both release builds; fixed in 8f4d4a4.
+- **Shown on the PC:**
+  - `build_release.py --tag v2.0.1` refused before building (`docs\releases\v2.0.1.md is missing`); `--tag v2.0.0` with no such tag refused (`the firmware reports 1.20.0-222, not the tag v2.0.0`);
+  - at a local tag `v2.0.0`, deleted once its build ended and never pushed: the firmware reported 2.0.0; seven files each named `OpenTrickler-2.0.0-...`, `manifest.json` (version 2.0.0, its note from the note file, the three update images at block 2.0.0, every entry's address under `releases/download/v2.0.0/`) and `SHA256SUMS`, all eight checked by `sha256sum -c`;
+  - CI's step for the page's text, run with the v2.0.0 notes: the title dropped, the SHA-256 appended, links into the repository pinned to the tag.
+- **Shown on the Pico 2 W** (`VERDICT PASS`, 20:09): `rc_run.py update --manifest http://127.0.0.1:8765/manifest.json`, the release's folder served from the PC: from 1.20.218 to 1.20.0-222 (`OpenTrickler-1.20.0-222-pico2_w_update.bin`), confirmed 9.4 s after the install, the unit giving `version` and `block` alike, 1.20.0-222.
+- **Not yet shown:** CI's run on a tag and its draft; the release's addresses on GitHub with their redirect; `releases/latest` not leading to the pre-release. They come with the first candidate's tag, pushed on the owner's word.
+

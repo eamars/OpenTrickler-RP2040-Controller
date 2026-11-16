@@ -1,6 +1,6 @@
 # ADR-004: firmware update over Wi-Fi
 
-Status: **Open** 2026-11-16. Drafted 2026-11-13, written in full 2026-11-16 from the owner's direction that day, and approved by the owner the same day as written ("Approve as written"), starting with gate 1 on the Pico 2 W. Gate 3's release candidates on GitHub were added later that day from the owner's direction, for the owner's approval ("Release candidates on GitHub"). What was built and measured is in [progress](progress.md).
+Status: **Open** 2026-11-16. Drafted 2026-11-13, written in full 2026-11-16 from the owner's direction that day, and approved by the owner the same day as written ("Approve as written"), starting with gate 1 on the Pico 2 W. Gate 3's release candidates on GitHub were added later that day from the owner's direction, and approved by the owner the same day ("Approve, build it"; "Release candidates on GitHub"). What was built and measured is in [progress](progress.md).
 
 ## What we want
 
@@ -171,7 +171,7 @@ The start of slot B is blanked because the higher version boots: an older or equ
 - **Wi-Fi joins again** when its network comes back, so a unit that started before its router can be updated (ADR-012's hand-on).
 - **`rc_run.py update --host <address> --manifest <path or address>`** reads a manifest, takes the file the unit asks for, and passes when the unit reports the new version confirmed. It plays the offer's part until the UIs come, as `ota_host.py` does on the Open Weapon Mount Computer's bench.
 
-### Release candidates on GitHub (gate 3's addition, 2026-11-16, for the owner's approval)
+### Release candidates on GitHub (gate 3's addition, approved by the owner 2026-11-16)
 
 Nothing goes to users yet. Before the final firmware, release candidates go out on GitHub to try GitHub's side: the files, their addresses, the manifest, and an update from them on both units. The process is the Open Weapon Mount Computer's (its `.github/workflows/firmware.yml` and `docs/releases/README.md`, read 2026-11-16), so the owner releases both projects alike.
 
@@ -210,7 +210,7 @@ Nothing goes to users yet. Before the final firmware, release candidates go out 
 
 **Gate 2: the update through the API.** The job, the checks, the trial and its confirmation, Wi-Fi joining again, `rc_run.py update`.
 
-**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual and the downgrade's, each tried by someone following only the manual. Its release candidates on GitHub (above), added 2026-11-16 for the owner's approval.
+**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual and the downgrade's, each tried by someone following only the manual. Its release candidates on GitHub (above), added and approved 2026-11-16.
 
 ## How the unit shows it works
 
