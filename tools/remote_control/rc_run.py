@@ -123,7 +123,8 @@ MENU_TOUR_LIVE_PAGES = {"settings/firmware": "the version, the build and the uni
                         "charge": "the target, which lives in RAM until ADR-014 and a charge or the API sets",
                         "wifi": "the network's address and signal",
                         "settings/scale": "the scale's reading"}
-# The remote mark stays 30 s after a write over the web (menu_nav.c, MENU_REMOTE_MS): the tour waits it out
+# The remote mark stays 30 s after a write over the web (menu_nav.c, MENU_REMOTE_MS), and the Wi-Fi's is missing
+# while the station joins: the tour waits for both to settle
 MENU_TOUR_REMOTE_WAIT_S = 35
 
 # The settings over API v1 (ADR-003, gate 3). GET /api/v1/settings gives every settings resource and powder profile
@@ -1280,13 +1281,14 @@ class Session:
             self.fail(f"the menu gives no pages: {reply}")
             return
         page_ids = [line.split(" ", 1)[1] for line in self.console.data_lines if line.startswith("@page ")]
-        # Every page's title shows the marks: the remote one stays 30 s after a write over the web, so the tour waits
-        # for it to go, or every picture would differ from one taken at rest
+        # Every page's title shows the marks, so the tour waits for them to settle, or every picture would differ from
+        # one taken at rest: the remote one stays 30 s after a write over the web, and the Wi-Fi's (W or AP) is not
+        # shown while the station joins, some 25 s after a start (seen on the Pico W right after a flash)
         deadline = time.monotonic() + MENU_TOUR_REMOTE_WAIT_S
         while time.monotonic() < deadline:
             self.console.command("screen")
             marks = next((line for line in self.console.data_lines if line.startswith("@screen ")), "")
-            if not re.search(r"marks=\S*R", marks):
+            if not re.search(r"marks=\S*R", marks) and re.search(r"marks=(W|AP)", marks):
                 break
             time.sleep(1.0)
         out_dir = Path(save_dir) if save_dir else LOG_DIR / "snaps" / self.log.path.stem

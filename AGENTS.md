@@ -71,7 +71,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 
 ## Proving a change on a unit
 
-Changes are proven on a real unit, not only built. The usual proof, after a build: `rc_run.py flash`, then `rc_run.py menu_tour --compare tests/menu_baseline/<board>` (the unit's own; the Pico W's is saved at its first run with ADR-010's menu), then `rc_run.py charge_cycle`. Each must end `VERDICT PASS`. A change meant to alter a screen updates the baseline in the same commit, with `--save`.
+Changes are proven on a real unit, not only built. The usual proof, after a build: `rc_run.py flash`, then `rc_run.py menu_tour --compare tests/menu_baseline/<board>` (the unit's own), then `rc_run.py charge_cycle`. Each must end `VERDICT PASS`. A change meant to alter a screen updates the baseline in the same commit, with `--save`.
 
 - **One unit is enough for a change in the application layer** (the owner, 2026-11-15: "We don't need to repeat on Pico W for application layer changes"). Read here as:
   - a change that touches nothing the two boards differ in (the modes, the control loop, the menu's logic, the profiles) is proven on whichever unit is on the probe;
@@ -102,7 +102,7 @@ Changes are proven on a real unit, not only built. The usual proof, after a buil
   - `reset`: a whole-chip reset by the watchdog (openocd's own `reset run` locked the RP2040 up, F8);
   - `watch <seconds>`: log the console for a time;
   - `snap`: the screen as a PNG under `logs/rc/snaps/`, as a person at the unit sees it;
-  - `menu_tour [--save <folder>] [--compare <folder>]`: every page of the menu in turn, opened by its id (`page_<id>.png`), pressing nothing; it first waits out the remote mark, which every title shows. The Pico 2 W's baseline is `tests/menu_baseline/pico2_w/`. The Pico W's, `tests/menu_baseline/pico_w/`, is saved at its first run with ADR-010's menu (not yet: 2026-11-17). Compare against the unit's own to see what a change did to the menu.
+  - `menu_tour [--save <folder>] [--compare <folder>]`: every page of the menu in turn, opened by its id (`page_<id>.png`), pressing nothing; it first waits for the marks every title shows to settle (the remote mark gone, the Wi-Fi's shown). The baselines are `tests/menu_baseline/pico2_w/` and `tests/menu_baseline/pico_w/` (each unit's own settings: the Pico W's display is stored upside down). Compare against the unit's own to see what a change did to the menu.
   - `charge_cycle [--target 30]`: a charge from zero to cup return and the start of the next one, with main's simulated scale switched on for the run (`sim on`), never stored;
   - `pulses`: whether the step pulses stop on a probe reset, an assert and a hard fault. All three are judged. It needs the two test images, built with `-DRC_TEST_FAULT=1` and `=2` into `build_w_fault1` and `build_w_fault2` (`build_2w_fault1` and `2` for the Pico 2 W, given with `--assert-elf` and `--hardfault-elf`);
   - `settings --host <address> [--save <folder>] [--compare <folder>]`: the stored settings copied over the web API (`GET /api/v1/settings`, which changes nothing) and compared with an earlier copy, a field at a time; the firmware's version is reported, not judged. Take one before every flash of another version. Copies made before ADR-003's gate 3 are of the old paths and do not compare: the Pico W's v1 copy is `logs/adr003/picow/before_gate3_v1/`. A unit still on such a firmware is copied with the `rc_run.py` of a commit before gate 3 (`git show <commit>:tools/remote_control/rc_run.py`);

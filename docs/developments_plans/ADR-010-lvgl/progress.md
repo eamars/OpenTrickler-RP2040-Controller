@@ -191,8 +191,8 @@ place in the API's schema and in api_v1.md.
   - the remote mark after a write over the API;
   - `charge_cycle`; `api_check`, 24 of 24 actions.
 - **Left for the owner's bench:** the Pico W on the probe for its run (the menu draws on both chips alike, but the
-  panel, the input and memory are a driver's and memory's change, proven on both): `flash`, `menu_tour --save
-  tests/menu_baseline/pico_w`, `charge_cycle`, `stats` for its heap at rest, and the owner's own use by hand.
+  panel, the input and memory are a driver's and memory's change, proven on both). Done the next morning, below,
+  but for the owner's own use by hand.
 
 ## Gate 4: a second reading, and its fixes (2026-11-17)
 
@@ -226,10 +226,55 @@ After the fixes, on the Pico 2 W: the editor's test above, `charge_cycle`, `api_
 has its parents focused on the row that leads to it, as the knob would have left them; `tests/web_test_data.json`
 recorded again from the unit, its schema without the calibration.
 
+## Gates 2 and 4 on the Pico W (2026-11-17)
+
+The owner put the Pico W on the probe the next morning. The Pico 2 W stays on the owner's Wi-Fi at 192.168.2.166,
+running gate 4's build, with the A&D on it.
+
+- **Its settings were copied first** (`logs/adr010/picow/before_gate4/`, at 2.0.2), and were unchanged after.
+- **Proven,** at 7d83ab9 (2.0.2-26):
+  - `flash`;
+  - `menu_tour --save tests/menu_baseline/pico_w`: its 10 pages, the Pico W's first baseline. Against the Pico 2
+    W's baseline, the one judged page that differs is Display: this unit stores its rotation as 180 ("Upside
+    down"), the other as 0;
+  - `charge_cycle`;
+  - `api_check`, 24 of 24 actions.
+- **The tour raced the Wi-Fi's join.** Run at once after a flash, about 22 s after the start, every page lacked the
+  `W` mark and differed from the baseline. The tour now waits for the marks to settle: no `R`, and `W` or `AP`
+  shown. Run straight after a restart, it waited about 5 s and passed.
+- **Memory:**
+  - the FreeRTOS heap at rest: 53,784 bytes free, against 59,216 at 2.0.2, which is the job task's 4 KB and the
+    menu task's 2 KB more. Its lowest was 52,616, after the tour and a charge;
+  - LVGL's heap held 8,424 bytes at most, of 12 KB;
+  - flash 862.0 KB of the 1,016 KB slot; RAM at link 241.0 KB of 256.
+
+## Gate 5: an HTTPS fetch on the Pico W, measured (2026-11-17)
+
+Gate 1 computed the Pico W from the Pico 2 W. With the Pico W on the probe, the measure build (gate 4's code with
+the TLS client, `-DADR010_MEASURE=ON`) was run on it against the local OTA server, and gate 4's build was put back
+after. Its image is 944.9 KB of the slot, and RAM at link is 247.3 KB of 256.
+
+- **The FreeRTOS heap** had 53,776 bytes free at rest. A fetch through the main host's redirect to the asset host
+  (the ECDSA chain, then the RSA chain) took its low mark to 5,280: 48,496 bytes. That is with the fetch in its
+  own task, on an 8 KB stack of which it used 2.4 KB, and with the four roots parsed.
+- **mbedTLS's peak** was 38,788 bytes, as on the Pico 2 W. The body of the 820 KB update image added nothing.
+- **Handshakes:** 6.1 to 6.3 s for the ECDSA chain and 2.2 to 2.3 s for the RSA chain. The Pico 2 W's same Debug
+  build took 7.6 s and 2.0 s. The Cortex-M0+ is no slower here, so gate 1's worry, handshakes several times the
+  Pico 2 W's, does not hold.
+- **The update image** (820 KB) took 20.3 s over HTTPS and 5.6 s over plain HTTP.
+- **What it leaves for the poll,** computed from these figures:
+  - GitHub's chains take 1,952 bytes more at mbedTLS's peak (gate 1), so a fetch from GitHub would leave about
+    3.3 KB at rest, as measured.
+  - The fetch done in the job task, with no task of its own, gives back the 8 KB stack, less what the job task's
+    stack must grow by (the fetch used 2.4 KB).
+  - Only GitHub's two roots give back about 3.3 KB more.
+  - That leaves about 12 to 15 KB at the fetch's peak at rest. Take off the web's load (3.3 KB in a soak at 2.0.2)
+    and the update's 4 KB flash sector while it writes, and 5 to 7 KB are left.
+  - This is what gate 1 computed, but its base is now measured on the Pico W. Gate 5 measures its own build.
+
 ## Gate 5, the poll: what it waits on
 
-- **The Pico W's FreeRTOS heap with gate 4,** measured on the unit. Gate 1 computed about 14 KB left at an HTTPS
-  fetch's peak, with three trims; gate 2's job task (4 KB) and the menu's larger stack (2 KB) now take from it. The
-  job task would do the download itself, with no task of its own for TLS, and its stack's high-water mark decides
-  its size.
+- ~~**The Pico W's FreeRTOS heap with gate 4.**~~ Measured 2026-11-17, above. The job task would do the download
+  itself, with no task of its own for TLS, and its stack's high-water mark decides its size.
 - **The stored channel and source:** a struct in a module's own slot in the EEPROM, said in this ADR when built.
+- **The owner's answers:** the beta channel as proposed, and the ADR's approval (on PR #132).
