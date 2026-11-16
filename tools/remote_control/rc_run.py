@@ -23,6 +23,7 @@ import base64
 import collections
 import datetime
 import http.client
+import hashlib
 import json
 import math
 import os
@@ -37,6 +38,7 @@ import threading
 import time
 import traceback
 import urllib.error
+import urllib.parse
 import urllib.request
 import zlib
 from pathlib import Path
@@ -64,6 +66,11 @@ BOARDS = {
         "target": "target/rp2040.cfg", "build": "build_w", "cores": ["rp2040.core0", "rp2040.core1"],
         "reset": ["mww 0x4005801c 0", "mww 0x40010008 0x1fffc", "mww 0x40058000 0x80000000"],
         "step_status": {"coarse": 0x40014018, "fine": 0x40014040},
+        # Its flash layout (ADR-004, src/update_boot.h): our bootloader at the start, slot A after it, slot B after
+        # A. A full install writes the bootloader and slot A's image (built with APP_SLOT=A)
+        "layout": {"first": "bootloader.bin", "slot_a": 0x10004000, "slot_b": 0x10102000, "flash_bytes": 0x200000},
+        # What a watchdog restart keeps and a power cut clears: the watchdog's eight scratch registers
+        "power_scratch": [0x4005800C],
     },
     # The RP2350's registers, from the SDK's headers (watchdog.h, psm.h, io_bank0.h): the same reset as the
     # RP2040's, every power domain but the two oscillators (PSM_WDSEL_BITS less ROSC and XOSC, as
@@ -73,8 +80,17 @@ BOARDS = {
         "target": "target/rp2350.cfg", "build": "build", "cores": ["rp2350.cm0", "rp2350.cm1"],
         "reset": ["mww 0x400d801c 0", "mww 0x40018008 0x01fffff3", "mww 0x400d8000 0x80000000"],
         "step_status": {"coarse": 0x40028018, "fine": 0x40028040},
+        # Its flash layout (ADR-004, targets/pico2_w_partition_table.json): the ROM's partition table at the start,
+        # slot A after it, slot B after A. The image is written as its .bin into a slot, not by its ELF, which is
+        # linked at the start of flash, where the ROM maps the slot it boots
+        "layout": {"first": "partition_table.bin", "slot_a": 0x10002000, "slot_b": 0x101C2000, "flash_bytes": 0x400000},
+        # What a watchdog restart keeps and a power cut clears: the watchdog's eight scratch registers and the power
+        # manager's, where the update's note lives (src/update_slots_rp2350.c)
+        "power_scratch": [0x400D800C, 0x401000B0],
     },
 }
+SECTOR_BYTES = 4096
+PICOBIN_BLOCK_START = 0xFFFFDED3     # boot/picobin.h: a metadata block's first word
 GPIO_STATUS_OUTTOPAD = 0x200
 STEP_SAMPLES = 200
 # A STEP pin is high half the time while its motor turns (ADR-012), and stays low, or high, when it does not
@@ -144,6 +160,12 @@ SOAK_EVENTS_WAIT_S = 10
 # --upload (ADR-003, gate 4): ADR-004's image, a body taken in pieces, sent back to back
 SOAK_UPLOAD_BYTES = 700 * 1024
 SOAK_UPLOAD_TIMEOUT_S = 30.0    # Python's sendall times the whole body: some 4 s at the bench's 190 KB/s
+# update (ADR-004, gate 2)
+UPDATE_UPLOAD_TIMEOUT_S = 120.0     # the image, written into flash a sector at a time as it comes
+UPDATE_RECEIVING_S = 10.0           # from the start until the menu has begun the job
+UPDATE_BACK_ON_NETWORK_S = 60.0     # from the install until the unit answers again
+UPDATE_SETTLED_S = 120.0            # from the install until the trial has ended: confirmed, or back after its minute
+UPDATE_RECEIVING_IDLE_S = 30.0      # update.c: a job that gets no bytes for this long ends (time)
 
 # scale_frames (ADR-013): the motors as in a throw on the bench's settings (the coarse trickler at its 5 rev/s cap)
 SCALE_FRAMES_COARSE_RPS = 5.0
@@ -535,6 +557,28 @@ def http_call(host, method, path, body=None):
         return status, None
 
 
+def read_until_closed(sock):
+    """
+    What a unit sends on a connection until it closes it, or until the socket's timeout.
+
+    Args:
+        sock: a connected socket, with its timeout set.
+
+    Returns:
+        The bytes.
+    """
+    got = b""
+    try:
+        while True:
+            more = sock.recv(4096)
+            if not more:
+                break
+            got += more
+    except OSError:
+        pass
+    return got
+
+
 def http_put_bytes(host, path, data, timeout_s):
     """
     A PUT of bytes as application/octet-stream (ADR-003, gate 4: a body taken in pieces), its status and its JSON.
@@ -577,6 +621,120 @@ def build_version(build_dir):
     return version, vcs
 
 
+def read_manifest(source):
+    """
+    A release's manifest (ADR-004), from a file or from its address: GitHub's, or a mirror's. From an address, each file
+    is fetched from its own `url` when the manifest gives one (a tag's release), else from beside the manifest, so the
+    same files and addresses a unit's own fetch will use are what is tried.
+
+    Args:
+        source: a path to manifest.json, its files beside it; or its address (http:// or https://).
+
+    Returns:
+        (the manifest, a function giving an entry's bytes).
+    """
+    if re.match(r"https?://", source):
+        def fetch(url):
+            # GitHub's release files redirect to another host, which urllib follows
+            with urllib.request.urlopen(url, timeout=UPDATE_UPLOAD_TIMEOUT_S) as reply:
+                return reply.read()
+
+        manifest = json.loads(fetch(source))
+        return manifest, lambda entry: fetch(entry.get("url") or urllib.parse.urljoin(source, entry["file"]))
+    path = Path(source)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    return manifest, lambda entry: (path.parent / entry["file"]).read_bytes()
+
+
+def block_version(elf):
+    """
+    The version in an image's metadata block (ADR-004), read from the .bin beside its ELF as src/picobin_image.c reads
+    it: the first block within the first 4 KB, then the block loop, the last image definition's version. picotool's
+    `info` does not read an RP2040 image that does not start at the start of flash, as a Pico W slot's does.
+
+    Args:
+        elf: the image's ELF.
+
+    Returns:
+        "first.second", or None when the image has no version in a block.
+    """
+    return block_version_of(Path(elf).with_suffix(".bin").read_bytes())
+
+
+def block_version_text(data):
+    """
+    An image's block version as the firmware writes it (`running.block`, `last.version`): (512, 256) is "2.0.1",
+    (276, 218) is "1.20.0-218" (scripts/gen_version.py's block_text).
+
+    Args:
+        data: the image's bytes.
+
+    Returns:
+        The text, or None when the image has no version in a block.
+    """
+    version = block_version_of(data)
+    if version is None:
+        return None
+    first, second = (int(part) for part in version.split("."))
+    commits = second & 0xFF
+    return f"{first >> 8}.{first & 0xFF}.{second >> 8}{f'-{commits}' if commits else ''}"
+
+
+def block_version_of(data):
+    """
+    The version in an image's metadata block, from its bytes (block_version).
+
+    Args:
+        data: the image's bytes.
+
+    Returns:
+        "first.second", or None when the image has no version in a block.
+    """
+    first = next((at for at in range(0, min(len(data), 0x1000) - 3, 4)
+                  if struct.unpack_from("<I", data, at)[0] == PICOBIN_BLOCK_START), None)
+    if first is None:
+        return None
+    version, at = None, first
+    for _ in range(8):
+        index = at + 4
+        image_def, block_version_found = False, None
+        while index + 4 <= len(data):
+            header = struct.unpack_from("<I", data, index)[0]
+            kind = header & 0xFF
+            words = (header >> 8) & (0xFFFF if kind & 0x80 else 0xFF)
+            if kind == 0xFF:    # the last item: then the link to the next block
+                at += struct.unpack_from("<i", data, index + 4)[0]
+                break
+            if kind == 0x42 and (header >> 16) & 0xF == 1:     # an executable's image type
+                image_def = True
+            if kind == 0x48:
+                minor, major = struct.unpack_from("<2H", data, index + 4)
+                block_version_found = f"{major}.{minor}"
+            index += max(words, 1) * 4
+        if image_def:
+            version = block_version_found
+        if at == first:
+            return version
+    return None
+
+
+def expected_block_version(version):
+    """
+    The metadata block's version a firmware version is given (scripts/gen_version.py's block_version).
+
+    Args:
+        version: the firmware's version string: "2.0.1", "2.0.1-5" (5 commits after its tag), either "-dirty".
+
+    Returns:
+        "first.second", or None for a version that is not X.Y.Z.
+    """
+    found = re.match(r"(\d+)\.(\d+)\.(\d+)(?:-(\d+))?", version)
+    if not found:
+        return None
+    major, minor, patch, commits = (int(part or 0) for part in found.groups())
+    return f"{major * 256 + minor}.{patch * 256 + min(commits, 255)}"
+
+
 class Openocd:
     """One openocd process for the probe and the chip, driven through its Tcl port."""
 
@@ -591,6 +749,14 @@ class Openocd:
         self.board = board
         self.log = log
         self.output = []    # every line openocd printed, for checks such as "Verified OK"
+        # Another openocd on the Tcl port holds the probe, and this session's commands would go to it unseen: one
+        # left by a session that died at its start flashed a unit while its own openocd found no probe (ADR-004)
+        try:
+            socket.create_connection(("127.0.0.1", TCL_PORT), timeout=1).close()
+        except OSError:
+            pass
+        else:
+            raise RuntimeError(f"another openocd holds the Tcl port {TCL_PORT}: stop it first")
         exe = OPENOCD_DIR / "openocd.exe"
         command = [
             str(exe), "-s", str(OPENOCD_DIR / "scripts"),
@@ -681,7 +847,8 @@ class Openocd:
         A core's state as openocd knows it. "unknown" is openocd not knowing yet, not the core's state: upstream
         FreeRTOS resets core 1 as the scheduler starts (ADR-011, step 2), and on the RP2040, where each core has
         its own debug port, openocd needs a moment after that to see core 1 again. So "unknown" is asked again
-        until CORE_STATE_WAIT_S has passed.
+        until CORE_STATE_WAIT_S has passed. On the RP2350 openocd names that moment "reset" (seen 0.2 s after a
+        restart, ADR-004), so "reset" is asked again too.
 
         Returns:
             "running", "halted", "reset", or "unknown" when openocd still does not know.
@@ -689,7 +856,7 @@ class Openocd:
         deadline = time.monotonic() + CORE_STATE_WAIT_S
         while True:
             state = self.cmd(f"{core} curstate").strip()
-            if state != "unknown" or time.monotonic() > deadline:
+            if state not in ("unknown", "reset") or time.monotonic() > deadline:
                 return state
             time.sleep(0.5)
 
@@ -862,7 +1029,11 @@ class Session:
         self.last_up = None
         self.log.write("rc", f"board {args.board}, elf {self.elf}")
         self.openocd = Openocd(self.board, self.log)
-        self.openocd.rtt_start(self.elf)
+        try:
+            self.openocd.rtt_start(self.elf)
+        except Exception:
+            self.openocd.close()    # or it holds the probe and the Tcl port for the next session
+            raise
         self.link_drops = 0
         self.link_seen = len(self.openocd.output)   # openocd's lines already looked at for a dropped link
         self.console = Console(self.log, self.failures, self.recover_link)
@@ -923,7 +1094,7 @@ class Session:
             self.fail(f"\"{line}\": {reply}")
         if line.split()[0] == "state":
             self.check_up(reply)
-        if line.split()[0] == "reboot" and reply.startswith("@ok"):
+        if (line.split()[0] == "reboot" or line.split()[:2] == ["update", "try"]) and reply.startswith("@ok"):
             time.sleep(1.5)
             self.wait_for_console()
         return reply
@@ -953,7 +1124,9 @@ class Session:
 
     def flash(self, elf=None):
         """
-        Write an ELF through the probe, start it, and check the unit runs the build's version.
+        Write an image through the probe, start it, and check the unit runs the build's version. On a board with a
+        flash layout (ADR-004) this is the full install: the whole flash erased, then what starts it (the Pico 2 W's
+        partition table, the Pico W's bootloader, beside the ELF) and the image's .bin (beside its ELF) in slot A.
 
         Args:
             elf: the ELF to write; by default the session's. It becomes the session's ELF.
@@ -963,17 +1136,42 @@ class Session:
         if not self.elf.exists():
             self.fail(f"{self.elf} does not exist")
             return
+        version, vcs = build_version(self.board["build"])
+        layout = self.board.get("layout")
+        if layout is not None:
+            # The block's version is taken when CMake configures, the version string at every build: a build
+            # that was not configured again carries an old one
+            found, wanted = block_version(self.elf), expected_block_version(version)
+            if found != wanted:
+                self.fail(f"{self.elf}'s metadata block is version {found}, its build {version} wants {wanted}")
+                return
+            first, image = self.elf.parent / layout["first"], self.elf.with_suffix(".bin")
+            for needed in (first, image):
+                if not needed.exists():
+                    self.fail(f"{needed} does not exist")
+                    return
+            # As the full install by USB does: the whole flash erased, so no other image is kept (the owner). The
+            # erase needs the chip halted, which program does for itself
+            writes = ["halt", f"flash erase_address 0x10000000 {layout['flash_bytes']:#x}",
+                      f"program {{{first.as_posix()}}} verify 0x10000000",
+                      f"program {{{image.as_posix()}}} verify reset {layout['slot_a']:#x}"]
+        else:
+            writes = [f"program {{{self.elf.as_posix()}}} verify reset"]
         started = time.monotonic()
         done_before = len(self.openocd.output)
-        self.openocd.cmd(f"program {{{self.elf.as_posix()}}} verify reset")
-        if not any("Verified OK" in line for line in self.openocd.output[done_before:]):
-            self.fail("openocd did not verify the image")
+        for write in writes:
+            self.openocd.cmd(write)
+        said = self.openocd.output[done_before:]
+        verified = sum("Verified OK" in line for line in said)
+        erased = sum(line.startswith("erased address") for line in said)
+        if verified != sum(write.startswith("program") for write in writes) or \
+                erased != sum(write.startswith("flash erase_address") for write in writes):
+            self.fail(f"openocd verified {verified} and erased {erased} of the writes: {writes}")
             return
         self.log.write("rc", f"flashed and verified in {time.monotonic() - started:.1f} s")
         reply = self.wait_for_console()
         if reply is None:
             return
-        version, vcs = build_version(self.board["build"])
         if f"ver={version} " not in reply or f"vcs={vcs} " not in reply:
             self.fail(f"the unit does not run the build: expected ver={version} vcs={vcs}, got: {reply}")
         else:
@@ -988,6 +1186,49 @@ class Session:
             self.openocd.cmd(write)
         time.sleep(1.0)
         self.wait_for_console()
+
+    def power_cut(self):
+        """
+        A power cut, as near as the probe comes (ADR-004, gate 2): both cores halted where they are, the scratch
+        registers a watchdog restart keeps and a power cut clears set to zero, then the whole chip restarted by its
+        watchdog. Not emulated: a flash erase or program cut half-way, since the flash chip keeps its power.
+        """
+        for core in self.board["cores"]:
+            self.openocd.cmd(f"targets {core}")
+            self.openocd.cmd("halt")
+        for base in self.board["power_scratch"]:
+            for index in range(8):
+                self.openocd.cmd(f"mww {base + 4 * index:#x} 0")
+        for write in self.board["reset"]:
+            self.openocd.cmd(write)
+        self.last_up = None     # a restart asked for: up= starts again
+        self.log.write("rc", "power cut: the cores halted, the scratch registers cleared, the chip restarted")
+
+    def back_after(self, host, boot_before, since):
+        """
+        The unit once it is back on the network with a new boot.
+
+        Args:
+            host: the unit's address.
+            boot_before: GET /api/v1's `boot` before the restart.
+            since: when the restart was made (time.monotonic()).
+
+        Returns:
+            (its unit_api.Unit, its GET /api/v1/update), or (None, None) when it is not back within
+            UPDATE_BACK_ON_NETWORK_S.
+        """
+        while time.monotonic() < since + UPDATE_BACK_ON_NETWORK_S:
+            time.sleep(1.0)
+            try:
+                back = unit_api.Unit(host)
+                if back.index["boot"] == boot_before:
+                    continue
+                status, state = back.request("GET", "update")
+                if status == 200:
+                    return back, state
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError):
+                continue
+        return None, None
 
     def snap(self):
         """
@@ -1425,6 +1666,31 @@ class Session:
         wait_state("cleanup", ("idle",))
         self.send("sim off")
 
+        # The update (ADR-004): the job's shape, nothing installed (rc_run.py update installs an image)
+        expect("POST", "update/install", {}, 409, "not_ready")
+        expect("POST", "update/stop", {}, 200)
+        expect("POST", "update/start", {}, 202)
+        wait_event("update", "started", by="api")
+        wait_state("update", ("receiving",))
+        expect("POST", "update/start", {}, 409, "busy")
+        expect("POST", "charge/start", {}, 409, "busy")
+        expect("POST", "system/restart", {}, 409, "busy")
+        # An image that is none, refused in its first 4 KB: the job ends with nothing written into a slot's start
+        called.add(("PUT", unit_api.full_path("update/image")))
+        got_status, reply = unit.request("PUT", "update/image", data=bytes(4096),
+                                         content_type="application/octet-stream")
+        got_code = reply.get("error", {}).get("code") if isinstance(reply, dict) else None
+        self.log.write("rc", f"api_check: PUT update/image 4 KB of zeros: {got_status} {got_code}")
+        if got_status != 400 or got_code != "not_an_image":
+            self.fail(f"api_check: PUT update/image of zeros: {got_status} {got_code}, not 400 not_an_image")
+        wait_event("update", "stopped", by="api", reason="refused", code="not_an_image")
+        wait_state("update", ("idle",))
+        expect("POST", "update/start", {}, 202)
+        wait_state("update", ("receiving",))
+        expect("POST", "stop", {}, 202)
+        wait_event("update", "stopped", by="api", reason="stopped")
+        wait_state("update", ("idle",))
+
         # Last, a restart: a new boot, and the system's start the log's first event
         boot = index["boot"]
         expect("POST", "system/restart", {}, 202)
@@ -1483,7 +1749,7 @@ class Session:
         if name == "settings":
             return [f"{inner}: {problem}" for inner, fields in reply["resources"].items()
                     for problem in unit_api.fields_problems(unit.resource(inner)["fields"], fields, writing=False)]
-        if name in ("charge", "cleanup", "gate"):
+        if name in ("charge", "cleanup", "gate", "update"):
             return [] if reply["state"] in unit.states(name) else [f"state {reply['state']} is not in the schema's"]
         if name == "motors":
             return [f"{motor}'s driver {reply[motor]['driver']} is not in the schema's" for motor in ("coarse", "fine")
@@ -2232,6 +2498,471 @@ class Session:
 
         self.flash(normal_elf)
 
+    def update_state(self, elf, wait_s):
+        """
+        The unit's slots, from the console's `update`, asked of the image `elf` names until it answers. An image's
+        RTT control block lies where its own ELF says, and RAM keeps the last image's across a restart, so the
+        console is looked for at the address of the image expected to run. Never a failure by itself: a caller
+        looking across a restart judges what it finds.
+
+        Args:
+            elf: the ELF of the image expected to run; it becomes the session's.
+            wait_s: how long to ask.
+
+        Returns:
+            Its fields as a dict ("slot", "trial", "confirmed", "block", "free", ...), or None.
+        """
+        self.elf = Path(elf)
+        deadline = time.monotonic() + wait_s
+        while time.monotonic() < deadline:
+            self.openocd.rtt_start(self.elf)
+            reply = self.console.command("update", timeout=1.0, recover=False)
+            if reply is not None and reply.startswith("@ok update"):
+                self.last_up = None     # a restart was looked for: up= starts again
+                self.link_seen = len(self.openocd.output)
+                return dict(field.split("=", 1) for field in reply.split()[2:] if "=" in field)
+        self.link_seen = len(self.openocd.output)
+        return None
+
+    def slot_trial(self, image_elf, expect, corrupt):
+        """
+        A trial of an image in the other slot (ADR-004, gate 1). The image's .bin is written through the probe into
+        the slot the unit does not run from, the unit is restarted on what it runs, and a trial is asked
+        (`update try`). Judged by what runs after:
+          confirmed: the new image runs, confirms itself once on its network, and still runs after a restart;
+          back: the new image runs on trial, does not confirm itself, and the unit goes back to the old one when the
+                trial's watchdog runs out;
+          refused: the new image never runs (with --corrupt: a byte changed, so its hash does not hold).
+        The session's ELF (--elf) is the image the unit runs at the start.
+
+        Args:
+            image_elf: the update image's ELF, built with APP_TRIAL_IMAGE; its .bin beside it is what is written.
+            expect: "confirmed", "back" or "refused".
+            corrupt: change one byte in the middle of the image before writing it.
+        """
+        if self.board.get("layout") is None:
+            self.fail("slot_trial: this board has no slots")
+            return
+        old_elf, new_elf = self.elf, Path(image_elf)
+        before = self.update_state(old_elf, 5)
+        if before is None or before.get("known") != "1":
+            self.fail(f"slot_trial: the unit does not know its slots: {before}")
+            return
+        old_slot = before["slot"]
+        new_slot = "b" if old_slot == "a" else "a"
+        free_offset = int(before["free"].split("+")[0], 16)
+        image = new_elf.with_suffix(".bin")
+        data = bytearray(image.read_bytes())
+        new_block = block_version(new_elf)
+        if corrupt:
+            data[len(data) // 2] ^= 0x01
+            image = LOG_DIR / f"{self.log.path.stem}_corrupt.bin"
+            image.write_bytes(bytes(data))
+        self.log.write("rc", f"slot_trial: running slot {old_slot} (block {before['block']}); writing {image.name} "
+                             f"(block {new_block}{', one byte changed' if corrupt else ''}) into slot {new_slot} "
+                             f"at {free_offset:#x}")
+
+        # Written, then the unit restarted on what it runs: the new image, on trial, boots only when asked for
+        done_before = len(self.openocd.output)
+        self.openocd.cmd(f"program {{{image.as_posix()}}} verify {0x10000000 + free_offset:#x}")
+        if not any("Verified OK" in line for line in self.openocd.output[done_before:]):
+            self.fail("slot_trial: openocd did not verify the image")
+            return
+        self.reset()
+        after_write = self.update_state(old_elf, 5)
+        if after_write is None or after_write["slot"] != old_slot:
+            self.fail(f"slot_trial: after the write and a restart the unit should run slot {old_slot}: {after_write}")
+            return
+
+        self.log.write("rc", "> update try")
+        asked = self.console.command("update try", timeout=REPLY_TIMEOUT_S, recover=False)
+        if expect == "refused" and asked is not None and asked.startswith("@err refused"):
+            # The firmware checks the image before it asks the trial: refused there, nothing restarts. A corrupted
+            # image is refused by its hash, not for another reason (review Q5)
+            self.log.write("rc", f"slot_trial: refused before the trial: {asked}")
+            if corrupt and "hash_mismatch" not in asked:
+                self.fail(f"slot_trial: a corrupted image should be refused by its hash: {asked}")
+            state = self.update_state(old_elf, 5)
+            if state is None or state["slot"] != old_slot or state["trial"] != "0":
+                self.fail(f"slot_trial: after the refusal slot {old_slot} should run: {state}")
+            return
+        if asked is None or not asked.startswith("@ok"):
+            self.fail(f"slot_trial: update try: {asked}")
+            return
+        started = time.monotonic()
+        time.sleep(1.5)     # the restart, 100 ms after the reply
+
+        if expect == "refused":
+            state = self.update_state(old_elf, CONSOLE_TIMEOUT_S)
+            self.log.write("rc", f"slot_trial: after the trial was asked: {state}")
+            if state is None or state["slot"] != old_slot or state["trial"] != "0":
+                self.fail(f"slot_trial: the image should have been refused, slot {old_slot} still running: {state}")
+            return
+
+        tried = self.update_state(new_elf, CONSOLE_TIMEOUT_S)
+        self.log.write("rc", f"slot_trial: after the trial was asked: {tried}")
+        if tried is None or tried["slot"] != new_slot or tried["trial"] != "1":
+            self.fail(f"slot_trial: slot {new_slot} should run on trial: {tried}")
+            return
+        if expect == "confirmed":
+            deadline = started + 60
+            state = tried
+            while state is not None and state["confirmed"] != "1" and time.monotonic() < deadline:
+                time.sleep(1.0)
+                state = self.update_state(new_elf, 5)
+            if state is None or state["confirmed"] != "1":
+                self.fail(f"slot_trial: slot {new_slot} did not confirm itself within 60 s: {state}")
+                return
+            self.log.write("rc", f"slot_trial: slot {new_slot} confirmed {time.monotonic() - started:.1f} s after "
+                                 "the trial was asked")
+            self.reset()
+            kept = self.update_state(new_elf, 5)
+            if kept is None or kept["slot"] != new_slot or kept["trial"] != "0" or kept["block"] != new_block:
+                self.fail(f"slot_trial: after a restart slot {new_slot} (block {new_block}) should run: {kept}")
+                return
+            self.log.write("rc", f"slot_trial: after a restart the unit runs slot {new_slot}, block {kept['block']}")
+            return
+
+        # back: the trial's watchdog is fed for its minute, then it restarts the unit into the old image
+        deadline = started + 120
+        state = tried
+        while time.monotonic() < deadline:
+            time.sleep(2.0)
+            state = self.update_state(new_elf, 3)
+            if state is None:
+                state = self.update_state(old_elf, CONSOLE_TIMEOUT_S)
+            if state is not None and state["slot"] == old_slot:
+                break
+        if state is None or state["slot"] != old_slot or state["trial"] != "0":
+            self.fail(f"slot_trial: the unit should be back on slot {old_slot} within 120 s: {state}")
+            return
+        self.log.write("rc", f"slot_trial: back on slot {old_slot} {time.monotonic() - started:.1f} s after the "
+                             f"trial was asked, block {state['block']}")
+
+    def update(self, host, manifest_path, expect, refused_code, new_elf, browsers=False):
+        """
+        An update through the API (ADR-004, gate 2), as the offer will make it. The manifest is read, the image the
+        unit takes (GET /api/v1/update, `takes`) found in it and checked by its SHA-256, the job started, the image
+        sent, and then: with --expect refused, the refusal and its code judged, nothing installed; else installed, and
+        the unit followed through its restart until the trial has ended, confirmed or back. The settings must be as
+        they were, and the event log must tell the same story.
+
+        Args:
+            host: the unit's address.
+            manifest_path: the release's manifest.json, its files beside it; or its address (read_manifest).
+            expect: "confirmed", "back" (and a start during the trial refused), "refused", "cut", "busy", or "second"
+                (a second upload while the first is open refused, and one too large, the first then taken whole).
+            refused_code: with "refused", the error code the image must be refused with.
+            new_elf: the ELF of the image installed, so the console is found again after the restart; or None.
+            browsers: two browsers use the web pages while the image is sent, as the soak's do: their reads judged
+                by the soak's limits, and lwIP's heap and pools by `net` before and after.
+        """
+        manifest, image_of = read_manifest(str(manifest_path))
+        # A unit just flashed or restarted is not on the network yet
+        unit, deadline = None, time.monotonic() + UPDATE_BACK_ON_NETWORK_S
+        while unit is None and time.monotonic() < deadline:
+            try:
+                unit = unit_api.Unit(host)
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError):
+                time.sleep(1.0)
+        if unit is None:
+            self.fail(f"update: {host} does not answer")
+            return
+        status, before = unit.request("GET", "update")
+        if status != 200:
+            self.fail(f"update: GET /api/v1/update answered {status}: {before}")
+            return
+        image_entry = manifest["images"].get(before["takes"])
+        if image_entry is None:
+            self.fail(f"update: the manifest has no image for {before['takes']}: {sorted(manifest['images'])}")
+            return
+        image = image_of(image_entry)
+        if hashlib.sha256(image).hexdigest() != image_entry["sha256"] or len(image) != image_entry["size"]:
+            self.fail(f"update: {image_entry['file']} is not the file the manifest names")
+            return
+        if "block" in image_entry and image_entry["block"] != block_version_text(image):
+            self.fail(f"update: the manifest's block {image_entry['block']} is not the image's, "
+                      f"{block_version_text(image)}")
+            return
+        export_before = unit.read("settings")
+        boot_before = unit.index["boot"]
+        self.log.write("rc", f"update: {host} runs {before['running']} and takes {before['takes']}: "
+                             f"{image_entry['file']}, {len(image)} bytes, release {manifest['version']}")
+
+        if expect == "busy":
+            # A charge on the simulated scale: the update may not start beside it
+            self.send("sim on")
+            status, charge = unit.request("POST", "charge/start", body={"target": 30})
+            if status != 202:
+                self.fail(f"update: the charge did not start: {status} {charge}")
+            time.sleep(1.0)
+            status, refused = unit.request("POST", "update/start", body={})
+            code = (refused or {}).get("error", {}).get("code")
+            self.log.write("rc", f"update: start during a charge: {status} {refused}")
+            if status != 409 or code != "busy":
+                self.fail(f"update: a start during a charge should be 409 busy: {status} {refused}")
+            unit.request("POST", "charge/stop", body={})
+            time.sleep(1.0)
+            self.send("sim off")
+            _, after = unit.request("GET", "update")
+            if after["state"] != "idle" or after["running"] != before["running"]:
+                self.fail(f"update: after the refused start nothing should have changed: {after}")
+            return
+
+        status, started = unit.request("POST", "update/start", body={})
+        if status != 202:
+            self.fail(f"update: start answered {status}: {started}")
+            return
+        deadline = time.monotonic() + UPDATE_RECEIVING_S
+        state = started
+        while state["state"] != "receiving" and time.monotonic() < deadline:
+            time.sleep(0.2)
+            _, state = unit.request("GET", "update")
+        if state["state"] != "receiving":
+            self.fail(f"update: the menu did not begin the job: {state}")
+            return
+
+        if expect == "second":
+            # The first upload open; a second, and one larger than the slot, refused while it is; then the first
+            # taken whole: they changed nothing of it (review Q1). The job then stopped, nothing installed
+            head = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/octet-stream\r\n"
+                    f"Content-Length: {len(image)}\r\nConnection: close\r\n\r\n").encode()
+            half = len(image) // 2
+            with socket.create_connection((host, 80), timeout=UPDATE_UPLOAD_TIMEOUT_S) as sock:
+                sock.sendall(head + image[:half])
+                time.sleep(1.0)
+                # The second's head only: it is answered as soon as its headers are in
+                with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as other:
+                    other.sendall(head)
+                    second = read_until_closed(other).decode(errors="replace")
+                self.log.write("rc", f"update: a second upload while the first is open: {second!r}")
+                if " 409 " not in second.split("\r\n")[0] or '"busy"' not in second:
+                    self.fail(f"update: a second upload should be 409 busy: {second!r}")
+                too_large = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\n"
+                             f"Content-Type: application/octet-stream\r\nContent-Length: {before['free_bytes'] + 1}\r\n"
+                             f"Connection: close\r\n\r\n").encode()
+                with socket.create_connection((host, 80), timeout=HTTP_TIMEOUT_S) as other:
+                    other.sendall(too_large)
+                    answer = read_until_closed(other).decode(errors="replace").split("\r\n")[0]
+                self.log.write("rc", f"update: one larger than the slot while the first is open: {answer}")
+                if " 413 " not in answer:
+                    self.fail(f"update: an upload larger than the slot should be 413: {answer}")
+                sock.sendall(image[half:])
+                reply = b""
+                while b"\r\n\r\n" not in reply:
+                    got = sock.recv(4096)
+                    if not got:
+                        break
+                    reply += got
+            first_line = reply.decode(errors="replace").split("\r\n")[0]
+            _, ready = unit.request("GET", "update")
+            self.log.write("rc", f"update: the first upload: {first_line}; {ready}")
+            if " 200 " not in first_line or ready["state"] != "ready" or ready["received"] != len(image):
+                self.fail(f"update: the first upload should be taken whole: {first_line} {ready}")
+            unit.request("POST", "update/stop", body={})
+            time.sleep(2.0)
+            _, ended = unit.request("GET", "update")
+            if ended["state"] != "idle" or (ended["last"] or {}).get("result") != "stopped" or \
+                    ended["running"] != before["running"]:
+                self.fail(f"update: after the stop nothing should be installed: {ended}")
+            return
+
+        if expect == "power-upload":
+            # Half the image in, then the power cut as the rest comes: the unit comes back on the image it ran, the
+            # free slot's half image not booted, the job gone with the RAM it lived in, the settings as they were
+            head = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/octet-stream\r\n"
+                    f"Content-Length: {len(image)}\r\nConnection: close\r\n\r\n").encode()
+            with socket.create_connection((host, 80), timeout=UPDATE_UPLOAD_TIMEOUT_S) as sock:
+                sock.sendall(head + image[:len(image) // 2])
+                time.sleep(1.0)
+                _, during = unit.request("GET", "update")
+                self.log.write("rc", f"update: half the image sent: {during}")
+                if during["state"] != "receiving" or not during["received"]:
+                    self.fail(f"update: the job should be taking the image when the power goes: {during}")
+                cut = time.monotonic()
+                self.power_cut()
+            back_unit, back = self.back_after(host, boot_before, cut)
+            self.log.write("rc", f"update: {time.monotonic() - cut:.1f} s after the power cut: {back}")
+            if back is None or back["state"] != "idle" or back["running"] != before["running"]:
+                self.fail(f"update: after the power cut the unit should be back on its image, idle: {back}")
+            elif back_unit.read("settings") != export_before:
+                self.fail("update: the settings differ after the power cut")
+            return
+
+        if expect == "cut":
+            # Half the image, then the connection closed: the job waits for it again, then ends by its time
+            head = (f"PUT /api/v1/update/image HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/octet-stream\r\n"
+                    f"Content-Length: {len(image)}\r\nConnection: close\r\n\r\n").encode()
+            with socket.create_connection((host, 80), timeout=UPDATE_UPLOAD_TIMEOUT_S) as sock:
+                sock.sendall(head + image[:len(image) // 2])
+                time.sleep(2.0)
+            time.sleep(2.0)
+            _, waiting = unit.request("GET", "update")
+            self.log.write("rc", f"update: half the image sent, the connection closed: {waiting}")
+            if waiting["state"] != "receiving":
+                self.fail(f"update: after a cut-off upload the job should still be receiving: {waiting}")
+            time.sleep(UPDATE_RECEIVING_IDLE_S + 3.0)
+            _, ended = unit.request("GET", "update")
+            self.log.write("rc", f"update: {UPDATE_RECEIVING_IDLE_S + 3.0:.0f} s later: {ended}")
+            if ended["state"] != "idle" or (ended["last"] or {}).get("result") != "time" or \
+                    ended["running"] != before["running"]:
+                self.fail(f"update: the job should have ended by its time, nothing installed: {ended}")
+            return
+
+        pollers, net_start = [], None
+        if browsers:
+            def read_mirror_right():
+                return len(http_get(host, "api/v1/display/frame")) == MIRROR_BYTES
+
+            def read_state():
+                return "state" in json.loads(http_get(host, "api/v1/charge"))
+
+            for browser in range(1, SOAK_BROWSERS + 1):
+                pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S, [("", read_mirror_right)],
+                                         self.log))
+                pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)],
+                                         self.log))
+            net_start = self.net()
+            for poller in pollers:
+                poller.start()
+        sent = time.monotonic()
+        status, received = http_put_bytes(host, "/api/v1/update/image", image, UPDATE_UPLOAD_TIMEOUT_S)
+        sent_s = time.monotonic() - sent
+        if browsers:
+            for poller in pollers:
+                poller.stop_event.set()
+            for poller in pollers:
+                poller.join(timeout=HTTP_TIMEOUT_S + 1)
+            good = sum(poller.good for poller in pollers)
+            missed = sum(poller.missed for poller in pollers)
+            share = missed / (good + missed) if good + missed else 1.0
+            for poller in pollers:
+                self.log.write("rc", f"update: {poller.name}: {poller.good} right, {poller.missed} missed, longest "
+                                     f"run {poller.run_longest}; {poller.times()}")
+                if poller.run_longest > SOAK_MISS_RUN:
+                    self.fail(f"update: {poller.name} missed {poller.run_longest} in a row during the upload")
+            self.log.write("rc", f"update: {missed} of {good + missed} web reads missed during the upload "
+                                 f"({share:.2%})")
+            if share > SOAK_MISS_SHARE:
+                self.fail(f"update: {share:.2%} of the web reads missed during the upload")
+            net_end = self.net()
+            if net_start is not None and net_end is not None:
+                self.log.write("rc", "update: net after the upload: " +
+                               " ".join(f"{k}={v}" for k, v in net_end.items()))
+                for key in (key for key in net_end if key.endswith("_err")):
+                    if net_end[key] > net_start.get(key, 0):
+                        self.fail(f"update: lwIP's {key} rose by {net_end[key] - net_start.get(key, 0)} during "
+                                  "the upload")
+        self.log.write("rc", f"update: the image sent in {sent_s:.1f} s ({len(image) / 1024 / sent_s:.0f} KB/s): "
+                             f"{status} {received}")
+        if expect == "refused":
+            code = (received or {}).get("error", {}).get("code")
+            _, after = unit.request("GET", "update")
+            if status != 400 or code != refused_code:
+                self.fail(f"update: the image should be refused with {refused_code}: {status} {received}")
+            if after["state"] != "idle" or (after["last"] or {}).get("result") != "refused" or \
+                    after["running"] != before["running"]:
+                self.fail(f"update: after the refusal the job should have ended, nothing installed: {after}")
+            if unit.read("settings") != export_before:
+                self.fail("update: the settings differ after the refusal")
+            return
+        if status != 200 or received.get("state") != "ready":
+            self.fail(f"update: the image was not taken: {status} {received}")
+            return
+
+        status, installing = unit.request("POST", "update/install", body={})
+        if status != 202:
+            self.fail(f"update: install answered {status}: {installing}")
+            return
+        installed = time.monotonic()
+        self.last_up = None     # a restart asked for: up= starts again
+
+        # The unit restarts into the trial and comes back on the network
+        index = None
+        while time.monotonic() < installed + UPDATE_BACK_ON_NETWORK_S:
+            time.sleep(1.0)
+            try:
+                index = unit_api.Unit(host).index
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError):
+                continue
+            if index["boot"] != boot_before:
+                break
+        if index is None or index["boot"] == boot_before:
+            self.fail(f"update: the unit did not come back on the network within {UPDATE_BACK_ON_NETWORK_S:.0f} s")
+            return
+        self.log.write("rc", f"update: back on the network {time.monotonic() - installed:.1f} s after the install")
+        if expect == "power-trial":
+            # The image sent running on trial, then the power cut: the unit comes back on the image it ran at once,
+            # not after the trial's minute. An image that confirms itself would be past its trial before this
+            # looks, so the image sent is one that never does (RC_TEST_NO_CONFIRM)
+            on_trial = None
+            try:
+                _, on_trial = unit_api.Unit(host).request("GET", "update")
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError) as error:
+                self.log.write("rc", f"update: the unit on trial did not answer: {error}")
+            self.log.write("rc", f"update: on trial: {on_trial}")
+            if on_trial is None or not on_trial["running"]["trial"] or \
+                    on_trial["running"]["block"] != block_version_text(image):
+                self.fail(f"update: the image sent should be running on trial: {on_trial}")
+                return
+            boot_trial = unit_api.Unit(host).index["boot"]
+            cut = time.monotonic()
+            self.power_cut()
+            back_unit, back = self.back_after(host, boot_trial, cut)
+            self.log.write("rc", f"update: {time.monotonic() - cut:.1f} s after the power cut: {back}")
+            if back is None or back["running"] != before["running"]:
+                self.fail(f"update: after the power cut the unit should be back on the image it ran: {back}")
+            elif back_unit.read("settings") != export_before:
+                self.fail("update: the settings differ after the power cut")
+            return
+        if expect == "back":
+            # The image on trial is not confirmed: the free slot is the way back, and no update may write it (review D2)
+            try:
+                trial_unit = unit_api.Unit(host)
+                _, on_trial = trial_unit.request("GET", "update")
+                if on_trial["running"]["trial"]:
+                    status, refused = trial_unit.request("POST", "update/start", body={})
+                    self.log.write("rc", f"update: a start during the trial: {status} {refused}")
+                    if status != 409 or (refused or {}).get("error", {}).get("code") != "busy":
+                        self.fail(f"update: a start during the trial should be 409 busy: {status} {refused}")
+                else:
+                    self.log.write("rc", f"update: back on the old image already: {on_trial['running']}")
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError) as error:
+                self.log.write("rc", f"update: the unit on trial did not answer: {error}")
+
+        # The trial ends: confirmed once on its network, or left after its minute
+        settled = None
+        while time.monotonic() < installed + UPDATE_SETTLED_S:
+            try:
+                status, settled = unit_api.Unit(host).request("GET", "update")
+            except (OSError, ValueError, http.client.HTTPException, unit_api.ApiError):
+                time.sleep(1.0)
+                continue
+            if status == 200 and not settled["running"]["trial"] and settled["last"] is not None:
+                break
+            time.sleep(1.0)
+        self.log.write("rc", f"update: {time.monotonic() - installed:.1f} s after the install: {settled}")
+        if settled is None or settled["last"] is None or settled["last"]["result"] != expect:
+            self.fail(f"update: the trial should have ended {expect}: {settled}")
+            return
+        # Judged by the image sent, not by what the firmware says of itself (review Q5)
+        sent_block = block_version_text(image)
+        if settled["last"]["version"] != sent_block:
+            self.fail(f"update: `last` should name the image sent, {sent_block}: {settled['last']}")
+        wanted_block = sent_block if expect == "confirmed" else before["running"]["block"]
+        if settled["running"]["block"] != wanted_block:
+            self.fail(f"update: the unit should run {wanted_block}: {settled['running']}")
+        events = unit_api.Unit(host).events()["events"]
+        kinds = [event["kind"] for event in events if event["source"] == "update"]
+        if expect not in kinds:
+            self.fail(f"update: the event log has no update {expect}: {kinds}")
+        if unit_api.Unit(host).read("settings")["resources"] != export_before["resources"]:
+            self.fail("update: the settings differ after the update")
+        if new_elf is not None and expect == "confirmed":
+            self.update_state(new_elf, CONSOLE_TIMEOUT_S)
+        else:
+            self.update_state(self.elf, CONSOLE_TIMEOUT_S)
+
     def finish(self):
         """
         Check the cores, stop openocd, print the verdict.
@@ -2278,6 +3009,26 @@ def main():
     pulses_parser = sub.add_parser("pulses", help="do the step pulses stop on a reset, an assert, a hard fault?")
     pulses_parser.add_argument("--assert-elf", default=str(REPO / "build_w_fault1" / "app.elf"))
     pulses_parser.add_argument("--hardfault-elf", default=str(REPO / "build_w_fault2" / "app.elf"))
+    update_parser = sub.add_parser("update", help="an update through the API, from a release's manifest (ADR-004)")
+    update_parser.add_argument("--host", required=True, help="the unit's address")
+    update_parser.add_argument("--manifest", required=True,
+                               help="the release's manifest.json, its files beside it, or its address")
+    update_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "cut", "busy", "second",
+                                                    "power-upload", "power-trial"],
+                               default="confirmed",
+                               help="cut: half the image, the connection closed; busy: a start during a charge; "
+                                    "second: a second upload while the first is open; power-upload, power-trial: "
+                                    "the power cut by the probe half-way through the upload, or while the image "
+                                    "sent runs on trial (one that never confirms itself)")
+    update_parser.add_argument("--refused-code", help="with --expect refused: the error code it must give")
+    update_parser.add_argument("--new-elf", help="the installed image's ELF, to find its console after the restart")
+    update_parser.add_argument("--browsers", action="store_true",
+                               help="two browsers use the web pages while the image is sent, as the soak's do")
+    trial_parser = sub.add_parser("slot_trial", help="an image written into the other slot and tried (ADR-004)")
+    trial_parser.add_argument("--image", required=True,
+                              help="the update image's ELF (built with APP_TRIAL_IMAGE); its .bin is written")
+    trial_parser.add_argument("--expect", choices=["confirmed", "back", "refused"], required=True)
+    trial_parser.add_argument("--corrupt", action="store_true", help="change one byte of the image first")
     settings_parser = sub.add_parser("settings", help="copy the stored settings over the web API, and compare")
     settings_parser.add_argument("--host", required=True, help="the unit's address")
     settings_parser.add_argument("--save", help="keep the copy in this folder")
@@ -2330,6 +3081,24 @@ def main():
     args = parser.parse_args()
 
     session = Session(args, args.command)
+    try:
+        run_command(session, args)
+    except Exception:
+        # A run that raises fails with its traceback in the log, and still stops its openocd, which would otherwise
+        # hold the probe and the Tcl port for the next session (ADR-004)
+        session.log.write("rc", traceback.format_exc().rstrip())
+        session.fail(f"rc_run raised: {traceback.format_exc().strip().splitlines()[-1]}")
+    sys.exit(session.finish())
+
+
+def run_command(session, args):
+    """
+    Run the command the arguments name.
+
+    Args:
+        session: the Session.
+        args: the parsed arguments.
+    """
     if args.command == "send":
         for line in args.lines:
             session.send(line)
@@ -2341,6 +3110,10 @@ def main():
         session.charge_cycle(args.target, args.threshold, args.timeout)
     elif args.command == "pulses":
         session.pulses(args.assert_elf, args.hardfault_elf)
+    elif args.command == "update":
+        session.update(args.host, args.manifest, args.expect, args.refused_code, args.new_elf, args.browsers)
+    elif args.command == "slot_trial":
+        session.slot_trial(args.image, args.expect, args.corrupt)
     elif args.command == "flash":
         session.flash()
     elif args.command == "reset":
@@ -2365,7 +3138,6 @@ def main():
         session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.cleanup_speed,
                              args.expect, args.watch, args.repeat,
                              args.want.split(",") if args.want else None, args.want_none)
-    sys.exit(session.finish())
 
 
 if __name__ == "__main__":

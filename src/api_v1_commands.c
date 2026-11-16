@@ -29,6 +29,7 @@
 #include "scale.h"
 #include "servo_gate.h"
 #include "settings.h"
+#include "update.h"
 #include "version.h"
 #include "wireless.h"
 
@@ -113,6 +114,9 @@ static bool api_only(http_server_reply_t *reply, const http_json_member_t *membe
 }
 
 
+static const char *update_state_name(update_state_t state);
+
+
 const char *api_v1_job_state(void) {
     activity_t activity = activity_get();
     if (activity == ACTIVITY_CHARGE) {
@@ -124,6 +128,11 @@ const char *api_v1_job_state(void) {
         cleanup_status_t cleanup;
         cleanup_mode_get_status(&cleanup);
         return cleanup.state;
+    }
+    if (activity == ACTIVITY_UPDATE) {
+        update_status_t update;
+        update_status(&update);
+        return update_state_name(update.state);
     }
     return "idle";
 }
@@ -783,6 +792,198 @@ static void api_v1_get_motors(const http_server_request_t *request, http_server_
 }
 
 
+// --- The update (ADR-004; api_v1.md, "Firmware updates")
+
+static const char *update_state_name(update_state_t state) {
+    switch (state) {
+        case UPDATE_STARTING: return "starting";
+        case UPDATE_RECEIVING: return "receiving";
+        case UPDATE_READY: return "ready";
+        case UPDATE_INSTALLING: return "installing";
+        case UPDATE_ENDING: return "ending";
+        case UPDATE_IDLE:
+        default: return "idle";
+    }
+}
+
+
+static const char *update_result_name(update_result_t result) {
+    switch (result) {
+        case UPDATE_RESULT_CONFIRMED: return "confirmed";
+        case UPDATE_RESULT_BACK: return "back";
+        case UPDATE_RESULT_REFUSED: return "refused";
+        case UPDATE_RESULT_STOPPED: return "stopped";
+        case UPDATE_RESULT_TIME: return "time";
+        case UPDATE_RESULT_NONE:
+        default: return "none";
+    }
+}
+
+
+static void write_text_or_null(char *out, size_t room, size_t *len, const char *text) {
+    if (text != NULL) {
+        http_json_string(out, room, len, text);
+    }
+    else {
+        http_json_raw(out, room, len, "null");
+    }
+}
+
+
+static void reply_update(http_server_reply_t *reply, int status) {
+    update_status_t update;
+    update_status(&update);
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    char slot[2] = {update.slot, '\0'};
+    http_json_raw(out, room, &len, "{\"state\":");
+    http_json_string(out, room, &len, update_state_name(update.state));
+    http_json_raw(out, room, &len, ",\"running\":{\"version\":");
+    http_json_string(out, room, &len, update.version);
+    http_json_raw(out, room, &len, ",\"block\":");
+    http_json_string(out, room, &len, update.block);
+    http_json_raw(out, room, &len, ",\"slot\":");
+    http_json_string(out, room, &len, slot);
+    http_json_raw(out, room, &len, ",\"trial\":");
+    http_json_bool(out, room, &len, update.on_trial);
+    http_json_raw(out, room, &len, "},\"takes\":");
+    http_json_string(out, room, &len, update.takes);
+    http_json_raw(out, room, &len, ",\"free_bytes\":");
+    http_json_integer(out, room, &len, (long) update.free_bytes);
+    http_json_raw(out, room, &len, ",\"received\":");
+    http_json_integer(out, room, &len, (long) update.received);
+    http_json_raw(out, room, &len, ",\"last\":");
+    if (update.last.result == UPDATE_RESULT_NONE) {
+        http_json_raw(out, room, &len, "null");
+    }
+    else {
+        http_json_raw(out, room, &len, "{\"result\":");
+        http_json_string(out, room, &len, update_result_name(update.last.result));
+        char version[16];
+        if (update.last.version != 0) {
+            update_version_text(update.last.version, version, sizeof(version));
+        }
+        http_json_raw(out, room, &len, ",\"version\":");
+        write_text_or_null(out, room, &len, update.last.version != 0 ? version : NULL);
+        http_json_raw(out, room, &len, ",\"code\":");
+        write_text_or_null(out, room, &len, update.last.code);
+        http_json_raw(out, room, &len, ",\"message\":");
+        write_text_or_null(out, room, &len, update.last.message);
+        http_json_raw(out, room, &len, "}");
+    }
+    http_json_raw(out, room, &len, "}");
+    api_send(reply, status, room, len);
+}
+
+
+static void api_v1_get_update(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    reply_update(reply, 200);
+}
+
+
+static void api_v1_update_start(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    switch (update_request_start(ACTIVITY_BY_API)) {
+        case UPDATE_START_OK:
+            reply_update(reply, 202);
+            break;
+        case UPDATE_START_NO_SLOTS:
+            api_error(reply, 500, "failed", NULL, "the image slots are not known: no update can be written", NULL);
+            break;
+        case UPDATE_START_ON_TRIAL:
+            api_error(reply, 409, "busy", NULL,
+                      "the image running is on trial: an update waits until it is confirmed on its network", NULL);
+            break;
+        case UPDATE_START_BUSY:
+        default:
+            api_busy(reply, "a job runs, a start is asked, or a person is in a mode or a view at the unit");
+            break;
+    }
+}
+
+
+static void api_v1_update_install(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    if (!update_install()) {
+        api_error(reply, 409, "not_ready", NULL, "no image is ready: PUT /api/v1/update/image first", NULL);
+        return;
+    }
+    reply_update(reply, 202);
+}
+
+
+static void api_v1_update_stop(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    update_status_t update;
+    update_status(&update);
+    if (update.state == UPDATE_INSTALLING) {
+        api_error(reply, 409, "busy", NULL, "installing: the restart into its trial is under way", NULL);
+        return;
+    }
+    reply_update(reply, activity_request_stop(ACTIVITY_UPDATE, ACTIVITY_BY_API) ? 202 : 200);
+}
+
+
+// PUT /api/v1/update/image: the image in pieces, written into the free slot as it comes (update.c)
+static bool api_v1_update_image_begin(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (request->body_is_json) {
+        http_server_reply_error(reply, 415, "wrong_media_type", "the image is sent as application/octet-stream");
+        return false;
+    }
+    uint32_t *token = http_server_reply_context(reply, sizeof(uint32_t));
+    if (token == NULL) {
+        api_error(reply, 500, "failed", NULL, "no room for the upload's state", NULL);
+        return false;
+    }
+    int status;
+    update_refusal_t refused = update_image_begin((uint32_t) request->body_len, &status, token);
+    if (refused.code != NULL) {
+        api_error(reply, status, refused.code, NULL, refused.message, NULL);
+        return false;
+    }
+    return true;
+}
+
+
+static bool api_v1_update_image_piece(void *ctx, const char *data, size_t len) {
+    return update_image_piece(*(const uint32_t *) ctx, (const uint8_t *) data, len);
+}
+
+
+static void api_v1_update_image_end(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    const uint32_t *token = http_server_reply_context(reply, sizeof(uint32_t));
+    int status;
+    update_refusal_t refused = update_image_end(token != NULL ? *token : 0, &status);
+    if (refused.code != NULL) {
+        api_error(reply, status, refused.code, NULL, refused.message, NULL);
+        return;
+    }
+    reply_update(reply, 200);
+}
+
+
+static void api_v1_update_image_abort(void *ctx) {
+    update_image_abort(*(const uint32_t *) ctx);
+}
+
+
+static const http_server_upload_t api_v1_update_image = {
+    .begin = api_v1_update_image_begin,
+    .piece = api_v1_update_image_piece,
+    .end = api_v1_update_image_end,
+    .abort = api_v1_update_image_abort,
+};
+
+
 // --- The system
 
 static void api_v1_get_system(const http_server_request_t *request, http_server_reply_t *reply) {
@@ -959,6 +1160,19 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
     "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
     "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/update/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
+    "\"about\":\"starts a firmware update (202): the menu takes it and it holds the screen; then PUT the image. 409 "
+    "busy also while a person has a screen open at the unit\"}",
+    "{\"method\":\"PUT\",\"path\":\"/api/v1/update/image\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"the update image (app.bin of the image GET /api/v1/update takes), application/octet-stream: written "
+    "into the free slot as it comes, then checked whole (200, ready). 409 not_running unless receiving; 413 too_large; "
+    "400 not_an_image, wrong_chip, wrong_board, not_an_update, not_newer, wrong_slot or hash_mismatch, which end the "
+    "job with nothing installed\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/update/install\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"restarts into a trial of the image (202); the unit comes back on it, confirmed once on its network, "
+    "or on the one before. 409 not_ready unless ready\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/update/stop\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"stops the update (202), or 200 with nothing to stop; the image written is never booted\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/system/restart\",\"fields\":[],\"refused_while\":\"a_job_runs\","
     "\"about\":\"restarts the unit once the reply is out (202)\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/system/erase\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
@@ -971,7 +1185,13 @@ static const char *const api_v1_schema_states[] = {
     "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
     "{\"value\":\"cleanup\"},{\"value\":\"scale_calibration\",\"about\":\"the scale's own calibration, from the "
     "menu\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
-    "information, a driver's fault): a start is refused until it is closed there\"}]",
+    "information, a driver's fault): a start is refused until it is closed there\"},{\"value\":\"update\","
+    "\"about\":\"a firmware update (ADR-004)\"}]",
+    "\"update\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
+    "yet\"},{\"value\":\"receiving\",\"about\":\"the image is taken into the free slot\"},{\"value\":\"ready\","
+    "\"about\":\"the image is whole and checked: install, or stop\"},{\"value\":\"installing\",\"about\":\"the "
+    "restart into its trial is under way\"},{\"value\":\"ending\",\"about\":\"ended: the screen is given back, "
+    "and a start is taken again once it is idle\"}]",
     "\"charge\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
     "yet\"},{\"value\":\"zeroing\",\"about\":\"a throw waits for the scale to read zero, steady\"},"
     "{\"value\":\"charging\",\"about\":\"a throw pours to the target\"},{\"value\":\"waiting_for_cup_removal\","
@@ -1014,6 +1234,16 @@ static const char *const api_v1_schema_events[] = {
     "cleared\"}",
     "{\"source\":\"system\",\"kind\":\"started\",\"carries\":[\"firmware\"],\"about\":\"the unit started; the first "
     "event after each start\"}",
+    "{\"source\":\"update\",\"kind\":\"started\",\"carries\":[\"by\"]}",
+    "{\"source\":\"update\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\",\"code\"],\"about\":\"reason: "
+    "stopped, refused (with the refusal's code), time\"}",
+    "{\"source\":\"update\",\"kind\":\"received\",\"carries\":[\"version\"],\"about\":\"the image is whole and "
+    "checked\"}",
+    "{\"source\":\"update\",\"kind\":\"installing\",\"carries\":[\"version\"]}",
+    "{\"source\":\"update\",\"kind\":\"confirmed\",\"carries\":[\"version\"],\"about\":\"after the restart, the "
+    "image tried confirmed itself once on its network\"}",
+    "{\"source\":\"update\",\"kind\":\"back\",\"carries\":[\"version\"],\"about\":\"after the restart, the image "
+    "tried was left, and the one before runs\"}",
 };
 
 
@@ -1054,5 +1284,10 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/restart", api_v1_system_restart);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/erase", api_v1_system_erase);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/update", api_v1_get_update);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/start", api_v1_update_start);
+    ok = ok && http_server_add_upload(HTTP_SERVER_PUT, "/api/v1/update/image", &api_v1_update_image);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/install", api_v1_update_install);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/stop", api_v1_update_stop);
     return ok;
 }

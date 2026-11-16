@@ -1458,6 +1458,9 @@ static void server_task(void *arg) {
         }
     }
     printf("HTTP: our own server listening on port %d (ADR-003)\n", HTTP_SERVER_PORT);
+    if (network.listening != NULL) {
+        network.listening();
+    }
 
     while (true) {
         fd_set read_set;

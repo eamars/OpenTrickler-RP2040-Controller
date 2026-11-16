@@ -152,9 +152,10 @@ bool activity_request_stop(activity_t job, activity_by_t by) {
         }
         stopped = true;
     }
-    // Only the charge and the cleanup take a stop, where they read the reset button. The scale's calibration and a
-    // view are a person's at the unit: stopped=false, rather than a stop said and not done (review C1)
-    bool takes_stop = activity_now == ACTIVITY_CHARGE || activity_now == ACTIVITY_CLEANUP;
+    // The charge, the cleanup and an update take a stop, where they read the reset button. The scale's calibration
+    // and a view are a person's at the unit: stopped=false, rather than a stop said and not done (review C1)
+    bool takes_stop = activity_now == ACTIVITY_CHARGE || activity_now == ACTIVITY_CLEANUP ||
+                      activity_now == ACTIVITY_UPDATE;
     if (takes_stop && (job == ACTIVITY_NONE || job == activity_now)) {
         activity_stop_asked = true;
         activity_stop_by = by;
@@ -201,7 +202,8 @@ activity_t activity_get(void) {
 
 bool activity_job_runs(void) {
     activity_t now = activity_now;
-    return now == ACTIVITY_CHARGE || now == ACTIVITY_CLEANUP || now == ACTIVITY_SCALE_CALIBRATION;
+    return now == ACTIVITY_CHARGE || now == ACTIVITY_CLEANUP || now == ACTIVITY_SCALE_CALIBRATION ||
+           now == ACTIVITY_UPDATE;
 }
 
 
@@ -220,6 +222,8 @@ const char *activity_name(activity_t activity) {
             return "scale_calibration";
         case ACTIVITY_VIEW:
             return "view";
+        case ACTIVITY_UPDATE:
+            return "update";
         case ACTIVITY_NONE:
         default:
             return "none";

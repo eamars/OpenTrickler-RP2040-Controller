@@ -993,7 +993,8 @@ static const char *const settings_error_codes[] = {
     "bad_json", "bad_request", "length_required", "unknown_field", "wrong_type", "out_of_range", "not_a_choice",
     "read_only", "confirm_missing", "not_found", "method_not_allowed", "busy", "not_running", "no_target",
     "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
-    "wrong_media_type", "failed",
+    "wrong_media_type", "failed", "not_an_image", "wrong_chip", "wrong_board", "not_an_update", "not_newer",
+    "wrong_slot", "hash_mismatch", "not_ready",
 };
 
 

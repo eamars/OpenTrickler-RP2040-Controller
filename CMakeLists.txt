@@ -100,7 +100,18 @@ target_link_libraries("${TARGET_NAME}"
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_freertos
     pico_lwip_mdns
+
+    # flash_safe_execute(): flash written with the other core held off it, as the ROM's confirmation of an image
+    # does (ADR-004)
+    pico_flash
+    # The SHA-256 an image is checked by before it is tried (ADR-004): mbedTLS's, with src/mbedtls_config.h
+    pico_mbedtls_crypto
+    pico_mbedtls_headers
 )
+
+# SHA-256 optimised: at the build's -O0 an image's check took 5 s on the Pico W, and the web server, whose task it
+# runs in, answered nothing meanwhile (ADR-004). It is third-party code nobody steps through
+set_source_files_properties("${PICO_SDK_PATH}/lib/mbedtls/library/sha256.c" PROPERTIES COMPILE_OPTIONS "-O2")
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 
@@ -121,7 +132,26 @@ set(RC_TEST_FAULT "" CACHE STRING "Test build only: 1 asserts, 2 hard-faults ten
 if (RC_TEST_FAULT)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_FAULT=${RC_TEST_FAULT})
 endif()
+# A test build whose start skips its Wi-Fi join, as if the router were down (ADR-004): it joins again later
+option(RC_TEST_WIFI_FIRST_JOIN_FAILS "Test build only: the start's Wi-Fi join is skipped" OFF)
+if (RC_TEST_WIFI_FIRST_JOIN_FAILS)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_WIFI_FIRST_JOIN_FAILS=1)
+endif()
+# A test build that never confirms itself on trial (ADR-004): the unit goes back to the other slot
+option(RC_TEST_NO_CONFIRM "Test build only: an image on trial never confirms itself" OFF)
+if (RC_TEST_NO_CONFIRM)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_NO_CONFIRM=1)
+endif()
+# A test build that hangs at its first line (ADR-004, review Q5): only the boot's own watchdog, the RP2040 bootloader's
+# or the RP2350 ROM's, ends its trial
+option(RC_TEST_HANG_AT_START "Test build only: the image hangs before it starts anything" OFF)
+if (RC_TEST_HANG_AT_START)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_HANG_AT_START=1)
+endif()
 # set( CMAKE_VERBOSE_MAKEFILE on )
+
+# The flash layout and the image's metadata block (ADR-004)
+include(${CMAKE_SOURCE_DIR}/targets/flash_layout.cmake)
 
 # Generate extra outputs
 pico_add_extra_outputs("${TARGET_NAME}")

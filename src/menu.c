@@ -21,6 +21,7 @@
 #include "system_control.h"
 #include "motors.h"
 #include "menu.h"
+#include "update.h"
 
 // How often the menu wakes with nothing pressed, to draw the main menu's title again if a motor driver's state
 // changed it (ADR-012, step 6)
@@ -166,7 +167,8 @@ void menu_task(void *p){
             activity_t asked;
             if (activity_take_start(&asked)) {
                 // A start asked by the API or the console (ADR-003, gate 4): the mode, as its form's button enters it
-                exit_state = asked == ACTIVITY_CLEANUP ? APP_STATE_ENTER_CLEANUP_MODE : APP_STATE_ENTER_CHARGE_MODE;
+                exit_state = asked == ACTIVITY_CLEANUP ? APP_STATE_ENTER_CLEANUP_MODE :
+                             (asked == ACTIVITY_UPDATE ? APP_STATE_ENTER_UPDATE : APP_STATE_ENTER_CHARGE_MODE);
                 mui_SaveForm(&mui);          // store the current form and position so that the child can jump back
                 mui_LeaveForm(&mui);
             }
@@ -213,6 +215,9 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
                     exit_form_id = cleanup_mode_menu();
+                    break;
+                case APP_STATE_ENTER_UPDATE:
+                    exit_form_id = update_mode_menu();
                     break;
                 case APP_STATE_ENTER_SCALE_CALIBRATION:
                     activity_job_begin(ACTIVITY_SCALE_CALIBRATION);

@@ -19,6 +19,7 @@ typedef enum {
     ACTIVITY_CLEANUP,
     ACTIVITY_SCALE_CALIBRATION,
     ACTIVITY_VIEW,              // a screen at the unit that is not a job and not the menu's forms
+    ACTIVITY_UPDATE,            // a firmware update (ADR-004): an image written into the free slot
 } activity_t;
 
 // Who asked for a start or a stop (api_v1.md, the events' `by`)
@@ -74,11 +75,11 @@ void activity_throw_begin(void);
 void activity_throw_end(void);
 
 activity_t activity_get(void);
-// A job runs: the charge, a cleanup, the scale's calibration. A view (a screen a person has open) is none: it refuses
+// A job runs: the charge, a cleanup, the scale's calibration, an update. A view (a screen a person has open) is none: it refuses
 // a start, as the menu is not at its forms, and nothing else
 bool activity_job_runs(void);
 bool activity_in_throw(void);
-// "none", "charge", "cleanup", "scale_calibration", "view": the API's names (api_v1.md, `activity`)
+// "none", "charge", "cleanup", "scale_calibration", "view", "update": the API's names (api_v1.md, `activity`)
 const char *activity_name(activity_t activity);
 // "button", "api", "console", "unit"
 const char *activity_by_name(activity_by_t by);

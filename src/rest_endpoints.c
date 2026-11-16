@@ -74,6 +74,11 @@ static void rest_get_mirror(const http_server_request_t *request, http_server_re
 }
 
 
+void rest_endpoints_set_root_wizard(bool wizard) {
+    rest_root_is_wizard = wizard;
+}
+
+
 bool rest_endpoints_init(bool default_wizard) {
     rest_root_is_wizard = default_wizard;
     rest_page_portal = rest_page_from(html_web_portal_html);

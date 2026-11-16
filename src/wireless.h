@@ -49,6 +49,9 @@ typedef struct {
 } wireless_info_t;
 void wireless_get_info(wireless_info_t *info);
 
+// The station leaves its network, as when its router goes away: the console's `wifi leave` (ADR-004)
+bool wireless_station_leave(void);
+
 #ifdef __cplusplus
 }
 #endif

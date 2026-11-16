@@ -20,6 +20,8 @@ typedef enum {
     APP_STATE_ENTER_EEPROM_ERASE = 8,
     APP_STATE_ENTER_REBOOT = 9,
     APP_STATE_ENTER_WIFI_INFO = 10,
+    // A firmware update asked by the API (ADR-004): set from code, numbered apart as the motor fault's view is
+    APP_STATE_ENTER_UPDATE = 101,
 } AppState_t;
 
 

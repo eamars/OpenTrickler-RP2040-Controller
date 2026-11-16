@@ -12,9 +12,17 @@
 #include "common.h"
 #include "settings.h"
 #include "version.h"
+#include "update.h"
 #include "lwip/apps/mdns.h"
 #include <string.h>
 #include <strings.h>
+
+#define WIRELESS_REJOIN_MS 60000            // a station set up and not joined tries again this often (ADR-004) p
+#define WIRELESS_REJOIN_TIMEOUT_MS 15000    // each try's time to join
+
+static void wireless_station_mdns(void);
+static void wireless_rejoin(void);
+static void srv_txt(struct mdns_service *service, void *txt_userdata);
 
 
 #ifdef CYW43_HOST_NAME
@@ -345,6 +353,86 @@ static bool wireless_own_address(char *buf, size_t len) {
 }
 
 
+/*
+ * The Wi-Fi settings the unit started with. A write to them applies at the restart, as their table says: the retry and
+ * the trial's confirmation read this copy, never a write not yet saved, nor one half made (review C2)
+ */
+static eeprom_wireless_metadata_t wireless_started_with;
+
+
+// mDNS on the station, once: the unit's name, and its two services
+static void wireless_station_mdns(void) {
+    static bool announced = false;
+    if (announced) {
+        return;
+    }
+    announced = true;
+    cyw43_arch_lwip_begin();
+    mdns_resp_init();
+
+    // The opentrickler can be accessed via hostname.local
+    mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], host_name);
+
+    // Add service HTTP, allowing user to access the web interface with hostname.local format
+    mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "rest_httpd", "_http", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
+
+    // Add secondary service to allow client to discover with service _opentrickler._tcp.local
+    mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_opentrickler", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
+    cyw43_arch_lwip_end();
+}
+
+
+/*
+ * A station set up and not joined tries again (ADR-004; handed on by ADR-012): the unit that started before its
+ * router, as its own access point, and the one whose router went away. The access point stays up while it tries, so a
+ * person can still reach the unit; once the station joins, it stops, and the root page is the portal again
+ */
+static void wireless_rejoin(void) {
+    if (!wireless_started_with.enable || cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP) {
+        return;
+    }
+    const char *password = wireless_started_with.auth != AUTH_OPEN ? wireless_started_with.pw : NULL;
+    printf("Wi-Fi: not joined; trying %s again\n", wireless_started_with.ssid);
+    int joined = cyw43_arch_wifi_connect_timeout_ms(wireless_started_with.ssid, password,
+                                                    get_cyw43_auth(wireless_started_with.auth),
+                                                    WIRELESS_REJOIN_TIMEOUT_MS);
+    if (joined != PICO_OK) {
+        printf("Wi-Fi: not joined (%d)\n", joined);
+        return;
+    }
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
+        access_point_mode_stop();
+        cyw43_arch_disable_ap_mode();
+        rest_endpoints_set_root_wizard(false);
+    }
+    wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
+    wireless_station_mdns();
+    printf("Wi-Fi: joined %s\n", wireless_started_with.ssid);
+    // An image on trial is on its network now
+    update_network_ready(true);
+}
+
+
+// The console's `wifi leave` (ADR-004): the station leaves its network, as when its router goes away
+bool wireless_station_leave(void) {
+    cyw43_arch_lwip_begin();
+    int left = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
+    cyw43_arch_lwip_end();
+    return left == 0;
+}
+
+
+// The server listens (ADR-004): an image on trial confirms itself once the unit is on the network it is set up
+// for, a station when Wi-Fi is set up, its own access point when it is not. A unit set up for Wi-Fi that could not
+// join, and fell back to its own access point, leaves its trial, and goes back
+static void wireless_server_listening(void) {
+    bool on_its_network = wireless_started_with.enable
+                              ? wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN
+                              : wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
+    update_network_ready(on_its_network);
+}
+
+
 // Whether a request's Host is the unit's own: its address, or its host name with or without ".local", any port
 // (ADR-003: a page that has pointed its own name at the unit is refused)
 static bool wireless_host_is_own(const char *host) {
@@ -447,6 +535,9 @@ void wireless_task(void *p) {
         vTaskResume(led_interface_task_handler);
     }
 
+    // What the unit starts with is what it keeps until its restart (the settings' at_restart)
+    wireless_started_with = wireless_config.eeprom_wireless_metadata;
+
     // Start default initialize pattern
     if (wireless_config.eeprom_wireless_metadata.enable) {
         wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_INIT;
@@ -461,8 +552,12 @@ void wireless_task(void *p) {
             wifi_password = wireless_config.eeprom_wireless_metadata.pw;
         }
 
-        // Retry within timeframe
+        // Retry within timeframe. A test build skips it, as if the router were down at the start (ADR-004)
         TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(wireless_config.eeprom_wireless_metadata.timeout_ms);
+#if RC_TEST_WIFI_FIRST_JOIN_FAILS
+        stop_tick = xTaskGetTickCount();
+        printf("Wi-Fi: a test build: the start's join skipped\n");
+#endif
         while (xTaskGetTickCount() < stop_tick) {
             int resp;
             resp = cyw43_arch_wifi_connect_timeout_ms(wireless_config.eeprom_wireless_metadata.ssid,
@@ -493,19 +588,7 @@ void wireless_task(void *p) {
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
     }
     else {
-        cyw43_arch_lwip_begin();
-        // If the STA mode is successfully initialized, we will also start the mdns service
-        mdns_resp_init();
-
-        // The opentrickler can be accessed via 
-        mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], host_name);
-
-        // Add service HTTP, allowing user to access the web interface with hostname.local format
-        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "rest_httpd", "_http", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
-
-        // Add secondary service to allow client to discover with service _opentrickler._tcp.local
-        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "app_httpd", "_opentrickler", DNSSD_PROTO_TCP, 80, srv_txt, NULL);
-        cyw43_arch_lwip_end();
+        wireless_station_mdns();
     }
 
     // Initialize REST endpoints
@@ -516,13 +599,25 @@ void wireless_task(void *p) {
     static const http_server_network_t http_network = {
         .host_is_own = wireless_host_is_own,
         .own_address = wireless_own_address,
+        .listening = wireless_server_listening,
     };
     http_server_start(&http_network);
 
+    // A station set up and not joined tries again every WIRELESS_REJOIN_MS (ADR-004), by its own clock: as its own
+    // access point the unit blinks its LED through this queue, which is then never quiet for that long
+    TickType_t rejoin_at = xTaskGetTickCount() + pdMS_TO_TICKS(WIRELESS_REJOIN_MS);
     while (true) {
         wireless_ctrl_t wireless_ctrl;
 
-        xQueueReceive(wireless_ctrl_queue, &wireless_ctrl, portMAX_DELAY);
+        TickType_t now = xTaskGetTickCount();
+        if ((int32_t) (now - rejoin_at) >= 0) {
+            wireless_rejoin();
+            rejoin_at = xTaskGetTickCount() + pdMS_TO_TICKS(WIRELESS_REJOIN_MS);
+            continue;
+        }
+        if (xQueueReceive(wireless_ctrl_queue, &wireless_ctrl, rejoin_at - now) != pdTRUE) {
+            continue;
+        }
 
         switch (wireless_ctrl) {
             case WIRELESS_CTRL_LED_ON:

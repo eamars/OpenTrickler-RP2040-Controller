@@ -6,13 +6,11 @@ run-name: Build based on ${{ github.ref }} by @${{ github.actor }}
 on:
   push:
     branches: [ "main" ]
+    # A version tag also drafts a release from its build (ADR-004, gate 3); the owner publishes it after trying it
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-
-# env:
-#   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-#   PICO_BOARD: pico_w
 
 jobs:
   build:
@@ -20,6 +18,8 @@ jobs:
     # picotool named in toolchain.env, the same a PC uses (ADR-011). So a new runner image does not change the
     # build, and the runner is not pinned.
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # a version tag drafts a release
 
     steps:
     - uses: actions/checkout@v7
@@ -39,52 +39,77 @@ jobs:
       if: steps.toolchain-cache.outputs.cache-hit != 'true'
       run: ./setup_toolchain.sh
 
-    # Build Pico2 W support package into build_pico2_w
-    - name: Build Pico2 W Package
+    # A release's five builds and its folder, as a PC makes them with the same script (ADR-004, gate 3): each board's
+    # full install, the update images (the Pico W's for each slot), each named with the version,
+    # manifest.json and SHA256SUMS. On every build, so every pull request shows the release it would make. On a tag
+    # the script refuses a firmware that does not report the tag's version and a tag without its notes
+    # (docs/releases/README.md), and gives each file its address on the release
+    - name: Build the release
+      shell: bash
       run: |
         source ./configure_env.sh
-        cmake -B ${{github.workspace}}/build_pico2_w -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico2_w
-        cmake --build ${{github.workspace}}/build_pico2_w --config Debug
+        tag=()
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          tag=(--tag "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY")
+        fi
+        python3 scripts/build_release.py --out-dir release "${tag[@]}"
 
     # Flash by part and RAM at link time, in the job summary and in the log (ADR-001).
     # "shell: bash" runs with pipefail, so a report that fails still fails the step through tee.
     - name: Size of the Pico2 W image
       shell: bash
-      run: python3 tools/size_report.py build_pico2_w/app.elf.map --bin build_pico2_w/app.bin --title "Pico 2 W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
-
-    - name: Archive Debug Artifact
-      uses: actions/upload-artifact@v7
-      with: 
-        name: pico2_w_package
-        path: |
-          src/generated/version.c  
-          build_pico2_w/*.bin
-          build_pico2_w/*.dis
-          build_pico2_w/*.elf
-          build_pico2_w/*.map
-          build_pico2_w/*.hex
-          build_pico2_w/*.uf2
-
-    # Build Pico W support package into build_pico_w
-    - name: Build Pico W Package
-      run: |
-        source ./configure_env.sh
-        cmake -B ${{github.workspace}}/build_pico_w -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico_w
-        cmake --build ${{github.workspace}}/build_pico_w --config Debug
+      run: python3 tools/size_report.py build_release/pico2_w/app.elf.map --bin build_release/pico2_w/app.bin --title "Pico 2 W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
 
     - name: Size of the Pico W image
       shell: bash
-      run: python3 tools/size_report.py build_pico_w/app.elf.map --bin build_pico_w/app.bin --title "Pico W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
+      run: python3 tools/size_report.py build_release/pico_w/app.elf.map --bin build_release/pico_w/app.bin --title "Pico W" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
 
-    - name: Archive Debug Artifact
+    - name: Archive the Pico2 W build
       uses: actions/upload-artifact@v7
-      with: 
+      with:
+        name: pico2_w_package
+        path: |
+          src/generated/version.c
+          build_release/pico2_w/*.bin
+          build_release/pico2_w/*.dis
+          build_release/pico2_w/*.elf
+          build_release/pico2_w/*.map
+          build_release/pico2_w/*.hex
+          build_release/pico2_w/*.uf2
+
+    - name: Archive the Pico W build
+      uses: actions/upload-artifact@v7
+      with:
         name: pico_w_package
         path: |
-          src/generated/version.c  
-          build_pico_w/*.bin
-          build_pico_w/*.dis
-          build_pico_w/*.elf
-          build_pico_w/*.map
-          build_pico_w/*.hex
-          build_pico_w/*.uf2
+          src/generated/version.c
+          build_release/pico_w/*.bin
+          build_release/pico_w/*.dis
+          build_release/pico_w/*.elf
+          build_release/pico_w/*.map
+          build_release/pico_w/*.hex
+          build_release/pico_w/*.uf2
+
+    - name: Archive the release
+      uses: actions/upload-artifact@v7
+      with:
+        name: release
+        path: release/
+
+    # A draft, as a pre-release: the owner publishes it after trying it on a unit, and a candidate stays a pre-release.
+    # The final is the candidate the owner promotes, so GitHub's latest release, the units' default source, never
+    # leads to a candidate (ADR-004, gate 3). The notes are written by hand, as the Open Weapon Mount Computer's
+    - name: Draft the release
+      if: startsWith(github.ref, 'refs/tags/v')
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.ref_name }}
+      run: |
+        # The notes without their title (the release has its own), with links into the repository pinned to the tag
+        tail -n +2 "docs/releases/$TAG.md" | sed -e '1{/^$/d}' \
+          -e "s#](\.\./\.\./#](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/#g" \
+          -e "s#](\.\./#](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/#g" > body.md
+        printf '\nSHA-256:\n\n```\n%s\n```\n' "$(cat release/SHA256SUMS)" >> body.md
+        gh release create "$TAG" release/OpenTrickler-* release/manifest.json release/SHA256SUMS \
+          --draft --prerelease --verify-tag --title "OpenTrickler $TAG" --notes-file body.md

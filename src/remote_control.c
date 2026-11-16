@@ -31,6 +31,8 @@
 #include "motors.h"
 #include "settings.h"
 #include "activity.h"
+#include "update.h"
+#include "wireless.h"
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -607,6 +609,33 @@ static bool remote_control_setting(const char *args, char *reply, size_t reply_s
 }
 
 
+// `wifi leave`: the station leaves its network, as when its router goes away; it joins again (ADR-004)
+static bool remote_control_wifi(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                void *write_ctx) {
+    (void) write;
+    (void) write_ctx;
+    while (*args == ' ') {
+        args += 1;
+    }
+    if (strcmp(args, "leave") != 0) {
+        snprintf(reply, reply_size, "@err usage wifi leave");
+        return false;
+    }
+    bool left = wireless_station_leave();
+    snprintf(reply, reply_size, left ? "@ok wifi left" : "@err failed wifi leave");
+    return left;
+}
+
+
+// `update [try]`: the image slots, and a restart into a trial of the other one (ADR-004)
+static bool remote_control_update(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                  void *write_ctx) {
+    (void) write;
+    (void) write_ctx;
+    return update_console(args, reply, reply_size);
+}
+
+
 static const remote_control_command_t remote_control_commands[] = {
     {"help", remote_control_help},
     {"state", remote_control_state},
@@ -622,6 +651,8 @@ static const remote_control_command_t remote_control_commands[] = {
     {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
     {"setting", remote_control_setting},
+    {"update", remote_control_update},
+    {"wifi", remote_control_wifi},
 };
 
 #define REMOTE_CONTROL_COMMAND_COUNT (sizeof(remote_control_commands) / sizeof(remote_control_commands[0]))

@@ -11,6 +11,7 @@
 #include "activity.h"
 #include "events.h"
 #include "http_json.h"
+#include "update.h"
 #include "version.h"
 
 static event_t events_ring[EVENTS_KEPT];
@@ -63,14 +64,14 @@ bool events_get(uint32_t seq, event_t *event) {
 
 
 static const char *source_name(uint8_t source) {
-    static const char *const names[] = {"charge", "throw", "cleanup", "motors", "system"};
+    static const char *const names[] = {"charge", "throw", "cleanup", "motors", "system", "update"};
     return source < sizeof(names) / sizeof(names[0]) ? names[source] : "other";
 }
 
 
 static const char *kind_name(uint8_t kind) {
     static const char *const names[] = {"started", "stopped", "paused", "resumed", "finished", "ended", "fault",
-                                        "cleared"};
+                                        "cleared", "received", "installing", "confirmed", "back"};
     return kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "other";
 }
 
@@ -85,6 +86,7 @@ const char *events_reason_name(event_reason_t reason) {
         case EVENT_REASON_SCALE_UNSTEADY: return "scale_unsteady";
         case EVENT_REASON_SCALE_UNRELIABLE: return "scale_unreliable";
         case EVENT_REASON_DRIVER_FAULT: return "driver_fault";
+        case EVENT_REASON_REFUSED: return "refused";
         case EVENT_REASON_NONE:
         default: return "none";
     }
@@ -191,6 +193,28 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
             http_json_string(out, room, len, motor_name(event->number));
             write_member(out, room, len, "fault");
             http_json_string(out, room, len, event->text != NULL ? event->text : "fault");
+            break;
+        case EVENT_SOURCE_UPDATE:
+            // started and stopped: who; a stop's reason, and a refusal's code. The others: the version tried
+            if (event->kind == EVENT_STARTED || event->kind == EVENT_STOPPED) {
+                write_member(out, room, len, "by");
+                http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
+            }
+            if (event->kind == EVENT_STOPPED) {
+                write_member(out, room, len, "reason");
+                http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
+                if (event->reason == EVENT_REASON_REFUSED) {
+                    write_member(out, room, len, "code");
+                    http_json_string(out, room, len, event->text != NULL ? event->text : "");
+                }
+            } else if (event->kind != EVENT_STARTED) {
+                char version[16] = "";
+                if (event->version != 0) {
+                    update_version_text(event->version, version, sizeof(version));
+                }
+                write_member(out, room, len, "version");
+                http_json_string(out, room, len, version);
+            }
             break;
         case EVENT_SOURCE_SYSTEM:
             write_member(out, room, len, "firmware");
