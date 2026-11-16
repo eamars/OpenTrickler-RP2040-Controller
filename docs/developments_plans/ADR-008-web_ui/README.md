@@ -15,7 +15,7 @@ Status: **Draft** 2026-11-13. Not approved. Captures what is wrong with the page
 
 ## Why here
 
-It stands on ADR-003's server and on ADR-005's report of what a board carries. After ADR-007 it is built once and proven on both chips.
+Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, in the order 010, 008, 009, 014, then 006 and 007 together). The screen comes first, so the unit's poll and the update's job are built in ADR-010, and this ADR's page shows the same offer the screen does. It stands on ADR-003's server, on that poll, and on ADR-005's report of what a board carries. It is proven on the Pico W and the Pico 2 W; ADR-007's board takes the same pages later.
 
 ## What we know (checked 2026-11-13)
 
@@ -41,9 +41,9 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - The screen only polls the source the web set, and offers an update from a row in the main menu (ADR-010), never a pop-up at every start.
   - No authentication for now: the unit has no password either, and a PIN would make the screen mandatory, which some users may not want. Perhaps an optional feature later.
 - **PR #111 stays open until this ADR's offer works** (the owner, 2026-11-17): the whole OTA flow shown end to end, from the offer on the page to the unit confirmed on the new version. Then it is closed with its note, on the owner's word.
-- **What follows, and is recommended here:** the unit polls the source, not the browser. The screen needs the unit to poll anyway, so the web page shows the same offer the screen does. That is one implementation, not two, and the page then needs no access to GitHub of its own. The poll, the download into the free slot and the source setting are firmware, and come with this ADR, which is built before ADR-010.
+- **What follows, and is recommended here:** the unit polls the source, not the browser. The screen needs the unit to poll anyway, so the web page shows the same offer the screen does. That is one implementation, not two, and the page then needs no access to GitHub of its own. The poll, the download into the free slot and the stored setting for the source are firmware. They move to ADR-010, now built first (2026-11-17), with the update's channel, stable or beta (ADR-010's `menu_design.md`). This ADR builds the page's offer, the page where the source and the channel are set, and the upload by hand.
 - **What the page has to do,** so a person needs to know none of it (the owner's "too prosumer" list: where firmware comes from, which file is theirs, that the power must stay on, the wrong board):
-  - **the source:** GitHub's latest release by default, or another manifest's address (a mirror on the owner's network, as the Open Weapon Mount Computer's bench host `ota_host.py` is). It is a stored setting: give it a module's own slot, or say so in this ADR if it changes a stored struct's layout (AGENTS.md);
+  - **the source:** GitHub's latest release by default, or another manifest's address (a mirror on the owner's network, as the Open Weapon Mount Computer's bench host `ota_host.py` is). It is a stored setting, in a module's own slot beside the channel, built with ADR-010's poll; the page sets both;
   - **the offer:** the unit's poll found a newer release; the page shows it with its note. A critical one is marked as such, with no pop-up;
   - on a yes: the unit fetches the file `takes` names into the free slot as a job, then installs;
   - **the upload by hand:** the file chosen on the phone or the PC, sent with `PUT /api/v1/update/image` as `rc_run.py update` sends it. The page names the file this unit takes, as the manifest's entry for `takes` names it (its name ends in `<takes>_update.bin`: the Pico W's differs by its free slot). A wrong file is refused by the unit with its code, and the page says why in plain words;
@@ -52,14 +52,21 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost;
   - no downgrade: the page offers only a newer release (the owner, ADR-004).
 - **To find out first:**
-  - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured before it is built (ADR-005); the Pico W's slot has 216.7 KB left at 1.20.218 (ADR-010's hand-on). A mirror on the owner's network can serve plain HTTP and needs no TLS.
+  - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured in ADR-010's first gate, beside LVGL, now that the poll is built there; the Pico W's slot has 216.7 KB left at 1.20.218. A mirror on the owner's network can serve plain HTTP and needs no TLS.
   - On the unit's own access point there is no internet: no poll there, but the upload by hand works.
   - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check a file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
 
 **Handed on by ADR-005** (2026-11-17, closed as a scoping ADR):
 - **The feature table and the unit's report** of what it carries (ADR-005's rule 3) are built here, as their first reader: build options with a default per board, one generated header, one answer from the unit. The page shows only what is there.
 - **The pages' size is this ADR's.** Today's 101 KB in the Pico W image are our own pages, unminified and uncompressed (19 KB gzipped). Tailwind and DaisyUI are not in the image; the browser fetches them from CDNs, so a page that works offline adds them, trimmed to what it uses.
-- **What this ADR adds** (the pages, and HTTPS for the unit's own fetch) is measured on two builds, the shipping one and a size-optimised one (MinSizeRel), and decided on the second. If it fits only optimised, ADR-005's optimised build is made first.
+- **What this ADR adds** (the pages) is measured on two builds, the shipping one and a size-optimised one (MinSizeRel), and decided on the second. If it fits only optimised, ADR-005's optimised build is made first. HTTPS for the unit's own fetch is measured in ADR-010.
+
+**Handed on by ADR-010** (2026-11-17, from its menu's design, `ADR-010-lvgl/menu_design.md`, and the owner's answers to it):
+- **A start from the page asks nothing about the cup.** `web_portal.html` starts a charge or a cleanup with no acknowledgement (read 2026-11-17). Before charge and before cleanup, the screen has the person acknowledge that the cup is on the scale. The owner: "Those are safety warnings, and not technical challenges. This ensures the users are acknowledged that they DID put the cup on the scale, rather than dropping powder to scale directly." The page's start asks the same. Whether the API carries the acknowledgement too, as a field in the start's body that a client must state, is settled here.
+- **The simulated scale is not offered on the page,** as it is not on the screen (the owner: a debug feature). The schema still lists it among the scale's makes for the API and the console. The page's form leaves it out.
+- **The update's channel and source:** the page shows and sets both. They are stored together, as ADR-010 builds them. Beta offers pre-releases; leaving beta downgrades nothing.
+- **The feature table** takes the list of what ADR-010 trimmed from LVGL to fit the Pico W. Which board carries what is decided when a larger screen comes (the owner).
+- **The mirror** follows the screen's view: its `format` is ADR-010's.
 
 ## Ideas
 

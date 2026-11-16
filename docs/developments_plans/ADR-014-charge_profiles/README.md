@@ -14,7 +14,7 @@ What is thrown is kept apart from how a powder flows. Two calibres that use one 
 
 ## Why here
 
-After ADR-006, which changes how settings are stored: the stored profiles are then migrated once, to their new form, and not twice.
+Fourth, after ADR-010, ADR-008 and ADR-009, and before ADR-006 (the owner, 2026-11-17: the current Pico platform first). ADR-006 changes how settings are stored, so the stored profiles are migrated twice: once here, and again by ADR-006. That is the cost of the order. Its row on the screen goes into ADR-010's new menu ("Charge: <name>" on the Charge page, `ADR-010-lvgl/menu_design.md`), and its page into ADR-008's web UI.
 
 ## What we know (read in the code 2026-11-15)
 
@@ -47,4 +47,4 @@ A first view, to be weighed when this ADR's turn comes:
 - What a charge profile holds beyond the name, the weight and the powder: the stop thresholds, the decimal places.
 - How many there are, and whether a charge with no charge profile stays possible.
 - How a unit's stored profiles become the new form.
-- Its place in the order. Storage speaks for after ADR-006. Its screens speak for later: forms built in u8g2 are built again in LVGL (ADR-010), and its page belongs to the web UI (ADR-008).
+- ~~Its place in the order.~~ Settled by the owner, 2026-11-17 (Why here).

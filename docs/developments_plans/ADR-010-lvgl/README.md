@@ -1,34 +1,58 @@
-# ADR-010: LVGL in place of u8g2
+# ADR-010: the screen's menu designed again, on LVGL
 
-Status: **Draft** 2026-11-13. Not approved. Captures what the screen code is today and ideas for the move. The sizes for LVGL are estimates until its first step measures them.
+Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Its first gate, the measurement, is run before approval: the Pico W's fit is settled by it. The sizes for LVGL are estimates until then.
 
 ## What we want
 
 - One UI stack on every board, which can also serve a larger screen later.
-- Menus that are easy to add to.
-- Services that do not draw.
+- A menu made for the knob and a button: only what a person needs at the bench is on it, and the setting up is on the web.
+- Services that neither draw nor read buttons. The screen is a client of the same commands and status as the API.
+- The update offered at the screen, from the unit's own poll.
 
-## Owner's direction (2026-11-13)
+## Owner's direction
 
+2026-11-13:
 - Migrate the UI library from u8g2 to LVGL.
 - One implementation: no board keeps u8g2 while the others move.
 - Issue #100 (the owner's): u8g2 is hard to use for the menu system; LVGL's menu widget could carry it; another OpenTrickler build supports a TFT35 screen.
 
+2026-11-17:
+- Design the menu's logic before any code:
+  - what is nested under what;
+  - what is left out of the screen and reached only from the web;
+  - how a person with only the rotary encoder and a button drives it;
+  - the update's poll and its offer.
+- Drop what the menu does only to get round MUI, such as the Wireless menu's extra OK.
+- A split like MVC, so a 3.5" TFT, an AMOLED like the Open Weapon Mount Computer's, or a higher-resolution TFT can come later.
+- The design's answers, each in [menu_design.md](menu_design.md):
+  - **the warnings before charge and cleanup stay.** They are safety warnings: the person acknowledges that the cup is on the scale;
+  - **a change at the screen is stored when it is confirmed;**
+  - **storing the target is ADR-014's;**
+  - **LVGL and TLS are measured first,** and the owner is told if the Pico W does not fit. Trimming LVGL to fit is acceptable, and what is trimmed goes into the tiered feature table, to be decided when a larger screen comes;
+  - **the simulated scale is out of the UI,** as a debug feature;
+  - **the screen echoes the unit's state,** as today, and perhaps shows an icon for the remote control;
+  - **perhaps a pre-release channel** for the update, as phones have a beta channel;
+  - **the rework is agreed:** the new menu is built directly. A better layout is welcome wherever it makes better use of the screen;
+  - **perhaps an interactive mockup** after the measurement, as a tool for designing the UI without updating the unit;
+  - **the web page's missing acknowledgement** is documented in ADR-008.
+
 ## Why here
 
-Last of the large changes: the screens then sit on a split application (ADR-006), run on both chips (ADR-007), and ADR-001's `menu_tour` has a baseline to compare against.
+First of the work on the current Pico platform (the owner, 2026-11-17: 010, 008, 009, 014, then 006 and 007 together). The screen comes before the web UI, so the unit's poll and the update's job are built here, and ADR-008's page shows the same offer. ADR-001's `menu_tour` has a baseline to compare against.
 
-## What we know (checked 2026-11-13)
+## What we know (checked 2026-11-13 and 2026-11-17)
 
 - The screen is a mini 12864: 128 × 64, one bit a pixel, a UC1701 controller on SPI at 4 MHz. Input is a rotary encoder, its button and a reset button. A setting rotates the display.
-- The menu is u8g2's MUI: 22 forms described as one string in `mui_menu.c`, with a list of field functions.
-- u8g2 or MUI is called from 9 files. Besides the menu, these draw for themselves: the charge screen and the cleanup screen (each its own task, redrawing every 20 ms), the Wi-Fi information, scale calibration, and the motor error screen.
-- A mode takes the screen by the menu leaving its form and calling a function that blocks until the mode ends (`exit_state`, in `menu.c`).
+- The menu is u8g2's MUI: 22 forms described as one string in `mui_menu.c`, with a list of field functions. What MUI forced is listed in [menu_design.md](menu_design.md) (W1 to W6).
+- u8g2 or MUI is called from 10 files (9 on 2026-11-13; ADR-004 added the update's screen). Besides the menu, these draw for themselves: the charge screen and the cleanup screen (each its own task, redrawing every 20 ms), the Wi-Fi information, scale calibration, the update and the motor error screen.
+- A mode takes the screen by the menu leaving its form and calling a function that blocks until the mode ends (`exit_state`, in `menu.c`). The modes read the buttons themselves (`button_wait_for_input`).
 - In the menu the reset button goes up one level (PR #110). MUI has no notion of a form's parent, so `menu.c` keeps a table of them by hand, beside the forms' own description in `mui_menu.c`.
+- The buttons are read on their falling edge only, with a 250 ms lockout (`mini_12864_module.cpp`): a hold cannot be told from a click.
+- The target weight lives in RAM and is 0 after every start (`charge_weight_digits`).
 - The web mirror serves u8g2's raw buffer.
 - u8g2, MUI and their fonts are 32 KB of the Pico W image (`tools/size_report.py`).
-- RAM on Pico W: 194 KB of 256 KB is taken at link time.
-- The reference project runs LVGL 9.6 on its ESP32-S3, with skills for LVGL layout, widgets and embedded UI design in its `.agents/skills`.
+- RAM on the Pico W: 224 KB of 256 KB taken at link time (2026-11-17, on either build; 194 KB on 2026-11-13).
+- The reference project runs LVGL 9.6 on its ESP32-S3, with skills for LVGL layout, widgets and embedded UI design in its `.agents/skills`. Its UI bridge holds the services' state for the views, and its settings are pages of rows (`settings_ui.h`).
 
 **Handed on by ADR-012** (2026-11-15). Found by the audit of 2026-11-14, which read every module outside the motors for the kind of faults ADR-012 lists for them. Not read a second time. Nothing here was tried on a unit unless it says so.
 - The buttons' interrupts are set up before the queue they write to: a press in the first moments of a start faults.
@@ -49,7 +73,7 @@ Last of the large changes: the screens then sit on a split application (ADR-006)
   - No authentication for now (ADR-008's hand-on).
 - **What the screens have to do:**
   - **the row:** in the main menu, shown only while the unit's poll knows of a newer release, and opening the offer: its version and note, Install and Cancel. A critical release changes the row's text ("Important update", as the Open Weapon Mount Computer's offer is titled), still with no pop-up. That last part is recommended here: the Open Weapon Mount Computer opens a critical offer at once, and the owner's rule leaves that out;
-  - **polling:** the unit polls its source once each start after Wi-Fi joins, quietly, as the Open Weapon Mount Computer does; the offer can also ask again. The poll is ADR-008's, built before this ADR;
+  - **polling:** the unit polls its source once each start after Wi-Fi joins, quietly, as the Open Weapon Mount Computer does; the offer can also ask again. The poll is built here now (Handed on by ADR-008, below);
   - the update's screen rebuilt, read from `update_status()` rather than drawn by `update.c` (services stop drawing, below);
   - the version running, and how the last update ended (confirmed, or back on the version it had), where a person can find them, with no pop-up.
 - **To find out first:**
@@ -59,31 +83,55 @@ Last of the large changes: the screens then sit on a split application (ADR-006)
 - **LVGL is measured on two builds,** the shipping one and a size-optimised one (MinSizeRel), and the Pico W decided on the second. At `-O0` its size and speed would both be overstated. If it fits only optimised, ADR-005's optimised build is made first.
 - **RAM is the Pico W's tighter limit:** 224 of 256 KB taken at link time on either build, 112 KB of it the FreeRTOS heap, whose high-water mark is not known. This ADR's first step measures it, beside LVGL's buffers.
 
-## Ideas
+**Handed on by ADR-008** (2026-11-17, with the new order): the screen now comes first, so the update's firmware moves here from ADR-008:
+- the unit's poll of its source;
+- the download into the free slot, as a job;
+- HTTPS and its cost, measured here;
+- the stored setting for the source, with the channel beside it (menu_design.md).
 
-- **Measure first.** One LVGL screen on each board, beside u8g2, only to read flash and RAM from the size report and `stats`. Estimate: 120 to 200 KB of flash and 30 to 50 KB of RAM. If Pico W cannot hold it, the owner decides Pico W's future there, by ADR-005's rule 5.
-- **Services stop drawing.** Charge, cleanup, Wi-Fi, calibration and the motor check publish their state; screens read it and draw. This is the reference project's rule between services and UI. It comes before LVGL and is proven with u8g2 still in place.
-- **LVGL on the same panel.** One bit a pixel, the whole frame sent as today. The encoder as LVGL's encoder input, so focus and editing come from LVGL.
-- **Screens one at a time,** each against `menu_tour`'s snap of its form. The aim is that nothing is lost, not that pixels match: the owner uses each one.
-- **A settings screen drawn from the settings' own description,** if ADR-003 brings one.
-- **u8g2 and MUI removed** at the end, with their submodule.
-- **The mirror** fed from LVGL's frame.
-- **The reference project's three UI skills** copied here and fitted to this screen.
+ADR-008 keeps the page's offer, the page where the source and the channel are set, and the upload by hand. PR #111 closes at ADR-008's end, once the whole flow is shown from the offer to the unit confirmed (the owner).
+
+## What we do
+
+The design is [menu_design.md](menu_design.md): the principles, the knob's four keys, the tree, the jobs' screens, the status marks, what leaves the screen and where it goes, the update with its channel, and the split. Built in gates, each approved and built on its own:
+
+1. **Measure.** LVGL trimmed to what a 128 × 64 mono screen shows, one list screen beside u8g2, and TLS fetching one file over HTTPS. Both are measured on both boards, on the shipping build and MinSizeRel: flash from the size report, RAM at link time and the FreeRTOS heap's high-water mark from `stats`. What was trimmed is listed for the feature table. A report goes to the owner if the Pico W does not fit. This gate runs before approval.
+2. **Services stop drawing and reading buttons.**
+   - The mode loops leave the menu's task for a job task of their own.
+   - The screen sends the API's commands, `by` button, and reads the same status the API reads.
+   - A job started anywhere takes the screen; the `view` activity goes.
+   - The screens stay as they are, so `menu_tour` compares against today's baseline and `charge_cycle` passes.
+3. **The menu on the PC.**
+   - The tree as a table, the navigator, and the 12864's view, built for the PC as well, fed by a recording of a unit. The owner settles the layouts there by using them, before the unit's screens change.
+   - The way it runs (a browser page by Emscripten, or a window by SDL) is chosen after gate 1. The browser is recommended.
+4. **The menu on the unit.**
+   - The input driver's four keys, read on both edges.
+   - The new tree and screens, and the status marks.
+   - `screen` and `key` for the remote control, and `menu_tour` walking the tree from its table to a new baseline.
+   - MUI removed: all of u8g2 if LVGL is chosen, and the mirror fed from the new view.
+5. **The update at the screen.**
+   - The stored channel and source, and the poll at each start and on asking.
+   - The download into the free slot as a job.
+   - The offer's row and page, the update's screen, and its result on the Firmware page.
 
 ## How the unit shows it works
 
-- `menu_tour` finds a screen for every form the baseline has.
+- `menu_tour` visits every page of the tree from its table, and its text and snaps become the new baseline. Each of the 22 old forms is accounted for in menu_design.md's table: moved, kept, or web only by decision.
 - `charge_cycle` passes, and the charge screen shows the weight no later than it does today.
-- The owner uses every screen by hand, with the encoder.
+- A charge and a cleanup started over the API take the screen, which marks them as remote. A stop at the knob ends them.
+- The owner uses every screen by hand with the knob, once with the reset button and once without it.
+- An update found by the poll (on the beta channel, or from a test source) is offered at the screen, installed and confirmed. One that does not start comes back, and the offer says so.
 - The size report and `stats` show flash and RAM inside each board's budget.
 - On each supported board.
 
 ## Not in this ADR
 
-- A colour or touch screen. It is the reason to move, and it is a later ADR.
-- New screens or a new menu order. First the same, then better.
+- A colour or touch screen. It is the reason to move, and it is a later ADR; this one's split is made ready for it.
+- Storing the target weight (ADR-014, with the charge profile).
+- The web page's offer, its acknowledgement before a start, and the upload by hand (ADR-008).
 
 ## To settle before approval
 
-- Pico W, once LVGL is measured on it.
-- Whether "services stop drawing" is a step here or an ADR of its own.
+- The Pico W, from gate 1's numbers, and what is trimmed.
+- The QR code (menu_design.md, D5).
+- The beta channel as proposed, and the remote mark's 30 s.
