@@ -28,6 +28,26 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
 - `tests/web_test.py` is a small stand-in server (Flask) that serves the pages and answers a few endpoints with made-up values.
 - PR #113 adds a second, separate page (928 lines) for powder analysis; PR #111 adds an update page inside the portal; PR #101 adds about 950 lines to the portal.
 
+**Handed on by ADR-004** (2026-11-16): the update's offer on the web page. ADR-004 built what it rests on and left the offer to this ADR and ADR-010. Until one of them ships it, an update is reached through the REST API only, for debugging, and is not for users (the owner: "not production ready until the UI is released"). `rc_run.py update` plays the offer's part on the bench.
+- **What is there** (built and shown on the Pico 2 W; the Pico W built, not yet run):
+  - `GET /api/v1/update`: the job's `state`; what the unit runs (`version`, `block`, `slot`, `trial`); `takes`, the manifest's name for the file this unit needs; `free_bytes`; `received`; and `last`, how the last update ended (confirmed, back, refused, stopped, time) with the version tried.
+  - The job: `POST .../start`, `PUT .../image` (the release's file for `takes`, as `application/octet-stream`), `POST .../install`, `POST .../stop`. The update's events in the event log: started, stopped, received, installing, confirmed, back.
+  - The refusals, each with its code (api_v1.md, "Firmware updates"): 409 `busy` while another job runs, a person has a screen open at the unit, the image running is still on trial, or another upload is open; 413 too large; 400 for an image that is not this unit's, not newer or not whole, the job then ended and nothing installed.
+  - Every release has a `manifest.json`: the version, a note, an importance (normal or critical), and for each name `takes` gives its file, size and SHA-256.
+  - The times measured: about 800 KB sent in 14 s; the unit back on the network about 8 s after the install and confirmed at once; an update that is not kept comes back on the old image after about 75 s.
+- **What the page has to do,** so a person needs to know none of it (the owner's "too prosumer" list: where firmware comes from, which file is theirs, that the power must stay on, the wrong board):
+  - find a newer release and say so, with its note, as the Open Weapon Mount Computer's OTA mode does; a critical one at once;
+  - on a yes: start the job, send the file `takes` names, install;
+  - say "keep the power on" and show how far it has got (`received` against the file's size);
+  - follow the unit through its restart: the page's connection goes with it. Wait for `boot` in `GET /api/v1` to change, then for `trial` to be false and `last` to be set, as `rc_run.py update` does;
+  - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost. A refusal says why, without its code;
+  - no downgrade: going back is a USB install with the settings erased (`manuals/firmware_downgrade.md`), and the page may point to that manual.
+- **To find out first:**
+  - **Where the page learns of a release.** A browser on the owner's network can fetch the manifest and the file and send them to the unit, so the unit needs no TLS. Whether a page served by the unit may read GitHub's release files is not known: browsers ask the other site to allow it (CORS). Check it before the design leans on it.
+  - On the unit's own access point the phone has no internet, so there is no offer there.
+  - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check the file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
+- **An idea for the owner:** an update is not authenticated. The API has no login, so anyone on the unit's network can install an image they sealed themselves (ADR-004's review). A start from the web could wait for a press of the encoder at the unit before anything is written. The job already holds the screen, so this asks a person for a yes without a password.
+
 ## Ideas
 
 - **A mock first.** The pages, clickable in a browser against the stand-in server, before anything goes on a unit. The owner decides by using it. An agent can open the same mock in its own browser and check it.
