@@ -649,10 +649,7 @@ static void api_v1_scale_zero(const http_server_request_t *request, http_server_
     // A charge asked and not yet begun (`starting`) is before its pour, as `zeroing` is: its first throw pours from
     // this zero, so only a drift is zeroed. Before, a zero then was taken whatever the pan held (review D3)
     bool before_pour = strcmp(charge.state, "starting") == 0 || strcmp(charge.state, "zeroing") == 0;
-    if (activity == ACTIVITY_SCALE_CALIBRATION) {
-        refused = "the scale is being calibrated";
-    }
-    else if (before_pour) {
+    if (before_pour) {
         off_zero = !(fabsf(weight) <= band);
     }
     else if (activity == ACTIVITY_CHARGE && strcmp(charge.state, "fault") != 0) {
@@ -1156,7 +1153,7 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/scale/zero\",\"fields\":[],\"about\":\"asks the scale to zero, not "
     "that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times "
     "zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the "
-    "cup, and in the scale's calibration; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
+    "cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
     "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
     "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
@@ -1183,8 +1180,7 @@ static const char *const api_v1_schema_actions[] = {
 
 static const char *const api_v1_schema_states[] = {
     "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
-    "{\"value\":\"cleanup\"},{\"value\":\"scale_calibration\",\"about\":\"the scale's own calibration, from the "
-    "menu\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
+    "{\"value\":\"cleanup\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
     "information, a driver's fault): a start is refused until it is closed there\"},{\"value\":\"update\","
     "\"about\":\"a firmware update (ADR-004)\"}]",
     "\"update\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "

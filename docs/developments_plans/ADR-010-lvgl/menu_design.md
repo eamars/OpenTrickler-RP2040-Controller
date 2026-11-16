@@ -94,8 +94,7 @@ Main menu                        title: OpenTrickler, or the motor driver that i
    │  ├─ Make       A&D FX-i ›   choice, every make but Simulated (a debug feature: the owner)
    │  ├─ Baud rate  19200 ›      choice
    │  ├─ Decimals   2 ›          choice (charge's decimal_places)
-   │  ├─ Restart to apply        only after a change that applies at restart (the make)
-   │  └─ Calibrate ›             → the calibration screen; only for a make that has one (the A&D)
+   │  └─ Restart to apply        only after a change that applies at restart (the make)
    ├─ Display ›
    │  ├─ Invert knob   Off       toggle
    │  └─ Rotation      0° ›      choice
@@ -121,7 +120,6 @@ On the charge and cleanup rows, a motor driver that is not OK opens the fault pa
   - Back stops the job and returns to the Charge page, with Start focused.
 - **Cleanup:** the weight, the flow, the speed and the gate. Turning sets the speed, Enter sets it to 0, Back stops.
 - **Update:** Downloading n%, then Checking, then Installing (keep the power on), and the version. Back stops it until it installs.
-- **Calibration:** today's steps. Enter goes to the next one; Back cancels.
 - **Fault page:** names the driver and says charge and cleanup cannot start. Enter or Back leaves it.
 - **Later (ADR-009):** the cup's ask ("put an empty cup on the pan, and press") and test throws, as screens of the same kind.
 
@@ -149,7 +147,7 @@ When a job was not started from the knob, its screen's state line also says who 
 | 20 Warning, cleanup | the same acknowledgement | kept (D1) |
 | 30 Settings | Settings | |
 | 31 Scale, 53 Driver and baud rate | Settings › Scale | a live reading, no OK (W4) |
-| 51 Calibration | Scale › Calibrate | only for the A&D |
+| 51 Calibration | removed, with its mode | no scale supports it (the owner, 2026-11-17) |
 | 32, 33 Profile manager | Charge › Powder | it was a second way to pick the same thing |
 | 34, 38 Profile details | web only | read-only gains mean little without the web's context; editing is the web's |
 | 37 EEPROM, 60 Save | gone | stored when confirmed (W6, D2) |
@@ -228,7 +226,7 @@ When a job was not started from the knob, its screen's state line also says who 
 ## What may have been missed
 
 1. **A job started from the web takes the screen**, from whatever page is open, and the page under it is kept. An editor open at that moment is cancelled, with nothing stored. The API's `view` activity then never happens; it stays in the enum, unreported, and v1 stays stable. The owner agrees, and adds that the screen shows who controls it (Status on every screen, above).
-2. **"Services stop drawing" means the modes leave the menu's task.** Charge, cleanup, update, calibration and the Wi-Fi info stop calling `button_wait_for_input`; the screen sends commands instead. This is the largest piece of work. It touches `charge_mode.cpp`, the file every PR touches.
+2. **"Services stop drawing" means the modes leave the menu's task.** Charge, cleanup, update and the Wi-Fi info stop calling `button_wait_for_input`; the screen sends commands instead. This is the largest piece of work. It touches `charge_mode.cpp`, the file every PR touches.
 3. **A start from the web page asks nothing about the cup.** `web_portal.html` starts a charge or a cleanup with no acknowledgement (checked 2026-11-17). The safety warning holds on every way a person starts at the bench, so ADR-008's start asks it too. Whether the API should carry the acknowledgement as well (a field in the start's body that an agent has to state) is for ADR-008 to settle. Handed on to ADR-008 (the owner).
 4. **Storing on confirm also stores the web's unsaved changes** to the same resource. That is acceptable, and is recorded here.
 5. **The poll and pre-releases.** GitHub's "latest release" is never a pre-release, and every release stays a pre-release until every ADR closes. Until then the poll finds nothing. The end-to-end proof needs either a source on the owner's network (as the Open Weapon Mount Computer's `ota_host.py`) or a candidate channel. The owner's answer is a beta channel (The update at the screen, above).

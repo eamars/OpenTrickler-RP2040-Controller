@@ -38,6 +38,8 @@ Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu
   - **the QR code goes to a later ADR** on commissioning (ADR-015): "I'd like to design the commissioning process properly, not ad-hoc".
 - **Update tests use a local OTA server,** so they do not hammer GitHub's releases. A debug image goes onto a unit by the probe.
 - **After gate 1: LVGL and mbedTLS are compiled at -Os in the shipping build,** in place of ADR-005's whole-image optimised build ("Yes, libraries at -Os"). Our own code stays at -O0. ADR-005's trigger therefore does not fire for this ADR: the Pico W's image is 971 of 1,016 KB.
+- **The scale's calibration is removed:** "The calibration should be removed as no scale supports that".
+- **Overnight, one PR** (2026-11-17): "prioritize on everything you could do without my involvement first, then ask for my approval tomorrow ... focus on the functional build if no technical blockers". So the gates are built before this ADR's approval, which the owner gives on the PR.
 
 ## Why here
 
@@ -61,7 +63,7 @@ First of the work on the current Pico platform (the owner, 2026-11-17: 010, 008,
 - The buttons' interrupts are set up before the queue they write to: a press in the first moments of a start faults.
 - A form names a field `SU` that is not defined: a unit label is never drawn.
 - The display's lock functions are never called, and the web's mirror is served from the buffer being drawn: torn frames.
-- The A&D's "CAL" sequence is offered for every make of scale, and its screen's strings are globals.
+- ~~The A&D's "CAL" sequence is offered for every make of scale, and its screen's strings are globals.~~ The calibration is removed, its mode, its menu form and its activity with it: "The calibration should be removed as no scale supports that" (the owner, 2026-11-17).
 - "Wifi Info" opened before the radio is up reads a network interface that is not there yet.
 
 **Handed on by ADR-004** (2026-11-16): the update's offer at the unit's screen. ADR-004 built the update and left its offer to this ADR and ADR-008. Until one of them ships it, an update is reached through the REST API only, for debugging, and is not for users. What the web page needs, the contract and the times measured are in ADR-008's hand-on; this is the screen's part.

@@ -15,7 +15,7 @@ typedef enum {
     // 3 is removed
     // 4 is removed
     APP_STATE_ENTER_CLEANUP_MODE = 5,
-    APP_STATE_ENTER_SCALE_CALIBRATION = 6,
+    // 6 is removed: the A&D's calibration, which no scale supports (the owner, ADR-010)
     APP_STATE_ENTER_EEPROM_SAVE = 7,
     APP_STATE_ENTER_EEPROM_ERASE = 8,
     APP_STATE_ENTER_REBOOT = 9,

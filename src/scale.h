@@ -157,7 +157,6 @@ void scale_write(const char * command, size_t len);
 
 
 // Features
-uint8_t scale_calibrate_with_external_weight();
 AppState_t scale_enable_fast_report(AppState_t prev_state);
 
 

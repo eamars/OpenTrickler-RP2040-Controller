@@ -130,7 +130,6 @@ static uint8_t menu_get_parent_form_id(uint8_t form_id) {
         case 40: return 1;
         case 41: return 40;
 
-        case 51: return 31;
         case 53: return 31;
         case 60: return 37;
         case 61: return 37;
@@ -218,11 +217,6 @@ void menu_task(void *p){
                     break;
                 case APP_STATE_ENTER_UPDATE:
                     exit_form_id = update_mode_menu();
-                    break;
-                case APP_STATE_ENTER_SCALE_CALIBRATION:
-                    activity_job_begin(ACTIVITY_SCALE_CALIBRATION);
-                    exit_form_id = scale_calibrate_with_external_weight();
-                    activity_job_end();
                     break;
                 case APP_STATE_ENTER_EEPROM_SAVE: 
                     exit_form_id = eeprom_save_all();

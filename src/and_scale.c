@@ -121,11 +121,6 @@ void scale_press_mode_key() {
     scale_write(cmd, strlen(cmd));
 }
 
-void scale_press_cal_key() {
-    char cmd[] = "CAL\r\n";
-    scale_write(cmd, strlen(cmd));
-}
-
 void scale_press_on_off_key() {
     char cmd[] = "P\r\n";
     scale_write(cmd, strlen(cmd));
