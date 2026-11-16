@@ -57,4 +57,43 @@ if (PICO_RP2350)
         COMMENT "Making the partition table"
     )
     add_custom_target(partition_table ALL DEPENDS "${CMAKE_BINARY_DIR}/partition_table.bin")
+elseif (PICO_RP2040)
+    # Pico W: our bootloader at the start of flash, then slot A and slot B (src/update_boot.h). The RP2040 runs an
+    # image only where it was linked, so an image is linked for one slot: APP_SLOT. A full install is slot A's
+    # The bootloader measured 6.4 KB (2026-11-16): 16 KB for it, and 1,016 KB for each slot
+    set(UPDATE_LAYOUT_DEFINITIONS UPDATE_SLOT_A_OFFSET=0x4000 UPDATE_SLOT_B_OFFSET=0x102000 UPDATE_SLOT_SIZE=0xFE000)
+    set(APP_SLOT "A" CACHE STRING "Pico W: the slot the image is linked for, A or B")
+    if (APP_SLOT STREQUAL "B")
+        set(APP_FLASH_ORIGIN 0x10102000)
+        set(APP_SLOT_INDEX 1)
+    elseif (APP_SLOT STREQUAL "A")
+        set(APP_FLASH_ORIGIN 0x10004000)
+        set(APP_SLOT_INDEX 0)
+    else()
+        message(FATAL_ERROR "APP_SLOT is A or B, not ${APP_SLOT}")
+    endif()
+    set(APP_FLASH_LENGTH 1016K)
+    message("Linked for slot ${APP_SLOT} at ${APP_FLASH_ORIGIN}")
+    configure_file("${CMAKE_SOURCE_DIR}/targets/flash_region.ld.in" "${CMAKE_BINARY_DIR}/flash_region/pico_flash_region.ld")
+    pico_add_linker_script_override_path("${TARGET_NAME}" "${CMAKE_BINARY_DIR}/flash_region" FILES pico_flash_region.ld)
+    # The metadata block the RP2350's ROM reads, off by default on the RP2040, and the image sealed with its SHA-256
+    target_compile_definitions("${TARGET_NAME}" PRIVATE PICO_CRT0_INCLUDE_PICOBIN_IMAGE_TYPE_ITEM=1
+                               ${UPDATE_LAYOUT_DEFINITIONS} APP_SLOT_INDEX=${APP_SLOT_INDEX})
+    pico_hash_binary("${TARGET_NAME}")
+
+    # The bootloader: the start of flash, 16 KB at most; its boot2 is the board's
+    add_executable(bootloader "${CMAKE_SOURCE_DIR}/bootloader/bootloader.c" "${SRC_DIRECTORY}/picobin_image.c")
+    target_include_directories(bootloader PRIVATE "${SRC_DIRECTORY}")
+    target_compile_definitions(bootloader PRIVATE ${UPDATE_LAYOUT_DEFINITIONS})
+    target_link_libraries(bootloader pico_runtime hardware_resets hardware_sync hardware_watchdog pico_bootrom)
+    target_link_options(bootloader PRIVATE -Wl,--gc-sections -Wl,--print-memory-usage)
+    # The SDK's runtime without what the bootloader never uses: printf, floats, the alarm pool, mutexes
+    pico_minimize_runtime(bootloader)
+    set(APP_FLASH_ORIGIN 0x10000000)
+    set(APP_FLASH_LENGTH 16K)
+    configure_file("${CMAKE_SOURCE_DIR}/targets/flash_region.ld.in"
+                   "${CMAKE_BINARY_DIR}/bootloader_flash_region/pico_flash_region.ld")
+    pico_add_linker_script_override_path(bootloader "${CMAKE_BINARY_DIR}/bootloader_flash_region"
+                                         FILES pico_flash_region.ld)
+    pico_add_extra_outputs(bootloader)
 endif()

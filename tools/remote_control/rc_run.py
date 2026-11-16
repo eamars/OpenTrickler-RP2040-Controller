@@ -64,6 +64,9 @@ BOARDS = {
         "target": "target/rp2040.cfg", "build": "build_w", "cores": ["rp2040.core0", "rp2040.core1"],
         "reset": ["mww 0x4005801c 0", "mww 0x40010008 0x1fffc", "mww 0x40058000 0x80000000"],
         "step_status": {"coarse": 0x40014018, "fine": 0x40014040},
+        # Its flash layout (ADR-004, src/update_boot.h): our bootloader at the start, slot A after it, slot B after
+        # A. A full install writes the bootloader and slot A's image (built with APP_SLOT=A)
+        "layout": {"first": "bootloader.bin", "slot_a": 0x10004000, "slot_b": 0x10102000},
     },
     # The RP2350's registers, from the SDK's headers (watchdog.h, psm.h, io_bank0.h): the same reset as the
     # RP2040's, every power domain but the two oscillators (PSM_WDSEL_BITS less ROSC and XOSC, as
@@ -76,12 +79,11 @@ BOARDS = {
         # Its flash layout (ADR-004, targets/pico2_w_partition_table.json): the ROM's partition table at the start,
         # slot A after it, slot B after A. The image is written as its .bin into a slot, not by its ELF, which is
         # linked at the start of flash, where the ROM maps the slot it boots
-        "layout": {"table": 0x10000000, "slot_a": 0x10002000, "slot_b": 0x101C2000},
+        "layout": {"first": "partition_table.bin", "slot_a": 0x10002000, "slot_b": 0x101C2000},
     },
 }
 SECTOR_BYTES = 4096
-# picotool, from the tools release toolchain.env names (ADR-011): it reads an image's metadata block
-PICOTOOL = PICO_SDK_ROOT / "picotool" / VERSIONS["PICO_TOOLS"] / "picotool" / "picotool.exe"
+PICOBIN_BLOCK_START = 0xFFFFDED3     # boot/picobin.h: a metadata block's first word
 GPIO_STATUS_OUTTOPAD = 0x200
 STEP_SAMPLES = 200
 # A STEP pin is high half the time while its motor turns (ADR-012), and stays low, or high, when it does not
@@ -586,7 +588,9 @@ def build_version(build_dir):
 
 def block_version(elf):
     """
-    The version in an image's metadata block (ADR-004), as picotool reads it.
+    The version in an image's metadata block (ADR-004), read from the .bin beside its ELF as src/picobin_image.c reads
+    it: the first block within the first 4 KB, then the block loop, the last image definition's version. picotool's
+    `info` does not read an RP2040 image that does not start at the start of flash, as a Pico W slot's does.
 
     Args:
         elf: the image's ELF.
@@ -594,9 +598,33 @@ def block_version(elf):
     Returns:
         "first.second", or None when the image has no version in a block.
     """
-    output = subprocess.run([str(PICOTOOL), "info", str(elf)], capture_output=True, text=True).stdout
-    found = re.search(r"^\s*version:\s*(\d+\.\d+)\s*$", output, re.M)
-    return found.group(1) if found else None
+    data = Path(elf).with_suffix(".bin").read_bytes()
+    first = next((at for at in range(0, min(len(data), 0x1000) - 3, 4)
+                  if struct.unpack_from("<I", data, at)[0] == PICOBIN_BLOCK_START), None)
+    if first is None:
+        return None
+    version, at = None, first
+    for _ in range(8):
+        index = at + 4
+        image_def, block_version_found = False, None
+        while index + 4 <= len(data):
+            header = struct.unpack_from("<I", data, index)[0]
+            kind = header & 0xFF
+            words = (header >> 8) & (0xFFFF if kind & 0x80 else 0xFF)
+            if kind == 0xFF:    # the last item: then the link to the next block
+                at += struct.unpack_from("<i", data, index + 4)[0]
+                break
+            if kind == 0x42 and (header >> 16) & 0xF == 1:     # an executable's image type
+                image_def = True
+            if kind == 0x48:
+                minor, major = struct.unpack_from("<2H", data, index + 4)
+                block_version_found = f"{major}.{minor}"
+            index += max(words, 1) * 4
+        if image_def:
+            version = block_version_found
+        if at == first:
+            return version
+    return None
 
 
 def expected_block_version(version):
@@ -994,8 +1022,9 @@ class Session:
     def flash(self, elf=None):
         """
         Write an image through the probe, start it, and check the unit runs the build's version. On a board with a
-        flash layout (ADR-004) this is the full install: the partition table, the start of slot B blanked, so that
-        slot A boots, and the image's .bin (beside its ELF) in slot A.
+        flash layout (ADR-004) this is the full install: what starts flash (the Pico 2 W's partition table, the Pico
+        W's bootloader, beside the ELF), the start of slot B blanked, so that slot A boots, and the image's .bin
+        (beside its ELF) in slot A.
 
         Args:
             elf: the ELF to write; by default the session's. It becomes the session's ELF.
@@ -1014,12 +1043,12 @@ class Session:
             if found != wanted:
                 self.fail(f"{self.elf}'s metadata block is version {found}, its build {version} wants {wanted}")
                 return
-            table, image = self.elf.parent / "partition_table.bin", self.elf.with_suffix(".bin")
-            for needed in (table, image):
+            first, image = self.elf.parent / layout["first"], self.elf.with_suffix(".bin")
+            for needed in (first, image):
                 if not needed.exists():
                     self.fail(f"{needed} does not exist")
                     return
-            writes = [f"program {{{table.as_posix()}}} verify {layout['table']:#x}",
+            writes = [f"program {{{first.as_posix()}}} verify 0x10000000",
                       f"flash erase_address {layout['slot_b']:#x} {SECTOR_BYTES:#x}",
                       f"program {{{image.as_posix()}}} verify reset {layout['slot_a']:#x}"]
         else:

@@ -94,7 +94,7 @@ Each chip keeps two image slots. The image running is in one; an update is writt
 - an image on trial that does not confirm itself in time is left: the watchdog restarts the unit, and the other image boots;
 - a USB install always wins (below).
 
-**On the RP2040** the bootloader reads both slots' metadata blocks, picks by the rules, checks the SHA-256 of an image it boots on trial, and jumps into it as PR #111's does (every peripheral but the flash's reset first). The running image asks for a trial through one of the watchdog's scratch registers, which a watchdog restart keeps and a power cut clears; the bootloader arms the watchdog before it jumps into an image on trial. An image confirms itself by clearing the mark in its own last metadata block: a write that only clears bits, so nothing is erased. As picotool sealed the image on 2026-11-16, that block lies after the last range its hash covers, so the hash still holds; gate 1 shows it on the chip. **The bootloader never writes flash.** With no good image in either slot it starts the USB loader, so a unit with nothing to boot shows up as a drive without BOOTSEL. It is ours for good: it changes only by USB, so it does only this.
+**On the RP2040** the bootloader reads both slots' metadata blocks, picks by the rules, and jumps into it as PR #111's does (every peripheral but the flash's reset first). The image's SHA-256 is checked by the running image before it asks for a trial, on both chips with the same code (gate 1, "the image checked before it is tried", progress): a trial is only ever asked by the running image, so the bootloader needs no hash code. The running image asks for a trial through one of the watchdog's scratch registers, which a watchdog restart keeps and a power cut clears; the bootloader arms the watchdog before it jumps into an image on trial. An image confirms itself by clearing the mark in its own last metadata block: a write that only clears bits, so nothing is erased. picotool hashes the block with the mark cleared, so the hash still holds once the image is confirmed (its `bintool.cpp`, read 2026-11-16). **The bootloader never writes flash.** With no good image in either slot it starts the USB loader, so a unit with nothing to boot shows up as a drive without BOOTSEL. It is ours for good: it changes only by USB, so it does only this.
 
 **The one difference left:** the RP2040 cannot run one binary from either slot. Each Pico W release is linked twice, once for slot A and once for slot B. The release's manifest names both, and the unit takes the one for its free slot. Nobody chooses between them.
 
@@ -110,11 +110,11 @@ Each chip keeps two image slots. The image running is in one; an update is writt
 
 | From | Size | What |
 |---|---|---|
-| `0x10000000` | 32 KB | The bootloader, boot2 in its first 256 bytes. Its size is measured in gate 1 before this line is fixed |
-| `0x10008000` | 1,008 KB | Slot A |
-| `0x10104000` | 1,008 KB | Slot B |
+| `0x10000000` | 16 KB | The bootloader, boot2 in its first 256 bytes: 6.4 KB measured (gate 1, with the SDK's minimal runtime), from a budget of 32 KB |
+| `0x10004000` | 1,016 KB | Slot A |
+| `0x10102000` | 1,016 KB | Slot B |
 
-Today's image leaves 232 KB in a slot (PR #111's layout left 184 KB). LVGL (ADR-010) is what is likeliest to fill it.
+The image with gate 1's update code (793.2 KB, 2026-11-16) leaves 222.8 KB in a slot; PR #111's layout would have left 166.8 KB. LVGL (ADR-010) is what is likeliest to fill it.
 
 **Pico 2 W (4 MB):**
 
@@ -143,7 +143,7 @@ For each board:
 
 The start of slot B is blanked because the higher version boots: an older or equal image put in slot A by USB would otherwise lose to a newer one left in B. So a USB install always wins, and the full install is also how a unit is brought back.
 
-**The first install** is today's manual (`manuals/firmware_update_via_usb.md`, BOOTSEL and one file), with the full install as its file. The settings in the EEPROM stay, unless a stored struct changed. Why PR #111's combined `.uf2` failed is found in gate 1, before ours is trusted. The first place to look: every block of a `.uf2` carries the file's block count, and a merged file that keeps each part's own count may end the copy after the first part. That is a guess to check, not a finding.
+**The first install** is today's manual (`manuals/firmware_update_via_usb.md`, BOOTSEL and one file), with the full install as its file. The settings in the EEPROM stay, unless a stored struct changed. Why PR #111's combined `.uf2` failed is looked for in gate 1, before ours is trusted. A first guess, that the merged file kept each part's own block count, is wrong: its script numbers the blocks across the whole file (`scripts/merge_initial_flash_uf2.py` at its head, read 2026-11-16). Ours is judged on the unit, by USB.
 
 **A downgrade** is not an update. Over the network the unit takes only a newer version. To go back, a person erases the settings on the running firmware (the menu, or `POST /api/v1/system/erase`), then installs the older release's full install by USB. Its manual is written in gate 3.
 
