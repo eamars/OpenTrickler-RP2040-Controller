@@ -1,6 +1,6 @@
 # ADR-010: the screen's menu designed again, on LVGL
 
-Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Its first gate, the measurement, is run before approval: the Pico W's fit is settled by it. The sizes for LVGL are estimates until then.
+Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Its first gate, the measurement, was run before approval, 2026-11-17 ([progress.md](progress.md)). The Pico W fits: its flash with LVGL and mbedTLS at -Os inside the shipping build (971 of 1,016 KB), and its RAM with three trims, computed and to be measured with the poll.
 
 ## What we want
 
@@ -139,5 +139,5 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 
 ## To settle before approval
 
-- The Pico W, from gate 1's numbers, and what is trimmed.
+- The Pico W, from gate 1's figures (progress.md): the third-party libraries at -Os in every build, in place of ADR-005's whole-image optimised build; and the three RAM trims.
 - The beta channel as proposed, and the remote mark's 30 s.
