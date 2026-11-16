@@ -70,8 +70,8 @@ def block_version(data):
             if kind == 0x42 and (header >> 16) & 0xF == 1:     # an executable's image type
                 image_def = True
             if kind == 0x48:
-                second, first = struct.unpack_from("<2H", data, index + 4)
-                found = block_text(first, second)
+                low, high = struct.unpack_from("<2H", data, index + 4)
+                found = block_text(high, low)
             index += max(words, 1) * 4
         else:
             return None
