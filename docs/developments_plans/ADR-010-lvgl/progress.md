@@ -365,10 +365,12 @@ after. Its image is 944.9 KB of the slot, and RAM at link is 247.3 KB of 256.
     - the poll used 3,352 bytes, over HTTP and HTTPS alike, so its task has 5 KB;
     - the job task used 2,952 for a download with its check, 984 for a charge, so it stays at 4 KB, as gate 1's trim
       planned.
+- **The Pico 2 W's run is skipped** (the owner, 2026-11-17: "If we have verified the function on Pico W then Pico 2W
+  is lower risk target. I'd propose to skip."). The Pico W is the tighter target in RAM and speed, and gate 5 adds no
+  code of the RP2350's own: the download writes the free slot through the same functions as ADR-004's uploads, which
+  were proven on both chips. The Pico 2 W's image is built (930.7 KB) and has not run gate 5. Its menu baseline,
+  from before the Wi-Fi icon and the offer page, was removed; it is saved again at its next run on the probe.
 - **Left:**
-  - **The Pico 2 W's run** (a network and memory change, so both units): `flash`, `menu_tour` with its baseline saved
-    again (the icon, the offer page), `charge_cycle`, `api_check`, and an update found and installed from the local
-    server. It waits on the owner putting it on the probe.
   - **The owner's use by hand of the screens.**
   - **GitHub itself:** the shipping roots against GitHub's real chains were measured in gate 1, one fetch. The poll
     against GitHub's API and releases is not run, by the owner's rule; its first contact is a user's.
