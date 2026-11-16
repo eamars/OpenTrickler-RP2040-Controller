@@ -87,7 +87,8 @@ int main()
         printf("Jobs: no room for the job task\n");
         assert(false);
     }
-    xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
+    // The menu draws with LVGL: at 1024 words it had 142 left (ADR-010, gate 4)
+    xTaskCreate(menu_task, "Menu Task", 1536, NULL, 6, NULL);
 
     // The remote control's console task
     rc_console_init();

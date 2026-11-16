@@ -16,7 +16,7 @@ u8g2_t * get_display_handler(void) {
     return &display_handler;
 }
 
-void acquire_display_buffer_access() {
+void acquire_display_buffer_access(void) {
     if (!display_buffer_access_mutex) {
         display_buffer_access_mutex = xSemaphoreCreateMutex();
     }
@@ -26,7 +26,7 @@ void acquire_display_buffer_access() {
     xSemaphoreTake(display_buffer_access_mutex, portMAX_DELAY);
 }
 
-void release_display_buffer_access() {
+void release_display_buffer_access(void) {
     assert(display_buffer_access_mutex);
 
     xSemaphoreGive(display_buffer_access_mutex);

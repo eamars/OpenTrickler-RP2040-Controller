@@ -33,7 +33,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -DDEBUG")
 set(SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/src")
 set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
 set(U8G2_SRC_DIRECYTORY "${CMAKE_SOURCE_DIR}/library/u8g2")
-set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
+set(LVGL_DIRECTORY "${CMAKE_SOURCE_DIR}/library/lvgl")
 set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 
@@ -56,17 +56,17 @@ include_directories(${SRC_DIRECTORY})
 set(FREERTOS_KERNEL_PATH ${FREERTOS_SRC_DIRECTORY})
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
-# Pull in u8g2
+# u8g2: the mini 12864's panel driver and its frame buffer only. LVGL draws (ADR-010, gate 4)
 add_subdirectory(${U8G2_SRC_DIRECYTORY})
 
-# Pull in u8g2 mui
-add_library(u8g2_mui
-    ${U8G2_MUI_DIRECTORY}/mui_u8g2.c
-    ${U8G2_MUI_DIRECTORY}/mui.c
-    ${U8G2_MUI_DIRECTORY}/u8g2_button.c
-    ${U8G2_MUI_DIRECTORY}/u8g2_box.c
-)
-target_link_libraries(u8g2_mui u8g2)
+# LVGL, configured by src/lv_conf.h. Every source is compiled; what lv_conf.h switches off compiles to nothing.
+# At -Os in every build, as the owner decided after ADR-010's gate 1: code nobody steps through, and at -O0 the
+# Pico W's image did not fit its slot
+file(GLOB_RECURSE LVGL_SOURCES ${LVGL_DIRECTORY}/src/*.c)
+add_library(lvgl STATIC ${LVGL_SOURCES})
+target_include_directories(lvgl PUBLIC ${LVGL_DIRECTORY}/include ${LVGL_DIRECTORY} ${SRC_DIRECTORY})
+target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
+target_compile_options(lvgl PRIVATE -Os)
 
 # Pull in src
 add_subdirectory(${SRC_DIRECTORY})
@@ -93,7 +93,7 @@ target_link_libraries("${TARGET_NAME}"
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     u8g2
-    u8g2_mui
+    lvgl
     app_version
 
     # Required by cyw43 wireless module

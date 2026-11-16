@@ -36,7 +36,6 @@ extern "C" {
 void wireless_task(void *);
 bool wireless_init(void);
 bool wireless_config_save();
-uint8_t wireless_view_wifi_info(void);
 
 // The network the unit is on, as GET /api/v1/network gives it (ADR-003, gate 4)
 typedef struct {

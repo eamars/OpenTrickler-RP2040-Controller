@@ -53,6 +53,7 @@ typedef struct {
     char takes[16];             // the release manifest's name for the image this unit takes
     uint32_t free_bytes;
     uint32_t received;
+    uint32_t expected;          // the image's length, once its upload says it; 0 before (the screen's progress)
     update_last_t last;
 } update_status_t;
 

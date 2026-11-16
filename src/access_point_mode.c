@@ -23,14 +23,16 @@ static ip_addr_t gw;
 
 extern char ip_addr_string[16];
 // As wireless.c defines them: 35 bytes each. They were declared here as 32
-extern char first_line_buffer[35];
-extern char second_line_buffer[35];
 extern char host_name[18];
 
-bool access_point_mode_start() {
-    char ap_password[] = "opentrickler";
+// The access point's key, the same on every unit (ADR-015 weighs it): the screen's Wi-Fi page shows it
+const char *access_point_mode_key(void) {
+    return "opentrickler";
+}
 
-    cyw43_arch_enable_ap_mode(host_name, ap_password, CYW43_AUTH_WPA2_AES_PSK);
+
+bool access_point_mode_start() {
+    cyw43_arch_enable_ap_mode(host_name, access_point_mode_key(), CYW43_AUTH_WPA2_AES_PSK);
 
     // Initialize IP
     IP4_ADDR(ip_2_ip4(&gw), 192, 168, 4, 1);  
@@ -46,8 +48,6 @@ bool access_point_mode_start() {
     dns_server_init(&dns_server, &gw);
     cyw43_arch_lwip_end();
 
-    snprintf(first_line_buffer, sizeof(first_line_buffer), ">%s", host_name);
-    snprintf(second_line_buffer, sizeof(second_line_buffer), ">%s", ap_password);
 
     return true;
 }
@@ -60,8 +60,6 @@ bool access_point_mode_stop() {
     dns_server_deinit(&dns_server);
     cyw43_arch_lwip_end();
 
-    memset(first_line_buffer, 0x0, sizeof(first_line_buffer));
-    memset(second_line_buffer, 0x0, sizeof(second_line_buffer));
 
     return true;
 }

@@ -34,7 +34,6 @@
 #include "update.h"
 #include "wireless.h"
 #if ADR010_MEASURE
-#include "measure_lvgl.h"
 #include "measure_tls.h"
 #endif
 
@@ -52,6 +51,8 @@
 // `snap`: the u8g2 buffer of the 128 x 64 display, sent in lines of this many bytes before base64
 #define REMOTE_CONTROL_SNAP_BUFFER_SIZE 1024
 #define REMOTE_CONTROL_SNAP_CHUNK 256
+// `press hold`: longer than the menu's hold (MENU_HOLD_MS, 600 ms)
+#define REMOTE_CONTROL_HOLD_MS 700
 
 #if PICO_RP2350
 #define REMOTE_CONTROL_BOARD "pico2_w"
@@ -200,8 +201,21 @@ static bool remote_control_press(const char *args, char *reply, size_t reply_siz
         }
     }
     if (name_len == 0 || count < 1 || count > REMOTE_CONTROL_PRESS_MAX) {
-        snprintf(reply, reply_size, "@err usage: press <cw|ccw|enc|rst> [1..%d]", REMOTE_CONTROL_PRESS_MAX);
+        snprintf(reply, reply_size, "@err usage: press <cw|ccw|enc|rst|hold> [1..%d]", REMOTE_CONTROL_PRESS_MAX);
         return false;
+    }
+
+    // The knob held: down, and up after a hold's time, which the menu takes as Back (ADR-010, gate 4)
+    if (name_len == 4 && strncmp(args, "hold", 4) == 0) {
+        for (int idx = 0; idx < count; idx += 1) {
+            if (!menu_hold(REMOTE_CONTROL_HOLD_MS)) {
+                snprintf(reply, reply_size, "@err input queue full after %d", idx);
+                return false;
+            }
+            vTaskDelay(pdMS_TO_TICKS(REMOTE_CONTROL_PRESS_GAP_MS));
+        }
+        snprintf(reply, reply_size, "@ok press");
+        return true;
     }
 
     ButtonEncoderEvent_t button_encoder_event;
@@ -235,29 +249,67 @@ static bool remote_control_press(const char *args, char *reply, size_t reply_siz
 }
 
 
-// `form`: the form on screen (-1 while a mode has it); `form <id>`: show that form, pressing nothing
-static bool remote_control_form(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
-                                void *write_ctx) {
-    if (*args != '\0') {
-        char *end;
-        long form_id = strtol(args, &end, 10);
-        if (end == args || *end != '\0' || form_id < 0 || form_id > 255) {
-            snprintf(reply, reply_size, "@err usage: form [0..255]");
-            return false;
+// The screen in words (ADR-010, gate 4): a `@screen` line, then a line a row, or the editor's, or the job's
+static void remote_control_screen_lines(const menu_screen_t *screen, remote_control_write_fn write, void *write_ctx) {
+    static const char *const kinds[] = {"list", "edit", "job"};
+    char line[160];
+    snprintf(line, sizeof(line), "@screen id=%s kind=%s title=\"%s\" focus=%d marks=%s%s%s%s", screen->id,
+             kinds[screen->kind], screen->title, (int) screen->focus, screen->mark_station ? "W" : "",
+             screen->mark_access_point ? "AP" : "", screen->mark_remote ? "R" : "", screen->mark_simulated ? "S" : "");
+    write(line, write_ctx);
+    if (screen->kind == MENU_SCREEN_LIST) {
+        for (int idx = 0; idx < screen->row_count; idx += 1) {
+            snprintf(line, sizeof(line), "@row %d label=\"%s\" value=\"%s\"%s", idx, screen->row_label[idx],
+                     screen->row_value[idx], screen->row_opens[idx] ? " opens" : "");
+            write(line, write_ctx);
         }
+    }
+    else if (screen->kind == MENU_SCREEN_EDIT) {
+        snprintf(line, sizeof(line), "@edit text=%s at=%d", screen->edit_text, (int) screen->edit_at);
+        write(line, write_ctx);
+    }
+    else {
+        snprintf(line, sizeof(line), "@job state=\"%s\" big=\"%s\" action=\"%s\"%s", screen->job_state,
+                 screen->job_big, screen->job_action, screen->job_actions_more ? " more" : "");
+        write(line, write_ctx);
+        for (int idx = 0; idx < 3; idx += 1) {
+            snprintf(line, sizeof(line), "@line %d \"%s\"", idx, screen->job_line[idx]);
+            write(line, write_ctx);
+        }
+    }
+}
 
+
+// `screen`: what is on screen, in words; `screen list`: every page's id; `screen <id>`: open that page, pressing
+// nothing (ADR-010, gate 4, in place of MUI's `form`)
+static bool remote_control_screen(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                  void *write_ctx) {
+    if (strcmp(args, "list") == 0) {
+        char line[48];
+        for (size_t idx = 0; idx < menu_nav_page_count(); idx += 1) {
+            snprintf(line, sizeof(line), "@page %s", menu_nav_page_id(idx));
+            write(line, write_ctx);
+        }
+        snprintf(reply, reply_size, "@ok screen pages=%u", (unsigned) menu_nav_page_count());
+        return true;
+    }
+    if (*args != '\0') {
         bool found = false;
-        if (!menu_goto_form((uint8_t) form_id, &found)) {
-            snprintf(reply, reply_size, "@err the menu does not have the screen");
+        if (!menu_goto_screen(args, &found)) {
+            snprintf(reply, reply_size, "@err the menu did not answer");
             return false;
         }
         if (!found) {
-            snprintf(reply, reply_size, "@err no such form");
+            snprintf(reply, reply_size, "@err no such page, or a job has the screen");
             return false;
         }
     }
 
-    snprintf(reply, reply_size, "@ok form=%d", menu_get_current_form_id());
+    static menu_screen_t screen;
+    uint32_t heap_max;
+    menu_screen_copy(&screen, &heap_max);
+    remote_control_screen_lines(&screen, write, write_ctx);
+    snprintf(reply, reply_size, "@ok screen id=%s lvgl_heap_max=%lu", screen.id, (unsigned long) heap_max);
     return true;
 }
 
@@ -292,12 +344,13 @@ static bool remote_control_snap(const char *args, char *reply, size_t reply_size
         return false;
     }
 
-    // One copy, so every line comes from the same moment. It can still catch a frame half drawn: the runner
-    // snaps twice and keeps the picture only when both are equal
+    // One copy, under the buffer's lock: a whole frame (ADR-010, gate 4)
+    acquire_display_buffer_access();
     memcpy(remote_control_snap_buffer, u8g2_GetBufferPtr(display_handler), buffer_size);
+    release_display_buffer_access();
 
-    snprintf(remote_control_snap_line, sizeof(remote_control_snap_line), "@snap 128 64 u8g2 r=%d",
-             (int) mini_12864_module_config.display_rotation);
+    // r=0: the buffer is never turned; the panel turns itself (ADR-010, gate 4)
+    snprintf(remote_control_snap_line, sizeof(remote_control_snap_line), "@snap 128 64 u8g2 r=0");
     if (write) {
         write(remote_control_snap_line, write_ctx);
     }
@@ -647,7 +700,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"net", remote_control_net},
     {"reboot", remote_control_reboot},
     {"press", remote_control_press},
-    {"form", remote_control_form},
+    {"screen", remote_control_screen},
     {"snap", remote_control_snap},
     {"sim", remote_control_sim},
     {"scale", remote_control_scale},
@@ -658,8 +711,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"update", remote_control_update},
     {"wifi", remote_control_wifi},
 #if ADR010_MEASURE
-    // ADR-010, gate 1: LVGL and TLS measured on the unit (measure/)
-    {"lvgl", measure_lvgl_console},
+    // ADR-010, gate 1: TLS measured on the unit (measure/)
     {"tls", measure_tls_console},
 #endif
 };

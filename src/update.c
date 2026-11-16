@@ -403,6 +403,7 @@ void update_status(update_status_t *status) {
     status->on_trial = update_slots.on_trial && !update_confirmed;
     status->free_bytes = update_slots_known ? update_slots.free_size : 0;
     status->received = status->state == UPDATE_IDLE || status->state == UPDATE_STARTING ? 0 : update_taken;
+    status->expected = status->received > 0 ? update_expected : 0;
     status->last = update_last;
     activity_unlock();
     status->version = version_string;
@@ -629,33 +630,6 @@ void update_image_abort(uint32_t token) {
 
 // --- The mode: the job holds the screen (the menu's task)
 
-static void update_draw(update_state_t state) {
-    u8g2_t *display = get_display_handler();
-    char line[32];
-    u8g2_ClearBuffer(display);
-    u8g2_SetFont(display, u8g2_font_helvB08_tr);
-    u8g2_DrawStr(display, 5, 10, "Firmware update");
-    u8g2_DrawHLine(display, 0, 13, u8g2_GetDisplayWidth(display));
-    u8g2_SetFont(display, u8g2_font_helvR08_tr);
-    if (state == UPDATE_RECEIVING && update_expected > 0) {
-        snprintf(line, sizeof(line), "Receiving %lu%%",
-                 (unsigned long) ((uint64_t) update_taken * 100u / update_expected));
-    } else if (state == UPDATE_RECEIVING || state == UPDATE_STARTING) {
-        snprintf(line, sizeof(line), "Waiting for the image");
-    } else if (state == UPDATE_READY) {
-        char version[16];
-        update_version_text(update_job_version, version, sizeof(version));
-        snprintf(line, sizeof(line), "Ready: %s", version);
-    } else {
-        snprintf(line, sizeof(line), "Installing, restarting");
-    }
-    u8g2_DrawStr(display, 5, 25, line);
-    u8g2_DrawStr(display, 5, 37, "Keep the power on.");
-    u8g2_DrawStr(display, 5, 49, state == UPDATE_INSTALLING ? "" : "Press RST to stop.");
-    u8g2_SendBuffer(display);
-}
-
-
 uint8_t update_mode_menu(void) {
     activity_lock();
     activity_job_begin(ACTIVITY_UPDATE);
@@ -684,7 +658,6 @@ uint8_t update_mode_menu(void) {
             break;
         }
         if (state == UPDATE_INSTALLING) {
-            update_draw(state);
             vTaskDelay(pdMS_TO_TICKS(UPDATE_INSTALL_DELAY_MS));
             picobin_image_t image;
             picobin_image_read(update_slots.free_read_at, update_slots.free_size, &image);
@@ -697,7 +670,6 @@ uint8_t update_mode_menu(void) {
             printf("Update: the restart into the trial was refused (%d)\n", refused);
             break;
         }
-        update_draw(state);
         // A stop at the unit is the screen's (by button), as the API's: the update reads no button (ADR-010, gate 2).
         // The job's end wakes it at once (jobs_wake(), from update_end_locked())
         jobs_wait(UPDATE_MODE_TICK_MS);

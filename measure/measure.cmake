@@ -1,14 +1,8 @@
-# ADR-010, gate 1: LVGL and TLS measured on the unit, beside today's firmware. A measure build only
-# (-DADR010_MEASURE=ON): nothing in this folder is built otherwise. See measure_lvgl.c and measure_tls.c
+# ADR-010, gate 1: TLS measured on the unit, beside the firmware. A measure build only (-DADR010_MEASURE=ON):
+# nothing in this folder is built otherwise. See measure_tls.c. LVGL, measured here first, is every build's since
+# gate 4: the size report and `screen` give what it takes
 
 set(MEASURE_DIRECTORY ${CMAKE_SOURCE_DIR}/measure)
-set(LVGL_DIRECTORY ${CMAKE_SOURCE_DIR}/library/lvgl)
-
-# LVGL, configured by measure/lv_conf.h. Every source is compiled; what lv_conf.h switches off compiles to nothing
-file(GLOB_RECURSE LVGL_SOURCES ${LVGL_DIRECTORY}/src/*.c)
-add_library(lvgl STATIC ${LVGL_SOURCES})
-target_include_directories(lvgl PUBLIC ${LVGL_DIRECTORY}/include ${LVGL_DIRECTORY} ${MEASURE_DIRECTORY})
-target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
 
 # The roots the unit trusts, as one PEM string: the local OTA server's test roots (tools/ota_server.py --make-certs)
 # and GitHub's two (measure/github_roots.pem: USERTrust ECC for github.com, ISRG Root X1 for its asset host)
@@ -34,9 +28,8 @@ file(WRITE ${CMAKE_BINARY_DIR}/measure/measure_ca.h
 file(GLOB MBEDTLS_SOURCES ${PICO_SDK_PATH}/lib/mbedtls/library/*.c)
 list(FILTER MBEDTLS_SOURCES EXCLUDE REGEX "/sha256\\.c$")
 set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
-target_compile_options(lvgl PRIVATE -Os)
 
-target_sources(${TARGET_NAME} PRIVATE ${MEASURE_DIRECTORY}/measure_lvgl.c ${MEASURE_DIRECTORY}/measure_tls.c)
+target_sources(${TARGET_NAME} PRIVATE ${MEASURE_DIRECTORY}/measure_tls.c)
 target_include_directories(${TARGET_NAME} PRIVATE ${MEASURE_DIRECTORY} ${CMAKE_BINARY_DIR}/measure)
 target_compile_definitions(${TARGET_NAME} PRIVATE ADR010_MEASURE=1)
-target_link_libraries(${TARGET_NAME} lvgl pico_mbedtls)
+target_link_libraries(${TARGET_NAME} pico_mbedtls)

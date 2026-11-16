@@ -117,9 +117,13 @@ RTT_POLL_MS = 10            # how often openocd reads the RTT buffers (its defau
 # drawing task takes, is the real cure (the screens' ADR).
 SNAP_TRIES = 10
 PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
-MENU_TOUR_IDS = range(1, 100)
-# Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
-MENU_TOUR_LIVE_FORMS = {36: "version info: the version, hash and build of the image"}
+# Pages that show values that change from build to build, unit to unit or moment to moment: reported, not judged,
+# by --compare (ADR-010, gate 4: the menu's pages by id, in place of MUI's numbered forms)
+MENU_TOUR_LIVE_PAGES = {"settings/firmware": "the version, the build and the unit's id",
+                        "wifi": "the network's address and signal",
+                        "settings/scale": "the scale's reading"}
+# The remote mark stays 30 s after a write over the web (menu_nav.c, MENU_REMOTE_MS): the tour waits it out
+MENU_TOUR_REMOTE_WAIT_S = 35
 
 # The settings over API v1 (ADR-003, gate 3). GET /api/v1/settings gives every settings resource and powder profile
 # in one document, which `settings` keeps and compares field by field; a GET changes nothing (api_v1.md). The
@@ -1261,49 +1265,60 @@ class Session:
 
     def menu_tour(self, save_dir, compare_dir):
         """
-        Show every form in turn and snap it, pressing nothing, so no setting changes and nothing starts.
+        Open every page of the menu in turn by its id and snap it, pressing nothing, so no setting changes and
+        nothing starts (ADR-010, gate 4: `screen list`, then `screen <id>`). A page's picture is page_<id>.png, its
+        id's slashes as dashes.
 
         Args:
             save_dir: where the pictures go (default: logs/rc/snaps/<session>/).
-            compare_dir: a folder of earlier pictures; a form missing from either side, or a picture that
-                differs, fails, except the forms in MENU_TOUR_LIVE_FORMS, which are reported.
+            compare_dir: a folder of earlier pictures; a page missing from either side, or a picture that
+                differs, fails, except the pages in MENU_TOUR_LIVE_PAGES, which are reported.
         """
-        reply = self.console.command("form")
-        if reply is None or not reply.startswith("@ok form=") or int(reply.split("=")[1]) < 0:
-            self.fail(f"the menu does not have the screen: {reply}")
+        reply = self.console.command("screen list")
+        if reply is None or not reply.startswith("@ok screen"):
+            self.fail(f"the menu gives no pages: {reply}")
             return
+        page_ids = [line.split(" ", 1)[1] for line in self.console.data_lines if line.startswith("@page ")]
+        # Every page's title shows the marks: the remote one stays 30 s after a write over the web, so the tour waits
+        # for it to go, or every picture would differ from one taken at rest
+        deadline = time.monotonic() + MENU_TOUR_REMOTE_WAIT_S
+        while time.monotonic() < deadline:
+            self.console.command("screen")
+            marks = next((line for line in self.console.data_lines if line.startswith("@screen ")), "")
+            if not re.search(r"marks=\S*R", marks):
+                break
+            time.sleep(1.0)
         out_dir = Path(save_dir) if save_dir else LOG_DIR / "snaps" / self.log.path.stem
         found = []
-        for form_id in MENU_TOUR_IDS:
-            reply = self.console.command(f"form {form_id}")
-            if reply == "@err no such form":
-                continue
+        for page_id in page_ids:
+            reply = self.console.command(f"screen {page_id}")
             if reply is None or not reply.startswith("@ok"):
-                self.fail(f"form {form_id}: {reply or 'no reply'}")
+                self.fail(f"page {page_id}: {reply or 'no reply'}")
                 continue
-            if self.save_snap(out_dir / f"form_{form_id}.png") is not None:
-                found.append(form_id)
-        self.console.command("form 1")
-        self.log.write("rc", f"menu_tour: {len(found)} forms: {' '.join(str(form_id) for form_id in found)}")
+            if self.save_snap(out_dir / f"page_{page_id.replace('/', '-')}.png") is not None:
+                found.append(page_id)
+        self.console.command("screen main")
+        self.log.write("rc", f"menu_tour: {len(found)} pages: {' '.join(found)}")
         self.log.write("rc", f"menu_tour: pictures in {out_dir}")
 
         if compare_dir is None:
             return
         compare_dir = Path(compare_dir)
-        baseline = {int(path.stem.split("_")[1]) for path in compare_dir.glob("form_*.png")}
-        for form_id in sorted(baseline - set(found)):
-            self.fail(f"form {form_id} is in {compare_dir} and was not found")
-        for form_id in found:
-            reference = compare_dir / f"form_{form_id}.png"
+        baseline = {path.stem[len("page_"):].replace("-", "/") for path in compare_dir.glob("page_*.png")}
+        for page_id in sorted(baseline - set(found)):
+            self.fail(f"page {page_id} is in {compare_dir} and was not found")
+        for page_id in found:
+            name = f"page_{page_id.replace('/', '-')}.png"
+            reference = compare_dir / name
             if not reference.exists():
-                self.fail(f"form {form_id} is new: not in {compare_dir}")
+                self.fail(f"page {page_id} is new: not in {compare_dir}")
                 continue
-            if reference.read_bytes() == (out_dir / f"form_{form_id}.png").read_bytes():
+            if reference.read_bytes() == (out_dir / name).read_bytes():
                 continue
-            if form_id in MENU_TOUR_LIVE_FORMS:
-                self.log.write("rc", f"form {form_id} differs, not judged ({MENU_TOUR_LIVE_FORMS[form_id]})")
+            if page_id in MENU_TOUR_LIVE_PAGES:
+                self.log.write("rc", f"page {page_id} differs, not judged ({MENU_TOUR_LIVE_PAGES[page_id]})")
             else:
-                self.fail(f"form {form_id} differs from {reference}")
+                self.fail(f"page {page_id} differs from {reference}")
 
     def state(self):
         """
@@ -2999,7 +3014,7 @@ def main():
     watch_parser = sub.add_parser("watch", help="log the console for a time")
     watch_parser.add_argument("seconds", type=float)
     sub.add_parser("snap", help="save the screen as a PNG under logs/rc/snaps/")
-    tour_parser = sub.add_parser("menu_tour", help="snap every form, pressing nothing")
+    tour_parser = sub.add_parser("menu_tour", help="snap every page of the menu, pressing nothing")
     tour_parser.add_argument("--save", help="keep the pictures in this folder")
     tour_parser.add_argument("--compare", help="fail on a form missing from, or differing from, this folder")
     cycle_parser = sub.add_parser("charge_cycle", help="a charge with the simulated scale, cup off and back")

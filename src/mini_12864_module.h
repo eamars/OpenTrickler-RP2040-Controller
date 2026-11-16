@@ -10,13 +10,17 @@ typedef enum {
     BUTTON_NO_EVENT = 0,
     BUTTON_ENCODER_ROTATE_CW,
     BUTTON_ENCODER_ROTATE_CCW,
-    BUTTON_ENCODER_PRESSED,
+    BUTTON_ENCODER_PRESSED,     // a whole click, as the remote control's `key enter` sends it
     BUTTON_RST_PRESSED,
 
-    // Not presses: the menu woken to look at a start asked from outside it (menu_wake(); ADR-003, gate 4), and the
-    // remote control's `form <id>` (menu_goto_form(); ADR-001). A mode that reads either ignores it
+    // Not presses: the menu woken to look at a start asked from outside it, or a job's end (menu_wake()), and the
+    // remote control's `screen <id>` (menu_goto_screen(); ADR-001)
     MENU_WAKE,
-    OVERRIDE_GOTO_FORM,
+    MENU_REMOTE_SCREEN,
+
+    // The knob's button down and up (ADR-010, gate 4): the menu tells a click from a hold by the time between
+    BUTTON_ENCODER_DOWN,
+    BUTTON_ENCODER_UP,
 } ButtonEncoderEvent_t;
 
 typedef enum {

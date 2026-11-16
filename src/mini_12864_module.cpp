@@ -30,8 +30,6 @@
 
 #include "pico/stdlib.h"
 #include "u8g2.h"
-#include "mui.h"
-#include "mui_u8g2.h"
 
 #include "configuration.h"
 #include "gpio_irq_handler.h"
@@ -56,10 +54,6 @@ QueueHandle_t encoder_event_queue = NULL;
 // Local variables
 extern u8g2_t display_handler;
 
-// External variables
-extern muif_t muif_list[];
-extern fds_t fds_data[];
-extern const size_t muif_cnt;
 
 
 void _isr_on_encoder_update(uint gpio, uint32_t event){
@@ -149,17 +143,28 @@ void _isr_on_encoder_update(uint gpio, uint32_t event){
     }
 }
 
+// The knob's button, down and up (ADR-010, gate 4): the menu tells a click from a hold. An edge within the debounce
+// time of the last one taken is a bounce; the level read says which edge it is, and an edge that repeats the last
+// one taken (a bounce that ended on the same level) is dropped
 void _isr_on_button_enc_update(uint gpio, uint32_t event) {
-    static TickType_t last_call_time = 0;
-    const TickType_t debounce_timeout_ticks = pdMS_TO_TICKS(250);
+    static TickType_t last_edge_tick = 0;
+    static bool down = false;
+    const TickType_t debounce_ticks = pdMS_TO_TICKS(20);
 
-    // Button debounce
-    TickType_t current_call_time = xTaskGetTickCountFromISR();
-     if ((current_call_time - last_call_time) > debounce_timeout_ticks) {
-        ButtonEncoderEvent_t button_encoder_event = BUTTON_ENCODER_PRESSED;
+    TickType_t now = xTaskGetTickCountFromISR();
+    if ((now - last_edge_tick) < debounce_ticks) {
+        return;
+    }
+    bool pressed = !gpio_get(BUTTON0_ENC_PIN);      // pulled up: low while pressed
+    if (pressed == down) {
+        return;
+    }
+    last_edge_tick = now;
+    down = pressed;
+    ButtonEncoderEvent_t button_encoder_event = pressed ? BUTTON_ENCODER_DOWN : BUTTON_ENCODER_UP;
+    if (encoder_event_queue) {
         xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
     }
-    last_call_time = current_call_time;
 }
 
 void _isr_on_button_rst_update(uint gpio, uint32_t event) {
@@ -170,7 +175,9 @@ void _isr_on_button_rst_update(uint gpio, uint32_t event) {
     TickType_t current_call_time = xTaskGetTickCountFromISR();
     if ((current_call_time - last_call_time) > debounce_timeout_ticks) {
         ButtonEncoderEvent_t button_encoder_event = BUTTON_RST_PRESSED;
-        xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
+        if (encoder_event_queue) {
+            xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
+        }
     }
     last_call_time = current_call_time;
 }
@@ -227,15 +234,17 @@ void button_init() {
     gpio_set_dir(BUTTON0_RST_PIN, GPIO_IN);
     gpio_pull_up(BUTTON0_RST_PIN);
 
-    irq_handler.register_interrupt(BUTTON0_ENCODER_PIN1, gpio_irq_handler::irq_event::change, _isr_on_encoder_update);
-    irq_handler.register_interrupt(BUTTON0_ENCODER_PIN2, gpio_irq_handler::irq_event::change, _isr_on_encoder_update);
-    irq_handler.register_interrupt(BUTTON0_ENC_PIN, gpio_irq_handler::irq_event::fall, _isr_on_button_enc_update);
-    irq_handler.register_interrupt(BUTTON0_RST_PIN, gpio_irq_handler::irq_event::fall, _isr_on_button_rst_update);
-
-    encoder_event_queue = xQueueCreate(5, sizeof(ButtonEncoderEvent_t));
+    // The queue first: an interrupt in the first moments of a start writes to it (ADR-012's audit, ADR-010)
+    encoder_event_queue = xQueueCreate(8, sizeof(ButtonEncoderEvent_t));
     if (encoder_event_queue == 0) {
         assert(false);
     }
+
+    irq_handler.register_interrupt(BUTTON0_ENCODER_PIN1, gpio_irq_handler::irq_event::change, _isr_on_encoder_update);
+    irq_handler.register_interrupt(BUTTON0_ENCODER_PIN2, gpio_irq_handler::irq_event::change, _isr_on_encoder_update);
+    // Both edges of the knob's button: down and up (ADR-010, gate 4)
+    irq_handler.register_interrupt(BUTTON0_ENC_PIN, gpio_irq_handler::irq_event::change, _isr_on_button_enc_update);
+    irq_handler.register_interrupt(BUTTON0_RST_PIN, gpio_irq_handler::irq_event::fall, _isr_on_button_rst_update);
 
     printf("done\n");
 }
@@ -390,25 +399,16 @@ void display_init() {
     u8g2_SetPowerSave(&display_handler, 0);
     u8g2_SetContrast(&display_handler, 255);
 
-    // Initialize screen rotation
-    const u8g2_cb_t *u8g2_cb;
-    switch (mini_12864_module_config.display_rotation)
-    {
-        case DISPLAY_ROTATION_90:
-            u8g2_cb = U8G2_R1;
-            break;
-        case DISPLAY_ROTATION_180:
-            u8g2_cb = U8G2_R2;
-            break;
-        case DISPLAY_ROTATION_270:
-            u8g2_cb = U8G2_R3;
-            break;
-        case DISPLAY_ROTATION_0:
-        default:  // default is no rotation
-            u8g2_cb = U8G2_R0;
-            break;
+    // Rotation (ADR-010, gate 4): LVGL fills u8g2's buffer whole, which u8g2's own rotation does not turn, so the
+    // panel turns itself: 180 degrees by its flip. At 90 or 270 a 128 x 64 panel is 64 pixels wide and no row fits,
+    // so they are shown as 0 and 180 (menu_design.md, item 11)
+    display_rotation_t rotation = mini_12864_module_config.display_rotation;
+    bool flipped = rotation == DISPLAY_ROTATION_180 || rotation == DISPLAY_ROTATION_270;
+    if (rotation == DISPLAY_ROTATION_90 || rotation == DISPLAY_ROTATION_270) {
+        printf("Display: %d degrees is shown as %d: the 12864 turns 0 and 180 only\n", (int) rotation * 90,
+               flipped ? 180 : 0);
     }
-    u8g2_SetDisplayRotation(&display_handler, u8g2_cb);
+    u8g2_SetFlipMode(&display_handler, flipped ? 1 : 0);
 
     // Clear 
     u8g2_ClearBuffer(&display_handler);

@@ -114,6 +114,16 @@ bool settings_restart_pending(void);
 typedef void (*settings_line_fn)(const char *line, void *ctx);
 void settings_console(const char *args, char *reply, size_t reply_size, settings_line_fn write, void *ctx);
 
+/*
+ * The screen's (ADR-010, gate 4). A path as the API's, with or without "/api/v1/" ("settings/scale"). A field's
+ * description, NULL when there is none. Its value as text, as the API gives it (a choice's text or number, a
+ * number, true or false), without a string's quotes. A field written as the console writes it, through the same
+ * checks and refusals as the API's PATCH, and its resource stored if that changed it: NULL when done, else why not.
+ */
+const setting_field_t *settings_field(const char *path, const char *name);
+bool settings_read_text(const char *path, const char *name, char *out, size_t room);
+const char *settings_write_and_save(const char *path, const char *name, const char *value);
+
 #ifdef __cplusplus
 }
 #endif

@@ -86,82 +86,6 @@ const char * wireless_state_strings[] = {
 };
 
 
-char first_line_buffer[35];
-char second_line_buffer[35];
-
-
-void wirelss_info_render_task(void *p) {
-    u8g2_t * display_handler = get_display_handler();
-
-    while (true) {
-        TickType_t last_render_tick = xTaskGetTickCount();
-
-        u8g2_ClearBuffer(display_handler);
-
-        // Draw state in the title
-        const char * title_string = wireless_state_strings[wireless_config.current_wireless_state];
-        u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-        u8g2_DrawStr(display_handler, 5, 10, title_string);
-
-        // Draw line
-        u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
-
-        // Draw IP address
-        char * ip_addr_string = ipaddr_ntoa(netif_ip4_addr(netif_default));
-        if (strlen(ip_addr_string)) {
-            u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
-            u8g2_DrawStr(display_handler, 5, 23, ip_addr_string);
-        }
-
-        // Draw first line
-        if (strlen(first_line_buffer)) {
-            u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
-            u8g2_DrawStr(display_handler, 5, 33, first_line_buffer);
-        }
-
-        // Draw second line
-        if (strlen(second_line_buffer)) {
-            u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
-            u8g2_DrawStr(display_handler, 5, 43, second_line_buffer);
-        }
-
-        // Draw link status
-        if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_INIT || 
-            wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
-                int link_status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
-                char * link_status_string = NULL;
-
-                if (link_status == CYW43_LINK_DOWN) {
-                    link_status_string = "LINK_DOWN";
-                }
-                else if (link_status == CYW43_LINK_JOIN) {
-                    link_status_string = "CYW43_LINK_JOIN";
-                }
-                else if (link_status == CYW43_LINK_NOIP) {
-                    link_status_string = "CYW43_LINK_NOIP";
-                }
-                else if (link_status == CYW43_LINK_UP) {
-                    link_status_string = "CYW43_LINK_UP";
-                }
-                else if (link_status == CYW43_LINK_FAIL) {
-                    link_status_string = "CYW43_LINK_FAIL";
-                }
-                else if (link_status == CYW43_LINK_NONET) {
-                    link_status_string = "CYW43_LINK_NONET";
-                }
-                else if (link_status == CYW43_LINK_BADAUTH) {
-                    link_status_string = "CYW43_LINK_BADAUTH";
-                }
-                u8g2_SetFont(display_handler, u8g2_font_6x12_tf);
-                u8g2_DrawStr(display_handler, 5, 53, link_status_string);
-            }
-
-
-        u8g2_SendBuffer(display_handler);
-
-        vTaskDelayUntil(&last_render_tick, pdMS_TO_TICKS(200));
-    }
-}
 
 
 /*
@@ -513,8 +437,6 @@ void wireless_get_info(wireless_info_t *info) {
 void wireless_task(void *p) {
     static TaskHandle_t led_interface_task_handler = NULL;
 
-    memset(first_line_buffer, 0x0, sizeof(first_line_buffer));
-    memset(second_line_buffer, 0x0, sizeof(second_line_buffer));
 
     wireless_config.current_wireless_state = WIRELESS_STATE_NOT_INITIALIZED;
     wireless_ctrl_queue = xQueueCreate(5, sizeof(wireless_ctrl_t));
@@ -542,9 +464,6 @@ void wireless_task(void *p) {
     if (wireless_config.eeprom_wireless_metadata.enable) {
         wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_INIT;
         cyw43_arch_enable_sta_mode();
-
-        // Show the current joining SSID
-        snprintf(first_line_buffer, sizeof(first_line_buffer), ">%s", wireless_config.eeprom_wireless_metadata.ssid);
 
         // If the authentication method is open then the password is NULL
         const char * wifi_password = NULL;
@@ -635,33 +554,6 @@ void wireless_task(void *p) {
     cyw43_arch_deinit();
 
     vTaskSuspend(led_interface_task_handler);
-}
-
-
-uint8_t wireless_view_wifi_info(void) {
-    static TaskHandle_t wirelss_info_render_task_handler = NULL;
-    if (wirelss_info_render_task_handler == NULL) {
-        // The render task shall have lower priority than the current one
-        UBaseType_t current_task_priority = uxTaskPriorityGet(xTaskGetCurrentTaskHandle());
-        xTaskCreate(wirelss_info_render_task, "Wireless Display Render Task", configMINIMAL_STACK_SIZE, NULL, current_task_priority - 1, &wirelss_info_render_task_handler);
-    }
-    else {
-        vTaskResume(wirelss_info_render_task_handler);
-    }
-
-    bool quit = false;
-    while (quit == false) {
-        // Wait if quit is pressed
-        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(true);
-        if (button_encoder_event == BUTTON_RST_PRESSED || button_encoder_event == BUTTON_ENCODER_PRESSED) {
-            quit = true;
-            break;
-        }
-    }
-
-    vTaskSuspend(wirelss_info_render_task_handler);
-
-    return 40;  // Returns to the Wireless menu (view 40)
 }
 
 

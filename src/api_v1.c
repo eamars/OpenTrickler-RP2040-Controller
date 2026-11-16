@@ -81,7 +81,9 @@ static void api_v1_get_display_frame(const http_server_request_t *request, http_
         http_server_reply_error(reply, 500, "failed", "the frame is larger than a reply");
         return;
     }
+    acquire_display_buffer_access();
     memcpy(out, u8g2_GetBufferPtr(display), size);
+    release_display_buffer_access();
     http_server_reply_send(reply, 200, "application/octet-stream", size);
 }
 

@@ -73,3 +73,21 @@ add_custom_command(
     COMMENT "Generating version"
 )
 add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
+
+
+# The menu's fonts, made from u8g2's own BDF sources (ADR-010, gate 4): Helvetica 8, regular and bold, as the menu
+# was drawn, and ProFont 22 for the weight
+set(MENU_FONTS_BDF "${CMAKE_SOURCE_DIR}/library/u8g2/tools/font/bdf")
+add_custom_command(
+    OUTPUT "${SRC_DIRECTORY}/generated/menu_fonts.c"
+    DEPENDS "${SCRIPTS_DIRECTORY}/bdf2lvgl.py" "${MENU_FONTS_BDF}/helvR08.bdf" "${MENU_FONTS_BDF}/helvB08.bdf"
+            "${MENU_FONTS_BDF}/profont22.bdf"
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/bdf2lvgl.py" --out ${SRC_DIRECTORY}/generated/menu_fonts.c
+            ${MENU_FONTS_BDF}/helvR08.bdf:menu_font_regular ${MENU_FONTS_BDF}/helvB08.bdf:menu_font_bold
+            ${MENU_FONTS_BDF}/profont22.bdf:menu_font_large
+    COMMENT "Generating the menu's fonts"
+)
+add_custom_target(generate_menu_fonts ALL DEPENDS "${SRC_DIRECTORY}/generated/menu_fonts.c")
+add_dependencies("${TARGET_NAME}" generate_menu_fonts)
+set_source_files_properties("${SRC_DIRECTORY}/generated/menu_fonts.c" PROPERTIES GENERATED TRUE)
+target_sources("${TARGET_NAME}" PRIVATE "${SRC_DIRECTORY}/generated/menu_fonts.c")

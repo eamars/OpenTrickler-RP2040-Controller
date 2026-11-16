@@ -1197,6 +1197,71 @@ static void console_fields(const settings_resource_t *resource, int32_t id, sett
 }
 
 
+// --- The screen's (ADR-010, gate 4): a field read, and a field written and stored, through the API's own checks
+
+static const settings_resource_t *screen_resource(const char *path, int32_t *id) {
+    char full[72];
+    bool prefixed = strncmp(path, SETTINGS_API_PREFIX, strlen(SETTINGS_API_PREFIX)) == 0;
+    snprintf(full, sizeof(full), "%s%s", prefixed ? "" : SETTINGS_API_PREFIX, path);
+    return resource_for_path(full, id);
+}
+
+
+const setting_field_t *settings_field(const char *path, const char *name) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    if (resource == NULL) {
+        return NULL;
+    }
+    int field_idx = field_index(resource, name, strlen(name));
+    return field_idx < 0 ? NULL : &resource->fields[field_idx];
+}
+
+
+bool settings_read_text(const char *path, const char *name, char *out, size_t room) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    const setting_field_t *field = settings_field(path, name);
+    if (resource == NULL || field == NULL || room == 0) {
+        return false;
+    }
+    size_t len = 0;
+    out[0] = '\0';
+    write_value(field, resource->live(id), out, room, &len);
+    // A choice or a string as JSON writes it: its quotes go
+    if (len >= 2 && out[0] == '"' && out[len - 1] == '"') {
+        memmove(out, out + 1, len - 2);
+        out[len - 2] = '\0';
+    }
+    return true;
+}
+
+
+const char *settings_write_and_save(const char *path, const char *name, const char *value) {
+    static char why[128];
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    if (resource == NULL) {
+        snprintf(why, sizeof(why), "no such resource: %s", path);
+        return why;
+    }
+    http_json_member_t member = {.name = name, .name_len = strlen(name), .kind = HTTP_JSON_STRING,
+                                 .value = value, .value_len = strlen(value)};
+    outcome_t outcome;
+    settings_patch(resource, id, &member, 1, true, &outcome);
+    if (outcome.status != 200) {
+        snprintf(why, sizeof(why), "%s", outcome.message);
+        return why;
+    }
+    // Stored when confirmed, only if it changed (ADR-010, D2)
+    if (!resource->is_saved() && !resource->save()) {
+        snprintf(why, sizeof(why), "the EEPROM did not take it");
+        return why;
+    }
+    return NULL;
+}
+
+
 void settings_console(const char *args, char *reply, size_t reply_size, settings_line_fn write, void *ctx) {
     args = skip_spaces(args);
     if (*args == '\0') {

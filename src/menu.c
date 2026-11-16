@@ -1,55 +1,94 @@
-#include <math.h>
+/*
+    The menu's task (ADR-010, gate 4). It owns LVGL and the panel: each frame LVGL draws into one bit a pixel is turned
+    into the UC1701's columns, written into u8g2's buffer under the buffer's lock, and sent (u8g2 is the panel's driver
+    only). The knob and the buttons become four keys:
+      the knob a detent clockwise or anticlockwise: Next, Prev;
+      a click of the knob, released within MENU_HOLD_MS: Enter;
+      the reset button, or the knob held MENU_HOLD_MS: Back (at once, while held).
+    A start asked from anywhere is taken here and begun in the job task; the job's screen is the menu's until it ends.
+*/
+#include <stdio.h>
 #include <string.h>
 
 #include <FreeRTOS.h>
-#include <task.h>
 #include <queue.h>
 #include <semphr.h>
-#include <stdio.h>
-#include <u8g2.h>
-#include <mui.h>
-#include <mui_u8g2.h>
+#include <task.h>
+
+#include "lvgl/lvgl.h"
+#include "pico/time.h"
+#include "u8g2.h"
 
 #include "activity.h"
-#include "app.h"
-#include "configuration.h"
-#include "scale.h"
 #include "display.h"
-#include "mini_12864_module.h"
-#include "eeprom.h"
-#include "charge_mode.h"
-#include "cleanup_mode.h"
-#include "eeprom.h"
-#include "wireless.h"
-#include "system_control.h"
-#include "motors.h"
-#include "menu.h"
 #include "jobs.h"
-#include "update.h"
+#include "menu.h"
+#include "menu_nav.h"
+#include "menu_view_12864.h"
+#include "mini_12864_module.h"
 
-// How often the menu wakes with nothing pressed, to draw the main menu's title again if a motor driver's state
-// changed it (ADR-012, step 6)
-#define MENU_TITLE_CHECK_MS 1000
-// How often the menu looks for a job's end while it waits for presses (ADR-010, gate 2)
-#define MENU_JOB_LOOK_MS 100
+#define MENU_WIDTH 128
+#define MENU_HEIGHT 64
+#define MENU_FRAME_BYTES (MENU_WIDTH * MENU_HEIGHT / 8)
+// LVGL's one-bit frame starts with its palette: two colours of 4 bytes
+#define MENU_PALETTE_BYTES 8
+// A hold of the knob this long is Back
+#define MENU_HOLD_MS 600
+// How often the screen's live values are read again: a job's weight often, a page's values less
+#define MENU_REFRESH_JOB_MS 100
+#define MENU_REFRESH_PAGE_MS 250
+// How often LVGL's heap is looked at, for `screen`
+#define MENU_HEAP_LOOK_MS 2000
 
-// External variables
-extern muif_t muif_list[];
-extern fds_t fds_data[];
-extern const size_t muif_cnt;
 extern QueueHandle_t encoder_event_queue;
 
-// External menus
+static uint8_t menu_frame[MENU_FRAME_BYTES + MENU_PALETTE_BYTES] __attribute__((aligned(4)));
+static lv_display_t *menu_display = NULL;
 
-// Local variables
+// What the console sees: the screen last drawn, copied under its lock
+static SemaphoreHandle_t menu_screen_lock = NULL;
+static menu_screen_t menu_screen_drawn;
+static menu_screen_t menu_screen_now;
+static uint32_t menu_lvgl_heap_max = 0;
 
-AppState_t exit_state = APP_STATE_DEFAULT;
-
-// The remote control's view of the menu (ADR-001). Only menu_task touches the mui_t; other tasks see these
+// The remote control's `screen <id>`: asked from its task, answered after the draw
 static volatile int menu_current_form_id = -1;
-static volatile uint8_t menu_goto_form_id = 0;
-static volatile bool menu_goto_form_found = false;
-static SemaphoreHandle_t menu_goto_form_drawn = NULL;
+static char menu_goto_id[32];
+static volatile bool menu_goto_found = false;
+static SemaphoreHandle_t menu_goto_drawn = NULL;
+
+
+static uint32_t menu_tick(void) {
+    return (uint32_t) (xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
+
+
+/*
+    A frame drawn: into u8g2's buffer as the UC1701 takes it, then to the panel. LVGL's rows are bytes of 8 pixels
+    across, the leftmost the top bit; u8g2's pages are 8 rows deep, a byte a column, the top row the lowest bit.
+    (LVGL's own lv_draw_i1_convert_to_vtiled() runs each column the whole height: not u8g2's pages)
+*/
+static void menu_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px_map) {
+    (void) area;
+    u8g2_t *u8g2 = get_display_handler();
+    const uint8_t *rows = px_map + MENU_PALETTE_BYTES;
+    acquire_display_buffer_access();
+    uint8_t *pages = u8g2_GetBufferPtr(u8g2);
+    memset(pages, 0, MENU_FRAME_BYTES);
+    for (int y = 0; y < MENU_HEIGHT; y += 1) {
+        const uint8_t *row = rows + y * (MENU_WIDTH / 8);
+        uint8_t *page = pages + (y / 8) * MENU_WIDTH;
+        uint8_t bit = (uint8_t) (1u << (y % 8));
+        for (int x = 0; x < MENU_WIDTH; x += 1) {
+            if (row[x / 8] & (0x80u >> (x % 8))) {
+                page[x] |= bit;
+            }
+        }
+    }
+    u8g2_SendBuffer(u8g2);
+    release_display_buffer_access();
+    lv_display_flush_ready(display);
+}
 
 
 int menu_get_current_form_id(void) {
@@ -57,271 +96,180 @@ int menu_get_current_form_id(void) {
 }
 
 
-bool menu_goto_form(uint8_t form_id, bool *found) {
-    if (menu_goto_form_drawn == NULL || menu_current_form_id < 0) {
+void menu_wake(void) {
+    ButtonEncoderEvent_t event = MENU_WAKE;
+    if (encoder_event_queue != NULL) {
+        xQueueSend(encoder_event_queue, &event, 0);
+    }
+}
+
+
+bool menu_goto_screen(const char *id, bool *found) {
+    if (menu_goto_drawn == NULL || encoder_event_queue == NULL) {
         return false;
     }
-
     // An answer left over from a call that timed out must not be taken for this one
-    xSemaphoreTake(menu_goto_form_drawn, 0);
-
-    // If a mode takes the screen between the check above and this send, the mode reads the event and ignores it,
-    // and this call times out
-    menu_goto_form_id = form_id;
-    ButtonEncoderEvent_t button_encoder_event = OVERRIDE_GOTO_FORM;
-    if (xQueueSend(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(100)) != pdTRUE) {
+    xSemaphoreTake(menu_goto_drawn, 0);
+    snprintf(menu_goto_id, sizeof(menu_goto_id), "%s", id);
+    ButtonEncoderEvent_t event = MENU_REMOTE_SCREEN;
+    if (xQueueSend(encoder_event_queue, &event, pdMS_TO_TICKS(100)) != pdTRUE ||
+        xSemaphoreTake(menu_goto_drawn, pdMS_TO_TICKS(1000)) != pdTRUE) {
         return false;
     }
-    if (xSemaphoreTake(menu_goto_form_drawn, pdMS_TO_TICKS(1000)) != pdTRUE) {
-        return false;
-    }
-
-    *found = menu_goto_form_found;
+    *found = menu_goto_found;
     return true;
 }
 
-void menu_wake(void) {
-    // No wait: with the queue full the menu still looks within MENU_TITLE_CHECK_MS, while the request is fresh
-    ButtonEncoderEvent_t button_encoder_event = MENU_WAKE;
-    xQueueSend(encoder_event_queue, &button_encoder_event, 0);
-}
 
-
-uint8_t menu_motor_fault_view(void) {
-    // A view at the unit: no start is taken over it (ADR-003, gate 4)
-    activity_job_begin(ACTIVITY_VIEW);
-    u8g2_t * display_handler = get_display_handler();
-    const char * motor_fault = motors_get_fault();
-
-    u8g2_ClearBuffer(display_handler);
-    u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-    u8g2_DrawStr(display_handler, 5, 10, motor_fault != NULL ? motor_fault : "Motor drivers");
-    u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
-    u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
-    u8g2_DrawStr(display_handler, 5, 25, "Charge and cleanup");
-    u8g2_DrawStr(display_handler, 5, 37, "cannot start.");
-    u8g2_DrawStr(display_handler, 5, 49, "Press to go back.");
-    u8g2_SendBuffer(display_handler);
-
-    while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
-    }
-
-    activity_job_end();
-    return 1;  // the main menu, whose title names the driver
-}
-
-
-/*
-    A press while a job runs, as the job's command: the same entry points the API calls, by button (ADR-010, gate 2).
-    Back stops the job. A job in `fault` takes any press as its acknowledgement, as it did when it read the buttons.
-    The charge zeroes the scale on a press while it waits for zero or for the cup's return; the cleanup's speed
-    follows the knob, a press stopping the motors, until stopped (no time given, as a person at the unit)
-*/
-static void menu_job_key(activity_t job, ButtonEncoderEvent_t event) {
-    bool key = event == BUTTON_ENCODER_ROTATE_CW || event == BUTTON_ENCODER_ROTATE_CCW ||
-               event == BUTTON_ENCODER_PRESSED || event == BUTTON_RST_PRESSED;
-    if (!key) {
+void menu_screen_copy(menu_screen_t *screen, uint32_t *lvgl_heap_max) {
+    if (menu_screen_lock == NULL) {
+        memset(screen, 0, sizeof(*screen));
+        *lvgl_heap_max = 0;
         return;
     }
-    if (event == BUTTON_RST_PRESSED) {
-        activity_request_stop(job, ACTIVITY_BY_BUTTON);
-        return;
-    }
-
-    if (job == ACTIVITY_CHARGE) {
-        charge_status_t charge;
-        charge_mode_get_status(&charge);
-        if (strcmp(charge.state, "fault") == 0) {
-            activity_request_stop(job, ACTIVITY_BY_BUTTON);
-        }
-        else if (event == BUTTON_ENCODER_PRESSED &&
-                 (strcmp(charge.state, "zeroing") == 0 || strcmp(charge.state, "waiting_for_cup_return") == 0)) {
-            scale_ask_zero();
-        }
-    }
-    else if (job == ACTIVITY_CLEANUP) {
-        cleanup_status_t cleanup;
-        cleanup_mode_get_status(&cleanup);
-        if (strcmp(cleanup.state, "fault") == 0) {
-            activity_request_stop(job, ACTIVITY_BY_BUTTON);
-        }
-        else if (event == BUTTON_ENCODER_ROTATE_CW) {
-            cleanup_mode_set_speed(cleanup.speed_rps + 1.0f, NAN);
-        }
-        else if (event == BUTTON_ENCODER_ROTATE_CCW) {
-            cleanup_mode_set_speed(cleanup.speed_rps - 1.0f, NAN);
-        }
-        else {
-            cleanup_mode_set_speed(0.0f, NAN);
-        }
-    }
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    *screen = menu_screen_drawn;
+    *lvgl_heap_max = menu_lvgl_heap_max;
+    xSemaphoreGive(menu_screen_lock);
 }
 
 
-// A job begun in the job task, the menu turning presses into its commands until it ends (ADR-010, gate 2)
-static uint8_t menu_run_job(activity_t job) {
-    if (!jobs_begin(job)) {
-        printf("Menu: %s not begun, a job runs\n", activity_name(job));
-        return JOBS_EXIT_MAIN_MENU;
+bool menu_hold(uint32_t ms) {
+    ButtonEncoderEvent_t down = BUTTON_ENCODER_DOWN;
+    ButtonEncoderEvent_t up = BUTTON_ENCODER_UP;
+    if (encoder_event_queue == NULL || xQueueSend(encoder_event_queue, &down, pdMS_TO_TICKS(500)) != pdTRUE) {
+        return false;
     }
-    uint8_t exit_form_id;
-    while (!jobs_take_end(&exit_form_id)) {
-        menu_job_key(job, button_wait_for_input_ms(MENU_JOB_LOOK_MS));
-    }
-    // A start refused for a motor driver not OK: the screen shows which, as before the job task
-    if (exit_form_id == JOBS_EXIT_MOTOR_FAULT) {
-        exit_form_id = menu_motor_fault_view();
-    }
-    return exit_form_id;
+    vTaskDelay(pdMS_TO_TICKS(ms));
+    return xQueueSend(encoder_event_queue, &up, pdMS_TO_TICKS(500)) == pdTRUE;
 }
 
 
-static uint8_t menu_get_parent_form_id(uint8_t form_id) {
-    // Parent relationships for "one level up" navigation.
-    // Root is form 1.
-    switch (form_id) {
-        case 10: return 1;
-        case 11: return 10;
-        case 12: return 10;
-        case 13: return 10;
+// The knob's button: a click is Enter at its release; a hold is Back once it is held MENU_HOLD_MS
+static bool menu_knob_down = false;
+static bool menu_knob_held = false;
+static uint64_t menu_knob_down_us = 0;
 
-        case 20: return 1;
 
-        case 30: return 1;
-        case 31: return 30;
-        case 32: return 30;
-        case 33: return 32;
-        case 34: return 32;
-        case 38: return 34;
-        case 35: return 30;
-        case 36: return 30;
-        case 37: return 30;
-        case 39: return 30;
-
-        case 40: return 1;
-        case 41: return 40;
-
-        case 53: return 31;
-        case 60: return 37;
-        case 61: return 37;
-
+static void menu_event(ButtonEncoderEvent_t event) {
+    switch (event) {
+        case BUTTON_ENCODER_ROTATE_CW:
+            menu_nav_key(MENU_KEY_NEXT);
+            break;
+        case BUTTON_ENCODER_ROTATE_CCW:
+            menu_nav_key(MENU_KEY_PREV);
+            break;
+        case BUTTON_ENCODER_PRESSED:
+            menu_nav_key(MENU_KEY_ENTER);
+            break;
+        case BUTTON_RST_PRESSED:
+            menu_nav_key(MENU_KEY_BACK);
+            break;
+        case BUTTON_ENCODER_DOWN:
+            menu_knob_down = true;
+            menu_knob_held = false;
+            menu_knob_down_us = time_us_64();
+            break;
+        case BUTTON_ENCODER_UP:
+            if (menu_knob_down && !menu_knob_held) {
+                menu_nav_key(MENU_KEY_ENTER);
+            }
+            menu_knob_down = false;
+            break;
+        case MENU_REMOTE_SCREEN:
+            menu_goto_found = menu_nav_goto(menu_goto_id);
+            break;
         default:
-            return 1;
+            break;
     }
 }
 
 
-void menu_task(void *p){
-    u8g2_t * display_handler = get_display_handler();
-    // Create UI element
-    mui_t mui;
+// The wait for the next event: the refresh, or sooner when a hold is due
+static uint32_t menu_wait_ms(void) {
+    uint32_t wait = menu_nav_in_job() ? MENU_REFRESH_JOB_MS : MENU_REFRESH_PAGE_MS;
+    if (menu_knob_down && !menu_knob_held) {
+        uint64_t held_ms = (time_us_64() - menu_knob_down_us) / 1000;
+        uint32_t left = held_ms >= MENU_HOLD_MS ? 0 : (uint32_t) (MENU_HOLD_MS - held_ms);
+        wait = left < wait ? left : wait;
+    }
+    return wait;
+}
 
-    mui_Init(&mui, display_handler, fds_data, muif_list, muif_cnt);
-    mui_GotoForm(&mui, 1, 0);
 
-    menu_goto_form_drawn = xSemaphoreCreateBinary();
-
-    // Render the menu before user input
-    u8g2_ClearBuffer(display_handler);
-    mui_Draw(&mui);
-    u8g2_SendBuffer(display_handler);
-    menu_current_form_id = mui_GetCurrentFormId(&mui);
-    const char * drawn_title = menu_main_title();
-
-    while (true) {
-        bool goto_form_asked = false;
-
-        if (mui_IsFormActive(&mui)) {
-            // Wait for the user input; with none, the menu is drawn again only if the main menu's title changed
-            ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(MENU_TITLE_CHECK_MS);
-            activity_t asked;
-            if (activity_take_start(&asked)) {
-                // A start asked by the API or the console (ADR-003, gate 4): the mode, as its form's button enters it
-                exit_state = asked == ACTIVITY_CLEANUP ? APP_STATE_ENTER_CLEANUP_MODE :
-                             (asked == ACTIVITY_UPDATE ? APP_STATE_ENTER_UPDATE : APP_STATE_ENTER_CHARGE_MODE);
-                mui_SaveForm(&mui);          // store the current form and position so that the child can jump back
-                mui_LeaveForm(&mui);
-            }
-            else if (button_encoder_event == BUTTON_NO_EVENT || button_encoder_event == MENU_WAKE) {
-                if (mui_GetCurrentFormId(&mui) != 1 || menu_main_title() == drawn_title) {
-                    continue;
-                }
-            }
-            else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CW) {
-                mui_NextField(&mui);
-            }
-            else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CCW) {
-                mui_PrevField(&mui);
-            }
-            else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-                mui_SendSelect(&mui);
-            }
-            else if (button_encoder_event == BUTTON_RST_PRESSED) {
-                // Global back: deterministic "one menu level up" until root (form 1).
-                uint8_t current_form_id = mui_GetCurrentFormId(&mui);
-                if (current_form_id != 1) {
-                    uint8_t parent_form_id = menu_get_parent_form_id(current_form_id);
-                    mui_GotoForm(&mui, parent_form_id, 0);
-                }
-            }
-            else if (button_encoder_event == OVERRIDE_GOTO_FORM) {
-                // A form that does not exist leaves the current one on screen
-                menu_goto_form_found = mui_GotoForm(&mui, menu_goto_form_id, 0);
-                goto_form_asked = true;
-            }
+static void menu_jobs(void) {
+    activity_t job;
+    if (!menu_nav_in_job() && activity_take_start(&job)) {
+        if (jobs_begin(job)) {
+            menu_nav_job_begun(job);
         }
         else {
-            // A mode takes the screen
-            menu_current_form_id = -1;
-
-            uint8_t exit_form_id = 1;  // by default it goes to the main menu
-            // menu is not active, leave the control to the app
-            switch (exit_state) {
-                case APP_STATE_VIEW_MOTOR_FAULT:
-                    exit_form_id = menu_motor_fault_view();
-                    break;
-                case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_form_id = menu_run_job(ACTIVITY_CHARGE);
-                    break;
-                case APP_STATE_ENTER_CLEANUP_MODE:
-                    exit_form_id = menu_run_job(ACTIVITY_CLEANUP);
-                    break;
-                case APP_STATE_ENTER_UPDATE:
-                    exit_form_id = menu_run_job(ACTIVITY_UPDATE);
-                    break;
-                case APP_STATE_ENTER_EEPROM_SAVE: 
-                    exit_form_id = eeprom_save_all();
-                    break;
-                case APP_STATE_ENTER_EEPROM_ERASE:
-                    exit_form_id = eeprom_erase(true);
-                    break;
-                case APP_STATE_ENTER_REBOOT:
-                    exit_form_id = software_reboot();
-                    break;
-                case APP_STATE_ENTER_WIFI_INFO:
-                    activity_job_begin(ACTIVITY_VIEW);
-                    exit_form_id = wireless_view_wifi_info();
-                    activity_job_end();
-                    break;
-                default:
-                    break;
-            }
-
-            // A start the mode did not begin (a driver not OK) is done with: it never starts later
+            printf("Menu: %s not begun, a job runs\n", activity_name(job));
             activity_clear_start();
-            mui_GotoForm(&mui, exit_form_id, 0);
         }
+    }
+    uint8_t exit_form;
+    if (jobs_take_end(&exit_form)) {
+        // A start the job did not begin (a driver not OK) is done with: it never starts later
+        activity_clear_start();
+        menu_nav_job_ended(exit_form);
+    }
+}
 
-        // The title is read before the draw: a change after it is drawn at the next check, not lost
-        drawn_title = menu_main_title();
-        u8g2_ClearBuffer(display_handler);
-        mui_Draw(&mui);
-        u8g2_SendBuffer(display_handler);
 
-        menu_current_form_id = mui_GetCurrentFormId(&mui);
-        if (goto_form_asked) {
-            // Answered after the draw, so a snap taken next shows the new form
-            xSemaphoreGive(menu_goto_form_drawn);
+static void menu_draw(bool goto_asked) {
+    menu_nav_screen(&menu_screen_now);
+    menu_view_draw(&menu_screen_now);
+    lv_timer_handler();
+
+    menu_current_form_id = menu_nav_in_job() ? -1 : 0;
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    menu_screen_drawn = menu_screen_now;
+    xSemaphoreGive(menu_screen_lock);
+    if (goto_asked) {
+        // Answered after the draw, so a snap taken next shows the page
+        xSemaphoreGive(menu_goto_drawn);
+    }
+}
+
+
+void menu_task(void *p) {
+    (void) p;
+    menu_screen_lock = xSemaphoreCreateMutex();
+    menu_goto_drawn = xSemaphoreCreateBinary();
+
+    lv_init();
+    lv_tick_set_cb(menu_tick);
+    menu_display = lv_display_create(MENU_WIDTH, MENU_HEIGHT);
+    lv_display_set_color_format(menu_display, LV_COLOR_FORMAT_I1);
+    lv_display_set_buffers(menu_display, menu_frame, NULL, sizeof(menu_frame), LV_DISPLAY_RENDER_MODE_FULL);
+    lv_display_set_flush_cb(menu_display, menu_flush);
+    menu_view_init(menu_display);
+    menu_nav_init();
+    menu_draw(false);
+
+    uint64_t heap_looked_us = 0;
+    while (true) {
+        ButtonEncoderEvent_t event = button_wait_for_input_ms(menu_wait_ms());
+        bool goto_asked = event == MENU_REMOTE_SCREEN;
+        if (event != BUTTON_NO_EVENT) {
+            menu_event(event);
+        }
+        if (menu_knob_down && !menu_knob_held &&
+            (time_us_64() - menu_knob_down_us) / 1000 >= MENU_HOLD_MS) {
+            menu_knob_held = true;
+            menu_nav_key(MENU_KEY_BACK);
+        }
+        menu_jobs();
+        menu_draw(goto_asked);
+
+        if (time_us_64() - heap_looked_us >= (uint64_t) MENU_HEAP_LOOK_MS * 1000u) {
+            heap_looked_us = time_us_64();
+            lv_mem_monitor_t heap;
+            lv_mem_monitor(&heap);
+            xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+            menu_lvgl_heap_max = (uint32_t) heap.max_used;
+            xSemaphoreGive(menu_screen_lock);
         }
     }
 }
