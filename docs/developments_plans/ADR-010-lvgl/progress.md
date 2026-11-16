@@ -475,3 +475,12 @@ On the owner's word ("Yes, build it"), the menu was rebuilt to the design in all
   - RAM at link 258.5 KB of 256 KB with the C library's 2 KB minimum heap, which leaves that heap about 5.7 KB.
 - **Seen in passing, not this work's:** after the console cleared a simulated driver fault (`tmc coarse fault
   none`), the main title still named the fault 30 s later. ADR-012's fault display; noted for its area.
+- **Seen in passing, open, for the network's area:** the SDK's network task (`async_context_t`, lwIP and the
+  Wi-Fi driver; 4,096 words, `lwipopts.h`) had 540 bytes of its stack never touched once, in the boot after
+  `api_check`'s restart and its burst of web reads.
+  - Otherwise: 3,696 bytes before Wi-Fi joins, and 1,956 after the join and a failed poll (1,924 that morning).
+  - FreeRTOS's overflow check would halt the unit, motors stopped, before memory is corrupted. The margin still
+    wants measuring.
+  - **Its exit:** read `stats tasks` through a `soak --load` of 10 minutes with several restarts. If the task's
+    stack left falls under 1 KB, raise `ASYNC_CONTEXT_DEFAULT_FREERTOS_TASK_STACK_SIZE` by 512 words (2 KB of the
+    FreeRTOS heap) and measure again.
