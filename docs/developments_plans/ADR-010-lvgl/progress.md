@@ -392,7 +392,12 @@ owner's word.
   - **Lucida Sans** came first. The owner: "a bit too wide on every screen".
   - **haxrcorp4089**, the Flipper Zero's text face, came next and was dropped by the glyph check: its "v" differs
     from its "u" by one pixel.
-  - **The design** is Nokia Small (bold for titles, plain for text, caps 7) with Logisoso 22 for figures.
+  - **Nokia Small** (bold for titles, plain for text, caps 7) with Logisoso 22 figures was the fifth draft. The owner
+    found helvR08 and glasstown_nbp read better, in the faces' comparison.
+  - **The design is all Helvetica** (the owner, 2026-11-17: "All Helvetica", chosen from the whole design drawn in
+    each of those two): helvR08 for text, helvB08 for titles, helvB18 for figures. One family in three sizes, and
+    all three among u8g2's BDF files, which the firmware's font generator already reads. At 8 px capitals a dense
+    page holds four lines of 11 px, as a list does, and scrolls a little more.
   - **The owner's points, each written in:**
     - dense pages with a scroll bar are accepted;
     - Install sits at the end of the update's notes;
@@ -410,8 +415,6 @@ owner's word.
   meaning, slow for a passive LCD, never while a charge pours. Before any is adopted, the Pico W's frame time, the
   menu task's share of the CPU, the motors' late feeds and the panel's smear are measured.
 - **Left, on the owner's word to build:**
-  - the firmware's font generator reads u8g2's compiled catalogue (Nokia Small and Logisoso are not in its BDF
-    files);
-  - the view is rebuilt to the design;
+  - the view is rebuilt to the design, in faces the font generator already reads;
   - the navigator gains dialogs and notes, and softkeys in place of the job screens' action marks;
   - the menu baseline is saved again.

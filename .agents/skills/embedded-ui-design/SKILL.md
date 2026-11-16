@@ -14,30 +14,40 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 
 ## Rules
 
-1. **One text family, one figure face, nothing else.**
-   - Text: Nokia Small. Its bold for titles and emphasis, its plain for everything else.
-   - The figure: Logisoso 22, for the one number a job screen is about. Its unit sits beside it, in the text face.
-   - Hierarchy comes from size, weight and position, not from more faces.
-   - **Why:** the owner, 2026-11-17: the first menu's mix of bold and regular Helvetica with ProFont figures was "a bit hard to read". Lucida Sans, tried next, was "a bit too wide on every screen". The Flipper Zero, also a 128 x 64 one-bit device with buttons, uses three faces: helvB08 for titles, haxrcorp4089 for text, profont22 for figures (its `canvas.c`).
-   - **Faces passed over:** haxrcorp4089, because its "v" differs from its "u" by one pixel; monospace faces (6x10, t0), as wide as Lucida.
+1. **One family, Helvetica, in three sizes, and nothing else.**
+   - Text: `helvR08`, for everything that is not a title or a figure.
+   - Titles and emphasis: `helvB08`, its bold at the same size.
+   - The figure: `helvB18`, for the one number a job screen is about. Its unit sits beside it, in the text face.
+   - Hierarchy comes from size, weight and position, never from another face.
+   - **Why:** the owner, 2026-11-17, chose "All Helvetica" from the whole design drawn in each candidate, after
+     the first menu's mix of Helvetica with ProFont figures and bold hints was "a bit hard to read". One family
+     answers that; `helvB08` is also the Flipper Zero's title face (its `canvas.c`), on the same kind of screen.
+   - **What was tried and passed over, and why** (the drafts are in ADR-010's progress):
+     - Lucida Sans: "a bit too wide on every screen" (the owner);
+     - haxrcorp4089, the Flipper's text face: its "v" differs from its "u" by one pixel;
+     - Nokia Small: slim and clean, but the owner found helvR08 and glasstown_nbp read better;
+     - glasstown_nbp: taller and narrower, the clearest I, l and 1, but no bold (a third family for titles) and an
+       unusual "M";
+     - monospace faces (6x10, t0): as wide as Lucida.
 2. **Check a face glyph by glyph before choosing it.**
    - Print the letters that are confused: `venv\Scripts\python tools\ui_mock\panel.py glyphs <font> "uvwIl10O"`.
    - A face whose u and v, or 0 and O, differ by a pixel is out.
-   - **Nokia Small's known limit:** I and l are the same bar. Show strings where that matters (keys, ids) only where their context makes it clear.
+   - **helvR08's known limit:** I and l are the same bar. Show strings where that matters (keys, ids) only where their context makes it clear.
 3. **Sizes.**
-   - Text capitals 7 px. At about 0.43 mm a pixel that is 3 mm, about 20 arcminutes at 50 cm. The display standards make 16 arcminutes the minimum and 20 the optimum (MIL-PRF-87268D, as summarised by Activu).
-   - The figure 22 px: legible at about 2 m by the same measure.
+   - Text capitals 8 px. At about 0.43 mm a pixel that is 3.4 mm, about 24 arcminutes at 50 cm. The display standards make 16 arcminutes the minimum and 20 the optimum (MIL-PRF-87268D, as summarised by Activu).
+   - The figure's capitals 19 px, about 8 mm: legible at about 1.7 m by the same minimum.
    - Nothing smaller than the text face, ever.
 4. **The grid.**
    - **The title band:** its baseline at 9, a rule at 11. Content starts at 13.
    - **Menus and lists:** rows of 13 px, four a screen.
-   - **Dense pages:** lines of 10 px, five a screen.
+   - **Dense pages:** lines of the text's height and 1 px: 11 px, four a screen. At 8 px capitals a dense page holds
+     no more lines than a list; it is dense in that it has no focus and its lines run on, scrolled.
    - **Softkeys:** the bottom row, 53 to 63.
    - **Spacing:** no text nearer than 2 px to another, and 1 to 3 px from the panel's sides.
    - **Why:** the owner, 2026-11-17: "there should be enough clearance between two lines of text so the UI looks a bit clean".
 5. **Five kinds of screen, no others.**
    - **Pages** are lists: a title, then rows of label, value and ">" when the row opens something. The focused row is in reverse.
-   - **Cards** are read-only and dense: lines of 10 px, no focus, a scroll bar when they run on (Wi-Fi, Firmware's facts).
+   - **Cards** are read-only and dense: lines of 11 px, no focus, a scroll bar when they run on (Wi-Fi, Firmware's facts).
    - **Dialogs** are a title, a message of one or two centred lines, and two softkeys (the cup's acknowledgement, a factory reset).
    - **Jobs:**
      - the title is the status ("Charging", "Lift the cup");
@@ -101,11 +111,16 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 
 ## This project's design language
 
-- **Fonts are u8g2's,** from its compiled catalogue (`library/u8g2/csrc/u8g2_fonts.c`) or its BDF files. `tools/ui_mock/panel.py` reads both. The firmware's generator (`scripts/bdf2lvgl.py`) reads BDF only today; Nokia Small and Logisoso are in the catalogue only, so the generator reads the catalogue when this design is built.
+- **Fonts are u8g2's.** The design's three are among its BDF files (`library/u8g2/tools/font/bdf`), which the
+  firmware's generator reads (`scripts/bdf2lvgl.py`). `tools/ui_mock/panel.py` also reads u8g2's compiled catalogue
+  (`library/u8g2/csrc/u8g2_fonts.c`, about 2,000 faces), for trying a face; a face from the catalogue alone needs the
+  generator to read it too.
 - **Faces:**
-  - `NokiaSmallPlain_tr`, text, caps 7;
-  - `NokiaSmallBold_tr`, titles and emphasis, caps 7;
-  - `logisoso22_tr`, figures, caps 22.
+  - `helvR08`, text, caps 8;
+  - `helvB08`, titles and emphasis, caps 8;
+  - `helvB18`, figures, caps 19.
+- **Trying another face:** `tools/ui_mock/menu_12864.py --text <font> --bold <font> --figure <font>` draws the whole
+  design in it, every baseline and the dense line worked out from its height and the text wrapped by its widths.
 - **The design as drawn:** `tools/ui_mock/menu_12864.py`, its constants the grid of rule 4, its sheet in `docs/developments_plans/ADR-010-lvgl/mockups/`.
 - **Marks in the title, from the right:** Wi-Fi, then the remote mark, then SIM.
 

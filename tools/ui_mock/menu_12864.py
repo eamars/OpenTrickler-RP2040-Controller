@@ -2,13 +2,18 @@
 The menu's screens on the mini 12864, as designed (ADR-010; `.agents/skills/embedded-ui-design` is the guideline
 this follows). Draws each screen as the unit would, onto one sheet, so a change of design is seen before it is built.
 
-    venv\\Scripts\\python tools\\ui_mock\\menu_12864.py [--out <folder>]
+    venv\\Scripts\\python tools\\ui_mock\\menu_12864.py [--out <folder>] [--text <font>] [--bold <font>] [--figure <font>]
+
+The faces are names from u8g2's BDF files or its compiled catalogue; every baseline and the dense pages' line follow
+from their heights, so another face is drawn in the same grid.
 
 The design system, in one place:
-  type      Nokia Small: bold for titles and emphasis, plain for all text (caps 7 px). Logisoso 22 for the one
-            figure a job screen is about, its unit in the text face beside it.
+  type      Helvetica, one family in three sizes (the owner, 2026-11-17: "All Helvetica"): helvR08 for all
+            text, helvB08 for titles and emphasis (caps 8 px), helvB18 for the one figure a job screen is about
+            (caps 19 px), its unit in the text face beside it.
   grid      a title band, its baseline at 9, a rule at 11; content from 13. Menus and lists: rows of 13 px, four
-            a screen. Dense pages: lines of 10 px. Softkeys on the bottom row, 53 to 63.
+            a screen. Dense pages: lines of the text's height and 1 px (11 px). Softkeys on the bottom row, 53 to
+            63.
   kinds     pages (lists), cards (read-only, dense), dialogs (a message, two softkeys), jobs (the title is the
             status; one figure; one line under it; two softkeys), notes (dense, their action at the end).
   softkeys  the left is Back (the reset button, or the knob held), plain; the right is a click, in reverse.
@@ -19,15 +24,36 @@ from pathlib import Path
 
 from panel import Font, H, Panel, REPO, W, write_sheet
 
-TEXT = Font.u8g2("NokiaSmallPlain_tr")
-BOLD = Font.u8g2("NokiaSmallBold_tr")
-FIGURE = Font.u8g2("logisoso22_tr")
+DEFAULT_TEXT, DEFAULT_BOLD, DEFAULT_FIGURE = "helvR08", "helvB08", "helvB18"
 CAPTION = Font.bdf("helvR14")
 
 TITLE_BASE, RULE_Y = 9, 11
-CONTENT_TOP, ROW_H, DENSE_H = 13, 13, 10
-SOFTKEY_TOP, SOFTKEY_BASE = 53, 61
+CONTENT_TOP, ROW_H = 13, 13
+SOFTKEY_TOP = 53
 FIGURE_BASE, CONTEXT_BASE = 38, 49
+
+# The faces, set by use_faces(): what follows from their heights is set with them
+TEXT = BOLD = FIGURE = None
+DENSE_H = ROW_BASE = DENSE_BASE = SOFTKEY_BASE = 0
+
+
+def use_faces(text, bold, figure):
+    """
+    The faces the screens are drawn in, and what follows from their heights: a row's baseline (the text centred in
+    the row's 12 px bar), the dense pages' line (the text's height and 1 px), the softkeys' baseline.
+
+    Args:
+        text: the text face's name.
+        bold: the titles' face.
+        figure: the figures' face.
+    """
+    global TEXT, BOLD, FIGURE, DENSE_H, ROW_BASE, DENSE_BASE, SOFTKEY_BASE
+    TEXT, BOLD, FIGURE = Font.load(text), Font.load(bold), Font.load(figure)
+    height = TEXT.cap + TEXT.descent
+    ROW_BASE = (ROW_H - 1 - height) // 2 + TEXT.cap
+    DENSE_H = height + 1
+    DENSE_BASE = TEXT.cap
+    SOFTKEY_BASE = SOFTKEY_TOP + (H - SOFTKEY_TOP - height) // 2 + TEXT.cap
 
 # The title's Wi-Fi marks (scripts/bdf2lvgl.py, ICONS): full bars as a station, a hotspot as its own access point
 BARS = ["         ##", "         ##", "      ## ##", "      ## ##", "   ## ## ##", "   ## ## ##",
@@ -88,7 +114,7 @@ def rows(panel, items, focus, first=0, total=None):
     edge = W - 5 if total > 4 else W - 3
     for idx, (label, value, opens) in enumerate(items[:4]):
         top = CONTENT_TOP + idx * ROW_H
-        base = top + 9
+        base = top + ROW_BASE
         lit = idx != focus
         if idx == focus:
             panel.rect(0, top, edge + 2, ROW_H - 1)
@@ -102,22 +128,53 @@ def rows(panel, items, focus, first=0, total=None):
     scrollbar(panel, first, 4, total)
 
 
-def dense(panel, lines, first=0, total=None):
+def wrap(font, text, width):
     """
-    A dense page's lines of 10 px: each a text, (text, "bold"), or (text, "button", focused).
+    A paragraph broken into lines at spaces, each no wider than `width`.
+
+    Args:
+        font: the Font it is drawn in.
+        text: the paragraph.
+        width: the widest line, in pixels.
+
+    Returns:
+        Its lines.
+    """
+    lines, line = [], ""
+    for word in text.split():
+        trial = f"{line} {word}" if line else word
+        if line and font.width(trial) > width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    return lines + ([line] if line else [])
+
+
+def dense(panel, items, at="top"):
+    """
+    A dense page: paragraphs wrapped to the panel's width in the text face, one line each `DENSE_H`, shown from its
+    top or its end, with a scroll bar when it runs on.
 
     Args:
         panel: the Panel.
-        lines: those shown.
-        first: the first line's index in the whole page.
-        total: the lines in the whole page.
+        items: the page, each a paragraph, (heading, "bold"), or (label, "button", focused).
+        at: "top" or "end", where the page is shown from.
     """
-    total = total or len(lines)
-    for idx, line in enumerate(lines):
+    shown = (H - CONTENT_TOP) // DENSE_H
+    width = W - 3 - 5
+    lines = []
+    for item in items:
+        if isinstance(item, tuple) and item[1] == "button":
+            lines.append(item)
+        elif isinstance(item, tuple):
+            lines.extend((line, "bold") for line in wrap(BOLD, item[0], width))
+        else:
+            lines.extend(wrap(TEXT, item, width))
+    first = 0 if at == "top" else max(0, len(lines) - shown)
+    for idx, line in enumerate(lines[first:first + shown]):
         y = CONTENT_TOP + idx * DENSE_H
-        if y + DENSE_H > H + 1:
-            break
-        base = y + 8
+        base = y + DENSE_BASE
         if isinstance(line, tuple) and line[1] == "button":
             if line[2]:
                 panel.rect(2, y, W - 8, DENSE_H)
@@ -129,7 +186,7 @@ def dense(panel, lines, first=0, total=None):
             panel.text(BOLD, 3, base, line[0])
         else:
             panel.text(TEXT, 3, base, line)
-    scrollbar(panel, first, (H - CONTENT_TOP) // DENSE_H, total)
+    scrollbar(panel, first, shown, len(lines))
 
 
 def softkeys(panel, left, right):
@@ -254,15 +311,15 @@ def screens():
               "Updates from github.com"])
     add(p, "Wi-Fi: a dense card")
 
-    note = [("9.0.1, important", "bold"), "Fixes the scale's rhythm on", "the A&D FX-i, and the cup's",
-            "return on a slow scale.", ("Before you install", "bold"), "Keep the power on: about a", "minute.",
-            "Your settings are kept.", ("Install", "button", True)]
+    note = [("9.0.1, important", "bold"), "Fixes the scale's rhythm on the A&D FX-i, and the cup's return on a slow "
+            "scale.", ("Before you install", "bold"), "Keep the power on: about a minute.", "Your settings are kept.",
+            ("Install", "button", True)]
     p = Panel(); title(p, "Update", back=True)
-    dense(p, note[:5], first=0, total=len(note))
+    dense(p, note, at="top")
     add(p, "Update notes: the top")
 
     p = Panel(); title(p, "Update", back=True)
-    dense(p, note[4:], first=4, total=len(note))
+    dense(p, note, at="end")
     add(p, "Update notes: Install at the end")
 
     p = Panel(); title(p, "Downloading 9.0.1")
@@ -286,7 +343,11 @@ def main():
     """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="the folder written")
+    parser.add_argument("--text", default=DEFAULT_TEXT, help="the text face")
+    parser.add_argument("--bold", default=DEFAULT_BOLD, help="the titles' face")
+    parser.add_argument("--figure", default=DEFAULT_FIGURE, help="the figures' face")
     args = parser.parse_args()
+    use_faces(args.text, args.bold, args.figure)
     panels, captions = screens()
     write_sheet(args.out / "menu_12864.png", panels, captions, CAPTION)
     for idx, panel in enumerate(panels):

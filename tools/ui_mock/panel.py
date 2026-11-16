@@ -187,6 +187,19 @@ class Font:
             at += size
         return cls(name, glyphs)
 
+    @classmethod
+    def load(cls, name):
+        """
+        A font by name from either source: a BDF file when there is one by that name, else the catalogue.
+
+        Args:
+            name: "helvB08" or "NokiaSmallPlain_tr".
+
+        Returns:
+            The Font.
+        """
+        return cls.bdf(name) if (BDF_DIR / f"{name}.bdf").exists() else cls.u8g2(name)
+
     def glyph(self, char):
         """
         Args:
@@ -366,7 +379,7 @@ def main():
     glyphs.add_argument("font", help="u8g2 catalogue name (NokiaSmallPlain_tr) or BDF name (helvB08)")
     glyphs.add_argument("chars")
     args = parser.parse_args()
-    font = Font.bdf(args.font) if (BDF_DIR / f"{args.font}.bdf").exists() else Font.u8g2(args.font)
+    font = Font.load(args.font)
     print_glyphs(font, args.chars)
     return 0
 
