@@ -195,7 +195,8 @@ Each on the Pico W and the Pico 2 W.
 ## Not in this ADR
 
 - **The offer:** on the web page (ADR-008) and on the screen (ADR-010). Until then an update is for debugging, through the API. What each has to do is written in its README ("Handed on by ADR-004", 2026-11-16).
-- **Where the offer learns of a release.** The Open Weapon Mount Computer reads its manifest over HTTPS. On the Pico W, TLS takes flash and RAM that ADR-005 would measure. A browser could fetch the manifest and the image for the unit, which needs no TLS on either board; the screen alone needs the unit's own. Decided with ADR-008 and ADR-010; this ADR only puts the manifest in every release.
+- **Where the offer learns of a release.** The Open Weapon Mount Computer reads its manifest over HTTPS. On the Pico W, TLS takes flash and RAM that ADR-005 would measure. The owner's direction (2026-11-16, in ADR-008's and ADR-010's hand-ons): the web page sets the update source, GitHub's releases by default, and also takes a file uploaded by hand; the screen only polls that source, and offers from a row in the main menu, never a pop-up at every start. This ADR only puts the manifest in every release.
+- **Authentication:** none (the owner, 2026-11-16). The unit has no password, and a PIN would make the screen mandatory, which some users may not want; perhaps an optional feature later. So anyone on the unit's network can install an image they sealed themselves: the SHA-256 shows an image is whole, not whose it is.
 - **A downgrade over the network,** and keeping settings across one.
 - **Signed images,** and updating the bootloader over Wi-Fi.
 - **The ESP32 (ADR-007).**

@@ -42,14 +42,18 @@ Last of the large changes: the screens then sit on a split application (ADR-006)
   - The update's mode, `update_mode_menu()` in `update.c`. It holds the screen while the job runs, so nobody starts a charge at the unit meanwhile, and draws for itself with u8g2: "Firmware update"; "Waiting for the image", "Receiving n%", "Ready: <version>" or "Installing, restarting"; "Keep the power on."; "Press RST to stop." The reset button stops the job.
   - The job is started from the API, so `menu_tour` does not reach this screen.
   - `update_status()` gives everything the screen shows; the update's events say how it ended.
+- **The owner's direction** (2026-11-16):
+  - The screen only polls the update source, which the web page sets (ADR-008); it sets no source and takes no file.
+  - The update is offered from a new row in the main menu, as the Open Weapon Mount Computer does. Its row "Update available" sits at the top of its settings hub, shown only once a newer firmware is found, and opens the offer.
+  - Never a pop-up at every start: it is annoying.
+  - No authentication for now (ADR-008's hand-on).
 - **What the screens have to do:**
+  - **the row:** in the main menu, shown only while the unit's poll knows of a newer release, and opening the offer: its version and note, Install and Cancel. A critical release changes the row's text ("Important update", as the Open Weapon Mount Computer's offer is titled), still with no pop-up. That last part is recommended here: the Open Weapon Mount Computer opens a critical offer at once, and the owner's rule leaves that out;
+  - **polling:** the unit polls its source once each start after Wi-Fi joins, quietly, as the Open Weapon Mount Computer does; the offer can also ask again. The poll is ADR-008's, built before this ADR;
   - the update's screen rebuilt, read from `update_status()` rather than drawn by `update.c` (services stop drawing, below);
-  - the offer: a newer release shown with its note, a critical one at once, as the Open Weapon Mount Computer's OTA mode does; install on a press;
-  - once, at the start after an update, how it ended in plain words: confirmed, or back on the version it had;
-  - the version running somewhere a person can find it (today the API gives it).
+  - the version running, and how the last update ended (confirmed, or back on the version it had), where a person can find them, with no pop-up.
 - **To find out first:**
-  - **The screen alone needs the unit to fetch a release itself,** over HTTPS from GitHub, with TLS on the unit. On the Pico W that competes with LVGL for room: its image is 806.5 KB of its 1,016 KB slot, 209.5 KB left (the `.bin` with ADR-004's review fixes, 2026-11-16), against LVGL's estimate of 120 to 200 KB. Measure both before deciding the Pico W's screen offer. Without them, the screen can only show an offer a browser found (ADR-008).
-- **An idea for the owner** (ADR-008's hand-on says why): a start from the web waits for a press of the encoder before anything is written. The update's screen is where that yes is asked.
+  - **The poll needs the unit to fetch a release itself,** over HTTPS from GitHub, with TLS on the unit. On the Pico W that competes with LVGL for room: its image is 806.5 KB of its 1,016 KB slot, 209.5 KB left (the `.bin` with ADR-004's review fixes, 2026-11-16), against LVGL's estimate of 120 to 200 KB. Measure both before deciding the Pico W's offer. A source on the owner's network served over plain HTTP needs no TLS.
 
 ## Ideas
 

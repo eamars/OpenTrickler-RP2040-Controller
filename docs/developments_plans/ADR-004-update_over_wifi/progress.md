@@ -116,7 +116,7 @@ A second model (Fable) read the three gates' code at 7aff78e; its report is `log
   - **Q3:** the whole-image check trusts the image's own lengths and pointers, so a made-up image can fault the server's task. Same cause as D1.
   - **Q4:** a three-part tag (`v1.21.1`; `v1.5.1` is in the history) gives the version `unknown` and block 0.0, and CI still drafts the release.
   - **Q5:** `slot_trial --expect refused` takes any refusal; `update --expect confirmed` compares the running block with a figure the firmware copies from itself; nothing shows the bootloader's own trial watchdog, which only an image that hangs before `update_init` would.
-- **Known, and not written in the README:** an update is not authenticated. The hash shows the image is whole, not whose it is, and the API has no login, so anyone on the unit's network can install an image they built and sealed themselves. That is why D1, Q1 and Q3 matter as accidents, and for the bootloader's promise, more than as attacks.
+- **Known, and kept so by the owner** (2026-11-16; README, "Not in this ADR"): an update is not authenticated. The hash shows the image is whole, not whose it is, and the API has no login, so anyone on the unit's network can install an image they built and sealed themselves. That is why D1, Q1 and Q3 matter as accidents, and for the bootloader's promise, more than as attacks.
 
 ### The review's fixes (1.20.212, built from the working tree on 7aff78e)
 

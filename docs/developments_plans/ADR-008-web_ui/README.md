@@ -35,18 +35,25 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - The refusals, each with its code (api_v1.md, "Firmware updates"): 409 `busy` while another job runs, a person has a screen open at the unit, the image running is still on trial, or another upload is open; 413 too large; 400 for an image that is not this unit's, not newer or not whole, the job then ended and nothing installed.
   - Every release has a `manifest.json`: the version, a note, an importance (normal or critical), and for each name `takes` gives its file, size and SHA-256.
   - The times measured: about 800 KB sent in 14 s; the unit back on the network about 8 s after the install and confirmed at once; an update that is not kept comes back on the old image after about 75 s.
+- **The owner's direction** (2026-11-16):
+  - The web page sets the update source: GitHub's releases by default.
+  - The web page also takes a firmware file uploaded by hand, for those who want it ("prosumers").
+  - The screen only polls the source the web set, and offers an update from a row in the main menu (ADR-010), never a pop-up at every start.
+  - No authentication for now: the unit has no password either, and a PIN would make the screen mandatory, which some users may not want. Perhaps an optional feature later.
+- **What follows, and is recommended here:** the unit polls the source, not the browser. The screen needs the unit to poll anyway, so the web page shows the same offer the screen does. That is one implementation, not two, and the page then needs no access to GitHub of its own. The poll, the download into the free slot and the source setting are firmware, and come with this ADR, which is built before ADR-010.
 - **What the page has to do,** so a person needs to know none of it (the owner's "too prosumer" list: where firmware comes from, which file is theirs, that the power must stay on, the wrong board):
-  - find a newer release and say so, with its note, as the Open Weapon Mount Computer's OTA mode does; a critical one at once;
-  - on a yes: start the job, send the file `takes` names, install;
+  - **the source:** GitHub's latest release by default, or another manifest's address (a mirror on the owner's network, as the Open Weapon Mount Computer's bench host `ota_host.py` is). It is a stored setting: give it a module's own slot, or say so in this ADR if it changes a stored struct's layout (AGENTS.md);
+  - **the offer:** the unit's poll found a newer release; the page shows it with its note. A critical one is marked as such, with no pop-up;
+  - on a yes: the unit fetches the file `takes` names into the free slot as a job, then installs;
+  - **the upload by hand:** the file chosen on the phone or the PC, sent with `PUT /api/v1/update/image` as `rc_run.py update` sends it. The page names the file this unit takes (`<takes>_update.bin`: the Pico W's differs by its free slot). A wrong file is refused by the unit with its code, and the page says why in plain words;
   - say "keep the power on" and show how far it has got (`received` against the file's size);
-  - follow the unit through its restart: the page's connection goes with it. Wait for `boot` in `GET /api/v1` to change, then for `trial` to be false and `last` to be set, as `rc_run.py update` does;
-  - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost. A refusal says why, without its code;
+  - follow the unit through its restart, which takes the page's connection with it. Wait for `boot` in `GET /api/v1` to change, then for `trial` to be false and `last` to be set, as `rc_run.py update` does;
+  - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost;
   - no downgrade: going back is a USB install with the settings erased (`manuals/firmware_downgrade.md`), and the page may point to that manual.
 - **To find out first:**
-  - **Where the page learns of a release.** A browser on the owner's network can fetch the manifest and the file and send them to the unit, so the unit needs no TLS. Whether a page served by the unit may read GitHub's release files is not known: browsers ask the other site to allow it (CORS). Check it before the design leans on it.
-  - On the unit's own access point the phone has no internet, so there is no offer there.
-  - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check the file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
-- **An idea for the owner:** an update is not authenticated. The API has no login, so anyone on the unit's network can install an image they sealed themselves (ADR-004's review). A start from the web could wait for a press of the encoder at the unit before anything is written. The job already holds the screen, so this asks a person for a yes without a password.
+  - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured before it is built (ADR-005); the Pico W's slot has 209.5 KB left (ADR-010's hand-on). A mirror on the owner's network can serve plain HTTP and needs no TLS.
+  - On the unit's own access point there is no internet: no poll there, but the upload by hand works.
+  - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check a file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
 
 ## Ideas
 
