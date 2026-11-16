@@ -28,10 +28,13 @@ string(REPLACE "\n" "\\n\"\n    \"" measure_ca_text "${measure_ca_text}")
 file(WRITE ${CMAKE_BINARY_DIR}/measure/measure_ca.h
      "// Made by measure/measure.cmake from ADR010_MEASURE_CA\nstatic const char measure_ca_pem[] =\n    \"${measure_ca_text}\";\n")
 
-# mbedTLS at -O2 in every build, as sha256.c is (CMakeLists.txt): at the Debug build's -O0 a handshake with the ECDSA
-# chain took 148 s on the Pico 2 W, and mbedTLS's assembly multiply does not compile at -O0 (no registers left)
+# The third-party libraries optimised for size in every build, as sha256.c is for speed (CMakeLists.txt): code nobody
+# steps through. At the Debug build's -O0 a handshake with the ECDSA chain took 148 s on the Pico 2 W, mbedTLS's
+# assembly multiply does not compile, and LVGL alone is 189 KB on the Pico W (87 KB at -Os)
 file(GLOB MBEDTLS_SOURCES ${PICO_SDK_PATH}/lib/mbedtls/library/*.c)
-set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2")
+list(FILTER MBEDTLS_SOURCES EXCLUDE REGEX "/sha256\\.c$")
+set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
+target_compile_options(lvgl PRIVATE -Os)
 
 target_sources(${TARGET_NAME} PRIVATE ${MEASURE_DIRECTORY}/measure_lvgl.c ${MEASURE_DIRECTORY}/measure_tls.c)
 target_include_directories(${TARGET_NAME} PRIVATE ${MEASURE_DIRECTORY} ${CMAKE_BINARY_DIR}/measure)
