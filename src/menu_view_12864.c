@@ -36,6 +36,7 @@ static lv_obj_t *view_big;
 static lv_obj_t *view_bar;
 static lv_obj_t *view_lines[4];         // a job's state and lines, or the editor's hint
 static lv_obj_t *view_action;
+static lv_obj_t *view_verdict;
 static uint32_t view_version = 0;
 static int view_first = 0;              // the list's first row shown
 
@@ -129,6 +130,7 @@ void menu_view_init(lv_display_t *display) {
     view_lines[3] = view_label(screen, &menu_font_regular, VIEW_MARGIN, 54, VIEW_WIDTH - VIEW_MARGIN,
                                LV_TEXT_ALIGN_LEFT);
     view_action = view_label(screen, &menu_font_bold, 64, 54, VIEW_WIDTH - 64 - VIEW_MARGIN, LV_TEXT_ALIGN_RIGHT);
+    view_verdict = view_label(screen, &menu_font_regular, 64, 12, VIEW_WIDTH - 64 - VIEW_MARGIN, LV_TEXT_ALIGN_RIGHT);
 }
 
 
@@ -192,9 +194,13 @@ static void view_job(const menu_screen_t *screen) {
     view_text(view_big, screen->job_big);
     view_text(view_lines[1], screen->job_line[0]);
     view_text(view_lines[2], screen->job_line[1]);
+    // The last throw's weight and verdict, at the right of the state ("#3 20.02 good": the weight and the word)
+    const char *verdict = strchr(screen->job_line[2], ' ');
+    view_text(view_verdict, verdict != NULL ? verdict + 1 : "");
+    // What a click does; with nothing to click, how to stop: this panel's reset button
     char action[MENU_TEXT + 4];
     if (screen->job_action[0] == '\0') {
-        action[0] = '\0';
+        snprintf(action, sizeof(action), "%s", screen->job_back_stops ? "RST: stop" : "");
     }
     else {
         snprintf(action, sizeof(action), screen->job_actions_more ? "<%s>" : "[%s]", screen->job_action);
@@ -223,6 +229,7 @@ void menu_view_draw(const menu_screen_t *screen) {
     view_show(view_lines[2], job);
     view_show(view_lines[3], edit);
     view_show(view_action, job);
+    view_show(view_verdict, job);
 
     if (list) {
         view_list(screen);

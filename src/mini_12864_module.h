@@ -21,6 +21,8 @@ typedef enum {
     // The knob's button down and up (ADR-010, gate 4): the menu tells a click from a hold by the time between
     BUTTON_ENCODER_DOWN,
     BUTTON_ENCODER_UP,
+    // The remote control's `press hold`: down with no pin behind it, so the menu does not read the pin before Back
+    BUTTON_ENCODER_DOWN_REMOTE,
 } ButtonEncoderEvent_t;
 
 typedef enum {
@@ -52,6 +54,11 @@ ButtonEncoderEvent_t button_wait_for_input(bool block);
  * Wait for button encoder input for at most this long: BUTTON_NO_EVENT when nothing came.
 */
 ButtonEncoderEvent_t button_wait_for_input_ms(uint32_t timeout_ms);
+
+/**
+ * The knob's button down now, read from its pin (ADR-010, gate 4): the menu reads it before a hold counts as Back.
+*/
+bool button_enc_is_down(void);
 bool mini_12864_module_init(void);
 void button_init(void);
 void display_init(void);

@@ -55,6 +55,7 @@ typedef struct {
     char job_line[3][MENU_TEXT];
     char job_action[MENU_TEXT];
     bool job_actions_more;                  // the knob moves between more than one action
+    bool job_back_stops;                    // Back stops the job now (not while an update installs)
 
     // The marks on every screen (menu_design.md, "Status on every screen")
     bool mark_station;                      // joined a network
@@ -80,6 +81,8 @@ void menu_nav_job_begun(activity_t job);
 // The job ended (jobs_take_end()): its screen goes, and a start refused for a motor driver shows the fault
 void menu_nav_job_ended(uint8_t exit_form);
 bool menu_nav_in_job(void);
+// Each refresh: what a job's state makes stale closes (an editor over the charge once its throw begins)
+void menu_nav_refresh(void);
 
 // The screen as it is now, live values read now
 void menu_nav_screen(menu_screen_t *screen);

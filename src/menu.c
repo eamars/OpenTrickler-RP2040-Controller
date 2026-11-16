@@ -135,7 +135,7 @@ void menu_screen_copy(menu_screen_t *screen, uint32_t *lvgl_heap_max) {
 
 
 bool menu_hold(uint32_t ms) {
-    ButtonEncoderEvent_t down = BUTTON_ENCODER_DOWN;
+    ButtonEncoderEvent_t down = BUTTON_ENCODER_DOWN_REMOTE;
     ButtonEncoderEvent_t up = BUTTON_ENCODER_UP;
     if (encoder_event_queue == NULL || xQueueSend(encoder_event_queue, &down, pdMS_TO_TICKS(500)) != pdTRUE) {
         return false;
@@ -148,6 +148,7 @@ bool menu_hold(uint32_t ms) {
 // The knob's button: a click is Enter at its release; a hold is Back once it is held MENU_HOLD_MS
 static bool menu_knob_down = false;
 static bool menu_knob_held = false;
+static bool menu_knob_remote = false;       // the remote control's hold: no pin to read
 static uint64_t menu_knob_down_us = 0;
 
 
@@ -166,9 +167,14 @@ static void menu_event(ButtonEncoderEvent_t event) {
             menu_nav_key(MENU_KEY_BACK);
             break;
         case BUTTON_ENCODER_DOWN:
-            menu_knob_down = true;
-            menu_knob_held = false;
-            menu_knob_down_us = time_us_64();
+        case BUTTON_ENCODER_DOWN_REMOTE:
+            // A repeat of down (an up lost in a bounce) keeps the first
+            if (!menu_knob_down) {
+                menu_knob_down = true;
+                menu_knob_held = false;
+                menu_knob_remote = event == BUTTON_ENCODER_DOWN_REMOTE;
+                menu_knob_down_us = time_us_64();
+            }
             break;
         case BUTTON_ENCODER_UP:
             if (menu_knob_down && !menu_knob_held) {
@@ -257,10 +263,17 @@ void menu_task(void *p) {
         }
         if (menu_knob_down && !menu_knob_held &&
             (time_us_64() - menu_knob_down_us) / 1000 >= MENU_HOLD_MS) {
-            menu_knob_held = true;
-            menu_nav_key(MENU_KEY_BACK);
+            // Still down by its pin: a hold, Back. Up by its pin: its up was lost in a bounce, and nothing is pressed
+            if (menu_knob_remote || button_enc_is_down()) {
+                menu_knob_held = true;
+                menu_nav_key(MENU_KEY_BACK);
+            }
+            else {
+                menu_knob_down = false;
+            }
         }
         menu_jobs();
+        menu_nav_refresh();
         menu_draw(goto_asked);
 
         if (time_us_64() - heap_looked_us >= (uint64_t) MENU_HEAP_LOOK_MS * 1000u) {

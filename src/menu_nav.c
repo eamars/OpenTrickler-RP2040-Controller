@@ -347,14 +347,14 @@ static void value_build(const menu_row_t *row, char *out, size_t room) {
 
 static bool wifi_is_station(void) {
     wireless_info_t info;
-    wireless_get_info(&info);
+    wireless_get_link(&info);
     return strcmp(info.mode, "station") == 0;
 }
 
 
 static bool wifi_is_access_point(void) {
     wireless_info_t info;
-    wireless_get_info(&info);
+    wireless_get_link(&info);
     return strcmp(info.mode, "access_point") == 0;
 }
 
@@ -362,7 +362,7 @@ static bool wifi_is_access_point(void) {
 static void value_wifi_mode(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     wireless_info_t info;
-    wireless_get_info(&info);
+    wireless_get_link(&info);
     if (strcmp(info.mode, "access_point") == 0) {
         snprintf(out, room, "own access point");
     }
@@ -378,7 +378,7 @@ static void value_wifi_mode(const menu_row_t *row, char *out, size_t room) {
 static void value_wifi_network(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     wireless_info_t info;
-    wireless_get_info(&info);
+    wireless_get_link(&info);
     snprintf(out, room, "%s", info.ssid);
 }
 
@@ -392,7 +392,7 @@ static void value_wifi_key(const menu_row_t *row, char *out, size_t room) {
 static void value_wifi_address(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     wireless_info_t info;
-    wireless_get_info(&info);
+    wireless_get_link(&info);
     snprintf(out, room, "%s", info.address[0] != '\0' ? info.address : "none");
 }
 
@@ -400,7 +400,7 @@ static void value_wifi_address(const menu_row_t *row, char *out, size_t room) {
 static void value_wifi_name(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     wireless_info_t info;
-    wireless_get_info(&info);
+    wireless_get_link(&info);
     snprintf(out, room, "%s", info.hostname != NULL ? info.hostname : "");
 }
 
@@ -782,7 +782,10 @@ static uint8_t charge_actions(job_action_t *out) {
     bool zeroing = strcmp(charge.state, "zeroing") == 0;
     bool cup_return = strcmp(charge.state, "waiting_for_cup_return") == 0;
     bool cup_removal = strcmp(charge.state, "waiting_for_cup_removal") == 0;
-    if (zeroing || cup_return) {
+    // A zero while the charge waits for zero, to tare the cup on the pan. Not while it waits for the cup's return:
+    // the charge takes a reading of 0 as the cup back, so a zero with the pan bare would start a throw on it. The API
+    // refuses that zero for the same reason (review of ADR-010's gate 4)
+    if (zeroing) {
         out[count++] = JOB_ACTION_ZERO;
     }
     // Between throws only: the API refuses both in a throw
@@ -857,9 +860,18 @@ static void job_key(frame_t *frame, menu_key_t key) {
         }
         else if (key == MENU_KEY_ENTER) {
             switch (actions[frame->job_action]) {
-                case JOB_ACTION_ZERO:
-                    scale_ask_zero();
+                case JOB_ACTION_ZERO: {
+                    // Under the lock the charge starts its pour under, and only while it still waits for zero: a zero
+                    // landing as the pour begins would pour a whole target on top (as POST /api/v1/scale/zero)
+                    activity_lock();
+                    charge_status_t now;
+                    charge_mode_get_status(&now);
+                    if (strcmp(now.state, "zeroing") == 0) {
+                        scale_ask_zero();
+                    }
+                    activity_unlock();
                     break;
+                }
                 case JOB_ACTION_TARGET:
                     push_edit(ROW_TARGET);
                     break;
@@ -1044,6 +1056,22 @@ void menu_nav_job_ended(uint8_t exit_form) {
 }
 
 
+void menu_nav_refresh(void) {
+    // What was opened over the charge's screen between throws (its target, its powder, a message) is for the next
+    // throw only: when a throw begins it closes, so the next Back reaches the charge and stops it (review of gate 4)
+    int job_idx = -1;
+    for (int idx = 0; idx < frame_depth; idx += 1) {
+        if (frames[idx].kind == FRAME_JOB) {
+            job_idx = idx;
+        }
+    }
+    if (job_idx >= 0 && job_idx < frame_depth - 1 && activity_in_throw()) {
+        frame_depth = job_idx + 1;
+        screen_version += 1;
+    }
+}
+
+
 bool menu_nav_in_job(void) {
     for (int idx = 0; idx < frame_depth; idx += 1) {
         if (frames[idx].kind == FRAME_JOB) {
@@ -1106,6 +1134,16 @@ bool menu_nav_goto(const char *id) {
     for (int idx = 0; idx < depth; idx += 1) {
         push_page(path[idx]);
     }
+    // Each parent focused on the row that leads on, as if the knob had opened it: Back lands there
+    for (int idx = 0; idx + 1 < depth; idx += 1) {
+        const menu_row_t *rows[MENU_ROWS_MAX];
+        uint8_t count = shown_rows(path[idx], rows);
+        for (uint8_t row = 0; row < count; row += 1) {
+            if (rows[row]->kind == ROW_PAGE && rows[row]->page == path[idx + 1]) {
+                frames[idx].focus = (int8_t) row;
+            }
+        }
+    }
     screen_version += 1;
     return true;
 }
@@ -1115,7 +1153,7 @@ bool menu_nav_goto(const char *id) {
 
 static void screen_marks(menu_screen_t *screen) {
     wireless_info_t info;
-    wireless_get_info(&info);
+    wireless_get_link(&info);
     screen->mark_station = strcmp(info.mode, "station") == 0 && info.address[0] != '\0';
     screen->mark_access_point = strcmp(info.mode, "access_point") == 0;
     activity_t job = activity_get();
@@ -1264,6 +1302,7 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         }
         snprintf(screen->job_action, MENU_TEXT, "%s", count > 0 ? job_action_name(actions[frame->job_action]) : "");
         screen->job_actions_more = count > 1;
+        screen->job_back_stops = true;
         return;
     }
 
@@ -1278,6 +1317,7 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         snprintf(screen->job_line[0], MENU_TEXT, "Weight %s", weight);
         snprintf(screen->job_line[1], MENU_TEXT, "Gate %s", gate_state_to_string(servo_gate.gate_state));
         snprintf(screen->job_action, MENU_TEXT, "%s", fault ? "OK" : "Stop the motors");
+        screen->job_back_stops = true;
         return;
     }
 
@@ -1305,6 +1345,7 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
             snprintf(screen->job_state, MENU_TEXT, "Waiting for the image");
             break;
     }
+    screen->job_back_stops = update.state != UPDATE_INSTALLING;
     snprintf(screen->job_line[0], MENU_TEXT, "Keep the power on.");
     snprintf(screen->job_line[1], MENU_TEXT, "Running %s", update.version);
 }

@@ -96,6 +96,11 @@ bool activity_take_start(activity_t *job) {
 void activity_clear_start(void) {
     activity_lock();
     activity_asked = ACTIVITY_NONE;
+    // A stop asked for that request, taken and then never begun (a driver not OK), goes with it: kept, it ended the
+    // next job at its start (review of ADR-010's gate 4)
+    if (activity_now == ACTIVITY_NONE) {
+        activity_stop_asked = false;
+    }
     activity_unlock();
 }
 

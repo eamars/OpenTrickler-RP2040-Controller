@@ -47,6 +47,8 @@ typedef struct {
     int32_t rssi;           // dBm, as a station
 } wireless_info_t;
 void wireless_get_info(wireless_info_t *info);
+// The same without the signal, which asks the radio under lwIP's lock: what the screen reads at every refresh
+void wireless_get_link(wireless_info_t *info);
 
 // The station leaves its network, as when its router goes away: the console's `wifi leave` (ADR-004)
 bool wireless_station_leave(void);

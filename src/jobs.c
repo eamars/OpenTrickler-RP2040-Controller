@@ -43,9 +43,10 @@ static void jobs_task(void *p) {
                 break;
         }
 
+        // Not running before ended: the menu, once it sees the end, may begin the next job at once
         jobs_exit_form = exit_form;
-        jobs_ended = true;
         jobs_running = false;
+        jobs_ended = true;
         // The screen looks at once, not at its next wake
         menu_wake();
     }

@@ -404,7 +404,7 @@ static void srv_txt(struct mdns_service *service, void *txt_userdata)
 }
 
 
-void wireless_get_info(wireless_info_t *info) {
+void wireless_get_link(wireless_info_t *info) {
     memset(info, 0, sizeof(*info));
     info->hostname = host_name;
     switch (wireless_config.current_wireless_state) {
@@ -425,6 +425,11 @@ void wireless_get_info(wireless_info_t *info) {
     if (!wireless_own_address(info->address, sizeof(info->address))) {
         info->address[0] = '\0';
     }
+}
+
+
+void wireless_get_info(wireless_info_t *info) {
+    wireless_get_link(info);
     if (wireless_config.current_wireless_state == WIRELESS_STATE_STA_MODE_LISTEN) {
         int32_t rssi = 0;
         cyw43_arch_lwip_begin();

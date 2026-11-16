@@ -144,23 +144,18 @@ void _isr_on_encoder_update(uint gpio, uint32_t event){
 }
 
 // The knob's button, down and up (ADR-010, gate 4): the menu tells a click from a hold. An edge within the debounce
-// time of the last one taken is a bounce; the level read says which edge it is, and an edge that repeats the last
-// one taken (a bounce that ended on the same level) is dropped
+// time of the last one taken is a bounce; the level read says which edge it is. No state is kept here: the menu drops
+// a repeat, and reads the pin again before a hold counts, so an edge lost in a bounce costs a click, never a Back
 void _isr_on_button_enc_update(uint gpio, uint32_t event) {
     static TickType_t last_edge_tick = 0;
-    static bool down = false;
     const TickType_t debounce_ticks = pdMS_TO_TICKS(20);
 
     TickType_t now = xTaskGetTickCountFromISR();
     if ((now - last_edge_tick) < debounce_ticks) {
         return;
     }
-    bool pressed = !gpio_get(BUTTON0_ENC_PIN);      // pulled up: low while pressed
-    if (pressed == down) {
-        return;
-    }
     last_edge_tick = now;
-    down = pressed;
+    bool pressed = !gpio_get(BUTTON0_ENC_PIN);      // pulled up: low while pressed
     ButtonEncoderEvent_t button_encoder_event = pressed ? BUTTON_ENCODER_DOWN : BUTTON_ENCODER_UP;
     if (encoder_event_queue) {
         xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
@@ -180,6 +175,11 @@ void _isr_on_button_rst_update(uint gpio, uint32_t event) {
         }
     }
     last_call_time = current_call_time;
+}
+
+
+bool button_enc_is_down(void) {
+    return !gpio_get(BUTTON0_ENC_PIN);
 }
 
 
