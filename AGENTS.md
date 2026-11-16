@@ -29,6 +29,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
   - **Over Wi-Fi** (ADR-004), through the API only, for debugging, until the web UI and the screens offer it: `rc_run.py update --host <address> --manifest release\manifest.json`, or a release's manifest by its address. In a test, the manifest comes from disk or from the local OTA server, never from GitHub's releases (the bench rules, below).
 - **Host tools:** Python from the venv at the repo root (`venv/`, built from `requirements.txt`). Never a second venv.
 - **The unit's API from Python:** `tools/remote_control/unit_api.py` works from what the unit says of itself (`GET /api/v1` and its schema), checks a write against the schema before sending it, and follows the event log. `python tools/remote_control/unit_api.py <address>` prints what the unit is, its paths and its actions.
+- **Screen work without a unit:** `venv\Scripts\python tools\ui_mock\menu_12864.py` draws every screen of the menu as designed, with u8g2's own fonts at the panel's 128 x 64, onto one sheet (`docs/developments_plans/ADR-010-lvgl/mockups/`). `tools\ui_mock\panel.py glyphs <font> <characters>` prints a font's glyphs. The skill `embedded-ui-design` says how a screen is designed.
 - **Page work without a unit:** `venv\Scripts\python tests\web_test.py` serves the pages from `src/html` and a recording of a unit's replies (`tests/web_test_data.json`) at http://127.0.0.1:8000/, checking each write with the client's code. `--record <address>` records a unit again when the API grows; the owner's Wi-Fi name and the unit's address are replaced before it is written.
 
 ## Where code goes
@@ -68,7 +69,8 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 
 **Style:** the skills in `.agents/skills`:
 - `c-style` for all C and C++;
-- `py-style` and `python-venv` for host tools.
+- `py-style` and `python-venv` for host tools;
+- `embedded-ui-design` for anything on the unit's screen: its fonts, grid, kinds of screen and wording, and mock-ups before code.
 
 ## Proving a change on a unit
 

@@ -374,3 +374,44 @@ after. Its image is 944.9 KB of the slot, and RAM at link is 247.3 KB of 256.
   - **The owner's use by hand of the screens.**
   - **GitHub itself:** the shipping roots against GitHub's real chains were measured in gate 1, one fetch. The poll
     against GitHub's API and releases is not run, by the owner's rule; its first contact is a user's.
+
+## The screens designed again (2026-11-17)
+
+After using gate 4's menu and seeing a throw and a cleanup snapped state by state, the owner found the screens too
+dense, the mix of font sizes hard to read, and lines too close: "let's start with some mock up assuming you are the
+designer of the embedded UI". Nothing in the firmware has changed yet: this is the design, to be built on the
+owner's word.
+
+- **Faults found on the unit first** (a throw from the keys and a cleanup, each snapped):
+  - the last throw's verdict was drawn over the state ("Remove the cup" and "30.00 good");
+  - the cleanup's "[Stop the motors]" was drawn over its gate line;
+  - with the cup off, the figure was the bare pan's reading (-150.00);
+  - no unit on the charge's figures;
+  - the cleanup said "Turn to run" while it ran.
+- **Five drafts, each drawn with u8g2's own fonts at 128 x 64** (`tools/ui_mock/`):
+  - **Lucida Sans** came first. The owner: "a bit too wide on every screen".
+  - **haxrcorp4089**, the Flipper Zero's text face, came next and was dropped by the glyph check: its "v" differs
+    from its "u" by one pixel.
+  - **The design** is Nokia Small (bold for titles, plain for text, caps 7) with Logisoso 22 for figures.
+  - **The owner's points, each written in:**
+    - dense pages with a scroll bar are accepted;
+    - Install sits at the end of the update's notes;
+    - the charge's centred figure and line are kept.
+- **The sheet:** `docs/developments_plans/ADR-010-lvgl/mockups/menu_12864.png`, drawn by
+  `venv\Scripts\python tools\ui_mock\menu_12864.py`.
+- **The guideline:** `.agents/skills/embedded-ui-design`, written from pixel-display practice:
+  - the Flipper Zero's fonts, read from its firmware;
+  - a 128 x 64 case study;
+  - small-screen layout guides;
+  - legibility by visual angle.
+
+  Its form follows the Open Weapon Mount Computer's skill. Agents follow it for every screen from now on.
+- **Animation:** the owner is open to it if the refresh and the load allow. The skill limits it to motion with a
+  meaning, slow for a passive LCD, never while a charge pours. Before any is adopted, the Pico W's frame time, the
+  menu task's share of the CPU, the motors' late feeds and the panel's smear are measured.
+- **Left, on the owner's word to build:**
+  - the firmware's font generator reads u8g2's compiled catalogue (Nokia Small and Logisoso are not in its BDF
+    files);
+  - the view is rebuilt to the design;
+  - the navigator gains dialogs and notes, and softkeys in place of the job screens' action marks;
+  - the menu baseline is saved again.
