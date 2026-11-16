@@ -259,4 +259,5 @@ The owner, asked whether a full install should put the same firmware into both s
 - **Shown:**
   - both boards' full installs (built on 2464e6f) write every page of their flash in order, numbered right, the parts as built and everything else erased: the Pico W's 4.0 MB with 8,192 blocks, the Pico 2 W's 8.0 MB with 16,384;
   - `rc_run.py flash` on the Pico W, whose slot B held the test image 2.0.255: the 2 MB erased in 6.1 s, the whole install in 19.6 s (13.3 s before); its flash read back whole: the bootloader and slot A as built, everything else erased, slot B's 1,016 KB included.
-- **Not yet shown:** the whole-flash full install by USB, on either unit, and how long its drag takes. It comes with the next candidate, `v2.0.2` (its notes written).
+- **The third candidate, `v2.0.2`,** tagged on 7365029 with the owner's word ("Tag v2.0.2"): CI's run 43845648492 passed and drafted it as a pre-release, seven files, no erase. From the draft: all six sums hold, each manifest entry matches its file and its address, the update images carry block 2.0.2, and each full install writes every page of its flash in order (8,192 and 16,384 blocks).
+- **Not yet shown:** the whole-flash full install by USB, on either unit, and how long its drag takes. The Pico W is set up for it: the test image 2.0.255 confirmed in slot B.
