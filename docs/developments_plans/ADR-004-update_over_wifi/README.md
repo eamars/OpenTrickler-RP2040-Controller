@@ -40,6 +40,9 @@ This ADR builds what that rests on: the flash layout, the boot path, the image's
 - The owner's USB checks on both units are made with a candidate's baseline.
 - Agreed the same day, on the agent's proposal: a candidate is an ordinary version published as a pre-release, public, its notes saying it is a test build; its tag is pushed on this ADR's branch, before the ADR closes.
 
+**2026-11-16**, later, on the downgrade:
+- No downgrade. There is little to no point going below 2.0.0, so the downgrade is removed unless it is an absolute need. It replaces the first direction's "a downgrade is a full erase": its manual and the erase files go.
+
 ## Why here
 
 It changes the flash layout, which costs every user one install by cable. Do that once, before the large changes, and every release after it can reach units over Wi-Fi. It comes after ADR-003 because the upload needs a server that takes a body in pieces, and before ADR-005 because a board's room is only known once its layout is.
@@ -160,7 +163,7 @@ The start of slot B is blanked because the higher version boots: an older or equ
 
 **The first install** is today's manual (`manuals/firmware_update_via_usb.md`, BOOTSEL and one file), with the full install as its file. The settings in the EEPROM stay, unless a stored struct changed. Why PR #111's combined `.uf2` failed is looked for in gate 1, before ours is trusted. A first guess, that the merged file kept each part's own block count, is wrong: its script numbers the blocks across the whole file (`scripts/merge_initial_flash_uf2.py` at its head, read 2026-11-16). Ours is judged on the unit, by USB.
 
-**A downgrade** is not an update. Over the network the unit takes only a newer version. To go back, a person erases the settings on the running firmware (the menu, or `POST /api/v1/system/erase`), then installs the older release's full install by USB. Its manual is written in gate 3.
+**No downgrade** (the owner, 2026-11-16, later). Over the network the unit takes only a newer version, and no manual or file is given for going back. The first direction made a downgrade a full erase and gate 3 built it (a manual and an erase file for each board); both were removed.
 
 ### The update through the API
 
@@ -188,7 +191,6 @@ Nothing goes to users yet. Before the final firmware, release candidates go out 
 - **Each release carries** these files, each name with the version as the unit shows it:
   - for a first install, each board's full install: `OpenTrickler-2.0.0-pico_w_full_install.uf2`, `OpenTrickler-2.0.0-pico2_w_full_install.uf2`;
   - the update images, the Pico W's two each on its own: `OpenTrickler-2.0.0-pico2_w_update.bin`, `OpenTrickler-2.0.0-pico_w_a_update.bin`, `OpenTrickler-2.0.0-pico_w_b_update.bin`;
-  - each board's erase, for a unit on v1.20 or before and for the way back: `OpenTrickler-2.0.0-pico_w_erase.uf2`, `OpenTrickler-2.0.0-pico2_w_erase.uf2`;
   - `manifest.json` and `SHA256SUMS`, under the same names in every release, so `releases/latest/download/manifest.json` always leads to the latest release's.
   The unit finds its image by the manifest's entry for `takes`, not by a file's name, so the names cost the update nothing. The manuals name a file by the end of its name.
 - **The manifest** keeps its fields (`manifest_version`, `version`, `note`, `importance`, the Open Weapon Mount Computer's names) and gives each image an address too, `url`, pinned to its tag (`https://github.com/<repository>/releases/download/<tag>/<file>`), as the Open Weapon Mount Computer's does. `file`, `size`, `sha256` and `block` stay. A build that is not a tag's has no address.
@@ -210,7 +212,7 @@ Nothing goes to users yet. Before the final firmware, release candidates go out 
 
 **Gate 2: the update through the API.** The job, the checks, the trial and its confirmation, Wi-Fi joining again, `rc_run.py update`.
 
-**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual and the downgrade's, each tried by someone following only the manual. Its release candidates on GitHub (above), added and approved 2026-11-16.
+**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual, tried by someone following only the manual. Its release candidates on GitHub (above), added and approved 2026-11-16.
 
 ## How the unit shows it works
 
@@ -246,7 +248,7 @@ Each on the Pico W and the Pico 2 W.
 - **Where the offer learns of a release.** The Open Weapon Mount Computer reads its manifest over HTTPS. On the Pico W, TLS takes flash and RAM that ADR-005 would measure. The owner's direction (2026-11-16, in ADR-008's and ADR-010's hand-ons): the web page sets the update source, GitHub's releases by default, and also takes a file uploaded by hand; the screen only polls that source, and offers from a row in the main menu, never a pop-up at every start. This ADR only puts the manifest in every release.
 - **Authentication:** none (the owner, 2026-11-16). The unit has no password, and a PIN would make the screen mandatory, which some users may not want; perhaps an optional feature later. So anyone on the unit's network can install an image they sealed themselves: the SHA-256 shows an image is whole, not whose it is.
 - **The final release, and instructions to users:** once every ADR is closed (the owner, 2026-11-16). Until then only release candidates, as pre-releases.
-- **A downgrade over the network,** and keeping settings across one.
+- **A downgrade:** none, by USB or over the network (the owner, 2026-11-16).
 - **Signed images,** and updating the bootloader over Wi-Fi.
 - **The ESP32 (ADR-007).**
 

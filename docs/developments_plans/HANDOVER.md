@@ -61,10 +61,9 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 ## Waiting on the owner
 
 - **ADR-004, open** (approved 2026-11-16 as written; gates 2 and 3 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. All three gates are built; its progress.md has every figure. Gate 3's release candidates on GitHub are approved and built (README, "Release candidates on GitHub"; progress.md). The first candidate, `v2.0.0` (tag on 21c5117), is drafted by CI and published by the owner as a pre-release; both units run it, each updated from its address. Its full installs failed by USB (they split flash sectors; progress.md, "The first install by USB"); fixed, and the second candidate `v2.0.1` carries the fix. Next: the USB checks below, made with v2.0.1's files. What waits for the owner's hands:
-  - the Pico 2 W's USB checks: the candidate's full install (`OpenTrickler-2.0.1-pico2_w_full_install.uf2`) dragged onto a unit running a newer image in slot B, which must boot slot A; both slots blanked through the probe, the drive appearing without BOOTSEL; the erase (`...-pico2_w_erase.uf2`), after which the drive comes back by itself;
-  - the Pico W's erase by USB (`OpenTrickler-2.0.1-pico_w_erase.uf2`). Its full install by USB over a newer image in B is shown with v2.0.1's file, and its bootloader starting the USB loader with neither slot bootable was seen (progress.md, "The first install by USB");
+  - the Pico 2 W's USB checks: the candidate's full install (`OpenTrickler-2.0.1-pico2_w_full_install.uf2`) dragged onto a unit running a newer image in slot B, which must boot slot A; both slots blanked through the probe, the drive appearing without BOOTSEL;
   - gate 2's power pulls, during an upload and during a trial;
-  - gate 3: each manual followed by someone who did not write it; the candidate's draft published as a pre-release.
+  - gate 3: the first install's manual followed by someone who did not write it. The Pico W's USB checks are done (progress.md, "The first install by USB"); the downgrade and its erase files were removed (the owner).
 - **Found in ADR-003 and handed on**, each to decide where it goes:
   - ~~a tuning session's load and an upload at once overrun the Pico W's network~~: ADR-004 makes the update a job, so the two never run together;
   - the gate's move queue lets a write replace a move a mode waits for (`servo_gate.c`);

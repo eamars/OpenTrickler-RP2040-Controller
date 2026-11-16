@@ -83,9 +83,7 @@ def main():
                     "--full-install", f"pico_w={b / 'pico_w' / 'full_install.uf2'}",
                     "--image", f"pico2_w={b / 'pico2_w_update' / 'app.bin'}",
                     "--image", f"pico_w_a={b / 'pico_w_a_update' / 'app.bin'}",
-                    "--image", f"pico_w_b={b / 'pico_w_b_update' / 'app.bin'}",
-                    "--erase", f"pico2_w={b / 'pico2_w' / 'erase.uf2'}",
-                    "--erase", f"pico_w={b / 'pico_w' / 'erase.uf2'}"], check=True)
+                    "--image", f"pico_w_b={b / 'pico_w_b_update' / 'app.bin'}"], check=True)
 
 
 if __name__ == "__main__":

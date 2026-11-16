@@ -40,7 +40,7 @@ jobs:
       run: ./setup_toolchain.sh
 
     # A release's five builds and its folder, as a PC makes them with the same script (ADR-004, gate 3): each board's
-    # full install and erase, the update images (the Pico W's for each slot), each named with the version,
+    # full install, the update images (the Pico W's for each slot), each named with the version,
     # manifest.json and SHA256SUMS. On every build, so every pull request shows the release it would make. On a tag
     # the script refuses a firmware that does not report the tag's version and a tag without its notes
     # (docs/releases/README.md), and gives each file its address on the release

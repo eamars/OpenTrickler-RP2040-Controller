@@ -49,7 +49,7 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - say "keep the power on" and show how far it has got (`received` against the file's size);
   - follow the unit through its restart, which takes the page's connection with it. Wait for `boot` in `GET /api/v1` to change, then for `trial` to be false and `last` to be set, as `rc_run.py update` does;
   - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost;
-  - no downgrade: going back is a USB install with the settings erased (`manuals/firmware_downgrade.md`), and the page may point to that manual.
+  - no downgrade: the page offers only a newer release (the owner, ADR-004).
 - **To find out first:**
   - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured before it is built (ADR-005); the Pico W's slot has 216.7 KB left at 1.20.218 (ADR-010's hand-on). A mirror on the owner's network can serve plain HTTP and needs no TLS.
   - On the unit's own access point there is no internet: no poll there, but the upload by hand works.

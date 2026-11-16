@@ -19,5 +19,3 @@ This is how firmware is installed by cable: the first time, the move from an old
 7. Your file manager opens, with the Raspberry Pi Pico shown as a drive. Release the BOOTSEL button. Drag and drop the file you downloaded onto the drive. The Pico disconnects and the file manager closes: the firmware is installed.
    ![file_manager](../resources/firmware_update/file_manager.png)
 8. Disconnect the USB cable and connect the 12/24V power supply again. The unit starts on the new firmware.
-
-**Releases before the update over Wi-Fi** (v1.20 and older) carry an `app.uf2` in a zip in place of these files. The steps are the same with that file. To go back to one of them, see [Going back to an older firmware](firmware_downgrade.md).

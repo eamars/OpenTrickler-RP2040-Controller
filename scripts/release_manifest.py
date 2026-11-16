@@ -3,8 +3,7 @@ A release's files and its manifest (ADR-004): the folder CI drafts a release fro
 
 Each file's name starts with the version, as the unit shows it (OpenTrickler-2.0.0-...): each board's full install
 (<board>_full_install.uf2, the first install by USB and the way back), each update image (<name>_update.bin, named
-as the unit names the image it takes: GET /api/v1/update, `takes`: pico2_w, pico_w_a, pico_w_b), each board's erase
-(<board>_erase.uf2, for a release from before ADR-004). Beside them, under the same names in every release so that
+as the unit names the image it takes: GET /api/v1/update, `takes`: pico2_w, pico_w_a, pico_w_b). Beside them, under the same names in every release so that
 GitHub's releases/latest/download/ always leads to the latest's: manifest.json and SHA256SUMS. The offer (ADR-008,
 ADR-010) and, until then, rc_run.py update read the manifest; a unit finds its image by `takes`, not by a file's name.
 The release page's text is written by hand (docs/releases/).
@@ -113,7 +112,6 @@ def main():
     parser.add_argument("--image", action="append", type=named_file, default=[], help="name=app.bin, an update image")
     parser.add_argument("--full-install", action="append", type=named_file, default=[],
                         help="board=full_install.uf2")
-    parser.add_argument("--erase", action="append", type=named_file, default=[], help="board=erase.uf2")
     args = parser.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
     prefix = f"{FILE_PREFIX}-{args.version}-"
@@ -131,13 +129,11 @@ def main():
         "images": images,
         "full_installs": {board: entry(path, args.out_dir, f"{prefix}{board}_full_install.uf2", args.url_base)
                           for board, path in args.full_install},
-        "erases": {board: entry(path, args.out_dir, f"{prefix}{board}_erase.uf2", args.url_base)
-                   for board, path in args.erase},
     }
     # LF on every system: so the sums check with sha256sum, and a PC makes the same files CI does
     (args.out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
 
-    files = [(kind, item) for kind in ("full_installs", "images", "erases") for item in manifest[kind].values()]
+    files = [(kind, item) for kind in ("full_installs", "images") for item in manifest[kind].values()]
     sums = "".join(f"{item['sha256']}  {item['file']}\n" for _, item in files)
     manifest_sha = hashlib.sha256((args.out_dir / "manifest.json").read_bytes()).hexdigest()
     (args.out_dir / "SHA256SUMS").write_text(sums + f"{manifest_sha}  manifest.json\n", encoding="utf-8", newline="\n")

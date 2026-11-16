@@ -243,5 +243,11 @@ Approved by the owner as written ("Approve, build it"; README, "Release candidat
   - all 3,264 pages of the file read back from flash the same, and the settings are those copied before the Pico W's first ADR-004 flash (`settings --compare logs/adr004/picow/before_adr004`);
   - the release's addresses answer through GitHub's redirect, and `releases/latest` still leads to v1.20.
 - **Seen with v2.0.0's failed install:** the bootloader starting the USB loader when neither slot boots. Its own pages were whole, so the ROM ran it; slot A's first page was erased and slot B blanked, and the unit came up as its drive without BOOTSEL.
-- **Not yet shown:** the Pico W's erase by USB; the Pico 2 W's USB checks with v2.0.1's files (the full install over a newer image in B, the drive without BOOTSEL, the erase); the power pulls.
+- **Not yet shown:** the Pico 2 W's USB checks with v2.0.1's files (the full install over a newer image in B, the drive without BOOTSEL); the power pulls.
+
+### No downgrade (2026-11-16)
+
+The owner, asked what the erase is for: there is little to no point going below 2.0.0, so the downgrade goes unless it is an absolute need (README, "Owner's direction").
+- **Read first:** the erase's one real use was going back to v1.20 or older on the Pico 2 W, whose ROM reads the partition table a 2.x full install writes; an older 2.x release needs none, its full install blanks slot B. v1.20 has faults ADR-013 fixed (a reading that does not parse sends both tricklers to full speed), so no user should be sent back to it. Raspberry Pi's own `flash_nuke.uf2` erases a Pico's flash for anyone who truly must.
+- **Removed:** `manuals/firmware_downgrade.md`; the erase files (`erase.uf2` in each build, `<board>_erase.uf2` in a release, the manifest's `erases`); the first install manual's note on older releases' `app.uf2`. The settings erase at the unit stays: it is a feature of its own (the menu, `POST /api/v1/system/erase`).
 
