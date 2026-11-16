@@ -34,6 +34,7 @@
 #include "display.h"
 #include "events.h"
 #include "menu.h"
+#include "jobs.h"
 #include "mini_12864_module.h"
 #include "picobin_image.h"
 #include "update_slots.h"
@@ -448,7 +449,7 @@ static void update_end_locked(update_result_t result, activity_by_t by, update_r
     event_reason_t reason = result == UPDATE_RESULT_REFUSED ? EVENT_REASON_REFUSED :
                             (result == UPDATE_RESULT_TIME ? EVENT_REASON_TIME : EVENT_REASON_STOPPED);
     update_event(EVENT_STOPPED, by, reason, refusal.code, 0);
-    menu_wake();    // the mode gives the screen back now, not at its next tick
+    jobs_wake();    // the mode, in the job task, gives the screen back now, not at its next tick (ADR-010, gate 2)
 }
 
 
@@ -697,13 +698,11 @@ uint8_t update_mode_menu(void) {
             break;
         }
         update_draw(state);
-        ButtonEncoderEvent_t button = button_wait_for_input_ms(UPDATE_MODE_TICK_MS);
+        // A stop at the unit is the screen's (by button), as the API's: the update reads no button (ADR-010, gate 2).
+        // The job's end wakes it at once (jobs_wake(), from update_end_locked())
+        jobs_wait(UPDATE_MODE_TICK_MS);
         activity_by_t stop_by;
         bool stop = activity_take_stop(&stop_by);
-        if (button == BUTTON_RST_PRESSED) {
-            stop = true;
-            stop_by = ACTIVITY_BY_BUTTON;
-        }
         activity_lock();
         // Signed: the server's task may set update_tick after the tick count was read (review Q2)
         int32_t since = (int32_t) (xTaskGetTickCount() - update_tick);

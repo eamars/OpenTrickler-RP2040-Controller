@@ -1,3 +1,6 @@
+#include <math.h>
+#include <string.h>
+
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
@@ -21,11 +24,14 @@
 #include "system_control.h"
 #include "motors.h"
 #include "menu.h"
+#include "jobs.h"
 #include "update.h"
 
 // How often the menu wakes with nothing pressed, to draw the main menu's title again if a motor driver's state
 // changed it (ADR-012, step 6)
 #define MENU_TITLE_CHECK_MS 1000
+// How often the menu looks for a job's end while it waits for presses (ADR-010, gate 2)
+#define MENU_JOB_LOOK_MS 100
 
 // External variables
 extern muif_t muif_list[];
@@ -102,6 +108,71 @@ uint8_t menu_motor_fault_view(void) {
 
     activity_job_end();
     return 1;  // the main menu, whose title names the driver
+}
+
+
+/*
+    A press while a job runs, as the job's command: the same entry points the API calls, by button (ADR-010, gate 2).
+    Back stops the job. A job in `fault` takes any press as its acknowledgement, as it did when it read the buttons.
+    The charge zeroes the scale on a press while it waits for zero or for the cup's return; the cleanup's speed
+    follows the knob, a press stopping the motors, until stopped (no time given, as a person at the unit)
+*/
+static void menu_job_key(activity_t job, ButtonEncoderEvent_t event) {
+    bool key = event == BUTTON_ENCODER_ROTATE_CW || event == BUTTON_ENCODER_ROTATE_CCW ||
+               event == BUTTON_ENCODER_PRESSED || event == BUTTON_RST_PRESSED;
+    if (!key) {
+        return;
+    }
+    if (event == BUTTON_RST_PRESSED) {
+        activity_request_stop(job, ACTIVITY_BY_BUTTON);
+        return;
+    }
+
+    if (job == ACTIVITY_CHARGE) {
+        charge_status_t charge;
+        charge_mode_get_status(&charge);
+        if (strcmp(charge.state, "fault") == 0) {
+            activity_request_stop(job, ACTIVITY_BY_BUTTON);
+        }
+        else if (event == BUTTON_ENCODER_PRESSED &&
+                 (strcmp(charge.state, "zeroing") == 0 || strcmp(charge.state, "waiting_for_cup_return") == 0)) {
+            scale_ask_zero();
+        }
+    }
+    else if (job == ACTIVITY_CLEANUP) {
+        cleanup_status_t cleanup;
+        cleanup_mode_get_status(&cleanup);
+        if (strcmp(cleanup.state, "fault") == 0) {
+            activity_request_stop(job, ACTIVITY_BY_BUTTON);
+        }
+        else if (event == BUTTON_ENCODER_ROTATE_CW) {
+            cleanup_mode_set_speed(cleanup.speed_rps + 1.0f, NAN);
+        }
+        else if (event == BUTTON_ENCODER_ROTATE_CCW) {
+            cleanup_mode_set_speed(cleanup.speed_rps - 1.0f, NAN);
+        }
+        else {
+            cleanup_mode_set_speed(0.0f, NAN);
+        }
+    }
+}
+
+
+// A job begun in the job task, the menu turning presses into its commands until it ends (ADR-010, gate 2)
+static uint8_t menu_run_job(activity_t job) {
+    if (!jobs_begin(job)) {
+        printf("Menu: %s not begun, a job runs\n", activity_name(job));
+        return JOBS_EXIT_MAIN_MENU;
+    }
+    uint8_t exit_form_id;
+    while (!jobs_take_end(&exit_form_id)) {
+        menu_job_key(job, button_wait_for_input_ms(MENU_JOB_LOOK_MS));
+    }
+    // A start refused for a motor driver not OK: the screen shows which, as before the job task
+    if (exit_form_id == JOBS_EXIT_MOTOR_FAULT) {
+        exit_form_id = menu_motor_fault_view();
+    }
+    return exit_form_id;
 }
 
 
@@ -210,13 +281,13 @@ void menu_task(void *p){
                     exit_form_id = menu_motor_fault_view();
                     break;
                 case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_form_id = charge_mode_menu();
+                    exit_form_id = menu_run_job(ACTIVITY_CHARGE);
                     break;
                 case APP_STATE_ENTER_CLEANUP_MODE:
-                    exit_form_id = cleanup_mode_menu();
+                    exit_form_id = menu_run_job(ACTIVITY_CLEANUP);
                     break;
                 case APP_STATE_ENTER_UPDATE:
-                    exit_form_id = update_mode_menu();
+                    exit_form_id = menu_run_job(ACTIVITY_UPDATE);
                     break;
                 case APP_STATE_ENTER_EEPROM_SAVE: 
                     exit_form_id = eeprom_save_all();

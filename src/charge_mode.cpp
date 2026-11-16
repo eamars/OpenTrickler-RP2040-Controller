@@ -24,6 +24,7 @@
 #include "common.h"
 #include "servo_gate.h"
 #include "menu.h"
+#include "jobs.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -87,12 +88,9 @@ static activity_by_t charge_end_by = ACTIVITY_BY_BUTTON;
 static bool charge_stop_logged = false;     // the charge's stopped event is out: at its fault, or at its end
 
 
-// The reset button at the unit, or a stop asked by the API or the console: either ends the charge (gate 4)
-static bool charge_mode_stop_asked(ButtonEncoderEvent_t event) {
-    if (event == BUTTON_RST_PRESSED) {
-        charge_end_by = ACTIVITY_BY_BUTTON;
-        return true;
-    }
+// A stop asked at the unit (the screen's Back, by button), by the API or by the console: each ends the charge (gate 4).
+// The charge reads no button: the screen turns a press into a command (ADR-010, gate 2)
+static bool charge_mode_stop_asked(void) {
     activity_by_t by;
     if (activity_take_stop(&by)) {
         charge_end_by = by;
@@ -308,14 +306,10 @@ void charge_mode_wait_for_zero() {
     while (true) {
         TickType_t last_measurement_tick = xTaskGetTickCount();
 
-        // Non block waiting for the input
-        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (charge_mode_stop_asked(button_encoder_event)) {
+        // A stop asked; a zero is asked by the screen itself (scale_ask_zero(), ADR-010, gate 2)
+        if (charge_mode_stop_asked()) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
-        }
-        else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-            scale_ask_zero();
         }
 
         if (charge_mode_end_on_motor_fault()) {
@@ -409,8 +403,7 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
     while (true) {
         TickType_t loop_tick = xTaskGetTickCount();
 
-        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (charge_mode_stop_asked(button_encoder_event)) {
+        if (charge_mode_stop_asked()) {
             return CHARGE_PAUSE_EXIT;
         }
 
@@ -480,7 +473,9 @@ static void charge_mode_scale_fault(const char * reason, event_reason_t throw_re
     charge_mode_throw_ended(throw_reason, motor, fault);
     charge_mode_log_stopped(ACTIVITY_BY_UNIT, EVENT_REASON_FAULT);
 
-    while (button_wait_for_input_ms(50) == BUTTON_NO_EVENT && !activity_take_stop(NULL)) {
+    // Until acknowledged: a stop, which the screen sends for any press at the unit (ADR-010, gate 2)
+    while (!activity_take_stop(NULL)) {
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
     charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
 }
@@ -572,9 +567,7 @@ void charge_mode_wait_for_complete() {
            (unsigned long) usual_interval_ms, (unsigned long) stale_ms, (unsigned long) lost_ms);
 
     while (true) {
-        // Non block waiting for the input
-        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (charge_mode_stop_asked(button_encoder_event)) {
+        if (charge_mode_stop_asked()) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
@@ -800,9 +793,7 @@ void charge_mode_wait_for_cup_removal() {
     while (true) {
         TickType_t last_sample_tick = xTaskGetTickCount();
 
-        // Non block waiting for the input
-        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (charge_mode_stop_asked(button_encoder_event)) {
+        if (charge_mode_stop_asked()) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
@@ -857,14 +848,10 @@ void charge_mode_wait_for_cup_return() {
     while (true) {
         TickType_t last_sample_tick = xTaskGetTickCount();
 
-        // Non block waiting for the input
-        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input(false);
-        if (charge_mode_stop_asked(button_encoder_event)) {
+        // A stop asked; a zero is asked by the screen itself (scale_ask_zero(), ADR-010, gate 2)
+        if (charge_mode_stop_asked()) {
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
-        }
-        else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-            scale_ask_zero();
         }
 
         if (charge_mode_end_on_motor_fault()) {
@@ -895,9 +882,8 @@ uint8_t charge_mode_menu(void) {
     // draws anything (step 6). motors_ready() sets up again each driver not OK, so a passing fault does not refuse
     if (!motors_ready()) {
         printf("Charge: not started, %s\n", motors_get_fault());
-        uint8_t exit_form_id = menu_motor_fault_view();
         charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
-        return exit_form_id;
+        return JOBS_EXIT_MOTOR_FAULT;   // the screen shows the fault (ADR-010, gate 2: a job draws nothing of it)
     }
 
     // A new charge: no fault of the last one on its screen

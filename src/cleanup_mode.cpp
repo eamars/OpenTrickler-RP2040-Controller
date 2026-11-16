@@ -17,6 +17,7 @@
 #include "cleanup_mode.h"
 #include "servo_gate.h"
 #include "menu.h"
+#include "jobs.h"
 
 // How often a running cleanup looks at the motor drivers when no button is pressed (ADR-012, step 6)
 #define CLEANUP_MODE_FAULT_CHECK_MS 100
@@ -145,9 +146,8 @@ uint8_t cleanup_mode_menu() {
     // draws anything (step 6). motors_ready() sets up again each driver not OK, so a passing fault does not refuse
     if (!motors_ready()) {
         printf("Cleanup: not started, %s\n", motors_get_fault());
-        uint8_t exit_form_id = menu_motor_fault_view();
         cleanup_mode_config.cleanup_mode_state = CLEANUP_MODE_EXIT;
-        return exit_form_id;
+        return JOBS_EXIT_MOTOR_FAULT;   // the screen shows the fault (ADR-010, gate 2: a job draws nothing of it)
     }
 
     // If the display task is never created then we shall create one, otherwise we shall resume the task
@@ -191,8 +191,9 @@ uint8_t cleanup_mode_menu() {
 
     bool quit = false;
     while (!quit) {
-        // Wait for a button, looking at the motor drivers between presses
-        ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(CLEANUP_MODE_FAULT_CHECK_MS);
+        // The motor drivers, a stop and the time's end looked at this often. The speed is set from outside, by the
+        // screen or the API (cleanup_mode_set_speed()): the cleanup reads no button (ADR-010, gate 2)
+        vTaskDelay(pdMS_TO_TICKS(CLEANUP_MODE_FAULT_CHECK_MS));
 
         // A motor driver not OK stops both motors and ends the cleanup, naming it (ADR-012, step 6); stopped at the
         // fault, by the unit, and in `fault` until a press or a stop acknowledges it (gate 4)
@@ -212,55 +213,32 @@ uint8_t cleanup_mode_menu() {
             cleanup_mode_log(EVENT_STOPPED, ACTIVITY_BY_UNIT, EVENT_REASON_FAULT);
             stop_logged = true;
 
-            while (button_wait_for_input_ms(50) == BUTTON_NO_EVENT && !activity_take_stop(NULL)) {
+            // Until acknowledged: a stop, which the screen sends for any press at the unit
+            while (!activity_take_stop(NULL)) {
+                vTaskDelay(pdMS_TO_TICKS(50));
             }
             break;
         }
 
-        // A stop asked by the API or the console, as the reset button
+        // A stop asked at the unit (by button), by the API or by the console
         activity_by_t stop_by;
+        bool stop = false;
         if (activity_take_stop(&stop_by)) {
-            button_encoder_event = BUTTON_RST_PRESSED;
+            stop = true;
             end_by = stop_by;
         }
         // A speed given with a time runs out: the cleanup stops by itself
         else if (cleanup_has_deadline && (int32_t) (xTaskGetTickCount() - cleanup_deadline_tick) >= 0) {
-            button_encoder_event = BUTTON_RST_PRESSED;
+            stop = true;
             end_by = ACTIVITY_BY_UNIT;
             end_reason = EVENT_REASON_TIME;
         }
 
-        switch (button_encoder_event) {
-            case BUTTON_RST_PRESSED:
-                cleanup_mode_config.trickler_speed = 0;
-                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
-                quit = true;
-
-                break;
-            case BUTTON_ENCODER_ROTATE_CW:
-                // A person at the unit: until stopped, as there
-                cleanup_has_deadline = false;
-                cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed + 1,
-                                                                              cleanup_mode_config.trickler_speed);
-                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
-                break;
-            case BUTTON_ENCODER_ROTATE_CCW:
-                cleanup_has_deadline = false;
-                cleanup_mode_config.trickler_speed = cleanup_mode_limit_speed(cleanup_mode_config.trickler_speed - 1,
-                                                                              cleanup_mode_config.trickler_speed);
-                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
-                break;
-
-            case BUTTON_ENCODER_PRESSED:
-                cleanup_has_deadline = false;
-                cleanup_mode_config.trickler_speed = 0;
-                motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
-
-                break;
-            default:
-                break;
+        if (stop) {
+            cleanup_mode_config.trickler_speed = 0;
+            motor_set_speed(SELECT_BOTH_MOTOR, cleanup_mode_config.trickler_speed);
+            quit = true;
         }
-
     }
 
     activity_lock();

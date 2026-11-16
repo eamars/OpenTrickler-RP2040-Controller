@@ -38,9 +38,10 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | Files | What they are |
 |---|---|
 | `app.c` | Start-up order |
-| `menu.c`, `mui_menu.c` | The menu task and the menu's forms |
-| `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each takes the screen from the menu and draws for itself |
-| `scale.c`, `*_scale.c`, `and_scale_calibrate.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
+| `menu.c`, `mui_menu.c` | The menu task and the menu's forms. While a job runs, the menu turns each press into the job's command (a stop, a zero, a speed), the API's own entry points by button |
+| `jobs.c` | The job task (ADR-010, gate 2): the charge, a cleanup and an update run here, not in the menu's task |
+| `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each reads no button; until ADR-010's gate 4 each still draws its own screen |
+| `scale.c`, `*_scale.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
 | `motors.c` | The two steppers: one task that ramps both speeds and feeds the step pulses every millisecond, the stored settings, and the task that reads the drivers once a second |
 | `step_pulses.c`, `stepper.pio` | The step pulses by PIO (ADR-012): the PIO makes only the steps it is fed, so a firmware that stops feeding is a motor that stops; a second state machine counts the steps on the pin |
 | `fault_handler.c` | A hard fault stops the motors before the core halts |

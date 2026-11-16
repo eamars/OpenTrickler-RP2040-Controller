@@ -4,6 +4,7 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
 #include "pico/stdlib.h"
@@ -31,6 +32,7 @@
 #include "servo_gate.h"
 #include "rc_console.h"
 #include "update.h"
+#include "jobs.h"
 
 
 int main()
@@ -80,7 +82,11 @@ int main()
     // Initialize the servo
     servo_gate_init();
 
-    // Start menu task
+    // The job task, where the charge, a cleanup and an update run, then the screen's (ADR-010, gate 2)
+    if (!jobs_init()) {
+        printf("Jobs: no room for the job task\n");
+        assert(false);
+    }
     xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
 
     // The remote control's console task
