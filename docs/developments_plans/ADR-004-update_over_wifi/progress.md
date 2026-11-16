@@ -236,6 +236,6 @@ Approved by the owner as written ("Approve, build it"; README, "Release candidat
 - **Fixed:** `scripts/full_install_uf2.py` writes every sector it touches whole, the missing pages as erased flash.
   - Shown: the release's own Pico W pages laid out by the fixed script (3,264 blocks, 14 erased pages added), dragged on by the owner. The unit booted 2.0.0 (21c5117) from A, not on trial, and every page of the file read back from flash the same.
   - Both boards' builds now make full installs of whole sectors (204 and 197).
-- **The second candidate, `v2.0.1`,** carries the fix; `v2.0.0`'s files stay as published.
+- **The second candidate, `v2.0.1`,** carries the fix; `v2.0.0`'s files stay as published. Tagged on cccb64e and pushed with the owner's word ("make a new tag for rc2"): CI's run 43831856123 passed and drafted it as a pre-release. From the draft: all eight sums hold, each manifest entry matches its file and its address under `v2.0.1`, the update images carry block 2.0.1, and both full installs and both erases are whole sectors (204, 197, 3 and 4).
 - **Not yet shown:** the owner's USB checks with v2.0.1's files on both units: the full install over a newer image in B, the drive appearing without BOOTSEL, the erase.
 
