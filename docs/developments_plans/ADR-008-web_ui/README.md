@@ -45,7 +45,7 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - **the source:** GitHub's latest release by default, or another manifest's address (a mirror on the owner's network, as the Open Weapon Mount Computer's bench host `ota_host.py` is). It is a stored setting: give it a module's own slot, or say so in this ADR if it changes a stored struct's layout (AGENTS.md);
   - **the offer:** the unit's poll found a newer release; the page shows it with its note. A critical one is marked as such, with no pop-up;
   - on a yes: the unit fetches the file `takes` names into the free slot as a job, then installs;
-  - **the upload by hand:** the file chosen on the phone or the PC, sent with `PUT /api/v1/update/image` as `rc_run.py update` sends it. The page names the file this unit takes (`<takes>_update.bin`: the Pico W's differs by its free slot). A wrong file is refused by the unit with its code, and the page says why in plain words;
+  - **the upload by hand:** the file chosen on the phone or the PC, sent with `PUT /api/v1/update/image` as `rc_run.py update` sends it. The page names the file this unit takes, as the manifest's entry for `takes` names it (its name ends in `<takes>_update.bin`: the Pico W's differs by its free slot). A wrong file is refused by the unit with its code, and the page says why in plain words;
   - say "keep the power on" and show how far it has got (`received` against the file's size);
   - follow the unit through its restart, which takes the page's connection with it. Wait for `boot` in `GET /api/v1` to change, then for `trial` to be false and `last` to be set, as `rc_run.py update` does;
   - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost;

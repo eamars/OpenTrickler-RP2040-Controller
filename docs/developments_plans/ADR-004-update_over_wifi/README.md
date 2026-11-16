@@ -1,6 +1,6 @@
 # ADR-004: firmware update over Wi-Fi
 
-Status: **Open** 2026-11-16. Drafted 2026-11-13, written in full 2026-11-16 from the owner's direction that day, and approved by the owner the same day as written ("Approve as written"), starting with gate 1 on the Pico 2 W. What was built and measured is in [progress](progress.md).
+Status: **Open** 2026-11-16. Drafted 2026-11-13, written in full 2026-11-16 from the owner's direction that day, and approved by the owner the same day as written ("Approve as written"), starting with gate 1 on the Pico 2 W. Gate 3's release candidates on GitHub were added later that day from the owner's direction, for the owner's approval ("Release candidates on GitHub"). What was built and measured is in [progress](progress.md).
 
 ## What we want
 
@@ -30,6 +30,15 @@ This ADR builds what that rests on: the flash layout, the boot path, the image's
 - The web page also takes a firmware file uploaded by hand, for "prosumers": beside the offer, not in its place. The first draft's verdict above stands for the offer itself.
 - The screen only polls the source the web set, and offers the update from a row in the main menu, as the Open Weapon Mount Computer does; never a pop-up at every start.
 - No authentication for now: the unit has no password, and a PIN would make the screen mandatory. Perhaps an optional feature later.
+
+**2026-11-16**, later, on releases:
+- No release for users, and no instructions given out, until every ADR is closed.
+- Release candidates (v2.0.x) go out on GitHub first, to try GitHub's side before the final firmware.
+- Each release carries a baseline for a first install, the update files for both boards (the Pico W's two, each on its own) and the manifest. Each file's name carries the version.
+- GitHub's side is made as the Open Weapon Mount Computer's, so both are released the same way.
+- No fetch by the unit until one of the UIs comes, unless it can be tested through the API today.
+- The owner's USB checks on both units are made with a candidate's baseline.
+- Agreed the same day, on the agent's proposal: a candidate is an ordinary version published as a pre-release, public, its notes saying it is a test build; its tag is pushed on this ADR's branch, before the ADR closes.
 
 ## Why here
 
@@ -162,6 +171,36 @@ The start of slot B is blanked because the higher version boots: an older or equ
 - **Wi-Fi joins again** when its network comes back, so a unit that started before its router can be updated (ADR-012's hand-on).
 - **`rc_run.py update --host <address> --manifest <path or address>`** reads a manifest, takes the file the unit asks for, and passes when the unit reports the new version confirmed. It plays the offer's part until the UIs come, as `ota_host.py` does on the Open Weapon Mount Computer's bench.
 
+### Release candidates on GitHub (gate 3's addition, 2026-11-16, for the owner's approval)
+
+Nothing goes to users yet. Before the final firmware, release candidates go out on GitHub to try GitHub's side: the files, their addresses, the manifest, and an update from them on both units. The process is the Open Weapon Mount Computer's (its `.github/workflows/firmware.yml` and `docs/releases/README.md`, read 2026-11-16), so the owner releases both projects alike.
+
+- **Tags of three numbers, `vX.Y.Z`,** as the Open Weapon Mount Computer's. The first is `v2.0.0`, a new major version: the flash layout is new, API v1 has replaced the old paths, and the way back to an older release is an erase.
+  - A build at a tag is `X.Y.Z`, as the unit shows it; a build N commits after it is `X.Y.Z-N`. An old tag of two numbers counts as `X.Y.0`, so today's build is 1.20.0-218.
+  - The metadata block keeps its two 16-bit numbers: `X × 256 + Y`, then `Z × 256 + N`, N held at 255. A release is newer than every build before it, a build after a tag newer than the tag, and today's builds keep the numbers they have now (276 and 218).
+- **A candidate is an ordinary version,** published as a GitHub pre-release: `v2.0.0`, `v2.0.1`, and so on. The final is the one the owner promotes by unticking "pre-release": the very files tried, not a rebuild.
+  - GitHub's latest release skips pre-releases, so a unit reading `releases/latest/download/manifest.json`, the default source (ADR-008), is never offered a candidate. Today the latest release is v1.20, which has no manifest.
+  - Versions only go up, so a unit's "is it newer" needs no rule for candidates.
+- **The notes, written by hand,** as the Open Weapon Mount Computer's:
+  - `docs/releases/<tag>.md`, the release page's text, and `docs/releases/<tag>_note.txt`, the short note the offer shows (the manifest's `note`), both committed before the tag; `docs/releases/README.md` gives the steps;
+  - a candidate's page says it is a test build, not for use, and gives no install steps. The manuals stay in the repository;
+  - CI on a tag refuses a firmware that does not report the tag's version, and a tag without its two files.
+- **Each release carries** these files, each name with the version as the unit shows it:
+  - for a first install, each board's full install: `OpenTrickler-2.0.0-pico_w_full_install.uf2`, `OpenTrickler-2.0.0-pico2_w_full_install.uf2`;
+  - the update images, the Pico W's two each on its own: `OpenTrickler-2.0.0-pico2_w_update.bin`, `OpenTrickler-2.0.0-pico_w_a_update.bin`, `OpenTrickler-2.0.0-pico_w_b_update.bin`;
+  - each board's erase, for a unit on v1.20 or before and for the way back: `OpenTrickler-2.0.0-pico_w_erase.uf2`, `OpenTrickler-2.0.0-pico2_w_erase.uf2`;
+  - `manifest.json` and `SHA256SUMS`, under the same names in every release, so `releases/latest/download/manifest.json` always leads to the latest release's.
+  The unit finds its image by the manifest's entry for `takes`, not by a file's name, so the names cost the update nothing. The manuals name a file by the end of its name.
+- **The manifest** keeps its fields (`manifest_version`, `version`, `note`, `importance`, the Open Weapon Mount Computer's names) and gives each image an address too, `url`, pinned to its tag (`https://github.com/<repository>/releases/download/<tag>/<file>`), as the Open Weapon Mount Computer's does. `file`, `size`, `sha256` and `block` stay. A build that is not a tag's has no address.
+- **CI on a tag** drafts the release as a pre-release, with every file, its notes, and the SHA-256 in its text. The owner publishes it.
+- **The unit does not fetch** until a UI comes (the owner): HTTPS on the unit, which must follow GitHub's redirect to another host, is not built, and its cost is not measured. GitHub's side is tried through the API instead. `rc_run.py update --manifest <address>` reads the release's manifest, downloads the file the unit takes from its `url`, checks its size, SHA-256 and block version, and sends it as today: the same files and addresses a unit's own fetch will use.
+- **The order:**
+  1. built and shown on the PC, with a local tag that is never pushed, for CI's checks and the names;
+  2. on the owner's word, the tag `v2.0.0` pushed on this branch's last commit: one push, which CI builds and drafts;
+  3. the owner publishes the draft as a pre-release; `rc_run.py update` from its address on both units;
+  4. the owner's USB checks and power pulls, with its files;
+  5. ADR-004 closes, and its PR is merged with a merge commit, as every PR here is, so the tag stays in main's history. A squash would leave it out, and main's builds would count from v1.20, older than 2.0.0.
+
 ### Gates
 
 **Gate 1: the layout and the boot path, both boards.**
@@ -171,7 +210,7 @@ The start of slot B is blanked because the higher version boots: an older or equ
 
 **Gate 2: the update through the API.** The job, the checks, the trial and its confirmation, Wi-Fi joining again, `rc_run.py update`.
 
-**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual and the downgrade's, each tried by someone following only the manual.
+**Gate 3: releases.** CI on a version tag drafts a release with each board's files, the manifest and their SHA-256, as the Open Weapon Mount Computer's does; the owner publishes it after trying it on a unit. The first install's manual and the downgrade's, each tried by someone following only the manual. Its release candidates on GitHub (above), added 2026-11-16 for the owner's approval.
 
 ## How the unit shows it works
 
@@ -194,15 +233,19 @@ Each on the Pico W and the Pico 2 W.
 - An upload while two browsers use the web pages: the pages go on answering, and lwIP's heap holds (`net`).
 
 **Gate 3**
-- A tag's draft release carries every file, and its manifest names each with a SHA-256 that matches.
+- CI refuses a tag whose firmware reports another version, and a tag without its notes: shown on the PC with CI's own check and a local tag.
+- A tag's draft release is a pre-release that carries every file, each name with its version, and its manifest names each with a SHA-256 and an address that match.
+- Once it is published, `releases/latest/download/manifest.json` does not lead to it.
+- `rc_run.py update` from the release's address on both units.
+- The owner's USB checks (gate 1's) made with the release's own files.
 - A unit on v1.20 moved by the manual alone, by someone who did not write it.
-- `rc_run.py update` from the draft release's manifest on both units.
 
 ## Not in this ADR
 
 - **The offer:** on the web page (ADR-008) and on the screen (ADR-010). Until then an update is for debugging, through the API. What each has to do is written in its README ("Handed on by ADR-004", 2026-11-16).
 - **Where the offer learns of a release.** The Open Weapon Mount Computer reads its manifest over HTTPS. On the Pico W, TLS takes flash and RAM that ADR-005 would measure. The owner's direction (2026-11-16, in ADR-008's and ADR-010's hand-ons): the web page sets the update source, GitHub's releases by default, and also takes a file uploaded by hand; the screen only polls that source, and offers from a row in the main menu, never a pop-up at every start. This ADR only puts the manifest in every release.
 - **Authentication:** none (the owner, 2026-11-16). The unit has no password, and a PIN would make the screen mandatory, which some users may not want; perhaps an optional feature later. So anyone on the unit's network can install an image they sealed themselves: the SHA-256 shows an image is whole, not whose it is.
+- **The final release, and instructions to users:** once every ADR is closed (the owner, 2026-11-16). Until then only release candidates, as pre-releases.
 - **A downgrade over the network,** and keeping settings across one.
 - **Signed images,** and updating the bootloader over Wi-Fi.
 - **The ESP32 (ADR-007).**

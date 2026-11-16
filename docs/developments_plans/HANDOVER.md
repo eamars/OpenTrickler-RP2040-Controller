@@ -60,11 +60,11 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 ## Waiting on the owner
 
-- **ADR-004, open** (approved 2026-11-16 as written; gates 2 and 3 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. All three gates are built; its progress.md has every figure. What waits for the owner's hands:
+- **ADR-004, open** (approved 2026-11-16 as written; gates 2 and 3 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. All three gates are built; its progress.md has every figure. Gate 3's release candidates on GitHub are written for the owner's approval (README, "Release candidates on GitHub"): once built, the tag `v2.0.0` is pushed as the first candidate, and the USB checks below are made with its files. What waits for the owner's hands:
   - the Pico 2 W's USB checks: the full install (`release/pico2_w_full_install.uf2`, or `build/full_install.uf2`) dragged onto a unit running a newer image in slot B, which must boot slot A; both slots blanked through the probe, the drive appearing without BOOTSEL; the erase (`release/pico2_w_erase.uf2`), after which the drive comes back by itself;
   - the Pico W's USB checks, as the Pico 2 W's: the full install (`release/pico_w_full_install.uf2`) over a unit running a newer image in slot B, the drive appearing without BOOTSEL, the erase. Its runs through the probe and over Wi-Fi are done (progress.md, "The Pico W");
   - gate 2's power pulls, during an upload and during a trial;
-  - gate 3: each manual followed by someone who did not write it; CI's release step runs on the PR's first push, and a tag's draft release when the owner tags one.
+  - gate 3: each manual followed by someone who did not write it; the candidate's draft published as a pre-release.
 - **Found in ADR-003 and handed on**, each to decide where it goes:
   - ~~a tuning session's load and an upload at once overrun the Pico W's network~~: ADR-004 makes the update a job, so the two never run together;
   - the gate's move queue lets a write replace a move a mode waits for (`servo_gate.c`);
