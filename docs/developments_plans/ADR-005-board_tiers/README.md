@@ -1,6 +1,6 @@
 # ADR-005: what each board carries: a smaller image, a feature table, budgets
 
-Status: **Draft** 2026-11-13. Not approved. Rule 1 below is the owner's; the rest is a proposal.
+Status: **Decided** 2026-11-17, closed as a scoping ADR at the owner's word ("Yes, close it"). Its work is done when its trigger fires (below, "Decided"): an image that no longer fits its slot, or an ADR's measurement that fits only an optimised build. Drafted 2026-11-13. Rule 1 below is the owner's.
 
 ## What we want
 
@@ -14,11 +14,39 @@ Status: **Draft** 2026-11-13. Not approved. Rule 1 below is the owner's; the res
 - The implementation is consistent: a feature is present on a board or absent from it, never built a second way.
 - 2026-11-15, given in ADR-012 (its step 6): **fail early.** "If the Wifi is missing then the WiFi menu should not be made visible (This is just an example)." Rule 3 below says it for what a board is built to carry; the same holds for hardware found missing when the unit starts. One line to keep: a function that is only not set up keeps its menu, since the menu is how it is set up. A radio that does not start is missing; a network not joined is not. Motor drivers, which every board carries, stay offered and refuse at the first press with the reason (ADR-012, step 6).
 
+## Owner's direction (2026-11-17)
+
+- ADR-005 stays a scoping work: closed by recording its decisions, its real work done afterwards, when RAM or flash runs tight.
+- The trigger: a future ADR's image exceeding its partition.
+
 ## Why here
 
 After ADR-004 the application's room on each board is a known number, so "does it fit" can be answered and a tier means something.
 
-## What we know (checked 2026-11-13)
+## What we know
+
+### Measured 2026-11-17, on main after ADR-004 (d69acf1)
+
+`tools/size_report.py` on the Pico W image, as built today (Debug, `-O0`) and the same code size-optimised (MinSizeRel, `-Os`, which also turns `assert()` off, so a `-Os` build that keeps it is a little larger):
+
+| Part | Debug | MinSizeRel |
+|---|---|---|
+| The radio: cyw43's driver and its firmware (data) | 252.0 KB | 232.0 KB |
+| The application | 169.3 KB | 120.9 KB |
+| lwIP | 133.3 KB | 53.8 KB |
+| Web pages (data) | 100.9 KB | 100.7 KB |
+| Pico SDK | 62.2 KB | 25.8 KB |
+| u8g2 and MUI | 31.6 KB | 19.5 KB |
+| FreeRTOS | 31.5 KB | 11.1 KB |
+| C and C++ runtime | 18.5 KB | 18.7 KB |
+| **Total, of the slot's 1,016 KB** | **799.4 KB** (217 KB left) | **582.5 KB** (433 KB left) |
+
+- RAM at link time: 223.9 KB of 256 KB on Debug, 221.9 KB on MinSizeRel; 112 KB of it is the FreeRTOS heap, whose high-water mark is not known. RAM, not flash, is the Pico W's tighter limit.
+- The web pages are our own markup and script, unminified and uncompressed: `web_portal.html` is 95 KB, the four pages 107 KB, 19 KB gzipped. Tailwind and DaisyUI are not in the image: the browser fetches them from `cdn.tailwindcss.com` and `cdn.jsdelivr.net`, which is why the page has no styling offline (ADR-008).
+- The C++ name demangler is no longer in the image (the runtime is 18.5 KB, not 72 KB): Idea 3 below is done.
+- An image larger than its slot fails to link (ADR-004 cut the linker's region to the slot): `region FLASH overflowed`.
+
+### Checked 2026-11-13, before ADR-004
 
 **The image**, from `tools/size_report.py` on the Pico W build of today's main (the Pico 2 W image is 668 KB with the same shape):
 
@@ -94,8 +122,17 @@ Estimate, not measured: gzipped pages, no demangler and an optimised build shoul
 - Dropping any board.
 - A newer SDK or compiler. A dependency update is its own ADR.
 
-## To settle before approval
+## Decided (2026-11-17)
 
-- Rules 2 to 5.
-- Which modules are optional from the start.
-- The budgets' numbers, once the optimised build is measured.
+On the agent's proposal, closed by the owner ("Yes, close it"):
+
+- **The trigger.** An image that overflows its slot fails to link. That failure points here: a comment in `targets/flash_region.ld.in`, and a line in AGENTS.md ("Size"). The first remedy is the optimised build, before any feature is cut.
+- **Measured right before then.** ADR-008 and ADR-010 measure what they add (the pages and HTTPS, LVGL) on two builds, the shipping one and a size-optimised one, and decide on the second. If what they add fits only optimised, this ADR's optimised build is made first. ADR-010 measures the heap's high-water mark too.
+- **When it fires, the work:** the optimised build on both boards, the stack-overflow and failed-allocation hooks first made to stop the unit without `assert()`, proven by `charge_cycle`, `menu_tour` and the owner's real throws (the optimiser changes timing). `sha256.c`'s own `-O2` (the root `CMakeLists.txt`) then goes.
+- **Handed on:**
+  - the feature table and the unit's report of what it carries (rule 3) to ADR-008, their first reader;
+  - the pages' size to ADR-008, which replaces the pages and their build step;
+  - LVGL's cost and the heap's high-water mark to ADR-010;
+  - HTTPS's cost to wherever the unit's own fetch is designed (ADR-008);
+  - to ADR-009: tuning done at `-O0` is shown again on the optimised build, if that comes after.
+- **The rules:** rule 1 is the owner's. Rules 2 and 5 stand as written, as principles. Rule 3's table is ADR-008's. Rule 4's budgets in CI wait for the trigger; until then the linker's slot limit is the budget.

@@ -66,7 +66,8 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
   - the gate's move queue lets a write replace a move a mode waits for (`servo_gate.c`);
   - the EEPROM's erase runs outside its mutex, and the API's erase runs it beside the server;
   - `rnd()` (`eeprom.c`) gives ids with few random bits: the bench's is `9CE00000`, and the host name shows four characters of it.
-- **Next ADR, as the registry lists it:** 005, a Draft not yet approved.
+- **ADR-005:** Decided and closed as a scoping ADR 2026-11-17 (the owner): its optimised build waits for its trigger, an image that no longer fits its slot; its feature table went to ADR-008. Measured that day: the Pico W image 799 KB, 583 KB at `-Os`; RAM 224 of 256 KB at link time.
+- **Next ADR, as the registry lists it:** 006, a Draft not yet approved.
 
 - **ADR numbers:** kept fixed, with the table in the order of work. The owner can ask for renumbering; it is cheapest now.
 - ~~**ADR-012, fault 7:** whether its one-line fix goes in early.~~ ADR-012 is next and its step 1 comes first: the new transport checks every write, and the fault goes with the old code.

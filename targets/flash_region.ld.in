@@ -1,1 +1,3 @@
+/* The image's flash region: its slot (ADR-004). An image that overflows it fails to link here; the first remedy
+   is ADR-005's optimised build (the firmware is built at -O0), before anything is cut */
 FLASH(rx) : ORIGIN = @APP_FLASH_ORIGIN@, LENGTH = @APP_FLASH_LENGTH@

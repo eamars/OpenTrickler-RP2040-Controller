@@ -56,6 +56,11 @@ It stands on ADR-003's server and on ADR-005's report of what a board carries. A
   - On the unit's own access point there is no internet: no poll there, but the upload by hand works.
   - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check a file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
 
+**Handed on by ADR-005** (2026-11-17, closed as a scoping ADR):
+- **The feature table and the unit's report** of what it carries (ADR-005's rule 3) are built here, as their first reader: build options with a default per board, one generated header, one answer from the unit. The page shows only what is there.
+- **The pages' size is this ADR's.** Today's 101 KB in the Pico W image are our own pages, unminified and uncompressed (19 KB gzipped). Tailwind and DaisyUI are not in the image; the browser fetches them from CDNs, so a page that works offline adds them, trimmed to what it uses.
+- **What this ADR adds** (the pages, and HTTPS for the unit's own fetch) is measured on two builds, the shipping one and a size-optimised one (MinSizeRel), and decided on the second. If it fits only optimised, ADR-005's optimised build is made first.
+
 ## Ideas
 
 - **A mock first.** The pages, clickable in a browser against the stand-in server, before anything goes on a unit. The owner decides by using it. An agent can open the same mock in its own browser and check it.
