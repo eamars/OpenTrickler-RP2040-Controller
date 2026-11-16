@@ -59,13 +59,16 @@ An audit of the rest of `src/` was run to find, for every other module, the kind
 
 ## Waiting on the owner
 
-- **ADR-004's approval.** Written in full 2026-11-16 from the owner's direction that day (an update offered, not uploaded by hand; REST only until the UIs; one image format on both chips; a downgrade is a full erase; a bundle for the first install; PR #111 a reference), on the branch `adr004_update_over_wifi`, not pushed. Its "To settle before approval" has three items.
+- **ADR-004, open** (approved 2026-11-16 as written; gate 2 approved the same day), on the local branch `adr004_update_over_wifi`, not pushed. Its progress.md has every figure. What waits for the owner's hands:
+  - the Pico 2 W's USB checks: the full install (`build/full_install.uf2`) dragged onto a unit running a newer image in slot B, which must boot slot A; both slots blanked through the probe, the drive appearing without BOOTSEL;
+  - the Pico W on the probe: gate 1's half (its bootloader and images are built: `build_w`, `build_w_trial_b`, `build_w_noconfirm_a`, `build_w_trial2_a`) and gate 2's, then its USB checks;
+  - gate 2's power pulls, during an upload and during a trial.
 - **Found in ADR-003 and handed on**, each to decide where it goes:
   - ~~a tuning session's load and an upload at once overrun the Pico W's network~~: ADR-004 makes the update a job, so the two never run together;
   - the gate's move queue lets a write replace a move a mode waits for (`servo_gate.c`);
   - the EEPROM's erase runs outside its mutex, and the API's erase runs it beside the server;
   - `rnd()` (`eeprom.c`) gives ids with few random bits: the bench's is `9CE00000`, and the host name shows four characters of it.
-- **Next ADR, as the registry lists it:** 004, written for approval (above).
+- **Next ADR, as the registry lists it:** 004 is open (above); 005 after it.
 
 - **ADR numbers:** kept fixed, with the table in the order of work. The owner can ask for renumbering; it is cheapest now.
 - ~~**ADR-012, fault 7:** whether its one-line fix goes in early.~~ ADR-012 is next and its step 1 comes first: the new transport checks every write, and the fault goes with the old code.

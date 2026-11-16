@@ -74,3 +74,8 @@ Approved by the owner 2026-11-16 ("Start gate 2"), to build on the Pico 2 W whil
   - `wifi leave`: the unit off the network, back as a station at its address 63 s later.
   - The test build: as its own access point 15 s after its start, joined 67 s after it, the root page the portal; then `rc_run.py update` to it, confirmed (`VERDICT PASS`).
   - Then the normal build again: `api_check`, `menu_tour`, `charge_cycle` and the settings compare, each `VERDICT PASS`.
+
+### Where gate 1 and gate 2 stand (2026-11-16, 14:30)
+
+- **On the Pico 2 W,** both are shown, but for what needs the owner's hands: the USB checks (the full install over a unit running a newer image in slot B; the drive appearing without BOOTSEL with both slots blanked) and gate 2's power pulls (during an upload, during a trial). The unit is left on the normal build in slot A.
+- **On the Pico W,** nothing has run yet. Built with gate 2's code: the bootloader (6.4 KB of 16 KB), the image for slot A (805.2 KB of 1,016 KB, 210.8 KB left), and the test images `build_w_trial_b` (B, 276.900), `build_w_noconfirm_a` (A, 276.901, never confirms) and `build_w_trial2_a` (A, 276.902). Its first flash of the new layout also needs its settings copied first.
