@@ -105,9 +105,14 @@ static uint32_t update_running_version(void) {
 
 // A block version as the firmware's version string has it: 276.900 is 1.20.900 (scripts/gen_version.py)
 void update_version_text(uint32_t version, char *out, size_t size) {
-    uint32_t major = version >> 16;
-    snprintf(out, size, "%lu.%lu.%lu", (unsigned long) (major >> 8), (unsigned long) (major & 0xffu),
-             (unsigned long) (version & 0xffffu));
+    // X.Y.Z, and -N for a build N commits after its tag (scripts/gen_version.py's block_text)
+    uint32_t first = version >> 16;
+    uint32_t second = version & 0xffffu;
+    int len = snprintf(out, size, "%lu.%lu.%lu", (unsigned long) (first >> 8), (unsigned long) (first & 0xffu),
+                       (unsigned long) (second >> 8));
+    if ((second & 0xffu) != 0 && len > 0 && (size_t) len < size) {
+        snprintf(out + len, size - (size_t) len, "-%lu", (unsigned long) (second & 0xffu));
+    }
 }
 
 

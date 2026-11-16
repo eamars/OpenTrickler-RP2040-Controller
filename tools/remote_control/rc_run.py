@@ -38,6 +38,7 @@ import threading
 import time
 import traceback
 import urllib.error
+import urllib.parse
 import urllib.request
 import zlib
 from pathlib import Path
@@ -615,6 +616,31 @@ def build_version(build_dir):
     return version, vcs
 
 
+def read_manifest(source):
+    """
+    A release's manifest (ADR-004), from a file or from its address: GitHub's, or a mirror's. From an address, each file
+    is fetched from its own `url` when the manifest gives one (a tag's release), else from beside the manifest, so the
+    same files and addresses a unit's own fetch will use are what is tried.
+
+    Args:
+        source: a path to manifest.json, its files beside it; or its address (http:// or https://).
+
+    Returns:
+        (the manifest, a function giving an entry's bytes).
+    """
+    if re.match(r"https?://", source):
+        def fetch(url):
+            # GitHub's release files redirect to another host, which urllib follows
+            with urllib.request.urlopen(url, timeout=UPDATE_UPLOAD_TIMEOUT_S) as reply:
+                return reply.read()
+
+        manifest = json.loads(fetch(source))
+        return manifest, lambda entry: fetch(entry.get("url") or urllib.parse.urljoin(source, entry["file"]))
+    path = Path(source)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    return manifest, lambda entry: (path.parent / entry["file"]).read_bytes()
+
+
 def block_version(elf):
     """
     The version in an image's metadata block (ADR-004), read from the .bin beside its ELF as src/picobin_image.c reads
@@ -632,7 +658,8 @@ def block_version(elf):
 
 def block_version_text(data):
     """
-    An image's block version as the firmware writes it (`running.block`, `last.version`): 276.210 is "1.20.210".
+    An image's block version as the firmware writes it (`running.block`, `last.version`): (512, 256) is "2.0.1",
+    (276, 218) is "1.20.0-218" (scripts/gen_version.py's block_text).
 
     Args:
         data: the image's bytes.
@@ -644,7 +671,8 @@ def block_version_text(data):
     if version is None:
         return None
     first, second = (int(part) for part in version.split("."))
-    return f"{first >> 8}.{first & 0xFF}.{second}"
+    commits = second & 0xFF
+    return f"{first >> 8}.{first & 0xFF}.{second >> 8}{f'-{commits}' if commits else ''}"
 
 
 def block_version_of(data):
@@ -690,16 +718,16 @@ def expected_block_version(version):
     The metadata block's version a firmware version is given (scripts/gen_version.py's block_version).
 
     Args:
-        version: the firmware's version string, "1.20.202" or "1.20.202-dirty".
+        version: the firmware's version string: "2.0.1", "2.0.1-5" (5 commits after its tag), either "-dirty".
 
     Returns:
-        "first.second", or None for a version that is not major.minor.patch.
+        "first.second", or None for a version that is not X.Y.Z.
     """
-    found = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    found = re.match(r"(\d+)\.(\d+)\.(\d+)(?:-(\d+))?", version)
     if not found:
         return None
-    major, minor, patch = (int(part) for part in found.groups())
-    return f"{major * 256 + minor}.{patch}"
+    major, minor, patch, commits = (int(part or 0) for part in found.groups())
+    return f"{major * 256 + minor}.{patch * 256 + min(commits, 255)}"
 
 
 class Openocd:
@@ -2569,7 +2597,7 @@ class Session:
 
         Args:
             host: the unit's address.
-            manifest_path: the release's manifest.json, its files beside it.
+            manifest_path: the release's manifest.json, its files beside it; or its address (read_manifest).
             expect: "confirmed", "back" (and a start during the trial refused), "refused", "cut", "busy", or "second"
                 (a second upload while the first is open refused, and one too large, the first then taken whole).
             refused_code: with "refused", the error code the image must be refused with.
@@ -2577,8 +2605,7 @@ class Session:
             browsers: two browsers use the web pages while the image is sent, as the soak's do: their reads judged
                 by the soak's limits, and lwIP's heap and pools by `net` before and after.
         """
-        manifest_path = Path(manifest_path)
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest, image_of = read_manifest(str(manifest_path))
         # A unit just flashed or restarted is not on the network yet
         unit, deadline = None, time.monotonic() + UPDATE_BACK_ON_NETWORK_S
         while unit is None and time.monotonic() < deadline:
@@ -2597,7 +2624,7 @@ class Session:
         if image_entry is None:
             self.fail(f"update: the manifest has no image for {before['takes']}: {sorted(manifest['images'])}")
             return
-        image = (manifest_path.parent / image_entry["file"]).read_bytes()
+        image = image_of(image_entry)
         if hashlib.sha256(image).hexdigest() != image_entry["sha256"] or len(image) != image_entry["size"]:
             self.fail(f"update: {image_entry['file']} is not the file the manifest names")
             return
@@ -2886,7 +2913,8 @@ def main():
     pulses_parser.add_argument("--hardfault-elf", default=str(REPO / "build_w_fault2" / "app.elf"))
     update_parser = sub.add_parser("update", help="an update through the API, from a release's manifest (ADR-004)")
     update_parser.add_argument("--host", required=True, help="the unit's address")
-    update_parser.add_argument("--manifest", required=True, help="the release's manifest.json, its files beside it")
+    update_parser.add_argument("--manifest", required=True,
+                               help="the release's manifest.json, its files beside it, or its address")
     update_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "cut", "busy", "second"],
                                default="confirmed",
                                help="cut: half the image, the connection closed; busy: a start during a charge; "

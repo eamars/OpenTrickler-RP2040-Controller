@@ -31,8 +31,8 @@ if (APP_BLOCK_VERSION)
     message("Metadata block version: ${APP_BLOCK_VERSION_MAJOR}.${APP_BLOCK_VERSION_MINOR}")
 elseif (APP_TRIAL_IMAGE)
     # An update image with no version is refused by every unit, and a release of them is no release (review Q4). A
-    # release's tag is vMAJOR.MINOR (scripts/gen_version.py): v1.21, not v1.21.1
-    message(FATAL_ERROR "git gives no version (the nearest tag is not vMAJOR.MINOR): an update image needs one")
+    # release's tag is vX.Y.Z (scripts/gen_version.py; vX.Y counts as X.Y.0)
+    message(FATAL_ERROR "git gives no version (the nearest tag is not vX.Y.Z): an update image needs one")
 else()
     message(WARNING "git gives no version: the image's metadata block carries none")
 endif()

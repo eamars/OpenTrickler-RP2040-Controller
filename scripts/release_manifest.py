@@ -1,11 +1,13 @@
 """
 A release's files and its manifest (ADR-004): the folder CI drafts a release from, and rc_run.py update reads.
 
-Beside manifest.json: each board's full install (<board>_full_install.uf2, the first install by USB and the way
-back), each update image (<name>_update.bin, named as the unit names the image it takes: GET /api/v1/update, `takes`:
-pico2_w, pico_w_a, pico_w_b), each board's erase (<board>_erase.uf2, for a release from before ADR-004), SHA256SUMS,
-and RELEASE_NOTES.md, the draft release's text. The offer (ADR-008, ADR-010) and, until then, rc_run.py update read
-the manifest.
+Each file's name starts with the version, as the unit shows it (OpenTrickler-2.0.0-...): each board's full install
+(<board>_full_install.uf2, the first install by USB and the way back), each update image (<name>_update.bin, named
+as the unit names the image it takes: GET /api/v1/update, `takes`: pico2_w, pico_w_a, pico_w_b), each board's erase
+(<board>_erase.uf2, for a release from before ADR-004). Beside them, under the same names in every release so that
+GitHub's releases/latest/download/ always leads to the latest's: manifest.json and SHA256SUMS. The offer (ADR-008,
+ADR-010) and, until then, rc_run.py update read the manifest; a unit finds its image by `takes`, not by a file's name.
+The release page's text is written by hand (docs/releases/).
 """
 import argparse
 import hashlib
@@ -15,22 +17,11 @@ import struct
 import sys
 from pathlib import Path
 
+from gen_version import block_text
+
 MANIFEST_VERSION = 1
 PICOBIN_BLOCK_START = 0xFFFFDED3
-NOTES = """OpenTrickler firmware {version}
-
-{note}
-
-**A first install, or from v1.20 and before:** hold BOOTSEL, plug the unit in by USB, and drag the board's `*_full_install.uf2` onto the drive (manuals/firmware_update_via_usb.md). Settings stay in the EEPROM.
-
-**An update over Wi-Fi** is through the REST API for now, for debugging (`/api/v1/update`, the update image the unit names); it is offered on the web page and the screen once those come (ADR-008, ADR-010).
-
-**Going back to an older release** is a full erase: manuals/firmware_downgrade.md.
-
-| File | What | SHA-256 |
-|---|---|---|
-{rows}
-"""
+FILE_PREFIX = "OpenTrickler"
 
 
 def named_file(text):
@@ -79,8 +70,8 @@ def block_version(data):
             if kind == 0x42 and (header >> 16) & 0xF == 1:     # an executable's image type
                 image_def = True
             if kind == 0x48:
-                minor, major = struct.unpack_from("<2H", data, index + 4)
-                found = f"{major >> 8}.{major & 0xFF}.{minor}"
+                second, first = struct.unpack_from("<2H", data, index + 4)
+                found = block_text(first, second)
             index += max(words, 1) * 4
         else:
             return None
@@ -91,7 +82,7 @@ def block_version(data):
     return None
 
 
-def entry(source, out_dir, file_name):
+def entry(source, out_dir, file_name, url_base):
     """
     A file copied into the release, and its entry.
 
@@ -99,13 +90,17 @@ def entry(source, out_dir, file_name):
         source: the file built.
         out_dir: the release's folder.
         file_name: its name there.
+        url_base: where the release's files will be (GitHub's releases/download/<tag>), or None.
 
     Returns:
-        {"file", "size", "sha256"}.
+        {"file", "size", "sha256"}, and "url", the file's address, when the release has one.
     """
     data = source.read_bytes()
     shutil.copyfile(source, out_dir / file_name)
-    return {"file": file_name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    item = {"file": file_name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    if url_base:
+        item["url"] = f"{url_base.rstrip('/')}/{file_name}"
+    return item
 
 
 def main():
@@ -114,15 +109,17 @@ def main():
     parser.add_argument("--version", required=True, help="the release's version, as the firmware gives it")
     parser.add_argument("--note", default="", help="the release's note, as the offer shows it")
     parser.add_argument("--importance", choices=["normal", "critical"], default="normal")
+    parser.add_argument("--url-base", help="where the release's files will be: each entry is given its address")
     parser.add_argument("--image", action="append", type=named_file, default=[], help="name=app.bin, an update image")
     parser.add_argument("--full-install", action="append", type=named_file, default=[],
                         help="board=full_install.uf2")
     parser.add_argument("--erase", action="append", type=named_file, default=[], help="board=erase.uf2")
     args = parser.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    prefix = f"{FILE_PREFIX}-{args.version}-"
     images = {}
     for name, path in args.image:
-        images[name] = entry(path, args.out_dir, f"{name}_update.bin")
+        images[name] = entry(path, args.out_dir, f"{prefix}{name}_update.bin", args.url_base)
         images[name]["block"] = block_version(path.read_bytes())
         if images[name]["block"] is None:
             sys.exit(f"{path}: no version in its metadata block; an update image needs one")
@@ -132,9 +129,10 @@ def main():
         "note": args.note,
         "importance": args.importance,
         "images": images,
-        "full_installs": {board: entry(path, args.out_dir, f"{board}_full_install.uf2")
+        "full_installs": {board: entry(path, args.out_dir, f"{prefix}{board}_full_install.uf2", args.url_base)
                           for board, path in args.full_install},
-        "erases": {board: entry(path, args.out_dir, f"{board}_erase.uf2") for board, path in args.erase},
+        "erases": {board: entry(path, args.out_dir, f"{prefix}{board}_erase.uf2", args.url_base)
+                   for board, path in args.erase},
     }
     # LF on every system: so the sums check with sha256sum, and a PC makes the same files CI does
     (args.out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
@@ -143,12 +141,6 @@ def main():
     sums = "".join(f"{item['sha256']}  {item['file']}\n" for _, item in files)
     manifest_sha = hashlib.sha256((args.out_dir / "manifest.json").read_bytes()).hexdigest()
     (args.out_dir / "SHA256SUMS").write_text(sums + f"{manifest_sha}  manifest.json\n", encoding="utf-8", newline="\n")
-    what = {"full_installs": "the full install, by USB", "images": "the update image, over Wi-Fi",
-            "erases": "the erase, by USB, before a release from v1.20 and before"}
-    rows = "\n".join(f"| `{item['file']}` | {what[kind]} | `{item['sha256']}` |" for kind, item in files)
-    (args.out_dir / "RELEASE_NOTES.md").write_text(
-        NOTES.format(version=args.version, note=args.note or "(the release's note)", rows=rows), encoding="utf-8",
-        newline="\n")
     print(f"{args.out_dir}: {', '.join(item['file'] for _, item in files)}, manifest.json, SHA256SUMS")
 
 

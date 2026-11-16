@@ -40,17 +40,19 @@ jobs:
       run: ./setup_toolchain.sh
 
     # A release's five builds and its folder, as a PC makes them with the same script (ADR-004, gate 3): each board's
-    # full install and erase, the update images (the Pico W's for each slot), manifest.json and SHA256SUMS. On every
-    # build, so every pull request shows the release it would make. A tag's subject line is the release's note
+    # full install and erase, the update images (the Pico W's for each slot), each named with the version,
+    # manifest.json and SHA256SUMS. On every build, so every pull request shows the release it would make. On a tag
+    # the script refuses a firmware that does not report the tag's version and a tag without its notes
+    # (docs/releases/README.md), and gives each file its address on the release
     - name: Build the release
       shell: bash
       run: |
         source ./configure_env.sh
-        note=""
+        tag=()
         if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-          note="$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")"
+          tag=(--tag "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY")
         fi
-        python3 scripts/build_release.py --out-dir release --note "$note"
+        python3 scripts/build_release.py --out-dir release "${tag[@]}"
 
     # Flash by part and RAM at link time, in the job summary and in the log (ADR-001).
     # "shell: bash" runs with pipefail, so a report that fails still fails the step through tee.
@@ -94,13 +96,20 @@ jobs:
         name: release
         path: release/
 
-    # A draft only: it is published by hand, after it is tried on a unit
+    # A draft, as a pre-release: the owner publishes it after trying it on a unit, and a candidate stays a pre-release.
+    # The final is the candidate the owner promotes, so GitHub's latest release, the units' default source, never
+    # leads to a candidate (ADR-004, gate 3). The notes are written by hand, as the Open Weapon Mount Computer's
     - name: Draft the release
       if: startsWith(github.ref, 'refs/tags/v')
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.ref_name }}
       run: |
-        gh release create "$GITHUB_REF_NAME" release/*_full_install.uf2 release/*_update.bin release/*_erase.uf2 \
-          release/manifest.json release/SHA256SUMS \
-          --draft --verify-tag --title "OpenTrickler $GITHUB_REF_NAME" --notes-file release/RELEASE_NOTES.md
+        # The notes without their title (the release has its own), with links into the repository pinned to the tag
+        tail -n +2 "docs/releases/$TAG.md" | sed -e '1{/^$/d}' \
+          -e "s#](\.\./\.\./#](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/#g" \
+          -e "s#](\.\./#](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/#g" > body.md
+        printf '\nSHA-256:\n\n```\n%s\n```\n' "$(cat release/SHA256SUMS)" >> body.md
+        gh release create "$TAG" release/OpenTrickler-* release/manifest.json release/SHA256SUMS \
+          --draft --prerelease --verify-tag --title "OpenTrickler $TAG" --notes-file body.md

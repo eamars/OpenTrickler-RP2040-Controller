@@ -5,7 +5,7 @@ This is how firmware is installed by cable: the first time, the move from an old
 > [!TIP]
 > Some USB cables are charge-only and cannot transfer data. If your Raspberry Pi Pico does not appear as a drive on your computer after the steps below, try a cable that supports data transfer.
 
-1. From the [latest release](https://github.com/eamars/OpenTrickler-RP2040-Controller/releases/latest), download the file for your board. The board's name is printed on the Pico.
+1. From the [latest release](https://github.com/eamars/OpenTrickler-RP2040-Controller/releases/latest), download the file for your board. The board's name is printed on the Pico. Each file's name starts with its version, `OpenTrickler-2.0.0-` for example, and ends:
    - Raspberry Pi Pico W: `pico_w_full_install.uf2`
    - Raspberry Pi Pico 2 W: `pico2_w_full_install.uf2`
 2. If you want a copy of your settings, open the unit's web page and press **Export Config** on its **System Control** page. The install keeps them, but a copy does no harm.

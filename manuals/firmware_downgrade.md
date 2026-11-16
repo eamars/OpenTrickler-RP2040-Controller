@@ -2,7 +2,7 @@
 
 An update over Wi-Fi only ever installs a newer version. To go back to an older one, the unit is erased and the older version is installed by USB. **The settings are erased too:** an older firmware may not read the settings a newer one stored, so it starts from its defaults, and you set them again.
 
-You need the files from two releases:
+You need the files from two releases. Each file's name starts with its version, `OpenTrickler-2.0.0-` for example, and ends as below:
 - from the release the unit runs now (or any newer one), the erase for your board: `pico_w_erase.uf2` or `pico2_w_erase.uf2`;
 - from the older release, its file for your board: `pico_w_full_install.uf2` or `pico2_w_full_install.uf2`, or, for v1.20 and older, `app.uf2` from its zip.
 

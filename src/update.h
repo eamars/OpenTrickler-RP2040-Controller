@@ -93,7 +93,7 @@ bool update_image_piece(uint32_t token, const uint8_t *data, size_t len);
 update_refusal_t update_image_end(uint32_t token, int *status);
 void update_image_abort(uint32_t token);
 
-// A block version as the firmware's version string has it: 276.900 is 1.20.900
+// A block version as the firmware's version string has it: (512, 256) is 2.0.1, (276, 218) is 1.20.0-218
 void update_version_text(uint32_t version, char *out, size_t size);
 
 /**
