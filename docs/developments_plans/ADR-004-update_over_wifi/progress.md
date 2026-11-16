@@ -188,5 +188,15 @@ The owner put the Pico W on the probe at 18:40; gates 1 and 2 ran on it together
 - **Wi-Fi joins again** (the review's C2 and D3, on the RP2040): the build that skips its start's join tried again 59 s after its start and joined 3 s later; the root page was the portal again (`VERDICT PASS`). `flash`'s check of the version failed on that build, by its known rule: it expects what the last build wrote into the shared `src/generated/version.c`, and the last build was another.
 - **The release** (`scripts/build_release.py` at 59ec8a6, 1.20.218; every file checked by `sha256sum -c SHA256SUMS`), each `VERDICT PASS`, 19:04 to 19:07: `update --manifest release/manifest.json` from 1.20.217 in A, the unit taking `pico_w_b_update.bin` (819,692 bytes) in 12.9 s and confirmed 8.5 s after the install; then the release's full install through the probe (`--elf build_release/pico_w/app.elf flash`) over the newer slot B, which booted 1.20.218 from A; then `menu_tour`, `charge_cycle` (30.000 for 30), `api_check` and the settings compare.
 - Size: the Pico W image 799.3 KB of its 1,016 KB slot (216.7 KB left), the Pico 2 W's 775.4 KB of 1,792 KB; the bootloader 6,488 bytes.
-- **Not shown:** the Pico 2 W with SHA-256 at `-O2` (the same flag on both chips; its check had not stalled the web, 0 of 87 missed); the USB checks on both units; the power pulls; `pulses` on the Pico W's new layout (its fault images are from before it).
+- **Not shown:** the USB checks on both units; the power pulls; `pulses` on the Pico W's new layout (its fault images are from before it).
+
+## The Pico 2 W again, SHA-256 at `-O2`, shown 2026-11-16 (the release, 1.20.218 at 59ec8a6)
+
+The owner put the Pico 2 W back on the probe at 19:30, for the build's change found on the Pico W. Each `VERDICT PASS`, 19:34 to 19:38:
+
+- its settings copied first (`logs/adr004/pico2w/before_o2/`, at 1.20.212);
+- `update --manifest release/manifest.json`: 1.20.212 to 1.20.218, the image sent in 14.0 s, confirmed 8.4 s after the install, now in slot B;
+- `slot_trial --corrupt` on 1.20.218: refused by its hash (`hash_mismatch`), the check taking 0.8 s; the same run on 1.20.212 at `-O0` took 3.2 s (15:35). The Pico 2 W's web had stalled too, under the browsers' 5 s timeout;
+- a confirmed update with two browsers on the pages (1.20.900): 0 of 88 web reads missed, the longest 0.53 s, confirmed 8.4 s after the install;
+- the release's full install through the probe over the newer slot A image, which booted 1.20.218 from A; then `menu_tour` against `tests/menu_baseline/pico2_w` (the version form differs, not judged), `charge_cycle` (30.000 for 30), `api_check` (32 paths read twice, 24 of 24 actions) and the settings compared with the copy: the same.
 
