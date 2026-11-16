@@ -361,6 +361,12 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/system/erase", "[\"POST\"]",
      "erases the stored settings and restarts: the unit comes back as its own access point"},
     {"/api/v1/network", "[\"GET\"]", "the network the unit is on: its mode, name, address, host name, signal"},
+    {"/api/v1/update", "[\"GET\"]",
+     "the firmware update (ADR-004): its state, the image running and its slot, the image this unit takes, the last"},
+    {"/api/v1/update/start", "[\"POST\"]", "starts an update: the menu takes it, then the image is PUT"},
+    {"/api/v1/update/image", "[\"PUT\"]", "the update image, as application/octet-stream, into the free slot"},
+    {"/api/v1/update/install", "[\"POST\"]", "restarts into a trial of the image received"},
+    {"/api/v1/update/stop", "[\"POST\"]", "stops the update; never fails"},
     {"/api/v1/display", "[\"GET\"]", "the screen's size and the format of its frame"},
     {"/api/v1/display/frame", "[\"GET\"]", "the screen's frame, as the display holds it"},
 };

@@ -19,6 +19,7 @@
 
 #define UPDATE_BOOT_SCRATCH_TRY 0
 #define UPDATE_BOOT_SCRATCH_CHECK 1             // the complement of the request, so a stray value asks nothing
+#define UPDATE_BOOT_SCRATCH_NOTE 2              // 2 and 3: the firmware's note for the next start (update_slots.h)
 #define UPDATE_BOOT_TRY_MAGIC 0x54525900u       // "TRY", and the slot in the low byte
 #define UPDATE_BOOT_TRIAL_WATCHDOG_MS 8000      // the RP2040's watchdog reaches 8.3 s at most
 #define UPDATE_BOOT_VECTORS_AT 0x100            // a slot's image starts with its boot2, then its vector table

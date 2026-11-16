@@ -17,6 +17,7 @@ typedef enum {
     EVENT_SOURCE_CLEANUP,
     EVENT_SOURCE_MOTORS,
     EVENT_SOURCE_SYSTEM,
+    EVENT_SOURCE_UPDATE,        // ADR-004
 } event_source_t;
 
 typedef enum {
@@ -28,6 +29,10 @@ typedef enum {
     EVENT_ENDED,
     EVENT_FAULT,
     EVENT_CLEARED,
+    EVENT_RECEIVED,             // an update's image, whole and checked
+    EVENT_INSTALLING,
+    EVENT_CONFIRMED,
+    EVENT_BACK,
 } event_kind_t;
 
 // Why a job stopped or a throw ended (api_v1.md's `reason`)
@@ -41,6 +46,7 @@ typedef enum {
     EVENT_REASON_SCALE_UNSTEADY,
     EVENT_REASON_SCALE_UNRELIABLE,
     EVENT_REASON_DRIVER_FAULT,
+    EVENT_REASON_REFUSED,       // an update's image
 } event_reason_t;
 
 // A throw's verdict (api_v1.md's `result`)

@@ -17,6 +17,7 @@
 #include "boot/picoboot_constants.h"
 #include "hardware/flash.h"
 #include "hardware/regs/addressmap.h"
+#include "hardware/structs/powman.h"
 #include "pico/bootrom.h"
 
 // rom_load_partition_table()'s and rom_explicit_buy()'s work areas, taken from the heap only while they run
@@ -107,6 +108,17 @@ int update_slots_confirm(void) {
     int result = rom_explicit_buy(work, UPDATE_SLOTS_BUY_BYTES);
     vPortFree(work);
     return result;
+}
+
+void update_slots_note_write(uint32_t first, uint32_t second) {
+    powman_hw->scratch[2] = first;
+    powman_hw->scratch[3] = second;
+}
+
+
+void update_slots_note_read(uint32_t *first, uint32_t *second) {
+    *first = powman_hw->scratch[2];
+    *second = powman_hw->scratch[3];
 }
 
 #endif  // PICO_RP2350

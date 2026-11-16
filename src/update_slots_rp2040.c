@@ -87,4 +87,16 @@ int update_slots_confirm(void) {
     return (update_slots_own(&own) && !own.trial) ? 0 : PICO_ERROR_GENERIC;
 }
 
+
+void update_slots_note_write(uint32_t first, uint32_t second) {
+    watchdog_hw->scratch[UPDATE_BOOT_SCRATCH_NOTE] = first;
+    watchdog_hw->scratch[UPDATE_BOOT_SCRATCH_NOTE + 1] = second;
+}
+
+
+void update_slots_note_read(uint32_t *first, uint32_t *second) {
+    *first = watchdog_hw->scratch[UPDATE_BOOT_SCRATCH_NOTE];
+    *second = watchdog_hw->scratch[UPDATE_BOOT_SCRATCH_NOTE + 1];
+}
+
 #endif  // PICO_RP2040

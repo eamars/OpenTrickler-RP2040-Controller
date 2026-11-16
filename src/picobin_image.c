@@ -75,15 +75,31 @@ static uintptr_t picobin_image_block(uintptr_t at, uintptr_t start, uint32_t siz
 }
 
 
-bool picobin_image_read(uintptr_t start, uint32_t size, picobin_image_t *image) {
-    *image = (picobin_image_t) {0};
-    uintptr_t first = 0;
+// The first block's start, within the first 4 KB; 0 when there is none
+static uintptr_t picobin_image_first_block(uintptr_t start, uint32_t size) {
     for (uintptr_t at = start; at < start + PICOBIN_IMAGE_FIRST_BLOCK_BYTES && at + 4 <= start + size; at += 4) {
         if (*(const uint32_t *) at == PICOBIN_BLOCK_MARKER_START) {
-            first = at;
-            break;
+            return at;
         }
     }
+    return 0;
+}
+
+
+bool picobin_image_read_first(uintptr_t start, uint32_t size, picobin_image_t *image) {
+    *image = (picobin_image_t) {0};
+    uintptr_t first = picobin_image_first_block(start, size);
+    if (first == 0 || picobin_image_block(first, start, size, image) == 0) {
+        *image = (picobin_image_t) {0};
+        return false;
+    }
+    return image->valid;
+}
+
+
+bool picobin_image_read(uintptr_t start, uint32_t size, picobin_image_t *image) {
+    *image = (picobin_image_t) {0};
+    uintptr_t first = picobin_image_first_block(start, size);
     if (first == 0) {
         return false;
     }

@@ -68,7 +68,7 @@ Every error has the same body:
 {"error": {"code": "out_of_range", "field": "fine_stop_threshold", "message": "12 is above the most, 10", "min": 0, "max": 10}}
 ```
 
-The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
+The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`; for an update's image (ADR-004) `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update`, `not_newer`, `wrong_slot`, `hash_mismatch` and `not_ready`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
 
 ## What the unit is
 
@@ -106,6 +106,12 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | cleanup | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
 | motors | fault, cleared | `motor`, `fault` |
 | system | started | `firmware`, at each start |
+| update | started | `by` |
+| update | stopped | `by`, `reason` (stopped, refused, time), and for a refusal its `code` |
+| update | received | `version`: the image is whole and checked, ready to install |
+| update | installing | `version`: the unit restarts into a trial of it |
+| update | confirmed | `version`: after the restart, the image confirmed itself once on its network |
+| update | back | `version`: after the restart, the image tried was left, and the one before runs |
 
 Later ADRs add sources and kinds (the rules above). **`?wait=s`** (1 to 30): the request is held until there is an event after N, or the time is out, and then answered whole, as any other. Built in gate 4 with the owner's leave ("For the owner", 7); without it, reserved, and the server built to take it.
 
@@ -152,6 +158,21 @@ ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_prof
 | `charging`, `waiting_for_cup_removal`, `waiting_for_cup_return`, the scale's calibration | 409 `busy`. While it waits for the cup's return the unit takes the cup to be away, and a zero there starts the next throw at once. A zero in the A&D's calibration would disturb it |
 
 The band is two-sided and in the scale's own unit, through the setting the user tunes for their scale: a fixed figure would be fifteen times wider in grams than in grains, wide enough at ±1 to zero away a pistol charge. It is a live condition on a command, not a limit in the schema. It is not the unit's test for a lifted cup either: that test is a fixed 10 in the scale's unit (`charge_mode.cpp`, the cup's removal), and misses a cup under 10 g. What no rule can close, and the guide says: a zero while idle and then a start, or a start on a scale zeroed with nothing on it, pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.
+
+## Firmware updates (ADR-004)
+
+Through the API only, for debugging, until the offer comes with the web UI (ADR-008) and the screens (ADR-010). An update is a job: one at a time, with the job's shape, and while it runs no other job starts. It holds the screen at the unit, as a mode does, so nobody starts a charge there during it, and the reset button stops it. The image is written into the slot the unit does not run from; the slot it runs from is never written.
+
+| Method and path | Body | Reply |
+|---|---|---|
+| `GET /api/v1/update` | | `state` (idle, starting, receiving, ready, installing, ending: the job has ended and the screen is being given back, a start taken again once it is idle); `running`: `version`, `block` (the version its metadata block carries, which an update must exceed, written as the version is), `slot` (a, b), `trial` (true while the image runs on trial, until it confirms itself); `takes`: the release manifest's name for the image this unit takes (`pico2_w`, `pico_w_a`, `pico_w_b`); `free_bytes`, the largest image; `received`, the bytes written so far; `last`: how the last update ended, `result` (confirmed, back, refused, stopped, time), `version`, and for a refusal its `code` and `message`, or null |
+| `POST /api/v1/update/start` | `{}` | 202, `starting` until the menu begins it, then `receiving`. 409 `busy` while another job runs or a person has a screen open at the unit |
+| `PUT /api/v1/update/image` | the image (`app.bin`), `application/octet-stream` | Written into the free slot as it comes; its first block checked in its first 4 KB, the whole once it is in. 200 with the state `ready`. 409 `not_running` unless `receiving`; 413 `too_large` beyond the free slot; 400, nothing installed and the job ended, with `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update` (no try-before-you-buy mark), `not_newer`, `wrong_slot` (linked for the other slot, on the RP2040) or `hash_mismatch`. A body cut off leaves the job `receiving`, for the image again from its start |
+| `POST /api/v1/update/install` | `{}` | 202: the unit restarts into a trial of the image. It comes back on it, confirmed once it is on its network, or on the image before; `last` and the event log say which. 409 `not_ready` unless `ready` |
+| `POST /api/v1/update/stop` | `{}` | A stop: 202, or 200 with nothing to stop. The image written stays in the free slot, never booted |
+
+- **Time limits** *p*: a job `receiving` that gets no bytes for 30 s, or `ready` and not installed within 60 s, ends by itself (`time`).
+- **The image** is the release's update image for the unit's board and free slot (ADR-004): the release's manifest names each, and `takes` says which one this unit wants. A newer version only: going back is a full erase and a USB install.
 
 ## Powder profiles
 
@@ -288,7 +309,7 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | Automatic tuning, on the unit or by an agent off it | ADR-009 | Tuning, below: both run test throws, so both give the same recordings |
 | An agent developing the firmware with no probe: the log, the simulated scale and its faults, presses, the drivers' registers | ADR-001's console, the owner | `/api/v1/debug`, below |
 | A press to skip the current charge (issue #75); ladder loading (issue #106) | ADR-009's list | Actions on the charge job, or a series of charge profiles; added, not changed |
-| An update from the browser: upload, check, install; refused while a job runs | ADR-004 | A job: `/api/v1/update` (the running and the staged version), its image `PUT` as `application/octet-stream` in pieces, `POST .../install` |
+| An update from the browser: upload, check, install; refused while a job runs | ADR-004 | Built in ADR-004's gate 2: "Firmware updates", above |
 | What a board carries | ADR-005 | `features` in the index; absent parts answer 404 and are not listed |
 | A unit's version in its image | ADR-004 | `firmware` in the index |
 | Settings forms and screens drawn from the description | ADR-008, ADR-010 | `label`, `group`, `step`, choice labels in the schema now |

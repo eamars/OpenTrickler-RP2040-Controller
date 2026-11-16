@@ -36,6 +36,15 @@ extern "C" {
 bool picobin_image_read(uintptr_t start, uint32_t size, picobin_image_t *image);
 
 /**
+ * @brief Read only an image's first block, as it comes: an update's first 4 KB, before the rest is in. It gives the
+ *        image's chip, its mark and its version, not its hash or load map, which its last block holds
+ * @param start the bytes' start, in RAM or flash
+ * @param size how many are there
+ * @return image->valid
+ */
+bool picobin_image_read_first(uintptr_t start, uint32_t size, picobin_image_t *image);
+
+/**
  * @brief The version as one number that orders: major in the high half, minor in the low
  */
 static inline uint32_t picobin_image_version(const picobin_image_t *image) {

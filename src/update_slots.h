@@ -40,6 +40,14 @@ int update_slots_try_other(void);
  */
 int update_slots_confirm(void);
 
+/*
+ * A note for the next start: two words that a watchdog restart keeps and a power cut clears, so the image that runs
+ * after a trial can say whether the one tried was kept. The RP2040's watchdog scratch registers 2 and 3 keep them; the
+ * RP2350's ROM clears those at a restart (seen 2026-11-16), so it keeps them in its power manager's scratch 2 and 3
+ */
+void update_slots_note_write(uint32_t first, uint32_t second);
+void update_slots_note_read(uint32_t *first, uint32_t *second);
+
 #ifdef __cplusplus
 }
 #endif
