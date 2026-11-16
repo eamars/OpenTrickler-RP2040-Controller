@@ -99,7 +99,7 @@ On the Pico W, 12.2 KB is left for the C library's heap.
 ### Decided
 
 - **The owner, 2026-11-17:** LVGL and mbedTLS are compiled at -Os in the shipping build ("Yes, libraries at -Os"), in place of ADR-005's whole-image optimised build.
-- **Gate 1's code** was merged by its own PR: the measure build, the local OTA server, the size report's new parts, and `rc_run.py send`'s `pause`.
+- **Gate 1's code** goes in with gates 2 and 4 by one PR, #132 (the owner, 2026-11-17: "I'd like to see one PR"): the measure build, the local OTA server, the size report's new parts, and `rc_run.py send`'s `pause`.
 
 ### Found along the way
 
@@ -108,4 +108,128 @@ On the Pico W, 12.2 KB is left for the C library's heap.
 - **The local server stalled.** It did each TLS handshake inside `accept()`, on its one accepting thread. A unit flashed mid-handshake held that thread, and every later connection waited. Each handshake now runs in its request's own thread, with a timeout.
 - **LVGL's mono theme pads for large screens:** one row fits in 64 pixels. The 12864's styles are our own (gate 3).
 - **The console's line is shorter than a long URL,** so the measure fetches by short paths, which the server accepts under any owner and repository. The poll takes its addresses from a setting, not from the console.
-- **The Pico 2 W is back on main's firmware,** 2.0.2-17 (the code of v2.0.2; the commits since are documents). Its settings are unchanged against the copy taken before (`logs/adr010/pico2w/before_gate1/`, `rc_run.py settings --compare`). The Pico W was not on the probe and still runs 2.0.2.
+- **After gate 1 the Pico 2 W went back on main's firmware,** 2.0.2-17 (the code of v2.0.2; the commits since are documents). Its settings were unchanged against the copy taken before (`logs/adr010/pico2w/before_gate1/`, `rc_run.py settings --compare`). The Pico W was not on the probe and still runs 2.0.2.
+
+## The owner's word overnight (2026-11-17)
+
+"Can you prioritize on everything you could do without my involvement first, then ask for my approval tomorrow? I'd
+like you to focus on the functional build if no technical blockers." So gates 2 and 4 were built that night, ahead of
+this ADR's approval, which the owner gives on the PR. Gate 3 (the mock, which the owner settles by eye) and gate 5 (the
+poll, below) were left.
+
+Also that night: "The calibration should be removed as no scale supports that." Its mode (`and_scale_calibrate.c`),
+the A&D driver's CAL key, the menu's form 51 and its row, and the `scale_calibration` activity are gone, with their
+place in the API's schema and in api_v1.md.
+
+## Gate 2: the modes in a job task (2026-11-17)
+
+- **Built:**
+  - `jobs.c`: the charge, a cleanup and an update run in a job task of their own, not in the menu's task.
+  - None reads a button: a press is the menu's, which turns it into the job's command, the entry points the API
+    calls, by button. Back stops a job; a click zeroes the scale while the charge waits for zero or for the cup's
+    return, sets the cleanup's speed to 0, or acknowledges a fault; the knob sets the cleanup's speed.
+  - A start refused for a motor driver is shown by the menu, not by the job.
+- **Found and fixed on the unit:** `rc_run.py update --expect refused` failed first. The update's end called
+  `menu_wake()` to wake its mode, which had waited on the button queue; in the job task nothing woke it, and the API
+  read `ending` where it expected the job over. The job task now has a wake of its own (`jobs_wake()`). No other mode
+  was woken that way: the charge and the cleanup look for a stop every 100 to 200 ms, as before.
+- **Proven on the Pico 2 W** (the screens still the old ones):
+  - `menu_tour` against its baseline: 20 forms the same, form 31 without the calibration's row (saved);
+  - `charge_cycle`;
+  - a cleanup started over the API: two turns gave 2 rev/s, a click 0, Back stopped it (`by` button);
+  - a charge stopped by Back (`by` button); a driver's fault (`tmc coarse fault short`) acknowledged by a click;
+  - an update refused, and one stopped by Back;
+  - `api_check`, 24 of 24 actions.
+
+## Gate 4: the new menu on LVGL (2026-11-17)
+
+- **Built,** as AGENTS.md's code map now lists it:
+  - `menu_nav.c`: the tree of menu_design.md as one table, what is open (pages, a choice's list, the digit editor, a
+    message, a job's screen), and four keys. It fills a screen model in words; it knows no pixels.
+  - `menu_view_12864.c`: that model drawn with LVGL labels in the menu's own fonts, made at build time from u8g2's BDF
+    sources (`scripts/bdf2lvgl.py`: Helvetica 8 regular and bold, ProFont 22).
+  - `menu.c`: LVGL and the panel (u8g2 is its driver and frame buffer only), the keys, the jobs' starts and ends. A job
+    takes the screen from any page, whoever started it.
+  - The knob's button read on both edges (20 ms debounce): a click is Enter, a hold of 600 ms is Back, as the reset
+    button is. Its queue is made before its interrupts (ADR-012's audit).
+  - The frame buffer's lock taken by the flush, the mirror and the snap: whole frames (ADR-012's audit).
+  - The marks on every screen: `W` or `AP`, `R` (a job started from elsewhere, or a write to the API in the last
+    30 s, `http_server_wrote_within()`), `SIM`.
+  - The console's `screen` (`list`, `<id>`) in place of `form`, and `press hold`; `menu_tour` walks the pages by id.
+  - A setting written from the screen goes through the API's own checks and is stored when confirmed
+    (`settings_write_and_save()`).
+  - MUI and `mui_menu.c` are gone; the modes, the update and the Wi-Fi no longer draw.
+- **Where it departs from menu_design.md,** each small:
+  - Firmware shows Version (with "trial"), Last update (once there was one), Board, Unit and Build; Check for update,
+    Channel and the main menu's Update row come with gate 5.
+  - The Wi-Fi page: Wi-Fi (joined, joining, own access point), Network, Key (on its own access point), Address, Name,
+    Signal (as a station).
+  - The charge's screen: its state, the weight large, "Target x  t s", the powder; what a click does at the bottom
+    right, `[Zero]` while it waits for zero, `<Zero>`, `<Target>`, `<Powder>` between throws (the knob moves among
+    them), `[OK]` on a fault. The last throw's verdict is in the screen model (`screen`) but not drawn on the 12864.
+  - The cleanup's screen: "Turn to run", the speed large, the weight and the gate, `[Stop the motors]`. The flow figure
+    it showed is dropped: it was the difference of two readings 20 ms apart, not a flow.
+  - Rotation: 0 and 180 degrees, by the panel's flip; 90 and 270, if stored, are shown as 0 and 180, said on the
+    console.
+  - The layouts are a first draft: gate 3's mock is where the owner settles them.
+- **Figures:**
+  - Pico W: 861.3 KB of its 1,016 KB slot at Debug (799.4 KB before); LVGL 73.8 KB, u8g2 4.2 KB (31.6 KB with MUI and
+    its fonts). RAM at link 241.0 KB of 256 (223.9 KB before).
+  - Pico 2 W: 857.6 KB at Debug (794.9 KB before).
+  - LVGL's heap held 8,116 bytes at most, of 12 KB.
+  - The FreeRTOS heap at rest on the Pico 2 W: 53,776 bytes free, against 60,352 at 2.0.2: the job task's 4 KB stack,
+    and the menu task's 2 KB more (at 4 KB it had 142 words left with LVGL).
+- **Proven on the Pico 2 W:**
+  - every page opened and read (`screen <id>`), their pictures the new baseline (`tests/menu_baseline/pico2_w/`,
+    `page_<id>.png`), and `menu_tour --compare` against it;
+  - a charge by the keys: Start with no target opened the editor (000.00), the target set to 20.00 digit by digit,
+    Start, the cup acknowledged, its screen while charging and between throws, stopped by a hold of the knob (`by`
+    button), the screen back on the Charge page;
+  - a cleanup by the keys: the acknowledgement, two turns 2.0 rev/s, Back (`by` button);
+  - an update started over the API took the screen from the main menu; Back stopped it (`by` button);
+  - Decimals set to 3 from the screen, stored (`saved` true over the API), and set back to 2;
+  - the remote mark after a write over the API;
+  - `charge_cycle`; `api_check`, 24 of 24 actions.
+- **Left for the owner's bench:** the Pico W on the probe for its run (the menu draws on both chips alike, but the
+  panel, the input and memory are a driver's and memory's change, proven on both): `flash`, `menu_tour --save
+  tests/menu_baseline/pico_w`, `charge_cycle`, `stats` for its heap at rest, and the owner's own use by hand.
+
+## Gate 4: a second reading, and its fixes (2026-11-17)
+
+A fresh reviewer read gates 2 to 4's diff for bugs (the code only). What it found, and what was done:
+1. **A stop lost behind an editor.** Between throws the charge's Target or Powder opened an editor or a list over
+   its screen; when the next throw began it stayed open, and the reset button stepped back through its digits while
+   the charge poured (up to six presses). Seen on the unit before the fix: the reset button only left the editor.
+   Fixed: what was opened over the charge closes when a throw begins (`menu_nav_refresh()`). On the unit: the editor
+   opened at "Remove the cup", closed by itself as the next throw zeroed, and one press stopped the charge.
+2. **A zero with the pan bare could start a throw.** Zero was offered, focused, while the charge waited for the cup's
+   return, which it takes a reading of 0 as; the API refuses that zero for this reason. The old firmware zeroed there
+   on any press too. Fixed: Zero is offered only while the charge waits for zero. A person whose cup reads below zero
+   on its return stops the charge and starts again.
+3. **The screen's zero could land as the pour starts.** Fixed: taken under the activity lock, the state read again,
+   as the API's zero is.
+4. **A lost release could read as a hold, a stray Back.** Fixed: the interrupt posts the pin's level on each edge and
+   keeps no state; the menu drops repeats and reads the pin again before a hold counts. The console's `press hold`
+   has an event of its own, with no pin to read.
+5. **A stop asked for a start refused (a driver not OK) was kept,** and ended the next charge at its start. Fixed: it
+   goes with its request (`activity_clear_start()`).
+6. **The job task's end flags in the wrong order** could drop a start taken at once after a job. Fixed.
+7. **The last throw's verdict and the stop's hint were not drawn.** Fixed: the verdict at the right of the state, and
+   "RST: stop" where a click does nothing.
+8. **The marks asked the radio for its signal ten times a second** (`wireless_get_info()`, under lwIP's lock). Fixed:
+   `wireless_get_link()`, the same without the signal; only the Wi-Fi page's Signal row asks.
+9. **A save from the screen stores the web's unsaved changes to the same resource.** Kept: menu_design.md, item 4,
+   says so and accepts it.
+
+After the fixes, on the Pico 2 W: the editor's test above, `charge_cycle`, `api_check` (24 of 24), `menu_tour
+--compare` (the Charge page now reported, not judged: the target lives in RAM). Also: a page opened by `screen <id>`
+has its parents focused on the row that leads to it, as the knob would have left them; `tests/web_test_data.json`
+recorded again from the unit, its schema without the calibration.
+
+## Gate 5, the poll: what it waits on
+
+- **The Pico W's FreeRTOS heap with gate 4,** measured on the unit. Gate 1 computed about 14 KB left at an HTTPS
+  fetch's peak, with three trims; gate 2's job task (4 KB) and the menu's larger stack (2 KB) now take from it. The
+  job task would do the download itself, with no task of its own for TLS, and its stack's high-water mark decides
+  its size.
+- **The stored channel and source:** a struct in a module's own slot in the EEPROM, said in this ADR when built.

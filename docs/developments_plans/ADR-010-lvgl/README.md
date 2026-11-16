@@ -1,6 +1,6 @@
 # ADR-010: the screen's menu designed again, on LVGL
 
-Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Its first gate, the measurement, was run before approval, 2026-11-17 ([progress.md](progress.md)). The Pico W fits: its flash with LVGL and mbedTLS at -Os inside the shipping build (971 of 1,016 KB), and its RAM with three trims, computed and to be measured with the poll.
+Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Gate 1, the measurement, was run before approval, 2026-11-17: the Pico W fits, its flash with LVGL and mbedTLS at -Os inside the shipping build, its RAM with trims. Gates 2 and 4 were built the same night at the owner's word, ahead of approval, which the owner gives on PR #132; gates 3 (the mock) and 5 (the poll) are left ([progress.md](progress.md)).
 
 ## What we want
 

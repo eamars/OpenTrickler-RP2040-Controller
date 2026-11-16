@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "1.20.198",
-   "vcs": "2873306",
+   "version": "2.0.2-23-dirty",
+   "vcs": "f1a3b6c",
    "build": "Debug"
   },
   "board": "pico2_w",
   "unit_id": "49933331",
   "hostname": "opentrickler-4993",
-  "boot": 1139569619,
-  "uptime_s": 13,
+  "boot": 2764082589,
+  "uptime_s": 204,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -48,6 +48,13 @@
      "GET"
     ],
     "about": "the powder profiles' ids and names, and whether they are stored"
+   },
+   {
+    "path": "/api/v1/settings/motors",
+    "methods": [
+     "GET"
+    ],
+    "about": "the motors whose settings the unit holds, each by its id and label, and whether they are stored"
    },
    {
     "path": "/api/v1/charge",
@@ -165,6 +172,41 @@
     "about": "the network the unit is on: its mode, name, address, host name, signal"
    },
    {
+    "path": "/api/v1/update",
+    "methods": [
+     "GET"
+    ],
+    "about": "the firmware update (ADR-004): its state, the image running and its slot, the image this unit takes, the last"
+   },
+   {
+    "path": "/api/v1/update/start",
+    "methods": [
+     "POST"
+    ],
+    "about": "starts an update: the menu takes it, then the image is PUT"
+   },
+   {
+    "path": "/api/v1/update/image",
+    "methods": [
+     "PUT"
+    ],
+    "about": "the update image, as application/octet-stream, into the free slot"
+   },
+   {
+    "path": "/api/v1/update/install",
+    "methods": [
+     "POST"
+    ],
+    "about": "restarts into a trial of the image received"
+   },
+   {
+    "path": "/api/v1/update/stop",
+    "methods": [
+     "POST"
+    ],
+    "about": "stops the update; never fails"
+   },
+   {
     "path": "/api/v1/display",
     "methods": [
      "GET"
@@ -276,7 +318,7 @@
     "methods": [
      "POST"
     ],
-    "about": "stores Coarse trickler motor"
+    "about": "stores Coarse trickler motor and Fine trickler motor"
    },
    {
     "path": "/api/v1/settings/scale/save",
@@ -311,8 +353,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "1.20.198",
-   "vcs": "2873306",
+   "version": "2.0.2-23-dirty",
+   "vcs": "f1a3b6c",
    "build": "Debug"
   },
   "resources": [
@@ -1624,7 +1666,7 @@
     "method": "POST",
     "path": "/api/v1/scale/zero",
     "fields": [],
-    "about": "asks the scale to zero, not that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup, and in the scale's calibration; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
+    "about": "asks the scale to zero, not that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
    },
    {
     "method": "PATCH",
@@ -1641,6 +1683,34 @@
     ],
     "refused_while": "in_throw",
     "about": "moves the servo gate; 409 gate_disabled when it is off in settings/gate"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/update/start",
+    "fields": [],
+    "refused_while": "a_job_runs",
+    "about": "starts a firmware update (202): the menu takes it and it holds the screen; then PUT the image. 409 busy also while a person has a screen open at the unit"
+   },
+   {
+    "method": "PUT",
+    "path": "/api/v1/update/image",
+    "fields": [],
+    "refused_while": "never",
+    "about": "the update image (app.bin of the image GET /api/v1/update takes), application/octet-stream: written into the free slot as it comes, then checked whole (200, ready). 409 not_running unless receiving; 413 too_large; 400 not_an_image, wrong_chip, wrong_board, not_an_update, not_newer, wrong_slot or hash_mismatch, which end the job with nothing installed"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/update/install",
+    "fields": [],
+    "refused_while": "never",
+    "about": "restarts into a trial of the image (202); the unit comes back on it, confirmed once on its network, or on the one before. 409 not_ready unless ready"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/update/stop",
+    "fields": [],
+    "refused_while": "never",
+    "about": "stops the update (202), or 200 with nothing to stop; the image written is never booted"
    },
    {
     "method": "POST",
@@ -1682,12 +1752,37 @@
      "value": "cleanup"
     },
     {
-     "value": "scale_calibration",
-     "about": "the scale's own calibration, from the menu"
-    },
-    {
      "value": "view",
      "about": "a person has a screen open at the unit that is not a job (the Wi-Fi information, a driver's fault): a start is refused until it is closed there"
+    },
+    {
+     "value": "update",
+     "about": "a firmware update (ADR-004)"
+    }
+   ],
+   "update": [
+    {
+     "value": "idle"
+    },
+    {
+     "value": "starting",
+     "about": "asked, and the menu has not begun it yet"
+    },
+    {
+     "value": "receiving",
+     "about": "the image is taken into the free slot"
+    },
+    {
+     "value": "ready",
+     "about": "the image is whole and checked: install, or stop"
+    },
+    {
+     "value": "installing",
+     "about": "the restart into its trial is under way"
+    },
+    {
+     "value": "ending",
+     "about": "ended: the screen is given back, and a start is taken again once it is idle"
     }
    ],
    "charge": [
@@ -1889,6 +1984,54 @@
      "firmware"
     ],
     "about": "the unit started; the first event after each start"
+   },
+   {
+    "source": "update",
+    "kind": "started",
+    "carries": [
+     "by"
+    ]
+   },
+   {
+    "source": "update",
+    "kind": "stopped",
+    "carries": [
+     "by",
+     "reason",
+     "code"
+    ],
+    "about": "reason: stopped, refused (with the refusal's code), time"
+   },
+   {
+    "source": "update",
+    "kind": "received",
+    "carries": [
+     "version"
+    ],
+    "about": "the image is whole and checked"
+   },
+   {
+    "source": "update",
+    "kind": "installing",
+    "carries": [
+     "version"
+    ]
+   },
+   {
+    "source": "update",
+    "kind": "confirmed",
+    "carries": [
+     "version"
+    ],
+    "about": "after the restart, the image tried confirmed itself once on its network"
+   },
+   {
+    "source": "update",
+    "kind": "back",
+    "carries": [
+     "version"
+    ],
+    "about": "after the restart, the image tried was left, and the one before runs"
    }
   ],
   "errors": [
@@ -1913,14 +2056,22 @@
    "wrong_host",
    "too_large",
    "wrong_media_type",
-   "failed"
+   "failed",
+   "not_an_image",
+   "wrong_chip",
+   "wrong_board",
+   "not_an_update",
+   "not_newer",
+   "wrong_slot",
+   "hash_mismatch",
+   "not_ready"
   ]
  },
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "1.20.198",
-   "vcs": "2873306",
+   "version": "2.0.2-23-dirty",
+   "vcs": "f1a3b6c",
    "build": "Debug"
   },
   "unit_id": "49933331",
@@ -2158,6 +2309,19 @@
    }
   ]
  },
+ "/api/v1/settings/motors": {
+  "saved": true,
+  "motors": [
+   {
+    "id": "coarse",
+    "label": "Coarse trickler motor"
+   },
+   {
+    "id": "fine",
+    "label": "Fine trickler motor"
+   }
+  ]
+ },
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
@@ -2166,7 +2330,7 @@
   "target": null,
   "powder_profile": 0,
   "powder_profile_name": "AR2208,gr",
-  "weight": 0,
+  "weight": null,
   "elapsed_s": 0,
   "last": {
    "throw": 0,
@@ -2183,12 +2347,12 @@
   "time_left_s": null
  },
  "/api/v1/scale": {
-  "weight": 0,
-  "unit": "gn",
+  "weight": null,
+  "unit": null,
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 40,
-  "bad_frames": 1,
+  "usual_interval_ms": 0,
+  "bad_frames": 0,
   "actions": [
    "zero"
   ]
@@ -2209,13 +2373,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "1.20.198",
-   "vcs": "2873306",
+   "version": "2.0.2-23-dirty",
+   "vcs": "f1a3b6c",
    "build": "Debug"
   },
   "board": "pico2_w",
   "unit_id": "49933331",
-  "uptime_s": 15,
+  "uptime_s": 206,
   "activity": "none",
   "restart_pending": false
  },
@@ -2224,7 +2388,20 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-4993",
-  "rssi": -63
+  "rssi": -56
+ },
+ "/api/v1/update": {
+  "state": "idle",
+  "running": {
+   "version": "2.0.2-23-dirty",
+   "block": "2.0.2-23",
+   "slot": "a",
+   "trial": false
+  },
+  "takes": "pico2_w",
+  "free_bytes": 1835008,
+  "received": 0,
+  "last": null
  },
  "/api/v1/display": {
   "width": 128,
@@ -2232,7 +2409,7 @@
   "format": "u8g2_tiles"
  },
  "/api/v1/display/frame": {
-  "base64": "AAAAAADw+AwEDPjwAPDgEPDgAODwUHBgAPDgEPDgAAQE/PwEBADw4DAQ9PQA4PAQMAD8/OCwEAD8/ADg8FBwYADw4DAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICAgICAhIyIjISAgLy8iIyEgISMiIyEgIyMgIyMgICAjIyAgICMjICAjIyAhIyIjICMjICEjIiMjICEjIiMhICMjICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIP///////zPt7e0b//cB9/8319cP/wfv9//3Aff/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////Dw8PDw8Pzy4uLi9PD+4OD4+ODg+Ojo8PD48Ojo8PD48PD48Pjw+Pjw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8AAAAAAAAPEBAQEAgAHwAPEhILAAwSEg8QHwEAAB8ADxAQHwB/CRAQDwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABjjAIB4gwDgG+gD4EAgA8CgosAD+APAoKLAAkCgo0ACQKCjQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwCEgIEABAICBAAGA4IAAgeGAAKEAgAGBgAAAAYGAAIABAYCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMERERDgAPEhILAAAfEAAAHxAAHwAfAQAAHwAPUFBJPwAJEhINAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  "base64": "AAB4/IYChvx4APjwCPjwAPD4KLiwAPjwCPjwAAIC/v4CAgD48BgI+voA8PgImAD+/nDYiAD+/gDw+Ci4sAD48BgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABjjAIB4gwDgGAADo6OgoycnJyKjoD+9paejoaGlp6eho6Wno6Wlo6Gjp6Who6Onp6Ojp6ejo6enp6Onp6Ojp6enp6Ojp6eno6Onp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6OnoaOjp6Ojo6H9/f3Dv7+/vd3/gfn9/YH9zbW1wb2B+f39wLy82QH9wbW10f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f393en1/f39/AAAAP0BAQEAhAH8APEpKLAAySko8QH4EAgJ8AD5AQH4A/iRCQjwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY4wCAeIMA4BvoAICAgAAD+EhISAvoAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAiFAgAAAAAAAAADBJSEiQAcCgocAAIPggACH4IADoAeBAICDAAMAgIEDgAECgoEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgQIAAAAAAAAAAAwQEBAMAAwQEAgAABwQAAAcEAAcABwAAAAcAAxQUEg8AAgQEAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
  },
  "/api/v1/settings/leds": {
   "saved": true,

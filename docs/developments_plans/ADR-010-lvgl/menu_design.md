@@ -116,7 +116,7 @@ On the charge and cleanup rows, a motor driver that is not OK opens the fault pa
 
 **The jobs' screens** are not in the tree. A job puts its screen on top, whoever started it:
 - **Charge:** the state, the weight, the target, the powder, the time, the throw's number and the last verdict.
-  - Actions: Zero, which comes first and has focus, while the job waits for zero or for the cup's return. Target and Powder between throws, from the verdict to the next zeroing (the API refuses both during a throw).
+  - Actions: Zero while the job waits for zero, under the lock the charge starts its pour under. Not while it waits for the cup's return: the charge takes a reading of 0 as the cup back, so a zero with the pan bare would start a throw on it, as the API's own zero is refused there (found in the review of gate 4). Target and Powder between throws, from the verdict to the next zeroing (the API refuses both during a throw); what they open closes when the next throw begins, so Back then reaches the charge.
   - Back stops the job and returns to the Charge page, with Start focused.
 - **Cleanup:** the weight, the flow, the speed and the gate. Turning sets the speed, Enter sets it to 0, Back stops.
 - **Update:** Downloading n%, then Checking, then Installing (keep the power on), and the version. Back stops it until it installs.
