@@ -610,7 +610,7 @@ bright whatever the setting. A unit starts with the glass's own look (the owner'
 - **Found: the stored struct did not reset.** It is 8 bytes before and after (the enums are one byte); the flag
   landed in its filler and read the stored byte, non-zero on the Pico W, so the screen started inverted. Stored off
   on the Pico W. Left as it is by the owner; handed on to ADR-006, and AGENTS.md's rule corrected.
-- **Figures (the Pico W):** flash 991.6 of 1,016 KB; the Pico 2 W builds.
+- **Figures (the Pico W):** flash 968.4 KB of 1,016 KB (991,608 bytes; first written here as "991.6 of 1,016 KB", the bytes read as KB); the Pico 2 W builds.
 - **Proven on the Pico W:** the settings copied before the flash (`logs/adr010/picow/before_invert/`); `menu_tour
   --compare` against the flipped baseline: every page the same but the Display page, its new row (saved again); the
   setting on, a snap of the main menu inverted; a hello with the setting off and on, the frame read through the

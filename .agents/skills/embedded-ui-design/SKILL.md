@@ -60,7 +60,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
    - They replace every private convention ("RST: stop", "[Zero]", "<Target>"). A screen whose click does nothing shows no right softkey.
    - **Gestures:** turn, click and hold only. A design with more gestures is a different design (the 128 x 64 case study: three press variations at most).
 7. **Remove before you shrink.**
-   - A job screen carries one figure, its status, one context line and its softkeys. Anything else moves to the web, which has the room.
+   - A job screen leads with one figure, read from 50 cm, with its status and its softkeys. Nothing it showed or did moves to the web for want of room: every setting and action is on both the screen and the web, and only measured data or the hardware leaves one off (the owner, 2026-11-17; ADR-010's survey in `menu_design.md`). An earlier wording here ("Anything else moves to the web") cost the cleanup its weight, flow and gate.
    - **Why:** small-screen guidance says to relocate rather than shrink (Applied-EE), and the owner, 2026-11-17: "the information density is a bit on the higher side".
    - The timer, the powder's name and the throw's number left the charge screen this way.
 8. **The important thing in the middle.**

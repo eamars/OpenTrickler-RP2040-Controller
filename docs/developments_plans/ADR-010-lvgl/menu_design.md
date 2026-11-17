@@ -72,6 +72,8 @@ The mini 12864 gives three inputs: the encoder's turn, its press, and the reset 
 
 ## The tree
 
+As built through gate 4. It grows by the survey below (every setting on both), and is drawn again once the owner settles it.
+
 ```
 Main menu                        title: OpenTrickler, or the motor driver that is not OK
 ├─ Update available ›            only while the poll knows of a newer release; "Important update" when critical
@@ -135,7 +137,84 @@ A corner of every page and every job's screen shows three marks. The remote mark
 
 When a job was not started from the knob, its screen's state line also says who started it ("Charging, from the web").
 
+## Every setting on the screen and on the web (the survey, 2026-11-17)
+
+The owner, at the unit, on finding the servo gate gone: "My original ask from the beginning of the ADR-010 was: are there any feature from web should be ported to the screen. And it ended up with some menus being removed?? It doesn't make sense at all. I want you to take the RIGHT approach here, survey WHAT should, or can be duplicated from the web to the front screen. Context: Not everyone use screen and web at the same time, it would be easy if both settings are configurable from both front screen and web. If the removal is for memory size, then I need data as justification. I don't want MVP here. This ADR is the final display refactor, so nothing to be left for the future."
+
+**The rule.** Every setting and every action the web has is on the screen too. Only measured data or the hardware leaves one off, and each such case is named below with its reason. This replaces the "web only" lists under "What leaves the screen".
+
+**How.** The screen's settings pages are made from the settings tables (`settings.h`), the tables the API, the schema, the export and the web's forms are already made from:
+- a resource is a page, a field a row, and the field's type its editor: a boolean a toggle, a choice a list, an integer or a number the number editor within its limits, a string the text editor, a colour the colour editor;
+- a resource with fields in more than one group (the charge's thresholds, coarse stop, precharge, colours) opens on its groups, each a page;
+- a write takes the same path, checks and refusals as the API's (a motor's setting while a job runs: "Not changed", "a job runs"), and is stored at once (D2); a field that applies at restart brings "Restart to apply", as the scale's make does now;
+- so a setting added to a table reaches both, and the screen cannot fall behind the web again.
+
+**What it costs: measured on the Pico W, the tighter board, at 61ecef7 (2026-11-17).**
+- **Flash:** 968 KB of 1,016 KB used, 47 KB free. The whole navigator today is 21 KB at -O0 (`menu_nav.c`: 55 rows, 15 pages, the list, card, notes, dialog, editor and job screens, the update's offer); the view is 7 KB; the settings' code 16 KB.
+- **The parity, estimated from those:** the table-driven pages 4 to 6 KB (no row per setting is written: the tables are in flash already), the three new editors (text, colour, the network list) 6 to 9 KB, the restored job screens and the gate's control about 2 KB. 12 to 17 KB in all, leaving 30 KB or more. It is measured when built. If it ran out, AGENTS.md's order holds: ADR-005's optimised build before anything is cut.
+- **RAM:** the FreeRTOS heap 43.8 KB free (43.0 KB at its least); LVGL's heap at most 10.1 of 14 KB used, 2.0 KB free in one piece at its least; the menu task 2.4 KB of its stack never touched. A text editor adds a few labels, a few hundred bytes of LVGL's heap. A network scan keeps at most 16 networks, about 0.7 KB of the FreeRTOS heap, only while its list is open.
+- **So memory rules nothing out.** The Pico 2 W has twice the flash.
+
+**The settings** (the schema's 11 resources, 73 fields):
+
+| On the web | Its fields | On the screen | Before this survey |
+|---|---|---|---|
+| Charge (`settings/charge`) | thresholds (coarse stop, fine stop, steady margin, zero margin); decimals; coarse stop (gate ratio, back-off on, its turns, its speed); precharge (on, time, speed); colours (good, under, over, not ready) | Settings › Charge › its groups | decimals only, under Scale |
+| Powder profiles, 8 (`powder_profiles/{id}`) | name; coarse Kp, Ki, Kd, minimum and maximum speed; the fine's the same | Settings › Powder profiles › each, by its name › its fields | chosen only (Charge › Powder) |
+| Scale | make, baud rate, frame format | Settings › Scale, with its reading and Zero | no frame format |
+| Motors, coarse and fine | steps a rotation, current, microsteps, maximum speed, sense resistor, acceleration, minimum speed, gear ratio, direction inverted, enable inverted | Settings › Motors › Coarse, Fine › their groups (motor, driver, wiring) | none |
+| Servo gate | on, the two shutters' closed and open duties, closing and opening speed | Settings › Servo gate, with Open, Close and Position | none (the old menu's 39 had Disable, Close, Open) |
+| LEDs | backlight, LED 1 and LED 2 colours; the PWM3 chain's count, colour order, RGBW | Settings › LEDs | none |
+| Display | invert knob, rotation, invert screen | Settings › Display | all |
+| Wi-Fi | on, network name, key, security, join timeout | Wi-Fi › its state, then these | the state only |
+| Update | channel, source | Settings › Firmware: Channel, Source | the channel shown, not set |
+
+**The actions:**
+
+| On the web or the API | On the screen | Before this survey |
+|---|---|---|
+| The charge: target, powder, start, stop | Charge, and its job | yes |
+| The cleanup: start, speed, stop | Cleanup, and its job | yes (its logic is to settle) |
+| The scale's zero | Scale › Zero; the charge's Zero; the cleanup's (the web's cleanup page has it) | not in the cleanup |
+| The gate moved: open, close, a position (the web's cleanup page and `PATCH /api/v1/gate`) | Servo gate › Open, Close, Position; and the cleanup's | none |
+| The update: check, download, install, stop | Firmware › Check for update; the offer's Install; the job's Stop | yes |
+| Restart, erase | Settings › Restart, Factory reset | yes |
+| Save all | stored when confirmed (D2) | gone (D2) |
+
+**What the web shows, besides settings:**
+
+| On the web | On the screen | Before this survey |
+|---|---|---|
+| The charge page: the weight, the powder, the charge's time, its progress to the target, its step | the charge's screen: the weight, the target, the powder, the time, the verdict | the powder and the time were dropped in gate 4, against this design's "Charge" below |
+| The cleanup page: the speed, Zero, the gate | the cleanup's screen: the speed, the weight, the flow, the gate, Zero | the speed only: the weight, the flow and the gate dropped in gate 4, against this design's "Cleanup" below |
+| System: the unit's id, version, VCS hash, build | Settings › Firmware | yes |
+| Wi-Fi: why a join failed (the old screen's link status: wrong key, no network, failed) | Wi-Fi's state, in words | lost in gate 4: "Joining" whatever the reason |
+
+**Web only, each with its reason:**
+- **Export and import** of the settings and of a profile, and **the update uploaded by hand:** each is a file, which the screen has no way to take or give (the hardware). The screen downloads the same releases itself.
+- **The display's mirror:** it is the screen.
+- **The set-up wizard** (`wizard.html`, the access point's form for the Wi-Fi): the screen's Wi-Fi page sets the same fields. The commissioning process as a whole is ADR-015's (the owner).
+- **The weight's chart** over a charge (`plot_weight.html`): to settle (below).
+
+**The editors it needs:**
+- **Number,** grown from the target's (the old menu's way, as the target's now: the turn selects a digit, a click sets it). Its digits come from the field's limits; its decimals from its step, from the charge's decimals for a weight, or from a `decimals` added to the field's description where neither says (the gains). A value outside the limits is refused, as at the API.
+- **Text,** for the network's name and key, the profiles' names and the update's source, in the same way: the turn selects a character, a click sets it (the turn then goes through the characters), the last places add and delete; Cancel and Set.
+- **Colour:** red, green and blue, 0 to 255 each, set as numbers; the LED shows the colour while it is set, and Cancel puts it back.
+- **The network list:** the networks a scan finds, strongest first, with their security; choosing one sets the name and the security and opens the key; "Other" types a name.
+- **Short labels:** the tables' labels are the web's ("Coarse stop threshold"). Where a label and its value do not fit 128 px, the field's description gets a shorter one for the screen.
+
+**To settle (the owner), each with the recommendation first:**
+1. **This rule, and the screen made from the settings tables.** Recommended: the only way the two stay equal.
+2. **The cleanup as one system.** It has one value (the speed), one action (Stop), and the web's Zero and gate. Recommended, as the target's editor: its screen a list, the speed, the weight and the flow in sight; the speed set by a click and the turn, live, and a second click; then Gate (open or closed, a click toggles), Zero, and Stop. No Run and no Pause: a speed of 0 is both.
+3. **The charge's screen** gets back the powder and the charge's time; the throw's number as this design had it.
+4. **Text by the knob for the long strings** (a key of up to 63 characters, the source's 127). Recommended: yes, for anyone without the web; the network list spares typing the name.
+5. **The weight's chart.** Recommended: a small chart of the throw on the charge's screen is possible (a 128 by 40 canvas, 640 bytes), but it competes with the figure read from 50 cm. To settle on the mock.
+
+Then the look of each new page and editor is mocked (`menu_12864.py`) and settled before it is built (design gates before build gates).
+
 ## What leaves the screen, and where it goes
+
+The old menu's forms, and where each went. Read with the survey above, which brings back what the web-only lists here gave up.
 
 | Today | New home | Why |
 |---|---|---|
@@ -148,25 +227,27 @@ When a job was not started from the knob, its screen's state line also says who 
 | 31 Scale, 53 Driver and baud rate | Settings › Scale | a live reading, no OK (W4) |
 | 51 Calibration | removed, with its mode | no scale supports it (the owner, 2026-11-17) |
 | 32, 33 Profile manager | Charge › Powder | it was a second way to pick the same thing |
-| 34, 38 Profile details | web only | read-only gains mean little without the web's context; editing is the web's |
+| 34, 38 Profile details | Settings › Powder profiles, every field, editable (the survey) | was web only: "read-only gains mean little without the web's context", undone by the owner's rule |
 | 37 EEPROM, 60 Save | gone | stored when confirmed (W6, D2) |
 | 61 Erase | Settings › Factory reset | |
-| 39 Servo gate | web only (`PATCH /api/v1/gate`, the portal's gate) | for setting up and testing; cleanup opens the gate itself |
+| 39 Servo gate | Settings › Servo gate, its settings with Open, Close and Position (the survey) | was web only, "for setting up and testing; cleanup opens the gate itself": an agent's reason, never the owner's, undone by the owner's rule |
 | 35 Reboot | Settings › Restart | |
 | 36 Version | Settings › Firmware | plus the update's rows |
 | 40 Wireless, 41 OK | Wi-Fi | a live page (W1) |
 
-**Web only, and already on today's portal,** so nothing the screen gives up becomes unreachable between this ADR and ADR-008 (`web_portal.html` and `display_mirror.html`, read 2026-11-17):
-- the charge's thresholds, margins, back-off, precharge and colours;
-- the powder profiles' names, gains and speeds;
-- both motors;
-- the gate's duties, its speeds and its manual control;
-- the LEDs;
-- the scale's frame format;
-- the Wi-Fi network, key, security and timeout;
-- the mirror.
+**Replaced by the survey above** (the owner, 2026-11-17: every setting is on both). What these lists said, kept as the record of what gate 4 gave up:
 
-**Web only, and new:** the update's channel and source, stored with this ADR's poll and set through the API until ADR-008's page; and the upload by hand (ADR-008).
+> **Web only, and already on today's portal,** so nothing the screen gives up becomes unreachable between this ADR and ADR-008 (`web_portal.html` and `display_mirror.html`, read 2026-11-17):
+> - the charge's thresholds, margins, back-off, precharge and colours;
+> - the powder profiles' names, gains and speeds;
+> - both motors;
+> - the gate's duties, its speeds and its manual control;
+> - the LEDs;
+> - the scale's frame format;
+> - the Wi-Fi network, key, security and timeout;
+> - the mirror.
+>
+> **Web only, and new:** the update's channel and source, stored with this ADR's poll and set through the API until ADR-008's page; and the upload by hand (ADR-008).
 
 ## The update at the screen
 
