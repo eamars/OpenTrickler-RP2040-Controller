@@ -771,3 +771,21 @@ the charge mode, every call to hello should trigger the animation, regardless of
   (`saved` false), stored by the click (`saved` true), then a detent and Back put 0.05 back, and 0.03 restored; the
   coarse stop stepped and backed out, 5.0 kept. `menu_tour`: Settings, Settings › Charge (new), Display (Rotation's
   ">" gone) and Scale saved again; `charge_cycle` and `api_check` pass. Flash 972.5 KB of 1,016.
+
+## Gate 6, step 3: the settings tree (2026-11-17)
+
+- **Built:** Settings in the mock's order: Scale, Charge, Display, Servo gate, Motors, Firmware, Restart, Factory
+  reset.
+  - **Display:** Backlight, one of 8 named colours set in place ("Custom" for one set on the web), and Charge view.
+  - **Servo gate:** on or off; Shutters, Open or Closed, moved by a click as `PATCH /api/v1/gate` moves them and
+    refused as it is ("the gate is off", "not while a throw pours"); the four shutters' ends stepped by 0.001, the
+    gate going to the end being set after each detent. A move to where the gate already is now sets it again with
+    its ends as they are (`servo_gate.c`), so an end set shows at once.
+  - **Motors:** each one's direction, Normal or Reversed (the table's words).
+  - **Firmware** is a list: its facts to read, the channel set in place, Check for update.
+- **Proven on the Pico W, by the knob, the API read after each:** the backlight set to Green (`#00ff00`, stored)
+  and back to White; Charge view to Chart and back; the gate, which is off on the bench, refused ("Not moved: the
+  gate is off"), and a shutter's end stepped to 0.034 live and put back to 0.032 by Back; the coarse motor's
+  direction to Reversed and back; the channel turned to Beta and left Stable by Back. `menu_tour`: Settings,
+  Display, Servo gate (new), Motors (new) and Firmware saved again; `charge_cycle` passes. **Not seen:** the servo
+  moving to an end, the bench's gate being off and not fitted.

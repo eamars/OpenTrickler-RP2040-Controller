@@ -64,6 +64,7 @@ struct menu_row {
     const char *path;                                                       // a setting: its resource
     const char *name;                                                       // and its field
     bool (*offered)(const setting_choice_t *choice);                        // a setting's choice offered; NULL: all
+    void (*stepped)(const menu_row_t *row);                                 // ROW_STEP: after each live write
     // A choice that is not a setting's (the powder profiles)
     int (*count)(void);
     const char *(*option)(int idx);
@@ -417,19 +418,6 @@ static bool shown_not_on_station(void) {
 static void value_update_needs_network(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     snprintf(out, room, "needs a network");
-}
-
-
-static bool shown_channel_beta(void) {
-    char channel[16];
-    return settings_read_text("settings/update", "channel", channel, sizeof(channel)) &&
-           strcmp(channel, "beta") == 0;
-}
-
-
-static void value_channel(const menu_row_t *row, char *out, size_t room) {
-    (void) row;
-    snprintf(out, room, "beta");
 }
 
 
@@ -847,6 +835,98 @@ static void value_setting_step(const menu_row_t *row, char *out, size_t room) {
 }
 
 
+// --- The backlight: 8 named colours (ADR-010, gate 6: a colour as three numbers costs too much at the knob)
+
+typedef struct {
+    const char *name;
+    const char *hex;
+} named_colour_t;
+
+static const named_colour_t backlight_colours[] = {
+    {"White", "#ffffff"}, {"Red", "#ff0000"}, {"Orange", "#ff8000"}, {"Yellow", "#ffff00"},
+    {"Green", "#00ff00"}, {"Cyan", "#00ffff"}, {"Blue", "#0000ff"}, {"Magenta", "#ff00ff"},
+};
+#define BACKLIGHT_COLOURS ((int) (sizeof(backlight_colours) / sizeof(backlight_colours[0])))
+
+
+static int backlight_count(void) {
+    return BACKLIGHT_COLOURS;
+}
+
+
+static const char *backlight_option(int idx) {
+    return idx >= 0 && idx < BACKLIGHT_COLOURS ? backlight_colours[idx].name : NULL;
+}
+
+
+// The named colour the backlight is, or -1 for one set on the web
+static int backlight_current(void) {
+    char text[12];
+    if (!settings_read_text("settings/leds", "backlight_colour", text, sizeof(text))) {
+        return -1;
+    }
+    for (int idx = 0; idx < BACKLIGHT_COLOURS; idx += 1) {
+        if (strcasecmp(text, backlight_colours[idx].hex) == 0) {
+            return idx;
+        }
+    }
+    return -1;
+}
+
+
+static const char *backlight_choose(int idx) {
+    if (idx < 0 || idx >= BACKLIGHT_COLOURS) {
+        return "no such colour";
+    }
+    return settings_write_and_save("settings/leds", "backlight_colour", backlight_colours[idx].hex);
+}
+
+
+static void value_backlight(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    int idx = backlight_current();
+    snprintf(out, room, "%s", idx >= 0 ? backlight_colours[idx].name : "Custom");
+}
+
+
+// --- The servo gate: moved as the API moves it (PATCH /api/v1/gate), and so refused when it is
+
+static const char *gate_move(gate_ratio_t ratio) {
+    if (!servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+        return "the gate is off";
+    }
+    activity_lock();
+    bool in_throw = activity_in_throw();
+    if (!in_throw) {
+        servo_gate_set_ratio(ratio, false);
+    }
+    activity_unlock();
+    return in_throw ? "not while a throw pours" : NULL;
+}
+
+
+static void value_gate(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "%s", servo_gate.gate_state == GATE_OPEN ? "Open" :
+                              (servo_gate.gate_state == GATE_CLOSE ? "Closed" : "Off"));
+}
+
+
+static void act_gate(const menu_row_t *row) {
+    (void) row;
+    const char *why = gate_move(servo_gate.gate_state == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
+    if (why != NULL) {
+        push_message("Not moved", why, NULL);
+    }
+}
+
+
+// A shutter's end being set: the gate goes to it, so the end is seen as it is set
+static void gate_show_end(const menu_row_t *row) {
+    gate_move(strstr(row->name, "close") != NULL ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
+}
+
+
 // --- The tree (menu_design.md)
 
 // The start's acknowledgement, a dialog: a safety step, never cut (the owner)
@@ -917,26 +997,56 @@ static const menu_row_t rows_display[] = {
      .name = "invert_display"},
     {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display", .name = "rotation",
      .offered = offered_rotation},
+    {.label = "Backlight", .kind = ROW_CHOICE, .value = value_backlight, .count = backlight_count,
+     .option = backlight_option, .current = backlight_current, .choose = backlight_choose},
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display", .name = "charge_view"},
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
 static const menu_page_t page_display = {.id = "settings/display", .title = "Display", .rows = rows_display,
-                                         .row_count = 4};
+                                         .row_count = 6};
 
-// Notes: the facts, then the update's button at the end
+// The servo gate: on or off, the shutters moved, and their ends set while the servo shows them
+static const menu_row_t rows_gate[] = {
+    {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/gate", .name = "enable"},
+    {.label = "Shutters", .kind = ROW_ACTION, .value = value_gate, .act = act_gate},
+    {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/gate", .name = "shutter0_close_duty",
+     .stepped = gate_show_end},
+    {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/gate", .name = "shutter0_open_duty",
+     .stepped = gate_show_end},
+    {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/gate", .name = "shutter1_close_duty",
+     .stepped = gate_show_end},
+    {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/gate", .name = "shutter1_open_duty",
+     .stepped = gate_show_end},
+};
+static const menu_page_t page_gate = {.id = "settings/gate", .title = "Servo gate", .rows = rows_gate,
+                                      .row_count = 6};
+
+// Each motor's direction: a motor wired the other way, found at the bench
+static const menu_row_t rows_motors[] = {
+    {.label = "Coarse direction", .kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle,
+     .path = "settings/motors/coarse", .name = "invert_direction"},
+    {.label = "Fine direction", .kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle,
+     .path = "settings/motors/fine", .name = "invert_direction"},
+};
+static const menu_page_t page_motors = {.id = "settings/motors", .title = "Motors", .rows = rows_motors,
+                                        .row_count = 2};
+
+// A list: the facts to read, then the channel set and the check
 static const menu_row_t rows_firmware[] = {
     {.label = "Version", .kind = ROW_INFO, .value = value_version},
     {.label = "Update", .kind = ROW_INFO, .value = value_update_state, .shown = shown_on_station},
     {.label = "Update", .kind = ROW_INFO, .value = value_update_needs_network, .shown = shown_not_on_station},
     {.label = "Last update", .kind = ROW_INFO, .value = value_last_update, .shown = shown_last_update},
-    {.label = "Channel", .kind = ROW_INFO, .value = value_channel, .shown = shown_channel_beta},
+
     {.label = "Board", .kind = ROW_INFO, .value = value_board},
     {.label = "Unit", .kind = ROW_INFO, .value = value_unit_id},
     {.label = "Build", .kind = ROW_INFO, .value = value_build},
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/update", .name = "channel"},
     {.label = "Check for update", .kind = ROW_ACTION, .act = act_check_update, .label_now = check_update_label,
      .shown = shown_on_station},
 };
-static const menu_page_t page_firmware = {.kind = PAGE_NOTES, .id = "settings/firmware", .title = "Firmware",
-                                          .rows = rows_firmware, .row_count = 9};
+static const menu_page_t page_firmware = {.id = "settings/firmware", .title = "Firmware", .rows = rows_firmware,
+                                          .row_count = 9};
 
 /*
  * The offer, notes: what the release says and what to know before installing, then Install, reached only by
@@ -968,12 +1078,14 @@ static const menu_row_t rows_settings[] = {
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge_settings},
     {.label = "Display", .kind = ROW_PAGE, .page = &page_display},
+    {.label = "Servo gate", .kind = ROW_PAGE, .page = &page_gate},
+    {.label = "Motors", .kind = ROW_PAGE, .page = &page_motors},
     {.label = "Firmware", .kind = ROW_PAGE, .page = &page_firmware},
     {.label = "Restart", .kind = ROW_ACTION, .act = act_restart, .label_now = restart_label},
     {.label = "Factory reset", .kind = ROW_PAGE, .page = &page_factory_reset},
 };
 static const menu_page_t page_settings = {.id = "settings", .title = "Settings", .rows = rows_settings,
-                                          .row_count = 6};
+                                          .row_count = 8};
 
 // "OpenTrickler", or the motor driver that is not OK (ADR-012, step 6)
 static const char *main_title(void) {
@@ -995,7 +1107,7 @@ static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .ti
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
     &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_charge_settings, &page_display,
-    &page_firmware,
+    &page_gate, &page_motors, &page_firmware,
     &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
@@ -1398,6 +1510,9 @@ static void inplace_key(frame_t *frame, const menu_row_t *row, menu_key_t key) {
             frame->editing = false;
             inplace_refused(why);
         }
+        else if (row->stepped != NULL) {
+            row->stepped(row);
+        }
         return;
     }
     frame->editing = false;
@@ -1405,7 +1520,11 @@ static void inplace_key(frame_t *frame, const menu_row_t *row, menu_key_t key) {
         inplace_refused(settings_store(row->path));
     }
     else {
-        inplace_refused(settings_write(row->path, row->name, frame->edit_was));
+        const char *why = settings_write(row->path, row->name, frame->edit_was);
+        if (why == NULL && row->stepped != NULL) {
+            row->stepped(row);
+        }
+        inplace_refused(why);
     }
 }
 

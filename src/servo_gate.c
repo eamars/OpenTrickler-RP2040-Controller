@@ -145,6 +145,11 @@ void servo_gate_control_task(void *p) {
                     _servo_gate_set_current_state(new_open_ratio);
                 }
             }
+            else {
+                // The same place again: set with the shutters' ends as they are now, so an end set at the screen
+                // shows at once (ADR-010, gate 6)
+                _servo_gate_set_current_state(new_open_ratio);
+            }
         }
 
         // Update discrete state for reporting/UI
