@@ -640,4 +640,4 @@ Every page was turned on the Pico W, pressing nothing, to count them:
   `charge_cycle` pass.
 - **Seen on the way:** the Pico W's Invert screen was found on, stored, between 19:37 and 19:41, when it had been
   stored off; nothing the agent ran in that time writes it (the web test's recording was run again and left it
-  off). Asked of the owner whether it was set by hand; stored off again for the proof.
+  off). The owner had set it by hand at the unit ("Yes, that was me"): no fault. Stored off again for the proof.
