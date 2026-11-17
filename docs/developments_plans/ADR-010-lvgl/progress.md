@@ -874,3 +874,24 @@ the charge mode, every call to hello should trigger the animation, regardless of
 - **Left:** the owner's use of every screen by hand; the servo seen moving to a shutter's end (the bench's gate is
   off and not fitted); the Pico 2 W on the probe (built; an application-layer change, proven on one unit by the
   owner's rule, but for LVGL's pool, which is memory and proven on the tighter board).
+
+## Gate 6, step 8: the owner's review at the unit (2026-11-17)
+
+- **Built:**
+  - Powder details removed, with the two-column line only it used; Charge has Start, Target, Powder.
+  - Choices open their own page again (`FRAME_CHOICE`): every option, the focus opening on the current one, a click
+    picks it and goes back, Back leaves it. The current option has a check at its right, a new icon in the regular
+    font (U+E002, `scripts/bdf2lvgl.py`); the console marks its row `chosen`. Numbers stay in place in their rows.
+  - The cleanup's title is "< Cleanup", reached by turning up from Speed, and a click there ends the cleanup. Its
+    focus was wrong as first built: the title showed as the line that is only read, and the test below found it.
+  - `rc_run.py reach`, the generic test: every page by its id, every screen a page's row opens (a click on the row,
+    then Back), the dialogs, a simulated charge's screen and a cleanup's at speed 0, each turned to its top and down
+    a detent at a time, nothing clicked but the rows that open. It fails when a "<" title, a row that acts, a notes'
+    button, a softkey or one of the editor's digits is never reached. The console gives what it needs: `back` on
+    `@screen` when the title is Back, `info` on a row that is only read. Each reply is judged, as `send` does.
+- **Proven on the Pico W:** `reach` passes on 36 screens (it failed on the cleanup's title before the fix);
+  `menu_tour` passes after the pages whose choices open again were saved (Charge, Scale, Display, Firmware: their
+  ">"); `charge_cycle` passes; the cleanup left by its title, back to the main menu; the Backlight page snapped with
+  its check. Charge view changed by the 14 actions `knob_cost.py` now counts, and put back. Choices counted again,
+  their pages not wrapping: the scale's make 15 (10 before), the rest as they were.
+- **Size:** the Pico W 980.8 KB of its 1,016 KB slot.

@@ -5,10 +5,11 @@ built. Prints the table menu_design.md carries.
 
     venv\\Scripts\\python tools\\ui_mock\\knob_cost.py
 
-The editing methods, all in place in their row (no editor screen):
+The editing methods (a number and a toggle in place in their row; a choice on its own page):
   toggle   a click flips it.
   action   a click does it.
-  choice   a click, the turn through the choices in place (wrapping, so the shorter way), a click.
+  choice   a click opens its page, the focus on the current option; the turn to the one wanted (the page does not
+           wrap: its top is the "<" title); a click chooses it and goes back.
   step     a click, one step a detent, a click; the step is the field's screen step.
   digits   the target only: the turn selects a digit, a click sets it (the turn then sets its value, wrapping), a
            click ends; then the turn to Set and a click.
@@ -26,8 +27,8 @@ def reach(path):
 
 
 def edit_choice(count, frm, to):
-    d = abs(to - frm)
-    return 2 + min(d, count - d)
+    assert 0 <= frm < count and 0 <= to < count
+    return 2 + abs(to - frm)
 
 
 def edit_step(frm, to, step):
@@ -61,7 +62,7 @@ def edit_text(text):
 # need: S a session at the bench; W making the unit work without the web; T tuning or building, set once with the
 # web's data (or by ADR-009's tuning). The paths follow the mock's tree (parity_12864.py), each page's rows in order:
 MAIN = {"Charge": 0, "Cleanup": 1, "Wi-Fi": 2, "Settings": 3}
-CHARGE = {"Start": 0, "Target": 1, "Powder": 2, "Powder details": 3}
+CHARGE = {"Start": 0, "Target": 1, "Powder": 2}
 CLEANUP = {"Speed": 0, "Gate": 1, "Stop": 2, "Zero": 3}         # behind the cup's check, its Start a click
 SETTINGS = {"Scale": 0, "Charge": 1, "Display": 2, "Servo gate": 3, "Motors": 4, "Firmware": 5, "Restart": 6,
             "Factory reset": 7}
@@ -85,7 +86,6 @@ ROWS = [
     ("Target, a new load", "S", "digits", "24.35 to 42.00", [MAIN["Charge"], CHARGE["Target"]],
      edit_digits("02435", "04200")),
     ("Powder (8 profiles)", "S", "choice", "1 to 5", [MAIN["Charge"], CHARGE["Powder"]], edit_choice(8, 1, 5)),
-    ("Powder details, to read", "S", "page", "", [MAIN["Charge"], CHARGE["Powder details"]], 1),
     ("Start a charge", "S", "action", "", [MAIN["Charge"], CHARGE["Start"]], 1 + 1),
     ("Zero, in a charge", "S", "action", "", [], 1),
     ("Stop, in a charge or cleanup (the reset button)", "S", "action", "", [], 1),

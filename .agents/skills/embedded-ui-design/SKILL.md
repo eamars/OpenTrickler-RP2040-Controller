@@ -47,6 +47,9 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
    - **Why:** the owner, 2026-11-17: "there should be enough clearance between two lines of text so the UI looks a bit clean".
 5. **Five kinds of screen, no others.**
    - **Pages** are lists: a title, then rows of label, value and ">" when the row opens something. The focused row is in reverse.
+     - A number is set in its row: a click, a step a detent (the value in reverse), a click.
+     - A choice opens its own page: every option, the current one with a check at its right (U+E002), the focus opening on it; a click picks and goes back. Never turned through blind in its row, and never marked by bold or a "*" alone: both too faint to see at a glance (the owner, 2026-11-17).
+     - A row that only shows a value has no focus; every row that acts is reached by the turn.
    - **Cards** are read-only and dense: lines of 11 px, each a key at the left and its value at the right (a pair too wide for a line takes two, the value right on the second; the owner, 2026-11-17: otherwise the page looks unorganized), no focus on a line, a scroll bar when they run on (Wi-Fi, Firmware's facts). Turned up past the top, the title is focused, which is Back, as on a list.
    - **Dialogs** are a title, a message of one or two centred lines, and two softkeys (the cup's acknowledgement, a factory reset).
    - **Jobs:**
@@ -58,7 +61,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 6. **Softkeys: one rule everywhere.**
    - The left softkey is what Back does (Cancel, Stop), the right the screen's action. Both are reached by the knob: the focused one is drawn in reverse and a click does it (the owner, 2026-11-17: every element on screen is clickable). A dialog that destroys opens on Cancel.
    - They replace every private convention ("RST: stop", "[Zero]", "<Target>"). A screen whose click does nothing shows no right softkey.
-   - **Gestures:** turn, click and hold only. A design with more gestures is a different design (the 128 x 64 case study: three press variations at most).
+   - **Gestures:** the turn, the click and the reset button only; no hold (rule of Input above). A design with more gestures is a different design (the 128 x 64 case study: three press variations at most).
 7. **Remove before you shrink.**
    - A job screen leads with one figure, read from 50 cm, with its status and its softkeys. Nothing it showed or did moves to the web for want of room: every setting and action is on both the screen and the web, and only measured data or the hardware leaves one off (the owner, 2026-11-17; ADR-010's survey in `menu_design.md`). An earlier wording here ("Anything else moves to the web") cost the cleanup its weight, flow and gate.
    - **Why:** small-screen guidance says to relocate rather than shrink (Applied-EE), and the owner, 2026-11-17: "the information density is a bit on the higher side".
@@ -144,6 +147,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
   - The owner decides by seeing: send the sheet, not a description.
 - **Build to the mock-up,** then prove it on the unit:
   - `rc_run.py menu_tour --compare tests/menu_baseline/<board>` for the pages;
+  - `rc_run.py reach`: every element of every screen (the "<" title, each row that acts, a notes' button, the softkeys, the target's digits) reached by turning alone. A new kind of screen tells the console what it has (`@screen ... back`, `@row ... info`) so the test needs no change;
   - snaps of each job screen through its states: `rc_run.py send` with `snap` lines, decoded from the session's log; a charge with the simulated scale, the hopper empty.
   - A change meant to alter a screen saves its baseline again in the same commit.
 - **Look at every snap yourself:** overlaps, clipping and crowding show only in the picture.

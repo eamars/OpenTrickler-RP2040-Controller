@@ -26,7 +26,8 @@ ART_FIRST = ord("A")
 
 # The menu's icons (ADR-010, gate 5; the owner chose them from renders, 2026-11-17), each standing on the baseline.
 # U+E000: joined to a network as a station, signal bars always full (no strength: clearest on the small screen).
-# U+E001: the unit's own access point, a hotspot. Unicode's private use: LVGL draws nothing below U+0020
+# U+E001: the unit's own access point, a hotspot. Unicode's private use: LVGL draws nothing below U+0020.
+# U+E002: a choice page's current option (the owner chose it over a radio dot and over bold, 2026-11-17)
 ICONS = {
     0xE000: ["         ##",
            "         ##",
@@ -43,6 +44,12 @@ ICONS = {
            "# #  ###  # #",
            "#  #     #  #",
            " #         # "],
+    0xE002: ["      #",
+           "     ##",
+           "#   ## ",
+           "## ##  ",
+           " ###   ",
+           "  #    "],
 }
 
 

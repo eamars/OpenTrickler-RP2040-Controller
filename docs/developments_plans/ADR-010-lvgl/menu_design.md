@@ -66,7 +66,7 @@ The mini 12864 gives three inputs: the encoder's turn, its press, and the reset 
 - Each page remembers its focus.
 - **Softkeys are focused like rows** (the owner, 2026-11-17): the focused one is drawn in reverse. A dialog opens on its action, so one click goes on, but one that destroys (the factory reset) opens on Cancel. A job's new action is focused as it appears; with none (while a charge pours), Stop is. A cleanup starts paused, on Run; running, its turn sets the speed (through 0 into reverse) and a click pauses it, keeping the speed for Run.
 - **Numbers:** one editor for every number, digit by digit as today. Its digits, decimals and unit come from the field's own description (`settings.h`). The target gets 2 or 3 decimals from Decimals.
-- **Choices:** a list page with the current option marked. Enter picks it, stores it and goes back.
+- **Choices:** a list page of every option, the current one marked by a check at its right, the focus opening on it. A click picks one, stores it and goes back; Back leaves it as it was. Not bold, and not a "*": both too faint to see at a glance (the owner, 2026-11-17, from `mockups/choice_marks.png`, where a radio dot on every option was the other offer).
 - **Toggles:** Enter flips the value and stores it.
 - **Text:** never typed on the screen.
 
@@ -224,9 +224,9 @@ So the rule above is narrowed: **a setting is on the screen when it is needed at
 
 The rest is **T, tuning and building:** set once, against the throws' figures and charts the web shows, or by ADR-009's tuning.
 
-**What a change costs:** every detent and every click is one action, counted from the main menu at rest (`tools/ui_mock/knob_cost.py` computes it). Every value is edited **in place in its row**, with no editor screen, as the cleanup's speed:
+**What a change costs:** every detent and every click is one action, counted from the main menu at rest (`tools/ui_mock/knob_cost.py` computes it). A number is edited **in place in its row**, with no editor screen, as the cleanup's speed; a choice on **its own page**, where every option is seen (the owner, 2026-11-17: a choice turned through in its row is a blind selector):
 - a toggle: a click;
-- a choice: a click, the turn through the choices in the row (wrapping, so the shorter way), a click;
+- a choice: a click opens its page on the current option, the turn to the one wanted (the page does not wrap: its top is the "<" title), a click;
 - a stepped number: a click, a step a detent, a click; the field's description gives the screen's step;
 - the target's digits (the one value with a wide range and a fine resolution): the turn selects a digit, a click sets it, the turn sets its value, a click ends it, then the turn to Set and a click;
 - text: a click on "+", the turn through some 70 characters, a click, for each character.
@@ -236,7 +236,6 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 | Target, a small change | S | digits | 30.00 to 30.10 | 2 | 10 | 12 |
 | Target, a new load | S | digits | 24.35 to 42.00 | 2 | 27 | 29 |
 | Powder (8 profiles) | S | choice | 1 to 5 | 3 | 6 | 9 |
-| Powder details, to read | S | page |  | 4 | 1 | 5 |
 | Start a charge | S | action |  | 1 | 2 | 3 |
 | Zero, in a charge | S | action |  | 0 | 1 | 1 |
 | Stop, in a charge or cleanup (the reset button) | S | action |  | 0 | 1 | 1 |
@@ -244,7 +243,7 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 | Cleanup's gate, open or closed | S | toggle |  | 4 | 1 | 5 |
 | Cleanup's zero | S | action |  | 6 | 1 | 7 |
 | Cleanup's Stop, by the knob | S | action |  | 5 | 1 | 6 |
-| Scale's make (9) | W | choice | A&D to Sartorius | 6 | 4 | 10 |
+| Scale's make (9) | W | choice | A&D to Sartorius | 6 | 9 | 15 |
 | Scale's baud rate (3) | W | choice | 19200 to 9600 | 7 | 3 | 10 |
 | Scale's frame format (2) | W | choice | 8N1 to 7N1 | 8 | 3 | 11 |
 | Decimals (2) | W | choice | 2 to 3 | 9 | 3 | 12 |
@@ -272,7 +271,7 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 | Wi-Fi key, 12 characters | W | text | Trickle-2024 | 16 | 180 | 196 |
 | Update source, a URL | T | text | http://192.168.2.13:8080/a/b | 12 | 361 | 373 |
 
-*The paths follow the mock's tree (`knob_cost.py` names each page's rows in order); recounted 2026-11-17 after the mock was redrawn, and corrected to the firmware as built (the backlight's Green is its fifth colour; Wi-Fi's button is two turns away). Six changes were made on the unit by exactly these keys and checked through the API (gate 6's proof, progress.md).*
+*The paths follow the mock's tree (`knob_cost.py` names each page's rows in order); recounted 2026-11-17 after the mock was redrawn, and corrected to the firmware as built (the backlight's Green is its fifth colour; Wi-Fi's button is two turns away). Six changes were made on the unit by exactly these keys and checked through the API (gate 6's proof, progress.md). Recounted again when choices went back to their own pages, which do not wrap (the scale's make, 10 to 15), and Charge view set by its 14 on the unit.*
 
 **What it shows:**
 - Everything needed in a session, or to get the unit working without the web, costs 1 to 17 actions, but a new load's target and a large change of the coarse stop (29 each): a choice, a toggle, an action or a few steps, never deeper than three levels.
@@ -296,7 +295,7 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 - **A developer's, and too hard:** the update's source.
 
 **Bad designs the cost found in the mock:**
-- the number editor's own screen: every value is now edited in its row;
+- the number editor's own screen: every number is now edited in its row;
 - four levels deep (Settings › Powder profiles › a profile › Coarse trickler › Kp; Settings › Motors › Coarse › Driver › Current): the tuning pages are not on the screen;
 - a colour as three numbers of 0 to 255: a choice of named colours instead;
 - the text editor: no text at the knob;
@@ -317,9 +316,9 @@ The owner: "Make sure your mockup includes my comments about removal of informat
 | The powder's name, on the charge's bottom line | dropped | on the line under the weight: "of 30.00, AR2209" |
 | The target, in the title while it poured ("Target: 30.00") | kept as "of 30.00" | kept |
 | The charge's titles: "Waiting for Zero", "Remove Cup", "Return Cup" | "Waiting for zero", "Lift the cup", "Put the cup back" | "Zeroing", "Lift the cup", "Return the cup", "Paused": the ones short enough beside the time (73 px). "Waiting for zero" (81) and "Put the cup back" (82) are not |
-| The cleanup's weight, flow, speed and gate | the speed only | all four, the weight and flow on one line above Speed and Gate |
+| The cleanup's weight, flow, speed and gate | the speed only | all four, the weight and flow on one line above Speed and Gate; its title "< Cleanup" is Back as on every page, turned up to from Speed, and leaving ends the cleanup |
 | Settings › Servo Gate: Disable, Close, Open | gone (web only) | Settings › Servo gate: on or off, the shutters open or closed, and their ends |
-| Profile Details, two pages: the coarse and fine Kp, Ki, Kd; their minimum and maximum speeds; and the profile's revision and compatibility ("Rev:…,Comp:…") | gone (web only) | Charge › Powder details, read only: Coarse and Fine side by side, then the speeds, then the revision |
+| Profile Details, two pages: the coarse and fine Kp, Ki, Kd; their minimum and maximum speeds; and the profile's revision and compatibility ("Rev:…,Comp:…") | gone (web only) | left off. Built as Charge › Powder details, read only, then taken out: "If a setting cannot be changed then it shouldn't be here" (the owner, 2026-11-17). The gains are tuning, changed on the web and by ADR-009, so the page offered nothing to act on |
 | Wi-Fi's link status: down, joining, no IP, up, failed, no network, wrong key | "Joining" whatever the reason | the state in words: "Not joined", "Wrong key" |
 
 **Taken off with a reason on record, and left off:** the scale's calibration (the owner: no scale supports it), Save to EEPROM (D2: stored when confirmed), the knob's zero while the charge waits for the cup's return (a zero there starts a throw on the bare pan: found in the review of gate 4), and the Wireless menu's extra OK (the owner).

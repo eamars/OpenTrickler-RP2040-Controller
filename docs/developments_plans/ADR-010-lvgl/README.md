@@ -174,6 +174,11 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
    5. **The cleanup as one system:** the weight and the flow on one line, Speed set live and Gate toggled as rows, Stop and Zero as softkeys; no Run or Pause.
    6. **Wi-Fi:** why a join failed, in words; "Turn Wi-Fi off" (or on) at the end of its page.
    7. **The proof:** every screen by the knob from the console, each change's action count against `knob_cost.py`'s; `menu_tour` saved again as the baseline; `charge_cycle`, `api_check`, `settings_roundtrip`; the size report; LVGL's heap and the FreeRTOS heap's low mark through an HTTPS poll; the Pico 2 W built.
+   8. **The owner's review at the unit** (2026-11-17), which changes steps 2, 4 and 5:
+      - **Choices on their own page again,** the current option marked by a check at its right: "choices should have its own page ... while numbers stays in place". A choice turned through in its row was a blind selector; bold and the old "*" were too faint (the owner chose the check from [mockups/choice_marks.png](mockups/choice_marks.png)).
+      - **Powder details taken out:** "If a setting cannot be changed then it shouldn't be here." Its gains are tuning, set on the web and by ADR-009.
+      - **The cleanup's title is Back,** "< Cleanup", turned up to from Speed; leaving ends the cleanup. It could not be reached, the second break of the rule that every page's "<" title is reached by turning up.
+      - **One generic test that every element can be reached,** not a test per screen ("a generic test to test if all element can be reached"): `rc_run.py reach` turns through every page, every screen a row opens, the dialogs, a charge's screen and a cleanup's, and fails on a title, row, button, softkey or digit the knob does not reach.
 
 ## How the unit shows it works
 

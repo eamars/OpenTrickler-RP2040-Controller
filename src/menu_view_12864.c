@@ -28,7 +28,6 @@
 #define VIEW_LINE_H 11
 #define VIEW_LINES 4
 #define VIEW_LINE_WIDTH (VIEW_W - 3 - 5)        // a card's or notes' line, clear of the scroll bar
-#define VIEW_COLUMN 78                          // a two-column line's first column ends here
 // The charge's chart: its head on baseline 23, the chart from 26 to 51, the softkeys under it
 #define VIEW_CHART_HEAD_BASE 23
 #define VIEW_CHART_X 2
@@ -45,6 +44,7 @@
 // The regular font's icons (scripts/bdf2lvgl.py, ICONS), U+E000 and U+E001 in UTF-8
 #define VIEW_ICON_STATION "\xEE\x80\x80"
 #define VIEW_ICON_ACCESS_POINT "\xEE\x80\x81"
+#define VIEW_ICON_CHOSEN "\xEE\x80\x82"
 
 extern const lv_font_t menu_font_regular;
 extern const lv_font_t menu_font_bold;
@@ -338,7 +338,8 @@ static void view_list(const menu_screen_t *screen) {
         lv_obj_set_size(view_rows[idx], edge + 2, VIEW_ROW_H - 1);
         view_font(view_row_label[idx], &menu_font_regular);
         view_text(view_row_label[idx], screen->row_label[row]);
-        view_text(view_row_value[idx], screen->row_value[row]);
+        // A choice's current option: a check where a value stands
+        view_text(view_row_value[idx], screen->row_chosen[row] ? VIEW_ICON_CHOSEN : screen->row_value[row]);
         view_show(view_row_value[idx], true);      // a card hides it
         // A card uses these two for its columns, in bold on a heading: a list's are regular, and ">"
         view_font(view_row_value[idx], &menu_font_regular);
@@ -391,31 +392,15 @@ static void view_lines(const menu_screen_t *screen) {
         view_reverse(view_rows[idx], false, view_row_label[idx], view_row_value[idx], view_row_more[idx]);
         view_font(view_row_label[idx], screen->row_bold[line] ? &menu_font_bold : &menu_font_regular);
         view_text(view_row_label[idx], screen->row_label[line]);
-        // A key at the left, its value at the right; the key clipped short of the value. A value with a tab is two
-        // columns, the first ending at VIEW_COLUMN (Powder details: the coarse and the fine side by side)
+        // A key at the left, its value at the right; the key clipped short of the value
         const char *value = screen->row_value[line];
-        const char *tab = strchr(value, '\t');
-        const lv_font_t *value_font = screen->row_bold[line] ? &menu_font_bold : &menu_font_regular;
-        view_font(view_row_value[idx], value_font);
-        view_font(view_row_more[idx], value_font);
+        view_font(view_row_value[idx], &menu_font_regular);
         view_show(view_row_value[idx], value[0] != '\0');
-        view_show(view_row_more[idx], tab != NULL);
-        int value_w;
-        if (tab != NULL) {
-            char first[MENU_TEXT];
-            snprintf(first, sizeof(first), "%.*s", (int) (tab - value), value);
-            view_text(view_row_value[idx], first);
-            view_place(view_row_value[idx], VIEW_MARGIN, VIEW_COLUMN - VIEW_MARGIN, VIEW_LINE_H - 3);
-            view_text(view_row_more[idx], tab + 1);
-            view_place(view_row_more[idx], VIEW_COLUMN, VIEW_LINE_WIDTH + VIEW_MARGIN - VIEW_COLUMN, VIEW_LINE_H - 3);
-            value_w = VIEW_LINE_WIDTH - (VIEW_COLUMN - view_text_width(first, strlen(first), value_font)) + 6;
-        }
-        else {
-            value_w = value[0] != '\0' ? view_text_width(value, strlen(value), value_font) + 6 : 0;
-            if (value[0] != '\0') {
-                view_text(view_row_value[idx], value);
-                view_place(view_row_value[idx], VIEW_MARGIN, VIEW_LINE_WIDTH, VIEW_LINE_H - 3);
-            }
+        view_show(view_row_more[idx], false);
+        int value_w = value[0] != '\0' ? view_text_width(value, strlen(value), &menu_font_regular) + 6 : 0;
+        if (value[0] != '\0') {
+            view_text(view_row_value[idx], value);
+            view_place(view_row_value[idx], VIEW_MARGIN, VIEW_LINE_WIDTH, VIEW_LINE_H - 3);
         }
         view_place(view_row_label[idx], VIEW_MARGIN, VIEW_LINE_WIDTH - value_w, VIEW_LINE_H - 3);
     }
@@ -498,7 +483,7 @@ void menu_view_draw(const menu_screen_t *screen) {
     bool figure = screen->kind == MENU_SCREEN_EDIT || screen->kind == MENU_SCREEN_JOB;
     bool control = screen->kind == MENU_SCREEN_CONTROL;
 
-    view_title_and_marks(screen, (list || lines) && screen->focus < 0);
+    view_title_and_marks(screen, (list || lines || control) && screen->focus == -1);
     if (!list && !lines) {
         for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
             view_show(view_rows[idx], false);

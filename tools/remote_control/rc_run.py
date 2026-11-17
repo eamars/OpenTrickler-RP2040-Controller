@@ -1264,6 +1264,166 @@ class Session:
         self.log.write("rc", f"snap saved: {path}")
         return path
 
+    # --- Every element reachable (ADR-010, gate 6; the owner: "a generic test to test if all element can be reached")
+
+    def screen_now(self):
+        """
+        The screen as the console gives it, parsed.
+
+        Returns:
+            A dict: id, kind, focus, back (the title is Back), rows (each: label, info, opens, bold), button (or None),
+            reached, at (the editor's digit, or -1), figure, left and right (the softkeys' texts) and softkey (left,
+            right or None).
+        """
+        self.send("screen")
+        out = {"id": "", "kind": "", "focus": -1, "back": False, "rows": [], "lines": 0, "button": None, "reached": False,
+               "at": -1, "figure": "", "left": "", "right": "", "softkey": None}
+        for line in self.console.data_lines:
+            if line.startswith("@screen "):
+                out["id"] = re.search(r"id=(\S+)", line).group(1)
+                out["kind"] = re.search(r"kind=(\S+)", line).group(1)
+                out["focus"] = int(re.search(r"focus=(-?\d+)", line).group(1))
+                out["back"] = line.endswith(" back")
+            elif line.startswith("@row "):
+                out["rows"].append({"label": re.search(r'label="([^"]*)"', line).group(1),
+                                    "info": line.endswith(" info") or " info " in line,
+                                    "opens": " opens" in line})
+            elif line.startswith("@line "):
+                out["lines"] += 1
+            elif line.startswith("@button "):
+                out["button"] = re.search(r'"([^"]*)"', line).group(1)
+                out["reached"] = line.endswith(" reached")
+            elif line.startswith("@figure "):
+                out["figure"] = re.search(r'"([^"]*)"', line).group(1)
+                out["at"] = int(re.search(r"at=(-?\d+)", line).group(1))
+            elif line.startswith("@softkeys "):
+                out["left"] = re.search(r'left="([^"]*)"', line).group(1)
+                out["right"] = re.search(r'right="([^"]*)"', line).group(1)
+                found = re.search(r"focus=(left|right)", line)
+                out["softkey"] = found.group(1) if found else None
+        return out
+
+    def element_of(self, screen):
+        """What has the focus: "title", "row<n>", "button", "left", "right", "digit<n>", or None."""
+        if screen["softkey"] is not None:
+            return screen["softkey"]
+        if screen["kind"] == "edit":
+            return f"digit{screen['at']}" if screen["at"] >= 0 else None
+        if screen["focus"] == -1 and screen["back"]:
+            return "title"
+        if screen["kind"] == "notes" and screen["reached"]:
+            return "button"
+        if screen["kind"] in ("list", "control") and 0 <= screen["focus"] < len(screen["rows"]):
+            return f"row{screen['focus']}"
+        return None
+
+    def elements_of(self, screen):
+        """Every element the screen shows that the knob must reach."""
+        wanted = set()
+        if screen["back"]:
+            wanted.add("title")
+        if screen["kind"] in ("list", "control"):
+            wanted |= {f"row{idx}" for idx, row in enumerate(screen["rows"]) if not row["info"]}
+        if screen["kind"] == "notes" and screen["button"]:
+            wanted.add("button")
+        if screen["kind"] == "edit":
+            wanted |= {f"digit{idx}" for idx, char in enumerate(screen["figure"]) if char.isdigit()}
+        if screen["left"]:
+            wanted.add("left")
+        if screen["right"]:
+            wanted.add("right")
+        return wanted
+
+    def press_and_read(self, key, times=1):
+        self.send(f"press {key} {times}")
+        time.sleep(0.25)
+        return self.screen_now()
+
+    def sweep(self, what):
+        """
+        Turn the screen open now to its top, then down a detent at a time, noting what has the focus: every element
+        it shows must be reached. Only turns: nothing is clicked, so nothing changes or starts.
+
+        Args:
+            what: how the screen was reached, for the log.
+
+        Returns:
+            The screen as it was found.
+        """
+        screen = self.screen_now()
+        wanted = self.elements_of(screen)
+        steps = len(wanted) + len(screen["rows"]) + screen["lines"] + len(screen["figure"]) + 3
+        seen = set()
+        state = self.press_and_read("ccw", steps)
+        seen.add(self.element_of(state))
+        for _ in range(steps):
+            state = self.press_and_read("cw")
+            seen.add(self.element_of(state))
+        missing = wanted - seen
+        name = f"{screen['id']} ({what})"
+        if missing:
+            self.fail(f"reach: {name}: not reached: {' '.join(sorted(missing))}")
+        else:
+            self.log.write("rc", f"reach: {name}: every element reached: {' '.join(sorted(wanted))}")
+        return screen
+
+    def reach(self):
+        """
+        Every page by its id, every screen a page's row opens (its choices, the target's editor, its pages, its
+        dialogs: opened by a click, left by Back), and the charge's and the cleanup's screens (a simulated charge, a
+        cleanup at speed 0): each turned through by sweep(). Nothing is chosen, set or started but those two jobs,
+        which are stopped.
+        """
+        reply = self.send("screen list")
+        if reply is None or not reply.startswith("@ok screen"):
+            self.fail(f"the menu gives no pages: {reply}")
+            return
+        page_ids = [line.split(" ", 1)[1] for line in self.console.data_lines if line.startswith("@page ")]
+        for page_id in page_ids:
+            self.send(f"screen {page_id}")
+            screen = self.sweep(f"page {page_id}")
+            if screen["kind"] != "list":
+                continue
+            for idx, row in enumerate(screen["rows"]):
+                if not row["opens"]:
+                    continue
+                # To the row, from the title: a detent at a time, then a click opens what it opens
+                self.send(f"screen {page_id}")
+                state = self.press_and_read("ccw", len(screen["rows"]) + 2)
+                for _ in range(len(screen["rows"]) + 2):
+                    if state["focus"] == idx:
+                        break
+                    state = self.press_and_read("cw")
+                if state["focus"] != idx:
+                    self.fail(f"reach: {page_id}: row {idx} ({row['label']}) not reached to open")
+                    continue
+                self.press_and_read("enc")
+                self.sweep(f"{page_id}, row {row['label']}")
+                self.send("press rst 1")
+                time.sleep(0.25)
+        # The jobs: a simulated charge, then a cleanup at speed 0, each stopped
+        self.send("sim on")
+        self.send("charge 30")
+        time.sleep(1.0)
+        self.sweep("a charge, zeroing")
+        self.send("charge stop")
+        # The simulated scale is switched off once the charge has ended: refused while it runs
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            reply = self.console.command("sim off")
+            if reply is not None and reply.startswith("@ok"):
+                break
+            time.sleep(0.5)
+        else:
+            self.fail("reach: the simulated scale could not be switched off after the charge")
+        self.send("screen ack/cleanup")
+        self.press_and_read("enc")
+        time.sleep(0.5)
+        self.sweep("a cleanup at speed 0")
+        self.send("press rst 1")
+        time.sleep(0.5)
+        self.send("screen main")
+
     def menu_tour(self, save_dir, compare_dir):
         """
         Open every page of the menu in turn by its id and snap it, pressing nothing, so no setting changes and
@@ -3035,6 +3195,7 @@ def main():
     watch_parser = sub.add_parser("watch", help="log the console for a time")
     watch_parser.add_argument("seconds", type=float)
     sub.add_parser("snap", help="save the screen as a PNG under logs/rc/snaps/")
+    sub.add_parser("reach", help="every element of every screen reached by the knob, turning only")
     tour_parser = sub.add_parser("menu_tour", help="snap every page of the menu, pressing nothing")
     tour_parser.add_argument("--save", help="keep the pictures in this folder")
     tour_parser.add_argument("--compare", help="fail on a form missing from, or differing from, this folder")
@@ -3145,6 +3306,8 @@ def run_command(session, args):
                 session.send(line)
     elif args.command == "snap":
         session.save_snap(LOG_DIR / "snaps" / f"{session.log.path.stem}.png")
+    elif args.command == "reach":
+        session.reach()
     elif args.command == "menu_tour":
         session.menu_tour(args.save, args.compare)
     elif args.command == "charge_cycle":

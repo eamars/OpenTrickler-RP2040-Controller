@@ -5,8 +5,9 @@ detent or a click) from the main menu at rest, as `knob_cost.py` counts them.
 
     venv\\Scripts\\python tools\\ui_mock\\parity_12864.py [--out <folder>]
 
-Every value is edited in its row: a click, the turn, a click; the value in reverse while it is set. The target alone
-keeps its screen of digits, the old menu's. Drawn with menu_12864.py's faces, grid and parts.
+A number is edited in its row: a click, the turn, a click; the value in reverse while it is set. A choice opens its
+own page, every option with the current one checked (the owner, 2026-11-17). The target alone keeps its screen of
+digits, the old menu's. Drawn with menu_12864.py's faces, grid and parts.
 """
 import argparse
 import sys
@@ -16,6 +17,8 @@ import menu_12864 as m
 from panel import Panel, W, write_sheet
 
 LIST_ROWS = 4
+# A choice's current option (scripts/bdf2lvgl.py, ICONS, U+E002)
+CHECK = ["      #", "     ##", "#   ## ", "## ##  ", " ###   ", "  #    "]
 
 
 def rows(panel, items, focus, first=0, total=None, editing=False, top=None, shown=LIST_ROWS):
@@ -57,6 +60,39 @@ def rows(panel, items, focus, first=0, total=None, editing=False, top=None, show
     m.scrollbar(panel, first, shown, total, top=top)
 
 
+def choice_page(panel, title, options, now, focus, first=0):
+    """
+    A choice's own page: its options, the current one with a check at its right.
+
+    Args:
+        panel: the Panel.
+        title: the setting's label.
+        options: every option.
+        now: the current option's index.
+        focus: the focused option's index.
+        first: the first option shown.
+    """
+    m.title(panel, title, back=True)
+    shown = options[first:first + LIST_ROWS]
+    edge = W - 5 if len(options) > LIST_ROWS else W - 3
+    for idx, label in enumerate(shown):
+        row_top = m.CONTENT_TOP + idx * m.ROW_H
+        reverse = first + idx == focus
+        if reverse:
+            panel.rect(0, row_top, edge + 2, m.ROW_H - 1)
+        panel.text(m.TEXT, 3, row_top + m.ROW_BASE, label, lit=not reverse)
+        if first + idx == now:
+            panel.icon(edge - 7, row_top + 3, CHECK, lit=not reverse)
+    m.scrollbar(panel, first, LIST_ROWS, len(options))
+
+
+def title_focused(panel, text):
+    """The "<" title with the focus: in reverse, a click goes back."""
+    width = m.BOLD.width("< " + text) + 3
+    panel.rect(0, 0, width, m.RULE_Y - 1)
+    panel.text(m.BOLD, 1, m.TITLE_BASE, "< " + text, lit=False)
+
+
 def digits_editor(panel, text, focus, editing, unit=""):
     """
     The target's screen: its digits with the focused one underlined, or in reverse while it is set.
@@ -83,17 +119,19 @@ def digits_editor(panel, text, focus, editing, unit=""):
 
 def cleanup(panel, speed, weight, flow, gate, focus, editing=False, title="Cleanup"):
     """
-    The cleanup's screen: its weight and flow on one line to read, then Speed and Gate as rows, and Stop and Zero as
-    its softkeys. The turn goes Speed, Gate, Stop, Zero.
+    The cleanup's screen: its "<" title, as every page's; its weight and flow on one line to read, then Speed and Gate
+    as rows, and Stop and Zero as its softkeys. The turn goes the title, Speed, Gate, Stop, Zero.
 
     Args:
         panel: the Panel.
         speed, weight, flow, gate: the values shown.
-        focus: "speed", "gate", "stop" or "zero".
+        focus: "title", "speed", "gate", "stop" or "zero".
         editing: whether the speed is being set.
         title: its status.
     """
-    m.title(panel, title)
+    m.title(panel, title, back=True)
+    if focus == "title":
+        title_focused(panel, title)
     panel.text(m.TEXT, 3, m.CONTENT_TOP + m.DENSE_BASE, weight)
     panel.text(m.TEXT, 0, m.CONTENT_TOP + m.DENSE_BASE, flow, align="right", right=W - 3)
     order = {"speed": 0, "gate": 1}
@@ -134,25 +172,13 @@ def screens():
 
     # --- A session: the charge
     p = Panel(); m.title(p, "Charge", back=True)
-    rows(p, [("Start", "", False), ("Target", "30.00 gr", True), ("Powder", "AR2209", False),
-             ("Powder details", "", True)], 2)
-    add(p, "Charge: Powder, a click to set")
+    rows(p, [("Start", "", False), ("Target", "30.00 gr", True), ("Powder", "AR2209", True)], 2)
+    add(p, "Charge: Powder opens its page")
 
-    p = Panel(); m.title(p, "Charge", back=True)
-    rows(p, [("Start", "", False), ("Target", "30.00 gr", True), ("Powder", "Varget", False),
-             ("Powder details", "", True)], 2, editing=True)
-    add(p, "Powder set in place: 9 actions")
-
-    p = Panel(); m.title(p, "AR2209", back=True)
-    lines = [("", "Coarse", "Fine"), ("Kp", "0.025", "0.040"), ("Ki", "0.000", "0.000"), ("Kd", "0.300", "0.150")]
-    for idx, (key, coarse, fine) in enumerate(lines):
-        base = m.CONTENT_TOP + idx * m.DENSE_H + m.DENSE_BASE
-        font = m.BOLD if idx == 0 else m.TEXT
-        p.text(font, 3, base, key)
-        p.text(font, 0, base, coarse, align="right", right=78)
-        p.text(font, 0, base, fine, align="right", right=W - 6)
-    m.scrollbar(p, 0, 4, 6)
-    add(p, "Restored: the old Profile details, read only")
+    p = Panel()
+    choice_page(p, "Powder", ["AR2206H", "AR2208", "AR2209", "Varget", "H4350", "N140", "N150", "IMR4064"], 2, 4,
+                first=2)
+    add(p, "Powder, its page: 9 actions")
 
     p = Panel(); m.title(p, "Target")
     digits_editor(p, "030.00", 4, False, "gr")
@@ -212,6 +238,9 @@ def screens():
     p = Panel(); cleanup(p, "3.0 rev/s", "14.02 gr", "0.21 gr/s", "Open", "stop", title="Cleanup: running")
     add(p, "Stop: the reset button 1, the knob 6")
 
+    p = Panel(); cleanup(p, "3.0 rev/s", "14.02 gr", "0.21 gr/s", "Open", "title")
+    add(p, "Back: the title, up from Speed; ends it")
+
     # --- Settings: what the unit needs without the web
     p = Panel(); m.title(p, "Settings", back=True)
     rows(p, [("Scale", "", True), ("Charge", "", True), ("Display", "", True), ("Servo gate", "", True)], 0,
@@ -224,13 +253,18 @@ def screens():
     add(p, "Settings, its end")
 
     p = Panel(); m.title(p, "Scale", back=True)
-    rows(p, [("Reading", "24.35 gr", False), ("Zero", "", False), ("Make", "Sartorius", False),
-             ("Baud rate", "19200", False)], 2, total=6, editing=True)
-    add(p, "Make set in place: 10")
+    rows(p, [("Reading", "24.35 gr", False), ("Zero", "", False), ("Make", "A&D FX-i", True),
+             ("Baud rate", "19200", True)], 2, total=6)
+    add(p, "Scale: each choice opens its page")
+
+    p = Panel()
+    choice_page(p, "Make", ["A&D FX-i", "Jennings", "Steinberg", "Ohaus", "Kern", "Radwag", "Creedmoor",
+                            "Sartorius", "G&G"], 0, 7, first=5)
+    add(p, "Make, its page: 15")
 
     p = Panel(); m.title(p, "Scale", back=True)
-    rows(p, [("Make", "A&D FX-i", False), ("Baud rate", "19200", False), ("Frame format", "8N1", False),
-             ("Decimals", "2", False)], 2, first=2, total=6)
+    rows(p, [("Make", "A&D FX-i", True), ("Baud rate", "19200", True), ("Frame format", "8N1", True),
+             ("Decimals", "2", True)], 2, first=2, total=6)
     add(p, "Frame format 11, decimals 12")
 
     p = Panel(); m.title(p, "Charge", back=True)
@@ -243,18 +277,17 @@ def screens():
     add(p, "A refused change")
 
     p = Panel(); m.title(p, "Display", back=True)
-    rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", False),
-             ("Backlight", "White", False)], 1, total=5)
+    rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", True),
+             ("Backlight", "White", True)], 1, total=5)
     add(p, "Invert screen, a click: 9")
 
-    p = Panel(); m.title(p, "Display", back=True)
-    rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", False),
-             ("Backlight", "Green", False)], 3, total=5, editing=True)
+    p = Panel()
+    choice_page(p, "Backlight", ["White", "Red", "Orange", "Yellow", "Green", "Cyan", "Blue", "Magenta"], 0, 4,
+                first=2)
     add(p, "Backlight, 8 named colours: 16")
 
-    p = Panel(); m.title(p, "Display", back=True)
-    rows(p, [("Invert screen", "On", False), ("Rotation", "Upside down", False), ("Backlight", "White", False),
-             ("Charge view", "Chart", False)], 3, first=1, total=5, editing=True)
+    p = Panel()
+    choice_page(p, "Charge view", ["Weight", "Chart"], 0, 1)
     add(p, "Charge view, weight or chart: 14")
 
     p = Panel(); m.title(p, "Servo gate", back=True)
@@ -272,9 +305,9 @@ def screens():
     add(p, "A motor's direction, a click: 11")
 
     p = Panel(); m.title(p, "Firmware", back=True)
-    rows(p, [("Unit", "9CE00000", False), ("Build", "Release", False), ("Channel", "Stable", False),
+    rows(p, [("Unit", "9CE00000", False), ("Build", "Release", False), ("Channel", "Stable", True),
              ("Check for update", "", False)], 2, first=3, total=7)
-    add(p, "Channel set in place: 13")
+    add(p, "Channel opens its page: 13")
 
     p = Panel(); m.title(p, "Factory reset")
     m.message(p, "Erase every setting?", "It cannot be undone")

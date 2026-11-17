@@ -66,6 +66,8 @@ typedef struct {
     char row_value[MENU_ROWS_MAX][MENU_TEXT];
     bool row_opens[MENU_ROWS_MAX];          // opens a page, a list or the editor
     bool row_bold[MENU_ROWS_MAX];           // a heading, on notes
+    bool row_chosen[MENU_ROWS_MAX];         // a choice's current option, marked
+    bool row_info[MENU_ROWS_MAX];           // a row only to read: the focus passes it
     int8_t focus;
     uint8_t first;
 
