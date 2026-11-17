@@ -45,6 +45,7 @@ typedef enum {
     MENU_SCREEN_NOTES,
     MENU_SCREEN_EDIT,
     MENU_SCREEN_JOB,
+    MENU_SCREEN_CONTROL,    // a job of rows (the cleanup): a line to read (row 0), rows set in place, softkeys
 } menu_screen_kind_t;
 
 // What is on screen, in words: what a view draws and the console prints

@@ -822,3 +822,16 @@ the charge mode, every call to hello should trigger the animation, regardless of
 - **Proven on the Pico W:** a simulated charge with Charge view on Chart, snapped at 4.6 s, 13.2 s and after the
   throw ([charge_chart.png](charge_chart.png)): the curve, the target's dots, "Good" in the head after it; Charge
   view back on Weight; `menu_tour` and `charge_cycle` pass. Flash 978.1 KB of 1,016; RAM at link 252.5 KB of 256.
+
+## Gate 6, step 5: the cleanup as one system (2026-11-17)
+
+- **Built:** the cleanup's screen is a job of rows (`MENU_SCREEN_CONTROL`, `control` at the console): its weight and
+  flow on one line to read; Speed, set live by a click, the turn (1 rev/s a detent, through 0 into reverse; 0 stands
+  still) and a click; Gate, opened or closed by a click as the API does (refused when off or in a throw); Stop and
+  Zero as softkeys. The knob goes Speed, Gate, Stop, Zero. The reset button stops it, while the speed is set too.
+  No Run and no Pause. The flow is the weight's change over a second or more (the old screen's, over 20 ms, jumped
+  about).
+- **Proven on the Pico W, by the knob:** the cleanup started through its cup check, Speed set to 2.0 live (the API:
+  running at 2), the gate refused ("Not moved: the gate is off"), Stop and Zero reached, Stop ending it; with the
+  simulated scale the weight and the flow shown, the speed set to 3, and the reset button during the setting
+  stopping it ([cleanup_screen.png](cleanup_screen.png)). `menu_tour`, `charge_cycle` and `api_check` pass.

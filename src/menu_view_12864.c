@@ -84,6 +84,7 @@ static lv_obj_t *view_softkey_box;
 static lv_obj_t *view_softkey_right;
 static void view_visit_create(lv_obj_t *screen);
 static void view_chart_draw(const menu_screen_t *screen, bool shown);
+static void view_control(const menu_screen_t *screen);
 static uint32_t view_version = 0;
 static int view_first = 0;                      // a list's first row shown
 
@@ -495,6 +496,7 @@ void menu_view_draw(const menu_screen_t *screen) {
     bool lines = screen->kind == MENU_SCREEN_CARD || screen->kind == MENU_SCREEN_NOTES;
     bool dialog = screen->kind == MENU_SCREEN_DIALOG;
     bool figure = screen->kind == MENU_SCREEN_EDIT || screen->kind == MENU_SCREEN_JOB;
+    bool control = screen->kind == MENU_SCREEN_CONTROL;
 
     view_title_and_marks(screen, (list || lines) && screen->focus < 0);
     if (!list && !lines) {
@@ -516,7 +518,7 @@ void menu_view_draw(const menu_screen_t *screen) {
         view_show(view_cursor, false);
         view_show(view_edit_box, false);
     }
-    if (!dialog && !figure) {
+    if (!dialog && !figure && !control) {
         view_show(view_softkey_left_box, false);
         view_show(view_softkey_box, false);
     }
@@ -530,13 +532,56 @@ void menu_view_draw(const menu_screen_t *screen) {
     else if (dialog) {
         view_dialog(screen);
     }
+    else if (control) {
+        view_control(screen);
+    }
     else {
         view_figure_and_unit(screen);
     }
     view_chart_draw(screen, figure && screen->chart);
-    if (dialog || figure) {
+    if (dialog || figure || control) {
         view_softkeys(screen);
     }
+}
+
+
+/*
+ * A job of rows (the cleanup): its row 0 a line to read (the weight left, the flow right) under the title, then its
+ * rows of 13 px, the focused one in reverse, a value being set in reverse in its plain row; the softkeys under them
+ */
+static void view_control(const menu_screen_t *screen) {
+    int edge = VIEW_W - VIEW_MARGIN;
+    for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
+        bool shown = idx < screen->row_count;
+        view_show(view_rows[idx], shown);
+        if (!shown) {
+            continue;
+        }
+        int top = idx == 0 ? VIEW_CONTENT_TOP : VIEW_CONTENT_TOP + VIEW_LINE_H + (idx - 1) * VIEW_ROW_H;
+        int base = idx == 0 ? VIEW_LINE_H - 3 : 9;
+        lv_obj_set_pos(view_rows[idx], 0, top);
+        lv_obj_set_size(view_rows[idx], VIEW_W, idx == 0 ? VIEW_LINE_H : VIEW_ROW_H - 1);
+        view_font(view_row_label[idx], &menu_font_regular);
+        view_font(view_row_value[idx], &menu_font_regular);
+        view_text(view_row_label[idx], screen->row_label[idx]);
+        view_text(view_row_value[idx], screen->row_value[idx]);
+        view_show(view_row_value[idx], true);
+        view_show(view_row_more[idx], false);
+        bool setting = idx == screen->focus && screen->editing;
+        int value_w = view_text_width(screen->row_value[idx], strlen(screen->row_value[idx]), &menu_font_regular);
+        if (setting) {
+            view_place(view_row_value[idx], edge - value_w - 3, value_w + 4, base);
+        }
+        else {
+            view_place(view_row_value[idx], 40, edge - 40, base);
+        }
+        view_place(view_row_label[idx], VIEW_MARGIN, edge - VIEW_MARGIN - (value_w > 0 ? value_w + 3 : 0), base);
+        view_reverse(view_rows[idx], idx == screen->focus && !setting, view_row_label[idx],
+                     setting ? NULL : view_row_value[idx], NULL);
+        view_value_reverse(view_row_value[idx], setting);
+    }
+    view_show(view_track, false);
+    view_show(view_thumb, false);
 }
 
 

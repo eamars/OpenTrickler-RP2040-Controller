@@ -118,8 +118,6 @@ typedef struct {
     int8_t edit_choice;                 // FRAME_PAGE, a choice being set: the one shown
     char edit_was[16];                  // FRAME_PAGE, a number being set: its value before, for Back
     uint8_t action_seen;                // FRAME_JOB, the charge: its action when last drawn, so a new one is focused
-    bool cleanup_paused;                // FRAME_JOB, the cleanup: paused by a click (or not yet run)
-    float cleanup_speed;                // FRAME_JOB, the cleanup: the speed Run resumes at
 } frame_t;
 
 static frame_t frames[MENU_FRAMES_MAX];
@@ -931,6 +929,33 @@ static void chart_sample(void) {
 }
 
 
+// The cleanup's flow: the weight's change over a second or more (the old screen's, over 20 ms, jumped about)
+static float flow_weight = NAN;
+static uint32_t flow_ms = 0;
+static float flow_per_s = NAN;
+
+
+static void flow_sample(void) {
+    float weight = scale_get_current_measurement();
+    uint32_t now_ms = (uint32_t) (xTaskGetTickCount() * portTICK_PERIOD_MS);
+    if (!isfinite(weight)) {
+        flow_weight = NAN;
+        flow_per_s = NAN;
+        return;
+    }
+    if (!isfinite(flow_weight)) {
+        flow_weight = weight;
+        flow_ms = now_ms;
+        return;
+    }
+    if (now_ms - flow_ms >= 1000u) {
+        flow_per_s = (weight - flow_weight) * 1000.0f / (float) (now_ms - flow_ms);
+        flow_weight = weight;
+        flow_ms = now_ms;
+    }
+}
+
+
 static bool chart_chosen(void) {
     char view[12];
     return settings_read_text("settings/display", "charge_view", view, sizeof(view)) && strcmp(view, "chart") == 0;
@@ -1471,9 +1496,75 @@ static const char *job_action_name(job_action_t action) {
 }
 
 
-// Whether the cleanup's screen is paused: by a click (or not yet run), and still at a standstill
-static bool cleanup_is_paused(const frame_t *frame, const cleanup_status_t *cleanup) {
-    return frame->cleanup_paused && cleanup->speed_rps == 0.0f;
+// The cleanup's focus: its rows, then its softkeys
+enum {
+    CLEANUP_SPEED = 0,
+    CLEANUP_GATE,
+    CLEANUP_STOP,
+    CLEANUP_ZERO,
+};
+
+
+/*
+ * The cleanup as one system (ADR-010, gate 6): one value, the speed, set live by a click, the turn (1 rev/s a
+ * detent, through 0 into reverse; 0 stands still) and a click; the gate opened or closed by a click, as the API does;
+ * Stop; Zero. The reset button stops it, while the speed is set too
+ */
+static const char *gate_move(gate_ratio_t ratio);
+
+static void cleanup_key(frame_t *frame, menu_key_t key) {
+    cleanup_status_t cleanup;
+    cleanup_mode_get_status(&cleanup);
+    if (strcmp(cleanup.state, "fault") == 0) {
+        // Stop and OK, which both end it: the knob moves between them
+        if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            frame->softkey = key == MENU_KEY_NEXT ? 1 : 0;
+        }
+        else {
+            activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_BUTTON);     // acknowledged
+        }
+        return;
+    }
+    if (key == MENU_KEY_BACK) {
+        activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_BUTTON);
+        return;
+    }
+    if (frame->editing) {
+        if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            cleanup_mode_set_speed(cleanup.speed_rps + (key == MENU_KEY_NEXT ? 1.0f : -1.0f), NAN);
+        }
+        else {
+            frame->editing = false;
+        }
+        return;
+    }
+    if (key == MENU_KEY_NEXT) {
+        frame->focus = (int8_t) (frame->focus < CLEANUP_ZERO ? frame->focus + 1 : CLEANUP_ZERO);
+        return;
+    }
+    if (key == MENU_KEY_PREV) {
+        frame->focus = (int8_t) (frame->focus > CLEANUP_SPEED ? frame->focus - 1 : CLEANUP_SPEED);
+        return;
+    }
+    switch (frame->focus) {
+        case CLEANUP_SPEED:
+            frame->editing = true;
+            break;
+        case CLEANUP_GATE: {
+            const char *why = gate_move(servo_gate.gate_state == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED :
+                                        SERVO_GATE_RATIO_OPEN);
+            if (why != NULL) {
+                push_message("Not moved", why, NULL);
+            }
+            break;
+        }
+        case CLEANUP_STOP:
+            activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_BUTTON);
+            break;
+        default:
+            scale_ask_zero();
+            break;
+    }
 }
 
 
@@ -1490,39 +1581,12 @@ static void job_key(frame_t *frame, menu_key_t key) {
         }
         return;
     }
-    if (key == MENU_KEY_BACK || (key == MENU_KEY_ENTER && frame->softkey == 0)) {
-        activity_request_stop(frame->job, ACTIVITY_BY_BUTTON);
+    if (frame->job == ACTIVITY_CLEANUP) {
+        cleanup_key(frame, key);
         return;
     }
-
-    if (frame->job == ACTIVITY_CLEANUP) {
-        cleanup_status_t cleanup;
-        cleanup_mode_get_status(&cleanup);
-        bool fault = strcmp(cleanup.state, "fault") == 0;
-        if (fault || cleanup_is_paused(frame, &cleanup)) {
-            // Stop and OK (a fault's, which stops too) or Run: the knob moves between them
-            if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
-                frame->softkey = key == MENU_KEY_NEXT ? 1 : 0;
-            }
-            else if (fault) {
-                activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_BUTTON);     // acknowledged
-            }
-            else {
-                frame->cleanup_paused = false;
-                cleanup_mode_set_speed(frame->cleanup_speed, NAN);
-            }
-        }
-        else if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
-            // Running: the turn sets the speed, through 0 and on into reverse, until stopped, as a person's
-            cleanup_mode_set_speed(cleanup.speed_rps + (key == MENU_KEY_NEXT ? 1.0f : -1.0f), NAN);
-        }
-        else {
-            // Pause: the speed kept for Run (1 rev/s when it was turned down to 0), the focus on Run
-            frame->cleanup_speed = cleanup.speed_rps != 0.0f ? cleanup.speed_rps : 1.0f;
-            frame->cleanup_paused = true;
-            frame->softkey = 1;
-            cleanup_mode_set_speed(0.0f, NAN);
-        }
+    if (key == MENU_KEY_BACK || (key == MENU_KEY_ENTER && frame->softkey == 0)) {
+        activity_request_stop(frame->job, ACTIVITY_BY_BUTTON);
         return;
     }
 
@@ -1835,8 +1899,7 @@ void menu_nav_job_begun(activity_t job) {
     frame->job = job;
     frame->softkey = 1;
     frame->action_seen = UINT8_MAX;         // none seen: the first is focused
-    frame->cleanup_paused = true;           // a cleanup starts still: Run, or Stop
-    frame->cleanup_speed = 1.0f;
+    frame->focus = 0;                       // the cleanup: Speed
 }
 
 
@@ -1858,6 +1921,7 @@ void menu_nav_job_ended(uint8_t exit_form) {
 
 void menu_nav_refresh(void) {
     chart_sample();
+    flow_sample();
     // What was opened over the charge's screen between throws (its target, its powder, a message) is for the next
     // throw only: when a throw begins it closes, so the next Back reaches the charge and stops it (review of gate 4)
     int job_idx = -1;
@@ -2191,24 +2255,37 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
     if (frame->job == ACTIVITY_CLEANUP) {
         cleanup_status_t cleanup;
         cleanup_mode_get_status(&cleanup);
+        screen->kind = MENU_SCREEN_CONTROL;
         snprintf(screen->id, sizeof(screen->id), "job/cleanup");
         bool fault = strcmp(cleanup.state, "fault") == 0;
         bool running = cleanup.speed_rps != 0.0f;
         snprintf(screen->title, sizeof(screen->title), "%s", fault ? cleanup_mode_get_title() :
                                                              (running ? "Cleanup: running" : "Cleanup"));
-        snprintf(screen->figure, sizeof(screen->figure), "%.1f", (double) cleanup.speed_rps);
-        snprintf(screen->unit, sizeof(screen->unit), "rev/s");
-        // Running, the turn sets the speed and a click pauses; paused (or not yet run), the knob moves between Stop
-        // and Run. A speed set from elsewhere runs it
-        if (running) {
-            frame->cleanup_paused = false;
+        // The weight and the flow to read; Speed and Gate set at the knob
+        char weight[16];
+        char text[MENU_TEXT];
+        format_weight(scale_get_current_measurement(), weight, sizeof(weight));
+        snprintf(text, sizeof(text), "%s%s%s", weight, unit_text()[0] != '\0' ? " " : "", unit_text());
+        char flow[MENU_TEXT] = "";
+        if (isfinite(flow_per_s)) {
+            snprintf(flow, sizeof(flow), "%.2f%s%s/s", (double) flow_per_s, unit_text()[0] != '\0' ? " " : "",
+                     unit_text());
         }
-        bool paused = !fault && cleanup_is_paused(frame, &cleanup);
-        if (!fault && !paused) {
-            frame->softkey = 1;
+        screen_row(screen, text, flow, false);
+        snprintf(text, sizeof(text), "%.1f rev/s", (double) cleanup.speed_rps);
+        screen_row(screen, "Speed", text, false);
+        screen_row(screen, "Gate", servo_gate.gate_state == GATE_OPEN ? "Open" :
+                                   (servo_gate.gate_state == GATE_CLOSE ? "Closed" : "Off"), false);
+        if (fault) {
+            snprintf(screen->softkey_right, MENU_TEXT, "OK");
+            screen->softkey_focus = frame->softkey;
+            screen->focus = -1;
+            return;
         }
-        snprintf(screen->softkey_right, MENU_TEXT, "%s", fault ? "OK" : (paused ? "Run" : "Pause"));
-        screen->softkey_focus = frame->softkey;
+        snprintf(screen->softkey_right, MENU_TEXT, "Zero");
+        screen->focus = (int8_t) (frame->focus <= CLEANUP_GATE ? frame->focus + 1 : -1);
+        screen->softkey_focus = (int8_t) (frame->focus == CLEANUP_STOP ? 0 : (frame->focus == CLEANUP_ZERO ? 1 : -1));
+        screen->editing = frame->editing;
         return;
     }
 
