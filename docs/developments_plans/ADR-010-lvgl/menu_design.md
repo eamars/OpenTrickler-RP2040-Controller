@@ -302,6 +302,25 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 - **The profiles' names stay on the web.** The screen chooses a profile by the name the web gave it, or "Profile n". A list of known powders (about 15 actions) was offered, and declined.
 - **A motor's current stays on the web,** with the rest of the build settings: a wrong current can overheat a driver.
 
+### What the rebuild took off the screen, and where the mock puts it back
+
+The owner: "Make sure your mockup includes my comments about removal of information since LVGL change, for example the charge mode refactor without justification." Read from the firmware before the rebuild (17316b8: `mui_menu.c`, and the charge's, the cleanup's and Wi-Fi's own screens). The mock is [mockups/parity_12864.png](mockups/parity_12864.png); each restored screen's caption begins "Restored".
+
+| The old screen showed | The rebuild | The mock |
+|---|---|---|
+| The charge's time, at the title's right: live while it poured, the last throw's while it waited | dropped | at the title's right again, live while it pours, the last throw's while it waits |
+| The powder's name, on the charge's bottom line | dropped | on the line under the weight: "of 30.00, AR2209" |
+| The target, in the title while it poured ("Target: 30.00") | kept as "of 30.00" | kept |
+| The charge's titles: "Waiting for Zero", "Remove Cup", "Return Cup" | "Waiting for zero", "Lift the cup", "Put the cup back" | "Zeroing", "Lift the cup", "Return the cup", "Paused": the ones short enough beside the time (73 px). "Waiting for zero" (81) and "Put the cup back" (82) are not |
+| The cleanup's weight, flow, speed and gate | the speed only | all four, the weight and flow on one line above Speed and Gate |
+| Settings › Servo Gate: Disable, Close, Open | gone (web only) | Settings › Servo gate: on or off, the shutters open or closed, and their ends |
+| Profile Details, two pages: the coarse and fine Kp, Ki, Kd; their minimum and maximum speeds; and the profile's revision and compatibility ("Rev:…,Comp:…") | gone (web only) | Charge › Powder details, read only: Coarse and Fine side by side, then the speeds, then the revision |
+| Wi-Fi's link status: down, joining, no IP, up, failed, no network, wrong key | "Joining" whatever the reason | the state in words: "Not joined", "Wrong key" |
+
+**Taken off with a reason on record, and left off:** the scale's calibration (the owner: no scale supports it), Save to EEPROM (D2: stored when confirmed), the knob's zero while the charge waits for the cup's return (a zero there starts a throw on the bare pan: found in the review of gate 4), and the Wireless menu's extra OK (the owner).
+
+**Designed, not in the old screen, and left out of the mock:** the throw's number, which this design listed for the charge's screen. There is no room for it beside the time without crowding the title.
+
 ## What leaves the screen, and where it goes
 
 The old menu's forms, and where each went. Read with the survey above, which brings back what the web-only lists here gave up.

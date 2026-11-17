@@ -1,27 +1,27 @@
 """
-The screens ADR-010's survey adds (`menu_design.md`, "Every setting on the screen and on the web"), mocked for the
-owner to settle before they are built: the settings pages made from the settings tables, the editors they need
-(number, text, colour, the network list), Wi-Fi's settings, the cleanup as one system, and the charge's screen with
-the powder, the time and the throw's number, with and without a chart.
+The screens ADR-010's survey settled (`menu_design.md`, "Needed at the unit, and can be changed there"), mocked for
+the owner before they are built. Each caption gives what its change costs a person at the knob, in actions (a
+detent or a click) from the main menu at rest, as `knob_cost.py` counts them.
 
     venv\\Scripts\\python tools\\ui_mock\\parity_12864.py [--out <folder>]
 
-Drawn with menu_12864.py's faces, grid and parts, so they sit beside its sheet.
+Every value is edited in its row: a click, the turn, a click; the value in reverse while it is set. The target alone
+keeps its screen of digits, the old menu's. Drawn with menu_12864.py's faces, grid and parts.
 """
 import argparse
 import sys
 from pathlib import Path
 
 import menu_12864 as m
-from panel import H, Panel, W, write_sheet
+from panel import Panel, W, write_sheet
 
 LIST_ROWS = 4
 
 
-def rows(panel, items, focus, first=0, total=None, editing=False):
+def rows(panel, items, focus, first=0, total=None, editing=False, top=None, shown=LIST_ROWS):
     """
-    A list page's rows, as menu_12864.rows, and one more state: the focused row's value being set (editing), shown
-    with the row plain and its value in reverse.
+    A list page's rows, as menu_12864.rows, with info rows (a value only to read, never focused) and one more
+    state: the focused row's value being set, the row plain and its value in reverse.
 
     Args:
         panel: the Panel.
@@ -30,15 +30,18 @@ def rows(panel, items, focus, first=0, total=None, editing=False):
         first: the first row's index in the whole list.
         total: the rows in the whole list.
         editing: whether the focused row's value is being set.
+        top: where the rows start (the content's top by default).
+        shown: how many rows fit.
     """
+    top = m.CONTENT_TOP if top is None else top
     total = total or len(items)
-    edge = W - 5 if total > LIST_ROWS else W - 3
-    for idx, (label, value, opens) in enumerate(items[:LIST_ROWS]):
-        top = m.CONTENT_TOP + idx * m.ROW_H
-        base = top + m.ROW_BASE
+    edge = W - 5 if total > shown else W - 3
+    for idx, (label, value, opens) in enumerate(items[:shown]):
+        row_top = top + idx * m.ROW_H
+        base = row_top + m.ROW_BASE
         reverse = idx == focus and not editing
         if reverse:
-            panel.rect(0, top, edge + 2, m.ROW_H - 1)
+            panel.rect(0, row_top, edge + 2, m.ROW_H - 1)
         panel.text(m.TEXT, 3, base, label, lit=not reverse)
         right = edge
         if opens:
@@ -46,17 +49,17 @@ def rows(panel, items, focus, first=0, total=None, editing=False):
             right -= m.TEXT.width(">") + 3
         if value:
             if idx == focus and editing:
-                width = m.TEXT.width(value) + 4
-                panel.rect(right - width + 2, top, width, m.ROW_H - 1)
+                width = m.TEXT.width(value) + 6
+                panel.rect(right - width + 3, row_top, width, m.ROW_H - 1)
                 panel.text(m.TEXT, 0, base, value, lit=False, align="right", right=right)
             else:
                 panel.text(m.TEXT, 0, base, value, lit=not reverse, align="right", right=right)
-    m.scrollbar(panel, first, LIST_ROWS, total)
+    m.scrollbar(panel, first, shown, total, top=top)
 
 
 def digits_editor(panel, text, focus, editing, unit=""):
     """
-    The number editor, as the target's: the figure with the focused digit underlined, or in reverse while it is set.
+    The target's screen: its digits with the focused one underlined, or in reverse while it is set.
 
     Args:
         panel: the Panel.
@@ -78,43 +81,25 @@ def digits_editor(panel, text, focus, editing, unit=""):
         panel.rect(at, m.FIGURE_BASE + 3, width - 1, 2)
 
 
-def text_editor(panel, text, focus, editing, wheel=None, count=None):
+def cleanup(panel, speed, weight, flow, gate, focus, editing=False, title="Cleanup"):
     """
-    The text editor: the text on one line, the focused place underlined (or in reverse while it is set), "+" after
-    the last character to add one; while a character is set, the characters around it in the set under the line.
+    The cleanup's screen: its weight and flow on one line to read, then Speed and Gate as rows, and Stop and Zero as
+    its softkeys. The turn goes Speed, Gate, Stop, Zero.
 
     Args:
         panel: the Panel.
-        text: the text.
-        focus: the focused place: a character's index, len(text) for "+", or None when a softkey has the focus.
-        editing: whether the focused character is being set.
-        wheel: the characters around the one being set, it in the middle, or None.
-        count: "n of max", or None.
+        speed, weight, flow, gate: the values shown.
+        focus: "speed", "gate", "stop" or "zero".
+        editing: whether the speed is being set.
+        title: its status.
     """
-    shown = text + "+"
-    base = 29
-    x = 3
-    # A long text shows its end: the place being set stays in sight
-    while m.TEXT.width(shown) > W - 8 and len(shown) > 1:
-        shown = shown[1:]
-        focus = None if focus is None else focus - 1
-        x = 3
-    if m.TEXT.width(shown) < W - 6:
-        panel.text(m.TEXT, x, base, shown)
-    else:
-        panel.text(m.TEXT, x, base, shown)
-    if focus is not None and focus >= 0:
-        at = x + m.TEXT.width(shown[:focus])
-        width = m.TEXT.width(shown[focus])
-        if editing:
-            panel.rect(at - 1, base - m.TEXT.cap - 1, width + 1, m.TEXT.cap + 3)
-            panel.text(m.TEXT, at, base, shown[focus], lit=False)
-        else:
-            panel.rect(at, base + 2, width, 1)
-    if wheel:
-        panel.text(m.TEXT, 0, 42, wheel, align="center")
-    elif count:
-        panel.text(m.TEXT, 0, 42, count, align="center")
+    m.title(panel, title)
+    panel.text(m.TEXT, 3, m.CONTENT_TOP + m.DENSE_BASE, weight)
+    panel.text(m.TEXT, 0, m.CONTENT_TOP + m.DENSE_BASE, flow, align="right", right=W - 3)
+    order = {"speed": 0, "gate": 1}
+    rows(panel, [("Speed", speed, False), ("Gate", gate, False)], order.get(focus), editing=editing,
+         top=m.CONTENT_TOP + m.DENSE_H + 1, shown=2)
+    m.softkeys(panel, "Stop", "Zero", focus={"stop": "left", "zero": "right"}.get(focus))
 
 
 def chart(panel, top, bottom, points, target):
@@ -129,15 +114,14 @@ def chart(panel, top, bottom, points, target):
         if prev:
             px, py = prev
             for step in range(abs(x - px) + 1):
-                yy = py + (y - py) * step // max(1, abs(x - px))
-                panel.set(px + step, yy)
+                panel.set(px + step, py + (y - py) * step // max(1, abs(x - px)))
         prev = (x, y)
     panel.hline(left, bottom, right - left)
 
 
 def screens():
     """
-    Every screen the survey adds, in the order a person meets them.
+    The settled screens, in the order a person meets them, each captioned with its cost.
 
     Returns:
         (panels, captions).
@@ -148,166 +132,160 @@ def screens():
         out.append(panel)
         caps.append(caption)
 
-    # --- Settings: every resource of the tables
-    p = Panel(); m.title(p, "Settings", back=True)
-    rows(p, [("Charge", "", True), ("Powder profiles", "", True), ("Scale", "", True), ("Motors", "", True)], 0,
-         total=11)
-    add(p, "Settings: every resource")
-
-    p = Panel(); m.title(p, "Settings", back=True)
-    rows(p, [("Wi-Fi", "", True), ("Display", "", True), ("Firmware", "", True), ("Restart", "", False)], 0,
-         first=6, total=11)
-    add(p, "Settings, further down")
-
-    p = Panel(); m.title(p, "Settings", back=True)
-    rows(p, [("Servo gate", "", True), ("LEDs", "", True), ("Wi-Fi", "", True), ("Display", "", True)], 0,
-         first=4, total=11)
-    add(p, "Settings: the gate, the LEDs")
-
-    # --- Charge's settings, by their groups
+    # --- A session: the charge
     p = Panel(); m.title(p, "Charge", back=True)
-    rows(p, [("Thresholds", "", True), ("Coarse stop", "", True), ("Precharge", "", True), ("Colours", "", True)],
-         0, total=5)
-    add(p, "Charge: its groups")
+    rows(p, [("Start", "", False), ("Target", "30.00 gr", True), ("Powder", "AR2209", False),
+             ("Powder details", "", True)], 2)
+    add(p, "Charge: Powder, a click to set")
 
-    p = Panel(); m.title(p, "Thresholds", back=True)
-    rows(p, [("Coarse stop", "1.00 gr", True), ("Fine stop", "0.03 gr", True), ("Steady margin", "0.02 gr", True),
-             ("Zero margin", "0.04 gr", True)], 1)
-    add(p, "A group's numbers")
-
-    p = Panel(); m.title(p, "Coarse stop", back=True)
-    rows(p, [("Gate at stop", "0.50", True), ("Back off", "On", False), ("Turns", "0.250", True),
-             ("Speed", "2.00 rev/s", True)], 2)
-    add(p, "Short labels within a group")
-
-    p = Panel(); m.title(p, "Back-off turns")
-    digits_editor(p, "0.250", 2, False, "turns")
-    m.context(p, "0.125 to 2.000")
-    m.softkeys(p, "Cancel", "Set", focus=None)
-    add(p, "Number editor: a digit focused")
-
-    p = Panel(); m.title(p, "Back-off turns")
-    digits_editor(p, "0.375", 2, True, "turns")
-    m.context(p, "0.125 to 2.000")
-    m.softkeys(p, "Cancel", "Set", focus=None)
-    add(p, "Number editor: the digit set")
-
-    p = Panel(); m.title(p, "Not changed")
-    m.message(p, "Not while", "a job runs")
-    m.softkeys(p, "", "OK")
-    add(p, "A refused write (motors in a job)")
-
-    # --- Colours
-    p = Panel(); m.title(p, "Colours", back=True)
-    rows(p, [("Good throw", "#00ff00", True), ("Under", "#ffff00", True), ("Over", "#ff0000", True),
-             ("Not ready", "#0000ff", True)], 0)
-    add(p, "Colours as #rrggbb")
-
-    p = Panel(); m.title(p, "Good throw", back=True)
-    rows(p, [("Red", "0", True), ("Green", "255", True), ("Blue", "0", True)], 1)
-    add(p, "A colour: three numbers, the LED shows it")
-
-    # --- Powder profiles
-    p = Panel(); m.title(p, "Powder profiles", back=True)
-    rows(p, [("AR2208", "", True), ("AR2209", "", True), ("Varget", "", True), ("Profile 4", "", True)], 1,
-         total=8)
-    add(p, "Powder profiles: by name")
+    p = Panel(); m.title(p, "Charge", back=True)
+    rows(p, [("Start", "", False), ("Target", "30.00 gr", True), ("Powder", "Varget", False),
+             ("Powder details", "", True)], 2, editing=True)
+    add(p, "Powder set in place: 9 actions")
 
     p = Panel(); m.title(p, "AR2209", back=True)
-    rows(p, [("Name", "AR2209", True), ("Coarse trickler", "", True), ("Fine trickler", "", True)], 1)
-    add(p, "A profile: its groups")
+    lines = [("", "Coarse", "Fine"), ("Kp", "0.025", "0.040"), ("Ki", "0.000", "0.000"), ("Kd", "0.300", "0.150")]
+    for idx, (key, coarse, fine) in enumerate(lines):
+        base = m.CONTENT_TOP + idx * m.DENSE_H + m.DENSE_BASE
+        font = m.BOLD if idx == 0 else m.TEXT
+        p.text(font, 3, base, key)
+        p.text(font, 0, base, coarse, align="right", right=78)
+        p.text(font, 0, base, fine, align="right", right=W - 6)
+    m.scrollbar(p, 0, 4, 6)
+    add(p, "Restored: the old Profile details, read only")
 
-    p = Panel(); m.title(p, "Coarse trickler", back=True)
-    rows(p, [("Kp", "0.0250", True), ("Ki", "0.0000", True), ("Kd", "0.3000", True),
-             ("Minimum", "0.08 rev/s", True)], 0, total=5)
-    add(p, "A profile's gains")
-
-    p = Panel(); m.title(p, "Name")
-    text_editor(p, "AR2209", 6, False, count="6 of 15")
+    p = Panel(); m.title(p, "Target")
+    digits_editor(p, "030.00", 4, False, "gr")
     m.softkeys(p, "Cancel", "Set", focus=None)
-    add(p, "Text editor: '+' adds a character")
+    add(p, "Target: a digit focused")
 
-    p = Panel(); m.title(p, "Name")
-    text_editor(p, "AR2209", 5, True, wheel="6  7  8  [9]  A  B  C")
+    p = Panel(); m.title(p, "Target")
+    digits_editor(p, "030.10", 4, True, "gr")
     m.softkeys(p, "Cancel", "Set", focus=None)
-    add(p, "Text editor: a character set")
+    add(p, "Target +0.10: 12; a new load: 29")
 
-    # --- Motors, gate, LEDs
-    p = Panel(); m.title(p, "Coarse motor", back=True)
-    rows(p, [("Motor", "", True), ("Driver", "", True), ("Wiring", "", True)], 1)
-    add(p, "A motor: its groups")
+    # The charge: the time at the title's right, as the old screen had it (live while it pours, the last throw's
+    # while it waits); the titles short enough beside it
+    p = Panel(); m.title(p, "Zeroing")
+    p.text(m.TEXT, 0, m.TITLE_BASE, "12.35 s", align="right", right=W - 15)
+    m.figure(p, "0.00", "gr"); m.context(p, "of 30.00, AR2209")
+    m.softkeys(p, "Stop", "Zero", focus="right")
+    add(p, "Restored: the target, powder, last time")
 
-    p = Panel(); m.title(p, "Driver", back=True)
-    rows(p, [("Current", "800 mA", True), ("Microsteps", "16", True), ("R sense", "110 mOhm", True)], 0)
-    add(p, "A motor's driver")
-
-    p = Panel(); m.title(p, "Servo gate", back=True)
-    rows(p, [("Gate", "On", False), ("Open", "", False), ("Close", "", False), ("Position", "0.50", True)], 1,
-         total=6)
-    add(p, "Servo gate: moved here, set up below")
-
-    p = Panel(); m.title(p, "LEDs", back=True)
-    rows(p, [("Backlight", "#ffffff", True), ("LED 1", "#ffffff", True), ("LED 2", "#ffffff", True),
-             ("PWM3", "", True)], 0)
-    add(p, "LEDs")
-
-    # --- Scale, Firmware, Wi-Fi
-    p = Panel(); m.title(p, "Scale", back=True)
-    rows(p, [("Make", "A&D FX-i", True), ("Baud rate", "19200", True), ("Frame format", "8N1", True),
-             ("Restart to apply", "", False)], 2, first=2, total=6)
-    add(p, "Scale: its frame format")
-
-    p = Panel(); m.title(p, "Firmware", back=True)
-    rows(p, [("Board", "pico_w", False), ("Channel", "Stable", True), ("Source", "github.com", True),
-             ("Check for update", "", False)], 1, first=3, total=7)
-    add(p, "Firmware: channel and source set")
-
-    p = Panel(); m.title(p, "Wi-Fi", back=True)
-    m.dense(p, [("State", "Wrong key", "pair"), ("Network", "HomeNet", "pair"), ("IP", "none", "pair"),
-                ("Signal", "-59 dBm", "pair")])
-    add(p, "Wi-Fi: why it did not join")
-
-    p = Panel(); m.title(p, "Wi-Fi", back=True)
-    rows(p, [("Wi-Fi", "On", False), ("Network", "HomeNet", True), ("Key", "********", True),
-             ("Security", "WPA2", True)], 1, total=5)
-    add(p, "Settings > Wi-Fi")
-
-    p = Panel(); m.title(p, "Network", back=True)
-    rows(p, [("HomeNet", "-48 WPA2", False), ("Neighbour", "-71 WPA2", False), ("Cafe", "-80 Open", False),
-             ("Other", "", True)], 0)
-    add(p, "Network: the scan, strongest first")
-
-    # --- The cleanup, as one system
-    p = Panel(); m.title(p, "Cleanup")
-    rows(p, [("Speed", "2.0 rev/s", False), ("Weight", "12.34 gr", False), ("Flow", "0.12 gr/s", False),
-             ("Gate", "Open", False)], 0, total=6)
-    add(p, "Cleanup: the speed focused")
-
-    p = Panel(); m.title(p, "Cleanup")
-    rows(p, [("Speed", "3.0 rev/s", False), ("Weight", "14.02 gr", False), ("Flow", "0.21 gr/s", False),
-             ("Gate", "Open", False)], 0, total=6, editing=True)
-    add(p, "Cleanup: the speed set live")
-
-    p = Panel(); m.title(p, "Cleanup")
-    rows(p, [("Flow", "0.21 gr/s", False), ("Gate", "Open", False), ("Zero", "", False), ("Stop", "", False)], 3,
-         first=2, total=6)
-    add(p, "Cleanup: Gate, Zero, Stop")
-
-    # --- The charge, with the powder, the time and the throw's number
     p = Panel(); m.title(p, "Charging")
-    p.text(m.TEXT, 0, m.TITLE_BASE, "#3  8.4 s", align="right", right=W - 15)
+    p.text(m.TEXT, 0, m.TITLE_BASE, "8.40 s", align="right", right=W - 15)
     m.figure(p, "20.08", "gr"); m.context(p, "of 30.00, AR2209")
     m.softkeys(p, "Stop", "", focus="left")
-    add(p, "Charge: no chart")
+    add(p, "Restored: the time, live; Stop 1")
+
+    p = Panel(); m.title(p, "Lift the cup")
+    p.text(m.TEXT, 0, m.TITLE_BASE, "12.35 s", align="right", right=W - 15)
+    m.figure(p, "30.02", "gr"); m.context(p, "Over by 0.02", bold=True)
+    m.softkeys(p, "Stop", "Change", focus="right")
+    add(p, "Restored: the throw's time, kept")
+
+    p = Panel(); m.title(p, "Return the cup")
+    p.text(m.TEXT, 0, m.TITLE_BASE, "12.35 s", align="right", right=W - 15)
+    m.figure(p, "30.02", "gr"); m.context(p, "Over by 0.02", bold=True)
+    m.softkeys(p, "Stop", "Change", focus="right")
+    add(p, "The old screen's \"Return Cup\"")
 
     p = Panel(); m.title(p, "Charging")
-    p.text(m.TEXT, 0, m.TITLE_BASE, "#3  8.4 s", align="right", right=W - 15)
+    p.text(m.TEXT, 0, m.TITLE_BASE, "8.40 s", align="right", right=W - 15)
     p.text(m.BOLD, 3, 23, "20.08 / 30.00")
     p.text(m.TEXT, 0, 23, "AR2209", align="right", right=W - 3)
-    curve = [min(1.0, (t / 40) ** 0.6 * 0.96) for t in range(41)]
-    chart(p, 26, 51, curve, 1.0)
+    chart(p, 26, 51, [min(1.0, (t / 40) ** 0.6 * 0.96) for t in range(41)], 1.0)
     m.softkeys(p, "Stop", "", focus="left")
-    add(p, "Charge: with a chart")
+    add(p, "Charging, with a chart")
+
+    # --- A session: the cleanup
+    p = Panel(); cleanup(p, "0.0 rev/s", "0.00 gr", "0.00 gr/s", "Open", "speed")
+    add(p, "Restored: the weight, flow and gate")
+
+    p = Panel(); cleanup(p, "3.0 rev/s", "12.34 gr", "0.21 gr/s", "Open", "speed", editing=True,
+                         title="Cleanup: running")
+    add(p, "Speed set live: 0 to 3 rev/s, 8")
+
+    p = Panel(); cleanup(p, "3.0 rev/s", "14.02 gr", "0.21 gr/s", "Open", "gate", title="Cleanup: running")
+    add(p, "Gate, a click: 5")
+
+    p = Panel(); cleanup(p, "3.0 rev/s", "14.02 gr", "0.21 gr/s", "Open", "stop", title="Cleanup: running")
+    add(p, "Stop: 1 (the reset button), or 3")
+
+    # --- Settings: what the unit needs without the web
+    p = Panel(); m.title(p, "Settings", back=True)
+    rows(p, [("Scale", "", True), ("Charge", "", True), ("Display", "", True), ("Servo gate", "", True)], 0,
+         total=8)
+    add(p, "Settings")
+
+    p = Panel(); m.title(p, "Settings", back=True)
+    rows(p, [("Motors", "", True), ("Firmware", "", True), ("Restart", "", False), ("Factory reset", "", True)],
+         None, first=4, total=8)
+    add(p, "Settings, its end")
+
+    p = Panel(); m.title(p, "Scale", back=True)
+    rows(p, [("Reading", "24.35 gr", False), ("Zero", "", False), ("Make", "Sartorius", False),
+             ("Baud rate", "19200", False)], 2, total=6, editing=True)
+    add(p, "Make set in place: 10")
+
+    p = Panel(); m.title(p, "Scale", back=True)
+    rows(p, [("Make", "A&D FX-i", False), ("Baud rate", "19200", False), ("Frame format", "8N1", False),
+             ("Decimals", "2", False)], 2, first=2, total=6)
+    add(p, "Frame format 11, decimals 12")
+
+    p = Panel(); m.title(p, "Charge", back=True)
+    rows(p, [("Fine stop", "0.05 gr", False), ("Coarse stop", "5.0 gr", False)], 0, editing=True)
+    add(p, "Fine stop, 0.01 a detent: 18")
+
+    p = Panel(); m.title(p, "Not changed")
+    m.message(p, "Not while", "a throw pours")
+    m.softkeys(p, "", "OK")
+    add(p, "A refused change")
+
+    p = Panel(); m.title(p, "Display", back=True)
+    rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", False),
+             ("Backlight", "White", False)], 1)
+    add(p, "Invert screen, a click: 8")
+
+    p = Panel(); m.title(p, "Display", back=True)
+    rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", False),
+             ("Backlight", "Green", False)], 3, editing=True)
+    add(p, "Backlight, 8 named colours: 14")
+
+    p = Panel(); m.title(p, "Servo gate", back=True)
+    rows(p, [("Servo gate", "On", False), ("Shutters", "Closed", False), ("Shutter 0 closed", "0.050", False),
+             ("Shutter 0 open", "0.120", False)], 1, total=6)
+    add(p, "Restored: the gate, a click: 9")
+
+    p = Panel(); m.title(p, "Servo gate", back=True)
+    rows(p, [("Shutters", "Closed", False), ("Shutter 0 closed", "0.055", False), ("Shutter 0 open", "0.120", False),
+             ("Shutter 1 closed", "0.050", False)], 1, first=1, total=6, editing=True)
+    add(p, "A shutter's end, the servo moving: 17")
+
+    p = Panel(); m.title(p, "Motors", back=True)
+    rows(p, [("Coarse direction", "Normal", False), ("Fine direction", "Reversed", False)], 1)
+    add(p, "A motor's direction, a click: 9")
+
+    p = Panel(); m.title(p, "Firmware", back=True)
+    rows(p, [("Unit", "9CE00000", False), ("Build", "Release", False), ("Channel", "Stable", False),
+             ("Check for update", "", False)], 2, first=3, total=7)
+    add(p, "Channel set in place: 12")
+
+    p = Panel(); m.title(p, "Factory reset")
+    m.message(p, "Erase every setting?", "It cannot be undone")
+    m.softkeys(p, "Cancel", "Erase", focus="left")
+    add(p, "Factory reset, opens on Cancel: 13")
+
+    # --- Wi-Fi: its state, why a join failed, and on or off
+    p = Panel(); m.title(p, "Wi-Fi", back=True)
+    m.dense(p, [("Joined", "HomeNet", "pair"), ("IP", "192.168.2.168", "pair"),
+                ("Name", "opentrickler-9CE0.local", "pair"), ("Signal", "-59 dBm", "pair")])
+    add(p, "Wi-Fi: its state")
+
+    p = Panel(); m.title(p, "Wi-Fi", back=True)
+    m.dense(p, [("Not joined", "Wrong key", "pair"), ("Network", "HomeNet", "pair"), ("Turn Wi-Fi off", "button",
+                                                                                     True)], at="end")
+    add(p, "Restored: why it did not join; off 7")
     return out, caps
 
 
