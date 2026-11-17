@@ -1,19 +1,36 @@
 #ifndef DISPLAY_H_
 #define DISPLAY_H_
 
-#include <u8g2.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+// The mini 12864's panel (ADR-010, gate 4): 128 x 64 pixels, one bit a pixel, a UC1701 on SPI
+#define DISPLAY_WIDTH 128
+#define DISPLAY_HEIGHT 64
+#define DISPLAY_ROW_BYTES (DISPLAY_WIDTH / 8)
+#define DISPLAY_FRAME_BYTES (DISPLAY_ROW_BYTES * DISPLAY_HEIGHT)
+// The panel's memory is in pages of 8 rows
+#define DISPLAY_PAGES (DISPLAY_HEIGHT / 8)
+#define DISPLAY_ALL_PAGES 0xffu
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-u8g2_t *get_display_handler(void);
-// The frame buffer's lock: the menu writes a whole frame under it, and the mirror and the snap copy one under it,
-// so neither reads a frame half written (ADR-012's audit; ADR-010, gate 4)
-void acquire_display_buffer_access(void);
-void release_display_buffer_access(void);
+/**
+ * Set up the panel and clear it. Before the scheduler starts or after.
+ *
+ * @param flipped true to turn the picture 180 degrees, as a panel mounted upside down needs.
+ */
+void display_init(bool flipped);
 
-// REST
+/**
+ * Send pages of a frame to the panel.
+ *
+ * @param rows the frame as rows: DISPLAY_HEIGHT rows of DISPLAY_ROW_BYTES, the leftmost pixel the top bit, 1 dark.
+ * @param pages the pages to send, a bit each (page 0 is rows 0 to 7, the lowest bit).
+ */
+void display_send_pages(const uint8_t *rows, uint8_t pages);
 
 #ifdef __cplusplus
 }

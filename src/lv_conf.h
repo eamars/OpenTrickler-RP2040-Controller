@@ -51,7 +51,7 @@
 #define LV_USE_FLEX 0
 #define LV_USE_GRID 0
 
-// The menu's fonts, made from u8g2's BDF sources (scripts/bdf2lvgl.py); none of LVGL's own
+// The menu's fonts, made from the BDF files in fonts/ (scripts/bdf2lvgl.py); none of LVGL's own
 #define LV_FONT_MONTSERRAT_14 0
 #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(menu_font_regular) LV_FONT_DECLARE(menu_font_bold) \
                                LV_FONT_DECLARE(menu_font_figure)

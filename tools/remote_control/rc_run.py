@@ -404,11 +404,10 @@ def elf_function_at(elf, address):
 
 def snap_rows(data_lines):
     """
-    Decode a snap: the `@snap <w> <h> u8g2 r=<rotation>` line and its `@sd <base64>` lines.
+    Decode a snap: the `@snap <w> <h> mono_rows` line and its `@sd <base64>` lines.
 
-    u8g2's buffer holds the panel as it is mounted: rows of 8 pixels, one byte per column, lowest bit on top.
-    The rotation u8g2 draws with is undone for R0 and R2 (the 180 degrees of a mini 12864 mounted upside down),
-    so the picture is what a person at the unit sees.
+    The frame is LVGL's, as the web's mirror serves it (ADR-010, gate 4): rows of w / 8 bytes, the leftmost pixel the
+    top bit, 1 dark. It is the picture a person at the unit sees: the panel turns itself when mounted upside down.
 
     Args:
         data_lines: the lines the snap command sent before its reply.
@@ -418,17 +417,15 @@ def snap_rows(data_lines):
     """
     if not data_lines:
         return None
-    match = re.match(r"@snap (\d+) (\d+) u8g2 r=(\d)", data_lines[0])
+    match = re.match(r"@snap (\d+) (\d+) mono_rows$", data_lines[0])
     if not match:
         return None
-    width, height, rotation = (int(group) for group in match.groups())
+    width, height = (int(group) for group in match.groups())
     payload = b"".join(base64.b64decode(line[4:]) for line in data_lines[1:] if line.startswith("@sd "))
-    if len(payload) != width * height // 8:
+    stride = width // 8
+    if len(payload) != stride * height:
         return None
-    rows = [[bool(payload[(y // 8) * width + x] >> (y % 8) & 1) for x in range(width)] for y in range(height)]
-    if rotation == 2:
-        rows = [row[::-1] for row in rows[::-1]]
-    return rows
+    return [[bool(payload[y * stride + x // 8] >> (7 - x % 8) & 1) for x in range(width)] for y in range(height)]
 
 
 def write_png(path, rows):

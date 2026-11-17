@@ -6,7 +6,6 @@
 #include <queue.h>
 #include <task.h>
 #include <semphr.h>
-#include <u8g2.h>
 #include <math.h>
 
 #include "activity.h"

@@ -9,7 +9,6 @@
 
 #include "app.h"
 #include "mini_12864_module.h"
-#include "u8g2.h"
 #include "pico/unique_id.h"
 #include "display.h"
 #include "eeprom.h"

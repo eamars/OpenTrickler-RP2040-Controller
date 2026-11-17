@@ -1,98 +1,27 @@
 """
-A 128 x 64 one-bit panel drawn with u8g2's own fonts, for mock-ups of the unit's screen (ADR-010; the skill
-`.agents/skills/embedded-ui-design`). Every glyph is u8g2's bitmap, so a mock-up is what the unit can draw.
+A 128 x 64 one-bit panel drawn with the screen's own fonts, for mock-ups of the unit's screen (ADR-010; the skill
+`.agents/skills/embedded-ui-design`). Every glyph is the BDF file's bitmap, the same the firmware's fonts are made
+from (scripts/bdf2lvgl.py), so a mock-up is what the unit can draw.
 
-Fonts come from either of u8g2's sources: its BDF files (library/u8g2/tools/font/bdf, `Font.bdf("helvB08")`) or its
-compiled catalogue, about 2,000 fonts (library/u8g2/csrc/u8g2_fonts.c, `Font.u8g2("NokiaSmallPlain_tr")`).
+Fonts are the BDF files in fonts/ (`Font.bdf("helvB08")`). A face to try is added there as its BDF file.
 Lit pixels are drawn dark on light, as the mini 12864 shows them and rc_run.py's snaps draw them.
 
 A font's glyphs, to check letters that may be confused (u v, I l 1, 0 O):
-    venv\\Scripts\\python tools\\ui_mock\\panel.py glyphs NokiaSmallPlain_tr "uvwIl10O"
+    venv\\Scripts\\python tools\\ui_mock\\panel.py glyphs helvR08 "uvwIl10O"
 """
 import argparse
-import re
 import struct
 import sys
 import zlib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-BDF_DIR = REPO / "library" / "u8g2" / "tools" / "font" / "bdf"
-U8G2_FONTS_C = REPO / "library" / "u8g2" / "csrc" / "u8g2_fonts.c"
+BDF_DIR = REPO / "fonts"
 W, H = 128, 64
-U8G2_HEADER_SIZE = 23
-
-
-class _Bits:
-    """u8g2's glyph bit stream, read LSB first (u8g2_font.c, u8g2_font_decode_get_unsigned_bits)."""
-
-    def __init__(self, data, at):
-        self.data, self.at, self.bit = data, at, 0
-
-    def get(self, count):
-        """
-        Args:
-            count: bits to read.
-
-        Returns:
-            Their value, unsigned.
-        """
-        value = self.data[self.at] >> self.bit
-        end = self.bit + count
-        if end >= 8:
-            self.at += 1
-            if self.at < len(self.data):
-                value |= self.data[self.at] << (8 - self.bit)
-            end -= 8
-        self.bit = end
-        return value & ((1 << count) - 1)
-
-    def signed(self, count):
-        """
-        Args:
-            count: bits to read.
-
-        Returns:
-            Their value, stored biased by half its range.
-        """
-        return self.get(count) - (1 << (count - 1))
-
-
-def _c_string_bytes(literal):
-    """
-    A C string literal's body as bytes: octal escapes, the usual backslash escapes, plain characters.
-
-    Args:
-        literal: the text between the quotes.
-
-    Returns:
-        The bytes it stands for.
-    """
-    out = bytearray()
-    idx = 0
-    while idx < len(literal):
-        char = literal[idx]
-        if char != "\\":
-            out.append(ord(char))
-            idx += 1
-            continue
-        nxt = literal[idx + 1]
-        if nxt in "01234567":
-            end = idx + 1
-            while end < len(literal) and end < idx + 4 and literal[end] in "01234567":
-                end += 1
-            out.append(int(literal[idx + 1:end], 8))
-            idx = end
-            continue
-        out.append({"n": 10, "t": 9, "r": 13, "\\": 92, '"': 34, "'": 39}.get(nxt, ord(nxt)))
-        idx += 2
-    return bytes(out)
 
 
 class Font:
     """A font's ASCII glyphs: code -> {"dx", "w", "h", "xoff", "yoff", "rows"}, rows MSB first, w bits each."""
-
-    _u8g2_source = None
 
     def __init__(self, name, glyphs):
         """
@@ -109,7 +38,7 @@ class Font:
     @classmethod
     def bdf(cls, name):
         """
-        A font from u8g2's BDF sources.
+        A font from its BDF file in fonts/.
 
         Args:
             name: the file's name without .bdf ("helvB08").
@@ -146,59 +75,19 @@ class Font:
         return cls(name, glyphs)
 
     @classmethod
-    def u8g2(cls, name):
-        """
-        A font from u8g2's compiled catalogue, decoded as u8g2_font.c decodes it: a 23-byte header, then each
-        glyph as its code, the bytes to the next glyph, and a bit stream (width, height, x and y offsets, advance,
-        then runs of 0s and 1s, each pair repeated while a 1 bit follows). Codes above 255 are not read.
-
-        Args:
-            name: its name without "u8g2_font_" ("NokiaSmallPlain_tr", "logisoso22_tr").
-
-        Returns:
-            The Font.
-        """
-        if cls._u8g2_source is None:
-            cls._u8g2_source = U8G2_FONTS_C.read_text(encoding="latin-1")
-        found = re.search(r"const uint8_t u8g2_font_" + re.escape(name) +
-                          r"\[\d+\][^=]*=\s*((?:\"(?:[^\"\\]|\\.)*\"\s*)+);", cls._u8g2_source)
-        if found is None:
-            raise KeyError(f"u8g2 has no font {name}")
-        data = b"".join(_c_string_bytes(part) for part in re.findall(r"\"((?:[^\"\\]|\\.)*)\"", found.group(1)))
-        m0, m1, bits_w, bits_h, bits_x, bits_y, bits_dx = data[2:9]
-        glyphs = {}
-        at = U8G2_HEADER_SIZE
-        while at + 1 < len(data) and data[at + 1] != 0:
-            code, size = data[at], data[at + 1]
-            bits = _Bits(data, at + 2)
-            width, height = bits.get(bits_w), bits.get(bits_h)
-            xoff, yoff, advance = bits.signed(bits_x), bits.signed(bits_y), bits.signed(bits_dx)
-            pixels = []
-            while len(pixels) < width * height:
-                zeros, ones = bits.get(m0), bits.get(m1)
-                while True:
-                    pixels.extend([0] * zeros + [1] * ones)
-                    if len(pixels) >= width * height or bits.get(1) == 0:
-                        break
-            rows = [int("".join(str(pixel) for pixel in pixels[r * width:(r + 1) * width]) or "0", 2)
-                    for r in range(height)]
-            glyphs[code] = {"code": code, "dx": advance, "w": width, "h": height, "xoff": xoff, "yoff": yoff,
-                            "rows": rows}
-            at += size
-        return cls(name, glyphs)
-
-    @classmethod
     def load(cls, name):
         """
-        A font by name from either source: a BDF file when there is one by that name, else the catalogue.
+        A font by name: its BDF file in fonts/.
 
         Args:
-            name: "helvB08" or "NokiaSmallPlain_tr".
+            name: "helvB08".
 
         Returns:
             The Font.
         """
-        return cls.bdf(name) if (BDF_DIR / f"{name}.bdf").exists() else cls.u8g2(name)
+        if not (BDF_DIR / f"{name}.bdf").exists():
+            raise KeyError(f"no font {name}: add its BDF file to {BDF_DIR}")
+        return cls.bdf(name)
 
     def glyph(self, char):
         """
@@ -400,7 +289,7 @@ def read_snap(path, scale=4):
 
 def main():
     """
-    The command line: `glyphs <font> <characters>` (a u8g2 catalogue name or a BDF name), or `sheet <out.png>
+    The command line: `glyphs <font> <characters>` (a BDF file's name in fonts/), or `sheet <out.png>
     <snap.png>...`, the unit's snaps on one sheet, each captioned with its file's name, to set beside the mock-ups.
 
     Returns:
@@ -409,7 +298,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     glyphs = sub.add_parser("glyphs", help="print a font's glyphs")
-    glyphs.add_argument("font", help="u8g2 catalogue name (NokiaSmallPlain_tr) or BDF name (helvB08)")
+    glyphs.add_argument("font", help="a BDF file's name in fonts/ (helvB08)")
     glyphs.add_argument("chars")
     sheet = sub.add_parser("sheet", help="the unit's snaps on one sheet")
     sheet.add_argument("out", type=Path)

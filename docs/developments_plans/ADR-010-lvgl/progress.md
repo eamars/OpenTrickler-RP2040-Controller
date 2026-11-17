@@ -507,3 +507,54 @@ gate 4"). Written, not yet built.
     2.0.2-32, VERDICT PASS) but not committed with them. It is committed now, so the compare above has its baseline;
   - the RAM figure of the screens' rebuild above read the linker's bytes as KB, and seemed over the limit. Corrected:
     250.2 KB of 256 at link, from a build of the same code.
+
+## Gate 4 finished: u8g2 removed (2026-11-17)
+
+On the owner's word ("Build it. And you can test on Pico W. I can test Pico 2W later today").
+
+- **Built,** as the README's gate 4 says:
+  - `display.c`: our own driver for the UC1701, on the SDK's SPI, sending the set-up u8g2's driver sent, byte for
+    byte. It sends the pages of a frame it is given; it holds no frame.
+  - `menu.c`: LVGL's frame is the only one, drawn in direct mode. A draw's areas mark the panel's pages they touch,
+    sent with the draw's last area; the whole frame is sent again once a second. LVGL draws under the frame's lock,
+    made before any task runs (`menu_init()`), and the mirror and `snap` copy the frame under it
+    (`menu_frame_copy()`).
+  - The frame's format is `mono_rows` (LVGL's rows, the body of a PBM image): `GET /api/v1/display`, the mirror's
+    page, `snap` and `rc_run.py`. The web test's recording was converted to it. No old format is kept.
+  - `screen`'s reply gives `frames`, `draw_us`, `draw_max_us`, `send_us` and `send_max_us`.
+  - The fonts: `fonts/` holds helvR08, helvB08, helvB18 (the firmware's) and helvR14 (the mock-up sheet's captions),
+    copied unchanged, with their notice in `fonts/README.md`. The mock-up tool reads only them; its reader of u8g2's
+    catalogue is gone. The sheet it draws is byte for byte the one committed.
+  - The submodule, its CMake lines, its part in the size report and five includes are gone; AGENTS.md, the skills
+    `c-style` and `embedded-ui-design`, and api_v1.md say so.
+- **Found on the unit, and fixed: the view redrew itself at every refresh.** The first build drew a frame about four
+  times a second on an idle main menu, 23 to 26 ms each. LVGL redraws an object whenever one of its styles is set,
+  even to the value it had, and the view set every row's highlight at every refresh (`view_reverse()`). Now it sets
+  one only when it changes: an idle page draws once and then nothing. In the render mode gate 4 had first chosen, the
+  whole screen was drawn each time; that cost was there before, unseen, since nothing measured it.
+- **Figures (the Pico W, Debug):**
+  - flash 960.9 KB of the 1,016 KB slot (965.3 KB before); RAM at link 249.1 KB of 256 (250.2 before): u8g2's
+    1,024-byte buffer and its 148-byte handle gone;
+  - the whole screen drawn: 38 to 43 ms (a start, a page opened);
+  - a charge's figure drawn: 7.3 to 8.5 ms, about 8 times a second while it pours;
+  - sent: all 8 pages up to 9.2 ms, a figure's 3.6 to 6.0 ms. These are wall-clock times, with the motors', the
+    scale's and the network's tasks above the menu's;
+  - so while a charge pours the screen takes about 12 ms in each 100 ms, where redrawing the whole screen would take
+    about 40;
+  - no late feed of the step pulses through a charge (`motor`: `underruns=0` on both);
+  - the menu task's stack: 2,424 bytes never touched, of 6 KB; the FreeRTOS heap at rest 53,592 bytes free, as at
+    gate 5.
+- **Proven on the Pico W** (2.0.2-35, this change before its commit):
+  - its settings copied first (`logs/adr010/picow/before_u8g2_removal/`), unchanged after;
+  - `flash`;
+  - `menu_tour --compare` against its baseline: every judged page the same picture, so LVGL's frame and the new
+    snap are what the old path showed;
+  - `charge_cycle`;
+  - `api_check`, 26 of 26 actions;
+  - the mirror's page in a browser on the unit, showing the main menu; `GET /api/v1/display` names `mono_rows`, and
+    the frame is 1,024 bytes.
+- **Left:**
+  - **the owner's look at both panels:** a snap and the mirror read the frame in RAM, never the glass, so only an eye
+    sees a wrong set-up or a flip 4 columns off. The Pico W stores 180 degrees, the Pico 2 W 0;
+  - **the Pico 2 W's run** (the owner, later the same day): its baseline saved first on the build with u8g2, then
+    `flash`, `menu_tour --compare` and `charge_cycle`. Its image is built: 931.7 KB of 1,792.

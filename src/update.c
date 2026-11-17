@@ -28,7 +28,6 @@
 #include "pico/binary_info/defs.h"
 #include "pico/binary_info/structure.h"
 #include "pico/flash.h"
-#include "u8g2.h"
 
 #include "activity.h"
 #include "api_v1.h"

@@ -8,7 +8,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 
 ## Build, flash
 
-- **Clone** with the submodules: `git submodule update --init --recursive`. `library/` holds the Pico SDK, FreeRTOS and u8g2.
+- **Clone** with the submodules: `git submodule update --init --recursive`. `library/` holds the Pico SDK, FreeRTOS and LVGL.
 - **Toolchain:** every version is written once, in `toolchain.env`: the compiler, CMake, Ninja, `pioasm` and picotool, OpenOCD. The scripts below and CI read it; change a version there and nowhere else.
   - Windows: `setup_toolchain.ps1` fetches them into `%USERPROFILE%\.pico-sdk`, and `configure_env.ps1` puts them on the path. The VS Code Pico extension makes the same folder (README). `-List` prints what it would fetch.
   - Linux (what CI runs): `setup_toolchain.sh` fetches the same set into `.toolchain/` in the repository, and `source ./configure_env.sh` puts it on the path.
@@ -29,7 +29,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
   - **Over Wi-Fi** (ADR-004), through the API only, for debugging, until the web UI and the screens offer it: `rc_run.py update --host <address> --manifest release\manifest.json`, or a release's manifest by its address. In a test, the manifest comes from disk or from the local OTA server, never from GitHub's releases (the bench rules, below).
 - **Host tools:** Python from the venv at the repo root (`venv/`, built from `requirements.txt`). Never a second venv.
 - **The unit's API from Python:** `tools/remote_control/unit_api.py` works from what the unit says of itself (`GET /api/v1` and its schema), checks a write against the schema before sending it, and follows the event log. `python tools/remote_control/unit_api.py <address>` prints what the unit is, its paths and its actions.
-- **Screen work without a unit:** `venv\Scripts\python tools\ui_mock\menu_12864.py` draws every screen of the menu as designed, with u8g2's own fonts at the panel's 128 x 64, onto one sheet (`docs/developments_plans/ADR-010-lvgl/mockups/`). `tools\ui_mock\panel.py glyphs <font> <characters>` prints a font's glyphs. The skill `embedded-ui-design` says how a screen is designed.
+- **Screen work without a unit:** `venv\Scripts\python tools\ui_mock\menu_12864.py` draws every screen of the menu as designed, with the screen's own fonts (`fonts/`) at the panel's 128 x 64, onto one sheet (`docs/developments_plans/ADR-010-lvgl/mockups/`). `tools\ui_mock\panel.py glyphs <font> <characters>` prints a font's glyphs. The skill `embedded-ui-design` says how a screen is designed.
 - **Page work without a unit:** `venv\Scripts\python tests\web_test.py` serves the pages from `src/html` and a recording of a unit's replies (`tests/web_test_data.json`) at http://127.0.0.1:8000/, checking each write with the client's code. `--record <address>` records a unit again when the API grows; the owner's Wi-Fi name and the unit's address are replaced before it is written.
 
 ## Where code goes
@@ -39,7 +39,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | Files | What they are |
 |---|---|
 | `app.c` | Start-up order |
-| `menu.c`, `menu_nav.c`, `menu_view_12864.c`, `lv_conf.h` | The menu (ADR-010, `menu_design.md`). `menu.c` is its task: LVGL, the panel (u8g2 its driver and frame buffer only), the knob and the buttons as four keys, the jobs' starts and ends. `menu_nav.c` is the tree as one table and what is open; it fills a screen model in words and acts through the API's own entry points, by button. `menu_view_12864.c` draws that model on the 12864; another display is another view. The fonts are made at build time from u8g2's BDF sources (`scripts/bdf2lvgl.py`) |
+| `menu.c`, `menu_nav.c`, `menu_view_12864.c`, `lv_conf.h` | The menu (ADR-010, `menu_design.md`). `menu.c` is its task: LVGL and the screen's one frame (LVGL draws only what changed; the web's mirror and `snap` copy it), the knob and the buttons as four keys, the jobs' starts and ends. `menu_nav.c` is the tree as one table and what is open; it fills a screen model in words and acts through the API's own entry points, by button. `menu_view_12864.c` draws that model on the 12864; another display is another view. The fonts are made at build time from the BDF files in `fonts/` (`scripts/bdf2lvgl.py`), with their notice |
 | `jobs.c` | The job task (ADR-010, gate 2): the charge, a cleanup and an update run here, not in the menu's task |
 | `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each reads no button and draws nothing: the menu shows their screens from their status |
 | `scale.c`, `*_scale.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
@@ -49,7 +49,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | `tmc_uart.c`, `tmc2209.c` | The stepper drivers, our own on Klipper's model (ADR-012): the one-wire frames with every write checked, and the TMC2209's registers as a table. No pins and no RTOS in them |
 | `servo_gate.c`, `neopixel_led.c`, `ws2812.pio` | The servo gate and the LEDs |
 | `profile.c` | The powder profiles |
-| `mini_12864_module.cpp`, `display.c`, `gpio_irq_handler.h` | The display, the encoder and the buttons |
+| `mini_12864_module.cpp`, `display.c`, `gpio_irq_handler.h` | The display's settings, the encoder and the buttons. `display.c` is the panel's driver, our own for its UC1701: it sends the pages of the frame that changed (ADR-010, gate 4) |
 | `eeprom.c`, `cat24c256_eeprom.c`, `common.c` | Settings storage |
 | `wireless.c`, `access_point_mode.c`, `dhcpserver.c`, `dnsserver.c` | Wi-Fi, as a station or as its own access point |
 | `http_server.c`, `http_json.c` | Our own HTTP server (ADR-003): one task on lwIP's sockets, `select` over six slots, routes, keep-alive, chunked and parked replies. A handler sees no socket |

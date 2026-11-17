@@ -12,7 +12,6 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
-#include <u8g2.h>
 
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
@@ -45,8 +44,7 @@
 #define REMOTE_CONTROL_PRESS_MAX 50
 #define REMOTE_CONTROL_PRESS_GAP_MS 50
 
-// `snap`: the u8g2 buffer of the 128 x 64 display, sent in lines of this many bytes before base64
-#define REMOTE_CONTROL_SNAP_BUFFER_SIZE 1024
+// `snap`: the screen's frame, sent in lines of this many bytes before base64
 #define REMOTE_CONTROL_SNAP_CHUNK 256
 // `press hold`: longer than the menu's hold (MENU_HOLD_MS, 600 ms)
 #define REMOTE_CONTROL_HOLD_MS 700
@@ -76,7 +74,7 @@ extern mini_12864_module_config_t mini_12864_module_config;
 static bool remote_control_reboot_pending = false;
 static char remote_control_tmc_line[256];
 static TaskStatus_t remote_control_task_status[REMOTE_CONTROL_MAX_TASKS];
-static uint8_t remote_control_snap_buffer[REMOTE_CONTROL_SNAP_BUFFER_SIZE];
+static uint8_t remote_control_snap_buffer[DISPLAY_FRAME_BYTES];
 static char remote_control_snap_line[8 + (REMOTE_CONTROL_SNAP_CHUNK + 2) / 3 * 4 + 1];
 
 
@@ -340,8 +338,14 @@ static bool remote_control_screen(const char *args, char *reply, size_t reply_si
     uint32_t heap_max;
     menu_screen_copy(&screen, &heap_max);
     remote_control_screen_lines(&screen, write, write_ctx);
-    snprintf(reply, reply_size, "@ok screen id=%s lvgl_heap_max=%lu lvgl_biggest_free_min=%lu", screen.id,
-             (unsigned long) heap_max, (unsigned long) menu_lvgl_biggest_free());
+    // The frame's times (ADR-010, gate 4): the last draw and send, the longest of each, in microseconds
+    menu_frame_times_t times;
+    menu_frame_times(&times);
+    snprintf(reply, reply_size,
+             "@ok screen id=%s lvgl_heap_max=%lu lvgl_biggest_free_min=%lu frames=%lu draw_us=%lu draw_max_us=%lu "
+             "send_us=%lu send_max_us=%lu", screen.id, (unsigned long) heap_max,
+             (unsigned long) menu_lvgl_biggest_free(), (unsigned long) times.frames, (unsigned long) times.draw_us,
+             (unsigned long) times.draw_max_us, (unsigned long) times.send_us, (unsigned long) times.send_max_us);
     return true;
 }
 
@@ -366,27 +370,19 @@ static void remote_control_base64(const uint8_t *data, size_t len, char *out) {
 }
 
 
-// `snap`: the display buffer as u8g2 holds it. r=<0..3> is u8g2's rotation (R0 to R3), which the host undoes
+// `snap`: the screen's frame as the web's mirror has it (MENU_FRAME_FORMAT): as a person sees it, since the panel
+// turns itself (ADR-010, gate 4)
 static bool remote_control_snap(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                 void *write_ctx) {
-    u8g2_t *display_handler = get_display_handler();
-    size_t buffer_size = 8 * u8g2_GetBufferTileHeight(display_handler) * u8g2_GetBufferTileWidth(display_handler);
-    if (buffer_size != REMOTE_CONTROL_SNAP_BUFFER_SIZE) {
-        snprintf(reply, reply_size, "@err display buffer is %u bytes", (unsigned) buffer_size);
-        return false;
-    }
+    // One copy, under the frame's lock: a whole frame
+    menu_frame_copy(remote_control_snap_buffer);
 
-    // One copy, under the buffer's lock: a whole frame (ADR-010, gate 4)
-    acquire_display_buffer_access();
-    memcpy(remote_control_snap_buffer, u8g2_GetBufferPtr(display_handler), buffer_size);
-    release_display_buffer_access();
-
-    // r=0: the buffer is never turned; the panel turns itself (ADR-010, gate 4)
-    snprintf(remote_control_snap_line, sizeof(remote_control_snap_line), "@snap 128 64 u8g2 r=0");
+    snprintf(remote_control_snap_line, sizeof(remote_control_snap_line), "@snap %u %u %s", (unsigned) DISPLAY_WIDTH,
+             (unsigned) DISPLAY_HEIGHT, MENU_FRAME_FORMAT);
     if (write) {
         write(remote_control_snap_line, write_ctx);
     }
-    for (size_t offset = 0; offset < buffer_size; offset += REMOTE_CONTROL_SNAP_CHUNK) {
+    for (size_t offset = 0; offset < DISPLAY_FRAME_BYTES; offset += REMOTE_CONTROL_SNAP_CHUNK) {
         strcpy(remote_control_snap_line, "@sd ");
         remote_control_base64(remote_control_snap_buffer + offset, REMOTE_CONTROL_SNAP_CHUNK,
                               remote_control_snap_line + 4);

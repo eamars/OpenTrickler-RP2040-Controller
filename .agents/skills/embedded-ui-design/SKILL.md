@@ -10,7 +10,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
   - Its active area is not measured here. A typical 2.4 inch 12864 is about 55 x 27.5 mm, about 0.43 mm a pixel; measure the unit's glass before relying on a figure in mm.
 - **How it is read:** at a bench, from about 50 cm. A charge's weight is glanced at from further away.
 - **Input:** a knob that turns (next, previous), its click (Enter), the knob held 600 ms (Back), and the reset button (Back). Nothing else.
-- **Drawing:** LVGL 9 into u8g2's frame buffer (`src/menu_view_12864.c`); the navigator (`src/menu_nav.c`) fills a screen model in words and knows no pixels (ADR-010).
+- **Drawing:** LVGL 9 into the screen's one frame, only what changed, and the panel sent the pages that changed (`src/menu_view_12864.c`, `src/menu.c`, `src/display.c`); the navigator (`src/menu_nav.c`) fills a screen model in words and knows no pixels (ADR-010).
 
 ## Rules
 
@@ -102,7 +102,8 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
       - a slow mark while something waits (a poll).
     - **None while a charge pours,** whose figure must stay still and current.
     - **Why it must be slow:** the panel is a passive LCD. Such panels typically take on the order of 100 ms or more to settle a pixel, longer in the cold, so fast motion smears (general knowledge of STN panels, not measured on this one). Keep to a few frames a second and under about 300 ms a move.
-    - **What is known of the cost:** a full LVGL frame took 7.1 ms on the Pico 2 W at -Os (ADR-010, gate 1); a small animated area costs a fraction, since LVGL redraws only what changed.
+    - **What is known of the cost** (the Pico W, ADR-010, gate 4; `screen`'s reply gives them): the whole screen draws in 38 to 43 ms, a charge's figure in 7 to 9 ms; sending the panel all 8 pages takes up to 9 ms, the 3 or 4 a figure touches 4 to 6 ms. Times on the wall clock, with the motors' and the network's tasks above the menu's. LVGL draws only what changed, so a small animated area costs a fraction of a frame.
+    - **Set a style only when it changes.** LVGL redraws an object whenever one of its styles is set, even to the value it had, and the view is drawn at every refresh: a style set every time is a redraw every time (`view_reverse()` in `menu_view_12864.c`). Text goes through `view_text()`, which compares first.
     - **Before adopting any animation, measure:**
       - the Pico W's frame time;
       - the menu task's share of the CPU;
@@ -117,10 +118,10 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
   short, LVGL silently skips the glyphs it cannot buffer: the redesigned view in 12 KB drew its figures as a lone "."
   and lost a title's first letter (2026-11-17). After adding objects to the view, read `screen`'s
   `lvgl_biggest_free_min` on every kind of screen; keep it above about 1.5 KB (2,656 bytes at 14 KB).
-- **Fonts are u8g2's.** The design's three are among its BDF files (`library/u8g2/tools/font/bdf`), which the
-  firmware's generator reads (`scripts/bdf2lvgl.py`). `tools/ui_mock/panel.py` also reads u8g2's compiled catalogue
-  (`library/u8g2/csrc/u8g2_fonts.c`, about 2,000 faces), for trying a face; a face from the catalogue alone needs the
-  generator to read it too.
+- **Fonts are BDF files in `fonts/`,** with their notice: the design's three, and helvR14 for the mock-up sheet's
+  captions. The firmware's generator (`scripts/bdf2lvgl.py`) and `tools/ui_mock/panel.py` read the same files, so a
+  mock-up is what the unit draws. A face to try is added there as its BDF file (u8g2's `tools/font/bdf` holds many;
+  the firmware no longer depends on u8g2, ADR-010).
 - **Faces:**
   - `helvR08`, text, caps 8;
   - `helvB08`, titles and emphasis, caps 8;

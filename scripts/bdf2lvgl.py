@@ -1,7 +1,7 @@
 """BDF bitmap fonts into LVGL fonts (ADR-010, gate 4): the menu's fonts for the mini 12864, made at build time.
 
-The screen keeps the fonts u8g2 drew it with (Helvetica 8, regular and bold, and ProFont 22 for the weight), read
-from u8g2's own BDF sources in library/u8g2/tools/font/bdf. Each becomes an LVGL font in its built-in format
+The screen's faces are Helvetica 8, regular and bold, and Helvetica 18 bold for a job's figure, read from the BDF
+files in fonts/ (their notice is in fonts/README.md). Each becomes an LVGL font in its built-in format
 (lv_font_fmt_txt): one bit a pixel, printable ASCII only (U+0020 to U+007E), the bits of each glyph packed row after
 row with no padding, as LVGL reads them. Its line is as tall as those characters need, not the whole BDF's.
 
@@ -203,7 +203,7 @@ def main() -> int:
     parser.add_argument("fonts", nargs="+", help="<bdf path>:<C name>, or <bdf path>:<C name>:icons")
     args = parser.parse_args()
 
-    parts = ["// Made by scripts/bdf2lvgl.py from u8g2's BDF fonts (ADR-010, gate 4): do not edit\n"
+    parts = ["// Made by scripts/bdf2lvgl.py from the BDF fonts in fonts/ (ADR-010, gate 4): do not edit\n"
              '#include "lvgl/lvgl.h"\n']
     for spec in args.fonts:
         icons = spec.endswith(":icons")

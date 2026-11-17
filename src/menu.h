@@ -15,7 +15,36 @@
 extern "C" {
 #endif
 
+/**
+ * @brief The menu's locks and its screen's state, before any task runs: the web and the console may read the frame
+ *        before the menu's task has started.
+ */
+void menu_init(void);
+
 void menu_task(void *p);
+
+// The screen's frame over the web and in a snap (ADR-010, gate 4): LVGL's own, DISPLAY_HEIGHT rows of
+// DISPLAY_ROW_BYTES, the leftmost pixel the top bit, 1 dark (the body of a PBM image). No older format is served
+#define MENU_FRAME_FORMAT "mono_rows"
+
+/**
+ * @brief A copy of the frame, whole: LVGL draws it under the same lock. Any task.
+ * @param out DISPLAY_FRAME_BYTES.
+ */
+void menu_frame_copy(uint8_t *out);
+
+/**
+ * @brief How long the last frame took to draw (LVGL, only what changed) and to send (only the pages that changed),
+ *        and the longest of each since the start, in microseconds. The whole frame is sent again once a second.
+ */
+typedef struct {
+    uint32_t draw_us;
+    uint32_t draw_max_us;
+    uint32_t send_us;
+    uint32_t send_max_us;
+    uint32_t frames;
+} menu_frame_times_t;
+void menu_frame_times(menu_frame_times_t *times);
 
 /**
  * @brief 0 while the menu's pages are on screen; -1 while a job's screen is, or before the menu starts. A start from

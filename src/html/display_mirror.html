@@ -33,28 +33,14 @@
         fetch("/api/v1/display/frame")
           .then((response) => response.arrayBuffer())
           .then((buffer) => {
-            // Convert the ArrayBuffer to a Uint8Array
-            const binaryData = new Uint8Array(buffer);
-
-            // Decoding the binary data
-            const tileWidth = 0x10;
-
-            for (let tileRowIdx = 0; tileRowIdx < 8; tileRowIdx++) {
-              for (let bit = 0; bit < 8; bit++) {
-                // Each tile row includes 16 * 8 bytes
-                for (let byteIdx = 0; byteIdx < tileWidth * 8; byteIdx++) {
-                  const dataOffset =
-                    byteIdx + tileRowIdx * tileWidth * 8;
-                  let data;
-                  try {
-                    data = binaryData[dataOffset];
-                  } catch (error) {
-                    console.log(dataOffset);
-                    throw error;
-                  }
-                  const color = (1 << bit) & data ? "black" : "white";
-                  renderPixel(byteIdx * scaleFactor, tileRowIdx * 8 * scaleFactor + bit * scaleFactor, color);
-                }
+            // The frame is "mono_rows" (GET /api/v1/display): 64 rows of 16 bytes, the leftmost pixel the top bit,
+            // 1 dark
+            const frame = new Uint8Array(buffer);
+            const rowBytes = 128 / 8;
+            for (let y = 0; y < 64; y++) {
+              for (let x = 0; x < 128; x++) {
+                const dark = (frame[y * rowBytes + (x >> 3)] >> (7 - (x & 7))) & 1;
+                renderPixel(x * scaleFactor, y * scaleFactor, dark ? "black" : "white");
               }
             }
           })

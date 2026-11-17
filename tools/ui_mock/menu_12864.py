@@ -4,8 +4,8 @@ this follows). Draws each screen as the unit would, onto one sheet, so a change 
 
     venv\\Scripts\\python tools\\ui_mock\\menu_12864.py [--out <folder>] [--text <font>] [--bold <font>] [--figure <font>]
 
-The faces are names from u8g2's BDF files or its compiled catalogue; every baseline and the dense pages' line follow
-from their heights, so another face is drawn in the same grid.
+The faces are names of BDF files in fonts/; every baseline and the dense pages' line follow from their heights, so
+another face is drawn in the same grid.
 
 The design system, in one place:
   type      Helvetica, one family in three sizes (the owner, 2026-11-17: "All Helvetica"): helvR08 for all

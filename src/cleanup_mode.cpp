@@ -7,7 +7,6 @@
 #include "activity.h"
 #include "app.h"
 #include "events.h"
-#include "u8g2.h"
 #include "mini_12864_module.h"
 #include "motors.h"
 #include "scale.h"

@@ -12,7 +12,6 @@
 
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
-#include "u8g2.h"
 
 // modules
 #include "activity.h"
@@ -93,7 +92,9 @@ int main()
         printf("Jobs: no room for the job task\n");
         assert(false);
     }
-    // The menu draws with LVGL: at 1024 words it had 142 left (ADR-010, gate 4)
+    // The menu draws with LVGL: at 1024 words it had 142 left (ADR-010, gate 4). Its locks first: the web and the
+    // console read its frame
+    menu_init();
     xTaskCreate(menu_task, "Menu Task", 1536, NULL, 6, NULL);
 
     // The remote control's console task

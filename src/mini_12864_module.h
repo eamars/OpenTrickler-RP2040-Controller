@@ -61,7 +61,6 @@ ButtonEncoderEvent_t button_wait_for_input_ms(uint32_t timeout_ms);
 bool button_enc_is_down(void);
 bool mini_12864_module_init(void);
 void button_init(void);
-void display_init(void);
 bool button_config_save();
 bool mini_12864_module_config_save(void);
 // Its settings' table, for the API and the console (mini_12864_settings.c; ADR-003, gate 3)

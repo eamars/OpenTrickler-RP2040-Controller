@@ -1,12 +1,13 @@
 /*
-    The menu's task (ADR-010, gate 4). It owns LVGL and the panel: each frame LVGL draws into one bit a pixel is turned
-    into the UC1701's columns, written into u8g2's buffer under the buffer's lock, and sent (u8g2 is the panel's driver
-    only). The knob and the buttons become four keys:
+    The menu's task (ADR-010, gate 4). It owns LVGL and the screen's one frame: LVGL draws only what changed into it,
+    under the frame's lock, and the pages of the panel that changed are sent (display.c). The knob and the buttons
+    become four keys:
       the knob a detent clockwise or anticlockwise: Next, Prev;
       a click of the knob, released within MENU_HOLD_MS: Enter;
       the reset button, or the knob held MENU_HOLD_MS: Back (at once, while held).
     A start asked from anywhere is taken here and begun in the job task; the job's screen is the menu's until it ends.
 */
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -17,7 +18,6 @@
 
 #include "lvgl/lvgl.h"
 #include "pico/time.h"
-#include "u8g2.h"
 
 #include "activity.h"
 #include "display.h"
@@ -27,11 +27,10 @@
 #include "menu_view_12864.h"
 #include "mini_12864_module.h"
 
-#define MENU_WIDTH 128
-#define MENU_HEIGHT 64
-#define MENU_FRAME_BYTES (MENU_WIDTH * MENU_HEIGHT / 8)
 // LVGL's one-bit frame starts with its palette: two colours of 4 bytes
 #define MENU_PALETTE_BYTES 8
+// The whole frame is sent again this often, so a glitch on the panel's cable does not stay on the glass
+#define MENU_RESEND_MS 1000
 // A hold of the knob this long is Back
 #define MENU_HOLD_MS 600
 // How often the screen's live values are read again: a job's weight often, a page's values less
@@ -42,8 +41,15 @@
 
 extern QueueHandle_t encoder_event_queue;
 
-static uint8_t menu_frame[MENU_FRAME_BYTES + MENU_PALETTE_BYTES] __attribute__((aligned(4)));
+// The screen's one frame, LVGL's: no second buffer, since the panel keeps the frame it shows (ADR-010, gate 4)
+static uint8_t menu_frame[MENU_PALETTE_BYTES + DISPLAY_FRAME_BYTES] __attribute__((aligned(4)));
 static lv_display_t *menu_display = NULL;
+// Held while LVGL draws and while the frame is copied, so a copy is one whole frame
+static SemaphoreHandle_t menu_frame_lock = NULL;
+// The panel's pages a draw changed, sent with the draw's last area
+static uint8_t menu_frame_pages = 0;
+static menu_frame_times_t menu_times;
+static uint32_t menu_send_last_us = 0;
 
 // What the console sees: the screen last drawn, copied under its lock
 static SemaphoreHandle_t menu_screen_lock = NULL;
@@ -65,31 +71,48 @@ static uint32_t menu_tick(void) {
 }
 
 
+// The frame's pages sent, and how long that took
+static void menu_send(uint8_t pages) {
+    uint64_t start_us = time_us_64();
+    display_send_pages(menu_frame + MENU_PALETTE_BYTES, pages);
+    menu_send_last_us = (uint32_t) (time_us_64() - start_us);
+    menu_times.send_us = menu_send_last_us;
+    if (menu_send_last_us > menu_times.send_max_us) {
+        menu_times.send_max_us = menu_send_last_us;
+    }
+}
+
+
 /*
-    A frame drawn: into u8g2's buffer as the UC1701 takes it, then to the panel. LVGL's rows are bytes of 8 pixels
-    across, the leftmost the top bit; u8g2's pages are 8 rows deep, a byte a column, the top row the lowest bit.
-    (LVGL's own lv_draw_i1_convert_to_vtiled() runs each column the whole height: not u8g2's pages)
+    An area LVGL drew (direct mode: into the one frame, which keeps the rest). Its pages are noted, and sent with the
+    draw's last area. LVGL's rows are bytes of 8 pixels across; the panel's pages are 8 rows deep (display.c)
 */
 static void menu_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px_map) {
-    (void) area;
-    u8g2_t *u8g2 = get_display_handler();
-    const uint8_t *rows = px_map + MENU_PALETTE_BYTES;
-    acquire_display_buffer_access();
-    uint8_t *pages = u8g2_GetBufferPtr(u8g2);
-    memset(pages, 0, MENU_FRAME_BYTES);
-    for (int y = 0; y < MENU_HEIGHT; y += 1) {
-        const uint8_t *row = rows + y * (MENU_WIDTH / 8);
-        uint8_t *page = pages + (y / 8) * MENU_WIDTH;
-        uint8_t bit = (uint8_t) (1u << (y % 8));
-        for (int x = 0; x < MENU_WIDTH; x += 1) {
-            if (row[x / 8] & (0x80u >> (x % 8))) {
-                page[x] |= bit;
-            }
-        }
+    (void) px_map;
+    int first = area->y1 < 0 ? 0 : area->y1 / 8;
+    int last = area->y2 >= DISPLAY_HEIGHT ? DISPLAY_PAGES - 1 : area->y2 / 8;
+    for (int page = first; page <= last; page += 1) {
+        menu_frame_pages |= (uint8_t) (1u << page);
     }
-    u8g2_SendBuffer(u8g2);
-    release_display_buffer_access();
+    if (lv_display_flush_is_last(display)) {
+        menu_send(menu_frame_pages);
+        menu_frame_pages = 0;
+    }
     lv_display_flush_ready(display);
+}
+
+
+void menu_frame_copy(uint8_t *out) {
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    memcpy(out, menu_frame + MENU_PALETTE_BYTES, DISPLAY_FRAME_BYTES);
+    xSemaphoreGive(menu_frame_lock);
+}
+
+
+void menu_frame_times(menu_frame_times_t *times) {
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    *times = menu_times;
+    xSemaphoreGive(menu_frame_lock);
 }
 
 
@@ -124,11 +147,6 @@ bool menu_goto_screen(const char *id, bool *found) {
 
 
 void menu_screen_copy(menu_screen_t *screen, uint32_t *lvgl_heap_max) {
-    if (menu_screen_lock == NULL) {
-        memset(screen, 0, sizeof(*screen));
-        *lvgl_heap_max = 0;
-        return;
-    }
     xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
     *screen = menu_screen_drawn;
     *lvgl_heap_max = menu_lvgl_heap_max;
@@ -233,7 +251,21 @@ static void menu_jobs(void) {
 static void menu_draw(bool goto_asked) {
     menu_nav_screen(&menu_screen_now);
     menu_view_draw(&menu_screen_now);
+
+    // LVGL draws what changed and sends it (menu_flush), under the frame's lock: the draw's time is the rest
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    menu_send_last_us = 0;
+    uint64_t start_us = time_us_64();
     lv_timer_handler();
+    uint32_t took_us = (uint32_t) (time_us_64() - start_us);
+    if (menu_send_last_us > 0) {
+        menu_times.frames += 1;
+        menu_times.draw_us = took_us - menu_send_last_us;
+        if (menu_times.draw_us > menu_times.draw_max_us) {
+            menu_times.draw_max_us = menu_times.draw_us;
+        }
+    }
+    xSemaphoreGive(menu_frame_lock);
 
     menu_current_form_id = menu_nav_in_job() ? -1 : 0;
     xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
@@ -246,22 +278,31 @@ static void menu_draw(bool goto_asked) {
 }
 
 
-void menu_task(void *p) {
-    (void) p;
+void menu_init(void) {
     menu_screen_lock = xSemaphoreCreateMutex();
     menu_goto_drawn = xSemaphoreCreateBinary();
+    menu_frame_lock = xSemaphoreCreateMutex();
+    if (menu_screen_lock == NULL || menu_goto_drawn == NULL || menu_frame_lock == NULL) {
+        assert(false);
+    }
+}
 
+
+void menu_task(void *p) {
+    (void) p;
     lv_init();
     lv_tick_set_cb(menu_tick);
-    menu_display = lv_display_create(MENU_WIDTH, MENU_HEIGHT);
+    menu_display = lv_display_create(DISPLAY_WIDTH, DISPLAY_HEIGHT);
     lv_display_set_color_format(menu_display, LV_COLOR_FORMAT_I1);
-    lv_display_set_buffers(menu_display, menu_frame, NULL, sizeof(menu_frame), LV_DISPLAY_RENDER_MODE_FULL);
+    // Direct: LVGL draws only the areas that changed, into the one frame, which keeps the rest
+    lv_display_set_buffers(menu_display, menu_frame, NULL, sizeof(menu_frame), LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(menu_display, menu_flush);
     menu_view_init(menu_display);
     menu_nav_init();
     menu_draw(false);
 
     uint64_t heap_looked_us = 0;
+    uint64_t resent_us = time_us_64();
     while (true) {
         ButtonEncoderEvent_t event = button_wait_for_input_ms(menu_wait_ms());
         bool goto_asked = event == MENU_REMOTE_SCREEN;
@@ -282,6 +323,13 @@ void menu_task(void *p) {
         menu_jobs();
         menu_nav_refresh();
         menu_draw(goto_asked);
+
+        if (time_us_64() - resent_us >= (uint64_t) MENU_RESEND_MS * 1000u) {
+            resent_us = time_us_64();
+            xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+            menu_send(DISPLAY_ALL_PAGES);
+            xSemaphoreGive(menu_frame_lock);
+        }
 
         if (time_us_64() - heap_looked_us >= (uint64_t) MENU_HEAP_LOOK_MS * 1000u) {
             heap_looked_us = time_us_64();

@@ -75,10 +75,10 @@ add_custom_command(
 add_library(app_version "${SRC_DIRECTORY}/generated/version.c")
 
 
-# The menu's fonts, made from u8g2's own BDF sources (ADR-010): one family, Helvetica, in three sizes, as the owner
+# The menu's fonts, made from the BDF files in fonts/ (ADR-010): one family, Helvetica, in three sizes, as the owner
 # chose (skill embedded-ui-design): 8 regular for text, 8 bold for titles, 18 bold for the figure a job screen shows.
 # The regular one carries the title marks' icons too (gate 5)
-set(MENU_FONTS_BDF "${CMAKE_SOURCE_DIR}/library/u8g2/tools/font/bdf")
+set(MENU_FONTS_BDF "${CMAKE_SOURCE_DIR}/fonts")
 add_custom_command(
     OUTPUT "${SRC_DIRECTORY}/generated/menu_fonts.c"
     DEPENDS "${SCRIPTS_DIRECTORY}/bdf2lvgl.py" "${MENU_FONTS_BDF}/helvR08.bdf" "${MENU_FONTS_BDF}/helvB08.bdf"

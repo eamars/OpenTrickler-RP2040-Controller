@@ -160,13 +160,17 @@ static void view_show(lv_obj_t *obj, bool shown) {
 }
 
 
-// A box in reverse (lit, its text dark), or plain
+// A box in reverse (lit, its text dark), or plain. Set only when it changes: LVGL redraws an object whenever a style
+// of it is set, even to the value it had, and the view is drawn at every refresh (ADR-010, gate 4)
 static void view_reverse(lv_obj_t *box, bool reverse, lv_obj_t *a, lv_obj_t *b, lv_obj_t *c) {
-    lv_obj_set_style_bg_opa(box, reverse ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    lv_opa_t opa = reverse ? LV_OPA_COVER : LV_OPA_TRANSP;
+    if (lv_obj_get_style_bg_opa(box, 0) != opa) {
+        lv_obj_set_style_bg_opa(box, opa, 0);
+    }
     lv_color_t text = reverse ? lv_color_black() : lv_color_white();
     lv_obj_t *labels[] = {a, b, c};
     for (size_t idx = 0; idx < 3; idx += 1) {
-        if (labels[idx] != NULL) {
+        if (labels[idx] != NULL && !lv_color_eq(lv_obj_get_style_text_color(labels[idx], 0), text)) {
             lv_obj_set_style_text_color(labels[idx], text, 0);
         }
     }

@@ -32,7 +32,6 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -DDEBUG")
 set(SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/src")
 set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
-set(U8G2_SRC_DIRECYTORY "${CMAKE_SOURCE_DIR}/library/u8g2")
 set(LVGL_DIRECTORY "${CMAKE_SOURCE_DIR}/library/lvgl")
 set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
@@ -55,9 +54,6 @@ include_directories(${SRC_DIRECTORY})
 # community ports (ADR-011).
 set(FREERTOS_KERNEL_PATH ${FREERTOS_SRC_DIRECTORY})
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
-
-# u8g2: the mini 12864's panel driver and its frame buffer only. LVGL draws (ADR-010, gate 4)
-add_subdirectory(${U8G2_SRC_DIRECYTORY})
 
 # LVGL, configured by src/lv_conf.h. Every source is compiled; what lv_conf.h switches off compiles to nothing.
 # At -Os in every build, as the owner decided after ADR-010's gate 1: code nobody steps through, and at -O0 the
@@ -92,7 +88,6 @@ target_link_libraries("${TARGET_NAME}"
     hardware_pwm
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
-    u8g2
     lvgl
     app_version
 
