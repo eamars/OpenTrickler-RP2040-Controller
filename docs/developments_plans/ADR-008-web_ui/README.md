@@ -149,7 +149,7 @@ On real phones, at least one iPhone and one Android, before the design is settle
 
 The owner, 2026-11-18: "echoing the state, not taking over one from another". Read here as: every client (the screen, each browser, each agent) shows the unit's own state as it is; a change made from one is shown by all; no client holds the unit or shuts another out.
 - **The refusals that stay** are about the unit, not about a client: a write to the charge's or the motors' settings during a throw (409 `busy`, ADR-003), one job at a time.
-- **To settle:** ADR-004 refuses an update while a person has a screen open at the unit, so a unit never restarts under a hand at the knob. That favours the screen over the web. The agent's proposal: keep it, as a safety guard and not a take-over.
+- **Kept** (the owner, 2026-11-18): ADR-004 refuses an update while a person has a screen open at the unit, so a unit never restarts under a hand at the knob. It favours the screen over the web, as a safety guard, not a take-over.
 - **What it needs:** a setting changed is not an event today (the log has the charge, the throw, the cleanup, the motors, the system and the update: `events.h`). So a setting changed at the screen never reaches an open page. A new kind of event, a setting changed, with its resource and who wrote it (`screen`, `web`, `console`, `api`); a page then reads that resource again.
 
 ## The unit to the page: an event stream
@@ -213,14 +213,18 @@ Settled (the owner, 2026-11-18):
 - **No tuning here.** Tuning with powder, a chart of a throw and PR #113's powder analysis are ADR-009's. This ADR changes nothing at the level of a powder throw.
 - **Settings forms drawn from the schema** (the owner, 2026-11-17: see "Handed on by ADR-010").
 - **One language,** English.
+- **Phone first, and the same page scales to a tablet and a computer's browser** (the owner, 2026-11-18: "the UI element should be made scalable on phone, tablet and computer browser, just consider the average use case for blokes working in the garage"). Read here as:
+  - one layout that grows with the width, never a second page for phones (today's `/mobile` serves the same portal);
+  - made for a person at a bench in a garage: a phone propped beside the trickler and read at arm's length, a glance between other jobs, hands that may be dirty or gloved, light from bright to dim. So the live weight and the target are the largest things on the charge's page; every control is a large target, with room between targets; nothing depends on hovering or a fine pointer; contrast holds in any light, and the page follows the device's light or dark setting;
+  - the mock is checked at three widths, a phone (375 px), a tablet (768) and a computer (1280), in an agent's browser and by the owner on their own devices.
+  - Known limit, thought so and not checked: a browser keeps the phone's screen awake (the Screen Wake Lock API) only for a page served over HTTPS, so over the unit's plain HTTP the phone may dim during a charge. Seen in the mock on real phones.
 
-Proposed, not settled (the agent's):
-- **Phone first,** a PC served too. Most use is a phone held beside the trickler.
+Agreed with the owner (2026-11-18), the agent's proposals:
 - **Pages:** charge (target, live weight, start and stop), profiles, settings, update (ADR-004), the set-up (commissioning, above), and the screen's mirror, all one portal.
 - **Built from sources:** separate files for markup, styles and script, joined, trimmed and gzipped by the build into what the unit serves, with `Content-Encoding: gzip`.
 - **No framework at run time, or a very small one.** The pages are a handful of forms. A proposal with sizes comes with the mock.
 
-## Gates (proposed)
+## Gates (agreed with the owner, 2026-11-18)
 
 1. **The mock** (a design gate). The pages clickable against `tests/web_test.py`; the look, the proposals above, commissioning's, and the budget against the mock's real size settled by the owner using it. Phones' captive portals are seen first, with today's firmware, so the set-up is designed on what they do.
 2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself; the server's change; soaked on the Pico W against polling.
@@ -252,9 +256,6 @@ Then the proof on both boards; PR #111 is closed once the update is shown end to
 
 ## To settle before approval
 
-- The proposals marked "not settled": the pages, phone first, built from sources, no framework (or settled in the mock, gate 1).
-- Commissioning: what it covers, and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen; or settled in the mock.
-- ADR-004's refusal of an update while a person has a screen open at the unit: kept, as the agent proposes, or not ("Every client echoes the unit").
-- The gates as proposed.
+Nothing is left to settle before approval. Settled with the owner, 2026-11-18: the budget's rule (from the slot), the trimmed Tailwind and DaisyUI and their tool, the cup asked on the page only, the event stream to explore, the API review in this ADR, echoing with ADR-004's refusal kept, phone first scaling to a tablet and a computer, the pages as proposed, and the gates.
 
-Settled: the budget's rule (from the slot), the trimmed Tailwind and DaisyUI and their tool, the cup asked on the page only, the event stream to explore, the API review in this ADR, echoing (the owner, 2026-11-18). The look is settled in the mock.
+Settled in gate 1, the mock, by the owner using it: the look; and commissioning, what it covers and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen.
