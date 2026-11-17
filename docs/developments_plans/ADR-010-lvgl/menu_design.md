@@ -208,7 +208,7 @@ The owner, at the unit, on finding the servo gate gone: "My original ask from th
 2. **The cleanup as one system** (yes, as proposed). It has one value (the speed), one action (Stop), and the web's Zero and gate. As the target's editor: its screen a list, the speed, the weight and the flow in sight; the speed set by a click and the turn, live, and a second click; then Gate (open or closed, a click toggles), Zero, and Stop. No Run and no Pause: a speed of 0 is both.
 3. **The charge's screen** gets back the powder and the charge's time; the throw's number as this design had it.
 4. **Text by the knob for every string** (yes), a key of up to 63 characters and the source's 127 among them, for anyone without the web; the network list spares typing the name.
-5. **The weight's chart:** settled on the mock (the owner). A small chart of the throw on the charge's screen is possible (a 128 by 40 canvas, 640 bytes), but it competes with the figure read from 50 cm; the mock draws the screen with it and without it.
+5. **The weight's chart:** a choice of the person's, Settings › Display › Charge view, Weight or Chart (the owner, 2026-11-17, asked how it is switched; 14 actions, stored, and on the web as every setting). With Weight the charge's screen leads with the figure read from 50 cm; with Chart, a chart of the throw (a 128 by 40 canvas, 640 bytes) under the weight and the target. Stored in the display's struct, in its last byte of filler: on a unit that is updated it starts as that byte was until it is set once, the class of fault handed on to ADR-006. The charge's struct has no filler at its end, and a field there would reset every charge setting on every unit.
 
 Then the look of each new page and editor is mocked and settled before it is built (design gates before build gates): [mockups/parity_12864.png](mockups/parity_12864.png), drawn by `tools/ui_mock/parity_12864.py`. The mock found three labels too long beside their value ("Back-off speed", "Minimum speed", "Sense resistor"): a short label goes into the tables (and so the schema) where a group already says the rest ("Speed" under Coarse stop). A colour is a page of three numbers, red, green and blue, each set by the number editor: as one figure it does not fit.
 
@@ -236,41 +236,46 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 | Target, a small change | S | digits | 30.00 to 30.10 | 2 | 10 | 12 |
 | Target, a new load | S | digits | 24.35 to 42.00 | 2 | 27 | 29 |
 | Powder (8 profiles) | S | choice | 1 to 5 | 3 | 6 | 9 |
+| Powder details, to read | S | page |  | 4 | 1 | 5 |
 | Start a charge | S | action |  | 1 | 2 | 3 |
 | Zero, in a charge | S | action |  | 0 | 1 | 1 |
-| Stop, in a charge or cleanup | S | action |  | 0 | 1 | 1 |
+| Stop, in a charge or cleanup (the reset button) | S | action |  | 0 | 1 | 1 |
 | Cleanup's speed | S | step 1 rev/s | 0 to 3 rev/s | 3 | 5 | 8 |
 | Cleanup's gate, open or closed | S | toggle |  | 4 | 1 | 5 |
-| Cleanup's zero | S | action |  | 5 | 1 | 6 |
+| Cleanup's zero | S | action |  | 6 | 1 | 7 |
+| Cleanup's Stop, by the knob | S | action |  | 5 | 1 | 6 |
 | Scale's make (9) | W | choice | A&D to Sartorius | 6 | 4 | 10 |
 | Scale's baud rate (3) | W | choice | 19200 to 9600 | 7 | 3 | 10 |
 | Scale's frame format (2) | W | choice | 8N1 to 7N1 | 8 | 3 | 11 |
 | Decimals (2) | W | choice | 2 to 3 | 9 | 3 | 12 |
-| Invert knob | W | toggle |  | 6 | 1 | 7 |
-| Invert screen | W | toggle |  | 7 | 1 | 8 |
-| Rotation (2) | W | choice |  | 8 | 3 | 11 |
-| Backlight colour (8 named) | W | choice | white to green | 9 | 5 | 14 |
-| Servo gate on | W | toggle |  | 7 | 1 | 8 |
-| Servo gate open, close | W | action |  | 8 | 1 | 9 |
+| Fine stop threshold | S | step 0.01 gr | 0.03 to 0.05 | 6 | 4 | 10 |
+| Coarse stop threshold | S | step 0.1 gr | 5.0 to 3.0 | 7 | 22 | 29 |
+| Invert knob | W | toggle |  | 7 | 1 | 8 |
+| Invert screen | W | toggle |  | 8 | 1 | 9 |
+| Rotation (2) | W | choice |  | 9 | 3 | 12 |
+| Backlight colour (8 named) | W | choice | white to green | 10 | 5 | 15 |
+| Charge view (2): weight or chart | S | choice |  | 11 | 3 | 14 |
+| Servo gate on | W | toggle |  | 8 | 1 | 9 |
+| Servo gate open, close | W | toggle |  | 9 | 1 | 10 |
 | A shutter's end (the servo moves live) | W | step 0.001 | 0.050 to 0.055 | 10 | 7 | 17 |
-| A motor's direction | W | toggle |  | 8 | 1 | 9 |
-| Update channel (2) | W | choice |  | 9 | 3 | 12 |
-| Restart | W | action |  | 9 | 1 | 10 |
-| Factory reset (opens on Cancel) | W | action |  | 10 | 3 | 13 |
-| Wi-Fi on or off | W | toggle |  | 3 | 1 | 4 |
-| Fine stop threshold | T | step 0.01 gr | 0.03 to 0.05 | 14 | 4 | 18 |
-| Coarse stop threshold | T | step 0.1 gr | 5.0 to 3.0 | 13 | 22 | 35 |
-| Back-off turns | T | step 0.125 | 0.25 to 0.5 | 16 | 4 | 20 |
-| Precharge time | T | step 50 ms | 1000 to 1500 ms | 16 | 12 | 28 |
-| A motor's current | T | step 50 mA | 400 to 600 mA | 10 | 6 | 16 |
-| A profile's Kp (digits) | T | digits | 0.0250 to 0.0300 | 17 | 17 | 34 |
-| A profile's name | T | text | AR2209 | 15 | 131 | 146 |
+| A motor's direction | W | toggle |  | 10 | 1 | 11 |
+| Update channel (2) | W | choice |  | 10 | 3 | 13 |
+| Restart | W | action |  | 10 | 1 | 11 |
+| Factory reset (opens on Cancel) | W | action |  | 11 | 3 | 14 |
+| Wi-Fi on or off | W | action |  | 6 | 1 | 7 |
+| Back-off turns | T | step 0.125 | 0.25 to 0.5 | 15 | 4 | 19 |
+| Precharge time | T | step 50 ms | 1000 to 1500 ms | 17 | 12 | 29 |
+| A motor's current | T | step 50 mA | 400 to 600 mA | 11 | 6 | 17 |
+| A profile's Kp (digits) | T | digits | 0.0250 to 0.0300 | 15 | 17 | 32 |
+| A profile's name | T | text | AR2209 | 14 | 131 | 145 |
 | Wi-Fi network, picked from a scan | W | choice | the 2nd found | 15 | 3 | 18 |
 | Wi-Fi key, 12 characters | W | text | Trickle-2024 | 16 | 180 | 196 |
-| Update source, a URL | T | text | http://192.168.2.13:8080/a/b | 10 | 361 | 371 |
+| Update source, a URL | T | text | http://192.168.2.13:8080/a/b | 12 | 361 | 373 |
+
+*The paths follow the mock's tree (`knob_cost.py` names each page's rows in order); recounted 2026-11-17 after the mock was redrawn.*
 
 **What it shows:**
-- Everything needed in a session, or to get the unit working without the web, costs 1 to 17 actions, but a new load's target (29): a choice, a toggle, an action or a few steps, never deeper than three levels.
+- Everything needed in a session, or to get the unit working without the web, costs 1 to 17 actions, but a new load's target and a large change of the coarse stop (29 each): a choice, a toggle, an action or a few steps, never deeper than three levels.
 - Text costs 131 to 371 actions: a profile's name, the Wi-Fi key, the update's source. That is too hard, so **no text is typed at the knob**, which reverses the earlier "text by the knob for every string".
 - The tuning values can be changed (16 to 35 actions), but are not needed at the unit.
 
@@ -298,7 +303,7 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 - the cleanup's Stop below the fold, three turns away: it stays a softkey, as the charge's.
 
 **The borderlines, settled by the owner (2026-11-17):**
-- **The fine and coarse stop thresholds are on the screen,** Settings › Charge, stepped 0.01 gr and 0.1 gr in their rows (18 and 35 actions). A person who only uses the screen sees their effect ("Over by 0.04") and has no other way to change them. The rest of the tuning stays on the web.
+- **The fine and coarse stop thresholds are on the screen,** Settings › Charge, stepped 0.01 gr and 0.1 gr in their rows (10 and 29 actions). A person who only uses the screen sees their effect ("Over by 0.04") and has no other way to change them. The rest of the tuning stays on the web.
 - **The profiles' names stay on the web.** The screen chooses a profile by the name the web gave it, or "Profile n". A list of known powders (about 15 actions) was offered, and declined.
 - **A motor's current stays on the web,** with the rest of the build settings: a wrong current can overheat a driver.
 

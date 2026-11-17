@@ -50,7 +50,7 @@ def rows(panel, items, focus, first=0, total=None, editing=False, top=None, show
         if value:
             if idx == focus and editing:
                 width = m.TEXT.width(value) + 6
-                panel.rect(right - width + 3, row_top, width, m.ROW_H - 1)
+                panel.rect(right - width + 2, row_top, width, m.ROW_H - 1)
                 panel.text(m.TEXT, 0, base, value, lit=False, align="right", right=right)
             else:
                 panel.text(m.TEXT, 0, base, value, lit=not reverse, align="right", right=right)
@@ -196,7 +196,7 @@ def screens():
     p.text(m.TEXT, 0, 23, "AR2209", align="right", right=W - 3)
     chart(p, 26, 51, [min(1.0, (t / 40) ** 0.6 * 0.96) for t in range(41)], 1.0)
     m.softkeys(p, "Stop", "", focus="left")
-    add(p, "Charging, with a chart")
+    add(p, "Charging, Charge view: Chart")
 
     # --- A session: the cleanup
     p = Panel(); cleanup(p, "0.0 rev/s", "0.00 gr", "0.00 gr/s", "Open", "speed")
@@ -210,7 +210,7 @@ def screens():
     add(p, "Gate, a click: 5")
 
     p = Panel(); cleanup(p, "3.0 rev/s", "14.02 gr", "0.21 gr/s", "Open", "stop", title="Cleanup: running")
-    add(p, "Stop: 1 (the reset button), or 3")
+    add(p, "Stop: the reset button 1, the knob 6")
 
     # --- Settings: what the unit needs without the web
     p = Panel(); m.title(p, "Settings", back=True)
@@ -235,7 +235,7 @@ def screens():
 
     p = Panel(); m.title(p, "Charge", back=True)
     rows(p, [("Fine stop", "0.05 gr", False), ("Coarse stop", "5.0 gr", False)], 0, editing=True)
-    add(p, "Fine stop, 0.01 a detent: 18")
+    add(p, "Fine stop 10; coarse stop 5.0 to 3.0: 29")
 
     p = Panel(); m.title(p, "Not changed")
     m.message(p, "Not while", "a throw pours")
@@ -244,18 +244,23 @@ def screens():
 
     p = Panel(); m.title(p, "Display", back=True)
     rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", False),
-             ("Backlight", "White", False)], 1)
-    add(p, "Invert screen, a click: 8")
+             ("Backlight", "White", False)], 1, total=5)
+    add(p, "Invert screen, a click: 9")
 
     p = Panel(); m.title(p, "Display", back=True)
     rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", False),
-             ("Backlight", "Green", False)], 3, editing=True)
-    add(p, "Backlight, 8 named colours: 14")
+             ("Backlight", "Green", False)], 3, total=5, editing=True)
+    add(p, "Backlight, 8 named colours: 15")
+
+    p = Panel(); m.title(p, "Display", back=True)
+    rows(p, [("Invert screen", "On", False), ("Rotation", "Upside down", False), ("Backlight", "White", False),
+             ("Charge view", "Chart", False)], 3, first=1, total=5, editing=True)
+    add(p, "Charge view, weight or chart: 14")
 
     p = Panel(); m.title(p, "Servo gate", back=True)
     rows(p, [("Servo gate", "On", False), ("Shutters", "Closed", False), ("Shutter 0 closed", "0.050", False),
              ("Shutter 0 open", "0.120", False)], 1, total=6)
-    add(p, "Restored: the gate, a click: 9")
+    add(p, "Restored: the gate, a click: 10")
 
     p = Panel(); m.title(p, "Servo gate", back=True)
     rows(p, [("Shutters", "Closed", False), ("Shutter 0 closed", "0.055", False), ("Shutter 0 open", "0.120", False),
@@ -264,17 +269,17 @@ def screens():
 
     p = Panel(); m.title(p, "Motors", back=True)
     rows(p, [("Coarse direction", "Normal", False), ("Fine direction", "Reversed", False)], 1)
-    add(p, "A motor's direction, a click: 9")
+    add(p, "A motor's direction, a click: 11")
 
     p = Panel(); m.title(p, "Firmware", back=True)
     rows(p, [("Unit", "9CE00000", False), ("Build", "Release", False), ("Channel", "Stable", False),
              ("Check for update", "", False)], 2, first=3, total=7)
-    add(p, "Channel set in place: 12")
+    add(p, "Channel set in place: 13")
 
     p = Panel(); m.title(p, "Factory reset")
     m.message(p, "Erase every setting?", "It cannot be undone")
     m.softkeys(p, "Cancel", "Erase", focus="left")
-    add(p, "Factory reset, opens on Cancel: 13")
+    add(p, "Factory reset, opens on Cancel: 14")
 
     # --- Wi-Fi: its state, why a join failed, and on or off
     p = Panel(); m.title(p, "Wi-Fi", back=True)
