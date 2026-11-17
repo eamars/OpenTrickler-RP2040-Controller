@@ -1,6 +1,6 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Draft** 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner). Not approved. Captures what is wrong with the pages today and ideas for the new ones; the look is shown to the owner as a mock before anything is built.
+Status: **Decided** 2026-11-18. Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Work starts, with gate 1 (the mock), when the owner says so; the ADR is then Open.
 
 ## What we want
 
