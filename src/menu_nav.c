@@ -927,15 +927,14 @@ static void value_backlight(const menu_row_t *row, char *out, size_t room) {
 }
 
 
-// --- The charge's chart: the throw's weight at each refresh while it pours (100 ms in a job), as a share of the
-// target. When the points are full, every other one goes and the rest are taken half as often, so a throw of any
-// length fits
+// --- The charge's chart: the throw's weight while it pours, as a share of the target, a point at each step of the
+// throw's own time (the time its title shows). When the points are full, every other one goes and the step doubles,
+// so each point keeps its time and a throw of any length fits; the view places them by time (the owner, 2026-11-18)
 
 static uint8_t chart_points[MENU_CHART_POINTS];
 static uint8_t chart_count = 0;
 static uint16_t chart_throw = 0;
-static uint16_t chart_every = 1;
-static uint16_t chart_skipped = 0;
+static uint32_t chart_step_ms = MENU_CHART_STEP_MS;
 
 
 static void chart_sample(void) {
@@ -947,25 +946,25 @@ static void chart_sample(void) {
     if (charge.throw_number != chart_throw) {
         chart_throw = charge.throw_number;
         chart_count = 0;
-        chart_every = 1;
-        chart_skipped = 0;
-    }
-    chart_skipped += 1;
-    if (chart_skipped < chart_every) {
-        return;
-    }
-    chart_skipped = 0;
-    if (chart_count == MENU_CHART_POINTS) {
-        for (uint8_t idx = 0; idx < MENU_CHART_POINTS / 2; idx += 1) {
-            chart_points[idx] = chart_points[2 * idx + 1];
-        }
-        chart_count = MENU_CHART_POINTS / 2;
-        chart_every *= 2;
+        chart_step_ms = MENU_CHART_STEP_MS;
     }
     float share = scale_get_current_measurement() / charge.target;
     share = isfinite(share) ? share : 0.0f;
     share = share < 0.0f ? 0.0f : (share > 1.25f ? 1.25f : share);
-    chart_points[chart_count++] = (uint8_t) lroundf(share * MENU_CHART_TARGET);
+    uint8_t point = (uint8_t) lroundf(share * MENU_CHART_TARGET);
+    // Every step's time passed since the last point takes the weight now: a refresh comes about once a step
+    uint32_t now_ms = (uint32_t) lroundf(charge.elapsed_s * 1000.0f);
+    while ((uint32_t) chart_count * chart_step_ms <= now_ms) {
+        if (chart_count == MENU_CHART_POINTS) {
+            for (uint8_t idx = 0; idx < MENU_CHART_POINTS / 2; idx += 1) {
+                chart_points[idx] = chart_points[2 * idx];
+            }
+            chart_count = MENU_CHART_POINTS / 2;
+            chart_step_ms *= 2;
+            continue;
+        }
+        chart_points[chart_count++] = point;
+    }
 }
 
 
@@ -2272,6 +2271,7 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
                 snprintf(screen->context, MENU_TEXT, "%s", profile_get_name(profile_get_selected_idx()));
             }
             screen->chart_count = chart_count;
+            screen->chart_step_ms = chart_step_ms;
             memcpy(screen->chart_points, chart_points, chart_count);
         }
         // A new action is focused as it appears; with none, Stop is

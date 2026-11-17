@@ -895,3 +895,17 @@ the charge mode, every call to hello should trigger the animation, regardless of
   its check. Charge view changed by the 14 actions `knob_cost.py` now counts, and put back. Choices counted again,
   their pages not wrapping: the scale's make 15 (10 before), the rest as they were.
 - **Size:** the Pico W 980.8 KB of its 1,016 KB slot.
+
+## Gate 6, step 8: the chart's time stretches with the throw (2026-11-18)
+
+- **Asked:** the owner asked what the chart does when a throw runs long. It took a point at each refresh, one pixel
+  each, so its width held 12 s; when full, it kept every other point and sampled half as often, and the curve
+  shrank to half the width at a stroke. The owner's direction: 10 s across by default, then the throw's time,
+  the earlier curve compressed.
+- **Built:** a point at each step of the throw's own time (the time its title shows), from 100 ms; when the 120
+  points are full, every other one is kept and the step doubles, so each point keeps its exact time and the store
+  stays 120 bytes. The view places each point by its time on an axis of 10 s, or of the last point's time when
+  longer, and joins it to the one before along the line.
+- **Proven on the Pico W:** a simulated throw to 100 gr, snapped at 4.3 s (the curve at 43% of the width), 9.3 s
+  (92%) and its end at 18.3 s (the whole width, past the store's halving at 12 s with no jump):
+  [chart_axis.png](chart_axis.png), on the owner's inverted screen. `reach`, `menu_tour` and `charge_cycle` pass.

@@ -77,6 +77,7 @@ static lv_obj_t *view_chart_head;
 static lv_obj_t *view_chart_note;
 static bool view_chart_shown = false;
 static uint8_t view_chart_count = 0;
+static uint32_t view_chart_step_ms = MENU_CHART_STEP_MS;
 static uint8_t view_chart_points[MENU_CHART_POINTS];
 static lv_obj_t *view_softkey_left_box;
 static lv_obj_t *view_softkey_left;
@@ -594,16 +595,29 @@ void menu_view_paint(uint8_t *rows, const lv_area_t *area) {
             view_paint_pixel(rows, area, x, target_y);
         }
     }
-    // The curve: a pixel a point, each joined to the one before by its column
+    // The time across: 10 s, or the throw's time so far when longer, so the curve then reaches the right edge and
+    // what came before is pressed into the width (the owner, 2026-11-18)
+    uint32_t last_ms = view_chart_count > 0 ? (uint32_t) (view_chart_count - 1) * view_chart_step_ms : 0;
+    uint32_t across_ms = last_ms > MENU_CHART_ACROSS_MS ? last_ms : MENU_CHART_ACROSS_MS;
+    int width = VIEW_CHART_W - 3;
+    // The curve: each point at its time, joined to the one before along the line, a column at each x
+    int prev_x = VIEW_CHART_X + 1;
     int prev_y = bottom;
     for (int idx = 0; idx < view_chart_count; idx += 1) {
-        int x = VIEW_CHART_X + 1 + idx;
+        int x = VIEW_CHART_X + 1 + (int) ((uint64_t) idx * view_chart_step_ms * (uint64_t) width / across_ms);
         int y = bottom - span * view_chart_points[idx] / MENU_CHART_FULL;
-        int from = prev_y < y ? prev_y : y;
-        int to = prev_y < y ? y : prev_y;
-        for (int yy = from; yy <= to; yy += 1) {
-            view_paint_pixel(rows, area, x, yy);
+        int run = x - prev_x;
+        int was = prev_y;
+        for (int cx = run > 0 ? prev_x + 1 : x; cx <= x; cx += 1) {
+            int cy = run > 0 ? prev_y + (y - prev_y) * (cx - prev_x) / run : y;
+            int from = was < cy ? was : cy;
+            int to = was < cy ? cy : was;
+            for (int yy = from; yy <= to; yy += 1) {
+                view_paint_pixel(rows, area, cx, yy);
+            }
+            was = cy;
         }
+        prev_x = x;
         prev_y = y;
     }
 }
@@ -627,9 +641,10 @@ static void view_chart_draw(const menu_screen_t *screen, bool shown) {
     view_text(view_chart_head, screen->chart_head);
     view_font(view_chart_note, screen->context_bold ? &menu_font_bold : &menu_font_regular);
     view_text(view_chart_note, screen->context);
-    if (screen->chart_count != view_chart_count ||
+    if (screen->chart_count != view_chart_count || screen->chart_step_ms != view_chart_step_ms ||
         memcmp(screen->chart_points, view_chart_points, screen->chart_count) != 0) {
         view_chart_count = screen->chart_count;
+        view_chart_step_ms = screen->chart_step_ms;
         memcpy(view_chart_points, screen->chart_points, screen->chart_count);
         lv_obj_invalidate(view_chart);
     }

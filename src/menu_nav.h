@@ -34,6 +34,9 @@ typedef enum {
 #define MENU_ROWS_MAX 14
 // The charge's chart: the throw's weights, at most this many, each 0 to MENU_CHART_FULL for 0 to 1.25 of the target
 #define MENU_CHART_POINTS 120
+// A point at each step of the throw's time, from 100 ms; across, 10 s or the throw's time when longer
+#define MENU_CHART_STEP_MS 100
+#define MENU_CHART_ACROSS_MS 10000
 #define MENU_CHART_FULL 250
 #define MENU_CHART_TARGET 200
 #define MENU_TEXT 28
@@ -86,6 +89,7 @@ typedef struct {
     bool chart;
     char chart_head[MENU_TEXT];
     uint8_t chart_count;
+    uint32_t chart_step_ms;                 // point n is the weight at n steps into the throw
     uint8_t chart_points[MENU_CHART_POINTS];
     int8_t edit_at;                         // -1 on a job, and on the editor while a softkey has the focus
 
