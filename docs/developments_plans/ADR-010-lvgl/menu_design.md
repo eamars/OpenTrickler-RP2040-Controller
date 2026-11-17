@@ -253,7 +253,7 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 | Invert knob | W | toggle |  | 7 | 1 | 8 |
 | Invert screen | W | toggle |  | 8 | 1 | 9 |
 | Rotation (2) | W | choice |  | 9 | 3 | 12 |
-| Backlight colour (8 named) | W | choice | white to green | 10 | 5 | 15 |
+| Backlight colour (8 named) | W | choice | white to green | 10 | 6 | 16 |
 | Charge view (2): weight or chart | S | choice |  | 11 | 3 | 14 |
 | Servo gate on | W | toggle |  | 8 | 1 | 9 |
 | Servo gate open, close | W | toggle |  | 9 | 1 | 10 |
@@ -262,7 +262,7 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 | Update channel (2) | W | choice |  | 10 | 3 | 13 |
 | Restart | W | action |  | 10 | 1 | 11 |
 | Factory reset (opens on Cancel) | W | action |  | 11 | 3 | 14 |
-| Wi-Fi on or off | W | action |  | 6 | 1 | 7 |
+| Wi-Fi on or off | W | action |  | 5 | 1 | 6 |
 | Back-off turns | T | step 0.125 | 0.25 to 0.5 | 15 | 4 | 19 |
 | Precharge time | T | step 50 ms | 1000 to 1500 ms | 17 | 12 | 29 |
 | A motor's current | T | step 50 mA | 400 to 600 mA | 11 | 6 | 17 |
@@ -272,7 +272,7 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 | Wi-Fi key, 12 characters | W | text | Trickle-2024 | 16 | 180 | 196 |
 | Update source, a URL | T | text | http://192.168.2.13:8080/a/b | 12 | 361 | 373 |
 
-*The paths follow the mock's tree (`knob_cost.py` names each page's rows in order); recounted 2026-11-17 after the mock was redrawn.*
+*The paths follow the mock's tree (`knob_cost.py` names each page's rows in order); recounted 2026-11-17 after the mock was redrawn, and corrected to the firmware as built (the backlight's Green is its fifth colour; Wi-Fi's button is two turns away). Six changes were made on the unit by exactly these keys and checked through the API (gate 6's proof, progress.md).*
 
 **What it shows:**
 - Everything needed in a session, or to get the unit working without the web, costs 1 to 17 actions, but a new load's target and a large change of the coarse stop (29 each): a choice, a toggle, an action or a few steps, never deeper than three levels.

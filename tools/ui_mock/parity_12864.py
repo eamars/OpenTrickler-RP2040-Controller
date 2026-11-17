@@ -250,7 +250,7 @@ def screens():
     p = Panel(); m.title(p, "Display", back=True)
     rows(p, [("Invert knob", "Off", False), ("Invert screen", "On", False), ("Rotation", "Upside down", False),
              ("Backlight", "Green", False)], 3, total=5, editing=True)
-    add(p, "Backlight, 8 named colours: 15")
+    add(p, "Backlight, 8 named colours: 16")
 
     p = Panel(); m.title(p, "Display", back=True)
     rows(p, [("Invert screen", "On", False), ("Rotation", "Upside down", False), ("Backlight", "White", False),
@@ -290,7 +290,7 @@ def screens():
     p = Panel(); m.title(p, "Wi-Fi", back=True)
     m.dense(p, [("Not joined", "Wrong key", "pair"), ("Network", "HomeNet", "pair"), ("Turn Wi-Fi off", "button",
                                                                                      True)], at="end")
-    add(p, "Restored: why it did not join; off 7")
+    add(p, "Restored: why it did not join; off 6")
     return out, caps
 
 

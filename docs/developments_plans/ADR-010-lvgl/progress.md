@@ -852,3 +852,25 @@ the charge mode, every call to hello should trigger the animation, regardless of
   ([wifi_not_found.png](wifi_not_found.png), on the owner's inverted screen); the SSID put back, the unit joined
   again. Wi-Fi turned off and on again by two clicks, stored on. The key was never touched (it is write only).
   `menu_tour` (Wi-Fi saved again) and `charge_cycle` pass.
+
+## Gate 6, step 7: the proof (2026-11-17)
+
+- **The knob's costs, made on the unit:** six of the settled changes made by exactly the keys `knob_cost.py` counts,
+  from the main menu at rest, each checked through the API and put back: Invert screen 9, a powder four on 9, the
+  fine stop from 0.03 to 0.05 10, the backlight from white to green 16, the cleanup's speed from 0 to 3 8, Wi-Fi off
+  6. All six as counted. Writing them out found two counts the table had wrong, now corrected in it and in the mock:
+  the backlight's Green is the palette's fifth colour (16, not 15), and Wi-Fi's button is two turns away (6, not 7).
+- **The FreeRTOS heap through an HTTPS poll**, the figure LVGL's 3 KB pool was sized against: a test image that
+  trusts the local server (`-DHTTPS_TEST_CA=ON`), a poll of both hops over both test chains: mbedTLS's peak 38,788
+  bytes, as in gate 5; the heap's low mark **5,096 bytes** (gate 5: 8,168; the difference is the pool). With
+  GitHub's chains, about 6.4 KB, from gate 5's figures.
+- **LVGL's heap** after a tour, a charge and a cleanup: at most 11.9 KB of its 17 KB used, 3.2 KB free in one piece
+  at the least.
+- **Sizes:** the Pico W 980.2 KB of its 1,016 KB slot, 252.5 KB of RAM at link; the Pico 2 W 950.3 KB of 1,792 KB.
+  Gate 6 took 7.7 KB of the Pico W's flash (972.5 KB after step 2, 980.2 KB now), within the survey's 12 to 17 KB.
+- **Every step** was proven on the Pico W by the knob from the console, with `menu_tour --compare` (its baseline
+  saved again where a page changed), `charge_cycle`, and `api_check` and `settings_roundtrip` where the API's side
+  moved. The bench put back as it was: the normal image, the update source stored as HTTP, the owner's settings.
+- **Left:** the owner's use of every screen by hand; the servo seen moving to a shutter's end (the bench's gate is
+  off and not fitted); the Pico 2 W on the probe (built; an application-layer change, proven on one unit by the
+  owner's rule, but for LVGL's pool, which is memory and proven on the tighter board).

@@ -71,7 +71,7 @@ DISPLAY = {"Invert knob": 0, "Invert screen": 1, "Rotation": 2, "Backlight": 3, 
 GATE = {"Servo gate": 0, "Shutters": 1, "Shutter 0 closed": 2}
 MOTORS = {"Coarse direction": 0, "Fine direction": 1}
 FIRMWARE = {"Channel": 0, "Check for update": 1}                # its facts are read only
-WIFI_OFF = 3                                                    # Wi-Fi's card: the turns to its button at the end
+WIFI_OFF = 2                                                    # Wi-Fi's notes: the turns to its button at the end
 S = MAIN["Settings"]
 
 
@@ -108,7 +108,7 @@ ROWS = [
     ("Invert screen", "W", "toggle", "", settings("Display", DISPLAY["Invert screen"]), 1),
     ("Rotation (2)", "W", "choice", "", settings("Display", DISPLAY["Rotation"]), edit_choice(2, 0, 1)),
     ("Backlight colour (8 named)", "W", "choice", "white to green", settings("Display", DISPLAY["Backlight"]),
-     edit_choice(8, 0, 3)),
+     edit_choice(8, 0, 4)),
     ("Charge view (2): weight or chart", "S", "choice", "", settings("Display", DISPLAY["Charge view"]),
      edit_choice(2, 0, 1)),
     ("Servo gate on", "W", "toggle", "", settings("Servo gate", GATE["Servo gate"]), 1),
