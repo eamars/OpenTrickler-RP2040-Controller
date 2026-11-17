@@ -1,6 +1,6 @@
 # ADR-010: the screen's menu designed again, on LVGL
 
-Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Gate 1, the measurement, was run before approval, 2026-11-17: the Pico W fits, its flash with LVGL and mbedTLS at -Os inside the shipping build, its RAM with trims. Gates 2 and 4 were built the same night at the owner's word, ahead of approval, which the owner gives on PR #132, and proven on both units. Gate 3 (the mock) is dropped by the owner, since gate 4 was built ahead of it. Gate 5 (the update at the screen) was built and proven on the Pico W the next day; the owner skipped the Pico 2 W's run, the lower-risk target ([progress.md](progress.md)). Gate 4 was opened again: it had left u8g2 in as the panel's driver and frame buffer, and the owner's review sent it back to remove u8g2 entirely. Built and proven on the Pico W the same day. Left: the owner's look at both panels, the Pico 2 W's run, the owner's use by hand, and the approval. Gate 6, what the unit needs on the screen (the owner's survey: every setting needed at the unit and changed there in a few actions, and what the rebuild had taken off the screen put back), was built and proven on the Pico W the same night; left with it: the owner's use by hand, and the servo seen moving with a gate fitted.
+Status: **Built** 2026-11-18, merged by #132 and #133, and closed at the owner's word ("Merged, make sure your ADR is closed"). Drafted 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)); its gates approved and built one at a time from 2026-11-17, as [progress.md](progress.md) records: gate 1 the measurement, gate 2 the modes in a job task, gate 3 (the mock) dropped by the owner, gate 4 the new menu on LVGL with u8g2 removed, gate 5 the update at the screen, gate 6 what the unit needs on the screen, with the owner's review at the unit (step 8) and the bench host (step 9). Proven on the Pico W; the Pico 2 W built, and updated over the air to 2.0.2-64. **Not done at the close:** the Pico 2 W's run on the probe, which saves its menu baseline (`tests/menu_baseline/pico2_w/`, done at its next turn on the probe, AGENTS.md), and the servo seen moving to a shutter's end with a gate fitted (the bench's gate is not fitted; done when one is, AGENTS.md). The owner's use of every screen by hand was the owner's review at the unit through gate 6.
 
 ## What we want
 
@@ -213,7 +213,7 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 - Storing the target weight (ADR-014, with the charge profile).
 - The web page's offer, its acknowledgement before a start, and the upload by hand (ADR-008).
 
-## To settle before approval
+## Settled before approval
 
 - ~~The Pico W, from gate 1's figures.~~ Settled 2026-11-17: the libraries at -Os (the owner); the three RAM trims are built with the poll and measured there (gate 5).
 - ~~The beta channel as proposed~~ (the owner, 2026-11-17: yes). ~~The remote mark's 30 s~~: kept as built (the owner, 2026-11-18).

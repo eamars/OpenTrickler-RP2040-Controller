@@ -994,3 +994,18 @@ the charge mode, every call to hello should trigger the animation, regardless of
     bind 8080); its log showed the bench path too. It was stopped and the check run again with one server.
   - `reach`, `menu_tour` and `charge_cycle` pass. v9.0.0 is back out of the served folder; no server is left
     running, so the owner's test of v2.0.3 from GitHub is not taken over.
+
+## Closed (2026-11-18)
+
+Gate 6's steps 8 and 9 merged by #132 and #133. The owner: "Merged, make sure your ADR is closed." Closed as Built in
+its README, here and in the index, on a branch merged into main.
+
+- **Done:** every gate the owner approved, proven on the Pico W by `menu_tour`, `charge_cycle`, `reach`,
+  `api_check` and `settings_roundtrip` where each step touched them; the update offered, installed and confirmed
+  over the air (gate 5), and the Pico 2 W updated over the air to 2.0.2-64 (its settings copied before and found
+  the same after, its three new fields at their defaults). The owner used every screen by hand at the unit in the
+  reviews of gate 6.
+- **Not done, with the occasion that does each** (AGENTS.md says so where an agent looks):
+  - the Pico 2 W on the probe: `menu_tour --save tests/menu_baseline/pico2_w`, then `--compare`, and
+    `charge_cycle`, at its next turn on the probe;
+  - the servo seen moving to a shutter's end from Settings › Servo gate, when a gate is fitted to the bench's unit.
