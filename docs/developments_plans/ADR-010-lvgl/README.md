@@ -45,6 +45,7 @@ Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu
 - **u8g2 goes entirely, in gate 4** (2026-11-17, the owner's review of the plan): "this iteration of the work should remove the dependency of u8g2, including the frame buffer, screen driver, draw worker etc ... We may reuse the font from u8g2, but that should not become the reason to keep that dependency." Gate 4 as built kept u8g2 as the panel's driver and frame buffer, against its own line here ("all of u8g2 if LVGL is chosen").
 - **The screen's frame over the web keeps no old format:** "There is no backward compatibility for screenbuffer distribution over the ethernet so you can change off one go."
 - **One frame buffer, not two,** as recommended (below); the owner: "I believe the gate 4 will inherently optimize for performance and RAM utilization. Let's write first, and report if you noticed any discrepancy."
+- **The screen's colours as the glass shows them** (2026-11-17, the owner's look at the panel). The mini 12864's glass is negative: a lit pixel shows light on a dark ground, the opposite of what the mock-ups, the snaps and the skill drew. The owner: "The software is not released, so it is the chance to add feature we need. Therefore I'd like to add the settings first, then fix the tool, then fix the AI hello display to bright mode permanently, as the dark mode just looks strange." A unit starts with the glass's own look, light on dark (the owner's choice of the two). The hello keeps its flash and then holds bright: the owner asked for an opinion, and the flash is what marks a new agent whichever look is set. Both units' glasses are the same (the owner).
 
 ## Why here
 
@@ -149,10 +150,15 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
      - **The panel's driver is our own,** on the SDK's SPI: the UC1701's reset, its set-up, contrast and flip, and the frame sent as 8 pages of 8 rows. Its commands are those u8g2's driver sends; a flipped panel starts 4 columns in, since the controller has 132. The frame's lock is made before any task runs (`menu_init()`), so no task can ask for it first.
      - **One frame, LVGL's,** in direct mode: LVGL draws only what changed into its one screen-sized buffer. No second buffer: the panel holds the frame it shows, and the send is too short for a DMA send beside the next frame's drawing to gain anything.
      - **The send** covers the 8-row bands a change touches, each turned into the panel's columns as it goes. The whole frame is sent again once a second, so a glitch on the panel's cable does not stay on the glass.
-     - **The mirror and `snap` read LVGL's frame,** under a lock the menu holds while LVGL draws, so each is one whole frame. Its format is LVGL's: 64 rows of 16 bytes, the leftmost pixel the top bit, 1 dark (the layout of a PBM image's body). The API's `format`, the mirror's page and `rc_run.py`'s snap change with it, and no old format is kept (the owner).
+     - **The mirror and `snap` read LVGL's frame,** under a lock the menu holds while LVGL draws, so each is one whole frame. Its format is LVGL's: 64 rows of 16 bytes, the leftmost pixel the top bit, 1 a lit pixel (the layout of a PBM image's body). The API's `format`, the mirror's page and `rc_run.py`'s snap change with it, and no old format is kept (the owner).
      - **The fonts' BDF files are the repository's own,** in `fonts/` with their notice; `scripts/bdf2lvgl.py` reads them there. The mock-up tool reads the same folder. Its reader of u8g2's compiled catalogue goes: a face is tried by adding its BDF.
      - **Then u8g2 goes:** the submodule, its CMake lines, its part in the size report, the five includes, and every page that names it as the driver or the source of the fonts (AGENTS.md, the skills `c-style` and `embedded-ui-design`, api_v1.md).
      - **The frame's times are reported:** `screen`'s reply gives the last frame's drawing and sending times, and the longest of each since the start. An animation is later judged against them (the skill `embedded-ui-design`).
+   - **The screen inverted, as a setting** (the owner's look at the panel, 2026-11-17):
+     - `invert_display` in `settings/display` ("Invert the screen", applies now), and its row, Invert screen, on the Display page beside Invert knob. It is the panel's own command (`0xA7`), so the frame is untouched.
+     - **The display's stored struct keeps its size:** the field lands in its filler (byte 6 of 8), so nothing resets and the flag starts as the byte stored there. On the Pico W it started on, and was stored off. Left as it is by the owner, who keeps this change to the inversion; handed on to ADR-006.
+     - The menu's task alone sends the panel's inversion: the setting, or during a hello its flash and then bright, whatever the setting.
+     - The mirror and `snap` show the panel as a person sees it: the frame with the inversion applied, a 1 a lit pixel. The mirror's page, `rc_run.py`'s pictures, the mock-up sheet and the skill draw a lit pixel light on a dark glass. The baselines' pictures are flipped to match, once, by a script.
 5. **The update at the screen.**
    - The stored channel and source, and the poll at each start and on asking.
    - The download into the free slot as a job.
@@ -173,6 +179,7 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
   - the mirror's page shows the screen, in a browser on the unit;
   - `screen` gives the frame's times on the Pico W, for a page opened and for a charge's figure, and `motor` shows no late feed meanwhile;
   - `charge_cycle` passes.
+- **With the screen's inversion:** `menu_tour --compare` passes with the setting off against the flipped baseline; with it on, a snap and the mirror show the page inverted and the panel shows it bright; a hello shows bright with either; the owner looks at the panel.
 - On each supported board.
 
 ## Not in this ADR

@@ -34,13 +34,13 @@
           .then((response) => response.arrayBuffer())
           .then((buffer) => {
             // The frame is "mono_rows" (GET /api/v1/display): 64 rows of 16 bytes, the leftmost pixel the top bit,
-            // 1 dark
+            // 1 lit. The mini 12864's glass shows a lit pixel light on a dark ground
             const frame = new Uint8Array(buffer);
             const rowBytes = 128 / 8;
             for (let y = 0; y < 64; y++) {
               for (let x = 0; x < 128; x++) {
-                const dark = (frame[y * rowBytes + (x >> 3)] >> (7 - (x & 7))) & 1;
-                renderPixel(x * scaleFactor, y * scaleFactor, dark ? "black" : "white");
+                const lit = (frame[y * rowBytes + (x >> 3)] >> (7 - (x & 7))) & 1;
+                renderPixel(x * scaleFactor, y * scaleFactor, lit ? "#dde4ea" : "#1c2228");
               }
             }
           })

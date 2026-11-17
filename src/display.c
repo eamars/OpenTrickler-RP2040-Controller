@@ -28,7 +28,7 @@ static const uint8_t display_setup[] = {
     0x40,           // start line 0
     0xa0,           // columns as wired
     0xc8,           // rows as wired
-    0xa6,           // a 1 is a dark pixel
+    0xa6,           // a 1 is a lit pixel, not inverted
     0xa2,           // bias 1/9
     0x2f,           // power: booster, regulator and follower on
     0xf8, 0x00,     // booster 4x

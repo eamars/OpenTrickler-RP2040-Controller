@@ -40,6 +40,7 @@
 #define MENU_HEAP_LOOK_MS 2000
 
 extern QueueHandle_t encoder_event_queue;
+extern mini_12864_module_config_t mini_12864_module_config;
 
 // The screen's one frame, LVGL's: no second buffer, since the panel keeps the frame it shows (ADR-010, gate 4)
 static uint8_t menu_frame[MENU_PALETTE_BYTES + DISPLAY_FRAME_BYTES] __attribute__((aligned(4)));
@@ -50,6 +51,9 @@ static SemaphoreHandle_t menu_frame_lock = NULL;
 static uint8_t menu_frame_pages = 0;
 static menu_frame_times_t menu_times;
 static uint32_t menu_send_last_us = 0;
+// The panel shown inverted (its own command), changed under the frame's lock so a copy of the frame matches it: the
+// stored setting, or a hello's own
+static bool menu_panel_inverted = false;
 
 // What the console sees: the screen last drawn, copied under its lock
 static SemaphoreHandle_t menu_screen_lock = NULL;
@@ -60,7 +64,7 @@ static uint32_t menu_lvgl_heap_max = 0;
 static uint32_t menu_lvgl_biggest_free_min = UINT32_MAX;
 
 // The hidden hello: asked from the web's task (menu_visit()), played here a step at a time. Negative steps are the
-// flash: the panel inverted, then not, twice
+// flash: the panel inverted, then not, twice. The figure is then shown on a lit panel, whatever the setting
 #define MENU_VISIT_STEP_MS 200
 #define MENU_VISIT_FLASH_STEPS 4
 static char menu_visit_asked_name[MENU_VISIT_NAME_MAX + 1];
@@ -115,9 +119,27 @@ static void menu_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px
 }
 
 
+// The frame as the panel shows it: inverted with it
 void menu_frame_copy(uint8_t *out) {
     xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
     memcpy(out, menu_frame + MENU_PALETTE_BYTES, DISPLAY_FRAME_BYTES);
+    if (menu_panel_inverted) {
+        for (size_t idx = 0; idx < DISPLAY_FRAME_BYTES; idx += 1) {
+            out[idx] = (uint8_t) ~out[idx];
+        }
+    }
+    xSemaphoreGive(menu_frame_lock);
+}
+
+
+// The panel inverted or not, sent only when it changes
+static void menu_panel_invert(bool inverted) {
+    if (inverted == menu_panel_inverted) {
+        return;
+    }
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    display_invert(inverted);
+    menu_panel_inverted = inverted;
     xSemaphoreGive(menu_frame_lock);
 }
 
@@ -248,10 +270,10 @@ bool menu_visit(const char *name, bool *flash) {
 
 static void menu_visit_show(void) {
     if (menu_visit_step < 0) {
-        display_invert(menu_visit_step % 2 == 0);
+        menu_panel_invert(menu_visit_step % 2 == 0);
         return;
     }
-    display_invert(false);
+    menu_panel_invert(true);
     if (!menu_view_visit(menu_visit_step, menu_visit_name)) {
         menu_visiting = false;
     }
@@ -264,7 +286,7 @@ static void menu_visit_end(void) {
         return;
     }
     menu_visiting = false;
-    display_invert(false);
+    menu_panel_invert(mini_12864_module_config.inverted_display);
     menu_view_visit_end();
 }
 
@@ -394,6 +416,7 @@ void menu_task(void *p) {
     lv_display_set_flush_cb(menu_display, menu_flush);
     menu_view_init(menu_display);
     menu_nav_init();
+    menu_panel_invert(mini_12864_module_config.inverted_display);
     menu_draw(false);
 
     uint64_t heap_looked_us = 0;
@@ -425,6 +448,9 @@ void menu_task(void *p) {
         }
         menu_jobs();
         menu_visit_run();
+        if (!menu_visiting) {
+            menu_panel_invert(mini_12864_module_config.inverted_display);
+        }
         menu_nav_refresh();
         menu_draw(goto_asked);
 

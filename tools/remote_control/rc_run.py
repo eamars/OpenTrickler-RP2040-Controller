@@ -407,7 +407,8 @@ def snap_rows(data_lines):
     Decode a snap: the `@snap <w> <h> mono_rows` line and its `@sd <base64>` lines.
 
     The frame is LVGL's, as the web's mirror serves it (ADR-010, gate 4): rows of w / 8 bytes, the leftmost pixel the
-    top bit, 1 dark. It is the picture a person at the unit sees: the panel turns itself when mounted upside down.
+    top bit, 1 lit, the panel's inversion applied. It is the picture a person at the unit sees: the panel turns
+    itself when mounted upside down.
 
     Args:
         data_lines: the lines the snap command sent before its reply.
@@ -430,7 +431,7 @@ def snap_rows(data_lines):
 
 def write_png(path, rows):
     """
-    Write rows of pixels as a 1-bit PNG, lit pixels dark as on the display. The same rows always give the same
+    Write rows of pixels as a 1-bit PNG, lit pixels light on dark as the display's negative glass shows them. The same rows always give the same
     bytes, so two pictures compare by their files.
 
     Args:
@@ -442,7 +443,7 @@ def write_png(path, rows):
     for row in rows:
         bits = []
         for lit in row:
-            bits.extend([0 if lit else 1] * PNG_SCALE)
+            bits.extend([1 if lit else 0] * PNG_SCALE)
         line = bytearray([0])   # filter type: none
         for idx in range(0, width, 8):
             byte = 0

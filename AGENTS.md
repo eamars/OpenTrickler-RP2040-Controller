@@ -64,7 +64,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 
 **Settings in the EEPROM:**
 - Each module stores one struct in its own 1 KB slot with `load_config` and `save_config` (`common.h`), with a CRC32.
-- The struct's layout is the stored format. Changing it resets that module's settings to their defaults on every unit.
+- The struct's layout is the stored format. A change that alters its size resets that module's settings to their defaults on every unit. **A field that fits in the struct's filler does not:** the size stays, the old record passes its CRC, and the new field reads whatever byte was stored there (ADR-006, handed on by ADR-010). Check the size before and after (`arm-none-eabi-gdb -batch -ex "p sizeof(<type>)" build_w/app.elf`).
 - Never change a stored struct's layout without saying so in the ADR.
 - **Each setting is described once,** in its module's table (`settings.h`; charge mode's and the display's in a C file beside their C++ one): name, type, unit, limits or choices, when it applies, a line on what it is, and where it lies in the struct. A new setting goes in the struct and the table, and the API, the export, the schema, the portal's form (by its field's name) and the console's `setting` follow. `saved` is the struct's CRC against what was last stored, so a write from the menu counts.
 

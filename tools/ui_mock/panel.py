@@ -4,7 +4,8 @@ A 128 x 64 one-bit panel drawn with the screen's own fonts, for mock-ups of the 
 from (scripts/bdf2lvgl.py), so a mock-up is what the unit can draw.
 
 Fonts are the BDF files in fonts/ (`Font.bdf("helvB08")`). A face to try is added there as its BDF file.
-Lit pixels are drawn dark on light, as the mini 12864 shows them and rc_run.py's snaps draw them.
+Lit pixels are drawn light on a dark glass, as the mini 12864's negative glass shows them and rc_run.py's snaps
+draw them.
 
 A font's glyphs, to check letters that may be confused (u v, I l 1, 0 O):
     venv\\Scripts\\python tools\\ui_mock\\panel.py glyphs helvR08 "uvwIl10O"
@@ -182,8 +183,8 @@ class Panel:
 
 def write_sheet(path, panels, captions=None, caption_font=None, scale=3, gap=20, columns=4):
     """
-    Panels side by side on a sheet, each with a caption under it, as a greyscale PNG: the panel's glass light grey,
-    lit pixels near black.
+    Panels side by side on a sheet, each with a caption under it, as a greyscale PNG: the panel's glass near black,
+    lit pixels light grey, as the mini 12864's negative glass shows them.
 
     Args:
         path: the PNG written.
@@ -205,7 +206,7 @@ def write_sheet(path, panels, captions=None, caption_font=None, scale=3, gap=20,
         oy = gap + (idx // cols) * (H * scale + cap_h + gap)
         for y in range(H * scale):
             for x in range(W * scale):
-                img[oy + y][ox + x] = 30 if panel.px[y // scale][x // scale] else 222
+                img[oy + y][ox + x] = 222 if panel.px[y // scale][x // scale] else 34
         for x in range(-2, W * scale + 2):
             img[oy - 2][ox + x] = img[oy + H * scale + 1][ox + x] = 120
         for y in range(-2, H * scale + 2):
@@ -257,7 +258,7 @@ def print_glyphs(font, chars):
 
 def read_snap(path, scale=4):
     """
-    A snap of the unit's screen (rc_run.py's PNG: one bit a pixel, each screen pixel `scale` by `scale`, lit dark)
+    A snap of the unit's screen (rc_run.py's PNG: one bit a pixel, each screen pixel `scale` by `scale`, lit light)
     as a Panel.
 
     Args:
@@ -283,7 +284,7 @@ def read_snap(path, scale=4):
         line = raw[y * scale * stride + 1:(y * scale + 1) * stride]
         for x in range(W):
             bit = (line[(x * scale) // 8] >> (7 - (x * scale) % 8)) & 1
-            panel.px[y][x] = bit == 0
+            panel.px[y][x] = bit == 1
     return panel
 
 

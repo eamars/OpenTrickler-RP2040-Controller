@@ -27,14 +27,14 @@ void display_init(bool flipped);
 /**
  * Send pages of a frame to the panel.
  *
- * @param rows the frame as rows: DISPLAY_HEIGHT rows of DISPLAY_ROW_BYTES, the leftmost pixel the top bit, 1 dark.
+ * @param rows the frame as rows: DISPLAY_HEIGHT rows of DISPLAY_ROW_BYTES, the leftmost pixel the top bit, 1 lit.
  * @param pages the pages to send, a bit each (page 0 is rows 0 to 7, the lowest bit).
  */
 void display_send_pages(const uint8_t *rows, uint8_t pages);
 
 /**
- * The whole panel shown inverted, or as it is: the panel's own command, so the frame is untouched (the hidden hello's
- * flash; a snap and the mirror never show it).
+ * The whole panel shown inverted, or as it is: the panel's own command, so the frame is untouched. The mini 12864's
+ * glass is negative: a lit pixel shows light on a dark ground, so inverted is dark on a lit glass.
  */
 void display_invert(bool inverted);
 

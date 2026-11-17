@@ -591,3 +591,29 @@ they are"), and "a flashing of the full screen overlay on the first connection".
   another field refused; a hello during a charge refused, the charge's screen kept; a turn of the knob during a hello
   ended it and left the menu's focus where it was; then `menu_tour --compare`, `charge_cycle` and `api_check` (26 of
   26). Left: the flash, by eye.
+
+## The screen inverted, as a setting (2026-11-17)
+
+The owner's look at the panel: the mini 12864's glass is negative, a lit pixel light on a dark ground, the opposite
+of what the mock-ups, the snaps and the skill drew. The owner: the setting first, then the tools, then the hello
+bright whatever the setting. A unit starts with the glass's own look (the owner's choice); the hello keeps its flash.
+
+- **Built:**
+  - `invert_display` in `settings/display` ("Invert the screen", applies now), its row Invert screen on the Display
+    page, its field in the portal. The panel's own command (`0xA7`): the frame is untouched.
+  - The menu's task alone sends the panel's inversion, when it changes: the setting, or during a hello its flash
+    (lit, dark, twice) and then lit for the figure. `menu_frame_copy()` applies it, so the mirror and `snap` show the
+    panel as a person sees it; the frame's `1` is a lit pixel.
+  - The mirror's page, `rc_run.py`'s PNG, the mock-up sheet (`panel.py`) and the skill draw a lit pixel light on a
+    dark glass. The Pico W's baseline pictures were flipped once by a script that reads each with the old meaning
+    and writes it with `rc_run.py`'s own `write_png`, so the bytes are what a snap now writes.
+- **Found: the stored struct did not reset.** It is 8 bytes before and after (the enums are one byte); the flag
+  landed in its filler and read the stored byte, non-zero on the Pico W, so the screen started inverted. Stored off
+  on the Pico W. Left as it is by the owner; handed on to ADR-006, and AGENTS.md's rule corrected.
+- **Figures (the Pico W):** flash 991.6 of 1,016 KB; the Pico 2 W builds.
+- **Proven on the Pico W:** the settings copied before the flash (`logs/adr010/picow/before_invert/`); `menu_tour
+  --compare` against the flipped baseline: every page the same but the Display page, its new row (saved again); the
+  setting on, a snap of the main menu inverted; a hello with the setting off and on, the frame read through the
+  mirror's endpoint every 0.2 s: off, the flash (74, 26, 74, 26% lit), the figure lit (84 to 96%), the menu back at
+  26%; on, the figure lit, the menu back inverted at 74% (no flash: a second hello within 10 minutes);
+  `charge_cycle`. Left: the owner's look at the glass, both settings.

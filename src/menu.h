@@ -24,11 +24,12 @@ void menu_init(void);
 void menu_task(void *p);
 
 // The screen's frame over the web and in a snap (ADR-010, gate 4): LVGL's own, DISPLAY_HEIGHT rows of
-// DISPLAY_ROW_BYTES, the leftmost pixel the top bit, 1 dark (the body of a PBM image). No older format is served
+// DISPLAY_ROW_BYTES, the leftmost pixel the top bit, 1 a lit pixel as the panel shows it, its inversion applied (laid
+// out as the body of a PBM image). No older format is served
 #define MENU_FRAME_FORMAT "mono_rows"
 
 /**
- * @brief A copy of the frame, whole: LVGL draws it under the same lock. Any task.
+ * @brief A copy of the frame, whole and as the panel shows it: LVGL draws it under the same lock. Any task.
  * @param out DISPLAY_FRAME_BYTES.
  */
 void menu_frame_copy(uint8_t *out);

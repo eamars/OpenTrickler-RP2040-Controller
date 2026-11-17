@@ -6,7 +6,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 # Embedded UI design (128 x 64, one bit, knob and button)
 
 **The device:**
-- **The panel:** the mini 12864, 128 x 64 pixels, one bit, a UC1701 controller, a passive (STN) LCD with an RGB backlight. Lit pixels are dark on a light glass.
+- **The panel:** the mini 12864, 128 x 64 pixels, one bit, a UC1701 controller, a passive (STN) LCD with an RGB backlight. The glass is negative: a lit pixel shows light on a dark ground. The owner can invert the screen (`invert_display`), and the agent's hello is always shown inverted, dark on a lit glass.
   - Its active area is not measured here. A typical 2.4 inch 12864 is about 55 x 27.5 mm, about 0.43 mm a pixel; measure the unit's glass before relying on a figure in mm.
 - **How it is read:** at a bench, from about 50 cm. A charge's weight is glanced at from further away.
 - **Input:** a knob that turns (next, previous), its click (Enter), the knob held 600 ms (Back), and the reset button (Back). Nothing else.

@@ -30,6 +30,9 @@ static const setting_field_t display_fields[] = {
      .about = "The screen's turn, in degrees",
      .type = SETTING_CHOICE, DISPLAY_FIELD(display_rotation), SETTING_CHOICES(display_rotation_choices),
      .unit = "degrees", .applies = "at_restart"},
+    {.name = "invert_display", .label = "Invert the screen", .group = "Display",
+     .about = "The screen shown the other way: dark on a lit glass",
+     .type = SETTING_BOOLEAN, DISPLAY_FIELD(inverted_display), .applies = "now"},
 };
 
 

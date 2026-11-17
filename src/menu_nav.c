@@ -838,12 +838,14 @@ static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale",
 static const menu_row_t rows_display[] = {
     {.label = "Invert knob", .kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle,
      .path = "settings/display", .name = "invert_encoder"},
+    {.label = "Invert screen", .kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle,
+     .path = "settings/display", .name = "invert_display"},
     {.label = "Rotation", .kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display",
      .name = "rotation", .offered = offered_rotation},
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
 static const menu_page_t page_display = {.id = "settings/display", .title = "Display", .rows = rows_display,
-                                         .row_count = 3};
+                                         .row_count = 4};
 
 // Notes: the facts, then the update's button at the end
 static const menu_row_t rows_firmware[] = {

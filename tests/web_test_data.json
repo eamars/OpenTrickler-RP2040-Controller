@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-27-dirty",
-   "vcs": "81cddf8",
+   "version": "2.0.2-37-dirty",
+   "vcs": "87236f0",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
   "hostname": "opentrickler-9CE0",
-  "boot": 184592176,
-  "uptime_s": 48,
+  "boot": 4268661163,
+  "uptime_s": 1181,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -375,8 +375,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-27-dirty",
-   "vcs": "81cddf8",
+   "version": "2.0.2-37-dirty",
+   "vcs": "87236f0",
    "build": "Debug"
   },
   "resources": [
@@ -507,6 +507,16 @@
       "applies": "at_restart",
       "refused_while": "never",
       "about": "The screen's turn, in degrees"
+     },
+     {
+      "name": "invert_display",
+      "label": "Invert the screen",
+      "group": "Display",
+      "type": "boolean",
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "never",
+      "about": "The screen shown the other way: dark on a lit glass"
      }
     ]
    },
@@ -2166,8 +2176,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-27-dirty",
-   "vcs": "81cddf8",
+   "version": "2.0.2-37-dirty",
+   "vcs": "87236f0",
    "build": "Debug"
   },
   "unit_id": "9CE00000",
@@ -2184,7 +2194,8 @@
    "/api/v1/settings/display": {
     "saved": true,
     "invert_encoder": false,
-    "rotation": 180
+    "rotation": 180,
+    "invert_display": false
    },
    "/api/v1/settings/wifi": {
     "saved": true,
@@ -2426,20 +2437,20 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 0,
+  "throw": 2,
   "paused": false,
-  "target": null,
+  "target": 30,
   "powder_profile": 1,
   "powder_profile_name": "AR2209,gr",
   "weight": null,
-  "elapsed_s": 0,
+  "elapsed_s": 16.88,
   "last": {
-   "throw": 0,
+   "throw": 2,
    "result": "none",
-   "reason": "none",
-   "weight": null
+   "reason": "stopped",
+   "weight": 0
   },
-  "event_seq": 1
+  "event_seq": 7
  },
  "/api/v1/cleanup": {
   "state": "idle",
@@ -2452,7 +2463,7 @@
   "unit": null,
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 0,
+  "usual_interval_ms": 100,
   "bad_frames": 0,
   "actions": [
    "zero"
@@ -2474,13 +2485,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.2-27-dirty",
-   "vcs": "81cddf8",
+   "version": "2.0.2-37-dirty",
+   "vcs": "87236f0",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
-  "uptime_s": 51,
+  "uptime_s": 1185,
   "activity": "none",
   "restart_pending": false
  },
@@ -2489,13 +2500,13 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-9CE0",
-  "rssi": -55
+  "rssi": -56
  },
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.2-27-dirty",
-   "block": "2.0.2-27",
+   "version": "2.0.2-37-dirty",
+   "block": "2.0.2-37",
    "slot": "a",
    "trial": false
   },
@@ -2505,8 +2516,8 @@
   "expected": 0,
   "download": false,
   "poll": {
-   "state": "up_to_date",
-   "error": null
+   "state": "failed",
+   "error": "no connection"
   },
   "found": null,
   "last": null
@@ -2517,7 +2528,7 @@
   "format": "mono_rows"
  },
  "/api/v1/display/frame": {
-  "base64": "AAAAAAAAAAAAAAAAAAAAAA4AAA/BgYYAAAAAAAAABEQbAAADAAGGAAAAAAAAAAREMaxywxedtnLAAAAAAAACSDG222MdtebbgAAAAAAAAkgxtvtjGbHG+wAAAAAAAAKoMbbDYxmx5sMAAAAAAAABEBs222MZtbbbAAAAAAAAARAOPHNjGZ2ecwAAAAAAAAEQADAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAD/////////////////////AAAAAAAAAAAAAAAAAAAAAPDf///////////////////vX///////////////////79Mayz//////////////v+/N6bLf/////////////9/v3Yu6H//////////////v791ruv//////////////3+9da7Lf/////////////7/w3ZPLP///////////////////+////////////////////8f///////////////8PIAAAAAAAAAAAAAAAAAAAEKAAAAAAAAAAAAAAAAAAABAmcslYAAAAAAAAAAAAAAAQKQspZAAAAAAAAAAAAAAAEC86KUQAAAAAAAAAAAAAABAoSilEAAAAAAAAAAAAAAAQqUopZAAAAAAAAAAAAAAADyY2J1gAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAIjA/AAAAAAAAAAAAAAAAACIgIAAAAAAAAAAAAAAAAAASUCEAAAAAAAAAAAAAAABAElA9AAAAAAAAAAAAAAAAIBVXIQAAAAAAAAAAAAAAABAIkCEAAAAAAAAAAAAAAAAgCJAhAAAAAAAAAAAAAAAAQAiQIQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BEgAAAAAAAAAAAAAAAAARARAAAAAAAAAAAAAAAAAAEDO6saYAAAAAAAAAAAAAQA5JEsppAAAAAAAAAAAAACABeRKKJgAAAAAAAAAAAAAQEUESiiEAAAAAAAAAAAAAIBFJEoppAAAAAAAAAAAAAEAOMZqJpgAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  "base64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcAAAfgwMMAAAAAAAAAAAMNgAABgADDAAAAAAAAAAADGNY5YYvO2zlgAAAAAAAAGxjbbbGO2vNtwAAAAAAAABsY232xjNjjfYAAAAAAAADbGNthsYzY82GAAAAAAAAA2w2bbbGM2tttgAAAAAAABtsHHjmxjM7POYAAAAAAAAbbABgAAAAAAAAAAAAAAAAAAD/////////////////////AAAAAAAAAAAAAAAAAAAAAP////////////////////7////////////////////++G///////////////////vev//////////////////736Y1ln/////////////9+9+b02W//////////////vvfuxd0P/////////////9737rXdf/////////////++96612W//////////////fvhuyeWf//////////////7////9///////////////+////4////////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeQAAAAAAAAAAAAAAAAAAAIUAAAAAAAAAAAAAAAAAAACBM5ZKwAAAAAAAAAAAAAAAgUhZSyAAAAAAAAAAAAAAAIF50UogAAAAAAAAAAAAAACBQlFKIAAAAAAAAAAAAAAAhUpRSyAAAAAAAAAAAAAAAHkxsTrAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARGB+AAAAAAAAAAAAAAAAAERAQAAAAAAAAAAAAAAAAAAkoEIAAAAAAAAAAAAAAAIAJKB6AAAAAAAAAAAAAAABACquQgAAAAAAAAAAAAAAAIARIEIAAAAAAAAAAAAAAAEAESBCAAAAAAAAAAAAAAACABEgQgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwCJAAAAAAAAAAAAAAAAAAiAiAAAAAAAAAAAAAAAAAAIGd1Y0wAAAAAAAAAAAACABySJZTSAAAAAAAAAAAAAQAC8iUUTAAAAAAAAAAAAACAIoIlFEIAAAAAAAAAAAABACKSJRTSAAAAAAAAAAAAAgAcYzUTTAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAOAAAAAAAAAAAAAAAA=="
  },
  "/api/v1/settings/leds": {
   "saved": true,
@@ -2531,7 +2542,8 @@
  "/api/v1/settings/display": {
   "saved": true,
   "invert_encoder": false,
-  "rotation": 180
+  "rotation": 180,
+  "invert_display": false
  },
  "/api/v1/settings/wifi": {
   "saved": true,

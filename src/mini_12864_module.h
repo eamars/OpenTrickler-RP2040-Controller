@@ -37,6 +37,7 @@ typedef struct {
     uint32_t data_rev;
     bool inverted_encoder_direction;
     display_rotation_t display_rotation;
+    bool inverted_display;
 } mini_12864_module_config_t;
 
 
