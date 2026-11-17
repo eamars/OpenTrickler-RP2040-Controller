@@ -641,3 +641,28 @@ Every page was turned on the Pico W, pressing nothing, to count them:
 - **Seen on the way:** the Pico W's Invert screen was found on, stored, between 19:37 and 19:41, when it had been
   stored off; nothing the agent ran in that time writes it (the web test's recording was run again and left it
   off). The owner had set it by hand at the unit ("Yes, that was me"): no fault. Stored off again for the proof.
+
+## A click acts as the knob goes down; no long press (2026-11-17)
+
+The owner found Back slow at the unit, then ruled out the long press: "for any click event short click should be
+made default", Back "either a short click on '<', or reset button. Any hidden feature is a NOT a good UI design. And
+do not try to educate the user." Measured first: after a Back the next page is drawn and sent in 35 to 60 ms (six
+pages), so the slowness was the input: a click acted at its release, and the hold took 600 ms.
+
+- **Built:**
+  - The knob's button keeps its state in the interrupt: an edge changes it only when its level differs and 20 ms
+    have passed since the last change. A press is sent as it goes down (`BUTTON_ENCODER_PRESSED`); the release is
+    not sent. The old way read the level at the first edge and dropped every edge for 20 ms after it, so a bounce
+    read at that edge lost the click.
+  - The hold, its timer and its pin check are gone from the menu, and `press hold` from the console. A dialog, the
+    number editor and a running job are left by the reset button (menu_design.md's principle 2 rewritten; the skill
+    too). No hint was ever built, so none goes.
+  - `knob`, the knob's tap: every edge of its button (taken or dropped as a bounce) and every turn sent, with its
+    time, and any event the menu's queue had no room for. Kept in the console, like `scale tap`.
+- **Measured (the owner's 24 presses on the Wi-Fi page, slow and quick):** each press taken once, each release once;
+  no turn, no event lost. The presses did not bounce at all; the releases bounced up to about 5 ms (16 of 24 had
+  edges dropped, all within 5 ms of the release), a quarter of the 20 ms kept. The knob was held 111 to 840 ms, about
+  190 ms in the middle: what every click used to wait before it acted.
+- **Proven on the Pico W:** `menu_tour --compare` (the screen not inverted: the owner keeps Invert screen on, so it
+  was turned off for the run, not stored, and put back), `charge_cycle`; a click on Settings' title goes back, the
+  reset button leaves the charge's dialog.

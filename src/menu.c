@@ -3,8 +3,8 @@
     under the frame's lock, and the pages of the panel that changed are sent (display.c). The knob and the buttons
     become four keys:
       the knob a detent clockwise or anticlockwise: Next, Prev;
-      a click of the knob, released within MENU_HOLD_MS: Enter;
-      the reset button, or the knob held MENU_HOLD_MS: Back (at once, while held).
+      a click of the knob, taken as it goes down: Enter;
+      the reset button: Back. A click on a title's "<" is Back as well (menu_nav.c). No long press (the owner).
     A start asked from anywhere is taken here and begun in the job task; the job's screen is the menu's until it ends.
 */
 #include <assert.h>
@@ -31,8 +31,6 @@
 #define MENU_PALETTE_BYTES 8
 // The whole frame is sent again this often, so a glitch on the panel's cable does not stay on the glass
 #define MENU_RESEND_MS 1000
-// A hold of the knob this long is Back
-#define MENU_HOLD_MS 600
 // How often the screen's live values are read again: a job's weight often, a page's values less
 #define MENU_REFRESH_JOB_MS 100
 #define MENU_REFRESH_PAGE_MS 250
@@ -194,24 +192,6 @@ uint32_t menu_lvgl_biggest_free(void) {
 }
 
 
-bool menu_hold(uint32_t ms) {
-    ButtonEncoderEvent_t down = BUTTON_ENCODER_DOWN_REMOTE;
-    ButtonEncoderEvent_t up = BUTTON_ENCODER_UP;
-    if (encoder_event_queue == NULL || xQueueSend(encoder_event_queue, &down, pdMS_TO_TICKS(500)) != pdTRUE) {
-        return false;
-    }
-    vTaskDelay(pdMS_TO_TICKS(ms));
-    return xQueueSend(encoder_event_queue, &up, pdMS_TO_TICKS(500)) == pdTRUE;
-}
-
-
-// The knob's button: a click is Enter at its release; a hold is Back once it is held MENU_HOLD_MS
-static bool menu_knob_down = false;
-static bool menu_knob_held = false;
-static bool menu_knob_remote = false;       // the remote control's hold: no pin to read
-static uint64_t menu_knob_down_us = 0;
-
-
 static void menu_event(ButtonEncoderEvent_t event) {
     switch (event) {
         case BUTTON_ENCODER_ROTATE_CW:
@@ -225,22 +205,6 @@ static void menu_event(ButtonEncoderEvent_t event) {
             break;
         case BUTTON_RST_PRESSED:
             menu_nav_key(MENU_KEY_BACK);
-            break;
-        case BUTTON_ENCODER_DOWN:
-        case BUTTON_ENCODER_DOWN_REMOTE:
-            // A repeat of down (an up lost in a bounce) keeps the first
-            if (!menu_knob_down) {
-                menu_knob_down = true;
-                menu_knob_held = false;
-                menu_knob_remote = event == BUTTON_ENCODER_DOWN_REMOTE;
-                menu_knob_down_us = time_us_64();
-            }
-            break;
-        case BUTTON_ENCODER_UP:
-            if (menu_knob_down && !menu_knob_held) {
-                menu_nav_key(MENU_KEY_ENTER);
-            }
-            menu_knob_down = false;
             break;
         case MENU_REMOTE_SCREEN:
             menu_goto_found = menu_nav_goto(menu_goto_id);
@@ -328,17 +292,12 @@ static void menu_visit_run(void) {
 }
 
 
-// The wait for the next event: the refresh, or sooner when a hold is due or a hello's next step
+// The wait for the next event: the refresh, or sooner when a hello's next step is due
 static uint32_t menu_wait_ms(void) {
     uint32_t wait = menu_nav_in_job() ? MENU_REFRESH_JOB_MS : MENU_REFRESH_PAGE_MS;
     if (menu_visiting) {
         uint64_t spent_ms = (time_us_64() - menu_visit_step_us) / 1000;
         uint32_t left = spent_ms >= MENU_VISIT_STEP_MS ? 0 : (uint32_t) (MENU_VISIT_STEP_MS - spent_ms);
-        wait = left < wait ? left : wait;
-    }
-    if (menu_knob_down && !menu_knob_held) {
-        uint64_t held_ms = (time_us_64() - menu_knob_down_us) / 1000;
-        uint32_t left = held_ms >= MENU_HOLD_MS ? 0 : (uint32_t) (MENU_HOLD_MS - held_ms);
         wait = left < wait ? left : wait;
     }
     return wait;
@@ -434,17 +393,6 @@ void menu_task(void *p) {
         }
         if (event != BUTTON_NO_EVENT) {
             menu_event(event);
-        }
-        if (menu_knob_down && !menu_knob_held &&
-            (time_us_64() - menu_knob_down_us) / 1000 >= MENU_HOLD_MS) {
-            // Still down by its pin: a hold, Back. Up by its pin: its up was lost in a bounce, and nothing is pressed
-            if (menu_knob_remote || button_enc_is_down()) {
-                menu_knob_held = true;
-                menu_nav_key(MENU_KEY_BACK);
-            }
-            else {
-                menu_knob_down = false;
-            }
         }
         menu_jobs();
         menu_visit_run();

@@ -29,6 +29,7 @@
 #include <queue.h>
 
 #include "pico/stdlib.h"
+#include "pico/critical_section.h"
 
 #include "configuration.h"
 #include "gpio_irq_handler.h"
@@ -49,6 +50,48 @@ const mini_12864_module_config_t default_mini_12864_module_config = {
 
 // Statics (to be shared between IRQ and tasks)
 QueueHandle_t encoder_event_queue = NULL;
+
+// The knob's tap: written by the interrupts, taken by a task on either core, under a critical section (its spin lock
+// holds the other core off too)
+#define KNOB_TAP_SIZE 128
+static knob_tap_entry_t knob_tap[KNOB_TAP_SIZE];
+static size_t knob_tap_count = 0;
+static uint32_t knob_tap_lost = 0;
+static critical_section_t knob_tap_lock;
+
+
+static void knob_tap_add(char kind) {
+    critical_section_enter_blocking(&knob_tap_lock);
+    if (knob_tap_count < KNOB_TAP_SIZE) {
+        knob_tap[knob_tap_count].at_us = time_us_32();
+        knob_tap[knob_tap_count].kind = kind;
+        knob_tap_count += 1;
+    }
+    else {
+        knob_tap_lost += 1;
+    }
+    critical_section_exit(&knob_tap_lock);
+}
+
+
+// An event for the menu, from an interrupt; one the queue has no room for is lost, and the tap says so
+static void knob_send_from_isr(ButtonEncoderEvent_t event) {
+    if (encoder_event_queue && xQueueSendFromISR(encoder_event_queue, &event, NULL) != pdTRUE) {
+        knob_tap_add('q');
+    }
+}
+
+
+size_t mini_12864_knob_tap(knob_tap_entry_t *out, size_t max, uint32_t *lost) {
+    critical_section_enter_blocking(&knob_tap_lock);
+    size_t count = knob_tap_count < max ? knob_tap_count : max;
+    memcpy(out, knob_tap, count * sizeof(knob_tap_entry_t));
+    *lost = knob_tap_lost + (uint32_t) (knob_tap_count - count);
+    knob_tap_count = 0;
+    knob_tap_lost = 0;
+    critical_section_exit(&knob_tap_lock);
+    return count;
+}
 
 
 void _isr_on_encoder_update(uint gpio, uint32_t event){
@@ -117,10 +160,8 @@ void _isr_on_encoder_update(uint gpio, uint32_t event){
         else {
             button_encoder_event = BUTTON_ENCODER_ROTATE_CW;
         }
-        
-        if (encoder_event_queue) {
-            xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
-        }
+        knob_tap_add('r');
+        knob_send_from_isr(button_encoder_event);
     }
     else if (count <= -4) {
         count = 0;
@@ -131,29 +172,31 @@ void _isr_on_encoder_update(uint gpio, uint32_t event){
         else {
             button_encoder_event = BUTTON_ENCODER_ROTATE_CCW;
         }
-
-        if (encoder_event_queue) {
-            xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
-        }
+        knob_tap_add('l');
+        knob_send_from_isr(button_encoder_event);
     }
 }
 
-// The knob's button, down and up (ADR-010, gate 4): the menu tells a click from a hold. An edge within the debounce
-// time of the last one taken is a bounce; the level read says which edge it is. No state is kept here: the menu drops
-// a repeat, and reads the pin again before a hold counts, so an edge lost in a bounce costs a click, never a Back
-void _isr_on_button_enc_update(uint gpio, uint32_t event) {
-    static TickType_t last_edge_tick = 0;
-    const TickType_t debounce_ticks = pdMS_TO_TICKS(20);
+// The knob's button (ADR-010): a press is taken as it goes down, so a click acts at once; there is no long press (the
+// owner: the button is not reliable enough to time). Both edges are read for the debounce: the button's state changes
+// only on an edge whose level differs from it, and an edge within the debounce time of the last change is its bounce
+#define KNOB_DEBOUNCE_US 20000u
 
-    TickType_t now = xTaskGetTickCountFromISR();
-    if ((now - last_edge_tick) < debounce_ticks) {
+void _isr_on_button_enc_update(uint gpio, uint32_t event) {
+    static bool down = false;
+    static uint32_t changed_us = 0;
+
+    uint32_t now_us = time_us_32();
+    bool pressed = !gpio_get(BUTTON0_ENC_PIN);      // pulled up: low while pressed
+    if (pressed == down || now_us - changed_us < KNOB_DEBOUNCE_US) {
+        knob_tap_add(pressed ? 'X' : 'x');
         return;
     }
-    last_edge_tick = now;
-    bool pressed = !gpio_get(BUTTON0_ENC_PIN);      // pulled up: low while pressed
-    ButtonEncoderEvent_t button_encoder_event = pressed ? BUTTON_ENCODER_DOWN : BUTTON_ENCODER_UP;
-    if (encoder_event_queue) {
-        xQueueSendFromISR(encoder_event_queue, &button_encoder_event, NULL);
+    down = pressed;
+    changed_us = now_us;
+    knob_tap_add(pressed ? 'd' : 'u');
+    if (pressed) {
+        knob_send_from_isr(BUTTON_ENCODER_PRESSED);
     }
 }
 
@@ -170,11 +213,6 @@ void _isr_on_button_rst_update(uint gpio, uint32_t event) {
         }
     }
     last_call_time = current_call_time;
-}
-
-
-bool button_enc_is_down(void) {
-    return !gpio_get(BUTTON0_ENC_PIN);
 }
 
 
@@ -240,7 +278,9 @@ void button_init() {
     gpio_set_dir(BUTTON0_RST_PIN, GPIO_IN);
     gpio_pull_up(BUTTON0_RST_PIN);
 
-    // The queue first: an interrupt in the first moments of a start writes to it (ADR-012's audit, ADR-010)
+    // The queue and the tap's lock first: an interrupt in the first moments of a start writes to them (ADR-012's
+    // audit, ADR-010)
+    critical_section_init(&knob_tap_lock);
     encoder_event_queue = xQueueCreate(8, sizeof(ButtonEncoderEvent_t));
     if (encoder_event_queue == 0) {
         assert(false);

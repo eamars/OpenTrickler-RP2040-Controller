@@ -46,8 +46,6 @@
 
 // `snap`: the screen's frame, sent in lines of this many bytes before base64
 #define REMOTE_CONTROL_SNAP_CHUNK 256
-// `press hold`: longer than the menu's hold (MENU_HOLD_MS, 600 ms)
-#define REMOTE_CONTROL_HOLD_MS 700
 
 #if PICO_RP2350
 #define REMOTE_CONTROL_BOARD "pico2_w"
@@ -212,21 +210,8 @@ static bool remote_control_press(const char *args, char *reply, size_t reply_siz
         }
     }
     if (name_len == 0 || count < 1 || count > REMOTE_CONTROL_PRESS_MAX) {
-        snprintf(reply, reply_size, "@err usage: press <cw|ccw|enc|rst|hold> [1..%d]", REMOTE_CONTROL_PRESS_MAX);
+        snprintf(reply, reply_size, "@err usage: press <cw|ccw|enc|rst> [1..%d]", REMOTE_CONTROL_PRESS_MAX);
         return false;
-    }
-
-    // The knob held: down, and up after a hold's time, which the menu takes as Back (ADR-010, gate 4)
-    if (name_len == 4 && strncmp(args, "hold", 4) == 0) {
-        for (int idx = 0; idx < count; idx += 1) {
-            if (!menu_hold(REMOTE_CONTROL_HOLD_MS)) {
-                snprintf(reply, reply_size, "@err input queue full after %d", idx);
-                return false;
-            }
-            vTaskDelay(pdMS_TO_TICKS(REMOTE_CONTROL_PRESS_GAP_MS));
-        }
-        snprintf(reply, reply_size, "@ok press");
-        return true;
     }
 
     ButtonEncoderEvent_t button_encoder_event;
@@ -484,6 +469,25 @@ static bool remote_control_scale(const char *args, char *reply, size_t reply_siz
 }
 
 
+// `knob`: the knob's tap (mini_12864_module.h), an `@kt <at_us> <kind>` line an entry, then cleared
+static bool remote_control_knob(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                void *write_ctx) {
+    (void) args;
+    static knob_tap_entry_t entries[128];
+    uint32_t lost;
+    size_t count = mini_12864_knob_tap(entries, 128, &lost);
+    char line[32];
+    for (size_t idx = 0; idx < count; idx += 1) {
+        snprintf(line, sizeof(line), "@kt %lu %c", (unsigned long) entries[idx].at_us, entries[idx].kind);
+        if (write) {
+            write(line, write_ctx);
+        }
+    }
+    snprintf(reply, reply_size, "@ok knob entries=%u lost=%lu", (unsigned) count, (unsigned long) lost);
+    return true;
+}
+
+
 // `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver.
 // `motor`: the steps made so far
 static bool remote_control_motor(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
@@ -733,6 +737,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"sim", remote_control_sim},
     {"scale", remote_control_scale},
     {"motor", remote_control_motor},
+    {"knob", remote_control_knob},
     {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
     {"setting", remote_control_setting},

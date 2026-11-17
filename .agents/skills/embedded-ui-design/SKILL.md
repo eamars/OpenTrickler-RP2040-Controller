@@ -9,7 +9,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 - **The panel:** the mini 12864, 128 x 64 pixels, one bit, a UC1701 controller, a passive (STN) LCD with an RGB backlight. The glass is negative: a lit pixel shows light on a dark ground. The owner can invert the screen (`invert_display`), and the agent's hello is always shown inverted, dark on a lit glass.
   - Its active area is not measured here. A typical 2.4 inch 12864 is about 55 x 27.5 mm, about 0.43 mm a pixel; measure the unit's glass before relying on a figure in mm.
 - **How it is read:** at a bench, from about 50 cm. A charge's weight is glanced at from further away.
-- **Input:** a knob that turns (next, previous), its click (Enter), the knob held 600 ms (Back), and the reset button (Back). Nothing else.
+- **Input:** a knob that turns (next, previous), its click (Enter, taken as it goes down), and the reset button (Back). Back is also a click on the title's "<". No long press, no double click, and no hint on screen teaching the controls: nothing hidden (the owner, 2026-11-17).
 - **Drawing:** LVGL 9 into the screen's one frame, only what changed, and the panel sent the pages that changed (`src/menu_view_12864.c`, `src/menu.c`, `src/display.c`); the navigator (`src/menu_nav.c`) fills a screen model in words and knows no pixels (ADR-010).
 
 ## Rules
@@ -97,7 +97,6 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
     - The cup's acknowledgement before every charge and cleanup: the owner ruled it a safety step, never to be cut as clutter (2026-11-17, ADR-010's menu design).
 16. **Animation only where it means something, and only once measured.**
     - **Where it can earn its place:**
-      - a hold's progress (the knob held for Back);
       - a list easing to its new row in two or three frames;
       - a slow mark while something waits (a poll).
     - **None while a charge pours,** whose figure must stay still and current.

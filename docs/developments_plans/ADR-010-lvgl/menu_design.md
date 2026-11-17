@@ -43,7 +43,7 @@ Also found while reading:
 ## Principles
 
 1. **The screen is for the bench; the web is for setting up.** A row belongs on the screen if a person needs it during a session, or if it fixes the unit without a phone (the scale's make, the knob's direction, a factory reset). Tuning, wiring and anything typed (names, the Wi-Fi key) are web only.
-2. **The knob alone does everything.** The second button is only a shortcut.
+2. **Nothing is hidden.** Back is a click on the title's "<", or the reset button; there is no long press, and no hint teaches the controls (the owner, 2026-11-17). Where a screen has no title to click (a dialog, the number editor, a running job), Back is the reset button.
 3. **A row is shown only while it does something** (the Open Weapon Mount Computer's rule 13). The rule that decides is the same one that would refuse its command at the API.
 4. **The screen is a client, as the web is.** It reads what the API reads and acts through the same entry points, `by` button. No rule exists only on the screen.
 5. **A change is stored when it is confirmed.** There is no Save.
@@ -59,13 +59,11 @@ The mini 12864 gives three inputs: the encoder's turn, its press, and the reset 
 | Key | From | On a list | In a number editor | On a job's screen |
 |---|---|---|---|---|
 | Next, Prev | one detent clockwise or anticlockwise (Invert knob swaps them) | focus moves down or up and stops at the ends; above the first row is the title, which works as Back | the digit goes up or down | moves between the job's actions, or changes its one value (cleanup's speed) |
-| Enter | a press released within 0.5 s | opens or does the focused row | next digit; on the last digit, stores the value | does the focused action, whose name is on the screen |
-| Back | the reset button, or the knob held for 0.5 s | up one level, with focus on the row you came from | previous digit; on the first digit, leaves the value unchanged | stops the job (except while an update installs) |
+| Enter | a press of the knob, taken as it goes down | opens or does the focused row | next digit; on the last digit, stores the value | does the focused action, whose name is on the screen |
+| Back | the reset button, or Enter on the title's "<" | up one level, with focus on the row you came from | previous digit; on the first digit, leaves the value unchanged | stops the job (except while an update installs) |
 
-- The driver reads both edges of each button, so a hold can be told from a click. Today it reads only the falling edge, with a 250 ms lockout. The debounce becomes about 20 ms.
-- No double click and no hold-to-repeat. Nothing needs the reset button.
+- The knob's button is read on both edges, for its debounce: a press is taken as it goes down, its release only readies the next. No long press, no double click and no hold-to-repeat: the button is not reliable enough to time (the owner, 2026-11-17).
 - Each page remembers its focus.
-- A hint on screen names the board's own input ("RST: stop", or "Hold: stop").
 - **Numbers:** one editor for every number, digit by digit as today. Its digits, decimals and unit come from the field's own description (`settings.h`). The target gets 2 or 3 decimals from Decimals.
 - **Choices:** a list page with the current option marked. Enter picks it, stores it and goes back.
 - **Toggles:** Enter flips the value and stores it.

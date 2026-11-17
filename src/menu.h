@@ -85,10 +85,6 @@ uint32_t menu_lvgl_biggest_free(void);
 #define MENU_VISIT_QUIET_MS (10u * 60u * 1000u)
 bool menu_visit(const char *name, bool *flash);
 
-/**
- * @brief The remote control's `press hold`: the knob's button down, then up after `ms` (a hold is Back).
- */
-bool menu_hold(uint32_t ms);
 
 #ifdef __cplusplus
 }
