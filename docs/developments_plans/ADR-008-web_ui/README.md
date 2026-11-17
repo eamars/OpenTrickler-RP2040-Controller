@@ -67,6 +67,7 @@ Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, i
 - **The update's channel and source:** the page shows and sets both. They are stored together, as ADR-010 builds them. Beta offers pre-releases; leaving beta downgrades nothing.
 - **The feature table** takes the list of what ADR-010 trimmed from LVGL to fit the Pico W. Which board carries what is decided when a larger screen comes (the owner).
 - **The mirror** follows the screen's view: its `format` is ADR-010's.
+- **The settings pages are drawn from the schema, as the screen's are from the tables** (the owner, 2026-11-17, settling ADR-010's survey: "Table driven, but this needed to be built right, and consider the future web refactor to be done in the similar way"). Every setting is on both the screen and the web (ADR-010's `menu_design.md`, "Every setting on the screen and on the web"). What: the page's settings forms are made at run time from `GET /api/v1/schema`, a resource a form and a field a control by its type (boolean, choice, integer, number, string, colour), with its label, unit, limits, step, group and when it applies; no field is written into the page by hand, as today's `web_portal.html` does (`name="..."`). How: the schema is made from the same C tables (`settings.h`) the screen reads, so one description has two renderers. What ADR-010 adds to the tables for the screen (a value's decimals, a short label) goes into the schema too, and the page uses it (an input's step and its shown precision). The actions a settings page offers beside its fields (the gate's Open and Close, the scale's Zero) are listed with their resource in the schema, so both draw them from one list.
 
 ## Ideas
 
@@ -77,7 +78,7 @@ Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, i
 - **No framework at run time, or a very small one.** The page is a handful of forms and a chart. A proposal with sizes comes with the mock.
 - **Charts** by a small library or drawn by hand on a canvas; chosen by size.
 - **A budget:** the whole UI under about 100 KB gzipped (a proposal; today's pages are 90 KB uncompressed).
-- **Settings forms drawn from the settings' own description**, if ADR-003 brings one. A new setting then needs no page change.
+- **Settings forms drawn from the settings' own description:** ADR-003 brought it (the schema). Settled by the owner, 2026-11-17: see "Handed on by ADR-010" above.
 - **One language.** English.
 - **The screen mirror** stays as a small page, fed by whatever the screen is then.
 

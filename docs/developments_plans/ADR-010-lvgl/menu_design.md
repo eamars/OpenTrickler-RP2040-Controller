@@ -203,12 +203,12 @@ The owner, at the unit, on finding the servo gate gone: "My original ask from th
 - **The network list:** the networks a scan finds, strongest first, with their security; choosing one sets the name and the security and opens the key; "Other" types a name.
 - **Short labels:** the tables' labels are the web's ("Coarse stop threshold"). Where a label and its value do not fit 128 px, the field's description gets a shorter one for the screen.
 
-**To settle (the owner), each with the recommendation first:**
-1. **This rule, and the screen made from the settings tables.** Recommended: the only way the two stay equal.
-2. **The cleanup as one system.** It has one value (the speed), one action (Stop), and the web's Zero and gate. Recommended, as the target's editor: its screen a list, the speed, the weight and the flow in sight; the speed set by a click and the turn, live, and a second click; then Gate (open or closed, a click toggles), Zero, and Stop. No Run and no Pause: a speed of 0 is both.
+**Settled by the owner, 2026-11-17** (each as recommended, but the chart, settled on the mock):
+1. **This rule, and the screen made from the settings tables.** The owner: "Table driven, but this needed to be built right, and consider the future web refactor to be done in the similar way". So the description grows in the tables, not in the screen: what the screen needs that they lack (a value's decimals, a short label, the actions beside a resource's fields) is added to them and to the schema, and ADR-008's pages are drawn from the schema the same way (written into ADR-008).
+2. **The cleanup as one system** (yes, as proposed). It has one value (the speed), one action (Stop), and the web's Zero and gate. As the target's editor: its screen a list, the speed, the weight and the flow in sight; the speed set by a click and the turn, live, and a second click; then Gate (open or closed, a click toggles), Zero, and Stop. No Run and no Pause: a speed of 0 is both.
 3. **The charge's screen** gets back the powder and the charge's time; the throw's number as this design had it.
-4. **Text by the knob for the long strings** (a key of up to 63 characters, the source's 127). Recommended: yes, for anyone without the web; the network list spares typing the name.
-5. **The weight's chart.** Recommended: a small chart of the throw on the charge's screen is possible (a 128 by 40 canvas, 640 bytes), but it competes with the figure read from 50 cm. To settle on the mock.
+4. **Text by the knob for every string** (yes), a key of up to 63 characters and the source's 127 among them, for anyone without the web; the network list spares typing the name.
+5. **The weight's chart:** settled on the mock (the owner). A small chart of the throw on the charge's screen is possible (a 128 by 40 canvas, 640 bytes), but it competes with the figure read from 50 cm; the mock draws the screen with it and without it.
 
 Then the look of each new page and editor is mocked (`menu_12864.py`) and settled before it is built (design gates before build gates).
 
