@@ -135,11 +135,6 @@ file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/https/https_ca.h
      CONTENT "// Made by CMakeLists.txt from HTTPS_CA_FILES\nstatic const char https_ca_pem[] =\n    \"${https_ca_text}\";\n"
      @ONLY)
 target_include_directories("${TARGET_NAME}" PRIVATE ${CMAKE_BINARY_DIR}/https)
-# A test build's update source by default, the local OTA server's (update_poll.c): a bench unit never polls GitHub
-set(UPDATE_TEST_SOURCE "" CACHE STRING "Test build only: the update's default source, such as http://<PC>:8080/a/b")
-if (UPDATE_TEST_SOURCE)
-    target_compile_definitions("${TARGET_NAME}" PRIVATE "UPDATE_TEST_SOURCE=\"${UPDATE_TEST_SOURCE}\"")
-endif()
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 

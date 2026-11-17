@@ -16,6 +16,10 @@
 #include <semphr.h>
 #include <task.h>
 
+#include "lwip/inet.h"
+#include "lwip/netdb.h"
+#include "lwip/sockets.h"
+
 #include "activity.h"
 #include "common.h"
 #include "eeprom.h"
@@ -27,13 +31,12 @@
 
 #define UPDATE_POLL_TASK_STACK_WORDS 1280       // a poll used 3,352 bytes, over HTTPS or HTTP (progress.md, gate 5)
 #define UPDATE_POLL_TASK_PRIORITY 2             // below the web server (3): a handshake is seconds of arithmetic
-// GitHub's, or the local OTA server's in a test build that names it (-DUPDATE_TEST_SOURCE): so a bench unit's first
-// start never polls GitHub's releases (the owner: tests never fetch from them)
-#ifdef UPDATE_TEST_SOURCE
-#define UPDATE_POLL_DEFAULT_SOURCE UPDATE_TEST_SOURCE
-#else
 #define UPDATE_POLL_DEFAULT_SOURCE "https://github.com/eamars/OpenTrickler-RP2040-Controller"
-#endif
+// The bench host, asked before the stored source, as the Open Weapon Mount Computer's units ask theirs (ADR-010, gate
+// 6, step 9): a name tools/ota_server.py announces by mDNS. When it answers it is the poll's source, in GitHub's
+// layout, on the stored channel; when it does not, the stored source is asked
+#define UPDATE_POLL_BENCH_HOST "opentrickler-update.local"
+#define UPDATE_POLL_BENCH_SOURCE "http://" UPDATE_POLL_BENCH_HOST ":8080/eamars/OpenTrickler-RP2040-Controller"
 #define UPDATE_POLL_MANIFEST_VERSION 1          // scripts/release_manifest.py
 #define UPDATE_POLL_TAG_MAX 40
 
@@ -52,6 +55,7 @@ static update_poll_image_t update_poll_image;   // FOUND's
 static bool update_poll_running = false;        // its task is made and not yet gone
 static uint32_t update_poll_generation = 0;     // the source or the channel changed: a poll across it is dropped
 static bool update_poll_start_asked = false;    // the start's poll, once
+static char update_poll_bench[16];              // the poll task's: the bench host's address, "" when none answered
 
 
 // --- JSON read as it comes: each string, number or literal handed over with its path ("images.pico_w_a.sha256",
@@ -457,6 +461,7 @@ static void update_poll_finish(uint32_t generation, update_poll_state_t state, c
             snprintf(update_poll_now.note, sizeof(update_poll_now.note), "%s", update_poll_read.note);
             update_poll_now.block = image->block;
             update_poll_now.critical = strcmp(update_poll_read.importance, "critical") == 0;
+            snprintf(update_poll_now.bench, sizeof(update_poll_now.bench), "%s", update_poll_bench);
         }
     }
     xSemaphoreGive(update_poll_mutex);
@@ -475,12 +480,34 @@ static void update_poll_finish(uint32_t generation, update_poll_state_t state, c
 }
 
 
+// The bench host's address when its name answers by mDNS, into address; false when it does not
+static bool update_poll_find_bench(char *address, size_t address_size) {
+    struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
+    struct addrinfo *found = NULL;
+    if (lwip_getaddrinfo(UPDATE_POLL_BENCH_HOST, NULL, &hints, &found) != 0 || found == NULL) {
+        return false;
+    }
+    const struct sockaddr_in *at = (const struct sockaddr_in *) found->ai_addr;
+    ip4_addr_t ip;
+    inet_addr_to_ip4addr(&ip, &at->sin_addr);
+    ip4addr_ntoa_r(&ip, address, (int) address_size);
+    lwip_freeaddrinfo(found);
+    return true;
+}
+
+
 static void update_poll_run(void) {
     // What it asks of, as it was when it began
     eeprom_update_config_t config;
     activity_lock();
     config = update_config;
     activity_unlock();
+    // The bench host first: when it answers, it is this poll's source; the stored one is left as it is
+    update_poll_bench[0] = '\0';
+    if (update_poll_find_bench(update_poll_bench, sizeof(update_poll_bench))) {
+        printf("Update: the bench host %s answers: it is asked, not %s\n", update_poll_bench, config.source);
+        snprintf(config.source, sizeof(config.source), "%s", UPDATE_POLL_BENCH_SOURCE);
+    }
     xSemaphoreTake(update_poll_mutex, portMAX_DELAY);
     uint32_t generation = update_poll_generation;
     xSemaphoreGive(update_poll_mutex);
@@ -681,11 +708,12 @@ bool update_poll_console(char *reply, size_t reply_size) {
     https_last_report(&report);
     static const char *const states[] = {"idle", "checking", "up_to_date", "found", "failed"};
     snprintf(reply, reply_size,
-             "@ok update poll state=%s channel=%s source=%s version=%s error=\"%s\" fetch_status=%d bytes=%lu hops=%u "
+             "@ok update poll state=%s channel=%s source=%s bench=%s version=%s error=\"%s\" fetch_status=%d bytes=%lu hops=%u "
              "handshake_ms=%lu,%lu,%lu total_ms=%lu mbedtls_peak=%lu heap_before=%lu heap_min=%lu stack_left=%lu "
              "fetch_error=\"%s\"",
              states[status.state], update_config.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
-             update_config.source, status.state == UPDATE_POLL_FOUND ? status.version : "", status.error,
+             update_config.source, update_poll_bench[0] != '\0' ? update_poll_bench : "none",
+             status.state == UPDATE_POLL_FOUND ? status.version : "", status.error,
              report.status, (unsigned long) report.bytes, (unsigned) report.hops,
              (unsigned long) report.handshake_ms[0], (unsigned long) report.handshake_ms[1],
              (unsigned long) report.handshake_ms[2], (unsigned long) report.total_ms,
