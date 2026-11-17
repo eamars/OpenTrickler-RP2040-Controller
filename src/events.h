@@ -33,6 +33,7 @@ typedef enum {
     EVENT_INSTALLING,
     EVENT_CONFIRMED,
     EVENT_BACK,
+    EVENT_FOUND,                // the update's poll found a newer release (ADR-010, gate 5)
 } event_kind_t;
 
 // Why a job stopped or a throw ended (api_v1.md's `reason`)

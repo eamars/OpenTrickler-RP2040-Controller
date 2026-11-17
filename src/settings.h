@@ -25,6 +25,7 @@ typedef struct {
     const char *text;       // the value in JSON when a string ("and_fxi"); NULL when it is a number
     int32_t number;         // the value in JSON when a number (2, 9600)
     const char *label;      // for a person
+    const char *short_label;    // where the label is too long beside its field's (the screen's "8N1"); NULL: label
 } setting_choice_t;
 
 typedef enum {
@@ -53,6 +54,11 @@ typedef struct {
     const char *applies;    // "now", "at_restart", or what the field says
     bool nullable;          // null is a value of it, held as null_held
     float null_held;
+    // For a client with little room (ADR-010, gate 6: the screen; ADR-008's pages may use them too)
+    const char *short_label;    // where the label and a value do not fit 128 px; NULL: label
+    float edit_step;            // what a detent (or an arrow) moves a number by; 0: its step, else none offered
+    const char *on_label;       // a boolean's value in words ("Reversed"); NULL: On
+    const char *off_label;      // NULL: Off
 } setting_field_t;
 
 // Where a field lies: SETTING_AT(eeprom_charge_mode_data_t, fine_stop_threshold)
@@ -113,6 +119,21 @@ bool settings_restart_pending(void);
  */
 typedef void (*settings_line_fn)(const char *line, void *ctx);
 void settings_console(const char *args, char *reply, size_t reply_size, settings_line_fn write, void *ctx);
+
+/*
+ * The screen's (ADR-010, gate 4). A path as the API's, with or without "/api/v1/" ("settings/scale"). A field's
+ * description, NULL when there is none. Its value as text, as the API gives it (a choice's text or number, a
+ * number, true or false), without a string's quotes. A field written as the console writes it, through the same
+ * checks and refusals as the API's PATCH, and its resource stored if that changed it: NULL when done, else why not.
+ */
+const setting_field_t *settings_field(const char *path, const char *name);
+bool settings_read_text(const char *path, const char *name, char *out, size_t room);
+const char *settings_write_and_save(const char *path, const char *name, const char *value);
+
+// The same write, live and not stored (a value set in place, a detent at a time: ADR-010, gate 6); and the store of
+// a path's resource, if it changed. NULL when done, else why not
+const char *settings_write(const char *path, const char *name, const char *value);
+const char *settings_store(const char *path);
 
 #ifdef __cplusplus
 }

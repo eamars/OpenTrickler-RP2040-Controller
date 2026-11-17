@@ -32,8 +32,7 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -DDEBUG")
 set(SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/src")
 set(FREERTOS_SRC_DIRECTORY "${CMAKE_SOURCE_DIR}/library/FreeRTOS-Kernel")
-set(U8G2_SRC_DIRECYTORY "${CMAKE_SOURCE_DIR}/library/u8g2")
-set(U8G2_MUI_DIRECTORY "${U8G2_SRC_DIRECYTORY}/csrc")
+set(LVGL_DIRECTORY "${CMAKE_SOURCE_DIR}/library/lvgl")
 set(SCRIPTS_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts")
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_SOURCE_DIR}/targets")
 
@@ -56,17 +55,14 @@ include_directories(${SRC_DIRECTORY})
 set(FREERTOS_KERNEL_PATH ${FREERTOS_SRC_DIRECTORY})
 include(${FREERTOS_SRC_DIRECTORY}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
-# Pull in u8g2
-add_subdirectory(${U8G2_SRC_DIRECYTORY})
-
-# Pull in u8g2 mui
-add_library(u8g2_mui
-    ${U8G2_MUI_DIRECTORY}/mui_u8g2.c
-    ${U8G2_MUI_DIRECTORY}/mui.c
-    ${U8G2_MUI_DIRECTORY}/u8g2_button.c
-    ${U8G2_MUI_DIRECTORY}/u8g2_box.c
-)
-target_link_libraries(u8g2_mui u8g2)
+# LVGL, configured by src/lv_conf.h. Every source is compiled; what lv_conf.h switches off compiles to nothing.
+# At -Os in every build, as the owner decided after ADR-010's gate 1: code nobody steps through, and at -O0 the
+# Pico W's image did not fit its slot
+file(GLOB_RECURSE LVGL_SOURCES ${LVGL_DIRECTORY}/src/*.c)
+add_library(lvgl STATIC ${LVGL_SOURCES})
+target_include_directories(lvgl PUBLIC ${LVGL_DIRECTORY}/include ${LVGL_DIRECTORY} ${SRC_DIRECTORY})
+target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
+target_compile_options(lvgl PRIVATE -Os)
 
 # Pull in src
 add_subdirectory(${SRC_DIRECTORY})
@@ -92,8 +88,7 @@ target_link_libraries("${TARGET_NAME}"
     hardware_pwm
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
-    u8g2
-    u8g2_mui
+    lvgl
     app_version
 
     # Required by cyw43 wireless module
@@ -104,14 +99,47 @@ target_link_libraries("${TARGET_NAME}"
     # flash_safe_execute(): flash written with the other core held off it, as the ROM's confirmation of an image
     # does (ADR-004)
     pico_flash
-    # The SHA-256 an image is checked by before it is tried (ADR-004): mbedTLS's, with src/mbedtls_config.h
-    pico_mbedtls_crypto
-    pico_mbedtls_headers
+    # mbedTLS, with src/mbedtls_config.h: the SHA-256 an image is checked by before it is tried (ADR-004), and the
+    # TLS client the update's poll and download fetch by (ADR-010, gate 5; https_client.c)
+    pico_mbedtls
 )
 
 # SHA-256 optimised: at the build's -O0 an image's check took 5 s on the Pico W, and the web server, whose task it
 # runs in, answered nothing meanwhile (ADR-004). It is third-party code nobody steps through
 set_source_files_properties("${PICO_SDK_PATH}/lib/mbedtls/library/sha256.c" PROPERTIES COMPILE_OPTIONS "-O2")
+# The rest of mbedTLS at -Os in every build, as the owner decided after ADR-010's gate 1: at -O0 a handshake took
+# 148 s on the Pico 2 W, and its assembly multiply does not compile
+file(GLOB MBEDTLS_SOURCES ${PICO_SDK_PATH}/lib/mbedtls/library/*.c)
+list(FILTER MBEDTLS_SOURCES EXCLUDE REGEX "/sha256\\.c$")
+set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
+
+# The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/github_roots.pem). A test build
+# (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots too (tools/ota_server.py --make-certs); no other does
+option(HTTPS_TEST_CA "Test build only: also trust the local OTA server's test roots" OFF)
+set(HTTPS_CA_FILES ${SRC_DIRECTORY}/github_roots.pem)
+if (HTTPS_TEST_CA)
+    list(APPEND HTTPS_CA_FILES ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/ecc_root.pem
+                               ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/rsa_root.pem)
+endif()
+set(https_ca_text "")
+foreach(ca_file IN LISTS HTTPS_CA_FILES)
+    if (NOT EXISTS ${ca_file})
+        message(FATAL_ERROR "${ca_file} is missing: run tools/ota_server.py --make-certs --host <this PC's address>")
+    endif()
+    file(READ ${ca_file} ca_pem)
+    string(APPEND https_ca_text "${ca_pem}")
+endforeach()
+string(REPLACE "\r" "" https_ca_text "${https_ca_text}")
+string(REPLACE "\n" "\\n\"\n    \"" https_ca_text "${https_ca_text}")
+file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/https/https_ca.h
+     CONTENT "// Made by CMakeLists.txt from HTTPS_CA_FILES\nstatic const char https_ca_pem[] =\n    \"${https_ca_text}\";\n"
+     @ONLY)
+target_include_directories("${TARGET_NAME}" PRIVATE ${CMAKE_BINARY_DIR}/https)
+# A test build's update source by default, the local OTA server's (update_poll.c): a bench unit never polls GitHub
+set(UPDATE_TEST_SOURCE "" CACHE STRING "Test build only: the update's default source, such as http://<PC>:8080/a/b")
+if (UPDATE_TEST_SOURCE)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE "UPDATE_TEST_SOURCE=\"${UPDATE_TEST_SOURCE}\"")
+endif()
 
 target_link_options("${TARGET_NAME}" PUBLIC -Wl,--gc-sections -Wl,--print-memory-usage)
 

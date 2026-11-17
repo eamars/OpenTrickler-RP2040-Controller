@@ -53,14 +53,17 @@ typedef struct {
     char takes[16];             // the release manifest's name for the image this unit takes
     uint32_t free_bytes;
     uint32_t received;
+    uint32_t expected;          // the image's length, once its upload says it; 0 before (the screen's progress)
+    bool download;              // the job fetches the image itself, the one the poll found (ADR-010, gate 5)
     update_last_t last;
 } update_status_t;
 
 typedef enum {
     UPDATE_START_OK = 0,
-    UPDATE_START_BUSY,          // a job runs, a start is asked, or a person is in a mode or a view at the unit
+    UPDATE_START_BUSY,          // a job runs, a start is asked, a poll runs, or a person has a view open at the unit
     UPDATE_START_NO_SLOTS,      // the slots are not known: no update can be written
     UPDATE_START_ON_TRIAL,      // the image running is on trial: the free slot is the way back until it is confirmed
+    UPDATE_START_NOTHING_FOUND, // a download asked, and the poll has found nothing to offer
 } update_start_result_t;
 
 #ifdef __cplusplus
@@ -83,8 +86,14 @@ void update_network_ready(bool on_its_network);
 // The job (api_v1_update.c)
 void update_status(update_status_t *status);
 update_start_result_t update_request_start(activity_by_t by);
+/*
+ * The job, fetching the image the poll found itself (ADR-010, gate 5): the offer's Install at the screen, and
+ * POST /api/v1/update/start with "download". It is checked as an upload is and against the manifest's SHA-256, then
+ * installed, with no second word
+ */
+update_start_result_t update_request_download(activity_by_t by);
 // false when it is not ready: 409 not_ready
-bool update_install(void);
+bool update_install(activity_by_t by);
 
 // The image in pieces (api_v1_commands.c's upload): begin's status is 200 when it is taken, and its token names the
 // upload in its pieces, its end or its abort. One upload at a time: another's token changes nothing
@@ -95,6 +104,10 @@ void update_image_abort(uint32_t token);
 
 // A block version as the firmware's version string has it: (512, 256) is 2.0.1, (276, 218) is 1.20.0-218
 void update_version_text(uint32_t version, char *out, size_t size);
+// And back: "2.0.1" or "1.20.0-218" as a block version; false when it is not one
+bool update_version_parse(const char *text, uint32_t *version);
+// The block version of the image running
+uint32_t update_running_block(void);
 
 /**
  * @brief The update's mode (menu.c): holds the screen while the job runs, the reset button stops it

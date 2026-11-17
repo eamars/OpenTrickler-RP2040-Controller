@@ -1,6 +1,6 @@
 # ADR-010: the screen's menu designed again, on LVGL
 
-Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Its first gate, the measurement, was run before approval, 2026-11-17 ([progress.md](progress.md)). The Pico W fits: its flash with LVGL and mbedTLS at -Os inside the shipping build (971 of 1,016 KB), and its RAM with three trims, computed and to be measured with the poll.
+Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Gate 1, the measurement, was run before approval, 2026-11-17: the Pico W fits, its flash with LVGL and mbedTLS at -Os inside the shipping build, its RAM with trims. Gates 2 and 4 were built the same night at the owner's word, ahead of approval, which the owner gives on PR #132, and proven on both units. Gate 3 (the mock) is dropped by the owner, since gate 4 was built ahead of it. Gate 5 (the update at the screen) was built and proven on the Pico W the next day; the owner skipped the Pico 2 W's run, the lower-risk target ([progress.md](progress.md)). Gate 4 was opened again: it had left u8g2 in as the panel's driver and frame buffer, and the owner's review sent it back to remove u8g2 entirely. Built and proven on the Pico W the same day. Left: the owner's look at both panels, the Pico 2 W's run, the owner's use by hand, and the approval. Gate 6, what the unit needs on the screen (the owner's survey: every setting needed at the unit and changed there in a few actions, and what the rebuild had taken off the screen put back), was built and proven on the Pico W the same night; left with it: the owner's use by hand, and the servo seen moving with a gate fitted.
 
 ## What we want
 
@@ -37,6 +37,18 @@ Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu
   - **the web page's missing acknowledgement** is documented in ADR-008;
   - **the QR code goes to a later ADR** on commissioning (ADR-015): "I'd like to design the commissioning process properly, not ad-hoc".
 - **Update tests use a local OTA server,** so they do not hammer GitHub's releases. A debug image goes onto a unit by the probe.
+- **After gate 1: LVGL and mbedTLS are compiled at -Os in the shipping build,** in place of ADR-005's whole-image optimised build ("Yes, libraries at -Os"). Our own code stays at -O0. ADR-005's trigger therefore does not fire for this ADR: the Pico W's image is 971 of 1,016 KB.
+- **The scale's calibration is removed:** "The calibration should be removed as no scale supports that".
+- **Overnight, one PR** (2026-11-17): "prioritize on everything you could do without my involvement first, then ask for my approval tomorrow ... focus on the functional build if no technical blockers". So the gates are built before this ADR's approval, which the owner gives on the PR.
+- **Gate 3 is dropped** (2026-11-17, the next morning): "The mock WAS supposed to be designed ahead of the deployment. Now given you made changes to the firmware directly then there is no point of designing the mock anymore." Gate 4 was built ahead of it overnight, which was a mistake: the mock was where the owner settles the layouts before they are built. The owner settles them on the unit instead.
+- **Gate 5 goes ahead, with the beta channel as proposed** (2026-11-17: "Yes continue with gate 5").
+- **u8g2 goes entirely, in gate 4** (2026-11-17, the owner's review of the plan): "this iteration of the work should remove the dependency of u8g2, including the frame buffer, screen driver, draw worker etc ... We may reuse the font from u8g2, but that should not become the reason to keep that dependency." Gate 4 as built kept u8g2 as the panel's driver and frame buffer, against its own line here ("all of u8g2 if LVGL is chosen").
+- **The screen's frame over the web keeps no old format:** "There is no backward compatibility for screenbuffer distribution over the ethernet so you can change off one go."
+- **One frame buffer, not two,** as recommended (below); the owner: "I believe the gate 4 will inherently optimize for performance and RAM utilization. Let's write first, and report if you noticed any discrepancy."
+- **The screen's colours as the glass shows them** (2026-11-17, the owner's look at the panel). The mini 12864's glass is negative: a lit pixel shows light on a dark ground, the opposite of what the mock-ups, the snaps and the skill drew. The owner: "The software is not released, so it is the chance to add feature we need. Therefore I'd like to add the settings first, then fix the tool, then fix the AI hello display to bright mode permanently, as the dark mode just looks strange." A unit starts with the glass's own look, light on dark (the owner's choice of the two). The hello keeps its flash and then holds bright: the owner asked for an opinion, and the flash is what marks a new agent whichever look is set. Both units' glasses are the same (the owner).
+- **No long press; a click acts as the knob goes down** (2026-11-17, the owner at the unit, finding Back slow): "This is not a touch screen, and for this application no long press is expected as the button is not reliable (therefore I have the debounce). So I think for any click event short click should be made default." And: "The 'back' feature should either a short click on '<', or reset button. Any hidden feature is a NOT a good UI design. And do not try to educate the user."
+- **Every setting on both the screen and the web; nothing left for later** (2026-11-17, the owner, on finding the servo gate gone): "My original ask from the beginning of the ADR-010 was: are there any feature from web should be ported to the screen. And it ended up with some menus being removed?? ... Not everyone use screen and web at the same time, it would be easy if both settings are configurable from both front screen and web. If the removal is for memory size, then I need data as justification. I don't want MVP here. This ADR is the final display refactor, so nothing to be left for the future." The survey is in menu_design.md ("Every setting on the screen and on the web"); the owner settled it the same day: the screen made from the settings tables, "built right", and ADR-008's web the same way from the schema; the cleanup as one system (a list: the speed set live, the gate, Zero, Stop); text by the knob for every string, reversed by the knob's cost (menu_design.md: no text is typed at the knob); the chart on the mock.
+- **Every element on screen is reached by the knob** (2026-11-17, the owner at the unit: some Cancel buttons were "not selectable ... I need you to scan through the pages and ensure every UI element is actually clickable"). Softkeys are focused like rows. The owner's answers: a dialog opens on its action, the factory reset on Cancel; a charge with no action focuses Stop; a cleanup pauses first, then Stop or Run (replaced by the cleanup as one system, gate 6, step 5); the target's editor works as the old menu's did, "toggle the edit and select through on the rotary button click, instead of the default edit mode".
 
 ## Why here
 
@@ -60,7 +72,7 @@ First of the work on the current Pico platform (the owner, 2026-11-17: 010, 008,
 - The buttons' interrupts are set up before the queue they write to: a press in the first moments of a start faults.
 - A form names a field `SU` that is not defined: a unit label is never drawn.
 - The display's lock functions are never called, and the web's mirror is served from the buffer being drawn: torn frames.
-- The A&D's "CAL" sequence is offered for every make of scale, and its screen's strings are globals.
+- ~~The A&D's "CAL" sequence is offered for every make of scale, and its screen's strings are globals.~~ The calibration is removed, its mode, its menu form and its activity with it: "The calibration should be removed as no scale supports that" (the owner, 2026-11-17).
 - "Wifi Info" opened before the radio is up reads a network interface that is not there yet.
 
 **Handed on by ADR-004** (2026-11-16): the update's offer at the unit's screen. ADR-004 built the update and left its offer to this ADR and ADR-008. Until one of them ships it, an update is reached through the REST API only, for debugging, and is not for users. What the web page needs, the contract and the times measured are in ADR-008's hand-on; this is the screen's part.
@@ -74,10 +86,10 @@ First of the work on the current Pico platform (the owner, 2026-11-17: 010, 008,
   - Never a pop-up at every start: it is annoying.
   - No authentication for now (ADR-008's hand-on).
 - **What the screens have to do:**
-  - **the row:** in the main menu, shown only while the unit's poll knows of a newer release, and opening the offer: its version and note, Install and Cancel. A critical release changes the row's text ("Important update", as the Open Weapon Mount Computer's offer is titled), still with no pop-up. That last part is recommended here: the Open Weapon Mount Computer opens a critical offer at once, and the owner's rule leaves that out;
+  - **the row:** in the main menu, shown only while the unit's poll knows of a newer release, and opening the offer: its version and note, Install at their end, Back as Later. A critical release changes the row's text ("Important update", as the Open Weapon Mount Computer's offer is titled), still with no pop-up. That last part is recommended here: the Open Weapon Mount Computer opens a critical offer at once, and the owner's rule leaves that out;
   - **polling:** the unit polls its source once each start after Wi-Fi joins, quietly, as the Open Weapon Mount Computer does; the offer can also ask again. The poll is built here now (Handed on by ADR-008, below);
   - the update's screen rebuilt, read from `update_status()` rather than drawn by `update.c` (services stop drawing, below);
-  - the version running, and how the last update ended (confirmed, or back on the version it had), where a person can find them, with no pop-up.
+  - the version running, and how the last update ended (confirmed, went back, refused, stopped or timed out), where a person can find them, with no pop-up.
 - **To find out first:**
   - **The poll needs the unit to fetch a release itself,** over HTTPS from GitHub, with TLS on the unit. On the Pico W that competes with LVGL for room: its image is 799.3 KB of its 1,016 KB slot, 216.7 KB left (the release 1.20.218, 2026-11-16), against LVGL's estimate of 120 to 200 KB. Measure both before deciding the Pico W's offer. A source on the owner's network served over plain HTTP needs no TLS.
 
@@ -93,6 +105,27 @@ First of the work on the current Pico platform (the owner, 2026-11-17: 010, 008,
 
 ADR-008 keeps the page's offer, the page where the source and the channel are set, and the upload by hand. PR #111 closes at ADR-008's end, once the whole flow is shown from the offer to the unit confirmed (the owner).
 
+**u8g2 after gate 4** (read in the code, and from the Pico W's build at 7c41e28, 2026-11-17):
+- **What it still does:**
+  - it drives the panel: the UC1701's reset and set-up, its contrast and flip, and the sending of each frame (`mini_12864_module.cpp`);
+  - it holds a second copy of the frame: its own buffer of 1,024 bytes and its handle of 148, beside LVGL's frame of 1,032 (`display.c`, `menu.c`);
+  - the flush copies each LVGL frame into that buffer, pixel by pixel, in our code at -O0 (`menu_flush`);
+  - the mirror and `snap` read that buffer, and the API names its format `u8g2_tiles`;
+  - the fonts' BDF files are read from its submodule at build time, and the mock-up tool reads its fonts and its compiled catalogue.
+- **It takes 4.2 KB of the Pico W's flash.** Five files still include its header and use nothing of it (`access_point_mode.c`, `app.c`, `charge_mode.cpp`, `cleanup_mode.cpp`, `update.c`).
+- **The Pico W's image** is 965.3 KB of its 1,016 KB slot, and RAM at link time 250.2 KB of 256 (252.4 KB with the C library's 2 KB minimum heap).
+- **LVGL has no driver for this panel.** Its display drivers are for colour TFTs (ST7735, ST7789, ST7796, ILI9341 and others); a TFT later uses one of them.
+- **LVGL draws the whole screen for any change** in the render mode gate 4 chose (`LV_DISPLAY_RENDER_MODE_FULL`; `lv_inv_area()` in `lv_refr.c`). In its direct mode, with the same one screen-sized buffer, it draws only the areas that changed, and the buffer still holds the whole frame. For a one-bit display LVGL rounds each area out to whole bytes itself.
+- **The panel keeps its own copy of the frame** in the controller's memory and shows it with no help. LVGL's second buffer gains only when a frame is sent by DMA while the next is drawn, and the send is about 2 ms.
+- **Where a frame's time goes** (the Pico W's is not measured):
+  - LVGL drawing the whole screen: 7.1 ms on the Pico 2 W at -Os (gate 1);
+  - the copy into u8g2's buffer: about 3 ms on the Pico W, estimated for code at -O0;
+  - the send, 1,048 bytes at 4 MHz: 2.1 ms, computed;
+  - a passive LCD typically takes 100 ms or more to settle a pixel (not measured on this panel).
+
+  The glass, not the chip, bounds how fast an animation can move.
+- **The fonts are not u8g2's work.** helvR08, helvB08 and helvB18 are Adobe's and Digital's X11 Helvetica, which u8g2 carries with their permission notice: their copyright notices go in every copy, and they and the permission notice in the documentation that comes with it.
+
 ## What we do
 
 The design is [menu_design.md](menu_design.md): the principles, the knob's four keys, the tree, the jobs' screens, the status marks, what leaves the screen and where it goes, the update with its channel, and the split. Built in gates, each approved and built on its own:
@@ -106,20 +139,50 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 2. **Services stop drawing and reading buttons.**
    - The mode loops leave the menu's task for a job task of their own.
    - The screen sends the API's commands, `by` button, and reads the same status the API reads.
-   - A job started anywhere takes the screen; the `view` activity goes.
+   - A job started anywhere takes the screen; the `view` activity is never set (it stays in the enum, unreported, so v1 stays stable).
    - The screens stay as they are, so `menu_tour` compares against today's baseline and `charge_cycle` passes.
-3. **The menu on the PC.**
+3. ~~**The menu on the PC.**~~ Dropped by the owner, 2026-11-17: gate 4 was built ahead of it, so the layouts are settled on the unit.
    - The tree as a table, the navigator, and the 12864's view, built for the PC as well, fed by a recording of a unit. The owner settles the layouts there by using them, before the unit's screens change.
    - The way it runs (a browser page by Emscripten, or a window by SDL) is chosen after gate 1. The browser is recommended.
 4. **The menu on the unit.**
    - The input driver's four keys, read on both edges.
    - The new tree and screens, and the status marks.
-   - `screen` and `key` for the remote control, and `menu_tour` walking the tree from its table to a new baseline.
+   - `screen` and `press` for the remote control, and `menu_tour` walking the tree from its table to a new baseline.
    - MUI removed: all of u8g2 if LVGL is chosen, and the mirror fed from the new view.
+   - **u8g2 removed entirely** (the owner, 2026-11-17). Gate 4 was first built with u8g2 left in as the panel's driver and frame buffer; this finishes it:
+     - **The panel's driver is our own,** on the SDK's SPI: the UC1701's reset, its set-up, contrast and flip, and the frame sent as 8 pages of 8 rows. Its commands are those u8g2's driver sends; a flipped panel starts 4 columns in, since the controller has 132. The frame's lock is made before any task runs (`menu_init()`), so no task can ask for it first.
+     - **One frame, LVGL's,** in direct mode: LVGL draws only what changed into its one screen-sized buffer. No second buffer: the panel holds the frame it shows, and the send is too short for a DMA send beside the next frame's drawing to gain anything.
+     - **The send** covers the 8-row bands a change touches, each turned into the panel's columns as it goes. The whole frame is sent again once a second, so a glitch on the panel's cable does not stay on the glass.
+     - **The mirror and `snap` read LVGL's frame,** under a lock the menu holds while LVGL draws, so each is one whole frame. Its format is LVGL's: 64 rows of 16 bytes, the leftmost pixel the top bit, 1 a lit pixel (the layout of a PBM image's body). The API's `format`, the mirror's page and `rc_run.py`'s snap change with it, and no old format is kept (the owner).
+     - **The fonts' BDF files are the repository's own,** in `fonts/` with their notice; `scripts/bdf2lvgl.py` reads them there. The mock-up tool reads the same folder. Its reader of u8g2's compiled catalogue goes: a face is tried by adding its BDF.
+     - **Then u8g2 goes:** the submodule, its CMake lines, its part in the size report, the five includes, and every page that names it as the driver or the source of the fonts (AGENTS.md, the skills `c-style` and `embedded-ui-design`, api_v1.md).
+     - **The frame's times are reported:** `screen`'s reply gives the last frame's drawing and sending times, and the longest of each since the start. An animation is later judged against them (the skill `embedded-ui-design`).
+   - **The screen inverted, as a setting** (the owner's look at the panel, 2026-11-17):
+     - `invert_display` in `settings/display` ("Invert the screen", applies now), and its row, Invert screen, on the Display page beside Invert knob. It is the panel's own command (`0xA7`), so the frame is untouched.
+     - **The display's stored struct keeps its size:** the field lands in its filler (byte 6 of 8), so nothing resets and the flag starts as the byte stored there. On the Pico W it started on, and was stored off. Left as it is by the owner, who keeps this change to the inversion; handed on to ADR-006.
+     - The menu's task alone sends the panel's inversion: the setting, or during a hello its flash and then bright, whatever the setting.
+     - The mirror and `snap` show the panel as a person sees it: the frame with the inversion applied, a 1 a lit pixel. The mirror's page, `rc_run.py`'s pictures, the mock-up sheet and the skill draw a lit pixel light on a dark glass. The baselines' pictures are flipped to match, once, by a script.
 5. **The update at the screen.**
    - The stored channel and source, and the poll at each start and on asking.
    - The download into the free slot as a job.
    - The offer's row and page, the update's screen, and its result on the Firmware page.
+6. **What the unit needs, on the screen** (the owner settled the survey and its mock, 2026-11-17: "Otherwise settled, write to ADR then start to implement"). The design is menu_design.md's "Needed at the unit, and can be changed there" and "What the rebuild took off the screen"; the look is [mockups/parity_12864.png](mockups/parity_12864.png). Built a step at a time, each proven on the Pico W before the next:
+   1. **The description grows, in the tables** (`settings.h`), and so in the schema for ADR-008's pages: a field's screen label where the web's does not fit, its step on the screen, and whether the screen offers it. The backlight's colour is offered as 8 named colours. A new setting, Charge view (Weight or Chart), in the display's struct (its last byte of filler: on a unit that is updated it starts as that byte was until it is set once, ADR-006's class of fault).
+   2. **Rows made from the tables, edited in place:** a toggle a click; a choice a click, the turn through the choices in the row, a click; a number a click, a step a detent, a click; Back puts the value back. The choice pages (the scale's make and baud rate, the rotation, the decimals, the powder) go. Refusals as the API's.
+   3. **The tree:** Settings › Scale (its frame format and the decimals added), Charge (the fine and coarse stop), Display (the backlight and Charge view added), Servo gate (on, the shutters open or closed, their four ends set while the servo moves), Motors (each one's direction), Firmware (the channel set), Restart, Factory reset.
+   4. **The charge:** Charge › Powder set in place, and Powder details (read only: the gains side by side, the speeds, the profile's revision). Its screen: the time at the title's right (live while it pours, the last throw's while it waits), "of 30.00, AR2209" under the weight, the titles "Zeroing", "Charging", "Lift the cup", "Return the cup", "Paused"; with Charge view on Chart, the throw's chart.
+   5. **The cleanup as one system:** the weight and the flow on one line, Speed set live and Gate toggled as rows, Stop and Zero as softkeys; no Run or Pause.
+   6. **Wi-Fi:** why a join failed, in words; "Turn Wi-Fi off" (or on) at the end of its page.
+   7. **The proof:** every screen by the knob from the console, each change's action count against `knob_cost.py`'s; `menu_tour` saved again as the baseline; `charge_cycle`, `api_check`, `settings_roundtrip`; the size report; LVGL's heap and the FreeRTOS heap's low mark through an HTTPS poll; the Pico 2 W built.
+   8. **The owner's review at the unit** (2026-11-17), which changes steps 2, 4 and 5:
+      - **Choices on their own page again,** the current option marked by a check at its right: "choices should have its own page ... while numbers stays in place". A choice turned through in its row was a blind selector; bold and the old "*" were too faint (the owner chose the check from [mockups/choice_marks.png](mockups/choice_marks.png)).
+      - **Powder details taken out:** "If a setting cannot be changed then it shouldn't be here." Its gains are tuning, set on the web and by ADR-009.
+      - **The cleanup's title is Back,** "< Cleanup" ("< Cleanup: running" while it turns), turned up to from Speed; leaving ends the cleanup. It could not be reached, the second break of the rule that every page's "<" title is reached by turning up.
+      - **The chart's time stretches with the throw:** 10 s across, or the throw's time so far when longer, the earlier curve pressed into the width (the owner, 2026-11-18: in place of halving at 12 s, which shrank the curve by a jump).
+      - **The remote mark is a phone icon,** in place of the letter R; SIM stays a word, which only a developer sees (the owner, 2026-11-18: icons for such marks; chosen from [mockups/mark_icons_zoom.png](mockups/mark_icons_zoom.png)).
+      - **The review of the code against this ADR** (a session of its own, 2026-11-18; `logs/review/adr010_review.md`, 14 findings), all fixed at the owner's word: a number being set in its row is put back when a job takes the screen; a rotation stored at 90 or 270 becomes 180 or 0, its nearest, not the first choice; `reach` also sweeps the charge between throws and the page its Change opens; the card kind, the unused rotation filter and the button wait removed; the records brought in line with the firmware.
+      - **Claude-chan drawn again, and the hello in a bubble** (the owner, 2026-11-18, from a reference picture; settled on [mockups/claude_chan_new.png](mockups/claude_chan_new.png)): a chibi with checker hair ("I actually like checker hair"), a curl, a flower, half-lidded eyes, the same four poses; she rises at the bottom right, and a round bubble at the top left, as wide as the name, drawn over her, says "<name> is watching ya!", its tail always pointing at her.
+      - **One generic test that every element can be reached,** not a test per screen ("a generic test to test if all element can be reached"): `rc_run.py reach` turns through every page, every screen a row opens, the dialogs, a charge's screen and a cleanup's, and fails on a title, row, button, softkey or digit the knob does not reach.
 
 ## How the unit shows it works
 
@@ -129,6 +192,14 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 - The owner uses every screen by hand with the knob, once with the reset button and once without it.
 - An update found by the poll on the local OTA server, on each channel, is offered at the screen, installed and confirmed. One that does not start comes back, and the offer says so. The images under test go onto the unit by the probe; only the update itself goes over the air.
 - The size report and `stats` show flash and RAM inside each board's budget.
+- **With u8g2 gone:**
+  - the size report has no u8g2, and the build reads nothing under `library/u8g2`;
+  - `menu_tour --compare` passes against the baseline taken before, so LVGL's frame and the new snap are the same picture. The Pico 2 W has none since gate 5: its baseline is saved first, on the build with u8g2, and then compared;
+  - the owner looks at the panel itself on both units, the Pico W stored at 180 degrees and the Pico 2 W at 0: a snap and the mirror read the frame in RAM, never the glass, so only an eye sees a wrong set-up or a flip 4 columns off;
+  - the mirror's page shows the screen, in a browser on the unit;
+  - `screen` gives the frame's times on the Pico W, for a page opened and for a charge's figure, and `motor` shows no late feed meanwhile;
+  - `charge_cycle` passes.
+- **With the screen's inversion:** `menu_tour --compare` passes with the setting off against the flipped baseline; with it on, a snap and the mirror show the page inverted and the panel shows it bright; a hello shows bright with either; the owner looks at the panel.
 - On each supported board.
 
 ## Not in this ADR
@@ -139,5 +210,5 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 
 ## To settle before approval
 
-- The Pico W, from gate 1's figures (progress.md): the third-party libraries at -Os in every build, in place of ADR-005's whole-image optimised build; and the three RAM trims.
-- The beta channel as proposed, and the remote mark's 30 s.
+- ~~The Pico W, from gate 1's figures.~~ Settled 2026-11-17: the libraries at -Os (the owner); the three RAM trims are built with the poll and measured there (gate 5).
+- ~~The beta channel as proposed~~ (the owner, 2026-11-17: yes). ~~The remote mark's 30 s~~: kept as built (the owner, 2026-11-18).

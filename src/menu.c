@@ -1,49 +1,160 @@
+/*
+    The menu's task (ADR-010, gate 4). It owns LVGL and the screen's one frame: LVGL draws only what changed into it,
+    under the frame's lock, and the pages of the panel that changed are sent (display.c). The knob and the buttons
+    become four keys:
+      the knob a detent clockwise or anticlockwise: Next, Prev;
+      a click of the knob, taken as it goes down: Enter;
+      the reset button: Back. A click on a title's "<" is Back as well (menu_nav.c). No long press (the owner).
+    A start asked from anywhere is taken here and begun in the job task; the job's screen is the menu's until it ends.
+*/
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
 #include <FreeRTOS.h>
-#include <task.h>
 #include <queue.h>
 #include <semphr.h>
-#include <stdio.h>
-#include <u8g2.h>
-#include <mui.h>
-#include <mui_u8g2.h>
+#include <task.h>
+
+#include "lvgl/lvgl.h"
+#include "pico/time.h"
 
 #include "activity.h"
-#include "app.h"
-#include "configuration.h"
-#include "scale.h"
 #include "display.h"
-#include "mini_12864_module.h"
-#include "eeprom.h"
-#include "charge_mode.h"
-#include "cleanup_mode.h"
-#include "eeprom.h"
-#include "wireless.h"
-#include "system_control.h"
-#include "motors.h"
+#include "jobs.h"
 #include "menu.h"
-#include "update.h"
+#include "menu_nav.h"
+#include "menu_view_12864.h"
+#include "mini_12864_module.h"
 
-// How often the menu wakes with nothing pressed, to draw the main menu's title again if a motor driver's state
-// changed it (ADR-012, step 6)
-#define MENU_TITLE_CHECK_MS 1000
+// LVGL's one-bit frame starts with its palette: two colours of 4 bytes
+#define MENU_PALETTE_BYTES 8
+// The whole frame is sent again this often, so a glitch on the panel's cable does not stay on the glass
+#define MENU_RESEND_MS 1000
+// How often the screen's live values are read again: a job's weight often, a page's values less
+#define MENU_REFRESH_JOB_MS 100
+#define MENU_REFRESH_PAGE_MS 250
+// How often LVGL's heap is looked at, for `screen`
+#define MENU_HEAP_LOOK_MS 2000
+// LVGL's heap beyond its own (LV_MEM_SIZE, 14 KB, in the image's RAM, which is full): a second pool from the FreeRTOS
+// heap. With the hello's overlay made at the start, the 14 KB were at most 11.1 KB used and 736 bytes free in one
+// piece at the least (the Pico W, 2026-11-17), where a draw takes up to 384 bytes and an allocation LVGL cannot make
+// faults the core. It is taken from what an HTTPS poll leaves the FreeRTOS heap at its low mark: 8,168 bytes with the
+// local test chains, about 9.5 KB with GitHub's (ADR-010, gate 5), so about 5 and 6.5 KB with this pool. 6 KB was
+// tried first: 7 KB in one piece for LVGL, but 2 to 3.5 KB left to a fetch
+#define MENU_LVGL_POOL_BYTES (3 * 1024)
 
-// External variables
-extern muif_t muif_list[];
-extern fds_t fds_data[];
-extern const size_t muif_cnt;
 extern QueueHandle_t encoder_event_queue;
+extern mini_12864_module_config_t mini_12864_module_config;
 
-// External menus
+// The screen's one frame, LVGL's: no second buffer, since the panel keeps the frame it shows (ADR-010, gate 4)
+static uint8_t menu_frame[MENU_PALETTE_BYTES + DISPLAY_FRAME_BYTES] __attribute__((aligned(4)));
+static lv_display_t *menu_display = NULL;
+// Held while LVGL draws and while the frame is copied, so a copy is one whole frame
+static SemaphoreHandle_t menu_frame_lock = NULL;
+// The panel's pages a draw changed, sent with the draw's last area
+static uint8_t menu_frame_pages = 0;
+static menu_frame_times_t menu_times;
+static uint32_t menu_send_last_us = 0;
+// The panel shown inverted (its own command), changed under the frame's lock so a copy of the frame matches it: the
+// stored setting, or a hello's own
+static bool menu_panel_inverted = false;
 
-// Local variables
+// What the console sees: the screen last drawn, copied under its lock
+static SemaphoreHandle_t menu_screen_lock = NULL;
+static menu_screen_t menu_screen_drawn;
+static menu_screen_t menu_screen_now;
+static uint32_t menu_lvgl_heap_max = 0;
+// The least LVGL's heap had free in one piece: a glyph is drawn through a buffer taken from it (up to 384 bytes)
+static uint32_t menu_lvgl_biggest_free_min = UINT32_MAX;
 
-AppState_t exit_state = APP_STATE_DEFAULT;
+// The hidden hello: asked from the web's task (menu_visit()), played here a step at a time. Negative steps are the
+// flash: the panel inverted, then not, twice. The figure is then shown on a lit panel, whatever the setting
+#define MENU_VISIT_STEP_MS 200
+#define MENU_VISIT_FLASH_STEPS 4
+static char menu_visit_asked_name[MENU_VISIT_NAME_MAX + 1];
+static bool menu_visit_asked = false;
+static bool menu_visit_asked_flash = false;
+static uint64_t menu_visit_last_us = 0;
+static bool menu_visiting = false;
+static char menu_visit_name[MENU_VISIT_NAME_MAX + 1];
+static int menu_visit_step = 0;
+static uint64_t menu_visit_step_us = 0;
 
-// The remote control's view of the menu (ADR-001). Only menu_task touches the mui_t; other tasks see these
+// The remote control's `screen <id>`: asked from its task, answered after the draw
 static volatile int menu_current_form_id = -1;
-static volatile uint8_t menu_goto_form_id = 0;
-static volatile bool menu_goto_form_found = false;
-static SemaphoreHandle_t menu_goto_form_drawn = NULL;
+static char menu_goto_id[32];
+static volatile bool menu_goto_found = false;
+static SemaphoreHandle_t menu_goto_drawn = NULL;
+
+
+static uint32_t menu_tick(void) {
+    return (uint32_t) (xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
+
+
+// The frame's pages sent, and how long that took
+static void menu_send(uint8_t pages) {
+    uint64_t start_us = time_us_64();
+    display_send_pages(menu_frame + MENU_PALETTE_BYTES, pages);
+    menu_send_last_us = (uint32_t) (time_us_64() - start_us);
+    menu_times.send_us = menu_send_last_us;
+    if (menu_send_last_us > menu_times.send_max_us) {
+        menu_times.send_max_us = menu_send_last_us;
+    }
+}
+
+
+/*
+    An area LVGL drew (direct mode: into the one frame, which keeps the rest). Its pages are noted, and sent with the
+    draw's last area. LVGL's rows are bytes of 8 pixels across; the panel's pages are 8 rows deep (display.c)
+*/
+static void menu_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px_map) {
+    (void) px_map;
+    menu_view_paint(menu_frame + MENU_PALETTE_BYTES, area);
+    int first = area->y1 < 0 ? 0 : area->y1 / 8;
+    int last = area->y2 >= DISPLAY_HEIGHT ? DISPLAY_PAGES - 1 : area->y2 / 8;
+    for (int page = first; page <= last; page += 1) {
+        menu_frame_pages |= (uint8_t) (1u << page);
+    }
+    if (lv_display_flush_is_last(display)) {
+        menu_send(menu_frame_pages);
+        menu_frame_pages = 0;
+    }
+    lv_display_flush_ready(display);
+}
+
+
+// The frame as the panel shows it: inverted with it
+void menu_frame_copy(uint8_t *out) {
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    memcpy(out, menu_frame + MENU_PALETTE_BYTES, DISPLAY_FRAME_BYTES);
+    if (menu_panel_inverted) {
+        for (size_t idx = 0; idx < DISPLAY_FRAME_BYTES; idx += 1) {
+            out[idx] = (uint8_t) ~out[idx];
+        }
+    }
+    xSemaphoreGive(menu_frame_lock);
+}
+
+
+// The panel inverted or not, sent only when it changes
+static void menu_panel_invert(bool inverted) {
+    if (inverted == menu_panel_inverted) {
+        return;
+    }
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    display_invert(inverted);
+    menu_panel_inverted = inverted;
+    xSemaphoreGive(menu_frame_lock);
+}
+
+
+void menu_frame_times(menu_frame_times_t *times) {
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    *times = menu_times;
+    xSemaphoreGive(menu_frame_lock);
+}
 
 
 int menu_get_current_form_id(void) {
@@ -51,212 +162,278 @@ int menu_get_current_form_id(void) {
 }
 
 
-bool menu_goto_form(uint8_t form_id, bool *found) {
-    if (menu_goto_form_drawn == NULL || menu_current_form_id < 0) {
+void menu_wake(void) {
+    ButtonEncoderEvent_t event = MENU_WAKE;
+    if (encoder_event_queue != NULL) {
+        xQueueSend(encoder_event_queue, &event, 0);
+    }
+}
+
+
+bool menu_goto_screen(const char *id, bool *found) {
+    if (menu_goto_drawn == NULL || encoder_event_queue == NULL) {
         return false;
     }
-
     // An answer left over from a call that timed out must not be taken for this one
-    xSemaphoreTake(menu_goto_form_drawn, 0);
-
-    // If a mode takes the screen between the check above and this send, the mode reads the event and ignores it,
-    // and this call times out
-    menu_goto_form_id = form_id;
-    ButtonEncoderEvent_t button_encoder_event = OVERRIDE_GOTO_FORM;
-    if (xQueueSend(encoder_event_queue, &button_encoder_event, pdMS_TO_TICKS(100)) != pdTRUE) {
+    xSemaphoreTake(menu_goto_drawn, 0);
+    snprintf(menu_goto_id, sizeof(menu_goto_id), "%s", id);
+    ButtonEncoderEvent_t event = MENU_REMOTE_SCREEN;
+    if (xQueueSend(encoder_event_queue, &event, pdMS_TO_TICKS(100)) != pdTRUE ||
+        xSemaphoreTake(menu_goto_drawn, pdMS_TO_TICKS(1000)) != pdTRUE) {
         return false;
     }
-    if (xSemaphoreTake(menu_goto_form_drawn, pdMS_TO_TICKS(1000)) != pdTRUE) {
-        return false;
-    }
-
-    *found = menu_goto_form_found;
+    *found = menu_goto_found;
     return true;
 }
 
-void menu_wake(void) {
-    // No wait: with the queue full the menu still looks within MENU_TITLE_CHECK_MS, while the request is fresh
-    ButtonEncoderEvent_t button_encoder_event = MENU_WAKE;
-    xQueueSend(encoder_event_queue, &button_encoder_event, 0);
+
+void menu_screen_copy(menu_screen_t *screen, uint32_t *lvgl_heap_max) {
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    *screen = menu_screen_drawn;
+    *lvgl_heap_max = menu_lvgl_heap_max;
+    xSemaphoreGive(menu_screen_lock);
 }
 
 
-uint8_t menu_motor_fault_view(void) {
-    // A view at the unit: no start is taken over it (ADR-003, gate 4)
-    activity_job_begin(ACTIVITY_VIEW);
-    u8g2_t * display_handler = get_display_handler();
-    const char * motor_fault = motors_get_fault();
-
-    u8g2_ClearBuffer(display_handler);
-    u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-    u8g2_DrawStr(display_handler, 5, 10, motor_fault != NULL ? motor_fault : "Motor drivers");
-    u8g2_DrawHLine(display_handler, 0, 13, u8g2_GetDisplayWidth(display_handler));
-    u8g2_SetFont(display_handler, u8g2_font_helvR08_tr);
-    u8g2_DrawStr(display_handler, 5, 25, "Charge and cleanup");
-    u8g2_DrawStr(display_handler, 5, 37, "cannot start.");
-    u8g2_DrawStr(display_handler, 5, 49, "Press to go back.");
-    u8g2_SendBuffer(display_handler);
-
-    while (button_wait_for_input(true) == BUTTON_NO_EVENT) {
-    }
-
-    activity_job_end();
-    return 1;  // the main menu, whose title names the driver
+uint32_t menu_lvgl_biggest_free(void) {
+    return menu_lvgl_biggest_free_min;
 }
 
 
-static uint8_t menu_get_parent_form_id(uint8_t form_id) {
-    // Parent relationships for "one level up" navigation.
-    // Root is form 1.
-    switch (form_id) {
-        case 10: return 1;
-        case 11: return 10;
-        case 12: return 10;
-        case 13: return 10;
-
-        case 20: return 1;
-
-        case 30: return 1;
-        case 31: return 30;
-        case 32: return 30;
-        case 33: return 32;
-        case 34: return 32;
-        case 38: return 34;
-        case 35: return 30;
-        case 36: return 30;
-        case 37: return 30;
-        case 39: return 30;
-
-        case 40: return 1;
-        case 41: return 40;
-
-        case 51: return 31;
-        case 53: return 31;
-        case 60: return 37;
-        case 61: return 37;
-
+static void menu_event(ButtonEncoderEvent_t event) {
+    switch (event) {
+        case BUTTON_ENCODER_ROTATE_CW:
+            menu_nav_key(MENU_KEY_NEXT);
+            break;
+        case BUTTON_ENCODER_ROTATE_CCW:
+            menu_nav_key(MENU_KEY_PREV);
+            break;
+        case BUTTON_ENCODER_PRESSED:
+            menu_nav_key(MENU_KEY_ENTER);
+            break;
+        case BUTTON_RST_PRESSED:
+            menu_nav_key(MENU_KEY_BACK);
+            break;
+        case MENU_REMOTE_SCREEN:
+            menu_goto_found = menu_nav_goto(menu_goto_id);
+            break;
         default:
-            return 1;
+            break;
     }
 }
 
 
-void menu_task(void *p){
-    u8g2_t * display_handler = get_display_handler();
-    // Create UI element
-    mui_t mui;
+bool menu_visit(const char *name, bool *flash) {
+    // Everywhere but over a charge (the owner, 2026-11-17)
+    if (activity_get() == ACTIVITY_CHARGE) {
+        return false;
+    }
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    uint64_t now_us = time_us_64();
+    *flash = menu_visit_last_us == 0 || now_us - menu_visit_last_us >= (uint64_t) MENU_VISIT_QUIET_MS * 1000u;
+    menu_visit_last_us = now_us;
+    snprintf(menu_visit_asked_name, sizeof(menu_visit_asked_name), "%s", name);
+    menu_visit_asked_flash = *flash;
+    menu_visit_asked = true;
+    xSemaphoreGive(menu_screen_lock);
+    menu_wake();
+    return true;
+}
 
-    mui_Init(&mui, display_handler, fds_data, muif_list, muif_cnt);
-    mui_GotoForm(&mui, 1, 0);
 
-    menu_goto_form_drawn = xSemaphoreCreateBinary();
+static void menu_visit_show(void) {
+    if (menu_visit_step < 0) {
+        menu_panel_invert(menu_visit_step % 2 == 0);
+        return;
+    }
+    menu_panel_invert(true);
+    if (!menu_view_visit(menu_visit_step, menu_visit_name)) {
+        menu_visiting = false;
+    }
+}
 
-    // Render the menu before user input
-    u8g2_ClearBuffer(display_handler);
-    mui_Draw(&mui);
-    u8g2_SendBuffer(display_handler);
-    menu_current_form_id = mui_GetCurrentFormId(&mui);
-    const char * drawn_title = menu_main_title();
 
-    while (true) {
-        bool goto_form_asked = false;
+// The hello ended, whole or cut short: the panel as it is, the page back
+static void menu_visit_end(void) {
+    if (!menu_visiting) {
+        return;
+    }
+    menu_visiting = false;
+    menu_panel_invert(mini_12864_module_config.inverted_display);
+    menu_view_visit_end();
+}
 
-        if (mui_IsFormActive(&mui)) {
-            // Wait for the user input; with none, the menu is drawn again only if the main menu's title changed
-            ButtonEncoderEvent_t button_encoder_event = button_wait_for_input_ms(MENU_TITLE_CHECK_MS);
-            activity_t asked;
-            if (activity_take_start(&asked)) {
-                // A start asked by the API or the console (ADR-003, gate 4): the mode, as its form's button enters it
-                exit_state = asked == ACTIVITY_CLEANUP ? APP_STATE_ENTER_CLEANUP_MODE :
-                             (asked == ACTIVITY_UPDATE ? APP_STATE_ENTER_UPDATE : APP_STATE_ENTER_CHARGE_MODE);
-                mui_SaveForm(&mui);          // store the current form and position so that the child can jump back
-                mui_LeaveForm(&mui);
-            }
-            else if (button_encoder_event == BUTTON_NO_EVENT || button_encoder_event == MENU_WAKE) {
-                if (mui_GetCurrentFormId(&mui) != 1 || menu_main_title() == drawn_title) {
-                    continue;
-                }
-            }
-            else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CW) {
-                mui_NextField(&mui);
-            }
-            else if (button_encoder_event == BUTTON_ENCODER_ROTATE_CCW) {
-                mui_PrevField(&mui);
-            }
-            else if (button_encoder_event == BUTTON_ENCODER_PRESSED) {
-                mui_SendSelect(&mui);
-            }
-            else if (button_encoder_event == BUTTON_RST_PRESSED) {
-                // Global back: deterministic "one menu level up" until root (form 1).
-                uint8_t current_form_id = mui_GetCurrentFormId(&mui);
-                if (current_form_id != 1) {
-                    uint8_t parent_form_id = menu_get_parent_form_id(current_form_id);
-                    mui_GotoForm(&mui, parent_form_id, 0);
-                }
-            }
-            else if (button_encoder_event == OVERRIDE_GOTO_FORM) {
-                // A form that does not exist leaves the current one on screen
-                menu_goto_form_found = mui_GotoForm(&mui, menu_goto_form_id, 0);
-                goto_form_asked = true;
-            }
+
+// A hello asked is begun, unless a charge has the screen; one playing goes on a step when its time is up
+static void menu_visit_run(void) {
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    bool asked = menu_visit_asked;
+    bool flash = menu_visit_asked_flash;
+    if (asked) {
+        memcpy(menu_visit_name, menu_visit_asked_name, sizeof(menu_visit_name));
+        menu_visit_asked = false;
+    }
+    xSemaphoreGive(menu_screen_lock);
+
+    uint64_t now_us = time_us_64();
+    if (activity_get() == ACTIVITY_CHARGE) {
+        menu_visit_end();
+        return;
+    }
+    if (asked) {
+        menu_view_visit_end();
+        menu_visiting = true;
+        menu_visit_step = flash ? -MENU_VISIT_FLASH_STEPS : 0;
+        menu_visit_step_us = now_us;
+        menu_visit_show();
+        return;
+    }
+    if (menu_visiting && now_us - menu_visit_step_us >= (uint64_t) MENU_VISIT_STEP_MS * 1000u) {
+        menu_visit_step += 1;
+        menu_visit_step_us = now_us;
+        if (menu_visit_step >= MENU_VIEW_VISIT_STEPS) {
+            menu_visit_end();
         }
         else {
-            // A mode takes the screen
-            menu_current_form_id = -1;
+            menu_visit_show();
+        }
+    }
+}
 
-            uint8_t exit_form_id = 1;  // by default it goes to the main menu
-            // menu is not active, leave the control to the app
-            switch (exit_state) {
-                case APP_STATE_VIEW_MOTOR_FAULT:
-                    exit_form_id = menu_motor_fault_view();
-                    break;
-                case APP_STATE_ENTER_CHARGE_MODE:
-                    exit_form_id = charge_mode_menu();
-                    break;
-                case APP_STATE_ENTER_CLEANUP_MODE:
-                    exit_form_id = cleanup_mode_menu();
-                    break;
-                case APP_STATE_ENTER_UPDATE:
-                    exit_form_id = update_mode_menu();
-                    break;
-                case APP_STATE_ENTER_SCALE_CALIBRATION:
-                    activity_job_begin(ACTIVITY_SCALE_CALIBRATION);
-                    exit_form_id = scale_calibrate_with_external_weight();
-                    activity_job_end();
-                    break;
-                case APP_STATE_ENTER_EEPROM_SAVE: 
-                    exit_form_id = eeprom_save_all();
-                    break;
-                case APP_STATE_ENTER_EEPROM_ERASE:
-                    exit_form_id = eeprom_erase(true);
-                    break;
-                case APP_STATE_ENTER_REBOOT:
-                    exit_form_id = software_reboot();
-                    break;
-                case APP_STATE_ENTER_WIFI_INFO:
-                    activity_job_begin(ACTIVITY_VIEW);
-                    exit_form_id = wireless_view_wifi_info();
-                    activity_job_end();
-                    break;
-                default:
-                    break;
-            }
 
-            // A start the mode did not begin (a driver not OK) is done with: it never starts later
+// The wait for the next event: the refresh, or sooner when a hello's next step is due
+static uint32_t menu_wait_ms(void) {
+    uint32_t wait = menu_nav_in_job() ? MENU_REFRESH_JOB_MS : MENU_REFRESH_PAGE_MS;
+    if (menu_visiting) {
+        uint64_t spent_ms = (time_us_64() - menu_visit_step_us) / 1000;
+        uint32_t left = spent_ms >= MENU_VISIT_STEP_MS ? 0 : (uint32_t) (MENU_VISIT_STEP_MS - spent_ms);
+        wait = left < wait ? left : wait;
+    }
+    return wait;
+}
+
+
+static void menu_jobs(void) {
+    activity_t job;
+    if (!menu_nav_in_job() && activity_take_start(&job)) {
+        if (jobs_begin(job)) {
+            menu_nav_job_begun(job);
+        }
+        else {
+            printf("Menu: %s not begun, a job runs\n", activity_name(job));
             activity_clear_start();
-            mui_GotoForm(&mui, exit_form_id, 0);
+        }
+    }
+    uint8_t exit_form;
+    if (jobs_take_end(&exit_form)) {
+        // A start the job did not begin (a driver not OK) is done with: it never starts later
+        activity_clear_start();
+        menu_nav_job_ended(exit_form);
+    }
+}
+
+
+static void menu_draw(bool goto_asked) {
+    menu_nav_screen(&menu_screen_now);
+    menu_view_draw(&menu_screen_now);
+
+    // LVGL draws what changed and sends it (menu_flush), under the frame's lock: the draw's time is the rest
+    xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+    menu_send_last_us = 0;
+    uint64_t start_us = time_us_64();
+    lv_timer_handler();
+    uint32_t took_us = (uint32_t) (time_us_64() - start_us);
+    if (menu_send_last_us > 0) {
+        menu_times.frames += 1;
+        menu_times.draw_us = took_us - menu_send_last_us;
+        if (menu_times.draw_us > menu_times.draw_max_us) {
+            menu_times.draw_max_us = menu_times.draw_us;
+        }
+    }
+    xSemaphoreGive(menu_frame_lock);
+
+    menu_current_form_id = menu_nav_in_job() ? -1 : 0;
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    menu_screen_drawn = menu_screen_now;
+    xSemaphoreGive(menu_screen_lock);
+    if (goto_asked) {
+        // Answered after the draw, so a snap taken next shows the page
+        xSemaphoreGive(menu_goto_drawn);
+    }
+}
+
+
+void menu_init(void) {
+    menu_screen_lock = xSemaphoreCreateMutex();
+    menu_goto_drawn = xSemaphoreCreateBinary();
+    menu_frame_lock = xSemaphoreCreateMutex();
+    if (menu_screen_lock == NULL || menu_goto_drawn == NULL || menu_frame_lock == NULL) {
+        assert(false);
+    }
+}
+
+
+void menu_task(void *p) {
+    (void) p;
+    lv_init();
+    void *pool = pvPortMalloc(MENU_LVGL_POOL_BYTES);
+    if (pool == NULL || lv_mem_add_pool(pool, MENU_LVGL_POOL_BYTES) == NULL) {
+        assert(false);
+    }
+    lv_tick_set_cb(menu_tick);
+    menu_display = lv_display_create(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    lv_display_set_color_format(menu_display, LV_COLOR_FORMAT_I1);
+    // Direct: LVGL draws only the areas that changed, into the one frame, which keeps the rest
+    lv_display_set_buffers(menu_display, menu_frame, NULL, sizeof(menu_frame), LV_DISPLAY_RENDER_MODE_DIRECT);
+    lv_display_set_flush_cb(menu_display, menu_flush);
+    menu_view_init(menu_display);
+    menu_nav_init();
+    menu_panel_invert(mini_12864_module_config.inverted_display);
+    menu_draw(false);
+
+    uint64_t heap_looked_us = 0;
+    uint64_t resent_us = time_us_64();
+    while (true) {
+        ButtonEncoderEvent_t event = button_wait_for_input_ms(menu_wait_ms());
+        bool goto_asked = event == MENU_REMOTE_SCREEN;
+        // A hello ends at a press, and the press does nothing else: the person did not see the page under it. But
+        // over a job the reset button still stops it
+        bool pressed = event != BUTTON_NO_EVENT && event != MENU_WAKE && event != MENU_REMOTE_SCREEN;
+        if (menu_visiting && (pressed || goto_asked)) {
+            menu_visit_end();
+            bool stop = event == BUTTON_RST_PRESSED && menu_nav_in_job();
+            if (pressed && !stop) {
+                event = BUTTON_NO_EVENT;
+            }
+        }
+        if (event != BUTTON_NO_EVENT) {
+            menu_event(event);
+        }
+        menu_jobs();
+        menu_visit_run();
+        if (!menu_visiting) {
+            menu_panel_invert(mini_12864_module_config.inverted_display);
+        }
+        menu_nav_refresh();
+        menu_draw(goto_asked);
+
+        if (time_us_64() - resent_us >= (uint64_t) MENU_RESEND_MS * 1000u) {
+            resent_us = time_us_64();
+            xSemaphoreTake(menu_frame_lock, portMAX_DELAY);
+            menu_send(DISPLAY_ALL_PAGES);
+            xSemaphoreGive(menu_frame_lock);
         }
 
-        // The title is read before the draw: a change after it is drawn at the next check, not lost
-        drawn_title = menu_main_title();
-        u8g2_ClearBuffer(display_handler);
-        mui_Draw(&mui);
-        u8g2_SendBuffer(display_handler);
-
-        menu_current_form_id = mui_GetCurrentFormId(&mui);
-        if (goto_form_asked) {
-            // Answered after the draw, so a snap taken next shows the new form
-            xSemaphoreGive(menu_goto_form_drawn);
+        if (time_us_64() - heap_looked_us >= (uint64_t) MENU_HEAP_LOOK_MS * 1000u) {
+            heap_looked_us = time_us_64();
+            lv_mem_monitor_t heap;
+            lv_mem_monitor(&heap);
+            xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+            menu_lvgl_heap_max = (uint32_t) heap.max_used;
+            if (heap.free_biggest_size < menu_lvgl_biggest_free_min) {
+                menu_lvgl_biggest_free_min = (uint32_t) heap.free_biggest_size;
+            }
+            xSemaphoreGive(menu_screen_lock);
         }
     }
 }

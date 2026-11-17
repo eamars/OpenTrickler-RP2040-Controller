@@ -173,6 +173,8 @@ static int route_count = 0;
 static slot_t *slots = NULL;
 static char reply_scratch[HTTP_SERVER_REPLY_MAX];
 static http_server_network_t network;
+// When the last write to the API was admitted, by the clock in us (0: none yet): the screen's remote mark (ADR-010)
+static volatile uint64_t server_last_write_us = 0;
 static http_server_stats_t stats;
 static uint64_t stream_make_us;     // stats.stream_make_ms, kept in microseconds: a chunk takes some milliseconds
 static TaskHandle_t server_task_handle = NULL;
@@ -748,8 +750,15 @@ static bool slot_admit(slot_t *slot, http_server_reply_t *reply) {
             return false;
         }
         request->body_is_json = json;
+        server_last_write_us = time_us_64();
     }
     return true;
+}
+
+
+bool http_server_wrote_within(uint32_t ms) {
+    uint64_t last = server_last_write_us;
+    return last != 0 && time_us_64() - last < (uint64_t) ms * 1000u;
 }
 
 

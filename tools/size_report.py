@@ -31,7 +31,7 @@ OTHER_PART = "Other"
 RUNTIME_PART = "C and C++ runtime"
 
 # The map names an object built from this repository by its path from the repository's root, behind the build
-# system's own prefix ("CMakeFiles/app.dir/src/motors.c.obj", "library/u8g2/libu8g2.a(mui.c.obj)"). Anything with
+# system's own prefix ("CMakeFiles/app.dir/src/motors.c.obj", "liblvgl.a(lv_obj.c.obj)"). Anything with
 # an absolute path comes from outside the tree, which is the compiler's own libraries. So a part is told by where
 # its source sits in the repository, never by where the repository or the toolchain is installed.
 TARGET_OBJECT_PREFIX = re.compile(r"^CMakeFiles/[^/]+\.dir/")
@@ -42,7 +42,8 @@ PARTS = (
     ("Radio: cyw43 driver and its firmware", re.compile(r"cyw43")),
     ("lwIP", re.compile(r"^library/pico-sdk/lib/lwip/|pico_lwip")),
     ("TinyUSB", re.compile(r"^library/pico-sdk/lib/tinyusb/")),
-    ("u8g2 and MUI", re.compile(r"u8g2")),
+    ("LVGL", re.compile(r"^library/lvgl/|liblvgl")),
+    ("mbedTLS", re.compile(r"^library/pico-sdk/lib/mbedtls/")),
     ("FreeRTOS", re.compile(r"^library/FreeRTOS-Kernel/")),
     ("Trinamic", re.compile(r"^library/Trinamic-library/")),
     ("Pico SDK", re.compile(r"pico-sdk/")),
@@ -62,7 +63,7 @@ def part_of(object_path):
 
     Args:
         object_path: the object's path as printed in the map, for example
-            "CMakeFiles/app.dir/src/motors.c.obj" or "library/u8g2/libu8g2.a(u8g2_fonts.c.obj)".
+            "CMakeFiles/app.dir/src/motors.c.obj" or "liblvgl.a(lv_obj.c.obj)".
 
     Returns:
         RUNTIME_PART for an object from outside the repository, the part's name from PARTS for one inside it, or

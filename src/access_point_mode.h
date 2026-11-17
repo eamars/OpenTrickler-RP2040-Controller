@@ -12,6 +12,8 @@ uint8_t access_point_mode_menu();
 
 bool access_point_mode_start();
 bool access_point_mode_stop();
+// The access point's key, as the screen's Wi-Fi page shows it (ADR-010, gate 4)
+const char *access_point_mode_key(void);
 
 #ifdef __cplusplus
 }

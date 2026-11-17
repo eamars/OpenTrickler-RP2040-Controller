@@ -43,7 +43,7 @@ Also found while reading:
 ## Principles
 
 1. **The screen is for the bench; the web is for setting up.** A row belongs on the screen if a person needs it during a session, or if it fixes the unit without a phone (the scale's make, the knob's direction, a factory reset). Tuning, wiring and anything typed (names, the Wi-Fi key) are web only.
-2. **The knob alone does everything.** The second button is only a shortcut.
+2. **Nothing is hidden: every element on screen is reached by the knob.** A row, a title's "<" (Back), a notes' button and each softkey is focused by turning and done by a click; the reset button is Back everywhere as well. No long press, and no hint teaches the controls (the owner, 2026-11-17).
 3. **A row is shown only while it does something** (the Open Weapon Mount Computer's rule 13). The rule that decides is the same one that would refuse its command at the API.
 4. **The screen is a client, as the web is.** It reads what the API reads and acts through the same entry points, `by` button. No rule exists only on the screen.
 5. **A change is stored when it is confirmed.** There is no Save.
@@ -58,70 +58,81 @@ The mini 12864 gives three inputs: the encoder's turn, its press, and the reset 
 
 | Key | From | On a list | In a number editor | On a job's screen |
 |---|---|---|---|---|
-| Next, Prev | one detent clockwise or anticlockwise (Invert knob swaps them) | focus moves down or up and stops at the ends; above the first row is the title, which works as Back | the digit goes up or down | moves between the job's actions, or changes its one value (cleanup's speed) |
-| Enter | a press released within 0.5 s | opens or does the focused row | next digit; on the last digit, stores the value | does the focused action, whose name is on the screen |
-| Back | the reset button, or the knob held for 0.5 s | up one level, with focus on the row you came from | previous digit; on the first digit, leaves the value unchanged | stops the job (except while an update installs) |
+| Next, Prev | one detent clockwise or anticlockwise (Invert knob swaps them) | focus moves down or up and stops at the ends; above the first row is the title, which works as Back | focus moves over the digits, then Cancel and Set; while a digit is being set, its value goes up or down | focus moves between Stop and the action; on the cleanup's screen, over its title, Speed, Gate, Stop and Zero, and while Speed is being set the turn sets it |
+| Enter | a press of the knob, taken as it goes down | opens or does the focused row | starts or ends setting the focused digit; on Cancel or Set, does it | does the focused softkey or row; on the cleanup's Speed, starts or ends setting it |
+| Back | the reset button, or Enter on the title's "<" or a Cancel | up one level, with focus on the row you came from | ends setting a digit, or leaves the value unchanged | stops the job (except while an update installs) |
 
-- The driver reads both edges of each button, so a hold can be told from a click. Today it reads only the falling edge, with a 250 ms lockout. The debounce becomes about 20 ms.
-- No double click and no hold-to-repeat. Nothing needs the reset button.
+- The knob's button is read on both edges, for its debounce: a press is taken as it goes down, its release only readies the next. No long press, no double click and no hold-to-repeat: the button is not reliable enough to time (the owner, 2026-11-17).
 - Each page remembers its focus.
-- A hint on screen names the board's own input ("RST: stop", or "Hold: stop").
-- **Numbers:** one editor for every number, digit by digit as today. Its digits, decimals and unit come from the field's own description (`settings.h`). The target gets 2 or 3 decimals from Decimals.
-- **Choices:** a list page with the current option marked. Enter picks it, stores it and goes back.
+- **Softkeys are focused like rows** (the owner, 2026-11-17): the focused one is drawn in reverse. A dialog opens on its action, so one click goes on, but one that destroys (the factory reset) opens on Cancel. A job's new action is focused as it appears; with none (while a charge pours), Stop is. The cleanup's screen is a list (gate 6, step 5, in place of the Run and Pause first built): its title is Back, which ends it; Speed is set live by a click, the turn (through 0 into reverse) and a click; Gate is toggled; Stop and Zero are its softkeys.
+- **Numbers:** a setting's number is stepped in its row: a click, a step a detent (the field's `edit_step`), a click stores it, Back puts it back. The target alone has the editor, digit by digit as the old menu's; its decimals follow Decimals.
+- **Choices:** a list page of every option, the current one marked by a check at its right, the focus opening on it. A click picks one, stores it and goes back; Back leaves it as it was. Not bold, and not a "*": both too faint to see at a glance (the owner, 2026-11-17, from `mockups/choice_marks.png`, where a radio dot on every option was the other offer).
 - **Toggles:** Enter flips the value and stores it.
 - **Text:** never typed on the screen.
 
 ## The tree
 
+As built (gate 6, with the owner's review at the unit, step 8). `knob_cost.py` names the same rows in the same order.
+
 ```
 Main menu                        title: OpenTrickler, or the motor driver that is not OK
 ├─ Update available ›            only while the poll knows of a newer release; "Important update" when critical
 ├─ Charge ›
-│  ├─ Start                      → "Cup on the scale" → the charge screen; with no target set, the target editor first
-│  ├─ Target        24.35 gr ›   number
-│  └─ Powder        AR2208 ›     choice of the 8 powder profiles
-├─ Cleanup                       → "Cup on the scale" → the cleanup screen
-├─ Wi-Fi ›
-│  ├─ Network       HomeNet      or "Joining HomeNet", "Not joined"
-│  ├─ Address       192.168.2.168
-│  ├─ Name          opentrickler-4993.local
-│  ├─ Signal        -58 dBm      as a station only
-│  └─ Network, Key               as its own access point only: opentrickler-4993, opentrickler
+│  ├─ Start                      → "Put the empty cup on the scale" → the charge screen; with no target, the editor first
+│  ├─ Target        24.35 ›      the editor, digit by digit
+│  └─ Powder        AR2208 ›     its own page: the 8 powder profiles, the current one checked
+├─ Cleanup                       → "Put the cup on the scale to catch the powder" → the cleanup's screen
+├─ Wi-Fi ›                       notes, ending in its button
+│  ├─ Joined        HomeNet      or "Not joined" and why (Wrong key, Not found, Join failed), with the network tried
+│  ├─ IP, Name, Signal           as a station
+│  ├─ Hotspot, Key               as its own access point
+│  ├─ Takes effect at restart    while a change waits for it
+│  └─ [Turn Wi-Fi off]           or on
 └─ Settings ›
    ├─ Scale ›
-   │  ├─ Reading    24.35 gr     live; "no reading" while the scale sends nothing
+   │  ├─ Reading    24.35 gr     to read; "no reading" while the scale sends nothing
    │  ├─ Zero
-   │  ├─ Make       A&D FX-i ›   choice, every make but Simulated (a debug feature: the owner)
-   │  ├─ Baud rate  19200 ›      choice
-   │  ├─ Decimals   2 ›          choice (charge's decimal_places)
-   │  ├─ Restart to apply        only after a change that applies at restart (the make)
-   │  └─ Calibrate ›             → the calibration screen; only for a make that has one (the A&D)
+   │  ├─ Make       A&D FX-i ›   every make but Simulated (D7)
+   │  ├─ Baud rate  19200 ›
+   │  ├─ Frame format 8N1 ›
+   │  └─ Decimals   2 ›
+   ├─ Charge ›
+   │  ├─ Fine stop    0.03       stepped 0.01 in its row
+   │  └─ Coarse stop  5.0        stepped 0.1 in its row
    ├─ Display ›
    │  ├─ Invert knob   Off       toggle
-   │  └─ Rotation      0° ›      choice
+   │  ├─ Invert screen On        toggle
+   │  ├─ Rotation      Upside down ›   As mounted or Upside down
+   │  ├─ Backlight     White ›   8 named colours
+   │  └─ Charge view   Weight ›  Weight or Chart
+   ├─ Servo gate ›
+   │  ├─ Servo gate    On        toggle
+   │  ├─ Shutters      Closed    toggle: the gate moved, as the API moves it
+   │  └─ Shutter 0 closed, 0 open, 1 closed, 1 open   stepped 0.001 in their rows, the servo moving live
+   ├─ Motors ›
+   │  └─ Coarse direction, Fine direction             toggles
    ├─ Firmware ›
-   │  ├─ Version       2.0.2     "on trial" until the image confirms itself
-   │  ├─ Check for update        Checking…, then Up to date or "2.1.0 found ›"; hidden with no internet
-   │  ├─ Last update   2.0.2 confirmed    once there was one; or "went back to 2.0.1"
-   │  ├─ Channel       beta      only while on beta; set on the web
-   │  └─ Board, Unit id
+   │  ├─ Version       2.0.2     "2.0.2 trial" until the image confirms itself
+   │  ├─ Update        confirmed how the last update ended: confirmed, went back, refused, stopped, timed out
+   │  ├─ Board, Unit, Build      to read
+   │  ├─ Channel       Stable ›  Stable or Beta
+   │  └─ Check for update        Checking, then Up to date or the release found
    ├─ Restart                    "Restart to apply" while a setting waits for it
-   └─ Factory reset ›            → Cancel, Erase
+   └─ Factory reset ›            → Cancel, Erase (opens on Cancel)
 ```
 
-Four rows on the main menu (five with an update), as today. No row is more than three levels down.
+Four rows on the main menu (five with an update). No row is more than three levels down.
 
 On the charge and cleanup rows, a motor driver that is not OK opens the fault page in place of the mode, as today (ADR-012, step 6). It comes before the acknowledgement, so nobody is asked about the cup for a start that cannot happen.
 
-**The acknowledgement,** before charge and before cleanup: "Put the cup on the scale", with one action, "Cup is on: start". Back cancels. It is a step of the start, not a page of the tree: Back from the job's screen returns to the page the start came from, not to the acknowledgement.
+**The acknowledgement,** before charge and before cleanup: "Put the empty cup / on the scale" (charge) or "Put the cup on the scale / to catch the powder" (cleanup), with Cancel and Start, opening on Start. Back cancels. It is a step of the start, not a page of the tree: Back from the job's screen returns to the page the start came from, not to the acknowledgement.
 
 **The jobs' screens** are not in the tree. A job puts its screen on top, whoever started it:
-- **Charge:** the state, the weight, the target, the powder, the time, the throw's number and the last verdict.
-  - Actions: Zero, which comes first and has focus, while the job waits for zero or for the cup's return. Target and Powder between throws, from the verdict to the next zeroing (the API refuses both during a throw).
+- **Charge:** the state as its title, the time at the title's right, the weight, and under it the target and the powder, or the verdict; with Charge view on Chart, the throw's chart. The throw's number is not shown (no room beside the time, below).
+  - Actions: Zero while the job waits for zero, under the lock the charge starts its pour under. Not while it waits for the cup's return: the charge takes a reading of 0 as the cup back, so a zero with the pan bare would start a throw on it, as the API's own zero is refused there (found in the review of gate 4). Target and Powder between throws, from the verdict to the next zeroing (the API refuses both during a throw); what they open closes when the next throw begins, so Back then reaches the charge.
   - Back stops the job and returns to the Charge page, with Start focused.
-- **Cleanup:** the weight, the flow, the speed and the gate. Turning sets the speed, Enter sets it to 0, Back stops.
+- **Cleanup:** its title Back (leaving ends it), the weight and the flow on one line to read, Speed and Gate as rows, Stop and Zero as softkeys. The reset button stops it.
 - **Update:** Downloading n%, then Checking, then Installing (keep the power on), and the version. Back stops it until it installs.
-- **Calibration:** today's steps. Enter goes to the next one; Back cancels.
 - **Fault page:** names the driver and says charge and cleanup cannot start. Enter or Back leaves it.
 - **Later (ADR-009):** the cup's ask ("put an empty cup on the pan, and press") and test throws, as screens of the same kind.
 
@@ -133,12 +144,204 @@ The screen echoes the unit, as it does today (the owner, 2026-11-17). Whatever j
 
 A corner of every page and every job's screen shows three marks. The remote mark is the owner's idea:
 - **Wi-Fi:** joined, the unit's own access point, or none.
-- **Remote:** the unit is being controlled from elsewhere. Either the running job was started by the web, the API or the console (each job already records this as `by`), or one of them wrote a setting or sent a command in the last 30 s (a proposal). Reads do not count: a page that only watches, such as the mirror or a charge page, controls nothing. The command layer records the time, since every remote write passes through it.
-- **Simulated:** the simulated scale is standing in for the real one (the console's `sim on`). Its weight is made up, so a charge with powder in the hopper would pour by it. The person at the unit must see this for as long as it lasts.
+- **Remote:** a phone icon (the owner, 2026-11-18, from [mockups/mark_icons_zoom.png](mockups/mark_icons_zoom.png); it was the letter R). The unit is being controlled from elsewhere. It shows while the running job was started by the web, the API or the console (each job records this as `by`), and for 30 s after any write over the web: the server notes every POST, PUT, PATCH or DELETE under `/api/` it admits, a refused one and an agent's hello included. Reads do not count: a page that only watches, such as the mirror or a charge page, controls nothing. A console command does not light it: the console is a developer's, on the probe. Settled as built (the owner, 2026-11-18, on the review of ADR-010).
+- **Simulated:** the word SIM, kept as text: only a developer sees it (the owner, 2026-11-18). The simulated scale is standing in for the real one (the console's `sim on`). Its weight is made up, so a charge with powder in the hopper would pour by it. The person at the unit must see this for as long as it lasts.
 
-When a job was not started from the knob, its screen's state line also says who started it ("Charging, from the web").
+Who started a job is shown by the remote mark, not in words: a "Charging, from the web" line was designed and not built, for want of room beside the time.
+
+## Every setting on the screen and on the web (the survey, 2026-11-17)
+
+The owner, at the unit, on finding the servo gate gone: "My original ask from the beginning of the ADR-010 was: are there any feature from web should be ported to the screen. And it ended up with some menus being removed?? It doesn't make sense at all. I want you to take the RIGHT approach here, survey WHAT should, or can be duplicated from the web to the front screen. Context: Not everyone use screen and web at the same time, it would be easy if both settings are configurable from both front screen and web. If the removal is for memory size, then I need data as justification. I don't want MVP here. This ADR is the final display refactor, so nothing to be left for the future."
+
+**The rule.** Every setting and every action the web has is on the screen too. Only measured data or the hardware leaves one off, and each such case is named below with its reason. This replaces the "web only" lists under "What leaves the screen". *Narrowed by the owner the same day (below, "Needed at the unit, and can be changed there"): on the screen when needed at the unit and changed there in a few actions.*
+
+**How.** The screen's settings pages are made from the settings tables (`settings.h`), the tables the API, the schema, the export and the web's forms are already made from:
+- a resource is a page, a field a row, and the field's type its editor: a boolean a toggle, a choice a list, an integer or a number the number editor within its limits, a string the text editor, a colour the colour editor;
+- a resource with fields in more than one group (the charge's thresholds, coarse stop, precharge, colours) opens on its groups, each a page;
+- a write takes the same path, checks and refusals as the API's (a motor's setting while a job runs: "Not changed", "a job runs"), and is stored at once (D2); a field that applies at restart brings "Restart to apply", as the scale's make does now;
+- so a setting added to a table reaches both, and the screen cannot fall behind the web again.
+
+**What it costs: measured on the Pico W, the tighter board, at 61ecef7 (2026-11-17).**
+- **Flash:** 968 KB of 1,016 KB used, 47 KB free. The whole navigator today is 21 KB at -O0 (`menu_nav.c`: 55 rows, 15 pages, the list, card, notes, dialog, editor and job screens, the update's offer); the view is 7 KB; the settings' code 16 KB.
+- **The parity, estimated from those:** the table-driven pages 4 to 6 KB (no row per setting is written: the tables are in flash already), the three new editors (text, colour, the network list) 6 to 9 KB, the restored job screens and the gate's control about 2 KB. 12 to 17 KB in all, leaving 30 KB or more. It is measured when built. If it ran out, AGENTS.md's order holds: ADR-005's optimised build before anything is cut.
+- **RAM:** the FreeRTOS heap 43.8 KB free (43.0 KB at its least); LVGL's heap at most 10.1 of 14 KB used, 2.0 KB free in one piece at its least; the menu task 2.4 KB of its stack never touched. A text editor adds a few labels, a few hundred bytes of LVGL's heap. A network scan keeps at most 16 networks, about 0.7 KB of the FreeRTOS heap, only while its list is open.
+- **So memory rules nothing out.** The Pico 2 W has twice the flash.
+
+**The settings** (the schema's 11 resources, 73 fields):
+
+*The survey as first proposed. What was built is narrower: "Needed at the unit" below, settled by the owner, and the tree above.*
+
+| On the web | Its fields | On the screen | Before this survey |
+|---|---|---|---|
+| Charge (`settings/charge`) | thresholds (coarse stop, fine stop, steady margin, zero margin); decimals; coarse stop (gate ratio, back-off on, its turns, its speed); precharge (on, time, speed); colours (good, under, over, not ready) | Settings › Charge › its groups | decimals only, under Scale |
+| Powder profiles, 8 (`powder_profiles/{id}`) | name; coarse Kp, Ki, Kd, minimum and maximum speed; the fine's the same | Settings › Powder profiles › each, by its name › its fields | chosen only (Charge › Powder) |
+| Scale | make, baud rate, frame format | Settings › Scale, with its reading and Zero | no frame format |
+| Motors, coarse and fine | steps a rotation, current, microsteps, maximum speed, sense resistor, acceleration, minimum speed, gear ratio, direction inverted, enable inverted | Settings › Motors › Coarse, Fine › their groups (motor, driver, wiring) | none |
+| Servo gate | on, the two shutters' closed and open duties, closing and opening speed | Settings › Servo gate, with Open, Close and Position | none (the old menu's 39 had Disable, Close, Open) |
+| LEDs | backlight, LED 1 and LED 2 colours; the PWM3 chain's count, colour order, RGBW | Settings › LEDs | none |
+| Display | invert knob, rotation, invert screen | Settings › Display | all |
+| Wi-Fi | on, network name, key, security, join timeout | Wi-Fi › its state, then these | the state only |
+| Update | channel, source | Settings › Firmware: Channel, Source | the channel shown, not set |
+
+**The actions:**
+
+| On the web or the API | On the screen | Before this survey |
+|---|---|---|
+| The charge: target, powder, start, stop | Charge, and its job | yes |
+| The cleanup: start, speed, stop | Cleanup, and its job | yes (its logic is to settle) |
+| The scale's zero | Scale › Zero; the charge's Zero; the cleanup's (the web's cleanup page has it) | not in the cleanup |
+| The gate moved: open, close, a position (the web's cleanup page and `PATCH /api/v1/gate`) | Servo gate › Open, Close, Position; and the cleanup's | none |
+| The update: check, download, install, stop | Firmware › Check for update; the offer's Install; the job's Stop | yes |
+| Restart, erase | Settings › Restart, Factory reset | yes |
+| Save all | stored when confirmed (D2) | gone (D2) |
+
+**What the web shows, besides settings:**
+
+| On the web | On the screen | Before this survey |
+|---|---|---|
+| The charge page: the weight, the powder, the charge's time, its progress to the target, its step | the charge's screen: the weight, the target, the powder, the time, the verdict | the powder and the time were dropped in gate 4, against this design's "Charge" below |
+| The cleanup page: the speed, Zero, the gate | the cleanup's screen: the speed, the weight, the flow, the gate, Zero | the speed only: the weight, the flow and the gate dropped in gate 4, against this design's "Cleanup" below |
+| System: the unit's id, version, VCS hash, build | Settings › Firmware | yes |
+| Wi-Fi: why a join failed (the old screen's link status: wrong key, no network, failed) | Wi-Fi's state, in words | lost in gate 4: "Joining" whatever the reason |
+
+**Web only, each with its reason:**
+- **Export and import** of the settings and of a profile, and **the update uploaded by hand:** each is a file, which the screen has no way to take or give (the hardware). The screen downloads the same releases itself.
+- **The display's mirror:** it is the screen.
+- **The set-up wizard** (`wizard.html`, the access point's form for the Wi-Fi): the screen's Wi-Fi page sets the same fields. The commissioning process as a whole is ADR-015's (the owner).
+- **The weight's chart** over a charge (`plot_weight.html`): to settle (below).
+
+**The editors it needs:**
+- **Number,** grown from the target's (the old menu's way, as the target's now: the turn selects a digit, a click sets it). Its digits come from the field's limits; its decimals from its step, from the charge's decimals for a weight, or from a `decimals` added to the field's description where neither says (the gains). A value outside the limits is refused, as at the API.
+- **Text,** for the network's name and key, the profiles' names and the update's source, in the same way: the turn selects a character, a click sets it (the turn then goes through the characters), the last places add and delete; Cancel and Set.
+- **Colour:** red, green and blue, 0 to 255 each, set as numbers; the LED shows the colour while it is set, and Cancel puts it back.
+- **The network list:** the networks a scan finds, strongest first, with their security; choosing one sets the name and the security and opens the key; "Other" types a name.
+- **Short labels:** the tables' labels are the web's ("Coarse stop threshold"). Where a label and its value do not fit 128 px, the field's description gets a shorter one for the screen.
+
+**Settled by the owner, 2026-11-17** (each as recommended, but the chart, settled on the mock):
+1. **This rule, and the screen made from the settings tables.** The owner: "Table driven, but this needed to be built right, and consider the future web refactor to be done in the similar way". So the description grows in the tables, not in the screen: what the screen needs that they lack (a value's decimals, a short label, the actions beside a resource's fields) is added to them and to the schema, and ADR-008's pages are drawn from the schema the same way (written into ADR-008).
+2. **The cleanup as one system** (yes, as proposed). It has one value (the speed), one action (Stop), and the web's Zero and gate. As the target's editor: its screen a list, the speed, the weight and the flow in sight; the speed set by a click and the turn, live, and a second click; then Gate (open or closed, a click toggles), Zero, and Stop. No Run and no Pause: a speed of 0 is both.
+3. **The charge's screen** gets back the powder and the charge's time. The throw's number, which this design had, did not fit beside the time and was left out (below).
+4. **Text by the knob for every string** (yes), a key of up to 63 characters and the source's 127 among them, for anyone without the web; the network list spares typing the name.
+5. **The weight's chart:** a choice of the person's, Settings › Display › Charge view, Weight or Chart (the owner, 2026-11-17, asked how it is switched; 14 actions, stored, and on the web as every setting). With Weight the charge's screen leads with the figure read from 50 cm; with Chart, a chart of the throw (a 128 by 40 canvas, 640 bytes) under the weight and the target. Its time runs across 10 s, or the throw's time so far when longer: the curve then reaches the right edge and what came before is pressed into the width, a little at each refresh, never by a jump (the owner, 2026-11-18). Stored in the display's struct, in its last byte of filler: on a unit that is updated it starts as that byte was until it is set once, the class of fault handed on to ADR-006. The charge's struct has no filler at its end, and a field there would reset every charge setting on every unit.
+
+Then the look of each new page and editor is mocked and settled before it is built (design gates before build gates): [mockups/parity_12864.png](mockups/parity_12864.png), drawn by `tools/ui_mock/parity_12864.py`. The mock found three labels too long beside their value ("Back-off speed", "Minimum speed", "Sense resistor"): a short label goes into the tables (and so the schema) where a group already says the rest ("Speed" under Coarse stop). A colour is a page of three numbers, red, green and blue, each set by the number editor: as one figure it does not fit.
+
+### Needed at the unit, and can be changed there (the owner, 2026-11-17)
+
+The owner, on that mock: "No this is no good. Like the one is bad UI design" (the number editor's screen: a whole screen for one value, its digit's mark running into the line of limits under it). "Also you only mocked up the UI, but never though about HOW a human can adjust, how many click the human need to adjust. If a setting is too hard to adjust, then that's a bad design. And I noticed bad designs already from the mockup. Then, I need you to be able tell: What needed to be adjusted on screen. What can be adjusted on screen. This determines what should be implemented on the screen."
+
+So the rule above is narrowed: **a setting is on the screen when it is needed at the unit and a person can change it there in a few actions.** Every setting stays on the web.
+
+**Needed at the unit** means one of:
+- **S, a session:** used at the bench while charging or cleaning up;
+- **W, the unit working without the web:** what a person with no phone needs to get the unit, its scale, its screen and its gate working, or to restore it.
+
+The rest is **T, tuning and building:** set once, against the throws' figures and charts the web shows, or by ADR-009's tuning.
+
+**What a change costs:** every detent and every click is one action, counted from the main menu at rest (`tools/ui_mock/knob_cost.py` computes it). A number is edited **in place in its row**, with no editor screen, as the cleanup's speed; a choice on **its own page**, where every option is seen (the owner, 2026-11-17: a choice turned through in its row is a blind selector):
+- a toggle: a click;
+- a choice: a click opens its page on the current option, the turn to the one wanted (the page does not wrap: its top is the "<" title), a click;
+- a stepped number: a click, a step a detent, a click; the field's description gives the screen's step;
+- the target's digits (the one value with a wide range and a fine resolution): the turn selects a digit, a click sets it, the turn sets its value, a click ends it, then the turn to Set and a click;
+- text: a click on "+", the turn through some 70 characters, a click, for each character.
+
+| What | Need | Method | The change | To reach | To change | In all |
+|---|---|---|---|---|---|---|
+| Target, a small change | S | digits | 30.00 to 30.10 | 2 | 10 | 12 |
+| Target, a new load | S | digits | 24.35 to 42.00 | 2 | 27 | 29 |
+| Powder (8 profiles) | S | choice | 1 to 5 | 3 | 6 | 9 |
+| Start a charge | S | action |  | 1 | 2 | 3 |
+| Zero, in a charge | S | action |  | 0 | 1 | 1 |
+| Stop, in a charge or cleanup (the reset button) | S | action |  | 0 | 1 | 1 |
+| Cleanup's speed | S | step 1 rev/s | 0 to 3 rev/s | 3 | 5 | 8 |
+| Cleanup's gate, open or closed | S | toggle |  | 4 | 1 | 5 |
+| Cleanup's zero | S | action |  | 6 | 1 | 7 |
+| Cleanup's Stop, by the knob | S | action |  | 5 | 1 | 6 |
+| Scale's make (9) | W | choice | A&D to Sartorius | 6 | 9 | 15 |
+| Scale's baud rate (3) | W | choice | 19200 to 9600 | 7 | 3 | 10 |
+| Scale's frame format (2) | W | choice | 8N1 to 7N1 | 8 | 3 | 11 |
+| Decimals (2) | W | choice | 2 to 3 | 9 | 3 | 12 |
+| Fine stop threshold | S | step 0.01 gr | 0.03 to 0.05 | 6 | 4 | 10 |
+| Coarse stop threshold | S | step 0.1 gr | 5.0 to 3.0 | 7 | 22 | 29 |
+| Invert knob | W | toggle |  | 7 | 1 | 8 |
+| Invert screen | W | toggle |  | 8 | 1 | 9 |
+| Rotation (2) | W | choice |  | 9 | 3 | 12 |
+| Backlight colour (8 named) | W | choice | white to green | 10 | 6 | 16 |
+| Charge view (2): weight or chart | S | choice |  | 11 | 3 | 14 |
+| Servo gate on | W | toggle |  | 8 | 1 | 9 |
+| Servo gate open, close | W | toggle |  | 9 | 1 | 10 |
+| A shutter's end (the servo moves live) | W | step 0.001 | 0.050 to 0.055 | 10 | 7 | 17 |
+| A motor's direction | W | toggle |  | 10 | 1 | 11 |
+| Update channel (2) | W | choice |  | 10 | 3 | 13 |
+| Restart | W | action |  | 10 | 1 | 11 |
+| Factory reset (opens on Cancel) | W | action |  | 11 | 3 | 14 |
+| Wi-Fi on or off | W | action |  | 5 | 1 | 6 |
+| Back-off turns | T | step 0.125 | 0.25 to 0.5 | 15 | 4 | 19 |
+| Precharge time | T | step 50 ms | 1000 to 1500 ms | 17 | 12 | 29 |
+| A motor's current | T | step 50 mA | 400 to 600 mA | 11 | 6 | 17 |
+| A profile's Kp (digits) | T | digits | 0.0250 to 0.0300 | 15 | 17 | 32 |
+| A profile's name | T | text | AR2209 | 14 | 131 | 145 |
+| Wi-Fi network, picked from a scan | W | choice | the 2nd found | 15 | 3 | 18 |
+| Wi-Fi key, 12 characters | W | text | Trickle-2024 | 16 | 180 | 196 |
+| Update source, a URL | T | text | http://192.168.2.13:8080/a/b | 12 | 361 | 373 |
+
+*The paths follow the mock's tree (`knob_cost.py` names each page's rows in order); recounted 2026-11-17 after the mock was redrawn, and corrected to the firmware as built (the backlight's Green is its fifth colour; Wi-Fi's button is two turns away). Six changes were made on the unit by exactly these keys and checked through the API (gate 6's proof, progress.md). Recounted again when choices went back to their own pages, which do not wrap (the scale's make, 10 to 15), and Charge view set by its 14 on the unit.*
+
+**What it shows:**
+- Everything needed in a session, or to get the unit working without the web, costs 1 to 17 actions, but a new load's target and a large change of the coarse stop (29 each): a choice, a toggle, an action or a few steps, never deeper than three levels.
+- Text costs 145 to 373 actions: a profile's name, the Wi-Fi key, the update's source. That is too hard, so **no text is typed at the knob**, which reverses the earlier "text by the knob for every string".
+- The tuning values can be changed (17 to 32 actions), but are not needed at the unit.
+
+**Needed at the unit, and can be changed there: on the screen.**
+- **In a session:** the target, the powder, start, stop and zero; the cleanup's speed, gate, zero and stop; the views of the charge (the powder, its time) and of the cleanup (the weight, the flow, the gate).
+- **To work without the web:**
+  - the scale's make, baud rate and frame format, and the decimals;
+  - the display's knob, screen and rotation, and the backlight's colour, from 8 named colours (the screen's contrast is the backlight's);
+  - the servo gate on or off, its Open and Close, and its shutters' ends, set while the servo moves (at the unit, looking at the gate, is where they are best set);
+  - a motor's direction (a motor wired the other way);
+  - the update's channel, Restart, Factory reset;
+  - Wi-Fi on or off, and Wi-Fi's state with the reason a join failed.
+
+**Not needed at the unit: on the web only.**
+- **Tuning:** the charge's thresholds, margins, back-off, precharge and verdict colours; the profiles' gains and speeds; the gate's speeds. They are tuned against what the web shows, and by ADR-009.
+- **Building:** a motor's steps, current, microsteps, speeds, acceleration, sense resistor, gear ratio and enable's sense; the LEDs 1 and 2 and the PWM3 chain; Wi-Fi's join timeout.
+- **Needed only to reach the web, and too hard by the knob:** Wi-Fi's network, key and security. The unit's own access point serves the web without them (ADR-015, commissioning).
+- **A developer's, and too hard:** the update's source.
+
+**Bad designs the cost found in the mock:**
+- the number editor's own screen: every number is now edited in its row;
+- four levels deep (Settings › Powder profiles › a profile › Coarse trickler › Kp; Settings › Motors › Coarse › Driver › Current): the tuning pages are not on the screen;
+- a colour as three numbers of 0 to 255: a choice of named colours instead;
+- the text editor: no text at the knob;
+- the cleanup's Stop below the fold, three turns away: it stays a softkey, as the charge's.
+
+**The borderlines, settled by the owner (2026-11-17):**
+- **The fine and coarse stop thresholds are on the screen,** Settings › Charge, stepped 0.01 gr and 0.1 gr in their rows (10 and 29 actions). A person who only uses the screen sees their effect ("Over by 0.04") and has no other way to change them. The rest of the tuning stays on the web.
+- **The profiles' names stay on the web.** The screen chooses a profile by the name the web gave it, or "Profile n". A list of known powders (about 15 actions) was offered, and declined.
+- **A motor's current stays on the web,** with the rest of the build settings: a wrong current can overheat a driver.
+
+### What the rebuild took off the screen, and where the mock puts it back
+
+The owner: "Make sure your mockup includes my comments about removal of information since LVGL change, for example the charge mode refactor without justification." Read from the firmware before the rebuild (17316b8: `mui_menu.c`, and the charge's, the cleanup's and Wi-Fi's own screens). The mock is [mockups/parity_12864.png](mockups/parity_12864.png); each restored screen's caption begins "Restored".
+
+| The old screen showed | The rebuild | The mock |
+|---|---|---|
+| The charge's time, at the title's right: live while it poured, the last throw's while it waited | dropped | at the title's right again, live while it pours, the last throw's while it waits |
+| The powder's name, on the charge's bottom line | dropped | on the line under the weight: "of 30.00, AR2209" |
+| The target, in the title while it poured ("Target: 30.00") | kept as "of 30.00" | kept |
+| The charge's titles: "Waiting for Zero", "Remove Cup", "Return Cup" | "Waiting for zero", "Lift the cup", "Put the cup back" | "Zeroing", "Lift the cup", "Return the cup", "Paused": the ones short enough beside the time (73 px). "Waiting for zero" (81) and "Put the cup back" (82) are not |
+| The cleanup's weight, flow, speed and gate | the speed only | all four, the weight and flow on one line above Speed and Gate; its title "< Cleanup" is Back as on every page, turned up to from Speed, and leaving ends the cleanup |
+| Settings › Servo Gate: Disable, Close, Open | gone (web only) | Settings › Servo gate: on or off, the shutters open or closed, and their ends |
+| Profile Details, two pages: the coarse and fine Kp, Ki, Kd; their minimum and maximum speeds; and the profile's revision and compatibility ("Rev:…,Comp:…") | gone (web only) | left off. Built as Charge › Powder details, read only, then taken out: "If a setting cannot be changed then it shouldn't be here" (the owner, 2026-11-17). The gains are tuning, changed on the web and by ADR-009, so the page offered nothing to act on |
+| Wi-Fi's link status: down, joining, no IP, up, failed, no network, wrong key | "Joining" whatever the reason | the state in words: "Not joined", "Wrong key" |
+
+**Taken off with a reason on record, and left off:** the scale's calibration (the owner: no scale supports it), Save to EEPROM (D2: stored when confirmed), the knob's zero while the charge waits for the cup's return (a zero there starts a throw on the bare pan: found in the review of gate 4), and the Wireless menu's extra OK (the owner).
+
+**Designed, not in the old screen, and left out of the mock:** the throw's number, which this design listed for the charge's screen. There is no room for it beside the time without crowding the title.
 
 ## What leaves the screen, and where it goes
+
+The old menu's forms, and where each went. Read with the survey above, which brings back what the web-only lists here gave up.
 
 | Today | New home | Why |
 |---|---|---|
@@ -149,39 +352,41 @@ When a job was not started from the knob, its screen's state line also says who 
 | 20 Warning, cleanup | the same acknowledgement | kept (D1) |
 | 30 Settings | Settings | |
 | 31 Scale, 53 Driver and baud rate | Settings › Scale | a live reading, no OK (W4) |
-| 51 Calibration | Scale › Calibrate | only for the A&D |
+| 51 Calibration | removed, with its mode | no scale supports it (the owner, 2026-11-17) |
 | 32, 33 Profile manager | Charge › Powder | it was a second way to pick the same thing |
-| 34, 38 Profile details | web only | read-only gains mean little without the web's context; editing is the web's |
+| 34, 38 Profile details | web only: the owner's narrowing ("Not needed at the unit"). Built as Charge › Powder details, read only, and taken out in step 8 | was web only: "read-only gains mean little without the web's context", undone by the owner's rule |
 | 37 EEPROM, 60 Save | gone | stored when confirmed (W6, D2) |
 | 61 Erase | Settings › Factory reset | |
-| 39 Servo gate | web only (`PATCH /api/v1/gate`, the portal's gate) | for setting up and testing; cleanup opens the gate itself |
+| 39 Servo gate | Settings › Servo gate: on, Shutters open or closed, the four shutters' ends (the narrowing; no Position) | was web only, "for setting up and testing; cleanup opens the gate itself": an agent's reason, never the owner's, undone by the owner's rule |
 | 35 Reboot | Settings › Restart | |
 | 36 Version | Settings › Firmware | plus the update's rows |
 | 40 Wireless, 41 OK | Wi-Fi | a live page (W1) |
 
-**Web only, and already on today's portal,** so nothing the screen gives up becomes unreachable between this ADR and ADR-008 (`web_portal.html` and `display_mirror.html`, read 2026-11-17):
-- the charge's thresholds, margins, back-off, precharge and colours;
-- the powder profiles' names, gains and speeds;
-- both motors;
-- the gate's duties, its speeds and its manual control;
-- the LEDs;
-- the scale's frame format;
-- the Wi-Fi network, key, security and timeout;
-- the mirror.
+**Replaced by the survey above** (the owner, 2026-11-17: every setting is on both). What these lists said, kept as the record of what gate 4 gave up:
 
-**Web only, and new:** the update's channel and source, stored with this ADR's poll and set through the API until ADR-008's page; and the upload by hand (ADR-008).
+> **Web only, and already on today's portal,** so nothing the screen gives up becomes unreachable between this ADR and ADR-008 (`web_portal.html` and `display_mirror.html`, read 2026-11-17):
+> - the charge's thresholds, margins, back-off, precharge and colours;
+> - the powder profiles' names, gains and speeds;
+> - both motors;
+> - the gate's duties, its speeds and its manual control;
+> - the LEDs;
+> - the scale's frame format;
+> - the Wi-Fi network, key, security and timeout;
+> - the mirror.
+>
+> **Web only, and new:** the update's channel and source, stored with this ADR's poll and set through the API until ADR-008's page; and the upload by hand (ADR-008).
 
 ## The update at the screen
 
 - **The poll:** once each start, quietly, after Wi-Fi joins as a station, and again from Firmware › Check for update. There is no poll on the unit's own access point, which has no internet; the row is hidden and Firmware says why.
 - **Found:** "Update available" becomes the first row of the main menu, or "Important update" for a critical release. No pop-up.
-- **The offer page:** the version, the first lines of its note (the full note is on the web), Install, and Later. If the last try went back, the page says so ("2.1.0 did not start; this unit is on 2.0.2").
+- **The offer page:** notes: the version, its note, what to know before installing, and Install at their end, reached only by scrolling through them (the skill's rule 10). Back, the "<" title or the reset button, is Later. If the last try went back, the page says so ("2.1.0 did not start; this unit is on 2.0.2").
 - **Install** runs the update job:
   - downloading, n% (Back stops it, and the free slot is never booted);
   - checking;
   - installing, which cannot be stopped;
   - the restart.
-  The unit then runs on trial until it joins its network. Firmware shows "on trial", then "confirmed" or "went back".
+  The unit then runs on trial until it joins its network. Firmware's Version reads "2.0.2 trial" meanwhile, and its Update row the result: confirmed or went back.
 - **Shared with the web:** the same job and status serve the web's offer (ADR-008), so there is one implementation.
 - **No downgrade:** the offer names only a newer version.
 
@@ -220,6 +425,7 @@ When a job was not started from the knob, its screen's state line also says who 
   - when it is shown.
 - **Navigator.** The page stack, each page's focus, the open editor, and the job on top. It knows keys, not pixels, and runs on a PC in a test.
 - **View.** Draws the navigator's state: a list, an editor, or a job's screen. Only the view knows the display's size, its fonts and its toolkit. There is one view per kind of display, not per board.
+- **The display's driver,** under the view: LVGL's frame sent to the panel. The 12864's is our own, for its UC1701, with no u8g2 (the owner, 2026-11-17); a TFT's comes from LVGL's drivers.
 - **Input.** One per board, giving the four keys. On touch, a tap is focus and Enter on that row, and Back is a button in the header.
 - **A new display** needs a new view and input. The tree, the navigator and the commands stay as they are. A TFT's charge screen with a plot is that view's choice, drawn from the same status.
 - **The status is pulled.** The view samples it at its frame rate (the charge's weight is live anyway) and redraws what changed. No new events to keep.
@@ -228,7 +434,7 @@ When a job was not started from the knob, its screen's state line also says who 
 ## What may have been missed
 
 1. **A job started from the web takes the screen**, from whatever page is open, and the page under it is kept. An editor open at that moment is cancelled, with nothing stored. The API's `view` activity then never happens; it stays in the enum, unreported, and v1 stays stable. The owner agrees, and adds that the screen shows who controls it (Status on every screen, above).
-2. **"Services stop drawing" means the modes leave the menu's task.** Charge, cleanup, update, calibration and the Wi-Fi info stop calling `button_wait_for_input`; the screen sends commands instead. This is the largest piece of work. It touches `charge_mode.cpp`, the file every PR touches.
+2. **"Services stop drawing" means the modes leave the menu's task.** Charge, cleanup, update and the Wi-Fi info stop calling `button_wait_for_input`; the screen sends commands instead. This is the largest piece of work. It touches `charge_mode.cpp`, the file every PR touches.
 3. **A start from the web page asks nothing about the cup.** `web_portal.html` starts a charge or a cleanup with no acknowledgement (checked 2026-11-17). The safety warning holds on every way a person starts at the bench, so ADR-008's start asks it too. Whether the API should carry the acknowledgement as well (a field in the start's body that an agent has to state) is for ADR-008 to settle. Handed on to ADR-008 (the owner).
 4. **Storing on confirm also stores the web's unsaved changes** to the same resource. That is acceptable, and is recorded here.
 5. **The poll and pre-releases.** GitHub's "latest release" is never a pre-release, and every release stays a pre-release until every ADR closes. Until then the poll finds nothing. The end-to-end proof needs either a source on the owner's network (as the Open Weapon Mount Computer's `ota_host.py`) or a candidate channel. The owner's answer is a beta channel (The update at the screen, above).
@@ -239,7 +445,7 @@ When a job was not started from the knob, its screen's state line also says who 
 7. **The Scale page's make applies at restart,** so its reading shows a new make only after a restart. The simulated scale already hands over between drivers live; doing the same for the make would make the page tell at once.
 8. **An agent drives the screen:**
    - stable page ids replace the form numbers;
-   - a console command `screen` gives the page as text (its title, rows, values and focus), and `key next|prev|enter|back` drives it;
+   - a console command `screen` gives the page as text (its title, rows, values and focus), and `press cw|ccw|enc|rst` drives it;
    - `menu_tour` walks the tree from its table and compares both the text and the snaps;
    - the new baseline replaces the old one, and the table above shows that nothing was dropped by accident.
 9. **The mirror.** A frame copy suits a 128×64 (1 KB). A 480×320 colour frame is 300 KB, too much for the web's memory. On a large screen the web UI serves people and the screen's text serves agents.
@@ -264,8 +470,8 @@ When a job was not started from the knob, its screen's state line also says who 
 ## Still open
 
 - ~~**D5. The QR code** to open the page or to join the access point.~~ Moved to ADR-015 (the owner, 2026-11-17: "Perhaps that's a feature for future ADR. I'd like to design the commissioning process properly, not ad-hoc"). Until then the Wi-Fi page gives the address, the name and the access point's key as text, as today, and the screen offers no "more on the web" row: how a person finds the web is ADR-015's.
-- **The beta channel** as proposed above, and the remote mark's 30 s.
-- **How the look is mocked,** after the measurement (below).
+- ~~**The beta channel** as proposed above, and the remote mark's 30 s.~~ The channel settled 2026-11-17 and built in gate 5; the remote mark kept as built (the owner, 2026-11-18).
+- ~~**How the look is mocked,** after the measurement (below).~~ Mocked in Python at the panel's pixels (`tools/ui_mock/`), gate 3 dropped.
 
 ## Designing the look: the menu on the PC
 

@@ -96,6 +96,11 @@ bool activity_take_start(activity_t *job) {
 void activity_clear_start(void) {
     activity_lock();
     activity_asked = ACTIVITY_NONE;
+    // A stop asked for that request, taken and then never begun (a driver not OK), goes with it: kept, it ended the
+    // next job at its start (review of ADR-010's gate 4)
+    if (activity_now == ACTIVITY_NONE) {
+        activity_stop_asked = false;
+    }
     activity_unlock();
 }
 
@@ -152,8 +157,8 @@ bool activity_request_stop(activity_t job, activity_by_t by) {
         }
         stopped = true;
     }
-    // The charge, the cleanup and an update take a stop, where they read the reset button. The scale's calibration
-    // and a view are a person's at the unit: stopped=false, rather than a stop said and not done (review C1)
+    // The charge, the cleanup and an update take a stop, where they read the reset button. A view is a
+    // person's at the unit: stopped=false, rather than a stop said and not done (review C1)
     bool takes_stop = activity_now == ACTIVITY_CHARGE || activity_now == ACTIVITY_CLEANUP ||
                       activity_now == ACTIVITY_UPDATE;
     if (takes_stop && (job == ACTIVITY_NONE || job == activity_now)) {
@@ -202,8 +207,7 @@ activity_t activity_get(void) {
 
 bool activity_job_runs(void) {
     activity_t now = activity_now;
-    return now == ACTIVITY_CHARGE || now == ACTIVITY_CLEANUP || now == ACTIVITY_SCALE_CALIBRATION ||
-           now == ACTIVITY_UPDATE;
+    return now == ACTIVITY_CHARGE || now == ACTIVITY_CLEANUP || now == ACTIVITY_UPDATE;
 }
 
 
@@ -218,8 +222,6 @@ const char *activity_name(activity_t activity) {
             return "charge";
         case ACTIVITY_CLEANUP:
             return "cleanup";
-        case ACTIVITY_SCALE_CALIBRATION:
-            return "scale_calibration";
         case ACTIVITY_VIEW:
             return "view";
         case ACTIVITY_UPDATE:

@@ -17,8 +17,7 @@ typedef enum {
     ACTIVITY_NONE = 0,
     ACTIVITY_CHARGE,
     ACTIVITY_CLEANUP,
-    ACTIVITY_SCALE_CALIBRATION,
-    ACTIVITY_VIEW,              // a screen at the unit that is not a job and not the menu's forms
+    ACTIVITY_VIEW,              // never set since ADR-010: kept so the API's v1 names stay as they were
     ACTIVITY_UPDATE,            // a firmware update (ADR-004): an image written into the free slot
 } activity_t;
 
@@ -75,11 +74,11 @@ void activity_throw_begin(void);
 void activity_throw_end(void);
 
 activity_t activity_get(void);
-// A job runs: the charge, a cleanup, the scale's calibration, an update. A view (a screen a person has open) is none: it refuses
-// a start, as the menu is not at its forms, and nothing else
+// A job runs: the charge, a cleanup, an update. A view is none; since ADR-010 nothing sets it (a job takes the
+// screen from any page), and it stays a name of the API's v1
 bool activity_job_runs(void);
 bool activity_in_throw(void);
-// "none", "charge", "cleanup", "scale_calibration", "view", "update": the API's names (api_v1.md, `activity`)
+// "none", "charge", "cleanup", "view", "update": the API's names (api_v1.md, `activity`)
 const char *activity_name(activity_t activity);
 // "button", "api", "console", "unit"
 const char *activity_by_name(activity_by_t by);

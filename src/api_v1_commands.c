@@ -30,6 +30,7 @@
 #include "servo_gate.h"
 #include "settings.h"
 #include "update.h"
+#include "update_poll.h"
 #include "version.h"
 #include "wireless.h"
 
@@ -649,10 +650,7 @@ static void api_v1_scale_zero(const http_server_request_t *request, http_server_
     // A charge asked and not yet begun (`starting`) is before its pour, as `zeroing` is: its first throw pours from
     // this zero, so only a drift is zeroed. Before, a zero then was taken whatever the pan held (review D3)
     bool before_pour = strcmp(charge.state, "starting") == 0 || strcmp(charge.state, "zeroing") == 0;
-    if (activity == ACTIVITY_SCALE_CALIBRATION) {
-        refused = "the scale is being calibrated";
-    }
-    else if (before_pour) {
+    if (before_pour) {
         off_zero = !(fabsf(weight) <= band);
     }
     else if (activity == ACTIVITY_CHARGE && strcmp(charge.state, "fault") != 0) {
@@ -853,6 +851,37 @@ static void reply_update(http_server_reply_t *reply, int status) {
     http_json_integer(out, room, &len, (long) update.free_bytes);
     http_json_raw(out, room, &len, ",\"received\":");
     http_json_integer(out, room, &len, (long) update.received);
+    http_json_raw(out, room, &len, ",\"expected\":");
+    http_json_integer(out, room, &len, (long) update.expected);
+    http_json_raw(out, room, &len, ",\"download\":");
+    http_json_bool(out, room, &len, update.download);
+    // The poll (ADR-010, gate 5): its state, and the release it found
+    update_poll_status_t poll;
+    update_poll_status(&poll);
+    static const char *const poll_states[] = {"idle", "checking", "up_to_date", "found", "failed"};
+    http_json_raw(out, room, &len, ",\"poll\":{\"state\":");
+    http_json_string(out, room, &len, poll_states[poll.state]);
+    http_json_raw(out, room, &len, ",\"error\":");
+    write_text_or_null(out, room, &len, poll.state == UPDATE_POLL_FAILED ? poll.error : NULL);
+    http_json_raw(out, room, &len, "},\"found\":");
+    if (poll.state != UPDATE_POLL_FOUND) {
+        http_json_raw(out, room, &len, "null");
+    }
+    else {
+        char block[16];
+        update_version_text(poll.block, block, sizeof(block));
+        http_json_raw(out, room, &len, "{\"version\":");
+        http_json_string(out, room, &len, poll.version);
+        http_json_raw(out, room, &len, ",\"block\":");
+        http_json_string(out, room, &len, block);
+        http_json_raw(out, room, &len, ",\"note\":");
+        http_json_string(out, room, &len, poll.note);
+        http_json_raw(out, room, &len, ",\"importance\":");
+        http_json_string(out, room, &len, poll.critical ? "critical" : "normal");
+        http_json_raw(out, room, &len, ",\"channel\":");
+        http_json_string(out, room, &len, poll.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable");
+        http_json_raw(out, room, &len, "}");
+    }
     http_json_raw(out, room, &len, ",\"last\":");
     if (update.last.result == UPDATE_RESULT_NONE) {
         http_json_raw(out, room, &len, "null");
@@ -884,12 +913,25 @@ static void api_v1_get_update(const http_server_request_t *request, http_server_
 
 
 static void api_v1_update_start(const http_server_request_t *request, http_server_reply_t *reply) {
-    if (!api_empty(request, reply)) {
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    static const char *const allowed[] = {"download"};
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
         return;
     }
-    switch (update_request_start(ACTIVITY_BY_API)) {
+    // "download": true, the job fetches the release the poll found itself, and installs it once checked (ADR-010)
+    const http_json_member_t *download = api_member(members, count, "download");
+    if (download != NULL && download->kind != HTTP_JSON_BOOLEAN) {
+        api_error(reply, 400, "wrong_type", "download", "true or false", NULL);
+        return;
+    }
+    bool fetch = download != NULL && download->value[0] == 't';
+    switch (fetch ? update_request_download(ACTIVITY_BY_API) : update_request_start(ACTIVITY_BY_API)) {
         case UPDATE_START_OK:
             reply_update(reply, 202);
+            break;
+        case UPDATE_START_NOTHING_FOUND:
+            api_error(reply, 409, "not_found", NULL, "no update is found: POST /api/v1/update/check first", NULL);
             break;
         case UPDATE_START_NO_SLOTS:
             api_error(reply, 500, "failed", NULL, "the image slots are not known: no update can be written", NULL);
@@ -900,7 +942,28 @@ static void api_v1_update_start(const http_server_request_t *request, http_serve
             break;
         case UPDATE_START_BUSY:
         default:
-            api_busy(reply, "a job runs, a start is asked, or a person is in a mode or a view at the unit");
+            api_busy(reply, "a job runs, a start is asked, a poll runs, or a person has a view open at the unit");
+            break;
+    }
+}
+
+
+// POST /api/v1/update/check: a poll of the update's source now (ADR-010, gate 5)
+static void api_v1_update_check(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    switch (update_poll_ask()) {
+        case UPDATE_POLL_ASKED:
+            reply_update(reply, 202);
+            break;
+        case UPDATE_POLL_NO_NETWORK:
+            api_error(reply, 409, "no_network", NULL,
+                      "not joined to a network as a station: the unit's own access point has no internet", NULL);
+            break;
+        case UPDATE_POLL_BUSY:
+        default:
+            api_busy(reply, "a poll runs, or the update does");
             break;
     }
 }
@@ -910,7 +973,7 @@ static void api_v1_update_install(const http_server_request_t *request, http_ser
     if (!api_empty(request, reply)) {
         return;
     }
-    if (!update_install()) {
+    if (!update_install(ACTIVITY_BY_API)) {
         api_error(reply, 409, "not_ready", NULL, "no image is ready: PUT /api/v1/update/image first", NULL);
         return;
     }
@@ -1028,6 +1091,45 @@ static void api_v1_restart_task(void *erase) {
 
 static bool api_v1_restart_later(bool erase) {
     return xTaskCreate(api_v1_restart_task, "Restart", 512, erase ? (void *) 1 : NULL, 2, NULL) == pdPASS;
+}
+
+
+// POST /api/v1/agent/hello {"name": "..."}: an agent says it is here, and the screen shows who for about 2 s, flashing
+// first after a quiet spell (menu_visit()). The owner's hidden mode, for fun (2026-11-17): not in the index or the
+// schema, so only agents that read AGENTS.md know it. It changes nothing but the screen, and never over a charge
+static void api_v1_agent_hello(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"name"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
+        return;
+    }
+    char name[MENU_VISIT_NAME_MAX + 1] = "Claude-chan";
+    const http_json_member_t *member = api_member(members, count, "name");
+    if (member != NULL) {
+        bool fits = http_json_string_value(member, name, sizeof(name)) && name[0] != '\0';
+        for (const char *at = name; fits && *at != '\0'; at += 1) {
+            fits = *at >= 0x20 && *at <= 0x7e;      // the screen's fonts have printable ASCII only
+        }
+        if (!fits) {
+            api_error(reply, 400, "bad_value", "name", "printable ASCII, 1 to 16 characters", NULL);
+            return;
+        }
+    }
+    bool flash = false;
+    if (!menu_visit(name, &flash)) {
+        api_busy(reply, "a charge has the screen");
+        return;
+    }
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"shown\":true,\"name\":");
+    http_json_string(out, room, &len, name);
+    http_json_raw(out, room, &len, ",\"flash\":");
+    http_json_bool(out, room, &len, flash);
+    http_json_raw(out, room, &len, "}");
+    api_send(reply, 200, room, len);
 }
 
 
@@ -1156,13 +1258,20 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/scale/zero\",\"fields\":[],\"about\":\"asks the scale to zero, not "
     "that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times "
     "zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the "
-    "cup, and in the scale's calibration; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
+    "cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
     "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
     "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
-    "{\"method\":\"POST\",\"path\":\"/api/v1/update/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
-    "\"about\":\"starts a firmware update (202): the menu takes it and it holds the screen; then PUT the image. 409 "
-    "busy also while a person has a screen open at the unit\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/update/start\",\"fields\":[{\"name\":\"download\","
+    "\"type\":\"boolean\",\"about\":\"true: the job fetches the release the poll found itself (found in GET "
+    "/api/v1/update), checks it and installs it, as the offer's Install at the screen does\"}],"
+    "\"refused_while\":\"a_job_runs\",\"about\":\"starts a firmware update (202): the menu takes it and it holds the "
+    "screen; then PUT the image, unless it downloads. 409 busy also while a person has a screen open at the unit or a "
+    "poll runs; 409 not_found for a download with nothing found\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/update/check\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"polls the update's source now (202): GET /api/v1/update's poll and found say what came of it. It also "
+    "polls once each start, when the station joins. 409 busy while a poll or the update runs; 409 no_network on the "
+    "unit's own access point\"}",
     "{\"method\":\"PUT\",\"path\":\"/api/v1/update/image\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"the update image (app.bin of the image GET /api/v1/update takes), application/octet-stream: written "
     "into the free slot as it comes, then checked whole (200, ready). 409 not_running unless receiving; 413 too_large; "
@@ -1183,8 +1292,7 @@ static const char *const api_v1_schema_actions[] = {
 
 static const char *const api_v1_schema_states[] = {
     "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
-    "{\"value\":\"cleanup\"},{\"value\":\"scale_calibration\",\"about\":\"the scale's own calibration, from the "
-    "menu\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
+    "{\"value\":\"cleanup\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
     "information, a driver's fault): a start is refused until it is closed there\"},{\"value\":\"update\","
     "\"about\":\"a firmware update (ADR-004)\"}]",
     "\"update\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
@@ -1244,6 +1352,8 @@ static const char *const api_v1_schema_events[] = {
     "image tried confirmed itself once on its network\"}",
     "{\"source\":\"update\",\"kind\":\"back\",\"carries\":[\"version\"],\"about\":\"after the restart, the image "
     "tried was left, and the one before runs\"}",
+    "{\"source\":\"update\",\"kind\":\"found\",\"carries\":[\"version\"],\"about\":\"the poll found a newer release, "
+    "now offered: GET /api/v1/update, found\"}",
 };
 
 
@@ -1283,9 +1393,12 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/system", api_v1_get_system);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/restart", api_v1_system_restart);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/erase", api_v1_system_erase);
+    // Hidden: in neither the index nor the schema (the owner's hello for agents)
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/agent/hello", api_v1_agent_hello);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/update", api_v1_get_update);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/start", api_v1_update_start);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/check", api_v1_update_check);
     ok = ok && http_server_add_upload(HTTP_SERVER_PUT, "/api/v1/update/image", &api_v1_update_image);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/install", api_v1_update_install);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/stop", api_v1_update_stop);

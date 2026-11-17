@@ -68,6 +68,9 @@ bool charge_mode_config_init(void);
 bool charge_mode_settings_register(void);
 
 uint8_t charge_mode_menu(void);
+// The charge's state in its own words ("Waiting for Zero", "Target: 30.00", a fault's reason), as the screen
+// shows it (ADR-010, gate 4)
+const char *charge_mode_get_title(void);
 bool charge_mode_config_save(void);
 
 // The seconds of the throw under way, or of the last one (ADR-003's GET /api/v1/charge; the screen's own figure)

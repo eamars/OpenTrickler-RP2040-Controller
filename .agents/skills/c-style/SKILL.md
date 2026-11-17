@@ -1,13 +1,13 @@
 ---
 name: c-style
-description: Enforce and review this project's C/C++ coding style for RP2040/RP2350 Pico SDK firmware. Use this skill whenever writing, editing, or reviewing .c, .h, .cpp, .hpp, CMakeLists, Pico SDK module code, FreeRTOS task/queue/semaphore code, u8g2/MUI display code, lwIP/CYW43 wireless or REST endpoint code, EEPROM configuration code, PIO/UART/I2C/SPI/PWM driver code, or embedded target configuration in this repository. Apply it proactively for C/C++ refactors, bug fixes, feature work, and code-review requests; do not wait for the user to ask for style explicitly.
+description: Enforce and review this project's C/C++ coding style for RP2040/RP2350 Pico SDK firmware. Use this skill whenever writing, editing, or reviewing .c, .h, .cpp, .hpp, CMakeLists, Pico SDK module code, FreeRTOS task/queue/semaphore code, LVGL display code, lwIP/CYW43 wireless or REST endpoint code, EEPROM configuration code, PIO/UART/I2C/SPI/PWM driver code, or embedded target configuration in this repository. Apply it proactively for C/C++ refactors, bug fixes, feature work, and code-review requests; do not wait for the user to ask for style explicitly.
 ---
 
 # C/C++ Style Guide
 
 This skill captures the C/C++ style used in this repository. Apply it proactively when writing or reviewing firmware code.
 
-This project is Pico SDK firmware for RP2040/RP2350-class boards, with FreeRTOS, u8g2/MUI, lwIP/CYW43 networking, EEPROM-backed configuration, PIO stepper control, and small C++ bridge islands. The strongest style signal is tracked project code under `src/` and target hardware configuration under `targets/`.
+This project is Pico SDK firmware for RP2040/RP2350-class boards, with FreeRTOS, LVGL, lwIP/CYW43 networking, EEPROM-backed configuration, PIO stepper control, and small C++ bridge islands. The strongest style signal is tracked project code under `src/` and target hardware configuration under `targets/`.
 
 Treat `library/` code as third-party unless the user explicitly asks to modify it. Generated files under `src/generated/` should normally be regenerated rather than hand edited.
 
@@ -49,7 +49,7 @@ When reviewing: check whether a new symbol should be public. If not, make it `st
 
 Use `snake_case` for project-owned functions, variables, fields, files, callbacks, and tasks. Use `*_t` typedef names for structs, enums, and function pointer types where the surrounding code does. Use `ALL_CAPS` for macros and enum values.
 
-Keep Pico SDK, FreeRTOS, lwIP, u8g2, CYW43, and vendor-library names as-is. Do not wrap library types just to make names prettier.
+Keep Pico SDK, FreeRTOS, lwIP, LVGL, CYW43, and vendor-library names as-is. Do not wrap library types just to make names prettier.
 
 **Wrong:**
 ```c
@@ -249,27 +249,20 @@ When reviewing: flag hidden background behavior, unbounded busy loops after the 
 
 ---
 
-## Rule 9 - Build u8g2 and MUI views directly
+## Rule 9 - Only the menu's view draws, with LVGL
 
-Display code is intentionally imperative: clear the buffer, set font, draw strings/lines/shapes, send the buffer, and delay at the required cadence. Keep layout calculations local and readable.
+The screen is drawn in one task, the menu's (ADR-010). `menu_nav.c` fills a screen model in words; `menu_view_12864.c` turns it into LVGL objects; LVGL draws what changed into the one frame in `menu.c`, and `display.c` sends the panel the pages that changed. Services never draw and never read buttons: the screen reads their status and calls their commands.
 
-Use the display access helpers where shared buffer access matters:
-
-- `get_display_handler()`
-- `acquire_display_buffer_access()`
-- `release_display_buffer_access()`
+Another task reads the frame only through `menu_frame_copy()`, which takes the frame's lock, so a copy is one whole frame.
 
 **Right:**
 ```c
-u8g2_t *display_handler = get_display_handler();
+uint8_t frame[DISPLAY_FRAME_BYTES];
 
-u8g2_ClearBuffer(display_handler);
-u8g2_SetFont(display_handler, u8g2_font_helvB08_tr);
-u8g2_DrawStr(display_handler, 5, 10, title_string);
-u8g2_SendBuffer(display_handler);
+menu_frame_copy(frame);
 ```
 
-When reviewing: flag display updates from multiple tasks without a clear locking or ownership story, oversized UI abstractions, and text drawing that can exceed fixed display buffers without bounds checks.
+When reviewing: flag LVGL calls or drawing outside the menu's task, a second copy of the frame, oversized UI abstractions, and text that can exceed the screen model's fixed buffers without bounds checks.
 
 ---
 
@@ -363,7 +356,7 @@ When reviewing: flag C++ abstractions that make firmware control flow harder to 
 
 ## Rule 14 - Keep CMake changes local and Pico SDK-native
 
-Top-level CMake uses Pico SDK initialization, FreeRTOS import, u8g2, and `src/CMakeLists.txt` for generated/support targets. Preserve this structure.
+Top-level CMake uses Pico SDK initialization, FreeRTOS import, LVGL, and `src/CMakeLists.txt` for generated/support targets. Preserve this structure.
 
 Prefer:
 

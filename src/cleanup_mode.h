@@ -25,6 +25,8 @@ extern "C" {
 
 
 uint8_t cleanup_mode_menu();
+// The cleanup's state in its own words, as the screen shows it (ADR-010, gate 4)
+const char *cleanup_mode_get_title(void);
 
 /*
  * A cleanup asked from outside the menu, by the API or the console (ADR-003, gate 4): handed to the menu with no

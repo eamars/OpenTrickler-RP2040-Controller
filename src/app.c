@@ -4,6 +4,7 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
 #include "pico/stdlib.h"
@@ -11,7 +12,6 @@
 
 #include "FreeRTOSConfig.h"
 #include "configuration.h"
-#include "u8g2.h"
 
 // modules
 #include "activity.h"
@@ -31,6 +31,8 @@
 #include "servo_gate.h"
 #include "rc_console.h"
 #include "update.h"
+#include "update_poll.h"
+#include "jobs.h"
 
 
 int main()
@@ -80,8 +82,20 @@ int main()
     // Initialize the servo
     servo_gate_init();
 
-    // Start menu task
-    xTaskCreate(menu_task, "Menu Task", 1024, NULL, 6, NULL);
+    // The update's channel and source, and its poll (ADR-010, gate 5): it polls once Wi-Fi joins
+    if (!update_poll_init()) {
+        printf("Update: no room for the poll's lock\n");
+    }
+
+    // The job task, where the charge, a cleanup and an update run, then the screen's (ADR-010, gate 2)
+    if (!jobs_init()) {
+        printf("Jobs: no room for the job task\n");
+        assert(false);
+    }
+    // The menu draws with LVGL: at 1024 words it had 142 left (ADR-010, gate 4). Its locks first: the web and the
+    // console read its frame
+    menu_init();
+    xTaskCreate(menu_task, "Menu Task", 1536, NULL, 6, NULL);
 
     // The remote control's console task
     rc_console_init();

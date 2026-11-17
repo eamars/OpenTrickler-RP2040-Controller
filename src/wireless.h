@@ -36,7 +36,6 @@ extern "C" {
 void wireless_task(void *);
 bool wireless_init(void);
 bool wireless_config_save();
-uint8_t wireless_view_wifi_info(void);
 
 // The network the unit is on, as GET /api/v1/network gives it (ADR-003, gate 4)
 typedef struct {
@@ -46,8 +45,12 @@ typedef struct {
     const char *hostname;   // the mDNS name, and the access point's
     bool has_rssi;
     int32_t rssi;           // dBm, as a station
+    const char *trouble;    // as a station not joined, why its last join failed: "Wrong key", "Not found",
+                            // "Join failed"; NULL when joined or none was tried
 } wireless_info_t;
 void wireless_get_info(wireless_info_t *info);
+// The same without the signal, which asks the radio under lwIP's lock: what the screen reads at every refresh
+void wireless_get_link(wireless_info_t *info);
 
 // The station leaves its network, as when its router goes away: the console's `wifi leave` (ADR-004)
 bool wireless_station_leave(void);

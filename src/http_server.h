@@ -99,6 +99,12 @@ bool http_server_add_upload(http_server_method_t method, const char *path, const
  */
 bool http_server_start(const http_server_network_t *network);
 
+/**
+ * @brief Whether a write to the API (a POST, PUT, PATCH or DELETE under /api/) was admitted in the last ms: the screen's
+ *        remote mark (ADR-010, gate 4). Any task.
+ */
+bool http_server_wrote_within(uint32_t ms);
+
 // Replies. A handler calls exactly one of these, or parks the request.
 
 // The shared buffer a handler writes a reply into, before it calls http_server_reply_send

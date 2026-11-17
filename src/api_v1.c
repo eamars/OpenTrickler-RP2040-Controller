@@ -11,7 +11,6 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
-#include <u8g2.h>
 
 #include "lwip/stats.h"
 #include "lwip/memp.h"
@@ -24,6 +23,7 @@
 #include "profile.h"
 #include "scale.h"
 #include "display.h"
+#include "menu.h"
 #include "eeprom.h"
 #include "settings.h"
 #include "version.h"
@@ -61,28 +61,24 @@ const char *api_v1_board_name(void) {
 
 // GET /api/v1/display
 static void api_v1_get_display(const http_server_request_t *request, http_server_reply_t *reply) {
-    u8g2_t *display = get_display_handler();
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
-    int len = snprintf(out, room, "{\"width\":%u,\"height\":%u,\"format\":\"u8g2_tiles\"}",
-                       (unsigned) u8g2_GetBufferTileWidth(display) * 8,
-                       (unsigned) u8g2_GetBufferTileHeight(display) * 8);
+    int len = snprintf(out, room, "{\"width\":%u,\"height\":%u,\"format\":\"%s\"}", (unsigned) DISPLAY_WIDTH,
+                       (unsigned) DISPLAY_HEIGHT, MENU_FRAME_FORMAT);
     http_server_reply_send(reply, 200, "application/json", (size_t) len);
 }
 
 
-// GET /api/v1/display/frame: the screen's bytes, copied at once, so the reply is one frame
+// GET /api/v1/display/frame: the screen's frame, copied whole, so the reply is one frame (MENU_FRAME_FORMAT)
 static void api_v1_get_display_frame(const http_server_request_t *request, http_server_reply_t *reply) {
-    u8g2_t *display = get_display_handler();
-    size_t size = 8 * (size_t) u8g2_GetBufferTileHeight(display) * u8g2_GetBufferTileWidth(display);
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
-    if (size > room) {
+    if (DISPLAY_FRAME_BYTES > room) {
         http_server_reply_error(reply, 500, "failed", "the frame is larger than a reply");
         return;
     }
-    memcpy(out, u8g2_GetBufferPtr(display), size);
-    http_server_reply_send(reply, 200, "application/octet-stream", size);
+    menu_frame_copy((uint8_t *) out);
+    http_server_reply_send(reply, 200, "application/octet-stream", DISPLAY_FRAME_BYTES);
 }
 
 
@@ -363,12 +359,14 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/network", "[\"GET\"]", "the network the unit is on: its mode, name, address, host name, signal"},
     {"/api/v1/update", "[\"GET\"]",
      "the firmware update (ADR-004): its state, the image running and its slot, the image this unit takes, the last"},
-    {"/api/v1/update/start", "[\"POST\"]", "starts an update: the menu takes it, then the image is PUT"},
+    {"/api/v1/update/start", "[\"POST\"]",
+     "starts an update: the menu takes it, then the image is PUT, or the job downloads the release found"},
+    {"/api/v1/update/check", "[\"POST\"]", "polls the update's source now for a newer release"},
     {"/api/v1/update/image", "[\"PUT\"]", "the update image, as application/octet-stream, into the free slot"},
     {"/api/v1/update/install", "[\"POST\"]", "restarts into a trial of the image received"},
     {"/api/v1/update/stop", "[\"POST\"]", "stops the update; never fails"},
     {"/api/v1/display", "[\"GET\"]", "the screen's size and the format of its frame"},
-    {"/api/v1/display/frame", "[\"GET\"]", "the screen's frame, as the display holds it"},
+    {"/api/v1/display/frame", "[\"GET\"]", "the screen's frame, in the format /api/v1/display names"},
 };
 
 static const char api_v1_guide[] =

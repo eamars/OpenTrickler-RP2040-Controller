@@ -117,9 +117,16 @@ RTT_POLL_MS = 10            # how often openocd reads the RTT buffers (its defau
 # drawing task takes, is the real cure (the screens' ADR).
 SNAP_TRIES = 10
 PNG_SCALE = 4               # each display pixel is 4 x 4 in the PNG
-MENU_TOUR_IDS = range(1, 100)
-# Forms that show values that change from build to build or unit to unit: reported, not judged, by --compare
-MENU_TOUR_LIVE_FORMS = {36: "version info: the version, hash and build of the image"}
+# Pages that show values that change from build to build, unit to unit or moment to moment: reported, not judged,
+# by --compare (ADR-010, gate 4: the menu's pages by id, in place of MUI's numbered forms)
+MENU_TOUR_LIVE_PAGES = {"settings/firmware": "the version, the build and the unit's id",
+                        "charge": "the target, which lives in RAM until ADR-014 and a charge or the API sets",
+                        "wifi": "the network's address and signal",
+                        "settings/scale": "the scale's reading"}
+# The remote mark stays 30 s after a write over the web (menu_nav.c, MENU_REMOTE_MS), and the Wi-Fi's is missing
+# while the station joins: the tour waits for both to settle
+MENU_TOUR_REMOTE_WAIT_S = 35
+REACH_THROW_S = 60.0                # reach's simulated throw of 30 gr pours in about 10 s
 
 # The settings over API v1 (ADR-003, gate 3). GET /api/v1/settings gives every settings resource and powder profile
 # in one document, which `settings` keeps and compares field by field; a GET changes nothing (api_v1.md). The
@@ -154,6 +161,7 @@ SOAK_LOAD_FAST_S = 0.25      # and a client asking for the charge four times a s
 API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usual_interval_ms"}
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
 API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
+API_CHECK_POLL_S = 45.0         # an update's poll: three HTTPS handshakes took 15 s on the Pico W (ADR-010, gate 5)
 # Two clients follow the event log through every soak with held reads (ADR-003, gate 4): each must see every event
 SOAK_FOLLOWERS = 2
 SOAK_EVENTS_WAIT_S = 10
@@ -397,11 +405,11 @@ def elf_function_at(elf, address):
 
 def snap_rows(data_lines):
     """
-    Decode a snap: the `@snap <w> <h> u8g2 r=<rotation>` line and its `@sd <base64>` lines.
+    Decode a snap: the `@snap <w> <h> mono_rows` line and its `@sd <base64>` lines.
 
-    u8g2's buffer holds the panel as it is mounted: rows of 8 pixels, one byte per column, lowest bit on top.
-    The rotation u8g2 draws with is undone for R0 and R2 (the 180 degrees of a mini 12864 mounted upside down),
-    so the picture is what a person at the unit sees.
+    The frame is LVGL's, as the web's mirror serves it (ADR-010, gate 4): rows of w / 8 bytes, the leftmost pixel the
+    top bit, 1 lit, the panel's inversion applied. It is the picture a person at the unit sees: the panel turns
+    itself when mounted upside down.
 
     Args:
         data_lines: the lines the snap command sent before its reply.
@@ -411,22 +419,20 @@ def snap_rows(data_lines):
     """
     if not data_lines:
         return None
-    match = re.match(r"@snap (\d+) (\d+) u8g2 r=(\d)", data_lines[0])
+    match = re.match(r"@snap (\d+) (\d+) mono_rows$", data_lines[0])
     if not match:
         return None
-    width, height, rotation = (int(group) for group in match.groups())
+    width, height = (int(group) for group in match.groups())
     payload = b"".join(base64.b64decode(line[4:]) for line in data_lines[1:] if line.startswith("@sd "))
-    if len(payload) != width * height // 8:
+    stride = width // 8
+    if len(payload) != stride * height:
         return None
-    rows = [[bool(payload[(y // 8) * width + x] >> (y % 8) & 1) for x in range(width)] for y in range(height)]
-    if rotation == 2:
-        rows = [row[::-1] for row in rows[::-1]]
-    return rows
+    return [[bool(payload[y * stride + x // 8] >> (7 - x % 8) & 1) for x in range(width)] for y in range(height)]
 
 
 def write_png(path, rows):
     """
-    Write rows of pixels as a 1-bit PNG, lit pixels dark as on the display. The same rows always give the same
+    Write rows of pixels as a 1-bit PNG, lit pixels light on dark as the display's negative glass shows them. The same rows always give the same
     bytes, so two pictures compare by their files.
 
     Args:
@@ -438,7 +444,7 @@ def write_png(path, rows):
     for row in rows:
         bits = []
         for lit in row:
-            bits.extend([0 if lit else 1] * PNG_SCALE)
+            bits.extend([1 if lit else 0] * PNG_SCALE)
         line = bytearray([0])   # filter type: none
         for idx in range(0, width, 8):
             byte = 0
@@ -1259,51 +1265,251 @@ class Session:
         self.log.write("rc", f"snap saved: {path}")
         return path
 
+    # --- Every element reachable (ADR-010, gate 6; the owner: "a generic test to test if all element can be reached")
+
+    def screen_now(self):
+        """
+        The screen as the console gives it, parsed.
+
+        Returns:
+            A dict: id, kind, focus, back (the title is Back), rows (each: label, info, opens, bold), button (or None),
+            reached, at (the editor's digit, or -1), figure, left and right (the softkeys' texts) and softkey (left,
+            right or None).
+        """
+        self.send("screen")
+        out = {"id": "", "kind": "", "title": "", "focus": -1, "back": False, "rows": [], "lines": 0, "button": None, "reached": False,
+               "at": -1, "figure": "", "left": "", "right": "", "softkey": None}
+        for line in self.console.data_lines:
+            if line.startswith("@screen "):
+                out["id"] = re.search(r"id=(\S+)", line).group(1)
+                out["kind"] = re.search(r"kind=(\S+)", line).group(1)
+                out["title"] = re.search(r'title="([^"]*)"', line).group(1)
+                out["focus"] = int(re.search(r"focus=(-?\d+)", line).group(1))
+                out["back"] = line.endswith(" back")
+            elif line.startswith("@row "):
+                out["rows"].append({"label": re.search(r'label="([^"]*)"', line).group(1),
+                                    "info": line.endswith(" info") or " info " in line,
+                                    "opens": " opens" in line})
+            elif line.startswith("@line "):
+                out["lines"] += 1
+            elif line.startswith("@button "):
+                out["button"] = re.search(r'"([^"]*)"', line).group(1)
+                out["reached"] = line.endswith(" reached")
+            elif line.startswith("@figure "):
+                out["figure"] = re.search(r'"([^"]*)"', line).group(1)
+                out["at"] = int(re.search(r"at=(-?\d+)", line).group(1))
+            elif line.startswith("@softkeys "):
+                out["left"] = re.search(r'left="([^"]*)"', line).group(1)
+                out["right"] = re.search(r'right="([^"]*)"', line).group(1)
+                found = re.search(r"focus=(left|right)", line)
+                out["softkey"] = found.group(1) if found else None
+        return out
+
+    def element_of(self, screen):
+        """What has the focus: "title", "row<n>", "button", "left", "right", "digit<n>", or None."""
+        if screen["softkey"] is not None:
+            return screen["softkey"]
+        if screen["kind"] == "edit":
+            return f"digit{screen['at']}" if screen["at"] >= 0 else None
+        if screen["focus"] == -1 and screen["back"]:
+            return "title"
+        if screen["kind"] == "notes" and screen["reached"]:
+            return "button"
+        if screen["kind"] in ("list", "control") and 0 <= screen["focus"] < len(screen["rows"]):
+            return f"row{screen['focus']}"
+        return None
+
+    def elements_of(self, screen):
+        """Every element the screen shows that the knob must reach."""
+        wanted = set()
+        if screen["back"]:
+            wanted.add("title")
+        if screen["kind"] in ("list", "control"):
+            wanted |= {f"row{idx}" for idx, row in enumerate(screen["rows"]) if not row["info"]}
+        if screen["kind"] == "notes" and screen["button"]:
+            wanted.add("button")
+        if screen["kind"] == "edit":
+            wanted |= {f"digit{idx}" for idx, char in enumerate(screen["figure"]) if char.isdigit()}
+        if screen["left"]:
+            wanted.add("left")
+        if screen["right"]:
+            wanted.add("right")
+        return wanted
+
+    def press_and_read(self, key, times=1):
+        self.send(f"press {key} {times}")
+        time.sleep(0.25)
+        return self.screen_now()
+
+    def sweep(self, what):
+        """
+        Turn the screen open now to its top, then down a detent at a time, noting what has the focus: every element
+        it shows must be reached. Only turns: nothing is clicked, so nothing changes or starts.
+
+        Args:
+            what: how the screen was reached, for the log.
+
+        Returns:
+            The screen as it was found.
+        """
+        screen = self.screen_now()
+        wanted = self.elements_of(screen)
+        steps = len(wanted) + len(screen["rows"]) + screen["lines"] + len(screen["figure"]) + 3
+        seen = set()
+        state = self.press_and_read("ccw", steps)
+        seen.add(self.element_of(state))
+        for _ in range(steps):
+            state = self.press_and_read("cw")
+            seen.add(self.element_of(state))
+        missing = wanted - seen
+        name = f"{screen['id']} ({what})"
+        if missing:
+            self.fail(f"reach: {name}: not reached: {' '.join(sorted(missing))}")
+        else:
+            self.log.write("rc", f"reach: {name}: every element reached: {' '.join(sorted(wanted))}")
+        return screen
+
+    def reach(self):
+        """
+        Every page by its id, every screen a page's row opens (its choices, the target's editor, its pages, its
+        dialogs: opened by a click, left by Back), and the charge's and the cleanup's screens (a simulated charge,
+        zeroing and then between throws, with the page its Change opens; a cleanup at speed 0): each turned through
+        by sweep(). Nothing is chosen, set or started but those two jobs, which are stopped. Not covered: a job in
+        fault, the update's screen, a message.
+        """
+        reply = self.send("screen list")
+        if reply is None or not reply.startswith("@ok screen"):
+            self.fail(f"the menu gives no pages: {reply}")
+            return
+        page_ids = [line.split(" ", 1)[1] for line in self.console.data_lines if line.startswith("@page ")]
+        for page_id in page_ids:
+            self.send(f"screen {page_id}")
+            screen = self.sweep(f"page {page_id}")
+            if screen["kind"] != "list":
+                continue
+            for idx, row in enumerate(screen["rows"]):
+                if not row["opens"]:
+                    continue
+                # To the row, from the title: a detent at a time, then a click opens what it opens
+                self.send(f"screen {page_id}")
+                state = self.press_and_read("ccw", len(screen["rows"]) + 2)
+                for _ in range(len(screen["rows"]) + 2):
+                    if state["focus"] == idx:
+                        break
+                    state = self.press_and_read("cw")
+                if state["focus"] != idx:
+                    self.fail(f"reach: {page_id}: row {idx} ({row['label']}) not reached to open")
+                    continue
+                self.press_and_read("enc")
+                self.sweep(f"{page_id}, row {row['label']}")
+                self.send("press rst 1")
+                time.sleep(0.25)
+        # The jobs: a simulated charge, then a cleanup at speed 0, each stopped
+        self.send("sim on")
+        self.send("charge 30")
+        time.sleep(1.0)
+        self.sweep("a charge, zeroing")
+        # The throw poured: the screen between throws, Stop and Change, and the page Change opens. Change comes about
+        # a second after the title, once the throw's verdict is in
+        deadline = time.monotonic() + REACH_THROW_S
+        state = self.screen_now()
+        while (state["title"] != "Lift the cup" or state["right"] != "Change") and time.monotonic() < deadline:
+            time.sleep(0.5)
+            state = self.screen_now()
+        if state["title"] != "Lift the cup" or state["right"] != "Change":
+            self.fail(f"reach: the simulated throw did not end with Change in {REACH_THROW_S:.0f} s: "
+                      f"{state['title']} {state['right']}")
+        else:
+            self.sweep("a charge, between throws")
+            state = self.press_and_read("ccw", 4)
+            for _ in range(4):
+                if state["softkey"] == "right":
+                    break
+                state = self.press_and_read("cw")
+            if state["softkey"] != "right" or state["right"] != "Change":
+                self.fail(f"reach: Change not reached between throws: {state['softkey']} {state['right']}")
+            else:
+                self.press_and_read("enc")
+                self.sweep("a charge, its Change")
+                self.send("press rst 1")
+                time.sleep(0.25)
+        # Back from Change may have stopped the charge already, when the next throw had begun and closed the page:
+        # the stop is not judged, and the simulated scale's switch below waits for the charge to have ended
+        self.console.command("charge stop")
+        # The simulated scale is switched off once the charge has ended: refused while it runs
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            reply = self.console.command("sim off")
+            if reply is not None and reply.startswith("@ok"):
+                break
+            time.sleep(0.5)
+        else:
+            self.fail("reach: the simulated scale could not be switched off after the charge")
+        self.send("screen ack/cleanup")
+        self.press_and_read("enc")
+        time.sleep(0.5)
+        self.sweep("a cleanup at speed 0")
+        self.send("press rst 1")
+        time.sleep(0.5)
+        self.send("screen main")
+
     def menu_tour(self, save_dir, compare_dir):
         """
-        Show every form in turn and snap it, pressing nothing, so no setting changes and nothing starts.
+        Open every page of the menu in turn by its id and snap it, pressing nothing, so no setting changes and
+        nothing starts (ADR-010, gate 4: `screen list`, then `screen <id>`). A page's picture is page_<id>.png, its
+        id's slashes as dashes.
 
         Args:
             save_dir: where the pictures go (default: logs/rc/snaps/<session>/).
-            compare_dir: a folder of earlier pictures; a form missing from either side, or a picture that
-                differs, fails, except the forms in MENU_TOUR_LIVE_FORMS, which are reported.
+            compare_dir: a folder of earlier pictures; a page missing from either side, or a picture that
+                differs, fails, except the pages in MENU_TOUR_LIVE_PAGES, which are reported.
         """
-        reply = self.console.command("form")
-        if reply is None or not reply.startswith("@ok form=") or int(reply.split("=")[1]) < 0:
-            self.fail(f"the menu does not have the screen: {reply}")
+        reply = self.console.command("screen list")
+        if reply is None or not reply.startswith("@ok screen"):
+            self.fail(f"the menu gives no pages: {reply}")
             return
+        page_ids = [line.split(" ", 1)[1] for line in self.console.data_lines if line.startswith("@page ")]
+        # Every page's title shows the marks, so the tour waits for them to settle, or every picture would differ from
+        # one taken at rest: the remote one stays 30 s after a write over the web, and the Wi-Fi's (W or AP) is not
+        # shown while the station joins, some 25 s after a start (seen on the Pico W right after a flash)
+        deadline = time.monotonic() + MENU_TOUR_REMOTE_WAIT_S
+        while time.monotonic() < deadline:
+            self.console.command("screen")
+            marks = next((line for line in self.console.data_lines if line.startswith("@screen ")), "")
+            if not re.search(r"marks=\S*R", marks) and re.search(r"marks=(W|AP)", marks):
+                break
+            time.sleep(1.0)
         out_dir = Path(save_dir) if save_dir else LOG_DIR / "snaps" / self.log.path.stem
         found = []
-        for form_id in MENU_TOUR_IDS:
-            reply = self.console.command(f"form {form_id}")
-            if reply == "@err no such form":
-                continue
+        for page_id in page_ids:
+            reply = self.console.command(f"screen {page_id}")
             if reply is None or not reply.startswith("@ok"):
-                self.fail(f"form {form_id}: {reply or 'no reply'}")
+                self.fail(f"page {page_id}: {reply or 'no reply'}")
                 continue
-            if self.save_snap(out_dir / f"form_{form_id}.png") is not None:
-                found.append(form_id)
-        self.console.command("form 1")
-        self.log.write("rc", f"menu_tour: {len(found)} forms: {' '.join(str(form_id) for form_id in found)}")
+            if self.save_snap(out_dir / f"page_{page_id.replace('/', '-')}.png") is not None:
+                found.append(page_id)
+        self.console.command("screen main")
+        self.log.write("rc", f"menu_tour: {len(found)} pages: {' '.join(found)}")
         self.log.write("rc", f"menu_tour: pictures in {out_dir}")
 
         if compare_dir is None:
             return
         compare_dir = Path(compare_dir)
-        baseline = {int(path.stem.split("_")[1]) for path in compare_dir.glob("form_*.png")}
-        for form_id in sorted(baseline - set(found)):
-            self.fail(f"form {form_id} is in {compare_dir} and was not found")
-        for form_id in found:
-            reference = compare_dir / f"form_{form_id}.png"
+        baseline = {path.stem[len("page_"):].replace("-", "/") for path in compare_dir.glob("page_*.png")}
+        for page_id in sorted(baseline - set(found)):
+            self.fail(f"page {page_id} is in {compare_dir} and was not found")
+        for page_id in found:
+            name = f"page_{page_id.replace('/', '-')}.png"
+            reference = compare_dir / name
             if not reference.exists():
-                self.fail(f"form {form_id} is new: not in {compare_dir}")
+                self.fail(f"page {page_id} is new: not in {compare_dir}")
                 continue
-            if reference.read_bytes() == (out_dir / f"form_{form_id}.png").read_bytes():
+            if reference.read_bytes() == (out_dir / name).read_bytes():
                 continue
-            if form_id in MENU_TOUR_LIVE_FORMS:
-                self.log.write("rc", f"form {form_id} differs, not judged ({MENU_TOUR_LIVE_FORMS[form_id]})")
+            if page_id in MENU_TOUR_LIVE_PAGES:
+                self.log.write("rc", f"page {page_id} differs, not judged ({MENU_TOUR_LIVE_PAGES[page_id]})")
             else:
-                self.fail(f"form {form_id} differs from {reference}")
+                self.fail(f"page {page_id} differs from {reference}")
 
     def state(self):
         """
@@ -1690,6 +1896,25 @@ class Session:
         expect("POST", "stop", {}, 202)
         wait_event("update", "stopped", by="api", reason="stopped")
         wait_state("update", ("idle",))
+
+        # The poll (ADR-010, gate 5): asked, and waited out. A download is asked only where it cannot start: a wrong
+        # type, and true only while nothing is found (rc_run.py offer installs one)
+        network = unit.read("network")
+        if network.get("mode") == "station":
+            expect("POST", "update/check", {}, 202)
+            deadline = time.monotonic() + API_CHECK_POLL_S
+            poll = unit.read("update")["poll"]
+            while poll["state"] == "checking" and time.monotonic() < deadline:
+                time.sleep(0.5)
+                poll = unit.read("update")["poll"]
+            self.log.write("rc", f"api_check: the poll ended {json.dumps(poll)}")
+            if poll["state"] == "checking":
+                self.fail(f"api_check: the poll still checks after {API_CHECK_POLL_S:.0f} s")
+        else:
+            expect("POST", "update/check", {}, 409, "no_network")
+        expect("POST", "update/start", {"download": "yes"}, 400, "wrong_type")
+        if unit.read("update")["found"] is None:
+            expect("POST", "update/start", {"download": True}, 409, "not_found")
 
         # Last, a restart: a new boot, and the system's start the log's first event
         boot = index["boot"]
@@ -2992,14 +3217,15 @@ def main():
     parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
     parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
     sub = parser.add_subparsers(dest="command", required=True)
-    send_parser = sub.add_parser("send", help="send command lines, one after another")
+    send_parser = sub.add_parser("send", help="send command lines, one after another; `pause <seconds>` waits")
     send_parser.add_argument("lines", nargs="+")
     sub.add_parser("flash", help="flash the build through the probe and check it runs")
     sub.add_parser("reset", help="reset the chip through the probe")
     watch_parser = sub.add_parser("watch", help="log the console for a time")
     watch_parser.add_argument("seconds", type=float)
     sub.add_parser("snap", help="save the screen as a PNG under logs/rc/snaps/")
-    tour_parser = sub.add_parser("menu_tour", help="snap every form, pressing nothing")
+    sub.add_parser("reach", help="every element of every screen reached by the knob, turning only")
+    tour_parser = sub.add_parser("menu_tour", help="snap every page of the menu, pressing nothing")
     tour_parser.add_argument("--save", help="keep the pictures in this folder")
     tour_parser.add_argument("--compare", help="fail on a form missing from, or differing from, this folder")
     cycle_parser = sub.add_parser("charge_cycle", help="a charge with the simulated scale, cup off and back")
@@ -3101,9 +3327,16 @@ def run_command(session, args):
     """
     if args.command == "send":
         for line in args.lines:
-            session.send(line)
+            # `pause <seconds>` waits on the PC between lines, for a command whose work outlasts its reply
+            if line.startswith("pause "):
+                session.log.write("rc", f"pause {float(line.split()[1]):.1f} s")
+                time.sleep(float(line.split()[1]))
+            else:
+                session.send(line)
     elif args.command == "snap":
         session.save_snap(LOG_DIR / "snaps" / f"{session.log.path.stem}.png")
+    elif args.command == "reach":
+        session.reach()
     elif args.command == "menu_tour":
         session.menu_tour(args.save, args.compare)
     elif args.command == "charge_cycle":

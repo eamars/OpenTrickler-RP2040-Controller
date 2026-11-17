@@ -4,6 +4,7 @@
 [submodule "library/FreeRTOS-Kernel"]
 	path = library/FreeRTOS-Kernel
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
-[submodule "library/u8g2"]
-	path = library/u8g2
-	url = https://github.com/olikraus/u8g2.git
+[submodule "library/lvgl"]
+	path = library/lvgl
+	url = https://github.com/lvgl/lvgl.git
+	shallow = true

@@ -38,12 +38,21 @@ static bool applies_at_restart(const setting_field_t *field) {
     return field->applies != NULL && strcmp(field->applies, "at_restart") == 0;
 }
 
+static bool mend_choices(const settings_resource_t *resource, int32_t id);
+
 
 bool settings_register(const settings_resource_t *resource) {
     if (resource_count >= SETTINGS_RESOURCES_MAX || resource->size > SETTINGS_STRUCT_MAX ||
         resource->field_count > SETTINGS_FIELDS_MAX) {
         printf("Settings: no room for %s\n", resource->path);
         return false;
+    }
+    bool mended = resource->id_count == 0 && mend_choices(resource, -1);
+    for (int32_t id = 0; id < resource->id_count; id += 1) {
+        mended = mend_choices(resource, id) || mended;
+    }
+    if (mended && resource->save != NULL && !resource->save()) {
+        printf("Settings: %s mended, not stored\n", resource->path);
     }
     if (resource->id_count == 0) {
         const uint8_t *base = resource->live(-1);
@@ -144,6 +153,37 @@ static uint32_t held_uint(const uint8_t *at, uint8_t size) {
             return value;
         }
     }
+}
+
+
+/*
+ * A stored choice that is none of its choices is no setting: its first choice is put in its place and stored, and
+ * the console says so. True when one was mended. A field added into a struct's filler reads whatever byte was stored there (ADR-006, handed on by ADR-010):
+ * the display's Charge view read neither 0 nor 1 on the Pico W, and the API gave it as null
+ */
+static void put_uint(uint8_t *at, uint8_t size, uint32_t value);
+
+static bool mend_choices(const settings_resource_t *resource, int32_t id) {
+    uint8_t *base = resource->live(id);
+    bool mended = false;
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        const setting_field_t *field = &resource->fields[idx];
+        if (field->type != SETTING_CHOICE || field->choice_count == 0) {
+            continue;
+        }
+        uint32_t held = held_uint(base + field->offset, field->size);
+        bool known = false;
+        for (uint8_t choice = 0; choice < field->choice_count && !known; choice += 1) {
+            known = held == (uint32_t) field->choices[choice].held;
+        }
+        if (!known) {
+            printf("Settings: %s %s held %lu, none of its choices: %s put in its place\n", resource->path,
+                   field->name, (unsigned long) held, field->choices[0].label);
+            put_uint(base + field->offset, field->size, (uint32_t) field->choices[0].held);
+            mended = true;
+        }
+    }
+    return mended;
 }
 
 
@@ -959,6 +999,16 @@ static void write_field_schema(const settings_resource_t *resource, const settin
             write_optional_float(out, room, len, "step", 1.0f);
         }
     }
+    if (field_is_number(field) && field->edit_step > 0.0f) {
+        write_optional_float(out, room, len, "edit_step", field->edit_step);
+    }
+    if (field->short_label != NULL) {
+        write_optional_string(out, room, len, "short_label", field->short_label);
+    }
+    if (field->type == SETTING_BOOLEAN && field->on_label != NULL) {
+        write_optional_string(out, room, len, "on_label", field->on_label);
+        write_optional_string(out, room, len, "off_label", field->off_label);
+    }
     if (field->type == SETTING_STRING) {
         http_json_raw(out, room, len, ",\"min_length\":");
         http_json_integer(out, room, len, field->length_min);
@@ -974,6 +1024,9 @@ static void write_field_schema(const settings_resource_t *resource, const settin
             http_json_raw(out, room, len, "{\"value\":");
             write_choice_value(&field->choices[idx], out, room, len);
             write_optional_string(out, room, len, "label", field->choices[idx].label);
+            if (field->choices[idx].short_label != NULL) {
+                write_optional_string(out, room, len, "short_label", field->choices[idx].short_label);
+            }
             http_json_raw(out, room, len, "}");
         }
         http_json_raw(out, room, len, "]");
@@ -994,7 +1047,7 @@ static const char *const settings_error_codes[] = {
     "read_only", "confirm_missing", "not_found", "method_not_allowed", "busy", "not_running", "no_target",
     "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
     "wrong_media_type", "failed", "not_an_image", "wrong_chip", "wrong_board", "not_an_update", "not_newer",
-    "wrong_slot", "hash_mismatch", "not_ready",
+    "wrong_slot", "hash_mismatch", "not_ready", "no_network",
 };
 
 
@@ -1194,6 +1247,90 @@ static void console_fields(const settings_resource_t *resource, int32_t id, sett
         write_value(field, base, line, sizeof(line), &len);
         write(line, ctx);
     }
+}
+
+
+// --- The screen's (ADR-010, gate 4): a field read, and a field written and stored, through the API's own checks
+
+static const settings_resource_t *screen_resource(const char *path, int32_t *id) {
+    char full[72];
+    bool prefixed = strncmp(path, SETTINGS_API_PREFIX, strlen(SETTINGS_API_PREFIX)) == 0;
+    snprintf(full, sizeof(full), "%s%s", prefixed ? "" : SETTINGS_API_PREFIX, path);
+    return resource_for_path(full, id);
+}
+
+
+const setting_field_t *settings_field(const char *path, const char *name) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    if (resource == NULL) {
+        return NULL;
+    }
+    int field_idx = field_index(resource, name, strlen(name));
+    return field_idx < 0 ? NULL : &resource->fields[field_idx];
+}
+
+
+bool settings_read_text(const char *path, const char *name, char *out, size_t room) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    const setting_field_t *field = settings_field(path, name);
+    if (resource == NULL || field == NULL || room == 0) {
+        return false;
+    }
+    size_t len = 0;
+    out[0] = '\0';
+    write_value(field, resource->live(id), out, room, &len);
+    // A choice or a string as JSON writes it: its quotes go
+    if (len >= 2 && out[0] == '"' && out[len - 1] == '"') {
+        memmove(out, out + 1, len - 2);
+        out[len - 2] = '\0';
+    }
+    return true;
+}
+
+
+static char settings_why[128];
+
+
+const char *settings_write(const char *path, const char *name, const char *value) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    if (resource == NULL) {
+        snprintf(settings_why, sizeof(settings_why), "no such resource: %s", path);
+        return settings_why;
+    }
+    http_json_member_t member = {.name = name, .name_len = strlen(name), .kind = HTTP_JSON_STRING,
+                                 .value = value, .value_len = strlen(value)};
+    outcome_t outcome;
+    settings_patch(resource, id, &member, 1, true, &outcome);
+    if (outcome.status != 200) {
+        snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
+        return settings_why;
+    }
+    return NULL;
+}
+
+
+// Stored when confirmed, only if it changed (ADR-010, D2)
+const char *settings_store(const char *path) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    if (resource == NULL) {
+        snprintf(settings_why, sizeof(settings_why), "no such resource: %s", path);
+        return settings_why;
+    }
+    if (!resource->is_saved() && !resource->save()) {
+        snprintf(settings_why, sizeof(settings_why), "the EEPROM did not take it");
+        return settings_why;
+    }
+    return NULL;
+}
+
+
+const char *settings_write_and_save(const char *path, const char *name, const char *value) {
+    const char *why = settings_write(path, name, value);
+    return why != NULL ? why : settings_store(path);
 }
 
 
