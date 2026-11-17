@@ -297,10 +297,10 @@ The rest is **T, tuning and building:** set once, against the throws' figures an
 - the text editor: no text at the knob;
 - the cleanup's Stop below the fold, three turns away: it stays a softkey, as the charge's.
 
-**To settle (the owner):** the borderlines between "needed" and "not":
-- the fine and coarse stop thresholds, which a person who only uses the screen sees the effect of ("Over by 0.04") and has no other way to change: 18 and 35 actions;
-- the profiles' names, which a person who only uses the screen cannot set. A choice from a list of known powders (by maker, then powder) costs about 15 actions, where typing costs 146;
-- a motor's current: 16 actions.
+**The borderlines, settled by the owner (2026-11-17):**
+- **The fine and coarse stop thresholds are on the screen,** Settings › Charge, stepped 0.01 gr and 0.1 gr in their rows (18 and 35 actions). A person who only uses the screen sees their effect ("Over by 0.04") and has no other way to change them. The rest of the tuning stays on the web.
+- **The profiles' names stay on the web.** The screen chooses a profile by the name the web gave it, or "Profile n". A list of known powders (about 15 actions) was offered, and declined.
+- **A motor's current stays on the web,** with the rest of the build settings: a wrong current can overheat a driver.
 
 ## What leaves the screen, and where it goes
 
