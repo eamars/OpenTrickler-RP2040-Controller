@@ -946,3 +946,23 @@ the charge mode, every call to hello should trigger the animation, regardless of
   ADR-010); the skill's kinds of screen, words and LVGL's budget; AGENTS.md's size and mock tools; the mock's makes.
 - **Left as it is:** `menu_get_current_form_id()` keeps its name (0 or -1, documented in `menu.h`); renaming it
   would change the console's `form=` that tools read.
+
+## Gate 6, step 8: Claude-chan drawn again, the hello in a bubble (2026-11-18)
+
+- **Asked:** a new 48 x 48 figure from the owner's reference (a chibi with long wavy hair, a curl, a flower, flat
+  half-lidded eyes, a bow), looking left and right as before, cute and visible on the panel; and a layout with a
+  speech bubble holding the words.
+- **Settled on the mock** ([mockups/claude_chan_new.png](mockups/claude_chan_new.png), drawn by
+  `mockups/claude_chan_draw.py`, whose poses are copied to `fonts/claude_chan.txt`): checker hair, the owner's pick over
+  solid; the bubble rounder than a box, drawn over her, its tail always pointing at her, also for a long name.
+- **Built:** the four poses replace the old in `fonts/claude_chan.txt`. She rises at the bottom right. The bubble is
+  painted into the frame at the flush, as the chart is: LVGL here draws no curve (`LV_DRAW_SW_COMPLEX` off). Its
+  shape is a superellipse of power 2.5 as wide as the words, and a tail to her, made once a hello as a span per row
+  (256 bytes). The name and the words are LVGL labels with dark boxes of their own, which cover her where the bubble
+  overlaps her; the paint clears the rest of the bubble's inside around them and draws its edge. `powf` took 1.5 KB
+  more flash than a square root and a bisection, so the shape uses those.
+- **Proven on the Pico W:** hellos sent over the API and snapped every few tenths of a second
+  ([hello_bubble.png](hello_bubble.png)): she rises, the bubble comes with the words, she looks left and right and
+  blinks, she sinks; a 16-letter name's bubble covers the top of her hair, its tail still on her. LVGL's heap as
+  before (11,952 bytes at most, 3,228 free in one piece). `menu_tour` and `charge_cycle` pass. The Pico W's image
+  983.8 KB of its 1,016 KB slot (2.6 KB for this).

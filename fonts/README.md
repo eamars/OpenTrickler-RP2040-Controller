@@ -12,7 +12,7 @@ The menu's faces, as BDF bitmap fonts (ADR-010, gate 4). `scripts/bdf2lvgl.py` t
 
 The BDF files are Adobe's and Digital's X11 Helvetica, with Markus Kuhn's ISO 10646 extension, as u8g2 carries them (`tools/font/bdf`, at its commit 2b75f932, 2025-02-22). Copied unchanged. A face tried for a mock-up is added here as its BDF file.
 
-`claude_chan.txt` was drawn for this firmware (ADR-010, 2026-11-17).
+`claude_chan.txt` was drawn for this firmware (ADR-010, 2026-11-17), and drawn again from the owner's reference on 2026-11-18 by `docs/developments_plans/ADR-010-lvgl/mockups/claude_chan_draw.py`, whose poses (`chan_new.txt`) are copied here.
 
 ## The Helvetica files' notice
 

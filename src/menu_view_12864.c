@@ -12,6 +12,7 @@
       53-63   the softkeys: Back's at the left, the action at the right; the focused one in reverse
     Every text is placed by its baseline, so the faces' heights decide nothing else.
 */
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -85,6 +86,7 @@ static lv_obj_t *view_softkey_left;
 static lv_obj_t *view_softkey_box;
 static lv_obj_t *view_softkey_right;
 static void view_visit_create(lv_obj_t *screen);
+static void view_bubble_paint(uint8_t *rows, const lv_area_t *area);
 static void view_chart_draw(const menu_screen_t *screen, bool shown);
 static void view_control(const menu_screen_t *screen);
 static uint32_t view_version = 0;
@@ -584,6 +586,7 @@ static void view_paint_pixel(uint8_t *rows, const lv_area_t *area, int x, int y)
 
 
 void menu_view_paint(uint8_t *rows, const lv_area_t *area) {
+    view_bubble_paint(rows, area);
     if (!view_chart_shown) {
         return;
     }
@@ -661,9 +664,18 @@ static void view_chart_draw(const menu_screen_t *screen, bool shown) {
 // start, and hidden: made at each hello, they needed 2,048 bytes of LVGL's heap in one piece, which the menu's growth
 // took away unnoticed, so a hello was let go and only flashed while the API said it was shown (the owner, 2026-11-17)
 
-#define VIEW_VISIT_FIGURE_X 2
+// The layout (the owner, 2026-11-18, from mockups/claude_chan_new.png): she rises at the bottom right; a round bubble
+// at the top left says who she is, drawn over her, its tail pointing at her face
 #define VIEW_VISIT_FIGURE_SIZE 48
-#define VIEW_VISIT_TEXT_X 54
+#define VIEW_VISIT_FIGURE_X (VIEW_W - VIEW_VISIT_FIGURE_SIZE - 2)
+#define VIEW_VISIT_WORDS "is watching ya!"
+// The bubble: a superellipse of power 2.5 (2 an ellipse, higher squarer; 2.5 round, and two lines still fit), as wide
+// as its words
+#define VIEW_BUBBLE_CY 17
+#define VIEW_BUBBLE_B 16
+#define VIEW_BUBBLE_RIGHT_MAX (VIEW_W - 3)
+#define VIEW_BUBBLE_TIP_X_MIN 86     // the tail's tip: on her, left of her face
+#define VIEW_BUBBLE_TIP_Y 42
 // The figure's poses, in fonts/claude_chan.txt from the top, each nine 16 x 16 tiles of menu_font_chan from 'A' on
 typedef enum {
     VIEW_VISIT_AHEAD = 0,
@@ -686,11 +698,26 @@ static const view_visit_step_t view_visit_steps[MENU_VIEW_VISIT_STEPS] = {
 };
 
 // Four objects: the dark ground, the figure, the name and the words. The figure is one label of nine tiles, a pose
-// a different nine, so the eyes need no objects of their own
+// a different nine, so the eyes need no objects of their own. The bubble is no object: LVGL here draws no curve
+// (LV_DRAW_SW_COMPLEX is off), so it is painted into the frame at the flush, as the chart is (menu_view_paint). The
+// name and the words have dark boxes of their own, which cover her where the bubble overlaps her; the paint clears
+// the rest of the bubble's inside around them, and draws its edge
 static lv_obj_t *view_visit = NULL;
 static lv_obj_t *view_visit_figure;
 static lv_obj_t *view_visit_name;
 static lv_obj_t *view_visit_words;
+
+// The bubble's shape, made once a hello: each row's span of the oval and of the tail (x0 > x1 for none)
+typedef struct {
+    int8_t x0;
+    int8_t x1;
+    int8_t tail_x0;
+    int8_t tail_x1;
+} view_bubble_row_t;
+
+static view_bubble_row_t view_bubble_rows[VIEW_H];
+static bool view_bubble_shown = false;
+static lv_area_t view_bubble_keep[2];       // the name's and the words' boxes: the paint leaves them as LVGL drew them
 
 
 // The figure's text for a pose: three rows of three tiles
@@ -715,15 +742,144 @@ static void view_visit_create(lv_obj_t *screen) {
     view_visit_figure = view_label(view_visit, &menu_font_chan, LV_TEXT_ALIGN_LEFT);
     lv_obj_set_size(view_visit_figure, VIEW_VISIT_FIGURE_SIZE, VIEW_VISIT_FIGURE_SIZE);
 
-    view_visit_name = view_label(view_visit, &menu_font_bold, LV_TEXT_ALIGN_LEFT);
-    view_place(view_visit_name, VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 24);
-    // Two lines of the regular face, their baselines 36 and 48
-    view_visit_words = view_label(view_visit, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
-    view_place(view_visit_words, VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 36);
-    lv_obj_set_style_text_line_space(view_visit_words, 1, 0);
-    lv_obj_set_height(view_visit_words, 2 * (int) menu_font_regular.line_height + 1);
-    view_text(view_visit_words, "is watching\nya!");
+    // The words in the bubble, each on a dark box of its own: over her, where the bubble overlaps her
+    view_visit_name = view_label(view_visit, &menu_font_bold, LV_TEXT_ALIGN_CENTER);
+    view_visit_words = view_label(view_visit, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
+    lv_obj_t *boxed[] = {view_visit_name, view_visit_words};
+    for (size_t idx = 0; idx < 2; idx += 1) {
+        lv_obj_set_style_bg_color(boxed[idx], lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(boxed[idx], LV_OPA_COVER, 0);
+    }
+    view_text(view_visit_words, VIEW_VISIT_WORDS);
     view_show(view_visit, false);
+}
+
+
+// t to the power 2.5, the bubble's (t from 0 to 1): with sqrtf, not powf, which took 1.5 KB more of flash
+static float view_pow25(float t) {
+    return t * t * sqrtf(t);
+}
+
+
+// The r from 0 to 1 whose power 2.5 is v, by halving: the inverse of view_pow25
+static float view_root25(float v) {
+    float lo = 0.0f;
+    float hi = 1.0f;
+    for (int step = 0; step < 20; step += 1) {
+        float mid = (lo + hi) / 2.0f;
+        if (view_pow25(mid) < v) {
+            lo = mid;
+        }
+        else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
+
+
+// The bubble for a name: its shape row by row, and the words placed in it. Once a hello, so the flush's paint needs
+// no arithmetic beyond comparisons
+static void view_bubble_make(const char *name) {
+    int name_w = view_text_width(name, strlen(name), &menu_font_bold);
+    int words_w = view_text_width(VIEW_VISIT_WORDS, strlen(VIEW_VISIT_WORDS), &menu_font_regular);
+    // The oval as small as holds the two lines: their half-width tw, half-height th, its corners inside
+    float tw = (float) (name_w > words_w ? name_w : words_w) / 2.0f + 2.0f;
+    const float th = 12.0f;
+    const float b = (float) VIEW_BUBBLE_B;
+    float a = tw / view_root25(1.0f - view_pow25(th / b)) + 3.0f;
+    float a_max = (float) (VIEW_BUBBLE_RIGHT_MAX - 2) / 2.0f;
+    a = a > a_max ? a_max : a;
+    float cx = 2.0f + a;
+    const float cy = (float) VIEW_BUBBLE_CY;
+    // The tail: from the oval's lower right to a tip on her, wherever the oval ends
+    const float k = 0.3f;
+    float tx = cx + k * a;
+    float ty = cy + b * view_root25(1.0f - view_pow25(k)) - 3.0f;
+    float tip_x = tx + 8.0f > (float) VIEW_BUBBLE_TIP_X_MIN ? tx + 8.0f : (float) VIEW_BUBBLE_TIP_X_MIN;
+    float tip_y = (float) VIEW_BUBBLE_TIP_Y;
+    for (int y = 0; y < VIEW_H; y += 1) {
+        view_bubble_row_t *row = &view_bubble_rows[y];
+        row->x0 = 1;
+        row->x1 = 0;
+        row->tail_x0 = 1;
+        row->tail_x1 = 0;
+        float dy = fabsf((float) y - cy) / b;
+        if (dy <= 1.0f) {
+            float half = a * view_root25(1.0f - view_pow25(dy));
+            row->x0 = (int8_t) ceilf(cx - half);
+            row->x1 = (int8_t) floorf(cx + half);
+        }
+        if ((float) y >= ty && (float) y <= tip_y) {
+            float f = ((float) y - ty) / (tip_y - ty);
+            row->tail_x0 = (int8_t) ceilf(tx - 4.0f + (tip_x - (tx - 4.0f)) * f);
+            row->tail_x1 = (int8_t) floorf(tx + 4.0f + (tip_x - (tx + 4.0f)) * f);
+        }
+    }
+    // The words centred in the oval, the name clipped to it; their baselines 15 and 27
+    int width_max = (int) (2.0f * a) - 8;
+    int name_box = name_w < width_max ? name_w : width_max;
+    lv_obj_t *labels[] = {view_visit_name, view_visit_words};
+    const int widths[] = {name_box, words_w};
+    const int bases[] = {VIEW_BUBBLE_CY - 2, VIEW_BUBBLE_CY + 10};
+    for (size_t idx = 0; idx < 2; idx += 1) {
+        int x = (int) lroundf(cx) - widths[idx] / 2;
+        view_place(labels[idx], x, widths[idx], bases[idx]);
+        lv_obj_update_layout(labels[idx]);
+        lv_obj_get_coords(labels[idx], &view_bubble_keep[idx]);
+    }
+}
+
+
+static bool view_bubble_has(int x, int y) {
+    if (y < 0 || y >= VIEW_H) {
+        return false;
+    }
+    const view_bubble_row_t *row = &view_bubble_rows[y];
+    return (x >= row->x0 && x <= row->x1) || (x >= row->tail_x0 && x <= row->tail_x1);
+}
+
+
+static void view_paint_clear(uint8_t *rows, const lv_area_t *area, int x, int y) {
+    if (x < area->x1 || x > area->x2 || y < area->y1 || y > area->y2 || x < 0 || x >= VIEW_W || y < 0 ||
+        y >= VIEW_H) {
+        return;
+    }
+    rows[y * (VIEW_W / 8) + x / 8] &= (uint8_t) ~(0x80u >> (x % 8));
+}
+
+
+// The bubble into the frame, within the area flushed: its edge lit, its inside cleared but for the words' boxes,
+// and the two strokes of surprise at its corner
+static void view_bubble_paint(uint8_t *rows, const lv_area_t *area) {
+    if (!view_bubble_shown) {
+        return;
+    }
+    for (int y = area->y1; y <= area->y2 && y < VIEW_H; y += 1) {
+        for (int x = area->x1; x <= area->x2 && x < VIEW_W; x += 1) {
+            if (!view_bubble_has(x, y)) {
+                continue;
+            }
+            bool edge = !view_bubble_has(x + 1, y) || !view_bubble_has(x - 1, y) || !view_bubble_has(x, y + 1) ||
+                        !view_bubble_has(x, y - 1);
+            if (edge) {
+                view_paint_pixel(rows, area, x, y);
+                continue;
+            }
+            bool kept = false;
+            for (size_t idx = 0; idx < 2 && !kept; idx += 1) {
+                const lv_area_t *box = &view_bubble_keep[idx];
+                kept = x >= box->x1 && x <= box->x2 && y >= box->y1 && y <= box->y2;
+            }
+            if (!kept) {
+                view_paint_clear(rows, area, x, y);
+            }
+        }
+    }
+    const int strokes[][2] = {{1, 1}, {2, 2}, {5, 0}, {5, 1}};
+    for (size_t idx = 0; idx < sizeof(strokes) / sizeof(strokes[0]); idx += 1) {
+        view_paint_pixel(rows, area, strokes[idx][0], strokes[idx][1]);
+    }
 }
 
 
@@ -731,7 +887,10 @@ bool menu_view_visit(int step, const char *name) {
     if (step < 0 || step >= MENU_VIEW_VISIT_STEPS) {
         return false;
     }
-    view_text(view_visit_name, name);
+    if (step == 0 || strcmp(lv_label_get_text(view_visit_name), name) != 0) {
+        view_text(view_visit_name, name);
+        view_bubble_make(name);
+    }
     view_show(view_visit, true);
     const view_visit_step_t *at = &view_visit_steps[step];
     char pose[12];
@@ -740,10 +899,16 @@ bool menu_view_visit(int step, const char *name) {
     lv_obj_set_pos(view_visit_figure, VIEW_VISIT_FIGURE_X, at->top);
     view_show(view_visit_name, at->words);
     view_show(view_visit_words, at->words);
+    // The bubble is painted, not drawn: the whole screen is flushed again when it comes or goes
+    if (at->words != view_bubble_shown) {
+        view_bubble_shown = at->words;
+        lv_obj_invalidate(view_visit);
+    }
     return true;
 }
 
 
 void menu_view_visit_end(void) {
     view_show(view_visit, false);
+    view_bubble_shown = false;
 }
