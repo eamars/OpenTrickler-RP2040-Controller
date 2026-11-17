@@ -109,6 +109,8 @@ typedef struct {
     char message[3][MENU_TEXT];         // FRAME_MESSAGE: a title and two lines
     activity_t job;                     // FRAME_JOB
     uint8_t first;                      // FRAME_PAGE, a card or notes: the first line shown
+    bool at_end;                        // FRAME_PAGE, notes scrolled to their end: they stay there when lines come,
+                                        // so their button stays reached (Wi-Fi's "Takes effect at restart")
     // The softkey focused on a dialog, a message or a job: 0 the left, 1 the right. The knob moves between them and
     // a click does the focused one (the owner: every element on screen is reached by the knob)
     int8_t softkey;
@@ -566,6 +568,43 @@ static bool wifi_is_station(void) {
 }
 
 
+// The station's network, named when it is not joined (the first line says why)
+static bool wifi_has_trouble(void) {
+    wireless_info_t info;
+    wireless_get_link(&info);
+    return info.trouble != NULL;
+}
+
+
+static void value_wifi_station_network(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    char ssid[40];
+    snprintf(out, room, "%s", settings_read_text("settings/wifi", "ssid", ssid, sizeof(ssid)) ? ssid : "?");
+}
+
+
+// Wi-Fi off or on, at its next start: the button at the end of its page, which only turns it, so a press is undone by
+// another; a line above it says when a change waits for a restart
+static bool wifi_enabled(void) {
+    char text[8];
+    return settings_read_text("settings/wifi", "enable", text, sizeof(text)) && strcmp(text, "true") == 0;
+}
+
+
+static const char *wifi_button_label(void) {
+    return wifi_enabled() ? "Turn Wi-Fi off" : "Turn Wi-Fi on";
+}
+
+
+static void act_wifi_button(const menu_row_t *row) {
+    (void) row;
+    const char *why = settings_write_and_save("settings/wifi", "enable", wifi_enabled() ? "false" : "true");
+    if (why != NULL) {
+        push_message("Not changed", why, NULL);
+    }
+}
+
+
 static bool wifi_is_access_point(void) {
     wireless_info_t info;
     wireless_get_link(&info);
@@ -577,6 +616,9 @@ static bool wifi_is_access_point(void) {
 static const char *wifi_mode_label(void) {
     wireless_info_t info;
     wireless_get_link(&info);
+    if (info.trouble != NULL) {
+        return "Not joined";
+    }
     if (strcmp(info.mode, "access_point") == 0) {
         return "Its own access point";
     }
@@ -591,6 +633,10 @@ static void value_wifi_mode(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     wireless_info_t info;
     wireless_get_link(&info);
+    if (info.trouble != NULL) {
+        snprintf(out, room, "%s", info.trouble);
+        return;
+    }
     snprintf(out, room, "%s", strcmp(info.mode, "station") == 0 ? info.ssid : "");
 }
 
@@ -1089,17 +1135,20 @@ static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows
 static const menu_page_t page_charge_change = {.id = "charge/change", .title = "Change", .rows = &rows_charge[1],
                                                .row_count = 2};
 
-// A card: each line says what it is, read only
+// Notes: each line says what it is, read only, then Wi-Fi turned off or on at the end
 static const menu_row_t rows_wifi[] = {
     {.label = "", .kind = ROW_INFO, .value = value_wifi_mode, .label_now = wifi_mode_label},
-    {.label = "Network", .kind = ROW_INFO, .value = value_wifi_network, .shown = wifi_is_access_point},
+    {.label = "Network", .kind = ROW_INFO, .value = value_wifi_station_network, .shown = wifi_has_trouble},
+    {.label = "Hotspot", .kind = ROW_INFO, .value = value_wifi_network, .shown = wifi_is_access_point},
     {.label = "Key", .kind = ROW_INFO, .value = value_wifi_key, .shown = wifi_is_access_point},
     {.label = "IP", .kind = ROW_INFO, .value = value_wifi_address},
     {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
+    {.label = "Takes effect at restart", .kind = ROW_INFO, .shown = shown_restart_pending},
+    {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label},
 };
-static const menu_page_t page_wifi = {.kind = PAGE_CARD, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
-                                      .row_count = 6};
+static const menu_page_t page_wifi = {.kind = PAGE_NOTES, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
+                                      .row_count = 9};
 
 static const menu_row_t rows_scale[] = {
     {.label = "Reading", .kind = ROW_INFO, .value = value_reading},
@@ -1828,6 +1877,9 @@ static void page_kind_key(frame_t *frame, menu_key_t key) {
         return;
     }
     uint8_t last = page_last_first(page);
+    if (frame->at_end) {
+        frame->first = last;
+    }
     if (key == MENU_KEY_NEXT && frame->first < last) {
         frame->first += 1;
     }
@@ -1854,6 +1906,7 @@ static void page_kind_key(frame_t *frame, menu_key_t key) {
             frame->first = (uint8_t) (frame->first + nav_lines_shown < last ? frame->first + nav_lines_shown : last);
         }
     }
+    frame->at_end = frame->focus >= 0 && frame->first >= last;
 }
 
 
@@ -2064,7 +2117,7 @@ static void screen_lines(menu_screen_t *screen, const frame_t *frame) {
     const menu_row_t *button;
     screen->row_count = page_lines(page, screen->row_label, screen->row_value, screen->row_bold, &button);
     uint8_t last = page_last_first(page);
-    screen->first = frame->first < last ? frame->first : last;
+    screen->first = frame->at_end || frame->first > last ? last : frame->first;
     screen->focus = frame->focus < 0 ? -1 : 0;
     if (button != NULL) {
         snprintf(screen->button, MENU_TEXT, "%s", button->label_now != NULL ? button->label_now() : button->label);

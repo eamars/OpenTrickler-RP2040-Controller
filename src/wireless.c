@@ -283,6 +283,9 @@ static bool wireless_own_address(char *buf, size_t len) {
  * the trial's confirmation read this copy, never a write not yet saved, nor one half made (review C2)
  */
 static eeprom_wireless_metadata_t wireless_started_with;
+// The station's last join, as the SDK answered it (PICO_OK when joined): the screen says why it failed, as the old
+// Wi-Fi screen gave the link's status (ADR-010, gate 6)
+static volatile int wireless_last_join = PICO_OK;
 
 
 // mDNS on the station, once: the unit's name, and its two services
@@ -321,6 +324,7 @@ static void wireless_rejoin(void) {
     int joined = cyw43_arch_wifi_connect_timeout_ms(wireless_started_with.ssid, password,
                                                     get_cyw43_auth(wireless_started_with.auth),
                                                     WIRELESS_REJOIN_TIMEOUT_MS);
+    wireless_last_join = joined;
     if (joined != PICO_OK) {
         printf("Wi-Fi: not joined (%d)\n", joined);
         return;
@@ -431,6 +435,13 @@ void wireless_get_link(wireless_info_t *info) {
     if (!wireless_own_address(info->address, sizeof(info->address))) {
         info->address[0] = '\0';
     }
+    // Why a station set up is not joined (its own access point may stand in meanwhile): its last join's answer
+    int last = wireless_last_join;
+    if (wireless_config.eeprom_wireless_metadata.enable &&
+        wireless_config.current_wireless_state != WIRELESS_STATE_STA_MODE_LISTEN && last != PICO_OK) {
+        info->trouble = last == PICO_ERROR_BADAUTH ? "Wrong key" :
+                        (last == PICO_ERROR_TIMEOUT ? "Not found" : "Join failed");
+    }
 }
 
 
@@ -494,6 +505,7 @@ void wireless_task(void *p) {
                                                       wifi_password,
                                                       get_cyw43_auth(wireless_config.eeprom_wireless_metadata.auth),
                                                       wireless_config.eeprom_wireless_metadata.timeout_ms);
+            wireless_last_join = resp;
             if (resp == PICO_OK) {
                 wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
                 break;

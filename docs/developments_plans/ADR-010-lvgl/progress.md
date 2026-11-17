@@ -835,3 +835,20 @@ the charge mode, every call to hello should trigger the animation, regardless of
   running at 2), the gate refused ("Not moved: the gate is off"), Stop and Zero reached, Stop ending it; with the
   simulated scale the weight and the flow shown, the speed set to 3, and the reset button during the setting
   stopping it ([cleanup_screen.png](cleanup_screen.png)). `menu_tour`, `charge_cycle` and `api_check` pass.
+
+## Gate 6, step 6: Wi-Fi's reason, and Wi-Fi off or on (2026-11-17)
+
+- **Built:**
+  - The Wi-Fi task keeps its station's last join as the SDK answered it; the page says why it is not joined, in
+    words: "Wrong key" (`PICO_ERROR_BADAUTH`), "Not found" (`PICO_ERROR_TIMEOUT`, the SDK's answer for a network not
+    found in time), "Join failed" (`PICO_ERROR_CONNECT_FAILED`), with the network it tried, while the unit's own
+    access point stands in (its network now labelled "Hotspot"). The old screen gave the link's raw status.
+  - The page is notes ending in "Turn Wi-Fi off" (or on), which only turns it, so a press is undone by another; a
+    line "Takes effect at restart" stands above it while a change waits. Settings › Restart says "Restart to apply".
+  - **Found and fixed:** notes scrolled to their end now stay there when a line comes, so their button stays
+    reached: that line pushed the button off, and a second click turned the page instead of pressing it.
+- **Proven on the Pico W, through the console (the test takes the unit off its network):** the SSID set to one that
+  does not exist and the unit restarted: "Not joined: Not found", the network tried, the hotspot
+  ([wifi_not_found.png](wifi_not_found.png), on the owner's inverted screen); the SSID put back, the unit joined
+  again. Wi-Fi turned off and on again by two clicks, stored on. The key was never touched (it is write only).
+  `menu_tour` (Wi-Fi saved again) and `charge_cycle` pass.
