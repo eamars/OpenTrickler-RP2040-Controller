@@ -67,6 +67,7 @@ static lv_obj_t *view_softkey_left_box;
 static lv_obj_t *view_softkey_left;
 static lv_obj_t *view_softkey_box;
 static lv_obj_t *view_softkey_right;
+static void view_visit_create(lv_obj_t *screen);
 static uint32_t view_version = 0;
 static int view_first = 0;                      // a list's first row shown
 
@@ -227,6 +228,9 @@ void menu_view_init(lv_display_t *display) {
     view_softkey_left = view_label(view_softkey_left_box, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
     view_softkey_box = view_box(screen, 64, VIEW_SOFTKEY_TOP, 64, VIEW_H - VIEW_SOFTKEY_TOP, false);
     view_softkey_right = view_label(view_softkey_box, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
+
+    // The hello's overlay last: the screen's last child, over everything
+    view_visit_create(screen);
 
     menu_nav_set_text_width(view_measure, VIEW_LINE_WIDTH, VIEW_LINES);
 }
@@ -470,16 +474,13 @@ void menu_view_draw(const menu_screen_t *screen) {
 // the bottom of the screen, looks about, blinks and goes. Slow steps for a passive LCD (the skill embedded-ui-design).
 // It is the screen's last child, opaque and as large as the screen: LVGL then draws from it up and skips the page
 // under it. On LVGL's top layer the page was drawn as well, and with eight objects of its own the two ran LVGL's heap
-// out: a draw task's allocation failed and the core faulted (2026-11-17). Deleted after
+// out: a draw task's allocation failed and the core faulted (2026-11-17). Its four objects are made once, at the
+// start, and hidden: made at each hello, they needed 2,048 bytes of LVGL's heap in one piece, which the menu's growth
+// took away unnoticed, so a hello was let go and only flashed while the API said it was shown (the owner, 2026-11-17)
 
 #define VIEW_VISIT_FIGURE_X 2
 #define VIEW_VISIT_FIGURE_SIZE 48
 #define VIEW_VISIT_TEXT_X 54
-// The free piece of LVGL's heap the overlay needs before it is made. On the Pico W (2026-11-17), over every page of
-// the menu: 2,604 to 2,680 bytes in one piece before, about 1,950 with its four objects made, 1,868 at the least
-// while it drew. With less than this, the hello is let go: an allocation LVGL cannot make faults the core
-#define VIEW_VISIT_HEAP_NEEDED 2048
-
 // The figure's poses, in fonts/claude_chan.txt from the top, each nine 16 x 16 tiles of menu_font_chan from 'A' on
 typedef enum {
     VIEW_VISIT_AHEAD = 0,
@@ -505,7 +506,8 @@ static const view_visit_step_t view_visit_steps[MENU_VIEW_VISIT_STEPS] = {
 // a different nine, so the eyes need no objects of their own
 static lv_obj_t *view_visit = NULL;
 static lv_obj_t *view_visit_figure;
-static lv_obj_t *view_visit_words[2];
+static lv_obj_t *view_visit_name;
+static lv_obj_t *view_visit_words;
 
 
 // The figure's text for a pose: three rows of three tiles
@@ -521,36 +523,24 @@ static void view_visit_pose(char *text, view_visit_pose_t pose) {
 }
 
 
-static bool view_visit_create(const char *name) {
-    lv_mem_monitor_t heap;
-    lv_mem_monitor(&heap);
-    if (heap.free_biggest_size < VIEW_VISIT_HEAP_NEEDED) {
-        printf("Hello: let go, LVGL's heap has %lu bytes in one piece\n", (unsigned long) heap.free_biggest_size);
-        return false;
-    }
-
-    view_visit = view_box(lv_screen_active(), 0, 0, VIEW_W, VIEW_H, false);
+// Made at the start, after every other object, so it is the screen's last child; hidden until a hello
+static void view_visit_create(lv_obj_t *screen) {
+    view_visit = view_box(screen, 0, 0, VIEW_W, VIEW_H, false);
     lv_obj_set_style_bg_color(view_visit, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(view_visit, LV_OPA_COVER, 0);
 
     view_visit_figure = view_label(view_visit, &menu_font_chan, LV_TEXT_ALIGN_LEFT);
     lv_obj_set_size(view_visit_figure, VIEW_VISIT_FIGURE_SIZE, VIEW_VISIT_FIGURE_SIZE);
 
-    view_visit_words[0] = view_label(view_visit, &menu_font_bold, LV_TEXT_ALIGN_LEFT);
-    view_place(view_visit_words[0], VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 24);
-    view_text(view_visit_words[0], name);
+    view_visit_name = view_label(view_visit, &menu_font_bold, LV_TEXT_ALIGN_LEFT);
+    view_place(view_visit_name, VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 24);
     // Two lines of the regular face, their baselines 36 and 48
-    view_visit_words[1] = view_label(view_visit, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
-    view_place(view_visit_words[1], VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 36);
-    lv_obj_set_style_text_line_space(view_visit_words[1], 1, 0);
-    lv_obj_set_height(view_visit_words[1], 2 * (int) menu_font_regular.line_height + 1);
-    view_text(view_visit_words[1], "is watching\nya!");
-
-    size_t before = heap.free_biggest_size;
-    lv_mem_monitor(&heap);
-    printf("Hello: LVGL's heap %lu bytes in one piece, %lu with the overlay made\n", (unsigned long) before,
-           (unsigned long) heap.free_biggest_size);
-    return true;
+    view_visit_words = view_label(view_visit, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
+    view_place(view_visit_words, VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 36);
+    lv_obj_set_style_text_line_space(view_visit_words, 1, 0);
+    lv_obj_set_height(view_visit_words, 2 * (int) menu_font_regular.line_height + 1);
+    view_text(view_visit_words, "is watching\nya!");
+    view_show(view_visit, false);
 }
 
 
@@ -558,24 +548,19 @@ bool menu_view_visit(int step, const char *name) {
     if (step < 0 || step >= MENU_VIEW_VISIT_STEPS) {
         return false;
     }
-    if (view_visit == NULL && !view_visit_create(name)) {
-        return false;
-    }
+    view_text(view_visit_name, name);
+    view_show(view_visit, true);
     const view_visit_step_t *at = &view_visit_steps[step];
     char pose[12];
     view_visit_pose(pose, (view_visit_pose_t) at->pose);
     view_text(view_visit_figure, pose);
     lv_obj_set_pos(view_visit_figure, VIEW_VISIT_FIGURE_X, at->top);
-    for (int idx = 0; idx < 2; idx += 1) {
-        view_show(view_visit_words[idx], at->words);
-    }
+    view_show(view_visit_name, at->words);
+    view_show(view_visit_words, at->words);
     return true;
 }
 
 
 void menu_view_visit_end(void) {
-    if (view_visit != NULL) {
-        lv_obj_delete(view_visit);
-        view_visit = NULL;
-    }
+    view_show(view_visit, false);
 }

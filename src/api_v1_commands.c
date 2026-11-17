@@ -1096,7 +1096,7 @@ static bool api_v1_restart_later(bool erase) {
 
 // POST /api/v1/agent/hello {"name": "..."}: an agent says it is here, and the screen shows who for about 2 s, flashing
 // first after a quiet spell (menu_visit()). The owner's hidden mode, for fun (2026-11-17): not in the index or the
-// schema, so only agents that read AGENTS.md know it. It changes nothing but the screen, and never while a job runs
+// schema, so only agents that read AGENTS.md know it. It changes nothing but the screen, and never over a charge
 static void api_v1_agent_hello(const http_server_request_t *request, http_server_reply_t *reply) {
     static const char *const allowed[] = {"name"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
@@ -1118,7 +1118,7 @@ static void api_v1_agent_hello(const http_server_request_t *request, http_server
     }
     bool flash = false;
     if (!menu_visit(name, &flash)) {
-        api_busy(reply, "a job has the screen");
+        api_busy(reply, "a charge has the screen");
         return;
     }
     size_t room;

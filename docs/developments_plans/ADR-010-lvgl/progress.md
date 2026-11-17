@@ -708,3 +708,28 @@ running charge, cleanup and update. Only the reset button worked them.
   Stop focused and a click stopped it; a cleanup Run at 1, turned to 2 and through 0 to -1, paused, Stop and Run
   reached, Run resumed at -1, paused, stopped by Stop. The update's Stop was not driven (no local OTA server running).
   `menu_tour --compare`: the three dialogs differ, as meant, and are saved again; `charge_cycle` passes.
+
+## The hello played only its flash (2026-11-17)
+
+The owner: the hello "no longer show the animation, just flashing the screen. My original intention is except for
+the charge mode, every call to hello should trigger the animation, regardless of the location."
+
+- **Found on the Pico W:** the console said "Hello: let go, LVGL's heap has 2020 bytes in one piece". The overlay
+  was made at each hello and asked for 2,048 bytes in one piece; the menu's growth since (the softkeys' boxes, the
+  digit's box) had taken that away, unnoticed. The flash played, the figure never did, and the API still answered
+  `"shown":true`.
+- **Fixed:**
+  - The overlay's four objects are made once at the start, the screen's last child, hidden until a hello. A hello
+    no longer depends on LVGL's heap at that moment, and "shown" is true.
+  - It plays everywhere but over a charge: over a cleanup and an update too (409 only while a charge runs). Over a
+    job the reset button still stops it, ending the hello; other presses only end the hello, as before.
+  - **LVGL's heap gets a second pool, 3 KB from the FreeRTOS heap.** With the overlay always there, the 14 KB were
+    at most 11.1 KB used with 736 bytes free in one piece at the least, where a draw takes up to 384 bytes and an
+    allocation LVGL cannot make faults the core. The image's RAM is full (251.6 of 256 KB at link), so the pool
+    comes from the FreeRTOS heap, sized against what an HTTPS poll leaves it at its low mark (8,168 bytes with the
+    local chains, about 9.5 KB with GitHub's, gate 5): about 5 and 6.5 KB with this pool. 6 KB was tried first (7 KB
+    in one piece for LVGL, 2 to 3.5 KB left to a fetch). Measured again with an HTTPS poll in the survey's proof.
+- **Proven on the Pico W:** a hello on the main menu (the flash, then about 2,100 pixels changing for 2 s), over a
+  running cleanup (shown; the reset button during a hello stopped the cleanup), and over a charge refused ("a charge
+  has the screen"); `menu_tour --compare` and `charge_cycle` pass. LVGL's heap at most 11.4 of 17 KB, 3.9 KB in one
+  piece at the least; the FreeRTOS heap 39.9 KB at its least (no fetch in that run).

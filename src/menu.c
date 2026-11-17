@@ -36,6 +36,13 @@
 #define MENU_REFRESH_PAGE_MS 250
 // How often LVGL's heap is looked at, for `screen`
 #define MENU_HEAP_LOOK_MS 2000
+// LVGL's heap beyond its own (LV_MEM_SIZE, 14 KB, in the image's RAM, which is full): a second pool from the FreeRTOS
+// heap. With the hello's overlay made at the start, the 14 KB were at most 11.1 KB used and 736 bytes free in one
+// piece at the least (the Pico W, 2026-11-17), where a draw takes up to 384 bytes and an allocation LVGL cannot make
+// faults the core. It is taken from what an HTTPS poll leaves the FreeRTOS heap at its low mark: 8,168 bytes with the
+// local test chains, about 9.5 KB with GitHub's (ADR-010, gate 5), so about 5 and 6.5 KB with this pool. 6 KB was
+// tried first: 7 KB in one piece for LVGL, but 2 to 3.5 KB left to a fetch
+#define MENU_LVGL_POOL_BYTES (3 * 1024)
 
 extern QueueHandle_t encoder_event_queue;
 extern mini_12864_module_config_t mini_12864_module_config;
@@ -216,7 +223,8 @@ static void menu_event(ButtonEncoderEvent_t event) {
 
 
 bool menu_visit(const char *name, bool *flash) {
-    if (activity_get() != ACTIVITY_NONE) {
+    // Everywhere but over a charge (the owner, 2026-11-17)
+    if (activity_get() == ACTIVITY_CHARGE) {
         return false;
     }
     xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
@@ -255,7 +263,7 @@ static void menu_visit_end(void) {
 }
 
 
-// A hello asked is begun, unless a job has the screen; one playing goes on a step when its time is up
+// A hello asked is begun, unless a charge has the screen; one playing goes on a step when its time is up
 static void menu_visit_run(void) {
     xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
     bool asked = menu_visit_asked;
@@ -267,7 +275,7 @@ static void menu_visit_run(void) {
     xSemaphoreGive(menu_screen_lock);
 
     uint64_t now_us = time_us_64();
-    if (menu_nav_in_job()) {
+    if (activity_get() == ACTIVITY_CHARGE) {
         menu_visit_end();
         return;
     }
@@ -367,6 +375,10 @@ void menu_init(void) {
 void menu_task(void *p) {
     (void) p;
     lv_init();
+    void *pool = pvPortMalloc(MENU_LVGL_POOL_BYTES);
+    if (pool == NULL || lv_mem_add_pool(pool, MENU_LVGL_POOL_BYTES) == NULL) {
+        assert(false);
+    }
     lv_tick_set_cb(menu_tick);
     menu_display = lv_display_create(DISPLAY_WIDTH, DISPLAY_HEIGHT);
     lv_display_set_color_format(menu_display, LV_COLOR_FORMAT_I1);
@@ -383,11 +395,13 @@ void menu_task(void *p) {
     while (true) {
         ButtonEncoderEvent_t event = button_wait_for_input_ms(menu_wait_ms());
         bool goto_asked = event == MENU_REMOTE_SCREEN;
-        // A hello ends at a press, and the press does nothing else: the person did not see the page under it
+        // A hello ends at a press, and the press does nothing else: the person did not see the page under it. But
+        // over a job the reset button still stops it
         bool pressed = event != BUTTON_NO_EVENT && event != MENU_WAKE && event != MENU_REMOTE_SCREEN;
         if (menu_visiting && (pressed || goto_asked)) {
             menu_visit_end();
-            if (pressed) {
+            bool stop = event == BUTTON_RST_PRESSED && menu_nav_in_job();
+            if (pressed && !stop) {
                 event = BUTTON_NO_EVENT;
             }
         }

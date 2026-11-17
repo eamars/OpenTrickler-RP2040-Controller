@@ -79,7 +79,7 @@ uint32_t menu_lvgl_biggest_free(void);
  *        flashing first when no agent has said hello for MENU_VISIT_QUIET_MS. Any task.
  * @param name who is watching: printable ASCII, MENU_VISIT_NAME_MAX characters at most.
  * @param flash set to whether the screen flashes first.
- * @return false while a job runs: its screen stays.
+ * @return false while a charge runs: its screen stays. Over every other page and job it is shown.
  */
 #define MENU_VISIT_NAME_MAX 16
 #define MENU_VISIT_QUIET_MS (10u * 60u * 1000u)
