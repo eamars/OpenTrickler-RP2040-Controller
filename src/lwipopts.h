@@ -58,6 +58,9 @@
 #define LWIP_NUM_NETIF_CLIENT_DATA 1
 #define MDNS_MAX_SERVICES 2  // increase from 1 to 2 
 #define MDNS_RESP_USENETIF_EXTCALLBACK  1
+// A name ending in .local is looked up by mDNS: the update's bench host, opentrickler-update.local (ADR-010, gate 6,
+// step 9)
+#define LWIP_DNS_SUPPORT_MDNS_QUERIES 1
 #define MEMP_NUM_SYS_TIMEOUT (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 8)
 #define MEMP_NUM_TCP_PCB 12
 

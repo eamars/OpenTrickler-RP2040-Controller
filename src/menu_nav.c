@@ -436,9 +436,29 @@ static const char *offer_heading(void) {
 static const char *offer_note(void) {
     static char note[UPDATE_NOTE_MAX];
     update_poll_status_t poll;
-    update_found(&poll);
+    // Only a found release's: the status keeps the last one's note after a poll that failed
+    if (!update_found(&poll)) {
+        return "";
+    }
     snprintf(note, sizeof(note), "%s", poll.note);
     return note;
+}
+
+
+// Found on the bench host: the offer says so, with its address, so nobody takes it for GitHub's (ADR-010, gate 6,
+// step 9: nothing signs an image, so anything that announces the name could offer one)
+static bool shown_update_from_bench(void) {
+    update_poll_status_t poll;
+    return update_found(&poll) && poll.bench[0] != '\0';
+}
+
+
+static const char *offer_from_bench(void) {
+    static char line[48];
+    update_poll_status_t poll;
+    update_found(&poll);
+    snprintf(line, sizeof(line), "From the bench host %s", poll.bench);
+    return line;
 }
 
 
@@ -1162,6 +1182,7 @@ static const menu_page_t page_firmware = {.id = "settings/firmware", .title = "F
 static const menu_row_t rows_update[] = {
     {.label = "", .kind = ROW_INFO, .label_now = offer_heading, .bold = true},
     {.label = "", .kind = ROW_INFO, .label_now = offer_note},
+    {.label = "", .kind = ROW_INFO, .label_now = offer_from_bench, .shown = shown_update_from_bench},
     {.label = "", .kind = ROW_INFO, .label_now = update_went_back_label, .shown = shown_update_went_back},
     {.label = "The last try failed: see the web page.", .kind = ROW_INFO, .shown = shown_update_failed},
     {.label = "Before you install", .kind = ROW_INFO, .bold = true},
@@ -1170,7 +1191,7 @@ static const menu_row_t rows_update[] = {
     {.label = "Install", .kind = ROW_ACTION, .act = act_update_install},
 };
 static const menu_page_t page_update = {.kind = PAGE_NOTES, .id = "update", .title = "Update", .rows = rows_update,
-                                        .row_count = 8};
+                                        .row_count = 9};
 
 static const menu_row_t rows_factory_reset[] = {
     {.label = "Erase every setting?", .kind = ROW_INFO},

@@ -880,6 +880,9 @@ static void reply_update(http_server_reply_t *reply, int status) {
         http_json_string(out, room, &len, poll.critical ? "critical" : "normal");
         http_json_raw(out, room, &len, ",\"channel\":");
         http_json_string(out, room, &len, poll.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable");
+        // Where it was found: the bench host's address, or null from the stored source (ADR-010, gate 6, step 9)
+        http_json_raw(out, room, &len, ",\"bench\":");
+        write_text_or_null(out, room, &len, poll.bench[0] != '\0' ? poll.bench : NULL);
         http_json_raw(out, room, &len, "}");
     }
     http_json_raw(out, room, &len, ",\"last\":");

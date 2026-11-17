@@ -966,3 +966,31 @@ the charge mode, every call to hello should trigger the animation, regardless of
   blinks, she sinks; a 16-letter name's bubble covers the top of her hair, its tail still on her. LVGL's heap as
   before (11,952 bytes at most, 3,228 free in one piece). `menu_tour` and `charge_cycle` pass. The Pico W's image
   983.8 KB of its 1,016 KB slot (2.6 KB for this).
+
+## Gate 6, step 9: the bench host first (2026-11-18)
+
+- **Built:**
+  - Each poll first looks up `opentrickler-update.local` by mDNS (`lwip_getaddrinfo`, with lwIP's
+    `LWIP_DNS_SUPPORT_MDNS_QUERIES`). When it answers, the poll's source is
+    `http://opentrickler-update.local:8080/eamars/OpenTrickler-RP2040-Controller` on the stored channel, and the
+    stored source is not asked; when it does not, the stored source is asked as before. The stored setting is never
+    changed by it. The console logs which ("the bench host 192.168.2.13 answers: it is asked, not ...").
+  - The address goes with what is found: the offer page's line "From the bench host 192.168.2.13", the API's
+    `found.bench` (null from the stored source), the console's `update poll ... bench=`.
+  - `tools/ota_server.py` announces the name by mDNS while it runs (Python's `zeroconf`, now in `requirements.txt`,
+    as OWMC's `ota_host.py`); `--no-announce` serves without it. `-DUPDATE_TEST_SOURCE` is gone.
+  - **Found and fixed on the way:** after a poll that found a release, a poll that failed left the update page
+    showing the old release's note under "No update is found": the note was read whether or not a release was found.
+    It is shown only with a found release now. Seen in the proof below as a `menu_tour` difference.
+  - Size: the Pico W's image 984.7 KB of its 1,016 KB slot (0.9 KB for this), RAM at link 96 bytes more.
+- **Proven on the Pico W:**
+  - **The bench host first:** the server announcing, serving gate 5's test release v9.0.0, and the unit's stored
+    source set live to GitHub's: a check found 9.0.0 from the bench host (`bench=192.168.2.13`), the offer page said
+    "From the bench host 192.168.2.13", `found.bench` gave the address, and the server's log shows the unit's three
+    requests at the bench path. GitHub was never asked.
+  - **The fallback:** the server with `--no-announce`, the unit restarted (its stored source the server's own
+    address): the poll asked `/a/b`, `bench=none`, and the offer had no bench line.
+  - A first run of the check was answered by an earlier server left running on the same port (Windows let both
+    bind 8080); its log showed the bench path too. It was stopped and the check run again with one server.
+  - `reach`, `menu_tour` and `charge_cycle` pass. v9.0.0 is back out of the served folder; no server is left
+    running, so the owner's test of v2.0.3 from GitHub is not taken over.

@@ -378,7 +378,7 @@ The old menu's forms, and where each went. Read with the survey above, which bri
 
 ## The update at the screen
 
-- **The poll:** once each start, quietly, after Wi-Fi joins as a station, and again from Firmware › Check for update. There is no poll on the unit's own access point, which has no internet; the row is hidden and Firmware says why.
+- **The poll:** once each start, quietly, after Wi-Fi joins as a station, and again from Firmware › Check for update. It asks the bench host first, `opentrickler-update.local` by mDNS, as the Open Weapon Mount Computer does, and its stored source only when no bench host answers (gate 6, step 9); an offer from the bench host says so. There is no poll on the unit's own access point, which has no internet; the row is hidden and Firmware says why.
 - **Found:** "Update available" becomes the first row of the main menu, or "Important update" for a critical release. No pop-up.
 - **The offer page:** notes: the version, its note, what to know before installing, and Install at their end, reached only by scrolling through them (the skill's rule 10). Back, the "<" title or the reset button, is Later. If the last try went back, the page says so ("2.1.0 did not start; this unit is on 2.0.2").
 - **Install** runs the update job:

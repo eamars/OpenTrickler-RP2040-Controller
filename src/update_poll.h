@@ -53,6 +53,7 @@ typedef struct {
     char note[UPDATE_NOTE_MAX];                     // its note's start; the whole is on the web
     bool critical;                                  // "Important update"
     update_channel_t channel;                       // the channel it was found on
+    char bench[16];                                 // the bench host's address it was found on; "" for the source
 } update_poll_status_t;
 
 typedef enum {

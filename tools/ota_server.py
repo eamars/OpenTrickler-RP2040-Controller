@@ -1,7 +1,11 @@
 """The local OTA server: GitHub's release downloads, served from this PC (ADR-010, gate 1).
 
 Update tests never fetch from GitHub's releases (the owner, 2026-11-17: they are not to be hammered). A unit's poll
-and download, and `rc_run.py update`, are pointed here instead, through the unit's update source.
+and download, and `rc_run.py update`, are pointed here instead.
+
+The bench host (ADR-010, gate 6, step 9): while it runs, the server announces opentrickler-update.local by mDNS, and
+every unit on the network asks it before its stored source, as the Open Weapon Mount Computer's units ask its
+ota_host.py; nothing is set on a unit. Stopped, or run with --no-announce, the units ask their stored source again.
 
 What it serves, under any owner and repository, as GitHub does:
     /<owner>/<repo>/releases/latest/download/<file>    the latest release's file
@@ -36,6 +40,7 @@ import http.server
 import json
 import re
 import shutil
+import socket
 import ssl
 import subprocess
 import sys
@@ -46,6 +51,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_ROOT = REPO / "logs" / "ota_server" / "releases"
 DEFAULT_CERT_DIR = REPO / "logs" / "ota_server" / "certs"
+# The name a unit asks before its stored source (src/update_poll.c, UPDATE_POLL_BENCH_HOST)
+BENCH_NAME = "opentrickler-update.local"
 
 # Long enough for a handshake at the Debug build's -O0 on the Pico 2 W (148 s, 2026-11-17)
 CONNECTION_TIMEOUT_S = 300
@@ -417,6 +424,8 @@ def main() -> int:
     parser.add_argument("--https-port", type=int, default=8443)
     parser.add_argument("--asset-http-port", type=int, default=8081)
     parser.add_argument("--asset-https-port", type=int, default=8444)
+    parser.add_argument("--no-announce", action="store_true",
+                        help=f"do not announce {BENCH_NAME} by mDNS: units then ask their stored source")
     args = parser.parse_args()
 
     if args.make_certs:
@@ -448,11 +457,40 @@ def main() -> int:
     print(f"serving {args.root} ({', '.join(releases.tags()) or 'no releases yet'}) as {advertise}: "
           f"http {args.http_port}, https {args.https_port}; assets http {args.asset_http_port}, "
           f"https {args.asset_https_port}", flush=True)
+    announced = None if args.no_announce else announce(advertise, args.http_port)
     try:
         threading.Event().wait()
     except KeyboardInterrupt:
         print("stopped")
+    finally:
+        if announced is not None:
+            zeroconf, info = announced
+            zeroconf.unregister_service(info)
+            zeroconf.close()
     return 0
+
+
+def announce(address: str, port: int):
+    """Announce the bench name by mDNS, so every unit on the network asks this server first (ADR-010, gate 6, step 9;
+    as the Open Weapon Mount Computer's scripts/ota_host.py announces owmc_update.local).
+
+    Args:
+        address: this PC's address on the units' network.
+        port: the plain HTTP port the units ask.
+
+    Returns:
+        (the Zeroconf, the service registered), to unregister at the end.
+    """
+    try:
+        from zeroconf import ServiceInfo, Zeroconf
+    except ImportError:
+        sys.exit("zeroconf is missing: venv\\Scripts\\pip install -r requirements.txt (or run with --no-announce)")
+    info = ServiceInfo("_http._tcp.local.", f"{BENCH_NAME.split('.')[0]}._http._tcp.local.",
+                       addresses=[socket.inet_aton(address)], port=port, properties={}, server=f"{BENCH_NAME}.")
+    zeroconf = Zeroconf()
+    zeroconf.register_service(info)
+    print(f"announced {BENCH_NAME} as {address}: units ask this server before their stored source", flush=True)
+    return zeroconf, info
 
 
 if __name__ == "__main__":
