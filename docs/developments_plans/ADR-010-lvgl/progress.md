@@ -808,3 +808,17 @@ the charge mode, every call to hello should trigger the animation, regardless of
   of each and of Powder details. With SIM and R both shown (a simulated charge started from the console) the title
   is clipped ("Lift the"): the measured titles fit beside the time and the Wi-Fi mark alone. `menu_tour` (Charge and
   Powder details saved; passing after Powder details is visited first) and `charge_cycle` pass.
+
+## Gate 6, step 4b: the charge's chart (2026-11-17)
+
+- **Built:** with Charge view on Chart, the charge's screen leads with a chart of the throw: "20.08 / 30.00" with the
+  powder in its head (the verdict once it is done), the weight's curve under a dotted line at the target, on a base
+  line. The navigator takes the weight at each refresh while a throw pours (100 ms), as a share of the target, up to
+  120 points; when they are full every other one goes and the rest are taken half as often, so a throw of any length
+  fits. LVGL draws no sloped or dashed line without its complex drawing (`LV_DRAW_SW_COMPLEX`, off), so the view
+  keeps the chart's area as an empty object and paints the chart into the frame when LVGL flushes that area
+  (`menu_view_paint()`, from the flush, under the frame's lock): the mirror and `snap` read the same frame. No LVGL
+  widget is added.
+- **Proven on the Pico W:** a simulated charge with Charge view on Chart, snapped at 4.6 s, 13.2 s and after the
+  throw ([charge_chart.png](charge_chart.png)): the curve, the target's dots, "Good" in the head after it; Charge
+  view back on Weight; `menu_tour` and `charge_cycle` pass. Flash 978.1 KB of 1,016; RAM at link 252.5 KB of 256.

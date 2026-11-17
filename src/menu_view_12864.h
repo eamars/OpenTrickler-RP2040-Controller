@@ -21,6 +21,10 @@ void menu_view_init(lv_display_t *display);
 // The screen drawn: what changed is set, LVGL draws it at its next timer
 void menu_view_draw(const menu_screen_t *screen);
 
+// What LVGL does not draw, painted into the frame's rows (1 lit) where it flushes an area: the charge's chart.
+// Called from the flush, under the frame's lock
+void menu_view_paint(uint8_t *rows, const lv_area_t *area);
+
 // The hidden hello (the owner, 2026-11-17): Claude-chan, saying `name` is watching, over the page. Its steps are
 // shown in turn, from 0; the end hides it. Its objects are made at the start, so a hello never waits on LVGL's heap.
 // False past the last step

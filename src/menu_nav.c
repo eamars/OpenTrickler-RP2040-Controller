@@ -889,6 +889,54 @@ static void value_backlight(const menu_row_t *row, char *out, size_t room) {
 }
 
 
+// --- The charge's chart: the throw's weight at each refresh while it pours (100 ms in a job), as a share of the
+// target. When the points are full, every other one goes and the rest are taken half as often, so a throw of any
+// length fits
+
+static uint8_t chart_points[MENU_CHART_POINTS];
+static uint8_t chart_count = 0;
+static uint16_t chart_throw = 0;
+static uint16_t chart_every = 1;
+static uint16_t chart_skipped = 0;
+
+
+static void chart_sample(void) {
+    charge_status_t charge;
+    charge_mode_get_status(&charge);
+    if (strcmp(charge.state, "charging") != 0 || charge.target <= 0.0f) {
+        return;
+    }
+    if (charge.throw_number != chart_throw) {
+        chart_throw = charge.throw_number;
+        chart_count = 0;
+        chart_every = 1;
+        chart_skipped = 0;
+    }
+    chart_skipped += 1;
+    if (chart_skipped < chart_every) {
+        return;
+    }
+    chart_skipped = 0;
+    if (chart_count == MENU_CHART_POINTS) {
+        for (uint8_t idx = 0; idx < MENU_CHART_POINTS / 2; idx += 1) {
+            chart_points[idx] = chart_points[2 * idx + 1];
+        }
+        chart_count = MENU_CHART_POINTS / 2;
+        chart_every *= 2;
+    }
+    float share = scale_get_current_measurement() / charge.target;
+    share = isfinite(share) ? share : 0.0f;
+    share = share < 0.0f ? 0.0f : (share > 1.25f ? 1.25f : share);
+    chart_points[chart_count++] = (uint8_t) lroundf(share * MENU_CHART_TARGET);
+}
+
+
+static bool chart_chosen(void) {
+    char view[12];
+    return settings_read_text("settings/display", "charge_view", view, sizeof(view)) && strcmp(view, "chart") == 0;
+}
+
+
 // --- Powder details: the selected profile's gains and speeds, coarse and fine side by side (a tab between them),
 // and its revision, as the old menu's Profile details showed them (forms 34 and 38)
 
@@ -1809,6 +1857,7 @@ void menu_nav_job_ended(uint8_t exit_form) {
 
 
 void menu_nav_refresh(void) {
+    chart_sample();
     // What was opened over the charge's screen between throws (its target, its powder, a message) is for the next
     // throw only: when a throw begins it closes, so the next Back reaches the charge and stops it (review of gate 4)
     int job_idx = -1;
@@ -2115,6 +2164,18 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
             char target[16];
             format_weight(charge.target, target, sizeof(target));
             snprintf(screen->context, MENU_TEXT, "of %s, %s", target, profile_get_name(profile_get_selected_idx()));
+        }
+        // Charge view on Chart: the weight over the target in its head, the powder (or the verdict) beside it
+        if (!fault && charge.target > 0.0f && chart_chosen()) {
+            char target[16];
+            format_weight(charge.target, target, sizeof(target));
+            screen->chart = true;
+            snprintf(screen->chart_head, sizeof(screen->chart_head), "%s / %s", screen->figure, target);
+            if (!verdict) {
+                snprintf(screen->context, MENU_TEXT, "%s", profile_get_name(profile_get_selected_idx()));
+            }
+            screen->chart_count = chart_count;
+            memcpy(screen->chart_points, chart_points, chart_count);
         }
         // A new action is focused as it appears; with none, Stop is
         job_action_t action = charge_action();

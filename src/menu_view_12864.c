@@ -29,6 +29,12 @@
 #define VIEW_LINES 4
 #define VIEW_LINE_WIDTH (VIEW_W - 3 - 5)        // a card's or notes' line, clear of the scroll bar
 #define VIEW_COLUMN 78                          // a two-column line's first column ends here
+// The charge's chart: its head on baseline 23, the chart from 26 to 51, the softkeys under it
+#define VIEW_CHART_HEAD_BASE 23
+#define VIEW_CHART_X 2
+#define VIEW_CHART_TOP 26
+#define VIEW_CHART_W 124
+#define VIEW_CHART_H 26
 #define VIEW_MESSAGE_BASE_1 29
 #define VIEW_MESSAGE_BASE_2 40
 #define VIEW_FIGURE_BASE 38
@@ -64,11 +70,20 @@ static lv_obj_t *view_cursor;
 static lv_obj_t *view_edit_box;                 // the editor's digit being set, in reverse
 static lv_obj_t *view_edit_digit;
 static lv_obj_t *view_context;
+// The charge's chart: its head, the powder or the verdict beside it, and its area, painted into the frame by
+// menu_view_paint() when LVGL flushes it (LVGL draws no sloped line without its complex drawing)
+static lv_obj_t *view_chart;
+static lv_obj_t *view_chart_head;
+static lv_obj_t *view_chart_note;
+static bool view_chart_shown = false;
+static uint8_t view_chart_count = 0;
+static uint8_t view_chart_points[MENU_CHART_POINTS];
 static lv_obj_t *view_softkey_left_box;
 static lv_obj_t *view_softkey_left;
 static lv_obj_t *view_softkey_box;
 static lv_obj_t *view_softkey_right;
 static void view_visit_create(lv_obj_t *screen);
+static void view_chart_draw(const menu_screen_t *screen, bool shown);
 static uint32_t view_version = 0;
 static int view_first = 0;                      // a list's first row shown
 
@@ -238,6 +253,14 @@ void menu_view_init(lv_display_t *display) {
     lv_obj_set_style_text_color(view_edit_digit, lv_color_black(), 0);
     view_context = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
     view_place(view_context, 0, VIEW_W, VIEW_CONTEXT_BASE);
+    view_chart = view_box(screen, VIEW_CHART_X, VIEW_CHART_TOP, VIEW_CHART_W, VIEW_CHART_H, false);
+    view_chart_head = view_label(screen, &menu_font_bold, LV_TEXT_ALIGN_LEFT);
+    view_place(view_chart_head, VIEW_MARGIN, 80, VIEW_CHART_HEAD_BASE);
+    view_chart_note = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_RIGHT);
+    view_place(view_chart_note, 64, VIEW_W - 64 - VIEW_MARGIN, VIEW_CHART_HEAD_BASE);
+    view_show(view_chart, false);
+    view_show(view_chart_head, false);
+    view_show(view_chart_note, false);
 
     view_softkey_left_box = view_box(screen, 0, VIEW_SOFTKEY_TOP, 64, VIEW_H - VIEW_SOFTKEY_TOP, false);
     view_softkey_left = view_label(view_softkey_left_box, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
@@ -510,8 +533,75 @@ void menu_view_draw(const menu_screen_t *screen) {
     else {
         view_figure_and_unit(screen);
     }
+    view_chart_draw(screen, figure && screen->chart);
     if (dialog || figure) {
         view_softkeys(screen);
+    }
+}
+
+
+// Set one lit pixel in the frame's rows (1 lit, the leftmost pixel the top bit), within an area
+static void view_paint_pixel(uint8_t *rows, const lv_area_t *area, int x, int y) {
+    if (x < area->x1 || x > area->x2 || y < area->y1 || y > area->y2 || x < 0 || x >= VIEW_W || y < 0 ||
+        y >= VIEW_H) {
+        return;
+    }
+    rows[y * (VIEW_W / 8) + x / 8] |= (uint8_t) (0x80u >> (x % 8));
+}
+
+
+void menu_view_paint(uint8_t *rows, const lv_area_t *area) {
+    if (!view_chart_shown) {
+        return;
+    }
+    int bottom = VIEW_CHART_TOP + VIEW_CHART_H - 1;
+    int span = VIEW_CHART_H - 2;
+    // The target, dotted; the base, a line
+    int target_y = bottom - span * MENU_CHART_TARGET / MENU_CHART_FULL;
+    for (int x = VIEW_CHART_X; x < VIEW_CHART_X + VIEW_CHART_W; x += 1) {
+        view_paint_pixel(rows, area, x, bottom);
+        if (x % 3 == 0) {
+            view_paint_pixel(rows, area, x, target_y);
+        }
+    }
+    // The curve: a pixel a point, each joined to the one before by its column
+    int prev_y = bottom;
+    for (int idx = 0; idx < view_chart_count; idx += 1) {
+        int x = VIEW_CHART_X + 1 + idx;
+        int y = bottom - span * view_chart_points[idx] / MENU_CHART_FULL;
+        int from = prev_y < y ? prev_y : y;
+        int to = prev_y < y ? y : prev_y;
+        for (int yy = from; yy <= to; yy += 1) {
+            view_paint_pixel(rows, area, x, yy);
+        }
+        prev_y = y;
+    }
+}
+
+
+// The chart's head and its area: the area made to be drawn again when its points change, so it is painted again
+static void view_chart_draw(const menu_screen_t *screen, bool shown) {
+    view_show(view_chart, shown);
+    view_show(view_chart_head, shown);
+    view_show(view_chart_note, shown);
+    if (shown != view_chart_shown) {
+        view_chart_shown = shown;
+        lv_obj_invalidate(view_chart);
+    }
+    if (!shown) {
+        return;
+    }
+    view_show(view_figure, false);
+    view_show(view_unit, false);
+    view_show(view_context, false);
+    view_text(view_chart_head, screen->chart_head);
+    view_font(view_chart_note, screen->context_bold ? &menu_font_bold : &menu_font_regular);
+    view_text(view_chart_note, screen->context);
+    if (screen->chart_count != view_chart_count ||
+        memcmp(screen->chart_points, view_chart_points, screen->chart_count) != 0) {
+        view_chart_count = screen->chart_count;
+        memcpy(view_chart_points, screen->chart_points, screen->chart_count);
+        lv_obj_invalidate(view_chart);
     }
 }
 

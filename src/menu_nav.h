@@ -32,6 +32,10 @@ typedef enum {
 } menu_key_t;
 
 #define MENU_ROWS_MAX 14
+// The charge's chart: the throw's weights, at most this many, each 0 to MENU_CHART_FULL for 0 to 1.25 of the target
+#define MENU_CHART_POINTS 120
+#define MENU_CHART_FULL 250
+#define MENU_CHART_TARGET 200
 #define MENU_TEXT 28
 
 typedef enum {
@@ -73,6 +77,13 @@ typedef struct {
     char unit[8];
     char context[MENU_TEXT];
     bool context_bold;                      // a verdict, not a fact
+
+    // The charge's screen with Charge view on Chart: its head ("20.08 / 30.00"), the powder or the verdict in
+    // context, and the throw's weights
+    bool chart;
+    char chart_head[MENU_TEXT];
+    uint8_t chart_count;
+    uint8_t chart_points[MENU_CHART_POINTS];
     int8_t edit_at;                         // -1 on a job, and on the editor while a softkey has the focus
 
     // The softkeys: Back's at the left, the action at the right ("" for none). The focused one, which a click does:

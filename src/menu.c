@@ -111,6 +111,7 @@ static void menu_send(uint8_t pages) {
 */
 static void menu_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px_map) {
     (void) px_map;
+    menu_view_paint(menu_frame + MENU_PALETTE_BYTES, area);
     int first = area->y1 < 0 ? 0 : area->y1 / 8;
     int last = area->y2 >= DISPLAY_HEIGHT ? DISPLAY_PAGES - 1 : area->y2 / 8;
     for (int page = first; page <= last; page += 1) {
