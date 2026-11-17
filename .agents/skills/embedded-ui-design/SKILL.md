@@ -87,6 +87,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 12. **Read-only pages have no focus on their lines.** A row in reverse means a click does something; their title, focused above the top, is Back as on every page.
 13. **Icons on the pixel grid.**
     - At most 8 px tall in the title band, drawn pixel by pixel, never scaled.
+    - **Remote:** a phone, while the unit is driven from elsewhere (the owner, 2026-11-18: icons, not text, for such marks; the phone over a monitor, a pointer and a link). SIM stays a word: only a developer sees it, and no icon at 8 px says "this weight is not real" as plainly.
     - **Wi-Fi:** full signal bars when joined (no strength: "most clear solution on the tiny screen", the owner, 2026-11-17), a hotspot as the unit's own access point.
     - They are glyphs of the text font in Unicode's private use (U+E000 and on; `scripts/bdf2lvgl.py`, ICONS): LVGL draws nothing below U+0020.
     - A passive or secondary fill is a checkerboard: one bit has no grey (the 128 x 64 case study).

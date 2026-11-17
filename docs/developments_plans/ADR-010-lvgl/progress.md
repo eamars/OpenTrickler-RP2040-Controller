@@ -909,3 +909,14 @@ the charge mode, every call to hello should trigger the animation, regardless of
 - **Proven on the Pico W:** a simulated throw to 100 gr, snapped at 4.3 s (the curve at 43% of the width), 9.3 s
   (92%) and its end at 18.3 s (the whole width, past the store's halving at 12 s with no jump):
   [chart_axis.png](chart_axis.png), on the owner's inverted screen. `reach`, `menu_tour` and `charge_cycle` pass.
+
+## Gate 6, step 8: the remote mark as a phone (2026-11-18)
+
+- **Asked:** the owner prefers icons to text for the title's marks. Seven pairs for the remote and the simulated
+  scale's marks were drawn at the panel's pixels ([mockups/mark_icons_zoom.png](mockups/mark_icons_zoom.png)): a
+  pointer, a monitor, a phone, a link; a flask, a scale crossed, a scale dotted, a question mark. The owner chose
+  the phone, and kept SIM as a word: "the regular user will NEVER see it".
+- **Built:** the phone is U+E003 in the regular font (`scripts/bdf2lvgl.py`, 5 by 8, on the baseline as the Wi-Fi
+  bars), drawn where the R was.
+- **Proven on the Pico W:** a charge started from the console with the simulated scale, snapped: "SIM", the phone,
+  the bars. `reach`, `menu_tour` and `charge_cycle` pass.

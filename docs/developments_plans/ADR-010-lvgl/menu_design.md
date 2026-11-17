@@ -132,8 +132,8 @@ The screen echoes the unit, as it does today (the owner, 2026-11-17). Whatever j
 
 A corner of every page and every job's screen shows three marks. The remote mark is the owner's idea:
 - **Wi-Fi:** joined, the unit's own access point, or none.
-- **Remote:** the unit is being controlled from elsewhere. Either the running job was started by the web, the API or the console (each job already records this as `by`), or one of them wrote a setting or sent a command in the last 30 s (a proposal). Reads do not count: a page that only watches, such as the mirror or a charge page, controls nothing. The command layer records the time, since every remote write passes through it.
-- **Simulated:** the simulated scale is standing in for the real one (the console's `sim on`). Its weight is made up, so a charge with powder in the hopper would pour by it. The person at the unit must see this for as long as it lasts.
+- **Remote:** a phone icon (the owner, 2026-11-18, from [mockups/mark_icons_zoom.png](mockups/mark_icons_zoom.png); it was the letter R). The unit is being controlled from elsewhere. Either the running job was started by the web, the API or the console (each job already records this as `by`), or one of them wrote a setting or sent a command in the last 30 s (a proposal). Reads do not count: a page that only watches, such as the mirror or a charge page, controls nothing. The command layer records the time, since every remote write passes through it.
+- **Simulated:** the word SIM, kept as text: only a developer sees it (the owner, 2026-11-18). The simulated scale is standing in for the real one (the console's `sim on`). Its weight is made up, so a charge with powder in the hopper would pour by it. The person at the unit must see this for as long as it lasts.
 
 When a job was not started from the knob, its screen's state line also says who started it ("Charging, from the web").
 

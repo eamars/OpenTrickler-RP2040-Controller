@@ -45,6 +45,7 @@
 #define VIEW_ICON_STATION "\xEE\x80\x80"
 #define VIEW_ICON_ACCESS_POINT "\xEE\x80\x81"
 #define VIEW_ICON_CHOSEN "\xEE\x80\x82"
+#define VIEW_ICON_REMOTE "\xEE\x80\x83"
 
 extern const lv_font_t menu_font_regular;
 extern const lv_font_t menu_font_bold;
@@ -280,10 +281,11 @@ void menu_view_init(lv_display_t *display) {
 
 static void view_title_and_marks(const menu_screen_t *screen, bool focused) {
     // Wi-Fi as an icon of the regular font: full signal bars joined as a station, with no strength (the owner:
-    // clearest on the small screen), a hotspot as its own access point
+    // clearest on the small screen), a hotspot as its own access point. The remote mark a phone; the simulated
+    // scale's the word SIM
     char marks[40];
     snprintf(marks, sizeof(marks), "%s%s%s%s%s", screen->title_note, screen->title_note[0] != '\0' ? "  " : "",
-             screen->mark_simulated ? "SIM " : "", screen->mark_remote ? "R " : "",
+             screen->mark_simulated ? "SIM " : "", screen->mark_remote ? VIEW_ICON_REMOTE " " : "",
              screen->mark_station ? VIEW_ICON_STATION : (screen->mark_access_point ? VIEW_ICON_ACCESS_POINT : ""));
     view_text(view_marks, marks);
     char title[MENU_TEXT + 4];

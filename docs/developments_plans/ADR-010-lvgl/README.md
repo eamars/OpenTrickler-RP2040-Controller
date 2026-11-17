@@ -179,6 +179,7 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
       - **Powder details taken out:** "If a setting cannot be changed then it shouldn't be here." Its gains are tuning, set on the web and by ADR-009.
       - **The cleanup's title is Back,** "< Cleanup", turned up to from Speed; leaving ends the cleanup. It could not be reached, the second break of the rule that every page's "<" title is reached by turning up.
       - **The chart's time stretches with the throw:** 10 s across, or the throw's time so far when longer, the earlier curve pressed into the width (the owner, 2026-11-18: in place of halving at 12 s, which shrank the curve by a jump).
+      - **The remote mark is a phone icon,** in place of the letter R; SIM stays a word, which only a developer sees (the owner, 2026-11-18: icons for such marks; chosen from [mockups/mark_icons_zoom.png](mockups/mark_icons_zoom.png)).
       - **One generic test that every element can be reached,** not a test per screen ("a generic test to test if all element can be reached"): `rc_run.py reach` turns through every page, every screen a row opens, the dialogs, a charge's screen and a cleanup's, and fails on a title, row, button, softkey or digit the knob does not reach.
 
 ## How the unit shows it works
