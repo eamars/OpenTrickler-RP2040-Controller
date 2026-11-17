@@ -234,6 +234,19 @@ bool mini_12864_module_init() {
         return false;
     }
 
+    // Rotation (ADR-010, gate 4): the panel turns itself, 180 degrees by its flip. At 90 or 270 a 128 x 64 panel is
+    // 64 pixels wide and no row fits, so a rotation an older firmware stored as 90 or 270 becomes its nearest, 0 or
+    // 180, and is stored (menu_design.md, item 11). Before the settings register: their mending would take the first
+    // choice, 0, and turn a unit stored at 270 upside down (the review of ADR-010, 2026-11-18)
+    display_rotation_t rotation = mini_12864_module_config.display_rotation;
+    if (rotation == DISPLAY_ROTATION_90 || rotation == DISPLAY_ROTATION_270) {
+        mini_12864_module_config.display_rotation =
+            rotation == DISPLAY_ROTATION_270 ? DISPLAY_ROTATION_180 : DISPLAY_ROTATION_0;
+        printf("Display: %d degrees stored as %d: the 12864 turns 0 and 180 only\n", (int) rotation * 90,
+               (int) mini_12864_module_config.display_rotation * 90);
+        mini_12864_module_config_save();
+    }
+
     // Register to eeprom save all
     eeprom_register_handler(mini_12864_module_config_save);
     mini_12864_settings_register();
@@ -241,16 +254,8 @@ bool mini_12864_module_init() {
     // Run subsequent function inits
     button_init();
 
-    // Rotation (ADR-010, gate 4): the panel turns itself, 180 degrees by its flip. At 90 or 270 a 128 x 64 panel is
-    // 64 pixels wide and no row fits, so they are shown as 0 and 180 (menu_design.md, item 11)
-    display_rotation_t rotation = mini_12864_module_config.display_rotation;
-    bool flipped = rotation == DISPLAY_ROTATION_180 || rotation == DISPLAY_ROTATION_270;
-    if (rotation == DISPLAY_ROTATION_90 || rotation == DISPLAY_ROTATION_270) {
-        printf("Display: %d degrees is shown as %d: the 12864 turns 0 and 180 only\n", (int) rotation * 90,
-               flipped ? 180 : 0);
-    }
     printf("Initializing Display -- ");
-    display_init(flipped);
+    display_init(mini_12864_module_config.display_rotation == DISPLAY_ROTATION_180);
     printf("done\n");
 
     return is_ok;

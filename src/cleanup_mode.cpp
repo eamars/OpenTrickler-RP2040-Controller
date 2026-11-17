@@ -117,8 +117,8 @@ uint8_t cleanup_mode_menu() {
         servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, true);
     }
 
-    // Update current status
-    snprintf(title_string, sizeof(title_string), "Adjust Speed");
+    // The title says a fault's reason, and only then: none yet
+    title_string[0] = '\0';
 
     bool quit = false;
     while (!quit) {

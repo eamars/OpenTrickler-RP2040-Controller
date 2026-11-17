@@ -23,11 +23,6 @@ static ButtonEncoderEvent_t button_wait_for_input_ticks(TickType_t delay_ticks) 
 }
 
 
-ButtonEncoderEvent_t button_wait_for_input(bool block) {
-    return button_wait_for_input_ticks(block ? portMAX_DELAY : 0);
-}
-
-
 ButtonEncoderEvent_t button_wait_for_input_ms(uint32_t timeout_ms) {
     return button_wait_for_input_ticks(pdMS_TO_TICKS(timeout_ms));
 }

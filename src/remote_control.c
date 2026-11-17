@@ -251,7 +251,7 @@ static bool remote_control_press(const char *args, char *reply, size_t reply_siz
  * `@figure` line; then `@softkeys` where there are any
  */
 static void remote_control_screen_lines(const menu_screen_t *screen, remote_control_write_fn write, void *write_ctx) {
-    static const char *const kinds[] = {"list", "card", "dialog", "notes", "edit", "job", "control"};
+    static const char *const kinds[] = {"list", "dialog", "notes", "edit", "job", "control"};
     char line[160];
     snprintf(line, sizeof(line), "@screen id=%s kind=%s title=\"%s\"%s%s%s focus=%d marks=%s%s%s%s%s", screen->id,
              kinds[screen->kind], screen->title, screen->title_note[0] != '\0' ? " note=\"" : "", screen->title_note,
@@ -270,7 +270,6 @@ static void remote_control_screen_lines(const menu_screen_t *screen, remote_cont
                 write(line, write_ctx);
             }
             break;
-        case MENU_SCREEN_CARD:
         case MENU_SCREEN_NOTES:
         case MENU_SCREEN_DIALOG:
             for (int idx = 0; idx < screen->row_count; idx += 1) {

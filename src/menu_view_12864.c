@@ -41,7 +41,7 @@
 #define VIEW_SOFTKEY_TOP 53
 #define VIEW_SOFTKEY_BASE 61
 #define VIEW_MARGIN 3
-// The regular font's icons (scripts/bdf2lvgl.py, ICONS), U+E000 and U+E001 in UTF-8
+// The regular font's icons (scripts/bdf2lvgl.py, ICONS), U+E000 to U+E003 in UTF-8
 #define VIEW_ICON_STATION "\xEE\x80\x80"
 #define VIEW_ICON_ACCESS_POINT "\xEE\x80\x81"
 #define VIEW_ICON_CHOSEN "\xEE\x80\x82"
@@ -481,7 +481,7 @@ void menu_view_draw(const menu_screen_t *screen) {
         view_first = 0;
     }
     bool list = screen->kind == MENU_SCREEN_LIST;
-    bool lines = screen->kind == MENU_SCREEN_CARD || screen->kind == MENU_SCREEN_NOTES;
+    bool lines = screen->kind == MENU_SCREEN_NOTES;
     bool dialog = screen->kind == MENU_SCREEN_DIALOG;
     bool figure = screen->kind == MENU_SCREEN_EDIT || screen->kind == MENU_SCREEN_JOB;
     bool control = screen->kind == MENU_SCREEN_CONTROL;

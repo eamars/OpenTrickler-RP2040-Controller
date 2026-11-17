@@ -2,7 +2,7 @@
     The menu's navigator (ADR-010, gate 4): the tree of menu_design.md as one table, what is open, and the keys.
     Every write goes through the entry point the API uses for the same thing, by button; a setting is stored when it
     is confirmed (D2). No row draws: menu_nav_screen() says what is on screen, in words, in the kinds of screen the
-    skill embedded-ui-design sets (lists, cards, dialogs, notes, the editor, jobs).
+    skill embedded-ui-design sets (lists, dialogs, notes, the editor, jobs, the cleanup's control).
 */
 #include <math.h>
 #include <stdio.h>
@@ -46,7 +46,7 @@ typedef struct menu_page menu_page_t;
 typedef enum {
     ROW_PAGE,       // opens a page
     ROW_ACTION,     // does something
-    ROW_CHOICE,     // one of a list, set in its row: a click, the turn through the choices, a click
+    ROW_CHOICE,     // one of a list, chosen on its own page, the current one checked
     ROW_NUMBER,     // a number, which the editor sets: the target
     ROW_STEP,       // a setting's number, stepped in its row by its field's edit_step, live, stored at the click
     ROW_TOGGLE,     // on or off, flipped by a click
@@ -76,7 +76,6 @@ struct menu_row {
 // What kind of screen a page is drawn as (the skill embedded-ui-design, rule 5)
 typedef enum {
     PAGE_LIST = 0,      // rows, one focused
-    PAGE_CARD,          // read-only lines, scrolled
     PAGE_DIALOG,        // its info rows the message, its action the right softkey, Back the left (Cancel)
     PAGE_NOTES,         // lines, wrapped, that end in its action row: the button, reached only by scrolling
 } page_kind_t;
@@ -830,12 +829,6 @@ static bool offered_make(const setting_choice_t *choice) {
 }
 
 
-// 0 and 180 degrees: at 90 or 270 the 12864 is 64 pixels wide (menu_design.md, item 11)
-static bool offered_rotation(const setting_choice_t *choice) {
-    return choice->held == 0 || choice->held == 2;
-}
-
-
 static void value_setting_choice(const menu_row_t *row, char *out, size_t room) {
     int idx = setting_choice_now(row);
     const setting_field_t *field = settings_field(row->path, row->name);
@@ -1110,8 +1103,7 @@ static const menu_row_t rows_display[] = {
      .name = "invert_encoder"},
     {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/display",
      .name = "invert_display"},
-    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display", .name = "rotation",
-     .offered = offered_rotation},
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display", .name = "rotation"},
     {.label = "Backlight", .kind = ROW_CHOICE, .value = value_backlight, .count = backlight_count,
      .option = backlight_option, .current = backlight_current, .choose = backlight_choose},
     {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display", .name = "charge_view"},
@@ -1661,6 +1653,28 @@ static void inplace_begin(frame_t *frame, const menu_row_t *row) {
 }
 
 
+// A number being set, put back as it was and no longer set: as Back does, with no message
+static void inplace_cancel(frame_t *frame) {
+    if (frame->kind != FRAME_PAGE || !frame->editing) {
+        return;
+    }
+    frame->editing = false;
+    const menu_row_t *rows[MENU_ROWS_MAX];
+    uint8_t shown = shown_rows(frame->page, rows);
+    if (frame->focus < 0 || frame->focus >= shown) {
+        return;
+    }
+    const menu_row_t *row = rows[frame->focus];
+    const char *why = settings_write(row->path, row->name, frame->edit_was);
+    if (why != NULL) {
+        printf("Menu: %s %s not put back: %s\n", row->path, row->name, why);
+    }
+    else if (row->stepped != NULL) {
+        row->stepped(row);
+    }
+}
+
+
 static void inplace_refused(const char *why) {
     if (why != NULL) {
         push_message("Not changed", why, NULL);
@@ -1913,6 +1927,10 @@ void menu_nav_job_begun(activity_t job) {
     while (frame_depth > 1 && (top()->kind != FRAME_PAGE || strncmp(top()->page->id, "ack/", 4) == 0)) {
         pop();
     }
+    // And a number being set in its row is put back, nothing stored: the job runs on what was confirmed
+    for (int idx = 0; idx < frame_depth; idx += 1) {
+        inplace_cancel(&frames[idx]);
+    }
     frame_t *frame = push(FRAME_JOB);
     frame->job = job;
     frame->softkey = 1;
@@ -2075,10 +2093,10 @@ static void screen_dialog(menu_screen_t *screen, const menu_page_t *page, const 
 }
 
 
-// A card or notes: its lines from the first shown; notes end in their button
+// Notes: their lines from the first shown, ending in their button
 static void screen_lines(menu_screen_t *screen, const frame_t *frame) {
     const menu_page_t *page = frame->page;
-    screen->kind = page->kind == PAGE_NOTES ? MENU_SCREEN_NOTES : MENU_SCREEN_CARD;
+    screen->kind = MENU_SCREEN_NOTES;
     const menu_row_t *button;
     screen->row_count = page_lines(page, screen->row_label, screen->row_value, screen->row_bold, &button);
     uint8_t last = page_last_first(page);

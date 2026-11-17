@@ -45,19 +45,20 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
    - **Softkeys:** the bottom row, 53 to 63.
    - **Spacing:** no text nearer than 2 px to another, and 1 to 3 px from the panel's sides.
    - **Why:** the owner, 2026-11-17: "there should be enough clearance between two lines of text so the UI looks a bit clean".
-5. **Five kinds of screen, no others.**
+5. **Six kinds of screen, no others** (`menu_nav.h`).
    - **Pages** are lists: a title, then rows of label, value and ">" when the row opens something. The focused row is in reverse.
      - A number is set in its row: a click, a step a detent (the value in reverse), a click.
      - A choice opens its own page: every option, the current one with a check at its right (U+E002), the focus opening on it; a click picks and goes back. Never turned through blind in its row, and never marked by bold or a "*" alone: both too faint to see at a glance (the owner, 2026-11-17).
      - A row that only shows a value has no focus; every row that acts is reached by the turn.
-   - **Cards** are read-only and dense: lines of 11 px, each a key at the left and its value at the right (a pair too wide for a line takes two, the value right on the second; the owner, 2026-11-17: otherwise the page looks unorganized), no focus on a line, a scroll bar when they run on (Wi-Fi, Firmware's facts). Turned up past the top, the title is focused, which is Back, as on a list.
+   - **Notes** are read-only and dense: lines of 11 px, each a key at the left and its value at the right (a pair too wide for a line takes two, the value right on the second; the owner, 2026-11-17: otherwise the page looks unorganized), no focus on a line, a scroll bar when they run on, ending in their action, reached only by scrolling to it (Wi-Fi, the update's offer). Turned up past the top, the title is focused, which is Back, as on a list. A list's rows that are only read (Firmware's facts) take no focus instead.
    - **Dialogs** are a title, a message of one or two centred lines, and two softkeys (the cup's acknowledgement, a factory reset).
    - **Jobs:**
      - the title is the status ("Charging", "Lift the cup");
      - one figure, centred, its unit small beside it;
      - one centred line under it: the target while charging, the verdict after a throw;
      - two softkeys.
-   - **Notes** are a dense page that ends in its action, reached only by scrolling to it.
+   - **The editor** is the target's alone: its digits as a figure, one selected, a click to set it; Cancel and Set.
+   - **The control** is a job of rows, the cleanup's: its title Back, a line to read, rows set in place, two softkeys.
 6. **Softkeys: one rule everywhere.**
    - The left softkey is what Back does (Cancel, Stop), the right the screen's action. Both are reached by the knob: the focused one is drawn in reverse and a click does it (the owner, 2026-11-17: every element on screen is clickable). A dialog that destroys opens on Cancel.
    - They replace every private convention ("RST: stop", "[Zero]", "<Target>"). A screen whose click does nothing shows no right softkey.
@@ -65,7 +66,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 7. **Remove before you shrink.**
    - A job screen leads with one figure, read from 50 cm, with its status and its softkeys. Nothing it showed or did moves to the web for want of room: every setting and action is on both the screen and the web, and only measured data or the hardware leaves one off (the owner, 2026-11-17; ADR-010's survey in `menu_design.md`). An earlier wording here ("Anything else moves to the web") cost the cleanup its weight, flow and gate.
    - **Why:** small-screen guidance says to relocate rather than shrink (Applied-EE), and the owner, 2026-11-17: "the information density is a bit on the higher side".
-   - The timer, the powder's name and the throw's number left the charge screen this way.
+   - The timer, the powder's name and the throw's number left the charge screen this way in gate 4; the timer and the powder came back in gate 6 (the owner: no removal without a reason on record).
 8. **The important thing in the middle.**
    - A job's figure and its context line are centred; the owner approved the charge screens laid out so ("you did a good job").
    - With the cup off the pan, the charge keeps the throw's weight and verdict, not the bare pan's reading.
@@ -92,7 +93,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
     - They are glyphs of the text font in Unicode's private use (U+E000 and on; `scripts/bdf2lvgl.py`, ICONS): LVGL draws nothing below U+0020.
     - A passive or secondary fill is a checkerboard: one bit has no grey (the 128 x 64 case study).
 14. **Words.**
-    - What the person does is an imperative ("Lift the cup", "Put the cup back"); what the unit does is a state ("Charging", "Waiting for zero").
+    - What the person does is an imperative ("Lift the cup", "Return the cup"); what the unit does is a state ("Charging", "Zeroing"). A job's title shares the band with its time and marks: the shorter word wins.
     - Labels are short. Abbreviations only where standard (gr, g, rev/s, %, IP).
     - Budget characters, not pixels, for values that vary (the case study wrote "MAX" where "100%" did not fit).
 15. **Safety stays visible.**
@@ -122,7 +123,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
   (ADR-010, 2026-11-17). An animated figure is one label of tiles, a pose a different set of tiles
   (`scripts/bdf2lvgl.py`, `:art`), rather than an object for each moving part; check the heap's free piece before
   making it, and let it go when it is short.
-- **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/lv_conf.h`). It holds every object of the view,
+- **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/lv_conf.h`, and a 3 KB pool from the FreeRTOS heap, `src/menu.c`: 17 KB). It holds every object of the view,
   a frame's draw tasks while it draws, and a glyph's working buffer (384 bytes for an 18 px figure). When it runs
   short, LVGL silently skips the glyphs it cannot buffer: the redesigned view in 12 KB drew its figures as a lone "."
   and lost a title's first letter (2026-11-17). After adding objects to the view, read `screen`'s

@@ -10,7 +10,7 @@ typedef enum {
     BUTTON_NO_EVENT = 0,
     BUTTON_ENCODER_ROTATE_CW,
     BUTTON_ENCODER_ROTATE_CCW,
-    BUTTON_ENCODER_PRESSED,     // a whole click, as the remote control's `key enter` sends it
+    BUTTON_ENCODER_PRESSED,     // a whole click, as the remote control's `press enc` sends it
     BUTTON_RST_PRESSED,
 
     // Not presses: the menu woken to look at a start asked from outside it, or a job's end (menu_wake()), and the
@@ -46,11 +46,6 @@ typedef struct {
 extern "C" {
 #endif
 
-
-/**
- * Wait for button encoder input. 
-*/
-ButtonEncoderEvent_t button_wait_for_input(bool block);
 
 /**
  * Wait for button encoder input for at most this long: BUTTON_NO_EVENT when nothing came.

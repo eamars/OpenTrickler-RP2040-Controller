@@ -126,6 +126,7 @@ MENU_TOUR_LIVE_PAGES = {"settings/firmware": "the version, the build and the uni
 # The remote mark stays 30 s after a write over the web (menu_nav.c, MENU_REMOTE_MS), and the Wi-Fi's is missing
 # while the station joins: the tour waits for both to settle
 MENU_TOUR_REMOTE_WAIT_S = 35
+REACH_THROW_S = 60.0                # reach's simulated throw of 30 gr pours in about 10 s
 
 # The settings over API v1 (ADR-003, gate 3). GET /api/v1/settings gives every settings resource and powder profile
 # in one document, which `settings` keeps and compares field by field; a GET changes nothing (api_v1.md). The
@@ -1276,12 +1277,13 @@ class Session:
             right or None).
         """
         self.send("screen")
-        out = {"id": "", "kind": "", "focus": -1, "back": False, "rows": [], "lines": 0, "button": None, "reached": False,
+        out = {"id": "", "kind": "", "title": "", "focus": -1, "back": False, "rows": [], "lines": 0, "button": None, "reached": False,
                "at": -1, "figure": "", "left": "", "right": "", "softkey": None}
         for line in self.console.data_lines:
             if line.startswith("@screen "):
                 out["id"] = re.search(r"id=(\S+)", line).group(1)
                 out["kind"] = re.search(r"kind=(\S+)", line).group(1)
+                out["title"] = re.search(r'title="([^"]*)"', line).group(1)
                 out["focus"] = int(re.search(r"focus=(-?\d+)", line).group(1))
                 out["back"] = line.endswith(" back")
             elif line.startswith("@row "):
@@ -1370,9 +1372,10 @@ class Session:
     def reach(self):
         """
         Every page by its id, every screen a page's row opens (its choices, the target's editor, its pages, its
-        dialogs: opened by a click, left by Back), and the charge's and the cleanup's screens (a simulated charge, a
-        cleanup at speed 0): each turned through by sweep(). Nothing is chosen, set or started but those two jobs,
-        which are stopped.
+        dialogs: opened by a click, left by Back), and the charge's and the cleanup's screens (a simulated charge,
+        zeroing and then between throws, with the page its Change opens; a cleanup at speed 0): each turned through
+        by sweep(). Nothing is chosen, set or started but those two jobs, which are stopped. Not covered: a job in
+        fault, the update's screen, a message.
         """
         reply = self.send("screen list")
         if reply is None or not reply.startswith("@ok screen"):
@@ -1406,7 +1409,33 @@ class Session:
         self.send("charge 30")
         time.sleep(1.0)
         self.sweep("a charge, zeroing")
-        self.send("charge stop")
+        # The throw poured: the screen between throws, Stop and Change, and the page Change opens. Change comes about
+        # a second after the title, once the throw's verdict is in
+        deadline = time.monotonic() + REACH_THROW_S
+        state = self.screen_now()
+        while (state["title"] != "Lift the cup" or state["right"] != "Change") and time.monotonic() < deadline:
+            time.sleep(0.5)
+            state = self.screen_now()
+        if state["title"] != "Lift the cup" or state["right"] != "Change":
+            self.fail(f"reach: the simulated throw did not end with Change in {REACH_THROW_S:.0f} s: "
+                      f"{state['title']} {state['right']}")
+        else:
+            self.sweep("a charge, between throws")
+            state = self.press_and_read("ccw", 4)
+            for _ in range(4):
+                if state["softkey"] == "right":
+                    break
+                state = self.press_and_read("cw")
+            if state["softkey"] != "right" or state["right"] != "Change":
+                self.fail(f"reach: Change not reached between throws: {state['softkey']} {state['right']}")
+            else:
+                self.press_and_read("enc")
+                self.sweep("a charge, its Change")
+                self.send("press rst 1")
+                time.sleep(0.25)
+        # Back from Change may have stopped the charge already, when the next throw had begun and closed the page:
+        # the stop is not judged, and the simulated scale's switch below waits for the charge to have ended
+        self.console.command("charge stop")
         # The simulated scale is switched off once the charge has ended: refused while it runs
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline:

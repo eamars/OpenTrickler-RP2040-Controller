@@ -15,20 +15,20 @@
     What it does is the API's own entry points, by button. Only the menu's task calls it.
 
     Six kinds of screen, as the design has them:
-      list    a title and rows of label and value, one focused
-      card    read-only lines, no focus, scrolled by the knob
-      dialog  a message of one or two lines, and two softkeys
-      notes   lines that end in a button, reached only by scrolling to it
-      edit    a number, digit by digit, as a figure; two softkeys
-      job     the title is the status; one figure and its unit; one line under it; two softkeys
-    The left softkey says what Back does (the reset button, or the knob held), the right what a click does.
+      list     a title and rows of label and value, one focused; a choice's own page is one
+      dialog   a message of one or two lines, and two softkeys
+      notes    lines, no focus, scrolled by the knob, that may end in a button reached only by scrolling to it
+      edit     the target, digit by digit, as a figure; two softkeys
+      job      the title is the status; one figure and its unit (or the chart); one line under it; two softkeys
+      control  a job of rows (the cleanup): a line to read, rows set in place, two softkeys
+    The left softkey says what Back does (the reset button), the right what a click does.
 */
 
 typedef enum {
     MENU_KEY_NEXT,      // the knob a detent clockwise
     MENU_KEY_PREV,      // anticlockwise
     MENU_KEY_ENTER,     // a click
-    MENU_KEY_BACK,      // the reset button, or the knob held
+    MENU_KEY_BACK,      // the reset button (a click on the "<" title acts as Back too)
 } menu_key_t;
 
 #define MENU_ROWS_MAX 14
@@ -43,7 +43,6 @@ typedef enum {
 
 typedef enum {
     MENU_SCREEN_LIST,
-    MENU_SCREEN_CARD,
     MENU_SCREEN_DIALOG,
     MENU_SCREEN_NOTES,
     MENU_SCREEN_EDIT,

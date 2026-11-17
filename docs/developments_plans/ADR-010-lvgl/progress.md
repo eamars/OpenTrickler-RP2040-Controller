@@ -920,3 +920,29 @@ the charge mode, every call to hello should trigger the animation, regardless of
   bars), drawn where the R was.
 - **Proven on the Pico W:** a charge started from the console with the simulated scale, snapped: "SIM", the phone,
   the bars. `reach`, `menu_tour` and `charge_cycle` pass.
+
+## Gate 6, step 8: the review's findings fixed (2026-11-18)
+
+- **The review:** a session of its own read the code against this ADR (`logs/review/adr010_review.md`, at `66f064a`):
+  14 findings, three in the firmware's behaviour, one in the test, the rest records and comments. The owner: fix
+  them, the remote mark's rule kept as built.
+- **Fixed in the firmware:**
+  - A number being set in its row (the fine and coarse stop, a shutter's end) was left live, unconfirmed, when a job
+    started from the web took the screen. Now every page's number being set is put back, nothing stored, as Back
+    does, before the job's screen goes on top (`inplace_cancel`).
+  - A rotation an older firmware stored as 90 or 270 was mended by the settings' registration to the first choice,
+    0: a unit stored at 270 would have started upside down. The display now maps 90 to 0 and 270 to 180 and stores
+    it before its settings register.
+  - Removed: the card kind of screen (no page used it; the console's kinds are list, dialog, notes, edit, job,
+    control), the rotation's filter (its table has 0 and 180 only), `button_wait_for_input` (no caller), the
+    cleanup's unseen "Adjust Speed"; comments on the long press, in-place choices, `key`, the icons' range.
+- **Fixed in the test:** `reach` also drives its simulated throw to "Lift the cup" and sweeps that screen (Stop and
+  Change), then the page Change opens. Not covered, as its docstring says: a job in fault, the update's screen, a
+  message.
+- **Fixed in the records:** menu_design.md's tree redrawn from the firmware; the knob's table, the numbers, the
+  acknowledgement's words, the jobs' screens, the remote mark's rule as built, the offer, the Firmware page, the
+  cost ranges (text 145 to 373, tuning 17 to 32), the old forms' table, the open items closed; the README's lines on
+  the cleanup's pause, text by the knob, the offer, `view` and `key`; api_v1.md's `view` (never reported since
+  ADR-010); the skill's kinds of screen, words and LVGL's budget; AGENTS.md's size and mock tools; the mock's makes.
+- **Left as it is:** `menu_get_current_form_id()` keeps its name (0 or -1, documented in `menu.h`); renaming it
+  would change the console's `form=` that tools read.

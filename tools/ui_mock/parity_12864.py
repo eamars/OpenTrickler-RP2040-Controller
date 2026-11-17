@@ -258,8 +258,8 @@ def screens():
     add(p, "Scale: each choice opens its page")
 
     p = Panel()
-    choice_page(p, "Make", ["A&D FX-i", "Jennings", "Steinberg", "Ohaus", "Kern", "Radwag", "Creedmoor",
-                            "Sartorius", "G&G"], 0, 7, first=5)
+    choice_page(p, "Make", ["A&D FX-i", "Steinberg SBS", "G&G JJB", "US Solid JFDBS", "JM Science", "Creedmoor",
+                            "Radwag PS R2", "Sartorius", "Generic"], 0, 7, first=5)
     add(p, "Make, its page: 15")
 
     p = Panel(); m.title(p, "Scale", back=True)
