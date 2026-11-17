@@ -472,7 +472,8 @@ On the owner's word ("Yes, build it"), the menu was rebuilt to the design in all
   - an update found on the local OTA server: the main menu's row, the notes scrolled to Install, the download.
 - **Figures (the Pico W):**
   - flash 966.6 KB of the 1,016 KB slot (959.4 before);
-  - RAM at link 258.5 KB of 256 KB with the C library's 2 KB minimum heap, which leaves that heap about 5.7 KB.
+  - RAM at link 250.2 KB of 256 KB, 252.4 KB with the C library's 2 KB minimum heap, which leaves that heap about
+    5.6 KB. (First written here as "258.5 KB of 256 KB": the linker's 258,468 bytes, read as KB.)
 - **Seen in passing, not this work's:** after the console cleared a simulated driver fault (`tmc coarse fault
   none`), the main title still named the fault 30 s later. ADR-012's fault display; noted for its area.
 - **Seen in passing, open, for the network's area:** the SDK's network task (`async_context_t`, lwIP and the
@@ -484,3 +485,25 @@ On the owner's word ("Yes, build it"), the menu was rebuilt to the design in all
   - **Its exit:** read `stats tasks` through a `soak --load` of 10 minutes with several restarts. If the task's
     stack left falls under 1 KB, raise `ASYNC_CONTEXT_DEFAULT_FREERTOS_TASK_STACK_SIZE` by 512 words (2 KB of the
     FreeRTOS heap) and measure again.
+
+## Gate 4 sent back: u8g2 left in (2026-11-17)
+
+The owner's review of the plan found u8g2 still in the firmware, as the panel's driver and frame buffer, beside
+LVGL. That was against this ADR's own gate 4 ("all of u8g2 if LVGL is chosen, and the mirror fed from the new view")
+and the owner's direction of 2026-11-13 (one implementation). Gate 4's write-up above did not list it among its
+departures, and AGENTS.md and the skill `embedded-ui-design` then described it as the design ("u8g2 its driver and
+frame buffer only"). The owner: u8g2 goes entirely, fonts included as a reason; the web's frame keeps no old format.
+What it still does, what replaces each piece and how the unit shows it are in the README (gate 4, and "u8g2 after
+gate 4"). Written, not yet built.
+
+- **One buffer, not two** (the owner's question). The panel holds the frame it shows, so the frame in RAM is
+  already the only one drawn into. A second buffer would gain about 2 ms of a frame, with a DMA send, for 1 KB of a
+  Pico W at 98% of its RAM.
+- **Found while writing it:**
+  - the skill `embedded-ui-design` says a small animated area costs a fraction of a frame, "since LVGL redraws only
+    what changed", and menu_design.md that the view "redraws what changed". In the render mode gate 4 chose, any
+    change redraws the whole screen (`lv_refr.c`). Both become true with direct mode, which gate 4 now builds;
+  - the Pico W's menu baseline for the screens in all Helvetica was saved at 12:00 (`menu_tour --save`, at
+    2.0.2-32, VERDICT PASS) but not committed with them. It is committed now, so the compare above has its baseline;
+  - the RAM figure of the screens' rebuild above read the linker's bytes as KB, and seemed over the limit. Corrected:
+    250.2 KB of 256 at link, from a build of the same code.

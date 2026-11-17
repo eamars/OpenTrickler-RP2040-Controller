@@ -1,6 +1,6 @@
 # ADR-010: the screen's menu designed again, on LVGL
 
-Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Gate 1, the measurement, was run before approval, 2026-11-17: the Pico W fits, its flash with LVGL and mbedTLS at -Os inside the shipping build, its RAM with trims. Gates 2 and 4 were built the same night at the owner's word, ahead of approval, which the owner gives on PR #132, and proven on both units. Gate 3 (the mock) is dropped by the owner, since gate 4 was built ahead of it. Gate 5 (the update at the screen) was built and proven on the Pico W the next day; the owner skipped the Pico 2 W's run, the lower-risk target ([progress.md](progress.md)). Left: the owner's use by hand, and the approval.
+Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu_design.md](menu_design.md)) and the owner's answers to it. Not approved. Gate 1, the measurement, was run before approval, 2026-11-17: the Pico W fits, its flash with LVGL and mbedTLS at -Os inside the shipping build, its RAM with trims. Gates 2 and 4 were built the same night at the owner's word, ahead of approval, which the owner gives on PR #132, and proven on both units. Gate 3 (the mock) is dropped by the owner, since gate 4 was built ahead of it. Gate 5 (the update at the screen) was built and proven on the Pico W the next day; the owner skipped the Pico 2 W's run, the lower-risk target ([progress.md](progress.md)). Gate 4 is open again: it left u8g2 in as the panel's driver and frame buffer, and the owner's review sends it back to remove u8g2 entirely (written 2026-11-17, not yet built). Left: that, the owner's use by hand, and the approval.
 
 ## What we want
 
@@ -42,6 +42,9 @@ Status: **Draft** 2026-11-13, rewritten 2026-11-17 with the menu's design ([menu
 - **Overnight, one PR** (2026-11-17): "prioritize on everything you could do without my involvement first, then ask for my approval tomorrow ... focus on the functional build if no technical blockers". So the gates are built before this ADR's approval, which the owner gives on the PR.
 - **Gate 3 is dropped** (2026-11-17, the next morning): "The mock WAS supposed to be designed ahead of the deployment. Now given you made changes to the firmware directly then there is no point of designing the mock anymore." Gate 4 was built ahead of it overnight, which was a mistake: the mock was where the owner settles the layouts before they are built. The owner settles them on the unit instead.
 - **Gate 5 goes ahead, with the beta channel as proposed** (2026-11-17: "Yes continue with gate 5").
+- **u8g2 goes entirely, in gate 4** (2026-11-17, the owner's review of the plan): "this iteration of the work should remove the dependency of u8g2, including the frame buffer, screen driver, draw worker etc ... We may reuse the font from u8g2, but that should not become the reason to keep that dependency." Gate 4 as built kept u8g2 as the panel's driver and frame buffer, against its own line here ("all of u8g2 if LVGL is chosen").
+- **The screen's frame over the web keeps no old format:** "There is no backward compatibility for screenbuffer distribution over the ethernet so you can change off one go."
+- **One frame buffer, not two,** as recommended (below); the owner: "I believe the gate 4 will inherently optimize for performance and RAM utilization. Let's write first, and report if you noticed any discrepancy."
 
 ## Why here
 
@@ -98,6 +101,27 @@ First of the work on the current Pico platform (the owner, 2026-11-17: 010, 008,
 
 ADR-008 keeps the page's offer, the page where the source and the channel are set, and the upload by hand. PR #111 closes at ADR-008's end, once the whole flow is shown from the offer to the unit confirmed (the owner).
 
+**u8g2 after gate 4** (read in the code, and from the Pico W's build at 7c41e28, 2026-11-17):
+- **What it still does:**
+  - it drives the panel: the UC1701's reset and set-up, its contrast and flip, and the sending of each frame (`mini_12864_module.cpp`);
+  - it holds a second copy of the frame: its own buffer of 1,024 bytes and its handle of 148, beside LVGL's frame of 1,032 (`display.c`, `menu.c`);
+  - the flush copies each LVGL frame into that buffer, pixel by pixel, in our code at -O0 (`menu_flush`);
+  - the mirror and `snap` read that buffer, and the API names its format `u8g2_tiles`;
+  - the fonts' BDF files are read from its submodule at build time, and the mock-up tool reads its fonts and its compiled catalogue.
+- **It takes 4.2 KB of the Pico W's flash.** Five files still include its header and use nothing of it (`access_point_mode.c`, `app.c`, `charge_mode.cpp`, `cleanup_mode.cpp`, `update.c`).
+- **The Pico W's image** is 965.3 KB of its 1,016 KB slot, and RAM at link time 250.2 KB of 256 (252.4 KB with the C library's 2 KB minimum heap).
+- **LVGL has no driver for this panel.** Its display drivers are for colour TFTs (ST7735, ST7789, ST7796, ILI9341 and others); a TFT later uses one of them.
+- **LVGL draws the whole screen for any change** in the render mode gate 4 chose (`LV_DISPLAY_RENDER_MODE_FULL`; `lv_inv_area()` in `lv_refr.c`). In its direct mode, with the same one screen-sized buffer, it draws only the areas that changed, and the buffer still holds the whole frame. For a one-bit display LVGL rounds each area out to whole bytes itself.
+- **The panel keeps its own copy of the frame** in the controller's memory and shows it with no help. LVGL's second buffer gains only when a frame is sent by DMA while the next is drawn, and the send is about 2 ms.
+- **Where a frame's time goes** (the Pico W's is not measured):
+  - LVGL drawing the whole screen: 7.1 ms on the Pico 2 W at -Os (gate 1);
+  - the copy into u8g2's buffer: about 3 ms on the Pico W, estimated for code at -O0;
+  - the send, 1,048 bytes at 4 MHz: 2.1 ms, computed;
+  - a passive LCD typically takes 100 ms or more to settle a pixel (not measured on this panel).
+
+  The glass, not the chip, bounds how fast an animation can move.
+- **The fonts are not u8g2's work.** helvR08, helvB08 and helvB18 are Adobe's and Digital's X11 Helvetica, which u8g2 carries with their permission notice: their copyright notices go in every copy, and they and the permission notice in the documentation that comes with it.
+
 ## What we do
 
 The design is [menu_design.md](menu_design.md): the principles, the knob's four keys, the tree, the jobs' screens, the status marks, what leaves the screen and where it goes, the update with its channel, and the split. Built in gates, each approved and built on its own:
@@ -121,6 +145,14 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
    - The new tree and screens, and the status marks.
    - `screen` and `key` for the remote control, and `menu_tour` walking the tree from its table to a new baseline.
    - MUI removed: all of u8g2 if LVGL is chosen, and the mirror fed from the new view.
+   - **u8g2 removed entirely** (the owner, 2026-11-17). Gate 4 was first built with u8g2 left in as the panel's driver and frame buffer; this finishes it:
+     - **The panel's driver is our own,** on the SDK's SPI: the UC1701's reset, its set-up, contrast and flip, and the frame sent as 8 pages of 8 rows. Its commands are those u8g2's driver sends; a flipped panel starts 4 columns in, since the controller has 132. The display's lock is made when the panel is set up, before any task can ask for it.
+     - **One frame, LVGL's,** in direct mode: LVGL draws only what changed into its one screen-sized buffer. No second buffer: the panel holds the frame it shows, and the send is too short for a DMA send beside the next frame's drawing to gain anything.
+     - **The send** covers the 8-row bands a change touches, each turned into the panel's columns as it goes. The whole frame is sent again once a second, so a glitch on the panel's cable does not stay on the glass.
+     - **The mirror and `snap` read LVGL's frame,** under a lock the menu holds while LVGL draws, so each is one whole frame. Its format is LVGL's: 64 rows of 16 bytes, the leftmost pixel the top bit, 1 dark (the layout of a PBM image's body). The API's `format`, the mirror's page and `rc_run.py`'s snap change with it, and no old format is kept (the owner).
+     - **The fonts' BDF files are the repository's own,** in `fonts/` with their notice; `scripts/bdf2lvgl.py` reads them there. The mock-up tool reads the same folder. Its reader of u8g2's compiled catalogue goes: a face is tried by adding its BDF.
+     - **Then u8g2 goes:** the submodule, its CMake lines, its part in the size report, the five includes, and every page that names it as the driver or the source of the fonts (AGENTS.md, the skills `c-style` and `embedded-ui-design`, api_v1.md).
+     - **The frame's times are reported:** `screen`'s reply gives the last frame's drawing and sending times, and the longest of each since the start. An animation is later judged against them (the skill `embedded-ui-design`).
 5. **The update at the screen.**
    - The stored channel and source, and the poll at each start and on asking.
    - The download into the free slot as a job.
@@ -134,6 +166,13 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
 - The owner uses every screen by hand with the knob, once with the reset button and once without it.
 - An update found by the poll on the local OTA server, on each channel, is offered at the screen, installed and confirmed. One that does not start comes back, and the offer says so. The images under test go onto the unit by the probe; only the update itself goes over the air.
 - The size report and `stats` show flash and RAM inside each board's budget.
+- **With u8g2 gone:**
+  - the size report has no u8g2, and the build reads nothing under `library/u8g2`;
+  - `menu_tour --compare` passes against the baseline taken before, so LVGL's frame and the new snap are the same picture. The Pico 2 W has none since gate 5: its baseline is saved first, on the build with u8g2, and then compared;
+  - the owner looks at the panel itself on both units, the Pico W stored at 180 degrees and the Pico 2 W at 0: a snap and the mirror read the frame in RAM, never the glass, so only an eye sees a wrong set-up or a flip 4 columns off;
+  - the mirror's page shows the screen, in a browser on the unit;
+  - `screen` gives the frame's times on the Pico W, for a page opened and for a charge's figure, and `motor` shows no late feed meanwhile;
+  - `charge_cycle` passes.
 - On each supported board.
 
 ## Not in this ADR

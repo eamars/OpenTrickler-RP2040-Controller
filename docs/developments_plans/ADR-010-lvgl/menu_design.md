@@ -218,6 +218,7 @@ When a job was not started from the knob, its screen's state line also says who 
   - when it is shown.
 - **Navigator.** The page stack, each page's focus, the open editor, and the job on top. It knows keys, not pixels, and runs on a PC in a test.
 - **View.** Draws the navigator's state: a list, an editor, or a job's screen. Only the view knows the display's size, its fonts and its toolkit. There is one view per kind of display, not per board.
+- **The display's driver,** under the view: LVGL's frame sent to the panel. The 12864's is our own, for its UC1701, with no u8g2 (the owner, 2026-11-17); a TFT's comes from LVGL's drivers.
 - **Input.** One per board, giving the four keys. On touch, a tap is focus and Enter on that row, and Back is a button in the header.
 - **A new display** needs a new view and input. The tree, the navigator and the commands stay as they are. A TFT's charge screen with a plot is that view's choice, drawn from the same status.
 - **The status is pulled.** The view samples it at its frame rate (the charge's weight is live anyway) and redraws what changed. No new events to keep.
