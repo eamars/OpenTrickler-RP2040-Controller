@@ -166,6 +166,14 @@ The design is [menu_design.md](menu_design.md): the principles, the knob's four 
    - The stored channel and source, and the poll at each start and on asking.
    - The download into the free slot as a job.
    - The offer's row and page, the update's screen, and its result on the Firmware page.
+6. **What the unit needs, on the screen** (the owner settled the survey and its mock, 2026-11-17: "Otherwise settled, write to ADR then start to implement"). The design is menu_design.md's "Needed at the unit, and can be changed there" and "What the rebuild took off the screen"; the look is [mockups/parity_12864.png](mockups/parity_12864.png). Built a step at a time, each proven on the Pico W before the next:
+   1. **The description grows, in the tables** (`settings.h`), and so in the schema for ADR-008's pages: a field's screen label where the web's does not fit, its step on the screen, and whether the screen offers it. The backlight's colour is offered as 8 named colours. A new setting, Charge view (Weight or Chart), in the display's struct (its last byte of filler: on a unit that is updated it starts as that byte was until it is set once, ADR-006's class of fault).
+   2. **Rows made from the tables, edited in place:** a toggle a click; a choice a click, the turn through the choices in the row, a click; a number a click, a step a detent, a click; Back puts the value back. The choice pages (the scale's make and baud rate, the rotation, the decimals, the powder) go. Refusals as the API's.
+   3. **The tree:** Settings › Scale (its frame format and the decimals added), Charge (the fine and coarse stop), Display (the backlight and Charge view added), Servo gate (on, the shutters open or closed, their four ends set while the servo moves), Motors (each one's direction), Firmware (the channel set), Restart, Factory reset.
+   4. **The charge:** Charge › Powder set in place, and Powder details (read only: the gains side by side, the speeds, the profile's revision). Its screen: the time at the title's right (live while it pours, the last throw's while it waits), "of 30.00, AR2209" under the weight, the titles "Zeroing", "Charging", "Lift the cup", "Return the cup", "Paused"; with Charge view on Chart, the throw's chart.
+   5. **The cleanup as one system:** the weight and the flow on one line, Speed set live and Gate toggled as rows, Stop and Zero as softkeys; no Run or Pause.
+   6. **Wi-Fi:** why a join failed, in words; "Turn Wi-Fi off" (or on) at the end of its page.
+   7. **The proof:** every screen by the knob from the console, each change's action count against `knob_cost.py`'s; `menu_tour` saved again as the baseline; `charge_cycle`, `api_check`, `settings_roundtrip`; the size report; LVGL's heap and the FreeRTOS heap's low mark through an HTTPS poll; the Pico 2 W built.
 
 ## How the unit shows it works
 
