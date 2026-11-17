@@ -56,7 +56,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
      - two softkeys.
    - **Notes** are a dense page that ends in its action, reached only by scrolling to it.
 6. **Softkeys: one rule everywhere.**
-   - The left softkey is what Back does, in plain text. The right is what a click does, in reverse.
+   - The left softkey is what Back does (Cancel, Stop), the right the screen's action. Both are reached by the knob: the focused one is drawn in reverse and a click does it (the owner, 2026-11-17: every element on screen is clickable). A dialog that destroys opens on Cancel.
    - They replace every private convention ("RST: stop", "[Zero]", "<Target>"). A screen whose click does nothing shows no right softkey.
    - **Gestures:** turn, click and hold only. A design with more gestures is a different design (the 128 x 64 case study: three press variations at most).
 7. **Remove before you shrink.**

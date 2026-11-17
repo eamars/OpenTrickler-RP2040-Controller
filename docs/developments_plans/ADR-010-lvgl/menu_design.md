@@ -43,7 +43,7 @@ Also found while reading:
 ## Principles
 
 1. **The screen is for the bench; the web is for setting up.** A row belongs on the screen if a person needs it during a session, or if it fixes the unit without a phone (the scale's make, the knob's direction, a factory reset). Tuning, wiring and anything typed (names, the Wi-Fi key) are web only.
-2. **Nothing is hidden.** Back is a click on the title's "<", or the reset button; there is no long press, and no hint teaches the controls (the owner, 2026-11-17). Where a screen has no title to click (a dialog, the number editor, a running job), Back is the reset button.
+2. **Nothing is hidden: every element on screen is reached by the knob.** A row, a title's "<" (Back), a notes' button and each softkey is focused by turning and done by a click; the reset button is Back everywhere as well. No long press, and no hint teaches the controls (the owner, 2026-11-17).
 3. **A row is shown only while it does something** (the Open Weapon Mount Computer's rule 13). The rule that decides is the same one that would refuse its command at the API.
 4. **The screen is a client, as the web is.** It reads what the API reads and acts through the same entry points, `by` button. No rule exists only on the screen.
 5. **A change is stored when it is confirmed.** There is no Save.
@@ -58,12 +58,13 @@ The mini 12864 gives three inputs: the encoder's turn, its press, and the reset 
 
 | Key | From | On a list | In a number editor | On a job's screen |
 |---|---|---|---|---|
-| Next, Prev | one detent clockwise or anticlockwise (Invert knob swaps them) | focus moves down or up and stops at the ends; above the first row is the title, which works as Back | the digit goes up or down | moves between the job's actions, or changes its one value (cleanup's speed) |
-| Enter | a press of the knob, taken as it goes down | opens or does the focused row | next digit; on the last digit, stores the value | does the focused action, whose name is on the screen |
-| Back | the reset button, or Enter on the title's "<" | up one level, with focus on the row you came from | previous digit; on the first digit, leaves the value unchanged | stops the job (except while an update installs) |
+| Next, Prev | one detent clockwise or anticlockwise (Invert knob swaps them) | focus moves down or up and stops at the ends; above the first row is the title, which works as Back | focus moves over the digits, then Cancel and Set; while a digit is being set, its value goes up or down | focus moves between Stop and the action; a running cleanup's turn sets its speed instead |
+| Enter | a press of the knob, taken as it goes down | opens or does the focused row | starts or ends setting the focused digit; on Cancel or Set, does it | does the focused softkey (a running cleanup's click pauses it) |
+| Back | the reset button, or Enter on the title's "<" or a Cancel | up one level, with focus on the row you came from | ends setting a digit, or leaves the value unchanged | stops the job (except while an update installs) |
 
 - The knob's button is read on both edges, for its debounce: a press is taken as it goes down, its release only readies the next. No long press, no double click and no hold-to-repeat: the button is not reliable enough to time (the owner, 2026-11-17).
 - Each page remembers its focus.
+- **Softkeys are focused like rows** (the owner, 2026-11-17): the focused one is drawn in reverse. A dialog opens on its action, so one click goes on, but one that destroys (the factory reset) opens on Cancel. A job's new action is focused as it appears; with none (while a charge pours), Stop is. A cleanup starts paused, on Run; running, its turn sets the speed (through 0 into reverse) and a click pauses it, keeping the speed for Run.
 - **Numbers:** one editor for every number, digit by digit as today. Its digits, decimals and unit come from the field's own description (`settings.h`). The target gets 2 or 3 decimals from Decimals.
 - **Choices:** a list page with the current option marked. Enter picks it, stores it and goes back.
 - **Toggles:** Enter flips the value and stores it.

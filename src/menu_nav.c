@@ -86,6 +86,7 @@ struct menu_page {
     const char *(*title_now)(void);                                         // a title that changes; NULL: title
     const menu_row_t *rows;
     uint8_t row_count;
+    bool cancel_first;      // a dialog that destroys: it opens with Cancel focused
 };
 
 typedef enum {
@@ -107,6 +108,14 @@ typedef struct {
     char message[3][MENU_TEXT];         // FRAME_MESSAGE: a title and two lines
     activity_t job;                     // FRAME_JOB
     uint8_t first;                      // FRAME_PAGE, a card or notes: the first line shown
+    // The softkey focused on a dialog, a message or a job: 0 the left, 1 the right. The knob moves between them and
+    // a click does the focused one (the owner: every element on screen is reached by the knob)
+    int8_t softkey;
+    bool editing;                       // FRAME_EDIT: the focused digit is being set; digit_at past the digits is a
+                                        // softkey (MENU_EDIT_DIGITS the left, the next the right)
+    uint8_t action_seen;                // FRAME_JOB, the charge: its action when last drawn, so a new one is focused
+    bool cleanup_paused;                // FRAME_JOB, the cleanup: paused by a click (or not yet run)
+    float cleanup_speed;                // FRAME_JOB, the cleanup: the speed Run resumes at
 } frame_t;
 
 static frame_t frames[MENU_FRAMES_MAX];
@@ -176,11 +185,14 @@ static void push_page(const menu_page_t *page) {
             break;
         }
     }
+    // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel
+    frame->softkey = page->cancel_first ? 0 : 1;
 }
 
 
 static void push_message(const char *title, const char *line1, const char *line2) {
     frame_t *frame = push(FRAME_MESSAGE);
+    frame->softkey = 1;     // its one softkey, OK
     snprintf(frame->message[0], MENU_TEXT, "%s", title);
     snprintf(frame->message[1], MENU_TEXT, "%s", line1 != NULL ? line1 : "");
     snprintf(frame->message[2], MENU_TEXT, "%s", line2 != NULL ? line2 : "");
@@ -892,7 +904,8 @@ static const menu_row_t rows_factory_reset[] = {
     {.label = "Erase", .kind = ROW_ACTION, .act = act_erase},
 };
 static const menu_page_t page_factory_reset = {.kind = PAGE_DIALOG, .id = "settings/factory_reset",
-                                               .title = "Factory reset", .rows = rows_factory_reset, .row_count = 3};
+                                               .title = "Factory reset", .rows = rows_factory_reset, .row_count = 3,
+                                               .cancel_first = true};
 
 static const menu_row_t rows_settings[] = {
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
@@ -1085,27 +1098,46 @@ static void edit_confirm(frame_t *frame) {
 }
 
 
+/*
+ * The editor, as the old menu's: the knob moves the focus over the digits, then Cancel and Set; a click on a digit
+ * starts setting it (the knob then turns its value) and a second click ends that; a click on Cancel or Set does it.
+ * Back ends a digit's setting, or leaves the value unchanged
+ */
 static void edit_key(frame_t *frame, menu_key_t key) {
+    const int8_t last = MENU_EDIT_DIGITS + 1;      // Set
+    if (frame->editing) {
+        uint8_t *digit = &frame->digits[frame->digit_at];
+        if (key == MENU_KEY_NEXT) {
+            *digit = (uint8_t) ((*digit + 1) % 10);
+        }
+        else if (key == MENU_KEY_PREV) {
+            *digit = (uint8_t) ((*digit + 9) % 10);
+        }
+        else {
+            frame->editing = false;
+        }
+        return;
+    }
     switch (key) {
         case MENU_KEY_NEXT:
-            frame->digits[frame->digit_at] = (uint8_t) ((frame->digits[frame->digit_at] + 1) % 10);
+            frame->digit_at = (int8_t) (frame->digit_at < last ? frame->digit_at + 1 : last);
             break;
         case MENU_KEY_PREV:
-            frame->digits[frame->digit_at] = (uint8_t) ((frame->digits[frame->digit_at] + 9) % 10);
+            frame->digit_at = (int8_t) (frame->digit_at > 0 ? frame->digit_at - 1 : 0);
             break;
         case MENU_KEY_ENTER:
-            if (frame->digit_at == MENU_EDIT_DIGITS - 1) {
+            if (frame->digit_at == last) {
                 edit_confirm(frame);
-                return;
             }
-            frame->digit_at += 1;
+            else if (frame->digit_at == MENU_EDIT_DIGITS) {
+                pop();      // Cancel: left unchanged
+            }
+            else {
+                frame->editing = true;
+            }
             break;
         case MENU_KEY_BACK:
-            if (frame->digit_at == 0) {
-                pop();      // left unchanged
-                return;
-            }
-            frame->digit_at -= 1;
+            pop();          // left unchanged
             break;
     }
 }
@@ -1155,16 +1187,26 @@ static const char *job_action_name(job_action_t action) {
 }
 
 
+// Whether the cleanup's screen is paused: by a click (or not yet run), and still at a standstill
+static bool cleanup_is_paused(const frame_t *frame, const cleanup_status_t *cleanup) {
+    return frame->cleanup_paused && cleanup->speed_rps == 0.0f;
+}
+
+
+/*
+ * A job's keys. Its softkeys are Stop at the left and its action at the right; the knob moves between them where
+ * the turn is free, and a click does the focused one. Back stops it (but an update while it installs)
+ */
 static void job_key(frame_t *frame, menu_key_t key) {
     if (frame->job == ACTIVITY_UPDATE) {
         update_status_t update;
         update_status(&update);
-        if (key == MENU_KEY_BACK && update.state != UPDATE_INSTALLING) {
-            activity_request_stop(ACTIVITY_UPDATE, ACTIVITY_BY_BUTTON);
+        if ((key == MENU_KEY_BACK || key == MENU_KEY_ENTER) && update.state != UPDATE_INSTALLING) {
+            activity_request_stop(ACTIVITY_UPDATE, ACTIVITY_BY_BUTTON);     // Stop, its one softkey
         }
         return;
     }
-    if (key == MENU_KEY_BACK) {
+    if (key == MENU_KEY_BACK || (key == MENU_KEY_ENTER && frame->softkey == 0)) {
         activity_request_stop(frame->job, ACTIVITY_BY_BUTTON);
         return;
     }
@@ -1172,22 +1214,40 @@ static void job_key(frame_t *frame, menu_key_t key) {
     if (frame->job == ACTIVITY_CLEANUP) {
         cleanup_status_t cleanup;
         cleanup_mode_get_status(&cleanup);
-        if (strcmp(cleanup.state, "fault") == 0) {
-            activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_BUTTON);     // acknowledged
+        bool fault = strcmp(cleanup.state, "fault") == 0;
+        if (fault || cleanup_is_paused(frame, &cleanup)) {
+            // Stop and OK (a fault's, which stops too) or Run: the knob moves between them
+            if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+                frame->softkey = key == MENU_KEY_NEXT ? 1 : 0;
+            }
+            else if (fault) {
+                activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_BUTTON);     // acknowledged
+            }
+            else {
+                frame->cleanup_paused = false;
+                cleanup_mode_set_speed(frame->cleanup_speed, NAN);
+            }
         }
-        else if (key == MENU_KEY_NEXT) {
-            cleanup_mode_set_speed(cleanup.speed_rps + 1.0f, NAN);          // until stopped, as a person's
-        }
-        else if (key == MENU_KEY_PREV) {
-            cleanup_mode_set_speed(cleanup.speed_rps - 1.0f, NAN);
+        else if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            // Running: the turn sets the speed, through 0 and on into reverse, until stopped, as a person's
+            cleanup_mode_set_speed(cleanup.speed_rps + (key == MENU_KEY_NEXT ? 1.0f : -1.0f), NAN);
         }
         else {
+            // Pause: the speed kept for Run (1 rev/s when it was turned down to 0), the focus on Run
+            frame->cleanup_speed = cleanup.speed_rps != 0.0f ? cleanup.speed_rps : 1.0f;
+            frame->cleanup_paused = true;
+            frame->softkey = 1;
             cleanup_mode_set_speed(0.0f, NAN);
         }
         return;
     }
 
     if (frame->job == ACTIVITY_CHARGE) {
+        if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            // To the action only when there is one
+            frame->softkey = key == MENU_KEY_NEXT && charge_action() != JOB_ACTION_NONE ? 1 : 0;
+            return;
+        }
         if (key == MENU_KEY_ENTER) {
             switch (charge_action()) {
                 case JOB_ACTION_ZERO: {
@@ -1352,8 +1412,17 @@ static void page_kind_key(frame_t *frame, menu_key_t key) {
         return;
     }
     if (page->kind == PAGE_DIALOG) {
-        // A click is its action; the knob does nothing
-        if (key == MENU_KEY_ENTER) {
+        // The knob moves between Cancel and the action; a click does the focused one
+        if (key == MENU_KEY_NEXT) {
+            frame->softkey = 1;
+        }
+        else if (key == MENU_KEY_PREV) {
+            frame->softkey = 0;
+        }
+        else if (key == MENU_KEY_ENTER && frame->softkey == 0) {
+            pop();
+        }
+        else if (key == MENU_KEY_ENTER) {
             for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
                 if (page->rows[idx].kind == ROW_ACTION) {
                     page->rows[idx].act(&page->rows[idx]);
@@ -1446,6 +1515,10 @@ void menu_nav_job_begun(activity_t job) {
     }
     frame_t *frame = push(FRAME_JOB);
     frame->job = job;
+    frame->softkey = 1;
+    frame->action_seen = UINT8_MAX;         // none seen: the first is focused
+    frame->cleanup_paused = true;           // a cleanup starts still: Run, or Stop
+    frame->cleanup_speed = 1.0f;
 }
 
 
@@ -1585,7 +1658,7 @@ static void screen_row(menu_screen_t *screen, const char *label, const char *val
 
 
 // A dialog: its info rows the message, its action the right softkey, Back the left
-static void screen_dialog(menu_screen_t *screen, const menu_page_t *page) {
+static void screen_dialog(menu_screen_t *screen, const menu_page_t *page, const frame_t *frame) {
     screen->kind = MENU_SCREEN_DIALOG;
     for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
         const menu_row_t *row = &page->rows[idx];
@@ -1597,6 +1670,7 @@ static void screen_dialog(menu_screen_t *screen, const menu_page_t *page) {
         }
     }
     snprintf(screen->softkey_left, MENU_TEXT, "Cancel");
+    screen->softkey_focus = frame->softkey;
 }
 
 
@@ -1622,7 +1696,7 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
     snprintf(screen->title, sizeof(screen->title), "%s", page->title_now != NULL ? page->title_now() : page->title);
     screen->title_back = frame_depth > 1 && page->kind != PAGE_DIALOG;
     if (page->kind == PAGE_DIALOG) {
-        screen_dialog(screen, page);
+        screen_dialog(screen, page, frame);
         return;
     }
     if (page->kind != PAGE_LIST) {
@@ -1674,9 +1748,12 @@ static void screen_edit(menu_screen_t *screen, const frame_t *frame) {
     screen->kind = MENU_SCREEN_EDIT;
     snprintf(screen->id, sizeof(screen->id), "edit");
     snprintf(screen->title, sizeof(screen->title), "%s", frame->row->label);
-    // The digits with their point: 024.35 or 24.350; the one being set
+    // The digits with their point: 024.35 or 24.350; the one focused (none while a softkey is), and whether it is
+    // being set
     size_t len = 0;
     int whole = MENU_EDIT_DIGITS - frame->decimals;
+    screen->edit_at = -1;
+    screen->editing = frame->editing;
     for (int idx = 0; idx < MENU_EDIT_DIGITS; idx += 1) {
         if (idx == whole) {
             screen->figure[len++] = '.';
@@ -1688,9 +1765,10 @@ static void screen_edit(menu_screen_t *screen, const frame_t *frame) {
     }
     screen->figure[len] = '\0';
     snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
-    // Back steps back a digit, and leaves at the first; a click goes on, and sets at the last
-    snprintf(screen->softkey_left, MENU_TEXT, "%s", frame->digit_at == 0 ? "Cancel" : "Back");
-    snprintf(screen->softkey_right, MENU_TEXT, "%s", frame->digit_at == MENU_EDIT_DIGITS - 1 ? "Set" : "Next");
+    // Past the digits the focus is on Cancel, then Set
+    snprintf(screen->softkey_left, MENU_TEXT, "Cancel");
+    snprintf(screen->softkey_right, MENU_TEXT, "Set");
+    screen->softkey_focus = (int8_t) (frame->digit_at >= MENU_EDIT_DIGITS ? frame->digit_at - MENU_EDIT_DIGITS : -1);
 }
 
 
@@ -1704,6 +1782,7 @@ static void screen_message(menu_screen_t *screen, const frame_t *frame) {
         screen_row(screen, frame->message[2], "", false);
     }
     snprintf(screen->softkey_right, MENU_TEXT, "OK");
+    screen->softkey_focus = 1;
 }
 
 
@@ -1773,7 +1852,14 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
             format_weight(charge.target, target, sizeof(target));
             snprintf(screen->context, MENU_TEXT, "of %s", target);
         }
-        snprintf(screen->softkey_right, MENU_TEXT, "%s", job_action_name(charge_action()));
+        // A new action is focused as it appears; with none, Stop is
+        job_action_t action = charge_action();
+        if (action != frame->action_seen) {
+            frame->action_seen = (uint8_t) action;
+            frame->softkey = action != JOB_ACTION_NONE ? 1 : 0;
+        }
+        snprintf(screen->softkey_right, MENU_TEXT, "%s", job_action_name(action));
+        screen->softkey_focus = frame->softkey;
         return;
     }
 
@@ -1787,11 +1873,17 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
                                                              (running ? "Cleanup: running" : "Cleanup"));
         snprintf(screen->figure, sizeof(screen->figure), "%.1f", (double) cleanup.speed_rps);
         snprintf(screen->unit, sizeof(screen->unit), "rev/s");
-        if (!fault) {
-            snprintf(screen->context, MENU_TEXT, "%s", running ? "Turn the knob for speed" : "Turn the knob to run");
+        // Running, the turn sets the speed and a click pauses; paused (or not yet run), the knob moves between Stop
+        // and Run. A speed set from elsewhere runs it
+        if (running) {
+            frame->cleanup_paused = false;
         }
-        // A click sets the speed to 0: the motors stop, the cleanup stays
-        snprintf(screen->softkey_right, MENU_TEXT, "%s", fault ? "OK" : (running ? "Pause" : ""));
+        bool paused = !fault && cleanup_is_paused(frame, &cleanup);
+        if (!fault && !paused) {
+            frame->softkey = 1;
+        }
+        snprintf(screen->softkey_right, MENU_TEXT, "%s", fault ? "OK" : (paused ? "Run" : "Pause"));
+        screen->softkey_focus = frame->softkey;
         return;
     }
 
@@ -1829,8 +1921,10 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         snprintf(screen->unit, sizeof(screen->unit), "%%");
     }
     snprintf(screen->context, MENU_TEXT, "Keep the power on");
-    // Back stops it until it installs
-    snprintf(screen->softkey_left, MENU_TEXT, "%s", update.state != UPDATE_INSTALLING ? "Stop" : "");
+    // Stop, its one softkey, focused, until it installs
+    bool stoppable = update.state != UPDATE_INSTALLING;
+    snprintf(screen->softkey_left, MENU_TEXT, "%s", stoppable ? "Stop" : "");
+    screen->softkey_focus = (int8_t) (stoppable ? 0 : -1);
 }
 
 
@@ -1838,6 +1932,7 @@ void menu_nav_screen(menu_screen_t *screen) {
     memset(screen, 0, sizeof(*screen));
     screen->kind = MENU_SCREEN_LIST;
     screen->focus = -1;
+    screen->softkey_focus = -1;
     screen->version = screen_version;
     frame_t *frame = top();
     switch (frame->kind) {

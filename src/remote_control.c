@@ -286,14 +286,17 @@ static void remote_control_screen_lines(const menu_screen_t *screen, remote_cont
             break;
         case MENU_SCREEN_EDIT:
         case MENU_SCREEN_JOB:
-            snprintf(line, sizeof(line), "@figure \"%s\" unit=\"%s\" at=%d line=\"%s\"%s", screen->figure,
-                     screen->unit, (int) screen->edit_at, screen->context, screen->context_bold ? " bold" : "");
+            snprintf(line, sizeof(line), "@figure \"%s\" unit=\"%s\" at=%d%s line=\"%s\"%s", screen->figure,
+                     screen->unit, (int) screen->edit_at, screen->editing ? " editing" : "", screen->context,
+                     screen->context_bold ? " bold" : "");
             write(line, write_ctx);
             break;
     }
     if (screen->softkey_left[0] != '\0' || screen->softkey_right[0] != '\0') {
-        snprintf(line, sizeof(line), "@softkeys left=\"%s\" right=\"%s\"", screen->softkey_left,
-                 screen->softkey_right);
+        const char *focused = screen->softkey_focus == 0 ? " focus=left" :
+                              (screen->softkey_focus == 1 ? " focus=right" : "");
+        snprintf(line, sizeof(line), "@softkeys left=\"%s\" right=\"%s\"%s", screen->softkey_left,
+                 screen->softkey_right, focused);
         write(line, write_ctx);
     }
 }

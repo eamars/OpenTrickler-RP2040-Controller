@@ -680,3 +680,31 @@ right. Otherwise the page will look unorganized."
 - **Proven on the Pico W:** Wi-Fi reads Joined / IP / Name with the name under it / Signal, Firmware Version /
   Update / Board / Unit / Build, each value at the right; `menu_tour --compare` (the screen not inverted for the
   run) and `charge_cycle` pass. The Wi-Fi and Firmware pages saved again as the baseline.
+
+## Every element on screen reached by the knob (2026-11-17)
+
+The owner: some Cancel buttons were "not selectable, for example from charge, and cleanup menu. I need you to scan
+through the pages and ensure every UI element is actually clickable." The scan (the code, with the turns on the unit
+from the earlier one): every list row, title and notes' button was reached; the left softkey was not, on seven
+screens: the three dialogs (the cup before a charge and a cleanup, the factory reset), the target's editor, and a
+running charge, cleanup and update. Only the reset button worked them.
+
+- **Built, as the owner chose:**
+  - Softkeys are focused like rows: the knob moves between them, the focused one is drawn in reverse, a click does
+    it. A dialog opens on its action; the factory reset on Cancel. A message's OK is focused.
+  - A running charge focuses each new action as it appears (Zero, Change, OK); with none, while it pours, Stop.
+  - A cleanup starts paused, on Run (1 rev/s). Running, the turn sets the speed, through 0 into reverse, and a click
+    pauses it, keeping the speed for Run; paused, the knob moves between Stop and Run. Its hints ("Turn the knob for
+    speed", "... to run") went, by the owner's rule against teaching the controls.
+  - The update's one softkey, Stop, is focused and a click stops it, until it installs.
+  - The editor as the old menu's (MUI's "mud" fields): the turn moves the focus over the digits, then Cancel and Set;
+    a click on a digit starts setting it (drawn in reverse, the turn its value), a second click ends that. Back ends
+    a digit's setting, or leaves the value unchanged.
+  - The console's `@softkeys` gives `focus=left|right`, the editor's `@figure` `editing`; the mock-up draws the
+    focused softkey.
+- **Proven on the Pico W, each by the knob from the console:** the factory reset opens on Cancel, a turn reaches
+  Erase and back, Cancel leaves it with nothing erased; the charge's cup check opens on Start, Cancel reached and
+  done; the target set to 30.00 through the editor; a charge started, Zero focused, Stop reached, and while pouring
+  Stop focused and a click stopped it; a cleanup Run at 1, turned to 2 and through 0 to -1, paused, Stop and Run
+  reached, Run resumed at -1, paused, stopped by Stop. The update's Stop was not driven (no local OTA server running).
+  `menu_tour --compare`: the three dialogs differ, as meant, and are saved again; `charge_cycle` passes.

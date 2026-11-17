@@ -72,11 +72,14 @@ typedef struct {
     char unit[8];
     char context[MENU_TEXT];
     bool context_bold;                      // a verdict, not a fact
-    int8_t edit_at;                         // -1 on a job
+    int8_t edit_at;                         // -1 on a job, and on the editor while a softkey has the focus
 
-    // The softkeys: what Back does, what a click does ("" for nothing)
+    // The softkeys: Back's at the left, the action at the right ("" for none). The focused one, which a click does:
+    // 0 the left, 1 the right, -1 neither (the editor while a digit has the focus)
     char softkey_left[MENU_TEXT];
     char softkey_right[MENU_TEXT];
+    int8_t softkey_focus;
+    bool editing;                           // the editor: the digit at edit_at is being set
 
     // The marks on every screen (menu_design.md, "Status on every screen")
     bool mark_station;                      // joined a network

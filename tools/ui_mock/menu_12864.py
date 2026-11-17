@@ -201,21 +201,25 @@ def dense(panel, items, at="top"):
     scrollbar(panel, first, shown, len(lines))
 
 
-def softkeys(panel, left, right):
+def softkeys(panel, left, right, focus="right"):
     """
-    The bottom row's softkeys.
+    The bottom row's softkeys, each a box as wide as its text and 3 px each side; the focused one in reverse.
 
     Args:
         panel: the Panel.
         left: what Back does, or "".
-        right: what a click does, or "".
+        right: the screen's action, or "".
+        focus: "left", "right" or None, the softkey the knob has focused.
     """
-    if left:
-        panel.text(TEXT, 1, SOFTKEY_BASE, left)
-    if right:
-        width = TEXT.width(right)
-        panel.rect(W - width - 6, SOFTKEY_TOP, width + 6, H - SOFTKEY_TOP)
-        panel.text(TEXT, 0, SOFTKEY_BASE, right, lit=False, align="right", right=W - 3)
+    for text, at_left in ((left, True), (right, False)):
+        if not text:
+            continue
+        width = TEXT.width(text) + 6
+        x = 0 if at_left else W - width
+        focused = focus == ("left" if at_left else "right")
+        if focused:
+            panel.rect(x, SOFTKEY_TOP, width, H - SOFTKEY_TOP)
+        panel.text(TEXT, x + 3, SOFTKEY_BASE, text, lit=not focused)
 
 
 def figure(panel, value, unit, base=FIGURE_BASE):
@@ -289,29 +293,29 @@ def screens():
 
     p = Panel(); title(p, "Charging", sim=True)
     figure(p, "20.08", "gr"); context(p, "of 30.00")
-    softkeys(p, "Stop", "")
+    softkeys(p, "Stop", "", focus="left")
     add(p, "Charge: charging (simulated scale)")
 
     p = Panel(); title(p, "Lift the cup")
     figure(p, "30.00", "gr"); context(p, "Good", bold=True)
-    softkeys(p, "Stop", "Target")
+    softkeys(p, "Stop", "Change")
     add(p, "Charge: the throw done")
 
     p = Panel(); title(p, "Put the cup back")
     figure(p, "30.04", "gr"); context(p, "Over by 0.04", bold=True)
-    softkeys(p, "Stop", "Target")
+    softkeys(p, "Stop", "Change")
     add(p, "Charge: cup away, the throw kept")
 
     p = Panel(); title(p, "Cleanup: running")
-    figure(p, "2.0", "rev/s"); context(p, "Turn the knob for speed")
+    figure(p, "2.0", "rev/s")
     softkeys(p, "Stop", "Pause")
     add(p, "Cleanup")
 
     p = Panel(); title(p, "Target")
     x, _ = figure(p, "030.00", "gr")
     p.rect(x + FIGURE.width("0"), FIGURE_BASE + 3, FIGURE.width("3") - 1, 2)
-    softkeys(p, "Cancel", "Next")
-    add(p, "Setting the target")
+    softkeys(p, "Cancel", "Set", focus=None)
+    add(p, "The target: a digit focused")
 
     p = Panel(); title(p, "Scale", back=True)
     rows(p, [("Reading", "30.02 gr", False), ("Zero", "", False), ("Make", "A&D FX-i", True),
@@ -336,12 +340,12 @@ def screens():
 
     p = Panel(); title(p, "Downloading 9.0.1")
     figure(p, "62", "%"); context(p, "Keep the power on")
-    softkeys(p, "Stop", "")
+    softkeys(p, "Stop", "", focus="left")
     add(p, "The update downloading")
 
     p = Panel(); title(p, "Factory reset")
     message(p, "Erase every setting?", "It cannot be undone")
-    softkeys(p, "Cancel", "Erase")
+    softkeys(p, "Cancel", "Erase", focus="left")
     add(p, "Factory reset")
     return out, caps
 

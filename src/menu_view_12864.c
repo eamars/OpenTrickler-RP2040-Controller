@@ -9,7 +9,7 @@
               a card or notes: lines of 11 px (the text's 10 and 1), notes ending in their button; a scroll bar
               a dialog: two lines centred, on baselines 29 and 40
               the editor and a job: the figure and its unit on baseline 38, a line under it on 49
-      53-63   the softkeys: Back's at the left, plain; a click's at the right, in reverse
+      53-63   the softkeys: Back's at the left, the action at the right; the focused one in reverse
     Every text is placed by its baseline, so the faces' heights decide nothing else.
 */
 #include <stdio.h>
@@ -60,7 +60,10 @@ static lv_obj_t *view_message[2];
 static lv_obj_t *view_figure;
 static lv_obj_t *view_unit;
 static lv_obj_t *view_cursor;
+static lv_obj_t *view_edit_box;                 // the editor's digit being set, in reverse
+static lv_obj_t *view_edit_digit;
 static lv_obj_t *view_context;
+static lv_obj_t *view_softkey_left_box;
 static lv_obj_t *view_softkey_left;
 static lv_obj_t *view_softkey_box;
 static lv_obj_t *view_softkey_right;
@@ -214,14 +217,16 @@ void menu_view_init(lv_display_t *display) {
     view_figure = view_label(screen, &menu_font_figure, LV_TEXT_ALIGN_LEFT);
     view_unit = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
     view_cursor = view_box(screen, 0, VIEW_FIGURE_BASE + 3, 8, 2, true);
+    view_edit_box = view_box(screen, 0, 0, 8, 8, true);
+    view_edit_digit = view_label(view_edit_box, &menu_font_figure, LV_TEXT_ALIGN_CENTER);
+    lv_obj_set_style_text_color(view_edit_digit, lv_color_black(), 0);
     view_context = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
     view_place(view_context, 0, VIEW_W, VIEW_CONTEXT_BASE);
 
-    view_softkey_left = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
-    view_place(view_softkey_left, 1, 60, VIEW_SOFTKEY_BASE);
-    view_softkey_box = view_box(screen, 64, VIEW_SOFTKEY_TOP, 64, VIEW_H - VIEW_SOFTKEY_TOP, true);
+    view_softkey_left_box = view_box(screen, 0, VIEW_SOFTKEY_TOP, 64, VIEW_H - VIEW_SOFTKEY_TOP, false);
+    view_softkey_left = view_label(view_softkey_left_box, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
+    view_softkey_box = view_box(screen, 64, VIEW_SOFTKEY_TOP, 64, VIEW_H - VIEW_SOFTKEY_TOP, false);
     view_softkey_right = view_label(view_softkey_box, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
-    lv_obj_set_style_text_color(view_softkey_right, lv_color_black(), 0);
 
     menu_nav_set_text_width(view_measure, VIEW_LINE_WIDTH, VIEW_LINES);
 }
@@ -352,7 +357,7 @@ static void view_dialog(const menu_screen_t *screen) {
 }
 
 
-// The figure and its unit, centred together; the editor's digit underlined
+// The figure and its unit, centred together; the editor's focused digit underlined, in reverse while it is set
 static void view_figure_and_unit(const menu_screen_t *screen) {
     int figure_w = view_text_width(screen->figure, strlen(screen->figure), &menu_font_figure);
     int unit_w = screen->unit[0] != '\0' ? view_text_width(screen->unit, strlen(screen->unit), &menu_font_regular) + 2
@@ -362,30 +367,49 @@ static void view_figure_and_unit(const menu_screen_t *screen) {
     view_place(view_figure, x, figure_w + 2, VIEW_FIGURE_BASE);
     view_text(view_unit, screen->unit);
     view_place(view_unit, x + figure_w + 2, unit_w + 2, VIEW_FIGURE_BASE);
-    bool editing = screen->kind == MENU_SCREEN_EDIT && screen->edit_at >= 0;
-    view_show(view_cursor, editing);
-    if (editing) {
+    bool focused = screen->kind == MENU_SCREEN_EDIT && screen->edit_at >= 0;
+    bool setting = focused && screen->editing;
+    view_show(view_cursor, focused && !setting);
+    view_show(view_edit_box, setting);
+    if (focused) {
         int at = view_text_width(screen->figure, (size_t) screen->edit_at, &menu_font_figure);
         int digit = (int) lv_font_get_glyph_width(&menu_font_figure, (uint32_t) screen->figure[screen->edit_at], 0);
         lv_obj_set_pos(view_cursor, x + at, VIEW_FIGURE_BASE + 3);
         lv_obj_set_width(view_cursor, digit - 1);
+        if (setting) {
+            // The digit again, dark on a lit box a pixel wider each side, from the figure's top to under its base
+            char one[2] = {screen->figure[screen->edit_at], 0};
+            int top = view_top(&menu_font_figure, VIEW_FIGURE_BASE);
+            lv_obj_set_pos(view_edit_box, x + at - 1, top);
+            lv_obj_set_size(view_edit_box, digit + 1, VIEW_FIGURE_BASE + 3 - top);
+            view_text(view_edit_digit, one);
+            view_place(view_edit_digit, 0, digit + 1, VIEW_FIGURE_BASE - top);
+        }
     }
     view_font(view_context, screen->context_bold ? &menu_font_bold : &menu_font_regular);
     view_text(view_context, screen->context);
 }
 
 
-static void view_softkeys(const menu_screen_t *screen) {
-    view_text(view_softkey_left, screen->softkey_left);
-    bool right = screen->softkey_right[0] != '\0';
-    view_show(view_softkey_box, right);
-    if (right) {
-        int width = view_text_width(screen->softkey_right, strlen(screen->softkey_right), &menu_font_regular) + 6;
-        lv_obj_set_pos(view_softkey_box, VIEW_W - width, VIEW_SOFTKEY_TOP);
-        lv_obj_set_width(view_softkey_box, width);
-        view_text(view_softkey_right, screen->softkey_right);
-        view_place(view_softkey_right, 0, width, VIEW_SOFTKEY_BASE - VIEW_SOFTKEY_TOP);
+// One softkey: its box as wide as its text and 3 px each side, at the left or the right edge, in reverse if focused
+static void view_softkey(lv_obj_t *box, lv_obj_t *label, const char *text, bool at_left, bool focused) {
+    bool shown = text[0] != '\0';
+    view_show(box, shown);
+    if (!shown) {
+        return;
     }
+    int width = view_text_width(text, strlen(text), &menu_font_regular) + 6;
+    lv_obj_set_pos(box, at_left ? 0 : VIEW_W - width, VIEW_SOFTKEY_TOP);
+    lv_obj_set_width(box, width);
+    view_text(label, text);
+    view_place(label, 0, width, VIEW_SOFTKEY_BASE - VIEW_SOFTKEY_TOP);
+    view_reverse(box, focused, label, NULL, NULL);
+}
+
+
+static void view_softkeys(const menu_screen_t *screen) {
+    view_softkey(view_softkey_left_box, view_softkey_left, screen->softkey_left, true, screen->softkey_focus == 0);
+    view_softkey(view_softkey_box, view_softkey_right, screen->softkey_right, false, screen->softkey_focus == 1);
 }
 
 
@@ -417,9 +441,10 @@ void menu_view_draw(const menu_screen_t *screen) {
     view_show(view_context, figure);
     if (!figure) {
         view_show(view_cursor, false);
+        view_show(view_edit_box, false);
     }
-    view_show(view_softkey_left, dialog || figure);
     if (!dialog && !figure) {
+        view_show(view_softkey_left_box, false);
         view_show(view_softkey_box, false);
     }
 
