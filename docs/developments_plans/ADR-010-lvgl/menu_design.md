@@ -141,7 +141,7 @@ When a job was not started from the knob, its screen's state line also says who 
 
 The owner, at the unit, on finding the servo gate gone: "My original ask from the beginning of the ADR-010 was: are there any feature from web should be ported to the screen. And it ended up with some menus being removed?? It doesn't make sense at all. I want you to take the RIGHT approach here, survey WHAT should, or can be duplicated from the web to the front screen. Context: Not everyone use screen and web at the same time, it would be easy if both settings are configurable from both front screen and web. If the removal is for memory size, then I need data as justification. I don't want MVP here. This ADR is the final display refactor, so nothing to be left for the future."
 
-**The rule.** Every setting and every action the web has is on the screen too. Only measured data or the hardware leaves one off, and each such case is named below with its reason. This replaces the "web only" lists under "What leaves the screen".
+**The rule.** Every setting and every action the web has is on the screen too. Only measured data or the hardware leaves one off, and each such case is named below with its reason. This replaces the "web only" lists under "What leaves the screen". *Narrowed by the owner the same day (below, "Needed at the unit, and can be changed there"): on the screen when needed at the unit and changed there in a few actions.*
 
 **How.** The screen's settings pages are made from the settings tables (`settings.h`), the tables the API, the schema, the export and the web's forms are already made from:
 - a resource is a page, a field a row, and the field's type its editor: a boolean a toggle, a choice a list, an integer or a number the number editor within its limits, a string the text editor, a colour the colour editor;
@@ -211,6 +211,96 @@ The owner, at the unit, on finding the servo gate gone: "My original ask from th
 5. **The weight's chart:** settled on the mock (the owner). A small chart of the throw on the charge's screen is possible (a 128 by 40 canvas, 640 bytes), but it competes with the figure read from 50 cm; the mock draws the screen with it and without it.
 
 Then the look of each new page and editor is mocked and settled before it is built (design gates before build gates): [mockups/parity_12864.png](mockups/parity_12864.png), drawn by `tools/ui_mock/parity_12864.py`. The mock found three labels too long beside their value ("Back-off speed", "Minimum speed", "Sense resistor"): a short label goes into the tables (and so the schema) where a group already says the rest ("Speed" under Coarse stop). A colour is a page of three numbers, red, green and blue, each set by the number editor: as one figure it does not fit.
+
+### Needed at the unit, and can be changed there (the owner, 2026-11-17)
+
+The owner, on that mock: "No this is no good. Like the one is bad UI design" (the number editor's screen: a whole screen for one value, its digit's mark running into the line of limits under it). "Also you only mocked up the UI, but never though about HOW a human can adjust, how many click the human need to adjust. If a setting is too hard to adjust, then that's a bad design. And I noticed bad designs already from the mockup. Then, I need you to be able tell: What needed to be adjusted on screen. What can be adjusted on screen. This determines what should be implemented on the screen."
+
+So the rule above is narrowed: **a setting is on the screen when it is needed at the unit and a person can change it there in a few actions.** Every setting stays on the web.
+
+**Needed at the unit** means one of:
+- **S, a session:** used at the bench while charging or cleaning up;
+- **W, the unit working without the web:** what a person with no phone needs to get the unit, its scale, its screen and its gate working, or to restore it.
+
+The rest is **T, tuning and building:** set once, against the throws' figures and charts the web shows, or by ADR-009's tuning.
+
+**What a change costs:** every detent and every click is one action, counted from the main menu at rest (`tools/ui_mock/knob_cost.py` computes it). Every value is edited **in place in its row**, with no editor screen, as the cleanup's speed:
+- a toggle: a click;
+- a choice: a click, the turn through the choices in the row (wrapping, so the shorter way), a click;
+- a stepped number: a click, a step a detent, a click; the field's description gives the screen's step;
+- the target's digits (the one value with a wide range and a fine resolution): the turn selects a digit, a click sets it, the turn sets its value, a click ends it, then the turn to Set and a click;
+- text: a click on "+", the turn through some 70 characters, a click, for each character.
+
+| What | Need | Method | The change | To reach | To change | In all |
+|---|---|---|---|---|---|---|
+| Target, a small change | S | digits | 30.00 to 30.10 | 2 | 10 | 12 |
+| Target, a new load | S | digits | 24.35 to 42.00 | 2 | 27 | 29 |
+| Powder (8 profiles) | S | choice | 1 to 5 | 3 | 6 | 9 |
+| Start a charge | S | action |  | 1 | 2 | 3 |
+| Zero, in a charge | S | action |  | 0 | 1 | 1 |
+| Stop, in a charge or cleanup | S | action |  | 0 | 1 | 1 |
+| Cleanup's speed | S | step 1 rev/s | 0 to 3 rev/s | 3 | 5 | 8 |
+| Cleanup's gate, open or closed | S | toggle |  | 4 | 1 | 5 |
+| Cleanup's zero | S | action |  | 5 | 1 | 6 |
+| Scale's make (9) | W | choice | A&D to Sartorius | 6 | 4 | 10 |
+| Scale's baud rate (3) | W | choice | 19200 to 9600 | 7 | 3 | 10 |
+| Scale's frame format (2) | W | choice | 8N1 to 7N1 | 8 | 3 | 11 |
+| Decimals (2) | W | choice | 2 to 3 | 9 | 3 | 12 |
+| Invert knob | W | toggle |  | 6 | 1 | 7 |
+| Invert screen | W | toggle |  | 7 | 1 | 8 |
+| Rotation (2) | W | choice |  | 8 | 3 | 11 |
+| Backlight colour (8 named) | W | choice | white to green | 9 | 5 | 14 |
+| Servo gate on | W | toggle |  | 7 | 1 | 8 |
+| Servo gate open, close | W | action |  | 8 | 1 | 9 |
+| A shutter's end (the servo moves live) | W | step 0.001 | 0.050 to 0.055 | 10 | 7 | 17 |
+| A motor's direction | W | toggle |  | 8 | 1 | 9 |
+| Update channel (2) | W | choice |  | 9 | 3 | 12 |
+| Restart | W | action |  | 9 | 1 | 10 |
+| Factory reset (opens on Cancel) | W | action |  | 10 | 3 | 13 |
+| Wi-Fi on or off | W | toggle |  | 3 | 1 | 4 |
+| Fine stop threshold | T | step 0.01 gr | 0.03 to 0.05 | 14 | 4 | 18 |
+| Coarse stop threshold | T | step 0.1 gr | 5.0 to 3.0 | 13 | 22 | 35 |
+| Back-off turns | T | step 0.125 | 0.25 to 0.5 | 16 | 4 | 20 |
+| Precharge time | T | step 50 ms | 1000 to 1500 ms | 16 | 12 | 28 |
+| A motor's current | T | step 50 mA | 400 to 600 mA | 10 | 6 | 16 |
+| A profile's Kp (digits) | T | digits | 0.0250 to 0.0300 | 17 | 17 | 34 |
+| A profile's name | T | text | AR2209 | 15 | 131 | 146 |
+| Wi-Fi network, picked from a scan | W | choice | the 2nd found | 15 | 3 | 18 |
+| Wi-Fi key, 12 characters | W | text | Trickle-2024 | 16 | 180 | 196 |
+| Update source, a URL | T | text | http://192.168.2.13:8080/a/b | 10 | 361 | 371 |
+
+**What it shows:**
+- Everything needed in a session, or to get the unit working without the web, costs 1 to 17 actions, but a new load's target (29): a choice, a toggle, an action or a few steps, never deeper than three levels.
+- Text costs 131 to 371 actions: a profile's name, the Wi-Fi key, the update's source. That is too hard, so **no text is typed at the knob**, which reverses the earlier "text by the knob for every string".
+- The tuning values can be changed (16 to 35 actions), but are not needed at the unit.
+
+**Needed at the unit, and can be changed there: on the screen.**
+- **In a session:** the target, the powder, start, stop and zero; the cleanup's speed, gate, zero and stop; the views of the charge (the powder, its time, the throw's number) and of the cleanup (the weight, the flow, the gate).
+- **To work without the web:**
+  - the scale's make, baud rate and frame format, and the decimals;
+  - the display's knob, screen and rotation, and the backlight's colour, from 8 named colours (the screen's contrast is the backlight's);
+  - the servo gate on or off, its Open and Close, and its shutters' ends, set while the servo moves (at the unit, looking at the gate, is where they are best set);
+  - a motor's direction (a motor wired the other way);
+  - the update's channel, Restart, Factory reset;
+  - Wi-Fi on or off, and Wi-Fi's state with the reason a join failed.
+
+**Not needed at the unit: on the web only.**
+- **Tuning:** the charge's thresholds, margins, back-off, precharge and verdict colours; the profiles' gains and speeds; the gate's speeds. They are tuned against what the web shows, and by ADR-009.
+- **Building:** a motor's steps, current, microsteps, speeds, acceleration, sense resistor, gear ratio and enable's sense; the LEDs 1 and 2 and the PWM3 chain; Wi-Fi's join timeout.
+- **Needed only to reach the web, and too hard by the knob:** Wi-Fi's network, key and security. The unit's own access point serves the web without them (ADR-015, commissioning).
+- **A developer's, and too hard:** the update's source.
+
+**Bad designs the cost found in the mock:**
+- the number editor's own screen: every value is now edited in its row;
+- four levels deep (Settings › Powder profiles › a profile › Coarse trickler › Kp; Settings › Motors › Coarse › Driver › Current): the tuning pages are not on the screen;
+- a colour as three numbers of 0 to 255: a choice of named colours instead;
+- the text editor: no text at the knob;
+- the cleanup's Stop below the fold, three turns away: it stays a softkey, as the charge's.
+
+**To settle (the owner):** the borderlines between "needed" and "not":
+- the fine and coarse stop thresholds, which a person who only uses the screen sees the effect of ("Over by 0.04") and has no other way to change: 18 and 35 actions;
+- the profiles' names, which a person who only uses the screen cannot set. A choice from a list of known powders (by maker, then powder) costs about 15 actions, where typing costs 146;
+- a motor's current: 16 actions.
 
 ## What leaves the screen, and where it goes
 
