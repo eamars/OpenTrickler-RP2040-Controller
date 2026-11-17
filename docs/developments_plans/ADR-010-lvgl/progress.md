@@ -752,3 +752,22 @@ the charge mode, every call to hello should trigger the animation, regardless of
   numbers in filler are left to ADR-006.
 - **Proven on the Pico W:** the schema's new keys; the mend at the first start and none at the next, `saved` true;
   `api_check`, `settings_roundtrip`, `menu_tour --compare`, `charge_cycle` pass. The web test's recording made again.
+
+## Gate 6, step 2: rows from the tables, set in place (2026-11-17)
+
+- **Built:**
+  - A row names a setting by its path and name; its label, its words and its choices come from the table (the
+    short ones), unless the row gives its own.
+  - **A choice is set in its row:** a click, the turn through the offered choices (wrapping), a click stores it;
+    Back leaves it as it was. The choice page (`FRAME_CHOICE`) is gone.
+  - **A number is stepped in its row** (`ROW_STEP`, by its field's `edit_step`): each detent written live through
+    the API's checks, not stored; a click stores it, Back writes back the value it had. `settings_write` and
+    `settings_store` split the screen's write-and-save in two.
+  - The value being set is drawn in reverse, hugging its text, in its plain row; the console's `@row` marks it
+    `editing`.
+  - The scale's frame format joins Settings › Scale; Settings › Charge holds the fine and coarse stop.
+- **Proven on the Pico W, by the knob from the console, the API read after each:** the baud rate turned to 4800 and
+  backed out, nothing stored; the frame format stored as 7N1 and put back; the fine stop stepped to 0.05 live
+  (`saved` false), stored by the click (`saved` true), then a detent and Back put 0.05 back, and 0.03 restored; the
+  coarse stop stepped and backed out, 5.0 kept. `menu_tour`: Settings, Settings › Charge (new), Display (Rotation's
+  ">" gone) and Scale saved again; `charge_cycle` and `api_check` pass. Flash 972.5 KB of 1,016.

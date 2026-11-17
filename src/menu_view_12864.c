@@ -183,6 +183,20 @@ static void view_reverse(lv_obj_t *box, bool reverse, lv_obj_t *a, lv_obj_t *b, 
 }
 
 
+// A value being set in place: in reverse in its plain row, a pixel of lit room at each side
+static void view_value_reverse(lv_obj_t *value, bool reverse) {
+    lv_opa_t opa = reverse ? LV_OPA_COVER : LV_OPA_TRANSP;
+    if (lv_obj_get_style_bg_opa(value, 0) != opa) {
+        lv_obj_set_style_bg_opa(value, opa, 0);
+        lv_obj_set_style_bg_color(value, lv_color_white(), 0);
+        lv_obj_set_style_pad_right(value, reverse ? 2 : 0, 0);
+    }
+    if (reverse && !lv_color_eq(lv_obj_get_style_text_color(value, 0), lv_color_black())) {
+        lv_obj_set_style_text_color(value, lv_color_black(), 0);
+    }
+}
+
+
 // --- The objects
 
 void menu_view_init(lv_display_t *display) {
@@ -303,12 +317,20 @@ static void view_list(const menu_screen_t *screen) {
         int more_w = screen->row_opens[row] ? view_text_width(">", 1, &menu_font_regular) + 3 : 0;
         view_show(view_row_more[idx], screen->row_opens[row]);
         view_place(view_row_more[idx], edge - 10, 10, 9);
-        view_place(view_row_value[idx], 40, edge - 40 - more_w, 9);
         int value_w = view_text_width(screen->row_value[row], strlen(screen->row_value[row]), &menu_font_regular);
+        bool setting = row == screen->focus && screen->editing;
+        // A value being set is as wide as its text and 2 px each side, so its reverse hugs it
+        if (setting) {
+            view_place(view_row_value[idx], edge - more_w - value_w - 3, value_w + 4, 9);
+        }
+        else {
+            view_place(view_row_value[idx], 40, edge - 40 - more_w, 9);
+        }
         view_place(view_row_label[idx], VIEW_MARGIN, edge - VIEW_MARGIN - more_w - (value_w > 0 ? value_w + 3 : 0),
                    9);
-        view_reverse(view_rows[idx], row == screen->focus, view_row_label[idx], view_row_value[idx],
-                     view_row_more[idx]);
+        view_reverse(view_rows[idx], row == screen->focus && !setting, view_row_label[idx],
+                     setting ? NULL : view_row_value[idx], view_row_more[idx]);
+        view_value_reverse(view_row_value[idx], setting);
     }
     view_scrollbar(view_first, VIEW_ROWS, screen->row_count);
 }

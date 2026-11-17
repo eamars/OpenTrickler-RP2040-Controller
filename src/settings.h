@@ -130,6 +130,11 @@ const setting_field_t *settings_field(const char *path, const char *name);
 bool settings_read_text(const char *path, const char *name, char *out, size_t room);
 const char *settings_write_and_save(const char *path, const char *name, const char *value);
 
+// The same write, live and not stored (a value set in place, a detent at a time: ADR-010, gate 6); and the store of
+// a path's resource, if it changed. NULL when done, else why not
+const char *settings_write(const char *path, const char *name, const char *value);
+const char *settings_store(const char *path);
+
 #ifdef __cplusplus
 }
 #endif

@@ -46,14 +46,15 @@ typedef struct menu_page menu_page_t;
 typedef enum {
     ROW_PAGE,       // opens a page
     ROW_ACTION,     // does something
-    ROW_CHOICE,     // one of a list, which it opens
-    ROW_NUMBER,     // a number, which the editor sets
+    ROW_CHOICE,     // one of a list, set in its row: a click, the turn through the choices, a click
+    ROW_NUMBER,     // a number, which the editor sets: the target
+    ROW_STEP,       // a setting's number, stepped in its row by its field's edit_step, live, stored at the click
     ROW_TOGGLE,     // on or off, flipped by a click
     ROW_INFO,       // read only
 } row_kind_t;
 
 struct menu_row {
-    const char *label;
+    const char *label;                                                      // NULL: the setting's, from its table
     row_kind_t kind;
     const menu_page_t *page;                                                // ROW_PAGE
     void (*value)(const menu_row_t *row, char *out, size_t room);           // the value at the right; NULL: none
@@ -91,7 +92,6 @@ struct menu_page {
 
 typedef enum {
     FRAME_PAGE,
-    FRAME_CHOICE,
     FRAME_EDIT,
     FRAME_MESSAGE,
     FRAME_JOB,
@@ -100,7 +100,7 @@ typedef enum {
 typedef struct {
     frame_kind_t kind;
     const menu_page_t *page;            // FRAME_PAGE
-    const menu_row_t *row;              // FRAME_CHOICE, FRAME_EDIT: the row it sets
+    const menu_row_t *row;              // FRAME_EDIT: the row it sets
     int8_t focus;                       // a shown row's index; -1 the title, which is Back
     uint8_t digits[MENU_EDIT_DIGITS];   // FRAME_EDIT: most significant first
     uint8_t decimals;
@@ -112,7 +112,10 @@ typedef struct {
     // a click does the focused one (the owner: every element on screen is reached by the knob)
     int8_t softkey;
     bool editing;                       // FRAME_EDIT: the focused digit is being set; digit_at past the digits is a
-                                        // softkey (MENU_EDIT_DIGITS the left, the next the right)
+                                        // softkey (MENU_EDIT_DIGITS the left, the next the right). FRAME_PAGE: the
+                                        // focused row's value is being set in place
+    int8_t edit_choice;                 // FRAME_PAGE, a choice being set: the one shown
+    char edit_was[16];                  // FRAME_PAGE, a number being set: its value before, for Back
     uint8_t action_seen;                // FRAME_JOB, the charge: its action when last drawn, so a new one is focused
     bool cleanup_paused;                // FRAME_JOB, the cleanup: paused by a click (or not yet run)
     float cleanup_speed;                // FRAME_JOB, the cleanup: the speed Run resumes at
@@ -201,6 +204,12 @@ static void push_message(const char *title, const char *line1, const char *line2
 
 // --- A setting's choices and toggles: read and written through settings.c, the API's own checks
 
+// A choice as the screen writes it: its short label where it has one
+static const char *choice_text(const setting_choice_t *choice) {
+    return choice->short_label != NULL ? choice->short_label : choice->label;
+}
+
+
 static int setting_choice_now(const menu_row_t *row) {
     const setting_field_t *field = settings_field(row->path, row->name);
     char text[24];
@@ -245,7 +254,7 @@ static const char *row_choice_label(const menu_row_t *row, int idx) {
     if (row->offered != NULL && !row->offered(&field->choices[idx])) {
         return NULL;
     }
-    return field->choices[idx].label;
+    return choice_text(&field->choices[idx]);
 }
 
 
@@ -277,6 +286,22 @@ static const char *row_choose(const menu_row_t *row, int idx) {
 static bool setting_is_on(const menu_row_t *row) {
     char text[8];
     return settings_read_text(row->path, row->name, text, sizeof(text)) && strcmp(text, "true") == 0;
+}
+
+
+// A row's label: its own, or its setting's from the table (the short one where it has one)
+static const char *row_label(const menu_row_t *row) {
+    if (row->label_now != NULL) {
+        return row->label_now();
+    }
+    if (row->label != NULL) {
+        return row->label;
+    }
+    const setting_field_t *field = settings_field(row->path, row->name);
+    if (field == NULL) {
+        return "?";
+    }
+    return field->short_label != NULL ? field->short_label : field->label;
 }
 
 
@@ -788,12 +813,37 @@ static bool offered_rotation(const setting_choice_t *choice) {
 static void value_setting_choice(const menu_row_t *row, char *out, size_t room) {
     int idx = setting_choice_now(row);
     const setting_field_t *field = settings_field(row->path, row->name);
-    snprintf(out, room, "%s", field != NULL && idx >= 0 ? field->choices[idx].label : "?");
+    snprintf(out, room, "%s", field != NULL && idx >= 0 ? choice_text(&field->choices[idx]) : "?");
 }
 
 
 static void value_setting_toggle(const menu_row_t *row, char *out, size_t room) {
-    snprintf(out, room, "%s", setting_is_on(row) ? "On" : "Off");
+    const setting_field_t *field = settings_field(row->path, row->name);
+    bool on = setting_is_on(row);
+    const char *word = field != NULL ? (on ? field->on_label : field->off_label) : NULL;
+    snprintf(out, room, "%s", word != NULL ? word : (on ? "On" : "Off"));
+}
+
+
+// A stepped number's decimals: as many as its step has
+static int step_decimals(float step) {
+    return step >= 0.999f ? 0 : (step >= 0.0999f ? 1 : (step >= 0.00999f ? 2 : 3));
+}
+
+
+static const char *unit_text(void);
+
+static void value_setting_step(const menu_row_t *row, char *out, size_t room) {
+    const setting_field_t *field = settings_field(row->path, row->name);
+    char text[16];
+    if (field == NULL || !settings_read_text(row->path, row->name, text, sizeof(text))) {
+        snprintf(out, room, "?");
+        return;
+    }
+    // A weight's unit is the scale's, as the charge shows it
+    bool weight = field->unit != NULL && strcmp(field->unit, "weight") == 0;
+    snprintf(out, room, "%.*f%s%s", step_decimals(field->edit_step), (double) strtof(text, NULL),
+             weight && unit_text()[0] != '\0' ? " " : "", weight ? unit_text() : "");
 }
 
 
@@ -843,23 +893,30 @@ static const menu_page_t page_wifi = {.kind = PAGE_CARD, .id = "wifi", .title = 
 static const menu_row_t rows_scale[] = {
     {.label = "Reading", .kind = ROW_INFO, .value = value_reading},
     {.label = "Zero", .kind = ROW_ACTION, .act = act_zero},
-    {.label = "Make", .kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/scale", .name = "driver",
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/scale", .name = "driver",
      .offered = offered_make},
-    {.label = "Baud rate", .kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/scale",
-     .name = "baud"},
-    {.label = "Decimals", .kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/charge",
-     .name = "decimal_places"},
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/scale", .name = "baud"},
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/scale", .name = "format"},
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/charge", .name = "decimal_places"},
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
-static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale", .rows = rows_scale, .row_count = 6};
+static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale", .rows = rows_scale, .row_count = 7};
+
+// The charge's two stop thresholds: what a person who only uses the screen sees the effect of (the owner)
+static const menu_row_t rows_charge_settings[] = {
+    {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/charge", .name = "fine_stop_threshold"},
+    {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/charge", .name = "coarse_stop_threshold"},
+};
+static const menu_page_t page_charge_settings = {.id = "settings/charge", .title = "Charge",
+                                                 .rows = rows_charge_settings, .row_count = 2};
 
 static const menu_row_t rows_display[] = {
-    {.label = "Invert knob", .kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle,
-     .path = "settings/display", .name = "invert_encoder"},
-    {.label = "Invert screen", .kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle,
-     .path = "settings/display", .name = "invert_display"},
-    {.label = "Rotation", .kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display",
-     .name = "rotation", .offered = offered_rotation},
+    {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/display",
+     .name = "invert_encoder"},
+    {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/display",
+     .name = "invert_display"},
+    {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/display", .name = "rotation",
+     .offered = offered_rotation},
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
 static const menu_page_t page_display = {.id = "settings/display", .title = "Display", .rows = rows_display,
@@ -909,13 +966,14 @@ static const menu_page_t page_factory_reset = {.kind = PAGE_DIALOG, .id = "setti
 
 static const menu_row_t rows_settings[] = {
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
+    {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge_settings},
     {.label = "Display", .kind = ROW_PAGE, .page = &page_display},
     {.label = "Firmware", .kind = ROW_PAGE, .page = &page_firmware},
     {.label = "Restart", .kind = ROW_ACTION, .act = act_restart, .label_now = restart_label},
     {.label = "Factory reset", .kind = ROW_PAGE, .page = &page_factory_reset},
 };
 static const menu_page_t page_settings = {.id = "settings", .title = "Settings", .rows = rows_settings,
-                                          .row_count = 5};
+                                          .row_count = 6};
 
 // "OpenTrickler", or the motor driver that is not OK (ADR-012, step 6)
 static const char *main_title(void) {
@@ -936,7 +994,8 @@ static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .ti
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
-    &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_display, &page_firmware,
+    &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_charge_settings, &page_display,
+    &page_firmware,
     &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
@@ -1276,52 +1335,82 @@ static void job_key(frame_t *frame, menu_key_t key) {
 }
 
 
-// --- A choice's list
+// --- A value set in place (ADR-010, gate 6): a choice turned through in its row, a number stepped live
 
-static void push_choice(const menu_row_t *row) {
-    frame_t *frame = push(FRAME_CHOICE);
-    frame->row = row;
-    // Focus on the current option, among those offered
-    int now = row_choice_now(row);
-    int shown = 0;
-    for (int idx = 0; idx < row_choice_count(row); idx += 1) {
-        if (row_choice_label(row, idx) == NULL) {
-            continue;
-        }
-        if (idx == now) {
-            frame->focus = (int8_t) shown;
-        }
-        shown += 1;
-    }
-}
-
-
-// The option at the shown index, or -1
-static int choice_at(const menu_row_t *row, int shown_idx) {
-    int shown = 0;
-    for (int idx = 0; idx < row_choice_count(row); idx += 1) {
-        if (row_choice_label(row, idx) == NULL) {
-            continue;
-        }
-        if (shown == shown_idx) {
+// The offered choice after `from` in the turn's direction, wrapping; `from` itself when it is the only one
+static int choice_next(const menu_row_t *row, int from, int dir) {
+    int count = row_choice_count(row);
+    for (int step = 1; step <= count; step += 1) {
+        int idx = ((from + dir * step) % count + count) % count;
+        if (row_choice_label(row, idx) != NULL) {
             return idx;
         }
-        shown += 1;
     }
-    return -1;
+    return from;
 }
 
 
-static int choice_shown_count(const menu_row_t *row) {
-    int shown = 0;
-    for (int idx = 0; idx < row_choice_count(row); idx += 1) {
-        shown += row_choice_label(row, idx) != NULL ? 1 : 0;
+static void inplace_begin(frame_t *frame, const menu_row_t *row) {
+    if (row->kind == ROW_CHOICE) {
+        int now = row_choice_now(row);
+        frame->edit_choice = (int8_t) (now >= 0 && row_choice_label(row, now) != NULL ? now : choice_next(row, -1, 1));
     }
-    return shown;
+    else if (!settings_read_text(row->path, row->name, frame->edit_was, sizeof(frame->edit_was))) {
+        return;
+    }
+    frame->editing = true;
 }
 
 
-// --- Keys on a list: a page, a choice, a message
+static void inplace_refused(const char *why) {
+    if (why != NULL) {
+        push_message("Not changed", why, NULL);
+    }
+}
+
+
+// The keys while a value is set in place: the turn changes it, a click stores it, Back puts it back
+static void inplace_key(frame_t *frame, const menu_row_t *row, menu_key_t key) {
+    if (row->kind == ROW_CHOICE) {
+        if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            frame->edit_choice = (int8_t) choice_next(row, frame->edit_choice, key == MENU_KEY_NEXT ? 1 : -1);
+            return;
+        }
+        frame->editing = false;
+        if (key == MENU_KEY_ENTER) {
+            inplace_refused(row_choose(row, frame->edit_choice));
+        }
+        return;
+    }
+    // A number: each detent written live through the API's checks, stored at the click
+    const setting_field_t *field = settings_field(row->path, row->name);
+    if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+        char text[16];
+        if (field == NULL || !settings_read_text(row->path, row->name, text, sizeof(text))) {
+            return;
+        }
+        float value = strtof(text, NULL) + (key == MENU_KEY_NEXT ? field->edit_step : -field->edit_step);
+        value = !isnan(field->min) && value < field->min ? field->min : value;
+        value = !isnan(field->max) && value > field->max ? field->max : value;
+        snprintf(text, sizeof(text), "%.*f", step_decimals(field->edit_step) + 1, (double) value);
+        const char *why = settings_write(row->path, row->name, text);
+        if (why != NULL) {
+            frame->editing = false;
+            inplace_refused(why);
+        }
+        return;
+    }
+    frame->editing = false;
+    if (key == MENU_KEY_ENTER) {
+        inplace_refused(settings_store(row->path));
+    }
+    else {
+        inplace_refused(settings_write(row->path, row->name, frame->edit_was));
+    }
+}
+
+
+// --- Keys on a list: a page, a message
 
 // Whether a page's shown row at idx does something: focus passes over the rest (the skill, rule 12)
 static bool row_acts(const frame_t *frame, int idx) {
@@ -1335,6 +1424,15 @@ static bool row_acts(const frame_t *frame, int idx) {
 
 
 static void list_key(frame_t *frame, menu_key_t key, int count) {
+    if (frame->kind == FRAME_PAGE && frame->editing) {
+        const menu_row_t *rows[MENU_ROWS_MAX];
+        uint8_t shown = shown_rows(frame->page, rows);
+        if (frame->focus >= 0 && frame->focus < shown) {
+            inplace_key(frame, rows[frame->focus], key);
+            return;
+        }
+        frame->editing = false;
+    }
     switch (key) {
         case MENU_KEY_NEXT:
             for (int idx = frame->focus + 1; idx < count; idx += 1) {
@@ -1367,16 +1465,6 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
         pop();
         return;
     }
-    if (frame->kind == FRAME_CHOICE) {
-        const menu_row_t *row = frame->row;
-        int idx = choice_at(row, frame->focus);
-        const char *why = idx >= 0 ? row_choose(row, idx) : "no such choice";
-        pop();
-        if (why != NULL) {
-            push_message("Not changed", why, NULL);
-        }
-        return;
-    }
 
     const menu_row_t *rows[MENU_ROWS_MAX];
     uint8_t shown = shown_rows(frame->page, rows);
@@ -1389,7 +1477,8 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
             push_page(row->page);
             break;
         case ROW_CHOICE:
-            push_choice(row);
+        case ROW_STEP:
+            inplace_begin(frame, row);
             break;
         case ROW_NUMBER:
             push_edit(row);
@@ -1487,9 +1576,6 @@ void menu_nav_key(menu_key_t key) {
             break;
         case FRAME_MESSAGE:
             list_key(frame, key, 1);
-            break;
-        case FRAME_CHOICE:
-            list_key(frame, key, choice_shown_count(frame->row));
             break;
         case FRAME_PAGE: {
             const menu_row_t *rows[MENU_ROWS_MAX];
@@ -1708,29 +1794,19 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
     for (uint8_t idx = 0; idx < count; idx += 1) {
         const menu_row_t *row = rows[idx];
         char value[MENU_TEXT] = "";
-        if (row->value != NULL) {
+        if (frame->editing && idx == frame->focus && row->kind == ROW_CHOICE) {
+            // The choice being set, not yet stored
+            snprintf(value, sizeof(value), "%s", row_choice_label(row, frame->edit_choice) != NULL ?
+                     row_choice_label(row, frame->edit_choice) : "?");
+        }
+        else if (row->value != NULL) {
             row->value(row, value, sizeof(value));
         }
-        bool opens = row->kind == ROW_PAGE || row->kind == ROW_CHOICE || row->kind == ROW_NUMBER;
-        screen_row(screen, row->label_now != NULL ? row->label_now() : row->label, value, opens);
+        bool opens = row->kind == ROW_PAGE || row->kind == ROW_NUMBER;
+        screen_row(screen, row_label(row), value, opens);
     }
     screen->focus = frame->focus < count ? frame->focus : (int8_t) (count - 1);
-}
-
-
-static void screen_choice(menu_screen_t *screen, const frame_t *frame) {
-    const menu_row_t *row = frame->row;
-    snprintf(screen->id, sizeof(screen->id), "choice");
-    snprintf(screen->title, sizeof(screen->title), "%s", row->label);
-    screen->title_back = true;
-    int now = row_choice_now(row);
-    for (int idx = 0; idx < row_choice_count(row); idx += 1) {
-        const char *label = row_choice_label(row, idx);
-        if (label != NULL) {
-            screen_row(screen, label, idx == now ? "*" : "", false);
-        }
-    }
-    screen->focus = frame->focus;
+    screen->editing = frame->editing;
 }
 
 
@@ -1938,9 +2014,6 @@ void menu_nav_screen(menu_screen_t *screen) {
     switch (frame->kind) {
         case FRAME_PAGE:
             screen_page(screen, frame);
-            break;
-        case FRAME_CHOICE:
-            screen_choice(screen, frame);
             break;
         case FRAME_EDIT:
             screen_edit(screen, frame);

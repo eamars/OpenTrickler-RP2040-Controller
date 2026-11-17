@@ -260,8 +260,9 @@ static void remote_control_screen_lines(const menu_screen_t *screen, remote_cont
     switch (screen->kind) {
         case MENU_SCREEN_LIST:
             for (int idx = 0; idx < screen->row_count; idx += 1) {
-                snprintf(line, sizeof(line), "@row %d label=\"%s\" value=\"%s\"%s", idx, screen->row_label[idx],
-                         screen->row_value[idx], screen->row_opens[idx] ? " opens" : "");
+                snprintf(line, sizeof(line), "@row %d label=\"%s\" value=\"%s\"%s%s", idx,
+                         screen->row_label[idx], screen->row_value[idx], screen->row_opens[idx] ? " opens" : "",
+                         screen->editing && idx == screen->focus ? " editing" : "");
                 write(line, write_ctx);
             }
             break;

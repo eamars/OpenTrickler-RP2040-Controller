@@ -1290,28 +1290,47 @@ bool settings_read_text(const char *path, const char *name, char *out, size_t ro
 }
 
 
-const char *settings_write_and_save(const char *path, const char *name, const char *value) {
-    static char why[128];
+static char settings_why[128];
+
+
+const char *settings_write(const char *path, const char *name, const char *value) {
     int32_t id;
     const settings_resource_t *resource = screen_resource(path, &id);
     if (resource == NULL) {
-        snprintf(why, sizeof(why), "no such resource: %s", path);
-        return why;
+        snprintf(settings_why, sizeof(settings_why), "no such resource: %s", path);
+        return settings_why;
     }
     http_json_member_t member = {.name = name, .name_len = strlen(name), .kind = HTTP_JSON_STRING,
                                  .value = value, .value_len = strlen(value)};
     outcome_t outcome;
     settings_patch(resource, id, &member, 1, true, &outcome);
     if (outcome.status != 200) {
-        snprintf(why, sizeof(why), "%s", outcome.message);
-        return why;
-    }
-    // Stored when confirmed, only if it changed (ADR-010, D2)
-    if (!resource->is_saved() && !resource->save()) {
-        snprintf(why, sizeof(why), "the EEPROM did not take it");
-        return why;
+        snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
+        return settings_why;
     }
     return NULL;
+}
+
+
+// Stored when confirmed, only if it changed (ADR-010, D2)
+const char *settings_store(const char *path) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    if (resource == NULL) {
+        snprintf(settings_why, sizeof(settings_why), "no such resource: %s", path);
+        return settings_why;
+    }
+    if (!resource->is_saved() && !resource->save()) {
+        snprintf(settings_why, sizeof(settings_why), "the EEPROM did not take it");
+        return settings_why;
+    }
+    return NULL;
+}
+
+
+const char *settings_write_and_save(const char *path, const char *name, const char *value) {
+    const char *why = settings_write(path, name, value);
+    return why != NULL ? why : settings_store(path);
 }
 
 
