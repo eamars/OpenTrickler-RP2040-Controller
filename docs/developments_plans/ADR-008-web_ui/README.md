@@ -1,21 +1,28 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Draft** 2026-11-13. Not approved. Captures what is wrong with the pages today and ideas for the new ones; the look is shown to the owner as a mock before anything is built.
+Status: **Draft** 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in). Not approved. Captures what is wrong with the pages today and ideas for the new ones; the look is shown to the owner as a mock before anything is built.
 
 ## What we want
 
 - The whole web UI comes from the unit. It works from a phone joined to the unit's own access point, with no internet.
 - It shows what this board carries and nothing else.
 - It is the place for what the small screen cannot show: charts, profiles side by side, an update.
+- A new unit, or one just reset, is taken from its first start to its first charge by one designed process, not by steps found here and there (commissioning, below).
 
-## Owner's direction (2026-11-13)
+## Owner's direction
 
-- Implement a better web UI.
-- One implementation: the same pages on every board.
+- 2026-11-13: implement a better web UI.
+- 2026-11-13: one implementation: the same pages on every board.
+- 2026-11-17, on the QR code proposed in ADR-010's menu design: "I'm not sure about the QR code. Perhaps that's a feature for future ADR. I'd like to design the commissioning process properly, not ad-hoc." It became ADR-015.
+- 2026-11-18: ADR-015 "may be folded into ADR-008 and sharing the same code base and capture requirements together".
+- 2026-11-18, on what is hard: a person "needs to 1. Join the soft AP. 2. Go to a specific URL. which is the hardest part for the average user if they are not proficient with browser."
+- 2026-11-18, deciding: "I'd take the existing captive portal route and do it together with the main web portal." ESP's SoftAP provisioning app was weighed and not taken (see "Commissioning").
 
 ## Why here
 
 Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, in the order 010, 008, 009, 014, then 006 and 007 together). The screen comes first, so the unit's poll and the update's job are built in ADR-010, and this ADR's page shows the same offer the screen does. It stands on ADR-003's server, on that poll, and on ADR-005's report of what a board carries. It is proven on the Pico W and the Pico 2 W; ADR-007's board takes the same pages later.
+
+Commissioning was ADR-015, proposed on 2026-11-17 to come between ADR-010 and ADR-008 so the set-up wizard would be built once. Its screen half was built by ADR-010 (the Wi-Fi page), and what is left is web: the owner folded it in here on 2026-11-18, so its requirements are captured with the portal's and built from the same code. ADR-015 is Archived.
 
 ## What we know (checked 2026-11-13)
 
@@ -69,11 +76,67 @@ Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, i
 - **The mirror** follows the screen's view: its `format` is ADR-010's.
 - **The settings pages are drawn from the schema, as the screen's are from the tables** (the owner, 2026-11-17, settling ADR-010's survey: "Table driven, but this needed to be built right, and consider the future web refactor to be done in the similar way"). Every setting is on both the screen and the web (ADR-010's `menu_design.md`, "Every setting on the screen and on the web"). What: the page's settings forms are made at run time from `GET /api/v1/schema`, a resource a form and a field a control by its type (boolean, choice, integer, number, string, colour), with its label, unit, limits, step, group and when it applies; no field is written into the page by hand, as today's `web_portal.html` does (`name="..."`). How: the schema is made from the same C tables (`settings.h`) the screen reads, so one description has two renderers. What ADR-010 adds to the tables for the screen (a value's decimals, a short label) goes into the schema too, and the page uses it (an input's step and its shown precision). The actions a settings page offers beside its fields (the gate's Open and Close, the scale's Zero) are listed with their resource in the schema, so both draw them from one list.
 
+## Commissioning (folded in from ADR-015)
+
+From a unit's first start, or its first start after a reset, to its first charge, as one designed process. ADR-015 held the owner's direction from 2026-11-17; it was folded in here on 2026-11-18.
+
+### The hard part, and the route
+
+- **The hard part** (the owner, 2026-11-18): joining the unit's access point, then going to an address in a browser. A person not at ease with a browser stops there.
+- **The route** (the owner, 2026-11-18): the captive portal, done together with the main web portal. Read here as:
+  - **No address typed.** A phone that joins the unit's access point opens the set-up by itself, in the sign-in sheet a phone shows for a network that asks to be signed in to.
+  - **One code base.** The set-up is part of the portal, built from the same sources and styles, its forms drawn from the schema like every other settings form. Today's `wizard.html` as a page apart goes.
+
+### What we know
+
+Read in the code 2026-11-17 (ADR-015), and 2026-11-18 where marked:
+- **The first start.** With no Wi-Fi network set, or none joined within its join timeout (30 s by default), the unit becomes its own access point (`wireless.c`, `access_point_mode.c`):
+  - its name is `opentrickler-` and four characters of the unit's id;
+  - its key is `opentrickler`, written in the code and the same on every unit;
+  - its address is 192.168.4.1, with the unit's own DHCP and DNS servers.
+- **The captive portal's parts are there** (2026-11-18), never tried with a phone:
+  - the access point's DNS server answers every name it is asked with the unit's own address (`dnsserver.c`);
+  - the web server sends any page asked for under another name to `http://<the unit's address>/` with a 302 (`http_server.c`, `slot_admit`); an API path under another name is refused with 403, against DNS rebinding;
+  - on the access point, `/` serves `wizard.html` (`rest_endpoints.c`).
+- **The wizard today** (2026-11-18): the network's name typed (no list of networks), its key, its security, the join timeout and Wi-Fi on or off, then "Complete & Reboot": it writes `/api/v1/settings/wifi`, saves it and restarts the unit. A wrong key is found only after the restart: the unit tries for its join timeout, comes back as its access point, and the person joins it again and starts over. Nothing else is set up.
+- **When the station joins,** after a start as the access point, the access point is stopped (`wireless_rejoin`, ADR-004): a phone still on it loses it then.
+- **Defaults.** Every other setting starts at its default: the scale is the A&D (`scale.c`), and the motors, the charge and the display are at their defaults. A person finds them on the web portal or on the screen, where every setting a unit needs is (ADR-010's parity rule). Only the Wi-Fi's network, key and security are too hard by the knob (ADR-010's `menu_design.md`).
+- **What the screen shows** (ADR-010's Wi-Fi page): the access point's name and key, or the network joined, and the address, as text. No QR code: ADR-010 left it to commissioning.
+- **Finding the unit on a network.** mDNS, as `opentrickler-<id>.local`, with the services `_http._tcp` and `_opentrickler._tcp` (`wireless.c`). The Open Weapon Mount Computer finds units by the second.
+- **A factory reset** (`POST /api/v1/system/erase`, or the menu's Erase) erases the stored settings. The unit then comes back as its own access point, with a new id and so a new host name.
+- **The unit's id** comes from `rnd()` (`eeprom.c`), which gives ids with few random bits: the bench's is `9CE00000`, and the host name shows four characters of it. Two units can end up with the same name (found in ADR-003).
+
+### ESP's SoftAP provisioning app, weighed and not taken (2026-11-18)
+
+The Open Weapon Mount Computer is set up this way, and the owner asked whether this unit could be too.
+- **How the OWMC does it:** Espressif's `network_provisioning` (1.4.0) over its access point, security 1 with a proof of possession of random digits (`main/services/wifi_provision.c`); its Wi-Fi page shows a QR code for the app with the access point's name and that proof (`main/ui/settings/wifi_page.c`); its access point is open.
+- **What the protocol asks of a unit** (read in the component and in Espressif's `esp_prov` tool): five POST routes at 192.168.4.1 (`proto-ver` in JSON; `prov-session`, `prov-scan`, `prov-config`, `prov-ctrl` in protobuf), a session held by a cookie, a Curve25519 key exchange and AES-CTR. The app scans networks through the unit, sends the network and its key, and reads back whether the unit joined, so a wrong key is told while the phone is still on the access point.
+- **This unit could:** it already runs the access point and the station at once (ADR-004's rejoin), and its server takes binary bodies. It would need Curve25519 and AES-CTR switched on in mbedTLS, and a protobuf coder of its own. Not measured.
+- **Why not:** it takes away both hard steps (the app joins the access point from its QR code, and there is no address), but a person must install an app first; it ends at the Wi-Fi; its code (protobuf, a session, two ciphers) serves nothing else in a Pico W with about 38 KB of flash left (978.1 of 1,016 KB, ADR-010); OWMC's access point is open, and on this unit that would give anyone in range the whole API, the motors included; and security 1 is off by default from ESP-IDF 6.1. The owner chose the captive portal with the main portal.
+
+### Proposed, not settled
+
+The agent's proposals, 2026-11-18, for the owner to settle with the mock:
+- **What it covers:** the Wi-Fi; the scale, its make chosen and a live weight seen (which shows the scale talks); the motor drivers found; then a first charge offered. Each step can be skipped, and a unit that never finishes still works: offered, never forced, and no pop-up at every start. Tuning stays ADR-009's.
+- **A list of networks** to choose from, scanned by the unit, in place of a name typed.
+- **The access point kept up while the station joins,** and the result told on the page: a wrong key is typed again, with no restart and no new join of the access point. Today's rejoin stops the access point when the station joins; when it stops, and what the page says before it does, is part of this design.
+- **A key for each unit's access point,** made from the chip's own unique id and shown only on its screen: being at the unit is then the password, as "no password for now" asks. Today's shared key goes.
+- **The unit's id and name from the chip's unique id** (`pico_get_unique_board_id`) in place of `rnd()`: the same across a factory reset, and never two units with one name. Every unit already out gets a new host name once, with the update that brings it.
+- **A QR code to join the access point,** the phones' own Wi-Fi format (`WIFI:T:WPA;S:<name>;P:<key>;;`, about 45 characters): QR version 3, 29 modules, 58 of the panel's 64 rows at 2 pixels a module. A phone's camera joins the network from it with no app. On the screen's Wi-Fi page. The owner's QR question (2026-11-17) is answered here.
+
+### To find out first
+
+On real phones, at least one iPhone and one Android, before the design is settled. What is listed here is what phones are known to do, not yet seen with this unit:
+- whether joining the access point opens the sign-in sheet by itself, or only a notice to tap;
+- whether the set-up works inside that sheet, a reduced browser on iOS that closes when the network changes;
+- whether a phone leaves the access point, or sends its traffic over mobile data, because it has no internet;
+- what the unit must answer to each phone's check (the address each phone asks to learn whether it is signed in).
+
 ## Ideas
 
 - **A mock first.** The pages, clickable in a browser against the stand-in server, before anything goes on a unit. The owner decides by using it. An agent can open the same mock in its own browser and check it.
 - **Phone first.** Most use is a phone held beside the trickler.
-- **Pages:** charge (target, live weight, start and stop), profiles, tuning with a chart of the throw (ADR-009), settings, update (ADR-004), and the set-up wizard.
+- **Pages:** charge (target, live weight, start and stop), profiles, tuning with a chart of the throw (ADR-009), settings, update (ADR-004), and the set-up (commissioning, above), part of the same portal.
 - **Built from sources.** Separate files for markup, styles and script, joined and gzipped by a build step into what the unit serves. Whether that step may need Node, or stays in Python like `html2header.py`, is the owner's call.
 - **No framework at run time, or a very small one.** The page is a handful of forms and a chart. A proposal with sizes comes with the mock.
 - **Charts** by a small library or drawn by hand on a canvas; chosen by size.
@@ -85,6 +148,7 @@ Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, i
 ## How the unit shows it works
 
 - With the internet unplugged, every page works from a phone on the unit's access point.
+- A person not at ease with a browser commissions a unit just reset, from its first start, with no help: on an iPhone and on an Android phone that have never joined it, joining its access point opens the set-up, and nobody types an address.
 - Screenshots of each page from the unit match the mock.
 - On a board without an optional module, its page and its links are absent.
 - A charge started and watched from the phone, with `charge_cycle`'s checks.
@@ -102,3 +166,4 @@ Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, i
 - The look, from the mock.
 - Whether the build may need Node.
 - The budget.
+- Commissioning: what it covers, and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen.

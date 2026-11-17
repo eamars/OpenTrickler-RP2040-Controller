@@ -24,7 +24,7 @@ extern char ip_addr_string[16];
 // As wireless.c defines them: 35 bytes each. They were declared here as 32
 extern char host_name[18];
 
-// The access point's key, the same on every unit (ADR-015 weighs it): the screen's Wi-Fi page shows it
+// The access point's key, the same on every unit (ADR-008's commissioning weighs it): the screen's Wi-Fi page shows it
 const char *access_point_mode_key(void) {
     return "opentrickler";
 }
