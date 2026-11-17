@@ -550,19 +550,25 @@ static bool wifi_is_access_point(void) {
 }
 
 
+// The link as a key, and as a station the network it joins as its value
+static const char *wifi_mode_label(void) {
+    wireless_info_t info;
+    wireless_get_link(&info);
+    if (strcmp(info.mode, "access_point") == 0) {
+        return "Its own access point";
+    }
+    if (strcmp(info.mode, "station") == 0) {
+        return info.address[0] != '\0' ? "Joined" : "Joining";
+    }
+    return "Not joined";
+}
+
+
 static void value_wifi_mode(const menu_row_t *row, char *out, size_t room) {
     (void) row;
     wireless_info_t info;
     wireless_get_link(&info);
-    if (strcmp(info.mode, "access_point") == 0) {
-        snprintf(out, room, "Its own access point");
-    }
-    else if (strcmp(info.mode, "station") == 0) {
-        snprintf(out, room, "%s %s", info.address[0] != '\0' ? "Joined" : "Joining", info.ssid);
-    }
-    else {
-        snprintf(out, room, "Not joined");
-    }
+    snprintf(out, room, "%s", strcmp(info.mode, "station") == 0 ? info.ssid : "");
 }
 
 
@@ -812,11 +818,11 @@ static const menu_page_t page_charge_change = {.id = "charge/change", .title = "
 
 // A card: each line says what it is, read only
 static const menu_row_t rows_wifi[] = {
-    {.label = "", .kind = ROW_INFO, .value = value_wifi_mode},
+    {.label = "", .kind = ROW_INFO, .value = value_wifi_mode, .label_now = wifi_mode_label},
     {.label = "Network", .kind = ROW_INFO, .value = value_wifi_network, .shown = wifi_is_access_point},
     {.label = "Key", .kind = ROW_INFO, .value = value_wifi_key, .shown = wifi_is_access_point},
     {.label = "IP", .kind = ROW_INFO, .value = value_wifi_address},
-    {.label = "", .kind = ROW_INFO, .value = value_wifi_name},
+    {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
 };
 static const menu_page_t page_wifi = {.kind = PAGE_CARD, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
@@ -971,11 +977,18 @@ static uint8_t wrap_into(const char *text, bool bold, char lines[][MENU_TEXT], b
 }
 
 
+// The room between a key and its value on a line, in the view's pixels
+#define NAV_PAIR_GAP 6
+// The values of lines only counted, not shown: one buffer, off the menu task's stack (only that task navigates)
+static char nav_values_unused[MENU_ROWS_MAX][MENU_TEXT];
+
 /*
- * A card's or notes' lines: each shown info row as its label and value, wrapped; on notes, the action row is the
- * button at the end (*button, NULL when none is shown). The lines' count
+ * A card's or notes' lines: each shown info row a line, its label (the key) at the left and its value at the right
+ * (values[n], "" for none). A key and a value too wide for one line take two, the value right on the second; a row
+ * with only one of them is wrapped at the left. On notes, the action row is the button at the end (*button, NULL
+ * when none is shown). The lines' count
  */
-static uint8_t page_lines(const menu_page_t *page, char lines[][MENU_TEXT], bool *bolds,
+static uint8_t page_lines(const menu_page_t *page, char lines[][MENU_TEXT], char values[][MENU_TEXT], bool *bolds,
                           const menu_row_t **button) {
     const menu_row_t *rows[MENU_ROWS_MAX];
     uint8_t shown = shown_rows(page, rows);
@@ -992,9 +1005,32 @@ static uint8_t page_lines(const menu_page_t *page, char lines[][MENU_TEXT], bool
             row->value(row, value, sizeof(value));
         }
         const char *label = row->label_now != NULL ? row->label_now() : row->label;
-        char text[UPDATE_NOTE_MAX + MENU_TEXT];
-        snprintf(text, sizeof(text), "%s%s%s", label, label[0] != '\0' && value[0] != '\0' ? " " : "", value);
-        count = wrap_into(text, row->bold, lines, bolds, count);
+        uint8_t from = count;
+        int value_w = text_width(value, false);
+        if (label[0] != '\0' && value[0] != '\0' && value_w <= nav_line_width) {
+            bool one_line = text_width(label, row->bold) + NAV_PAIR_GAP + value_w <= nav_line_width;
+            if (!one_line) {
+                count = wrap_into(label, row->bold, lines, bolds, count);
+                for (uint8_t idx = from; idx < count; idx += 1) {
+                    values[idx][0] = '\0';
+                }
+            }
+            if (count < MENU_ROWS_MAX) {
+                snprintf(lines[count], MENU_TEXT, "%s", one_line ? label : "");
+                bolds[count] = row->bold;
+                snprintf(values[count], MENU_TEXT, "%s", value);
+                count += 1;
+            }
+            continue;
+        }
+        // One of the two, or a value wider than a line: wrapped at the left, the value under its key
+        count = wrap_into(label[0] != '\0' ? label : value, row->bold, lines, bolds, count);
+        if (label[0] != '\0' && value[0] != '\0') {
+            count = wrap_into(value, false, lines, bolds, count);
+        }
+        for (uint8_t idx = from; idx < count; idx += 1) {
+            values[idx][0] = '\0';
+        }
     }
     return count;
 }
@@ -1005,7 +1041,7 @@ static uint8_t page_last_first(const menu_page_t *page) {
     char lines[MENU_ROWS_MAX][MENU_TEXT];
     bool bolds[MENU_ROWS_MAX];
     const menu_row_t *button;
-    uint8_t count = page_lines(page, lines, bolds, &button) + (button != NULL ? 1 : 0);
+    uint8_t count = page_lines(page, lines, nav_values_unused, bolds, &button) + (button != NULL ? 1 : 0);
     return count > nav_lines_shown ? (uint8_t) (count - nav_lines_shown) : 0;
 }
 
@@ -1355,7 +1391,7 @@ static void page_kind_key(frame_t *frame, menu_key_t key) {
             char lines[MENU_ROWS_MAX][MENU_TEXT];
             bool bolds[MENU_ROWS_MAX];
             const menu_row_t *button;
-            page_lines(page, lines, bolds, &button);
+            page_lines(page, lines, nav_values_unused, bolds, &button);
             if (button != NULL) {
                 button->act(button);
             }
@@ -1569,7 +1605,7 @@ static void screen_lines(menu_screen_t *screen, const frame_t *frame) {
     const menu_page_t *page = frame->page;
     screen->kind = page->kind == PAGE_NOTES ? MENU_SCREEN_NOTES : MENU_SCREEN_CARD;
     const menu_row_t *button;
-    screen->row_count = page_lines(page, screen->row_label, screen->row_bold, &button);
+    screen->row_count = page_lines(page, screen->row_label, screen->row_value, screen->row_bold, &button);
     uint8_t last = page_last_first(page);
     screen->first = frame->first < last ? frame->first : last;
     screen->focus = frame->focus < 0 ? -1 : 0;

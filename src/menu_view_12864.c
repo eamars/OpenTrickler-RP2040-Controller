@@ -326,11 +326,18 @@ static void view_lines(const menu_screen_t *screen) {
         }
         lv_obj_set_pos(view_rows[idx], 0, top);
         lv_obj_set_size(view_rows[idx], VIEW_W - 5, VIEW_LINE_H);
-        view_reverse(view_rows[idx], false, view_row_label[idx], NULL, NULL);
+        view_reverse(view_rows[idx], false, view_row_label[idx], view_row_value[idx], NULL);
         view_font(view_row_label[idx], screen->row_bold[line] ? &menu_font_bold : &menu_font_regular);
         view_text(view_row_label[idx], screen->row_label[line]);
-        view_place(view_row_label[idx], VIEW_MARGIN, VIEW_LINE_WIDTH, VIEW_LINE_H - 3);
-        view_show(view_row_value[idx], false);
+        // A key at the left, its value at the right; the key clipped short of the value
+        const char *value = screen->row_value[line];
+        int value_w = value[0] != '\0' ? view_text_width(value, strlen(value), &menu_font_regular) + 6 : 0;
+        view_show(view_row_value[idx], value[0] != '\0');
+        if (value[0] != '\0') {
+            view_text(view_row_value[idx], value);
+            view_place(view_row_value[idx], VIEW_MARGIN, VIEW_LINE_WIDTH, VIEW_LINE_H - 3);
+        }
+        view_place(view_row_label[idx], VIEW_MARGIN, VIEW_LINE_WIDTH - value_w, VIEW_LINE_H - 3);
         view_show(view_row_more[idx], false);
     }
     view_show(view_button, button_shown);

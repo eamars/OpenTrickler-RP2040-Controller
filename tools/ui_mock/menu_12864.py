@@ -158,7 +158,9 @@ def dense(panel, items, at="top"):
 
     Args:
         panel: the Panel.
-        items: the page, each a paragraph, (heading, "bold"), or (label, "button", focused).
+        items: the page, each a paragraph, (heading, "bold"), (key, value, "pair") with the key at the left and its
+            value at the right (a pair too wide for a line takes two, the value right on the second), or
+            (label, "button", focused).
         at: "top" or "end", where the page is shown from.
     """
     shown = (H - CONTENT_TOP) // DENSE_H
@@ -167,6 +169,13 @@ def dense(panel, items, at="top"):
     for item in items:
         if isinstance(item, tuple) and item[1] == "button":
             lines.append(item)
+        elif isinstance(item, tuple) and item[-1] == "pair":
+            key, value = item[0], item[1]
+            if TEXT.width(key) + 6 + TEXT.width(value) <= width:
+                lines.append((key, value, "pair"))
+            else:
+                lines.extend(wrap(TEXT, key, width))
+                lines.append(("", value, "pair"))
         elif isinstance(item, tuple):
             lines.extend((line, "bold") for line in wrap(BOLD, item[0], width))
         else:
@@ -175,7 +184,10 @@ def dense(panel, items, at="top"):
     for idx, line in enumerate(lines[first:first + shown]):
         y = CONTENT_TOP + idx * DENSE_H
         base = y + DENSE_BASE
-        if isinstance(line, tuple) and line[1] == "button":
+        if isinstance(line, tuple) and line[-1] == "pair":
+            panel.text(TEXT, 3, base, line[0])
+            panel.text(TEXT, 0, base, line[1], align="right", right=3 + width)
+        elif isinstance(line, tuple) and line[1] == "button":
             if line[2]:
                 panel.rect(2, y, W - 8, DENSE_H)
                 panel.text(TEXT, 0, base, line[0], lit=False, align="center")
@@ -307,8 +319,8 @@ def screens():
     add(p, "A settings page")
 
     p = Panel(); title(p, "Wi-Fi", back=True)
-    dense(p, ["Joined HomeNet", "IP 192.168.2.168", "opentrickler-9CE0.local", "Signal -59 dBm (good)",
-              "Updates from github.com"])
+    dense(p, [("Joined", "HomeNet", "pair"), ("IP", "192.168.2.168", "pair"),
+              ("Name", "opentrickler-9CE0.local", "pair"), ("Signal", "-59 dBm", "pair")])
     add(p, "Wi-Fi: a dense card")
 
     note = [("9.0.1, important", "bold"), "Fixes the scale's rhythm on the A&D FX-i, and the cup's return on a slow "

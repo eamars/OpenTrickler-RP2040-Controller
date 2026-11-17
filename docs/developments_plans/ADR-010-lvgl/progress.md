@@ -666,3 +666,17 @@ pages), so the slowness was the input: a click acted at its release, and the hol
 - **Proven on the Pico W:** `menu_tour --compare` (the screen not inverted: the owner keeps Invert screen on, so it
   was turned off for the run, not stored, and put back), `charge_cycle`; a click on Settings' title goes back, the
   reset button leaves the charge's dialog.
+
+## A card's keys at the left, their values at the right (2026-11-17)
+
+The owner: "For key value type page, like the Wi-Fi, the key should be aligned to left and value aligned to the
+right. Otherwise the page will look unorganized."
+
+- **Built:** a card's or notes' row with a key and a value is one line, the key at the left and the value at the
+  right, the key clipped short of it; a pair too wide for a line takes two, the value right on the second. A row
+  with only one of them (the update's notes, its headings) is wrapped at the left as before. Wi-Fi's first line is
+  now a key ("Joined", "Joining") and the network's name, and the unit's name has its key ("Name"). The console's
+  `@line` gives the value (`value="..."`); the mock-up draws pairs the same way.
+- **Proven on the Pico W:** Wi-Fi reads Joined / IP / Name with the name under it / Signal, Firmware Version /
+  Update / Board / Unit / Build, each value at the right; `menu_tour --compare` (the screen not inverted for the
+  run) and `charge_cycle` pass. The Wi-Fi and Firmware pages saved again as the baseline.

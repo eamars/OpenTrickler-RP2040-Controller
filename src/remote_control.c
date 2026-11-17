@@ -269,7 +269,12 @@ static void remote_control_screen_lines(const menu_screen_t *screen, remote_cont
         case MENU_SCREEN_NOTES:
         case MENU_SCREEN_DIALOG:
             for (int idx = 0; idx < screen->row_count; idx += 1) {
-                snprintf(line, sizeof(line), "@line %d \"%s\"%s%s", idx, screen->row_label[idx],
+                // A key's value, at the line's right, when it has one
+                char value[MENU_TEXT + 10] = "";
+                if (screen->row_value[idx][0] != '\0') {
+                    snprintf(value, sizeof(value), " value=\"%s\"", screen->row_value[idx]);
+                }
+                snprintf(line, sizeof(line), "@line %d \"%s\"%s%s%s", idx, screen->row_label[idx], value,
                          screen->row_bold[idx] ? " bold" : "", idx == screen->first ? " first" : "");
                 write(line, write_ctx);
             }

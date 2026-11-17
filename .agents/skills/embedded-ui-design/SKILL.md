@@ -47,7 +47,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
    - **Why:** the owner, 2026-11-17: "there should be enough clearance between two lines of text so the UI looks a bit clean".
 5. **Five kinds of screen, no others.**
    - **Pages** are lists: a title, then rows of label, value and ">" when the row opens something. The focused row is in reverse.
-   - **Cards** are read-only and dense: lines of 11 px, no focus on a line, a scroll bar when they run on (Wi-Fi, Firmware's facts). Turned up past the top, the title is focused, which is Back, as on a list.
+   - **Cards** are read-only and dense: lines of 11 px, each a key at the left and its value at the right (a pair too wide for a line takes two, the value right on the second; the owner, 2026-11-17: otherwise the page looks unorganized), no focus on a line, a scroll bar when they run on (Wi-Fi, Firmware's facts). Turned up past the top, the title is focused, which is Back, as on a list.
    - **Dialogs** are a title, a message of one or two centred lines, and two softkeys (the cup's acknowledgement, a factory reset).
    - **Jobs:**
      - the title is the status ("Charging", "Lift the cup");
