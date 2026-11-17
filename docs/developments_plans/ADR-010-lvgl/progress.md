@@ -558,3 +558,36 @@ On the owner's word ("Build it. And you can test on Pico W. I can test Pico 2W l
     sees a wrong set-up or a flip 4 columns off. The Pico W stores 180 degrees, the Pico 2 W 0;
   - **the Pico 2 W's run** (the owner, later the same day): its baseline saved first on the build with u8g2, then
     `flash`, `menu_tour --compare` and `charge_cycle`. Its image is built: 931.7 KB of 1,792.
+
+## A hidden hello for agents (2026-11-17)
+
+The owner, for fun, with no plan wanted: "a special screen overlay event when an agent is tapped into the system
+over the rest interface ... Claude chan is watching ya!", the agent naming itself ("whoever the agent can declare who
+they are"), and "a flashing of the full screen overlay on the first connection".
+
+- **Built:**
+  - `POST /api/v1/agent/hello` with `{"name": ...}` (printable ASCII, 1 to 16 characters; Claude-chan by default).
+    A POST, not the GET first thought of: api_v1.md's first rule is that a read "changes nothing. Not a selection,
+    not an event, not a light". In neither the index nor the schema; AGENTS.md tells agents ("Say hello"). 409 while
+    a job runs; the job's screen is never covered.
+  - The figure: `fonts/claude_chan.txt`, four poses of 48 x 48 (ahead, left, right, blink), made by the font
+    generator into 36 tiles of 16 x 16 (`:art`). The overlay is four objects: the dark ground, the figure (one label
+    of nine tiles, a pose another nine), the name and the words. Ten steps of 200 ms: it peeks up from the bottom
+    edge, looks left and right, blinks and goes down, "<name> / is watching / ya!" beside it.
+  - The flash: the panel's own inversion (`0xA7`), twice, before the figure, when no agent has said hello for 10
+    minutes. Two flashes in 0.8 s, under the three a second kept for flashing screens. The frame is untouched, so a
+    snap and the mirror do not show it: only an eye does.
+  - A press during a hello ends it and does nothing else; a job or `screen <id>` ends it too.
+- **Found on the unit, and fixed: the first overlay faulted the core.** On LVGL's top layer, with eight objects
+  (a box for each pupil and lid), the page under it was drawn as well; LVGL's heap ran out, a draw task's allocation
+  failed and was written through (`lv_draw_finalize_task_creation`, read from the stacked frame through the probe),
+  since LVGL's checks are off. Now the overlay is the screen's last child, opaque and full-size, so LVGL skips the
+  page under it, and has four objects; it is made only with 2,048 bytes free in one piece, and let go otherwise.
+- **Figures (the Pico W):** a hello over each of the 10 pages a person can open: 2,604 to 2,680 bytes of LVGL's
+  heap in one piece before, about 1,950 with the overlay made, 1,868 at the least through all ten. Flash 966.1 KB
+  (960.9 before); the Pico 2 W's 936.8 KB.
+- **Proven on the Pico W:** the frames read back through the mirror's endpoint during a hello (the peek, the looks,
+  the blink, the menu back after 2 s); a named one ("Codex") without the flash; a name empty, too long or under
+  another field refused; a hello during a charge refused, the charge's screen kept; a turn of the knob during a hello
+  ended it and left the menu's focus where it was; then `menu_tour --compare`, `charge_cycle` and `api_check` (26 of
+  26). Left: the flash, by eye.

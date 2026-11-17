@@ -8,12 +8,15 @@ The menu's faces, as BDF bitmap fonts (ADR-010, gate 4). `scripts/bdf2lvgl.py` t
 | `helvB08.bdf` | Titles |
 | `helvB18.bdf` | A job screen's figure |
 | `helvR14.bdf` | The mock-up sheet's captions only; not in the firmware |
+| `claude_chan.txt` | The hidden hello's figure (AGENTS.md, "Say hello"): four poses of 48 x 48 stacked (ahead, left, right, blink), '#' a lit pixel; `bdf2lvgl.py` cuts them into 16 x 16 tiles (`:art`) |
 
-They are Adobe's and Digital's X11 Helvetica, with Markus Kuhn's ISO 10646 extension, as u8g2 carries them (`tools/font/bdf`, at its commit 2b75f932, 2025-02-22). Copied unchanged. A face tried for a mock-up is added here as its BDF file.
+The BDF files are Adobe's and Digital's X11 Helvetica, with Markus Kuhn's ISO 10646 extension, as u8g2 carries them (`tools/font/bdf`, at its commit 2b75f932, 2025-02-22). Copied unchanged. A face tried for a mock-up is added here as its BDF file.
 
-## Their notice
+`claude_chan.txt` was drawn for this firmware (ADR-010, 2026-11-17).
 
-Every file carries it in its `COMMENT` lines. The firmware draws with these fonts, so it is given here as well:
+## The Helvetica files' notice
+
+Every BDF file carries it in its `COMMENT` lines. The firmware draws with these fonts, so it is given here as well:
 
 > Copyright 1984-1989, 1994 Adobe Systems Incorporated.
 > Copyright 1988, 1994 Digital Equipment Corporation.

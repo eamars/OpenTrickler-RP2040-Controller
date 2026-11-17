@@ -115,6 +115,12 @@ void display_init(bool flipped) {
 }
 
 
+void display_invert(bool inverted) {
+    uint8_t command = inverted ? 0xa7 : 0xa6;
+    display_commands(&command, 1);
+}
+
+
 void display_send_pages(const uint8_t *rows, uint8_t pages) {
     uint8_t columns[DISPLAY_WIDTH];
     for (int page = 0; page < DISPLAY_PAGES; page += 1) {

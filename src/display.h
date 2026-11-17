@@ -32,6 +32,12 @@ void display_init(bool flipped);
  */
 void display_send_pages(const uint8_t *rows, uint8_t pages);
 
+/**
+ * The whole panel shown inverted, or as it is: the panel's own command, so the frame is untouched (the hidden hello's
+ * flash; a snap and the mirror never show it).
+ */
+void display_invert(bool inverted);
+
 #ifdef __cplusplus
 }
 #endif

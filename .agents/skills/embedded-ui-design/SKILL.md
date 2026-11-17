@@ -113,6 +113,12 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
 
 ## This project's design language
 
+- **An overlay over a page is the screen's last child, opaque and as large as the screen.** LVGL then draws from it
+  up and skips the page under it. On LVGL's top layer the page is drawn as well: the hidden hello's first overlay ran
+  the heap out there and the core faulted, since LVGL's checks are off and a failed allocation is written through
+  (ADR-010, 2026-11-17). An animated figure is one label of tiles, a pose a different set of tiles
+  (`scripts/bdf2lvgl.py`, `:art`), rather than an object for each moving part; check the heap's free piece before
+  making it, and let it go when it is short.
 - **LVGL's heap is the view's budget** (`LV_MEM_SIZE`, 14 KB, `src/lv_conf.h`). It holds every object of the view,
   a frame's draw tasks while it draws, and a glyph's working buffer (384 bytes for an 18 px figure). When it runs
   short, LVGL silently skips the glyphs it cannot buffer: the redesigned view in 12 KB drew its figures as a lone "."

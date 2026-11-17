@@ -59,6 +59,19 @@ static uint32_t menu_lvgl_heap_max = 0;
 // The least LVGL's heap had free in one piece: a glyph is drawn through a buffer taken from it (up to 384 bytes)
 static uint32_t menu_lvgl_biggest_free_min = UINT32_MAX;
 
+// The hidden hello: asked from the web's task (menu_visit()), played here a step at a time. Negative steps are the
+// flash: the panel inverted, then not, twice
+#define MENU_VISIT_STEP_MS 200
+#define MENU_VISIT_FLASH_STEPS 4
+static char menu_visit_asked_name[MENU_VISIT_NAME_MAX + 1];
+static bool menu_visit_asked = false;
+static bool menu_visit_asked_flash = false;
+static uint64_t menu_visit_last_us = 0;
+static bool menu_visiting = false;
+static char menu_visit_name[MENU_VISIT_NAME_MAX + 1];
+static int menu_visit_step = 0;
+static uint64_t menu_visit_step_us = 0;
+
 // The remote control's `screen <id>`: asked from its task, answered after the draw
 static volatile int menu_current_form_id = -1;
 static char menu_goto_id[32];
@@ -216,9 +229,91 @@ static void menu_event(ButtonEncoderEvent_t event) {
 }
 
 
-// The wait for the next event: the refresh, or sooner when a hold is due
+bool menu_visit(const char *name, bool *flash) {
+    if (activity_get() != ACTIVITY_NONE) {
+        return false;
+    }
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    uint64_t now_us = time_us_64();
+    *flash = menu_visit_last_us == 0 || now_us - menu_visit_last_us >= (uint64_t) MENU_VISIT_QUIET_MS * 1000u;
+    menu_visit_last_us = now_us;
+    snprintf(menu_visit_asked_name, sizeof(menu_visit_asked_name), "%s", name);
+    menu_visit_asked_flash = *flash;
+    menu_visit_asked = true;
+    xSemaphoreGive(menu_screen_lock);
+    menu_wake();
+    return true;
+}
+
+
+static void menu_visit_show(void) {
+    if (menu_visit_step < 0) {
+        display_invert(menu_visit_step % 2 == 0);
+        return;
+    }
+    display_invert(false);
+    if (!menu_view_visit(menu_visit_step, menu_visit_name)) {
+        menu_visiting = false;
+    }
+}
+
+
+// The hello ended, whole or cut short: the panel as it is, the page back
+static void menu_visit_end(void) {
+    if (!menu_visiting) {
+        return;
+    }
+    menu_visiting = false;
+    display_invert(false);
+    menu_view_visit_end();
+}
+
+
+// A hello asked is begun, unless a job has the screen; one playing goes on a step when its time is up
+static void menu_visit_run(void) {
+    xSemaphoreTake(menu_screen_lock, portMAX_DELAY);
+    bool asked = menu_visit_asked;
+    bool flash = menu_visit_asked_flash;
+    if (asked) {
+        memcpy(menu_visit_name, menu_visit_asked_name, sizeof(menu_visit_name));
+        menu_visit_asked = false;
+    }
+    xSemaphoreGive(menu_screen_lock);
+
+    uint64_t now_us = time_us_64();
+    if (menu_nav_in_job()) {
+        menu_visit_end();
+        return;
+    }
+    if (asked) {
+        menu_view_visit_end();
+        menu_visiting = true;
+        menu_visit_step = flash ? -MENU_VISIT_FLASH_STEPS : 0;
+        menu_visit_step_us = now_us;
+        menu_visit_show();
+        return;
+    }
+    if (menu_visiting && now_us - menu_visit_step_us >= (uint64_t) MENU_VISIT_STEP_MS * 1000u) {
+        menu_visit_step += 1;
+        menu_visit_step_us = now_us;
+        if (menu_visit_step >= MENU_VIEW_VISIT_STEPS) {
+            menu_visit_end();
+        }
+        else {
+            menu_visit_show();
+        }
+    }
+}
+
+
+// The wait for the next event: the refresh, or sooner when a hold is due or a hello's next step
 static uint32_t menu_wait_ms(void) {
     uint32_t wait = menu_nav_in_job() ? MENU_REFRESH_JOB_MS : MENU_REFRESH_PAGE_MS;
+    if (menu_visiting) {
+        uint64_t spent_ms = (time_us_64() - menu_visit_step_us) / 1000;
+        uint32_t left = spent_ms >= MENU_VISIT_STEP_MS ? 0 : (uint32_t) (MENU_VISIT_STEP_MS - spent_ms);
+        wait = left < wait ? left : wait;
+    }
     if (menu_knob_down && !menu_knob_held) {
         uint64_t held_ms = (time_us_64() - menu_knob_down_us) / 1000;
         uint32_t left = held_ms >= MENU_HOLD_MS ? 0 : (uint32_t) (MENU_HOLD_MS - held_ms);
@@ -306,6 +401,14 @@ void menu_task(void *p) {
     while (true) {
         ButtonEncoderEvent_t event = button_wait_for_input_ms(menu_wait_ms());
         bool goto_asked = event == MENU_REMOTE_SCREEN;
+        // A hello ends at a press, and the press does nothing else: the person did not see the page under it
+        bool pressed = event != BUTTON_NO_EVENT && event != MENU_WAKE && event != MENU_REMOTE_SCREEN;
+        if (menu_visiting && (pressed || goto_asked)) {
+            menu_visit_end();
+            if (pressed) {
+                event = BUTTON_NO_EVENT;
+            }
+        }
         if (event != BUTTON_NO_EVENT) {
             menu_event(event);
         }
@@ -321,6 +424,7 @@ void menu_task(void *p) {
             }
         }
         menu_jobs();
+        menu_visit_run();
         menu_nav_refresh();
         menu_draw(goto_asked);
 

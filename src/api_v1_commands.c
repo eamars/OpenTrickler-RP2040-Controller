@@ -1094,6 +1094,45 @@ static bool api_v1_restart_later(bool erase) {
 }
 
 
+// POST /api/v1/agent/hello {"name": "..."}: an agent says it is here, and the screen shows who for about 2 s, flashing
+// first after a quiet spell (menu_visit()). The owner's hidden mode, for fun (2026-11-17): not in the index or the
+// schema, so only agents that read AGENTS.md know it. It changes nothing but the screen, and never while a job runs
+static void api_v1_agent_hello(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"name"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
+        return;
+    }
+    char name[MENU_VISIT_NAME_MAX + 1] = "Claude-chan";
+    const http_json_member_t *member = api_member(members, count, "name");
+    if (member != NULL) {
+        bool fits = http_json_string_value(member, name, sizeof(name)) && name[0] != '\0';
+        for (const char *at = name; fits && *at != '\0'; at += 1) {
+            fits = *at >= 0x20 && *at <= 0x7e;      // the screen's fonts have printable ASCII only
+        }
+        if (!fits) {
+            api_error(reply, 400, "bad_value", "name", "printable ASCII, 1 to 16 characters", NULL);
+            return;
+        }
+    }
+    bool flash = false;
+    if (!menu_visit(name, &flash)) {
+        api_busy(reply, "a job has the screen");
+        return;
+    }
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"shown\":true,\"name\":");
+    http_json_string(out, room, &len, name);
+    http_json_raw(out, room, &len, ",\"flash\":");
+    http_json_bool(out, room, &len, flash);
+    http_json_raw(out, room, &len, "}");
+    api_send(reply, 200, room, len);
+}
+
+
 static void api_v1_system_restart(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!api_empty(request, reply)) {
         return;
@@ -1354,6 +1393,8 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/system", api_v1_get_system);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/restart", api_v1_system_restart);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/erase", api_v1_system_erase);
+    // Hidden: in neither the index nor the schema (the owner's hello for agents)
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/agent/hello", api_v1_agent_hello);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/update", api_v1_get_update);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/start", api_v1_update_start);

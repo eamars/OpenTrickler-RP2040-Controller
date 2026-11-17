@@ -21,6 +21,13 @@ void menu_view_init(lv_display_t *display);
 // The screen drawn: what changed is set, LVGL draws it at its next timer
 void menu_view_draw(const menu_screen_t *screen);
 
+// The hidden hello (the owner, 2026-11-17): Claude-chan, saying `name` is watching, over the page. Its steps are
+// shown in turn, from 0; the end deletes it. No objects while it is not shown. False when it cannot be shown: LVGL's
+// heap is short, and the hello is let go
+#define MENU_VIEW_VISIT_STEPS 10
+bool menu_view_visit(int step, const char *name);
+void menu_view_visit_end(void);
+
 #ifdef __cplusplus
 }
 #endif

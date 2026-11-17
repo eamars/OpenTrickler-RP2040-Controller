@@ -42,6 +42,8 @@
 extern const lv_font_t menu_font_regular;
 extern const lv_font_t menu_font_bold;
 extern const lv_font_t menu_font_figure;
+// The hidden hello's figure, fonts/claude_chan.txt in 16 x 16 tiles: four poses of nine, from 'A' (scripts/bdf2lvgl.py)
+extern const lv_font_t menu_font_chan;
 
 static lv_obj_t *view_title_box;
 static lv_obj_t *view_title;
@@ -428,5 +430,120 @@ void menu_view_draw(const menu_screen_t *screen) {
     }
     if (dialog || figure) {
         view_softkeys(screen);
+    }
+}
+
+
+// --- The hidden hello (the owner, 2026-11-17): an agent says who it is over the API, and Claude-chan peeks up from
+// the bottom of the screen, looks about, blinks and goes. Slow steps for a passive LCD (the skill embedded-ui-design).
+// It is the screen's last child, opaque and as large as the screen: LVGL then draws from it up and skips the page
+// under it. On LVGL's top layer the page was drawn as well, and with eight objects of its own the two ran LVGL's heap
+// out: a draw task's allocation failed and the core faulted (2026-11-17). Deleted after
+
+#define VIEW_VISIT_FIGURE_X 2
+#define VIEW_VISIT_FIGURE_SIZE 48
+#define VIEW_VISIT_TEXT_X 54
+// The free piece of LVGL's heap the overlay needs before it is made. On the Pico W (2026-11-17), over every page of
+// the menu: 2,604 to 2,680 bytes in one piece before, about 1,950 with its four objects made, 1,868 at the least
+// while it drew. With less than this, the hello is let go: an allocation LVGL cannot make faults the core
+#define VIEW_VISIT_HEAP_NEEDED 2048
+
+// The figure's poses, in fonts/claude_chan.txt from the top, each nine 16 x 16 tiles of menu_font_chan from 'A' on
+typedef enum {
+    VIEW_VISIT_AHEAD = 0,
+    VIEW_VISIT_LEFT,
+    VIEW_VISIT_RIGHT,
+    VIEW_VISIT_BLINK,
+} view_visit_pose_t;
+
+typedef struct {
+    int8_t top;         // the figure's top: 16 stands it on the bottom edge
+    uint8_t pose;
+    bool words;
+} view_visit_step_t;
+
+static const view_visit_step_t view_visit_steps[MENU_VIEW_VISIT_STEPS] = {
+    {50, VIEW_VISIT_AHEAD, false}, {40, VIEW_VISIT_AHEAD, false}, {16, VIEW_VISIT_AHEAD, true},
+    {16, VIEW_VISIT_LEFT, true}, {16, VIEW_VISIT_RIGHT, true}, {16, VIEW_VISIT_AHEAD, true},
+    {16, VIEW_VISIT_BLINK, true}, {16, VIEW_VISIT_AHEAD, true}, {16, VIEW_VISIT_AHEAD, true},
+    {40, VIEW_VISIT_AHEAD, true},
+};
+
+// Four objects: the dark ground, the figure, the name and the words. The figure is one label of nine tiles, a pose
+// a different nine, so the eyes need no objects of their own
+static lv_obj_t *view_visit = NULL;
+static lv_obj_t *view_visit_figure;
+static lv_obj_t *view_visit_words[2];
+
+
+// The figure's text for a pose: three rows of three tiles
+static void view_visit_pose(char *text, view_visit_pose_t pose) {
+    char tile = (char) ('A' + 9 * (int) pose);
+    size_t at = 0;
+    for (int row = 0; row < 3; row += 1) {
+        for (int col = 0; col < 3; col += 1) {
+            text[at++] = tile++;
+        }
+        text[at++] = row < 2 ? '\n' : '\0';
+    }
+}
+
+
+static bool view_visit_create(const char *name) {
+    lv_mem_monitor_t heap;
+    lv_mem_monitor(&heap);
+    if (heap.free_biggest_size < VIEW_VISIT_HEAP_NEEDED) {
+        printf("Hello: let go, LVGL's heap has %lu bytes in one piece\n", (unsigned long) heap.free_biggest_size);
+        return false;
+    }
+
+    view_visit = view_box(lv_screen_active(), 0, 0, VIEW_W, VIEW_H, false);
+    lv_obj_set_style_bg_color(view_visit, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(view_visit, LV_OPA_COVER, 0);
+
+    view_visit_figure = view_label(view_visit, &menu_font_chan, LV_TEXT_ALIGN_LEFT);
+    lv_obj_set_size(view_visit_figure, VIEW_VISIT_FIGURE_SIZE, VIEW_VISIT_FIGURE_SIZE);
+
+    view_visit_words[0] = view_label(view_visit, &menu_font_bold, LV_TEXT_ALIGN_LEFT);
+    view_place(view_visit_words[0], VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 24);
+    view_text(view_visit_words[0], name);
+    // Two lines of the regular face, their baselines 36 and 48
+    view_visit_words[1] = view_label(view_visit, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
+    view_place(view_visit_words[1], VIEW_VISIT_TEXT_X, VIEW_W - VIEW_VISIT_TEXT_X, 36);
+    lv_obj_set_style_text_line_space(view_visit_words[1], 1, 0);
+    lv_obj_set_height(view_visit_words[1], 2 * (int) menu_font_regular.line_height + 1);
+    view_text(view_visit_words[1], "is watching\nya!");
+
+    size_t before = heap.free_biggest_size;
+    lv_mem_monitor(&heap);
+    printf("Hello: LVGL's heap %lu bytes in one piece, %lu with the overlay made\n", (unsigned long) before,
+           (unsigned long) heap.free_biggest_size);
+    return true;
+}
+
+
+bool menu_view_visit(int step, const char *name) {
+    if (step < 0 || step >= MENU_VIEW_VISIT_STEPS) {
+        return false;
+    }
+    if (view_visit == NULL && !view_visit_create(name)) {
+        return false;
+    }
+    const view_visit_step_t *at = &view_visit_steps[step];
+    char pose[12];
+    view_visit_pose(pose, (view_visit_pose_t) at->pose);
+    view_text(view_visit_figure, pose);
+    lv_obj_set_pos(view_visit_figure, VIEW_VISIT_FIGURE_X, at->top);
+    for (int idx = 0; idx < 2; idx += 1) {
+        view_show(view_visit_words[idx], at->words);
+    }
+    return true;
+}
+
+
+void menu_view_visit_end(void) {
+    if (view_visit != NULL) {
+        lv_obj_delete(view_visit);
+        view_visit = NULL;
     }
 }

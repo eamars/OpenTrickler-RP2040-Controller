@@ -74,6 +74,17 @@ void menu_screen_copy(menu_screen_t *screen, uint32_t *lvgl_heap_max);
 uint32_t menu_lvgl_biggest_free(void);
 
 /**
+ * @brief The hidden hello (the owner, 2026-11-17): an agent says who it is, and the screen shows it for about 2 s,
+ *        flashing first when no agent has said hello for MENU_VISIT_QUIET_MS. Any task.
+ * @param name who is watching: printable ASCII, MENU_VISIT_NAME_MAX characters at most.
+ * @param flash set to whether the screen flashes first.
+ * @return false while a job runs: its screen stays.
+ */
+#define MENU_VISIT_NAME_MAX 16
+#define MENU_VISIT_QUIET_MS (10u * 60u * 1000u)
+bool menu_visit(const char *name, bool *flash);
+
+/**
  * @brief The remote control's `press hold`: the knob's button down, then up after `ms` (a hold is Back).
  */
 bool menu_hold(uint32_t ms);
