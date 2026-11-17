@@ -789,3 +789,22 @@ the charge mode, every call to hello should trigger the animation, regardless of
   direction to Reversed and back; the channel turned to Beta and left Stable by Back. `menu_tour`: Settings,
   Display, Servo gate (new), Motors (new) and Firmware saved again; `charge_cycle` passes. **Not seen:** the servo
   moving to an end, the bench's gate being off and not fitted.
+
+## Gate 6, step 4a: the charge's time and powder; Powder details (2026-11-17)
+
+- **Built:**
+  - The charge's screen: the time at the title's right, as the old screen had it (`charge_mode_get_elapsed_s()`:
+    live while a throw pours, the last throw's after; none before the first); "of 30.00, AR2209,gr" under the weight
+    (the profile's name as stored, as the old screen showed it); the titles "Zeroing", "Charging", "Lift the cup",
+    "Return the cup", "Paused", short enough beside the time. The screen model gains `title_note`; the console's
+    `@screen` gives it as `note`.
+  - **Powder details** (Charge › Powder details), the old menu's Profile details read only: Kp, Ki, Kd, the minimum
+    and maximum speeds, coarse and fine side by side under a bold heading, and the profile's revision and
+    compatibility. A card's value with a tab is two columns, the first ending at 78 px.
+- **Found by the tour, and fixed:** after Powder details, every list's ">" showed the card's second column ("ne",
+  "00"): the card borrows that label, and a list set its text only once, at the start. A list now sets it each time.
+- **Proven on the Pico W:** a simulated charge followed by `screen` every 2 s: "Zeroing" with no time before the
+  first throw, "Charging" with the time live (0.21 s to 16.56 s), "Lift the cup" keeping 16.88 s with "Good"; snaps
+  of each and of Powder details. With SIM and R both shown (a simulated charge started from the console) the title
+  is clipped ("Lift the"): the measured titles fit beside the time and the Wi-Fi mark alone. `menu_tour` (Charge and
+  Powder details saved; passing after Powder details is visited first) and `charge_cycle` pass.

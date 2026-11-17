@@ -688,7 +688,7 @@ static bool motors_fault_shown(const char *what) {
 
 static const menu_page_t page_ack_charge;
 static const menu_page_t page_ack_cleanup;
-static const menu_row_t rows_charge[3];
+static const menu_row_t rows_charge[4];
 static void push_edit(const menu_row_t *row);
 
 // The charge page's Target and Powder, which the charge's own screen opens too between throws
@@ -889,6 +889,50 @@ static void value_backlight(const menu_row_t *row, char *out, size_t room) {
 }
 
 
+// --- Powder details: the selected profile's gains and speeds, coarse and fine side by side (a tab between them),
+// and its revision, as the old menu's Profile details showed them (forms 34 and 38)
+
+static const char *powder_details_title(void) {
+    return profile_get_name(profile_get_selected_idx());
+}
+
+
+static void value_powder_heads(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "Coarse\tFine");
+}
+
+
+static void value_powder_pair(const menu_row_t *row, char *out, size_t room) {
+    const profile_t *profile = profile_get_selected();
+    float coarse = 0.0f, fine = 0.0f;
+    int decimals = 3;
+    if (strcmp(row->name, "kp") == 0) {
+        coarse = profile->coarse_kp; fine = profile->fine_kp;
+    }
+    else if (strcmp(row->name, "ki") == 0) {
+        coarse = profile->coarse_ki; fine = profile->fine_ki;
+    }
+    else if (strcmp(row->name, "kd") == 0) {
+        coarse = profile->coarse_kd; fine = profile->fine_kd;
+    }
+    else if (strcmp(row->name, "min") == 0) {
+        coarse = profile->coarse_min_flow_speed_rps; fine = profile->fine_min_flow_speed_rps; decimals = 2;
+    }
+    else {
+        coarse = profile->coarse_max_flow_speed_rps; fine = profile->fine_max_flow_speed_rps; decimals = 2;
+    }
+    snprintf(out, room, "%.*f\t%.*f", decimals, (double) coarse, decimals, (double) fine);
+}
+
+
+static void value_powder_revision(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    const profile_t *profile = profile_get_selected();
+    snprintf(out, room, "%lx, %lx", (unsigned long) profile->rev, (unsigned long) profile->compatibility);
+}
+
+
 // --- The servo gate: moved as the API moves it (PATCH /api/v1/gate), and so refused when it is
 
 static const char *gate_move(gate_ratio_t ratio) {
@@ -946,13 +990,27 @@ static const menu_row_t rows_ack_cleanup[] = {
 static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/cleanup", .title = "Cleanup",
                                              .rows = rows_ack_cleanup, .row_count = 3};
 
-static const menu_row_t rows_charge[3] = {
+static const menu_row_t rows_powder_details[] = {
+    {.label = "", .kind = ROW_INFO, .value = value_powder_heads, .bold = true},
+    {.label = "Kp", .kind = ROW_INFO, .value = value_powder_pair, .name = "kp"},
+    {.label = "Ki", .kind = ROW_INFO, .value = value_powder_pair, .name = "ki"},
+    {.label = "Kd", .kind = ROW_INFO, .value = value_powder_pair, .name = "kd"},
+    {.label = "Minimum", .kind = ROW_INFO, .value = value_powder_pair, .name = "min"},
+    {.label = "Maximum", .kind = ROW_INFO, .value = value_powder_pair, .name = "max"},
+    {.label = "Revision", .kind = ROW_INFO, .value = value_powder_revision},
+};
+static const menu_page_t page_powder_details = {.kind = PAGE_CARD, .id = "charge/powder", .title = "Powder",
+                                                .title_now = powder_details_title, .rows = rows_powder_details,
+                                                .row_count = 7};
+
+static const menu_row_t rows_charge[4] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_charge_start},
     {.label = "Target", .kind = ROW_NUMBER, .value = value_target},
     {.label = "Powder", .kind = ROW_CHOICE, .value = value_powder, .count = powder_count, .option = powder_option,
      .current = powder_current, .choose = powder_choose},
+    {.label = "Powder details", .kind = ROW_PAGE, .page = &page_powder_details},
 };
-static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows = rows_charge, .row_count = 3};
+static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows = rows_charge, .row_count = 4};
 
 // Between throws, the charge's Change: its target and powder. It closes when the next throw begins
 static const menu_page_t page_charge_change = {.id = "charge/change", .title = "Change", .rows = &rows_charge[1],
@@ -1106,7 +1164,7 @@ static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .ti
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
-    &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_charge_settings, &page_display,
+    &page_main, &page_charge, &page_powder_details, &page_wifi, &page_settings, &page_scale, &page_charge_settings, &page_display,
     &page_gate, &page_motors, &page_firmware,
     &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
 };
@@ -1190,6 +1248,13 @@ static uint8_t page_lines(const menu_page_t *page, char lines[][MENU_TEXT], char
         }
         const char *label = row->label_now != NULL ? row->label_now() : row->label;
         uint8_t from = count;
+        if (strchr(value, '\t') != NULL && count < MENU_ROWS_MAX) {
+            snprintf(lines[count], MENU_TEXT, "%s", label);
+            snprintf(values[count], MENU_TEXT, "%s", value);
+            bolds[count] = row->bold;
+            count += 1;
+            continue;
+        }
         int value_w = text_width(value, false);
         if (label[0] != '\0' && value[0] != '\0' && value_w <= nav_line_width) {
             bool one_line = text_width(label, row->bold) + NAV_PAIR_GAP + value_w <= nav_line_width;
@@ -1983,7 +2048,7 @@ static void screen_message(menu_screen_t *screen, const frame_t *frame) {
 
 static const char *charge_state_text(const char *state) {
     if (strcmp(state, "zeroing") == 0) {
-        return "Waiting for zero";
+        return "Zeroing";
     }
     if (strcmp(state, "charging") == 0) {
         return "Charging";
@@ -1992,7 +2057,7 @@ static const char *charge_state_text(const char *state) {
         return "Lift the cup";
     }
     if (strcmp(state, "waiting_for_cup_return") == 0) {
-        return "Put the cup back";
+        return "Return the cup";
     }
     if (strcmp(state, "starting") == 0) {
         return "Starting";
@@ -2019,8 +2084,12 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
             snprintf(screen->title, sizeof(screen->title), "%s", charge_mode_get_title());
         }
         else {
-            snprintf(screen->title, sizeof(screen->title), "%s%s", charge_state_text(charge.state),
-                     charge.paused ? ", paused" : "");
+            snprintf(screen->title, sizeof(screen->title), "%s", charge.paused ? "Paused" :
+                                                                  charge_state_text(charge.state));
+            // The time, as the old screen had it: live while a throw pours, the last throw's while it waits
+            if (charge.elapsed_s > 0.0f) {
+                snprintf(screen->title_note, sizeof(screen->title_note), "%.2f s", (double) charge.elapsed_s);
+            }
         }
         // Between throws the throw's weight stays, with its verdict: with the cup off, the pan's reading means
         // nothing to a person
@@ -2045,7 +2114,7 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         else if (!fault && charge.target > 0.0f) {
             char target[16];
             format_weight(charge.target, target, sizeof(target));
-            snprintf(screen->context, MENU_TEXT, "of %s", target);
+            snprintf(screen->context, MENU_TEXT, "of %s, %s", target, profile_get_name(profile_get_selected_idx()));
         }
         // A new action is focused as it appears; with none, Stop is
         job_action_t action = charge_action();

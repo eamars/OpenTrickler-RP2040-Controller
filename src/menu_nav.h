@@ -48,6 +48,7 @@ typedef struct {
     menu_screen_kind_t kind;
     char id[32];                            // the page's id ("settings/scale"), or "job/charge", "edit", "message"
     char title[MENU_TEXT];                  // on a job's screen, its status
+    char title_note[16];                    // at the title's right, before the marks: the charge's time
     bool title_back;                        // the title is a Back target ("< Settings")
 
     /*

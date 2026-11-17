@@ -253,8 +253,9 @@ static bool remote_control_press(const char *args, char *reply, size_t reply_siz
 static void remote_control_screen_lines(const menu_screen_t *screen, remote_control_write_fn write, void *write_ctx) {
     static const char *const kinds[] = {"list", "card", "dialog", "notes", "edit", "job"};
     char line[160];
-    snprintf(line, sizeof(line), "@screen id=%s kind=%s title=\"%s\" focus=%d marks=%s%s%s%s", screen->id,
-             kinds[screen->kind], screen->title, (int) screen->focus, screen->mark_station ? "W" : "",
+    snprintf(line, sizeof(line), "@screen id=%s kind=%s title=\"%s\"%s%s%s focus=%d marks=%s%s%s%s", screen->id,
+             kinds[screen->kind], screen->title, screen->title_note[0] != '\0' ? " note=\"" : "", screen->title_note,
+             screen->title_note[0] != '\0' ? "\"" : "", (int) screen->focus, screen->mark_station ? "W" : "",
              screen->mark_access_point ? "AP" : "", screen->mark_remote ? "R" : "", screen->mark_simulated ? "S" : "");
     write(line, write_ctx);
     switch (screen->kind) {

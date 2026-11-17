@@ -28,6 +28,7 @@
 #define VIEW_LINE_H 11
 #define VIEW_LINES 4
 #define VIEW_LINE_WIDTH (VIEW_W - 3 - 5)        // a card's or notes' line, clear of the scroll bar
+#define VIEW_COLUMN 78                          // a two-column line's first column ends here
 #define VIEW_MESSAGE_BASE_1 29
 #define VIEW_MESSAGE_BASE_2 40
 #define VIEW_FIGURE_BASE 38
@@ -255,15 +256,17 @@ void menu_view_init(lv_display_t *display) {
 static void view_title_and_marks(const menu_screen_t *screen, bool focused) {
     // Wi-Fi as an icon of the regular font: full signal bars joined as a station, with no strength (the owner:
     // clearest on the small screen), a hotspot as its own access point
-    char marks[24];
-    snprintf(marks, sizeof(marks), "%s%s%s", screen->mark_simulated ? "SIM " : "", screen->mark_remote ? "R " : "",
+    char marks[40];
+    snprintf(marks, sizeof(marks), "%s%s%s%s%s", screen->title_note, screen->title_note[0] != '\0' ? "  " : "",
+             screen->mark_simulated ? "SIM " : "", screen->mark_remote ? "R " : "",
              screen->mark_station ? VIEW_ICON_STATION : (screen->mark_access_point ? VIEW_ICON_ACCESS_POINT : ""));
     view_text(view_marks, marks);
     char title[MENU_TEXT + 4];
     snprintf(title, sizeof(title), "%s%s", screen->title_back ? "< " : "", screen->title);
     view_text(view_title, title);
-    // The title is clipped short of the marks
+    // The marks as wide as they are, the time before them; the title clipped short of them
     int marks_w = view_text_width(marks, strlen(marks), &menu_font_regular);
+    view_place(view_marks, VIEW_W - 1 - marks_w - 2, marks_w + 2, VIEW_TITLE_BASE);
     view_place(view_title, 1, VIEW_W - 1 - marks_w - (marks_w > 0 ? 4 : 0), VIEW_TITLE_BASE);
     view_reverse(view_title_box, focused, view_title, view_marks, NULL);
 }
@@ -313,6 +316,10 @@ static void view_list(const menu_screen_t *screen) {
         view_text(view_row_label[idx], screen->row_label[row]);
         view_text(view_row_value[idx], screen->row_value[row]);
         view_show(view_row_value[idx], true);      // a card hides it
+        // A card uses these two for its columns, in bold on a heading: a list's are regular, and ">"
+        view_font(view_row_value[idx], &menu_font_regular);
+        view_font(view_row_more[idx], &menu_font_regular);
+        view_text(view_row_more[idx], ">");
         // The text centred in the row's 12 px: its baseline 9 below the row's top
         int more_w = screen->row_opens[row] ? view_text_width(">", 1, &menu_font_regular) + 3 : 0;
         view_show(view_row_more[idx], screen->row_opens[row]);
@@ -357,19 +364,36 @@ static void view_lines(const menu_screen_t *screen) {
         }
         lv_obj_set_pos(view_rows[idx], 0, top);
         lv_obj_set_size(view_rows[idx], VIEW_W - 5, VIEW_LINE_H);
-        view_reverse(view_rows[idx], false, view_row_label[idx], view_row_value[idx], NULL);
+        view_reverse(view_rows[idx], false, view_row_label[idx], view_row_value[idx], view_row_more[idx]);
         view_font(view_row_label[idx], screen->row_bold[line] ? &menu_font_bold : &menu_font_regular);
         view_text(view_row_label[idx], screen->row_label[line]);
-        // A key at the left, its value at the right; the key clipped short of the value
+        // A key at the left, its value at the right; the key clipped short of the value. A value with a tab is two
+        // columns, the first ending at VIEW_COLUMN (Powder details: the coarse and the fine side by side)
         const char *value = screen->row_value[line];
-        int value_w = value[0] != '\0' ? view_text_width(value, strlen(value), &menu_font_regular) + 6 : 0;
+        const char *tab = strchr(value, '\t');
+        const lv_font_t *value_font = screen->row_bold[line] ? &menu_font_bold : &menu_font_regular;
+        view_font(view_row_value[idx], value_font);
+        view_font(view_row_more[idx], value_font);
         view_show(view_row_value[idx], value[0] != '\0');
-        if (value[0] != '\0') {
-            view_text(view_row_value[idx], value);
-            view_place(view_row_value[idx], VIEW_MARGIN, VIEW_LINE_WIDTH, VIEW_LINE_H - 3);
+        view_show(view_row_more[idx], tab != NULL);
+        int value_w;
+        if (tab != NULL) {
+            char first[MENU_TEXT];
+            snprintf(first, sizeof(first), "%.*s", (int) (tab - value), value);
+            view_text(view_row_value[idx], first);
+            view_place(view_row_value[idx], VIEW_MARGIN, VIEW_COLUMN - VIEW_MARGIN, VIEW_LINE_H - 3);
+            view_text(view_row_more[idx], tab + 1);
+            view_place(view_row_more[idx], VIEW_COLUMN, VIEW_LINE_WIDTH + VIEW_MARGIN - VIEW_COLUMN, VIEW_LINE_H - 3);
+            value_w = VIEW_LINE_WIDTH - (VIEW_COLUMN - view_text_width(first, strlen(first), value_font)) + 6;
+        }
+        else {
+            value_w = value[0] != '\0' ? view_text_width(value, strlen(value), value_font) + 6 : 0;
+            if (value[0] != '\0') {
+                view_text(view_row_value[idx], value);
+                view_place(view_row_value[idx], VIEW_MARGIN, VIEW_LINE_WIDTH, VIEW_LINE_H - 3);
+            }
         }
         view_place(view_row_label[idx], VIEW_MARGIN, VIEW_LINE_WIDTH - value_w, VIEW_LINE_H - 3);
-        view_show(view_row_more[idx], false);
     }
     view_show(view_button, button_shown);
     view_scrollbar(screen->first, VIEW_LINES, total);
