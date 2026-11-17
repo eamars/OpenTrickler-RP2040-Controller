@@ -282,25 +282,25 @@ static const setting_choice_t scale_driver_choices[] = {
     {.held = SCALE_DRIVER_RADWAG_PS_R2, .text = "radwag_ps_r2", .label = "Radwag PS R2"},
     {.held = SCALE_DRIVER_SARTORIUS, .text = "sartorius", .label = "Sartorius"},
     {.held = SCALE_DRIVER_GENERIC_DRV, .text = "generic", .label = "Generic"},
-    {.held = SCALE_DRIVER_SIMULATED, .text = "simulated", .label = "Simulated (no scale)"},
+    {.held = SCALE_DRIVER_SIMULATED, .text = "simulated", .label = "Simulated (no scale)", .short_label = "Simulated"},
 };
 
 static const setting_choice_t scale_baud_choices[] = {
-    {.held = BAUDRATE_4800, .number = 4800, .label = "4800 baud"},
-    {.held = BAUDRATE_9600, .number = 9600, .label = "9600 baud"},
-    {.held = BAUDRATE_19200, .number = 19200, .label = "19200 baud"},
+    {.held = BAUDRATE_4800, .number = 4800, .label = "4800 baud", .short_label = "4800"},
+    {.held = BAUDRATE_9600, .number = 9600, .label = "9600 baud", .short_label = "9600"},
+    {.held = BAUDRATE_19200, .number = 19200, .label = "19200 baud", .short_label = "19200"},
 };
 
 static const setting_choice_t scale_format_choices[] = {
-    {.held = UART_FMT_8D_1S_NP, .text = "8n1", .label = "8 data bits, no parity, 1 stop bit"},
-    {.held = UART_FMT_7D_1S_NP, .text = "7n1", .label = "7 data bits, no parity, 1 stop bit"},
+    {.held = UART_FMT_8D_1S_NP, .text = "8n1", .label = "8 data bits, no parity, 1 stop bit", .short_label = "8N1"},
+    {.held = UART_FMT_7D_1S_NP, .text = "7n1", .label = "7 data bits, no parity, 1 stop bit", .short_label = "7N1"},
 };
 
 
 #define SCALE_FIELD(member) SETTING_AT(eeprom_scale_data_t, member)
 
 static const setting_field_t scale_fields[] = {
-    {.name = "driver", .label = "Scale", .group = "Scale",
+    {.name = "driver", .label = "Scale", .group = "Scale", .short_label = "Make",
      .about = "The make of scale, whose driver reads it; its reader is made at the start",
      .type = SETTING_CHOICE, SCALE_FIELD(scale_driver), SETTING_CHOICES(scale_driver_choices),
      .applies = "at_restart"},

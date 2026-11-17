@@ -733,3 +733,22 @@ the charge mode, every call to hello should trigger the animation, regardless of
   running cleanup (shown; the reset button during a hello stopped the cleanup), and over a charge refused ("a charge
   has the screen"); `menu_tour --compare` and `charge_cycle` pass. LVGL's heap at most 11.4 of 17 KB, 3.9 KB in one
   piece at the least; the FreeRTOS heap 39.9 KB at its least (no fetch in that run).
+
+## Gate 6, step 1: the description grows (2026-11-17)
+
+- **Built:**
+  - The settings' description (`settings.h`) gains, for a client with little room: a field's `short_label`, its
+    `edit_step` (what a detent moves a number by), a boolean's `on_label` and `off_label`, and a choice's
+    `short_label`. The schema publishes them (api_v1.md), for ADR-008's pages too. Set where the screen needs them:
+    the stop thresholds ("Fine stop", 0.01; "Coarse stop", 0.1), the decimals, the scale's make, baud rates and
+    frame formats ("8N1"), the knob's and the screen's inversion, a motor's direction ("Reversed", "Normal"), the
+    shutters' ends (0.001), the channel ("Beta").
+  - No flag for "on the screen": the menu's tree places each setting, and a second record of it could drift.
+  - **Charge view** (Weight or Chart), the display's new setting, in its struct's last byte of filler.
+- **Found: that byte held 255 on the Pico W** (an erased EEPROM byte, which is also why Invert screen started on),
+  so Charge view was none of its choices and the API gave it as `null`. **Fixed for every choice:** at the start, a
+  stored choice that is none of its choices is replaced by its first and stored, and the console says so ("Settings:
+  /api/v1/settings/display charge_view held 255, none of its choices: Weight put in its place"). Booleans and
+  numbers in filler are left to ADR-006.
+- **Proven on the Pico W:** the schema's new keys; the mend at the first start and none at the next, `saved` true;
+  `api_check`, `settings_roundtrip`, `menu_tour --compare`, `charge_cycle` pass. The web test's recording made again.

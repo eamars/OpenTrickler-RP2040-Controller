@@ -14,8 +14,8 @@ extern charge_mode_config_t charge_mode_config;
 
 
 static const setting_choice_t decimal_places_choices[] = {
-    {.held = DP_2, .number = 2, .label = "2 decimals"},
-    {.held = DP_3, .number = 3, .label = "3 decimals"},
+    {.held = DP_2, .number = 2, .label = "2 decimals", .short_label = "2"},
+    {.held = DP_3, .number = 3, .label = "3 decimals", .short_label = "3"},
 };
 
 
@@ -23,10 +23,12 @@ static const setting_choice_t decimal_places_choices[] = {
 
 static const setting_field_t charge_fields[] = {
     {.name = "coarse_stop_threshold", .label = "Coarse stop threshold", .group = "Thresholds",
+     .short_label = "Coarse stop", .edit_step = 0.1f,
      .about = "The coarse trickler stops this far below the target",
      .type = SETTING_NUMBER, CHARGE_FIELD(coarse_stop_threshold), .unit = "weight", .min = 0.0f, .max = 100.0f,
      .applies = "now"},
     {.name = "fine_stop_threshold", .label = "Fine stop threshold", .group = "Thresholds",
+     .short_label = "Fine stop", .edit_step = 0.01f,
      .about = "The fine trickler stops this far below the target; a throw further off than it is over or under",
      .type = SETTING_NUMBER, CHARGE_FIELD(fine_stop_threshold), .unit = "weight", .min = 0.0f, .max = 10.0f,
      .applies = "now"},
@@ -39,7 +41,7 @@ static const setting_field_t charge_fields[] = {
      .about = "The scale reads zero when the mean of its readings is this near it",
      .type = SETTING_NUMBER, CHARGE_FIELD(set_point_mean_margin), .unit = "weight", .min = 0.0f, .max = 1.0f,
      .applies = "now"},
-    {.name = "decimal_places", .label = "Decimal places", .group = "Display",
+    {.name = "decimal_places", .label = "Decimal places", .group = "Display", .short_label = "Decimals",
      .about = "Decimals of the weight and of the target on the screen. A change keeps the target as a weight, and "
               "is refused when the target cannot be shown at the new decimals",
      .type = SETTING_CHOICE, CHARGE_FIELD(decimal_places), SETTING_CHOICES(decimal_places_choices),

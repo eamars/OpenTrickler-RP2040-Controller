@@ -699,7 +699,7 @@ bool update_poll_console(char *reply, size_t reply_size) {
 
 static const setting_choice_t update_channel_choices[] = {
     {.held = UPDATE_CHANNEL_STABLE, .text = "stable", .label = "Stable"},
-    {.held = UPDATE_CHANNEL_BETA, .text = "beta", .label = "Beta: pre-releases too"},
+    {.held = UPDATE_CHANNEL_BETA, .text = "beta", .label = "Beta: pre-releases too", .short_label = "Beta"},
 };
 
 #define UPDATE_FIELD(member) SETTING_AT(eeprom_update_config_t, member)

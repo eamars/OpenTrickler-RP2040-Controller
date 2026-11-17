@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-37-dirty",
-   "vcs": "87236f0",
+   "version": "2.0.2-53-dirty",
+   "vcs": "3ce28b4",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
   "hostname": "opentrickler-9CE0",
-  "boot": 4268661163,
-  "uptime_s": 1181,
+  "boot": 2579517273,
+  "uptime_s": 105,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -375,8 +375,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-37-dirty",
-   "vcs": "87236f0",
+   "version": "2.0.2-53-dirty",
+   "vcs": "3ce28b4",
    "build": "Debug"
   },
   "resources": [
@@ -482,6 +482,7 @@
       "label": "Invert the encoder",
       "group": "Display",
       "type": "boolean",
+      "short_label": "Invert knob",
       "access": "read_write",
       "applies": "now",
       "refused_while": "never",
@@ -513,10 +514,31 @@
       "label": "Invert the screen",
       "group": "Display",
       "type": "boolean",
+      "short_label": "Invert screen",
       "access": "read_write",
       "applies": "now",
       "refused_while": "never",
       "about": "The screen shown the other way: dark on a lit glass"
+     },
+     {
+      "name": "charge_view",
+      "label": "Charge view",
+      "group": "Display",
+      "type": "choice",
+      "choices": [
+       {
+        "value": "weight",
+        "label": "Weight"
+       },
+       {
+        "value": "chart",
+        "label": "Chart"
+       }
+      ],
+      "access": "read_write",
+      "applies": "now",
+      "refused_while": "never",
+      "about": "What the charge's screen leads with: the weight, or a chart of the throw"
      }
     ]
    },
@@ -767,6 +789,9 @@
       "label": "Invert direction",
       "group": "Wiring",
       "type": "boolean",
+      "short_label": "Direction",
+      "on_label": "Reversed",
+      "off_label": "Normal",
       "access": "read_write",
       "applies": "now",
       "refused_while": "a_job_runs",
@@ -942,6 +967,9 @@
       "label": "Invert direction",
       "group": "Wiring",
       "type": "boolean",
+      "short_label": "Direction",
+      "on_label": "Reversed",
+      "off_label": "Normal",
       "access": "read_write",
       "applies": "now",
       "refused_while": "a_job_runs",
@@ -975,6 +1003,7 @@
       "label": "Scale",
       "group": "Scale",
       "type": "choice",
+      "short_label": "Make",
       "choices": [
        {
         "value": "and_fxi",
@@ -1014,7 +1043,8 @@
        },
        {
         "value": "simulated",
-        "label": "Simulated (no scale)"
+        "label": "Simulated (no scale)",
+        "short_label": "Simulated"
        }
       ],
       "access": "read_write",
@@ -1030,15 +1060,18 @@
       "choices": [
        {
         "value": 4800,
-        "label": "4800 baud"
+        "label": "4800 baud",
+        "short_label": "4800"
        },
        {
         "value": 9600,
-        "label": "9600 baud"
+        "label": "9600 baud",
+        "short_label": "9600"
        },
        {
         "value": 19200,
-        "label": "19200 baud"
+        "label": "19200 baud",
+        "short_label": "19200"
        }
       ],
       "access": "read_write",
@@ -1054,11 +1087,13 @@
       "choices": [
        {
         "value": "8n1",
-        "label": "8 data bits, no parity, 1 stop bit"
+        "label": "8 data bits, no parity, 1 stop bit",
+        "short_label": "8N1"
        },
        {
         "value": "7n1",
-        "label": "7 data bits, no parity, 1 stop bit"
+        "label": "7 data bits, no parity, 1 stop bit",
+        "short_label": "7N1"
        }
       ],
       "access": "read_write",
@@ -1087,6 +1122,8 @@
       "unit": "weight",
       "min": 0,
       "max": 100,
+      "edit_step": 0.1,
+      "short_label": "Coarse stop",
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1100,6 +1137,8 @@
       "unit": "weight",
       "min": 0,
       "max": 10,
+      "edit_step": 0.01,
+      "short_label": "Fine stop",
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1136,14 +1175,17 @@
       "label": "Decimal places",
       "group": "Display",
       "type": "choice",
+      "short_label": "Decimals",
       "choices": [
        {
         "value": 2,
-        "label": "2 decimals"
+        "label": "2 decimals",
+        "short_label": "2"
        },
        {
         "value": 3,
-        "label": "3 decimals"
+        "label": "3 decimals",
+        "short_label": "3"
        }
       ],
       "access": "read_write",
@@ -1462,6 +1504,7 @@
       "unit": "of the PWM's period",
       "min": 0.02,
       "max": 0.13,
+      "edit_step": 0.001,
       "access": "read_write",
       "applies": "the next move",
       "refused_while": "in_throw",
@@ -1475,6 +1518,7 @@
       "unit": "of the PWM's period",
       "min": 0.02,
       "max": 0.13,
+      "edit_step": 0.001,
       "access": "read_write",
       "applies": "the next move",
       "refused_while": "in_throw",
@@ -1488,6 +1532,7 @@
       "unit": "of the PWM's period",
       "min": 0.02,
       "max": 0.13,
+      "edit_step": 0.001,
       "access": "read_write",
       "applies": "the next move",
       "refused_while": "in_throw",
@@ -1501,6 +1546,7 @@
       "unit": "of the PWM's period",
       "min": 0.02,
       "max": 0.13,
+      "edit_step": 0.001,
       "access": "read_write",
       "applies": "the next move",
       "refused_while": "in_throw",
@@ -1557,7 +1603,8 @@
        },
        {
         "value": "beta",
-        "label": "Beta: pre-releases too"
+        "label": "Beta: pre-releases too",
+        "short_label": "Beta"
        }
       ],
       "access": "read_write",
@@ -2176,8 +2223,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-37-dirty",
-   "vcs": "87236f0",
+   "version": "2.0.2-53-dirty",
+   "vcs": "3ce28b4",
    "build": "Debug"
   },
   "unit_id": "9CE00000",
@@ -2195,7 +2242,8 @@
     "saved": true,
     "invert_encoder": false,
     "rotation": 180,
-    "invert_display": false
+    "invert_display": true,
+    "charge_view": "weight"
    },
    "/api/v1/settings/wifi": {
     "saved": true,
@@ -2437,7 +2485,7 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 2,
+  "throw": 3,
   "paused": false,
   "target": 30,
   "powder_profile": 1,
@@ -2445,12 +2493,12 @@
   "weight": null,
   "elapsed_s": 16.88,
   "last": {
-   "throw": 2,
+   "throw": 3,
    "result": "none",
    "reason": "stopped",
    "weight": 0
   },
-  "event_seq": 7
+  "event_seq": 11
  },
  "/api/v1/cleanup": {
   "state": "idle",
@@ -2485,13 +2533,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.2-37-dirty",
-   "vcs": "87236f0",
+   "version": "2.0.2-53-dirty",
+   "vcs": "3ce28b4",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
-  "uptime_s": 1185,
+  "uptime_s": 108,
   "activity": "none",
   "restart_pending": false
  },
@@ -2505,8 +2553,8 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.2-37-dirty",
-   "block": "2.0.2-37",
+   "version": "2.0.2-53-dirty",
+   "block": "2.0.2-53",
    "slot": "a",
    "trial": false
   },
@@ -2528,7 +2576,7 @@
   "format": "mono_rows"
  },
  "/api/v1/display/frame": {
-  "base64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcAAAfgwMMAAAAAAAAAAAMNgAABgADDAAAAAAAAAAADGNY5YYvO2zlgAAAAAAAAGxjbbbGO2vNtwAAAAAAAABsY232xjNjjfYAAAAAAAADbGNthsYzY82GAAAAAAAAA2w2bbbGM2tttgAAAAAAABtsHHjmxjM7POYAAAAAAAAbbABgAAAAAAAAAAAAAAAAAAD/////////////////////AAAAAAAAAAAAAAAAAAAAAP////////////////////7////////////////////++G///////////////////vev//////////////////736Y1ln/////////////9+9+b02W//////////////vvfuxd0P/////////////9737rXdf/////////////++96612W//////////////fvhuyeWf//////////////7////9///////////////+////4////////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeQAAAAAAAAAAAAAAAAAAAIUAAAAAAAAAAAAAAAAAAACBM5ZKwAAAAAAAAAAAAAAAgUhZSyAAAAAAAAAAAAAAAIF50UogAAAAAAAAAAAAAACBQlFKIAAAAAAAAAAAAAAAhUpRSyAAAAAAAAAAAAAAAHkxsTrAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARGB+AAAAAAAAAAAAAAAAAERAQAAAAAAAAAAAAAAAAAAkoEIAAAAAAAAAAAAAAAIAJKB6AAAAAAAAAAAAAAABACquQgAAAAAAAAAAAAAAAIARIEIAAAAAAAAAAAAAAAEAESBCAAAAAAAAAAAAAAACABEgQgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwCJAAAAAAAAAAAAAAAAAAiAiAAAAAAAAAAAAAAAAAAIGd1Y0wAAAAAAAAAAAACABySJZTSAAAAAAAAAAAAAQAC8iUUTAAAAAAAAAAAAACAIoIlFEIAAAAAAAAAAAABACKSJRTSAAAAAAAAAAAAAgAcYzUTTAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAOAAAAAAAAAAAAAAAA=="
+  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABB5AAAAAAAAAAAAAAAAAAAQhQAAAAAAAAAAAAAAAAAAEIFnKaYAAAAAAAAAAAAACBCBkLJpAAAAAAAAAAAAAAQQgROiLwAAAAAAAAAAAAACEIEUoigAAAAAAAAAAAAABBCFFKJpAAAAAAAAAAAAAAgQeRNhpgAAAAAAAAAAAAAAEAAAACAAAAAAAAAAAAAAABAAAAHAAAAAAAAAAAAAAAAf////////////////////////////////////////////////////////////////hv///////////////////3r///////////////////9+zGm1P///////////////fremtN///////////////36GLrXf//////////////9+va613///////////////erWutN///////////////4bOTsU////////////////////9/////////////////////f///////////////////////////////////////////////////////////////////////////////u5+B/////////////////7u/v//////////////////bX73///////////////3/21+F///////////////+/9VRvf///////////////3/u373///////////////7/7t+9///////////////9/+7fvf///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+P92//////////////////d/d//////////////////35iKnLP////////////9/+Nt2mst/////////////v/9Ddrrs/////////////9/3X3a673////////////+/91t2ust/////////////f/jnMrss////////////////////7////////////////////x///////////////w=="
  },
  "/api/v1/settings/leds": {
   "saved": true,
@@ -2543,7 +2591,8 @@
   "saved": true,
   "invert_encoder": false,
   "rotation": 180,
-  "invert_display": false
+  "invert_display": true,
+  "charge_view": "weight"
  },
  "/api/v1/settings/wifi": {
   "saved": true,

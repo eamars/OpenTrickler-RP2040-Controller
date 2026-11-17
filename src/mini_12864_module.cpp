@@ -46,6 +46,7 @@ const mini_12864_module_config_t default_mini_12864_module_config = {
     .inverted_encoder_direction = false,
     .display_rotation = DISPLAY_ROTATION_0,
     .inverted_display = false,
+    .charge_view = DISPLAY_CHARGE_VIEW_WEIGHT,
 };
 
 // Statics (to be shared between IRQ and tasks)

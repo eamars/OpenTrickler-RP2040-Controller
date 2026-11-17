@@ -25,6 +25,7 @@ typedef struct {
     const char *text;       // the value in JSON when a string ("and_fxi"); NULL when it is a number
     int32_t number;         // the value in JSON when a number (2, 9600)
     const char *label;      // for a person
+    const char *short_label;    // where the label is too long beside its field's (the screen's "8N1"); NULL: label
 } setting_choice_t;
 
 typedef enum {
@@ -53,6 +54,11 @@ typedef struct {
     const char *applies;    // "now", "at_restart", or what the field says
     bool nullable;          // null is a value of it, held as null_held
     float null_held;
+    // For a client with little room (ADR-010, gate 6: the screen; ADR-008's pages may use them too)
+    const char *short_label;    // where the label and a value do not fit 128 px; NULL: label
+    float edit_step;            // what a detent (or an arrow) moves a number by; 0: its step, else none offered
+    const char *on_label;       // a boolean's value in words ("Reversed"); NULL: On
+    const char *off_label;      // NULL: Off
 } setting_field_t;
 
 // Where a field lies: SETTING_AT(eeprom_charge_mode_data_t, fine_stop_threshold)

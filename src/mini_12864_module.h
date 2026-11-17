@@ -27,11 +27,18 @@ typedef enum {
 } display_rotation_t;
 
 
+// What the charge's screen leads with (ADR-010, gate 6)
+typedef enum {
+    DISPLAY_CHARGE_VIEW_WEIGHT = 0,
+    DISPLAY_CHARGE_VIEW_CHART = 1,
+} display_charge_view_t;
+
 typedef struct {
     uint32_t data_rev;
     bool inverted_encoder_direction;
     display_rotation_t display_rotation;
     bool inverted_display;
+    uint8_t charge_view;        // display_charge_view_t, in the struct's last byte of filler (ADR-010, gate 6)
 } mini_12864_module_config_t;
 
 

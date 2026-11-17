@@ -13,6 +13,12 @@
 extern mini_12864_module_config_t mini_12864_module_config;
 
 
+static const setting_choice_t display_charge_view_choices[] = {
+    {.held = DISPLAY_CHARGE_VIEW_WEIGHT, .text = "weight", .label = "Weight"},
+    {.held = DISPLAY_CHARGE_VIEW_CHART, .text = "chart", .label = "Chart"},
+};
+
+
 // 90 and 270 turn a 128 by 64 screen on its side: not offered
 static const setting_choice_t display_rotation_choices[] = {
     {.held = DISPLAY_ROTATION_0, .number = 0, .label = "As mounted"},
@@ -23,16 +29,20 @@ static const setting_choice_t display_rotation_choices[] = {
 #define DISPLAY_FIELD(member) SETTING_AT(mini_12864_module_config_t, member)
 
 static const setting_field_t display_fields[] = {
-    {.name = "invert_encoder", .label = "Invert the encoder", .group = "Display",
+    {.name = "invert_encoder", .label = "Invert the encoder", .group = "Display", .short_label = "Invert knob",
      .about = "The encoder's knob turns the other way",
      .type = SETTING_BOOLEAN, DISPLAY_FIELD(inverted_encoder_direction), .applies = "now"},
     {.name = "rotation", .label = "Rotation", .group = "Display",
      .about = "The screen's turn, in degrees",
      .type = SETTING_CHOICE, DISPLAY_FIELD(display_rotation), SETTING_CHOICES(display_rotation_choices),
      .unit = "degrees", .applies = "at_restart"},
-    {.name = "invert_display", .label = "Invert the screen", .group = "Display",
+    {.name = "invert_display", .label = "Invert the screen", .group = "Display", .short_label = "Invert screen",
      .about = "The screen shown the other way: dark on a lit glass",
      .type = SETTING_BOOLEAN, DISPLAY_FIELD(inverted_display), .applies = "now"},
+    {.name = "charge_view", .label = "Charge view", .group = "Display",
+     .about = "What the charge's screen leads with: the weight, or a chart of the throw",
+     .type = SETTING_CHOICE, DISPLAY_FIELD(charge_view), SETTING_CHOICES(display_charge_view_choices),
+     .applies = "now"},
 };
 
 

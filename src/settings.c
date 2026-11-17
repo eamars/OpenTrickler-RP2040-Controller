@@ -38,12 +38,21 @@ static bool applies_at_restart(const setting_field_t *field) {
     return field->applies != NULL && strcmp(field->applies, "at_restart") == 0;
 }
 
+static bool mend_choices(const settings_resource_t *resource, int32_t id);
+
 
 bool settings_register(const settings_resource_t *resource) {
     if (resource_count >= SETTINGS_RESOURCES_MAX || resource->size > SETTINGS_STRUCT_MAX ||
         resource->field_count > SETTINGS_FIELDS_MAX) {
         printf("Settings: no room for %s\n", resource->path);
         return false;
+    }
+    bool mended = resource->id_count == 0 && mend_choices(resource, -1);
+    for (int32_t id = 0; id < resource->id_count; id += 1) {
+        mended = mend_choices(resource, id) || mended;
+    }
+    if (mended && resource->save != NULL && !resource->save()) {
+        printf("Settings: %s mended, not stored\n", resource->path);
     }
     if (resource->id_count == 0) {
         const uint8_t *base = resource->live(-1);
@@ -144,6 +153,37 @@ static uint32_t held_uint(const uint8_t *at, uint8_t size) {
             return value;
         }
     }
+}
+
+
+/*
+ * A stored choice that is none of its choices is no setting: its first choice is put in its place and stored, and
+ * the console says so. True when one was mended. A field added into a struct's filler reads whatever byte was stored there (ADR-006, handed on by ADR-010):
+ * the display's Charge view read neither 0 nor 1 on the Pico W, and the API gave it as null
+ */
+static void put_uint(uint8_t *at, uint8_t size, uint32_t value);
+
+static bool mend_choices(const settings_resource_t *resource, int32_t id) {
+    uint8_t *base = resource->live(id);
+    bool mended = false;
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        const setting_field_t *field = &resource->fields[idx];
+        if (field->type != SETTING_CHOICE || field->choice_count == 0) {
+            continue;
+        }
+        uint32_t held = held_uint(base + field->offset, field->size);
+        bool known = false;
+        for (uint8_t choice = 0; choice < field->choice_count && !known; choice += 1) {
+            known = held == (uint32_t) field->choices[choice].held;
+        }
+        if (!known) {
+            printf("Settings: %s %s held %lu, none of its choices: %s put in its place\n", resource->path,
+                   field->name, (unsigned long) held, field->choices[0].label);
+            put_uint(base + field->offset, field->size, (uint32_t) field->choices[0].held);
+            mended = true;
+        }
+    }
+    return mended;
 }
 
 
@@ -959,6 +999,16 @@ static void write_field_schema(const settings_resource_t *resource, const settin
             write_optional_float(out, room, len, "step", 1.0f);
         }
     }
+    if (field_is_number(field) && field->edit_step > 0.0f) {
+        write_optional_float(out, room, len, "edit_step", field->edit_step);
+    }
+    if (field->short_label != NULL) {
+        write_optional_string(out, room, len, "short_label", field->short_label);
+    }
+    if (field->type == SETTING_BOOLEAN && field->on_label != NULL) {
+        write_optional_string(out, room, len, "on_label", field->on_label);
+        write_optional_string(out, room, len, "off_label", field->off_label);
+    }
     if (field->type == SETTING_STRING) {
         http_json_raw(out, room, len, ",\"min_length\":");
         http_json_integer(out, room, len, field->length_min);
@@ -974,6 +1024,9 @@ static void write_field_schema(const settings_resource_t *resource, const settin
             http_json_raw(out, room, len, "{\"value\":");
             write_choice_value(&field->choices[idx], out, room, len);
             write_optional_string(out, room, len, "label", field->choices[idx].label);
+            if (field->choices[idx].short_label != NULL) {
+                write_optional_string(out, room, len, "short_label", field->choices[idx].short_label);
+            }
             http_json_raw(out, room, len, "}");
         }
         http_json_raw(out, room, len, "]");
