@@ -1,12 +1,13 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Draft** 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in). Not approved. Captures what is wrong with the pages today and ideas for the new ones; the look is shown to the owner as a mock before anything is built.
+Status: **Draft** 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner). Not approved. Captures what is wrong with the pages today and ideas for the new ones; the look is shown to the owner as a mock before anything is built.
 
 ## What we want
 
 - The whole web UI comes from the unit. It works from a phone joined to the unit's own access point, with no internet.
 - It shows what this board carries and nothing else.
-- It is the place for what the small screen cannot show: charts, profiles side by side, an update.
+- It is the place for what the small screen cannot show: profiles side by side, an update, and later the charts of a throw (ADR-009).
+- Every client echoes the unit's state, and an agent finds and learns every call from the unit itself.
 - A new unit, or one just reset, is taken from its first start to its first charge by one designed process, not by steps found here and there (commissioning, below).
 
 ## Owner's direction
@@ -17,6 +18,14 @@ Status: **Draft** 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded
 - 2026-11-18: ADR-015 "may be folded into ADR-008 and sharing the same code base and capture requirements together".
 - 2026-11-18, on what is hard: a person "needs to 1. Join the soft AP. 2. Go to a specific URL. which is the hardest part for the average user if they are not proficient with browser."
 - 2026-11-18, deciding: "I'd take the existing captive portal route and do it together with the main web portal." ESP's SoftAP provisioning app was weighed and not taken (see "Commissioning").
+- 2026-11-18, aligning the requirements before approval, on the agent's points:
+  - the budget is set from the slot, not a round number; and "Currently I don't think the web is done in the efficient way, so I'd take your advice and start with mockup first";
+  - Tailwind and DaisyUI stay, trimmed: "Trim is needed. You can install whichever the dev tool needed";
+  - "Reserve the actual tuning with powder to ADR-009. No functional change at the powder throw level";
+  - the cup is asked on the page and the API stays as it is; and "The API also needs a review, for example, how does the agent knows the existance of /hello";
+  - on how the unit tells the page what changed: "How about alternative? Is there a better solution for backend to frontend comm?", then "I'd explore the SSE, and the life cycle of SSE must be managed";
+  - with the screen and the web at once: "I'd prefer echoing the state, not taking over one from another";
+  - for agents: a declaration on the root GET of every call an agent may make, not rendered on the page, "And each API should have enough information to self declare the usage? For example, a GET to hello should declare the usage instead of an error".
 
 ## Why here
 
@@ -73,7 +82,7 @@ Commissioning was ADR-015, proposed on 2026-11-17 to come between ADR-010 and AD
 - **What this ADR adds** (the pages) is measured on two builds, the shipping one and a size-optimised one (MinSizeRel), and decided on the second. If it fits only optimised, ADR-005's optimised build is made first. HTTPS for the unit's own fetch is measured in ADR-010.
 
 **Handed on by ADR-010** (2026-11-17, from its menu's design, `ADR-010-lvgl/menu_design.md`, and the owner's answers to it):
-- **A start from the page asks nothing about the cup.** `web_portal.html` starts a charge or a cleanup with no acknowledgement (read 2026-11-17). Before charge and before cleanup, the screen has the person acknowledge that the cup is on the scale. The owner: "Those are safety warnings, and not technical challenges. This ensures the users are acknowledged that they DID put the cup on the scale, rather than dropping powder to scale directly." The page's start asks the same. Whether the API carries the acknowledgement too, as a field in the start's body that a client must state, is settled here.
+- **A start from the page asks nothing about the cup.** `web_portal.html` starts a charge or a cleanup with no acknowledgement (read 2026-11-17). Before charge and before cleanup, the screen has the person acknowledge that the cup is on the scale. The owner: "Those are safety warnings, and not technical challenges. This ensures the users are acknowledged that they DID put the cup on the scale, rather than dropping powder to scale directly." The page's start asks the same. Whether the API carries the acknowledgement too, as a field in the start's body that a client must state, is settled here. Settled 2026-11-18: the page asks, and the API stays as it is. API v1 is stable, and a field every start must carry would break the clients it has (`rc_run.py`, and the Open Weapon Mount Computer when it moves to v1); the index's guide already tells an agent to start and zero only when a person has said an empty cup is on the pan.
 - **The simulated scale is not offered on the page,** as it is not on the screen (the owner: a debug feature). The schema still lists it among the scale's makes for the API and the console. The page's form leaves it out.
 - **The update's channel and source:** the page shows and sets both. They are stored together, as ADR-010 builds them. Beta offers pre-releases; leaving beta downgrades nothing.
 - **The feature table** takes the list of what ADR-010 trimmed from LVGL to fit the Pico W. Which board carries what is decided when a larger screen comes (the owner).
@@ -136,18 +145,89 @@ On real phones, at least one iPhone and one Android, before the design is settle
 - whether a phone leaves the access point, or sends its traffic over mobile data, because it has no internet;
 - what the unit must answer to each phone's check (the address each phone asks to learn whether it is signed in).
 
-## Ideas
+## Every client echoes the unit
 
+The owner, 2026-11-18: "echoing the state, not taking over one from another". Read here as: every client (the screen, each browser, each agent) shows the unit's own state as it is; a change made from one is shown by all; no client holds the unit or shuts another out.
+- **The refusals that stay** are about the unit, not about a client: a write to the charge's or the motors' settings during a throw (409 `busy`, ADR-003), one job at a time.
+- **To settle:** ADR-004 refuses an update while a person has a screen open at the unit, so a unit never restarts under a hand at the knob. That favours the screen over the web. The agent's proposal: keep it, as a safety guard and not a take-over.
+- **What it needs:** a setting changed is not an event today (the log has the charge, the throw, the cleanup, the motors, the system and the update: `events.h`). So a setting changed at the screen never reaches an open page. A new kind of event, a setting changed, with its resource and who wrote it (`screen`, `web`, `console`, `api`); a page then reads that resource again.
+
+## The unit to the page: an event stream
+
+The pages poll today: the charge's state every 500 ms (What we know). ADR-003 measured what load costs the Pico W's web. The owner asked for a better way and chose to explore server-sent events, with their life cycle managed (2026-11-18).
+
+### The ways weighed
+
+| Way | How | On this unit | Verdict |
+|---|---|---|---|
+| Polling (today) | The page asks every 500 ms | A whole request and reply each time, each held in lwIP's heap until acknowledged | The load ADR-003 measured |
+| Held reads | `GET /api/v1/events?after=N&wait=30`: the unit answers when something happens | Built (ADR-003), a parked request | Kept for agents; a request for each event |
+| **Server-sent events** | One GET kept open; the unit writes each event as a line; the browser's `EventSource` reconnects by itself and says the last event it saw | The server sends a reply in pieces, and parks a request, but not both on one reply: a stream today must keep making progress or is cut as stalled (`http_server.h`). A stream that waits for events is new server work | **Chosen to explore** |
+| WebSocket | A handshake, then frames both ways | A new protocol: its handshake's hash, framing, masking, pings. Both ways are not needed: writes stay REST | Not taken |
+
+Why the stream: the event log is already numbered and already tells a client of a gap (`first`) and of a restart (`boot`; api_v1.md, "The event log"), which is what a stream's reconnect needs. One connection a browser in place of a request every 500 ms. Plain text over HTTP, so an agent reads it with `curl -N` too. And every client reading one stream is what echoing needs.
+
+### Its life cycle
+
+| Stage | What happens |
+|---|---|
+| **Open** | The page asks `GET /api/v1/events` with `Accept: text/event-stream`. Over the cap of streams, 503 with `Retry-After`. |
+| **Start** | First a snapshot of the unit's state (its job, the charge, each settings resource's `saved`), so every client starts from the same truth. |
+| **Running** | Each event with the id `<boot>-<seq>`. During a charge the live weight comes on the same stream, no faster than the scale's own rate; the mirror's frame, when it changed, may too. |
+| **Kept alive** | A comment line about every 15 s, so each end knows the other is there. |
+| **Reconnect** | By the browser itself, with the last id it saw. The same `boot` and the event still kept: the stream goes on from there, nothing missed. An id no longer kept, or another `boot` (a restart, an update): a new snapshot, then on. The rule held reads follow today. |
+| **Closed by the page** | When its tab is hidden (the phone asleep, another app), the page closes its stream, and opens it again when shown. Its slot is free before it goes stale. |
+| **Closed by the unit** | The client gone, or what was sent left unacknowledged past a limit (a time, and about 2 KB), so a dead connection never holds lwIP's heap for long. The browser reconnects and the snapshot covers the gap. |
+| **The network changes** | `wifi leave`, a restart, an update, the access point stopped when the station joins: every stream ends, and the reconnect above takes over. |
+| **Seen** | `net` and `GET /api/v1/debug` give the streams open, each one's age and its bytes not yet acknowledged, and the streams closed by reason. |
+
+- **A cap:** at most 3 streams of the server's 6 slots (a proposal, measured in the soak), so a request always finds a slot.
+- **Agents** keep the held reads; the stream is open to them too.
+- **Built** in the API review's gate (below), with the server's change.
+
+## An API an agent reads by itself (the API review)
+
+The owner, 2026-11-18: the API needs a review; an agent should find every call it may make from the root, and each call should say how it is used, a GET of hello its usage rather than an error.
+
+**What is there** (read 2026-11-18): `GET /api/v1` gives a guide in plain words (how a setting is written, one job at a time, the cup) and every resource with its methods and a line on it; `GET /api/v1/schema` gives every action with its fields, when it is refused and a line on it, the states, the events and the errors. What is missing:
+1. `/` is the portal's page and says nothing to an agent.
+2. `POST /api/v1/agent/hello` is in neither the index nor the schema, on purpose (`api_v1_commands.c`: "Hidden").
+3. A GET of an action answers 405 `method_not_allowed`, "the path does not take that method"; a path not there, 404 `not_found`. Neither says where to read.
+4. Nothing checks that every route is in the index.
+
+**What we do** (the agent's proposal, approved with this ADR):
+1. **The root points an agent to the index,** with nothing shown on the page: `<link rel="service-doc" href="/api/v1">` and `<link rel="service-desc" href="/api/v1/schema">` in the portal's head, the standard link relations for "this site's API is described here" (RFC 8631). Nothing more at the root: the index stays the one place, with no second document to keep in step. Whether agents read these links is not known; the next three work either way.
+2. **A GET of every action gives its usage,** 200: its method, its body's fields with their types and limits, what it answers, when it is refused, and an example. It comes from the table the schema is made from: one description, three readers (the schema, the index, the action's own GET). A GET still changes nothing. A GET of `/api/v1/agent/hello` says to POST `{"name": "<who you are>"}` there, what the screen then shows, and that a charge refuses it.
+3. **Every error under `/api/v1` says where to read:** a `see` field with the path that describes it; a 404 the index; a 405, with its `Allow`, the action's own GET.
+4. **Every route is in the index,** or in a short list of exceptions named in the code (the pages, the mirror); `rc_run.py api_check` compares the server's routes with the index and fails on one in neither.
+5. **Hello is listed,** under a kind of its own, `agent`: an agent finds it, and it stays the owner's fun.
+
+**Where:** all of it adds to API v1 and breaks nothing. It is ADR-003's area, and ADR-003 is closed; it is built here, as the API review's gate, with the event stream and the event for a setting changed.
+
+## The pages
+
+Settled (the owner, 2026-11-18):
 - **A mock first.** The pages, clickable in a browser against the stand-in server, before anything goes on a unit. The owner decides by using it. An agent can open the same mock in its own browser and check it.
-- **Phone first.** Most use is a phone held beside the trickler.
-- **Pages:** charge (target, live weight, start and stop), profiles, tuning with a chart of the throw (ADR-009), settings, update (ADR-004), and the set-up (commissioning, above), part of the same portal.
-- **Built from sources.** Separate files for markup, styles and script, joined and gzipped by a build step into what the unit serves. Whether that step may need Node, or stays in Python like `html2header.py`, is the owner's call.
-- **No framework at run time, or a very small one.** The page is a handful of forms and a chart. A proposal with sizes comes with the mock.
-- **Charts** by a small library or drawn by hand on a canvas; chosen by size.
-- **A budget:** the whole UI under about 100 KB gzipped (a proposal; today's pages are 102.7 KB uncompressed, 18.6 KB gzipped, and the Pico W's slot has 38 KB left).
-- **Settings forms drawn from the settings' own description:** ADR-003 brought it (the schema). Settled by the owner, 2026-11-17: see "Handed on by ADR-010" above.
-- **One language.** English.
-- **The screen mirror** stays as a small page, fed by whatever the screen is then.
+- **Tailwind and DaisyUI, trimmed** at build time to what the pages use, and served by the unit. The tool that trims them is installed as a development tool, its version written in `toolchain.env` and fetched by both setup scripts and CI like every other. The agent's choice: Tailwind's standalone command-line tool, one program with no Node, if DaisyUI works with it as a plain file (thought so, not checked); Node otherwise.
+- **The budget is set from the slot.** The Pico W's slot has 38 KB left, and our pages take 102.7 KB of the image (18.6 KB gzipped). Served gzipped, the whole UI aims at about 50 KB, handing the rest back to the ADRs after this one (ADR-009, ADR-014); the figure is checked against the mock's real size.
+- **No tuning here.** Tuning with powder, a chart of a throw and PR #113's powder analysis are ADR-009's. This ADR changes nothing at the level of a powder throw.
+- **Settings forms drawn from the schema** (the owner, 2026-11-17: see "Handed on by ADR-010").
+- **One language,** English.
+
+Proposed, not settled (the agent's):
+- **Phone first,** a PC served too. Most use is a phone held beside the trickler.
+- **Pages:** charge (target, live weight, start and stop), profiles, settings, update (ADR-004), the set-up (commissioning, above), and the screen's mirror, all one portal.
+- **Built from sources:** separate files for markup, styles and script, joined, trimmed and gzipped by the build into what the unit serves, with `Content-Encoding: gzip`.
+- **No framework at run time, or a very small one.** The pages are a handful of forms. A proposal with sizes comes with the mock.
+
+## Gates (proposed)
+
+1. **The mock** (a design gate). The pages clickable against `tests/web_test.py`; the look, the proposals above, commissioning's, and the budget against the mock's real size settled by the owner using it. Phones' captive portals are seen first, with today's firmware, so the set-up is designed on what they do.
+2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself; the server's change; soaked on the Pico W against polling.
+3. **The pages built.** The toolchain, the trimmed styles, gzip, the forms from the schema, the update's page, every client echoing the unit.
+4. **Commissioning built.** The set-up in the portal, opened by the captive portal; what the mock settled of the networks' list, the join, the key, the id and the QR code.
+
+Then the proof on both boards; PR #111 is closed once the update is shown end to end from the page.
 
 ## How the unit shows it works
 
@@ -158,16 +238,23 @@ On real phones, at least one iPhone and one Android, before the design is settle
 - A charge started and watched from the phone, with `charge_cycle`'s checks.
 - The same on the Pico 2 W and the ESP32-S3-Pico.
 - The size report shows the pages inside the budget.
+- A setting changed at the screen shows on an open page, and one changed on a page shows at the screen, with no reload.
+- The event stream, on the Pico W: a soak with two browsers on streams against the same with polling (`net`, the web's misses), and each stage of its life cycle once, each with its expected end: a client that stops reading (`web_robust`'s), `wifi leave`, a restart, more than 64 events missed, the cap exceeded, a tab hidden and shown again.
+- `api_check` passes with its new check: every route in the index or a named exception, and a GET of every action giving its usage.
 
 ## Not in this ADR
 
 - A phone app.
 - A password (see ADR-003).
 - Languages other than English.
+- Tuning with powder, and any change at the level of a powder throw (ADR-009).
+- WebSocket.
 
 ## To settle before approval
 
-- The look, from the mock.
-- Whether the build may need Node.
-- The budget.
-- Commissioning: what it covers, and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen.
+- The proposals marked "not settled": the pages, phone first, built from sources, no framework (or settled in the mock, gate 1).
+- Commissioning: what it covers, and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen; or settled in the mock.
+- ADR-004's refusal of an update while a person has a screen open at the unit: kept, as the agent proposes, or not ("Every client echoes the unit").
+- The gates as proposed.
+
+Settled: the budget's rule (from the slot), the trimmed Tailwind and DaisyUI and their tool, the cup asked on the page only, the event stream to explore, the API review in this ADR, echoing (the owner, 2026-11-18). The look is settled in the mock.
