@@ -24,19 +24,23 @@ Second, after ADR-010 (the owner, 2026-11-17: the current Pico platform first, i
 
 Commissioning was ADR-015, proposed on 2026-11-17 to come between ADR-010 and ADR-008 so the set-up wizard would be built once. Its screen half was built by ADR-010 (the Wi-Fi page), and what is left is web: the owner folded it in here on 2026-11-18, so its requirements are captured with the portal's and built from the same code. ADR-015 is Archived.
 
-## What we know (checked 2026-11-13)
+## What we know (checked 2026-11-13, brought up to date 2026-11-18)
 
-- `src/html/web_portal.html` is one page of 1,787 lines: markup, styles and script together.
-- It loads Tailwind and DaisyUI from CDNs and its icon from GitHub. With no internet the page has no styling.
-- `wizard.html` (252 lines) is self-contained. It is what `/` serves while the unit is its own access point.
-- `display_mirror.html` draws the screen from the raw u8g2 buffer at `/display_buffer`. `plot_weight.html` is in the folder and is not served.
-- Pages become C strings through `scripts/html2header.py`, unminified and uncompressed: 90 KB of the image.
-- The page polls with `fetch`; nothing is pushed.
-- `tests/web_test.py` is a small stand-in server (Flask) that serves the pages and answers a few endpoints with made-up values.
-- PR #113 adds a second, separate page (928 lines) for powder analysis; PR #111 adds an update page inside the portal; PR #101 adds about 950 lines to the portal.
+- **The pages** (`src/html/`), each one file of markup, styles and script together:
+  - `web_portal.html`, 1,966 lines, served at `/` on a network and at `/mobile`;
+  - `wizard.html`, 235 lines, self-contained, served at `/` while the unit is its own access point, and at `/wizard`;
+  - `display_mirror.html`, 55 lines, at `/display_mirror`: it reads the screen's frame at `/api/v1/display/frame` once a second, in the `mono_rows` format of `GET /api/v1/display` (ADR-010);
+  - `plot_weight.html` is in the folder and is not served; it loads Plotly and jQuery from CDNs. `css/` and `js/` are empty.
+- **The portal needs the internet for its look.** It loads Tailwind and DaisyUI from CDNs and its icon from GitHub, and links to the tuning guide on GitHub. With no internet the page has no styling.
+- **It is on API v1** (ADR-003): every read and write is a `fetch` to `/api/v1/...`, the refusals shown from the API's error. Its settings forms use the schema only in part: it reads `GET /api/v1/schema` for each field's type (to send a number as a number), each resource's save path, and which fields an import may write; the forms themselves, their fields, labels, limits and choices, are written in the page by hand (96 `name="..."`).
+- **It polls; nothing is pushed.** The charge's state every 500 ms; the cleanup's speed sent again every 2 s while it runs. The event log's held reads (`/api/v1/events?wait`, ADR-003) are not used by any page.
+- **In the image** (the Pico W's map, ADR-010's last build): 102,741 bytes, the portal 93,834, the wizard 7,055, the mirror 1,852. Gzipped they are 18.6 KB. `scripts/html2header.py` can minify (`minify_html`), but the build calls it with `--no-minify`, and `minify_html` is not in the venv.
+- **The flash left:** the Pico W's image is 978.1 KB of its 1,016 KB slot, 38 KB left; its RAM at link 252.5 KB of 256 (ADR-010's last figures). What the pages add or take away is measured against these.
+- **`tests/web_test.py`** serves the pages from `src/html` and a recording of a real unit's replies (`tests/web_test_data.json`) at http://127.0.0.1:8000/, on Python's own HTTP server, and checks each write against the recorded schema (ADR-003). `--record <address>` records a unit again when the API grows.
+- **Open PRs with pages:** #113 adds a second, separate page for powder analysis (928 lines) and 17 lines to the portal; #111 adds an update section of 155 lines to the portal. #101, which added about 950 lines to the portal, was closed by ADR-002.
 
 **Handed on by ADR-004** (2026-11-16): the update's offer on the web page. ADR-004 built what it rests on and left the offer to this ADR and ADR-010. Until one of them ships it, an update is reached through the REST API only, for debugging, and is not for users (the owner: "not production ready until the UI is released"). `rc_run.py update` plays the offer's part on the bench.
-- **What is there** (built and shown on the Pico 2 W; the Pico W built, not yet run):
+- **What is there** (built and shown on both boards, ADR-004's progress):
   - `GET /api/v1/update`: the job's `state`; what the unit runs (`version`, `block`, `slot`, `trial`); `takes`, the manifest's name for the file this unit needs; `free_bytes`; `received`; and `last`, how the last update ended (confirmed, back, refused, stopped, time) with the version tried.
   - The job: `POST .../start`, `PUT .../image` (the release's file for `takes`, as `application/octet-stream`), `POST .../install`, `POST .../stop`. The update's events in the event log: started, stopped, received, installing, confirmed, back.
   - The refusals, each with its code (api_v1.md, "Firmware updates"): 409 `busy` while another job runs, a person has a screen open at the unit, the image running is still on trial, or another upload is open; 413 too large; 400 for an image that is not this unit's, not newer or not whole, the job then ended and nothing installed.
@@ -48,7 +52,7 @@ Commissioning was ADR-015, proposed on 2026-11-17 to come between ADR-010 and AD
   - The screen only polls the source the web set, and offers an update from a row in the main menu (ADR-010), never a pop-up at every start.
   - No authentication for now: the unit has no password either, and a PIN would make the screen mandatory, which some users may not want. Perhaps an optional feature later.
 - **PR #111 stays open until this ADR's offer works** (the owner, 2026-11-17): the whole OTA flow shown end to end, from the offer on the page to the unit confirmed on the new version. Then it is closed with its note, on the owner's word.
-- **What follows, and is recommended here:** the unit polls the source, not the browser. The screen needs the unit to poll anyway, so the web page shows the same offer the screen does. That is one implementation, not two, and the page then needs no access to GitHub of its own. The poll, the download into the free slot and the stored setting for the source are firmware. They move to ADR-010, now built first (2026-11-17), with the update's channel, stable or beta (ADR-010's `menu_design.md`). This ADR builds the page's offer, the page where the source and the channel are set, and the upload by hand.
+- **What follows, and is recommended here:** the unit polls the source, not the browser. The screen needs the unit to poll anyway, so the web page shows the same offer the screen does. That is one implementation, not two, and the page then needs no access to GitHub of its own. The poll, the download into the free slot and the stored setting for the source are firmware. They moved to ADR-010 (2026-11-17), with the update's channel, stable or beta (ADR-010's `menu_design.md`), and were built there (gate 5): the stored `settings/update` (its channel and source), `POST /api/v1/update/check`, and `poll` and `found` in `GET /api/v1/update`, a release found also an event (api_v1.md). This ADR builds the page's offer on them, the page where the source and the channel are set, and the upload by hand.
 - **What the page has to do,** so a person needs to know none of it (the owner's "too prosumer" list: where firmware comes from, which file is theirs, that the power must stay on, the wrong board):
   - **the source:** GitHub's latest release by default, or another manifest's address (a mirror). It is a stored setting, in a module's own slot beside the channel, built with ADR-010's poll; the page sets both. A bench host is not set here: the poll asks `opentrickler-update.local` first, as the Open Weapon Mount Computer's units ask its `ota_host.py` (ADR-010, gate 6, step 9), and an offer from it says so, which the page shows too (`found.bench`);
   - **the offer:** the unit's poll found a newer release; the page shows it with its note. A critical one is marked as such, with no pop-up;
@@ -58,14 +62,14 @@ Commissioning was ADR-015, proposed on 2026-11-17 to come between ADR-010 and AD
   - follow the unit through its restart, which takes the page's connection with it. Wait for `boot` in `GET /api/v1` to change, then for `trial` to be false and `last` to be set, as `rc_run.py update` does;
   - say in plain words how it ended. `back` means the unit stayed on the version it had, nothing lost;
   - no downgrade: the page offers only a newer release (the owner, ADR-004).
-- **To find out first:**
-  - **TLS on the unit,** to fetch from GitHub over HTTPS. A release's files are at a GitHub address that redirects to another host, so the unit's client must follow a redirect. What TLS costs in flash and RAM on each board is measured in ADR-010's first gate, beside LVGL, now that the poll is built there; the Pico W's slot has 216.7 KB left at 1.20.218. A mirror on the owner's network can serve plain HTTP and needs no TLS.
-  - On the unit's own access point there is no internet: no poll there, but the upload by hand works.
+- **Found out since:**
+  - **TLS on the unit** was built and measured in ADR-010 (`https_client.c`, GitHub's two roots, redirects followed); its progress has what it costs on each board. A mirror on the owner's network can serve plain HTTP and needs no TLS.
+  - On the unit's own access point there is no internet: no poll there (`POST /api/v1/update/check` answers 409 `no_network`), but the upload by hand works.
   - A page served over plain HTTP gets no WebCrypto (browsers give it only to HTTPS and localhost). The page need not check a file's SHA-256: the unit checks the image's own seal and refuses one that is not whole.
 
 **Handed on by ADR-005** (2026-11-17, closed as a scoping ADR):
 - **The feature table and the unit's report** of what it carries (ADR-005's rule 3) are built here, as their first reader: build options with a default per board, one generated header, one answer from the unit. The page shows only what is there.
-- **The pages' size is this ADR's.** Today's 101 KB in the Pico W image are our own pages, unminified and uncompressed (19 KB gzipped). Tailwind and DaisyUI are not in the image; the browser fetches them from CDNs, so a page that works offline adds them, trimmed to what it uses.
+- **The pages' size is this ADR's.** Our own pages take 102.7 KB of the Pico W image, unminified and uncompressed (18.6 KB gzipped; 2026-11-18). Tailwind and DaisyUI are not in the image; the browser fetches them from CDNs, so a page that works offline adds them, trimmed to what it uses.
 - **What this ADR adds** (the pages) is measured on two builds, the shipping one and a size-optimised one (MinSizeRel), and decided on the second. If it fits only optimised, ADR-005's optimised build is made first. HTTPS for the unit's own fetch is measured in ADR-010.
 
 **Handed on by ADR-010** (2026-11-17, from its menu's design, `ADR-010-lvgl/menu_design.md`, and the owner's answers to it):
@@ -140,7 +144,7 @@ On real phones, at least one iPhone and one Android, before the design is settle
 - **Built from sources.** Separate files for markup, styles and script, joined and gzipped by a build step into what the unit serves. Whether that step may need Node, or stays in Python like `html2header.py`, is the owner's call.
 - **No framework at run time, or a very small one.** The page is a handful of forms and a chart. A proposal with sizes comes with the mock.
 - **Charts** by a small library or drawn by hand on a canvas; chosen by size.
-- **A budget:** the whole UI under about 100 KB gzipped (a proposal; today's pages are 90 KB uncompressed).
+- **A budget:** the whole UI under about 100 KB gzipped (a proposal; today's pages are 102.7 KB uncompressed, 18.6 KB gzipped, and the Pico W's slot has 38 KB left).
 - **Settings forms drawn from the settings' own description:** ADR-003 brought it (the schema). Settled by the owner, 2026-11-17: see "Handed on by ADR-010" above.
 - **One language.** English.
 - **The screen mirror** stays as a small page, fed by whatever the screen is then.
