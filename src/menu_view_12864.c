@@ -392,7 +392,7 @@ void menu_view_draw(const menu_screen_t *screen) {
     bool dialog = screen->kind == MENU_SCREEN_DIALOG;
     bool figure = screen->kind == MENU_SCREEN_EDIT || screen->kind == MENU_SCREEN_JOB;
 
-    view_title_and_marks(screen, list && screen->focus < 0);
+    view_title_and_marks(screen, (list || lines) && screen->focus < 0);
     if (!list && !lines) {
         for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
             view_show(view_rows[idx], false);

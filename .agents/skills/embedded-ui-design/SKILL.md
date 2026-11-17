@@ -47,7 +47,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
    - **Why:** the owner, 2026-11-17: "there should be enough clearance between two lines of text so the UI looks a bit clean".
 5. **Five kinds of screen, no others.**
    - **Pages** are lists: a title, then rows of label, value and ">" when the row opens something. The focused row is in reverse.
-   - **Cards** are read-only and dense: lines of 11 px, no focus, a scroll bar when they run on (Wi-Fi, Firmware's facts).
+   - **Cards** are read-only and dense: lines of 11 px, no focus on a line, a scroll bar when they run on (Wi-Fi, Firmware's facts). Turned up past the top, the title is focused, which is Back, as on a list.
    - **Dialogs** are a title, a message of one or two centred lines, and two softkeys (the cup's acknowledgement, a factory reset).
    - **Jobs:**
      - the title is the status ("Charging", "Lift the cup");
@@ -81,7 +81,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
       dotted lines need LVGL's complex drawing, which is off to save flash, so the unit draws the track solid.
     - Content keeps 2 px from it, and a page never shows half a row.
     - **Why:** the owner accepted dense pages "with the scroll bar".
-12. **Read-only pages have no focus.** A row in reverse means a click does something.
+12. **Read-only pages have no focus on their lines.** A row in reverse means a click does something; their title, focused above the top, is Back as on every page.
 13. **Icons on the pixel grid.**
     - At most 8 px tall in the title band, drawn pixel by pixel, never scaled.
     - **Wi-Fi:** full signal bars when joined (no strength: "most clear solution on the tiny screen", the owner, 2026-11-17), a hotspot as the unit's own access point.

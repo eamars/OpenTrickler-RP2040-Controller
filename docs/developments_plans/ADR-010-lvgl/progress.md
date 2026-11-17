@@ -617,3 +617,27 @@ bright whatever the setting. A unit starts with the glass's own look (the owner'
   mirror's endpoint every 0.2 s: off, the flash (74, 26, 74, 26% lit), the figure lit (84 to 96%), the menu back at
   26%; on, the figure lit, the menu back inverted at 74% (no flash: a second hello within 10 minutes);
   `charge_cycle`. Left: the owner's look at the glass, both settings.
+
+## Back by the knob on every page (2026-11-17)
+
+The owner, at the unit: on Firmware the knob could not scroll up to leave, only the reset button did, "breaking the
+convention of the interaction flow" (menu_design.md: "above the first row is the title, which works as Back").
+Every page was turned on the Pico W, pressing nothing, to count them:
+
+- **Wi-Fi (a card), Firmware and Update (notes):** their title showed "< " but the knob only scrolled the lines,
+  so the title was never focused. Fixed: turned up past the top, the title is focused (in reverse), a click there
+  is Back, a turn down goes back to the lines. A notes' button is not shown reached while the title has the focus.
+- **Every list (main, Charge, Settings, Scale, Display, a choice's list):** turning up past the title kept
+  counting (4 turns up from the first row: focus -3), so as many turns down did nothing, and each read outside the
+  page's rows in `row_acts()`. Fixed: the focus stops at the title.
+- **Left as designed:** the three dialogs (Factory reset, the cup before a charge and a cleanup), the target's
+  editor and a running job, whose Back is the left softkey (Cancel, Stop): a turn that cancels a factory reset or the
+  cup's check by accident is worse than the reset button. The skill's lines on cards and read-only pages say the
+  title is Back there too.
+- **Proven on the Pico W:** Settings 4 turns up and 1 down, focus 0; Wi-Fi, Firmware and Update, a turn up focuses
+  the title and a click goes back (Update's job left idle, nothing installed); Firmware scrolled down and up to its
+  title and down again ([firmware_title_back.png](firmware_title_back.png)); `menu_tour --compare` and
+  `charge_cycle` pass.
+- **Seen on the way:** the Pico W's Invert screen was found on, stored, between 19:37 and 19:41, when it had been
+  stored off; nothing the agent ran in that time writes it (the web test's recording was run again and left it
+  off). Asked of the owner whether it was set by hand; stored off again for the proof.

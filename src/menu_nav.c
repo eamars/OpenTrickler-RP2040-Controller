@@ -1253,7 +1253,7 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
             while (idx >= 0 && !row_acts(frame, idx)) {
                 idx -= 1;
             }
-            frame->focus = (int8_t) idx;      // -1: the title, which is Back
+            frame->focus = (int8_t) (idx < 0 ? -1 : idx);      // -1: the title, which is Back; it stops there
             return;
         }
         case MENU_KEY_BACK:
@@ -1327,12 +1327,27 @@ static void page_kind_key(frame_t *frame, menu_key_t key) {
         }
         return;
     }
+    // As on a list: turned up past the top, the title is focused (focus -1), and a click there is Back
+    if (frame->focus < 0) {
+        if (key == MENU_KEY_NEXT) {
+            frame->focus = 0;
+        }
+        else if (key == MENU_KEY_ENTER) {
+            pop();
+        }
+        return;
+    }
     uint8_t last = page_last_first(page);
     if (key == MENU_KEY_NEXT && frame->first < last) {
         frame->first += 1;
     }
-    else if (key == MENU_KEY_PREV && frame->first > 0) {
-        frame->first -= 1;
+    else if (key == MENU_KEY_PREV) {
+        if (frame->first > 0) {
+            frame->first -= 1;
+        }
+        else {
+            frame->focus = -1;
+        }
     }
     else if (key == MENU_KEY_ENTER && page->kind == PAGE_NOTES) {
         // At the end a click presses the button; before it, it turns the page, so the notes are read on the way
@@ -1557,9 +1572,10 @@ static void screen_lines(menu_screen_t *screen, const frame_t *frame) {
     screen->row_count = page_lines(page, screen->row_label, screen->row_bold, &button);
     uint8_t last = page_last_first(page);
     screen->first = frame->first < last ? frame->first : last;
+    screen->focus = frame->focus < 0 ? -1 : 0;
     if (button != NULL) {
         snprintf(screen->button, MENU_TEXT, "%s", button->label_now != NULL ? button->label_now() : button->label);
-        screen->button_reached = screen->first >= last;
+        screen->button_reached = screen->first >= last && screen->focus >= 0;
     }
 }
 
