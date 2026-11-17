@@ -210,7 +210,7 @@ The owner, at the unit, on finding the servo gate gone: "My original ask from th
 4. **Text by the knob for every string** (yes), a key of up to 63 characters and the source's 127 among them, for anyone without the web; the network list spares typing the name.
 5. **The weight's chart:** settled on the mock (the owner). A small chart of the throw on the charge's screen is possible (a 128 by 40 canvas, 640 bytes), but it competes with the figure read from 50 cm; the mock draws the screen with it and without it.
 
-Then the look of each new page and editor is mocked (`menu_12864.py`) and settled before it is built (design gates before build gates).
+Then the look of each new page and editor is mocked and settled before it is built (design gates before build gates): [mockups/parity_12864.png](mockups/parity_12864.png), drawn by `tools/ui_mock/parity_12864.py`. The mock found three labels too long beside their value ("Back-off speed", "Minimum speed", "Sense resistor"): a short label goes into the tables (and so the schema) where a group already says the rest ("Speed" under Coarse stop). A colour is a page of three numbers, red, green and blue, each set by the number editor: as one figure it does not fit.
 
 ## What leaves the screen, and where it goes
 

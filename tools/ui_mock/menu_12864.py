@@ -16,7 +16,8 @@ The design system, in one place:
             63.
   kinds     pages (lists), cards (read-only, dense), dialogs (a message, two softkeys), jobs (the title is the
             status; one figure; one line under it; two softkeys), notes (dense, their action at the end).
-  softkeys  the left is Back (the reset button, or the knob held), plain; the right is a click, in reverse.
+  softkeys  the left is Back (Cancel, Stop), the right the action; the knob moves between them and the focused one
+            is in reverse.
 """
 import argparse
 import sys
