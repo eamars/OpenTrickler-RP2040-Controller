@@ -91,8 +91,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* The charge: what to throw */
 .setup { grid-area: setup; padding: 12px; display: grid; gap: 8px; }
-.field { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; gap: 10px; }
-.field > span { color: var(--soft); font-weight: 650; }
+.setup .field { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; gap: 10px; }
+.setup .field > span { color: var(--soft); font-weight: 650; }
 .setup select {
     appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; min-height: var(--job-key);
     padding: 0 38px 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control); background-color: var(--well);
@@ -183,10 +183,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
     .go:hover { filter: brightness(1.15); }
 }
 
-/* A refusal, over the controls, gone when empty */
-.message { position: absolute; left: 12px; right: 12px; bottom: calc(var(--job-key) + var(--gap) * 2);
-           padding: 10px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--over);
-           color: var(--over); font-weight: 650; box-shadow: 0 4px 14px rgb(0 0 0 / 0.15); }
+/* A line over the page, above the navigation: a refusal in red, a done thing in green; gone when empty or tapped */
+.message { position: fixed; z-index: 3; left: 50%; transform: translateX(-50%); width: min(92vw, 520px);
+           bottom: calc(var(--bar) + 12px + env(safe-area-inset-bottom)); margin: 0; padding: 12px 16px; border-radius: 14px;
+           background: var(--card); border: 1px solid var(--over); color: var(--over); font-weight: 650;
+           box-shadow: 0 6px 18px rgb(0 0 0 / 0.18); }
+.message.good { border-color: var(--good); color: var(--good); }
 .message:empty { display: none; }
 
 /* Navigation: a bar at the bottom on a phone, a rail at the left from 600 px */
@@ -211,7 +213,105 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 @media (max-height: 640px) { :root { --job-key: 56px; --gap: 8px; } .setup, .scale { padding: 10px; } .bar { margin: 4px 0 0; } .readout-text { gap: 0; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-/* The cup's question */
+/* The pages that are read and set, not worked at a job: they scroll (rule 14) */
+.page { max-width: 640px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 12px calc(var(--bar) + 88px); }
+.page h1 { font-size: 1.6rem; margin: 4px 4px 14px; }
+.page h2 { font-size: 1.15rem; margin: 0 0 10px; }
+.page h3 { font-size: 1rem; margin: 18px 4px 8px; color: var(--soft); }
+/* A list and the part it opens: on a phone one or the other, the address says which; on a wide window side by side */
+.split-page[data-open="part"] .master { display: none; }
+.split-page[data-open="list"] .detail { display: none; }
+.detail.empty .hint { padding: 24px 4px; }
+.back { display: inline-flex; align-items: center; min-height: 44px; color: var(--soft); text-decoration: none; font-weight: 650;
+        margin-left: 4px; }
+.list { display: grid; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); overflow: hidden; }
+.list .row { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 16px; color: var(--ink);
+             text-decoration: none; font-weight: 600; border-top: 1px solid var(--rule); }
+.list .row:first-child { border-top: 0; }
+.list .row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .row.on { background: var(--well); }
+.chevron { color: var(--soft); font-size: 1.5rem; line-height: 1; }
+.tag { flex: none; font-size: 0.8125rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--well);
+       border: 1px solid var(--rule); color: var(--soft); }
+.tag.in-use { color: var(--ink); border-color: var(--ink); }
+.tag.critical { color: var(--over); border-color: var(--over); margin-left: 8px; }
+.compare { display: none; }
+@media (min-width: 1000px) {
+    .page.split-page { max-width: 1100px; display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 20px;
+                       align-items: start; }
+    .split-page[data-open] .master, .split-page[data-open] .detail { display: block; }
+    .split-page .back { display: none; }
+    .split-page .detail { padding-top: 46px; }
+}
+
+/* A form drawn from the schema */
+.form { display: grid; gap: 14px; }
+.fields { margin: 0; padding: 4px 16px 8px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
+          display: grid; min-width: 0; }
+.fields legend { float: left; width: 100%; padding: 14px 0 4px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.06em;
+                 text-transform: uppercase; color: var(--soft); }
+.field { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--rule); }
+.fields legend + .field { border-top: 0; }
+.field > label:first-child { font-weight: 650; }
+.field.inline { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.field.inline .field-help, .field.inline .field-error { grid-column: 1 / -1; }
+.field-help { margin: 0; color: var(--soft); font-size: 0.875rem; }
+.field-error { margin: 0; color: var(--over); font-weight: 650; font-size: 0.9375rem; }
+.form input[type="text"], .form input[type="password"], .form select {
+    width: 100%; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control);
+    background: var(--well); font-size: 1.0625rem; }
+.number { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.number input { font-variant-numeric: tabular-nums; }
+.unit-of { color: var(--soft); font-weight: 600; min-width: 3ch; }
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--well);
+             border: 1px solid var(--rule); border-radius: var(--r-control); }
+.segmented button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; font-weight: 650; color: var(--soft); }
+.segmented button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.colour { display: flex; align-items: center; gap: 12px; }
+.colour input { width: 64px; height: var(--tap); padding: 4px; border: 1px solid var(--edge); border-radius: var(--r-control);
+                background: var(--well); }
+.colour code { color: var(--soft); }
+/* Changed, not stored: one bar, one action (rule 7), above the navigation while it is needed */
+.store-bar { position: sticky; bottom: calc(var(--bar) + 12px + env(safe-area-inset-bottom)); display: flex; align-items: center;
+             gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-card); background: var(--ink); color: var(--on-ink);
+             box-shadow: 0 6px 18px rgb(0 0 0 / 0.2); }
+.store-bar span { flex: 1; font-weight: 600; }
+.store-bar .action { width: auto; min-height: 48px; padding: 0 20px; background: var(--on-ink); color: var(--ink); }
+
+/* Powders side by side, a wide window's view of the list */
+@media (min-width: 1000px) {
+    .powders-list { display: none; }
+    .compare { display: table; width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card);
+               border: 1px solid var(--rule); border-radius: var(--r-card); overflow: hidden; font-variant-numeric: tabular-nums; }
+    .compare th, .compare td { padding: 10px 10px; text-align: right; border-top: 1px solid var(--rule); white-space: nowrap; }
+    .compare thead tr:first-child th { border-top: 0; }
+    .compare th[scope="row"] { text-align: left; }
+    .compare th[scope="row"] a { color: var(--ink); text-decoration: none; font-weight: 650; margin-right: 8px; }
+    .compare thead th { color: var(--soft); font-size: 0.8125rem; font-weight: 700; }
+    .compare .group-row th { text-align: center; text-transform: uppercase; letter-spacing: 0.06em; }
+    .compare .split { border-left: 1px solid var(--rule); }
+    .compare tbody tr { cursor: pointer; }
+    .compare tbody tr.on { background: var(--well); }
+}
+
+/* The Unit: cards of facts and actions */
+.cards { display: grid; gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 16px; }
+.facts { display: grid; margin: 0; }
+.fact { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--rule); }
+.fact:first-child { border-top: 0; padding-top: 0; }
+.fact dt { color: var(--soft); }
+.fact dd { margin: 0; font-weight: 650; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.offer { margin: 12px 0; padding: 14px; border-radius: var(--r-control); background: var(--well); display: grid; gap: 10px; }
+.offer.critical { border: 1px solid var(--over); }
+.offer-title { font-weight: 700; }
+.button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.link-button { display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; }
+.ghost.danger { color: var(--over); border-color: var(--over); }
+.mirror-frame { display: grid; place-items: center; padding: 14px; border-radius: var(--r-control); background: #1c2228; }
+.mirror { width: 100%; max-width: 512px; aspect-ratio: 2 / 1; image-rendering: pixelated; }
+
+/* The cup's question, and the confirmation of what cannot be undone */
 .sheet { border: 0; padding: 24px 20px 20px; border-radius: 22px; width: min(94vw, 440px); background: var(--card);
          color: var(--ink); text-align: center; }
 .sheet::backdrop { background: rgb(8 9 11 / 0.55); }
@@ -220,3 +320,32 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .cup { width: 64px; height: 64px; stroke-width: 2.2; }
 .cup .drop { fill: currentColor; stroke: none; }
 .sheet-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 20px; }
+
+/* A switch for an on or off setting: 52 by 32, its state in the ink, focus drawn round it */
+.switch { position: relative; display: inline-flex; align-items: center; min-height: var(--tap); cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch span { width: 52px; height: 32px; border-radius: 16px; background: var(--well); border: 1px solid var(--edge);
+               position: relative; flex: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+                      background: var(--soft); transition: left 0.15s; }
+.switch input:checked + span { background: var(--ink); border-color: var(--ink); }
+.switch input:checked + span::after { left: 23px; background: var(--on-ink); }
+.switch input:focus-visible + span { outline: 3px solid var(--not-ready); outline-offset: 2px; }
+
+/* A part opened from a list is the page on a phone: its name is the page's title */
+.detail > h2 { font-size: 1.6rem; margin: 0 4px 14px; }
+@media (min-width: 1000px) { .detail > h2 { font-size: 1.3rem; } }
+
+/* The powders' table needs its room: a wider list column on that page, and never under the form (it collided) */
+@media (min-width: 1000px) {
+    #page-powders.split-page { grid-template-columns: minmax(460px, 560px) minmax(0, 1fr); }
+    #page-powders .master { overflow-x: auto; }
+    .compare thead tr:last-child th:first-child { text-align: left; }
+}
+/* One select for the whole portal: the form's as the Trickler's, its own arrow */
+.form select { appearance: none; -webkit-appearance: none; padding-right: 38px; text-overflow: ellipsis;
+               background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%),
+                                 linear-gradient(135deg, var(--soft) 50%, transparent 50%);
+               background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+/* A number's field as wide as a number needs, its unit beside it, not stretched across a tablet */
+.number { grid-template-columns: minmax(0, 14rem) auto; justify-content: start; }

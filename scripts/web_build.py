@@ -14,6 +14,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCES = REPO / "src" / "web"
+# The script's parts, joined in this order: the shared part first, the start last
+SCRIPTS = ["common.js", "trickler.js", "form.js", "settings.js", "powders.js", "unit.js", "main.js"]
 
 
 def minify_css(css):
@@ -34,7 +36,7 @@ def minify_css(css):
 
 def join(css, script):
     """
-    The Trickler's page with its stylesheet and script inside it.
+    The portal's page with its stylesheet and script inside it.
 
     Args:
         css: the stylesheet.
@@ -43,7 +45,7 @@ def join(css, script):
     Returns:
         The page's text.
     """
-    page = (SOURCES / "trickler.html").read_text(encoding="utf-8")
+    page = (SOURCES / "index.html").read_text(encoding="utf-8")
     return page.replace("/*STYLE*/", css).replace("/*SCRIPT*/", script)
 
 
@@ -70,11 +72,11 @@ def main():
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    script = (SOURCES / "app.js").read_text(encoding="utf-8")
+    script = "\n".join((SOURCES / name).read_text(encoding="utf-8") for name in SCRIPTS)
     plain = minify_css((SOURCES / "plain.css").read_text(encoding="utf-8"))
     print(f"{'the script':<22} {len(script.encode()):>8,} bytes  {len(gzip.compress(script.encode(), 9)):>7,} gzipped")
     print(f"{'plain CSS':<22} {len(plain.encode()):>8,} bytes  {len(gzip.compress(plain.encode(), 9)):>7,} gzipped")
-    write(out, "trickler.html", join(plain, script))
+    write(out, "index.html", join(plain, script))
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@
 <!-- The link to the unit is shown only when it is lost (web-ui-design, rule 9): normal takes no room -->
 <p id="link" class="offline" role="alert" hidden>Unit not reached. Trying again&hellip;</p>
 
-<main class="trickler">
+<main id="page-trickler" class="trickler" hidden>
   <div class="seg" role="tablist" aria-label="Job">
     <button id="seg-charge" role="tab" class="on" aria-selected="true">Charge</button>
     <button id="seg-purge" role="tab" aria-selected="false">Purge</button>
@@ -77,14 +77,20 @@
     </div>
   </section>
 
-  <p id="message" class="message" role="status"></p>
 </main>
 
+<!-- The other pages, drawn by their scripts from what the unit says of itself; they scroll, a job's page does not -->
+<main id="page-powders" class="page split-page" hidden></main>
+<main id="page-settings" class="page split-page" hidden></main>
+<main id="page-unit" class="page" hidden></main>
+
+<p id="message" class="message" role="status"></p>
+
 <nav class="nav">
-  <a class="on" href="#trickler"><svg viewBox="0 0 24 24"><path d="M12 4v16M5 20h14M4 8h16M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z"/></svg>Trickler</a>
-  <a href="#powders"><svg viewBox="0 0 24 24"><path d="M8 3h8v3H8zM6 6h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM6 12h12"/></svg>Powders</a>
-  <a href="#settings"><svg viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h11m4 0h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
-  <a href="#unit"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Unit</a>
+  <a href="#trickler" data-page="trickler"><svg viewBox="0 0 24 24"><path d="M12 4v16M5 20h14M4 8h16M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z"/></svg>Trickler</a>
+  <a href="#powders" data-page="powders"><svg viewBox="0 0 24 24"><path d="M8 3h8v3H8zM6 6h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM6 12h12"/></svg>Powders</a>
+  <a href="#settings" data-page="settings"><svg viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h11m4 0h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+  <a href="#unit" data-page="unit"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Unit</a>
 </nav>
 
 <dialog id="cup" class="sheet">
@@ -95,6 +101,17 @@
     <div class="sheet-actions">
       <button class="ghost" value="no">Not yet</button>
       <button class="action go" value="yes">The cup is on</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm" class="sheet">
+  <form method="dialog">
+    <h3 id="confirm-title"></h3>
+    <p id="confirm-text"></p>
+    <div class="sheet-actions">
+      <button id="confirm-keep" class="ghost" value="keep"></button>
+      <button id="confirm-act" class="action halt" value="act"></button>
     </div>
   </form>
 </dialog>

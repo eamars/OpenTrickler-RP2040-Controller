@@ -1,8 +1,4 @@
-// The charge's page (ADR-008, gate 1's mock): reads the unit and acts through API v1. The same script runs against the
-// stand-in (tests/web_test.py) and the unit. Polling for now; the event stream replaces it in gate 2.
-"use strict";
-
-const $ = (id) => document.getElementById(id);
+// The Trickler (ADR-008): the charge and the purge, a switch between them, each view the height of the screen.
 const POLL_MS = 500;
 const PURGE_RESEND_MS = 2000;   // a purge's speed lasts 5 s on the unit: a page that goes leaves no motor turning
 const PURGE_STEP = 0.5;
@@ -14,36 +10,6 @@ let decimals = 2;
 let purgeSpeed = 0;
 let purgeTimer = null;
 let pollTimer = null;
-let wakeLock = null;
-
-async function api(method, path, body) {
-    try {
-        const response = await fetch(path, {
-            method,
-            headers: body === undefined ? {} : {"Content-Type": "application/json"},
-            body: body === undefined ? undefined : JSON.stringify(body),
-        });
-        const data = await response.json().catch(() => null);
-        setLink(true);
-        return {ok: response.ok, status: response.status, data};
-    } catch (error) {
-        setLink(false);
-        return {ok: false, status: 0, data: null};
-    }
-}
-
-function say(text) {
-    $("message").textContent = text;
-}
-
-function refusal(reply, what) {
-    const message = reply.data && reply.data.error ? reply.data.error.message : "the unit was not reached";
-    say(`${what}: ${message}`);
-}
-
-function setLink(reached) {
-    $("link").hidden = reached;
-}
 
 // The screen's job titles, word for word (charge_state_text() in menu_nav.c)
 const STATUS = {idle: "Ready", starting: "Starting", zeroing: "Zeroing", charging: "Charging",
@@ -172,15 +138,6 @@ function stopPolling() {
     pollTimer = null;
 }
 
-function askCup() {
-    return new Promise((resolve) => {
-        const dialog = $("cup");
-        dialog.returnValue = "";
-        dialog.onclose = () => resolve(dialog.returnValue === "yes");
-        dialog.showModal();
-    });
-}
-
 async function startCharge() {
     const target = Number($("target").value);
     if (!(target > 0)) {
@@ -255,48 +212,38 @@ async function zero() {
     reply.ok ? say("Zeroed.") : refusal(reply, "Not zeroed");
 }
 
-// Keep this screen awake: on unless this browser was told otherwise, its switch on the Unit's page (rule 14: a
-// preference set once is not on a job's view). Where the Wake Lock is not given (plain HTTP), gate 3 adds a fallback
-function awakeWanted() {
-    try {
-        return localStorage.getItem("awake") !== "0";
-    } catch (error) {
-        return true;    // a browser with no storage: on, as the default
-    }
-}
+// The page: its controls wired once, its polling only while it is shown
+let tricklerWired = false;
 
-async function keepAwake() {
-    if (awakeWanted() && "wakeLock" in navigator && document.visibilityState === "visible") {
-        wakeLock = await navigator.wakeLock.request("screen").catch(() => null);
-    }
-}
-
-async function load() {
-    // The unit's name is the Unit page's (the owner, 2026-11-18: the top row was a waste of space)
-    const [powders, settings] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
-                                                   api("GET", "/api/v1/settings/charge")]);
-    if (settings.ok && settings.data.decimal_places) {
-        decimals = settings.data.decimal_places;
-    }
-    if (powders.ok) {
-        $("powder").replaceChildren(...powders.data.profiles.map((profile) => new Option(profile.name, profile.id)));
-    }
-    $("start").onclick = startCharge;
-    $("stop").onclick = stopCharge;
-    $("powder").onchange = choosePowder;
-    $("zero").onclick = zero;
-    $("purge-start").onclick = startPurge;
-    $("purge-stop").onclick = stopPurge;
-    $("seg-charge").onclick = () => show("charge");
-    $("seg-purge").onclick = () => show("purge");
-    document.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => stepTarget(Number(b.dataset.step)));
-    document.querySelectorAll("[data-speed]").forEach((b) => b.onclick = () => stepPurge(Number(b.dataset.speed)));
-    // A hidden tab reads nothing: the phone asleep, another app (the stream's life cycle in gate 2 does the same)
-    document.addEventListener("visibilitychange", () => {
-        document.visibilityState === "visible" ? (startPolling(), keepAwake()) : stopPolling();
-    });
-    startPolling();
-    keepAwake();
-}
-
-load();
+PAGES.trickler = {
+    async enter() {
+        if (!tricklerWired) {
+            tricklerWired = true;
+            $("start").onclick = startCharge;
+            $("stop").onclick = stopCharge;
+            $("powder").onchange = choosePowder;
+            $("zero").onclick = zero;
+            $("purge-start").onclick = startPurge;
+            $("purge-stop").onclick = stopPurge;
+            $("seg-charge").onclick = () => show("charge");
+            $("seg-purge").onclick = () => show("purge");
+            document.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => stepTarget(Number(b.dataset.step)));
+            document.querySelectorAll("[data-speed]").forEach((b) => b.onclick = () => stepPurge(Number(b.dataset.speed)));
+        }
+        // The powders' names and the charge's decimals again at each visit: either may have changed elsewhere
+        const [powders, settings] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
+                                                       api("GET", "/api/v1/settings/charge")]);
+        if (settings.ok && settings.data.decimal_places) {
+            decimals = settings.data.decimal_places;
+        }
+        if (powders.ok) {
+            const chosen = $("powder").value;
+            $("powder").replaceChildren(...powders.data.profiles.map((p) => new Option(p.name, p.id)));
+            $("powder").value = chosen;
+        }
+        startPolling();
+    },
+    leave() {
+        stopPolling();
+    },
+};

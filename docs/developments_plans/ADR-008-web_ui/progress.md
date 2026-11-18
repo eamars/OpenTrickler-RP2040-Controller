@@ -135,6 +135,32 @@ Seen, each on screen with the polling stopped and the state set: Ready, Charging
 
 **The right-aligned fields undone** (the owner: "Why the numbers are not aligned to the middle anymore??"; the agent had traded centring away for a sideways shift nobody had reported). The figures are centred again, and now the number alone: its unit hangs off its right, so "30.00 gr" no longer sits 17 px left of the middle. Measured at 1316 x 1167: the card's middle at 505, the weight's at 504 to 505 for "---", 8.42, 30.00 and 999.99, the purge's speed at 504, idle and running at the same height (464), "rev/s" 6 px from the speed. A figure moves sideways only when its count of digits or its sign changes, about once a throw: accepted.
 
+### The whole portal: Powders, Settings and Unit (2026-11-18)
+
+The owner: "I think that's good for now, and mostly importantly no worse than the previous product. Now continue", after the agent recommended one set of pages for every device over a separate PC console (a PC-first page comes with ADR-009's charts, as a page of the same portal). The portal is now one page (`src/web/index.html`) and a script in parts joined by the build: `common.js` (the API, messages, the router, the confirmation, files), `trickler.js`, `form.js`, `settings.js`, `powders.js`, `unit.js`, `main.js`.
+- **Settings:** the unit's parts as a list (Scale, Charge, Motors, Servo gate, Lights, Display, Wi-Fi, Updates), each opening its form; on a window from 1000 px the list beside the form. A part the unit does not carry is absent from the list.
+- **The forms are drawn from the schema,** none written by hand: each resource's groups, a control by type (a switch; a choice as segmented buttons when it has up to four short options, else a list; a number with its unit; text; a colour), its `about` and its limits under it, "takes effect at restart" where it applies so. A change is written at once and is live; a bar says "Changed, not stored" with one Store while the resource is not stored; a refusal is said under its field and the field shows the unit's value again. The simulated scale is left out of the scale's makes. The schema's unit "weight" is shown as the scale's own unit, not as a word.
+- **Powders:** the eight as a list, the one the charge uses marked "In use", each opening its form, with "Export this powder" and "Import into this powder" (rows 64, 65); on a wide window the list is a table of every powder's coarse and fine Kp, Ki, Kd side by side.
+- **Unit:** its facts (name, firmware, board, id, network or hotspot, address, signal in words, time running); the update (what runs, the last check, the offer with its note and Install, Check now, Install from a file naming the file this unit takes, where updates come from); the unit's screen, live, read once a second while shown; this browser's "Keep this screen awake"; Backup (export, restore from a file, stored after); Restart and Factory reset, each confirmed with buttons named by their outcome ("Erase every setting", "Keep my settings").
+- **Size:** the whole portal 67,502 bytes, 18,081 gzipped (script 12.1 KB, CSS 4.0 KB gzipped): less than today's three pages (18.6 KB gzipped), under the budget of about 50 KB.
+
+The agent's review (the skill's Process), and what it found and fixed:
+
+| Found | Made |
+|---|---|
+| The forms blank: a variable used before it was declared (`form.js`) | declared first |
+| Each field's label squeezed into a narrow column: the Trickler's `.field` rule (label and control side by side) applied to the forms too | the Trickler's rule scoped to its card |
+| "5 weight": the schema's unit for "in the scale's unit" shown as a word | no unit word; the help line says "in the scale's unit" |
+| An on or off setting drawn as a bare checkbox: the switch's style had left with the keep-awake switch | the switch restored for every form |
+| On a phone, an opened part's name at a heading's size, though it is the page's title there | the page's title size |
+| On a wide window the powders' table ran under the form (its fine Kd hidden) | a wider list column on that page; the list scrolls sideways before it collides |
+| The forms' lists with the browser's arrow, the Trickler's with ours | one list style |
+| A number's field stretched across a tablet for three digits | as wide as a number needs, its unit beside it |
+
+Driven: a setting changed (live, the Store bar shown), a value out of its limits refused under its field; the Trickler's charge run in the whole portal, left for the Unit's page and picked up again on return. Seen at 390 x 664 (every page), 768 x 1024 in dark (Motors) and 1280 x 800 (Settings and Powders side by side with their lists). The stand-in does not make the update's actions or a restart: those answer "an action this stand-in does not make".
+
+**Not yet:** the check that every row of `features.md` is marked in the pages (only the Trickler's views carry their rows); the pages at 375 x 553 and the owner's pane; the set-up (commissioning, gate 4's design); the stand-in's update flow.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
