@@ -15,6 +15,11 @@
 <!-- The link to the unit is shown only when it is lost (web-ui-design, rule 9): normal takes no room -->
 <!-- features: 29 89 -->
 <p id="link" class="offline" role="alert" hidden>Unit not reached. Trying again&hellip;</p>
+<!-- The job that runs, on every page but its own (web-ui-design, rule 9): what it does, a way to it, its Stop -->
+<div id="strip" class="strip" role="status" hidden>
+  <a id="strip-go" href="#unit"><span class="strip-dot"></span><span id="strip-word"></span></a>
+  <button id="strip-stop" type="button">Stop</button>
+</div>
 
 <main id="page-trickler" class="trickler" hidden>
   <div class="seg" role="tablist" aria-label="Job">

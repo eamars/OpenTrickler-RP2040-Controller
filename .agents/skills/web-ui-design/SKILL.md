@@ -57,7 +57,9 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
    - **The cup** before a charge and a purge is a safety step, not a confirmation (the owner, 2026-11-17): short, the screen's words ("Put the empty cup on the scale", "To catch the powder"), its yes named by what is true ("The cup is on").
 9. **The unit's state always in view.**
    - Whether the unit is reached: said only when it is not, in a banner over the page ("Unit not reached. Trying again..."), gone when it answers. A permanent row with "Connected" and the unit's name was a waste of space (the owner, 2026-11-18); normal takes no room (rule 5). The unit's name is on the Unit page.
-   - The job that runs, wherever the person is: a page that is not the job's shows a strip with the job and its Stop.
+   - The job that runs, wherever the person is: a page that is not the job's shows a strip with the job and its Stop (an update's with its stage and how far: "Downloading 2.1.0 · 43 %"). On the Trickler, another job's strip takes the row of the Charge and Purge switch, of no use while that job holds the unit, so the figure keeps its room.
+   - A restart the page follows (an update's, or Restart) is not a lost unit: the banner holds back, the job says "Restarting on 2.1.0", and only past the time the unit gives for coming back does it say "Not back yet".
+   - How a job ended is said once: on the page that shows the job, by its card; elsewhere, by a message.
    - What the unit waits for, in words (the screen's: "Lift the cup", "Return the cup").
    - Every client echoes the unit (ADR-008): the page shows what the unit says, not what it last sent.
 10. **Motion only where it means something.**

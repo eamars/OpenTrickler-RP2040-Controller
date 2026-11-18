@@ -25,3 +25,5 @@ document.addEventListener("visibilitychange", () => {
 $("message").onclick = () => say("");
 route();
 keepAwake();
+watchJobs();
+setInterval(watchJobs, WATCH_MS);

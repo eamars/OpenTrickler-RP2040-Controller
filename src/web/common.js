@@ -25,7 +25,7 @@ async function api(method, path, body) {
 }
 
 function setLink(reached) {
-    $("link").hidden = reached;
+    $("link").hidden = reached || follow.away;     // a restart this page follows is not a lost unit (update.js)
 }
 
 // A line over the page, the unit's own words when it refuses; gone at the next action or a tap
@@ -45,13 +45,15 @@ function refusal(reply, what) {
 }
 
 // The one confirmation, for what cannot be undone (rule 8): what is lost said, buttons named by their outcome, no
-// default, the safe one first
-function confirmAction(title, text, act, keep) {
+// default, the safe one first. Its action red only where it loses something (a factory reset): an install or a restart
+// moves the unit on, in the colour of the action that does (rule 5)
+function confirmAction(title, text, act, keep, loses = false) {
     return new Promise((resolve) => {
         const dialog = $("confirm");
         $("confirm-title").textContent = title;
         $("confirm-text").textContent = text;
         $("confirm-act").textContent = act;
+        $("confirm-act").className = loses ? "action halt" : "action go";
         $("confirm-keep").textContent = keep;
         dialog.returnValue = "";
         dialog.onclose = () => resolve(dialog.returnValue === "act");
@@ -124,13 +126,19 @@ function route() {
     say("");
     PAGES[page].enter(rest.join("/"));
     markOffer();
+    drawJobs();     // the job's strip, shown on every page but the job's own (update.js)
 }
 
 // A release found is marked on the Unit's destination, from every page, as the screen offers it by a row of its main
 // menu: never a pop-up (ADR-004). Read at each page shown; the event stream carries it in gate 2
 async function markOffer() {
     const reply = await api("GET", "/api/v1/update");
-    const found = reply.ok ? reply.data.found : null;
+    if (reply.ok) {
+        showOfferMark(reply.data.found);
+    }
+}
+
+function showOfferMark(found) {
     const unit = document.querySelector('.nav a[data-page="unit"]');
     unit.classList.toggle("offer-mark", found !== null);
     unit.classList.toggle("critical", found !== null && found.importance === "critical");

@@ -226,9 +226,37 @@ Row 74 is now what the mock does: an import stores what it wrote and says a rest
 
 The check: 105 rows, 71 shown, 14 left out (3 by the owner, 2 ADR-009's, 9 proposed), 20 to come (the set-up's 13, gate 3's routes and ETag, the update's view, gate 2's echo and report). `VERDICT PASS`; `--final` fails on the 20, as it should now. Seen at 390 x 664 and 1280 x 800 in dark; no console errors. The whole portal 82,429 bytes, 22,699 gzipped.
 
+### The update's view: the job, the restart followed, the end in words (2026-11-18)
+
+The owner: "Yes, the install". The update is drawn whole, from Install to how it ended, on the life cycle read the same day (README, "The update's life cycle, read whole").
+
+- **The stand-in plays the job** on a clock, ADR-004's times made shorter: starting, connecting, the download as bytes against the manifest's size, the check, the install, then a restart in which nothing answers (each connection closed with no reply, as from a unit gone), then the new image on trial and confirmed. `tests/web_test.py --update-ends confirmed|back|refused|power` picks how it ends; the upload by hand (`PUT /api/v1/update/image`), Stop and Restart (gone 5 s, back on a new boot) are played too. It gives `back_within_s` while installing, ADR-008's proposal for gate 2, and refuses to start once the unit gives it.
+- **The page** (`src/web/update.js`, the update's part moved there from `unit.js`):
+  - the Update card becomes the job while one runs, in the screen's words (`menu_nav.c`): Connecting, Downloading 2.1.0 and its percent with a bar, Checking, Installing; "Keep the power on."; Stop until it installs, its place kept when it goes;
+  - every page but the Unit's shows a strip with the job, how far, and its Stop: the charge's ("Charging") and the purge's too, on the pages that are not the Trickler (the skill's rule 9, which no page had built). On the Trickler, an update's strip takes the switch's row: the switch is of no use while the update holds the unit, and the figure keeps its 40 px on a 375 x 553 phone;
+  - the restart is followed: "Restarting on 2.1.0" and no "Unit not reached" banner, then "Starting 2.1.0" while on trial, to a new boot. Kept: the page loads itself again on the Unit page (the new firmware serves its own pages), whose card says "Last update: 2.1.0 installed." Gone back: "2.1.0 was not kept: the unit went back to 2.0.2". A power cut in the trial, which the unit cannot tell (gap 2): the page's own "2.1.0 was not kept: the unit is on 2.0.2. The power may have been cut." Refused: in plain words by its code ("the file is for another board"). Stopped: "Nothing installed.";
+  - every client follows a job whoever began it (the screen, another page, an agent): the watch reads the unit's own state once a second, which gate 2's event stream replaces;
+  - Install from a file sends the image with its progress ("Sending <file>");
+  - Restart is followed the same way to its new boot, "Restarted." (`features.md` row 68).
+- **Found and fixed while driving it:**
+
+| Found | Made |
+|---|---|
+| A file was sent at once after the start; the unit takes one only once its job is receiving (it is starting until the menu begins it), so the upload was refused and the job left waiting, the page silent | the page waits for receiving; a send that fails other than by the image's refusal is said and the job stopped |
+| "Restarting on 2.1.0" for a file, whose version is not known before the restart | the version only from a download of the release found; a file restarts "on the new firmware" |
+| "Checking for newer firmware." left as a message beside the card's own "Checking..." | the card alone says it |
+| How a job ended said twice on the Unit page, by a message and by the card's "Last update" | the card there, a message elsewhere |
+| The last update's line under the offer | above it: what happened to what runs, before what is offered |
+| "Installing · 100 %" and "Checking 100 %" | a percent only while bytes come; its place kept |
+| The card's "%" placed off by the Trickler's unit style | a style of its own |
+| The one confirmation's action red for an install and a restart, red being for stop and faults | red only for what loses something (the factory reset); the action's colour otherwise |
+| "Keep running" wrapping onto two lines in its dialog | a dialog's two buttons side by side where they fit, stacked where they do not, never wrapped |
+| With the strip on the Trickler of a 375 x 553 phone, the weight squeezed under Start | the strip takes the switch's row (above); a smaller figure, tried first, would have shrunk the 40 px the owner accepted, and was undone |
+
+Driven at 390 x 664 and 375 x 553 (each end: kept, gone back, refused, a power cut; a file refused and a file kept; Stop; Restart; a charge's strip and its Stop from Settings), 1280 x 800 in dark (the job's card). The page logs no error of its own; the browser logs each connection the stand-in drops while it restarts. `features_check.py`: 105 rows, 74 shown, 14 left out, 17 to come, `VERDICT PASS`. The whole portal 99,489 bytes, 27,234 gzipped.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
-2. The stand-in's update flow after Install (the download, the install, the restart followed, and each end in the life cycle's table), and the page's view of it: "keep the power on", how far it has got, the end in plain words (README, "What the page has to do" and "The update's life cycle, read whole"). The offer itself is drawn. The ends the unit cannot report yet (a power cut in a trial, why a back) are drawn as gate 2 makes them.
-3. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
-4. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
+2. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
+3. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.

@@ -43,83 +43,6 @@ function drawFacts(index, network) {
                               fact("Running for", index.ok ? uptimeText(index.data.uptime_s) : null)));
 }
 
-// The update: what runs, what the poll found and the offer, a poll now, a file by hand (ADR-004's "too prosumer"
-// list: the person needs to know nothing of slots or files to take an offer)
-function drawUpdate(update) {
-    const u = update.ok ? update.data : null;
-    const body = [];
-    if (u === null) {
-        body.push(element("p", {class: "hint"}, `Not read: ${refusalText(update)}`));
-        return card("Update", ...body);
-    }
-    body.push(element("dl", {class: "facts"}, fact("Firmware", u.running.version)));
-    if (u.found) {
-        const critical = u.found.importance === "critical";
-        const offer = element("div", {class: critical ? "offer critical" : "offer"},
-                              element("p", {class: "offer-title"}, `Version ${u.found.version} is available`,
-                                      critical ? element("span", {class: "tag critical"}, "Important") : null),
-                              u.found.note ? element("p", {}, u.found.note) : null,
-                              u.found.bench ? element("p", {class: "hint"}, `From the bench host ${u.found.bench}`) : null,
-                              element("button", {class: "action go", type: "button", onclick: installFound}, "Install"));
-        body.push(offer);
-    } else {
-        const poll = u.poll || {};
-        const said = poll.state === "failed" ? `The last check failed: ${poll.error}.` :
-            (poll.state === "checking" ? "Checking..." : "No newer firmware found.");
-        body.push(element("p", {class: "hint"}, said));
-    }
-    body.push(element("div", {class: "button-row"},
-                      element("button", {class: "ghost", type: "button", onclick: checkUpdate}, "Check now"),
-                      element("button", {class: "ghost", type: "button", onclick: () => installFile(u)}, "Install from a file"),
-                      element("a", {class: "ghost link-button", href: "#settings/update"}, "Where updates come from")));
-    return card("Update", ...body);
-}
-
-// features: N3
-async function checkUpdate() {
-    const reply = await api("POST", "/api/v1/update/check", {});
-    reply.ok ? say("Checking for newer firmware.", "good") : refusal(reply, "Not checked");
-    setTimeout(route, 3000);
-}
-
-async function installFound() {
-    const sure = await confirmAction("Install the update?",
-                                     "The unit fetches it, checks it and restarts on it. Keep the power on until it is back. If the new firmware does not start, it goes back to the one it has now.",
-                                     "Install", "Not now");
-    if (!sure) {
-        return;
-    }
-    const reply = await api("POST", "/api/v1/update/start", {download: true});
-    reply.ok ? say("Updating: keep the power on.", "good") : refusal(reply, "Not started");
-}
-
-async function installFile(u) {
-    say(`Choose the file ending in ${u.takes}_update.bin`, "good");
-    const file = await chooseFile(".bin,application/octet-stream");
-    if (file === null) {
-        say("");
-        return;
-    }
-    const sure = await confirmAction(`Install ${file.name}?`,
-                                     "The unit takes the file, checks it is whole and for this board, and restarts on it. Keep the power on until it is back.",
-                                     "Install", "Not now");
-    if (!sure) {
-        return;
-    }
-    const start = await api("POST", "/api/v1/update/start", {});
-    if (!start.ok) {
-        refusal(start, "Not started");
-        return;
-    }
-    const sent = await api("PUT", "/api/v1/update/image", file);
-    if (!sent.ok) {
-        refusal(sent, "Not taken");
-        return;
-    }
-    const installed = await api("POST", "/api/v1/update/install", {});
-    installed.ok ? say("Installing: keep the power on.", "good") : refusal(installed, "Not installed");
-}
-
 // The unit's screen as a person at it sees it, read once a second while this page is shown, at the size and in the
 // format the unit gives (features: 86 87 88 90): another screen is drawn right, or said not drawn
 function drawMirror(display) {
@@ -274,21 +197,27 @@ async function importSettings() {
     }
 }
 
-// features: 70
+// features: 68 70
 async function restartUnit() {
     if (!await confirmAction("Restart the unit?", "It is back in about ten seconds. A charge or a purge that runs is stopped.",
                              "Restart", "Keep running")) {
         return;
     }
+    const index = await api("GET", "/api/v1");
     const reply = await api("POST", "/api/v1/system/restart", {});
-    reply.ok ? say("Restarting.", "good") : refusal(reply, "Not restarted");
+    if (!reply.ok) {
+        refusal(reply, "Not restarted");
+        return;
+    }
+    followRestart(index.ok ? index.data.boot : null);     // the page follows it to its new boot (update.js)
+    watchJobs();
 }
 
 // features: 69 70
 async function factoryReset() {
     if (!await confirmAction("Erase every setting?",
                              "Every setting and powder goes back to its default, and it cannot be undone. The unit restarts as its own hotspot, with a new name: you join it again to set it up. Export the settings first to keep them.",
-                             "Erase every setting", "Keep my settings")) {
+                             "Erase every setting", "Keep my settings", true)) {
         return;
     }
     const reply = await api("POST", "/api/v1/system/erase", {confirm: "erase"});
@@ -302,7 +231,7 @@ PAGES.unit = {
                                                                      api("GET", "/api/v1/update"), api("GET", "/api/v1/display")]);
         // The update first, where its mark on the navigation leads, and in the same place with or without an offer
         page.replaceChildren(element("div", {class: "cards"},
-                                     drawUpdate(update),
+                                     drawUpdateCard(update),
                                      drawFacts(index, network),
                                      drawMirror(display),
                                      drawBrowser(),

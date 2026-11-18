@@ -115,6 +115,22 @@ OFFER = {"version": "2.1.0", "block": "2.1.0", "channel": "stable", "bench": Non
          "note": "The web pages made new: the Trickler, the powders and every setting from a phone. Purge is the screen's "
                  "word for the cleanup now."}
 CHECK_MS = 1500                     # a poll's time, from Check now to what it found
+# The update as a job (ADR-004's times, made shorter: 800 KB came in 14 s, the unit was back about 8 s after the
+# install, a trial that is not kept goes back about 75 s on). Each phase's length, in ms
+JOB_STARTING_MS = 500               # asked, and the menu has not begun it
+JOB_CONNECT_MS = 1500               # a download's DNS, TLS and redirects, before its length is known
+JOB_DOWNLOAD_MS = 6000
+JOB_CHECK_MS = 600                  # the manifest's SHA-256 and the image's seal
+JOB_INSTALL_MS = 300                # the install's reply gets out before the restart
+JOB_TRIAL_MS = 2500                 # the new image on its network, then confirmed
+JOB_DOWN_MS = {"confirmed": 6000, "back": 20000, "power": 9000}     # the unit off the network, by how it ends
+IMAGE_BYTES = 805_000
+NEXT_VERSION = OFFER["version"]
+# How long the page may wait through the restart before it says the unit is not back (proposed, ADR-008's life
+# cycle, gate 2): the trial's limit and a start. The stand-in's is its own times'
+BACK_WITHIN_S = 25
+ENDS = ["confirmed", "back", "refused", "power"]
+RESTART_MS = 5000                   # a plain restart: the unit away, then back on a new boot
 
 
 def record(host):
@@ -141,11 +157,12 @@ def record(host):
 class StandIn:
     """The unit's state as the stand-in keeps it: the recorded replies, changed by the writes and actions."""
 
-    def __init__(self, replies, offer=None):
+    def __init__(self, replies, offer=None, ends="confirmed"):
         """
         Args:
             replies: the recording, path to reply.
             offer: an importance (normal, critical) for a release found from the start, or None: found by Check now.
+            ends: how an update ends, one of ENDS: kept, gone back, refused at its check, or a power cut in its trial.
         """
         self.replies = replies
         self.schema = replies["/api/v1/schema"]
@@ -155,6 +172,11 @@ class StandIn:
         self.stored = {path: copy.deepcopy(reply) for path, reply in replies.items() if self.resource(path) is not None}
         self.importance = offer or "normal"
         self.checked_ms = None
+        if "back_within_s" in replies["/api/v1/update"]:
+            sys.exit("the recording has the update's back_within_s: the unit gives it now, so take out BACK_WITHIN_S")
+        self.ends = ends
+        self.job = None                 # the update job: its phase and times, or None
+        self.down_until_ms = None       # the unit restarting: nothing answers until then
         if offer:
             self.replies["/api/v1/update"].update(found=dict(OFFER, importance=offer), poll={"state": "found", "error": None})
         self.lock = threading.Lock()
@@ -205,11 +227,142 @@ class StandIn:
             self.pour()
         if path == "/api/v1/update":
             self.poll()
+            reply = dict(reply, back_within_s=BACK_WITHIN_S) if reply["state"] == "installing" else reply
         if path == "/api/v1/gate":
             self.gate()
         if path == "/api/v1/settings":
             reply["resources"] = {inner: self.replies[inner] for inner in reply["resources"]}
         return 200, reply
+
+    def down(self):
+        """
+        Whether the unit is restarting: then a request gets no reply at all, as from a unit gone from the network.
+        Each request moves the update job on first.
+        """
+        with self.lock:
+            self.tick()
+            return self.down_until_ms is not None
+
+    def tick(self):
+        """The update job moved on by the clock: its phases, the restart, the trial."""
+        job = self.job
+        if job is None:
+            if self.down_until_ms is not None and self.now_ms() >= self.down_until_ms:
+                self.down_until_ms = None
+                self.new_boot(self.replies["/api/v1"]["firmware"]["version"])     # a plain restart is over
+            return
+        update = self.replies["/api/v1/update"]
+        now = self.now_ms()
+        since = now - job["at"]
+        if job["phase"] == "starting" and since >= JOB_STARTING_MS:
+            self.job_phase("receiving")
+            update.update(state="receiving")
+            self.add_event("update", "started", by="api")
+        elif job["phase"] == "receiving" and job["download"] and since >= JOB_CONNECT_MS:
+            share = min((since - JOB_CONNECT_MS) / JOB_DOWNLOAD_MS, 1.0)
+            update.update(expected=IMAGE_BYTES, received=int(IMAGE_BYTES * share))
+            if share >= 1.0:
+                if self.ends == "refused":
+                    self.job_end("refused", "hash_mismatch", "not the image its release's manifest names")
+                else:
+                    self.job_phase("ready")
+                    update.update(state="ready")
+        elif job["phase"] == "ready" and job["download"] and since >= JOB_CHECK_MS:
+            self.job_install()
+        elif job["phase"] == "installing" and since >= JOB_INSTALL_MS:
+            self.job_phase("down")
+            self.down_until_ms = now + JOB_DOWN_MS["back" if self.ends == "refused" else self.ends]
+        elif job["phase"] == "down" and now >= self.down_until_ms:
+            self.down_until_ms = None
+            self.job_restarted()
+        elif job["phase"] == "trial" and since >= JOB_TRIAL_MS:
+            update["running"] = dict(update["running"], trial=False)
+            update["last"] = {"result": "confirmed", "version": NEXT_VERSION}
+            self.add_event("update", "confirmed", version=NEXT_VERSION)
+            self.job = None
+
+    def job_phase(self, phase):
+        self.job.update(phase=phase, at=self.now_ms())
+
+    def job_install(self):
+        self.job_phase("installing")
+        self.replies["/api/v1/update"].update(state="installing")
+        self.add_event("update", "installing", version=NEXT_VERSION)
+
+    def job_end(self, result, code=None, message=None):
+        """The job ends before any restart: refused at its check, stopped, or out of time."""
+        self.replies["/api/v1/update"].update(state="idle", received=0, expected=0, download=False,
+                                              last={"result": result, "code": code, "message": message,
+                                                    "version": NEXT_VERSION if result == "refused" else None})
+        self.replies["/api/v1/system"]["activity"] = "none"
+        self.add_event("update", "stopped", reason="refused" if result == "refused" else result, code=code)
+        self.job = None
+
+    def job_restarted(self):
+        """
+        The unit back on the network after the install's restart: a new boot and a new event log, on the new image on
+        trial (kept), or on the old one (gone back, or a power cut in the trial, which the unit cannot tell).
+        """
+        index = self.replies["/api/v1"]
+        update = self.replies["/api/v1/update"]
+        old = update["running"]["version"]
+        kept = self.ends == "confirmed"
+        version = NEXT_VERSION if kept else old
+        self.new_boot(version)
+        running = dict(update["running"], version=version, trial=kept)
+        if kept:
+            running.update(block=NEXT_VERSION, slot="b" if running["slot"] == "a" else "a")
+        last = None if self.ends == "power" else (None if kept else {"result": "back", "version": NEXT_VERSION})
+        found = None if kept else dict(OFFER, importance=self.importance)   # the start's poll finds it again
+        update.update(state="idle", received=0, expected=0, download=False, running=running, last=last,
+                      found=found, poll={"state": "found" if found else "up_to_date", "error": None})
+        if kept:
+            update["takes"] = update["takes"][:-1] + ("b" if update["takes"].endswith("a") else "a")
+        if self.ends == "back":
+            self.add_event("update", "back", version=NEXT_VERSION)
+        if kept:
+            self.job_phase("trial")
+        else:
+            self.job = None
+
+    def new_boot(self, version):
+        """The unit started again: a new boot, a new event log, the firmware it runs now, no job."""
+        index = self.replies["/api/v1"]
+        index["boot"] = (index["boot"] * 1103515245 + 12345) % 2 ** 32
+        index["uptime_s"] = 0
+        for reply in (index, self.replies["/api/v1/system"]):
+            reply["firmware"] = dict(reply["firmware"], version=version)
+        self.replies["/api/v1/system"]["activity"] = "none"
+        self.events = []
+        self.add_event("system", "started", firmware=version)
+
+    def update_start(self, body):
+        """POST /api/v1/update/start: the job, fetching the release found itself, or waiting for an upload."""
+        update = self.replies["/api/v1/update"]
+        system = self.replies["/api/v1/system"]
+        if system["activity"] != "none" or self.job is not None:
+            return 409, error("busy", "another job runs")
+        download = bool(body.get("download"))
+        if download and update["found"] is None:
+            return 409, error("not_found", "nothing found to download: check for an update first")
+        self.job = {"phase": "starting", "at": self.now_ms(), "download": download}
+        system["activity"] = "update"
+        update.update(state="starting", received=0, expected=0, download=download, last=None)
+        return 202, update
+
+    def update_image(self, size):
+        """PUT /api/v1/update/image: the whole image taken, then checked as the unit checks it."""
+        update = self.replies["/api/v1/update"]
+        if self.job is None or self.job["phase"] != "receiving" or self.job["download"]:
+            return 409, error("not_running", "no update is receiving: POST /api/v1/update/start first")
+        update.update(expected=size, received=size)
+        if self.ends == "refused":
+            self.job_end("refused", "wrong_board", "built for another board")
+            return 400, error("wrong_board", "built for another board")
+        self.job_phase("ready")
+        update.update(state="ready")
+        self.add_event("update", "received", version=NEXT_VERSION)
+        return 200, update
 
     def poll(self):
         """A poll asked by Check now: checking for a moment, then the release found."""
@@ -356,12 +509,25 @@ class StandIn:
             return 200, gate
         if path == "/api/v1/scale/zero":
             return 200, {"zeroed": True}
+        if path == "/api/v1/update/start":
+            return self.update_start(body)
+        if path == "/api/v1/update/install":
+            if self.job is None or self.job["phase"] != "ready":
+                return 409, error("not_ready", "no image is whole and checked")
+            self.job_install()
+            return 202, self.replies["/api/v1/update"]
+        if path == "/api/v1/update/stop":
+            if self.job is None or self.job["phase"] not in ("starting", "receiving", "ready"):
+                return 409, error("not_running", "no update to stop")
+            self.job_end("stopped")
+            return 202, self.replies["/api/v1/update"]
         if path == "/api/v1/update/check":
             update = self.replies["/api/v1/update"]
             update.update(found=None, poll={"state": "checking", "error": None})
             self.checked_ms = self.now_ms()
             return 202, update
         if path == "/api/v1/system/restart":
+            self.down_until_ms = self.now_ms() + RESTART_MS
             return 202, {"restarting": True}
         if path == "/api/v1/system/erase":
             return 202, {"erasing": True}
@@ -388,7 +554,16 @@ def make_handler(stand_in):
             self.end_headers()
             self.wfile.write(body)
 
+        def gone(self):
+            """While the unit restarts nothing answers: the connection is closed with no reply."""
+            if stand_in.down():
+                self.close_connection = True
+                return True
+            return False
+
         def do_GET(self):
+            if self.gone():
+                return
             url = urllib.parse.urlsplit(self.path)
             if url.path in PAGES:
                 page = (REPO / "src" / "html" / PAGES[url.path]).read_bytes()
@@ -408,6 +583,8 @@ def make_handler(stand_in):
             self.send(status, reply)
 
         def write(self, method):
+            if self.gone():
+                return
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length)
             if self.headers.get_content_type() != "application/json":
@@ -428,6 +605,17 @@ def make_handler(stand_in):
         def do_POST(self):
             self.write("POST")
 
+        def do_PUT(self):
+            if self.gone():
+                return
+            raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            if urllib.parse.urlsplit(self.path).path != "/api/v1/update/image":
+                self.send(405, error("method_not_allowed", "not on this path"))
+                return
+            with stand_in.lock:
+                status, reply = stand_in.update_image(len(raw))
+            self.send(status, reply)
+
     return Handler
 
 
@@ -438,11 +626,13 @@ def main():
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--offer", choices=["normal", "critical"],
                         help="start with a release found, of this importance (else Check now finds a normal one)")
+    parser.add_argument("--update-ends", choices=ENDS, default="confirmed",
+                        help="how an update ends: kept, gone back, refused at its check, or a power cut in its trial")
     args = parser.parse_args()
     if args.record:
         record(args.record)
         return
-    stand_in = StandIn(json.loads(DATA.read_text(encoding="utf-8")), args.offer)
+    stand_in = StandIn(json.loads(DATA.read_text(encoding="utf-8")), args.offer, args.update_ends)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(stand_in))
     print(f"the pages and {len(stand_in.replies)} recorded paths at http://127.0.0.1:{args.port}/")
     server.serve_forever()
