@@ -739,7 +739,7 @@ static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) 
         http_json_raw(out, room, &len, ",\"state\":");
         http_json_string(out, room, &len, api_v1_job_state());
     }
-    http_json_raw(out, room, &len, "}}");
+    http_json_raw(out, room, &len, ",\"see\":\"/api/v1/schema\"}}");
     if (!http_json_fits(room, len)) {
         http_server_reply_error(reply, outcome->status, outcome->code, "the error did not fit");
         return;
@@ -942,6 +942,34 @@ static void settings_revert_handler(const http_server_request_t *request, http_s
     size_t len = 0;
     http_json_raw(out, room, &len, "{\"reverted\":true}");
     http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
+bool settings_action_usage(const char *path, char *out, size_t room, size_t *len) {
+    bool all = strcmp(path, "/api/v1/settings/save") == 0;
+    for (size_t idx = 0; idx < resource_count && !all; idx += 1) {
+        const settings_resource_t *resource = resources[idx];
+        bool save = strcmp(path, resource->save_path) == 0;
+        if (!save && strcmp(path, resource->revert_path) != 0) {
+            continue;
+        }
+        http_json_raw(out, room, len, "{\"usage\":{\"method\":\"POST\",\"path\":");
+        http_json_string(out, room, len, path);
+        http_json_raw(out, room, len, save ? ",\"fields\":[],\"refused_while\":\"never\",\"about\":\"stores what "
+                                             "was written to the settings stored here; answers {\\\"saved\\\": true}\"" :
+                                             ",\"fields\":[],\"about\":\"puts back what is stored here, undoing what was "
+                                             "written since; each resource that changed gives its setting changed event; "
+                                             "409 busy as a write to it is; answers {\\\"reverted\\\": true}\"");
+        http_json_raw(out, room, len, ",\"example\":{}},\"see\":\"/api/v1/schema\"}");
+        return true;
+    }
+    if (all) {
+        http_json_raw(out, room, len, "{\"usage\":{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\","
+                                      "\"fields\":[],\"refused_while\":\"never\",\"about\":\"stores every setting and "
+                                      "the powders\",\"example\":{}},\"see\":\"/api/v1/schema\"}");
+        return true;
+    }
+    return false;
 }
 
 
@@ -1272,6 +1300,8 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
             if (done_before) {
                 continue;
             }
+            size_t mark = *len;
+            uint8_t field_before = schema->field;
             http_json_raw(buf, room, len, schema->field == 2 ? "," : "");
             schema->field = 2;
             http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
@@ -1287,12 +1317,25 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
             http_json_raw(buf, room, len, ",\"about\":\"puts back what is stored there, undoing what was written "
                                           "since: each resource that changed gives its setting changed event. 409 "
                                           "busy as a write is\"}");
-            return true;
+            if (!http_json_fits(room, *len) && mark > 0) {
+                // As many as fit a chunk: this one begins the next (a chunk each cost the schema 0.3 s)
+                *len = mark;
+                buf[mark] = '\0';
+                schema->resource = (uint8_t) idx;
+                schema->field = field_before;
+                return true;
+            }
         }
+        size_t mark = *len;
         http_json_raw(buf, room, len, schema->field == 2 ? "," : "");
         http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\",\"fields\":[],"
                                       "\"refused_while\":\"never\","
                                       "\"about\":\"stores every setting and the powder profiles\"}");
+        if (!http_json_fits(room, *len) && mark > 0) {
+            *len = mark;
+            buf[mark] = '\0';
+            return true;    // the save of all begins the next chunk
+        }
         schema->phase = 3;
         schema->resource = 0;
         schema->field = 0;

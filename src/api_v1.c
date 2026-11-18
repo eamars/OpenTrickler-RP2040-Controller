@@ -347,6 +347,8 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/purge/start", "[\"POST\"]", "starts a purge, at speed 0"},
     {"/api/v1/purge/stop", "[\"POST\"]", "stops the purge, and acknowledges its fault; never fails"},
     {"/api/v1/stop", "[\"POST\"]", "stops whatever job runs; never fails"},
+    {"/api/v1/agent/hello", "[\"POST\"]",
+     "for agents: say hello, and the screen shows who is watching for 2 s; never over a charge"},
     {"/api/v1/events", "[\"GET\"]",
      "the unit's changes after a number (?after=N), held until there is one with ?wait=s"},
     {"/api/v1/events/stream", "[\"GET\"]",
@@ -416,9 +418,8 @@ static void api_v1_index_resource(char *out, size_t room, size_t *len, bool firs
 }
 
 
-static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
-    api_v1_index_t *index = ctx;
-    *len = 0;
+// One item of the index: its head, the guide, a path, a settings' path, a save with its revert. False after the last
+static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, size_t *len) {
     if (index->phase == 0) {
         char unit_id[9];
         eeprom_get_board_id(unit_id, 8);
@@ -496,6 +497,31 @@ static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
     }
     http_json_raw(buf, room, len, "]}");
     return false;
+}
+
+
+/*
+ * As many items as fit a chunk (ADR-008, gate 2). A path a chunk made some 50 chunks of a hundred bytes, each with
+ * its own segment and its own wait for the client's ACK: 7.4 KB took 1.5 s, the schema's 34.8 KB in full chunks 0.9 s.
+ * An item that does not fit is taken back and begins the next chunk
+ */
+static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_index_t *index = ctx;
+    *len = 0;
+    while (true) {
+        size_t mark = *len;
+        api_v1_index_t before = *index;
+        bool more = api_v1_index_item(index, buf, room, len);
+        if (!http_json_fits(room, *len) && mark > 0) {
+            *len = mark;
+            buf[mark] = '\0';
+            *index = before;
+            return true;
+        }
+        if (!more) {
+            return false;
+        }
+    }
 }
 
 

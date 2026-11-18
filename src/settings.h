@@ -136,6 +136,8 @@ const char *settings_write_and_save(const char *path, const char *name, const ch
 // a path's resource, if it changed. NULL when done, else why not
 const char *settings_write(const char *path, const char *name, const char *value);
 const char *settings_store(const char *path);
+// A save's or a revert's usage for its own GET (ADR-008, gate 2), into out; false when the path is neither
+bool settings_action_usage(const char *path, char *out, size_t room, size_t *len);
 
 #ifdef __cplusplus
 }

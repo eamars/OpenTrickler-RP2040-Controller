@@ -144,6 +144,14 @@ void *http_server_reply_context(http_server_reply_t *reply, size_t size);
 // A query's value by its name, decoded ('+' a space), into out. False when the name is not there
 bool http_server_query_value(const char *query, const char *name, char *out, size_t len);
 
+// A GET of a path that takes only other methods (an action): answered by this handler with the action's usage
+// (ADR-008, gate 2). A handler that gives no reply leaves it 405, as before
+void http_server_set_usage(http_server_handler_t usage);
+
+// The routes, one at a time, for the check that every route is in the index (ADR-008, gate 2). False past the last
+bool http_server_route_at(int idx, http_server_method_t *method, const char **path);
+const char *http_server_method_name(http_server_method_t method);
+
 // The server's own figures, for GET /api/v1/debug
 typedef struct {
     uint32_t accepted;          // connections taken

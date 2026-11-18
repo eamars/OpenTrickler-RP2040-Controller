@@ -55,7 +55,7 @@ What may change within v1, and what a client does about it:
 | 400 | Not JSON, an unknown field, a wrong type, a value outside its limits, a missing confirmation, a start with no target |
 | 403 | A `Host` that is not the unit's |
 | 404 | No such path on this build, or no such id |
-| 405 | The path exists, the method does not; `Allow` lists the methods |
+| 405 | The path exists, the method does not; `Allow` lists the methods. A GET of an action's path is not refused: it gives the action's usage (below) |
 | 409 | Refused at this moment: another job runs, a throw is under way, no job runs that the command needs, a driver is at fault, the gate is disabled |
 | 411 | A body with no `Content-Length` (a chunked one included) |
 | 413 | A request larger than the unit takes: a JSON body over 1 KB; headers over 8 KB in all; one of the headers the unit reads, longer than its line. Other headers, a long `Cookie:` line among them, are passed over unread |
@@ -64,7 +64,14 @@ What may change within v1, and what a client does about it:
 | 500 | The unit failed to do it, such as a save the EEPROM did not take |
 | 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor, Sartorius, US Solid, JM Science and generic drivers cannot zero their scale (TODOs in their code); `actions` in `GET /api/v1/scale` says which can |
 
-Every error has the same body:
+**The API describes itself** (ADR-008, gate 2):
+- **A GET of an action** (a path that takes only a POST, a PUT or a PATCH) gives 200 `{"usage": <the action as the schema gives it, with an "example" body>, "see": "/api/v1/schema"}`, its `Allow` still saying what it takes. A GET still changes nothing.
+- **Every error under `/api/v1` says where to read,** in `see`: a path not there, `/api/v1`; a method a path does not take, the path itself (its GET); any other, `/api/v1/schema`.
+- **The root points to the index:** each page's head carries `<link rel="service-doc" href="/api/v1">` and `<link rel="service-desc" href="/api/v1/schema">` (RFC 8631).
+- **Every route is listed** in the index or the schema, or named as a page (`/`, `/mobile`, `/wizard`, `/display_mirror`) or a debug route: `rc_run.py api_check` reads the server's routes (`GET /api/v1/debug/routes`, not part of v1) and fails on one in none.
+- **The hello for agents** (`POST /api/v1/agent/hello`) is listed, an action of the kind `agent`, `refused_while` `a_charge_runs`.
+
+Every error has the same body (with `see` under `/api/v1`):
 
 ```json
 {"error": {"code": "out_of_range", "field": "fine_stop_threshold", "message": "12 is above the most, 10", "min": 0, "max": 10}}

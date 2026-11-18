@@ -89,7 +89,7 @@ static void api_error(http_server_reply_t *reply, int status, const char *code, 
         http_json_raw(out, room, &len, ",");
         http_json_raw(out, room, &len, extra);
     }
-    http_json_raw(out, room, &len, "}}");
+    http_json_raw(out, room, &len, ",\"see\":\"/api/v1/schema\"}}");    // where to read (ADR-008, gate 2)
     http_server_reply_send(reply, status, "application/json", len);
 }
 
@@ -1291,8 +1291,8 @@ static bool api_v1_restart_later(bool erase) {
 
 
 // POST /api/v1/agent/hello {"name": "..."}: an agent says it is here, and the screen shows who for about 2 s, flashing
-// first after a quiet spell (menu_visit()). The owner's hidden mode, for fun (2026-11-17): not in the index or the
-// schema, so only agents that read AGENTS.md know it. It changes nothing but the screen, and never over a charge
+// first after a quiet spell (menu_visit()). The owner's mode for fun (2026-11-17), listed in the index and the
+// schema since ADR-008's gate 2 as the kind agent. It changes nothing but the screen, and never over a charge
 static void api_v1_agent_hello(const http_server_request_t *request, http_server_reply_t *reply) {
     static const char *const allowed[] = {"name"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
@@ -1428,13 +1428,14 @@ _Static_assert(MAX_PROFILE_CNT == 8, "the schema below gives the powder profiles
     "\"about\":\"a powder profile's id (GET /api/v1/powder_profiles)\"}]"
 
 static const char *const api_v1_schema_actions[] = {
+    "{\"method\":\"POST\",\"path\":\"/api/v1/agent/hello\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"min_length\":1,\"max_length\":16,\"about\":\"who you are, printable ASCII; without it, Claude-chan\"}],\"refused_while\":\"a_charge_runs\",\"kind\":\"agent\",\"about\":\"an agent says hello: the screen shows Claude-chan rising at its bottom right, a bubble over her saying '<name> is watching ya!', for 2 s. 409 busy while a charge runs: its screen is never covered. It changes nothing else; send it only when no person reads the screen for a test\",\"example\":{\"name\":\"Claude\"}}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/charge\"," API_V1_SCHEMA_CHARGE_FIELDS ",\"refused_while\":\"in_throw\","
     "\"about\":\"what the next throw uses, either field or both; one target for the unit: the menu's digits show "
     "it\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/start\"," API_V1_SCHEMA_CHARGE_FIELDS ","
     "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a target or a powder profile given is set "
     "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 "
-    "no_target when none is set\"}",
+    "no_target when none is set\",\"example\":{\"target\":30}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/purge/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
@@ -1463,7 +1464,7 @@ static const char *const api_v1_schema_actions[] = {
     "/api/v1/update), checks it and installs it, as the offer's Install at the screen does\"}],"
     "\"refused_while\":\"a_job_runs\",\"about\":\"starts a firmware update (202): the menu takes it and it holds the "
     "screen; then PUT the image, unless it downloads. 409 busy also while a person has a screen open at the unit or a "
-    "poll runs; 409 not_found for a download with nothing found\"}",
+    "poll runs; 409 not_found for a download with nothing found\",\"example\":{\"download\":true}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/update/check\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"polls the update's source now (202): GET /api/v1/update's poll and found say what came of it. It also "
     "polls once each start, when the station joins. 409 busy while a poll or the update runs; 409 no_network on the "
@@ -1483,8 +1484,89 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/system/factory_reset\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
     "\"choices\":[{\"value\":\"factory_reset\",\"label\":\"Factory reset\"}],\"required\":true}],\"refused_while\":\"a_job_runs\","
     "\"about\":\"erases the stored settings and restarts (202): the unit then leaves the network and comes back as "
-    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation\"}",
+    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation\",\"example\":{\"confirm\":\"factory_reset\"}}",
 };
+
+// --- An action's usage (ADR-008, gate 2): a GET of an action's path gives its description from the schema, with an
+// example body where the schema has none ({}), and where to read the rest. One description, three readers: the
+// schema, the index, the action's own GET
+
+static bool api_v1_action_usage(const char *path, char *out, size_t room, size_t *len) {
+    char needle[80];
+    snprintf(needle, sizeof(needle), "\"path\":\"%s\"", path);
+    for (size_t idx = 0; idx < sizeof(api_v1_schema_actions) / sizeof(api_v1_schema_actions[0]); idx += 1) {
+        const char *item = api_v1_schema_actions[idx];
+        if (strstr(item, needle) == NULL) {
+            continue;
+        }
+        http_json_raw(out, room, len, "{\"usage\":");
+        if (strstr(item, "\"example\"") == NULL && strstr(item, "\"fields\":[]") != NULL) {
+            // A body of {}: said so, the item's closing brace replaced
+            size_t item_len = strlen(item);
+            char head[16];
+            for (size_t done = 0; done + 1 < item_len; done += sizeof(head) - 1) {
+                size_t part = item_len - 1 - done < sizeof(head) - 1 ? item_len - 1 - done : sizeof(head) - 1;
+                memcpy(head, item + done, part);
+                head[part] = '\0';
+                http_json_raw(out, room, len, head);
+            }
+            http_json_raw(out, room, len, ",\"example\":{}}");
+        }
+        else {
+            http_json_raw(out, room, len, item);
+        }
+        http_json_raw(out, room, len, ",\"see\":\"/api/v1/schema\"}");
+        return true;
+    }
+    return false;
+}
+
+
+static void api_v1_usage(const http_server_request_t *request, http_server_reply_t *reply) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    if (api_v1_action_usage(request->path, out, room, &len) || settings_action_usage(request->path, out, room, &len)) {
+        api_send(reply, 200, room, len);
+    }
+}
+
+
+// GET /api/v1/debug/routes: every route the server holds, for api_check's "every route in the index" (not part of v1)
+static bool api_v1_routes_more(void *ctx, char *buf, size_t room, size_t *len) {
+    int *next = ctx;
+    *len = 0;
+    if (*next == 0) {
+        http_json_raw(buf, room, len, "{\"routes\":[");
+    }
+    http_server_method_t method;
+    const char *path;
+    while (http_server_route_at(*next, &method, &path)) {
+        size_t mark = *len;
+        http_json_raw(buf, room, len, *next > 0 ? ",[" : "[");
+        http_json_string(buf, room, len, http_server_method_name(method));
+        http_json_raw(buf, room, len, ",");
+        http_json_string(buf, room, len, path);
+        http_json_raw(buf, room, len, "]");
+        if (!http_json_fits(room, *len)) {
+            *len = mark;
+            buf[mark] = '\0';
+            return true;
+        }
+        *next += 1;
+    }
+    http_json_raw(buf, room, len, "]}");
+    return false;
+}
+
+
+static void api_v1_get_routes(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    int *next = http_server_reply_context(reply, sizeof(int));
+    *next = 0;
+    http_server_reply_stream(reply, 200, "application/json", api_v1_routes_more, next);
+}
+
 
 static const char *const api_v1_schema_states[] = {
     "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
@@ -1587,6 +1669,8 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/stop", api_v1_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events", api_v1_get_events);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events/stream", api_v1_get_events_stream);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug/routes", api_v1_get_routes);
+    http_server_set_usage(api_v1_usage);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/scale", api_v1_get_scale);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/scale/zero", api_v1_scale_zero);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/gate", api_v1_get_gate);
@@ -1595,7 +1679,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/system", api_v1_get_system);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/restart", api_v1_system_restart);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/factory_reset", api_v1_system_factory_reset);
-    // Hidden: in neither the index nor the schema (the owner's hello for agents)
+    // The owner's hello for agents: listed since ADR-008's gate 2, an action of the kind agent
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/agent/hello", api_v1_agent_hello);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/update", api_v1_get_update);

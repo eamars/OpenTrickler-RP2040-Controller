@@ -136,6 +136,8 @@ SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse"
                        "api/v1/settings/scale", "api/v1/settings/gate", "api/v1/settings/leds",
                        "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
                        "api/v1/powder_profiles/0"]
+# Routes the index does not list, by name (ADR-008, gate 2): the pages, and the debug routes (not part of v1)
+API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror"}
 STREAM_READ_S = 20              # the event stream's read: past its comment after 15 s quiet
 STREAM_KEEP_ALIVE_S = 15        # ADR-008's comment after this long quiet
 STREAM_STALL_S = 10             # the server's stall limit: a stream whose client stops reading is closed after it
@@ -2004,6 +2006,8 @@ class Session:
         wait_state("charge", ("zeroing", "charging"))
         expect("POST", "charge/start", {}, 409, "busy")
         expect("POST", "purge/start", {}, 409, "busy")
+        # The owner's hello for agents, listed since ADR-008's gate 2: refused over a charge, so it never draws here
+        expect("POST", "agent/hello", {"name": "api_check"}, 409, "busy")
         expect("POST", "system/restart", {}, 409, "busy")
         expect("POST", "charge/stop", {}, 202)
         wait_event("charge", "stopped", by="api", reason="stopped")
@@ -2098,6 +2102,34 @@ class Session:
         for method, path in sorted(listed - called):
             self.fail(f"api_check: the schema's {method} {path} was not called")
         self.log.write("rc", f"api_check: {len(called & listed)} of the schema's {len(listed)} actions called")
+
+        # The API describes itself (ADR-008, gate 2): a GET of every action that has no GET of its own gives its
+        # usage with an example; every route the server holds is in the index, the schema, or a named exception; an
+        # error says where to read
+        gets = set(unit.paths("GET"))
+        usages = 0
+        for action in schema["actions"]:
+            if action["path"] in gets or "{id}" in action["path"]:
+                continue
+            status, reply = http_call(host, "GET", action["path"])
+            usage = (reply or {}).get("usage") or {}
+            if status != 200 or usage.get("path") != action["path"] or "example" not in usage or "see" not in reply:
+                self.fail(f"api_check: GET {action['path']}: {status}, not its usage with an example: {reply}")
+            usages += 1
+        self.log.write("rc", f"api_check: {usages} actions' usage read by their GET")
+        status, reply = http_call(host, "GET", "/api/v1/nope")
+        if status != 404 or (reply or {}).get("error", {}).get("see") != "/api/v1":
+            self.fail(f"api_check: a path not there: {status} {reply}, not 404 with see /api/v1")
+        status, reply = http_call(host, "PATCH", "/api/v1/stop", {})
+        if status != 405 or (reply or {}).get("error", {}).get("see") != "/api/v1/stop":
+            self.fail(f"api_check: a method a path does not take: {status} {reply}, not 405 with see the path")
+        status, routes = http_call(host, "GET", "/api/v1/debug/routes")
+        known = gets | set(unit.paths("POST")) | set(unit.paths("PATCH")) | set(unit.paths("PUT")) |             {action["path"] for action in schema["actions"]} | {r["path"] for r in schema["resources"]}
+        not_listed = [f"{method} {path}" for method, path in (routes or {}).get("routes", [])
+                      if path not in known and path not in API_CHECK_UNLISTED and not path.startswith("/api/v1/debug")]
+        self.log.write("rc", f"api_check: {len((routes or {}).get('routes', []))} routes, not listed: {not_listed}")
+        if status != 200 or not_listed:
+            self.fail(f"api_check: routes in neither the index nor the schema: {not_listed}")
 
     @staticmethod
     def api_stable(reply):

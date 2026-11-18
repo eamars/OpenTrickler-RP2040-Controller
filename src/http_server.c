@@ -189,6 +189,7 @@ static volatile uint64_t server_last_write_us = 0;
 static http_server_stats_t stats;
 static uint64_t stream_make_us;     // stats.stream_make_ms, kept in microseconds: a chunk takes some milliseconds
 static TaskHandle_t server_task_handle = NULL;
+static http_server_handler_t usage_handler = NULL;
 
 
 static uint32_t now_ms(void) {
@@ -544,7 +545,17 @@ void http_server_reply_etag(http_server_reply_t *reply, const char *etag) {
 
 
 void http_server_reply_error(http_server_reply_t *reply, int status, const char *code, const char *message) {
-    int len = snprintf(reply_scratch, sizeof(reply_scratch), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
+    // Under /api/v1, where to read (ADR-008, gate 2): a path not there, the index; a method it does not take, the
+    // path's own GET, which gives an action's usage; else the schema
+    const char *path = reply->slot != NULL ? reply->slot->request.path : NULL;
+    const char *see = NULL;
+    if (path != NULL && strncmp(path, "/api/v1", 7) == 0 && strlen(path) < 64) {
+        see = status == 404 ? "/api/v1" : status == 405 ? path : "/api/v1/schema";
+    }
+    int len = see != NULL ?
+              snprintf(reply_scratch, sizeof(reply_scratch),
+                       "{\"error\":{\"code\":\"%s\",\"message\":\"%s\",\"see\":\"%s\"}}", code, message, see) :
+              snprintf(reply_scratch, sizeof(reply_scratch), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
                        code, message);
     http_server_reply_send(reply, status, "application/json", (size_t) len);
 }
@@ -608,6 +619,26 @@ bool http_server_query_value(const char *query, const char *name, char *out, siz
         pair = end + 1;
     }
     return false;
+}
+
+
+void http_server_set_usage(http_server_handler_t usage) {
+    usage_handler = usage;
+}
+
+
+bool http_server_route_at(int idx, http_server_method_t *method, const char **path) {
+    if (idx < 0 || idx >= route_count) {
+        return false;
+    }
+    *method = routes[idx].method;
+    *path = routes[idx].path;
+    return true;
+}
+
+
+const char *http_server_method_name(http_server_method_t method) {
+    return method_name(method);
 }
 
 
@@ -843,6 +874,15 @@ static void slot_dispatch(slot_t *slot) {
         }
     }
     if (found == NULL) {
+        if (allow_len > 0 && wanted == HTTP_SERVER_GET && usage_handler != NULL) {
+            // An action's own GET: its usage, 200, its Allow still saying what it takes
+            usage_handler(request, &reply);
+            if (reply.done) {
+                stats.requests += 1;
+                slot_take_reply(slot, &reply);
+                return;
+            }
+        }
         if (allow_len > 0) {
             http_server_reply_error(&reply, 405, "method_not_allowed", "the path does not take that method");
             stats.refused += 1;
