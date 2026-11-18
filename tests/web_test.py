@@ -26,6 +26,7 @@ sys.path.insert(0, str(REPO / "tools" / "remote_control"))
 import unit_api  # noqa: E402  (the client's folder, put on the path just above)
 
 DATA = Path(__file__).resolve().with_name("web_test_data.json")
+MOCK = REPO / "build_web"           # ADR-008's pages, built from src/web by scripts/web_build.py
 PAGES = {"/": "web_portal.html", "/mobile": "web_portal.html", "/wizard": "wizard.html",
          "/display_mirror": "display_mirror.html"}
 FRAME = "/api/v1/display/frame"
@@ -253,6 +254,14 @@ def make_handler(stand_in):
             if url.path in PAGES:
                 page = (REPO / "src" / "html" / PAGES[url.path]).read_bytes()
                 self.send(200, page, "text/html")
+                return
+            # ADR-008's new pages, as scripts/web_build.py made them into build_web/
+            if url.path.startswith("/mock/"):
+                built = MOCK / Path(url.path).name
+                if built.suffix == ".html" and built.is_file():
+                    self.send(200, built.read_bytes(), "text/html")
+                else:
+                    self.send(404, error("not_found", "not built: run scripts/web_build.py"))
                 return
             query = dict(urllib.parse.parse_qsl(url.query))
             with stand_in.lock:

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>OpenTrickler</title>
+<link rel="service-doc" href="/api/v1">
+<link rel="service-desc" href="/api/v1/schema">
+<style>/*STYLE*/</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">OpenTrickler</span>
+  <span id="link" class="badge">Connecting</span>
+</header>
+
+<main class="page">
+  <section class="card" data-feature="16 17 18 19 20 21 22 23 24 25 26 27 29 34">
+    <div class="card-body">
+      <div class="field">
+        <label for="powder">Powder</label>
+        <select id="powder" class="select"></select>
+      </div>
+
+      <div class="readout">
+        <div id="weight" class="figure">---</div>
+        <div class="of">of <span id="target-shown">--</span> gr</div>
+      </div>
+      <progress id="bar" class="progress progress-primary" max="1" value="0"></progress>
+
+      <ul id="steps" class="steps">
+        <li class="step" data-state="zeroing">Zero</li>
+        <li class="step" data-state="charging">Pour</li>
+        <li class="step" data-state="waiting_for_cup_removal">Lift cup</li>
+        <li class="step" data-state="waiting_for_cup_return">Return cup</li>
+      </ul>
+
+      <div class="row">
+        <span id="verdict" class="badge">No throw yet</span>
+        <span id="elapsed" class="muted">-.-- s</span>
+      </div>
+
+      <div class="field">
+        <label for="target">Target, gr</label>
+        <div class="stepper">
+          <button class="btn btn-square" data-step="-1" aria-label="Less">&minus;</button>
+          <input id="target" class="input" type="number" inputmode="decimal" step="0.001" min="0.001">
+          <button class="btn btn-square" data-step="1" aria-label="More">+</button>
+        </div>
+      </div>
+
+      <button id="start" class="btn btn-primary btn-big">Start charge</button>
+      <button id="stop" class="btn btn-error btn-big" hidden>Stop</button>
+
+      <div class="row">
+        <button id="zero" class="btn">Zero</button>
+        <label class="switch"><input id="awake" type="checkbox" class="toggle" checked> Keep this screen awake</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" data-feature="30 31 32 33">
+    <div class="card-body">
+      <h2>Purge</h2>
+      <div id="purge-idle">
+        <p class="muted">Runs both tricklers to empty them into the cup.</p>
+        <button id="purge-start" class="btn btn-big">Start purge</button>
+      </div>
+      <div id="purge-running" hidden>
+        <div class="stepper">
+          <button class="btn btn-square" data-speed="-1" aria-label="Slower">&minus;</button>
+          <div class="speed"><span id="speed" class="figure-small">0.0</span> rev/s</div>
+          <button class="btn btn-square" data-speed="1" aria-label="Faster">+</button>
+        </div>
+        <button id="purge-stop" class="btn btn-error btn-big">Stop purge</button>
+      </div>
+    </div>
+  </section>
+
+  <p id="message" class="message" role="status"></p>
+</main>
+
+<nav class="tabbar">
+  <a class="tab tab-active" href="#charge">Charge</a>
+  <a class="tab" href="#powders">Powders</a>
+  <a class="tab" href="#settings">Settings</a>
+  <a class="tab" href="#unit">Unit</a>
+</nav>
+
+<dialog id="cup" class="modal">
+  <form method="dialog" class="modal-box">
+    <h3>Put the empty cup on the scale</h3>
+    <p>To catch the powder.</p>
+    <div class="modal-action">
+      <button class="btn" value="no">Not yet</button>
+      <button class="btn btn-primary" value="yes">The cup is on</button>
+    </div>
+  </form>
+</dialog>
+
+<script>/*SCRIPT*/</script>
+</body>
+</html>
