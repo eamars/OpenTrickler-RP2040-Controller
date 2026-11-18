@@ -60,20 +60,21 @@ function renderCharge() {
     }
     const running = charge.state !== "idle" && charge.state !== "fault";
     $("weight").textContent = shown(charge.weight);
-    $("target-shown").textContent = shown(charge.target);
     const share = charge.target && charge.weight ? Math.min(Math.max(charge.weight / charge.target, 0), 1) : 0;
     $("ring").style.strokeDashoffset = String(1000 * (1 - share));
     $("ring").style.visibility = share > 0 ? "visible" : "hidden";  // a round end at nought is drawn as a dot
     $("bar").style.width = `${share * 100}%`;
-    $("elapsed").textContent = charge.elapsed_s === null ? "-.-- s" : `${charge.elapsed_s.toFixed(2)} s`;
     if (document.activeElement !== $("target") && charge.target !== null) {
         $("target").value = Number(charge.target).toFixed(decimals);
     }
     if (document.activeElement !== $("powder")) {
         $("powder").value = String(charge.powder_profile);
     }
+    // What to throw is locked while it is thrown: the field and its keys alike
     $("powder").disabled = running;
     $("target").disabled = running;
+    document.querySelectorAll("[data-step]").forEach((key) => key.disabled = running);
+    $("zero").disabled = running;   // the charge zeroes the pan itself; a zero mid-throw would spoil it
     $("start").hidden = running;
     $("stop").hidden = !running;
 
@@ -92,6 +93,10 @@ function renderCharge() {
     }
     $("panel").dataset.mood = mood;
     $("status").textContent = status;
+    // The time is the current charge's: shown while it runs and with its verdict, not a past one's while Ready
+    const timed = (running || afterThrow) && typeof charge.elapsed_s === "number";
+    $("elapsed").hidden = !timed;
+    $("elapsed").textContent = timed ? `${charge.elapsed_s.toFixed(2)} s` : "";
 }
 
 function renderPurge() {
@@ -103,7 +108,9 @@ function renderPurge() {
     if (running && typeof purge.speed_rps === "number") {
         purgeSpeed = purge.speed_rps;
     }
-    $("purge-keys").hidden = !running;
+    // The speed's keys either side of the speed, while a purge runs; the line on what a purge does, before it does
+    document.querySelectorAll("[data-speed]").forEach((key) => key.hidden = !running);
+    $("purge-hint").hidden = running;
     $("purge-start").hidden = running;
     $("purge-stop").hidden = !running;
     $("speed").textContent = purgeSpeed.toFixed(1);

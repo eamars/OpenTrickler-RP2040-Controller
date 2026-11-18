@@ -101,7 +101,16 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 - **Design in the real pages, on the stand-in.** The sources are `src/web/`, built by `scripts/web_build.py` into `build_web/`; `tests/web_test.py` serves them at `/mock/` against a simulated unit. The mock is the final pages, not a drawing of them (ADR-008).
 - **Look at every page at three widths** (375, 768 and 1280 px) **and in both themes** before the owner sees it: screenshots in the agent's browser, by eye. Overlaps, crowding and faint text show only in the picture.
 - **Drive it:** start a charge, a purge, a refusal, the unit not reached; check the browser's console for errors.
-- **The owner decides by using it,** on their own phone, tablet and computer: send the address, not a description.
+- **The agent is the lead designer** (the owner, 2026-11-18: "instead of going back-n-forth pointing out what I don't like, how about you to evaluate it yourself? ... I don't want to do micromanagement. You should be the lead UI designer"). Before the owner sees a page, review it yourself, every state at every size, and fix what the review finds. Bring the owner a page you would defend, and the decisions only they can make.
+- **The review, element by element, then state by state:**
+  - **Every element has a job:** what does it say or do that nothing else on the view does? A label that labels nothing ("Scale" over the obvious reading) goes; two elements with one piece of news (a step track beside the status, the target in its field and again under the weight) become one.
+  - **Every element is in its group** (rule 15), and an action sits with what it acts on (Zero with the weight, the purge's keys either side of its speed).
+  - **Nothing is an orphan:** no element alone on a row between groups (the status floated between the reading and Start until it joined the reading's head).
+  - **Nothing is stale:** what a past job left (its time, its verdict) is not shown as if it were now.
+  - **What cannot be used looks so:** a field and its keys locked together, never a field locked while its keys look live.
+  - **Text holds its line:** no status, label or figure wraps at any size; when a row is short, the least needed part goes (the time before the status word).
+  - **Nothing collides:** no element laid over another (Zero over "999.99").
+  - **The states:** idle, running, each verdict, a fault, a refusal, the cup's question, the unit not reached; for the purge, idle and running. Put each on screen (stop the polling and set the state), at 375 x 553, 390 x 664, 768 x 1024 in dark, 1280 x 800, and the window the owner uses.
 - **Every feature carries its row** of `docs/developments_plans/ADR-008-web_ui/features.md`: nothing silently dropped.
 
 ## Relation to the other project skills

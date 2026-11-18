@@ -55,7 +55,7 @@ body { margin: 0; background: var(--ground); color: var(--ink);
        font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-button:disabled { opacity: 0.38; cursor: default; }
+button:disabled, select:disabled, input:disabled { opacity: 0.55; cursor: default; }
 h3, p { margin: 0; }
 svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 [hidden] { display: none !important; }
@@ -104,10 +104,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* The scale: what is on the pan, and its Zero */
 .scale { grid-area: scale; padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; }
-#purge-panel .scale { grid-template-rows: minmax(0, 1fr); }
 /* A group's name and its action, in the flow: a button laid over the reading collided with a wide figure */
-.group-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.group-head > span { color: var(--soft); font-weight: 650; }
+/* The reading's head: its state on the left, its action (Zero) on the right, both 44 px tall */
+.group-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; }
 .group-head .ghost { min-height: 44px; }
 .ghost { min-height: var(--tap); min-width: var(--tap); padding: 0 16px; border-radius: var(--r-control);
          border: 1px solid var(--edge); background: var(--card); font-weight: 650; }
@@ -123,12 +122,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .ring .arc { stroke: var(--state); stroke-width: 7; stroke-dasharray: 1000; stroke-dashoffset: 1000;
              transition: stroke-dashoffset 0.3s ease-out; }
 .readout-text { position: relative; display: grid; justify-items: center; text-align: center; gap: 2px; width: 100%; }
-.figure { font-size: clamp(2.5rem, min(20cqw, 50cqh), 6rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+.figure { font-size: clamp(2.5rem, min(17cqw, 50cqh), 6rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
           font-variant-numeric: tabular-nums; }
 /* A figure of three characters (the purge's speed) may be twice as large as the weight's six */
 .figure.short { font-size: clamp(3rem, min(36cqw, 50cqh), 10rem); }
-.sub { color: var(--soft); font-size: 1rem; }
-.sub b { color: var(--ink); font-variant-numeric: tabular-nums; }
+/* The figure with its unit beside it, on its baseline, as the screen draws it */
+.figure-line { display: flex; align-items: baseline; justify-content: center; gap: 0.4rem; }
+.unit { color: var(--soft); font-weight: 650; font-size: clamp(1rem, 5cqmin, 1.6rem); }
+/* The purge's keys either side of the speed they set; kept in place (unseen) while it is idle, so the speed stays centred */
+.speed-line { display: grid; grid-template-columns: var(--job-key) minmax(0, 1fr) var(--job-key); align-items: center;
+              gap: 8px; width: 100%; }
+.speed-line .key[hidden] { display: block !important; visibility: hidden; }
 .time { color: var(--soft); font-weight: 500; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
 .time::before { content: "\00b7"; margin-right: 8px; }
 .hint { color: var(--soft); font-size: 0.9375rem; margin-top: 8px; max-width: 30ch; }
@@ -138,12 +142,16 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 @container readout (min-height: 230px) and (min-width: 230px) {
     .ring { display: block; }
     .bar { display: none; }
-    .ringed { font-size: clamp(3rem, 22cqmin, 8rem); }
+    .ringed { font-size: clamp(3rem, 19cqmin, 8rem); }
 }
 
-.status { justify-self: center; display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 16px;
+.status { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; min-width: 0;
+          white-space: nowrap; overflow: hidden;
           border-radius: 999px; font-weight: 700; font-size: 1.05rem; background: var(--well); color: var(--ink);
           border: 1px solid var(--rule); }
+#status, #purge-status { overflow: hidden; text-overflow: ellipsis; }
+/* A narrow view: the status never wraps; its time goes first, the word stays */
+@container view (max-width: 360px) { .time { display: none; } }
 .status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--state); }
 .view[data-mood="not-ready"] .status, .view[data-mood="good"] .status, .view[data-mood="over"] .status {
     color: var(--state); background: color-mix(in srgb, var(--state) var(--tint), var(--card));
@@ -157,7 +165,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .stepper input { width: 100%; min-width: 0; min-height: var(--job-key); text-align: center; font-size: 1.6rem; font-weight: 700;
                  font-variant-numeric: tabular-nums; background: var(--well); border: 1px solid var(--edge);
                  border-radius: var(--r-control); }
-.stepper-label { text-align: center; color: var(--soft); font-weight: 650; }
 .key { height: var(--job-key); border-radius: var(--r-control); border: 1px solid var(--edge); background: var(--card);
        font-size: 1.8rem; line-height: 1; }
 .action { width: 100%; min-height: var(--job-key); border: 0; border-radius: var(--r-control); font-size: 1.15rem;
@@ -170,7 +177,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 
 /* A refusal, over the controls, gone when empty */
-.message { position: absolute; left: 12px; right: 12px; bottom: calc(var(--job-key) * 2 + var(--gap) * 3);
+.message { position: absolute; left: 12px; right: 12px; bottom: calc(var(--job-key) + var(--gap) * 2);
            padding: 10px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--over);
            color: var(--over); font-weight: 650; box-shadow: 0 4px 14px rgb(0 0 0 / 0.15); }
 .message:empty { display: none; }
