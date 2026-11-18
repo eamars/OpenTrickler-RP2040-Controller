@@ -12,7 +12,7 @@
   "boot": 2579517273,
   "uptime_s": 105,
   "features": [],
-  "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
+  "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
    {
     "path": "/api/v1",
@@ -79,26 +79,26 @@
     "about": "stops the charge, and acknowledges its fault; never fails"
    },
    {
-    "path": "/api/v1/cleanup",
+    "path": "/api/v1/purge",
     "methods": [
      "GET",
      "PATCH"
     ],
-    "about": "the cleanup: its state and speed; a PATCH sets the speed, with a time to run no longer than"
+    "about": "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"
    },
    {
-    "path": "/api/v1/cleanup/start",
+    "path": "/api/v1/purge/start",
     "methods": [
      "POST"
     ],
-    "about": "starts a cleanup, at speed 0"
+    "about": "starts a purge, at speed 0"
    },
    {
-    "path": "/api/v1/cleanup/stop",
+    "path": "/api/v1/purge/stop",
     "methods": [
      "POST"
     ],
-    "about": "stops the cleanup, and acknowledges its fault; never fails"
+    "about": "stops the purge, and acknowledges its fault; never fails"
    },
    {
     "path": "/api/v1/stop",
@@ -158,7 +158,7 @@
     "about": "restarts the unit, once the reply is out"
    },
    {
-    "path": "/api/v1/system/erase",
+    "path": "/api/v1/system/factory_reset",
     "methods": [
      "POST"
     ],
@@ -257,7 +257,7 @@
      "GET",
      "PATCH"
     ],
-    "about": "The coarse trickler's motor and its driver"
+    "about": "The coarse motor and its driver"
    },
    {
     "path": "/api/v1/settings/motors/fine",
@@ -265,7 +265,7 @@
      "GET",
      "PATCH"
     ],
-    "about": "The fine trickler's motor and its driver"
+    "about": "The fine motor and its driver"
    },
    {
     "path": "/api/v1/settings/scale",
@@ -387,14 +387,14 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/leds/save",
-    "label": "LEDs",
+    "label": "Lights",
     "about": "The display's backlight and LEDs, and the LEDs on PWM3",
     "refused_while": "never",
     "fields": [
      {
       "name": "backlight_colour",
       "label": "Backlight",
-      "group": "Display",
+      "group": "Display board",
       "type": "colour",
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
@@ -404,7 +404,7 @@
      {
       "name": "led1_colour",
       "label": "LED 1",
-      "group": "Display",
+      "group": "Display board",
       "type": "colour",
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
@@ -414,7 +414,7 @@
      {
       "name": "led2_colour",
       "label": "LED 2",
-      "group": "Display",
+      "group": "Display board",
       "type": "colour",
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
@@ -480,7 +480,6 @@
      {
       "name": "invert_encoder",
       "label": "Invert the encoder",
-      "group": "Display",
       "type": "boolean",
       "short_label": "Invert knob",
       "access": "read_write",
@@ -491,7 +490,6 @@
      {
       "name": "rotation",
       "label": "Rotation",
-      "group": "Display",
       "type": "choice",
       "unit": "degrees",
       "choices": [
@@ -512,7 +510,6 @@
      {
       "name": "invert_display",
       "label": "Invert the screen",
-      "group": "Display",
       "type": "boolean",
       "short_label": "Invert screen",
       "access": "read_write",
@@ -523,7 +520,6 @@
      {
       "name": "charge_view",
       "label": "Charge view",
-      "group": "Display",
       "type": "choice",
       "choices": [
        {
@@ -555,18 +551,17 @@
     "fields": [
      {
       "name": "enable",
-      "label": "Wi-Fi",
-      "group": "Wi-Fi",
+      "label": "Join a network",
       "type": "boolean",
       "access": "read_write",
       "applies": "at_restart",
       "refused_while": "never",
-      "about": "The unit joins this network at its start; off, it is its own access point"
+      "about": "The unit joins this network at its start; off, it is its own access point",
+      "short_label": "Wi-Fi"
      },
      {
       "name": "ssid",
       "label": "Network name",
-      "group": "Wi-Fi",
       "type": "string",
       "min_length": 1,
       "max_length": 31,
@@ -578,7 +573,6 @@
      {
       "name": "key",
       "label": "Key",
-      "group": "Wi-Fi",
       "type": "string",
       "min_length": 0,
       "max_length": 63,
@@ -590,7 +584,6 @@
      {
       "name": "auth",
       "label": "Security",
-      "group": "Wi-Fi",
       "type": "choice",
       "choices": [
        {
@@ -618,7 +611,6 @@
      {
       "name": "timeout_ms",
       "label": "Join timeout",
-      "group": "Wi-Fi",
       "type": "integer",
       "unit": "ms",
       "min": 1000,
@@ -638,14 +630,13 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/motors/save",
-    "label": "Coarse trickler motor",
-    "about": "The coarse trickler's motor and its driver",
+    "label": "Coarse motor",
+    "about": "The coarse motor and its driver",
     "refused_while": "a_job_runs",
     "fields": [
      {
       "name": "full_steps_per_rotation",
       "label": "Full steps a rotation",
-      "group": "Motor",
       "type": "integer",
       "unit": "steps",
       "min": 20,
@@ -721,7 +712,6 @@
      {
       "name": "max_speed_rps",
       "label": "Maximum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 1,
@@ -749,7 +739,6 @@
      {
       "name": "acceleration_rps2",
       "label": "Acceleration",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s2",
       "min": 0.1,
@@ -762,7 +751,6 @@
      {
       "name": "min_speed_rps",
       "label": "Minimum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -775,7 +763,6 @@
      {
       "name": "gear_ratio",
       "label": "Gear ratio",
-      "group": "Motor",
       "type": "number",
       "min": 0.01,
       "max": 100,
@@ -816,14 +803,13 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/motors/save",
-    "label": "Fine trickler motor",
-    "about": "The fine trickler's motor and its driver",
+    "label": "Fine motor",
+    "about": "The fine motor and its driver",
     "refused_while": "a_job_runs",
     "fields": [
      {
       "name": "full_steps_per_rotation",
       "label": "Full steps a rotation",
-      "group": "Motor",
       "type": "integer",
       "unit": "steps",
       "min": 20,
@@ -899,7 +885,6 @@
      {
       "name": "max_speed_rps",
       "label": "Maximum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 1,
@@ -927,7 +912,6 @@
      {
       "name": "acceleration_rps2",
       "label": "Acceleration",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s2",
       "min": 0.1,
@@ -940,7 +924,6 @@
      {
       "name": "min_speed_rps",
       "label": "Minimum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -953,7 +936,6 @@
      {
       "name": "gear_ratio",
       "label": "Gear ratio",
-      "group": "Motor",
       "type": "number",
       "min": 0.01,
       "max": 100,
@@ -1000,8 +982,7 @@
     "fields": [
      {
       "name": "driver",
-      "label": "Scale",
-      "group": "Scale",
+      "label": "Make",
       "type": "choice",
       "short_label": "Make",
       "choices": [
@@ -1329,7 +1310,7 @@
      "PATCH"
     ],
     "save": "/api/v1/powder_profiles/save",
-    "label": "Powder profile",
+    "label": "Powder",
     "about": "How a powder flows, and the controller's gains for it",
     "ids": [
      0,
@@ -1346,52 +1327,47 @@
      {
       "name": "name",
       "label": "Name",
-      "group": "Profile",
       "type": "string",
       "min_length": 1,
       "max_length": 15,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw_when_in_use",
-      "about": "The profile's name, as the menu shows it: printable ASCII, the screen's font draws nothing else"
+      "about": "The powder's name, as the menu shows it: printable ASCII, the screen's font draws nothing else"
      },
      {
       "name": "coarse_kp",
       "label": "Coarse Kp",
-      "group": "Coarse trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's proportional gain"
+      "about": "The coarse motor's proportional gain"
      },
      {
       "name": "coarse_ki",
       "label": "Coarse Ki",
-      "group": "Coarse trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's integral gain"
+      "about": "The coarse motor's integral gain"
      },
      {
       "name": "coarse_kd",
       "label": "Coarse Kd",
-      "group": "Coarse trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's derivative gain"
+      "about": "The coarse motor's derivative gain"
      },
      {
       "name": "coarse_min_speed_rps",
       "label": "Coarse minimum speed",
-      "group": "Coarse trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1399,12 +1375,11 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's slowest while it pours; not above its maximum"
+      "about": "The coarse motor's slowest while it pours; not above its maximum"
      },
      {
       "name": "coarse_max_speed_rps",
       "label": "Coarse maximum speed",
-      "group": "Coarse trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1412,45 +1387,41 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's fastest, used up to the coarse motor's max_speed_rps"
+      "about": "The coarse motor's fastest while it pours; not above its Maximum speed in Settings, Motors"
      },
      {
       "name": "fine_kp",
       "label": "Fine Kp",
-      "group": "Fine trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's proportional gain"
+      "about": "The fine motor's proportional gain"
      },
      {
       "name": "fine_ki",
       "label": "Fine Ki",
-      "group": "Fine trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's integral gain"
+      "about": "The fine motor's integral gain"
      },
      {
       "name": "fine_kd",
       "label": "Fine Kd",
-      "group": "Fine trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's derivative gain"
+      "about": "The fine motor's derivative gain"
      },
      {
       "name": "fine_min_speed_rps",
       "label": "Fine minimum speed",
-      "group": "Fine trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1458,12 +1429,11 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's slowest while it pours; not above its maximum"
+      "about": "The fine motor's slowest while it pours; not above its maximum"
      },
      {
       "name": "fine_max_speed_rps",
       "label": "Fine maximum speed",
-      "group": "Fine trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1471,7 +1441,7 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's fastest, used up to the fine motor's max_speed_rps"
+      "about": "The fine motor's fastest while it pours; not above its Maximum speed in Settings, Motors"
      }
     ]
    },
@@ -1488,13 +1458,13 @@
     "fields": [
      {
       "name": "enable",
-      "label": "Servo gate",
-      "group": "Gate",
+      "label": "Fitted",
       "type": "boolean",
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
-      "about": "The unit has a servo gate, and uses it"
+      "about": "The unit has a servo gate, and uses it",
+      "short_label": "Servo gate"
      },
      {
       "name": "shutter0_close_duty",
@@ -1594,7 +1564,6 @@
      {
       "name": "channel",
       "label": "Channel",
-      "group": "Update",
       "type": "choice",
       "choices": [
        {
@@ -1615,7 +1584,6 @@
      {
       "name": "source",
       "label": "Source",
-      "group": "Update",
       "type": "string",
       "min_length": 8,
       "max_length": 127,
@@ -1751,14 +1719,14 @@
    },
    {
     "method": "POST",
-    "path": "/api/v1/cleanup/start",
+    "path": "/api/v1/purge/start",
     "fields": [],
     "refused_while": "a_job_runs",
-    "about": "starts a cleanup (202), at speed 0 until a PATCH gives one; 409 driver_fault"
+    "about": "starts a purge (202), at speed 0 until a PATCH gives one; 409 driver_fault"
    },
    {
     "method": "PATCH",
-    "path": "/api/v1/cleanup",
+    "path": "/api/v1/purge",
     "fields": [
      {
       "name": "speed_rps",
@@ -1773,18 +1741,18 @@
       "unit": "s",
       "min": 1,
       "max": 600,
-      "about": "for at most this long, then the cleanup stops by itself; without it, until stopped. A client with no person at the unit gives a short time and sends the speed again while it wants it"
+      "about": "for at most this long, then the purge stops by itself; without it, until stopped. A client with no person at the unit gives a short time and sends the speed again while it wants it"
      }
     ],
-    "refused_while": "no_cleanup_runs",
-    "about": "the cleanup's speed; 409 not_running when none runs, and in its fault, where the motors stay stopped until it is acknowledged"
+    "refused_while": "no_purge_runs",
+    "about": "the purge's speed; 409 not_running when none runs, and in its fault, where the motors stay stopped until it is acknowledged"
    },
    {
     "method": "POST",
-    "path": "/api/v1/cleanup/stop",
+    "path": "/api/v1/purge/stop",
     "fields": [],
     "refused_while": "never",
-    "about": "stops the cleanup (202), or 200 with nothing to stop; it acknowledges the cleanup's fault"
+    "about": "stops the purge (202), or 200 with nothing to stop; it acknowledges the purge's fault"
    },
    {
     "method": "POST",
@@ -1797,7 +1765,7 @@
     "method": "POST",
     "path": "/api/v1/scale/zero",
     "fields": [],
-    "about": "asks the scale to zero, not that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
+    "about": "asks the scale to zero, not that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
    },
    {
     "method": "PATCH",
@@ -1865,15 +1833,15 @@
    },
    {
     "method": "POST",
-    "path": "/api/v1/system/erase",
+    "path": "/api/v1/system/factory_reset",
     "fields": [
      {
       "name": "confirm",
       "type": "choice",
       "choices": [
        {
-        "value": "erase",
-        "label": "Erase"
+        "value": "factory_reset",
+        "label": "Factory reset"
        }
       ],
       "required": true
@@ -1893,7 +1861,7 @@
      "value": "charge"
     },
     {
-     "value": "cleanup"
+     "value": "purge"
     },
     {
      "value": "view",
@@ -1958,22 +1926,6 @@
      "about": "the charge ended on a fault (last.reason) and waits for a stop or a press to acknowledge it"
     }
    ],
-   "cleanup": [
-    {
-     "value": "idle"
-    },
-    {
-     "value": "starting",
-     "about": "asked, and the menu has not begun it yet"
-    },
-    {
-     "value": "running"
-    },
-    {
-     "value": "fault",
-     "about": "ended on a driver's fault, waiting for a stop or a press"
-    }
-   ],
    "gate": [
     {
      "value": "open"
@@ -2014,6 +1966,22 @@
     {
      "value": "supply",
      "about": "its motor supply is too low"
+    }
+   ],
+   "purge": [
+    {
+     "value": "idle"
+    },
+    {
+     "value": "starting",
+     "about": "asked, and the menu has not begun it yet"
+    },
+    {
+     "value": "running"
+    },
+    {
+     "value": "fault",
+     "about": "ended on a driver's fault, waiting for a stop or a press"
     }
    ]
   },
@@ -2088,14 +2056,14 @@
     "about": "a throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and fault only with driver_fault"
    },
    {
-    "source": "cleanup",
+    "source": "purge",
     "kind": "started",
     "carries": [
      "by"
     ]
    },
    {
-    "source": "cleanup",
+    "source": "purge",
     "kind": "stopped",
     "carries": [
      "by",
@@ -2500,7 +2468,7 @@
   },
   "event_seq": 11
  },
- "/api/v1/cleanup": {
+ "/api/v1/purge": {
   "state": "idle",
   "by": null,
   "speed_rps": 0,

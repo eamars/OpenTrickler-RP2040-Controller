@@ -299,4 +299,12 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 ### Next in gate 2
 
 1. The plan written into the README ("Gate 2's plan", 2026-11-19): six steps in order, each proven on the Pico W before the next. Approved by the owner 2026-11-19 ("I approve the gate 2 and now proceed"), with `leds`, `save` and `powder_profiles` kept in the API. The whole ADR goes by one PR, #134, a draft until the ADR closes (the owner, the same day).
-2. Step 1, the words: under way.
+2. Step 1, the words: built, waiting for its proof on the Pico W (the bench, asked of the owner).
+
+### Step 1, the words: built (2026-11-19)
+
+- **The API:** `cleanup` is `purge` (its four paths, `activity`, its events' source, its state's kind, `no_purge_runs`, the guide's and the schema's lines); `system/erase` is `system/factory_reset`, confirmed by `factory_reset`, answered `{"resetting": true}`. The handlers' names follow. `leds`, `save` and `powder_profiles` kept (approved with the plan).
+- **The settings' words** in the C tables, as the mock showed them: a group named as its resource gone (the scale's, the gate's, the Wi-Fi's, the display's, the update's, the motors' "Motor", the powder's), the scale's "Make", the gate's "Fitted", the Wi-Fi's "Join a network", "Coarse motor" and "Fine motor", "Powder", "Lights", the lights' group "Display board", and "trickler" out of the motors' and the powders' lines. The two labels the screen shows by their label, the gate's and the Wi-Fi's switch, keep the screen's word as their `short_label`, so the screen is unchanged until gate 3.
+- **Every reader in the same change:** `rc_run.py` (`api_check`, `charge_fault purge`, its `--purge-speed`), `unit_api.py`, api_v1.md (with a note of the renames; the review's record keeps its words), AGENTS.md, the new pages, and today's portal's fetches. The stand-in's `PROPOSED_WORDS` emptied and taken out; its recording made as the renamed firmware answers, until the unit is recorded again, whose diff then checks it.
+- **Checked off the unit:** both boards build (the Pico W's flash 96.92% of its slot, RAM 99.68% at link, as before); the mock on the stand-in at 390 px: a purge asked with the cup, started, its speed sent, the strip "Purging" on Settings, the gate's "Fitted" and the scale's "Make", the stop and its `purge` events, the factory reset by its new path; `features_check.py` `VERDICT PASS`.
+- **To prove on the Pico W:** `rc_run.py flash`, `menu_tour --compare tests/menu_baseline/pico_w` (unchanged), `api_check` and `settings_roundtrip` on the new names, `charge_cycle`; then `web_test.py --record` and its diff.

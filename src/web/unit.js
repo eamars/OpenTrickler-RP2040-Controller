@@ -222,7 +222,7 @@ async function factoryReset() {
                              "Erase every setting", "Keep my settings", true)) {
         return;
     }
-    const reply = await api("POST", "/api/v1/system/erase", {confirm: "erase"});
+    const reply = await api("POST", "/api/v1/system/factory_reset", {confirm: "factory_reset"});
     reply.ok ? say("Erasing; the unit restarts as its own hotspot.", "good") : refusal(reply, "Not erased");
 }
 

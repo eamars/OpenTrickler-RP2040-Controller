@@ -221,7 +221,7 @@ const char *activity_name(activity_t activity) {
         case ACTIVITY_CHARGE:
             return "charge";
         case ACTIVITY_CLEANUP:
-            return "cleanup";
+            return "purge";
         case ACTIVITY_VIEW:
             return "view";
         case ACTIVITY_UPDATE:

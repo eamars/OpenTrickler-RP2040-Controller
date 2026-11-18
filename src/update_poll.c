@@ -733,11 +733,11 @@ static const setting_choice_t update_channel_choices[] = {
 #define UPDATE_FIELD(member) SETTING_AT(eeprom_update_config_t, member)
 
 static const setting_field_t update_fields[] = {
-    {.name = "channel", .label = "Channel", .group = "Update",
+    {.name = "channel", .label = "Channel",
      .about = "Which releases are offered: stable ones, or the newest of all with pre-releases (beta). Leaving beta "
               "goes back to no version: nothing is offered until a stable release is newer than the one running",
      .type = SETTING_CHOICE, UPDATE_FIELD(channel), SETTING_CHOICES(update_channel_choices), .applies = "now"},
-    {.name = "source", .label = "Source", .group = "Update",
+    {.name = "source", .label = "Source",
      .about = "Where the releases are: a repository's address, its releases laid out under it as GitHub lays them "
               "out (releases/latest/download/manifest.json). GitHub's own by default",
      .type = SETTING_STRING, UPDATE_FIELD(source), .length_min = 8, .applies = "now"},

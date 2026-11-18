@@ -116,7 +116,7 @@ function renderSwitch() {
 
 // features: 28
 async function poll() {
-    const [c, p] = await Promise.all([api("GET", "/api/v1/charge"), api("GET", "/api/v1/cleanup")]);
+    const [c, p] = await Promise.all([api("GET", "/api/v1/charge"), api("GET", "/api/v1/purge")]);
     if (c.ok) {
         charge = c.data;
         renderCharge();
@@ -174,7 +174,7 @@ function stepTarget(direction) {
 }
 
 async function sendPurgeSpeed() {
-    const reply = await api("PATCH", "/api/v1/cleanup", {speed_rps: purgeSpeed, time_s: 5});
+    const reply = await api("PATCH", "/api/v1/purge", {speed_rps: purgeSpeed, time_s: 5});
     if (!reply.ok) {
         refusal(reply, "Speed not set");
         purgeSpeed = 0;
@@ -186,7 +186,7 @@ async function startPurge() {
     if (!await askCup()) {
         return;
     }
-    const reply = await api("POST", "/api/v1/cleanup/start", {});
+    const reply = await api("POST", "/api/v1/purge/start", {});
     if (!reply.ok) {
         refusal(reply, "Purge not started");
         return;
@@ -205,7 +205,7 @@ function stepPurge(direction) {
 }
 
 async function stopPurge() {
-    const reply = await api("POST", "/api/v1/cleanup/stop", {});
+    const reply = await api("POST", "/api/v1/purge/stop", {});
     reply.ok ? say("") : refusal(reply, "Purge not stopped");
     poll();
 }

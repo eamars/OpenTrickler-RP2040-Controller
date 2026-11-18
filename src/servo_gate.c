@@ -180,7 +180,7 @@ bool servo_gate_config_save(void) {
 #define GATE_FIELD(member) SETTING_AT(eeprom_servo_gate_config_t, member)
 
 static const setting_field_t gate_fields[] = {
-    {.name = "enable", .label = "Servo gate", .group = "Gate",
+    {.name = "enable", .label = "Fitted", .short_label = "Servo gate",
      .about = "The unit has a servo gate, and uses it",
      .type = SETTING_BOOLEAN, GATE_FIELD(servo_gate_enable), .applies = "now"},
     {.name = "shutter0_close_duty", .label = "Shutter 0 closed", .group = "Shutters",

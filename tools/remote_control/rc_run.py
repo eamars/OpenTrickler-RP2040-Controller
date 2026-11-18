@@ -1723,7 +1723,7 @@ class Session:
         its kind does), the two reads the same, and the settings and the event log unchanged after: a GET changes
         nothing. Then every action the schema lists, each where it is safe, with the answer api_v1.md gives: the
         stops with nothing to stop; refusals with their codes, changing nothing; the saves of what is stored; the
-        gate; the zero; a charge and a cleanup started and stopped, with their events; and last a restart, after
+        gate; the zero; a charge and a purge started and stopped, with their events; and last a restart, after
         which the boot is new and the system's start is the log's first event. Fails on an action the schema lists
         and this did not call. The hopper is taken to be empty; the simulated scale stands in for the scale.
 
@@ -1812,7 +1812,7 @@ class Session:
             return None
 
         expect("POST", "charge/stop", {}, 200)
-        expect("POST", "cleanup/stop", {}, 200)
+        expect("POST", "purge/stop", {}, 200)
         expect("POST", "stop", {}, 200)
         if unit.read("charge")["target"] is None:
             expect("PATCH", "charge", {"target": target}, 200)
@@ -1829,8 +1829,8 @@ class Session:
         after = unit.read("charge")
         if (after["state"], after["target"]) != ("idle", charge["target"]):
             self.fail(f"api_check: the refused writes changed the charge: {after['state']}, {after['target']}")
-        expect("PATCH", "cleanup", {"speed_rps": 1}, 409, "not_running")
-        expect("POST", "system/erase", {}, 400, "confirm_missing")
+        expect("PATCH", "purge", {"speed_rps": 1}, 409, "not_running")
+        expect("POST", "system/factory_reset", {}, 400, "confirm_missing")
         gate = unit.read("gate")
         if gate["state"] == "disabled":
             expect("PATCH", "gate", {"ratio": 0.5}, 409, "gate_disabled")
@@ -1845,7 +1845,7 @@ class Session:
         if unit.read("settings") != export_before:
             self.fail("api_check: the settings differ after the refusals and the saves")
 
-        # A charge and a cleanup, by the API, with the simulated scale
+        # A charge and a purge, by the API, with the simulated scale
         if self.send("sim on") is None:
             return
         scale = unit.read("scale")
@@ -1854,22 +1854,22 @@ class Session:
         wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"])
         wait_state("charge", ("zeroing", "charging"))
         expect("POST", "charge/start", {}, 409, "busy")
-        expect("POST", "cleanup/start", {}, 409, "busy")
+        expect("POST", "purge/start", {}, 409, "busy")
         expect("POST", "system/restart", {}, 409, "busy")
         expect("POST", "charge/stop", {}, 202)
         wait_event("charge", "stopped", by="api", reason="stopped")
         wait_state("charge", ("idle",))
-        expect("POST", "cleanup/start", {}, 202)
-        wait_event("cleanup", "started", by="api")
-        wait_state("cleanup", ("running",))
-        expect("PATCH", "cleanup", {"speed_rps": 1, "time_s": 2}, 200)
-        wait_event("cleanup", "stopped", by="unit", reason="time")
-        wait_state("cleanup", ("idle",))
-        expect("POST", "cleanup/start", {}, 202)
-        wait_state("cleanup", ("running",))
+        expect("POST", "purge/start", {}, 202)
+        wait_event("purge", "started", by="api")
+        wait_state("purge", ("running",))
+        expect("PATCH", "purge", {"speed_rps": 1, "time_s": 2}, 200)
+        wait_event("purge", "stopped", by="unit", reason="time")
+        wait_state("purge", ("idle",))
+        expect("POST", "purge/start", {}, 202)
+        wait_state("purge", ("running",))
         expect("POST", "stop", {}, 202)
-        wait_event("cleanup", "stopped", by="api", reason="stopped")
-        wait_state("cleanup", ("idle",))
+        wait_event("purge", "stopped", by="api", reason="stopped")
+        wait_state("purge", ("idle",))
         self.send("sim off")
 
         # The update (ADR-004): the job's shape, nothing installed (rc_run.py update installs an image)
@@ -1974,7 +1974,7 @@ class Session:
         if name == "settings":
             return [f"{inner}: {problem}" for inner, fields in reply["resources"].items()
                     for problem in unit_api.fields_problems(unit.resource(inner)["fields"], fields, writing=False)]
-        if name in ("charge", "cleanup", "gate", "update"):
+        if name in ("charge", "purge", "gate", "update"):
             return [] if reply["state"] in unit.states(name) else [f"state {reply['state']} is not in the schema's"]
         if name == "motors":
             return [f"{motor}'s driver {reply[motor]['driver']} is not in the schema's" for motor in ("coarse", "fine")
@@ -2413,7 +2413,7 @@ class Session:
             self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
         self.send("sim off")
 
-    def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, cleanup_speed, expect, watch_s,
+    def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, purge_speed, expect, watch_s,
                      repeat=1, want=None, want_none=False):
         """
         A charge with the simulated scale and one fault put in partway (ADR-013), `state` read every
@@ -2423,16 +2423,16 @@ class Session:
               while short of the target by more than the stop threshold;
           quiet: no reading for quiet_ms. Seen when a trickler still turns 3 intervals and a ramp after the
               last reading, inside the quiet time;
-          cleanup: the web's cleanup speed sent during the charge. Seen when a trickler takes that speed.
+          purge: the web's purge speed sent during the charge. Seen when a trickler takes that speed.
 
         Args:
-            fault: "bad", "quiet" or "cleanup".
-            host: the unit's address, for the maxima and for the cleanup request.
+            fault: "bad", "quiet" or "purge".
+            host: the unit's address, for the maxima and for the purge request.
             target: the charge's weight.
             at_weight: the weight at which the fault goes in (charging).
             quiet_ms: how long the scale is quiet, for "quiet".
             rate: the simulated scale's readings a second.
-            cleanup_speed: the cleanup speed sent, for "cleanup".
+            purge_speed: the purge speed sent, for "purge".
             expect: "seen" (the code before the fix) or "not-seen" (after it); the other fails.
             watch_s: how long `state` is read after the fault.
             repeat: how many times the fault goes in, each after the charge resumed from the one before.
@@ -2502,10 +2502,10 @@ class Session:
                 self.send("sim bad")
             elif fault == "quiet":
                 self.send(f"sim quiet {quiet_ms}")
-            elif fault == "cleanup":
-                # A cleanup's speed sent during a charge: API v1 refuses it (409 not_running), so no motor sees it
-                status, reply = http_call(host, "PATCH", "/api/v1/cleanup", {"speed_rps": cleanup_speed})
-                self.log.write("rc", f"charge_fault: a cleanup speed during the charge: {status} "
+            elif fault == "purge":
+                # A purge's speed sent during a charge: API v1 refuses it (409 not_running), so no motor sees it
+                status, reply = http_call(host, "PATCH", "/api/v1/purge", {"speed_rps": purge_speed})
+                self.log.write("rc", f"charge_fault: a purge speed during the charge: {status} "
                                      f"{(reply or {}).get('error', {}).get('code', '')}")
             watch(round_events if round_idx < repeat - 1 else None)
             # The next round goes in once the charge pours again
@@ -2537,11 +2537,11 @@ class Session:
             turning = [at for at, _, _, coarse, fine in samples if late < at < quiet_ms / 1000.0 and (coarse or fine)]
             seen = bool(turning)
             how = f"a trickler still turning {turning[-1]:.2f} s into {quiet_ms} ms of quiet" if turning else ""
-        elif fault == "cleanup":
+        elif fault == "purge":
             took = [at for at, _, _, coarse, fine in samples
-                    if abs(coarse - cleanup_speed) < 0.01 or abs(fine - cleanup_speed) < 0.01]
+                    if abs(coarse - purge_speed) < 0.01 or abs(fine - purge_speed) < 0.01]
             seen = bool(took)
-            how = f"a trickler at the cleanup speed {took[0]:.2f} s after it was sent" if took else ""
+            how = f"a trickler at the purge speed {took[0]:.2f} s after it was sent" if took else ""
         else:
             # none: nothing put in; the fault would be a pause or an end where the scale is only slow
             stops = [line for _, line in self.console.charge_events[events_from:] if "paused" in line or "ended" in line]
@@ -3291,7 +3291,7 @@ def main():
     frames_parser.add_argument("--reboots", type=int, default=2, help="restarts")
     frames_parser.add_argument("--motors", type=float, default=60.0, help="seconds with both motors turning")
     fault_parser = sub.add_parser("charge_fault", help="a simulated charge with one fault put in partway")
-    fault_parser.add_argument("fault", choices=["bad", "quiet", "cleanup", "none"])
+    fault_parser.add_argument("fault", choices=["bad", "quiet", "purge", "none"])
     fault_parser.add_argument("--host", required=True, help="the unit's address")
     fault_parser.add_argument("--expect", choices=["seen", "not-seen"], required=True,
                               help="seen: the code before the fix; not-seen: after it")
@@ -3299,7 +3299,7 @@ def main():
     fault_parser.add_argument("--at", type=float, help="the weight the fault goes in at (default: 1 short of the target)")
     fault_parser.add_argument("--quiet-ms", type=int, default=1500)
     fault_parser.add_argument("--rate", type=float, default=10.0, help="the simulated scale's readings a second")
-    fault_parser.add_argument("--cleanup-speed", type=float, default=3.0)
+    fault_parser.add_argument("--purge-speed", type=float, default=3.0)
     fault_parser.add_argument("--watch", type=float, default=3.0, help="seconds watched after the fault")
     fault_parser.add_argument("--repeat", type=int, default=1, help="how many times the fault goes in")
     fault_parser.add_argument("--want", help="words that must come in the charge's events, in order, comma-separated")
@@ -3368,7 +3368,7 @@ def run_command(session, args):
         session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     elif args.command == "charge_fault":
         at = args.at if args.at is not None else args.target - 1.0
-        session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.cleanup_speed,
+        session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.purge_speed,
                              args.expect, args.watch, args.repeat,
                              args.want.split(",") if args.want else None, args.want_none)
 

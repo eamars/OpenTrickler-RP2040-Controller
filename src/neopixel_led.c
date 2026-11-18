@@ -140,14 +140,14 @@ static const setting_choice_t led_colour_order_choices[] = {
 #define LED_COLOUR_APPLIES "now when no mode has the LEDs; otherwise when it gives them back"
 
 static const setting_field_t led_fields[] = {
-    {.name = "backlight_colour", .label = "Backlight", .group = "Display",
+    {.name = "backlight_colour", .label = "Backlight", .group = "Display board",
      .about = "The display's backlight",
      .type = SETTING_COLOUR, LED_FIELD(default_led_colours.mini12864_backlight_colour),
      .applies = LED_COLOUR_APPLIES},
-    {.name = "led1_colour", .label = "LED 1", .group = "Display",
+    {.name = "led1_colour", .label = "LED 1", .group = "Display board",
      .about = "The display board's first LED, by the encoder, when no mode colours it; PWM3's LEDs follow it",
      .type = SETTING_COLOUR, LED_FIELD(default_led_colours.led1_colour), .applies = LED_COLOUR_APPLIES},
-    {.name = "led2_colour", .label = "LED 2", .group = "Display",
+    {.name = "led2_colour", .label = "LED 2", .group = "Display board",
      .about = "The display board's second LED, when no mode colours it",
      .type = SETTING_COLOUR, LED_FIELD(default_led_colours.led2_colour), .applies = LED_COLOUR_APPLIES},
     {.name = "pwm3_chain_count", .label = "PWM3 LEDs", .group = "PWM3",
@@ -189,7 +189,7 @@ static bool led_settings_is_saved(void) {
 static const settings_resource_t led_settings = {
     .path = "/api/v1/settings/leds",
     .save_path = "/api/v1/settings/leds/save",
-    .label = "LEDs",
+    .label = "Lights",
     .about = "The display's backlight and LEDs, and the LEDs on PWM3",
     SETTING_FIELDS(led_fields),
     .refused_while = SETTINGS_REFUSED_NEVER,

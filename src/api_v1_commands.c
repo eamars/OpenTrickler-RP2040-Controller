@@ -1,6 +1,6 @@
 /*
  * API v1's commands and the unit's reads (ADR-003, gate 4; api_v1.md): the charge, the cleanup, the stop of either,
- * the event log, the scale and its zero, the gate, the motors, the system with its restart and erase, the network.
+ * the event log, the scale and its zero, the gate, the motors, the system with its restart and factory reset, the network.
  * Each command is one entry point to the application, which the console and the menu share, and none waits for
  * another task: a start is a request the menu takes, a stop a request the mode takes (activity.h).
  */
@@ -360,9 +360,9 @@ static void api_v1_charge_stop(const http_server_request_t *request, http_server
 }
 
 
-// --- The cleanup
+// --- The purge
 
-static void reply_cleanup(http_server_reply_t *reply, int status) {
+static void reply_purge(http_server_reply_t *reply, int status) {
     cleanup_status_t cleanup;
     cleanup_mode_get_status(&cleanup);
     size_t room;
@@ -386,14 +386,14 @@ static void reply_cleanup(http_server_reply_t *reply, int status) {
 }
 
 
-static void api_v1_get_cleanup(const http_server_request_t *request, http_server_reply_t *reply) {
+static void api_v1_get_purge(const http_server_request_t *request, http_server_reply_t *reply) {
     (void) request;
-    reply_cleanup(reply, 200);
+    reply_purge(reply, 200);
 }
 
 
-// PATCH /api/v1/cleanup: {"speed_rps": 2.0}, or with "time_s", at most that long
-static void api_v1_patch_cleanup(const http_server_request_t *request, http_server_reply_t *reply) {
+// PATCH /api/v1/purge: {"speed_rps": 2.0}, or with "time_s", at most that long
+static void api_v1_patch_purge(const http_server_request_t *request, http_server_reply_t *reply) {
     static const char *const allowed[] = {"speed_rps", "time_s"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
@@ -424,21 +424,21 @@ static void api_v1_patch_cleanup(const http_server_request_t *request, http_serv
         cleanup_status_t cleanup;
         cleanup_mode_get_status(&cleanup);
         api_error(reply, 409, "not_running", NULL, strcmp(cleanup.state, "fault") == 0 ?
-                  "the cleanup ended on a driver's fault: stop it to acknowledge, then start another" :
-                  "no cleanup runs: start one first", NULL);
+                  "the purge ended on a driver's fault: stop it to acknowledge, then start another" :
+                  "no purge runs: start one first", NULL);
         return;
     }
-    reply_cleanup(reply, 200);
+    reply_purge(reply, 200);
 }
 
 
-static void api_v1_cleanup_start(const http_server_request_t *request, http_server_reply_t *reply) {
+static void api_v1_purge_start(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!api_empty(request, reply)) {
         return;
     }
     switch (cleanup_mode_request_start(ACTIVITY_BY_API)) {
         case CLEANUP_START_OK:
-            reply_cleanup(reply, 202);
+            reply_purge(reply, 202);
             return;
         case CLEANUP_START_DRIVER_FAULT:
             api_driver_fault(reply);
@@ -450,11 +450,11 @@ static void api_v1_cleanup_start(const http_server_request_t *request, http_serv
 }
 
 
-static void api_v1_cleanup_stop(const http_server_request_t *request, http_server_reply_t *reply) {
+static void api_v1_purge_stop(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!api_empty(request, reply)) {
         return;
     }
-    reply_cleanup(reply, activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_API) ? 202 : 200);
+    reply_purge(reply, activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_API) ? 202 : 200);
 }
 
 
@@ -1156,7 +1156,7 @@ static void api_v1_system_restart(const http_server_request_t *request, http_ser
 }
 
 
-static void api_v1_system_erase(const http_server_request_t *request, http_server_reply_t *reply) {
+static void api_v1_system_factory_reset(const http_server_request_t *request, http_server_reply_t *reply) {
     static const char *const allowed[] = {"confirm"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
@@ -1166,8 +1166,8 @@ static void api_v1_system_erase(const http_server_request_t *request, http_serve
     const http_json_member_t *confirm = api_member(members, count, "confirm");
     char text[16];
     if (confirm == NULL || confirm->kind != HTTP_JSON_STRING || !http_json_string_value(confirm, text, sizeof(text)) ||
-        strcmp(text, "erase") != 0) {
-        api_error(reply, 400, "confirm_missing", "confirm", "send {\"confirm\": \"erase\"}: it cannot be undone", NULL);
+        strcmp(text, "factory_reset") != 0) {
+        api_error(reply, 400, "confirm_missing", "confirm", "send {\"confirm\": \"factory_reset\"}: it cannot be undone", NULL);
         return;
     }
     if (activity_job_runs()) {
@@ -1175,13 +1175,13 @@ static void api_v1_system_erase(const http_server_request_t *request, http_serve
         return;
     }
     if (!api_v1_restart_later(true)) {
-        http_server_reply_error(reply, 500, "failed", "the erase could not be set going");
+        http_server_reply_error(reply, 500, "failed", "the factory reset could not be set going");
         return;
     }
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
-    http_json_raw(out, room, &len, "{\"erasing\":true}");
+    http_json_raw(out, room, &len, "{\"resetting\":true}");
     api_send(reply, 202, room, len);
 }
 
@@ -1224,7 +1224,7 @@ static void api_v1_get_network(const http_server_request_t *request, http_server
     The commands' share of GET /api/v1/schema (gate 4): each action with its body's fields, in the shape of a
     resource's; each kind of state with what each value means; each event kind with what it carries. JSON as sent,
     one item a text, each well under a chunk (settings.c writes them one at a time). `refused_while` is the
-    resources' words, and `no_cleanup_runs` for the cleanup's speed; the zero's rule is in its `about`.
+    resources' words, and `no_purge_runs` for the cleanup's speed; the zero's rule is in its `about`.
 */
 _Static_assert(MAX_PROFILE_CNT == 8, "the schema below gives the powder profiles' ids as 0 to 7");
 
@@ -1244,22 +1244,22 @@ static const char *const api_v1_schema_actions[] = {
     "no_target when none is set\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
-    "{\"method\":\"POST\",\"path\":\"/api/v1/cleanup/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
-    "\"about\":\"starts a cleanup (202), at speed 0 until a PATCH gives one; 409 driver_fault\"}",
-    "{\"method\":\"PATCH\",\"path\":\"/api/v1/cleanup\",\"fields\":[{\"name\":\"speed_rps\",\"type\":\"number\","
+    "{\"method\":\"POST\",\"path\":\"/api/v1/purge/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
+    "\"about\":\"starts a purge (202), at speed 0 until a PATCH gives one; 409 driver_fault\"}",
+    "{\"method\":\"PATCH\",\"path\":\"/api/v1/purge\",\"fields\":[{\"name\":\"speed_rps\",\"type\":\"number\","
     "\"unit\":\"rev/s\",\"required\":true,\"about\":\"both tricklers; beyond plus or minus the lower of the two "
     "motors' max_speed_rps, turned at it: the reply gives the speed taken\"},"
     "{\"name\":\"time_s\",\"type\":\"number\",\"unit\":\"s\",\"min\":1,\"max\":600,"
-    "\"about\":\"for at most this long, then the cleanup stops by itself; without it, until stopped. A client with no "
+    "\"about\":\"for at most this long, then the purge stops by itself; without it, until stopped. A client with no "
     "person at the unit gives a short time and sends the speed again while it wants it\"}],"
-    "\"refused_while\":\"no_cleanup_runs\",\"about\":\"the cleanup's speed; 409 not_running when none runs, and in its "
+    "\"refused_while\":\"no_purge_runs\",\"about\":\"the purge's speed; 409 not_running when none runs, and in its "
     "fault, where the motors stay stopped until it is acknowledged\"}",
-    "{\"method\":\"POST\",\"path\":\"/api/v1/cleanup/stop\",\"fields\":[],\"refused_while\":\"never\","
-    "\"about\":\"stops the cleanup (202), or 200 with nothing to stop; it acknowledges the cleanup's fault\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/purge/stop\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"stops the purge (202), or 200 with nothing to stop; it acknowledges the purge's fault\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops whatever job runs, or a start asked and not yet begun; never fails\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/scale/zero\",\"fields\":[],\"about\":\"asks the scale to zero, not "
-    "that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times "
+    "that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times "
     "zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the "
     "cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
@@ -1287,15 +1287,15 @@ static const char *const api_v1_schema_actions[] = {
     "\"about\":\"stops the update (202), or 200 with nothing to stop; the image written is never booted\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/system/restart\",\"fields\":[],\"refused_while\":\"a_job_runs\","
     "\"about\":\"restarts the unit once the reply is out (202)\"}",
-    "{\"method\":\"POST\",\"path\":\"/api/v1/system/erase\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
-    "\"choices\":[{\"value\":\"erase\",\"label\":\"Erase\"}],\"required\":true}],\"refused_while\":\"a_job_runs\","
+    "{\"method\":\"POST\",\"path\":\"/api/v1/system/factory_reset\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
+    "\"choices\":[{\"value\":\"factory_reset\",\"label\":\"Factory reset\"}],\"required\":true}],\"refused_while\":\"a_job_runs\","
     "\"about\":\"erases the stored settings and restarts (202): the unit then leaves the network and comes back as "
     "its own access point, with a new id and host name. 400 confirm_missing without the confirmation\"}",
 };
 
 static const char *const api_v1_schema_states[] = {
     "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
-    "{\"value\":\"cleanup\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
+    "{\"value\":\"purge\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
     "information, a driver's fault): a start is refused until it is closed there\"},{\"value\":\"update\","
     "\"about\":\"a firmware update (ADR-004)\"}]",
     "\"update\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
@@ -1309,7 +1309,7 @@ static const char *const api_v1_schema_states[] = {
     "\"about\":\"the throw's verdict is given: the cup is to be lifted\"},{\"value\":\"waiting_for_cup_return\","
     "\"about\":\"the cup is away; the next throw begins when it is back\"},{\"value\":\"fault\",\"about\":\"the "
     "charge ended on a fault (last.reason) and waits for a stop or a press to acknowledge it\"}]",
-    "\"cleanup\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
+    "\"purge\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
     "yet\"},{\"value\":\"running\"},{\"value\":\"fault\",\"about\":\"ended on a driver's fault, waiting for a stop or "
     "a press\"}]",
     "\"gate\":[{\"value\":\"open\"},{\"value\":\"closed\"},{\"value\":\"partial\"},{\"value\":\"held\",\"about\":"
@@ -1336,8 +1336,8 @@ static const char *const api_v1_schema_events[] = {
     "{\"source\":\"throw\",\"kind\":\"ended\",\"carries\":[\"throw\",\"reason\",\"motor\",\"fault\"],\"about\":\"a "
     "throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and "
     "fault only with driver_fault\"}",
-    "{\"source\":\"cleanup\",\"kind\":\"started\",\"carries\":[\"by\"]}",
-    "{\"source\":\"cleanup\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"reason: stopped, time "
+    "{\"source\":\"purge\",\"kind\":\"started\",\"carries\":[\"by\"]}",
+    "{\"source\":\"purge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"reason: stopped, time "
     "(its time ran out: by the unit), fault\"}",
     "{\"source\":\"motors\",\"kind\":\"fault\",\"carries\":[\"motor\",\"fault\"],\"about\":\"a driver's fault "
     "appeared; motor: coarse, fine; fault: as the driver states\"}",
@@ -1382,10 +1382,10 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/charge", api_v1_patch_charge);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/start", api_v1_charge_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/stop", api_v1_charge_stop);
-    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/cleanup", api_v1_get_cleanup);
-    ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/cleanup", api_v1_patch_cleanup);
-    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/cleanup/start", api_v1_cleanup_start);
-    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/cleanup/stop", api_v1_cleanup_stop);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/purge", api_v1_get_purge);
+    ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/purge", api_v1_patch_purge);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/purge/start", api_v1_purge_start);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/purge/stop", api_v1_purge_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/stop", api_v1_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events", api_v1_get_events);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/scale", api_v1_get_scale);
@@ -1395,7 +1395,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/motors", api_v1_get_motors);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/system", api_v1_get_system);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/restart", api_v1_system_restart);
-    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/erase", api_v1_system_erase);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/factory_reset", api_v1_system_factory_reset);
     // Hidden: in neither the index nor the schema (the owner's hello for agents)
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/agent/hello", api_v1_agent_hello);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);

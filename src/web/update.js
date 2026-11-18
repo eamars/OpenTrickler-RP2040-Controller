@@ -205,7 +205,7 @@ async function watchJobs() {
 
 const STRIP_JOBS = {
     charge: {word: "Charging", page: "trickler", stop: "/api/v1/charge/stop"},
-    cleanup: {word: "Purging", page: "trickler", stop: "/api/v1/cleanup/stop"},
+    purge: {word: "Purging", page: "trickler", stop: "/api/v1/purge/stop"},
 };
 
 function drawJobs() {

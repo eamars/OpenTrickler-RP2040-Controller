@@ -37,61 +37,6 @@ HOLD_READS = 4                      # a throw's verdict held this many reads of 
 # The recording is kept in git: the owner's network is not. (The Wi-Fi key is never read: the unit never shows it)
 PRIVATE = {"/api/v1/network": {"ssid": "dummy_ssid", "address": "192.168.4.1"},
            "/api/v1/settings/wifi": {"ssid": "dummy_ssid"}}
-# The schema's words as ADR-008 proposes them ("The words"), shown by the mock before the unit says them: a group
-# that repeats its resource goes (null: the resource's own fields, under no heading), a field named as its resource
-# takes its own name, "trickler" leaves the motors and the powders. Each is (resource, field or None, key, the
-# recording's word, the proposed one). Gate 2 writes them into the C tables and records again; the stand-in then
-# refuses to start until this list is emptied, so it cannot outlive its gate.
-PROPOSED_WORDS = [
-    ("/api/v1/settings/scale", "driver", "group", "Scale", None),
-    ("/api/v1/settings/scale", "driver", "label", "Scale", "Make"),
-    ("/api/v1/settings/gate", "enable", "group", "Gate", None),
-    ("/api/v1/settings/gate", "enable", "label", "Servo gate", "Fitted"),
-    *[("/api/v1/settings/wifi", name, "group", "Wi-Fi", None) for name in ("enable", "ssid", "key", "auth", "timeout_ms")],
-    ("/api/v1/settings/wifi", "enable", "label", "Wi-Fi", "Join a network"),
-    *[("/api/v1/settings/display", name, "group", "Display", None)
-      for name in ("invert_encoder", "rotation", "invert_display", "charge_view")],
-    *[("/api/v1/settings/update", name, "group", "Update", None) for name in ("channel", "source")],
-    ("/api/v1/settings/leds", None, "label", "LEDs", "Lights"),
-    *[("/api/v1/settings/leds", name, "group", "Display", "Display board")
-      for name in ("backlight_colour", "led1_colour", "led2_colour")],
-    *[(f"/api/v1/settings/motors/{motor}", None, "label", f"{motor.capitalize()} trickler motor", f"{motor.capitalize()} motor")
-      for motor in ("coarse", "fine")],
-    *[(f"/api/v1/settings/motors/{motor}", name, "group", "Motor", None) for motor in ("coarse", "fine")
-      for name in ("full_steps_per_rotation", "max_speed_rps", "acceleration_rps2", "min_speed_rps", "gear_ratio")],
-    ("/api/v1/powder_profiles/{id}", None, "label", "Powder profile", "Powder"),
-    ("/api/v1/powder_profiles/{id}", "name", "group", "Profile", None),
-    *[("/api/v1/powder_profiles/{id}", f"{motor}_{name}", "group", f"{motor.capitalize()} trickler", None)
-      for motor in ("coarse", "fine") for name in ("kp", "ki", "kd", "min_speed_rps", "max_speed_rps")],
-    ("/api/v1/powder_profiles/{id}", "name", "about",
-     "The profile's name, as the menu shows it: printable ASCII, the screen's font draws nothing else",
-     "The powder's name, as the menu shows it: printable ASCII, the screen's font draws nothing else"),
-    *[("/api/v1/powder_profiles/{id}", f"{motor}_{name}", "about", f"The {motor} trickler's {was}", f"The {motor} motor's {now}")
-      for motor in ("coarse", "fine")
-      for name, was, now in (("kp", "proportional gain", "proportional gain"),
-                             ("ki", "integral gain", "integral gain"),
-                             ("kd", "derivative gain", "derivative gain"),
-                             ("min_speed_rps", "slowest while it pours; not above its maximum",
-                              "slowest while it pours; not above its maximum"),
-                             ("max_speed_rps", f"fastest, used up to the {motor} motor's max_speed_rps",
-                              "fastest while it pours; not above its Maximum speed in Settings, Motors"))],
-]
-
-
-def propose_words(schema):
-    """
-    Put PROPOSED_WORDS into the recorded schema, each found first as the recording says it.
-
-    Args:
-        schema: the recorded `GET /api/v1/schema`, changed in place.
-    """
-    for path, name, key, recorded, proposed in PROPOSED_WORDS:
-        resource = next(r for r in schema["resources"] if r["path"] == path)
-        target = resource if name is None else next(f for f in resource["fields"] if f["name"] == name)
-        if target.get(key) != recorded:
-            sys.exit(f"the recording says {key} {target.get(key)!r} for {path} {name or ''}, not {recorded!r}: "
-                     f"the unit has the words now, so take them out of PROPOSED_WORDS")
-        target[key] = proposed
 
 
 def propose_revert(schema):
@@ -182,7 +127,6 @@ class StandIn:
         """
         self.replies = replies
         self.schema = replies["/api/v1/schema"]
-        propose_words(self.schema)
         propose_revert(self.schema)
         # What the EEPROM holds, by path: a save copies the live values here, a revert copies them back
         self.stored = {path: copy.deepcopy(reply) for path, reply in replies.items() if self.resource(path) is not None}
@@ -547,7 +491,7 @@ class StandIn:
     def act(self, path, body):
         """An action the schema lists, its body checked: what it does to the recorded state."""
         charge = self.replies["/api/v1/charge"]
-        cleanup = self.replies["/api/v1/cleanup"]
+        purge = self.replies["/api/v1/purge"]
         system = self.replies["/api/v1/system"]
         busy = system["activity"] != "none"
         if path == "/api/v1/charge":
@@ -566,7 +510,7 @@ class StandIn:
             self.add_event("throw", "started", throw=1, target=charge["target"],
                            powder_profile=charge["powder_profile"])
             return 202, charge
-        if path in ("/api/v1/charge/stop", "/api/v1/cleanup/stop", "/api/v1/stop"):
+        if path in ("/api/v1/charge/stop", "/api/v1/purge/stop", "/api/v1/stop"):
             stopped = system["activity"] != "none"
             if system["activity"] == "charge":
                 # As a unit reports a stopped charge: no verdict, and the pan's own reading (none here: no scale)
@@ -574,25 +518,25 @@ class StandIn:
                               last={"throw": charge["throw"], "result": "none", "reason": "stopped", "weight": 0})
                 self.held = 0
                 self.add_event("charge", "stopped", by="api", reason="stopped")
-            if system["activity"] == "cleanup":
-                cleanup.update(state="idle", speed_rps=0.0, time_left_s=None)
-                self.add_event("cleanup", "stopped", by="api", reason="stopped")
+            if system["activity"] == "purge":
+                purge.update(state="idle", speed_rps=0.0, time_left_s=None)
+                self.add_event("purge", "stopped", by="api", reason="stopped")
             system["activity"] = "none"
             if path == "/api/v1/stop":
                 return (202 if stopped else 200), {"stopped": stopped, "activity": system["activity"]}
-            return (202 if stopped else 200), (charge if "charge" in path else cleanup)
-        if path == "/api/v1/cleanup/start":
+            return (202 if stopped else 200), (charge if "charge" in path else purge)
+        if path == "/api/v1/purge/start":
             if busy:
                 return 409, error("busy", "another job runs")
-            cleanup.update(state="running", speed_rps=0.0, time_left_s=None)
-            system["activity"] = "cleanup"
-            self.add_event("cleanup", "started", by="api")
-            return 202, cleanup
-        if path == "/api/v1/cleanup":
-            if cleanup["state"] != "running":
-                return 409, error("not_running", "no cleanup runs")
-            cleanup.update(speed_rps=body["speed_rps"], time_left_s=body.get("time_s"))
-            return 200, cleanup
+            purge.update(state="running", speed_rps=0.0, time_left_s=None)
+            system["activity"] = "purge"
+            self.add_event("purge", "started", by="api")
+            return 202, purge
+        if path == "/api/v1/purge":
+            if purge["state"] != "running":
+                return 409, error("not_running", "no purge runs")
+            purge.update(speed_rps=body["speed_rps"], time_left_s=body.get("time_s"))
+            return 200, purge
         if path == "/api/v1/gate":
             gate = self.gate()
             if gate["state"] == "disabled":
@@ -621,8 +565,8 @@ class StandIn:
         if path == "/api/v1/system/restart":
             self.down_until_ms = self.now_ms() + RESTART_MS
             return 202, {"restarting": True}
-        if path == "/api/v1/system/erase":
-            return 202, {"erasing": True}
+        if path == "/api/v1/system/factory_reset":
+            return 202, {"resetting": True}
         return 404, error("not_found", "an action this stand-in does not make")
 
 

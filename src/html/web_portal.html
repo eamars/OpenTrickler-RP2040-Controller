@@ -1530,7 +1530,7 @@
             steps.push(["Not saved", "/api/v1/settings/save", {}]);
         }
         if (data.get("s6") == "true") {
-            steps.push(["Not erased", "/api/v1/system/erase", {confirm: "erase"}]);
+            steps.push(["Not erased", "/api/v1/system/factory_reset", {confirm: "factory_reset"}]);
         }
         else if (data.get("s5") == "true") {
             steps.push(["Not restarted", "/api/v1/system/restart", {}]);
@@ -1697,7 +1697,7 @@
 
     function _sendCleanupSpeed() {
         const speed = Number(document.getElementById("tricklerSpeedSlider").value);
-        return apiPatch("/api/v1/cleanup", speed == 0 ? {speed_rps: 0} : {speed_rps: speed, time_s: CLEANUP_TIME_S})
+        return apiPatch("/api/v1/purge", speed == 0 ? {speed_rps: 0} : {speed_rps: speed, time_s: CLEANUP_TIME_S})
         .then(response => {
             // Refused (no cleanup runs, or it ended on a fault): the page sends no more, and shows 0
             if (!response.ok) {
@@ -1710,7 +1710,7 @@
     // Sent again only to a cleanup that still runs and was started from the web: never to one a person started at
     // the unit after this page's had ended (review D4, 2026-11-16)
     function _resendCleanupSpeed() {
-        fetch("/api/v1/cleanup")
+        fetch("/api/v1/purge")
         .then(response => response.json())
         .then(cleanup => {
             if (cleanup.state == "running" && cleanup.by == "api") {
@@ -1733,7 +1733,7 @@
 
     function onStopCleanupButtonClicked() {
         _stopCleanupResend();
-        apiPatch("/api/v1/cleanup", {speed_rps: 0});
+        apiPatch("/api/v1/purge", {speed_rps: 0});
     }
 
     // A stop is taken by the charge at its next loop (a precharge's 5 s at most), so a cleanup asked at once after it
@@ -1759,7 +1759,7 @@
         if (enter) {
             await _waitForChargeIdle(10000);
         }
-        apiPost(enter ? "/api/v1/cleanup/start" : "/api/v1/cleanup/stop", {})
+        apiPost(enter ? "/api/v1/purge/start" : "/api/v1/purge/stop", {})
         .then(async response => {
             if (!response.ok && enter) {
                 showSettingsRefused("Cleanup not started", [await apiRefusal(response)]);

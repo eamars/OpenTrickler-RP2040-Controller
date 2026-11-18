@@ -341,10 +341,10 @@ static const api_v1_resource_t api_v1_resources[] = {
      "PATCH sets the target or the profile the next throw uses"},
     {"/api/v1/charge/start", "[\"POST\"]", "starts a charge: {}, or the target and the powder profile to set first"},
     {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
-    {"/api/v1/cleanup", "[\"GET\",\"PATCH\"]",
-     "the cleanup: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
-    {"/api/v1/cleanup/start", "[\"POST\"]", "starts a cleanup, at speed 0"},
-    {"/api/v1/cleanup/stop", "[\"POST\"]", "stops the cleanup, and acknowledges its fault; never fails"},
+    {"/api/v1/purge", "[\"GET\",\"PATCH\"]",
+     "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
+    {"/api/v1/purge/start", "[\"POST\"]", "starts a purge, at speed 0"},
+    {"/api/v1/purge/stop", "[\"POST\"]", "stops the purge, and acknowledges its fault; never fails"},
     {"/api/v1/stop", "[\"POST\"]", "stops whatever job runs; never fails"},
     {"/api/v1/events", "[\"GET\"]",
      "the unit's changes after a number (?after=N), held until there is one with ?wait=s"},
@@ -354,7 +354,7 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
     {"/api/v1/system", "[\"GET\"]", "the firmware, the board, the uptime, what the unit is doing, a restart pending"},
     {"/api/v1/system/restart", "[\"POST\"]", "restarts the unit, once the reply is out"},
-    {"/api/v1/system/erase", "[\"POST\"]",
+    {"/api/v1/system/factory_reset", "[\"POST\"]",
      "erases the stored settings and restarts: the unit comes back as its own access point"},
     {"/api/v1/network", "[\"GET\"]", "the network the unit is on: its mode, name, address, host name, signal"},
     {"/api/v1/update", "[\"GET\"]",
@@ -375,9 +375,9 @@ static const char api_v1_guide[] =
     "when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, "
     "and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: "
     "the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, "
-    "the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the "
+    "the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the "
     "scale's own unit. "
-    "The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start "
+    "The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start "
     "once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to "
     "the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops "
     "whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at "

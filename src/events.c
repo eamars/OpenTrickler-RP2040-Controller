@@ -64,7 +64,7 @@ bool events_get(uint32_t seq, event_t *event) {
 
 
 static const char *source_name(uint8_t source) {
-    static const char *const names[] = {"charge", "throw", "cleanup", "motors", "system", "update"};
+    static const char *const names[] = {"charge", "throw", "purge", "motors", "system", "update"};
     return source < sizeof(names) / sizeof(names[0]) ? names[source] : "other";
 }
 

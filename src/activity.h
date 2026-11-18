@@ -78,7 +78,7 @@ activity_t activity_get(void);
 // screen from any page), and it stays a name of the API's v1
 bool activity_job_runs(void);
 bool activity_in_throw(void);
-// "none", "charge", "cleanup", "view", "update": the API's names (api_v1.md, `activity`)
+// "none", "charge", "purge", "view", "update": the API's names (api_v1.md, `activity`)
 const char *activity_name(activity_t activity);
 // "button", "api", "console", "unit"
 const char *activity_by_name(activity_by_t by);

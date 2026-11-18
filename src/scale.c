@@ -300,7 +300,7 @@ static const setting_choice_t scale_format_choices[] = {
 #define SCALE_FIELD(member) SETTING_AT(eeprom_scale_data_t, member)
 
 static const setting_field_t scale_fields[] = {
-    {.name = "driver", .label = "Scale", .group = "Scale", .short_label = "Make",
+    {.name = "driver", .label = "Make", .short_label = "Make",
      .about = "The make of scale, whose driver reads it; its reader is made at the start",
      .type = SETTING_CHOICE, SCALE_FIELD(scale_driver), SETTING_CHOICES(scale_driver_choices),
      .applies = "at_restart"},
