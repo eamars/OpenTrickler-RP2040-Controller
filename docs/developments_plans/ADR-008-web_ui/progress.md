@@ -1,0 +1,47 @@
+# ADR-008: progress
+
+## Gate 1, the mock
+
+### The radio and today's captive parts, probed on the Pico W (2026-11-18)
+
+What a mock cannot show, seen on the unit first ("To find out first"). The Pico W on the probe, this workstation's own Wi-Fi (a Realtek 8922AE) as the client, the owner's router on 2.4 GHz channels 1, 6 and 11 (a mesh), none on channel 3.
+
+**The probe image:** `-DRC_TEST_AP_PROBE=ON` (`build_w_approbe`), a test build only:
+- the start's join skipped, so the unit starts as its own access point (as `RC_TEST_WIFI_FIRST_JOIN_FAILS`);
+- the station joins only on the console's `wifi join`, and the access point is kept up when it does;
+- `wifi scan` lists the networks heard (`@scan` lines), each BSSID once. Its table is taken from the FreeRTOS heap at the first scan: a table of 24 in static RAM did not link, the Pico W's RAM being full at link time (`region RAM` overflowed by about 1.3 KB). A list of networks in gate 4 takes its room from the heap too.
+
+The settings were copied before the flash: `logs/adr008/picow/before_gate1/`. The logs of the runs are in `logs/adr008/gate1/` and `logs/rc/` (this PC only).
+
+**The access point while the station joins: the client stayed on.**
+- The access point started on channel 3, the CYW43's default. The station joined the owner's network on channel 1 in 5 s (`wifi join` to `link up`).
+- The access point moved to channel 1 with it, and the client went with it: its link never dropped, its channel read 1 from then on, and its pings to 192.168.4.1 (every 200 ms, 800 ms to answer) missed for under 1 s (16:29:07.9 to 16:29:08.7), then answered in 3 to 8 ms.
+- How the client was told of the move (a channel switch announcement, or the client finding the access point again by itself) was not captured. One Windows client is one client: the phones are seen next on the same image.
+- With both up, the station reaches the network outward (the poll's GET reached this PC's port 8080 in 216 ms) and is reached inward (`/api/v1` from the PC over Ethernet). Windows kept its default route on Ethernet (metric 25 against the Wi-Fi's 55), so a PC that joins the unit's access point keeps its internet.
+
+**A scan with a client on the access point: it works, and each scan hears part of the list.**
+- Two scans, 650 ms and 655 ms each, with the client pinging: no ping missed during either.
+- They heard 7 and then 10 BSSIDs (six names), where Windows lists about 18. A list of networks for a person is made from several scans, merged by name, strongest first.
+
+**Today's captive parts, as a client sees them:**
+
+| Asked | Answer |
+|---|---|
+| Any name, of the unit's DNS (`captive.apple.com`, `connectivitycheck.gstatic.com`, `www.msftconnecttest.com`, `example.com`) | 192.168.4.1 |
+| iOS's check, `http://captive.apple.com/hotspot-detect.html` | 302 to `http://192.168.4.1/`, in 29 ms |
+| Android's, `http://connectivitycheck.gstatic.com/generate_204` | 302, the same, 21 ms |
+| Windows's, `http://www.msftconnecttest.com/connecttest.txt` | 302, the same, 21 ms |
+| `http://192.168.4.1/` | 200, the wizard, 7,010 bytes in 58 ms |
+| `/api/v1` under another name | 403 `wrong_host` |
+| `https://192.168.4.1/`, port 443 | refused (curl's "could not connect"; 2.1 s, Windows trying the refused connection again) |
+
+So each phone's check is told it is not on the internet, and a port 443 that is refused, not left to time out, does not keep a check waiting. Whether each phone then opens its sign-in sheet is the phones' test.
+
+**Found on the way, for gate 2:** `GET /api/v1`, the index, is slow to make. 7,438 bytes in 1.52 to 1.58 s, against the schema's 34,791 bytes in 0.90 to 1.04 s, the settings' 3,844 in 0.19 to 0.24 s and the portal's 93,789 in 0.54 to 0.61 s (three reads of each, over the station, the first byte within 25 ms each time). It is read first by every agent, and by the page's start in the API review's design. The cause is not looked for yet.
+
+### Next in gate 1
+
+1. The phones (the owner's): an iPhone and an Android phone on the probe image, joining the access point; then the station joined with the phone on it.
+2. The inventory of today's pages' features, `features.md`.
+3. The styles' proposal, with its tools in the build.
+4. The mock.

@@ -55,6 +55,7 @@ typedef enum {
     WRIELESS_CTRL_START_STA_MODE,
     WIRELESS_CTRL_LED_ON,
     WIRELESS_CTRL_LED_OFF,
+    WIRELESS_CTRL_REJOIN,       // a probe build's `wifi join` (ADR-008, gate 1)
 } wireless_ctrl_t;
 
 
@@ -329,7 +330,13 @@ static void wireless_rejoin(void) {
         printf("Wi-Fi: not joined (%d)\n", joined);
         return;
     }
+#if RC_TEST_AP_PROBE
+    // A probe build keeps its access point up once the station joins (ADR-008, gate 1)
+    printf("Wi-Fi: a probe build: the access point kept up\n");
+    if (false) {
+#else
     if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
+#endif
         access_point_mode_stop();
         cyw43_arch_disable_ap_mode();
         rest_endpoints_set_root_wizard(false);
@@ -350,6 +357,61 @@ bool wireless_station_leave(void) {
     cyw43_arch_lwip_end();
     return left == 0;
 }
+
+
+#if RC_TEST_AP_PROBE
+// A probe build's `wifi join` (ADR-008, gate 1): the station tries its network now, in the Wi-Fi task
+bool wireless_probe_join(void) {
+    wireless_ctrl_t ctrl = WIRELESS_CTRL_REJOIN;
+    return wireless_ctrl_queue != NULL && xQueueSend(wireless_ctrl_queue, &ctrl, 0) == pdTRUE;
+}
+
+
+// A probe build's `wifi scan` (ADR-008, gate 1): the networks heard, each once by its BSSID, with the access point up
+#define WIRELESS_PROBE_SCAN_MAX 24
+static cyw43_ev_scan_result_t *wireless_probe_found;   // from the FreeRTOS heap at the first scan: RAM at link is full
+static uint8_t wireless_probe_found_count;
+
+static int wireless_probe_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+    (void) env;
+    for (uint8_t i = 0; i < wireless_probe_found_count; i++) {
+        if (memcmp(wireless_probe_found[i].bssid, result->bssid, 6) == 0) {
+            return 0;
+        }
+    }
+    if (wireless_probe_found_count < WIRELESS_PROBE_SCAN_MAX) {
+        wireless_probe_found[wireless_probe_found_count++] = *result;
+    }
+    return 0;
+}
+
+int wireless_probe_scan(uint32_t *took_ms) {
+    wireless_probe_found_count = 0;
+    if (wireless_probe_found == NULL) {
+        wireless_probe_found = pvPortMalloc(WIRELESS_PROBE_SCAN_MAX * sizeof(cyw43_ev_scan_result_t));
+        if (wireless_probe_found == NULL) {
+            return -1;
+        }
+    }
+    cyw43_wifi_scan_options_t options = {0};
+    TickType_t started = xTaskGetTickCount();
+    cyw43_arch_lwip_begin();
+    int err = cyw43_wifi_scan(&cyw43_state, &options, NULL, wireless_probe_scan_result);
+    cyw43_arch_lwip_end();
+    if (err != 0) {
+        return -1;
+    }
+    while (cyw43_wifi_scan_active(&cyw43_state) && xTaskGetTickCount() - started < pdMS_TO_TICKS(4500)) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    *took_ms = (xTaskGetTickCount() - started) * portTICK_PERIOD_MS;
+    return wireless_probe_found_count;
+}
+
+const cyw43_ev_scan_result_t *wireless_probe_scan_found(uint8_t i) {
+    return i < wireless_probe_found_count ? &wireless_probe_found[i] : NULL;
+}
+#endif
 
 
 // The server listens (ADR-004): an image on trial confirms itself once the unit is on the network it is set up
@@ -495,7 +557,7 @@ void wireless_task(void *p) {
 
         // Retry within timeframe. A test build skips it, as if the router were down at the start (ADR-004)
         TickType_t stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(wireless_config.eeprom_wireless_metadata.timeout_ms);
-#if RC_TEST_WIFI_FIRST_JOIN_FAILS
+#if RC_TEST_WIFI_FIRST_JOIN_FAILS || RC_TEST_AP_PROBE
         stop_tick = xTaskGetTickCount();
         printf("Wi-Fi: a test build: the start's join skipped\n");
 #endif
@@ -552,6 +614,9 @@ void wireless_task(void *p) {
         wireless_ctrl_t wireless_ctrl;
 
         TickType_t now = xTaskGetTickCount();
+#if RC_TEST_AP_PROBE
+        rejoin_at = now + pdMS_TO_TICKS(WIRELESS_REJOIN_MS);   // a probe build joins only when told (`wifi join`)
+#endif
         if ((int32_t) (now - rejoin_at) >= 0) {
             wireless_rejoin();
             rejoin_at = xTaskGetTickCount() + pdMS_TO_TICKS(WIRELESS_REJOIN_MS);
@@ -567,6 +632,9 @@ void wireless_task(void *p) {
                 break;
             case WIRELESS_CTRL_LED_OFF:
                 cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
+                break;
+            case WIRELESS_CTRL_REJOIN:
+                wireless_rejoin();
                 break;
             default:
                 break;

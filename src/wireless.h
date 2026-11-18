@@ -55,6 +55,14 @@ void wireless_get_link(wireless_info_t *info);
 // The station leaves its network, as when its router goes away: the console's `wifi leave` (ADR-004)
 bool wireless_station_leave(void);
 
+#if RC_TEST_AP_PROBE
+// A probe build only (ADR-008, gate 1): the station's join now, and a scan with the access point up
+#include <cyw43.h>
+bool wireless_probe_join(void);
+int wireless_probe_scan(uint32_t *took_ms);
+const cyw43_ev_scan_result_t *wireless_probe_scan_found(uint8_t i);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

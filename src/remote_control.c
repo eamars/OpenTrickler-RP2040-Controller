@@ -718,6 +718,31 @@ static bool remote_control_wifi(const char *args, char *reply, size_t reply_size
     while (*args == ' ') {
         args += 1;
     }
+#if RC_TEST_AP_PROBE
+    if (strcmp(args, "join") == 0) {
+        bool asked = wireless_probe_join();
+        snprintf(reply, reply_size, asked ? "@ok wifi join asked" : "@err failed wifi join");
+        return asked;
+    }
+    if (strcmp(args, "scan") == 0) {
+        uint32_t took_ms = 0;
+        int found = wireless_probe_scan(&took_ms);
+        if (found < 0) {
+            snprintf(reply, reply_size, "@err failed wifi scan");
+            return false;
+        }
+        for (uint8_t i = 0; i < found; i++) {
+            const cyw43_ev_scan_result_t *r = wireless_probe_scan_found(i);
+            char line[96];
+            snprintf(line, sizeof(line), "@scan ssid=%.*s ch=%u rssi=%d auth=%u bssid=%02x:%02x:%02x:%02x:%02x:%02x",
+                     r->ssid_len, r->ssid, r->channel, r->rssi, r->auth_mode, r->bssid[0], r->bssid[1], r->bssid[2],
+                     r->bssid[3], r->bssid[4], r->bssid[5]);
+            write(line, write_ctx);
+        }
+        snprintf(reply, reply_size, "@ok wifi scan found=%d took_ms=%lu", found, (unsigned long) took_ms);
+        return true;
+    }
+#endif
     if (strcmp(args, "leave") != 0) {
         snprintf(reply, reply_size, "@err usage wifi leave");
         return false;
