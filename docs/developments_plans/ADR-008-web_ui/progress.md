@@ -304,7 +304,8 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 4. Step 3, the event stream: built and proven on the Pico W (2026-11-19).
 5. Step 4, `saved` for each resource and the revert: built and proven on the Pico W (2026-11-19).
 6. Step 5, the API that describes itself and the unit's report: built and proven on the Pico W (2026-11-19).
-7. Step 6, the update's life cycle: next.
+7. Step 6, the update's life cycle: built and proven on the Pico W (2026-11-19).
+8. Gate 2's whole proof on the Pico W: passed (2026-11-19), below.
 
 ### Step 1, the words: built (2026-11-19)
 
@@ -362,4 +363,25 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 - **Found on the way, a fault:** the build without the gate hard-faulted at the menu's Settings. Its rows were counted by hand (`.row_count = 8`): with the gate's row compiled out, seven, and the menu read past the list. The class mended, not the one page: every page's count is now taken from its list (`ROW_COUNT`), fifteen of them; none is written by hand anywhere else in `src/`.
 - **Flash:** the build without the gate is 6.5 KB smaller; with it, the image is 98.04% of the Pico W's slot.
 - **Proven on the Pico W:** without the gate (`build_w_nogate`): `features` says absent, `GET /api/v1/gate` and `/api/v1/settings/gate` 404, Settings lists no Servo gate, `api_check` `VERDICT PASS` (76 routes, the schema without the gate, checked by its new rule for a part absent), `charge_cycle` `VERDICT PASS`. With it again (2.0.3-47): the stored settings the same as the copy before step 1 (the gate's own, untouched by the build that did not know them), `api_check`, `charge_cycle` and `menu_tour --compare` `VERDICT PASS`. The stand-in recorded again, with the report.
+
+### Step 6, the update's life cycle made whole: built and proven (2026-11-19)
+
+The owner asked the agent to own the Pico W's tests overnight (2026-11-19: "take the responsibility of Pico W test ... implement as much as you could, then leave the decision to tomorrow").
+
+- **Gap 1, a trial writes into the EEPROM before it is kept:** on trial, `save_config` writes nothing: each record is held in RAM, the latest of each address, and written when the image confirms itself (`config_hold_writes`, `config_write_held`, `common.c`). That covers more than the plan's "defaults kept in RAM": the defaults of a layout that changed, the motors' one-time conversion, and any save during the trial. The invariant: a trial changes nothing the image it may go back to relies on. A trial whose Wi-Fi record did not read never confirms (its own hotspot is not its network).
+- **Gaps 2 to 4, a power cut not seen, the end forgotten, a back without why:** the trial's note in an EEPROM slot of its own (12K, `EEPROM_UPDATE_NOTE_BASE_ADDR`; no struct of today's changes): the slot tried, its version, how far it got (asked, started, joined, no network), written as it goes and never held; and how the last update ended (`last_result`, `last_reason`, `last_reset`), kept until the next. A note there with the scratch note gone is a trial the power ended. `last` gains `reason` (did_not_start, no_network, not_confirmed, power_cut) and `reset` (the settings reset, by name); the `back` and `confirmed` events carry them; the screen's line says why (not "did not start" when only the router was away).
+- **Gap 5:** the trial waits the Wi-Fi join's own time and 30 s, at least 60 s.
+- **Smaller:** `checking` between `receiving` and `ready`; `back_within_s` while installing.
+- **Test tools:** `RC_TEST_LAYOUT_CHANGE` (the LEDs' record a word longer: a reset there changes colours only; the update's source would have pointed the unit at GitHub, against the bench rules); `slot_trial --expect power-trial`, `--reason`, `--reset`, each judged after the end and again after a restart; the console's `update` gives `reason` and `reset`.
+- **Flash:** 3.8 KB (the image 98.41% of the slot before gate 3's pages).
+- **Proven on the Pico W** (the normal image 2.0.3-48 in A, test images in B at 512.900 to 512.904), each `VERDICT PASS`:
+  - **back** (never confirms, the LEDs' layout changed): back 67.4 s after the trial was asked, `last` back `not_confirmed`, the same after a restart; every stored setting the same as the copy taken first, the LEDs' too: the trial's defaults were held, never written.
+  - **power cut on trial** (`slot_trial --expect power-trial`): back at once, `last` back `power_cut`, the same after a restart.
+  - **no network** (a network name that is nowhere stored for it, put back after): back 67.5 s after the trial was asked (the join's 30 s and 30 s), `last` back `no_network`, the same after a restart; the settings as before once the name was back.
+  - **kept** (the LEDs' layout changed): confirmed 4.8 s after the trial was asked, `last` confirmed with `reset` the LEDs, the same after a restart; the LEDs' colours the only settings changed. The normal image put back, the LEDs' colours stored again from the copy: every setting the same as at the start.
+  - A first try at "no network" with `RC_TEST_WIFI_FIRST_JOIN_FAILS` was not one: that build skips only its first join, joined later and confirmed. It is kept for what it is (a first join that fails).
+
+### Gate 2's whole proof (2026-11-19, the step 6 image)
+
+`flash`'s image 2.0.3-48 at 9ecbcff: `menu_tour --compare` (the screen's invert off for it, live, put back), `charge_cycle`, `api_check`, `settings_roundtrip`, `web_robust`, and `soak 600 --stream` (27 charges, 0 of 1,335 reads missed, each browser's stream all 162 events and some 2,170 states, `heap_free` 47,592 quiet before and after) each `VERDICT PASS`; the settings the same at the end as at the start. `stream_check` failed only its quiet stage, against a tool already changed for the next image (gate 3 found the stream's keep-alive comment invisible to a browser; the state again replaces it): run again on the next image. `heap_free` quiet is 2.7 KB below step 4's: the server's routes, moved to the FreeRTOS heap (112 of 24 bytes).
 
