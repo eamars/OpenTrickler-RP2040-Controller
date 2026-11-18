@@ -201,10 +201,14 @@ Fixed on the way: a store's or an undo's message was cleared by the redraw it st
 
 The whole portal 73,044 bytes, 19,779 gzipped.
 
+### The update's life cycle read whole (2026-11-18)
+
+The owner asked how the web shows an upgrade, then to challenge its life cycle and its failure modes, and whether the firmware reports its status during one. Read in the code, not tried on a unit, and written into the README ("The update's life cycle, read whole": its stages and five gaps), to be built in gate 2 (the API review, item 9), at the owner's word: "Record in ADR-008". The worst: a trial writes a changed struct's defaults into the EEPROM before it is confirmed, so a going back can lose that module's settings, and a changed Wi-Fi layout confirms on the unit's own hotspot. It is built before any release that changes a stored layout.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
 2. The check that every row of `features.md` is shown in the pages or marked left out (only the Trickler's views carry their rows yet).
-3. The stand-in's update flow after Install (the download, the install, the restart followed and how it ended), and the page's view of it: "keep the power on", how far it has got, the end in plain words (README, "What the page has to do"). The offer itself is drawn.
+3. The stand-in's update flow after Install (the download, the install, the restart followed, and each end in the life cycle's table), and the page's view of it: "keep the power on", how far it has got, the end in plain words (README, "What the page has to do" and "The update's life cycle, read whole"). The offer itself is drawn. The ends the unit cannot report yet (a power cut in a trial, why a back) are drawn as gate 2 makes them.
 4. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
 5. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
