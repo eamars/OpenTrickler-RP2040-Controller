@@ -4,7 +4,7 @@ Status: **Open** 2026-11-18, gate 1 (the mock) under way. Drafted 2026-11-13, re
 
 ## What we want
 
-- The whole web UI comes from the unit. It works from a phone joined to the unit's own access point, with no internet.
+- The whole web UI for the basics comes from the unit: the charge, the purge, the powders, every setting, the update, the set-up and the mirror. They work from a phone joined to the unit's own access point, with no internet. An advanced page (ADR-009's tuning, say) may load a library from the internet (the owner, 2026-11-18; "Resources from the internet", below).
 - It shows what this board carries and nothing else.
 - It is the place for what the small screen cannot show: profiles side by side, an update, and later the charts of a throw (ADR-009).
 - Every client echoes the unit's state, and an agent finds and learns every call from the unit itself.
@@ -34,6 +34,16 @@ Status: **Open** 2026-11-18, gate 1 (the mock) under way. Drafted 2026-11-13, re
   - the ideas (DHCP's captive-portal option, the pages cached by version, the phone kept awake): "Yes I'd like your ideas. However the last one may needs its own toggle switch and default to ON".
 - 2026-11-18, after gate 1's radio probe (progress.md): "I'm not around the Pico W so let's defer the iPhone test to later stage. And I don't have Android phone so let's assume they are working the same way." Read here as: the iPhone is seen at the unit before commissioning's design is settled, at the start of gate 4 at the latest; Android is not tested and is taken to work as the iPhone and the Windows client do (below, "To find out first").
 - 2026-11-18, on the System Control's Erase found starting at Yes (progress.md, the inventory), after first saying to fix it at once: "Actually I'd like to leave it to gate 3, as no release will be done mid ADR, so there is no point to fix anything that may subject to be thrown away, Just record what you found." Read here as: today's pages are not fixed while this ADR is open; what is found wrong in them is recorded in `features.md` and made right by the new pages in gate 3, which is checked against it.
+- 2026-11-18, after a brief read of `features.md`: "There are a lot of information and I may miss one or two. Therefore my take is
+  1. Record every feature supported today.
+  2. For each feature, make your proposal.
+  3. I'm open to recommendations of reconstruct, or reorganize the UI/UX, as I'm not confident about the current design.
+  4. Trickling related features should be preserved in a way that follows "good UI design" principle.
+  5. Settings MUST be preserved, but the way is presented to the user or interaction can be changed.
+  6. The Web shall use the same terms compare to the display, for example, cleanup vs purge. I prefer to use purge everywhere."
+  
+  And: "I want you to use the web mockup to demonstrate your proposal. The later mockup should be used to create the final web interface design. Perhaps the same page but with mocked backend is preferred. Self contained is the goal for basic feature (like the trickling and configuration). Some resources MAY be downloaded from the interface for advanced features, like auto tuning etc. I'm open to discussion on this. For example I don't expect you to serve plotly from the pico."
+- 2026-11-18, on the agent's answer that the API keep `cleanup` as v1 is stable: "No software released since v1 is proposed so this is a good chance to change everything for those doesn't fit." Read here as: every release since API v1 is a candidate, a pre-release, so v1 is frozen only from the first release for users. Until then a name in the API, the events or the console that does not fit the words a person reads is changed to fit, `cleanup` to `purge` first ("The words", below). ADR-003, which made v1, is told.
 
 ## Why here
 
@@ -230,10 +240,47 @@ The owner, 2026-11-18: the API needs a review; an agent should find every call i
 
 **Where:** all of it adds to API v1 and breaks nothing. It is ADR-003's area, and ADR-003 is closed; it is built here, as the API review's gate, with the event stream and the event for a setting changed.
 
+## The words: one set for the screen, the web and the API
+
+The owner, 2026-11-18: the web uses the screen's words, "purge" everywhere; and every name that does not fit may change before the first release for users. Read here as one list of words, in this ADR, that the screen, the web, the API, the events and the console all use; a word changed is changed in all of them at once.
+
+Today's words, read 2026-11-18 (the screen's from `menu_nav.c`, the web's from `features.md`, the API's from api_v1.md). The column "Proposed" is the agent's, settled with the mock:
+
+| The thing | Today's screen | Today's web | Today's API | Proposed, everywhere |
+|---|---|---|---|---|
+| A throw to a target | Charge | Trickler | `charge` | Charge |
+| Running the tricklers to empty them | Cleanup | Purge | `cleanup` | **Purge** (the owner); the API `purge` |
+| A powder's stored tuning | Powder | Profile, Powder Profile | `powder_profiles` | Powder (ADR-014's charge profile comes beside it, so "profile" alone would mean two things); the API as it is |
+| The scale's tare | Zero | Scale Zero | `scale/zero` | Zero |
+| The shutters | Servo gate | Servo Gate, Gate Control | `gate` | Servo gate |
+| The two motors | Motors, Coarse and Fine | Coarse Trickler Motor, Fine Trickler Motor | `motors/coarse`, `motors/fine` | Motors: Coarse, Fine |
+| The lights | Backlight (on Display) | Neopixel LED | `leds` | Lights: to settle with the mock |
+| The 12864 | Display | Mini 12864 Module | `display` | Display |
+| The network joined | Wi-Fi | Wireless | `wifi` | Wi-Fi |
+| The unit's own network | Hotspot | (none; "access point" in these documents) | (none) | Hotspot |
+| Starting again | Restart | Reboot | `system/restart` | Restart |
+| Every setting erased | Factory reset | Erase EEPROM | `system/erase` | Factory reset; the API `system/factory_reset` |
+| Writing settings to the EEPROM | (each row stores itself) | Save to EEPROM, Apply | `save` | To settle with the mock: one word, and whether a person sees "stored" at all |
+| New firmware | Update, Firmware | (none today) | `update` | Update |
+
+- **The API's renames are built in gate 2,** the API review, with what reads them: `rc_run.py`, `unit_api.py`, `tests/web_test.py` and its recording, api_v1.md, AGENTS.md. A rename is a change of name, not of what it does: `api_check` and `settings_roundtrip` pass on the new names as on the old.
+- **The screen's words are changed in gate 3,** with the pages ("Cleanup" to "Purge" on the main menu, its job and its cup), and its menu baseline saved again. The screen is ADR-010's, closed; the change is made here because the words are this ADR's.
+- **Names in the source** (`cleanup_mode.cpp`, its functions) follow when they are touched: ADR-006 lays the source out again.
+
+## Resources from the internet
+
+The owner, 2026-11-18: the basics self-contained; an advanced feature may download what it needs; "I don't expect you to serve plotly from the pico" (Plotly is about 3.5 MB; the Pico W's slot has 32.6 KB left). Read here as one rule:
+- **The basics never need the internet** (What we want): nothing they show or do is loaded from outside the unit.
+- **An advanced page may load a library from the internet,** at an exact version from a CDN, with its integrity hash (the browser refuses a file that differs). With no internet, always so on the unit's hotspot, the page says plainly that this feature needs the internet, and the rest of the portal works on.
+- **It cannot be kept for offline use:** a browser keeps a page's files for use offline (a service worker) only for a page served over HTTPS or from localhost, and the unit serves plain HTTP. An advanced page works while the phone or the computer has the internet.
+- **Whether ADR-009 needs such a library** is ADR-009's to decide: a throw's chart is a few lines on a canvas, and a chart of our own may fit on the unit. No page of this ADR loads one.
+
 ## The pages
 
 Settled (the owner, 2026-11-18):
 - **A mock first.** The pages, clickable in a browser against the stand-in server, before anything goes on a unit. The owner decides by using it. An agent can open the same mock in its own browser and check it.
+- **The mock is the final pages, with a stand-in backend** (the owner, 2026-11-18: "the same page but with mocked backend is preferred"). The pages are written once, as the real sources, and run unchanged against the stand-in and later the unit. The stand-in is `tests/web_test.py` grown into a simulated unit: a charge that goes through its steps, a purge, the event stream, an update; every write checked against the recorded schema, as today, and the recording made again from the unit whenever the API grows, so the two do not drift.
+- **The mock shows the proposal for every feature** (the owner, 2026-11-18: record every feature, a proposal for each; the UI may be reorganised; the trickling kept by good design; every setting kept, its presentation free). In the mock only, each feature carries the number of its row in `features.md`; a check lists every row neither shown nor marked left out. So "nothing silently dropped" is checked by the script, and the owner reads only the short list proposed to be left out.
 - **The styles and the tools: the agent's proposal, in gate 1** (the owner, 2026-11-18: no strong preference; Tailwind and DaisyUI were a previous agent's recommendation; "if you see a better fit, or a better UI design for the application then I'm happy to review your proposal"). Whatever is chosen is trimmed at build time to what the pages use and served by the unit. Its tools are development tools, installed as needed (the owner), each version written in `toolchain.env` and fetched by both setup scripts and CI like every other. The proposal weighs, by the mock's real gzipped size and how it reads at the bench: Tailwind with DaisyUI by Tailwind's standalone command-line tool (one program, no Node; DaisyUI 5 is said to work with it as a plain plugin file, thought so, not checked), Tailwind alone with our own few components, and plain CSS of our own with no tool. It comes with a page drawn each way, for the owner to choose by using it.
 - **The tools come in gate 1, not gate 3** (the agent's review, 2026-11-18): the budget is settled against the mock's real size, which includes the trimmed styles, so the build that trims them is there first. The mock is the pages' first version, in the real layout of sources (nothing is thrown away), and `tests/web_test.py` serves what the build makes from them, not `src/html` as it stands, with stand-ins for what the recording lacks (the stream, a list of networks, an update under way).
 - **The pages cached by version:** already built, by ADR-003. Proposed by the agent as new on 2026-11-18 and found built the same day (`features.md`, row 6): each page goes with an `ETag` of the firmware's version and commit and `Cache-Control: no-cache`, and a read with that tag is answered `304` with no body (seen on the Pico W: the portal's 93,789 bytes, then 0). The new pages keep it, gzipped. An update is a new version and so a new `ETag`: an old page is never shown.
@@ -261,8 +308,8 @@ Agreed with the owner (2026-11-18), the agent's proposals:
    - the inventory of today's pages' features (`features.md`), each placed or left out by the owner's decision;
    - the styles' proposal and its tools in the build, the stand-in serving what the build makes;
    - the mock itself, at the three widths.
-2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself, the feature table and the unit's report of what it carries; the server's change; soaked on the Pico W against polling.
-3. **The pages built.** Every row `features.md` marks broken made right by the new pages, first the system's Save, Restart and Erase as three actions of their own, each with its own confirmation and none chosen in advance (rows 70 and 74). Gzip and the `ETag`, the forms from the schema, the update's page, every client echoing the unit, each feature's part shown only when the unit reports it.
+2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself, the feature table and the unit's report of what it carries, the API's names made the words' ("The words"), and the index's slow making looked into (progress.md); the server's change; soaked on the Pico W against polling.
+3. **The pages built.** Every row `features.md` marks broken made right by the new pages, first the system's Save, Restart and Erase as three actions of their own, each with its own confirmation and none chosen in advance (rows 70 and 74). Gzip and the `ETag`, the forms from the schema, the update's page, every client echoing the unit, each feature's part shown only when the unit reports it. The screen's words made the same ("The words"), its menu baseline saved again.
 4. **Commissioning built.** First the iPhone on the probe image, if not seen before (the owner at the unit). Then the set-up in the portal, opened by the captive portal and by DHCP's option 114; what the mock settled of the networks' list, the join, the key, the id and the QR code.
 
 Then the proof on both boards; PR #111 is closed once the update is shown end to end from the page.
