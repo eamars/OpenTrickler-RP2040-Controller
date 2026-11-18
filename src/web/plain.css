@@ -191,9 +191,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
     .trickler { padding: 0 16px 16px; }
     .panel { padding: 16px; }
 }
-@media (min-width: 840px) {
-    .view { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr); }
-    .controls { align-content: end; }
+/* Side by side only in a wide window that is wider than tall: in a tall one the panel stood alone down the left and
+   the controls hung at the bottom right (the owner, 2026-11-18: "looks odd") */
+@media (min-width: 840px) and (orientation: landscape) {
+    .view { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); }
+    .controls { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 24px;
+                align-content: center; }
 }
 /* A short phone (an iPhone SE with its bars shown is about 550 px): the job's keys a little lower, the figure first */
 @media (max-height: 640px) { :root { --job-key: 56px; --gap: 8px; } .panel { padding: 10px; } }

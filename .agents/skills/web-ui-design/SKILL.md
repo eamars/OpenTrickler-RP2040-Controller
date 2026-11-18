@@ -18,7 +18,7 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 
 1. **Lay out by the window's width, not by the device.**
    - Three widths, Material's window size classes: compact under 600 CSS px (a phone), medium 600 to 839 (a tablet in portrait, a phone in landscape), expanded 840 and over (a tablet in landscape, a computer).
-   - One page that grows with the width, never a second page for phones. Compact: one column. Medium: one column, wider, the figure larger. Expanded: the job's panel beside its controls; a page of settings in two columns; nothing wider than about 1100 px.
+   - One page that grows with the width, never a second page for phones. Compact: one column. Medium: one column, wider, the figure larger. Expanded: the job's panel beside its controls, but only in a window wider than tall (in a tall one the panel stood alone down the left and the controls hung at the bottom right: "looks odd", the owner, 2026-11-18); a page of settings in two columns; nothing wider than about 1100 px.
    - **Navigation:** a bar at the bottom on compact, with its four destinations each a whole quarter of the width (the thumb's reach); a rail down the left from medium up. Four destinations: Trickler, Powders, Settings, Unit (the owner, 2026-11-18: the Trickler holds both jobs, Charge and Purge, by a switch at its top).
    - **Why:** Material 3 sets these widths and moves the navigation bar to a rail on larger windows; web.dev advises against guessing the input from the screen's size (rule 3 does that).
 2. **Targets large enough for a gloved finger.**

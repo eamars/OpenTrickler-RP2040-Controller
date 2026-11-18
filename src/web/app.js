@@ -65,6 +65,7 @@ function renderCharge() {
     $("target-shown").textContent = shown(charge.target);
     const share = charge.target && charge.weight ? Math.min(Math.max(charge.weight / charge.target, 0), 1) : 0;
     $("ring").style.strokeDashoffset = String(1000 * (1 - share));
+    $("ring").style.visibility = share > 0 ? "visible" : "hidden";  // a round end at nought is drawn as a dot
     $("bar").style.width = `${share * 100}%`;
     $("elapsed").textContent = charge.elapsed_s === null ? "-.-- s" : `${charge.elapsed_s.toFixed(2)} s`;
     if (document.activeElement !== $("target") && charge.target !== null) {

@@ -204,7 +204,10 @@ class StandIn:
         if path in ("/api/v1/charge/stop", "/api/v1/cleanup/stop", "/api/v1/stop"):
             stopped = system["activity"] != "none"
             if system["activity"] == "charge":
-                charge.update(state="idle", in_throw=False)
+                # As a unit reports a stopped charge: no verdict, and the pan's own reading (none here: no scale)
+                charge.update(state="idle", in_throw=False, weight=None,
+                              last={"throw": charge["throw"], "result": "none", "reason": "stopped", "weight": 0})
+                self.held = 0
                 self.add_event("charge", "stopped", by="api", reason="stopped")
             if system["activity"] == "cleanup":
                 cleanup.update(state="idle", speed_rps=0.0, time_left_s=None)
