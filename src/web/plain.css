@@ -1,8 +1,8 @@
 /* The portal's look, plain CSS of our own (ADR-008; the skill web-ui-design). Calm neutral greys; colour only where
    it means something, in the unit's meanings: blue not ready, green good, yellow under, red over and faults. The one
    action that moves the job on is in the ink, Stop in red. Light or dark follows the device.
-   Widths (rule 1): a bar at the bottom under 600 px, a rail at the left from 600, the panel beside its controls from
-   840. The Trickler's views fit the visible height and never scroll (rule 14): the readout is a container, and the
+   Widths (rule 1): a bar at the bottom under 600 px, a rail at the left from 600; one column at every width, its
+   groups in their order, never side by side (the owner, 2026-11-18). The Trickler's views fit the visible height and never scroll (rule 14): the readout is a container, and the
    figure and its ring scale to it; where it is short the ring gives way to a bar, and the steps to the status. */
 :root {
     --ground: #ecece8;
@@ -25,7 +25,7 @@
     --r-control: 14px;
     --tap: 52px;                /* every control at least 48 px */
     --job-key: 60px;            /* Start, Stop, the target's and the speed's keys */
-    --top: 48px;
+    --top: 12px;                /* above the Trickler: no top row (the owner: a waste of space) */
     --bar: 64px;                /* the navigation bar, under 600 px */
     --gap: 10px;
     color-scheme: light dark;
@@ -61,52 +61,59 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 [hidden] { display: none !important; }
 :focus-visible { outline: 3px solid var(--not-ready); outline-offset: 2px; }
 
-/* The top: the unit, and whether it is reached */
-.topbar { height: var(--top); display: flex; justify-content: space-between; align-items: center; gap: 12px;
-          padding: 0 16px; }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; min-width: 0; }
-.brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.logo { width: 24px; height: 24px; flex: none; }
-.link { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--soft); white-space: nowrap; }
-.link i { width: 10px; height: 10px; border-radius: 50%; background: var(--edge); }
-.link.up i { background: var(--good); }
-.link.down { color: var(--over); font-weight: 650; }
-.link.down i { background: var(--over); }
+/* The link, only when it is lost: a banner over the page, gone when the unit answers again (rule 9) */
+.offline { position: fixed; z-index: 3; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+           width: min(92vw, 440px); margin: 0; padding: 12px 16px; border-radius: 14px; text-align: center;
+           background: var(--over); color: var(--on-stop); font-weight: 700; box-shadow: 0 6px 18px rgb(0 0 0 / 0.25); }
 
 /* The Trickler: exactly the height left, never scrolled */
 .trickler {
-    height: calc(100svh - var(--top) - var(--bar) - env(safe-area-inset-bottom));
+    height: calc(100svh - var(--bar) - env(safe-area-inset-bottom));
     display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap);
-    padding: 0 12px var(--gap); max-width: 1100px; margin: 0 auto; position: relative;
+    padding: calc(var(--top) + env(safe-area-inset-top)) 12px var(--gap); max-width: 640px; margin: 0 auto;
+    position: relative;
 }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--well);
        border: 1px solid var(--rule); border-radius: var(--r-control); }
 .seg button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; font-weight: 700;
               color: var(--soft); }
 .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
-.view { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: var(--gap);
-        container: view / size; }
+/* A view in its groups (rule 15): the charge, the scale, the job, one under another at every width */
+.view { min-height: 0; display: grid; gap: var(--gap); container: view / size; --state: var(--ink);
+        grid-template-areas: "setup" "scale" "job"; grid-template-rows: auto minmax(0, 1fr) auto; }
+#purge-panel { grid-template-areas: "scale" "job"; grid-template-rows: minmax(0, 1fr) auto; }
+.view[data-mood="not-ready"] { --state: var(--not-ready); }
+.view[data-mood="good"] { --state: var(--good); }
+.view[data-mood="under"] { --state: var(--under-mark); }
+.view[data-mood="over"] { --state: var(--over); }
+.group { min-height: 0; }
+.card, .setup, .scale { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); }
 
-.panel { min-height: 0; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
-         padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px;
-         --state: var(--ink); }
-#purge-panel { grid-template-rows: minmax(0, 1fr) auto; }
-.panel[data-mood="not-ready"] { --state: var(--not-ready); }
-.panel[data-mood="good"] { --state: var(--good); }
-.panel[data-mood="under"] { --state: var(--under-mark); }
-.panel[data-mood="over"] { --state: var(--over); }
-
-.panel-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-.panel-head select {
-    appearance: none; -webkit-appearance: none; min-width: 0; min-height: var(--tap); padding: 0 38px 0 14px;
-    border: 1px solid var(--edge); border-radius: var(--r-control); background-color: var(--well);
-    font-size: 1.1rem; font-weight: 650; text-overflow: ellipsis;
+/* The charge: what to throw */
+.setup { grid-area: setup; padding: 12px; display: grid; gap: 8px; }
+.field { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; gap: 10px; }
+.field > span { color: var(--soft); font-weight: 650; }
+.setup select {
+    appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; min-height: var(--job-key);
+    padding: 0 38px 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control); background-color: var(--well);
+    font-size: 1.15rem; font-weight: 650; text-overflow: ellipsis;
     background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%),
                       linear-gradient(135deg, var(--soft) 50%, transparent 50%);
     background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat;
 }
+
+/* The scale: what is on the pan, and its Zero */
+.scale { grid-area: scale; padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; }
+#purge-panel .scale { grid-template-rows: minmax(0, 1fr); }
+/* A group's name and its action, in the flow: a button laid over the reading collided with a wide figure */
+.group-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.group-head > span { color: var(--soft); font-weight: 650; }
+.group-head .ghost { min-height: 44px; }
 .ghost { min-height: var(--tap); min-width: var(--tap); padding: 0 16px; border-radius: var(--r-control);
          border: 1px solid var(--edge); background: var(--card); font-weight: 650; }
+
+/* The job: where the cycle is, and what to do */
+.job { grid-area: job; display: grid; gap: 8px; }
 
 /* The readout: a container the figure and the ring scale to */
 .readout { position: relative; min-height: 0; display: grid; place-items: center; container: readout / size; }
@@ -116,8 +123,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .ring .arc { stroke: var(--state); stroke-width: 7; stroke-dasharray: 1000; stroke-dashoffset: 1000;
              transition: stroke-dashoffset 0.3s ease-out; }
 .readout-text { position: relative; display: grid; justify-items: center; text-align: center; gap: 2px; width: 100%; }
-.figure { font-size: clamp(3rem, min(22cqw, 58cqh), 6rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+.figure { font-size: clamp(2.5rem, min(20cqw, 50cqh), 6rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
           font-variant-numeric: tabular-nums; }
+/* A figure of three characters (the purge's speed) may be twice as large as the weight's six */
+.figure.short { font-size: clamp(3rem, min(36cqw, 50cqh), 10rem); }
 .sub { color: var(--soft); font-size: 1rem; }
 .sub b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .time { color: var(--soft); font-weight: 500; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
@@ -129,17 +138,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 @container readout (min-height: 230px) and (min-width: 230px) {
     .ring { display: block; }
     .bar { display: none; }
-    .ringed { font-size: clamp(3rem, 19cqmin, 6.5rem); }
+    .ringed { font-size: clamp(3rem, 22cqmin, 8rem); }
 }
 
 .status { justify-self: center; display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 16px;
           border-radius: 999px; font-weight: 700; font-size: 1.05rem; background: var(--well); color: var(--ink);
           border: 1px solid var(--rule); }
 .status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--state); }
-.panel[data-mood="not-ready"] .status, .panel[data-mood="good"] .status, .panel[data-mood="over"] .status {
+.view[data-mood="not-ready"] .status, .view[data-mood="good"] .status, .view[data-mood="over"] .status {
     color: var(--state); background: color-mix(in srgb, var(--state) var(--tint), var(--card));
     border-color: color-mix(in srgb, var(--state) 40%, var(--card)); }
-.panel[data-mood="under"] .status { color: var(--under); background: color-mix(in srgb, var(--under-mark) 18%, var(--card));
+.view[data-mood="under"] .status { color: var(--under); background: color-mix(in srgb, var(--under-mark) 18%, var(--card));
                                     border-color: var(--under-mark); }
 
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; list-style: none; margin: 0; padding: 0; }
@@ -149,8 +158,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 /* Short: the steps give way to the status, which says the same */
 @container view (max-height: 470px) { .steps { display: none; } }
 
-/* The controls under (or beside) the panel */
-.controls { display: grid; gap: var(--gap); align-content: end; }
+/* Keys and steppers, wherever they are */
 .stepper { display: grid; grid-template-columns: var(--job-key) minmax(0, 1fr) var(--job-key); gap: 8px; align-items: center; }
 .stepper input { width: 100%; min-width: 0; min-height: var(--job-key); text-align: center; font-size: 1.6rem; font-weight: 700;
                  font-variant-numeric: tabular-nums; background: var(--well); border: 1px solid var(--edge);
@@ -187,19 +195,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
     :root { --bar: 0px; --gap: 14px; }
     body { padding-left: 96px; }
     .nav { inset: 0 auto 0 0; width: 88px; height: auto; grid-template-columns: none; grid-auto-rows: 72px;
-           align-content: start; padding: calc(var(--top) + 8px) 8px 8px; border-top: 0; border-right: 1px solid var(--rule); }
+           align-content: start; padding: 16px 8px 8px; border-top: 0; border-right: 1px solid var(--rule); }
     .trickler { padding: 0 16px 16px; }
-    .panel { padding: 16px; }
-}
-/* Side by side only in a wide window that is wider than tall: in a tall one the panel stood alone down the left and
-   the controls hung at the bottom right (the owner, 2026-11-18: "looks odd") */
-@media (min-width: 840px) and (orientation: landscape) {
-    .view { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); }
-    .controls { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 24px;
-                align-content: center; }
+    .setup, .scale { padding: 16px; }
 }
 /* A short phone (an iPhone SE with its bars shown is about 550 px): the job's keys a little lower, the figure first */
-@media (max-height: 640px) { :root { --job-key: 56px; --gap: 8px; } .panel { padding: 10px; } }
+@media (max-height: 640px) { :root { --job-key: 56px; --gap: 8px; } .setup, .scale { padding: 10px; } .bar { margin: 4px 0 0; } .readout-text { gap: 0; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* The cup's question */

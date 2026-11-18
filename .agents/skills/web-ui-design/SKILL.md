@@ -18,7 +18,7 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 
 1. **Lay out by the window's width, not by the device.**
    - Three widths, Material's window size classes: compact under 600 CSS px (a phone), medium 600 to 839 (a tablet in portrait, a phone in landscape), expanded 840 and over (a tablet in landscape, a computer).
-   - One page that grows with the width, never a second page for phones. Compact: one column. Medium: one column, wider, the figure larger. Expanded: the job's panel beside its controls, but only in a window wider than tall (in a tall one the panel stood alone down the left and the controls hung at the bottom right: "looks odd", the owner, 2026-11-18); a page of settings in two columns; nothing wider than about 1100 px.
+   - One page that grows with the width, never a second page for phones. Compact: one column. Medium: one column, wider, the figure larger. Expanded: the same one column, centred, no wider than about 640 px; a job's page never puts its groups side by side (the owner, 2026-11-18: "I think the side-by-side design is just wrong", after a panel beside its controls first left the controls hanging at the bottom right and then put the target right of the weight). A wide window gives the column more height and a larger figure, not a second column. Lists of settings may take two columns.
    - **Navigation:** a bar at the bottom on compact, with its four destinations each a whole quarter of the width (the thumb's reach); a rail down the left from medium up. Four destinations: Trickler, Powders, Settings, Unit (the owner, 2026-11-18: the Trickler holds both jobs, Charge and Purge, by a switch at its top).
    - **Why:** Material 3 sets these widths and moves the navigation bar to a rail on larger windows; web.dev advises against guessing the input from the screen's size (rule 3 does that).
 2. **Targets large enough for a gloved finger.**
@@ -55,7 +55,7 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
    - **Irreversible actions** (a factory reset, an update's install) ask in a dialog that says what is lost, with buttons named by their outcome ("Erase every setting", "Keep my settings"), no default, the safe one on the left. Not more often than that, or the dialog is clicked through unread (NN/g).
    - **The cup** before a charge and a purge is a safety step, not a confirmation (the owner, 2026-11-17): short, the screen's words ("Put the empty cup on the scale", "To catch the powder"), its yes named by what is true ("The cup is on").
 9. **The unit's state always in view.**
-   - Whether the unit is reached, at the top of every page; when it is not, said plainly, and said again when it is back.
+   - Whether the unit is reached: said only when it is not, in a banner over the page ("Unit not reached. Trying again..."), gone when it answers. A permanent row with "Connected" and the unit's name was a waste of space (the owner, 2026-11-18); normal takes no room (rule 5). The unit's name is on the Unit page.
    - The job that runs, wherever the person is: a page that is not the job's shows a strip with the job and its Stop.
    - What the unit waits for, in words (the screen's: "Lift the cup", "Return the cup").
    - Every client echoes the unit (ADR-008): the page shows what the unit says, not what it last sent.
@@ -79,6 +79,13 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
     - Only what a job needs while it runs is on its view. A preference set once (keeping the phone awake) goes to the Unit's page.
     - Lists (powders, settings, the update's notes) may scroll: they are read, not worked at.
     - **Why:** the owner, 2026-11-18: "scrolling a control page seems inconvinent", which is why the charge and the purge were two pages before.
+
+15. **Group by what each element is about, then lay out the groups.**
+    - Before placing anything, sort the elements into groups by what they act on or describe. On the charge: **the charge** (what to throw: the powder, the target), **the scale** (what is on the pan: the weight, its progress to the target, Zero), **the job** (where the cycle is and what to do: the status, the steps, Start or Stop). A parameter goes with its sibling parameters, an action with the thing it acts on (Zero with the weight, not with the powder).
+    - The groups always read in the same order, top to bottom or left to right: inputs, then the measurement, then the action. Never an input to the right of, or under, the reading it sets (the target is never right of the weight).
+    - The groups stack in that order at every width (rule 1): never side by side.
+    - **Why:** the owner, 2026-11-18: "I don't think in any case the charge weight should be put on the right hand side of the measurement. Check your web element inclusive relationship." The target had been put with Start, and Zero with the powder; on a wide window the target then sat right of the weight.
+    - On the tiniest phones the page should look right before it is easy to reach: scale down, do not rearrange (the owner, the same day).
 
 ## This project's design language
 

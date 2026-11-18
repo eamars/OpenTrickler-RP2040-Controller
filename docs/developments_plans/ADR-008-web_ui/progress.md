@@ -95,6 +95,23 @@ Driven at 390 x 664: a charge to its target, "Good: lift the cup" in green held,
 
 At the iPhone SE's size the figure (62 px) is under the skill's 8 mm aim (rule 4), above the 4 mm a glance at 70 cm needs: the ring and the steps went first, as rule 14 orders, and nothing else on the view can go. Seen on the owner's phones before it is settled.
 
+### The Trickler in three groups, one column (2026-11-18)
+
+The owner, on the page laid side by side in a wide window: "I don't think in any case the charge weight should be put on the right hand side of the measurement. Check your web element inclusive relationship." Then: "I think the side-by-side design is just wrong", and the top row (the unit's name, "Connected") "is just a waste of space". What was wrong: the target had been grouped with Start and Zero with the powder, so a layout that moved groups moved the target away from its sibling, the powder, to the right of the weight.
+- **Three groups** (the skill's rule 15): the charge (Powder, Target), the scale ("Scale", its Zero in the group's head, the weight with its ring or bar), the job (the status and time, the steps, Start or Stop). In that order at every width, one column, centred, no wider than 640 px (rule 1). The purge the same way: its reading (the speed, twice as large: three characters), its job.
+- **No top row:** the link is shown only when it is lost, a banner over the page ("Unit not reached. Trying again..."); the unit's name goes to the Unit page (rule 9).
+- **Zero in the flow:** laid over the reading, it covered "999.99" on a 390 px phone.
+
+| Window | Scrolls | The weight's figure | The ring |
+|---|---|---|---|
+| 375 x 553 | no | 40 px ("999.99" fits) | bar |
+| 390 x 664 | no | 62 px | bar |
+| 768 x 1024, dark | no | larger | yes |
+| 1280 x 800 | no | 66 px, inside the ring | yes |
+| the owner's pane, 1316 x 1167 | no | | yes |
+
+No console errors. Size: 25,083 bytes, 8,021 gzipped. On the tiniest phone the figure is 40 px: the owner, the same day, "For ultra tiny screen I'm not too worry about the reachability. I want the UI to look right in the first place."
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).

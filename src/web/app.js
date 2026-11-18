@@ -42,9 +42,7 @@ function refusal(reply, what) {
 }
 
 function setLink(reached) {
-    const link = $("link");
-    link.querySelector("b").textContent = reached ? "Connected" : "Unit not reached";
-    link.className = reached ? "link up" : "link down";
+    $("link").hidden = reached;
 }
 
 // The screen's job titles, word for word (charge_state_text() in menu_nav.c)
@@ -131,7 +129,7 @@ let view = "charge";
 function show(wanted) {
     view = wanted;
     for (const name of ["charge", "purge"]) {
-        $(`view-${name}`).hidden = name !== view;
+        $(name === "charge" ? "panel" : "purge-panel").hidden = name !== view;
         $(`seg-${name}`).classList.toggle("on", name === view);
         $(`seg-${name}`).setAttribute("aria-selected", String(name === view));
     }
@@ -274,12 +272,9 @@ async function keepAwake() {
 }
 
 async function load() {
-    const [powders, settings, network] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
-                                                            api("GET", "/api/v1/settings/charge"),
-                                                            api("GET", "/api/v1/network")]);
-    if (network.ok && network.data.hostname) {
-        $("unit-name").textContent = network.data.hostname;
-    }
+    // The unit's name is the Unit page's (the owner, 2026-11-18: the top row was a waste of space)
+    const [powders, settings] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
+                                                   api("GET", "/api/v1/settings/charge")]);
     if (settings.ok && settings.data.decimal_places) {
         decimals = settings.data.decimal_places;
     }

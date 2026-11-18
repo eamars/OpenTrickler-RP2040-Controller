@@ -10,13 +10,8 @@
 <style>/*STYLE*/</style>
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l-3.5 6v6L10.5 17V9z"/><path d="M12 19.5v.5"/></svg>
-    <span id="unit-name">OpenTrickler</span>
-  </div>
-  <span id="link" class="link"><i></i><b>Connecting</b></span>
-</header>
+<!-- The link to the unit is shown only when it is lost (web-ui-design, rule 9): normal takes no room -->
+<p id="link" class="offline" role="alert" hidden>Unit not reached. Trying again&hellip;</p>
 
 <main class="trickler">
   <div class="seg" role="tablist" aria-label="Job">
@@ -24,13 +19,21 @@
     <button id="seg-purge" role="tab" aria-selected="false">Purge</button>
   </div>
 
-  <!-- The charge: one figure, its ring (or bar where short), the status; the target and Start below -->
-  <section id="view-charge" class="view" data-feature="16 17 18 19 20 21 22 23 24 25 26 27 29 34">
-    <div id="panel" class="panel" data-mood="normal">
-      <div class="panel-head">
-        <select id="powder" aria-label="Powder"></select>
-        <button id="zero" class="ghost">Zero</button>
+  <!-- The charge, in three groups (web-ui-design, rule 15): the charge (what to throw), the scale (what is on the
+       pan), the job (where the cycle is, and what to do). The mood on the view colours the ring and the status -->
+  <section id="panel" class="view" data-mood="normal" data-feature="16 17 18 19 20 21 22 23 24 25 26 27 29 34">
+    <div class="group setup">
+      <label class="field"><span>Powder</span><select id="powder"></select></label>
+      <div class="field"><span>Target</span>
+        <div class="stepper">
+          <button class="key" data-step="-1" aria-label="Less">&minus;</button>
+          <input id="target" type="number" inputmode="decimal" step="0.001" min="0.001" aria-label="Target">
+          <button class="key" data-step="1" aria-label="More">+</button>
+        </div>
       </div>
+    </div>
+    <div class="group scale">
+      <div class="group-head"><span>Scale</span><button id="zero" class="ghost">Zero</button></div>
       <div class="readout">
         <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
           <circle class="track" cx="100" cy="100" r="90"/>
@@ -38,10 +41,12 @@
         </svg>
         <div class="readout-text">
           <div id="weight" class="figure ringed">---</div>
-          <div class="sub"><span id="unit">gr</span> &middot; target <b id="target-shown">--</b></div>
+          <div class="sub"><span id="unit">gr</span> &middot; of <b id="target-shown">--</b></div>
           <div class="bar"><i id="bar"></i></div>
         </div>
       </div>
+    </div>
+    <div class="group job">
       <div class="status"><span id="status">Ready</span><span id="elapsed" class="time">-.-- s</span></div>
       <ol id="steps" class="steps">
         <li data-state="zeroing">Zero</li>
@@ -49,31 +54,24 @@
         <li data-state="waiting_for_cup_removal">Lift cup</li>
         <li data-state="waiting_for_cup_return">Return cup</li>
       </ol>
-    </div>
-    <div class="controls">
-      <div class="stepper">
-        <button class="key" data-step="-1" aria-label="Less">&minus;</button>
-        <input id="target" type="number" inputmode="decimal" step="0.001" min="0.001" aria-label="Target">
-        <button class="key" data-step="1" aria-label="More">+</button>
-      </div>
       <button id="start" class="action go">Start charge</button>
       <button id="stop" class="action halt" hidden>Stop</button>
     </div>
   </section>
 
-  <!-- The purge: the speed as its figure; Start, or the speed's keys and Stop -->
-  <section id="view-purge" class="view" data-feature="30 31 32 33" hidden>
-    <div id="purge-panel" class="panel" data-mood="normal">
+  <!-- The purge, the same way: the reading (its speed), the job (the status, the speed's keys, Start or Stop) -->
+  <section id="purge-panel" class="view" data-mood="normal" data-feature="30 31 32 33" hidden>
+    <div class="group scale">
       <div class="readout">
         <div class="readout-text">
-          <div id="speed" class="figure">0.0</div>
+          <div id="speed" class="figure short">0.0</div>
           <div class="sub">rev/s</div>
           <p class="hint">Runs both motors to empty them into the cup.</p>
         </div>
       </div>
-      <div class="status"><span id="purge-status">Ready</span></div>
     </div>
-    <div class="controls">
+    <div class="group job">
+      <div class="status"><span id="purge-status">Ready</span></div>
       <div id="purge-keys" class="stepper" hidden>
         <button class="key" data-speed="-1" aria-label="Slower">&minus;</button>
         <div class="stepper-label">Speed</div>
