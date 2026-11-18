@@ -136,6 +136,10 @@ SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse"
                        "api/v1/settings/scale", "api/v1/settings/gate", "api/v1/settings/leds",
                        "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
                        "api/v1/powder_profiles/0"]
+STREAM_READ_S = 20              # the event stream's read: past its comment after 15 s quiet
+STREAM_KEEP_ALIVE_S = 15        # ADR-008's comment after this long quiet
+STREAM_STALL_S = 10             # the server's stall limit: a stream whose client stops reading is closed after it
+STREAM_BACK_S = 90              # the unit back on the network after a restart or a Wi-Fi leave
 HTTP_TIMEOUT_S = 5.0
 SETTINGS_TRIES = 3
 
@@ -533,6 +537,137 @@ def raw_exchange(host, payload, timeout_s=5.0, rcvbuf=None, read_limit=None):
         pass
     sock.close()
     return status, headers, body, None
+
+
+class EventStream:
+    """
+    A client of the unit's event stream (ADR-008, gate 2), as a browser's event source reads it: each message as
+    (event, id, data), a comment as ("comment", None, text). Its socket times out, so a read never hangs a check.
+    """
+
+    def __init__(self, host, last_id=None, timeout=STREAM_READ_S):
+        self.conn = http.client.HTTPConnection(host, 80, timeout=timeout)
+        headers = {"Accept": "text/event-stream"}
+        if last_id is not None:
+            headers["Last-Event-ID"] = last_id
+        self.conn.request("GET", "/api/v1/events/stream", headers=headers)
+        self.reply = self.conn.getresponse()
+        self.status = self.reply.status
+        self.closed = False
+
+    def next(self, seconds):
+        """
+        The next message within `seconds`.
+
+        Returns:
+            (event, id, data, the time it came), ("closed", None, None, time) when the unit closed it, or None.
+        """
+        end = time.monotonic() + seconds
+        event, ident, data = None, None, []
+        while time.monotonic() < end:
+            try:
+                line = self.reply.readline()
+            except (socket.timeout, TimeoutError):
+                return None
+            except (OSError, http.client.HTTPException):
+                self.closed = True
+                return ("closed", None, None, time.monotonic())
+            if not line:
+                self.closed = True
+                return ("closed", None, None, time.monotonic())
+            line = line.decode(errors="replace").rstrip("\n")
+            if line == "":
+                if data:
+                    return (event or "message", ident, "\n".join(data), time.monotonic())
+                event, ident, data = None, None, []
+            elif line.startswith(":"):
+                return ("comment", None, line, time.monotonic())
+            elif line.startswith("event: "):
+                event = line[7:]
+            elif line.startswith("id: "):
+                ident = line[4:]
+            elif line.startswith("data: "):
+                data.append(line[6:])
+        return None
+
+    def until(self, wanted, seconds):
+        """The first message whose event is `wanted` within `seconds`, the others passed over; or None."""
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            message = self.next(end - time.monotonic())
+            if message is None or message[0] == "closed" or message[0] == wanted:
+                return message
+        return None
+
+    def close(self):
+        self.conn.close()
+
+
+class StreamFollower(threading.Thread):
+    """
+    A browser's page on the event stream (ADR-008, gate 2), in place of polling the charge: the events it sees and
+    the states. Silent past the keep-alive, or closed, it opens the stream again from its last id, as a page does;
+    a reconnect read afresh is events missed, judged at the end.
+    """
+
+    def __init__(self, name, host, log):
+        super().__init__(daemon=True)
+        self.name, self.host, self.log = name, host, log
+        self.unit = unit_api.Unit(host)
+        self.stop_event = threading.Event()
+        self.events = []
+        self.states = 0
+        self.failed_reads = 0       # reconnects
+        self.afresh = 0             # reconnects that could not go on from the last id
+        self.last_id = None
+        self.stream = None
+
+    def start_following(self):
+        """Open it now, while the unit is quiet: it goes on from the newest event, as the held reads do."""
+        self.stream = EventStream(self.host)
+        unit = self.stream.until("unit", 5)
+        if self.stream.status != 200 or unit is None:
+            raise OSError(f"the stream did not start: {self.stream.status}")
+
+    def run(self):
+        while not self.stop_event.is_set():
+            message = self.stream.next(STREAM_KEEP_ALIVE_S + 5) if self.stream is not None else None
+            if message is not None and message[0] == "message":
+                self.events.append(json.loads(message[2]))
+                self.last_id = message[1]
+            elif message is not None and message[0] == "state":
+                self.states += 1
+            elif message is not None and message[0] == "unit":
+                if not json.loads(message[2])["resumed"]:
+                    self.afresh += 1
+            elif message is None or message[0] == "closed":
+                if self.stop_event.is_set():
+                    break
+                self.failed_reads += 1
+                self.log.write("rc", f"soak: {self.name}: {'closed' if message else 'silent'}, opened again from "
+                                     f"{self.last_id}")
+                try:
+                    if self.stream is not None:
+                        self.stream.close()
+                    self.stream = EventStream(self.host, self.last_id)
+                except (OSError, http.client.HTTPException) as error:
+                    self.log.write("rc", f"soak: {self.name}: {type(error).__name__}: {error}")
+                    self.stream = None
+                    time.sleep(1.0)
+        if self.stream is not None:
+            self.stream.close()
+
+    def problems(self):
+        found = []
+        numbers = [event["seq"] for event in self.events]
+        gaps = [(a, b) for a, b in zip(numbers, numbers[1:]) if b != a + 1]
+        if gaps:
+            found.append(f"gaps in the numbers: {gaps[:5]}")
+        if self.afresh:
+            found.append(f"{self.afresh} reconnects read afresh: events missed")
+        for event in self.events:
+            found.extend(self.unit.event_problems(event))
+        return found
 
 
 def http_call(host, method, path, body=None):
@@ -1994,6 +2129,240 @@ class Session:
             return [] if isinstance(reply, bytes) and len(reply) == frame_bytes else ["not the display's frame"]
         return []
 
+    def stream_check(self, host):
+        """
+        The event stream's life cycle (ADR-008, gate 2), each stage with its expected end: the start (the unit, then
+        the state); an event as it happens, with its id; a reconnect that goes on from its Last-Event-ID, nothing
+        missed; one whose event is no longer kept, read afresh; the live weight; a comment after 15 s quiet; the
+        cap; a client that stops reading, closed by the stall limit and its heap given back; a Wi-Fi leave and a
+        restart, each ending every stream, the restart's reconnect read afresh. Nothing stored changes.
+
+        Args:
+            host: the unit's address.
+        """
+        def debug():
+            status, reply = http_call(host, "GET", "/api/v1/debug")
+            return reply["server"] if status == 200 else None
+
+        def wait_back(boot=None):
+            deadline = time.monotonic() + STREAM_BACK_S
+            while time.monotonic() < deadline:
+                try:
+                    status, index = http_call(host, "GET", "/api/v1")
+                    if status == 200 and (boot is None or index["boot"] != boot):
+                        return index
+                except OSError:
+                    pass
+                time.sleep(1.0)
+            return None
+
+        index = wait_back()
+        if index is None:
+            self.fail("stream_check: the unit does not answer")
+            return
+        boot = index["boot"]
+        self.send("setting settings/charge decimal_places=2")
+
+        # The start: the unit, read afresh, then the state
+        stream = EventStream(host)
+        unit = stream.until("unit", 5)
+        state = stream.until("state", 5)
+        self.log.write("rc", f"stream_check: start {stream.status}, unit {unit and unit[2]}")
+        if stream.status != 200 or unit is None or state is None:
+            self.fail("stream_check: the start is not 200, the unit, then the state")
+            return
+        start = json.loads(unit[2])
+        if start["boot"] != boot or start["resumed"]:
+            self.fail(f"stream_check: the start's unit is not this boot, read afresh: {unit[2]}")
+
+        # An event as it happens, with its id
+        self.send("setting settings/charge decimal_places=3")
+        sent_at = time.monotonic()
+        message = stream.until("message", 5)
+        if message is None:
+            self.fail("stream_check: no event within 5 s of a setting changed")
+            return
+        event = json.loads(message[2])
+        self.log.write("rc", f"stream_check: event {message[1]} {message[2]} after {message[3] - sent_at:.2f} s")
+        if (event["source"], event["kind"], event["by"]) != ("setting", "changed", "console") or \
+                message[1] != f"{boot}-{event['seq']}":
+            self.fail(f"stream_check: the event or its id is not the setting changed: {message[1]} {message[2]}")
+        last_id = message[1]
+        stream.close()
+
+        # A reconnect from its last id: what came meanwhile first, nothing missed
+        self.send("setting settings/charge decimal_places=2")
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        missed = stream.until("message", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id}: {unit and unit[2]}, then {missed and missed[1]}")
+        if unit is None or not json.loads(unit[2])["resumed"] or missed is None or \
+                missed[1] != f"{boot}-{event['seq'] + 1}":
+            self.fail("stream_check: a reconnect from its last id did not go on from it")
+        stream.close()
+
+        # A reconnect whose event is no longer kept: read afresh
+        for i in range(70):
+            self.send(f"setting settings/charge decimal_places={3 if i % 2 == 0 else 2}")
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id} after 70 events: {unit and unit[2]}")
+        if unit is None or json.loads(unit[2])["resumed"]:
+            self.fail("stream_check: a reconnect from an event no longer kept was not read afresh")
+
+        # The live weight: the simulated scale's weight set, the state with it within a second
+        self.send("sim on")
+        self.send("sim weight 12.5")
+        set_at = time.monotonic()
+        seen = None
+        while seen is None and time.monotonic() - set_at < 3:
+            message = stream.until("state", 3)
+            if message is not None and message[0] == "state" and \
+                    abs((json.loads(message[2])["charge"]["weight"] or 0) - 12.5) < 0.01:
+                seen = message[3] - set_at
+        self.log.write("rc", f"stream_check: the weight 12.5 seen on the stream after {seen} s")
+        if seen is None or seen > 1.0:
+            self.fail("stream_check: the weight set was not on the stream within 1 s")
+        self.send("sim weight off")
+        self.send("sim off")
+
+        # Quiet: a comment within the keep-alive and a second or two
+        quiet_from = time.monotonic()
+        message = stream.next(STREAM_KEEP_ALIVE_S + 5)
+        while message is not None and message[0] == "state":
+            quiet_from = message[3]     # the scale settling after the simulation
+            message = stream.next(STREAM_KEEP_ALIVE_S + 5)
+        took = None if message is None else message[3] - quiet_from
+        self.log.write("rc", f"stream_check: quiet, then {message and message[0]} after {took} s")
+        if message is None or message[0] != "comment" or not STREAM_KEEP_ALIVE_S - 1 <= took <= STREAM_KEEP_ALIVE_S + 2:
+            self.fail("stream_check: no comment about 15 s into a quiet stream")
+
+        # The cap: this one and two more open, a fourth refused with when to try again
+        more = [EventStream(host), EventStream(host)]
+        fourth = EventStream(host)
+        retry = fourth.reply.getheader("Retry-After")
+        self.log.write("rc", f"stream_check: the cap: {[s.status for s in more]}, the fourth {fourth.status} "
+                             f"Retry-After {retry}; {debug()}")
+        if [s.status for s in more] != [200, 200] or fourth.status != 503 or retry is None:
+            self.fail("stream_check: three streams not taken, or the fourth not refused with Retry-After")
+        for s in more + [fourth, stream]:
+            s.close()
+        time.sleep(1.0)
+
+        # A client that stops reading: the weight changed ten times a second fills its connection; the unit closes it
+        # within the stall limit of its send buffer staying full, and lwIP's heap is given back
+        before = debug()
+        net_before = self.send("net")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+        sock.settimeout(5)
+        sock.connect((host, 80))
+        sock.sendall(f"GET /api/v1/events/stream HTTP/1.1\r\nHost: {host}\r\n\r\n".encode())
+        self.send("sim on")
+        closed_after = None
+        opened = time.monotonic()
+        weight = 0.0
+        while time.monotonic() - opened < 60:
+            weight += 0.1
+            self.send(f"sim weight {weight:.1f}")
+            server = debug()
+            if server is not None and server["slots_live"] == 0:
+                closed_after = time.monotonic() - opened
+                break
+            time.sleep(0.1)
+        self.send("sim weight off")
+        self.send("sim off")
+        sock.close()
+        after = debug()
+        self.log.write("rc", f"stream_check: a client that stops reading: closed after {closed_after} s; "
+                             f"stalled {before['aborted_stalled']} then {after['aborted_stalled']}")
+        if closed_after is None or after["aborted_stalled"] <= before["aborted_stalled"]:
+            self.fail("stream_check: a stream whose client stopped reading was not closed by the stall limit")
+        time.sleep(2.0)
+        net_after = self.send("net")
+        if net_before and net_after:
+            used = [int(re.search(r"heap_used=(\d+)", line).group(1)) for line in (net_before, net_after)]
+            self.log.write("rc", f"stream_check: lwIP's heap in use {used[0]} before, {used[1]} after")
+            if used[1] > used[0] + 1024:
+                self.fail("stream_check: lwIP's heap was not given back after the stalled stream")
+
+        # The network changes: a unit that leaves its Wi-Fi, or restarts, sends no close; the client knows it by
+        # hearing nothing past the comment that comes after 15 s quiet, and opens the stream again
+
+        def last_event(stream):
+            self.send("setting settings/charge decimal_places=3")
+            message = stream.until("message", 5)
+            self.send("setting settings/charge decimal_places=2")
+            message_back = stream.until("message", 5)
+            return (message_back or message or (None, f"{boot}-1"))[1]
+
+        def silent(stream, what):
+            """Nothing past the keep-alive and a margin, or closed: the client's cue to open it again"""
+            started = time.monotonic()
+            heard = []
+            while time.monotonic() - started < 60:
+                message = stream.next(STREAM_KEEP_ALIVE_S + 5)
+                if message is None or message[0] == "closed":
+                    self.log.write("rc", f"stream_check: {what}: {'closed' if message else 'silent'} after "
+                                         f"{time.monotonic() - started:.1f} s, having heard {heard}")
+                    return True
+                heard.append(message[0])
+            self.fail(f"stream_check: {what}: the old stream still talks after 60 s")
+            return False
+
+        # A Wi-Fi leave: back within a minute, the same boot, and the reconnect goes on from its last id
+        stream = EventStream(host)
+        stream.until("state", 5)
+        last_id = last_event(stream)
+        self.send("wifi leave")
+        silent(stream, "a Wi-Fi leave")
+        stream.close()
+        if wait_back() is None:
+            self.fail("stream_check: the unit did not come back after the Wi-Fi leave")
+            return
+        self.send("setting settings/charge decimal_places=3")
+        self.send("setting settings/charge decimal_places=2")
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        missed = stream.until("message", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id} after the Wi-Fi leave: {unit and unit[2]}, "
+                             f"then {missed and missed[1]}")
+        if unit is None or not json.loads(unit[2])["resumed"] or missed is None:
+            self.fail("stream_check: after a Wi-Fi leave the reconnect did not go on from its last id")
+        # The old stream's slot freed: by the client's close, or the stall limit once its bytes find no client
+        deadline = time.monotonic() + 3 * STREAM_STALL_S
+        live = None
+        while time.monotonic() < deadline:
+            live = debug()["slots_live"]
+            if live <= 1:
+                break
+            time.sleep(1.0)
+        self.log.write("rc", f"stream_check: streams open after the Wi-Fi leave: {live}")
+        if live is None or live > 1:
+            self.fail("stream_check: the stream from before the Wi-Fi leave still holds its slot")
+        stream.close()
+
+        # A restart: the reconnect from its last id is read afresh, of the new boot
+        stream = EventStream(host)
+        stream.until("state", 5)
+        last_id = last_event(stream)
+        status, _ = http_call(host, "POST", "/api/v1/system/restart", {})
+        self.log.write("rc", f"stream_check: a restart asked ({status})")
+        silent(stream, "a restart")
+        stream.close()
+        time.sleep(1.5)
+        self.wait_for_console()
+        back = wait_back(boot)
+        if back is None:
+            self.fail("stream_check: the unit did not come back after its restart")
+            return
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id} after the restart: {unit and unit[2]}")
+        if unit is None or json.loads(unit[2])["resumed"] or json.loads(unit[2])["boot"] != back["boot"]:
+            self.fail("stream_check: after a restart the reconnect was not read afresh, of the new boot")
+        stream.close()
+
     def web_robust(self, host):
         """
         Requests that are wrong, cut off or awkward (ADR-003, gate 2), each answered or closed, with the unit still
@@ -2172,7 +2541,8 @@ class Session:
         if state is None:
             self.fail("web_robust: the console did not answer at the end")
 
-    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False, upload=False):
+    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False, upload=False,
+             stream=False):
         """
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
@@ -2190,6 +2560,7 @@ class Session:
             max_miss_run: the most misses in a row one poller may have.
             load: also a tuning session's load (SOAK_LOAD_*).
             upload: also ADR-004's image, SOAK_UPLOAD_BYTES sent back to back, each checked by its CRC-32.
+            stream: each browser follows the event stream (ADR-008, gate 2) in place of polling the charge.
         """
         page_size = {}
 
@@ -2220,9 +2591,14 @@ class Session:
             return status == 200 and reply["bytes"] == len(upload_data) and reply["crc32"] == upload_crc
 
         pollers = []
+        streams = []
         for browser in range(1, SOAK_BROWSERS + 1):
             pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S, [("", read_mirror_right)], self.log))
-            pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)], self.log))
+            if stream:
+                streams.append(StreamFollower(f"browser {browser} stream", host, self.log))
+            else:
+                pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)],
+                                         self.log))
         pollers.append(WebPoller("portal page", SOAK_PAGE_S, [("", read_page)], self.log))
         pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
                                  [(path, read_setting(path)) for path in SETTINGS_PAGE_PATHS + [SETTINGS_EXPORT]],
@@ -2252,6 +2628,9 @@ class Session:
         # fails here ends the soak rather than leaving a follower that never began (two did, the first time)
         for follower in followers:
             follower.unit.start_following()
+        for follower in streams:
+            follower.start_following()
+        followers += streams
         for poller in pollers + followers:
             poller.start()
         while True:
@@ -2268,7 +2647,7 @@ class Session:
         for poller in pollers:
             poller.join(timeout=max(HTTP_TIMEOUT_S * (len(SETTINGS_PAGE_PATHS) + 1), SOAK_UPLOAD_TIMEOUT_S) + 1)
         for follower in followers:
-            follower.join(timeout=2 * SOAK_EVENTS_WAIT_S + HTTP_TIMEOUT_S)
+            follower.join(timeout=max(2 * SOAK_EVENTS_WAIT_S + HTTP_TIMEOUT_S, STREAM_KEEP_ALIVE_S + 10))
         time.sleep(SOAK_QUIET_S)
         quiet_end = self.stats()
 
@@ -2290,7 +2669,8 @@ class Session:
         for follower in followers:
             throws = sum(1 for event in follower.events if (event["source"], event["kind"]) == ("throw", "finished"))
             self.log.write("rc", f"soak: {follower.name}: {len(follower.events)} events, {throws} throws finished, "
-                                 f"{follower.failed_reads} reads failed and tried again")
+                                 f"{follower.failed_reads} reads failed and tried again"
+                                 + (f", {follower.states} states" if isinstance(follower, StreamFollower) else ""))
             for problem in follower.problems():
                 self.fail(f"soak: {follower.name}: {problem}")
             if throws < cycles:
@@ -3261,6 +3641,9 @@ def main():
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
     robust_parser = sub.add_parser("web_robust", help="wrong and awkward requests, each answered or closed (ADR-003)")
     robust_parser.add_argument("--host", required=True, help="the unit's address")
+    stream_parser = sub.add_parser("stream_check", help="the event stream's life cycle, stage by stage (ADR-008, "
+                                                        "gate 2); restarts the unit")
+    stream_parser.add_argument("--host", required=True, help="the unit's address")
     api_parser = sub.add_parser("api_check", help="every path the index lists read twice and checked against the "
                                                   "schema; every action called (ADR-003, gate 4); ends with a restart")
     api_parser.add_argument("--host", required=True, help="the unit's address")
@@ -3280,6 +3663,8 @@ def main():
     soak_parser.add_argument("--load", action="store_true",
                              help="also a tuning session's load: a throw's samples pulled back to back, and a "
                                   "client asking four times a second (ADR-003, gate 2)")
+    soak_parser.add_argument("--stream", action="store_true",
+                             help="each browser follows the event stream in place of polling the charge (ADR-008)")
     soak_parser.add_argument("--upload", action="store_true",
                              help="also ADR-004's image: 700 KB sent back to back as a body in pieces, each checked "
                                   "by its CRC-32 (ADR-003, gate 4)")
@@ -3357,13 +3742,15 @@ def run_command(session, args):
         session.settings(args.host, args.save, args.compare)
     elif args.command == "web_robust":
         session.web_robust(args.host)
+    elif args.command == "stream_check":
+        session.stream_check(args.host)
     elif args.command == "api_check":
         session.api_check(args.host, args.target)
     elif args.command == "settings_roundtrip":
         session.settings_roundtrip(args.host, args.target)
     elif args.command == "soak":
         session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run,
-                     args.load, args.upload)
+                     args.load, args.upload, args.stream)
     elif args.command == "scale_frames":
         session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     elif args.command == "charge_fault":

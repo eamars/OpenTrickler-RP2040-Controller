@@ -98,7 +98,7 @@ static void api_v1_get_debug(const http_server_request_t *request, http_server_r
     size_t len = 0;
     http_server_stats_t server;
     http_server_get_stats(&server);
-    char text[384];     // the server's line, every count at 10 digits: about 305
+    char text[448];     // the server's line, every count at 10 digits: about 370
 
     snprintf(text, sizeof(text), "{\"heap_free\":%u,\"heap_min\":%u,\"net\":{\"heap\":{\"used\":%u,\"max\":%u,"
              "\"size\":%u,\"err\":%lu},", (unsigned) xPortGetFreeHeapSize(),
@@ -117,13 +117,14 @@ static void api_v1_get_debug(const http_server_request_t *request, http_server_r
     snprintf(text, sizeof(text), "},\"server\":{\"accepted\":%lu,\"requests\":%lu,\"closed_idle\":%lu,"
              "\"closed_for_room\":%lu,\"aborted_stalled\":%lu,\"refused\":%lu,\"send_no_memory\":%lu,"
              "\"send_failed\":%lu,\"stream_make_ms\":%lu,\"stream_bytes\":%lu,\"stream_failed\":%lu,\"slots_used\":%u,"
-             "\"slots_parked\":%u},",
+             "\"slots_parked\":%u,\"slots_live\":%u,\"live_opened\":%lu,\"live_refused\":%lu},",
              (unsigned long) server.accepted, (unsigned long) server.requests, (unsigned long) server.closed_idle,
              (unsigned long) server.closed_for_room, (unsigned long) server.aborted_stalled,
              (unsigned long) server.refused, (unsigned long) server.send_no_memory,
              (unsigned long) server.send_failed, (unsigned long) server.stream_make_ms,
              (unsigned long) server.stream_bytes, (unsigned long) server.stream_failed, server.slots_used,
-             server.slots_parked);
+             server.slots_parked, server.slots_live, (unsigned long) server.live_opened,
+             (unsigned long) server.live_refused);
     http_json_raw(out, room, &len, text);
     snprintf(text, sizeof(text), "\"uploads\":{\"done\":%lu,\"aborted\":%lu}}", (unsigned long) api_v1_uploads_done,
              (unsigned long) api_v1_uploads_aborted);
@@ -348,6 +349,11 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/stop", "[\"POST\"]", "stops whatever job runs; never fails"},
     {"/api/v1/events", "[\"GET\"]",
      "the unit's changes after a number (?after=N), held until there is one with ?wait=s"},
+    {"/api/v1/events/stream", "[\"GET\"]",
+     "the same changes as they happen, as server-sent events: first the unit (its boot, and whether it goes on from "
+     "the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, "
+     "the purge), then each event with its id, and the state again as it changes; a comment after 15 s quiet. At most "
+     "3 at once: 503 then, with Retry-After"},
     {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
     {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it"},

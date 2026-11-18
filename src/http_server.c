@@ -62,6 +62,7 @@ typedef enum {
     SLOT_PARKED,
     SLOT_SENDING,
     SLOT_DRAINING,      // the reply is out, the request was not all read: what is left is read and dropped
+    SLOT_WAITING,       // a reply that stays open, all sent, waiting for its ready
 } slot_state_t;
 
 typedef enum {
@@ -104,6 +105,7 @@ typedef struct {
     char host[64];
     char content_type[48];
     char if_none_match[48];
+    char last_event_id[24];                // "<boot>-<seq>"
     long content_length;
     bool chunked_request;
     bool expect_continue;
@@ -129,6 +131,12 @@ typedef struct {
     void *more_ctx;
     bool more_done;
     bool last_chunk_sent;
+    uint8_t retry_after_s;                 // a Retry-After for the reply's head, or 0
+
+    // A reply that stays open: its ready, and whether its more gave nothing for now
+    bool live;
+    bool live_waiting;
+    http_server_ready_t live_ready;
 
     // Parked
     http_server_ready_t park_ready;
@@ -154,6 +162,8 @@ struct http_server_reply {
     const char *etag;
     http_server_more_t more;
     void *more_ctx;
+    bool live;
+    http_server_ready_t live_ready;
     char location[48];
     char allow[48];
 };
@@ -205,6 +215,7 @@ static const char *status_text(int status) {
         case 415: return "Unsupported Media Type";
         case 500: return "Internal Server Error";
         case 501: return "Not Implemented";
+        case 503: return "Service Unavailable";
         default: return "Unknown";
     }
 }
@@ -353,6 +364,7 @@ static void slot_reset_request(slot_t *slot) {
     slot->host[0] = '\0';
     slot->content_type[0] = '\0';
     slot->if_none_match[0] = '\0';
+    slot->last_event_id[0] = '\0';
     slot->content_length = 0;
     slot->chunked_request = false;
     slot->expect_continue = false;
@@ -374,6 +386,10 @@ static void slot_reset_request(slot_t *slot) {
     slot->more_ctx = NULL;
     slot->more_done = false;
     slot->last_chunk_sent = false;
+    slot->retry_after_s = 0;
+    slot->live = false;
+    slot->live_waiting = false;
+    slot->live_ready = NULL;
     slot->park_ready = NULL;
 }
 
@@ -443,6 +459,9 @@ static void slot_make_head(slot_t *slot, int status, const char *content_type, s
     if (allow != NULL && allow[0]) {
         ok = ok && append(out, room, &len, "Allow: %s\r\n", allow);
     }
+    if (slot->retry_after_s > 0) {
+        ok = ok && append(out, room, &len, "Retry-After: %u\r\n", (unsigned) slot->retry_after_s);
+    }
     ok = ok && append(out, room, &len, "Connection: %s\r\n\r\n", slot->keep_alive ? "keep-alive" : "close");
     if (!ok) {
         // Never a cut header: the fields above fit in 256 bytes, so this is a fault of ours
@@ -500,6 +519,14 @@ void http_server_reply_stream(http_server_reply_t *reply, int status, const char
     reply->kind = BODY_STREAM;
     reply->more = more;
     reply->more_ctx = ctx;
+}
+
+
+void http_server_reply_live(http_server_reply_t *reply, const char *content_type, http_server_more_t more,
+                            http_server_ready_t ready, void *ctx) {
+    http_server_reply_stream(reply, 200, content_type, more, ctx);
+    reply->live = true;
+    reply->live_ready = ready;
 }
 
 
@@ -581,12 +608,23 @@ void http_server_get_stats(http_server_stats_t *out) {
     out->stream_make_ms = (uint32_t) (stream_make_us / 1000);
     out->slots_used = 0;
     out->slots_parked = 0;
+    out->slots_live = 0;
     if (slots != NULL) {
         for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
             out->slots_used += slots[idx].state != SLOT_FREE;
             out->slots_parked += slots[idx].state == SLOT_PARKED;
+            out->slots_live += slots[idx].state != SLOT_FREE && slots[idx].live;
         }
     }
+}
+
+
+static int live_count(void) {
+    int count = 0;
+    for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
+        count += slots[idx].state != SLOT_FREE && slots[idx].live;
+    }
+    return count;
 }
 
 
@@ -660,6 +698,9 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
             slot->body_kind = BODY_STREAM;
             slot->more = reply->more;
             slot->more_ctx = reply->more_ctx;
+            slot->live = reply->live;
+            slot->live_ready = reply->live_ready;
+            slot->live_waiting = false;
             slot->more_done = false;
             slot->last_chunk_sent = false;
             slot->body_ptr = NULL;
@@ -807,9 +848,24 @@ static void slot_dispatch(slot_t *slot) {
         return;
     }
     reply.allow[0] = '\0';
+    request->last_event_id = slot->last_event_id[0] ? slot->last_event_id : NULL;
 
     found->handler(request, &reply);     // never an upload's route: those are taken at their headers
     stats.requests += 1;
+
+    if (reply.live) {
+        if (live_count() >= HTTP_SERVER_LIVE_MAX) {
+            // No room for another: refused, with when to try again; the handler's state is in the slot, unused
+            stats.live_refused += 1;
+            http_server_reply_t refused;
+            reply_init(&refused, slot);
+            http_server_reply_error(&refused, 503, "busy", "as many streams are open as the unit keeps: try again");
+            slot->retry_after_s = 5;
+            slot_take_reply(slot, &refused);
+            return;
+        }
+        stats.live_opened += 1;
+    }
 
     if (reply.parked) {
         if (parked_count() >= HTTP_SERVER_PARK_MAX) {
@@ -902,6 +958,9 @@ static void slot_take_header(slot_t *slot) {
     else if (header_is(line, name_len, "If-None-Match")) {
         copy_value(slot->if_none_match, sizeof(slot->if_none_match), value);
     }
+    else if (header_is(line, name_len, "Last-Event-ID")) {
+        copy_value(slot->last_event_id, sizeof(slot->last_event_id), value);
+    }
     else if (header_is(line, name_len, "Expect")) {
         slot->expect_continue = strncasecmp(value, "100-continue", 12) == 0;
     }
@@ -914,7 +973,7 @@ static void slot_take_header(slot_t *slot) {
 // A header the server reads, by its name at the start of a line
 static bool header_is_kept(const char *line, size_t len) {
     static const char *const kept[] = {"Host", "Content-Length", "Content-Type", "Connection", "If-None-Match",
-                                       "Expect", "Transfer-Encoding"};
+                                       "Last-Event-ID", "Expect", "Transfer-Encoding"};
     for (size_t idx = 0; idx < sizeof(kept) / sizeof(kept[0]); idx += 1) {
         size_t name_len = strlen(kept[idx]);
         if (len > name_len && strncasecmp(line, kept[idx], name_len) == 0 && line[name_len] == ':') {
@@ -1167,6 +1226,10 @@ static void slot_receive(slot_t *slot) {
         if (slot->state == SLOT_DRAINING) {
             return;     // dropped
         }
+        if (slot->live) {
+            slot_close(slot, true);     // a stream is one way: a client that sends on it is not a stream's
+            return;
+        }
         if (slot->state == SLOT_PARKED || slot->state == SLOT_SENDING) {
             slot->close_after = true;   // more came while a reply was being made: no pipelining
             slot->drain = true;
@@ -1208,11 +1271,15 @@ static bool slot_next_chunk(slot_t *slot) {
     for (int empty = 0; empty < HTTP_SERVER_EMPTY_CHUNKS_MAX; empty += 1) {
         len = 0;
         slot->more_done = !slot->more(slot->more_ctx, data, room, &len);
-        if (len > 0 || slot->more_done) {
+        if (len > 0 || slot->more_done || slot->live) {
             break;
         }
     }
     stream_make_us += time_us_64() - started_us;
+    if (slot->live && len == 0 && !slot->more_done) {
+        slot->live_waiting = true;      // nothing for now: it waits for its ready
+        return false;
+    }
     // Written past its room (the JSON writer then marks it full, len == room), or no progress: cut off, so the
     // client sees the reply unfinished, not stale bytes as JSON nor a server's task out of stack
     if (len >= room || (len == 0 && !slot->more_done)) {
@@ -1272,6 +1339,10 @@ static bool slot_send_some(slot_t *slot) {
                  slot_next_chunk(slot)) {
             chunks_made += 1;
             continue;
+        }
+        else if (slot->live_waiting && slot->state == SLOT_SENDING) {
+            slot->state = SLOT_WAITING;     // all of it out: nothing is sent until its ready
+            return false;
         }
         else if (slot->body_kind == BODY_STREAM && chunks_made > 0 && !slot->last_chunk_sent) {
             return false;   // the next chunks on the next pass, after the others
@@ -1448,6 +1519,14 @@ static void server_timers(void) {
             case SLOT_DRAINING:
                 if ((int32_t) (now - slot->drain_until_ms) >= 0) {
                     slot_close(slot, true);
+                }
+                break;
+            case SLOT_WAITING:
+                // Waiting is not a stall: its clock starts again when it has something to send
+                if (slot->live_ready(slot->more_ctx)) {
+                    slot->live_waiting = false;
+                    slot->state = SLOT_SENDING;
+                    slot->last_progress_ms = now;
                 }
                 break;
             default:

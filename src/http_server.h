@@ -46,6 +46,7 @@ typedef struct {
     bool body_is_json;           // sent as application/json
     int32_t path_id;             // the number in place of "{id}", or -1
     const char *if_none_match;   // or NULL
+    const char *last_event_id;   // Last-Event-ID, which a browser's event source sends when it reconnects; or NULL
 } http_server_request_t;
 
 typedef struct http_server_reply http_server_reply_t;
@@ -117,6 +118,14 @@ void http_server_reply_static(http_server_reply_t *reply, int status, const char
 // Send a reply written as it is made, chunked
 void http_server_reply_stream(http_server_reply_t *reply, int status, const char *content_type,
                               http_server_more_t more, void *ctx);
+// A reply that stays open, written as things happen (ADR-008, gate 2: the event stream). Chunked, made by `more` as
+// a stream's, except that `more` may give nothing for now (true, *len 0): the slot then waits, sending nothing and
+// never counted as stalled, until ready(ctx) says there is more (looked at each tick, 50 ms). Bytes the client leaves
+// unread are the stall limit's, as any reply's: a client that stops reading is closed. At most HTTP_SERVER_LIVE_MAX
+// at once, so a request always finds a slot: one past them is answered 503 with Retry-After
+#define HTTP_SERVER_LIVE_MAX 3
+void http_server_reply_live(http_server_reply_t *reply, const char *content_type, http_server_more_t more,
+                            http_server_ready_t ready, void *ctx);
 // Give a stream a tag (the schema, the build's hash): answered 304 with nothing made when the client has it
 void http_server_reply_etag(http_server_reply_t *reply, const char *etag);
 // An error, in api_v1.md's form: {"error": {"code": ..., "message": ...}}
@@ -148,8 +157,11 @@ typedef struct {
     uint32_t stream_make_ms;    // time in the handlers' `more`, making streamed chunks, the task's preemption included
     uint32_t stream_bytes;      // the bytes they made
     uint32_t stream_failed;     // streams cut off: a chunk that overflowed, or no progress (a fault of the build)
+    uint32_t live_opened;       // replies that stay open (the event stream), opened
+    uint32_t live_refused;      // and refused, past HTTP_SERVER_LIVE_MAX
     uint8_t slots_used;
     uint8_t slots_parked;
+    uint8_t slots_live;         // open now: waiting, or sending what came
 } http_server_stats_t;
 
 void http_server_get_stats(http_server_stats_t *stats);

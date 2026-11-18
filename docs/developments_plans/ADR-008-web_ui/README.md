@@ -253,15 +253,15 @@ Why the stream: the event log is already numbered and already tells a client of 
 
 | Stage | What happens |
 |---|---|
-| **Open** | The page asks `GET /api/v1/events` with `Accept: text/event-stream`. Over the cap of streams, 503 with `Retry-After`. |
-| **Start** | First a snapshot of the unit's state (its job, the charge, each settings resource's `saved`), so every client starts from the same truth. |
+| **Open** | The page asks `GET /api/v1/events/stream` (built 2026-11-19 at a path of its own, not by `Accept` on `/api/v1/events`: no content negotiation in the server, and an agent reads it with `curl -N`). Over the cap of streams, 503 with `Retry-After`; a browser's `EventSource` does not try again after an error status, so the page does, after that time. |
+| **Start** | First `unit` (the `boot`, and `resumed`: whether it goes on from the client's last id), then `state`: the job, the charge as its GET gives it (the live weight included) and the purge. Each settings resource's `saved` is not in it: the page reads the settings it shows when it starts, as now, and the `setting` events (`changed`, `stored`) keep them current. |
 | **Running** | Each event with the id `<boot>-<seq>`. During a charge the live weight comes on the same stream, no faster than the scale's own rate, as a state message with no id: it is not an event and is not kept in the log (below). |
-| **Kept alive** | A comment line about every 15 s, so each end knows the other is there. |
+| **Kept alive** | A comment after 15 s with nothing sent, so each end knows the other is there. |
 | **Reconnect** | By the browser itself, with the last id it saw. The same `boot` and the event still kept: the stream goes on from there, nothing missed. An id no longer kept, or another `boot` (a restart, an update): a new snapshot, then on. The rule held reads follow today. |
 | **Closed by the page** | When its tab is hidden (the phone asleep, another app), the page closes its stream, and opens it again when shown. Its slot is free before it goes stale. |
-| **Closed by the unit** | The client gone, or what was sent left unacknowledged past a limit (a time, and about 2 KB), so a dead connection never holds lwIP's heap for long. The browser reconnects and the snapshot covers the gap. |
-| **The network changes** | `wifi leave`, a restart, an update, the access point stopped when the station joins: every stream ends, and the reconnect above takes over. |
-| **Seen** | `net` and `GET /api/v1/debug` give the streams open, each one's age and its bytes not yet acknowledged, and the streams closed by reason. |
+| **Closed by the unit** | A client that stops reading: what was sent waits in its connection, and the server's stall limit (10 s with bytes not taken) closes it, so a dead connection never holds lwIP's heap for long (measured: closed about 14 s after the client stopped, the heap back to what it was). |
+| **The network changes** | `wifi leave`, a restart, an update, the access point stopped when the station joins: the unit sends no close, and the client hears nothing (measured: the old stream silent, not closed). The page knows by the comment that should come within 15 s: nothing for some 20 s, it opens the stream again, and the reconnect above takes over. The unit frees the old slot by the stall limit once its bytes find no client. |
+| **Seen** | `net` gives the streams open, opened and refused since the start (`live`, `live_opened`, `live_refused`); `GET /api/v1/debug` the same with the server's own counts, the stalled ones among `aborted_stalled`. |
 
 - **A cap:** at most 3 streams of the server's 6 slots (a proposal, measured in the soak), so a request always finds a slot.
 - **What is kept in the log, and what only passes on the stream** (the agent's review, 2026-11-18). The log keeps the newest 64 events (`EVENTS_KEPT`, `events.c`). The scale's readings at its own rate would push every other event out within seconds of a charge, and an agent's held reads would meet a gap every time. So:

@@ -362,26 +362,31 @@ static void api_v1_charge_stop(const http_server_request_t *request, http_server
 
 // --- The purge
 
-static void reply_purge(http_server_reply_t *reply, int status) {
+static void write_purge(char *out, size_t room, size_t *len) {
     cleanup_status_t cleanup;
     cleanup_mode_get_status(&cleanup);
+    http_json_raw(out, room, len, "{\"state\":");
+    http_json_string(out, room, len, cleanup.state);
+    http_json_raw(out, room, len, ",\"by\":");
+    if (cleanup.by != NULL) {
+        http_json_string(out, room, len, cleanup.by);
+    }
+    else {
+        http_json_raw(out, room, len, "null");
+    }
+    http_json_raw(out, room, len, ",\"speed_rps\":");
+    http_json_float(out, room, len, cleanup.speed_rps);
+    http_json_raw(out, room, len, ",\"time_left_s\":");
+    http_json_number(out, room, len, cleanup.time_left_s, 4);
+    http_json_raw(out, room, len, "}");
+}
+
+
+static void reply_purge(http_server_reply_t *reply, int status) {
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
-    http_json_raw(out, room, &len, "{\"state\":");
-    http_json_string(out, room, &len, cleanup.state);
-    http_json_raw(out, room, &len, ",\"by\":");
-    if (cleanup.by != NULL) {
-        http_json_string(out, room, &len, cleanup.by);
-    }
-    else {
-        http_json_raw(out, room, &len, "null");
-    }
-    http_json_raw(out, room, &len, ",\"speed_rps\":");
-    http_json_float(out, room, &len, cleanup.speed_rps);
-    http_json_raw(out, room, &len, ",\"time_left_s\":");
-    http_json_number(out, room, &len, cleanup.time_left_s, 4);
-    http_json_raw(out, room, &len, "}");
+    write_purge(out, room, &len);
     api_send(reply, status, room, len);
 }
 
@@ -588,6 +593,194 @@ static void api_v1_get_events(const http_server_request_t *request, http_server_
         }
     }
     api_v1_events_reply(reply, after);
+}
+
+// --- The event stream (ADR-008, gate 2): the event log as it happens, as server-sent events
+
+#define API_V1_STREAM_KEEP_ALIVE_MS 15000   // a comment after this long quiet, so each end knows the other is there
+#define API_V1_STREAM_STATE_MIN_MS 100      // the state no oftener: the weight comes at the scale's rate, or this
+#define API_V1_STREAM_RETRY_MS 3000         // how soon a browser's event source opens it again once it drops
+
+typedef struct {
+    uint32_t next;          // the next event to send
+    uint32_t sig;           // the state last sent, in short: a new one goes when it differs
+    uint32_t wrote_ms;      // the last bytes made
+    uint32_t state_ms;      // the last state sent
+    uint8_t phase;          // 0 the unit, 1 the state, 2 as things happen
+    bool resumed;           // going on from the client's last event, nothing missed
+} api_v1_stream_t;
+
+_Static_assert(sizeof(api_v1_stream_t) <= HTTP_SERVER_CONTEXT_MAX, "the stream's state lives in its slot");
+
+
+static uint32_t stream_now_ms(void) {
+    return to_ms_since_boot(get_absolute_time());
+}
+
+
+static uint32_t stream_mix(uint32_t hash, uint32_t value) {
+    return (hash ^ value) * 16777619u;     // FNV-1a's step, a word at a time
+}
+
+
+static uint32_t stream_float_bits(float value) {
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+
+// What the state message says, in short: the job, the charge's state, throw, target, powder and weight, the purge's
+// state and speed. Read every tick by each stream, so from the modes' status, never by making the message
+static uint32_t stream_state_sig(void) {
+    charge_status_t charge;
+    charge_mode_get_status(&charge);
+    cleanup_status_t purge;
+    cleanup_mode_get_status(&purge);
+    uint32_t hash = 2166136261u;
+    hash = stream_mix(hash, (uint32_t) activity_get());
+    hash = stream_mix(hash, (uint32_t) (uintptr_t) charge.state);
+    hash = stream_mix(hash, (uint32_t) charge.throw_number);
+    hash = stream_mix(hash, (uint32_t) charge.paused | (uint32_t) charge.in_throw << 1);
+    hash = stream_mix(hash, stream_float_bits(charge.target));
+    hash = stream_mix(hash, (uint32_t) profile_get_selected_idx());
+    hash = stream_mix(hash, (uint32_t) charge.last_throw);
+    hash = stream_mix(hash, stream_float_bits(scale_get_current_measurement()));
+    hash = stream_mix(hash, (uint32_t) (uintptr_t) purge.state);
+    hash = stream_mix(hash, stream_float_bits(purge.speed_rps));
+    return hash;
+}
+
+
+static void stream_unit(api_v1_stream_t *stream, char *buf, size_t room, size_t *len) {
+    http_json_raw(buf, room, len, "event: unit\ndata: {\"boot\":");
+    http_json_unsigned(buf, room, len, api_v1_boot_id());
+    http_json_raw(buf, room, len, ",\"first\":");
+    http_json_integer(buf, room, len, (long) events_first_seq());
+    http_json_raw(buf, room, len, ",\"newest\":");
+    http_json_integer(buf, room, len, (long) events_latest_seq());
+    http_json_raw(buf, room, len, ",\"resumed\":");
+    http_json_bool(buf, room, len, stream->resumed);
+    http_json_raw(buf, room, len, "}\n\n");
+}
+
+
+static void stream_state(api_v1_stream_t *stream, char *buf, size_t room, size_t *len) {
+    stream->sig = stream_state_sig();
+    stream->state_ms = stream_now_ms();
+    http_json_raw(buf, room, len, "event: state\ndata: {\"activity\":");
+    http_json_string(buf, room, len, activity_name(activity_get()));
+    http_json_raw(buf, room, len, ",\"charge\":");
+    write_charge(buf, room, len);
+    http_json_raw(buf, room, len, ",\"purge\":");
+    write_purge(buf, room, len);
+    http_json_raw(buf, room, len, "}\n\n");
+}
+
+
+static bool api_v1_stream_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_stream_t *stream = ctx;
+    *len = 0;
+    if (stream->phase == 0) {
+        char retry[24];
+        snprintf(retry, sizeof(retry), "retry: %u\n", (unsigned) API_V1_STREAM_RETRY_MS);
+        http_json_raw(buf, room, len, retry);
+        stream_unit(stream, buf, room, len);
+        stream->phase = 1;
+    }
+    else if (stream->phase == 1) {
+        stream_state(stream, buf, room, len);
+        stream->phase = 2;
+    }
+    else {
+        // Events missed (more than the log keeps came while it was not read): said, then on from the oldest kept
+        uint32_t first = events_first_seq();
+        if (stream->next < first) {
+            stream->resumed = false;
+            stream->next = first;
+            stream_unit(stream, buf, room, len);
+        }
+        uint32_t latest = events_latest_seq();
+        while (stream->next <= latest) {
+            event_t event;
+            if (!events_get(stream->next, &event)) {
+                stream->next += 1;
+                continue;
+            }
+            size_t mark = *len;
+            char id[32];
+            snprintf(id, sizeof(id), "id: %lu-%lu\ndata: ", (unsigned long) api_v1_boot_id(),
+                     (unsigned long) stream->next);
+            http_json_raw(buf, room, len, id);
+            events_write_json(&event, buf, room, len);
+            http_json_raw(buf, room, len, "\n\n");
+            if (!http_json_fits(room, *len)) {
+                *len = mark;    // the next chunk begins with it
+                buf[mark] = '\0';
+                break;
+            }
+            stream->next += 1;
+        }
+        uint32_t now = stream_now_ms();
+        if (*len == 0 && stream_state_sig() != stream->sig && now - stream->state_ms >= API_V1_STREAM_STATE_MIN_MS) {
+            stream_state(stream, buf, room, len);
+        }
+        if (*len == 0 && now - stream->wrote_ms >= API_V1_STREAM_KEEP_ALIVE_MS) {
+            http_json_raw(buf, room, len, ": quiet\n\n");
+        }
+    }
+    if (*len > 0) {
+        stream->wrote_ms = stream_now_ms();
+    }
+    return true;    // it never ends: the client closes it, or the unit restarts
+}
+
+
+static bool api_v1_stream_ready(void *ctx) {
+    api_v1_stream_t *stream = ctx;
+    uint32_t now = stream_now_ms();
+    return events_latest_seq() >= stream->next ||
+           now - stream->wrote_ms >= API_V1_STREAM_KEEP_ALIVE_MS ||
+           (now - stream->state_ms >= API_V1_STREAM_STATE_MIN_MS && stream_state_sig() != stream->sig);
+}
+
+
+// Where a stream goes on from: a browser's Last-Event-ID ("<boot>-<seq>"), or ?after=N from a client that read the
+// log before. Of this boot and still kept, the next after it; otherwise the newest, and the client reads afresh
+static bool stream_resume_after(const http_server_request_t *request, uint32_t *after) {
+    char value[24];
+    unsigned long seq;
+    if (request->last_event_id != NULL) {
+        char *dash;
+        unsigned long boot = strtoul(request->last_event_id, &dash, 10);
+        if (*dash != '-' || boot != api_v1_boot_id()) {
+            return false;
+        }
+        seq = strtoul(dash + 1, NULL, 10);
+    }
+    else if (http_server_query_value(request->query, "after", value, sizeof(value))) {
+        seq = strtoul(value, NULL, 10);
+    }
+    else {
+        return false;
+    }
+    if (seq > events_latest_seq() || seq + 1 < events_first_seq()) {
+        return false;
+    }
+    *after = (uint32_t) seq;
+    return true;
+}
+
+
+// GET /api/v1/events/stream
+static void api_v1_get_events_stream(const http_server_request_t *request, http_server_reply_t *reply) {
+    api_v1_stream_t *stream = http_server_reply_context(reply, sizeof(api_v1_stream_t));
+    memset(stream, 0, sizeof(*stream));
+    uint32_t after = 0;
+    stream->resumed = stream_resume_after(request, &after);
+    stream->next = stream->resumed ? after + 1 : events_latest_seq() + 1;
+    stream->wrote_ms = stream_now_ms();
+    http_server_reply_live(reply, "text/event-stream", api_v1_stream_more, api_v1_stream_ready, stream);
 }
 
 
@@ -1393,6 +1586,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/purge/stop", api_v1_purge_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/stop", api_v1_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events", api_v1_get_events);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events/stream", api_v1_get_events_stream);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/scale", api_v1_get_scale);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/scale/zero", api_v1_scale_zero);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/gate", api_v1_get_gate);

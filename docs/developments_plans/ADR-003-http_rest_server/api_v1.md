@@ -93,6 +93,21 @@ One log for the whole unit, which any number of clients read, each from where it
 |---|---|
 | `GET /api/v1/events?after=N` | `boot` (as in the index: when it changes, the unit restarted and the numbers began again); `now_ms`, the unit's clock now; `events`, each with `seq`, `at_ms` (the unit's 64-bit clock, in ms since the start), `source` and `kind`, and what that kind carries; `next`, the number to ask after next time. The newest 64 are kept *p*. `seq` goes up by one, so a client sees a gap: one that asks after a number no longer kept gets all that are, and `first`, the oldest kept. With `wait`, a read after a number above the newest (one from before a restart) is answered at once, with the new `boot` and `next` |
 
+**The same log as it happens** (ADR-008, gate 2): `GET /api/v1/events/stream`, server-sent events (`text/event-stream`), as a browser's `EventSource` reads them, or `curl -N`:
+
+| Message | When | `data` |
+|---|---|---|
+| `retry: 3000` | first | how soon a browser opens it again once it drops |
+| `event: unit` | first, and again when events were missed | `boot`, `first`, `newest`, `resumed`: true when the stream goes on from the client's `Last-Event-ID` (`<boot>-<seq>`, which a browser sends by itself on its reconnect) or `?after=N`, nothing missed; false when it starts afresh (no id, another `boot`, or the event no longer kept), and the client then reads what it shows again |
+| `event: state` | after the unit, then whenever it changes, no oftener than every 100 ms | `activity`, `charge` (as `GET /api/v1/charge`, its live weight included) and `purge` (as `GET /api/v1/purge`): the weight comes at the scale's own rate. Not an event: not numbered, not kept |
+| `id: <boot>-<seq>` with no `event:` | each event as it is logged | the event, as `GET /api/v1/events` gives it |
+| `: quiet` | after 15 s with nothing sent | a comment: the connection is alive |
+
+- **At most 3 at once,** so a request always finds one of the server's 6 slots: a fourth is answered 503 `busy` with `Retry-After: 5`. A browser's `EventSource` does not try again after an error status: a page does, after `Retry-After`.
+- **A client that stops reading** is closed by the server's stall limit (10 s with its bytes not taken), so a dead connection never holds lwIP's heap for long.
+- **A unit that restarts or leaves its network sends no close:** the client hears nothing. It knows by the comment that should come within 15 s: nothing for some 20 s, it opens the stream again (a page does this itself; an `EventSource` alone may wait much longer). Of the same `boot`, it goes on from its last id; after a restart, `resumed` is false.
+- Held reads stay, for agents: they need no connection kept.
+
 An event is a change, not a state: a fault that stands is one event when it appears and one when it clears, not one a second. The kinds now:
 
 | Source | Kind | Carries |

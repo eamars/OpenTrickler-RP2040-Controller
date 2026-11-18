@@ -32,6 +32,7 @@
 #include "activity.h"
 #include "update.h"
 #include "wireless.h"
+#include "http_server.h"
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -183,6 +184,13 @@ static bool remote_control_net(const char *args, char *reply, size_t reply_size,
                         name, (unsigned) pool->max,
                         name, (unsigned) pool->avail,
                         name, (unsigned long) pool->err);
+    }
+    // The event streams (ADR-008, gate 2): open now, opened and refused since the start
+    http_server_stats_t server;
+    http_server_get_stats(&server);
+    if (len < reply_size) {
+        snprintf(reply + len, reply_size - len, " live=%u live_opened=%lu live_refused=%lu", server.slots_live,
+                 (unsigned long) server.live_opened, (unsigned long) server.live_refused);
     }
     return true;
 }

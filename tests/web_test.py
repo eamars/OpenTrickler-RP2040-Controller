@@ -33,6 +33,8 @@ FRAME = "/api/v1/display/frame"
 EVENTS = "/api/v1/events"
 NOT_RECORDED = {EVENTS}             # made here: the log of what the stand-in did
 STEP = 1.5                          # a charge's weight rises this much at each read of the charge
+STREAM_MAX = 3                      # the event stream (ADR-008, gate 2): at most this many at once, as the unit
+STREAM_KEEP_ALIVE_S = 15            # its comment after this long quiet
 HOLD_READS = 4                      # a throw's verdict held this many reads of the charge (2 s at the page's 500 ms)
 # The recording is kept in git: the owner's network is not. (The Wi-Fi key is never read: the unit never shows it)
 PRIVATE = {"/api/v1/network": {"ssid": "dummy_ssid", "address": "192.168.4.1"},
@@ -141,6 +143,7 @@ class StandIn:
         if offer:
             self.replies["/api/v1/update"].update(found=dict(OFFER, importance=offer), poll={"state": "found", "error": None})
         self.lock = threading.Lock()
+        self.streams = 0                # event streams open
         self.events = []
         self.held = 0                   # reads of the charge since its last step, while the cup is lifted and returned
         self.started_ms = time.monotonic() * 1000
@@ -607,10 +610,78 @@ def make_handler(stand_in):
                 return True
             return False
 
+        def stream(self, query):
+            """
+            The event stream (ADR-008, gate 2), as the unit plays it: the unit, the state, then each event with its id
+            and the state as it changes, a comment after 15 s quiet; at most STREAM_MAX at once. A restart ends it
+            with no close, as on the unit: the connection goes silent.
+            """
+            with stand_in.lock:
+                if stand_in.streams >= STREAM_MAX:
+                    self.send_response(503)
+                    self.send_header("Retry-After", "5")
+                    body = json.dumps(error("busy", "as many streams are open as the unit keeps: try again")).encode()
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                stand_in.streams += 1
+            try:
+                with stand_in.lock:
+                    boot = stand_in.replies["/api/v1"]["boot"]
+                    newest = len(stand_in.events)
+                    last = self.headers.get("Last-Event-ID") or ""
+                    after = None
+                    if last.startswith(f"{boot}-"):
+                        after = int(last.split("-")[1])
+                    elif "after" in query:
+                        after = int(query["after"])
+                    resumed = after is not None and after <= newest
+                    sent = after if resumed else newest
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                unit = {"boot": boot, "first": 1, "newest": newest, "resumed": resumed}
+                self.wfile.write(f"retry: 3000\nevent: unit\ndata: {json.dumps(unit)}\n\n".encode())
+                last_state, wrote = None, time.monotonic()
+                while True:
+                    with stand_in.lock:
+                        if stand_in.down_until_ms is not None or stand_in.replies["/api/v1"]["boot"] != boot:
+                            break
+                        events = stand_in.events[sent:]
+                        sent += len(events)
+                        state = {"activity": stand_in.replies["/api/v1/system"]["activity"],
+                                 "charge": stand_in.get("/api/v1/charge", {})[1],
+                                 "purge": stand_in.replies["/api/v1/purge"]}
+                    out = "".join(f"id: {boot}-{event['seq']}\ndata: {json.dumps(event)}\n\n" for event in events)
+                    if state != last_state:
+                        out += f"event: state\ndata: {json.dumps(state)}\n\n"
+                        last_state = json.loads(json.dumps(state))
+                    if not out and time.monotonic() - wrote >= STREAM_KEEP_ALIVE_S:
+                        out = ": quiet\n\n"
+                    if out:
+                        self.wfile.write(out.encode())
+                        self.wfile.flush()
+                        wrote = time.monotonic()
+                    time.sleep(0.1)
+                # A restart: silent, as a unit gone from the network, until the page gives up on it
+                time.sleep(STREAM_KEEP_ALIVE_S + 10)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                pass
+            finally:
+                with stand_in.lock:
+                    stand_in.streams -= 1
+                self.close_connection = True
+
         def do_GET(self):
             if self.gone():
                 return
             url = urllib.parse.urlsplit(self.path)
+            if url.path == "/api/v1/events/stream":
+                self.stream(dict(urllib.parse.parse_qsl(url.query)))
+                return
             if url.path in PAGES:
                 page = (REPO / "src" / "html" / PAGES[url.path]).read_bytes()
                 self.send(200, page, "text/html")
