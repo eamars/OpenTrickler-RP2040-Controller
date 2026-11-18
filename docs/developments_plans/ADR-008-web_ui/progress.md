@@ -229,6 +229,6 @@ The check: 105 rows, 71 shown, 14 left out (3 by the owner, 2 ADR-009's, 9 propo
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
-3. The stand-in's update flow after Install (the download, the install, the restart followed, and each end in the life cycle's table), and the page's view of it: "keep the power on", how far it has got, the end in plain words (README, "What the page has to do" and "The update's life cycle, read whole"). The offer itself is drawn. The ends the unit cannot report yet (a power cut in a trial, why a back) are drawn as gate 2 makes them.
-4. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
-5. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
+2. The stand-in's update flow after Install (the download, the install, the restart followed, and each end in the life cycle's table), and the page's view of it: "keep the power on", how far it has got, the end in plain words (README, "What the page has to do" and "The update's life cycle, read whole"). The offer itself is drawn. The ends the unit cannot report yet (a power cut in a trial, why a back) are drawn as gate 2 makes them.
+3. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
+4. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
