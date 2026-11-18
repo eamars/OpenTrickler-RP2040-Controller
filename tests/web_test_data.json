@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-41-dirty",
-   "vcs": "80bac33",
+   "version": "2.0.3-45-dirty",
+   "vcs": "546c807",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
   "hostname": "opentrickler-9CE0",
-  "boot": 1721543529,
-  "uptime_s": 15,
+  "boot": 1717320467,
+  "uptime_s": 33,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -113,6 +113,13 @@
      "GET"
     ],
     "about": "the unit's changes after a number (?after=N), held until there is one with ?wait=s"
+   },
+   {
+    "path": "/api/v1/events/stream",
+    "methods": [
+     "GET"
+    ],
+    "about": "the same changes as they happen, as server-sent events: first the unit (its boot, and whether it goes on from the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, the purge), then each event with its id, and the state again as it changes; a comment after 15 s quiet. At most 3 at once: 503 then, with Retry-After"
    },
    {
     "path": "/api/v1/scale",
@@ -315,11 +322,25 @@
     "about": "stores Lights"
    },
    {
+    "path": "/api/v1/settings/leds/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Lights"
+   },
+   {
     "path": "/api/v1/settings/display/save",
     "methods": [
      "POST"
     ],
     "about": "stores Display"
+   },
+   {
+    "path": "/api/v1/settings/display/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Display"
    },
    {
     "path": "/api/v1/settings/wifi/save",
@@ -329,11 +350,25 @@
     "about": "stores Wi-Fi"
    },
    {
+    "path": "/api/v1/settings/wifi/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Wi-Fi"
+   },
+   {
     "path": "/api/v1/settings/motors/save",
     "methods": [
      "POST"
     ],
     "about": "stores Coarse motor and Fine motor"
+   },
+   {
+    "path": "/api/v1/settings/motors/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Coarse motor and Fine motor"
    },
    {
     "path": "/api/v1/settings/scale/save",
@@ -343,11 +378,25 @@
     "about": "stores Scale"
    },
    {
+    "path": "/api/v1/settings/scale/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Scale"
+   },
+   {
     "path": "/api/v1/settings/charge/save",
     "methods": [
      "POST"
     ],
     "about": "stores Charge"
+   },
+   {
+    "path": "/api/v1/settings/charge/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Charge"
    },
    {
     "path": "/api/v1/powder_profiles/save",
@@ -357,6 +406,13 @@
     "about": "stores Powder"
    },
    {
+    "path": "/api/v1/powder_profiles/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Powder"
+   },
+   {
     "path": "/api/v1/settings/gate/save",
     "methods": [
      "POST"
@@ -364,19 +420,33 @@
     "about": "stores Servo gate"
    },
    {
+    "path": "/api/v1/settings/gate/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Servo gate"
+   },
+   {
     "path": "/api/v1/settings/update/save",
     "methods": [
      "POST"
     ],
     "about": "stores Update"
+   },
+   {
+    "path": "/api/v1/settings/update/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Update"
    }
   ]
  },
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-41-dirty",
-   "vcs": "80bac33",
+   "version": "2.0.3-45-dirty",
+   "vcs": "546c807",
    "build": "Debug"
   },
   "resources": [
@@ -387,6 +457,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/leds/save",
+    "revert": "/api/v1/settings/leds/revert",
     "label": "Lights",
     "about": "The display's backlight and LEDs, and the LEDs on PWM3",
     "refused_while": "never",
@@ -473,6 +544,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/display/save",
+    "revert": "/api/v1/settings/display/revert",
     "label": "Display",
     "about": "The display and its encoder",
     "refused_while": "never",
@@ -545,6 +617,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/wifi/save",
+    "revert": "/api/v1/settings/wifi/revert",
     "label": "Wi-Fi",
     "about": "The network the unit joins",
     "refused_while": "never",
@@ -630,6 +703,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/motors/save",
+    "revert": "/api/v1/settings/motors/revert",
     "label": "Coarse motor",
     "about": "The coarse motor and its driver",
     "refused_while": "a_job_runs",
@@ -803,6 +877,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/motors/save",
+    "revert": "/api/v1/settings/motors/revert",
     "label": "Fine motor",
     "about": "The fine motor and its driver",
     "refused_while": "a_job_runs",
@@ -976,6 +1051,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/scale/save",
+    "revert": "/api/v1/settings/scale/revert",
     "label": "Scale",
     "about": "The scale on the serial port",
     "refused_while": "in_throw",
@@ -1091,6 +1167,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/charge/save",
+    "revert": "/api/v1/settings/charge/revert",
     "label": "Charge",
     "about": "How a throw is poured and judged",
     "refused_while": "in_throw",
@@ -1310,6 +1387,7 @@
      "PATCH"
     ],
     "save": "/api/v1/powder_profiles/save",
+    "revert": "/api/v1/powder_profiles/revert",
     "label": "Powder",
     "about": "How a powder flows, and the controller's gains for it",
     "ids": [
@@ -1452,6 +1530,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/gate/save",
+    "revert": "/api/v1/settings/gate/revert",
     "label": "Servo gate",
     "about": "The gate between the tricklers and the cup",
     "refused_while": "in_throw",
@@ -1557,6 +1636,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/update/save",
+    "revert": "/api/v1/settings/update/revert",
     "label": "Update",
     "about": "Where the unit looks for a firmware update, and which releases it offers",
     "refused_while": "never",
@@ -1605,10 +1685,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/leds/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/display/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/display/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -1619,10 +1713,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/wifi/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/motors/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/motors/revert",
+    "fields": [],
+    "refused_while": "a_job_runs",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -1633,10 +1741,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/scale/revert",
+    "fields": [],
+    "refused_while": "in_throw",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/charge/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/charge/revert",
+    "fields": [],
+    "refused_while": "in_throw",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -1647,6 +1769,13 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/powder_profiles/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/gate/save",
     "fields": [],
     "refused_while": "never",
@@ -1654,10 +1783,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/gate/revert",
+    "fields": [],
+    "refused_while": "in_throw",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/update/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/update/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -2209,8 +2352,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-41-dirty",
-   "vcs": "80bac33",
+   "version": "2.0.3-45-dirty",
+   "vcs": "546c807",
    "build": "Debug"
   },
   "unit_id": "9CE00000",
@@ -2519,13 +2662,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-41-dirty",
-   "vcs": "80bac33",
+   "version": "2.0.3-45-dirty",
+   "vcs": "546c807",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
-  "uptime_s": 19,
+  "uptime_s": 37,
   "activity": "none",
   "restart_pending": false
  },
@@ -2539,8 +2682,8 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-41-dirty",
-   "block": "2.0.3-41",
+   "version": "2.0.3-45-dirty",
+   "block": "2.0.3-45",
    "slot": "a",
    "trial": false
   },
@@ -2550,8 +2693,8 @@
   "expected": 0,
   "download": false,
   "poll": {
-   "state": "checking",
-   "error": null
+   "state": "failed",
+   "error": "no connection"
   },
   "found": null,
   "last": null

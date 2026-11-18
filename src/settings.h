@@ -75,6 +75,8 @@ typedef enum {
 typedef struct {
     const char *path;           // "/api/v1/settings/charge"; "{id}" for one of several ("/api/v1/powder_profiles/{id}")
     const char *save_path;      // where it is stored; resources stored as one block share it
+    const char *revert_path;    // the save's, /revert in place of /save: what is stored put back (ADR-008, gate 2)
+    uint16_t addr;              // where its part lies in the EEPROM, as stored: its id's at addr + id * size
     const char *label;
     const char *about;
     const setting_field_t *fields;

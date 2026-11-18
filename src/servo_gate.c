@@ -235,6 +235,8 @@ static bool gate_settings_is_saved(void) {
 static const settings_resource_t gate_settings = {
     .path = "/api/v1/settings/gate",
     .save_path = "/api/v1/settings/gate/save",
+    .revert_path = "/api/v1/settings/gate/revert",
+    .addr = EEPROM_SERVO_GATE_CONFIG_BASE_ADDR,
     .label = "Servo gate",
     .about = "The gate between the tricklers and the cup",
     SETTING_FIELDS(gate_fields),

@@ -38,7 +38,7 @@
 #define HTTP_SERVER_TASK_PRIORITY 3
 #define HTTP_SERVER_TASK_STACK_WORDS 1536
 
-#define HTTP_SERVER_ROUTES 80                // gate 3's settings add some 30 to the 32 before them
+#define HTTP_SERVER_ROUTES 112               // 81 at ADR-008's gate 2 (each save's revert, the stream)
 #define HTTP_SERVER_LINE_MAX 256            // a header line the server reads; longer ones are passed over
 #define HTTP_SERVER_HEADERS_MAX 8192        // all of a request's headers, read or passed over
 #define HTTP_SERVER_IDLE_MS 5000            // a kept-alive connection with no request in this long is closed
@@ -179,7 +179,7 @@ typedef struct {
 } route_t;
 
 
-static route_t routes[HTTP_SERVER_ROUTES];
+static route_t *routes = NULL;     // from the FreeRTOS heap at the first route, as the slots: the RAM taken at link is full
 static int route_count = 0;
 static slot_t *slots = NULL;
 static char reply_scratch[HTTP_SERVER_REPLY_MAX];
@@ -251,6 +251,13 @@ static http_server_method_t parse_method(const char *s, size_t len) {
 
 
 bool http_server_add_route(http_server_method_t method, const char *path, http_server_handler_t handler) {
+    if (routes == NULL) {
+        routes = pvPortMalloc(sizeof(route_t) * HTTP_SERVER_ROUTES);
+        if (routes == NULL) {
+            printf("HTTP: no room for the routes\n");
+            return false;
+        }
+    }
     if (route_count >= HTTP_SERVER_ROUTES) {
         printf("HTTP: no room for the route %s %s\n", method_name(method), path);
         return false;

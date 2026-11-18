@@ -489,6 +489,8 @@ static bool motor_settings_is_saved(void) {
 static const settings_resource_t coarse_motor_settings = {
     .path = "/api/v1/settings/motors/coarse",
     .save_path = "/api/v1/settings/motors/save",
+    .revert_path = "/api/v1/settings/motors/revert",
+    .addr = EEPROM_MOTOR_CONFIG_BASE_ADDR + offsetof(eeprom_motor_data_t, motor_data[0]),
     .label = "Coarse motor",
     .about = "The coarse motor and its driver",
     SETTING_FIELDS(motor_fields),
@@ -505,6 +507,8 @@ static const settings_resource_t coarse_motor_settings = {
 static const settings_resource_t fine_motor_settings = {
     .path = "/api/v1/settings/motors/fine",
     .save_path = "/api/v1/settings/motors/save",
+    .revert_path = "/api/v1/settings/motors/revert",
+    .addr = EEPROM_MOTOR_CONFIG_BASE_ADDR + offsetof(eeprom_motor_data_t, motor_data[1]),
     .label = "Fine motor",
     .about = "The fine motor and its driver",
     SETTING_FIELDS(motor_fields),

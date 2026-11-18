@@ -31,7 +31,7 @@ PAGES = {"/": "web_portal.html", "/mobile": "web_portal.html", "/wizard": "wizar
          "/display_mirror": "display_mirror.html"}
 FRAME = "/api/v1/display/frame"
 EVENTS = "/api/v1/events"
-NOT_RECORDED = {EVENTS}             # made here: the log of what the stand-in did
+NOT_RECORDED = {EVENTS, EVENTS + "/stream"}   # made here: the log of what the stand-in did, and its stream
 STEP = 1.5                          # a charge's weight rises this much at each read of the charge
 STREAM_MAX = 3                      # the event stream (ADR-008, gate 2): at most this many at once, as the unit
 STREAM_KEEP_ALIVE_S = 15            # its comment after this long quiet
@@ -39,21 +39,6 @@ HOLD_READS = 4                      # a throw's verdict held this many reads of 
 # The recording is kept in git: the owner's network is not. (The Wi-Fi key is never read: the unit never shows it)
 PRIVATE = {"/api/v1/network": {"ssid": "dummy_ssid", "address": "192.168.4.1"},
            "/api/v1/settings/wifi": {"ssid": "dummy_ssid"}}
-
-
-def propose_revert(schema):
-    """
-    List ADR-008's proposed revert beside each resource's save (`revert`, the save's path ending in /revert): what
-    was written since the last save put back from the EEPROM. Gate 2 builds it in the unit; the stand-in then refuses
-    to start until this is taken out.
-
-    Args:
-        schema: the recorded `GET /api/v1/schema`, changed in place.
-    """
-    for resource in schema["resources"]:
-        if "revert" in resource:
-            sys.exit(f"the recording has {resource['path']}'s revert: the unit makes it now, so take out propose_revert")
-        resource["revert"] = resource["save"].removesuffix("/save") + "/revert"
 
 
 # The release the stand-in's poll finds (ADR-008, the offer): newer than the recording's firmware, in the fields
@@ -129,7 +114,6 @@ class StandIn:
         """
         self.replies = replies
         self.schema = replies["/api/v1/schema"]
-        propose_revert(self.schema)
         # What the EEPROM holds, by path: a save copies the live values here, a revert copies them back
         self.stored = {path: copy.deepcopy(reply) for path, reply in replies.items() if self.resource(path) is not None}
         self.importance = offer or "normal"
@@ -477,8 +461,11 @@ class StandIn:
         if method == "POST" and reverted:
             for inner in self.replies:
                 if unit_api.template_of(inner) in reverted:
+                    changed = dict(self.replies[inner], saved=None) != dict(self.stored[inner], saved=None)
                     self.replies[inner].clear()
                     self.replies[inner].update(copy.deepcopy(self.stored[inner]))
+                    if changed:
+                        self.add_event("setting", "changed", by="api", path=inner)
             return 200, {"reverted": True}
         resource = self.resource(path) if method == "PATCH" else None
         action = self.action(method, path)

@@ -139,6 +139,8 @@ static bool wifi_settings_is_saved(void) {
 static const settings_resource_t wifi_settings = {
     .path = "/api/v1/settings/wifi",
     .save_path = "/api/v1/settings/wifi/save",
+    .revert_path = "/api/v1/settings/wifi/revert",
+    .addr = EEPROM_WIRELESS_CONFIG_BASE_ADDR,
     .label = "Wi-Fi",
     .about = "The network the unit joins",
     SETTING_FIELDS(wifi_fields),

@@ -286,11 +286,34 @@ static void write_value(const setting_field_t *field, const uint8_t *base, char 
 }
 
 
+// Where a resource's part lies in the EEPROM: one of several ({id}) after the others
+static uint16_t part_addr(const settings_resource_t *resource, int32_t id) {
+    return (uint16_t) (resource->addr + (id > 0 ? (size_t) id * resource->size : 0));
+}
+
+
+/*
+ * Saved, for the resource's own part of its record (ADR-008, gate 2): a powder of the eight, a motor of the two.
+ * The record as stored says so at once; otherwise this part against what the EEPROM holds of it, read only then,
+ * so a value written back as stored is stored again. The EEPROM is the truth: no copy of it is kept to drift
+ */
+static bool part_saved(const settings_resource_t *resource, int32_t id) {
+    if (resource->is_saved()) {
+        return true;
+    }
+    uint8_t stored[SETTINGS_STRUCT_MAX];
+    if (resource->size > sizeof(stored) || !eeprom_read(part_addr(resource, id), stored, resource->size)) {
+        return false;
+    }
+    return memcmp(stored, resource->live(id), resource->size) == 0;
+}
+
+
 // A resource as its GET gives it: saved, then each field a reply may carry
 static void write_resource(const settings_resource_t *resource, int32_t id, char *out, size_t room, size_t *len) {
     const uint8_t *base = resource->live(id);
     http_json_raw(out, room, len, "{\"saved\":");
-    http_json_bool(out, room, len, resource->is_saved());
+    http_json_bool(out, room, len, part_saved(resource, id));
     for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
         const setting_field_t *field = &resource->fields[idx];
         if (field->access == SETTING_WRITE_ONLY) {
@@ -838,6 +861,90 @@ static void settings_save_all_handler(const http_server_request_t *request, http
 }
 
 
+/*
+ * A revert (ADR-008, gate 2): every resource stored at that save given back what the EEPROM holds of it, each part
+ * as a write gives it (its refusals, its apply, its event where it changed). Refused whole, as a write is: the
+ * refusals are looked at first, and what is stored is checked as a write's value, before anything is written
+ */
+static void revert(const char *revert_path, activity_by_t by, outcome_t *outcome) {
+    memset(outcome, 0, sizeof(*outcome));
+    outcome->status = 200;
+    if (!activity_try_lock(SETTINGS_LOCK_WAIT_MS)) {
+        fail(outcome, 409, "busy", NULL, "the settings are being written");
+        return;
+    }
+    uint8_t stored[SETTINGS_STRUCT_MAX];
+    for (int pass = 0; pass < 2; pass += 1) {
+        for (size_t idx = 0; idx < resource_count; idx += 1) {
+            const settings_resource_t *resource = resources[idx];
+            if (strcmp(resource->revert_path, revert_path) != 0) {
+                continue;
+            }
+            if (pass == 0 && resource->refused_while == SETTINGS_REFUSED_IN_THROW && activity_in_throw()) {
+                fail(outcome, 409, "busy", NULL, "%s is refused while a throw is under way", resource->path);
+                goto done;
+            }
+            if (pass == 0 && resource->refused_while == SETTINGS_REFUSED_A_JOB_RUNS && activity_job_runs()) {
+                fail(outcome, 409, "busy", NULL, "%s is refused while a job runs", resource->path);
+                goto done;
+            }
+            int32_t first = resource_has_ids(resource) ? 0 : -1;
+            int32_t last = resource_has_ids(resource) ? resource->id_count - 1 : -1;
+            for (int32_t id = first; id <= last; id += 1) {
+                if (!eeprom_read(part_addr(resource, id), stored, resource->size)) {
+                    fail(outcome, 500, "failed", NULL, "the EEPROM could not be read");
+                    goto done;
+                }
+                if (pass == 0) {
+                    const char *why = resource->refuse != NULL ? resource->refuse(id) : NULL;
+                    const char *field_name = NULL;
+                    if (why != NULL) {
+                        fail(outcome, 409, "busy", NULL, "%s", why);
+                        goto done;
+                    }
+                    why = resource->check != NULL ? resource->check(stored, id, &field_name) : NULL;
+                    if (why != NULL) {
+                        fail(outcome, 409, "stored_refused", NULL, "what is stored is refused: %s", why);
+                        goto done;
+                    }
+                    continue;
+                }
+                uint8_t before[SETTINGS_STRUCT_MAX];
+                uint8_t *live = resource->live(id);
+                memcpy(before, live, resource->size);
+                memcpy(live, stored, resource->size);
+                if (memcmp(before, live, resource->size) != 0) {
+                    if (resource->apply != NULL) {
+                        resource->apply(before, id);
+                    }
+                    setting_event(EVENT_CHANGED, resource->path, id, by);
+                }
+            }
+        }
+    }
+done:
+    activity_unlock();
+}
+
+
+static void settings_revert_handler(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!empty_body(request, reply)) {
+        return;
+    }
+    outcome_t outcome;
+    revert(request->path, ACTIVITY_BY_API, &outcome);
+    if (outcome.status != 200) {
+        reply_outcome(reply, &outcome);
+        return;
+    }
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"reverted\":true}");
+    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
 // --- The export, GET /api/v1/settings: every resource in one document, made a resource at a time
 
 typedef struct {
@@ -1107,6 +1214,7 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
                 http_json_string(buf, room, len, resource->path);
                 http_json_raw(buf, room, len, ",\"methods\":[\"GET\",\"PATCH\"]");
                 write_optional_string(buf, room, len, "save", resource->save_path);
+                write_optional_string(buf, room, len, "revert", resource->revert_path);
                 write_optional_string(buf, room, len, "label", resource->label);
                 write_optional_string(buf, room, len, "about", resource->about);
                 if (resource_has_ids(resource)) {
@@ -1146,10 +1254,17 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
         return true;
     }
     if (schema->phase == 2) {
-        // The actions: each save, and the save of all, then the commands'
-        http_json_raw(buf, room, len, "],\"actions\":[");
-        bool first = true;
-        for (size_t idx = 0; idx < resource_count; idx += 1) {
+        // The actions: each save with its revert (ADR-008, gate 2), one save a call so a chunk never overflows,
+        // then the save of all, then the commands'. field: 0 the head next, 1 none written yet, 2 one written
+        if (schema->field == 0) {
+            http_json_raw(buf, room, len, "],\"actions\":[");
+            schema->resource = 0;
+            schema->field = 1;
+            return true;
+        }
+        while (schema->resource < resource_count) {
+            size_t idx = schema->resource;
+            schema->resource += 1;
             bool done_before = false;
             for (size_t earlier = 0; earlier < idx; earlier += 1) {
                 done_before = done_before || strcmp(resources[earlier]->save_path, resources[idx]->save_path) == 0;
@@ -1157,18 +1272,30 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
             if (done_before) {
                 continue;
             }
-            http_json_raw(buf, room, len, first ? "" : ",");
-            first = false;
+            http_json_raw(buf, room, len, schema->field == 2 ? "," : "");
+            schema->field = 2;
             http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
             http_json_string(buf, room, len, resources[idx]->save_path);
             http_json_raw(buf, room, len, ",\"fields\":[],\"refused_while\":\"never\","
-                                          "\"about\":\"stores what was written there\"}");
+                                          "\"about\":\"stores what was written there\"},");
+            http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
+            http_json_string(buf, room, len, resources[idx]->revert_path);
+            http_json_raw(buf, room, len, ",\"fields\":[],\"refused_while\":");
+            http_json_string(buf, room, len, resources[idx]->refused_while == SETTINGS_REFUSED_IN_THROW ? "in_throw" :
+                                             resources[idx]->refused_while == SETTINGS_REFUSED_A_JOB_RUNS ?
+                                             "a_job_runs" : "never");
+            http_json_raw(buf, room, len, ",\"about\":\"puts back what is stored there, undoing what was written "
+                                          "since: each resource that changed gives its setting changed event. 409 "
+                                          "busy as a write is\"}");
+            return true;
         }
-        http_json_raw(buf, room, len, ",{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\",\"fields\":[],"
+        http_json_raw(buf, room, len, schema->field == 2 ? "," : "");
+        http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\",\"fields\":[],"
                                       "\"refused_while\":\"never\","
                                       "\"about\":\"stores every setting and the powder profiles\"}");
         schema->phase = 3;
         schema->resource = 0;
+        schema->field = 0;
         return true;
     }
     if (schema->phase <= 5) {
@@ -1234,6 +1361,7 @@ void settings_add_routes(void) {
         }
         if (!save_before) {
             http_server_add_route(HTTP_SERVER_POST, resource->save_path, settings_save_handler);
+            http_server_add_route(HTTP_SERVER_POST, resource->revert_path, settings_revert_handler);
         }
     }
     http_server_add_route(HTTP_SERVER_GET, "/api/v1/settings", settings_export_handler);
@@ -1390,6 +1518,14 @@ void settings_console(const char *args, char *reply, size_t reply_size, settings
             return;
         }
     }
+    else if (strncmp(args, "revert", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
+        outcome_t outcome;
+        revert(resource->revert_path, ACTIVITY_BY_CONSOLE, &outcome);
+        if (outcome.status != 200) {
+            snprintf(reply, reply_size, "@err %s - %s", outcome.code, outcome.message);
+            return;
+        }
+    }
     else if (*args != '\0') {
         // name=value pairs, as the console types them: each value is read by its field's type
         http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
@@ -1421,5 +1557,5 @@ void settings_console(const char *args, char *reply, size_t reply_size, settings
 
     console_fields(resource, id, write, ctx);
     snprintf(reply, reply_size, "@ok setting %s saved=%s", path + strlen(SETTINGS_API_PREFIX),
-             resource->is_saved() ? "true" : "false");
+             part_saved(resource, id) ? "true" : "false");
 }

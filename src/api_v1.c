@@ -488,6 +488,10 @@ static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
             }
         }
         api_v1_index_resource(buf, room, len, false, resource->save_path, "[\"POST\"]", about);
+        // Its revert beside it (ADR-008, gate 2): "stores X" becomes "puts back what is stored of X"
+        char undo[112];
+        snprintf(undo, sizeof(undo), "puts back what is stored of %s", about + strlen("stores "));
+        api_v1_index_resource(buf, room, len, false, resource->revert_path, "[\"POST\"]", undo);
         return true;
     }
     http_json_raw(buf, room, len, "]}");

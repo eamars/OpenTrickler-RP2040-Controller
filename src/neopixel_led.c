@@ -189,6 +189,8 @@ static bool led_settings_is_saved(void) {
 static const settings_resource_t led_settings = {
     .path = "/api/v1/settings/leds",
     .save_path = "/api/v1/settings/leds/save",
+    .revert_path = "/api/v1/settings/leds/revert",
+    .addr = EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR,
     .label = "Lights",
     .about = "The display's backlight and LEDs, and the LEDs on PWM3",
     SETTING_FIELDS(led_fields),

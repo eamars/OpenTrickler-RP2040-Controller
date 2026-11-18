@@ -787,6 +787,8 @@ static bool update_settings_is_saved(void) {
 static const settings_resource_t update_settings = {
     .path = "/api/v1/settings/update",
     .save_path = "/api/v1/settings/update/save",
+    .revert_path = "/api/v1/settings/update/revert",
+    .addr = EEPROM_UPDATE_CONFIG_BASE_ADDR,
     .label = "Update",
     .about = "Where the unit looks for a firmware update, and which releases it offers",
     SETTING_FIELDS(update_fields),

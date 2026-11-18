@@ -1887,6 +1887,16 @@ class Session:
         frame_bytes = display["width"] * display["height"] // 8
         paths = unit.paths("GET")
         for path in paths:
+            if path.endswith("/events/stream"):
+                # It never ends (ADR-008, gate 2): read as a stream, its start the unit, then the state
+                stream = EventStream(host)
+                unit_message, state_message = stream.until("unit", 5), stream.until("state", 5)
+                stream.close()
+                self.log.write("rc", f"api_check: {path}: {stream.status}, the unit and the state "
+                                     f"{'read' if unit_message and state_message else 'not read'}")
+                if stream.status != 200 or unit_message is None or state_message is None:
+                    self.fail(f"api_check: {path}: not a stream that starts with the unit and the state")
+                continue
             first = unit.read(path)
             second = unit.read(path)
             for problem in self.api_answer_problems(unit, path, first, frame_bytes):
@@ -1975,6 +1985,10 @@ class Session:
             save = unit.resource(path)["save"]
             if resource["saved"] and ("POST", save) not in called:
                 expect("POST", save, {}, 200)
+            # Its revert (ADR-008, gate 2): of what is stored, it changes nothing
+            revert = unit.resource(path).get("revert")
+            if revert is not None and resource["saved"] and ("POST", revert) not in called:
+                expect("POST", revert, {}, 200)
         if all(resource["saved"] for resource in export_before["resources"].values()):
             expect("POST", "settings/save", {}, 200)
         if unit.read("settings") != export_before:
@@ -2036,6 +2050,10 @@ class Session:
         # type, and true only while nothing is found (rc_run.py offer installs one)
         network = unit.read("network")
         if network.get("mode") == "station":
+            # The start's own poll first: just after a flash it may still check, and a second is refused 409 busy
+            deadline = time.monotonic() + API_CHECK_POLL_S
+            while unit.read("update")["poll"]["state"] == "checking" and time.monotonic() < deadline:
+                time.sleep(0.5)
             expect("POST", "update/check", {}, 202)
             deadline = time.monotonic() + API_CHECK_POLL_S
             poll = unit.read("update")["poll"]

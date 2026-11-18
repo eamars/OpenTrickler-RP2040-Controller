@@ -341,6 +341,8 @@ static bool scale_settings_is_saved(void) {
 static const settings_resource_t scale_settings = {
     .path = "/api/v1/settings/scale",
     .save_path = "/api/v1/settings/scale/save",
+    .revert_path = "/api/v1/settings/scale/revert",
+    .addr = EEPROM_SCALE_CONFIG_BASE_ADDR,
     .label = "Scale",
     .about = "The scale on the serial port",
     SETTING_FIELDS(scale_fields),

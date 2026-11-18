@@ -180,6 +180,8 @@ static const char *profile_settings_refuse(int32_t id) {
 static const settings_resource_t profile_settings = {
     .path = "/api/v1/powder_profiles/{id}",
     .save_path = "/api/v1/powder_profiles/save",
+    .revert_path = "/api/v1/powder_profiles/revert",
+    .addr = EEPROM_PROFILE_DATA_BASE_ADDR + offsetof(eeprom_profile_data_t, profiles),
     .label = "Powder",
     .about = "How a powder flows, and the controller's gains for it",
     SETTING_FIELDS(profile_fields),

@@ -828,10 +828,7 @@ static const char *powder_choose(int idx) {
     if (in_throw) {
         return "not while a throw pours";
     }
-    if (!profile_data_is_saved() && !profile_data_save()) {
-        return "the EEPROM did not take it";
-    }
-    return NULL;
+    return settings_store("/api/v1/powder_profiles/0");    // the eight are stored together, the choice with them
 }
 
 

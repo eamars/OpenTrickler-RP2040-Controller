@@ -61,6 +61,8 @@ static bool display_settings_is_saved(void) {
 static const settings_resource_t display_settings = {
     .path = "/api/v1/settings/display",
     .save_path = "/api/v1/settings/display/save",
+    .revert_path = "/api/v1/settings/display/revert",
+    .addr = EEPROM_MINI_12864_CONFIG_BASE_ADDR,
     .label = "Display",
     .about = "The display and its encoder",
     SETTING_FIELDS(display_fields),
