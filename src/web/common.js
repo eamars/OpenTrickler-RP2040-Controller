@@ -39,6 +39,7 @@ function refusalText(reply) {
     return reply.data && reply.data.error ? reply.data.error.message : "the unit was not reached";
 }
 
+// features: 27
 function refusal(reply, what) {
     say(`${what}: ${refusalText(reply)}`);
 }
@@ -107,6 +108,7 @@ let pageShown = null;
 // A window wide enough for a list beside the part it opens (the split pages' layout in plain.css)
 const SPLIT = window.matchMedia("(min-width: 1000px)");
 
+// features: 9
 function route() {
     const [name, ...rest] = (location.hash.slice(1) || "trickler").split("/");
     const page = PAGES[name] ? name : "trickler";
@@ -137,6 +139,7 @@ async function markOffer() {
 
 // Keep this screen awake: on unless this browser was told otherwise (its switch on the Unit's page). Where the Wake
 // Lock is not given (plain HTTP), gate 3 adds a fallback
+// features: 14
 function awakeWanted() {
     try {
         return localStorage.getItem("awake") !== "0";

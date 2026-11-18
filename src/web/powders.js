@@ -17,6 +17,7 @@ async function readPowders() {
     return list.data.profiles.map((p, i) => Object.assign({id: p.id}, replies[i].ok ? replies[i].data : {name: p.name}));
 }
 
+// features: 62
 function drawPowderList(powders, inUse, chosen) {
     const list = element("nav", {class: "list powders-list", "aria-label": "Powders"});
     for (const powder of powders) {
@@ -54,6 +55,7 @@ function drawPowderTable(powders, inUse, chosen) {
     return element("table", {class: "compare"}, element("thead", {}, group, head), element("tbody", {}, ...rows));
 }
 
+// features: 64
 async function exportPowder(id) {
     const [index, powder] = await Promise.all([api("GET", "/api/v1"), api("GET", `/api/v1/powder_profiles/${id}`)]);
     if (!powder.ok) {
@@ -70,6 +72,7 @@ async function exportPowder(id) {
 }
 
 // A powder's file into this powder: only the fields this unit's schema has and may write; a field refused is named
+// features: 65
 async function importPowder(id) {
     const file = await chooseFile(".json,application/json");
     if (file === null) {
@@ -104,7 +107,13 @@ PAGES.powders = {
         const chosen = /^\d+$/.test(rest) ? Number(rest) : (SPLIT.matches ? inUse : null);
         page.dataset.open = chosen === null ? "list" : "part";
         const master = element("div", {class: "master"});
-        const drawMaster = () => master.replaceChildren(drawPowderList(powders, inUse, chosen), drawPowderTable(powders, inUse, chosen));
+        // The tuning guide (features: 61 95): on GitHub, so it opens only with the internet, and says so
+        const guide = element("p", {class: "guide"},
+                              element("a", {href: "https://github.com/eamars/OpenTrickler/blob/main/Manual/tuning_guide.md",
+                                            target: "_blank", rel: "noopener"}, "Tuning guide"),
+                              " on GitHub: needs the internet");
+        const drawMaster = () => master.replaceChildren(drawPowderList(powders, inUse, chosen), drawPowderTable(powders, inUse, chosen),
+                                                        guide);
         drawMaster();
         page.replaceChildren(master);
         if (chosen === null) {
@@ -124,7 +133,7 @@ PAGES.powders = {
                 },
                 reload: () => route(),
             };
-            pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, hooks));
+            pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, hooks));     // features: 63
             const files = element("div", {class: "button-row"},
                                   element("button", {class: "ghost", type: "button", onclick: () => exportPowder(chosen)}, "Export this powder"),
                                   element("button", {class: "ghost", type: "button", onclick: () => importPowder(chosen)}, "Import into this powder"));

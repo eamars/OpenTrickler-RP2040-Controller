@@ -205,6 +205,8 @@ class StandIn:
             self.pour()
         if path == "/api/v1/update":
             self.poll()
+        if path == "/api/v1/gate":
+            self.gate()
         if path == "/api/v1/settings":
             reply["resources"] = {inner: self.replies[inner] for inner in reply["resources"]}
         return 200, reply
@@ -216,6 +218,15 @@ class StandIn:
             self.checked_ms = None
             update.update(found=dict(OFFER, importance=self.importance), poll={"state": "found", "error": None})
             self.add_event("update", "found", version=OFFER["version"])
+
+    def gate(self):
+        """The gate as its settings make it, as on the unit: disabled while not fitted, else closed until moved."""
+        gate = self.replies["/api/v1/gate"]
+        if not self.replies["/api/v1/settings/gate"]["enable"]:
+            gate.update(state="disabled", ratio=None)
+        elif gate["state"] == "disabled":
+            gate.update(state="closed", ratio=1.0)
+        return gate
 
     def pour(self):
         """A charge that runs: its weight rises at each read, and the throw ends at its target."""
@@ -338,7 +349,7 @@ class StandIn:
             cleanup.update(speed_rps=body["speed_rps"], time_left_s=body.get("time_s"))
             return 200, cleanup
         if path == "/api/v1/gate":
-            gate = self.replies["/api/v1/gate"]
+            gate = self.gate()
             if gate["state"] == "disabled":
                 return 409, error("gate_disabled", "the gate is off in its settings")
             gate.update(ratio=body["ratio"], state={0: "open", 1: "closed"}.get(body["ratio"], "partial"))

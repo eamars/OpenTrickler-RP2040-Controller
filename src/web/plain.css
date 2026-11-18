@@ -30,6 +30,7 @@
     --gap: 10px;
     color-scheme: light dark;
 }
+/* features: 13 */
 @media (prefers-color-scheme: dark) {
     :root {
         --ground: #0e1012;
@@ -206,6 +207,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
                            border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 2px var(--card); }
 .nav a.offer-mark.critical::after { background: var(--over); }
 
+/* features: 15 */
 @media (min-width: 600px) {
     :root { --bar: 0px; --gap: 14px; }
     body { padding-left: 96px; }
@@ -358,3 +360,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
                background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat; }
 /* A number's field as wide as a number needs, its unit beside it, not stretched across a tablet */
 .number { grid-template-columns: minmax(0, 14rem) auto; justify-content: start; }
+/* The tuning guide under the powders: a link out, its line saying it needs the internet */
+.guide { margin: 14px 4px 0; color: var(--soft); font-size: 0.875rem; }
+.guide a { color: var(--ink); font-weight: 650; display: inline-flex; align-items: center; min-height: 48px; }
+/* The gate moved now (Settings, Servo gate): how open between its keys, Open and Close side by side */
+.gate-control { margin-bottom: 14px; }
+.gate-open { display: grid; place-items: center; min-height: var(--job-key); font-size: 1.6rem; font-weight: 700;
+             font-variant-numeric: tabular-nums; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

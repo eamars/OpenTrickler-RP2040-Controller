@@ -1,5 +1,6 @@
 // The Trickler (ADR-008): the charge and the purge, a switch between them, each view the height of the screen.
 const POLL_MS = 500;
+// features: 32
 const PURGE_RESEND_MS = 2000;   // a purge's speed lasts 5 s on the unit: a page that goes leaves no motor turning
 const PURGE_STEP = 0.5;
 const PURGE_MAX = 5;
@@ -113,6 +114,7 @@ function renderSwitch() {
     }
 }
 
+// features: 28
 async function poll() {
     const [c, p] = await Promise.all([api("GET", "/api/v1/charge"), api("GET", "/api/v1/cleanup")]);
     if (c.ok) {
@@ -138,6 +140,7 @@ function stopPolling() {
     pollTimer = null;
 }
 
+// features: 23 N5
 async function startCharge() {
     const target = Number($("target").value);
     if (!(target > 0)) {

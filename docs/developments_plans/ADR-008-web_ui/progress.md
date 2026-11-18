@@ -205,10 +205,30 @@ The whole portal 73,044 bytes, 19,779 gzipped.
 
 The owner asked how the web shows an upgrade, then to challenge its life cycle and its failure modes, and whether the firmware reports its status during one. Read in the code, not tried on a unit, and written into the README ("The update's life cycle, read whole": its stages and five gaps), to be built in gate 2 (the API review, item 9), at the owner's word: "Record in ADR-008". The worst: a trial writes a changed struct's defaults into the EEPROM before it is confirmed, so a going back can lose that module's settings, and a changed Wi-Fi layout confirms on the unit's own hotspot. It is built before any release that changes a stored layout.
 
+### Every feature placed: the features.md check (2026-11-18)
+
+The owner chose it before the update's view ("features.md first"). Each of features.md's 96 rows, and its nine new items (now N1 to N9), was read against the mock's code, then marked where the pages show it: a comment `features: <row>` beside the code that does it, in `src/web/`. `tests/features_check.py` reads both and lists every row as shown, left out (by its "Proposed" column) or still to come with the gate that brings it (its `TO_COME`); it fails on a row in none of them, on a mark of a row left out or to come, and on a mark of no row. With `--final`, the proof of gates 3 and 4, a row still to come fails too, so the list cannot outlive its gates.
+
+Read against the code, nine rows were not in the mock, though a page had been taken as covering them:
+
+| Row | Missing | Made |
+|---|---|---|
+| 35, 36, 37 | The gate's Open and Close, its position, and its state as the unit reads it | In Settings, Servo gate, over its settings: how open (0 to 100 %, as a person reads a gate; the API's ratio is how closed) between two keys, Open and Close; locked while it is not fitted, with why; "Moves it now; nothing is stored." The stand-in's gate follows its Fitted, as the unit's does |
+| 58 | When a setting takes effect, but for "at restart" | The schema's `applies` in each help line unless it is at once ("Takes effect the next throw") |
+| 61, 95 | The tuning guide | A link under the powders, "on GitHub: needs the internet" |
+| 66 | The build's type and commit | "Build: Debug, 3ce28b4" among the unit's facts |
+| 67 | Save All | Proposed left out: each part stores from its own bar and the list shows which are not stored; a restore stores all by itself |
+| 73 | A backup from before API v1 | Restored as today's portal does, its old codes read as v1's fields (checked: the scale's make, a decimal place, a gate not moved, a powder) |
+| 88 | The screen's size and format | Read from `GET /api/v1/display`; a format not known is said, not drawn wrong |
+| 94 | The page's icon | The Trickler's icon, inside the page |
+
+Row 74 is now what the mock does: an import stores what it wrote and says a restart may be needed; nothing erased, nothing else asked. A help line's second sentence now starts with a capital ("Takes effect at restart").
+
+The check: 105 rows, 71 shown, 14 left out (3 by the owner, 2 ADR-009's, 9 proposed), 20 to come (the set-up's 13, gate 3's routes and ETag, the update's view, gate 2's echo and report). `VERDICT PASS`; `--final` fails on the 20, as it should now. Seen at 390 x 664 and 1280 x 800 in dark; no console errors. The whole portal 82,429 bytes, 22,699 gzipped.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
-2. The check that every row of `features.md` is shown in the pages or marked left out (only the Trickler's views carry their rows yet).
 3. The stand-in's update flow after Install (the download, the install, the restart followed, and each end in the life cycle's table), and the page's view of it: "keep the power on", how far it has got, the end in plain words (README, "What the page has to do" and "The update's life cycle, read whole"). The offer itself is drawn. The ends the unit cannot report yet (a power cut in a trial, why a back) are drawn as gate 2 makes them.
 4. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
 5. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.

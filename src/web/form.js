@@ -36,6 +36,7 @@ function decimalsOf(field) {
     return field.type === "integer" ? 0 : (step > 0 && step < 1 ? Math.min(String(step).split(".")[1].length, 4) : 3);
 }
 
+// features: 40 47 50 51 54
 function control(id, field, value, write) {
     if (field.type === "boolean") {
         const input = element("input", {type: "checkbox", id, checked: value === true});
@@ -106,15 +107,20 @@ function limitsOf(field) {
         const unit = field.unit === "weight" ? " in the scale's unit" : (unitOf(field) ? " " + unitOf(field) : "");
         parts.push(`${field.min} to ${field.max}${unit}`);
     }
+    // When it takes effect, in the schema's words, unless at once (features: 58)
     if (field.applies === "at_restart") {
         parts.push("takes effect at restart");
+    } else if (field.applies && field.applies !== "now") {
+        parts.push(`takes effect ${field.applies}`);
     }
-    return parts.join("; ");
+    const said = parts.join("; ");
+    return said.charAt(0).toUpperCase() + said.slice(1);     // a sentence of its own after the field's line
 }
 
 // The form for one resource at one path: its groups and fields, live, and its store bar. `hooks.changed(values, path)` after
 // every write, so what else the page shows of the resource (a list's "Not stored", a table's figures) follows at once;
 // `hooks.reload()` after a store or an undo, which change what every resource of the slot holds
+// features: 41 42 43 44 52
 async function drawForm(path, values, hooks) {
     const resource = await resourceOf(path);
     if (resource === null) {

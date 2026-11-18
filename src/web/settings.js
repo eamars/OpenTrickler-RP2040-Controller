@@ -6,20 +6,22 @@
 
 // The parts in the order a person sets a unit up; each one resource, but the motors, two under one name
 const SETTINGS_PARTS = [
-    {key: "scale", label: "Scale", paths: ["/api/v1/settings/scale"]},
-    {key: "charge", label: "Charge", paths: ["/api/v1/settings/charge"]},
+    {key: "scale", label: "Scale", paths: ["/api/v1/settings/scale"]},                  // features: 46 47
+    {key: "charge", label: "Charge", paths: ["/api/v1/settings/charge"]},               // features: 49
+    // features: 55 56
     {key: "motors", label: "Motors", paths: ["/api/v1/settings/motors/coarse", "/api/v1/settings/motors/fine"],
      titles: ["Coarse", "Fine"]},
-    {key: "gate", label: "Servo gate", paths: ["/api/v1/settings/gate"]},
-    {key: "leds", label: "Lights", paths: ["/api/v1/settings/leds"]},
-    {key: "display", label: "Display", paths: ["/api/v1/settings/display"]},
-    {key: "wifi", label: "Wi-Fi", paths: ["/api/v1/settings/wifi"]},
-    {key: "update", label: "Updates", paths: ["/api/v1/settings/update"]},
+    {key: "gate", label: "Servo gate", paths: ["/api/v1/settings/gate"]},               // features: 60
+    {key: "leds", label: "Lights", paths: ["/api/v1/settings/leds"]},                   // features: 57
+    {key: "display", label: "Display", paths: ["/api/v1/settings/display"]},            // features: 59 N4
+    {key: "wifi", label: "Wi-Fi", paths: ["/api/v1/settings/wifi"]},                    // features: 53
+    {key: "update", label: "Updates", paths: ["/api/v1/settings/update"]},              // features: N3
 ];
 
 // Which of a part's resources is shown, by the switch at its top (the motors: Coarse or Fine), kept across a redraw
 const partShown = {};
 
+// features: 39
 async function drawSettingsList(resources, chosen) {
     const list = element("nav", {class: "list", "aria-label": "Settings"});
     for (const part of SETTINGS_PARTS) {
@@ -59,6 +61,51 @@ function drawSwitch(part, forms) {
     return element("div", {class: "seg", role: "tablist", "aria-label": part.label}, ...buttons);
 }
 
+// The gate moved now, beside its settings (features: 35 36 37): Open, Close, and how open it is, from the unit's own
+// reading of it, never a value the page assumed. Shown as how open (0 to 100 %), as a person reads a gate; the API's
+// ratio is how closed. Locked, and said why, while the gate is off in its settings
+const GATE_STEP = 0.1;
+
+function drawGateControl() {
+    const open = element("button", {class: "ghost", type: "button"}, "Open");
+    const close = element("button", {class: "ghost", type: "button"}, "Close");
+    const less = element("button", {class: "key", type: "button", "aria-label": "Less open"}, "−");
+    const more = element("button", {class: "key", type: "button", "aria-label": "More open"}, "+");
+    const shown = element("output", {class: "gate-open", "aria-live": "polite"}, "--");
+    const line = element("p", {class: "field-help"});
+    let ratio = null;
+    const draw = (gate) => {
+        const off = gate === null || gate.state === "disabled";
+        ratio = off ? null : gate.ratio;
+        shown.textContent = ratio === null ? "--" : `${Math.round((1 - ratio) * 100)} %`;
+        [open, close, less, more].forEach((button) => button.disabled = off);
+        line.textContent = gate === null ? "Not read." :
+            (off ? "Off: turn on Fitted below to move it." :
+             (gate.state === "held" ? "Held where it was left: it moves again when set." : "Moves it now; nothing is stored."));
+    };
+    const refresh = async () => {
+        const reply = await api("GET", "/api/v1/gate");
+        draw(reply.ok ? reply.data : null);
+    };
+    const move = async (to) => {
+        const reply = await api("PATCH", "/api/v1/gate", {ratio: Math.round(Math.min(Math.max(to, 0), 1) * 100) / 100});
+        reply.ok ? draw(reply.data) : refusal(reply, "Not moved");
+    };
+    open.onclick = () => move(0);
+    close.onclick = () => move(1);
+    less.onclick = () => ratio !== null && move(ratio + GATE_STEP);
+    more.onclick = () => ratio !== null && move(ratio - GATE_STEP);
+    const card = element("div", {class: "fields gate-control"},
+                         element("div", {class: "field"},
+                                 element("label", {}, "How open"),
+                                 element("div", {class: "stepper"}, less, shown, more),
+                                 element("div", {class: "pair"}, open, close),
+                                 line));
+    card.refresh = refresh;
+    refresh();
+    return card;
+}
+
 async function drawSettingsPart(key, hooks) {
     const part = SETTINGS_PARTS.find((p) => p.key === key);
     const pane = element("section", {class: "detail"},
@@ -72,6 +119,12 @@ async function drawSettingsPart(key, hooks) {
     }
     if (part.titles) {
         pane.append(drawSwitch(part, forms));
+    }
+    if (key === "gate") {
+        // The gate's actions with its resource (README, "Handed on by ADR-010"); its Fitted, below, changes them
+        const control = drawGateControl();
+        hooks.also = () => control.refresh();
+        pane.append(control);
     }
     pane.append(...forms);
     return pane;
@@ -97,6 +150,9 @@ PAGES.settings = {
                 changed: (values, path) => {
                     resources[path].saved = values.saved;   // a part of two (the motors) is not stored while either is not
                     drawSettingsList(resources, key).then((list) => master.replaceChildren(list));
+                    if (hooks.also) {
+                        hooks.also();
+                    }
                 },
                 reload: () => route(),
             };
