@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-39-dirty",
-   "vcs": "277b002",
+   "version": "2.0.3-41-dirty",
+   "vcs": "80bac33",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
   "hostname": "opentrickler-9CE0",
-  "boot": 973866275,
-  "uptime_s": 67,
+  "boot": 1721543529,
+  "uptime_s": 15,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -375,8 +375,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-39-dirty",
-   "vcs": "277b002",
+   "version": "2.0.3-41-dirty",
+   "vcs": "80bac33",
    "build": "Debug"
   },
   "resources": [
@@ -2152,6 +2152,24 @@
      "version"
     ],
     "about": "the poll found a newer release, now offered: GET /api/v1/update, found"
+   },
+   {
+    "source": "setting",
+    "kind": "changed",
+    "carries": [
+     "by",
+     "path"
+    ],
+    "about": "a settings resource or a powder written, and what it holds changed: read path again. One for each resource written, never for a write that changed nothing; by: button (the menu), api, console"
+   },
+   {
+    "source": "setting",
+    "kind": "stored",
+    "carries": [
+     "by",
+     "path"
+    ],
+    "about": "what was written stored where it was not; path: the save's, so every resource stored by it is saved again"
    }
   ],
   "errors": [
@@ -2191,8 +2209,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-39-dirty",
-   "vcs": "277b002",
+   "version": "2.0.3-41-dirty",
+   "vcs": "80bac33",
    "build": "Debug"
   },
   "unit_id": "9CE00000",
@@ -2453,20 +2471,20 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 3,
+  "throw": 0,
   "paused": false,
-  "target": 30,
+  "target": null,
   "powder_profile": 0,
   "powder_profile_name": "AR2208,gr",
   "weight": null,
-  "elapsed_s": 9.777,
+  "elapsed_s": 0,
   "last": {
-   "throw": 3,
+   "throw": 0,
    "result": "none",
-   "reason": "stopped",
-   "weight": 0
+   "reason": "none",
+   "weight": null
   },
-  "event_seq": 11
+  "event_seq": 1
  },
  "/api/v1/purge": {
   "state": "idle",
@@ -2479,7 +2497,7 @@
   "unit": null,
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 100,
+  "usual_interval_ms": 0,
   "bad_frames": 0,
   "actions": [
    "zero"
@@ -2501,13 +2519,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-39-dirty",
-   "vcs": "277b002",
+   "version": "2.0.3-41-dirty",
+   "vcs": "80bac33",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
-  "uptime_s": 70,
+  "uptime_s": 19,
   "activity": "none",
   "restart_pending": false
  },
@@ -2521,8 +2539,8 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-39-dirty",
-   "block": "2.0.3-39",
+   "version": "2.0.3-41-dirty",
+   "block": "2.0.3-41",
    "slot": "a",
    "trial": false
   },
@@ -2532,8 +2550,8 @@
   "expected": 0,
   "download": false,
   "poll": {
-   "state": "failed",
-   "error": "no connection"
+   "state": "checking",
+   "error": null
   },
   "found": null,
   "last": null

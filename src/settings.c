@@ -10,6 +10,7 @@
 #include "activity.h"
 #include "api_v1.h"
 #include "eeprom.h"
+#include "events.h"
 #include "http_json.h"
 #include "http_server.h"
 #include "settings.h"
@@ -547,13 +548,35 @@ static int field_index(const settings_resource_t *resource, const char *name, si
 }
 
 
+// A setting's event (ADR-008, gate 2): one for each resource written or stored, so a page or the screen showing it
+// reads it again. The path is the resource's (its {id} by number) or, for a store, the save's
+static void setting_event(event_kind_t kind, const char *path, int32_t id, activity_by_t by) {
+    event_t event = {.source = EVENT_SOURCE_SETTING, .kind = (uint8_t) kind, .by = (uint8_t) by, .text = path,
+                     .number = (uint8_t) (id >= 0 ? id : 0)};
+    events_add(&event);
+}
+
+
+// A store, its event only where it was not stored: a save that changes nothing is no news
+static bool store(const settings_resource_t *resource, activity_by_t by) {
+    bool was_saved = resource->is_saved();
+    if (!resource->save()) {
+        return false;
+    }
+    if (!was_saved) {
+        setting_event(EVENT_STORED, resource->save_path, -1, by);
+    }
+    return true;
+}
+
+
 /*
  * A write: the whole request checked on a copy of the struct, then only its fields written into the struct in RAM,
  * all under the activity lock, so no throw or job starts half way through it (activity.h). Refused whole, it
  * changes nothing.
  */
 static void settings_patch(const settings_resource_t *resource, int32_t id, const http_json_member_t *members,
-                           size_t count, bool console, outcome_t *outcome) {
+                           size_t count, bool console, activity_by_t by, outcome_t *outcome) {
     memset(outcome, 0, sizeof(*outcome));
     outcome->status = 200;
     if (!activity_try_lock(SETTINGS_LOCK_WAIT_MS)) {
@@ -634,6 +657,9 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
     }
     if (resource->apply != NULL && count > 0) {
         resource->apply(before, id);
+    }
+    if (memcmp(before, live, resource->size) != 0) {
+        setting_event(EVENT_CHANGED, resource->path, id, by);
     }
 
 done:
@@ -738,7 +764,7 @@ static void settings_patch_handler(const http_server_request_t *request, http_se
         return;
     }
     outcome_t outcome;
-    settings_patch(resource, id, members, count, false, &outcome);
+    settings_patch(resource, id, members, count, false, ACTIVITY_BY_API, &outcome);
     if (outcome.status != 200) {
         reply_outcome(reply, &outcome);
         return;
@@ -779,7 +805,7 @@ static void settings_save_handler(const http_server_request_t *request, http_ser
     }
     for (size_t idx = 0; idx < resource_count; idx += 1) {
         if (strcmp(resources[idx]->save_path, request->path) == 0) {
-            if (!resources[idx]->save()) {
+            if (!store(resources[idx], ACTIVITY_BY_API)) {
                 http_server_reply_error(reply, 500, "failed", "the EEPROM did not take it");
                 return;
             }
@@ -801,7 +827,7 @@ static void settings_save_all_handler(const http_server_request_t *request, http
         for (size_t earlier = 0; earlier < idx; earlier += 1) {
             done_before = done_before || resources[earlier]->save == resources[idx]->save;
         }
-        if (!done_before && !resources[idx]->save()) {
+        if (!done_before && !store(resources[idx], ACTIVITY_BY_API)) {
             char message[96];
             snprintf(message, sizeof(message), "%s: the EEPROM did not take it", resources[idx]->save_path);
             http_server_reply_error(reply, 500, "failed", message);
@@ -1303,7 +1329,7 @@ const char *settings_write(const char *path, const char *name, const char *value
     http_json_member_t member = {.name = name, .name_len = strlen(name), .kind = HTTP_JSON_STRING,
                                  .value = value, .value_len = strlen(value)};
     outcome_t outcome;
-    settings_patch(resource, id, &member, 1, true, &outcome);
+    settings_patch(resource, id, &member, 1, true, ACTIVITY_BY_BUTTON, &outcome);    // the menu's
     if (outcome.status != 200) {
         snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
         return settings_why;
@@ -1320,7 +1346,7 @@ const char *settings_store(const char *path) {
         snprintf(settings_why, sizeof(settings_why), "no such resource: %s", path);
         return settings_why;
     }
-    if (!resource->is_saved() && !resource->save()) {
+    if (!resource->is_saved() && !store(resource, ACTIVITY_BY_BUTTON)) {     // the menu's
         snprintf(settings_why, sizeof(settings_why), "the EEPROM did not take it");
         return settings_why;
     }
@@ -1359,7 +1385,7 @@ void settings_console(const char *args, char *reply, size_t reply_size, settings
     args = skip_spaces(args + path_len);
 
     if (strncmp(args, "save", 4) == 0 && (args[4] == '\0' || args[4] == ' ')) {
-        if (!resource->save()) {
+        if (!store(resource, ACTIVITY_BY_CONSOLE)) {
             snprintf(reply, reply_size, "@err failed the EEPROM did not take it");
             return;
         }
@@ -1384,7 +1410,7 @@ void settings_console(const char *args, char *reply, size_t reply_size, settings
             args = skip_spaces(args + pair_len);
         }
         outcome_t outcome;
-        settings_patch(resource, id, members, count, true, &outcome);
+        settings_patch(resource, id, members, count, true, ACTIVITY_BY_CONSOLE, &outcome);
         if (outcome.status != 200) {
             const char *field_name = outcome.field != NULL ? outcome.field->name :
                                      outcome.field_name[0] ? outcome.field_name : "-";

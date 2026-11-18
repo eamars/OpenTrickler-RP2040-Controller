@@ -1,6 +1,7 @@
 /*
  * One event log for the unit (ADR-003, gate 4); see events.h.
  */
+#include <stdio.h>
 #include <string.h>
 
 #include <FreeRTOS.h>
@@ -64,14 +65,15 @@ bool events_get(uint32_t seq, event_t *event) {
 
 
 static const char *source_name(uint8_t source) {
-    static const char *const names[] = {"charge", "throw", "purge", "motors", "system", "update"};
+    static const char *const names[] = {"charge", "throw", "purge", "motors", "system", "update", "setting"};
     return source < sizeof(names) / sizeof(names[0]) ? names[source] : "other";
 }
 
 
 static const char *kind_name(uint8_t kind) {
     static const char *const names[] = {"started", "stopped", "paused", "resumed", "finished", "ended", "fault",
-                                        "cleared", "received", "installing", "confirmed", "back", "found"};
+                                        "cleared", "received", "installing", "confirmed", "back", "found", "changed",
+                                        "stored"};
     return kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "other";
 }
 
@@ -216,6 +218,23 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                 http_json_string(out, room, len, version);
             }
             break;
+        case EVENT_SOURCE_SETTING: {
+            // Who wrote it, and the resource's path, or the save's for a store: a page reads that resource again
+            write_member(out, room, len, "by");
+            http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
+            char path[72];
+            const char *template = event->text != NULL ? event->text : "";
+            const char *id = strstr(template, "{id}");
+            if (id != NULL) {
+                snprintf(path, sizeof(path), "%.*s%u", (int) (id - template), template, (unsigned) event->number);
+            }
+            else {
+                snprintf(path, sizeof(path), "%s", template);
+            }
+            write_member(out, room, len, "path");
+            http_json_string(out, room, len, path);
+            break;
+        }
         case EVENT_SOURCE_SYSTEM:
             write_member(out, room, len, "firmware");
             http_json_string(out, room, len, event->text != NULL ? event->text : "");

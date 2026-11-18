@@ -18,6 +18,7 @@ typedef enum {
     EVENT_SOURCE_MOTORS,
     EVENT_SOURCE_SYSTEM,
     EVENT_SOURCE_UPDATE,        // ADR-004
+    EVENT_SOURCE_SETTING,       // a settings resource written or stored (ADR-008, gate 2)
 } event_source_t;
 
 typedef enum {
@@ -34,6 +35,8 @@ typedef enum {
     EVENT_CONFIRMED,
     EVENT_BACK,
     EVENT_FOUND,                // the update's poll found a newer release (ADR-010, gate 5)
+    EVENT_CHANGED,              // a setting's resource written, and what it holds changed
+    EVENT_STORED,               // what was written stored in the EEPROM, where it was not
 } event_kind_t;
 
 // Why a job stopped or a throw ended (api_v1.md's `reason`)
@@ -63,14 +66,16 @@ typedef struct {
     uint64_t at_ms;         // set by events_add: the unit's clock, since its start
     uint8_t source;         // event_source_t
     uint8_t kind;           // event_kind_t
-    uint8_t by;             // activity_by_t: a job's start or stop
+    uint8_t by;             // activity_by_t: a job's start or stop, a setting's write or store
     uint8_t reason;         // event_reason_t
     uint16_t throw_number;
-    uint8_t number;         // a pause's number in its throw; a powder profile's id; a motor (motor_select_t)
+    uint8_t number;         // a pause's number in its throw; a powder profile's id; a motor (motor_select_t); a
+                            // setting's resource's id, in place of its path's {id}
     uint8_t result;         // event_result_t
     float value;            // a target, a weight
     float value2;           // a throw's seconds
-    const char *text;       // a driver's fault ("short"), the firmware's version: a string that never changes
+    const char *text;       // a driver's fault ("short"), the firmware's version, a setting's path: a string that
+                            // never changes
     uint32_t version;       // an update's image, its block version: kept as a number, so the event never changes
 } event_t;
 

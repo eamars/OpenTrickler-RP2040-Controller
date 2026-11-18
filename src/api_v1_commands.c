@@ -1357,6 +1357,11 @@ static const char *const api_v1_schema_events[] = {
     "tried was left, and the one before runs\"}",
     "{\"source\":\"update\",\"kind\":\"found\",\"carries\":[\"version\"],\"about\":\"the poll found a newer release, "
     "now offered: GET /api/v1/update, found\"}",
+    "{\"source\":\"setting\",\"kind\":\"changed\",\"carries\":[\"by\",\"path\"],\"about\":\"a settings resource "
+    "or a powder written, and what it holds changed: read path again. One for each resource written, never for a "
+    "write that changed nothing; by: button (the menu), api, console\"}",
+    "{\"source\":\"setting\",\"kind\":\"stored\",\"carries\":[\"by\",\"path\"],\"about\":\"what was written stored "
+    "where it was not; path: the save's, so every resource stored by it is saved again\"}",
 };
 
 

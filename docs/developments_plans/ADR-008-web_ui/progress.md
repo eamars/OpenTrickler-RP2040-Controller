@@ -300,7 +300,8 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 
 1. The plan written into the README ("Gate 2's plan", 2026-11-19): six steps in order, each proven on the Pico W before the next. Approved by the owner 2026-11-19 ("I approve the gate 2 and now proceed"), with `leds`, `save` and `powder_profiles` kept in the API. The whole ADR goes by one PR, #134, a draft until the ADR closes (the owner, the same day).
 2. Step 1, the words: built and proven on the Pico W (2026-11-19).
-3. Step 2, a setting changed as an event: under way.
+3. Step 2, a setting changed as an event: built and proven on the Pico W (2026-11-19).
+4. Step 3, the event stream: under way.
 
 ### Step 1, the words: built (2026-11-19)
 
@@ -310,3 +311,10 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 - **Checked off the unit:** both boards build (the Pico W's flash 96.92% of its slot, RAM 99.68% at link, as before); the mock on the stand-in at 390 px: a purge asked with the cup, started, its speed sent, the strip "Purging" on Settings, the gate's "Fitted" and the scale's "Make", the stop and its `purge` events, the factory reset by its new path; `features_check.py` `VERDICT PASS`.
 - **Proven on the Pico W** (the bench given by the owner, 2026-11-19): its settings copied before (`logs/adr008/gate2/step1_before`), `flash` (2.0.3-39 at 277b002), the settings the same after; `menu_tour --compare` `VERDICT PASS` (the charge's target not judged, as always); `api_check` `VERDICT PASS` on the new names (`purge/start`, its `purge` events by api and by the unit at its time, `system/factory_reset` refused without its confirmation); `settings_roundtrip` and `charge_cycle` `VERDICT PASS`. The stand-in recorded again from the unit: against the recording made by hand, only what changes from run to run (the version, the uptime, the unit's current choices), the order of two keys, and three lines the unit makes from the labels ("stores Lights", the motors' list), which the hand had missed; the unit's is kept.
 - **Found:** the Pico W's stored `invert_display` is on (the copies of 2026-11-18 and today), and its menu baseline was saved with it off: every page of the first tour differed only by that. The tour was run again with it off, live and not stored, and put back on after. Which is wanted is the owner's: the setting stored off, or the baseline saved again with it on.
+
+### Step 2, a setting changed as an event: built and proven (2026-11-19)
+
+- **What:** two events of a new source, `setting`. `changed` (`by`, `path`): a resource written and what it holds changed, from the one place every write goes through (`settings_patch`), so the API's PATCH, the console's `setting` and the menu's rows all give it; a write that changes nothing gives none. `stored` (`by`, `path`: the save's): a store of what was not stored, from every save (the API's, the save of all, the menu's, the console's). A powder's path carries its id. The schema and api_v1.md list both; the stand-in gives the same on its writes and saves.
+- **Proven on the Pico W** (2.0.3-41 at 80bac33): from the console, a change (`by` console) and the same value again (no event); from the API, a change back (`by` api, `saved` true again), a powder's name written as it was (no event), a save of what was stored (no event); the console's change and save twice (`changed`, `stored`, each `by` console); a powder's name (`/api/v1/powder_profiles/3`); the menu's Servo gate switched on and off (`changed` and `stored`, each `by` button). `api_check` and `settings_roundtrip` `VERDICT PASS`; the settings the same as the copy before step 1. The stand-in recorded again.
+- **Not an event:** the powder chosen for the charge (the charge's, not a setting: it comes with the charge's state on the stream, step 3).
+

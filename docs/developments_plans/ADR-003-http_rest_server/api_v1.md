@@ -115,6 +115,8 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | update | confirmed | `version`: after the restart, the image confirmed itself once on its network |
 | update | back | `version`: after the restart, the image tried was left, and the one before runs |
 | update | found | `version`: the poll found a newer release, now offered (ADR-010, gate 5) |
+| setting | changed | `by` (button for the menu, api, console), `path`: a settings resource or a powder written, and what it holds changed; one for each resource written, none for a write that changed nothing (ADR-008, gate 2) |
+| setting | stored | `by`, `path`: the save's path; what was written stored where it was not, so each resource that save stores is `saved` again (ADR-008, gate 2) |
 
 Later ADRs add sources and kinds (the rules above). **`?wait=s`** (1 to 30): the request is held until there is an event after N, or the time is out, and then answered whole, as any other. Built in gate 4 with the owner's leave ("For the owner", 7); without it, reserved, and the server built to take it.
 

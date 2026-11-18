@@ -457,10 +457,17 @@ class StandIn:
         # A save: what was written there is stored (the save of all, everything)
         saved = [r["path"] for r in self.schema["resources"] if path in (r["save"], "/api/v1/settings/save")]
         if method == "POST" and saved:
+            # Its event once for each save that stored what was not stored, as the unit (ADR-008, gate 2)
+            news = []
             for inner in self.replies:
                 if unit_api.template_of(inner) in saved:
+                    save = self.resource(inner)["save"]
+                    if self.replies[inner]["saved"] is False and save not in news:
+                        news.append(save)
                     self.replies[inner]["saved"] = True
                     self.stored[inner] = copy.deepcopy(self.replies[inner])
+            for save in news:
+                self.add_event("setting", "stored", by="api", path=save)
             return 200, {"saved": True}
         # A revert (proposed, ADR-008): the slot's resources as the EEPROM holds them
         reverted = [r["path"] for r in self.schema["resources"] if path == r["revert"]]
@@ -480,7 +487,10 @@ class StandIn:
             code, _, message = problems[0].partition(": ")
             return 400, error(code, message)
         if resource is not None:
+            before = dict(self.replies[path])
             self.replies[path].update(body)
+            if self.replies[path] != before:
+                self.add_event("setting", "changed", by="api", path=path)
             # Not stored is the resource's own (proposed, ADR-008, gate 2): this powder or this motor against what the
             # EEPROM holds of it, not the whole slot's record. A value written back as stored is stored again
             live, held = (dict(r, saved=None) for r in (self.replies[path], self.stored[path]))
