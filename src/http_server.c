@@ -95,6 +95,7 @@ typedef struct {
     bool line_skip;                        // passing over a header line too long to keep
     size_t headers_total;
     bool started;                          // a byte of this request has come
+    bool served;                           // a reply went on this connection: kept alive, it may be closed for room
     uint32_t started_ms;                   // when it did
     bool http10;
     bool keep_alive;
@@ -1385,6 +1386,7 @@ static bool slot_send_some(slot_t *slot) {
 static void slot_after_send(slot_t *slot) {
     if (slot->keep_alive && !slot->close_after) {
         slot_reset_request(slot);
+        slot->served = true;
         slot->last_progress_ms = now_ms();
     }
     else if (slot->drain) {
@@ -1433,12 +1435,15 @@ static int server_listen(void) {
 }
 
 
-// A kept-alive connection waiting for its next request, idle longest: closed to make room
+// A kept-alive connection waiting for its next request, idle longest: closed to make room. Only one already
+// answered: a connection just taken, its request still coming, is never closed for another (ADR-008, gate 2: with
+// the streams and held reads in their slots, that reset requests in flight). With none, the new one waits in the
+// listen backlog until a slot is free
 static slot_t *slot_idlest(void) {
     slot_t *idlest = NULL;
     for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
         slot_t *slot = &slots[idx];
-        if (slot->state == SLOT_REQUEST && !slot->started &&
+        if (slot->state == SLOT_REQUEST && !slot->started && slot->served &&
             (idlest == NULL || (int32_t) (slot->last_progress_ms - idlest->last_progress_ms) < 0)) {
             idlest = slot;
         }
@@ -1474,6 +1479,7 @@ static void server_accept(int listen_fd) {
     lwip_fcntl(fd, F_SETFL, O_NONBLOCK);
     slot->fd = fd;
     slot_reset_request(slot);
+    slot->served = false;
     slot->last_progress_ms = now_ms();
     slot->no_memory_until_ms = 0;
     stats.accepted += 1;
