@@ -131,6 +131,21 @@ NEXT_VERSION = OFFER["version"]
 BACK_WITHIN_S = 25
 ENDS = ["confirmed", "back", "refused", "power"]
 RESTART_MS = 5000                   # a plain restart: the unit away, then back on a new boot
+# The set-up (ADR-008, commissioning; gate 4 builds it), proposed and played here. A unit on its own hotspot hears
+# these networks, each scan a part of them, merged by name, strongest first (gate 1's probe: 7 and 10 of about 18)
+NETWORKS = [
+    {"ssid": "Smith home", "rssi": -48, "auth": "wpa2_aes"},
+    {"ssid": "Garage extender", "rssi": -63, "auth": "wpa2_mixed"},
+    {"ssid": "NETGEAR-21", "rssi": -74, "auth": "wpa2_aes"},
+    {"ssid": "Bakery guest", "rssi": -81, "auth": "open"},
+    {"ssid": "Neighbour 2.4", "rssi": -86, "auth": "wpa2_aes"},
+    {"ssid": "TP-Link_E8C4", "rssi": -89, "auth": "wpa2_mixed"},
+]
+SCAN_MS = 1300                      # two scans of about 650 ms (gate 1's probe)
+JOIN_MS = 4000                      # the station's join, the hotspot kept up meanwhile (5 s on the probe)
+WRONG_KEY = "wrongkey"              # the key the stand-in's networks refuse, to show a wrong key told at once
+JOINED_ADDRESS = "192.168.1.57"
+SETUP_PATHS = {"/api/v1/wifi/scan", "/api/v1/wifi/join", "/api/v1/setup/done"}
 
 
 def record(host):
@@ -157,12 +172,13 @@ def record(host):
 class StandIn:
     """The unit's state as the stand-in keeps it: the recorded replies, changed by the writes and actions."""
 
-    def __init__(self, replies, offer=None, ends="confirmed"):
+    def __init__(self, replies, offer=None, ends="confirmed", hotspot=False):
         """
         Args:
             replies: the recording, path to reply.
             offer: an importance (normal, critical) for a release found from the start, or None: found by Check now.
             ends: how an update ends, one of ENDS: kept, gone back, refused at its check, or a power cut in its trial.
+            hotspot: start as a unit never set up, on its own hotspot, as after a factory reset.
         """
         self.replies = replies
         self.schema = replies["/api/v1/schema"]
@@ -176,6 +192,7 @@ class StandIn:
             sys.exit("the recording has the update's back_within_s: the unit gives it now, so take out BACK_WITHIN_S")
         self.ends = ends
         self.job = None                 # the update job: its phase and times, or None
+        self.propose_setup(hotspot)
         self.down_until_ms = None       # the unit restarting: nothing answers until then
         if offer:
             self.replies["/api/v1/update"].update(found=dict(OFFER, importance=offer), poll={"state": "found", "error": None})
@@ -187,6 +204,70 @@ class StandIn:
 
     def now_ms(self):
         return int(time.monotonic() * 1000 - self.started_ms)
+
+    def propose_setup(self, hotspot):
+        """
+        The set-up's proposed API, made here until gate 4 builds it: `set_up` in the system's reply (stored; a factory
+        reset clears it), the station's join in the network's, the networks heard. Refused once the unit has them.
+
+        Args:
+            hotspot: start as a unit never set up, on its own hotspot.
+        """
+        system = self.replies["/api/v1/system"]
+        network = self.replies["/api/v1/network"]
+        if "set_up" in system or "station" in network:
+            sys.exit("the recording has the set-up's API: the unit makes it now, so take out propose_setup")
+        system["set_up"] = not hotspot
+        network["station"] = {"state": "joined" if not hotspot else "idle", "ssid": network["ssid"] if not hotspot else None,
+                              "address": network["address"] if not hotspot else None, "reason": None}
+        self.scan = {"until_ms": None, "heard": []}
+        self.joining = None             # a join under way: its network, key and end
+        if hotspot:
+            hostname = network["hostname"]
+            network.update(mode="access_point", ssid=hostname, address="192.168.4.1", rssi=None)
+            self.replies["/api/v1/settings/wifi"].update(enable=False, ssid="", saved=True)
+            self.stored["/api/v1/settings/wifi"] = copy.deepcopy(self.replies["/api/v1/settings/wifi"])
+
+    def networks(self):
+        """GET /api/v1/wifi/networks: what the scans heard, merged by name, strongest first; scanning while one runs."""
+        if self.scan["until_ms"] is not None and self.now_ms() >= self.scan["until_ms"]:
+            self.scan["until_ms"] = None
+            self.scan["heard"] = sorted(NETWORKS, key=lambda n: n["rssi"], reverse=True)
+        return {"scanning": self.scan["until_ms"] is not None, "networks": self.scan["heard"]}
+
+    def join_tick(self):
+        """A join under way ends after its time: joined and stored, or refused, the hotspot up either way."""
+        if self.joining is None or self.now_ms() < self.joining["until_ms"]:
+            return
+        joining, self.joining = self.joining, None
+        station = self.replies["/api/v1/network"]["station"]
+        if joining["key"] == WRONG_KEY:
+            station.update(state="failed", ssid=joining["ssid"], address=None, reason="wrong_key")
+            return
+        station.update(state="joined", ssid=joining["ssid"], address=JOINED_ADDRESS, reason=None)
+        wifi = self.replies["/api/v1/settings/wifi"]
+        wifi.update(enable=True, ssid=joining["ssid"], auth=joining["auth"], saved=True)
+        self.stored["/api/v1/settings/wifi"] = copy.deepcopy(wifi)
+
+    def setup_act(self, path, body):
+        """The set-up's proposed actions: a scan, a join, the set-up done."""
+        network = self.replies["/api/v1/network"]
+        if path == "/api/v1/wifi/scan":
+            self.scan["until_ms"] = self.now_ms() + SCAN_MS
+            return 202, self.networks()
+        if path == "/api/v1/wifi/join":
+            if not isinstance(body.get("ssid"), str) or not body["ssid"]:
+                return 400, error("wrong_type", "ssid: the network's name")
+            self.joining = {"ssid": body["ssid"], "key": body.get("key", ""), "auth": body.get("auth", "wpa2_mixed"),
+                            "until_ms": self.now_ms() + JOIN_MS}
+            network["station"].update(state="joining", ssid=body["ssid"], address=None, reason=None)
+            return 202, network
+        # Set up: remembered; joined, the hotspot stops and the unit is on its network alone
+        self.replies["/api/v1/system"]["set_up"] = True
+        if network["station"]["state"] == "joined":
+            network.update(mode="station", ssid=network["station"]["ssid"], address=network["station"]["address"],
+                           rssi=-58)
+        return 200, {"set_up": True, "hotspot": network["mode"] == "access_point"}
 
     def add_event(self, source, kind, **carries):
         """Log an event, numbered from 1, as the unit's log does."""
@@ -218,9 +299,13 @@ class StandIn:
             after = int(query.get("after", "0"))
             return 200, {"boot": self.replies["/api/v1"]["boot"], "now_ms": self.now_ms(), "first": 1,
                          "next": len(self.events), "events": self.events[after:]}
+        if path == "/api/v1/wifi/networks":
+            return 200, self.networks()
         if path not in self.replies:
             return 404, error("not_found", "no such path on this build")
         reply = self.replies[path]
+        if path == "/api/v1/network":
+            self.join_tick()
         if path == FRAME:
             return 200, base64.b64decode(reply["base64"])
         if path == "/api/v1/charge":
@@ -230,6 +315,11 @@ class StandIn:
             reply = dict(reply, back_within_s=BACK_WITHIN_S) if reply["state"] == "installing" else reply
         if path == "/api/v1/gate":
             self.gate()
+        if path == "/api/v1/scale":
+            # A scale that talks: the A&D's frames read as a weight near nought; another make set, none read
+            talks = self.replies["/api/v1/settings/scale"]["driver"] == "and_fxi"
+            reply.update(weight=round((self.now_ms() // 700 % 3 - 1) * 0.02, 2) if talks else None,
+                         unit="gr" if talks else None, driver=self.replies["/api/v1/settings/scale"]["driver"])
         if path == "/api/v1/settings":
             reply["resources"] = {inner: self.replies[inner] for inner in reply["resources"]}
         return 200, reply
@@ -418,6 +508,8 @@ class StandIn:
         Returns:
             (status, reply).
         """
+        if method == "POST" and path in SETUP_PATHS:
+            return self.setup_act(path, body)
         # A save: what was written there is stored (the save of all, everything)
         saved = [r["path"] for r in self.schema["resources"] if path in (r["save"], "/api/v1/settings/save")]
         if method == "POST" and saved:
@@ -626,13 +718,15 @@ def main():
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--offer", choices=["normal", "critical"],
                         help="start with a release found, of this importance (else Check now finds a normal one)")
+    parser.add_argument("--hotspot", action="store_true",
+                        help="start as a unit never set up, on its own hotspot, as after a factory reset")
     parser.add_argument("--update-ends", choices=ENDS, default="confirmed",
                         help="how an update ends: kept, gone back, refused at its check, or a power cut in its trial")
     args = parser.parse_args()
     if args.record:
         record(args.record)
         return
-    stand_in = StandIn(json.loads(DATA.read_text(encoding="utf-8")), args.offer, args.update_ends)
+    stand_in = StandIn(json.loads(DATA.read_text(encoding="utf-8")), args.offer, args.update_ends, args.hotspot)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(stand_in))
     print(f"the pages and {len(stand_in.replies)} recorded paths at http://127.0.0.1:{args.port}/")
     server.serve_forever()

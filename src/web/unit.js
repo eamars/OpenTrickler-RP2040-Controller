@@ -40,7 +40,9 @@ function drawFacts(index, network) {
                               fact(station ? "Network" : "Hotspot", net.ssid),
                               fact("Address", net.address),
                               station ? fact("Signal", signalText(net.rssi)) : null,
-                              fact("Running for", index.ok ? uptimeText(index.data.uptime_s) : null)));
+                              fact("Running for", index.ok ? uptimeText(index.data.uptime_s) : null)),
+                element("div", {class: "button-row"},
+                        element("a", {class: "ghost link-button", href: "#setup"}, "Set up this unit")));
 }
 
 // The unit's screen as a person at it sees it, read once a second while this page is shown, at the size and in the

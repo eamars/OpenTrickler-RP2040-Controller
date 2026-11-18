@@ -25,7 +25,8 @@ async function api(method, path, body) {
 }
 
 function setLink(reached) {
-    $("link").hidden = reached || follow.away;     // a restart this page follows is not a lost unit (update.js)
+    // A restart this page follows is not a lost unit (update.js), nor a hotspot the set-up has just left (setup.js)
+    $("link").hidden = reached || follow.away || setupLeft;
 }
 
 // A line over the page, the unit's own words when it refuses; gone at the next action or a tap
@@ -120,6 +121,7 @@ function route() {
             $(`page-${pageShown}`).hidden = true;
         }
         pageShown = page;
+        document.body.dataset.page = page;
         $(`page-${page}`).hidden = false;
         document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("on", a.dataset.page === page));
     }

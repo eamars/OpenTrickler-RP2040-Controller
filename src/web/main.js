@@ -17,13 +17,16 @@ document.addEventListener("visibilitychange", () => {
     }
     if (document.visibilityState === "visible") {
         keepAwake();
-        route();
-    } else {
-        PAGES[pageShown].leave();
+        PAGES[pageShown].resume ? PAGES[pageShown].resume() : route();
+    } else if (!PAGES[pageShown].resume) {
+        PAGES[pageShown].leave();   // a page that resumes (the set-up) keeps its reads: a join is still followed
     }
 });
 $("message").onclick = () => say("");
-route();
-keepAwake();
-watchJobs();
-setInterval(watchJobs, WATCH_MS);
+// A unit never set up, on its own hotspot, opens on its set-up (setup.js); then the page the address names
+offerSetup().then(() => {
+    route();
+    keepAwake();
+    watchJobs();
+    setInterval(watchJobs, WATCH_MS);
+});

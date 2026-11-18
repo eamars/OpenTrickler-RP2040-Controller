@@ -262,7 +262,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .field.inline .field-help, .field.inline .field-error { grid-column: 1 / -1; }
 .field-help { margin: 0; color: var(--soft); font-size: 0.875rem; }
 .field-error { margin: 0; color: var(--over); font-weight: 650; font-size: 0.9375rem; }
-.form input[type="text"], .form input[type="password"], .form select {
+.form input[type="text"], .form input[type="password"], .form select, .setup-body select {
     width: 100%; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control);
     background: var(--well); font-size: 1.0625rem; }
 .number { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
@@ -356,7 +356,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
     .compare thead tr:last-child th:first-child { text-align: left; }
 }
 /* One select for the whole portal: the form's as the Trickler's, its own arrow */
-.form select { appearance: none; -webkit-appearance: none; padding-right: 38px; text-overflow: ellipsis;
+.form select, .setup-body select { appearance: none; -webkit-appearance: none; padding-right: 38px; text-overflow: ellipsis;
                background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%),
                                  linear-gradient(135deg, var(--soft) 50%, transparent 50%);
                background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat; }
@@ -396,4 +396,36 @@ body.strip-on #page-trickler .seg { display: none; }
 body.strip-on .trickler { height: calc(100svh - var(--bar) - env(safe-area-inset-bottom) - 60px); padding-top: var(--gap);
                           grid-template-rows: minmax(0, 1fr); }
 @media (min-width: 600px) { .strip { margin: 12px 16px 0; } }
-
+/* Set up: a flow of its own, one column of a phone's width, no navigation; it may run in a sign-in sheet (rule 13) */
+body[data-page="setup"] .nav { display: none; }
+body[data-page="setup"] { padding-left: 0; }
+.page.setup-page { max-width: 480px; padding-bottom: 32px; }
+.setup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 4px 14px; }
+.setup-head h1 { font-size: 1.3rem; margin: 0; }
+.setup-count { color: var(--soft); font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.setup-body { display: grid; gap: 14px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
+              padding: 16px; }
+.setup-body h2 { margin: 0; font-size: 1.15rem; }
+.setup-actions { display: grid; gap: 10px; margin-top: 4px; }
+.setup-actions .link-button { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.setup-actions .action { color: var(--on-ink); }
+.setup-status { font-weight: 700; }
+.setup-status.good { color: var(--good); }
+.setup-status.bad { color: var(--over); }
+.networks .row { width: 100%; border: 0; border-top: 1px solid var(--rule); background: transparent; text-align: left; font: inherit;
+                 font-weight: 600; }
+.networks .row.muted { color: var(--soft); font-weight: 500; }
+.networks .signal { flex: none; color: var(--soft); font-size: 0.875rem; font-weight: 600; }
+.networks .lock svg { width: 18px; height: 18px; color: var(--soft); }
+.join { display: grid; gap: 12px; padding: 4px 16px 16px; background: var(--well); }
+.join input[type="text"], .join input[type="password"], .join select {
+    width: 100%; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control);
+    background: var(--card); font-size: 1rem; }
+.show-key { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--soft); }
+.setup-weight { display: flex; align-items: baseline; gap: 4px; margin: 0; font-size: 2.6rem; font-weight: 700;
+                font-variant-numeric: tabular-nums; line-height: 1.1; }
+.setup-help { display: grid; gap: 10px; }
+.facts .missing dd { color: var(--over); }
+.setup-address { font-size: 1.3rem; font-weight: 700; color: var(--ink); word-break: break-all; }
+/* A fact's name holds its line; its value gives way (rule: text holds its line) */
+.facts dt { white-space: nowrap; }

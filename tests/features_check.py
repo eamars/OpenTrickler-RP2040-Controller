@@ -25,15 +25,10 @@ NEW = re.compile(r"^- \*\*(N\d+)\. ")
 # The rows the mock does not show yet, each with the gate that brings it. It empties as the gates are built: with
 # --final, any row here fails
 TO_COME = {
-    "1": "the set-up (gate 1's set-up pages, built in gate 4)",
-    "2": "the set-up",
     "3": "gate 3: the unit serves the portal at /mobile too",
-    "4": "the set-up",
+    "4": "gate 3: /wizard opens the portal's set-up",
     "5": "gate 3: /display_mirror opens the portal's Unit page, where the mirror is",
     "6": "gate 3: the pages gzipped, with their ETag",
-    "78": "the set-up", "79": "the set-up", "80": "the set-up", "81": "the set-up", "82": "the set-up",
-    "83": "the set-up", "84": "the set-up", "85": "the set-up",
-    "N7": "the set-up",
     "N8": "gate 2: the event for a setting changed, on the event stream",
     "N9": "gate 2: the unit's report of what it carries",
 }

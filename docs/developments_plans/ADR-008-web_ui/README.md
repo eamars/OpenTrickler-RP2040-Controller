@@ -189,6 +189,22 @@ The agent's proposals, 2026-11-18, for the owner to settle with the mock:
 - **The set-up's address in DHCP** (the agent's idea, taken 2026-11-18): the unit's DHCP server gives the phone the set-up's address as the captive portal's (option 114, RFC 8910), so a phone that reads it opens the set-up without guessing from its own check. Newer iPhones and Android phones are said to read it (thought so, not checked); the others still have the answer to their check. A few lines in `dhcpserver.c`, tried on the phones in gate 1.
 - **A QR code to join the access point,** the phones' own Wi-Fi format (`WIFI:T:WPA;S:<name>;P:<key>;;`, about 45 characters): QR version 3, 29 modules, 58 of the panel's 64 rows at 2 pixels a module. A phone's camera joins the network from it with no app. On the screen's Wi-Fi page. The owner's QR question (2026-11-17) is answered here.
 
+### The set-up as drawn (gate 1's mock, 2026-11-18)
+
+The owner: "Keep commissioning in the ADR, Set up on the page. Then continue with the design." Drawn in the mock (`src/web/setup.js`), for the owner to settle by using it; built in gate 4, after the iPhone is seen.
+- **When it opens:** by itself only on a unit never set up, on its own hotspot, when the page is opened at its root (a phone's sign-in sheet opens it so). Finishing or skipping is remembered by the unit, so it never opens by itself again; a factory reset forgets it. From the Unit page, "Set up this unit" opens it any time. No pop-up at any other start.
+- **Its steps,** "Set up this unit", "1 of 4", one column of a phone's width with no navigation, each step skippable:
+  1. **Wi-Fi:** the networks the unit hears, strongest first, each with its signal in words and a lock where it needs a key; "Another network" to type one. Chosen, its key under it, the cursor in it. The join is tried while the hotspot stays up, and its end said on the page: "Joined Smith home. Its address there: opentrickler-9CE0.local (192.168.1.57)", or "Not joined: the key is wrong. Try again", the key ready to type again; nothing restarts. "Skip: use its own hotspot".
+  2. **Scale:** its make, and its weight now, read live: a weight that moves shows the scale talks. Nothing read for about 3 s: "Nothing from the scale yet. Check its cable, and that the scale sends at the speed set here", with the speed. Each choice stored at once: a set-up has no "not stored".
+  3. **Motors:** each driver found or not, in words ("Driver not found: check its cable and the board's power"); nothing to set.
+  4. **Ready:** what was set (Wi-Fi, scale, motors). Joined to a network: "Finish: go to your Wi-Fi": the unit leaves its hotspot, and the page says where to find it there (`http://opentrickler-9CE0.local`, or its address) and to try a first charge with the empty cup on. On its own hotspot: "Start using it", to the Trickler.
+- **Its API, proposed** (played by the stand-in, `propose_setup` in `tests/web_test.py`, which refuses to start once the unit has it; built in gate 4):
+  - `GET /api/v1/wifi/networks`: `scanning`, and `networks` (each `ssid`, `rssi`, `auth`), merged from the scans by name, strongest first (gate 1's probe: a scan hears part of the list). `POST /api/v1/wifi/scan` asks a new scan. The table from the heap (the probe's static one did not link).
+  - `POST /api/v1/wifi/join` (`ssid`, `key`, `auth`): the station joins while the hotspot stays up; `GET /api/v1/network` gains `station` (`state`: idle, joining, joined, failed; `ssid`, `address`, `reason`: wrong_key, not_found, timeout). Joined, the Wi-Fi is stored; refused, nothing is.
+  - `set_up` in `GET /api/v1/system`: stored (a field in the Wi-Fi's slot or its own; a stored layout, said here as the rule asks), false after a factory reset. `POST /api/v1/setup/done` sets it; joined, the hotspot then stops. The hotspot's life: up from a start with no network joined, kept while the set-up runs, stopped at its end once joined, or at the next start.
+- **On the screen, not drawn yet:** the Wi-Fi page's hotspot key made from the chip and its QR code ("Proposed, not settled"), with the screen's skill, before gate 4.
+- **Not known before the iPhone:** whether the sign-in sheet opens by itself, and whether the address link on the last step opens in the phone's browser once it is back on its Wi-Fi.
+
 ### To find out first
 
 On a real iPhone, before commissioning's design is settled: deferred by the owner (2026-11-18) to when the owner is at the unit, and at the start of gate 4 at the latest, on the probe image (`-DRC_TEST_AP_PROBE=ON`). No Android phone is at hand: Android is taken to work as the iPhone does (the owner), and is not tested. The mock goes on meanwhile; the set-up's pages are drawn as the Windows client and today's code show, and changed if the iPhone differs. What is listed here is what phones are known to do, not yet seen with this unit:
@@ -289,6 +305,7 @@ Today's words, read 2026-11-18 (the screen's from `menu_nav.c`, the web's from `
 | The 12864 | Display | Mini 12864 Module | `display` | Display |
 | The network joined | Wi-Fi | Wireless | `wifi` | Wi-Fi |
 | The unit's own network | Hotspot | (none; "access point" in these documents) | (none) | Hotspot |
+| Bringing a unit into service, from its first start to its first charge | (the Wi-Fi page) | Setup Wizard, Configure WiFi | (none) | **Set up** wherever a person reads it: the page, the screen, the API ("Set up this unit"). "Commissioning" only in this ADR, the name of the design work and of the process with its parts no page shows (the owner, 2026-11-18: "Keep commissioning in the ADR, Set up on the page") |
 | Starting again | Restart | Reboot | `system/restart` | Restart |
 | Every setting erased | Factory reset | Erase EEPROM | `system/erase` | Factory reset; the API `system/factory_reset` |
 | Writing settings to the EEPROM | (each row stores itself) | Save to EEPROM, Apply | `save` | To settle with the mock: one word, and whether a person sees "stored" at all |

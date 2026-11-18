@@ -255,8 +255,28 @@ The owner: "Yes, the install". The update is drawn whole, from Install to how it
 
 Driven at 390 x 664 and 375 x 553 (each end: kept, gone back, refused, a power cut; a file refused and a file kept; Stop; Restart; a charge's strip and its Stop from Settings), 1280 x 800 in dark (the job's card). The page logs no error of its own; the browser logs each connection the stand-in drops while it restarts. `features_check.py`: 105 rows, 74 shown, 14 left out, 17 to come, `VERDICT PASS`. The whole portal 99,489 bytes, 27,234 gzipped.
 
+### The set-up drawn (2026-11-18)
+
+The owner settled the word ("Keep commissioning in the ADR, Set up on the page", written into "The words") and asked to continue with the design. The set-up is drawn in the mock (`src/web/setup.js`), its four steps and its proposed API written into the README ("The set-up as drawn"). The stand-in plays a unit never set up with `tests/web_test.py --hotspot`: on its hotspot, six networks heard, a join that takes 4 s, refused for the key `wrongkey`, a scale that talks as the A&D and is silent as any other make.
+
+Driven at 390 x 664: the root opened on the set-up by itself; a network chosen (the cursor in its key), a wrong key said at once and the key ready again, the right key joined with no restart; the scale's live weight, a silent make told after about 3 s with its speed; both drivers found; Ready, then Finish and the unit's address on its network. Then the root again: the Trickler, not the set-up. A second unit, every step skipped, "Start using it" on its own hotspot, to the Trickler, and not offered again. 1280 x 800 in dark: one column, no navigation. No console errors.
+
+Found and fixed while driving it:
+
+| Found | Made |
+|---|---|
+| A finished scan drew the list again with nothing chosen, and a page shown again (a phone woken) was drawn afresh: a key being typed was wiped | the step keeps what is chosen across its redraws; the set-up resumes when shown again, its reads going on, rather than being drawn again |
+| The lock on a network that needs a key not drawn (an SVG made as HTML) | drawn in SVG's namespace |
+| The make's list in the browser's bare style | the forms' style |
+| "Stored." and "On it, the unit is ..." after a join | "Its address there: ..." |
+| "Wi-Fi" wrapping in the Ready facts, beside "Smith home, as opentrickler-9CE0.local" | the network's name alone (the address on the last step); a fact's name never wraps |
+| "Driver found" in green: normal is grey | no colour; a driver not found in red |
+| The last step's heading "Set up" under "Set up this unit" | "Done" |
+
+`features_check.py`: 105 rows, 85 shown, 14 left out, 6 to come (gate 3's routes and ETag, gate 2's echo and report), `VERDICT PASS`. The whole portal 120,762 bytes, 32,546 gzipped, under the budget of about 50 KB.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
-2. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
+2. The screen's half of the set-up: the Wi-Fi page's hotspot key from the chip and its QR code, drawn with the screen's skill.
 3. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
