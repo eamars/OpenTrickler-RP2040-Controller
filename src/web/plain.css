@@ -3,7 +3,7 @@
    action that moves the job on is in the ink, Stop in red. Light or dark follows the device.
    Widths (rule 1): a bar at the bottom under 600 px, a rail at the left from 600; one column at every width, its
    groups in their order, never side by side (the owner, 2026-11-18). The Trickler's views fit the visible height and never scroll (rule 14): the readout is a container, and the
-   figure and its ring scale to it; where it is short the ring gives way to a bar, and the steps to the status. */
+   figure and its ring scale to it; where it is short the ring gives way to a bar. */
 :root {
     --ground: #ecece8;
     --card: #fafaf8;
@@ -151,12 +151,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .view[data-mood="under"] .status { color: var(--under); background: color-mix(in srgb, var(--under-mark) 18%, var(--card));
                                     border-color: var(--under-mark); }
 
-.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; list-style: none; margin: 0; padding: 0; }
-.steps li { font-size: 0.8125rem; color: var(--soft); text-align: center; padding-top: 6px; border-top: 4px solid var(--rule); }
-.steps li.done { color: var(--ink); border-color: var(--ink); }
-.steps li.now { color: var(--ink); font-weight: 700; border-color: var(--state); }
-/* Short: the steps give way to the status, which says the same */
-@container view (max-height: 470px) { .steps { display: none; } }
 
 /* Keys and steppers, wherever they are */
 .stepper { display: grid; grid-template-columns: var(--job-key) minmax(0, 1fr) var(--job-key); gap: 8px; align-items: center; }

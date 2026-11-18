@@ -77,13 +77,6 @@ function renderCharge() {
     $("start").hidden = running;
     $("stop").hidden = !running;
 
-    const order = [...$("steps").children].map((step) => step.dataset.state);
-    const reached = order.indexOf(charge.state);
-    [...$("steps").children].forEach((step, index) => {
-        step.classList.toggle("done", reached >= 0 && index < reached);
-        step.classList.toggle("now", index === reached);
-    });
-
     // Colour only where it means something (web-ui-design, rule 5): not ready, then the throw's verdict
     const result = charge.last && charge.last.result;
     const afterThrow = charge.state === "waiting_for_cup_removal" || (!running && result in VERDICT);

@@ -47,13 +47,8 @@
       </div>
     </div>
     <div class="group job">
+      <!-- The status names the step the cycle is at (the screen's words); no step track beside it: the same news twice -->
       <div class="status"><span id="status">Ready</span><span id="elapsed" class="time">-.-- s</span></div>
-      <ol id="steps" class="steps">
-        <li data-state="zeroing">Zero</li>
-        <li data-state="charging">Charge</li>
-        <li data-state="waiting_for_cup_removal">Lift cup</li>
-        <li data-state="waiting_for_cup_return">Return cup</li>
-      </ol>
       <button id="start" class="action go">Start charge</button>
       <button id="stop" class="action halt" hidden>Stop</button>
     </div>

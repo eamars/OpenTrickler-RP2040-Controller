@@ -75,13 +75,14 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 
 14. **A job's page fits the screen: it never scrolls.**
     - The Trickler's views (Charge, Purge) fit the visible height, down to a phone of 375 by 667 CSS px with its browser's bars shown (about 550 px for the page). Sized by `svh`, the height with the bars shown, never `vh`, which is taller than what a phone shows.
-    - What does not fit is scaled, not scrolled: the figure's area takes the room left (a CSS container), and the figure and its ring scale with it; where the room is too short for a ring, a bar under the figure takes its place, and the steps give way to the status word, which says the same. The figure never goes below rule 4's size: the ring and the steps go first.
+    - What does not fit is scaled, not scrolled: the figure's area takes the room left (a CSS container), and the figure and its ring scale with it; where the room is too short for a ring, a bar under the figure takes its place. The ring goes before the figure shrinks.
+    - **One element for one piece of news.** The status word says where the cycle is; a step track beside it said the same and was dropped (the owner, 2026-11-18: "both are propagating the same information"). Before adding an element, name what it says that nothing else on the view says.
     - Only what a job needs while it runs is on its view. A preference set once (keeping the phone awake) goes to the Unit's page.
     - Lists (powders, settings, the update's notes) may scroll: they are read, not worked at.
     - **Why:** the owner, 2026-11-18: "scrolling a control page seems inconvinent", which is why the charge and the purge were two pages before.
 
 15. **Group by what each element is about, then lay out the groups.**
-    - Before placing anything, sort the elements into groups by what they act on or describe. On the charge: **the charge** (what to throw: the powder, the target), **the scale** (what is on the pan: the weight, its progress to the target, Zero), **the job** (where the cycle is and what to do: the status, the steps, Start or Stop). A parameter goes with its sibling parameters, an action with the thing it acts on (Zero with the weight, not with the powder).
+    - Before placing anything, sort the elements into groups by what they act on or describe. On the charge: **the charge** (what to throw: the powder, the target), **the scale** (what is on the pan: the weight, its progress to the target, Zero), **the job** (where the cycle is and what to do: the status, Start or Stop). A parameter goes with its sibling parameters, an action with the thing it acts on (Zero with the weight, not with the powder).
     - The groups always read in the same order, top to bottom or left to right: inputs, then the measurement, then the action. Never an input to the right of, or under, the reading it sets (the target is never right of the weight).
     - The groups stack in that order at every width (rule 1): never side by side.
     - **Why:** the owner, 2026-11-18: "I don't think in any case the charge weight should be put on the right hand side of the measurement. Check your web element inclusive relationship." The target had been put with Start, and Zero with the powder; on a wide window the target then sat right of the weight.
@@ -90,7 +91,7 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 ## This project's design language
 
 - **Ground and surfaces:** a neutral grey ground, cards a step lighter (light) or darker (dark), 1 px rules, corners of 14 to 18 px, little shadow.
-- **The job's panel:** the figure, its ring or bar, the status word and the steps in one card; the controls in the card beside or below it.
+- **The groups:** the charge's inputs in a card; the scale in a card, its name and Zero in its head, the figure and its ring or bar; the job under them, its status word then its action.
 - **Accent:** one colour for the action that moves the job on (Start), red for Stop; state colours as rule 5.
 - **Faces:** the system's sans serif; figures tabular, bold; three sizes besides the figure (body 17 px, small 14 px, heading 20 px).
 - **Icons:** 24 px, a 2 px stroke, round ends, `currentColor`; one per navigation destination and per card title.
