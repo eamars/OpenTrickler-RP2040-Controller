@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-39-dirty",
+   "vcs": "277b002",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
   "hostname": "opentrickler-9CE0",
-  "boot": 2579517273,
-  "uptime_s": 105,
+  "boot": 973866275,
+  "uptime_s": 67,
   "features": [],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
@@ -312,7 +312,7 @@
     "methods": [
      "POST"
     ],
-    "about": "stores LEDs"
+    "about": "stores Lights"
    },
    {
     "path": "/api/v1/settings/display/save",
@@ -333,7 +333,7 @@
     "methods": [
      "POST"
     ],
-    "about": "stores Coarse trickler motor and Fine trickler motor"
+    "about": "stores Coarse motor and Fine motor"
    },
    {
     "path": "/api/v1/settings/scale/save",
@@ -354,7 +354,7 @@
     "methods": [
      "POST"
     ],
-    "about": "stores Powder profile"
+    "about": "stores Powder"
    },
    {
     "path": "/api/v1/settings/gate/save",
@@ -375,8 +375,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-39-dirty",
+   "vcs": "277b002",
    "build": "Debug"
   },
   "resources": [
@@ -553,11 +553,11 @@
       "name": "enable",
       "label": "Join a network",
       "type": "boolean",
+      "short_label": "Wi-Fi",
       "access": "read_write",
       "applies": "at_restart",
       "refused_while": "never",
-      "about": "The unit joins this network at its start; off, it is its own access point",
-      "short_label": "Wi-Fi"
+      "about": "The unit joins this network at its start; off, it is its own access point"
      },
      {
       "name": "ssid",
@@ -1460,11 +1460,11 @@
       "name": "enable",
       "label": "Fitted",
       "type": "boolean",
+      "short_label": "Servo gate",
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
-      "about": "The unit has a servo gate, and uses it",
-      "short_label": "Servo gate"
+      "about": "The unit has a servo gate, and uses it"
      },
      {
       "name": "shutter0_close_duty",
@@ -1926,6 +1926,22 @@
      "about": "the charge ended on a fault (last.reason) and waits for a stop or a press to acknowledge it"
     }
    ],
+   "purge": [
+    {
+     "value": "idle"
+    },
+    {
+     "value": "starting",
+     "about": "asked, and the menu has not begun it yet"
+    },
+    {
+     "value": "running"
+    },
+    {
+     "value": "fault",
+     "about": "ended on a driver's fault, waiting for a stop or a press"
+    }
+   ],
    "gate": [
     {
      "value": "open"
@@ -1966,22 +1982,6 @@
     {
      "value": "supply",
      "about": "its motor supply is too low"
-    }
-   ],
-   "purge": [
-    {
-     "value": "idle"
-    },
-    {
-     "value": "starting",
-     "about": "asked, and the menu has not begun it yet"
-    },
-    {
-     "value": "running"
-    },
-    {
-     "value": "fault",
-     "about": "ended on a driver's fault, waiting for a stop or a press"
     }
    ]
   },
@@ -2191,8 +2191,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-39-dirty",
+   "vcs": "277b002",
    "build": "Debug"
   },
   "unit_id": "9CE00000",
@@ -2211,7 +2211,7 @@
     "invert_encoder": false,
     "rotation": 180,
     "invert_display": true,
-    "charge_view": "weight"
+    "charge_view": "chart"
    },
    "/api/v1/settings/wifi": {
     "saved": true,
@@ -2395,7 +2395,7 @@
    },
    "/api/v1/settings/update": {
     "saved": true,
-    "channel": "stable",
+    "channel": "beta",
     "source": "http://192.168.2.13:8080/a/b"
    }
   }
@@ -2442,11 +2442,11 @@
   "motors": [
    {
     "id": "coarse",
-    "label": "Coarse trickler motor"
+    "label": "Coarse motor"
    },
    {
     "id": "fine",
-    "label": "Fine trickler motor"
+    "label": "Fine motor"
    }
   ]
  },
@@ -2456,10 +2456,10 @@
   "throw": 3,
   "paused": false,
   "target": 30,
-  "powder_profile": 1,
-  "powder_profile_name": "AR2209,gr",
+  "powder_profile": 0,
+  "powder_profile_name": "AR2208,gr",
   "weight": null,
-  "elapsed_s": 16.88,
+  "elapsed_s": 9.777,
   "last": {
    "throw": 3,
    "result": "none",
@@ -2501,13 +2501,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-39-dirty",
+   "vcs": "277b002",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
-  "uptime_s": 108,
+  "uptime_s": 70,
   "activity": "none",
   "restart_pending": false
  },
@@ -2516,13 +2516,13 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-9CE0",
-  "rssi": -56
+  "rssi": -57
  },
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.2-53-dirty",
-   "block": "2.0.2-53",
+   "version": "2.0.3-39-dirty",
+   "block": "2.0.3-39",
    "slot": "a",
    "trial": false
   },
@@ -2560,7 +2560,7 @@
   "invert_encoder": false,
   "rotation": 180,
   "invert_display": true,
-  "charge_view": "weight"
+  "charge_view": "chart"
  },
  "/api/v1/settings/wifi": {
   "saved": true,
@@ -2744,7 +2744,7 @@
  },
  "/api/v1/settings/update": {
   "saved": true,
-  "channel": "stable",
+  "channel": "beta",
   "source": "http://192.168.2.13:8080/a/b"
  }
 }
