@@ -27,12 +27,6 @@ static void wireless_rejoin(void);
 static void srv_txt(struct mdns_service *service, void *txt_userdata);
 
 
-#ifdef CYW43_HOST_NAME
-#undef CYW43_HOST_NAME
-#endif
-
-// Overwrite the host name
-#define CYW43_HOST_NAME "opentrickler"
 #define LED_INTERFACE_MINIMUM_POLL_PERIOD_MS    20
 
 // The hostname is used by STA mode to advertise mDNS. The value is also used for AP mode as the SSID
@@ -556,6 +550,11 @@ void wireless_task(void *p) {
     if (wireless_config.eeprom_wireless_metadata.enable) {
         wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_INIT;
         cyw43_arch_enable_sta_mode();
+        // The name the router is told by DHCP: the unit's own, as mDNS announces it. The driver set its own default
+        // ("PicoW", the same on every unit) as it brought the interface up; nothing has asked for an address yet
+        cyw43_arch_lwip_begin();
+        netif_set_hostname(&cyw43_state.netif[CYW43_ITF_STA], host_name);
+        cyw43_arch_lwip_end();
 
         // If the authentication method is open then the password is NULL
         const char * wifi_password = NULL;

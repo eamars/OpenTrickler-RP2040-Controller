@@ -61,8 +61,6 @@ bool save_config(uint16_t addr, void * cfg, size_t size);
  * record whose stored copy did not read (its layout changed) is held as its defaults, and said so at the confirmation
  */
 void config_hold_writes(bool hold);
-// Whether this start is a trial's, holding its writes
-bool config_writes_held(void);
 // Write what was held, and stop holding. The addresses of the records held as defaults, the settings the update
 // reset, into reset (up to room of them); their count
 size_t config_write_held(uint16_t *reset, size_t room);

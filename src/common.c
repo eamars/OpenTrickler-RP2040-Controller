@@ -168,11 +168,6 @@ void config_hold_writes(bool hold) {
 }
 
 
-bool config_writes_held(void) {
-    return config_holding;
-}
-
-
 static bool config_hold(uint16_t addr, const void * cfg, size_t size, bool defaults) {
     size_t idx = 0;
     while (idx < config_held_count && config_held[idx].addr != addr) {
