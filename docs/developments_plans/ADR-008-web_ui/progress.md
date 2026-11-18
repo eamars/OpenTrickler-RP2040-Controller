@@ -275,8 +275,15 @@ Found and fixed while driving it:
 
 `features_check.py`: 105 rows, 85 shown, 14 left out, 6 to come (gate 3's routes and ETag, gate 2's echo and report), `VERDICT PASS`. The whole portal 120,762 bytes, 32,546 gzipped, under the budget of about 50 KB.
 
+### The set-up on the screen drawn (2026-11-18)
+
+The owner: "Yes, the screen". The 12864's half of the set-up drawn in the screen's grid and faces (`tools/ui_mock/setup_12864.py`, a sheet of its own beside the menu's, `mockups/setup_12864.png`), written into the README ("The set-up as drawn", on the screen): the main menu's "Set up this unit" row, the code that joins the hotspot with the text beside it, the screen once a phone has joined, the Wi-Fi page on the hotspot with its key and "Join by camera". `segno` 1.6.1 makes the code (in `requirements.txt`); the key is an example, the unit's own made from its chip.
+
+The agent's review: the text beside the code was drawn half off the glass (its first line's baseline taken before the faces were loaded), now centred over Back; every other line holds its width (measured: the widest, "or open 192.168.4.1", 96 of 128 px). The code checked: OpenCV's reader (installed for the check, then removed: not one of the host tools) decoded the drawn screen, and the panel alone inside a dark bezel, though its quiet zone is 1.5 modules. The phones decide at the unit.
+
+For the owner: the code's screen is a seventh kind of screen, which the screen's skill allows only by the owner's word.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
-2. The screen's half of the set-up: the Wi-Fi page's hotspot key from the chip and its QR code, drawn with the screen's skill.
-3. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
+2. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
