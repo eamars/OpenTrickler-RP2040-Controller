@@ -52,9 +52,10 @@ function drawUpdate(update) {
     }
     body.push(element("dl", {class: "facts"}, fact("Firmware", u.running.version)));
     if (u.found) {
-        const offer = element("div", {class: u.found.critical ? "offer critical" : "offer"},
+        const critical = u.found.importance === "critical";
+        const offer = element("div", {class: critical ? "offer critical" : "offer"},
                               element("p", {class: "offer-title"}, `Version ${u.found.version} is available`,
-                                      u.found.critical ? element("span", {class: "tag critical"}, "Important") : null),
+                                      critical ? element("span", {class: "tag critical"}, "Important") : null),
                               u.found.note ? element("p", {}, u.found.note) : null,
                               u.found.bench ? element("p", {class: "hint"}, `From the bench host ${u.found.bench}`) : null,
                               element("button", {class: "action go", type: "button", onclick: installFound}, "Install"));
@@ -227,9 +228,10 @@ PAGES.unit = {
         const page = $("page-unit");
         const [index, network, update] = await Promise.all([api("GET", "/api/v1"), api("GET", "/api/v1/network"),
                                                             api("GET", "/api/v1/update")]);
+        // The update first, where its mark on the navigation leads, and in the same place with or without an offer
         page.replaceChildren(element("div", {class: "cards"},
-                                     drawFacts(index, network),
                                      drawUpdate(update),
+                                     drawFacts(index, network),
                                      drawMirror(),
                                      drawBrowser(),
                                      card("Backup",

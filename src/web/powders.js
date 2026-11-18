@@ -102,9 +102,10 @@ PAGES.powders = {
         // Side by side, an empty pane says nothing: the powder in use is open (as the settings' first part)
         const chosen = /^\d+$/.test(rest) ? Number(rest) : (SPLIT.matches ? inUse : null);
         page.dataset.open = chosen === null ? "list" : "part";
-        page.replaceChildren(element("div", {class: "master"},
-                                     drawPowderList(powders, inUse, chosen),
-                                     drawPowderTable(powders, inUse, chosen)));
+        const master = element("div", {class: "master"});
+        const drawMaster = () => master.replaceChildren(drawPowderList(powders, inUse, chosen), drawPowderTable(powders, inUse, chosen));
+        drawMaster();
+        page.replaceChildren(master);
         if (chosen === null) {
             return;
         }
@@ -112,7 +113,18 @@ PAGES.powders = {
         // No title over the form: its first field is the powder's name
         const pane = element("section", {class: "detail"}, element("a", {href: "#powders", class: "back"}, "‹ Powders"));
         if (reply.ok) {
-            pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, () => route()));
+            // A change shows in the list and the table at once, from the write's own reply. The eight powders are one
+            // record in the EEPROM, so "Not stored" is every powder's, as the unit says it
+            const hooks = {
+                changed: (values) => {
+                    for (const powder of powders) {
+                        Object.assign(powder, powder.id === chosen ? values : {saved: values.saved});
+                    }
+                    drawMaster();
+                },
+                reload: () => route(),
+            };
+            pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, hooks));
             const files = element("div", {class: "button-row"},
                                   element("button", {class: "ghost", type: "button", onclick: () => exportPowder(chosen)}, "Export this powder"),
                                   element("button", {class: "ghost", type: "button", onclick: () => importPowder(chosen)}, "Import into this powder"));

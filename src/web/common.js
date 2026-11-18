@@ -121,6 +121,18 @@ function route() {
     }
     say("");
     PAGES[page].enter(rest.join("/"));
+    markOffer();
+}
+
+// A release found is marked on the Unit's destination, from every page, as the screen offers it by a row of its main
+// menu: never a pop-up (ADR-004). Read at each page shown; the event stream carries it in gate 2
+async function markOffer() {
+    const reply = await api("GET", "/api/v1/update");
+    const found = reply.ok ? reply.data.found : null;
+    const unit = document.querySelector('.nav a[data-page="unit"]');
+    unit.classList.toggle("offer-mark", found !== null);
+    unit.classList.toggle("critical", found !== null && found.importance === "critical");
+    unit.setAttribute("aria-label", found === null ? "Unit" : `Unit: version ${found.version} is available`);
 }
 
 // Keep this screen awake: on unless this browser was told otherwise (its switch on the Unit's page). Where the Wake

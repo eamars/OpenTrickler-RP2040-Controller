@@ -49,7 +49,8 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
    - Every field's text at least 16 px: iOS Safari zooms into a smaller field and leaves the page zoomed. Never stop the person zooming (`maximum-scale`).
    - Numbers with `inputmode="decimal"`; the step and the limits from the schema; a refusal said beside the field, in the unit's words.
    - Choices of a few options as segmented buttons; of many, a list. Never a Yes/No select for an action: an action is a button (today's System Control, `features.md` rows 70 and 74).
-   - A setting is live when written, and the page shows whether it is stored; storing is one plain action, not a question at every change (to settle with the mock, ADR-008, "The words").
+   - A setting is live when written, and the page shows whether it is stored; storing is one plain action, not a question at every change. Beside Store, "Undo changes" puts back what is stored (the owner, 2026-11-18: "add a button next to Store button to reset"). The bar says what is at stake: "Changed, not stored: lost at the next restart."
+   - Wherever else the page shows the resource (a list's "Not stored", the powders' table), it follows each write's reply at once, never only when the page is drawn again (the owner: "Why Not stored tag is only shown AFTER the current view is exit?").
 8. **Confirm only what cannot be undone; ask for safety.**
    - Routine actions act at once: a change of target, of powder, a zero, a stop.
    - **Irreversible actions** (a factory reset, an update's install) ask in a dialog that says what is lost, with buttons named by their outcome ("Erase every setting", "Keep my settings"), no default, the safe one on the left. Not more often than that, or the dialog is clicked through unread (NN/g).

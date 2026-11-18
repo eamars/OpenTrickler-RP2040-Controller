@@ -200,6 +200,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .nav svg { width: 24px; height: 24px; }
 .nav a.on { color: var(--ink); background: var(--well); }
 .nav a.on svg { stroke-width: 2.4; }
+/* A release found: a dot on the Unit's icon, the ink's for a normal one, red for a critical one (rule 5) */
+.nav a { position: relative; }
+.nav a.offer-mark::after { content: ""; position: absolute; top: 8px; left: calc(50% + 8px); width: 10px; height: 10px;
+                           border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 2px var(--card); }
+.nav a.offer-mark.critical::after { background: var(--over); }
 
 @media (min-width: 600px) {
     :root { --bar: 0px; --gap: 14px; }
@@ -273,8 +278,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .store-bar { position: sticky; bottom: calc(var(--bar) + 12px + env(safe-area-inset-bottom)); display: flex; align-items: center;
              gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-card); background: var(--ink); color: var(--on-ink);
              box-shadow: 0 6px 18px rgb(0 0 0 / 0.2); }
-.store-bar span { flex: 1; font-weight: 600; }
+.store-bar { flex-wrap: wrap; }
+.store-bar span { flex: 1 1 14rem; font-weight: 600; }
+.store-actions { display: flex; gap: 10px; margin-left: auto; }
 .store-bar .action { width: auto; min-height: 48px; padding: 0 20px; background: var(--on-ink); color: var(--ink); }
+.store-bar .undo { min-height: 48px; padding: 0 16px; border-radius: var(--r-control); background: transparent;
+                   color: var(--on-ink); border: 1px solid currentColor; font-weight: 650; }
 
 /* Powders side by side, a wide window's view of the list */
 @media (min-width: 1000px) {

@@ -59,7 +59,7 @@ function drawSwitch(part, forms) {
     return element("div", {class: "seg", role: "tablist", "aria-label": part.label}, ...buttons);
 }
 
-async function drawSettingsPart(key) {
+async function drawSettingsPart(key, hooks) {
     const part = SETTINGS_PARTS.find((p) => p.key === key);
     const pane = element("section", {class: "detail"},
                          element("a", {href: "#settings", class: "back"}, "‹ Settings"),
@@ -67,7 +67,7 @@ async function drawSettingsPart(key) {
     const forms = [];
     for (const path of part.paths) {
         const reply = await api("GET", path);
-        forms.push(reply.ok ? await drawForm(path, reply.data, () => route())
+        forms.push(reply.ok ? await drawForm(path, reply.data, hooks)
                             : element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
     }
     if (part.titles) {
@@ -89,9 +89,22 @@ PAGES.settings = {
             key = first ? first.key : null;
         }
         page.dataset.open = key ? "part" : "list";
-        page.replaceChildren(element("div", {class: "master"}, await drawSettingsList(resources, key)));
+        const master = element("div", {class: "master"}, await drawSettingsList(resources, key));
+        page.replaceChildren(master);
         if (key) {
-            page.append(await drawSettingsPart(key));
+            // A change shows in the list at once: its row's "Not stored" from the write's own reply, nothing read again
+            const hooks = {
+                changed: (values) => {
+                    for (const path of SETTINGS_PARTS.find((p) => p.key === key).paths) {
+                        if (resources[path]) {
+                            resources[path].saved = values.saved;   // a part's resources share one record (the motors)
+                        }
+                    }
+                    drawSettingsList(resources, key).then((list) => master.replaceChildren(list));
+                },
+                reload: () => route(),
+            };
+            page.append(await drawSettingsPart(key, hooks));
         }
     },
     leave() {},

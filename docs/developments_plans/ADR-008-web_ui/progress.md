@@ -187,10 +187,23 @@ Seen: 1280 x 800 (Settings with Scale open, Motors, Wi-Fi; Powders with the powd
 
 Found and left, being the unit's words for gate 2: the gate's shutters in "of the PWM's period", and the motor's gear ratio's line, whose "trickler" is the tube.
 
+### The offer drawn; "Not stored" at once; Undo changes (2026-11-18)
+
+The owner asked how a new update is shown, why "Not stored" showed in the list only after leaving the part, and how a change not stored is undone; then: mock the offer, fix the list, and "Perhaps add a button next to Store button to reset?"
+
+- **The offer.** The stand-in's poll now finds a release: "Check now" says checking, and 1.5 s later `found` is 2.1.0 with a note, as `GET /api/v1/update` gives it; `tests/web_test.py --offer normal|critical` starts with one found. The Unit page's first card is now Update, always, so the dot on the navigation leads to it and nothing moves when an offer comes (it had moved to the top under the reader, against "nothing jumps"). The offer: "Version 2.1.0 is available", its note, Install; a critical one edged in red with "Important". The page read `found.critical`, which the API never gives: it reads `importance` now. From every page, a dot on the Unit's icon while an offer waits, red for a critical one, read at each page shown (the event stream carries it in gate 2). Seen at 390 x 664 (normal, critical) and 1280 x 800 in dark.
+- **"Not stored" at once.** The list was drawn once, when the page opened; a write changed only the form's bar, so on a wide window the list said the opposite of the form. Now each write's reply goes to whatever else shows the resource: the settings' list, the powders' list and table (a figure changed shows in the table as typed). No read more: the reply has it.
+- **One record, one "Not stored".** The eight powders are one EEPROM record, as are the two motors: changing one powder leaves all eight not stored, on the unit too (`saved` is the record's CRC). The stand-in now says so, and the page shows it as the unit does.
+- **Undo changes**, beside Store: a revert of the slot (README, the API review, item 7), proposed for gate 2 and made by the stand-in now. Driven: a choice changed (the row's tag at once), undone (the value, the tag and the bar back as stored, "Changes undone: as stored."); a powder's figure changed and undone, the figure stored earlier kept. On a 375 px phone the bar's words take a line and its two buttons the next.
+
+Fixed on the way: a store's or an undo's message was cleared by the redraw it starts (the page is drawn first now).
+
+The whole portal 72,833 bytes, 19,675 gzipped.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
 2. The check that every row of `features.md` is shown in the pages or marked left out (only the Trickler's views carry their rows yet).
-3. The stand-in's update flow (an offer, the download, the restart followed), so the Unit's update can be driven.
+3. The stand-in's update flow after Install (the download, the install, the restart followed and how it ended), and the page's view of it: "keep the power on", how far it has got, the end in plain words (README, "What the page has to do"). The offer itself is drawn.
 4. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
 5. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.

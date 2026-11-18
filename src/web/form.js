@@ -108,28 +108,35 @@ function limitsOf(field) {
     return parts.join("; ");
 }
 
-// The form for one resource at one path: its groups and fields, live, and its store bar
-async function drawForm(path, values, onStored) {
+// The form for one resource at one path: its groups and fields, live, and its store bar. `hooks.changed(values)` after
+// every write, so what else the page shows of the resource (a list's "Not stored", a table's figures) follows at once;
+// `hooks.reload()` after a store or an undo, which change what every resource of the slot holds
+async function drawForm(path, values, hooks) {
     const resource = await resourceOf(path);
     if (resource === null) {
         return element("p", {class: "hint"}, "This unit does not describe these settings.");
     }
     const form = element("div", {class: "form"});
+    // Changed, not stored: put back what is stored, or store it. Undo is offered where the unit has its revert
+    // (ADR-008, gate 2; the stand-in has it now)
+    const undo = resource.revert ? element("button", {class: "undo", type: "button"}, "Undo changes") : null;
+    const store = element("button", {class: "action go small", type: "button"}, "Store");
     const storeBar = element("div", {class: "store-bar", hidden: values.saved !== false},
                              element("span", {}, "Changed, not stored: lost at the next restart."),
-                             element("button", {class: "action go small", type: "button"}, "Store"));
-    storeBar.querySelector("button").onclick = async () => {
-        const reply = await api("POST", resource.save, {});
+                             element("div", {class: "store-actions"}, undo, store));
+    const finish = async (to, done, refused) => {
+        const reply = await api("POST", to, {});
         if (!reply.ok) {
-            refusal(reply, "Not stored");
+            refusal(reply, refused);
             return;
         }
-        storeBar.hidden = true;
-        say("Stored.", "good");
-        if (onStored) {
-            onStored();
-        }
+        hooks.reload();      // drawn again first: a page drawn clears the message line
+        say(done, "good");
     };
+    store.onclick = () => finish(resource.save, "Stored.", "Not stored");
+    if (undo) {
+        undo.onclick = () => finish(resource.revert, "Changes undone: as stored.", "Not undone");
+    }
     const groups = new Map();
     for (const field of resource.fields) {
         if (!groups.has(field.group)) {
@@ -154,6 +161,7 @@ async function drawForm(path, values, onStored) {
                 Object.assign(values, reply.data);
                 error.hidden = true;
                 storeBar.hidden = values.saved !== false;
+                hooks.changed(values);
                 row.replaceWith(redraw(values[field.name]));
             };
             const redraw = (value) => {

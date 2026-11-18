@@ -94,6 +94,29 @@ def propose_words(schema):
         target[key] = proposed
 
 
+def propose_revert(schema):
+    """
+    List ADR-008's proposed revert beside each resource's save (`revert`, the save's path ending in /revert): what
+    was written since the last save put back from the EEPROM. Gate 2 builds it in the unit; the stand-in then refuses
+    to start until this is taken out.
+
+    Args:
+        schema: the recorded `GET /api/v1/schema`, changed in place.
+    """
+    for resource in schema["resources"]:
+        if "revert" in resource:
+            sys.exit(f"the recording has {resource['path']}'s revert: the unit makes it now, so take out propose_revert")
+        resource["revert"] = resource["save"].removesuffix("/save") + "/revert"
+
+
+# The release the stand-in's poll finds (ADR-008, the offer): newer than the recording's firmware, in the fields
+# api_v1.md gives `found`
+OFFER = {"version": "2.1.0", "block": "2.1.0", "channel": "stable", "bench": None,
+         "note": "The web pages made new: the Trickler, the powders and every setting from a phone. Purge is the screen's "
+                 "word for the cleanup now."}
+CHECK_MS = 1500                     # a poll's time, from Check now to what it found
+
+
 def record(host):
     """
     Read every GET path a unit's index lists, its index and schema with them, into DATA.
@@ -118,14 +141,22 @@ def record(host):
 class StandIn:
     """The unit's state as the stand-in keeps it: the recorded replies, changed by the writes and actions."""
 
-    def __init__(self, replies):
+    def __init__(self, replies, offer=None):
         """
         Args:
             replies: the recording, path to reply.
+            offer: an importance (normal, critical) for a release found from the start, or None: found by Check now.
         """
         self.replies = replies
         self.schema = replies["/api/v1/schema"]
         propose_words(self.schema)
+        propose_revert(self.schema)
+        # What the EEPROM holds, by path: a save copies the live values here, a revert copies them back
+        self.stored = {path: copy.deepcopy(reply) for path, reply in replies.items() if self.resource(path) is not None}
+        self.importance = offer or "normal"
+        self.checked_ms = None
+        if offer:
+            self.replies["/api/v1/update"].update(found=dict(OFFER, importance=offer), poll={"state": "found", "error": None})
         self.lock = threading.Lock()
         self.events = []
         self.held = 0                   # reads of the charge since its last step, while the cup is lifted and returned
@@ -172,9 +203,19 @@ class StandIn:
             return 200, base64.b64decode(reply["base64"])
         if path == "/api/v1/charge":
             self.pour()
+        if path == "/api/v1/update":
+            self.poll()
         if path == "/api/v1/settings":
             reply["resources"] = {inner: self.replies[inner] for inner in reply["resources"]}
         return 200, reply
+
+    def poll(self):
+        """A poll asked by Check now: checking for a moment, then the release found."""
+        update = self.replies["/api/v1/update"]
+        if self.checked_ms is not None and self.now_ms() - self.checked_ms >= CHECK_MS:
+            self.checked_ms = None
+            update.update(found=dict(OFFER, importance=self.importance), poll={"state": "found", "error": None})
+            self.add_event("update", "found", version=OFFER["version"])
 
     def pour(self):
         """A charge that runs: its weight rises at each read, and the throw ends at its target."""
@@ -219,7 +260,16 @@ class StandIn:
             for inner in self.replies:
                 if unit_api.template_of(inner) in saved:
                     self.replies[inner]["saved"] = True
+                    self.stored[inner] = copy.deepcopy(self.replies[inner])
             return 200, {"saved": True}
+        # A revert (proposed, ADR-008): the slot's resources as the EEPROM holds them
+        reverted = [r["path"] for r in self.schema["resources"] if path == r["revert"]]
+        if method == "POST" and reverted:
+            for inner in self.replies:
+                if unit_api.template_of(inner) in reverted:
+                    self.replies[inner].clear()
+                    self.replies[inner].update(copy.deepcopy(self.stored[inner]))
+            return 200, {"reverted": True}
         resource = self.resource(path) if method == "PATCH" else None
         action = self.action(method, path)
         if resource is None and action is None:
@@ -231,7 +281,10 @@ class StandIn:
             return 400, error(code, message)
         if resource is not None:
             self.replies[path].update(body)
-            self.replies[path]["saved"] = False
+            # Not stored is the slot's, as on the unit: its record's CRC (the eight powders, the two motors are one)
+            for inner in self.replies:
+                if (self.resource(inner) or {}).get("save") == resource["save"]:
+                    self.replies[inner]["saved"] = False
             return 200, self.replies[path]
         return self.act(path, body)
 
@@ -292,6 +345,11 @@ class StandIn:
             return 200, gate
         if path == "/api/v1/scale/zero":
             return 200, {"zeroed": True}
+        if path == "/api/v1/update/check":
+            update = self.replies["/api/v1/update"]
+            update.update(found=None, poll={"state": "checking", "error": None})
+            self.checked_ms = self.now_ms()
+            return 202, update
         if path == "/api/v1/system/restart":
             return 202, {"restarting": True}
         if path == "/api/v1/system/erase":
@@ -367,11 +425,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--record", metavar="HOST", help="record a unit's replies into tests/web_test_data.json")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--offer", choices=["normal", "critical"],
+                        help="start with a release found, of this importance (else Check now finds a normal one)")
     args = parser.parse_args()
     if args.record:
         record(args.record)
         return
-    stand_in = StandIn(json.loads(DATA.read_text(encoding="utf-8")))
+    stand_in = StandIn(json.loads(DATA.read_text(encoding="utf-8")), args.offer)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(stand_in))
     print(f"the pages and {len(stand_in.replies)} recorded paths at http://127.0.0.1:{args.port}/")
     server.serve_forever()
