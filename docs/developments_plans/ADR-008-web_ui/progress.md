@@ -281,7 +281,7 @@ The owner: "Yes, the screen". The 12864's half of the set-up drawn in the screen
 
 The agent's review: the text beside the code was drawn half off the glass (its first line's baseline taken before the faces were loaded), now centred over Back; every other line holds its width (measured: the widest, "or open 192.168.4.1", 96 of 128 px). The code checked: OpenCV's reader (installed for the check, then removed: not one of the host tools) decoded the drawn screen, and the panel alone inside a dark bezel, though its quiet zone is 1.5 modules. The phones decide at the unit.
 
-For the owner: the code's screen is a seventh kind of screen, which the screen's skill allows only by the owner's word.
+The code's screen, a seventh kind, allowed by the owner the same day ("Allow it"): the screen's skill has it as rule 5's seventh kind, with Back at the right on it alone.
 
 ### Next in gate 1
 

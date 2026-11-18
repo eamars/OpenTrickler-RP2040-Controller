@@ -45,7 +45,7 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
    - **Softkeys:** the bottom row, 53 to 63.
    - **Spacing:** no text nearer than 2 px to another, and 1 to 3 px from the panel's sides.
    - **Why:** the owner, 2026-11-17: "there should be enough clearance between two lines of text so the UI looks a bit clean".
-5. **Six kinds of screen, no others** (`menu_nav.h`).
+5. **Seven kinds of screen, no others** (`menu_nav.h`; the seventh, the code, the owner allowed on 2026-11-18: "Allow it"). A new kind needs the owner's word.
    - **Pages** are lists: a title, then rows of label, value and ">" when the row opens something. The focused row is in reverse.
      - A number is set in its row: a click, a step a detent (the value in reverse), a click.
      - A choice opens its own page: every option, the current one with a check at its right (U+E002), the focus opening on it; a click picks and goes back. Never turned through blind in its row, and never marked by bold or a "*" alone: both too faint to see at a glance (the owner, 2026-11-17).
@@ -59,8 +59,9 @@ description: Design rules for this firmware's screen, the mini 12864 (128 x 64 p
      - two softkeys.
    - **The editor** is the target's alone: its digits as a figure, one selected, a click to set it; Cancel and Set.
    - **The control** is a job of rows, the cleanup's: its title Back, a line to read, rows set in place, two softkeys.
+   - **The code** is a QR code a phone's camera reads (the set-up's, which joins the hotspot; ADR-008): the code at the left in a lit square of 64 x 64, dark modules on the lit ground as a phone reads a code, its quiet zone 3 px; no title band; beside it a few lines saying what to do, and Back, the one softkey, at the right, where the code leaves room. Drawn at 2 px a module, a code holds version 3 (29 modules) at the most. Each code is checked by a reader on the drawn screen inside a dark bezel, and by a phone at the unit.
 6. **Softkeys: one rule everywhere.**
-   - The left softkey is what Back does (Cancel, Stop), the right the screen's action. Both are reached by the knob: the focused one is drawn in reverse and a click does it (the owner, 2026-11-17: every element on screen is clickable). A dialog that destroys opens on Cancel.
+   - The left softkey is what Back does (Cancel, Stop), the right the screen's action; on the code's screen, its one softkey, Back, stands at the right, the code taking the left. Both are reached by the knob: the focused one is drawn in reverse and a click does it (the owner, 2026-11-17: every element on screen is clickable). A dialog that destroys opens on Cancel.
    - They replace every private convention ("RST: stop", "[Zero]", "<Target>"). A screen whose click does nothing shows no right softkey.
    - **Gestures:** the turn, the click and the reset button only; no hold (rule of Input above). A design with more gestures is a different design (the 128 x 64 case study: three press variations at most).
 7. **Remove before you shrink.**
