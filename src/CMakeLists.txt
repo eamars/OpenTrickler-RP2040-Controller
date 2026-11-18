@@ -14,17 +14,18 @@ find_package (Python COMPONENTS Interpreter REQUIRED)
 # Generate HTML header
 # Reference: https://cliutils.gitlab.io/modern-cmake/chapters/basics/programs.html
 
-# web_portal.html
+# The portal (ADR-008, gate 3): src/web joined, trimmed and gzipped by web_build.py into a header the firmware serves
+file(GLOB WEB_SOURCES ${SRC_DIRECTORY}/web/*)
 add_custom_target(
     generate_web_portal_header ALL
-    DEPENDS "${SRC_DIRECTORY}/generated/web_portal.html.h"
+    DEPENDS "${SRC_DIRECTORY}/generated/web_portal.gz.h"
 )
 
 add_custom_command(
-    OUTPUT "${SRC_DIRECTORY}/generated/web_portal.html.h"
-    DEPENDS "${SRC_DIRECTORY}/html/web_portal.html"
-    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/web_portal.html -o ${SRC_DIRECTORY}/generated/web_portal.html.h
-    COMMENT "Generating web_portal.html header"
+    OUTPUT "${SRC_DIRECTORY}/generated/web_portal.gz.h"
+    DEPENDS ${WEB_SOURCES} "${SCRIPTS_DIRECTORY}/web_build.py"
+    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/web_build.py" --out ${CMAKE_CURRENT_BINARY_DIR}/web --header ${SRC_DIRECTORY}/generated/web_portal.gz.h
+    COMMENT "Generating the portal's header"
 )
 
 add_dependencies("${TARGET_NAME}" generate_web_portal_header)
@@ -46,20 +47,6 @@ add_custom_command(
 add_dependencies("${TARGET_NAME}" generate_wizard_header)
 
 
-# display_mirror.html
-add_custom_target(
-    generate_display_mirror ALL
-    DEPENDS "${SRC_DIRECTORY}/generated/display_mirror.html.h"
-)
-
-add_custom_command(
-    OUTPUT "${SRC_DIRECTORY}/generated/display_mirror.html.h"
-    DEPENDS "${SRC_DIRECTORY}/html/display_mirror.html"
-    COMMAND "${Python_EXECUTABLE}" "${SCRIPTS_DIRECTORY}/html2header.py" -vv --no-minify -f ${SRC_DIRECTORY}/html/display_mirror.html -o ${SRC_DIRECTORY}/generated/display_mirror.html.h
-    COMMENT "Generating display_mirror.html header"
-)
-
-add_dependencies("${TARGET_NAME}" generate_display_mirror)
 
 
 # Generate version

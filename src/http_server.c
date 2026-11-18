@@ -133,6 +133,7 @@ typedef struct {
     bool more_done;
     bool last_chunk_sent;
     uint8_t retry_after_s;                 // a Retry-After for the reply's head, or 0
+    bool gzip_body;                        // the body is gzipped: Content-Encoding: gzip
 
     // A reply that stays open: its ready, and whether its more gave nothing for now
     bool live;
@@ -161,6 +162,7 @@ struct http_server_reply {
     const char *data;
     size_t data_len;
     const char *etag;
+    bool gzip;
     http_server_more_t more;
     void *more_ctx;
     bool live;
@@ -396,6 +398,7 @@ static void slot_reset_request(slot_t *slot) {
     slot->more_done = false;
     slot->last_chunk_sent = false;
     slot->retry_after_s = 0;
+    slot->gzip_body = false;
     slot->live = false;
     slot->live_waiting = false;
     slot->live_ready = NULL;
@@ -468,6 +471,9 @@ static void slot_make_head(slot_t *slot, int status, const char *content_type, s
     if (allow != NULL && allow[0]) {
         ok = ok && append(out, room, &len, "Allow: %s\r\n", allow);
     }
+    if (slot->gzip_body && status != 304) {
+        ok = ok && append(out, room, &len, "Content-Encoding: gzip\r\nVary: Accept-Encoding\r\n");
+    }
     if (slot->retry_after_s > 0) {
         ok = ok && append(out, room, &len, "Retry-After: %u\r\n", (unsigned) slot->retry_after_s);
     }
@@ -517,6 +523,13 @@ void http_server_reply_static(http_server_reply_t *reply, int status, const char
     reply->data = data;
     reply->data_len = len;
     reply->etag = etag;
+}
+
+
+void http_server_reply_static_gzip(http_server_reply_t *reply, int status, const char *content_type, const char *data,
+                                   size_t len, const char *etag) {
+    http_server_reply_static(reply, status, content_type, data, len, etag);
+    reply->gzip = true;
 }
 
 
@@ -688,6 +701,7 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
     switch (reply->kind) {
         case BODY_STATIC: {
             int status = reply->status;
+            slot->gzip_body = reply->gzip;
             if (reply->etag != NULL && slot->if_none_match[0]) {
                 // If-None-Match carries the tag in quotes, perhaps among others
                 char quoted[52];

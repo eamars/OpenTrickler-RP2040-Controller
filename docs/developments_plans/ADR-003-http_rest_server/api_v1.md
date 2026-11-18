@@ -108,7 +108,7 @@ One log for the whole unit, which any number of clients read, each from where it
 | `event: unit` | first, and again when events were missed | `boot`, `first`, `newest`, `resumed`: true when the stream goes on from the client's `Last-Event-ID` (`<boot>-<seq>`, which a browser sends by itself on its reconnect) or `?after=N`, nothing missed; false when it starts afresh (no id, another `boot`, or the event no longer kept), and the client then reads what it shows again |
 | `event: state` | after the unit, then whenever it changes, no oftener than every 100 ms | `activity`, `charge` (as `GET /api/v1/charge`, its live weight included) and `purge` (as `GET /api/v1/purge`): the weight comes at the scale's own rate. Not an event: not numbered, not kept |
 | `id: <boot>-<seq>` with no `event:` | each event as it is logged | the event, as `GET /api/v1/events` gives it |
-| `: quiet` | after 15 s with nothing sent | a comment: the connection is alive |
+| `event: state` again | after 15 s with nothing sent | the state, as above: the connection is alive. Not a comment: a browser's `EventSource` never shows its page one (found in ADR-008's gate 3) |
 
 - **At most 3 at once,** so a request always finds one of the server's 6 slots: a fourth is answered 503 `busy` with `Retry-After: 5`. A browser's `EventSource` does not try again after an error status: a page does, after `Retry-After`.
 - **A client that stops reading** is closed by the server's stall limit (10 s with its bytes not taken), so a dead connection never holds lwIP's heap for long.

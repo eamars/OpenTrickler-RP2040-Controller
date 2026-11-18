@@ -15,7 +15,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SOURCES = REPO / "src" / "web"
 # The script's parts, joined in this order: the shared part first, the start last
-SCRIPTS = ["common.js", "trickler.js", "form.js", "settings.js", "powders.js", "unit.js", "update.js", "setup.js", "main.js"]
+SCRIPTS = ["common.js", "stream.js", "trickler.js", "form.js", "settings.js", "powders.js", "unit.js", "update.js", "setup.js", "main.js"]
 
 
 def minify_css(css):
@@ -65,10 +65,33 @@ def write(out, name, page):
     print(f"{name:<22} {len(raw):>8,} bytes  {len(packed):>7,} gzipped")
 
 
+def write_header(path, page):
+    """
+    The page gzipped, as a C header the firmware serves it from (ADR-008, gate 3): `web_portal_gz`, its length beside
+    it. Written only when it changes, so the build compiles it again only then.
+
+    Args:
+        path: the header's path.
+        page: the page's text.
+    """
+    packed = gzip.compress(page.encode("utf-8"), compresslevel=9, mtime=0)
+    rows = [", ".join(f"0x{byte:02x}" for byte in packed[at:at + 16]) for at in range(0, len(packed), 16)]
+    text = ("// Made by scripts/web_build.py from src/web (ADR-008, gate 3): the portal, gzipped. Do not edit\n"
+            "#ifndef WEB_PORTAL_GZ_H_\n#define WEB_PORTAL_GZ_H_\n\n#include <stddef.h>\n#include <stdint.h>\n\n"
+            f"static const uint8_t web_portal_gz[{len(packed)}] = {{\n    " + ",\n    ".join(rows) + "\n};\n"
+            f"static const size_t web_portal_gz_len = {len(packed)};\n\n#endif  // WEB_PORTAL_GZ_H_\n")
+    target = Path(path)
+    if not target.exists() or target.read_text(encoding="utf-8") != text:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    print(f"{target.name:<22} {len(packed):>8,} bytes gzipped, into the firmware")
+
+
 def main():
-    """Build the pages into the output folder."""
+    """Build the pages into the output folder, and the firmware's header when asked."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", default=str(REPO / "build_web"))
+    parser.add_argument("--header", help="also the portal gzipped as a C header, for the firmware's build")
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -76,7 +99,10 @@ def main():
     plain = minify_css((SOURCES / "plain.css").read_text(encoding="utf-8"))
     print(f"{'the script':<22} {len(script.encode()):>8,} bytes  {len(gzip.compress(script.encode(), 9)):>7,} gzipped")
     print(f"{'plain CSS':<22} {len(plain.encode()):>8,} bytes  {len(gzip.compress(plain.encode(), 9)):>7,} gzipped")
-    write(out, "index.html", join(plain, script))
+    page = join(plain, script)
+    write(out, "index.html", page)
+    if args.header:
+        write_header(args.header, page)
 
 
 if __name__ == "__main__":

@@ -33,8 +33,9 @@ FRAME = "/api/v1/display/frame"
 EVENTS = "/api/v1/events"
 NOT_RECORDED = {EVENTS, EVENTS + "/stream"}   # made here: the log of what the stand-in did, and its stream
 STEP = 1.5                          # a charge's weight rises this much at each read of the charge
+POUR_MS = 450                       # the charge moves on no faster than the page's old 500 ms read
 STREAM_MAX = 3                      # the event stream (ADR-008, gate 2): at most this many at once, as the unit
-STREAM_KEEP_ALIVE_S = 15            # its comment after this long quiet
+STREAM_KEEP_ALIVE_S = 15            # the state again after this long quiet
 HOLD_READS = 4                      # a throw's verdict held this many reads of the charge (2 s at the page's 500 ms)
 # The recording is kept in git: the owner's network is not. (The Wi-Fi key is never read: the unit never shows it)
 PRIVATE = {"/api/v1/network": {"ssid": "dummy_ssid", "address": "192.168.4.1"},
@@ -128,6 +129,7 @@ class StandIn:
             self.replies["/api/v1/update"].update(found=dict(OFFER, importance=offer), poll={"state": "found", "error": None})
         self.lock = threading.Lock()
         self.streams = 0                # event streams open
+        self.poured_ms = 0              # when the charge last moved on
         self.events = []
         self.held = 0                   # reads of the charge since its last step, while the cup is lifted and returned
         self.started_ms = time.monotonic() * 1000
@@ -239,7 +241,10 @@ class StandIn:
             self.join_tick()
         if path == FRAME:
             return 200, base64.b64decode(reply["base64"])
-        if path == "/api/v1/charge":
+        if path == "/api/v1/charge" and self.now_ms() - self.poured_ms >= POUR_MS:
+            # At the pace of the page's old read, however often it is read now (gate 3: a stream reads it ten
+            # times a second)
+            self.poured_ms = self.now_ms()
             self.pour()
         if path == "/api/v1/update":
             self.poll()
@@ -600,7 +605,7 @@ def make_handler(stand_in):
         def stream(self, query):
             """
             The event stream (ADR-008, gate 2), as the unit plays it: the unit, the state, then each event with its id
-            and the state as it changes, a comment after 15 s quiet; at most STREAM_MAX at once. A restart ends it
+            and the state as it changes and after 15 s quiet; at most STREAM_MAX at once. A restart ends it
             with no close, as on the unit: the connection goes silent.
             """
             with stand_in.lock:
@@ -643,11 +648,9 @@ def make_handler(stand_in):
                                  "charge": stand_in.get("/api/v1/charge", {})[1],
                                  "purge": stand_in.replies["/api/v1/purge"]}
                     out = "".join(f"id: {boot}-{event['seq']}\ndata: {json.dumps(event)}\n\n" for event in events)
-                    if state != last_state:
+                    if state != last_state or (not out and time.monotonic() - wrote >= STREAM_KEEP_ALIVE_S):
                         out += f"event: state\ndata: {json.dumps(state)}\n\n"
                         last_state = json.loads(json.dumps(state))
-                    if not out and time.monotonic() - wrote >= STREAM_KEEP_ALIVE_S:
-                        out = ": quiet\n\n"
                     if out:
                         self.wfile.write(out.encode())
                         self.wfile.flush()

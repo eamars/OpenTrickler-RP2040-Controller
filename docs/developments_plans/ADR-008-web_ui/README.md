@@ -256,11 +256,11 @@ Why the stream: the event log is already numbered and already tells a client of 
 | **Open** | The page asks `GET /api/v1/events/stream` (built 2026-11-19 at a path of its own, not by `Accept` on `/api/v1/events`: no content negotiation in the server, and an agent reads it with `curl -N`). Over the cap of streams, 503 with `Retry-After`; a browser's `EventSource` does not try again after an error status, so the page does, after that time. |
 | **Start** | First `unit` (the `boot`, and `resumed`: whether it goes on from the client's last id), then `state`: the job, the charge as its GET gives it (the live weight included) and the purge. Each settings resource's `saved` is not in it: the page reads the settings it shows when it starts, as now, and the `setting` events (`changed`, `stored`) keep them current. |
 | **Running** | Each event with the id `<boot>-<seq>`. During a charge the live weight comes on the same stream, no faster than the scale's own rate, as a state message with no id: it is not an event and is not kept in the log (below). |
-| **Kept alive** | A comment after 15 s with nothing sent, so each end knows the other is there. |
+| **Kept alive** | The state again after 15 s with nothing sent, so each end knows the other is there. Not a comment, as first built: a browser's `EventSource` never shows its page a comment, so a page could not tell a quiet unit from one gone (found in gate 3, 2026-11-19). |
 | **Reconnect** | By the browser itself, with the last id it saw. The same `boot` and the event still kept: the stream goes on from there, nothing missed. An id no longer kept, or another `boot` (a restart, an update): a new snapshot, then on. The rule held reads follow today. |
 | **Closed by the page** | When its tab is hidden (the phone asleep, another app), the page closes its stream, and opens it again when shown. Its slot is free before it goes stale. |
 | **Closed by the unit** | A client that stops reading: what was sent waits in its connection, and the server's stall limit (10 s with bytes not taken) closes it, so a dead connection never holds lwIP's heap for long (measured: closed about 14 s after the client stopped, the heap back to what it was). |
-| **The network changes** | `wifi leave`, a restart, an update, the access point stopped when the station joins: the unit sends no close, and the client hears nothing (measured: the old stream silent, not closed). The page knows by the comment that should come within 15 s: nothing for some 20 s, it opens the stream again, and the reconnect above takes over. The unit frees the old slot by the stall limit once its bytes find no client. |
+| **The network changes** | `wifi leave`, a restart, an update, the access point stopped when the station joins: the unit sends no close, and the client hears nothing (measured: the old stream silent, not closed). The page knows by the state that should come again within 15 s: nothing for some 20 s, it opens the stream again, and the reconnect above takes over. The unit frees the old slot by the stall limit once its bytes find no client. |
 | **Seen** | `net` gives the streams open, opened and refused since the start (`live`, `live_opened`, `live_refused`); `GET /api/v1/debug` the same with the server's own counts, the stalled ones among `aborted_stalled`. |
 
 - **A cap:** at most 3 streams of the server's 6 slots (a proposal, measured in the soak), so a request always finds a slot.
@@ -391,6 +391,20 @@ What gate 2 builds is already said above, item by item ("Every client echoes the
 6. **The update's life cycle** (item 9): gaps 1 to 5, `checking`, `back_within_s`. Gap 2's and 3's note is a record in an EEPROM slot of its own, so no stored struct of today's changes. Proof: as each gap says (a test image with a struct's size changed, tried and left, the settings unchanged; `update --expect power-trial`, then `last` back with its reason).
 
 Then the proof on the Pico W: `menu_tour --compare`, `charge_cycle`, `api_check`, `settings_roundtrip`, the soak. The Pico 2 W for the server's change and the update's slots, at its next turn on the probe (AGENTS.md: the network is proven on the Pico W first; the RP2350's slots on its own).
+
+### Gate 3's plan (the agent's proposal, 2026-11-19, for the owner's review)
+
+Gate 3 builds the pages gate 1's mock settled onto the unit, on the API gate 2 made. Its order, each step proven before the next, on the branch of the ADR's one PR:
+
+1. **The unit serves the new pages.** `scripts/web_build.py` runs in the firmware's build and makes `index.html.gz` into a header, served gzipped (`Content-Encoding: gzip`) with its `ETag` at `/`, `/mobile` and `/display_mirror` (the last opens the Unit page, where the mirror is: `features.md` rows 3, 5 and 6). Today's portal and mirror pages go. **The wizard stays** at `/` on the unit's own hotspot and at `/wizard` until gate 4 builds the set-up: taking it now would leave a unit just reset with no way onto a network. The flash measured: today's pages are some 103 KB of the image, the new one some 33 KB gzipped.
+2. **The pages follow the unit:** the Trickler, the Unit page and the job's strip read the event stream in place of their polls, with its life cycle as the README's table has it (a tab hidden closes it and shown opens it again; nothing for 20 s, it opens again; a 503 tried again after its `Retry-After`); a settings form shown reads its resource again on its `setting changed` event, and its "Not stored" from `stored`. The mirror keeps its own poll. The stand-in's charge stops moving on with every read, so a stream's reads do not speed it.
+3. **What the unit carries:** each page's part shown only when the index's `features` reports it (the servo gate's Settings part and its Open and Close).
+4. **The screen's words** (README, "The words"): Cleanup becomes Purge on the main menu, its cup's question and its job; the menu's baseline saved again with `--save`, its pictures for the owner to see.
+5. **The rows `features.md` marks broken** made right by the new pages, each checked on the unit (the system's Save, Restart and Factory reset as three actions of their own, each with its confirmation and none chosen in advance: rows 70 and 74; the gate's ratio read from the unit: row 37).
+
+**How it is proven:** the pages driven in a browser against the Pico W at a phone's, a tablet's and a computer's width, each screenshot beside the mock's; `features_check.py --final` with only gate 4's rows left; `api_check`, `charge_cycle`, a soak with the pages' own reads (the stream and the mirror), and `menu_tour --compare` on the new baseline. The Pico 2 W at its next turn on the probe.
+
+**Left for the owner:** the pages on the owner's own phone (carried from gate 1), and the new menu baseline's pictures.
 
 ## How the unit shows it works
 

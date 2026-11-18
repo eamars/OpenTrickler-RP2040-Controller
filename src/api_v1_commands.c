@@ -596,7 +596,9 @@ static void api_v1_get_events(const http_server_request_t *request, http_server_
 
 // --- The event stream (ADR-008, gate 2): the event log as it happens, as server-sent events
 
-#define API_V1_STREAM_KEEP_ALIVE_MS 15000   // a comment after this long quiet, so each end knows the other is there
+// The state again after this long quiet, so each end knows the other is there: not a comment, which a browser's
+// event source never shows its page (found in ADR-008's gate 3)
+#define API_V1_STREAM_KEEP_ALIVE_MS 15000
 #define API_V1_STREAM_STATE_MIN_MS 100      // the state no oftener: the weight comes at the scale's rate, or this
 #define API_V1_STREAM_RETRY_MS 3000         // how soon a browser's event source opens it again once it drops
 
@@ -725,7 +727,7 @@ static bool api_v1_stream_more(void *ctx, char *buf, size_t room, size_t *len) {
             stream_state(stream, buf, room, len);
         }
         if (*len == 0 && now - stream->wrote_ms >= API_V1_STREAM_KEEP_ALIVE_MS) {
-            http_json_raw(buf, room, len, ": quiet\n\n");
+            stream_state(stream, buf, room, len);
         }
     }
     if (*len > 0) {

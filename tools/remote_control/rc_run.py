@@ -138,8 +138,8 @@ SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse"
                        "api/v1/powder_profiles/0"]
 # Routes the index does not list, by name (ADR-008, gate 2): the pages, and the debug routes (not part of v1)
 API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror"}
-STREAM_READ_S = 20              # the event stream's read: past its comment after 15 s quiet
-STREAM_KEEP_ALIVE_S = 15        # ADR-008's comment after this long quiet
+STREAM_READ_S = 20              # the event stream's read: past its state again after 15 s quiet
+STREAM_KEEP_ALIVE_S = 15        # ADR-008: the state again after this long quiet
 STREAM_STALL_S = 10             # the server's stall limit: a stream whose client stops reading is closed after it
 STREAM_BACK_S = 90              # the unit back on the network after a restart or a Wi-Fi leave
 HTTP_TIMEOUT_S = 5.0
@@ -1582,7 +1582,7 @@ class Session:
             time.sleep(0.5)
         else:
             self.fail("reach: the simulated scale could not be switched off after the charge")
-        self.send("screen ack/cleanup")
+        self.send("screen ack/purge")
         self.press_and_read("enc")
         time.sleep(0.5)
         self.sweep("a cleanup at speed 0")
@@ -2192,7 +2192,7 @@ class Session:
         """
         The event stream's life cycle (ADR-008, gate 2), each stage with its expected end: the start (the unit, then
         the state); an event as it happens, with its id; a reconnect that goes on from its Last-Event-ID, nothing
-        missed; one whose event is no longer kept, read afresh; the live weight; a comment after 15 s quiet; the
+        missed; one whose event is no longer kept, read afresh; the live weight; the state again after 15 s quiet; the
         cap; a client that stops reading, closed by the stall limit and its heap given back; a Wi-Fi leave and a
         restart, each ending every stream, the restart's reconnect read afresh. Nothing stored changes.
 
@@ -2285,16 +2285,21 @@ class Session:
         self.send("sim weight off")
         self.send("sim off")
 
-        # Quiet: a comment within the keep-alive and a second or two
-        quiet_from = time.monotonic()
-        message = stream.next(STREAM_KEEP_ALIVE_S + 5)
-        while message is not None and message[0] == "state":
-            quiet_from = message[3]     # the scale settling after the simulation
+        # Quiet: the state again once the keep-alive's time passes with nothing sent (not a comment: a browser's
+        # event source never shows its page one). The scale may settle first after the simulation: the gap counts
+        last_at, took, kind = time.monotonic(), None, None
+        deadline = last_at + 3 * STREAM_KEEP_ALIVE_S
+        while time.monotonic() < deadline:
             message = stream.next(STREAM_KEEP_ALIVE_S + 5)
-        took = None if message is None else message[3] - quiet_from
-        self.log.write("rc", f"stream_check: quiet, then {message and message[0]} after {took} s")
-        if message is None or message[0] != "comment" or not STREAM_KEEP_ALIVE_S - 1 <= took <= STREAM_KEEP_ALIVE_S + 2:
-            self.fail("stream_check: no comment about 15 s into a quiet stream")
+            if message is None or message[0] == "closed":
+                break
+            gap, last_at = message[3] - last_at, message[3]
+            if gap >= STREAM_KEEP_ALIVE_S - 1:
+                took, kind = gap, message[0]
+                break
+        self.log.write("rc", f"stream_check: quiet, then {kind} after {took} s")
+        if took is None or kind != "state" or took > STREAM_KEEP_ALIVE_S + 2:
+            self.fail("stream_check: no state again about 15 s into a quiet stream")
 
         # The cap: this one and two more open, a fourth refused with when to try again
         more = [EventStream(host), EventStream(host)]
@@ -2346,7 +2351,7 @@ class Session:
                 self.fail("stream_check: lwIP's heap was not given back after the stalled stream")
 
         # The network changes: a unit that leaves its Wi-Fi, or restarts, sends no close; the client knows it by
-        # hearing nothing past the comment that comes after 15 s quiet, and opens the stream again
+        # hearing nothing past the state that comes again after 15 s quiet, and opens the stream again
 
         def last_event(stream):
             self.send("setting settings/charge decimal_places=3")

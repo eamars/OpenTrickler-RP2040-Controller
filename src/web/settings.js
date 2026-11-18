@@ -11,7 +11,7 @@ const SETTINGS_PARTS = [
     // features: 55 56
     {key: "motors", label: "Motors", paths: ["/api/v1/settings/motors/coarse", "/api/v1/settings/motors/fine"],
      titles: ["Coarse", "Fine"]},
-    {key: "gate", label: "Servo gate", paths: ["/api/v1/settings/gate"]},               // features: 60
+    {key: "gate", label: "Servo gate", paths: ["/api/v1/settings/gate"], feature: "servo_gate"},    // features: 60
     {key: "leds", label: "Lights", paths: ["/api/v1/settings/leds"]},                   // features: 57
     {key: "display", label: "Display", paths: ["/api/v1/settings/display"]},            // features: 59 N4
     {key: "wifi", label: "Wi-Fi", paths: ["/api/v1/settings/wifi"]},                    // features: 53
@@ -22,11 +22,23 @@ const SETTINGS_PARTS = [
 const partShown = {};
 
 // features: 39
+// What the unit carries, by its own report (the index's features: ADR-008, gate 2), read once: a part of a feature it
+// does not carry is not drawn (features: N9)
+let unitCarries = null;
+
+async function readCarries() {
+    if (unitCarries === null) {
+        const index = await api("GET", "/api/v1");
+        unitCarries = index.ok ? Object.fromEntries((index.data.features || []).map((f) => [f.name, f.present])) : {};
+    }
+    return unitCarries;
+}
+
 async function drawSettingsList(resources, chosen) {
     const list = element("nav", {class: "list", "aria-label": "Settings"});
     for (const part of SETTINGS_PARTS) {
         const present = part.paths.filter((path) => resources[path]);
-        if (present.length === 0) {
+        if (present.length === 0 || (part.feature && unitCarries && unitCarries[part.feature] === false)) {
             continue;   // the unit does not carry it (ADR-005's report, gate 2): absent, not empty
         }
         const unsaved = present.some((path) => resources[path].saved === false);
@@ -130,9 +142,25 @@ async function drawSettingsPart(key, hooks) {
     return pane;
 }
 
+// features: N8
+// Another client's write, or the screen's, shown here as it happens (gate 3: every client echoes the unit)
+onUnit("event", (event) => {
+    if (pageShown !== "settings" || event.source !== "setting") {
+        return;
+    }
+    const page = $("page-settings");
+    if (page.contains(document.activeElement) && document.activeElement.matches("input, select, textarea")) {
+        return;     // a value being typed is never taken away; its save shows the unit's
+    }
+    route();
+});
+
+onUnit("afresh", () => pageShown === "settings" && route());
+
 PAGES.settings = {
     async enter(rest) {
         const page = $("page-settings");
+        await readCarries();
         const all = await api("GET", "/api/v1/settings");
         const resources = all.ok ? all.data.resources : {};
         let key = SETTINGS_PARTS.some((p) => p.key === rest) ? rest : null;

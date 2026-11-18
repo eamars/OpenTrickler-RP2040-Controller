@@ -19,8 +19,7 @@
 #include "version.h"
 
 // Generated headers by html2header.py under scripts
-#include "display_mirror.html.h"
-#include "web_portal.html.h"
+#include "web_portal.gz.h"
 #include "wizard.html.h"
 
 
@@ -31,9 +30,7 @@ typedef struct {
     size_t len;
 } rest_page_t;
 
-static rest_page_t rest_page_portal;
 static rest_page_t rest_page_wizard;
-static rest_page_t rest_page_mirror;
 static bool rest_root_is_wizard = false;
 
 // A page's tag is the build's: a page changes only with the firmware
@@ -54,23 +51,28 @@ static void rest_send_page(http_server_reply_t *reply, const rest_page_t *page) 
 }
 
 
-static void rest_get_root(const http_server_request_t *request, http_server_reply_t *reply) {
-    rest_send_page(reply, rest_root_is_wizard ? &rest_page_wizard : &rest_page_portal);
+// features: 3 6
+// The portal (ADR-008, gate 3): one page, gzipped, at /, /mobile and /display_mirror (it opens its Unit page there,
+// where the mirror is). Every browser takes gzip; a client that asks for none is sent it all the same
+static void rest_get_portal(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    http_server_reply_static_gzip(reply, 200, "text/html; charset=utf-8", (const char *) web_portal_gz,
+                                  web_portal_gz_len, rest_page_etag);
 }
 
 
-static void rest_get_portal(const http_server_request_t *request, http_server_reply_t *reply) {
-    rest_send_page(reply, &rest_page_portal);
+// The wizard stays at / on the unit's own hotspot until gate 4 builds the set-up into the portal
+static void rest_get_root(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (rest_root_is_wizard) {
+        rest_send_page(reply, &rest_page_wizard);
+        return;
+    }
+    rest_get_portal(request, reply);
 }
 
 
 static void rest_get_wizard(const http_server_request_t *request, http_server_reply_t *reply) {
     rest_send_page(reply, &rest_page_wizard);
-}
-
-
-static void rest_get_mirror(const http_server_request_t *request, http_server_reply_t *reply) {
-    rest_send_page(reply, &rest_page_mirror);
 }
 
 
@@ -81,16 +83,14 @@ void rest_endpoints_set_root_wizard(bool wizard) {
 
 bool rest_endpoints_init(bool default_wizard) {
     rest_root_is_wizard = default_wizard;
-    rest_page_portal = rest_page_from(html_web_portal_html);
     rest_page_wizard = rest_page_from(html_wizard_html);
-    rest_page_mirror = rest_page_from(html_display_mirror_html);
     snprintf(rest_page_etag, sizeof(rest_page_etag), "%s-%s", version_string, vcs_hash);
 
     // The pages
     http_server_add_route(HTTP_SERVER_GET, "/", rest_get_root);
     http_server_add_route(HTTP_SERVER_GET, "/mobile", rest_get_portal);
     http_server_add_route(HTTP_SERVER_GET, "/wizard", rest_get_wizard);
-    http_server_add_route(HTTP_SERVER_GET, "/display_mirror", rest_get_mirror);
+    http_server_add_route(HTTP_SERVER_GET, "/display_mirror", rest_get_portal);
 
     // API v1: the only API (ADR-003, gate 4: the old /rest/ paths, their adapter and handlers are gone)
     return api_v1_init();

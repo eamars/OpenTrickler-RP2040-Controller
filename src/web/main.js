@@ -1,5 +1,5 @@
 // The start: the page the address names, the next when it changes; a hidden tab reads nothing (the phone asleep,
-// another app), and reads again when shown (the event stream's life cycle in gate 2 does the same)
+// another app), and reads again when shown; its event stream closes and opens again with it (stream.js)
 // A new address is a new page: it starts at its top, not where the last one was left
 window.addEventListener("hashchange", () => {
     window.scrollTo(0, 0);
@@ -26,6 +26,7 @@ $("message").onclick = () => say("");
 // A unit never set up, on its own hotspot, opens on its set-up (setup.js); then the page the address names
 offerSetup().then(() => {
     route();
+    streamOpen();
     keepAwake();
     watchJobs();
     setInterval(watchJobs, WATCH_MS);

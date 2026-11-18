@@ -1,7 +1,7 @@
 // The portal's shared part (ADR-008): the API, messages, the link to the unit, the pages and their router, the one
 // confirmation dialog, files to and from the person. The pages' own parts follow it (trickler.js, form.js,
 // settings.js, powders.js, unit.js), joined into one file by scripts/web_build.py. The same script runs against the
-// stand-in (tests/web_test.py) and the unit. Polling for now; the event stream replaces it in gate 2.
+// stand-in (tests/web_test.py) and the unit. The unit's changes come by its event stream (stream.js).
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -113,7 +113,9 @@ const SPLIT = window.matchMedia("(min-width: 1000px)");
 
 // features: 9
 function route() {
-    const [name, ...rest] = (location.hash.slice(1) || "trickler").split("/");
+    // The old mirror's address opens the Unit page, where the mirror is (features: 5)
+    const first = location.pathname === "/display_mirror" ? "unit" : "trickler";
+    const [name, ...rest] = (location.hash.slice(1) || first).split("/");
     const page = PAGES[name] ? name : "trickler";
     if (pageShown !== page) {
         if (pageShown) {
@@ -132,7 +134,7 @@ function route() {
 }
 
 // A release found is marked on the Unit's destination, from every page, as the screen offers it by a row of its main
-// menu: never a pop-up (ADR-004). Read at each page shown; the event stream carries it in gate 2
+// menu: never a pop-up (ADR-004). Read at each page shown, and at the poll's `found` event (update.js)
 async function markOffer() {
     const reply = await api("GET", "/api/v1/update");
     if (reply.ok) {
@@ -148,7 +150,8 @@ function showOfferMark(found) {
 }
 
 // Keep this screen awake: on unless this browser was told otherwise (its switch on the Unit's page). Where the Wake
-// Lock is not given (plain HTTP), gate 3 adds a fallback
+// Lock is not given (plain HTTP), the README's muted video comes with the phones' checks at gate 4's start: only a
+// real phone shows whether it works and what it costs the battery
 // features: 14
 function awakeWanted() {
     try {

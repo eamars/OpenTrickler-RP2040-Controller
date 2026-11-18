@@ -180,9 +180,32 @@ function goneAway() {
     setLink(follow.away);
 }
 
+// The job from the stream's state, an update's stages from its events (gate 3); read here only while it matters
+onUnit("state", (state) => {
+    if (watched.activity !== state.activity) {
+        watched.activity = state.activity;
+        watchJobs();
+    }
+    drawJobs();
+});
+onUnit("event", (event) => {
+    if (event.source === "update") {
+        watchJobs();
+        if (event.kind === "found") {
+            markOffer();    // the offer's mark on the Unit's destination, on every page
+        }
+    }
+});
+
+onUnit("afresh", () => watchJobs());
+
 async function watchJobs() {
     if (document.visibilityState !== "visible" || pageShown === null) {
         return;
+    }
+    if (!(watched.activity === "update" || follow.on || pageShown === "unit")) {
+        drawJobs();
+        return;     // the stream says the rest
     }
     const system = await api("GET", "/api/v1/system");
     if (!system.ok) {

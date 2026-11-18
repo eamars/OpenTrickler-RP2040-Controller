@@ -2,7 +2,7 @@
 No feature silently dropped (ADR-008): every row of features.md either shown by the new pages, left out by its
 "Proposed" column, or still to come with the gate that brings it, and nothing else.
 
-A row is shown where a comment `features: <row> ...` stands beside the code that does it, in src/web. The rows of
+A row is shown where a comment `features: <row> ...` stands beside the code that does it, in src/web or the firmware's page routes. The rows of
 features.md's tables are numbered; its new items are N1, N2, ... Listed, then judged:
 
     venv\\Scripts\\python tests\\features_check.py [--final]
@@ -18,6 +18,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 FEATURES = REPO / "docs" / "developments_plans" / "ADR-008-web_ui" / "features.md"
 SOURCES = REPO / "src" / "web"
+# The pages' routes in the firmware (gate 3): where the portal is served, its addresses and its encoding
+ROUTES = REPO / "src" / "rest_endpoints.c"
 MARK = re.compile(r"features:((?:\s+N?\d+)+)")
 ROW = re.compile(r"^\| (\d+) \|")
 NEW = re.compile(r"^- \*\*(N\d+)\. ")
@@ -25,12 +27,7 @@ NEW = re.compile(r"^- \*\*(N\d+)\. ")
 # The rows the mock does not show yet, each with the gate that brings it. It empties as the gates are built: with
 # --final, any row here fails
 TO_COME = {
-    "3": "gate 3: the unit serves the portal at /mobile too",
-    "4": "gate 3: /wizard opens the portal's set-up",
-    "5": "gate 3: /display_mirror opens the portal's Unit page, where the mirror is",
-    "6": "gate 3: the pages gzipped, with their ETag",
-    "N8": "gate 2: the event for a setting changed, on the event stream",
-    "N9": "gate 2: the unit's report of what it carries",
+    "4": "gate 4: /wizard opens the portal's set-up (the wizard stays until the set-up is built)",
 }
 
 
@@ -61,7 +58,7 @@ def read_marks():
         {row id: ["file:line", ...]}.
     """
     marks = {}
-    for path in sorted(SOURCES.iterdir()):
+    for path in sorted(SOURCES.iterdir()) + [ROUTES]:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             for found in MARK.finditer(line):
                 for row in found.group(1).split():

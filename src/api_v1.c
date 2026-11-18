@@ -355,7 +355,7 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/events/stream", "[\"GET\"]",
      "the same changes as they happen, as server-sent events: first the unit (its boot, and whether it goes on from "
      "the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, "
-     "the purge), then each event with its id, and the state again as it changes; a comment after 15 s quiet. At most "
+     "the purge), then each event with its id, and the state again as it changes and after 15 s quiet. At most "
      "3 at once: 503 then, with Retry-After"},
     {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},

@@ -1,5 +1,4 @@
 // The Trickler (ADR-008): the charge and the purge, a switch between them, each view the height of the screen.
-const POLL_MS = 500;
 // features: 32
 const PURGE_RESEND_MS = 2000;   // a purge's speed lasts 5 s on the unit: a page that goes leaves no motor turning
 const PURGE_STEP = 0.5;
@@ -10,7 +9,6 @@ let purge = null;
 let decimals = 2;
 let purgeSpeed = 0;
 let purgeTimer = null;
-let pollTimer = null;
 
 // The screen's job titles, word for word (charge_state_text() in menu_nav.c)
 const STATUS = {idle: "Ready", starting: "Starting", zeroing: "Zeroing", charging: "Charging",
@@ -128,16 +126,29 @@ async function poll() {
     renderSwitch();
 }
 
-function startPolling() {
-    if (pollTimer === null) {
-        poll();
-        pollTimer = setInterval(poll, POLL_MS);
+// The unit's state as it changes, from the event stream (gate 3), in place of a read every 500 ms: drawn while shown
+let tricklerShown = false;
+onUnit("state", (state) => {
+    if (!tricklerShown) {
+        return;
     }
+    charge = state.charge;
+    purge = state.purge;
+    renderCharge();
+    renderPurge();
+    renderSwitch();
+});
+
+// Something missed (a restart, a long gap): read again what is shown
+onUnit("afresh", () => tricklerShown && poll());
+
+function startPolling() {
+    tricklerShown = true;
+    poll();
 }
 
 function stopPolling() {
-    clearInterval(pollTimer);
-    pollTimer = null;
+    tricklerShown = false;
 }
 
 // features: 23 N5

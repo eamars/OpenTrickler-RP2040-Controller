@@ -115,6 +115,9 @@ void http_server_reply_send(http_server_reply_t *reply, int status, const char *
 // Send bytes that stay where they are until the reply is out (the pages, in flash). etag may be NULL
 void http_server_reply_static(http_server_reply_t *reply, int status, const char *content_type, const char *data,
                               size_t len, const char *etag);
+// The same, its bytes gzipped: sent with Content-Encoding: gzip (ADR-008, gate 3: the portal)
+void http_server_reply_static_gzip(http_server_reply_t *reply, int status, const char *content_type, const char *data,
+                                   size_t len, const char *etag);
 // Send a reply written as it is made, chunked
 void http_server_reply_stream(http_server_reply_t *reply, int status, const char *content_type,
                               http_server_more_t more, void *ctx);
