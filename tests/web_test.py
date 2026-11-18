@@ -33,6 +33,7 @@ FRAME = "/api/v1/display/frame"
 EVENTS = "/api/v1/events"
 NOT_RECORDED = {EVENTS}             # made here: the log of what the stand-in did
 STEP = 1.5                          # a charge's weight rises this much at each read of the charge
+HOLD_READS = 4                      # a throw's verdict held this many reads of the charge (2 s at the page's 500 ms)
 # The recording is kept in git: the owner's network is not. (The Wi-Fi key is never read: the unit never shows it)
 PRIVATE = {"/api/v1/network": {"ssid": "dummy_ssid", "address": "192.168.4.1"},
            "/api/v1/settings/wifi": {"ssid": "dummy_ssid"}}
@@ -71,6 +72,7 @@ class StandIn:
         self.schema = replies["/api/v1/schema"]
         self.lock = threading.Lock()
         self.events = []
+        self.held = 0                   # reads of the charge since its last step, while the cup is lifted and returned
         self.started_ms = time.monotonic() * 1000
         self.add_event("system", "started", firmware=replies["/api/v1"]["firmware"]["version"])
 
@@ -130,9 +132,18 @@ class StandIn:
                 self.add_event("throw", "finished", throw=charge["throw"], result="good", weight=charge["weight"],
                                elapsed_s=2.0)
         elif charge["state"] == "waiting_for_cup_removal":
-            charge.update(state="charging", in_throw=True, throw=charge["throw"] + 1, weight=0.0)
-            self.add_event("throw", "started", throw=charge["throw"], target=charge["target"],
-                           powder_profile=charge["powder_profile"])
+            # The verdict is held while the cup is on the pan, as a unit holds it: a few reads, then the cup is away
+            self.held += 1
+            if self.held >= HOLD_READS:
+                self.held = 0
+                charge.update(state="waiting_for_cup_return", weight=0.0)
+        elif charge["state"] == "waiting_for_cup_return":
+            self.held += 1
+            if self.held >= HOLD_READS // 2:
+                self.held = 0
+                charge.update(state="charging", in_throw=True, throw=charge["throw"] + 1, weight=0.0)
+                self.add_event("throw", "started", throw=charge["throw"], target=charge["target"],
+                               powder_profile=charge["powder_profile"])
 
     def write(self, method, path, body):
         """

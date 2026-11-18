@@ -44,6 +44,7 @@ Status: **Open** 2026-11-18, gate 1 (the mock) under way. Drafted 2026-11-13, re
   
   And: "I want you to use the web mockup to demonstrate your proposal. The later mockup should be used to create the final web interface design. Perhaps the same page but with mocked backend is preferred. Self contained is the goal for basic feature (like the trickling and configuration). Some resources MAY be downloaded from the interface for advanced features, like auto tuning etc. I'm open to discussion on this. For example I don't expect you to serve plotly from the pico."
 - 2026-11-18, on the agent's answer that the API keep `cleanup` as v1 is stable: "No software released since v1 is proposed so this is a good chance to change everything for those doesn't fit." Read here as: every release since API v1 is a candidate, a pre-release, so v1 is frozen only from the first release for users. Until then a name in the API, the events or the console that does not fit the words a person reads is changed to fit, `cleanup` to `purge` first ("The words", below). ADR-003, which made v1, is told.
+- 2026-11-18, on the charge's page drawn to the skill `web-ui-design`: "Perhaps the first tab should be called Trickler (or dispenser)? As both charge and purge are on the same pages now. Also, if possible, I don't want the page to scroll on smaller screen devices. We may be able to zoom in the elements if the size doesn't fit, but scrolling a control page seems inconvinent. That was my reason to separate the charge and purge onto two pages." Read here as: the first tab is the Trickler, a switch at its top between Charge and Purge, each a view that fits the screen with no scrolling, its elements scaled to the room there is (the skill's rule 14); lists (powders, settings) may scroll. "Trickler" names the page; the motors are "Motors" ("The words").
 
 ## Why here
 
@@ -248,12 +249,13 @@ Today's words, read 2026-11-18 (the screen's from `menu_nav.c`, the web's from `
 
 | The thing | Today's screen | Today's web | Today's API | Proposed, everywhere |
 |---|---|---|---|---|
+| The page of the two jobs | (Charge and Cleanup, rows of the main menu) | Trickler (Trickler and Purge, two tabs) | (none) | **Trickler** (the owner), its switch Charge, Purge |
 | A throw to a target | Charge | Trickler | `charge` | Charge |
 | Running the tricklers to empty them | Cleanup | Purge | `cleanup` | **Purge** (the owner); the API `purge` |
 | A powder's stored tuning | Powder | Profile, Powder Profile | `powder_profiles` | Powder (ADR-014's charge profile comes beside it, so "profile" alone would mean two things); the API as it is |
 | The scale's tare | Zero | Scale Zero | `scale/zero` | Zero |
 | The shutters | Servo gate | Servo Gate, Gate Control | `gate` | Servo gate |
-| The two motors | Motors, Coarse and Fine | Coarse Trickler Motor, Fine Trickler Motor | `motors/coarse`, `motors/fine` | Motors: Coarse, Fine |
+| The two motors | Motors, Coarse and Fine | Coarse Trickler Motor, Fine Trickler Motor | `motors/coarse`, `motors/fine` | Motors: Coarse, Fine; never "tricklers", which names the page |
 | The lights | Backlight (on Display) | Neopixel LED | `leds` | Lights: to settle with the mock |
 | The 12864 | Display | Mini 12864 Module | `display` | Display |
 | The network joined | Wi-Fi | Wireless | `wifi` | Wi-Fi |

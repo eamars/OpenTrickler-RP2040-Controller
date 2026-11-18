@@ -34,7 +34,7 @@ def minify_css(css):
 
 def join(css, script):
     """
-    The charge's page with its stylesheet and script inside it.
+    The Trickler's page with its stylesheet and script inside it.
 
     Args:
         css: the stylesheet.
@@ -43,7 +43,7 @@ def join(css, script):
     Returns:
         The page's text.
     """
-    page = (SOURCES / "charge.html").read_text(encoding="utf-8")
+    page = (SOURCES / "trickler.html").read_text(encoding="utf-8")
     return page.replace("/*STYLE*/", css).replace("/*SCRIPT*/", script)
 
 
@@ -74,7 +74,7 @@ def main():
     plain = minify_css((SOURCES / "plain.css").read_text(encoding="utf-8"))
     print(f"{'the script':<22} {len(script.encode()):>8,} bytes  {len(gzip.compress(script.encode(), 9)):>7,} gzipped")
     print(f"{'plain CSS':<22} {len(plain.encode()):>8,} bytes  {len(gzip.compress(plain.encode(), 9)):>7,} gzipped")
-    write(out, "charge.html", join(plain, script))
+    write(out, "trickler.html", join(plain, script))
 
 
 if __name__ == "__main__":

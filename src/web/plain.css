@@ -1,8 +1,9 @@
 /* The portal's look, plain CSS of our own (ADR-008; the skill web-ui-design). Calm neutral greys; colour only where
    it means something, in the unit's meanings: blue not ready, green good, yellow under, red over and faults. The one
-   action that moves the job on is in the ink (the text's own colour, reversed), Stop in red. Light or dark follows
-   the device. Widths: compact under 600 px (a bar at the bottom), medium (a rail at the left), expanded from 840 px
-   (the job's panel beside its controls). */
+   action that moves the job on is in the ink, Stop in red. Light or dark follows the device.
+   Widths (rule 1): a bar at the bottom under 600 px, a rail at the left from 600, the panel beside its controls from
+   840. The Trickler's views fit the visible height and never scroll (rule 14): the readout is a container, and the
+   figure and its ring scale to it; where it is short the ring gives way to a bar, and the steps to the status. */
 :root {
     --ground: #ecece8;
     --card: #fafaf8;
@@ -22,8 +23,11 @@
     --tint: 12%;
     --r-card: 18px;
     --r-control: 14px;
-    --tap: 56px;                /* every control at least 48 px; most 56 */
-    --job-key: 64px;            /* Start, Stop, the purge's speed */
+    --tap: 52px;                /* every control at least 48 px */
+    --job-key: 60px;            /* Start, Stop, the target's and the speed's keys */
+    --top: 48px;
+    --bar: 64px;                /* the navigation bar, under 600 px */
+    --gap: 10px;
     color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -47,158 +51,153 @@
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body {
-    margin: 0; background: var(--ground); color: var(--ink);
-    font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-    padding-bottom: calc(72px + env(safe-area-inset-bottom));
-}
+body { margin: 0; background: var(--ground); color: var(--ink);
+       font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button:disabled { opacity: 0.38; cursor: default; }
-h2, h3, p { margin: 0; }
+h3, p { margin: 0; }
 svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 [hidden] { display: none !important; }
 :focus-visible { outline: 3px solid var(--not-ready); outline-offset: 2px; }
 
 /* The top: the unit, and whether it is reached */
-.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px 4px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; min-width: 0; }
+.topbar { height: var(--top); display: flex; justify-content: space-between; align-items: center; gap: 12px;
+          padding: 0 16px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; min-width: 0; }
 .brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.logo { width: 26px; height: 26px; flex: none; }
+.logo { width: 24px; height: 24px; flex: none; }
 .link { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--soft); white-space: nowrap; }
 .link i { width: 10px; height: 10px; border-radius: 50%; background: var(--edge); }
 .link.up i { background: var(--good); }
 .link.down { color: var(--over); font-weight: 650; }
 .link.down i { background: var(--over); }
 
-.page { max-width: 1100px; margin: 0 auto; padding: 8px 16px 20px; display: grid; gap: 16px; }
-.side { display: grid; gap: 16px; align-content: start; }
-
-/* The job's panel: one figure, its ring, the status, the steps */
-.panel {
-    background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
-    padding: 16px; display: grid; gap: 14px;
-    --state: var(--ink);
+/* The Trickler: exactly the height left, never scrolled */
+.trickler {
+    height: calc(100svh - var(--top) - var(--bar) - env(safe-area-inset-bottom));
+    display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap);
+    padding: 0 12px var(--gap); max-width: 1100px; margin: 0 auto; position: relative;
 }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--well);
+       border: 1px solid var(--rule); border-radius: var(--r-control); }
+.seg button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; font-weight: 700;
+              color: var(--soft); }
+.seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.view { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: var(--gap);
+        container: view / size; }
+
+.panel { min-height: 0; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
+         padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px;
+         --state: var(--ink); }
+#purge-panel { grid-template-rows: minmax(0, 1fr) auto; }
 .panel[data-mood="not-ready"] { --state: var(--not-ready); }
 .panel[data-mood="good"] { --state: var(--good); }
 .panel[data-mood="under"] { --state: var(--under-mark); }
 .panel[data-mood="over"] { --state: var(--over); }
-.panel-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
-.kicker { font-size: 0.8125rem; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--soft); }
-.powder { display: grid; gap: 2px; flex: 1; min-width: 0; }
-.powder select {
-    appearance: none; -webkit-appearance: none; border: 1px solid var(--edge); border-radius: var(--r-control);
-    background: var(--well); min-height: var(--tap); padding: 0 40px 0 14px; font-size: 1.15rem; font-weight: 650;
-    width: 100%;
+
+.panel-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.panel-head select {
+    appearance: none; -webkit-appearance: none; min-width: 0; min-height: var(--tap); padding: 0 38px 0 14px;
+    border: 1px solid var(--edge); border-radius: var(--r-control); background-color: var(--well);
+    font-size: 1.1rem; font-weight: 650; text-overflow: ellipsis;
     background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%),
                       linear-gradient(135deg, var(--soft) 50%, transparent 50%);
     background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat;
 }
-.time { font-variant-numeric: tabular-nums; color: var(--soft); font-size: 0.95rem; padding-bottom: 16px; }
+.ghost { min-height: var(--tap); min-width: var(--tap); padding: 0 16px; border-radius: var(--r-control);
+         border: 1px solid var(--edge); background: var(--card); font-weight: 650; }
 
-.dial { position: relative; width: min(64vw, 250px); aspect-ratio: 1; margin: 0 auto; }
-.dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.dial .track { stroke: var(--rule); stroke-width: 8; }
-.dial .arc { stroke: var(--state); stroke-width: 8; stroke-dasharray: 1000; stroke-dashoffset: 1000;
+/* The readout: a container the figure and the ring scale to */
+.readout { position: relative; min-height: 0; display: grid; place-items: center; container: readout / size; }
+.ring { position: absolute; width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); transform: rotate(-90deg);
+        display: none; }
+.ring .track { stroke: var(--rule); stroke-width: 7; }
+.ring .arc { stroke: var(--state); stroke-width: 7; stroke-dasharray: 1000; stroke-dashoffset: 1000;
              transition: stroke-dashoffset 0.3s ease-out; }
-.dial-text { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
-.figure {
-    font-size: clamp(3.5rem, 16vw, 4.5rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
+.readout-text { position: relative; display: grid; justify-items: center; text-align: center; gap: 2px; width: 100%; }
+.figure { font-size: clamp(3rem, min(22cqw, 58cqh), 6rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+          font-variant-numeric: tabular-nums; }
+.sub { color: var(--soft); font-size: 1rem; }
+.sub b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.time { color: var(--soft); font-weight: 500; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
+.time::before { content: "\00b7"; margin-right: 8px; }
+.hint { color: var(--soft); font-size: 0.9375rem; margin-top: 8px; max-width: 30ch; }
+.bar { width: min(80%, 320px); height: 8px; border-radius: 4px; background: var(--rule); overflow: hidden; margin: 8px 0 2px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--state); transition: width 0.3s ease-out; }
+/* Room for the ring: the bar gives way to it, the figure sized to sit inside it */
+@container readout (min-height: 230px) and (min-width: 230px) {
+    .ring { display: block; }
+    .bar { display: none; }
+    .ringed { font-size: clamp(3rem, 19cqmin, 6.5rem); }
 }
-.unit { color: var(--soft); font-size: 0.95rem; margin-top: 4px; }
-.target { margin-top: 12px; color: var(--soft); }
-.target b { color: var(--ink); font-variant-numeric: tabular-nums; }
 
-.status {
-    justify-self: center; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 18px;
-    border-radius: 999px; font-weight: 700; font-size: 1.1rem;
-    background: var(--well); color: var(--ink); border: 1px solid var(--rule);
-}
+.status { justify-self: center; display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 16px;
+          border-radius: 999px; font-weight: 700; font-size: 1.05rem; background: var(--well); color: var(--ink);
+          border: 1px solid var(--rule); }
 .status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--state); }
-.panel[data-mood="not-ready"] .status,
-.panel[data-mood="good"] .status,
-.panel[data-mood="over"] .status { color: var(--state); background: color-mix(in srgb, var(--state) var(--tint), var(--card));
-                                   border-color: color-mix(in srgb, var(--state) 40%, var(--card)); }
+.panel[data-mood="not-ready"] .status, .panel[data-mood="good"] .status, .panel[data-mood="over"] .status {
+    color: var(--state); background: color-mix(in srgb, var(--state) var(--tint), var(--card));
+    border-color: color-mix(in srgb, var(--state) 40%, var(--card)); }
 .panel[data-mood="under"] .status { color: var(--under); background: color-mix(in srgb, var(--under-mark) 18%, var(--card));
                                     border-color: var(--under-mark); }
 
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; list-style: none; margin: 0; padding: 0; }
-.steps li { font-size: 0.8125rem; color: var(--soft); text-align: center; padding-top: 8px; border-top: 4px solid var(--rule); }
+.steps li { font-size: 0.8125rem; color: var(--soft); text-align: center; padding-top: 6px; border-top: 4px solid var(--rule); }
 .steps li.done { color: var(--ink); border-color: var(--ink); }
 .steps li.now { color: var(--ink); font-weight: 700; border-color: var(--state); }
+/* Short: the steps give way to the status, which says the same */
+@container view (max-height: 470px) { .steps { display: none; } }
 
-/* The cards beside it */
-.card { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 16px;
-        display: grid; gap: 14px; }
-.card-head { display: flex; align-items: center; gap: 10px; }
-.card-head h2 { font-size: 1.25rem; }
-.icon { width: 24px; height: 24px; }
-.hint { color: var(--soft); }
-.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-
-.stepper { display: grid; grid-template-columns: var(--job-key) 1fr var(--job-key); gap: 8px; align-items: center; }
-.stepper input {
-    width: 100%; min-height: var(--job-key); text-align: center; font-size: 1.75rem; font-weight: 700;
-    font-variant-numeric: tabular-nums; background: var(--well); border: 1px solid var(--edge);
-    border-radius: var(--r-control);
-}
+/* The controls under (or beside) the panel */
+.controls { display: grid; gap: var(--gap); align-content: end; }
+.stepper { display: grid; grid-template-columns: var(--job-key) minmax(0, 1fr) var(--job-key); gap: 8px; align-items: center; }
+.stepper input { width: 100%; min-width: 0; min-height: var(--job-key); text-align: center; font-size: 1.6rem; font-weight: 700;
+                 font-variant-numeric: tabular-nums; background: var(--well); border: 1px solid var(--edge);
+                 border-radius: var(--r-control); }
+.stepper-label { text-align: center; color: var(--soft); font-weight: 650; }
 .key { height: var(--job-key); border-radius: var(--r-control); border: 1px solid var(--edge); background: var(--card);
-       font-size: 1.9rem; line-height: 1; }
-.speed { text-align: center; display: grid; }
-.speed b { font-size: 2.4rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.speed span { color: var(--soft); font-size: 0.875rem; }
-
-.action { width: 100%; min-height: var(--job-key); border: 0; border-radius: var(--r-control); font-size: 1.2rem;
+       font-size: 1.8rem; line-height: 1; }
+.action { width: 100%; min-height: var(--job-key); border: 0; border-radius: var(--r-control); font-size: 1.15rem;
           font-weight: 700; }
 .go { background: var(--ink); color: var(--on-ink); }
 .halt { background: var(--stop); color: var(--on-stop); }
-.ghost { min-height: var(--tap); padding: 0 18px; border-radius: var(--r-control); border: 1px solid var(--edge);
-         background: var(--card); font-weight: 650; }
-.wide { width: 100%; }
 @media (hover: hover) and (pointer: fine) {
     .key:hover, .ghost:hover { background: var(--well); }
     .go:hover { filter: brightness(1.15); }
 }
 
-.switch { display: flex; align-items: center; gap: 12px; min-height: var(--tap); color: var(--soft); }
-.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.switch span { width: 52px; height: 32px; border-radius: 16px; background: var(--well); border: 1px solid var(--edge);
-               position: relative; flex: none; }
-.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
-                      background: var(--soft); transition: left 0.15s; }
-.switch input:checked + span { background: var(--ink); border-color: var(--ink); }
-.switch input:checked + span::after { left: 23px; background: var(--on-ink); }
-.switch input:focus-visible + span { outline: 3px solid var(--not-ready); outline-offset: 2px; }
-
-.message { min-height: 1.45em; color: var(--over); font-weight: 650; }
+/* A refusal, over the controls, gone when empty */
+.message { position: absolute; left: 12px; right: 12px; bottom: calc(var(--job-key) * 2 + var(--gap) * 3);
+           padding: 10px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--over);
+           color: var(--over); font-weight: 650; box-shadow: 0 4px 14px rgb(0 0 0 / 0.15); }
+.message:empty { display: none; }
 
 /* Navigation: a bar at the bottom on a phone, a rail at the left from 600 px */
-.nav { position: fixed; inset: auto 0 0 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
-       padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--rule);
-       z-index: 2; }
-.nav a { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: var(--tap); border-radius: 12px;
-         color: var(--soft); text-decoration: none; font-size: 0.8125rem; font-weight: 650; }
+.nav { position: fixed; inset: auto 0 0 0; height: calc(var(--bar) + env(safe-area-inset-bottom));
+       display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px 8px env(safe-area-inset-bottom);
+       background: var(--card); border-top: 1px solid var(--rule); z-index: 2; }
+.nav a { display: grid; justify-items: center; align-content: center; gap: 2px; border-radius: 12px; color: var(--soft);
+         text-decoration: none; font-size: 0.8125rem; font-weight: 650; }
 .nav svg { width: 24px; height: 24px; }
 .nav a.on { color: var(--ink); background: var(--well); }
 .nav a.on svg { stroke-width: 2.4; }
 
 @media (min-width: 600px) {
-    body { padding-bottom: 0; padding-left: 96px; }
-    .nav { inset: 0 auto 0 0; width: 88px; grid-template-columns: none; grid-auto-rows: 72px; align-content: start;
-           padding: 76px 8px 8px; border-top: 0; border-right: 1px solid var(--rule); }
-    .page { padding-top: 12px; }
-    .dial { width: 340px; }
-    .figure { font-size: 5.5rem; }
+    :root { --bar: 0px; --gap: 14px; }
+    body { padding-left: 96px; }
+    .nav { inset: 0 auto 0 0; width: 88px; height: auto; grid-template-columns: none; grid-auto-rows: 72px;
+           align-content: start; padding: calc(var(--top) + 8px) 8px 8px; border-top: 0; border-right: 1px solid var(--rule); }
+    .trickler { padding: 0 16px 16px; }
+    .panel { padding: 16px; }
 }
 @media (min-width: 840px) {
-    .page { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
-    .dial { width: 360px; }
+    .view { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr); }
+    .controls { align-content: end; }
 }
-@media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; }
-}
+/* A short phone (an iPhone SE with its bars shown is about 550 px): the job's keys a little lower, the figure first */
+@media (max-height: 640px) { :root { --job-key: 56px; --gap: 8px; } .panel { padding: 10px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* The cup's question */
 .sheet { border: 0; padding: 24px 20px 20px; border-radius: 22px; width: min(94vw, 440px); background: var(--card);

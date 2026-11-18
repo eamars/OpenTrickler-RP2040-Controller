@@ -19,7 +19,7 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 1. **Lay out by the window's width, not by the device.**
    - Three widths, Material's window size classes: compact under 600 CSS px (a phone), medium 600 to 839 (a tablet in portrait, a phone in landscape), expanded 840 and over (a tablet in landscape, a computer).
    - One page that grows with the width, never a second page for phones. Compact: one column. Medium: one column, wider, the figure larger. Expanded: the job's panel beside its controls; a page of settings in two columns; nothing wider than about 1100 px.
-   - **Navigation:** a bar at the bottom on compact, with its four destinations each a whole quarter of the width (the thumb's reach); a rail down the left from medium up. Four destinations: Charge, Powders, Settings, Unit.
+   - **Navigation:** a bar at the bottom on compact, with its four destinations each a whole quarter of the width (the thumb's reach); a rail down the left from medium up. Four destinations: Trickler, Powders, Settings, Unit (the owner, 2026-11-18: the Trickler holds both jobs, Charge and Purge, by a switch at its top).
    - **Why:** Material 3 sets these widths and moves the navigation bar to a rail on larger windows; web.dev advises against guessing the input from the screen's size (rule 3 does that).
 2. **Targets large enough for a gloved finger.**
    - Every control at least 48 by 48 CSS px, with at least 8 px between neighbours. That is Material's 48 dp (about 9 mm), above Apple's 44 pt and WCAG's 44 px (2.5.5, AAA); WCAG's 24 px (2.5.8, AA) is a floor, never a target.
@@ -66,12 +66,19 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
     - The system's own fonts (no web font), icons drawn inline in SVG, no image files, no framework at run time. The whole UI about 50 KB gzipped (ADR-008, "The budget").
     - An advanced page may load a pinned library from the internet, with its integrity hash, and says so when there is none (ADR-008, "Resources from the internet").
 12. **Words.**
-    - The screen's words, one list (ADR-008, "The words"): Charge, Purge, Powder, Zero, Servo gate, Factory reset, Restart, Update, Hotspot.
+    - The screen's words, one list (ADR-008, "The words"): Trickler (the page), Charge, Purge, Powder, Zero, Motors, Servo gate, Factory reset, Restart, Update, Hotspot. The motors are never "tricklers".
     - What the person does is an imperative ("Lift the cup"); what the unit does is a state ("Charging", "Zeroing"): the screen's job titles, word for word (`charge_state_text()`, `menu_nav.c`). Buttons are verbs that say what happens ("Start charge", "Stop purge").
     - One language, English. Units as the screen writes them (gr, g, rev/s).
 13. **The set-up works in a captive-portal sheet.**
     - One column about 480 px wide, everything in the page, no storage relied on, a whole-page load (not only a script's update) when a step needs the phone to look at the network again.
     - It must also work in a full browser reached by the unit's address.
+
+14. **A job's page fits the screen: it never scrolls.**
+    - The Trickler's views (Charge, Purge) fit the visible height, down to a phone of 375 by 667 CSS px with its browser's bars shown (about 550 px for the page). Sized by `svh`, the height with the bars shown, never `vh`, which is taller than what a phone shows.
+    - What does not fit is scaled, not scrolled: the figure's area takes the room left (a CSS container), and the figure and its ring scale with it; where the room is too short for a ring, a bar under the figure takes its place, and the steps give way to the status word, which says the same. The figure never goes below rule 4's size: the ring and the steps go first.
+    - Only what a job needs while it runs is on its view. A preference set once (keeping the phone awake) goes to the Unit's page.
+    - Lists (powders, settings, the update's notes) may scroll: they are read, not worked at.
+    - **Why:** the owner, 2026-11-18: "scrolling a control page seems inconvinent", which is why the charge and the purge were two pages before.
 
 ## This project's design language
 

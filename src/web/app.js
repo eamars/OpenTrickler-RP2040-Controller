@@ -65,6 +65,7 @@ function renderCharge() {
     $("target-shown").textContent = shown(charge.target);
     const share = charge.target && charge.weight ? Math.min(Math.max(charge.weight / charge.target, 0), 1) : 0;
     $("ring").style.strokeDashoffset = String(1000 * (1 - share));
+    $("bar").style.width = `${share * 100}%`;
     $("elapsed").textContent = charge.elapsed_s === null ? "-.-- s" : `${charge.elapsed_s.toFixed(2)} s`;
     if (document.activeElement !== $("target") && charge.target !== null) {
         $("target").value = Number(charge.target).toFixed(decimals);
@@ -106,14 +107,44 @@ function renderPurge() {
         return;
     }
     const running = purge.state === "running" || purge.state === "starting";
-    $("purge-idle").hidden = running;
-    $("purge-running").hidden = !running;
+    // The unit's speed, not this page's: a purge set from the screen or another page shows here too (echo)
+    if (running && typeof purge.speed_rps === "number") {
+        purgeSpeed = purge.speed_rps;
+    }
+    $("purge-keys").hidden = !running;
+    $("purge-start").hidden = running;
+    $("purge-stop").hidden = !running;
     $("speed").textContent = purgeSpeed.toFixed(1);
-    $("purge-start").disabled = charge !== null && charge.state !== "idle";
+    $("purge-status").textContent = purge.state === "fault" ? "Fault" : (running ? "Running" : "Ready");
+    $("purge-panel").dataset.mood = purge.state === "fault" ? "over" : "normal";
     if (!running && purgeTimer !== null) {
         clearInterval(purgeTimer);
         purgeTimer = null;
         purgeSpeed = 0;
+    }
+}
+
+// The switch at the Trickler's top: the job that runs is the view shown, and the other cannot be chosen
+let view = "charge";
+
+function show(wanted) {
+    view = wanted;
+    for (const name of ["charge", "purge"]) {
+        $(`view-${name}`).hidden = name !== view;
+        $(`seg-${name}`).classList.toggle("on", name === view);
+        $(`seg-${name}`).setAttribute("aria-selected", String(name === view));
+    }
+}
+
+function renderSwitch() {
+    const charging = charge !== null && charge.state !== "idle" && charge.state !== "fault";
+    const purging = purge !== null && (purge.state === "running" || purge.state === "starting");
+    $("seg-purge").disabled = charging;
+    $("seg-charge").disabled = purging;
+    if (charging && view !== "charge") {
+        show("charge");
+    } else if (purging && view !== "purge") {
+        show("purge");
     }
 }
 
@@ -127,6 +158,7 @@ async function poll() {
         purge = p.data;
         renderPurge();
     }
+    renderSwitch();
 }
 
 function startPolling() {
@@ -224,27 +256,23 @@ async function zero() {
     reply.ok ? say("Zeroed.") : refusal(reply, "Not zeroed");
 }
 
-async function keepAwake() {
-    let wanted = $("awake").checked;
+// Keep this screen awake: on unless this browser was told otherwise, its switch on the Unit's page (rule 14: a
+// preference set once is not on a job's view). Where the Wake Lock is not given (plain HTTP), gate 3 adds a fallback
+function awakeWanted() {
     try {
-        localStorage.setItem("awake", wanted ? "1" : "0");
+        return localStorage.getItem("awake") !== "0";
     } catch (error) {
-        // a browser with no storage: the switch holds for this visit only
+        return true;    // a browser with no storage: on, as the default
     }
-    if (wanted && "wakeLock" in navigator && document.visibilityState === "visible") {
+}
+
+async function keepAwake() {
+    if (awakeWanted() && "wakeLock" in navigator && document.visibilityState === "visible") {
         wakeLock = await navigator.wakeLock.request("screen").catch(() => null);
-    } else if (!wanted && wakeLock !== null) {
-        wakeLock.release();
-        wakeLock = null;
     }
 }
 
 async function load() {
-    try {
-        $("awake").checked = localStorage.getItem("awake") !== "0";
-    } catch (error) {
-        $("awake").checked = true;
-    }
     const [powders, settings, network] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
                                                             api("GET", "/api/v1/settings/charge"),
                                                             api("GET", "/api/v1/network")]);
@@ -263,7 +291,8 @@ async function load() {
     $("zero").onclick = zero;
     $("purge-start").onclick = startPurge;
     $("purge-stop").onclick = stopPurge;
-    $("awake").onchange = keepAwake;
+    $("seg-charge").onclick = () => show("charge");
+    $("seg-purge").onclick = () => show("purge");
     document.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => stepTarget(Number(b.dataset.step)));
     document.querySelectorAll("[data-speed]").forEach((b) => b.onclick = () => stepPurge(Number(b.dataset.speed)));
     // A hidden tab reads nothing: the phone asleep, another app (the stream's life cycle in gate 2 does the same)
