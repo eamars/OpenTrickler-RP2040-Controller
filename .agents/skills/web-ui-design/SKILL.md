@@ -110,6 +110,7 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
   - **What cannot be used looks so:** a field and its keys locked together, never a field locked while its keys look live.
   - **Text holds its line:** no status, label or figure wraps at any size; when a row is short, the least needed part goes (the time before the status word).
   - **Nothing collides:** no element laid over another (Zero over "999.99").
+  - **Nothing jumps:** when the state or the value changes, nothing else moves. What a state hides keeps its room (`visibility`, not `display`: the purge's speed jumped when its line went at the start); a figure sits in a field as wide as its longest value, its digits right-aligned as a scale's display (the weight moved 30 to 40 px with each new digit, the speed 30 px with its sign). Measure it: the figure's edge read in every state and at the shortest and longest values.
   - **The states:** idle, running, each verdict, a fault, a refusal, the cup's question, the unit not reached; for the purge, idle and running. Put each on screen (stop the polling and set the state), at 375 x 553, 390 x 664, 768 x 1024 in dark, 1280 x 800, and the window the owner uses.
 - **Every feature carries its row** of `docs/developments_plans/ADR-008-web_ui/features.md`: nothing silently dropped.
 
