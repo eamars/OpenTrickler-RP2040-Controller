@@ -33,6 +33,7 @@ Status: **Open** 2026-11-18, gate 1 (the mock) under way. Drafted 2026-11-13, re
   - "I'd take your fixes, please log in the ADR and relevant ADR";
   - the ideas (DHCP's captive-portal option, the pages cached by version, the phone kept awake): "Yes I'd like your ideas. However the last one may needs its own toggle switch and default to ON".
 - 2026-11-18, after gate 1's radio probe (progress.md): "I'm not around the Pico W so let's defer the iPhone test to later stage. And I don't have Android phone so let's assume they are working the same way." Read here as: the iPhone is seen at the unit before commissioning's design is settled, at the start of gate 4 at the latest; Android is not tested and is taken to work as the iPhone and the Windows client do (below, "To find out first").
+- 2026-11-18, on the System Control's Erase found starting at Yes (progress.md, the inventory), after first saying to fix it at once: "Actually I'd like to leave it to gate 3, as no release will be done mid ADR, so there is no point to fix anything that may subject to be thrown away, Just record what you found." Read here as: today's pages are not fixed while this ADR is open; what is found wrong in them is recorded in `features.md` and made right by the new pages in gate 3, which is checked against it.
 
 ## Why here
 
@@ -261,7 +262,7 @@ Agreed with the owner (2026-11-18), the agent's proposals:
    - the styles' proposal and its tools in the build, the stand-in serving what the build makes;
    - the mock itself, at the three widths.
 2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself, the feature table and the unit's report of what it carries; the server's change; soaked on the Pico W against polling.
-3. **The pages built.** Gzip and the `ETag`, the forms from the schema, the update's page, every client echoing the unit, each feature's part shown only when the unit reports it.
+3. **The pages built.** Every row `features.md` marks broken made right by the new pages, first the system's Save, Restart and Erase as three actions of their own, each with its own confirmation and none chosen in advance (rows 70 and 74). Gzip and the `ETag`, the forms from the schema, the update's page, every client echoing the unit, each feature's part shown only when the unit reports it.
 4. **Commissioning built.** First the iPhone on the probe image, if not seen before (the owner at the unit). Then the set-up in the portal, opened by the captive portal and by DHCP's option 114; what the mock settled of the networks' list, the join, the key, the id and the QR code.
 
 Then the proof on both boards; PR #111 is closed once the update is shown end to end from the page.
