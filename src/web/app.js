@@ -43,9 +43,14 @@ function refusal(reply, what) {
 
 function setLink(reached) {
     const link = $("link");
-    link.textContent = reached ? "Connected" : "Not reached";
-    link.className = reached ? "badge badge-success" : "badge badge-error";
+    link.querySelector("b").textContent = reached ? "Connected" : "Unit not reached";
+    link.className = reached ? "link up" : "link down";
 }
+
+// The screen's job titles, word for word (charge_state_text() in menu_nav.c)
+const STATUS = {idle: "Ready", starting: "Starting", zeroing: "Zeroing", charging: "Charging",
+                waiting_for_cup_removal: "Lift the cup", waiting_for_cup_return: "Return the cup", fault: "Fault"};
+const VERDICT = {good: "Good", under: "Under", over: "Over"};
 
 function shown(value) {
     return value === null || value === undefined ? "---" : Number(value).toFixed(decimals);
@@ -58,7 +63,8 @@ function renderCharge() {
     const running = charge.state !== "idle" && charge.state !== "fault";
     $("weight").textContent = shown(charge.weight);
     $("target-shown").textContent = shown(charge.target);
-    $("bar").value = charge.target && charge.weight ? Math.min(charge.weight / charge.target, 1) : 0;
+    const share = charge.target && charge.weight ? Math.min(Math.max(charge.weight / charge.target, 0), 1) : 0;
+    $("ring").style.strokeDashoffset = String(1000 * (1 - share));
     $("elapsed").textContent = charge.elapsed_s === null ? "-.-- s" : `${charge.elapsed_s.toFixed(2)} s`;
     if (document.activeElement !== $("target") && charge.target !== null) {
         $("target").value = Number(charge.target).toFixed(decimals);
@@ -74,13 +80,25 @@ function renderCharge() {
     const order = [...$("steps").children].map((step) => step.dataset.state);
     const reached = order.indexOf(charge.state);
     [...$("steps").children].forEach((step, index) => {
-        step.classList.toggle("step-primary", reached >= 0 && index <= reached);
+        step.classList.toggle("done", reached >= 0 && index < reached);
+        step.classList.toggle("now", index === reached);
     });
 
-    const verdict = {good: ["Good", "badge-success"], under: ["Under", "badge-warning"],
-                     over: ["Over", "badge-error"]}[charge.last && charge.last.result];
-    $("verdict").textContent = verdict ? `Throw ${charge.last.throw}: ${verdict[0]}` : "No throw yet";
-    $("verdict").className = verdict ? `badge ${verdict[1]}` : "badge";
+    // Colour only where it means something (web-ui-design, rule 5): not ready, then the throw's verdict
+    const result = charge.last && charge.last.result;
+    const afterThrow = charge.state === "waiting_for_cup_removal" || (!running && result in VERDICT);
+    let mood = "normal";
+    let status = STATUS[charge.state] || charge.state;
+    if (charge.state === "fault") {
+        mood = "over";
+    } else if (afterThrow && result in VERDICT) {
+        mood = result;
+        status = charge.state === "waiting_for_cup_removal" ? `${VERDICT[result]}: lift the cup` : VERDICT[result];
+    } else if (["starting", "zeroing", "waiting_for_cup_return"].includes(charge.state)) {
+        mood = "not-ready";
+    }
+    $("panel").dataset.mood = mood;
+    $("status").textContent = status;
 }
 
 function renderPurge() {
@@ -227,8 +245,12 @@ async function load() {
     } catch (error) {
         $("awake").checked = true;
     }
-    const [powders, settings] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
-                                                   api("GET", "/api/v1/settings/charge")]);
+    const [powders, settings, network] = await Promise.all([api("GET", "/api/v1/powder_profiles"),
+                                                            api("GET", "/api/v1/settings/charge"),
+                                                            api("GET", "/api/v1/network")]);
+    if (network.ok && network.data.hostname) {
+        $("unit-name").textContent = network.data.hostname;
+    }
     if (settings.ok && settings.data.decimal_places) {
         decimals = settings.data.decimal_places;
     }
