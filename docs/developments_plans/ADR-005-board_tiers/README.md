@@ -130,7 +130,7 @@ On the agent's proposal, closed by the owner ("Yes, close it"):
 - **Measured right before then.** ADR-008 and ADR-010 measure what they add (the pages and HTTPS, LVGL) on two builds, the shipping one and a size-optimised one, and decide on the second. If what they add fits only optimised, this ADR's optimised build is made first. ADR-010 measures the heap's high-water mark too.
 - **When it fires, the work:** the optimised build on both boards, the stack-overflow and failed-allocation hooks first made to stop the unit without `assert()`, proven by `charge_cycle`, `menu_tour` and the owner's real throws (the optimiser changes timing). `sha256.c`'s own `-O2` (the root `CMakeLists.txt`) then goes.
 - **Handed on:**
-  - the feature table and the unit's report of what it carries (rule 3) to ADR-008, their first reader;
+  - the feature table and the unit's report of what it carries (rule 3) to ADR-008, their first reader. Placed there 2026-11-18 in its gate 2, the API review, with the owner's rule "no feature is silently dropped": a feature left out of a build is reported by name as absent, never just missing. Its first options are the servo gate and the LEDs, the build having none today;
   - the pages' size to ADR-008, which replaces the pages and their build step;
   - LVGL's cost and the heap's high-water mark to ADR-010;
   - HTTPS's cost to wherever the unit's own fetch is designed (ADR-008);

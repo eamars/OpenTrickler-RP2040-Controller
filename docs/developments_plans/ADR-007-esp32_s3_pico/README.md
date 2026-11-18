@@ -72,6 +72,7 @@ On the ESP32-S3-Pico in the controller's socket:
 - the owner's real throw: time and accuracy as on the Pico 2 W with the same profile;
 - a controller set up with a Pico 2 W, then fitted with the ESP32, has its settings;
 - an update over Wi-Fi, and a recovery by USB;
+- ADR-008's web UI, the same pages, with ADR-008's checks: every page from a phone on the unit's access point with no internet, commissioning opened by the captive portal, the unit's report of what it carries (its larger flash may carry more) and only those pages shown (handed on by ADR-008, 2026-11-18: ADR-008 is proven on the Pico W and the Pico 2 W, as this board comes after it);
 - the step pulses on a scope or logic analyser against the Pico 2 W's, at the lowest and the highest speed.
 
 ## Not in this ADR

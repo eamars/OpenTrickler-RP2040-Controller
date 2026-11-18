@@ -1,6 +1,6 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Decided** 2026-11-18. Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Work starts, with gate 1 (the mock), when the owner says so; the ADR is then Open.
+Status: **Open** 2026-11-18, gate 1 (the mock) under way. Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
 
 ## What we want
 
@@ -26,6 +26,12 @@ Status: **Decided** 2026-11-18. Drafted 2026-11-13, revised 2026-11-18 (ADR-015,
   - on how the unit tells the page what changed: "How about alternative? Is there a better solution for backend to frontend comm?", then "I'd explore the SSE, and the life cycle of SSE must be managed";
   - with the screen and the web at once: "I'd prefer echoing the state, not taking over one from another";
   - for agents: a declaration on the root GET of every call an agent may make, not rendered on the page, "And each API should have enough information to self declare the usage? For example, a GET to hello should declare the usage instead of an error".
+- 2026-11-18, after approval, on the agent's review of the plan against the code (its gaps, fixes and ideas, each written in below):
+  - the feature table in the API review's gate: "Agree, and I need to make sure no feature is silently dropped";
+  - the tools: "Install any development tool you need. I don't have strong preference of which framework you should use. I happened to use tailwind and daisy UI because that was the previous agent recommended, but if you see a better fit, or a better UI design for the application then I'm happy to review your proposal";
+  - the radio probed in gate 1: "Pico W is connected so you can use the real device. This computer has WiFi module that I'm not using so you could use this workstation as the client to test";
+  - "I'd take your fixes, please log in the ADR and relevant ADR";
+  - the ideas (DHCP's captive-portal option, the pages cached by version, the phone kept awake): "Yes I'd like your ideas. However the last one may needs its own toggle switch and default to ON".
 
 ## Why here
 
@@ -80,6 +86,11 @@ Commissioning was ADR-015, proposed on 2026-11-17 to come between ADR-010 and AD
 - **The feature table and the unit's report** of what it carries (ADR-005's rule 3) are built here, as their first reader: build options with a default per board, one generated header, one answer from the unit. The page shows only what is there.
 - **The pages' size is this ADR's.** Our own pages take 102.7 KB of the Pico W image, unminified and uncompressed (18.6 KB gzipped; 2026-11-18). Tailwind and DaisyUI are not in the image; the browser fetches them from CDNs, so a page that works offline adds them, trimmed to what it uses.
 - **What this ADR adds** (the pages) is measured on two builds, the shipping one and a size-optimised one (MinSizeRel), and decided on the second. If it fits only optimised, ADR-005's optimised build is made first. HTTPS for the unit's own fetch is measured in ADR-010.
+- **Read 2026-11-18:** the build has no feature options today, only test ones (`HTTPS_TEST_CA`, `RC_TEST_*` in `CMakeLists.txt`): both boards carry the same set, and `app.c` starts every module, the servo gate and the LEDs included. What a unit has fitted is another question: the bench's Pico W has no servo gate, and the firmware cannot tell. A module that can be left out of a build is this ADR's; telling what is fitted is not (ADR-006's, if ever).
+- **No feature silently dropped** (the owner, 2026-11-18). Read here as two rules:
+  - **On the unit:** a feature left out of a build is reported by name as absent in the unit's report, never just missing; the build prints the board's list as it configures. The page shows what the report lists, and a page's part with no feature behind it, or a feature with no part, fails the test.
+  - **On the pages:** every feature today's portal and wizard offer is listed in an inventory in gate 1 (`features.md` in this folder, as ADR-010's `menu_design.md` placed every row of the old menu), and each is placed in the new pages or left out by the owner's decision, with its reason. Nothing goes by a page rewritten.
+- **When:** the table, the build options and the unit's report are built in gate 2, the API review, as the report is an addition to the index. Its first options are what a build can really leave out today: the servo gate and the LEDs. It is proven by one build with an option off: the report names it absent and the page drops its part.
 
 **Handed on by ADR-010** (2026-11-17, from its menu's design, `ADR-010-lvgl/menu_design.md`, and the owner's answers to it):
 - **A start from the page asks nothing about the cup.** `web_portal.html` starts a charge or a cleanup with no acknowledgement (read 2026-11-17). Before charge and before cleanup, the screen has the person acknowledge that the cup is on the scale. The owner: "Those are safety warnings, and not technical challenges. This ensures the users are acknowledged that they DID put the cup on the scale, rather than dropping powder to scale directly." The page's start asks the same. Whether the API carries the acknowledgement too, as a field in the start's body that a client must state, is settled here. Settled 2026-11-18: the page asks, and the API stays as it is. API v1 is stable, and a field every start must carry would break the clients it has (`rc_run.py`, and the Open Weapon Mount Computer when it moves to v1); the index's guide already tells an agent to start and zero only when a person has said an empty cup is on the pan.
@@ -134,7 +145,9 @@ The agent's proposals, 2026-11-18, for the owner to settle with the mock:
 - **A list of networks** to choose from, scanned by the unit, in place of a name typed.
 - **The access point kept up while the station joins,** and the result told on the page: a wrong key is typed again, with no restart and no new join of the access point. Today's rejoin stops the access point when the station joins; when it stops, and what the page says before it does, is part of this design.
 - **A key for each unit's access point,** made from the chip's own unique id and shown only on its screen: being at the unit is then the password, as "no password for now" asks. Today's shared key goes.
+  - **The key is only as secret as what it is made from** (the agent's review, 2026-11-18). If the host name and the key both come from the unique id, the host name, announced by mDNS to the whole network, gives away part of what makes the key. So the key is a hash of the id (SHA-256, already in the image) of which no part is sent anywhere: the host name and the access point's name come from other bits of the id, and the API gives neither the id nor the key (the Wi-Fi key is already never shown). Anyone who reads the chip by its debug port can make the key; being at the unit is the password either way.
 - **The unit's id and name from the chip's unique id** (`pico_get_unique_board_id`) in place of `rnd()`: the same across a factory reset, and never two units with one name. Every unit already out gets a new host name once, with the update that brings it.
+- **The set-up's address in DHCP** (the agent's idea, taken 2026-11-18): the unit's DHCP server gives the phone the set-up's address as the captive portal's (option 114, RFC 8910), so a phone that reads it opens the set-up without guessing from its own check. Newer iPhones and Android phones are said to read it (thought so, not checked); the others still have the answer to their check. A few lines in `dhcpserver.c`, tried on the phones in gate 1.
 - **A QR code to join the access point,** the phones' own Wi-Fi format (`WIFI:T:WPA;S:<name>;P:<key>;;`, about 45 characters): QR version 3, 29 modules, 58 of the panel's 64 rows at 2 pixels a module. A phone's camera joins the network from it with no app. On the screen's Wi-Fi page. The owner's QR question (2026-11-17) is answered here.
 
 ### To find out first
@@ -144,6 +157,12 @@ On real phones, at least one iPhone and one Android, before the design is settle
 - whether the set-up works inside that sheet, a reduced browser on iOS that closes when the network changes;
 - whether a phone leaves the access point, or sends its traffic over mobile data, because it has no internet;
 - what the unit must answer to each phone's check (the address each phone asks to learn whether it is signed in).
+
+On the unit, with the Pico W on the probe and this workstation's own Wi-Fi as the client (the owner, 2026-11-18), because a mock cannot show what the radio does (the agent's review):
+- **The access point while the station joins.** The CYW43 runs its access point and its station on one channel. A station that joins a router on another channel very likely moves the access point with it, and a phone on it drops off: the very thing "the access point kept up while the station joins" is meant to avoid. Seen with a test image that keeps the access point up after the join, the router on another channel than the access point's, the client's link and pings logged through the join.
+- **A scan with the access point up:** whether the unit can list the networks while a client is on its access point, and what the client sees meanwhile.
+- **Today's captive parts** as a client sees them: the access point's DNS answering every name, the 302 to the unit, and what a request to port 443 gets (refused at once, or left to time out, which keeps a phone's check waiting).
+- **The phones** then on the same image, for the list above.
 
 ## Every client echoes the unit
 
@@ -173,7 +192,7 @@ Why the stream: the event log is already numbered and already tells a client of 
 |---|---|
 | **Open** | The page asks `GET /api/v1/events` with `Accept: text/event-stream`. Over the cap of streams, 503 with `Retry-After`. |
 | **Start** | First a snapshot of the unit's state (its job, the charge, each settings resource's `saved`), so every client starts from the same truth. |
-| **Running** | Each event with the id `<boot>-<seq>`. During a charge the live weight comes on the same stream, no faster than the scale's own rate; the mirror's frame, when it changed, may too. |
+| **Running** | Each event with the id `<boot>-<seq>`. During a charge the live weight comes on the same stream, no faster than the scale's own rate, as a state message with no id: it is not an event and is not kept in the log (below). |
 | **Kept alive** | A comment line about every 15 s, so each end knows the other is there. |
 | **Reconnect** | By the browser itself, with the last id it saw. The same `boot` and the event still kept: the stream goes on from there, nothing missed. An id no longer kept, or another `boot` (a restart, an update): a new snapshot, then on. The rule held reads follow today. |
 | **Closed by the page** | When its tab is hidden (the phone asleep, another app), the page closes its stream, and opens it again when shown. Its slot is free before it goes stale. |
@@ -182,6 +201,10 @@ Why the stream: the event log is already numbered and already tells a client of 
 | **Seen** | `net` and `GET /api/v1/debug` give the streams open, each one's age and its bytes not yet acknowledged, and the streams closed by reason. |
 
 - **A cap:** at most 3 streams of the server's 6 slots (a proposal, measured in the soak), so a request always finds a slot.
+- **What is kept in the log, and what only passes on the stream** (the agent's review, 2026-11-18). The log keeps the newest 64 events (`EVENTS_KEPT`, `events.c`). The scale's readings at its own rate would push every other event out within seconds of a charge, and an agent's held reads would meet a gap every time. So:
+  - **the live weight** is a state message on the stream, with no id: a client that reconnects reads the state again in its snapshot and has missed nothing it needs;
+  - **the mirror's frame** (about 1 KB for each change) stays on its own poll, as today: on the stream it would take most of the 2 KB a stream may leave unacknowledged;
+  - **a setting changed** is one event for each resource written, not one for each field, so an import of every resource is a handful of events, not a hundred.
 - **Agents** keep the held reads; the stream is open to them too.
 - **Built** in the API review's gate (below), with the server's change.
 
@@ -200,7 +223,8 @@ The owner, 2026-11-18: the API needs a review; an agent should find every call i
 2. **A GET of every action gives its usage,** 200: its method, its body's fields with their types and limits, what it answers, when it is refused, and an example. It comes from the table the schema is made from: one description, three readers (the schema, the index, the action's own GET). A GET still changes nothing. A GET of `/api/v1/agent/hello` says to POST `{"name": "<who you are>"}` there, what the screen then shows, and that a charge refuses it.
 3. **Every error under `/api/v1` says where to read:** a `see` field with the path that describes it; a 404 the index; a 405, with its `Allow`, the action's own GET.
 4. **Every route is in the index,** or in a short list of exceptions named in the code (the pages, the mirror); `rc_run.py api_check` compares the server's routes with the index and fails on one in neither.
-5. **Hello is listed,** under a kind of its own, `agent`: an agent finds it, and it stays the owner's fun.
+5. **Hello is listed,** under a kind of its own, `agent`: an agent finds it, and it stays the owner's fun. AGENTS.md's "Say hello", which says it is in neither the index nor the schema, is brought up to date in the same gate.
+6. **The unit's report of what it carries** (ADR-005's feature table; "No feature silently dropped", above): each feature with present or absent, in the index.
 
 **Where:** all of it adds to API v1 and breaks nothing. It is ADR-003's area, and ADR-003 is closed; it is built here, as the API review's gate, with the event stream and the event for a setting changed.
 
@@ -208,7 +232,9 @@ The owner, 2026-11-18: the API needs a review; an agent should find every call i
 
 Settled (the owner, 2026-11-18):
 - **A mock first.** The pages, clickable in a browser against the stand-in server, before anything goes on a unit. The owner decides by using it. An agent can open the same mock in its own browser and check it.
-- **Tailwind and DaisyUI, trimmed** at build time to what the pages use, and served by the unit. The tool that trims them is installed as a development tool, its version written in `toolchain.env` and fetched by both setup scripts and CI like every other. The agent's choice: Tailwind's standalone command-line tool, one program with no Node, if DaisyUI works with it as a plain file (thought so, not checked); Node otherwise.
+- **The styles and the tools: the agent's proposal, in gate 1** (the owner, 2026-11-18: no strong preference; Tailwind and DaisyUI were a previous agent's recommendation; "if you see a better fit, or a better UI design for the application then I'm happy to review your proposal"). Whatever is chosen is trimmed at build time to what the pages use and served by the unit. Its tools are development tools, installed as needed (the owner), each version written in `toolchain.env` and fetched by both setup scripts and CI like every other. The proposal weighs, by the mock's real gzipped size and how it reads at the bench: Tailwind with DaisyUI by Tailwind's standalone command-line tool (one program, no Node; DaisyUI 5 is said to work with it as a plain plugin file, thought so, not checked), Tailwind alone with our own few components, and plain CSS of our own with no tool. It comes with a page drawn each way, for the owner to choose by using it.
+- **The tools come in gate 1, not gate 3** (the agent's review, 2026-11-18): the budget is settled against the mock's real size, which includes the trimmed styles, so the build that trims them is there first. The mock is the pages' first version, in the real layout of sources (nothing is thrown away), and `tests/web_test.py` serves what the build makes from them, not `src/html` as it stands, with stand-ins for what the recording lacks (the stream, a list of networks, an update under way).
+- **The pages cached by version** (the agent's idea, taken 2026-11-18): each page served with an `ETag` of the firmware's version, so a phone fetches the UI once per version and a reload is a `304` of a few bytes: less of lwIP's heap taken, a page that opens at once. An update is a new version and so a new `ETag`: an old page is never shown.
 - **The budget is set from the slot.** The Pico W's slot has 38 KB left, and our pages take 102.7 KB of the image (18.6 KB gzipped). Served gzipped, the whole UI aims at about 50 KB, handing the rest back to the ADRs after this one (ADR-009, ADR-014); the figure is checked against the mock's real size.
 - **No tuning here.** Tuning with powder, a chart of a throw and PR #113's powder analysis are ADR-009's. This ADR changes nothing at the level of a powder throw.
 - **Settings forms drawn from the schema** (the owner, 2026-11-17: see "Handed on by ADR-010").
@@ -218,6 +244,7 @@ Settled (the owner, 2026-11-18):
   - made for a person at a bench in a garage: a phone propped beside the trickler and read at arm's length, a glance between other jobs, hands that may be dirty or gloved, light from bright to dim. So the live weight and the target are the largest things on the charge's page; every control is a large target, with room between targets; nothing depends on hovering or a fine pointer; contrast holds in any light, and the page follows the device's light or dark setting;
   - the mock is checked at three widths, a phone (375 px), a tablet (768) and a computer (1280), in an agent's browser and by the owner on their own devices.
   - Known limit, thought so and not checked: a browser keeps the phone's screen awake (the Screen Wake Lock API) only for a page served over HTTPS, so over the unit's plain HTTP the phone may dim during a charge. Seen in the mock on real phones.
+  - **Keep the phone awake** (the agent's idea, taken 2026-11-18, with "its own toggle switch and default to ON", the owner): where the Wake Lock API is not given, a small muted video looping on the charge's page keeps the screen on, as pages commonly do. It has a switch of its own, "Keep this screen awake", on by default. Proposed: the switch is kept by the browser, not stored on the unit, as it is the phone's screen and not the unit's (two phones may want it differently), so it is not one of the unit's settings and not on the 12864. Tried on real phones in the mock; what it costs a phone's battery is read there too.
 
 Agreed with the owner (2026-11-18), the agent's proposals:
 - **Pages:** charge (target, live weight, start and stop), profiles, settings, update (ADR-004), the set-up (commissioning, above), and the screen's mirror, all one portal.
@@ -226,10 +253,14 @@ Agreed with the owner (2026-11-18), the agent's proposals:
 
 ## Gates (agreed with the owner, 2026-11-18)
 
-1. **The mock** (a design gate). The pages clickable against `tests/web_test.py`; the look, the proposals above, commissioning's, and the budget against the mock's real size settled by the owner using it. Phones' captive portals are seen first, with today's firmware, so the set-up is designed on what they do.
-2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself; the server's change; soaked on the Pico W against polling.
-3. **The pages built.** The toolchain, the trimmed styles, gzip, the forms from the schema, the update's page, every client echoing the unit.
-4. **Commissioning built.** The set-up in the portal, opened by the captive portal; what the mock settled of the networks' list, the join, the key, the id and the QR code.
+1. **The mock** (a design gate). The pages clickable against `tests/web_test.py`; the look, the proposals above, commissioning's, and the budget against the mock's real size settled by the owner using it. In it, in this order:
+   - the radio and today's captive parts probed on the Pico W from this workstation's Wi-Fi, then the phones' captive portals seen, so the set-up is designed on what they do ("To find out first");
+   - the inventory of today's pages' features (`features.md`), each placed or left out by the owner's decision;
+   - the styles' proposal and its tools in the build, the stand-in serving what the build makes;
+   - the mock itself, at the three widths.
+2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself, the feature table and the unit's report of what it carries; the server's change; soaked on the Pico W against polling.
+3. **The pages built.** Gzip and the `ETag`, the forms from the schema, the update's page, every client echoing the unit, each feature's part shown only when the unit reports it.
+4. **Commissioning built.** The set-up in the portal, opened by the captive portal and by DHCP's option 114; what the mock settled of the networks' list, the join, the key, the id and the QR code.
 
 Then the proof on both boards; PR #111 is closed once the update is shown end to end from the page.
 
@@ -238,9 +269,10 @@ Then the proof on both boards; PR #111 is closed once the update is shown end to
 - With the internet unplugged, every page works from a phone on the unit's access point.
 - A person not at ease with a browser commissions a unit just reset, from its first start, with no help: on an iPhone and on an Android phone that have never joined it, joining its access point opens the set-up, and nobody types an address.
 - Screenshots of each page from the unit match the mock.
-- On a board without an optional module, its page and its links are absent.
+- On a build without an optional module, the unit's report names it absent, and its page and its links are absent.
+- Every feature in `features.md` is in the new pages or left out by the owner's decision.
 - A charge started and watched from the phone, with `charge_cycle`'s checks.
-- The same on the Pico 2 W and the ESP32-S3-Pico.
+- The same on the Pico 2 W. The ESP32-S3-Pico takes the same pages and is proven with them in ADR-007, which comes after this ADR (the agent's review, 2026-11-18: it was in this list by mistake).
 - The size report shows the pages inside the budget.
 - A setting changed at the screen shows on an open page, and one changed on a page shows at the screen, with no reload.
 - The event stream, on the Pico W: a soak with two browsers on streams against the same with polling (`net`, the web's misses), and each stage of its life cycle once, each with its expected end: a client that stops reading (`web_robust`'s), `wifi leave`, a restart, more than 64 events missed, the cap exceeded, a tab hidden and shown again.
@@ -256,6 +288,6 @@ Then the proof on both boards; PR #111 is closed once the update is shown end to
 
 ## To settle before approval
 
-Nothing is left to settle before approval. Settled with the owner, 2026-11-18: the budget's rule (from the slot), the trimmed Tailwind and DaisyUI and their tool, the cup asked on the page only, the event stream to explore, the API review in this ADR, echoing with ADR-004's refusal kept, phone first scaling to a tablet and a computer, the pages as proposed, and the gates.
+Nothing is left to settle before approval. Settled with the owner, 2026-11-18: the budget's rule (from the slot), the styles trimmed and served by the unit (which styles and tools, reopened after approval as the agent's proposal in gate 1), the cup asked on the page only, the event stream to explore, the API review in this ADR, echoing with ADR-004's refusal kept, phone first scaling to a tablet and a computer, the pages as proposed, and the gates.
 
-Settled in gate 1, the mock, by the owner using it: the look; and commissioning, what it covers and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen.
+Settled in gate 1, the mock, by the owner using it: the look and the styles' tools; what `features.md` leaves out; whether the phone's keep-awake switch is kept by the browser; and commissioning, what it covers and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen.
