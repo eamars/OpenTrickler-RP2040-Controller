@@ -1,6 +1,6 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Open** 2026-11-18. Gate 1 (the mock) settled by the owner 2026-11-19; gate 2 (the API review) approved 2026-11-19 and under way. The whole ADR goes by one PR, #134 (the owner, 2026-11-19: "I'd merge ADR-008 as one PR, as more will change when you are implementing the actual code to the device"). Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
+Status: **Open** 2026-11-18. Gate 1 (the mock) settled by the owner 2026-11-19; gate 2 (the API review) approved 2026-11-19 and built and proven the same day; gate 3 (the pages) started overnight on the owner's word, its plan for the owner's review. The whole ADR goes by one PR, #134 (the owner, 2026-11-19: "I'd merge ADR-008 as one PR, as more will change when you are implementing the actual code to the device"). Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
 
 ## What we want
 

@@ -385,3 +385,28 @@ The owner asked the agent to own the Pico W's tests overnight (2026-11-19: "take
 
 `flash`'s image 2.0.3-48 at 9ecbcff: `menu_tour --compare` (the screen's invert off for it, live, put back), `charge_cycle`, `api_check`, `settings_roundtrip`, `web_robust`, and `soak 600 --stream` (27 charges, 0 of 1,335 reads missed, each browser's stream all 162 events and some 2,170 states, `heap_free` 47,592 quiet before and after) each `VERDICT PASS`; the settings the same at the end as at the start. `stream_check` failed only its quiet stage, against a tool already changed for the next image (gate 3 found the stream's keep-alive comment invisible to a browser; the state again replaces it): run again on the next image. `heap_free` quiet is 2.7 KB below step 4's: the server's routes, moved to the FreeRTOS heap (112 of 24 bytes).
 
+## Gate 3, the pages built
+
+Started by the agent overnight on the owner's word (2026-11-19: "implement as much as you could, then leave the decision to tomorrow"), to its plan in the README ("Gate 3's plan", written the same night for the owner's review). Every step is on the ADR's one branch and can be taken back by its commits.
+
+### Steps 1 to 5 (2026-11-19, overnight)
+
+- **Step 1, the unit serves the new pages:** `scripts/web_build.py --header` makes the portal gzipped into `src/generated/web_portal.gz.h` in the firmware's build, whenever a file of `src/web` changes; the server sends a static reply gzipped (`Content-Encoding: gzip`, `Vary: Accept-Encoding`) with the build's `ETag`. The portal at `/`, `/mobile` and `/display_mirror` (the last opens the Unit page, where the mirror is); today's portal and mirror pages removed. The wizard stays at `/` on the unit's own hotspot and at `/wizard` until gate 4. The Pico W's image from 98.41% of its slot to 92.51% (962,472 bytes), the portal 34.1 KB gzipped. Read on the unit: 200 with its `ETag`, 304 and nothing with it; the portal page read in 0.44 s (median in the soak) against about 1 s for today's.
+- **Step 2, the pages follow the unit:** `stream.js`, one event stream for the page: closed when the tab is hidden and opened when shown, opened again after 20 s heard nothing, tried again 5 s after a refusal; the Trickler drawn from its `state`, the job's strip from its `activity` (the update read only while one runs or a restart is followed), a settings part shown read again on its `setting` events unless a field of it is being typed in, and each page reading again what it shows when the stream starts afresh. The stand-in's charge moves at the old read's pace however often it is read.
+  - **Found, and mended in the firmware:** the stream's keep-alive was a comment, and a browser's `EventSource` never shows its page one: a quiet unit and one gone looked the same. It is now the state again after 15 s quiet (the firmware, the stand-in, `stream_check`, api_v1.md and the README's table together).
+  - **On the stand-in:** a charge started by another client followed to "Return the cup" with no read of the charge by the page; a setting written by another client shown "not stored" on the open form, and Undo shown; a restart: the stream opened again by the page 20 s after it last heard, and the pages read afresh.
+  - **On the Pico W** (2.0.3-50): a simulated throw followed on the page from zeroing to the next zeroing, "Good: lift the cup" between, with no read of the charge. `menu_tour --compare`, `stream_check` (the state again at 15.0 s quiet), `charge_cycle`, `api_check`, `web_robust`, `settings_roundtrip` and `soak 600 --stream` (0 of 1,332 reads missed, each stream all 162 events, `heap_free` the same before and after) each `VERDICT PASS`; the settings unchanged.
+- **Step 3, what the unit carries:** the Settings list reads the index's `features` once and leaves out a part whose feature is absent (the servo gate's). On the Pico W (`servo_gate` present) the gate's part is shown, its ratio read from the unit. `features_check.py`: 105 rows, 89 shown, 14 left out, one to come: row 4, the wizard's address, gate 4's.
+- **Step 4, the screen's words:** Cleanup is Purge on the main menu, its cup's question (`ack/purge`) and its job (`job/purge`), and in its faults' messages. The Pico W's menu baseline saved again: against the old one only the main menu and the cup's page differed. `menu_tour --compare` on the new one, `reach`, `charge_cycle` and `api_check` `VERDICT PASS`. ADR-010's mock tools keep their words: they are that ADR's record.
+- **Step 5, the rows `features.md` marks broken:** the new pages have them right, seen on the Pico W: Restart and Factory reset two actions of their own on the Unit page, each with its own confirmation, none chosen in advance (rows 70, 74); the gate's part reads the gate (row 37: "Off: turn on Fitted below to move it").
+- **A detail on the unit:** its target lives in RAM, unset after a start; the target's box was blank where the screen says "not set": it says so now, as its placeholder.
+
+**At the head** (2.0.3-53 at d4e775b, a clean build): `flash`, `menu_tour --compare` on the new baseline, `stream_check`, `api_check` and `charge_cycle` `VERDICT PASS`, the settings the same as before gate 2's whole proof. The Pico 2 W's image builds (50.74% of its slot).
+
+### Left in gate 3
+
+- **The pages at a tablet's and a computer's width on the unit**, beside the mock's (the phone's width seen).
+- **The keep-awake video** where the Wake Lock is not given (plain HTTP): with the phones' checks at gate 4's start, as only a real phone shows whether it keeps the screen on and what it costs.
+- **The owner's own phone** on the pages (carried from gate 1).
+- **The Pico 2 W** at its next turn on the probe (it runs 2.0.3 at 192.168.2.166, read over the web only).
+
