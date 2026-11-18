@@ -281,10 +281,10 @@ class StandIn:
             return 400, error(code, message)
         if resource is not None:
             self.replies[path].update(body)
-            # Not stored is the slot's, as on the unit: its record's CRC (the eight powders, the two motors are one)
-            for inner in self.replies:
-                if (self.resource(inner) or {}).get("save") == resource["save"]:
-                    self.replies[inner]["saved"] = False
+            # Not stored is the resource's own (proposed, ADR-008, gate 2): this powder or this motor against what the
+            # EEPROM holds of it, not the whole slot's record. A value written back as stored is stored again
+            live, held = (dict(r, saved=None) for r in (self.replies[path], self.stored[path]))
+            self.replies[path]["saved"] = live == held
             return 200, self.replies[path]
         return self.act(path, body)
 

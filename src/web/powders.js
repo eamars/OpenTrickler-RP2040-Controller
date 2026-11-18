@@ -40,7 +40,8 @@ function drawPowderTable(powders, inUse, chosen) {
         const row = element("tr", {class: powder.id === chosen ? "on" : ""},
                             element("th", {scope: "row"},
                                     element("a", {href: `#powders/${powder.id}`}, powder.name),
-                                    powder.id === inUse ? element("span", {class: "tag in-use"}, "In use") : null),
+                                    powder.id === inUse ? element("span", {class: "tag in-use"}, "In use") : null,
+                                    powder.saved === false ? element("span", {class: "tag"}, "Not stored") : null),
                             ...POWDER_COLUMNS.map(([name], i) => element("td", {class: i % 3 === 0 ? "split" : ""},
                                                                          powder[name] === undefined ? "" : String(powder[name]))));
         row.onclick = (event) => {
@@ -113,13 +114,12 @@ PAGES.powders = {
         // No title over the form: its first field is the powder's name
         const pane = element("section", {class: "detail"}, element("a", {href: "#powders", class: "back"}, "‹ Powders"));
         if (reply.ok) {
-            // A change shows in the list and the table at once, from the write's own reply. The eight powders are one
-            // record in the EEPROM, so "Not stored" is every powder's, as the unit says it
+            // A change shows in the list and the table at once, from the write's own reply: this powder's figures and
+            // its "Not stored". Store and Undo act on the eight together (one record in the EEPROM), which changes
+            // nothing for a powder that was not changed
             const hooks = {
                 changed: (values) => {
-                    for (const powder of powders) {
-                        Object.assign(powder, powder.id === chosen ? values : {saved: values.saved});
-                    }
+                    Object.assign(powders.find((powder) => powder.id === chosen), values);
                     drawMaster();
                 },
                 reload: () => route(),

@@ -94,12 +94,8 @@ PAGES.settings = {
         if (key) {
             // A change shows in the list at once: its row's "Not stored" from the write's own reply, nothing read again
             const hooks = {
-                changed: (values) => {
-                    for (const path of SETTINGS_PARTS.find((p) => p.key === key).paths) {
-                        if (resources[path]) {
-                            resources[path].saved = values.saved;   // a part's resources share one record (the motors)
-                        }
-                    }
+                changed: (values, path) => {
+                    resources[path].saved = values.saved;   // a part of two (the motors) is not stored while either is not
                     drawSettingsList(resources, key).then((list) => master.replaceChildren(list));
                 },
                 reload: () => route(),

@@ -294,6 +294,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
     .compare thead tr:first-child th { border-top: 0; }
     .compare th[scope="row"] { text-align: left; }
     .compare th[scope="row"] a { color: var(--ink); text-decoration: none; font-weight: 650; margin-right: 8px; }
+    .compare th[scope="row"] .tag + .tag { margin-left: 6px; }
     .compare thead th { color: var(--soft); font-size: 0.8125rem; font-weight: 700; }
     .compare .group-row th { text-align: center; text-transform: uppercase; letter-spacing: 0.06em; }
     .compare .split { border-left: 1px solid var(--rule); }

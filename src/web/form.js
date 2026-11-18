@@ -36,8 +36,7 @@ function decimalsOf(field) {
     return field.type === "integer" ? 0 : (step > 0 && step < 1 ? Math.min(String(step).split(".")[1].length, 4) : 3);
 }
 
-function control(field, value, write) {
-    const id = `f-${field.name}`;
+function control(id, field, value, write) {
     if (field.type === "boolean") {
         const input = element("input", {type: "checkbox", id, checked: value === true});
         input.onchange = () => write(input.checked);
@@ -91,6 +90,11 @@ function control(field, value, write) {
     return input;
 }
 
+// A control's id, unique on the page: two forms of one kind may be on it at once (the motors' Coarse and Fine)
+function fieldId(path, field) {
+    return `f-${path.split("/").slice(3).join("-")}-${field.name}`;
+}
+
 // The schema's unit "weight" is the scale's own unit (grains or grams): no word of its own beside a field
 function unitOf(field) {
     return field.unit === "weight" ? "" : (field.unit || "");
@@ -108,7 +112,7 @@ function limitsOf(field) {
     return parts.join("; ");
 }
 
-// The form for one resource at one path: its groups and fields, live, and its store bar. `hooks.changed(values)` after
+// The form for one resource at one path: its groups and fields, live, and its store bar. `hooks.changed(values, path)` after
 // every write, so what else the page shows of the resource (a list's "Not stored", a table's figures) follows at once;
 // `hooks.reload()` after a store or an undo, which change what every resource of the slot holds
 async function drawForm(path, values, hooks) {
@@ -161,13 +165,13 @@ async function drawForm(path, values, hooks) {
                 Object.assign(values, reply.data);
                 error.hidden = true;
                 storeBar.hidden = values.saved !== false;
-                hooks.changed(values);
+                hooks.changed(values, path);
                 row.replaceWith(redraw(values[field.name]));
             };
             const redraw = (value) => {
                 const fresh = element("div", {class: field.type === "boolean" ? "field inline" : "field"},
-                                      element("label", {for: `f-${field.name}`}, field.label),
-                                      control(field, value, write),
+                                      element("label", {for: fieldId(path, field)}, field.label),
+                                      control(fieldId(path, field), field, value, write),
                                       element("p", {class: "field-help"}, [field.about, limitsOf(field)].filter(Boolean).join(". ")),
                                       error);
                 row = fresh;
