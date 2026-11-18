@@ -155,7 +155,7 @@ From a unit's first start, or its first start after a reset, to its first charge
 Read in the code 2026-11-17 (ADR-015), and 2026-11-18 where marked:
 - **The first start.** With no Wi-Fi network set, or none joined within its join timeout (30 s by default), the unit becomes its own access point (`wireless.c`, `access_point_mode.c`):
   - its name is `opentrickler-` and four characters of the unit's id;
-  - its key is `opentrickler`, written in the code and the same on every unit;
+  - its key is `opentrickler`, written in the code and the same on every unit (until gate 4, step 1: each unit's own, made from its Pico, shown on its screen);
   - its address is 192.168.4.1, with the unit's own DHCP and DNS servers.
 - **The captive portal's parts are there** (2026-11-18), never tried with a phone:
   - the access point's DNS server answers every name it is asked with the unit's own address (`dnsserver.c`);
@@ -166,8 +166,8 @@ Read in the code 2026-11-17 (ADR-015), and 2026-11-18 where marked:
 - **Defaults.** Every other setting starts at its default: the scale is the A&D (`scale.c`), and the motors, the charge and the display are at their defaults. A person finds them on the web portal or on the screen, where every setting a unit needs is (ADR-010's parity rule). Only the Wi-Fi's network, key and security are too hard by the knob (ADR-010's `menu_design.md`).
 - **What the screen shows** (ADR-010's Wi-Fi page): the access point's name and key, or the network joined, and the address, as text. No QR code: ADR-010 left it to commissioning.
 - **Finding the unit on a network.** mDNS, as `opentrickler-<id>.local`, with the services `_http._tcp` and `_opentrickler._tcp` (`wireless.c`). The Open Weapon Mount Computer finds units by the second.
-- **A factory reset** (`POST /api/v1/system/erase`, or the menu's Erase) erases the stored settings. The unit then comes back as its own access point, with a new id and so a new host name.
-- **The unit's id** comes from `rnd()` (`eeprom.c`), which gives ids with few random bits: the bench's is `9CE00000`, and the host name shows four characters of it. Two units can end up with the same name (found in ADR-003).
+- **A factory reset** (`POST /api/v1/system/erase`, or the menu's Erase) erases the stored settings. The unit then comes back as its own access point, with a new id and so a new host name (until gate 4, step 1: the id is the Pico's, and a reset leaves it).
+- **The unit's id** came from `rnd()` (`eeprom.c`) until gate 4, step 1 read it from the Pico (`unit_id.c`), stored nowhere (progress.md has its life cycle). `rnd()` gave ids with few random bits: the bench's is `9CE00000`, and the host name shows four characters of it. Two units can end up with the same name (found in ADR-003).
 
 ### ESP's SoftAP provisioning app, weighed and not taken (2026-11-18)
 

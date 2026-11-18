@@ -7,6 +7,7 @@
 
 #define EEPROM_METADATA_BASE_ADDR               0 * 1024       // 0K: free. It held the unit's id, now read from the
                                                                // Pico (unit_id.c, ADR-008, gate 4)
+#define EEPROM_OLD_ID_BYTES                     64             // the old id's record, cleared once (eeprom.c)
 #define EEPROM_SCALE_CONFIG_BASE_ADDR           1 * 1024       // 1K
 #define EEPROM_WIRELESS_CONFIG_BASE_ADDR        2 * 1024       // 2K
 #define EEPROM_MOTOR_CONFIG_BASE_ADDR           4 * 1024       // 4K

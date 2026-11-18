@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-47-dirty",
-   "vcs": "e6d293b",
+   "version": "2.0.3-58-dirty",
+   "vcs": "4fd4df9",
    "build": "Debug"
   },
   "board": "pico_w",
-  "unit_id": "9CE00000",
-  "hostname": "opentrickler-9CE0",
-  "boot": 1940618278,
-  "uptime_s": 47,
+  "unit_id": "4A821948",
+  "hostname": "opentrickler-4A82",
+  "boot": 2461114630,
+  "uptime_s": 43,
   "features": [
    {
     "name": "servo_gate",
@@ -132,7 +132,7 @@
     "methods": [
      "GET"
     ],
-    "about": "the same changes as they happen, as server-sent events: first the unit (its boot, and whether it goes on from the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, the purge), then each event with its id, and the state again as it changes; a comment after 15 s quiet. At most 3 at once: 503 then, with Retry-After"
+    "about": "the same changes as they happen, as server-sent events: first the unit (its boot, and whether it goes on from the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, the purge), then each event with its id, and the state again as it changes and after 15 s quiet. At most 3 at once: 503 then, with Retry-After"
    },
    {
     "path": "/api/v1/scale",
@@ -458,8 +458,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-47-dirty",
-   "vcs": "e6d293b",
+   "version": "2.0.3-58-dirty",
+   "vcs": "4fd4df9",
    "build": "Debug"
   },
   "resources": [
@@ -2069,6 +2069,10 @@
      "about": "the image is taken into the free slot"
     },
     {
+     "value": "checking",
+     "about": "all of the image in: its SHA-256, its board and its seal checked"
+    },
+    {
      "value": "ready",
      "about": "the image is whole and checked: install, or stop"
     },
@@ -2317,17 +2321,19 @@
     "source": "update",
     "kind": "confirmed",
     "carries": [
-     "version"
+     "version",
+     "reset"
     ],
-    "about": "after the restart, the image tried confirmed itself once on its network"
+    "about": "after the restart, the image tried confirmed itself once on its network; reset: the settings it reset to their defaults, by name"
    },
    {
     "source": "update",
     "kind": "back",
     "carries": [
-     "version"
+     "version",
+     "reason"
     ],
-    "about": "after the restart, the image tried was left, and the one before runs"
+    "about": "after the restart, the image tried was left, and the one before runs; reason: did_not_start, no_network, not_confirmed, power_cut"
    },
    {
     "source": "update",
@@ -2393,11 +2399,11 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-47-dirty",
-   "vcs": "e6d293b",
+   "version": "2.0.3-58-dirty",
+   "vcs": "4fd4df9",
    "build": "Debug"
   },
-  "unit_id": "9CE00000",
+  "unit_id": "4A821948",
   "resources": {
    "/api/v1/settings/leds": {
     "saved": true,
@@ -2655,20 +2661,20 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 2,
+  "throw": 0,
   "paused": false,
-  "target": 30,
+  "target": null,
   "powder_profile": 0,
   "powder_profile_name": "AR2208,gr",
   "weight": null,
-  "elapsed_s": 9.875,
+  "elapsed_s": 0,
   "last": {
-   "throw": 2,
+   "throw": 0,
    "result": "none",
-   "reason": "stopped",
-   "weight": 0
+   "reason": "none",
+   "weight": null
   },
-  "event_seq": 9
+  "event_seq": 1
  },
  "/api/v1/purge": {
   "state": "idle",
@@ -2681,7 +2687,7 @@
   "unit": null,
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 100,
+  "usual_interval_ms": 0,
   "bad_frames": 0,
   "actions": [
    "zero"
@@ -2703,13 +2709,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-47-dirty",
-   "vcs": "e6d293b",
+   "version": "2.0.3-58-dirty",
+   "vcs": "4fd4df9",
    "build": "Debug"
   },
   "board": "pico_w",
-  "unit_id": "9CE00000",
-  "uptime_s": 49,
+  "unit_id": "4A821948",
+  "uptime_s": 45,
   "activity": "none",
   "restart_pending": false
  },
@@ -2717,14 +2723,14 @@
   "mode": "station",
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
-  "hostname": "opentrickler-9CE0",
-  "rssi": -56
+  "hostname": "opentrickler-4A82",
+  "rssi": -61
  },
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-47-dirty",
-   "block": "2.0.3-47",
+   "version": "2.0.3-58-dirty",
+   "block": "2.0.3-58",
    "slot": "a",
    "trial": false
   },
@@ -2738,7 +2744,14 @@
    "error": "no connection"
   },
   "found": null,
-  "last": null
+  "last": {
+   "result": "back",
+   "version": "2.0.3-137",
+   "code": null,
+   "message": null,
+   "reason": "not_confirmed",
+   "reset": null
+  }
  },
  "/api/v1/display": {
   "width": 128,
@@ -2746,7 +2759,7 @@
   "format": "mono_rows"
  },
  "/api/v1/display/frame": {
-  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABB5AAAAAAAAAAAAAAAAAAAQhQAAAAAAAAAAAAAAAAAAEIFnKaYAAAAAAAAAAAAACBCBkLJpAAAAAAAAAAAAAAQQgROiLwAAAAAAAAAAAAACEIEUoigAAAAAAAAAAAAABBCFFKJpAAAAAAAAAAAAAAgQeRNhpgAAAAAAAAAAAAAAEAAAACAAAAAAAAAAAAAAABAAAAHAAAAAAAAAAAAAAAAf////////////////////////////////////////////////////////////////hv///////////////////3r///////////////////9+zGm1P///////////////fremtN///////////////36GLrXf//////////////9+va613///////////////erWutN///////////////4bOTsU////////////////////9/////////////////////f///////////////////////////////////////////////////////////////////////////////u5+B/////////////////7u/v//////////////////bX73///////////////3/21+F///////////////+/9VRvf///////////////3/u373///////////////7/7t+9///////////////9/+7fvf///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+P92//////////////////d/d//////////////////35iKnLP////////////9/+Nt2mst/////////////v/9Ddrrs/////////////9/3X3a673////////////+/91t2ust/////////////f/jnMrss////////////////////7////////////////////x///////////////w=="
+  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABB5AAAAAAAAAAAAAAAAAAAQhQAAAAAAAAAAAAAAAAAAEIFnKaYAAAAAAAAAAAAACBCBkLJpAAAAAAAAAAAAAAQQgROiLwAAAAAAAAAAAAACEIEUoigAAAAAAAAAAAAABBCFFKJpAAAAAAAAAAAAAAgQeRNhpgAAAAAAAAAAAAAAEAAAACAAAAAAAAAAAAAAABAAAAHAAAAAAAAAAAAAAAAf////////////////////////////////////////////////////////////////D////////////////////3f///////////////////91qyz/////////////////DabLf////////////////32u6H////////////////99ruv/////////////////fa7Lf////////////////34vLP///////////////////+////////////////////8f/////////////////////////////////////////////////////////////////////////////////u5+B/////////////////7u/v//////////////////bX73///////////////3/21+F///////////////+/9VRvf///////////////3/u373///////////////7/7t+9///////////////9/+7fvf///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+P92//////////////////d/d//////////////////35iKnLP////////////9/+Nt2mst/////////////v/9Ddrrs/////////////9/3X3a673////////////+/91t2ust/////////////f/jnMrss////////////////////7////////////////////x///////////////w=="
  },
  "/api/v1/settings/leds": {
   "saved": true,

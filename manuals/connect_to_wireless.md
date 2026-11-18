@@ -19,7 +19,7 @@ Alternatively, if you see the page below then the OpenTrickler is already connec
 
 To connect the OpenTrickler to your home network, you will need a laptop with wireless accessibility. **For now the smart phone and iPads are not supported.**
 
-1. Look for the OpenTrickler from the list of SSIDs. Each OpenTrickler will generate the random 4 digit suffix based on its unique id. 
+1. Look for the OpenTrickler from the list of SSIDs. Each OpenTrickler's name ends in four characters made from its Pico's own unique id; they never change. 
    ![look_for_ssid](../resources/connect_to_wireless/look_for_ssid.png)
 
 2. Select the OpenTrickler's SSID. Your computer will prompt for the password. Each unit has its own: open **Wi-Fi** on the unit's main menu, and type the **Key** it shows, eight small letters and digits.
