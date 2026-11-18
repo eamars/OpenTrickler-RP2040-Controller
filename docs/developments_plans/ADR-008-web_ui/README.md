@@ -371,6 +371,27 @@ Agreed with the owner (2026-11-18), the agent's proposals:
 
 Then the proof on both boards; PR #111 is closed once the update is shown end to end from the page.
 
+### Gate 2's plan (the agent's proposal, 2026-11-19, for the owner's approval)
+
+What gate 2 builds is already said above, item by item ("Every client echoes the unit", "The unit to the page: an event stream", "An API an agent reads by itself", "The words", "Handed on by ADR-005"). This is the order, how each step is proven, and the few choices left. One branch, a step at a time, each step proven on the Pico W before the next starts; one PR at the end, which waits for the owner (it changes the API and the update). The bench is asked for before the first step that needs it.
+
+1. **The words first,** so every later step is written on the final names.
+   - The API's renames: `cleanup` to `purge` (its paths, its events, the `job` value, the schema), `system/erase` to `system/factory_reset`. The settings' own words into the C tables, `PROPOSED_WORDS` emptied and the unit recorded again.
+   - Every reader in the same step: `rc_run.py`, `unit_api.py`, `tests/web_test.py` and its recording, api_v1.md, AGENTS.md, and today's portal's few fetches. Today's portal is replaced in gate 3; its paths are renamed here only so main's Purge keeps working until then (a rename, not a fix: "no fixes to code being replaced" holds).
+   - **Kept in the API** (proposed): `leds`, `save` and `saved`, `powder_profiles`. The rule is one word for one thing so a reader maps the screen to the API; "save" for Store and "leds" for Lights are read as the same thing at once, "cleanup" for Purge is not. Renaming them costs every reader and buys an agent nothing.
+   - Proof: `api_check` and `settings_roundtrip` pass on the new names; `menu_tour --compare` unchanged (the screen shows its labels flat, as before).
+2. **A setting changed is an event:** `setting`, with the resource's path and `by` (button, api, console, unit: `activity_by_t`, as a job's start says it), one for each resource written, a save and a revert included. Proof: a write from the console and one from the API each seen once in the log, with its `by`.
+3. **The event stream** (its life cycle, above), the riskiest step, so it comes before the smaller ones.
+   - In the server: a third kind of reply beside a stream and a parked request, a stream that waits: chunked, written when its `ready` says there is more, a comment line after 15 s quiet. The stall rule then counts only while bytes wait to go: a client that reads nothing fills its connection's send buffer (two segments, about 2.9 KB) and is closed after the stall time, so a dead stream never holds lwIP's heap for long.
+   - Slots: 6, parked requests 2 at most (today's `HTTP_SERVER_PARK_MAX`), streams 3 at most, so one slot is always left for a request. Measured in the soak, changed if it says so.
+   - The snapshot first, then each event with its id, and the live weight during a charge as a state message with no id. The pages still poll until gate 3 moves them onto it; the stand-in plays the stream for the mock.
+   - Proof: the soak with two browsers on streams against the same with polling (`net`, the web's misses), and each stage of the life cycle once with its expected end (a client that stops reading, `wifi leave`, a restart, more than 64 events missed, the cap exceeded). A tab hidden and shown is the page's, checked in gate 3.
+4. **`saved` for each resource, and the revert beside each save** (items 7 and 8). The parts' CRCs are in RAM: no stored layout changes. Proof: one powder changed, only it not saved; reverted, the value stored back and `saved` true; `settings_roundtrip` passes.
+5. **The API that describes itself, and the unit's report of what it carries** (items 1 to 6). The report's first build options: the servo gate and the LEDs, on by default on both boards. The index's slow making (1.5 s for 7.4 KB) looked into first, as it is read first by every agent. Proof: `api_check` with its new check (every route in the index or a named exception, a GET of every action giving its usage); one build with the LEDs off, its report naming them absent.
+6. **The update's life cycle** (item 9): gaps 1 to 5, `checking`, `back_within_s`. Gap 2's and 3's note is a record in an EEPROM slot of its own, so no stored struct of today's changes. Proof: as each gap says (a test image with a struct's size changed, tried and left, the settings unchanged; `update --expect power-trial`, then `last` back with its reason).
+
+Then the proof on the Pico W: `menu_tour --compare`, `charge_cycle`, `api_check`, `settings_roundtrip`, the soak. The Pico 2 W for the server's change and the update's slots, at its next turn on the probe (AGENTS.md: the network is proven on the Pico W first; the RP2350's slots on its own).
+
 ## How the unit shows it works
 
 - With the internet unplugged, every page works from a phone on the unit's access point.

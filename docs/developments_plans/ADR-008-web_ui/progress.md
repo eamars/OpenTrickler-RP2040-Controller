@@ -298,4 +298,4 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 
 ### Next in gate 2
 
-1. The design written into the README, for the owner to approve before it is built (a design gate before a build gate).
+1. The plan written into the README ("Gate 2's plan", 2026-11-19): six steps in order, each proven on the Pico W before the next. Waits for the owner's approval, and the bench, before it is built.
