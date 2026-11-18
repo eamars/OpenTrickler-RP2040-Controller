@@ -776,7 +776,7 @@ static void act_charge_start(const menu_row_t *row) {
 
 static void act_cleanup_start(const menu_row_t *row) {
     (void) row;
-    if (!motors_fault_shown("Cleanup")) {
+    if (!motors_fault_shown("Purge")) {
         push_page(&page_ack_cleanup);
     }
 }
@@ -802,7 +802,7 @@ static void act_ack_cleanup(const menu_row_t *row) {
     (void) row;
     cleanup_start_result_t result = cleanup_mode_request_start(ACTIVITY_BY_BUTTON);
     if (result == CLEANUP_START_DRIVER_FAULT) {
-        push_message(motors_get_fault(), "Cleanup", "cannot start");
+        push_message(motors_get_fault(), "Purge", "cannot start");
     }
     else if (result != CLEANUP_START_OK) {
         push_message("Busy", "A job runs", NULL);
@@ -1080,7 +1080,7 @@ static const menu_row_t rows_ack_cleanup[] = {
     {.label = "to catch the powder", .kind = ROW_INFO},
     {.label = "Start", .kind = ROW_ACTION, .act = act_ack_cleanup},
 };
-static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/cleanup", .title = "Cleanup",
+static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/purge", .title = "Purge",
                                              .rows = rows_ack_cleanup, .row_count = ROW_COUNT(rows_ack_cleanup)};
 
 static const menu_row_t rows_charge[3] = {
@@ -1245,7 +1245,7 @@ static const menu_row_t rows_main[] = {
     {.label = "Update available", .kind = ROW_PAGE, .page = &page_update, .label_now = update_row_label,
      .shown = shown_update_found},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge},
-    {.label = "Cleanup", .kind = ROW_ACTION, .act = act_cleanup_start},
+    {.label = "Purge", .kind = ROW_ACTION, .act = act_cleanup_start},
     {.label = "Wi-Fi", .kind = ROW_PAGE, .page = &page_wifi},
     {.label = "Settings", .kind = ROW_PAGE, .page = &page_settings},
 };
@@ -1994,7 +1994,7 @@ void menu_nav_job_ended(uint8_t exit_form) {
     }
     if (exit_form == JOBS_EXIT_MOTOR_FAULT) {
         const char *fault = motors_get_fault();
-        push_message(fault != NULL ? fault : "Motor drivers", "Charge and cleanup", "cannot start");
+        push_message(fault != NULL ? fault : "Motor drivers", "Charge and purge", "cannot start");
     }
 }
 
@@ -2351,11 +2351,11 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         cleanup_status_t cleanup;
         cleanup_mode_get_status(&cleanup);
         screen->kind = MENU_SCREEN_CONTROL;
-        snprintf(screen->id, sizeof(screen->id), "job/cleanup");
+        snprintf(screen->id, sizeof(screen->id), "job/purge");
         bool fault = strcmp(cleanup.state, "fault") == 0;
         bool running = cleanup.speed_rps != 0.0f;
         snprintf(screen->title, sizeof(screen->title), "%s", fault ? cleanup_mode_get_title() :
-                                                             (running ? "Cleanup: running" : "Cleanup"));
+                                                             (running ? "Purge: running" : "Purge"));
         // The weight and the flow to read; Speed and Gate set at the knob
         char weight[16];
         char text[MENU_TEXT];
