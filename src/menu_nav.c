@@ -78,6 +78,7 @@ typedef enum {
     PAGE_LIST = 0,      // rows, one focused
     PAGE_DIALOG,        // its info rows the message, its action the right softkey, Back the left (Cancel)
     PAGE_NOTES,         // lines, wrapped, that end in its action row: the button, reached only by scrolling
+    PAGE_CODE,          // the set-up's code (ADR-008), its info rows the lines beside it; a dialog once a phone joins
 } page_kind_t;
 
 struct menu_page {
@@ -119,6 +120,8 @@ typedef struct {
                                         // focused row's number is being set in place
     char edit_was[16];                  // FRAME_PAGE, a number being set: its value before, for Back
     uint8_t action_seen;                // FRAME_JOB, the charge: its action when last drawn, so a new one is focused
+    uint32_t code_seen;                 // PAGE_CODE: the hotspot's addresses given when the code was last shown
+    bool code_joined;                   // PAGE_CODE: one given since, so a phone joined: the dialog in its place
 } frame_t;
 
 static frame_t frames[MENU_FRAMES_MAX];
@@ -188,8 +191,10 @@ static void push_page(const menu_page_t *page) {
             break;
         }
     }
-    // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel
+    // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel. The code's one softkey,
+    // Back, is at the right
     frame->softkey = page->cancel_first ? 0 : 1;
+    frame->code_seen = access_point_mode_addresses_given();
 }
 
 
@@ -634,6 +639,36 @@ static bool wifi_is_access_point(void) {
     wireless_info_t info;
     wireless_get_link(&info);
     return strcmp(info.mode, "access_point") == 0;
+}
+
+
+/*
+ * The set-up's offer (ADR-008, gate 4): on its own hotspot with no network named, the unit has never been set up.
+ * Step 4 stores whether it was (set_up) and this asks that instead. Where a network is named, the Wi-Fi page keeps
+ * its switch, and the hotspot stands in only while that network is away
+ */
+static bool setup_offered(void) {
+    char ssid[40];
+    return wifi_is_access_point() && (!settings_read_text("settings/wifi", "ssid", ssid, sizeof(ssid)) ||
+                                      ssid[0] == '\0');
+}
+
+
+static bool wifi_switch_offered(void) {
+    return !setup_offered();
+}
+
+
+/*
+ * The code the phones' cameras read to join a Wi-Fi network: WIFI:T:WPA;S:<name>;P:<key>;; The format escapes
+ * \ ; , : and " with a backslash; the hotspot's name (opentrickler- and hex digits) and its key (unit_id.c's
+ * alphabet) have none of them
+ */
+static void setup_code_text(char *out, size_t room) {
+    wireless_info_t info;
+    wireless_get_link(&info);
+    snprintf(out, room, "WIFI:T:WPA;S:%s;P:%s;;", info.hostname != NULL ? info.hostname : "",
+             access_point_mode_key());
 }
 
 
@@ -1096,7 +1131,29 @@ static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows
 static const menu_page_t page_charge_change = {.id = "charge/change", .title = "Change", .rows = &rows_charge[1],
                                                .row_count = ROW_COUNT(rows_charge) - 1};
 
-// Notes: each line says what it is, read only, then Wi-Fi turned off or on at the end
+/*
+ * The set-up's code (ADR-008, gate 4; mockups/setup_12864.png): the code that joins the hotspot, these lines beside
+ * it, Back. Once the hotspot gives a phone an address, a dialog in its place: go on with the phone, Back, or the code
+ * again
+ */
+static const menu_row_t rows_setup[] = {
+    {.label = "Scan this", .kind = ROW_INFO},
+    {.label = "with your", .kind = ROW_INFO},
+    {.label = "phone's", .kind = ROW_INFO},
+    {.label = "camera.", .kind = ROW_INFO},
+};
+static const menu_page_t page_setup = {.kind = PAGE_CODE, .id = "setup", .title = "Set up", .rows = rows_setup,
+                                       .row_count = ROW_COUNT(rows_setup)};
+
+
+static void act_join_by_camera(const menu_row_t *row) {
+    (void) row;
+    push_page(&page_setup);
+}
+
+
+// Notes: each line says what it is, read only, then at the end Wi-Fi turned off or on, or on its own hotspot with no
+// network named, the code that joins it
 static const menu_row_t rows_wifi[] = {
     {.label = "", .kind = ROW_INFO, .value = value_wifi_mode, .label_now = wifi_mode_label},
     {.label = "Network", .kind = ROW_INFO, .value = value_wifi_station_network, .shown = wifi_has_trouble},
@@ -1106,7 +1163,9 @@ static const menu_row_t rows_wifi[] = {
     {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
     {.label = "Takes effect at restart", .kind = ROW_INFO, .shown = shown_restart_pending},
-    {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label},
+    {.label = "Join by camera", .kind = ROW_ACTION, .act = act_join_by_camera, .shown = setup_offered},
+    {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label,
+     .shown = wifi_switch_offered},
 };
 static const menu_page_t page_wifi = {.kind = PAGE_NOTES, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
                                       .row_count = ROW_COUNT(rows_wifi)};
@@ -1242,6 +1301,7 @@ static const char *main_title(void) {
 }
 
 static const menu_row_t rows_main[] = {
+    {.label = "Set up this unit", .kind = ROW_PAGE, .page = &page_setup, .shown = setup_offered},
     {.label = "Update available", .kind = ROW_PAGE, .page = &page_update, .label_now = update_row_label,
      .shown = shown_update_found},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge},
@@ -1259,7 +1319,7 @@ static const menu_page_t *const all_pages[] = {
     &page_gate,
 #endif
     &page_motors, &page_firmware,
-    &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
+    &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
 
@@ -1865,6 +1925,27 @@ static void page_kind_key(frame_t *frame, menu_key_t key) {
         pop();
         return;
     }
+    if (page->kind == PAGE_CODE) {
+        // The code: its one softkey, Back. A phone joined: Back at the left, the code again at the right
+        if (!frame->code_joined) {
+            if (key == MENU_KEY_ENTER) {
+                pop();
+            }
+        }
+        else if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            frame->softkey = key == MENU_KEY_NEXT ? 1 : 0;
+        }
+        else if (key == MENU_KEY_ENTER && frame->softkey == 0) {
+            pop();
+        }
+        else if (key == MENU_KEY_ENTER) {
+            frame->code_seen = access_point_mode_addresses_given();
+            frame->code_joined = false;
+            frame->softkey = 1;
+            screen_version += 1;
+        }
+        return;
+    }
     if (page->kind == PAGE_DIALOG) {
         // The knob moves between Cancel and the action; a click does the focused one
         if (key == MENU_KEY_NEXT) {
@@ -2014,6 +2095,14 @@ void menu_nav_refresh(void) {
         frame_depth = job_idx + 1;
         screen_version += 1;
     }
+    // The set-up's code: the hotspot gave an address while it was shown, so a phone joined
+    frame_t *frame = top();
+    if (frame->kind == FRAME_PAGE && frame->page->kind == PAGE_CODE && !frame->code_joined &&
+        access_point_mode_addresses_given() != frame->code_seen) {
+        frame->code_joined = true;
+        frame->softkey = 0;
+        screen_version += 1;
+    }
 }
 
 
@@ -2137,6 +2226,28 @@ static void screen_dialog(menu_screen_t *screen, const menu_page_t *page, const 
 }
 
 
+// The set-up's code and the lines beside it, Back at the right; once a phone joined, the dialog in its place
+static void screen_code(menu_screen_t *screen, const menu_page_t *page, const frame_t *frame) {
+    if (frame->code_joined) {
+        screen->kind = MENU_SCREEN_DIALOG;
+        screen_row(screen, "A phone joined.", "", false);
+        screen_row(screen, "Go on with it there,", "", false);
+        screen_row(screen, "or open " ACCESS_POINT_MODE_ADDRESS, "", false);
+        snprintf(screen->softkey_left, MENU_TEXT, "Back");
+        snprintf(screen->softkey_right, MENU_TEXT, "Show the code");
+        screen->softkey_focus = frame->softkey;
+        return;
+    }
+    screen->kind = MENU_SCREEN_CODE;
+    for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
+        screen_row(screen, page->rows[idx].label, "", false);
+    }
+    setup_code_text(screen->code, sizeof(screen->code));
+    snprintf(screen->softkey_right, MENU_TEXT, "Back");
+    screen->softkey_focus = 1;
+}
+
+
 // Notes: their lines from the first shown, ending in their button
 static void screen_lines(menu_screen_t *screen, const frame_t *frame) {
     const menu_page_t *page = frame->page;
@@ -2157,9 +2268,13 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
     const menu_page_t *page = frame->page;
     snprintf(screen->id, sizeof(screen->id), "%s", page->id);
     snprintf(screen->title, sizeof(screen->title), "%s", page->title_now != NULL ? page->title_now() : page->title);
-    screen->title_back = frame_depth > 1 && page->kind != PAGE_DIALOG;
+    screen->title_back = frame_depth > 1 && page->kind != PAGE_DIALOG && page->kind != PAGE_CODE;
     if (page->kind == PAGE_DIALOG) {
         screen_dialog(screen, page, frame);
+        return;
+    }
+    if (page->kind == PAGE_CODE) {
+        screen_code(screen, page, frame);
         return;
     }
     if (page->kind != PAGE_LIST) {

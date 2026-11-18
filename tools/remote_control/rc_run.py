@@ -123,6 +123,9 @@ MENU_TOUR_LIVE_PAGES = {"settings/firmware": "the version, the build and the uni
                         "charge": "the target, which lives in RAM until ADR-014 and a charge or the API sets",
                         "wifi": "the network's address and signal",
                         "settings/scale": "the scale's reading"}
+# Pages whose picture holds a secret: snapped into the session's folder (logs/, not in git), never into a baseline
+# folder, and not compared (ADR-008, gate 4: the set-up's code is the hotspot's key)
+MENU_TOUR_SECRET_PAGES = {"setup": "the code is the unit's hotspot key"}
 # The remote mark stays 30 s after a write over the web (menu_nav.c, MENU_REMOTE_MS), and the Wi-Fi's is missing
 # while the station joins: the tour waits for both to settle
 MENU_TOUR_REMOTE_WAIT_S = 35
@@ -1599,7 +1602,8 @@ class Session:
         Args:
             save_dir: where the pictures go (default: logs/rc/snaps/<session>/).
             compare_dir: a folder of earlier pictures; a page missing from either side, or a picture that
-                differs, fails, except the pages in MENU_TOUR_LIVE_PAGES, which are reported.
+                differs, fails, except the pages in MENU_TOUR_LIVE_PAGES, which are reported. The pages in
+                MENU_TOUR_SECRET_PAGES go to the session's folder only, whatever save_dir is, and are not compared.
         """
         reply = self.console.command("screen list")
         if reply is None or not reply.startswith("@ok screen"):
@@ -1616,12 +1620,18 @@ class Session:
             if not re.search(r"marks=\S*R", marks) and re.search(r"marks=(W|AP)", marks):
                 break
             time.sleep(1.0)
-        out_dir = Path(save_dir) if save_dir else LOG_DIR / "snaps" / self.log.path.stem
+        session_dir = LOG_DIR / "snaps" / self.log.path.stem
+        out_dir = Path(save_dir) if save_dir else session_dir
         found = []
         for page_id in page_ids:
             reply = self.console.command(f"screen {page_id}")
             if reply is None or not reply.startswith("@ok"):
                 self.fail(f"page {page_id}: {reply or 'no reply'}")
+                continue
+            if page_id in MENU_TOUR_SECRET_PAGES:
+                # Snapped into the session's own folder only, never a baseline in git, and not compared
+                if self.save_snap(session_dir / f"page_{page_id.replace('/', '-')}.png") is not None:
+                    self.log.write("rc", f"page {page_id}: kept out of {out_dir} ({MENU_TOUR_SECRET_PAGES[page_id]})")
                 continue
             if self.save_snap(out_dir / f"page_{page_id.replace('/', '-')}.png") is not None:
                 found.append(page_id)

@@ -7,6 +7,7 @@
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 
+#include "access_point_mode.h"
 #include "app.h"
 #include "mini_12864_module.h"
 #include "display.h"
@@ -39,11 +40,16 @@ const char *access_point_mode_key(void) {
 }
 
 
+uint32_t access_point_mode_addresses_given(void) {
+    return dhcp_server.given;
+}
+
+
 bool access_point_mode_start() {
     cyw43_arch_enable_ap_mode(host_name, access_point_mode_key(), CYW43_AUTH_WPA2_AES_PSK);
 
-    // Initialize IP
-    IP4_ADDR(ip_2_ip4(&gw), 192, 168, 4, 1);  
+    // Initialize IP: ACCESS_POINT_MODE_ADDRESS
+    ip4addr_aton(ACCESS_POINT_MODE_ADDRESS, ip_2_ip4(&gw));
     IP4_ADDR(ip_2_ip4(&mask), 255, 255, 255, 0);
 
     // The DHCP and DNS servers are lwIP's raw API: under its lock, as lwIP's own task runs on the other core (review D3)
