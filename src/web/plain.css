@@ -127,12 +127,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 /* A figure of three characters (the purge's speed) may be twice as large as the weight's six */
 .figure.short { font-size: clamp(3rem, min(36cqw, 50cqh), 10rem); }
 /* The figure with its unit beside it, on its baseline, as the screen draws it */
-/* Each figure in a field as wide as its longest value, its digits right-aligned as a scale's display: the digits
-   and the unit stay put as the value grows a digit or a sign ("999.99", "99.999"; the purge's "-5.0") */
-#weight { display: inline-block; min-width: 6ch; text-align: right; }
-#speed { display: inline-block; min-width: 4ch; text-align: right; }
-.figure-line { display: flex; align-items: baseline; justify-content: center; gap: 0.4rem; }
-.unit { color: var(--soft); font-weight: 650; font-size: clamp(1rem, 5cqmin, 1.6rem); }
+/* The figures are centred (the owner, 2026-11-18): with tabular digits they move sideways only when the count of
+   digits or the sign changes (9.99 to 10.00, once a throw), not as the value changes */
+/* The number alone is centred; its unit hangs off its right, on its baseline, and takes no part in the centring
+   (centred as one block, "30.00 gr" put the number 17 px left of the card's middle, "0.0 rev/s" more) */
+.figure-line { position: relative; display: inline-block; justify-self: center; }
+.unit { position: absolute; left: calc(100% + 0.4rem); bottom: 0.12em; white-space: nowrap; color: var(--soft);
+        font-weight: 650; font-size: clamp(1rem, 5cqmin, 1.6rem); line-height: 1; }
 /* The purge's keys either side of the speed they set; kept in place (unseen) while it is idle, so the speed stays centred */
 .speed-line { display: grid; grid-template-columns: var(--job-key) minmax(0, 1fr) var(--job-key); align-items: center;
               gap: 8px; width: 100%; }
