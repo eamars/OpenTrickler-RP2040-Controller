@@ -13,6 +13,21 @@
 // Attributes
 servo_gate_t servo_gate;
 
+
+bool servo_gate_enabled(void) {
+    return servo_gate.eeprom_servo_gate_config.servo_gate_enable;
+}
+
+
+gate_state_t servo_gate_state(void) {
+    return servo_gate.gate_state;
+}
+
+
+float servo_gate_ratio(void) {
+    return servo_gate.gate_ratio;
+}
+
 // Const settings
 const float _servo_pwm_freq = 50.0;
 const uint16_t _pwm_full_scale_level = 65535;

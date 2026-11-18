@@ -2,16 +2,22 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-46-dirty",
-   "vcs": "fd84ccd",
+   "version": "2.0.3-47-dirty",
+   "vcs": "e6d293b",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
   "hostname": "opentrickler-9CE0",
-  "boot": 1550152350,
-  "uptime_s": 43,
-  "features": [],
+  "boot": 1940618278,
+  "uptime_s": 47,
+  "features": [
+   {
+    "name": "servo_gate",
+    "present": true,
+    "about": "the shutters' servos: GET /api/v1/gate, settings/gate, the screen's Settings, Servo gate"
+   }
+  ],
   "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
    {
@@ -452,8 +458,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-46-dirty",
-   "vcs": "fd84ccd",
+   "version": "2.0.3-47-dirty",
+   "vcs": "e6d293b",
    "build": "Debug"
   },
   "resources": [
@@ -2387,8 +2393,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-46-dirty",
-   "vcs": "fd84ccd",
+   "version": "2.0.3-47-dirty",
+   "vcs": "e6d293b",
    "build": "Debug"
   },
   "unit_id": "9CE00000",
@@ -2649,20 +2655,20 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 0,
+  "throw": 2,
   "paused": false,
-  "target": null,
+  "target": 30,
   "powder_profile": 0,
   "powder_profile_name": "AR2208,gr",
   "weight": null,
-  "elapsed_s": 0,
+  "elapsed_s": 9.875,
   "last": {
-   "throw": 0,
+   "throw": 2,
    "result": "none",
-   "reason": "none",
-   "weight": null
+   "reason": "stopped",
+   "weight": 0
   },
-  "event_seq": 1
+  "event_seq": 9
  },
  "/api/v1/purge": {
   "state": "idle",
@@ -2675,7 +2681,7 @@
   "unit": null,
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 0,
+  "usual_interval_ms": 100,
   "bad_frames": 0,
   "actions": [
    "zero"
@@ -2697,13 +2703,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-46-dirty",
-   "vcs": "fd84ccd",
+   "version": "2.0.3-47-dirty",
+   "vcs": "e6d293b",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "9CE00000",
-  "uptime_s": 45,
+  "uptime_s": 49,
   "activity": "none",
   "restart_pending": false
  },
@@ -2717,8 +2723,8 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-46-dirty",
-   "block": "2.0.3-46",
+   "version": "2.0.3-47-dirty",
+   "block": "2.0.3-47",
    "slot": "a",
    "trial": false
   },

@@ -36,7 +36,6 @@
 
 extern charge_mode_config_t charge_mode_config;
 extern scale_config_t scale_config;
-extern servo_gate_t servo_gate;
 
 #define API_V1_EVENTS_WAIT_S_MAX 30
 #define API_V1_CLEANUP_TIME_S_MIN 1.0f
@@ -876,20 +875,21 @@ static void api_v1_scale_zero(const http_server_request_t *request, http_server_
 }
 
 
-// --- The gate
+// --- The gate, when the build carries it
 
+#if FEATURE_SERVO_GATE
 static void reply_gate(http_server_reply_t *reply, int status) {
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
     const char *state;
     bool has_ratio = true;
-    float ratio = servo_gate.gate_ratio;
-    if (!servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    float ratio = servo_gate_ratio();
+    if (!servo_gate_enabled()) {
         state = "disabled";
         has_ratio = false;
     }
-    else if (servo_gate.gate_state == GATE_DISABLED) {
+    else if (servo_gate_state() == GATE_DISABLED) {
         state = "held";     // the menu's "Disable": the servo moved no more, at its last duty
     }
     else if (ratio <= 0.0001f) {
@@ -939,7 +939,7 @@ static void api_v1_patch_gate(const http_server_request_t *request, http_server_
         api_error(reply, 400, "out_of_range", "ratio", "ratio is 0, open, to 1, closed", "\"min\":0,\"max\":1");
         return;
     }
-    if (!servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    if (!servo_gate_enabled()) {
         api_error(reply, 409, "gate_disabled", NULL, "the gate is off in its settings", NULL);
         return;
     }
@@ -955,6 +955,7 @@ static void api_v1_patch_gate(const http_server_request_t *request, http_server_
     }
     reply_gate(reply, 200);
 }
+#endif
 
 
 // --- The motors
@@ -1456,9 +1457,11 @@ static const char *const api_v1_schema_actions[] = {
     "that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times "
     "zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the "
     "cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)\"}",
+#if FEATURE_SERVO_GATE
     "{\"method\":\"PATCH\",\"path\":\"/api/v1/gate\",\"fields\":[{\"name\":\"ratio\",\"type\":\"number\",\"min\":0,"
     "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
     "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
+#endif
     "{\"method\":\"POST\",\"path\":\"/api/v1/update/start\",\"fields\":[{\"name\":\"download\","
     "\"type\":\"boolean\",\"about\":\"true: the job fetches the release the poll found itself (found in GET "
     "/api/v1/update), checks it and installs it, as the offer's Install at the screen does\"}],"
@@ -1587,9 +1590,11 @@ static const char *const api_v1_schema_states[] = {
     "\"purge\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
     "yet\"},{\"value\":\"running\"},{\"value\":\"fault\",\"about\":\"ended on a driver's fault, waiting for a stop or "
     "a press\"}]",
+#if FEATURE_SERVO_GATE
     "\"gate\":[{\"value\":\"open\"},{\"value\":\"closed\"},{\"value\":\"partial\"},{\"value\":\"held\",\"about\":"
     "\"the menu's Disable: the servo is moved no more and stays at its last ratio until charge mode moves it\"},"
     "{\"value\":\"disabled\",\"about\":\"off in settings/gate: charge mode does not use it\"}]",
+#endif
     "\"driver\":[{\"value\":\"ok\"},{\"value\":\"absent\",\"about\":\"the driver does not answer on its serial "
     "line\"},{\"value\":\"short\"},{\"value\":\"hot\"},{\"value\":\"reset\",\"about\":\"the driver restarted and "
     "lost its set-up\"},{\"value\":\"supply\",\"about\":\"its motor supply is too low\"}]",
@@ -1673,8 +1678,10 @@ bool api_v1_commands_init(void) {
     http_server_set_usage(api_v1_usage);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/scale", api_v1_get_scale);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/scale/zero", api_v1_scale_zero);
+#if FEATURE_SERVO_GATE
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/gate", api_v1_get_gate);
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/gate", api_v1_patch_gate);
+#endif
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/motors", api_v1_get_motors);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/system", api_v1_get_system);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/system/restart", api_v1_system_restart);

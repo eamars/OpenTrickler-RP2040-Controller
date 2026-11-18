@@ -25,6 +25,7 @@
 #include "display.h"
 #include "menu.h"
 #include "eeprom.h"
+#include "servo_gate.h"
 #include "settings.h"
 #include "version.h"
 
@@ -358,7 +359,9 @@ static const api_v1_resource_t api_v1_resources[] = {
      "3 at once: 503 then, with Retry-After"},
     {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
+#if FEATURE_SERVO_GATE
     {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it"},
+#endif
     {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
     {"/api/v1/system", "[\"GET\"]", "the firmware, the board, the uptime, what the unit is doing, a restart pending"},
     {"/api/v1/system/restart", "[\"POST\"]", "restarts the unit, once the reply is out"},
@@ -440,7 +443,11 @@ static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, siz
         http_json_unsigned(buf, room, len, api_v1_boot);
         http_json_raw(buf, room, len, ",\"uptime_s\":");
         http_json_integer(buf, room, len, (long) (time_us_64() / 1000000u));
-        http_json_raw(buf, room, len, ",\"features\":[],\"guide\":");
+        // What this build carries (ADR-008, gate 2): each feature that can be left out, by name, present or not
+        http_json_raw(buf, room, len, ",\"features\":[{\"name\":\"servo_gate\",\"present\":");
+        http_json_bool(buf, room, len, FEATURE_SERVO_GATE);
+        http_json_raw(buf, room, len, ",\"about\":\"the shutters' servos: GET /api/v1/gate, settings/gate, the "
+                                      "screen's Settings, Servo gate\"}],\"guide\":");
         index->phase = 1;
         return true;
     }

@@ -35,8 +35,6 @@
 // A write to the API this recent counts as the unit being controlled from elsewhere (menu_design.md, proposed)
 #define MENU_REMOTE_MS 30000
 
-// The gate's state, for the cleanup's screen (servo_gate.c)
-extern servo_gate_t servo_gate;
 #define MENU_FRAMES_MAX 8
 #define MENU_EDIT_DIGITS 5
 
@@ -743,6 +741,9 @@ static bool motors_fault_shown(const char *what) {
 }
 
 
+// A page's rows counted from its list, never by hand: a row left out of a build is out of the count too
+#define ROW_COUNT(list) ((uint8_t) (sizeof(list) / sizeof((list)[0])))
+
 static const menu_page_t page_ack_charge;
 static const menu_page_t page_ack_cleanup;
 static const menu_row_t rows_charge[3];
@@ -1014,7 +1015,10 @@ static bool chart_chosen(void) {
 // --- The servo gate: moved as the API moves it (PATCH /api/v1/gate), and so refused when it is
 
 static const char *gate_move(gate_ratio_t ratio) {
-    if (!servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    if (!FEATURE_SERVO_GATE) {
+        return "no servo gate in this build";
+    }
+    if (!servo_gate_enabled()) {
         return "the gate is off";
     }
     activity_lock();
@@ -1027,16 +1031,18 @@ static const char *gate_move(gate_ratio_t ratio) {
 }
 
 
+// The gate's page, and what only it uses: in a build that carries the gate
+#if FEATURE_SERVO_GATE
 static void value_gate(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    snprintf(out, room, "%s", servo_gate.gate_state == GATE_OPEN ? "Open" :
-                              (servo_gate.gate_state == GATE_CLOSE ? "Closed" : "Off"));
+    snprintf(out, room, "%s", servo_gate_state() == GATE_OPEN ? "Open" :
+                              (servo_gate_state() == GATE_CLOSE ? "Closed" : "Off"));
 }
 
 
 static void act_gate(const menu_row_t *row) {
     (void) row;
-    const char *why = gate_move(servo_gate.gate_state == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
+    const char *why = gate_move(servo_gate_state() == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
     if (why != NULL) {
         push_message("Not moved", why, NULL);
     }
@@ -1047,6 +1053,7 @@ static void act_gate(const menu_row_t *row) {
 static void gate_show_end(const menu_row_t *row) {
     gate_move(strstr(row->name, "close") != NULL ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
 }
+#endif
 
 
 // --- The tree (menu_design.md)
@@ -1058,7 +1065,7 @@ static const menu_row_t rows_ack_charge[] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_ack_charge},
 };
 static const menu_page_t page_ack_charge = {.kind = PAGE_DIALOG, .id = "ack/charge", .title = "Charge",
-                                            .rows = rows_ack_charge, .row_count = 3};
+                                            .rows = rows_ack_charge, .row_count = ROW_COUNT(rows_ack_charge)};
 
 static const menu_row_t rows_ack_cleanup[] = {
     {.label = "Put the cup on the scale", .kind = ROW_INFO},
@@ -1066,7 +1073,7 @@ static const menu_row_t rows_ack_cleanup[] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_ack_cleanup},
 };
 static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/cleanup", .title = "Cleanup",
-                                             .rows = rows_ack_cleanup, .row_count = 3};
+                                             .rows = rows_ack_cleanup, .row_count = ROW_COUNT(rows_ack_cleanup)};
 
 static const menu_row_t rows_charge[3] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_charge_start},
@@ -1074,11 +1081,12 @@ static const menu_row_t rows_charge[3] = {
     {.label = "Powder", .kind = ROW_CHOICE, .value = value_powder, .count = powder_count, .option = powder_option,
      .current = powder_current, .choose = powder_choose},
 };
-static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows = rows_charge, .row_count = 3};
+static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows = rows_charge,
+                                       .row_count = ROW_COUNT(rows_charge)};
 
 // Between throws, the charge's Change: its target and powder. It closes when the next throw begins
 static const menu_page_t page_charge_change = {.id = "charge/change", .title = "Change", .rows = &rows_charge[1],
-                                               .row_count = 2};
+                                               .row_count = ROW_COUNT(rows_charge) - 1};
 
 // Notes: each line says what it is, read only, then Wi-Fi turned off or on at the end
 static const menu_row_t rows_wifi[] = {
@@ -1093,7 +1101,7 @@ static const menu_row_t rows_wifi[] = {
     {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label},
 };
 static const menu_page_t page_wifi = {.kind = PAGE_NOTES, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
-                                      .row_count = 9};
+                                      .row_count = ROW_COUNT(rows_wifi)};
 
 static const menu_row_t rows_scale[] = {
     {.label = "Reading", .kind = ROW_INFO, .value = value_reading},
@@ -1105,7 +1113,8 @@ static const menu_row_t rows_scale[] = {
     {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/charge", .name = "decimal_places"},
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
-static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale", .rows = rows_scale, .row_count = 7};
+static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale", .rows = rows_scale,
+                                       .row_count = ROW_COUNT(rows_scale)};
 
 // The charge's two stop thresholds: what a person who only uses the screen sees the effect of (the owner)
 static const menu_row_t rows_charge_settings[] = {
@@ -1113,7 +1122,8 @@ static const menu_row_t rows_charge_settings[] = {
     {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/charge", .name = "coarse_stop_threshold"},
 };
 static const menu_page_t page_charge_settings = {.id = "settings/charge", .title = "Charge",
-                                                 .rows = rows_charge_settings, .row_count = 2};
+                                                 .rows = rows_charge_settings,
+                                                 .row_count = ROW_COUNT(rows_charge_settings)};
 
 static const menu_row_t rows_display[] = {
     {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/display",
@@ -1127,9 +1137,10 @@ static const menu_row_t rows_display[] = {
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
 static const menu_page_t page_display = {.id = "settings/display", .title = "Display", .rows = rows_display,
-                                         .row_count = 6};
+                                         .row_count = ROW_COUNT(rows_display)};
 
 // The servo gate: on or off, the shutters moved, and their ends set while the servo shows them
+#if FEATURE_SERVO_GATE
 static const menu_row_t rows_gate[] = {
     {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/gate", .name = "enable"},
     {.label = "Shutters", .kind = ROW_ACTION, .value = value_gate, .act = act_gate},
@@ -1143,7 +1154,8 @@ static const menu_row_t rows_gate[] = {
      .stepped = gate_show_end},
 };
 static const menu_page_t page_gate = {.id = "settings/gate", .title = "Servo gate", .rows = rows_gate,
-                                      .row_count = 6};
+                                      .row_count = ROW_COUNT(rows_gate)};
+#endif
 
 // Each motor's direction: a motor wired the other way, found at the bench
 static const menu_row_t rows_motors[] = {
@@ -1153,7 +1165,7 @@ static const menu_row_t rows_motors[] = {
      .path = "settings/motors/fine", .name = "invert_direction"},
 };
 static const menu_page_t page_motors = {.id = "settings/motors", .title = "Motors", .rows = rows_motors,
-                                        .row_count = 2};
+                                        .row_count = ROW_COUNT(rows_motors)};
 
 // A list: the facts to read, then the channel set and the check
 static const menu_row_t rows_firmware[] = {
@@ -1170,7 +1182,7 @@ static const menu_row_t rows_firmware[] = {
      .shown = shown_on_station},
 };
 static const menu_page_t page_firmware = {.id = "settings/firmware", .title = "Firmware", .rows = rows_firmware,
-                                          .row_count = 9};
+                                          .row_count = ROW_COUNT(rows_firmware)};
 
 /*
  * The offer, notes: what the release says and what to know before installing, then Install, reached only by
@@ -1188,7 +1200,7 @@ static const menu_row_t rows_update[] = {
     {.label = "Install", .kind = ROW_ACTION, .act = act_update_install},
 };
 static const menu_page_t page_update = {.kind = PAGE_NOTES, .id = "update", .title = "Update", .rows = rows_update,
-                                        .row_count = 9};
+                                        .row_count = ROW_COUNT(rows_update)};
 
 static const menu_row_t rows_factory_reset[] = {
     {.label = "Erase every setting?", .kind = ROW_INFO},
@@ -1196,21 +1208,24 @@ static const menu_row_t rows_factory_reset[] = {
     {.label = "Erase", .kind = ROW_ACTION, .act = act_erase},
 };
 static const menu_page_t page_factory_reset = {.kind = PAGE_DIALOG, .id = "settings/factory_reset",
-                                               .title = "Factory reset", .rows = rows_factory_reset, .row_count = 3,
+                                               .title = "Factory reset", .rows = rows_factory_reset,
+                                               .row_count = ROW_COUNT(rows_factory_reset),
                                                .cancel_first = true};
 
 static const menu_row_t rows_settings[] = {
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge_settings},
     {.label = "Display", .kind = ROW_PAGE, .page = &page_display},
+#if FEATURE_SERVO_GATE
     {.label = "Servo gate", .kind = ROW_PAGE, .page = &page_gate},
+#endif
     {.label = "Motors", .kind = ROW_PAGE, .page = &page_motors},
     {.label = "Firmware", .kind = ROW_PAGE, .page = &page_firmware},
     {.label = "Restart", .kind = ROW_ACTION, .act = act_restart, .label_now = restart_label},
     {.label = "Factory reset", .kind = ROW_PAGE, .page = &page_factory_reset},
 };
 static const menu_page_t page_settings = {.id = "settings", .title = "Settings", .rows = rows_settings,
-                                          .row_count = 8};
+                                          .row_count = ROW_COUNT(rows_settings)};
 
 // "OpenTrickler", or the motor driver that is not OK (ADR-012, step 6)
 static const char *main_title(void) {
@@ -1227,12 +1242,15 @@ static const menu_row_t rows_main[] = {
     {.label = "Settings", .kind = ROW_PAGE, .page = &page_settings},
 };
 static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .title_now = main_title,
-                                      .rows = rows_main, .row_count = 5};
+                                      .rows = rows_main, .row_count = ROW_COUNT(rows_main)};
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
     &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_charge_settings, &page_display,
-    &page_gate, &page_motors, &page_firmware,
+#if FEATURE_SERVO_GATE
+    &page_gate,
+#endif
+    &page_motors, &page_firmware,
     &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
@@ -1543,7 +1561,7 @@ static void cleanup_key(frame_t *frame, menu_key_t key) {
             frame->editing = true;
             break;
         case CLEANUP_GATE: {
-            const char *why = gate_move(servo_gate.gate_state == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED :
+            const char *why = gate_move(servo_gate_state() == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED :
                                         SERVO_GATE_RATIO_OPEN);
             if (why != NULL) {
                 push_message("Not moved", why, NULL);
@@ -2344,8 +2362,8 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         screen_row(screen, text, flow, false);
         snprintf(text, sizeof(text), "%.1f rev/s", (double) cleanup.speed_rps);
         screen_row(screen, "Speed", text, false);
-        screen_row(screen, "Gate", servo_gate.gate_state == GATE_OPEN ? "Open" :
-                                   (servo_gate.gate_state == GATE_CLOSE ? "Closed" : "Off"), false);
+        screen_row(screen, "Gate", servo_gate_state() == GATE_OPEN ? "Open" :
+                                   (servo_gate_state() == GATE_CLOSE ? "Closed" : "Off"), false);
         if (fault) {
             snprintf(screen->softkey_right, MENU_TEXT, "OK");
             screen->softkey_focus = frame->softkey;

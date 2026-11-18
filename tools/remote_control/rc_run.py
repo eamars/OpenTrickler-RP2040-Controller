@@ -1978,11 +1978,20 @@ class Session:
             self.fail(f"api_check: the refused writes changed the charge: {after['state']}, {after['target']}")
         expect("PATCH", "purge", {"speed_rps": 1}, 409, "not_running")
         expect("POST", "system/factory_reset", {}, 400, "confirm_missing")
-        gate = unit.read("gate")
-        if gate["state"] == "disabled":
-            expect("PATCH", "gate", {"ratio": 0.5}, 409, "gate_disabled")
+        # The gate, where the build carries it (ADR-008, gate 2: the index's features); without it, its paths are gone
+        carries = {feature["name"]: feature["present"] for feature in index.get("features", [])}
+        if carries.get("servo_gate", True):
+            gate = unit.read("gate")
+            if gate["state"] == "disabled":
+                expect("PATCH", "gate", {"ratio": 0.5}, 409, "gate_disabled")
+            else:
+                expect("PATCH", "gate", {"ratio": gate["ratio"]}, 200)
         else:
-            expect("PATCH", "gate", {"ratio": gate["ratio"]}, 200)
+            for method, path in (("GET", "/api/v1/gate"), ("GET", "/api/v1/settings/gate")):
+                if http_call(host, method, path)[0] != 404:
+                    self.fail(f"api_check: the build has no servo gate, but {method} {path} answers")
+            if any("gate" in action["path"] for action in schema["actions"]) or "gate" in schema["states"]:
+                self.fail("api_check: the build has no servo gate, but the schema lists it")
         for path, resource in export_before["resources"].items():
             save = unit.resource(path)["save"]
             if resource["saved"] and ("POST", save) not in called:

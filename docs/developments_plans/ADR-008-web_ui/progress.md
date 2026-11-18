@@ -303,7 +303,8 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 3. Step 2, a setting changed as an event: built and proven on the Pico W (2026-11-19).
 4. Step 3, the event stream: built and proven on the Pico W (2026-11-19).
 5. Step 4, `saved` for each resource and the revert: built and proven on the Pico W (2026-11-19).
-6. Step 5, the API that describes itself and the unit's report: next.
+6. Step 5, the API that describes itself and the unit's report: built and proven on the Pico W (2026-11-19).
+7. Step 6, the update's life cycle: next.
 
 ### Step 1, the words: built (2026-11-19)
 
@@ -351,5 +352,14 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 - **Hello listed** (item 5): an action of the kind `agent` in the schema, a path in the index, AGENTS.md brought up to date. `api_check` calls it during its charge, refused 409 `busy`, so it never draws on a test's screen.
 - **Flash:** 3.4 KB with the index's packing (the Pico W's image 97.98% of its slot).
 - **Proven on the Pico W** (2.0.3-46): `api_check` with its new checks (33 actions' usage by their GET, a 404 and a 405 with their `see`, the routes), `web_robust` and `settings_roundtrip` `VERDICT PASS`. The stand-in recorded again.
-- **Item 6, the unit's report of what it carries:** next. Its first build option is the servo gate alone, not the LEDs as the plan said: the LED module also lights the 12864's backlight (a NeoPixel), so a build without it darkens the screen of every board that has one. The servo gate can be left out (the bench's unit has none fitted).
+- **Item 6, the unit's report of what it carries:** built the same day, below. Its first build option is the servo gate alone, not the LEDs as the plan said: the LED module also lights the 12864's backlight (a NeoPixel), so a build without it darkens the screen of every board that has one. The servo gate can be left out (the bench's unit has none fitted).
+
+### Step 5, item 6: what a build carries, reported (2026-11-19)
+
+- **The option:** `FEATURE_SERVO_GATE` in CMake, on by default on both boards, printed as it configures; off, `servo_gate.c` is out of the build. Its callers (the charge, the purge, the menu, the API) reached into the module's struct in 25 places; they now ask it by four functions (`servo_gate_enabled`, `_state`, `_ratio`, `_set_ratio`), which a build without it answers from the header: no gate. The gate's route, its schema action and state, its index entry and its menu page are built only with it; its settings were the module's own and go with it. The purge's screen keeps its Gate row (Off, and a move says "no servo gate in this build"): the screen's words are gate 3's.
+- **The report:** the index's `features`, `[{"name": "servo_gate", "present": ..., "about": ...}]`.
+- **Not the LEDs** (the plan named them): their module lights the 12864's backlight, a NeoPixel, so a build without it darkens every screen.
+- **Found on the way, a fault:** the build without the gate hard-faulted at the menu's Settings. Its rows were counted by hand (`.row_count = 8`): with the gate's row compiled out, seven, and the menu read past the list. The class mended, not the one page: every page's count is now taken from its list (`ROW_COUNT`), fifteen of them; none is written by hand anywhere else in `src/`.
+- **Flash:** the build without the gate is 6.5 KB smaller; with it, the image is 98.04% of the Pico W's slot.
+- **Proven on the Pico W:** without the gate (`build_w_nogate`): `features` says absent, `GET /api/v1/gate` and `/api/v1/settings/gate` 404, Settings lists no Servo gate, `api_check` `VERDICT PASS` (76 routes, the schema without the gate, checked by its new rule for a part absent), `charge_cycle` `VERDICT PASS`. With it again (2.0.3-47): the stored settings the same as the copy before step 1 (the gate's own, untouched by the build that did not know them), `api_check`, `charge_cycle` and `menu_tour --compare` `VERDICT PASS`. The stand-in recorded again, with the report.
 

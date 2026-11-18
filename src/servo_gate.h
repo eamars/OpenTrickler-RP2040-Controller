@@ -66,13 +66,29 @@ typedef struct {
 extern "C" {
 #endif
 
+#ifndef FEATURE_SERVO_GATE
+#error "FEATURE_SERVO_GATE is set by CMakeLists.txt: 1 when the build carries the servo gate, 0 when not"
+#endif
+
+/*
+ * What the rest of the firmware asks of the gate (ADR-008, gate 2). A build without it (-DFEATURE_SERVO_GATE=OFF) has
+ * none of servo_gate.c, and these answer that there is no gate: never enabled, its state disabled, nothing moved
+ */
+#if FEATURE_SERVO_GATE
 bool servo_gate_init(void);
 bool servo_gate_config_save(void);
 const char * gate_state_to_string(gate_state_t);
-
-
-// NEW:
+bool servo_gate_enabled(void);          // fitted and on in its settings: charge mode uses it
+gate_state_t servo_gate_state(void);
+float servo_gate_ratio(void);
 void servo_gate_set_ratio(float ratio, bool block_wait);
+#else
+static inline bool servo_gate_init(void) { return true; }
+static inline bool servo_gate_enabled(void) { return false; }
+static inline gate_state_t servo_gate_state(void) { return GATE_DISABLED; }
+static inline float servo_gate_ratio(void) { return SERVO_GATE_RATIO_DISABLED; }
+static inline void servo_gate_set_ratio(float ratio, bool block_wait) { (void) ratio; (void) block_wait; }
+#endif
 
 #ifdef __cplusplus
 }

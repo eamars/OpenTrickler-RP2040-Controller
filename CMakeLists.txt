@@ -71,6 +71,14 @@ add_subdirectory(${SRC_DIRECTORY})
 file(GLOB SRC ${SRC_DIRECTORY}/*.c 
               ${SRC_DIRECTORY}/*.cpp)
 
+# What a build carries (ADR-008, gate 2; ADR-005's feature table): a feature is in the build or out of it, never built
+# a second way, and the unit reports each by name (the index's `features`). On by default on both boards
+option(FEATURE_SERVO_GATE "The servo gate: its module, its settings, its menu page and its API" ON)
+if (NOT FEATURE_SERVO_GATE)
+    list(REMOVE_ITEM SRC ${SRC_DIRECTORY}/servo_gate.c)
+endif()
+message(STATUS "Features: servo_gate=${FEATURE_SERVO_GATE}")
+
 # Include application source file
 target_sources("${TARGET_NAME}" PUBLIC
     ${SRC}
@@ -78,6 +86,11 @@ target_sources("${TARGET_NAME}" PUBLIC
 
 # Include additional headers
 target_include_directories("${TARGET_NAME}" PUBLIC ${CMAKE_SOURCE_DIR}/targets)
+if (FEATURE_SERVO_GATE)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=1)
+else()
+    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=0)
+endif()
 
 # Include libraries1
 target_link_libraries("${TARGET_NAME}"
