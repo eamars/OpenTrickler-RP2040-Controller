@@ -253,10 +253,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .form { display: grid; gap: 14px; }
 .fields { margin: 0; padding: 4px 16px 8px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
           display: grid; min-width: 0; }
-.fields legend { float: left; width: 100%; padding: 14px 0 4px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.06em;
-                 text-transform: uppercase; color: var(--soft); }
+.fields .fields-title { margin: 0; padding: 14px 0 4px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.06em;
+                        text-transform: uppercase; color: var(--soft); }
 .field { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--rule); }
-.fields legend + .field, .fields > .field:first-child { border-top: 0; }
+.fields-title + .field, .fields > .field:first-child { border-top: 0; }
 .field > label:first-child { font-weight: 650; }
 .field.inline { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
 .field.inline .field-help, .field.inline .field-error { grid-column: 1 / -1; }

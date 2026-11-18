@@ -156,7 +156,10 @@ async function drawForm(path, values, hooks) {
     }
     for (const [name, fields] of groups) {
         // A field with no group is the resource's own: its heading would repeat the part's name, so it has none
-        const set = element("fieldset", {class: "fields"}, name ? element("legend", {}, name) : null);
+        // A group with a heading of its own, not a fieldset: WebKit draws a fieldset's legend into its border, however styled
+        const titleId = name ? `g-${path.split("/").slice(3).join("-")}-${name.replace(/\W+/g, "-")}` : null;
+        const set = element("div", {class: "fields", role: "group", "aria-labelledby": titleId},
+                            name ? element("h3", {class: "fields-title", id: titleId}, name) : null);
         for (const field of fields) {
             let row = null;
             const error = element("p", {class: "field-error", hidden: true});
