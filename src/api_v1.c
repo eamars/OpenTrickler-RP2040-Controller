@@ -25,6 +25,7 @@
 #include "display.h"
 #include "menu.h"
 #include "eeprom.h"
+#include "unit_id.h"
 #include "servo_gate.h"
 #include "settings.h"
 #include "version.h"
@@ -424,9 +425,8 @@ static void api_v1_index_resource(char *out, size_t room, size_t *len, bool firs
 // One item of the index: its head, the guide, a path, a settings' path, a save with its revert. False after the last
 static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, size_t *len) {
     if (index->phase == 0) {
-        char unit_id[9];
-        eeprom_get_board_id(unit_id, 8);
-        unit_id[8] = '\0';
+        char unit_id[UNIT_ID_LENGTH + 1];
+        unit_id_get(unit_id, sizeof(unit_id));
         http_json_raw(buf, room, len, "{\"api\":\"1\",\"firmware\":{\"version\":");
         http_json_string(buf, room, len, version_string);
         http_json_raw(buf, room, len, ",\"vcs\":");

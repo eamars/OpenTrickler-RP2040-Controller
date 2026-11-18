@@ -17,7 +17,6 @@
 #include "mini_12864_module.h"
 #include "profile.h"
 #include "system_control.h"
-#include "unit_id.h"
 
 
 extern bool cat24c256_eeprom_erase();
@@ -33,7 +32,6 @@ typedef struct _eeprom_save_handler_node {
 
 // Singleton variables
 SemaphoreHandle_t eeprom_access_mutex = NULL;
-eeprom_metadata_t metadata;
 static _eeprom_save_handler_node_t * eeprom_save_handler_head = NULL;
 
 
@@ -79,37 +77,6 @@ bool eeprom_init(void) {
     
     cat24c256_eeprom_init();
 
-    // Generate a default metadata (in case the metadata is invalid)
-    eeprom_metadata_t default_eeprom_metadata;
-
-    // The id, made from the chip's own (ADR-008, gate 4): it was a random number, drawn again at a factory reset
-    char id[UNIT_ID_LENGTH + 1];
-    unit_id_get(id, sizeof(id));
-    memcpy(default_eeprom_metadata.unique_id, id, sizeof(default_eeprom_metadata.unique_id));
-
-    // Generate rev
-    default_eeprom_metadata.eeprom_metadata_rev = 0x0;
-
-    // Load eeprom data
-    memset(&metadata, 0x0, sizeof(metadata));
-    is_ok = load_config(EEPROM_METADATA_BASE_ADDR, &metadata, &default_eeprom_metadata, sizeof(metadata), EEPROM_METADATA_REV);
-    if (!is_ok) {
-        printf("Unable to read EEPROM configuration\n");
-    }
-    // A unit whose stored id was drawn at random takes the chip's, once, and stores it: the EEPROM says what it is
-    if (memcmp(metadata.unique_id, id, sizeof(metadata.unique_id)) != 0) {
-        memcpy(metadata.unique_id, id, sizeof(metadata.unique_id));
-        eeprom_config_save();
-    }
-
-    // Register to eeprom save all
-    eeprom_register_handler(eeprom_config_save);
-
-    return is_ok;
-}
-
-bool eeprom_config_save() {
-    bool is_ok = save_config(EEPROM_METADATA_BASE_ADDR, &metadata, sizeof(metadata));
     return is_ok;
 }
 
@@ -151,11 +118,4 @@ bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len) {
     _give_mutex(scheduler_state);
 
     return is_ok;
-}
-
-
-bool eeprom_get_board_id(char *board_id_buffer, size_t bytes_to_copy) {
-    memcpy(board_id_buffer, metadata.unique_id, bytes_to_copy);
-
-    return true;
 }

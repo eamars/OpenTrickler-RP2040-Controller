@@ -7,8 +7,6 @@
 #include "eeprom.h"
 #include "version.h"
 
-extern eeprom_metadata_t metadata;
-
 
 int software_reboot() {
     watchdog_reboot(0, 0, 0);

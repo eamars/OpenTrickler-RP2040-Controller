@@ -4,6 +4,7 @@
 
 #include "wireless.h"
 #include "eeprom.h"
+#include "unit_id.h"
 #include "access_point_mode.h"
 #include "display.h"
 #include "mini_12864_module.h"
@@ -177,12 +178,10 @@ bool wireless_init() {
     eeprom_register_handler(wireless_config_save);
     settings_register(&wifi_settings);
 
-    // Generate the hostname: the id's first four characters, with their ending (ADR-003, gate 4). The id was printed
-    // with %s from four bytes and no ending, and whatever lay after them on the stack went into the name
-    char id[5];
-    eeprom_get_board_id(id, 4);
-    id[4] = '\0';
-    snprintf(host_name, sizeof(host_name), "opentrickler-%s", id);
+    // The host name: the id's first four characters (ADR-003, gate 4), the id the Pico's own (ADR-008, gate 4)
+    char id[UNIT_ID_LENGTH + 1];
+    unit_id_get(id, sizeof(id));
+    snprintf(host_name, sizeof(host_name), "opentrickler-%.4s", id);
     // And the access point's key, the unit's own (ADR-008, gate 4)
     access_point_mode_init();
 

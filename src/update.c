@@ -361,7 +361,7 @@ static const struct {
     uint16_t addr;
     const char *name;
 } update_records[] = {
-    {EEPROM_METADATA_BASE_ADDR, "unit"},
+    {EEPROM_METADATA_BASE_ADDR, "unit"},      // no record since ADR-008's gate 4; kept so the others keep their bits
     {EEPROM_SCALE_CONFIG_BASE_ADDR, "scale"},
     {EEPROM_WIRELESS_CONFIG_BASE_ADDR, "wifi"},
     {EEPROM_MOTOR_CONFIG_BASE_ADDR, "motors"},

@@ -18,6 +18,7 @@
 #include "cleanup_mode.h"
 #include "common.h"
 #include "eeprom.h"
+#include "unit_id.h"
 #include "events.h"
 #include "http_server.h"
 #include "jobs.h"
@@ -571,9 +572,8 @@ static void value_board(const menu_row_t *row, char *out, size_t room) {
 
 static void value_unit_id(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    char id[9];
-    eeprom_get_board_id(id, 8);
-    id[8] = '\0';
+    char id[UNIT_ID_LENGTH + 1];
+    unit_id_get(id, sizeof(id));
     snprintf(out, room, "%s", id);
 }
 

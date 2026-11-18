@@ -10,6 +10,7 @@
 #include "activity.h"
 #include "api_v1.h"
 #include "eeprom.h"
+#include "unit_id.h"
 #include "events.h"
 #include "http_json.h"
 #include "http_server.h"
@@ -1019,9 +1020,8 @@ static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len)
     export_context_t *export = ctx;
     *len = 0;
     if (export->phase == 0) {
-        char unit_id[9];
-        eeprom_get_board_id(unit_id, 8);
-        unit_id[8] = '\0';
+        char unit_id[UNIT_ID_LENGTH + 1];
+        unit_id_get(unit_id, sizeof(unit_id));
         http_json_raw(buf, room, len, "{\"api\":\"1\",");
         write_firmware(buf, room, len);
         http_json_raw(buf, room, len, ",\"unit_id\":");

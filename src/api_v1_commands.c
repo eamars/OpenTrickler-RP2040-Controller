@@ -20,6 +20,7 @@
 #include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "eeprom.h"
+#include "unit_id.h"
 #include "events.h"
 #include "http_json.h"
 #include "http_server.h"
@@ -1267,9 +1268,8 @@ static const http_server_upload_t api_v1_update_image = {
 
 static void api_v1_get_system(const http_server_request_t *request, http_server_reply_t *reply) {
     (void) request;
-    char unit_id[9];
-    eeprom_get_board_id(unit_id, 8);
-    unit_id[8] = '\0';
+    char unit_id[UNIT_ID_LENGTH + 1];
+    unit_id_get(unit_id, sizeof(unit_id));
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;

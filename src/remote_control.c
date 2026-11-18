@@ -23,6 +23,7 @@
 #include "scale.h"
 #include "profile.h"
 #include "eeprom.h"
+#include "unit_id.h"
 #include "version.h"
 #include "menu.h"
 #include "display.h"
@@ -66,7 +67,6 @@ typedef struct {
 
 extern charge_mode_config_t charge_mode_config;
 extern scale_config_t scale_config;
-extern eeprom_metadata_t metadata;
 extern QueueHandle_t encoder_event_queue;
 extern mini_12864_module_config_t mini_12864_module_config;
 
@@ -85,10 +85,12 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
                                  void *write_ctx) {
     profile_t *profile = profile_get_selected();
     uint32_t up_s = (uint32_t) (time_us_64() / 1000000);
+    char unit_id[UNIT_ID_LENGTH + 1];
+    unit_id_get(unit_id, sizeof(unit_id));
 
-    // unique_id and the profile name are stored without a terminator: print them by their length
+    // The profile's name is stored without a terminator: print it by its length
     snprintf(reply, reply_size,
-             "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%.*s "
+             "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%s "
              "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f drivers=%s,%s",
              (int) charge_mode_config.charge_mode_state,
              scale_config.current_scale_measurement,
@@ -96,7 +98,7 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
              get_scale_driver_string(),
              version_string, vcs_hash, build_type,
              REMOTE_CONTROL_BOARD,
-             (int) sizeof(metadata.unique_id), metadata.unique_id,
+             unit_id,
              (unsigned long) up_s,
              (int) sizeof(profile->name), profile->name,
              menu_get_current_form_id(),
