@@ -9,9 +9,9 @@
 
 #include "app.h"
 #include "mini_12864_module.h"
-#include "pico/unique_id.h"
 #include "display.h"
 #include "eeprom.h"
+#include "unit_id.h"
 
 
 
@@ -24,9 +24,18 @@ extern char ip_addr_string[16];
 // As wireless.c defines them: 35 bytes each. They were declared here as 32
 extern char host_name[18];
 
-// The access point's key, the same on every unit (ADR-008's commissioning weighs it): the screen's Wi-Fi page shows it
+// The access point's key, the unit's own, made from its chip at the start (ADR-008, gate 4): the screen's Wi-Fi page
+// shows it
+static char access_point_key[UNIT_HOTSPOT_KEY_LENGTH + 1];
+
+
+void access_point_mode_init(void) {
+    unit_id_hotspot_key(access_point_key, sizeof(access_point_key));
+}
+
+
 const char *access_point_mode_key(void) {
-    return "opentrickler";
+    return access_point_key;
 }
 
 

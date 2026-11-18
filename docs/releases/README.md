@@ -9,7 +9,7 @@ A tag is `vX.Y.Z`. The firmware built at it reports `X.Y.Z`, and a build N commi
 Until every ADR is closed, a release is a candidate only: a pre-release, whose notes say it is a test build and give no install steps (the owner, ADR-004).
 
 How a release is made:
-1. Write both files and commit them.
+1. Write both files, carrying into them each item of [`next.md`](next.md) (what the changes since the last release ask the notes to say), empty its list, and commit them.
 2. Tag that commit (`git tag -a v2.0.0 -m "Firmware v2.0.0"`) and push the tag.
 3. The [build workflow](../../.github/workflows/cmake.yml) builds the tag with `scripts/build_release.py --tag`, which refuses a firmware that does not report exactly the tag's version and a tag without its two files. It then drafts a **pre-release** with:
    - the notes, and the files' SHA-256;

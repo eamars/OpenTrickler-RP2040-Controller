@@ -53,7 +53,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | `profile.c` | The powder profiles |
 | `mini_12864_module.cpp`, `display.c`, `gpio_irq_handler.h` | The display's settings, the encoder and the buttons. `display.c` is the panel's driver, our own for its UC1701: it sends the pages of the frame that changed (ADR-010, gate 4) |
 | `eeprom.c`, `cat24c256_eeprom.c`, `common.c` | Settings storage |
-| `wireless.c`, `access_point_mode.c`, `dhcpserver.c`, `dnsserver.c` | Wi-Fi, as a station or as its own access point |
+| `wireless.c`, `access_point_mode.c`, `dhcpserver.c`, `dnsserver.c`, `unit_id.c` | Wi-Fi, as a station or as its own access point. `unit_id.c` makes the unit's id (its host name's four characters) and its hotspot's key from the chip's unique id, by two hashes, so the name gives nothing of the key away (ADR-008, gate 4) |
 | `http_server.c`, `http_json.c` | Our own HTTP server (ADR-003): one task on lwIP's sockets, `select` over six slots, routes, keep-alive, chunked and parked replies. A handler sees no socket |
 | `api_v1.c`, `api_v1_commands.c`, `rest_endpoints.c`, `html/` | The API ([api_v1.md](docs/developments_plans/ADR-003-http_rest_server/api_v1.md)): the index, the screen and the debug routes; the commands, the unit's reads and the schema's commands; the pages. The old `/rest/` paths are gone (ADR-003, gate 4). `scripts/html2header.py` turns the pages into C strings |
 | `events.c` | The unit's event log: the newest 64, numbered, read from where a client left off, held with `?wait` |

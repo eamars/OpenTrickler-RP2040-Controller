@@ -410,3 +410,21 @@ Started by the agent overnight on the owner's word (2026-11-19: "implement as mu
 - **The owner's own phone** on the pages (carried from gate 1).
 - **The Pico 2 W** at its next turn on the probe (it runs 2.0.3 at 192.168.2.166, read over the web only).
 
+
+## Gate 4, commissioning built
+
+Its plan approved by the owner 2026-11-19 ("Approve, start step 1"), with the iPhone moved to before step 4; the bench given with it.
+
+### Step 1, the id and the hotspot's key from the chip: built and proven (2026-11-19)
+
+- **What:** `unit_id.c`. The id is the first four bytes of SHA-256("opentrickler unit id", the chip's unique id), eight capital hex digits; the key eight characters of the 31 the screen draws apart (no i, l, o, 0 or 1), the first 64 bits of SHA-256("opentrickler hotspot key", the chip's id) written in base 31, some 40 bits. Two hashes in place of the README's "other bits of the id": the id, which mDNS announces, tells nothing of the key. `rnd()` is gone. The key is made once before the scheduler starts, beside the host name (`access_point_mode_init`), so no task reads it half made.
+- **Stored:** no layout changes. The id goes into the metadata's 8 characters `rnd()` filled; a unit whose stored id differs takes the chip's at its first start and stores it once, so the EEPROM says what the unit is.
+- **Flash and RAM:** the Pico W's image 92.56% of its slot (963,008 bytes; 962,472 at gate 3's head), RAM 99.03% at link. The Pico 2 W's image builds (50.76%).
+- **Proven on the Pico W** (2.0.3-56, its settings copied first, `logs/adr008/gate4/step1_before`):
+  - the id `9CE00000` became `4A821948`, the host name `opentrickler-4A82`, reached at `opentrickler-4A82.local`; the same id after a restart; the stored settings the same as the copy, before and after `api_check`'s restart;
+  - on the probe image (`build_w_approbe`, its own hotspot at the start): the Wi-Fi page shows Hotspot `opentrickler-4A82`, Key `wqtsa7ad`; this PC's Wi-Fi joined with that key (WPA2-Personal) and read `/api/v1/system` at 192.168.4.1; the old key `opentrickler` did not join; no reply of the 58 GET paths the index lists holds the key (the profile removed from this PC after);
+  - the normal image back: `menu_tour --compare` (the screen's invert off for it, live, put back; the Wi-Fi and Firmware pages carry the name and the id, not judged), `charge_cycle` and `api_check` `VERDICT PASS`.
+- **Not run on the unit:** the id after a factory reset. A reset erases the Wi-Fi's key too, which the agent does not hold to put back. The reset's path is the one the first start took here: the record read wrong, its default made with the same id.
+- **Users told:** a unit's name changes once, and the shared key goes, written into `docs/releases/next.md`, the list a release's notes now carry over (`docs/releases/README.md`, step 1). The manual's password (`manuals/connect_to_wireless.md`) says where the unit shows its key.
+- **Found, for step 3:** the screen's mirror (`/api/v1/display/frame`) shows the Wi-Fi page as it is. Today the key is on it only while the unit is its own hotspot, when a reader of the mirror is on the hotspot and so has the key. Once step 3 keeps the hotspot up while the station joins, the home network can read the mirror while the key is shown: step 3 looks at it.
+- **For the owner:** a unit with no screen has no way to its key. The manual still speaks of a unit run without the 12864 (the Pico W's LED for its Wi-Fi state). Asked of the owner 2026-11-19: is a unit without the 12864 one to serve?

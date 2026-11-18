@@ -183,6 +183,8 @@ bool wireless_init() {
     eeprom_get_board_id(id, 4);
     id[4] = '\0';
     snprintf(host_name, sizeof(host_name), "opentrickler-%s", id);
+    // And the access point's key, the unit's own (ADR-008, gate 4)
+    access_point_mode_init();
 
 
     return is_ok;
