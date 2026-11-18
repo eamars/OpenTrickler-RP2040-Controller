@@ -41,7 +41,7 @@ So each phone's check is told it is not on the internet, and a port 443 that is 
 
 ### Next in gate 1
 
-1. The phones (the owner's): an iPhone and an Android phone on the probe image, joining the access point; then the station joined with the phone on it.
+1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
 2. The inventory of today's pages' features, `features.md`.
 3. The styles' proposal, with its tools in the build.
 4. The mock.

@@ -32,6 +32,7 @@ Status: **Open** 2026-11-18, gate 1 (the mock) under way. Drafted 2026-11-13, re
   - the radio probed in gate 1: "Pico W is connected so you can use the real device. This computer has WiFi module that I'm not using so you could use this workstation as the client to test";
   - "I'd take your fixes, please log in the ADR and relevant ADR";
   - the ideas (DHCP's captive-portal option, the pages cached by version, the phone kept awake): "Yes I'd like your ideas. However the last one may needs its own toggle switch and default to ON".
+- 2026-11-18, after gate 1's radio probe (progress.md): "I'm not around the Pico W so let's defer the iPhone test to later stage. And I don't have Android phone so let's assume they are working the same way." Read here as: the iPhone is seen at the unit before commissioning's design is settled, at the start of gate 4 at the latest; Android is not tested and is taken to work as the iPhone and the Windows client do (below, "To find out first").
 
 ## Why here
 
@@ -50,7 +51,7 @@ Commissioning was ADR-015, proposed on 2026-11-17 to come between ADR-010 and AD
 - **It is on API v1** (ADR-003): every read and write is a `fetch` to `/api/v1/...`, the refusals shown from the API's error. Its settings forms use the schema only in part: it reads `GET /api/v1/schema` for each field's type (to send a number as a number), each resource's save path, and which fields an import may write; the forms themselves, their fields, labels, limits and choices, are written in the page by hand (96 `name="..."`).
 - **It polls; nothing is pushed.** The charge's state every 500 ms; the cleanup's speed sent again every 2 s while it runs. The event log's held reads (`/api/v1/events?wait`, ADR-003) are not used by any page.
 - **In the image** (the Pico W's map, ADR-010's last build): 102,741 bytes, the portal 93,834, the wizard 7,055, the mirror 1,852. Gzipped they are 18.6 KB. `scripts/html2header.py` can minify (`minify_html`), but the build calls it with `--no-minify`, and `minify_html` is not in the venv.
-- **The flash left:** the Pico W's image is 978.1 KB of its 1,016 KB slot, 38 KB left; its RAM at link 252.5 KB of 256 (ADR-010's last figures). What the pages add or take away is measured against these.
+- **The flash left:** the Pico W's image is 983.4 KB of its 1,016 KB slot, 32.6 KB left; its RAM at link 253.0 KB of 256 (`size_report.py`, main at 616131f, 2026-11-18; ADR-010's last figures were 978.1 KB and 252.5 KB). The pages take 101.0 KB of it. A static table of 1.3 KB more RAM no longer links (progress.md, the probe's scan). What the pages add or take away is measured against these.
 - **`tests/web_test.py`** serves the pages from `src/html` and a recording of a real unit's replies (`tests/web_test_data.json`) at http://127.0.0.1:8000/, on Python's own HTTP server, and checks each write against the recorded schema (ADR-003). `--record <address>` records a unit again when the API grows.
 - **Open PRs with pages:** #113 adds a second, separate page for powder analysis (928 lines) and 17 lines to the portal; #111 adds an update section of 155 lines to the portal. #101, which added about 950 lines to the portal, was closed by ADR-002.
 
@@ -152,7 +153,7 @@ The agent's proposals, 2026-11-18, for the owner to settle with the mock:
 
 ### To find out first
 
-On real phones, at least one iPhone and one Android, before the design is settled. What is listed here is what phones are known to do, not yet seen with this unit:
+On a real iPhone, before commissioning's design is settled: deferred by the owner (2026-11-18) to when the owner is at the unit, and at the start of gate 4 at the latest, on the probe image (`-DRC_TEST_AP_PROBE=ON`). No Android phone is at hand: Android is taken to work as the iPhone does (the owner), and is not tested. The mock goes on meanwhile; the set-up's pages are drawn as the Windows client and today's code show, and changed if the iPhone differs. What is listed here is what phones are known to do, not yet seen with this unit:
 - whether joining the access point opens the sign-in sheet by itself, or only a notice to tap;
 - whether the set-up works inside that sheet, a reduced browser on iOS that closes when the network changes;
 - whether a phone leaves the access point, or sends its traffic over mobile data, because it has no internet;
@@ -235,7 +236,7 @@ Settled (the owner, 2026-11-18):
 - **The styles and the tools: the agent's proposal, in gate 1** (the owner, 2026-11-18: no strong preference; Tailwind and DaisyUI were a previous agent's recommendation; "if you see a better fit, or a better UI design for the application then I'm happy to review your proposal"). Whatever is chosen is trimmed at build time to what the pages use and served by the unit. Its tools are development tools, installed as needed (the owner), each version written in `toolchain.env` and fetched by both setup scripts and CI like every other. The proposal weighs, by the mock's real gzipped size and how it reads at the bench: Tailwind with DaisyUI by Tailwind's standalone command-line tool (one program, no Node; DaisyUI 5 is said to work with it as a plain plugin file, thought so, not checked), Tailwind alone with our own few components, and plain CSS of our own with no tool. It comes with a page drawn each way, for the owner to choose by using it.
 - **The tools come in gate 1, not gate 3** (the agent's review, 2026-11-18): the budget is settled against the mock's real size, which includes the trimmed styles, so the build that trims them is there first. The mock is the pages' first version, in the real layout of sources (nothing is thrown away), and `tests/web_test.py` serves what the build makes from them, not `src/html` as it stands, with stand-ins for what the recording lacks (the stream, a list of networks, an update under way).
 - **The pages cached by version** (the agent's idea, taken 2026-11-18): each page served with an `ETag` of the firmware's version, so a phone fetches the UI once per version and a reload is a `304` of a few bytes: less of lwIP's heap taken, a page that opens at once. An update is a new version and so a new `ETag`: an old page is never shown.
-- **The budget is set from the slot.** The Pico W's slot has 38 KB left, and our pages take 102.7 KB of the image (18.6 KB gzipped). Served gzipped, the whole UI aims at about 50 KB, handing the rest back to the ADRs after this one (ADR-009, ADR-014); the figure is checked against the mock's real size.
+- **The budget is set from the slot.** The Pico W's slot has 32.6 KB left (2026-11-18; 38 KB when this was agreed), and our pages take 102.7 KB of the image (18.6 KB gzipped). Served gzipped, the whole UI aims at about 50 KB, handing the rest back to the ADRs after this one (ADR-009, ADR-014); the figure is checked against the mock's real size.
 - **No tuning here.** Tuning with powder, a chart of a throw and PR #113's powder analysis are ADR-009's. This ADR changes nothing at the level of a powder throw.
 - **Settings forms drawn from the schema** (the owner, 2026-11-17: see "Handed on by ADR-010").
 - **One language,** English.
@@ -254,20 +255,20 @@ Agreed with the owner (2026-11-18), the agent's proposals:
 ## Gates (agreed with the owner, 2026-11-18)
 
 1. **The mock** (a design gate). The pages clickable against `tests/web_test.py`; the look, the proposals above, commissioning's, and the budget against the mock's real size settled by the owner using it. In it, in this order:
-   - the radio and today's captive parts probed on the Pico W from this workstation's Wi-Fi, then the phones' captive portals seen, so the set-up is designed on what they do ("To find out first");
+   - the radio and today's captive parts probed on the Pico W from this workstation's Wi-Fi (done 2026-11-18, progress.md); the iPhone deferred to when the owner is at the unit, at the start of gate 4 at the latest ("To find out first");
    - the inventory of today's pages' features (`features.md`), each placed or left out by the owner's decision;
    - the styles' proposal and its tools in the build, the stand-in serving what the build makes;
    - the mock itself, at the three widths.
 2. **The API review** (designed, then built). The event stream and its life cycle, the event for a setting changed, the API that describes itself, the feature table and the unit's report of what it carries; the server's change; soaked on the Pico W against polling.
 3. **The pages built.** Gzip and the `ETag`, the forms from the schema, the update's page, every client echoing the unit, each feature's part shown only when the unit reports it.
-4. **Commissioning built.** The set-up in the portal, opened by the captive portal and by DHCP's option 114; what the mock settled of the networks' list, the join, the key, the id and the QR code.
+4. **Commissioning built.** First the iPhone on the probe image, if not seen before (the owner at the unit). Then the set-up in the portal, opened by the captive portal and by DHCP's option 114; what the mock settled of the networks' list, the join, the key, the id and the QR code.
 
 Then the proof on both boards; PR #111 is closed once the update is shown end to end from the page.
 
 ## How the unit shows it works
 
 - With the internet unplugged, every page works from a phone on the unit's access point.
-- A person not at ease with a browser commissions a unit just reset, from its first start, with no help: on an iPhone and on an Android phone that have never joined it, joining its access point opens the set-up, and nobody types an address.
+- A person not at ease with a browser commissions a unit just reset, from its first start, with no help: on an iPhone that has never joined it, joining its access point opens the set-up, and nobody types an address. Android is taken to work the same (the owner, 2026-11-18: no Android phone at hand), and is checked only if one comes to hand.
 - Screenshots of each page from the unit match the mock.
 - On a build without an optional module, the unit's report names it absent, and its page and its links are absent.
 - Every feature in `features.md` is in the new pages or left out by the owner's decision.
