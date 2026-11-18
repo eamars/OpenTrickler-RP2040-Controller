@@ -1,6 +1,6 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Open** 2026-11-18. Gate 1 (the mock) settled by the owner 2026-11-19; gate 2 (the API review) next, designed before it is built. Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
+Status: **Open** 2026-11-18. Gate 1 (the mock) settled by the owner 2026-11-19; gate 2 (the API review) approved 2026-11-19 and under way. The whole ADR goes by one PR, #134 (the owner, 2026-11-19: "I'd merge ADR-008 as one PR, as more will change when you are implementing the actual code to the device"). Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
 
 ## What we want
 
@@ -371,14 +371,14 @@ Agreed with the owner (2026-11-18), the agent's proposals:
 
 Then the proof on both boards; PR #111 is closed once the update is shown end to end from the page.
 
-### Gate 2's plan (the agent's proposal, 2026-11-19, for the owner's approval)
+### Gate 2's plan (the agent's proposal, approved by the owner 2026-11-19)
 
-What gate 2 builds is already said above, item by item ("Every client echoes the unit", "The unit to the page: an event stream", "An API an agent reads by itself", "The words", "Handed on by ADR-005"). This is the order, how each step is proven, and the few choices left. One branch, a step at a time, each step proven on the Pico W before the next starts; one PR at the end, which waits for the owner (it changes the API and the update). The bench is asked for before the first step that needs it.
+What gate 2 builds is already said above, item by item ("Every client echoes the unit", "The unit to the page: an event stream", "An API an agent reads by itself", "The words", "Handed on by ADR-005"). This is the order, how each step is proven, and the few choices left. One branch, a step at a time, each step proven on the Pico W before the next starts; no PR of its own: the ADR's one PR, #134, waits for the owner. The bench is asked for before the first step that needs it.
 
 1. **The words first,** so every later step is written on the final names.
    - The API's renames: `cleanup` to `purge` (its paths, its events, the `job` value, the schema), `system/erase` to `system/factory_reset`. The settings' own words into the C tables, `PROPOSED_WORDS` emptied and the unit recorded again.
    - Every reader in the same step: `rc_run.py`, `unit_api.py`, `tests/web_test.py` and its recording, api_v1.md, AGENTS.md, and today's portal's few fetches. Today's portal is replaced in gate 3; its paths are renamed here only so main's Purge keeps working until then (a rename, not a fix: "no fixes to code being replaced" holds).
-   - **Kept in the API** (proposed): `leds`, `save` and `saved`, `powder_profiles`. The rule is one word for one thing so a reader maps the screen to the API; "save" for Store and "leds" for Lights are read as the same thing at once, "cleanup" for Purge is not. Renaming them costs every reader and buys an agent nothing.
+   - **Kept in the API** (approved with the plan): `leds`, `save` and `saved`, `powder_profiles`. The rule is one word for one thing so a reader maps the screen to the API; "save" for Store and "leds" for Lights are read as the same thing at once, "cleanup" for Purge is not. Renaming them costs every reader and buys an agent nothing.
    - Proof: `api_check` and `settings_roundtrip` pass on the new names; `menu_tour --compare` unchanged (the screen shows its labels flat, as before).
 2. **A setting changed is an event:** `setting`, with the resource's path and `by` (button, api, console, unit: `activity_by_t`, as a job's start says it), one for each resource written, a save and a revert included. Proof: a write from the console and one from the API each seen once in the log, with its `by`.
 3. **The event stream** (its life cycle, above), the riskiest step, so it comes before the smaller ones.

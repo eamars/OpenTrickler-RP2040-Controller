@@ -298,4 +298,5 @@ The owner: "I have reviewed the mock up, but I'm not going to review on my mobil
 
 ### Next in gate 2
 
-1. The plan written into the README ("Gate 2's plan", 2026-11-19): six steps in order, each proven on the Pico W before the next. Waits for the owner's approval, and the bench, before it is built.
+1. The plan written into the README ("Gate 2's plan", 2026-11-19): six steps in order, each proven on the Pico W before the next. Approved by the owner 2026-11-19 ("I approve the gate 2 and now proceed"), with `leds`, `save` and `powder_profiles` kept in the API. The whole ADR goes by one PR, #134, a draft until the ADR closes (the owner, the same day).
+2. Step 1, the words: under way.
