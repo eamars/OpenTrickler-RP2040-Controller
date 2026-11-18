@@ -1,6 +1,7 @@
 // Powders (ADR-008): the stored powders, the one the charge uses marked, each opening its form drawn from the schema
 // (#powders/3), with a powder's file out and in (features.md, rows 61 to 65). On a wide window the list is a table
 // of every powder's figures side by side, as the screen cannot show them; tuning them with powder is ADR-009's.
+// Titles as the settings': the navigation and the list's row say where the page is (settings.js).
 
 const POWDER_COLUMNS = [
     ["coarse_kp", "Kp"], ["coarse_ki", "Ki"], ["coarse_kd", "Kd"],
@@ -96,22 +97,20 @@ async function importPowder(id) {
 PAGES.powders = {
     async enter(rest) {
         const page = $("page-powders");
-        const chosen = /^\d+$/.test(rest) ? Number(rest) : null;
         const [powders, charge] = await Promise.all([readPowders(), api("GET", "/api/v1/charge")]);
         const inUse = charge.ok ? charge.data.powder_profile : null;
+        // Side by side, an empty pane says nothing: the powder in use is open (as the settings' first part)
+        const chosen = /^\d+$/.test(rest) ? Number(rest) : (SPLIT.matches ? inUse : null);
         page.dataset.open = chosen === null ? "list" : "part";
         page.replaceChildren(element("div", {class: "master"},
-                                     element("h1", {}, "Powders"),
                                      drawPowderList(powders, inUse, chosen),
                                      drawPowderTable(powders, inUse, chosen)));
         if (chosen === null) {
-            page.append(element("section", {class: "detail empty"}, element("p", {class: "hint"}, "Choose a powder to see or change its figures.")));
             return;
         }
         const reply = await api("GET", `/api/v1/powder_profiles/${chosen}`);
-        const pane = element("section", {class: "detail"},
-                             element("a", {href: "#powders", class: "back"}, "‹ Powders"),
-                             element("h2", {}, reply.ok ? reply.data.name : `Powder ${chosen}`));
+        // No title over the form: its first field is the powder's name
+        const pane = element("section", {class: "detail"}, element("a", {href: "#powders", class: "back"}, "‹ Powders"));
         if (reply.ok) {
             pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, () => route()));
             const files = element("div", {class: "button-row"},

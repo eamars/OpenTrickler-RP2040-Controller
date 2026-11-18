@@ -161,9 +161,36 @@ Driven: a setting changed (live, the Store bar shown), a value out of its limits
 
 **Not yet:** the check that every row of `features.md` is marked in the pages (only the Trickler's views carry their rows); the pages at 375 x 553 and the owner's pane; the set-up (commissioning, gate 4's design); the stand-in's update flow.
 
+### Where the person is, said once; the portal reviewed against the skill (2026-11-18)
+
+The owner, on the whole portal: "Everything works almost fine, except for the view with the side bar, and the section title. It is another case of duplicated information." On a wide window a part's name was said four times in one stack: the list's marked row, the part's title, its first group ("SCALE") and its first field ("Scale"). The same class, looked for on every page:
+
+| Found | Made |
+|---|---|
+| The part's title beside the list's marked row | no title side by side: the row is it. On a phone, where the part replaces the list, its name stays over it, under "‹ Settings" |
+| Every page but the Trickler titled under the navigation that marks it ("Settings" by the rail's Settings) | no page title: the navigation says it, as on the Trickler |
+| A group named as its resource (Scale, Gate, Wi-Fi, Display, Update, Motor, Profile) | no heading: the resource's own fields first. A field with no group draws none |
+| A field named as its part (the scale's "Scale", the gate's "Servo gate", the Wi-Fi's "Wi-Fi") | "Make" (the screen's own short label already), "Fitted", "Join a network" |
+| A powder's name as its title and again as its first field | no title |
+| "Coarse trickler", "Coarse trickler motor", "Powder profile", "LEDs": not the words | "Coarse motor", "Powder", "Lights"; the powders' help lines say "motor" |
+| The two motors stacked, each under a title, the longest page | one at a time, by a Coarse and Fine switch as the Trickler's |
+| On a wide window, Settings and Powders opened on an empty pane saying "Choose a part" | the first part open, and the powder in use |
+| The Unit's firmware version twice (the facts and the update); the facts under "This unit" with a "Name" row | once, in "Update" (the words' name, not "Firmware update"); the facts under the unit's own name |
+| A page opened scrolled where the last one was left | every new address starts at its top |
+| The switches, the forms' segmented choices, Zero and "‹ Settings" 44 px tall (rule 2: 48) | 48 px; the Trickler still fits 375 x 553 with no scroll, its figure 40 px as before |
+
+The words are the schema's, from the C tables the screen reads too: the mock shows them from `PROPOSED_WORDS` in `tests/web_test.py`, put into the recorded schema, and gate 2 writes them into the tables (README, "The words"). Each entry is checked against the recording, so once the unit says them the stand-in refuses to start until the list is emptied. Labels the screen shows flat, with no group, are kept: "Coarse Kp", "PWM3 LEDs".
+
+The skill has the rule (16, "Say where the person is once"), the review's check that its numbers hold (measured, not read from the CSS), and the switch for one of two alike things.
+
+Seen: 1280 x 800 (Settings with Scale open, Motors, Wi-Fi; Powders with the powder in use; Unit), 390 x 664 (Motors, a powder, the Unit, a new page at its top), 375 x 553 (the Trickler's Charge and Purge, no scroll), 768 x 1024 in dark (Servo gate, Lights). No console errors from the page. The whole portal 69,377 bytes, 18,771 gzipped.
+
+Found and left, being the unit's words for gate 2: the gate's shutters in "of the PWM's period", and the motor's gear ratio's line, whose "trickler" is the tube.
+
 ### Next in gate 1
 
 1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
-2. The owner reads `features.md` and settles what it proposes to leave out, and the cleanup's place.
-3. The styles' proposal, with its tools in the build.
-4. The mock.
+2. The check that every row of `features.md` is shown in the pages or marked left out (only the Trickler's views carry their rows yet).
+3. The stand-in's update flow (an offer, the download, the restart followed), so the Unit's update can be driven.
+4. The set-up's pages (commissioning), drawn as the Windows client and today's code show.
+5. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.

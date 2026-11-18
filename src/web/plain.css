@@ -75,7 +75,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--well);
        border: 1px solid var(--rule); border-radius: var(--r-control); }
-.seg button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; font-weight: 700;
+.seg button { min-height: 48px; border: 0; border-radius: 10px; background: transparent; font-weight: 700;
               color: var(--soft); }
 .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 /* A view in its groups (rule 15): the charge, the scale, the job, one under another at every width */
@@ -106,8 +106,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .scale { grid-area: scale; padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; }
 /* A group's name and its action, in the flow: a button laid over the reading collided with a wide figure */
 /* The reading's head: its state on the left, its action (Zero) on the right, both 44 px tall */
-.group-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; }
-.group-head .ghost { min-height: 44px; }
+.group-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 48px; }
+.group-head .ghost { min-height: 48px; }
 .ghost { min-height: var(--tap); min-width: var(--tap); padding: 0 16px; border-radius: var(--r-control);
          border: 1px solid var(--edge); background: var(--card); font-weight: 650; }
 
@@ -215,14 +215,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* The pages that are read and set, not worked at a job: they scroll (rule 14) */
 .page { max-width: 640px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 12px calc(var(--bar) + 88px); }
-.page h1 { font-size: 1.6rem; margin: 4px 4px 14px; }
 .page h2 { font-size: 1.15rem; margin: 0 0 10px; }
 .page h3 { font-size: 1rem; margin: 18px 4px 8px; color: var(--soft); }
 /* A list and the part it opens: on a phone one or the other, the address says which; on a wide window side by side */
 .split-page[data-open="part"] .master { display: none; }
 .split-page[data-open="list"] .detail { display: none; }
-.detail.empty .hint { padding: 24px 4px; }
-.back { display: inline-flex; align-items: center; min-height: 44px; color: var(--soft); text-decoration: none; font-weight: 650;
+.back { display: inline-flex; align-items: center; min-height: 48px; color: var(--soft); text-decoration: none; font-weight: 650;
         margin-left: 4px; }
 .list { display: grid; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); overflow: hidden; }
 .list .row { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 16px; color: var(--ink);
@@ -241,7 +239,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
                        align-items: start; }
     .split-page[data-open] .master, .split-page[data-open] .detail { display: block; }
     .split-page .back { display: none; }
-    .split-page .detail { padding-top: 46px; }
+    .split-page .detail > h2 { display: none; }
 }
 
 /* A form drawn from the schema */
@@ -251,7 +249,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .fields legend { float: left; width: 100%; padding: 14px 0 4px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.06em;
                  text-transform: uppercase; color: var(--soft); }
 .field { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--rule); }
-.fields legend + .field { border-top: 0; }
+.fields legend + .field, .fields > .field:first-child { border-top: 0; }
 .field > label:first-child { font-weight: 650; }
 .field.inline { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
 .field.inline .field-help, .field.inline .field-error { grid-column: 1 / -1; }
@@ -265,7 +263,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .unit-of { color: var(--soft); font-weight: 600; min-width: 3ch; }
 .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--well);
              border: 1px solid var(--rule); border-radius: var(--r-control); }
-.segmented button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; font-weight: 650; color: var(--soft); }
+.segmented button { min-height: 48px; border: 0; border-radius: 10px; background: transparent; font-weight: 650; color: var(--soft); }
 .segmented button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 .colour { display: flex; align-items: center; gap: 12px; }
 .colour input { width: 64px; height: var(--tap); padding: 4px; border: 1px solid var(--edge); border-radius: var(--r-control);
@@ -332,9 +330,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .switch input:checked + span::after { left: 23px; background: var(--on-ink); }
 .switch input:focus-visible + span { outline: 3px solid var(--not-ready); outline-offset: 2px; }
 
-/* A part opened from a list is the page on a phone: its name is the page's title */
+/* A part opened from a list is the page on a phone, its row out of view: its name is the page's title. Side by side
+   the row says it, and the name goes (rule 16). A part's switch (the motors) over its form */
 .detail > h2 { font-size: 1.6rem; margin: 0 4px 14px; }
-@media (min-width: 1000px) { .detail > h2 { font-size: 1.3rem; } }
+.detail > .seg { margin-bottom: 14px; }
 
 /* The powders' table needs its room: a wider list column on that page, and never under the form (it collided) */
 @media (min-width: 1000px) {

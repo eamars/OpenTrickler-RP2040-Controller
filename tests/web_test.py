@@ -37,6 +37,61 @@ HOLD_READS = 4                      # a throw's verdict held this many reads of 
 # The recording is kept in git: the owner's network is not. (The Wi-Fi key is never read: the unit never shows it)
 PRIVATE = {"/api/v1/network": {"ssid": "dummy_ssid", "address": "192.168.4.1"},
            "/api/v1/settings/wifi": {"ssid": "dummy_ssid"}}
+# The schema's words as ADR-008 proposes them ("The words"), shown by the mock before the unit says them: a group
+# that repeats its resource goes (null: the resource's own fields, under no heading), a field named as its resource
+# takes its own name, "trickler" leaves the motors and the powders. Each is (resource, field or None, key, the
+# recording's word, the proposed one). Gate 2 writes them into the C tables and records again; the stand-in then
+# refuses to start until this list is emptied, so it cannot outlive its gate.
+PROPOSED_WORDS = [
+    ("/api/v1/settings/scale", "driver", "group", "Scale", None),
+    ("/api/v1/settings/scale", "driver", "label", "Scale", "Make"),
+    ("/api/v1/settings/gate", "enable", "group", "Gate", None),
+    ("/api/v1/settings/gate", "enable", "label", "Servo gate", "Fitted"),
+    *[("/api/v1/settings/wifi", name, "group", "Wi-Fi", None) for name in ("enable", "ssid", "key", "auth", "timeout_ms")],
+    ("/api/v1/settings/wifi", "enable", "label", "Wi-Fi", "Join a network"),
+    *[("/api/v1/settings/display", name, "group", "Display", None)
+      for name in ("invert_encoder", "rotation", "invert_display", "charge_view")],
+    *[("/api/v1/settings/update", name, "group", "Update", None) for name in ("channel", "source")],
+    ("/api/v1/settings/leds", None, "label", "LEDs", "Lights"),
+    *[("/api/v1/settings/leds", name, "group", "Display", "Display board")
+      for name in ("backlight_colour", "led1_colour", "led2_colour")],
+    *[(f"/api/v1/settings/motors/{motor}", None, "label", f"{motor.capitalize()} trickler motor", f"{motor.capitalize()} motor")
+      for motor in ("coarse", "fine")],
+    *[(f"/api/v1/settings/motors/{motor}", name, "group", "Motor", None) for motor in ("coarse", "fine")
+      for name in ("full_steps_per_rotation", "max_speed_rps", "acceleration_rps2", "min_speed_rps", "gear_ratio")],
+    ("/api/v1/powder_profiles/{id}", None, "label", "Powder profile", "Powder"),
+    ("/api/v1/powder_profiles/{id}", "name", "group", "Profile", None),
+    *[("/api/v1/powder_profiles/{id}", f"{motor}_{name}", "group", f"{motor.capitalize()} trickler", None)
+      for motor in ("coarse", "fine") for name in ("kp", "ki", "kd", "min_speed_rps", "max_speed_rps")],
+    ("/api/v1/powder_profiles/{id}", "name", "about",
+     "The profile's name, as the menu shows it: printable ASCII, the screen's font draws nothing else",
+     "The powder's name, as the menu shows it: printable ASCII, the screen's font draws nothing else"),
+    *[("/api/v1/powder_profiles/{id}", f"{motor}_{name}", "about", f"The {motor} trickler's {was}", f"The {motor} motor's {now}")
+      for motor in ("coarse", "fine")
+      for name, was, now in (("kp", "proportional gain", "proportional gain"),
+                             ("ki", "integral gain", "integral gain"),
+                             ("kd", "derivative gain", "derivative gain"),
+                             ("min_speed_rps", "slowest while it pours; not above its maximum",
+                              "slowest while it pours; not above its maximum"),
+                             ("max_speed_rps", f"fastest, used up to the {motor} motor's max_speed_rps",
+                              "fastest while it pours; not above its Maximum speed in Settings, Motors"))],
+]
+
+
+def propose_words(schema):
+    """
+    Put PROPOSED_WORDS into the recorded schema, each found first as the recording says it.
+
+    Args:
+        schema: the recorded `GET /api/v1/schema`, changed in place.
+    """
+    for path, name, key, recorded, proposed in PROPOSED_WORDS:
+        resource = next(r for r in schema["resources"] if r["path"] == path)
+        target = resource if name is None else next(f for f in resource["fields"] if f["name"] == name)
+        if target.get(key) != recorded:
+            sys.exit(f"the recording says {key} {target.get(key)!r} for {path} {name or ''}, not {recorded!r}: "
+                     f"the unit has the words now, so take them out of PROPOSED_WORDS")
+        target[key] = proposed
 
 
 def record(host):
@@ -70,6 +125,7 @@ class StandIn:
         """
         self.replies = replies
         self.schema = replies["/api/v1/schema"]
+        propose_words(self.schema)
         self.lock = threading.Lock()
         self.events = []
         self.held = 0                   # reads of the charge since its last step, while the cup is lifted and returned

@@ -104,6 +104,9 @@ function element(tag, attributes, ...children) {
 const PAGES = {};
 let pageShown = null;
 
+// A window wide enough for a list beside the part it opens (the split pages' layout in plain.css)
+const SPLIT = window.matchMedia("(min-width: 1000px)");
+
 function route() {
     const [name, ...rest] = (location.hash.slice(1) || "trickler").split("/");
     const page = PAGES[name] ? name : "trickler";

@@ -27,18 +27,18 @@ function card(title, ...children) {
     return element("section", {class: "card"}, element("h2", {}, title), ...children);
 }
 
+// What the unit is, under its own name; its firmware's version is said once, in the update's card
 function drawFacts(index, network) {
     const net = network.ok ? network.data : {};
     const station = net.mode === "station";
-    return card("This unit", element("dl", {class: "facts"},
-                                     fact("Name", net.hostname || (index.ok ? index.data.hostname : null)),
-                                     fact("Firmware", index.ok ? index.data.firmware.version : null),
-                                     fact("Board", index.ok ? index.data.board : null),
-                                     fact("Unit id", index.ok ? index.data.unit_id : null),
-                                     fact(station ? "Network" : "Hotspot", net.ssid),
-                                     fact("Address", net.address),
-                                     station ? fact("Signal", signalText(net.rssi)) : null,
-                                     fact("Running for", index.ok ? uptimeText(index.data.uptime_s) : null)));
+    const name = net.hostname || (index.ok ? index.data.hostname : null) || "This unit";
+    return card(name, element("dl", {class: "facts"},
+                              fact("Board", index.ok ? index.data.board : null),
+                              fact("Unit id", index.ok ? index.data.unit_id : null),
+                              fact(station ? "Network" : "Hotspot", net.ssid),
+                              fact("Address", net.address),
+                              station ? fact("Signal", signalText(net.rssi)) : null,
+                              fact("Running for", index.ok ? uptimeText(index.data.uptime_s) : null)));
 }
 
 // The update: what runs, what the poll found and the offer, a poll now, a file by hand (ADR-004's "too prosumer"
@@ -48,9 +48,9 @@ function drawUpdate(update) {
     const body = [];
     if (u === null) {
         body.push(element("p", {class: "hint"}, `Not read: ${refusalText(update)}`));
-        return card("Firmware update", ...body);
+        return card("Update", ...body);
     }
-    body.push(element("dl", {class: "facts"}, fact("Running", u.running.version)));
+    body.push(element("dl", {class: "facts"}, fact("Firmware", u.running.version)));
     if (u.found) {
         const offer = element("div", {class: u.found.critical ? "offer critical" : "offer"},
                               element("p", {class: "offer-title"}, `Version ${u.found.version} is available`,
@@ -69,7 +69,7 @@ function drawUpdate(update) {
                       element("button", {class: "ghost", type: "button", onclick: checkUpdate}, "Check now"),
                       element("button", {class: "ghost", type: "button", onclick: () => installFile(u)}, "Install from a file"),
                       element("a", {class: "ghost link-button", href: "#settings/update"}, "Where updates come from")));
-    return card("Firmware update", ...body);
+    return card("Update", ...body);
 }
 
 async function checkUpdate() {
@@ -227,8 +227,7 @@ PAGES.unit = {
         const page = $("page-unit");
         const [index, network, update] = await Promise.all([api("GET", "/api/v1"), api("GET", "/api/v1/network"),
                                                             api("GET", "/api/v1/update")]);
-        page.replaceChildren(element("h1", {}, "Unit"),
-                             element("div", {class: "cards"},
+        page.replaceChildren(element("div", {class: "cards"},
                                      drawFacts(index, network),
                                      drawUpdate(update),
                                      drawMirror(),

@@ -2,7 +2,7 @@
 // groups, each a control by its type: a switch, a choice (segmented when it has few short options, a list
 // otherwise), a number with its unit, a line of text, a colour. A change is written at once (PATCH) and is live; the
 // page shows whether the resource is stored, and storing is one action (web-ui-design, rule 7). A refusal is said
-// under its field, in the unit's words.
+// under its field, in the unit's words. A heading says only what nothing above it says (web-ui-design, rule 16).
 
 const SCHEMA = {resources: null, promise: null};
 
@@ -138,7 +138,8 @@ async function drawForm(path, values, onStored) {
         groups.get(field.group).push(field);
     }
     for (const [name, fields] of groups) {
-        const set = element("fieldset", {class: "fields"}, element("legend", {}, name));
+        // A field with no group is the resource's own: its heading would repeat the part's name, so it has none
+        const set = element("fieldset", {class: "fields"}, name ? element("legend", {}, name) : null);
         for (const field of fields) {
             let row = null;
             const error = element("p", {class: "field-error", hidden: true});

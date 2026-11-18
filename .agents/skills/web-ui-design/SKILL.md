@@ -88,10 +88,18 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
     - **Why:** the owner, 2026-11-18: "I don't think in any case the charge weight should be put on the right hand side of the measurement. Check your web element inclusive relationship." The target had been put with Start, and Zero with the powder; on a wide window the target then sat right of the weight.
     - On the tiniest phones the page should look right before it is easy to reach: scale down, do not rearrange (the owner, the same day).
 
+16. **Say where the person is once.**
+    - The navigation marks the page (the rail's or the bar's destination): no page has a title repeating it. The Trickler never had one; Powders, Settings and Unit follow it.
+    - A list beside the part it opens: the list's marked row is the part's title, and the part has none. On a phone, where the part replaces the list, its name is over it, under "‹ Settings".
+    - A heading says only what nothing above or under it says: a group named as its resource has no heading (the resource's own fields come first, unheaded); a field is not named as its part ("Make", not "Scale" under Scale); a form whose first field is the name has no title over it (a powder).
+    - Read each heading top to bottom with what is around it: one word twice in a stack ("Scale", "SCALE", "Scale") is one too many.
+    - **Why:** the owner, 2026-11-18, on the Settings page with its list: the side bar and the section title, "another case of duplicated information" (rule 14's one element for one piece of news). The part's name was said four times: the list's row, the title, the group, the field.
+
 ## This project's design language
 
 - **Ground and surfaces:** a neutral grey ground, cards a step lighter (light) or darker (dark), 1 px rules, corners of 14 to 18 px, little shadow.
 - **The groups:** the charge's inputs in a card; the scale in a card, its name and Zero in its head, the figure and its ring or bar; the job under them, its status word then its action.
+- **One switch for one choice of view:** the segmented switch at the top (the Trickler's Charge and Purge, the Motors' Coarse and Fine) where a page shows one of two alike things; never two forms stacked under their own titles.
 - **Accent:** one colour for the action that moves the job on (Start), red for Stop; state colours as rule 5.
 - **Faces:** the system's sans serif; figures tabular, bold; three sizes besides the figure (body 17 px, small 14 px, heading 20 px).
 - **Icons:** 24 px, a 2 px stroke, round ends, `currentColor`; one per navigation destination and per card title.
@@ -103,7 +111,8 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
 - **Drive it:** start a charge, a purge, a refusal, the unit not reached; check the browser's console for errors.
 - **The agent is the lead designer** (the owner, 2026-11-18: "instead of going back-n-forth pointing out what I don't like, how about you to evaluate it yourself? ... I don't want to do micromanagement. You should be the lead UI designer"). Before the owner sees a page, review it yourself, every state at every size, and fix what the review finds. Bring the owner a page you would defend, and the decisions only they can make.
 - **The review, element by element, then state by state:**
-  - **Every element has a job:** what does it say or do that nothing else on the view does? A label that labels nothing ("Scale" over the obvious reading) goes; two elements with one piece of news (a step track beside the status, the target in its field and again under the weight) become one.
+  - **Every element has a job:** what does it say or do that nothing else on the view does? A label that labels nothing ("Scale" over the obvious reading) goes; two elements with one piece of news (a step track beside the status, the target in its field and again under the weight, a title under the navigation that marks it, rule 16) become one.
+  - **The rules' numbers hold:** every control 48 px at the least (rule 2), measured, not read from the CSS's intent (the switches and Zero were 44).
   - **Every element is in its group** (rule 15), and an action sits with what it acts on (Zero with the weight, the purge's keys either side of its speed).
   - **Nothing is an orphan:** no element alone on a row between groups (the status floated between the reading and Start until it joined the reading's head).
   - **Nothing is stale:** what a past job left (its time, its verdict) is not shown as if it were now.
