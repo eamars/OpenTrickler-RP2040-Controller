@@ -72,6 +72,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 - `c-style` for all C and C++;
 - `py-style` and `python-venv` for host tools;
 - `embedded-ui-design` for anything on the unit's screen: its fonts, grid, kinds of screen and wording, and mock-ups before code.
+- `web-ui-design` for anything on the web pages (ADR-008): layout by width, targets for gloved fingers, colour only where it means something, forms, confirmations, the captive-portal sheet; the mock on the stand-in before the unit.
 
 ## Proving a change on a unit
 
