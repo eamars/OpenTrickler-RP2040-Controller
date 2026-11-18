@@ -68,6 +68,9 @@ typedef struct {
     neopixel_led_chain_count_t pwm_out_led_chain_count;
     neopixel_colour_order_t pwm_out_led_colour_order;
     bool pwm_out_led_is_rgbw;   // true: RGBW, false: RGB
+#if RC_TEST_LAYOUT_CHANGE
+    uint32_t rc_test_layout_change;     // a test build's: the stored layout another size (ADR-008, gate 2)
+#endif
 } eeprom_neopixel_led_metadata_t;
 
 

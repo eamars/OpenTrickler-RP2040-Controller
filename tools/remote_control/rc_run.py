@@ -3188,7 +3188,7 @@ class Session:
         self.link_seen = len(self.openocd.output)
         return None
 
-    def slot_trial(self, image_elf, expect, corrupt):
+    def slot_trial(self, image_elf, expect, corrupt, reason=None, reset=None):
         """
         A trial of an image in the other slot (ADR-004, gate 1). The image's .bin is written through the probe into
         the slot the unit does not run from, the unit is restarted on what it runs, and a trial is asked
@@ -3268,6 +3268,22 @@ class Session:
         if tried is None or tried["slot"] != new_slot or tried["trial"] != "1":
             self.fail(f"slot_trial: slot {new_slot} should run on trial: {tried}")
             return
+        if expect == "power-trial":
+            # The power cut while the image runs on trial (ADR-008, gate 2): back on the old image at once, and the
+            # unit says why. The image is one that never confirms itself, so it is still on trial when cut
+            time.sleep(10.0)
+            self.power_cut()
+            state = None
+            deadline = time.monotonic() + 30
+            while state is None and time.monotonic() < deadline:
+                time.sleep(1.0)
+                state = self.update_state(old_elf, CONSOLE_TIMEOUT_S)
+            self.log.write("rc", f"slot_trial: after the power cut: {state}")
+            if state is None or state["slot"] != old_slot or state["trial"] != "0":
+                self.fail(f"slot_trial: after a power cut on trial the unit should be back on slot {old_slot}: {state}")
+                return
+            self.slot_trial_last(state, "2", reason, reset, old_elf)
+            return
         if expect == "confirmed":
             deadline = started + 60
             state = tried
@@ -3285,6 +3301,7 @@ class Session:
                 self.fail(f"slot_trial: after a restart slot {new_slot} (block {new_block}) should run: {kept}")
                 return
             self.log.write("rc", f"slot_trial: after a restart the unit runs slot {new_slot}, block {kept['block']}")
+            self.slot_trial_last(kept, "1", reason, reset, new_elf)
             return
 
         # back: the trial's watchdog is fed for its minute, then it restarts the unit into the old image
@@ -3302,6 +3319,22 @@ class Session:
             return
         self.log.write("rc", f"slot_trial: back on slot {old_slot} {time.monotonic() - started:.1f} s after the "
                              f"trial was asked, block {state['block']}")
+        self.slot_trial_last(state, "2", reason, reset, old_elf)
+
+    def slot_trial_last(self, state, result, reason, reset, elf):
+        """
+        How the trial ended, as the unit keeps it (ADR-008, gate 2): `last` (1 confirmed, 2 back), its reason and the
+        settings it reset, read after the end and again after a restart, which must not forget it.
+        """
+        for moment in ("after the end", "after a restart"):
+            if moment == "after a restart":
+                self.reset()
+                state = self.update_state(elf, CONSOLE_TIMEOUT_S)
+            self.log.write("rc", f"slot_trial: last {moment}: {state and (state.get('last'), state.get('reason'), state.get('reset'))}")
+            if state is None or state.get("last") != result or \
+                    (reason is not None and state.get("reason") != reason) or \
+                    (reset is not None and int(state.get("reset", "0"), 16) != reset):
+                self.fail(f"slot_trial: last {moment} should be {result}, reason {reason}, reset {reset}: {state}")
 
     def update(self, host, manifest_path, expect, refused_code, new_elf, browsers=False):
         """
@@ -3692,7 +3725,11 @@ def main():
     trial_parser = sub.add_parser("slot_trial", help="an image written into the other slot and tried (ADR-004)")
     trial_parser.add_argument("--image", required=True,
                               help="the update image's ELF (built with APP_TRIAL_IMAGE); its .bin is written")
-    trial_parser.add_argument("--expect", choices=["confirmed", "back", "refused"], required=True)
+    trial_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "power-trial"], required=True)
+    trial_parser.add_argument("--reason", help="the reason `last` must give (ADR-008, gate 2): did_not_start, "
+                                               "no_network, not_confirmed, power_cut")
+    trial_parser.add_argument("--reset", type=lambda text: int(text, 0),
+                              help="the settings `last` must name as reset, their bits (0x20 the LEDs)")
     trial_parser.add_argument("--corrupt", action="store_true", help="change one byte of the image first")
     settings_parser = sub.add_parser("settings", help="copy the stored settings over the web API, and compare")
     settings_parser.add_argument("--host", required=True, help="the unit's address")
@@ -3790,7 +3827,7 @@ def run_command(session, args):
     elif args.command == "update":
         session.update(args.host, args.manifest, args.expect, args.refused_code, args.new_elf, args.browsers)
     elif args.command == "slot_trial":
-        session.slot_trial(args.image, args.expect, args.corrupt)
+        session.slot_trial(args.image, args.expect, args.corrupt, args.reason, args.reset)
     elif args.command == "flash":
         session.flash()
     elif args.command == "reset":

@@ -51,6 +51,11 @@ typedef enum {
     EVENT_REASON_SCALE_UNRELIABLE,
     EVENT_REASON_DRIVER_FAULT,
     EVENT_REASON_REFUSED,       // an update's image
+    // Why an update's trial went back (ADR-008, gate 2): how far the image tried got
+    EVENT_REASON_DID_NOT_START, // it crashed or hung before it was on its network
+    EVENT_REASON_NO_NETWORK,    // not on its network within the join's time, or its Wi-Fi settings did not read
+    EVENT_REASON_NOT_CONFIRMED, // on its network, and its confirmation did not hold
+    EVENT_REASON_POWER_CUT,     // the power went during the trial
 } event_reason_t;
 
 // A throw's verdict (api_v1.md's `result`)

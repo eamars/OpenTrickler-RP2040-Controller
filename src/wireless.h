@@ -36,6 +36,8 @@ extern "C" {
 void wireless_task(void *);
 bool wireless_init(void);
 bool wireless_config_save();
+// How long the station tries to join before it gives up (settings/wifi timeout_ms): an update's trial waits this long
+uint32_t wireless_join_timeout_ms(void);
 
 // The network the unit is on, as GET /api/v1/network gives it (ADR-003, gate 4)
 typedef struct {

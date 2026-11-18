@@ -16,6 +16,7 @@
 #define EEPROM_PROFILE_DATA_BASE_ADDR           9 * 1024       // 9k
 #define EEPROM_SERVO_GATE_CONFIG_BASE_ADDR     10 * 1024       // 10k
 #define EEPROM_UPDATE_CONFIG_BASE_ADDR         11 * 1024       // 11k: the update's channel and source (ADR-010)
+#define EEPROM_UPDATE_NOTE_BASE_ADDR           12 * 1024       // 12k: the trial's note and how the last update ended (ADR-008)
 
 #define EEPROM_METADATA_REV                     2              // 16 byte 
 

@@ -32,7 +32,10 @@
 #include "activity.h"
 #include "api_v1.h"
 #include "display.h"
+#include "common.h"
+#include "eeprom.h"
 #include "events.h"
+#include "http_json.h"
 #include "https_client.h"
 #include "menu.h"
 #include "jobs.h"
@@ -41,6 +44,7 @@
 #include "update_poll.h"
 #include "update_slots.h"
 #include "version.h"
+#include "wireless.h"
 
 #if PICO_RP2350
 #define UPDATE_CHIP PICOBIN_IMAGE_TYPE_EXE_CHIP_RP2350
@@ -319,12 +323,161 @@ static void update_clear_note(void) {
 }
 
 
+static void update_event_reason(event_kind_t kind, event_reason_t reason, uint32_t version) {
+    event_t event = {.source = EVENT_SOURCE_UPDATE, .kind = (uint8_t) kind, .by = (uint8_t) ACTIVITY_BY_UNIT,
+                     .reason = (uint8_t) reason, .version = version};
+    events_add(&event);
+}
+
+/*
+ * The trial's note, in the EEPROM (ADR-008, gate 2; the update's life cycle, gaps 2 to 4). Written before the restart
+ * into a trial and as the trial goes (never held: a trial's own record), so the start after it says how far the image
+ * tried got even when the power went; and how the last update ended, kept until the next. The scratch note beside it
+ * (update_slots_note_write) is cleared by a power cut: a note here with none there is a trial the power ended
+ */
+typedef enum {
+    UPDATE_STAGE_ASKED = 0,     // the restart into the trial asked
+    UPDATE_STAGE_STARTED,       // the image tried started, its modules loaded
+    UPDATE_STAGE_JOINED,        // on its network, its confirmation next
+    UPDATE_STAGE_NO_NETWORK,    // not on its network in time, or its Wi-Fi settings did not read
+} update_stage_t;
+
+typedef struct {
+    uint16_t rev;               // 0, as every record load_config reads
+    uint8_t tried;              // the slot tried and 1, or 0: no trial asked
+    uint8_t stage;              // update_stage_t
+    uint32_t version;           // the block version tried
+    uint8_t last_result;        // update_result_t: how the last update ended, confirmed or back
+    uint8_t last_reason;        // event_reason_t
+    uint16_t last_reset;        // the settings it reset, a bit each (update_records)
+    uint32_t last_version;
+} update_note_t;
+
+static update_note_t update_note;
+static bool update_scratch_note = false;    // the scratch note was there at this start: no power cut since it was left
+
+// The records an update may reset, by their bit in last_reset: a stored layout that changed (api_v1.md's names)
+static const struct {
+    uint16_t addr;
+    const char *name;
+} update_records[] = {
+    {EEPROM_METADATA_BASE_ADDR, "unit"},
+    {EEPROM_SCALE_CONFIG_BASE_ADDR, "scale"},
+    {EEPROM_WIRELESS_CONFIG_BASE_ADDR, "wifi"},
+    {EEPROM_MOTOR_CONFIG_BASE_ADDR, "motors"},
+    {EEPROM_CHARGE_MODE_BASE_ADDR, "charge"},
+    {EEPROM_NEOPIXEL_LED_CONFIG_BASE_ADDR, "leds"},
+    {EEPROM_MINI_12864_CONFIG_BASE_ADDR, "display"},
+    {EEPROM_PROFILE_DATA_BASE_ADDR, "powder_profiles"},
+    {EEPROM_SERVO_GATE_CONFIG_BASE_ADDR, "gate"},
+    {EEPROM_UPDATE_CONFIG_BASE_ADDR, "update"},
+};
+
+
+void update_write_reset(uint16_t reset, char *out, size_t room, size_t *len) {
+    http_json_raw(out, room, len, "[");
+    bool first = true;
+    for (size_t idx = 0; idx < sizeof(update_records) / sizeof(update_records[0]); idx += 1) {
+        if (reset & (1u << idx)) {
+            http_json_raw(out, room, len, first ? "" : ",");
+            http_json_string(out, room, len, update_records[idx].name);
+            first = false;
+        }
+    }
+    http_json_raw(out, room, len, "]");
+}
+
+
+static void update_note_save(void) {
+    if (!save_config_now(EEPROM_UPDATE_NOTE_BASE_ADDR, &update_note, sizeof(update_note))) {
+        printf("Update: the note could not be written\n");
+    }
+}
+
+
+static void update_note_stage(update_stage_t stage) {
+    update_note.stage = (uint8_t) stage;
+    update_note_save();
+}
+
+
+static const char *update_stage_name(uint8_t stage) {
+    switch (stage) {
+        case UPDATE_STAGE_ASKED: return "asked";
+        case UPDATE_STAGE_STARTED: return "started";
+        case UPDATE_STAGE_JOINED: return "joined";
+        case UPDATE_STAGE_NO_NETWORK: return "no network";
+        default: return "?";
+    }
+}
+
+
+// The trial's longest: the Wi-Fi join's own time and a margin, at least the first 60 s (gap 5)
+static uint32_t update_trial_limit_ms(void) {
+    uint32_t limit = wireless_join_timeout_ms() + 30000u;
+    return limit > UPDATE_TRIAL_LIMIT_MS ? limit : UPDATE_TRIAL_LIMIT_MS;
+}
+
+
+uint32_t update_back_within_s(void) {
+    // The trial's longest, and some 20 s of the restarts on either side of it
+    return update_trial_limit_ms() / 1000u + 20u;
+}
+
+
+void update_start_note(void) {
+    if (!config_read_stored(EEPROM_UPDATE_NOTE_BASE_ADDR, &update_note, sizeof(update_note))) {
+        memset(&update_note, 0, sizeof(update_note));     // never written: no update yet, nothing to say
+    }
+    if (update_note.tried != 0) {
+        int8_t tried = (int8_t) (update_note.tried - 1);
+        if (tried == update_slots.running && update_slots.on_trial) {
+            // This start is the trial: say so as it goes
+            update_note_stage(UPDATE_STAGE_STARTED);
+            printf("Update: on trial of %c, its note started\n", update_slot_name(tried));
+        }
+        else if (tried == update_slots.running) {
+            // Confirmed, and the power went before the note said so: kept
+            update_note = (update_note_t) {.last_result = UPDATE_RESULT_CONFIRMED, .last_version = update_note.version};
+            update_note_save();
+        }
+        else {
+            // Back: why, by how far the trial got, or the power when the scratch note went with it
+            event_reason_t reason = !update_scratch_note ? EVENT_REASON_POWER_CUT :
+                                    update_note.stage == UPDATE_STAGE_JOINED ? EVENT_REASON_NOT_CONFIRMED :
+                                    update_note.stage == UPDATE_STAGE_NO_NETWORK ? EVENT_REASON_NO_NETWORK :
+                                    EVENT_REASON_DID_NOT_START;
+            uint32_t version = update_note.version;
+            printf("Update: the image tried was left at its stage %s: back on slot %c (%s)\n",
+                   update_stage_name(update_note.stage), update_slot_name(update_slots.running),
+                   events_reason_name(reason));
+            update_note = (update_note_t) {.last_result = UPDATE_RESULT_BACK, .last_reason = (uint8_t) reason,
+                                           .last_version = version};
+            update_note_save();
+            update_clear_note();
+            update_event_reason(EVENT_BACK, reason, version);
+        }
+    }
+    if (update_note.last_result == UPDATE_RESULT_CONFIRMED || update_note.last_result == UPDATE_RESULT_BACK) {
+        update_last = (update_last_t) {.result = (update_result_t) update_note.last_result,
+                                       .version = update_note.last_version, .reason = update_note.last_reason,
+                                       .reset = update_note.last_reset};
+    }
+}
+
+
+
 // Restart into a trial of the free slot's image, leaving the note. Returns only when the restart was refused, and then
 // the note goes too: no trial ran (review C3)
 static int update_try(uint32_t version) {
+    update_note.tried = (uint8_t) (1 - update_slots.running + 1);
+    update_note.version = version;
+    update_note_stage(UPDATE_STAGE_ASKED);
     update_slots_note_write(UPDATE_NOTE_MAGIC | (uint32_t) (1 - update_slots.running), version);
     int refused = update_slots_try_other();
     update_clear_note();
+    update_note.tried = 0;
+    update_note_save();
     return refused;
 }
 
@@ -339,24 +492,12 @@ static void update_event(event_kind_t kind, activity_by_t by, event_reason_t rea
 }
 
 
-// At start-up: the note says a trial was asked before this start. The trial running keeps it until it confirms
-// itself; any other image running means the one tried was left
+// At start-up, before the EEPROM is up: only whether the scratch note is there, which a power cut clears. The note in
+// the EEPROM says the rest, in update_start_note()
 static void update_read_note(void) {
     uint32_t note, version;
     update_slots_note_read(&note, &version);
-    if ((note & ~0xffu) != UPDATE_NOTE_MAGIC) {
-        return;
-    }
-    int8_t tried = (int8_t) (note & 0xffu);
-    if (tried == update_slots.running && update_slots.on_trial) {
-        return;
-    }
-    update_clear_note();
-    update_last = (update_last_t) {.result = UPDATE_RESULT_BACK, .version = version};
-    update_event(EVENT_BACK, ACTIVITY_BY_UNIT, EVENT_REASON_NONE, NULL, version);
-    char text[16];
-    update_version_text(version, text, sizeof(text));
-    printf("Update: the image tried (%s) was left: back on slot %c\n", text, update_slot_name(update_slots.running));
+    update_scratch_note = (note & ~0xffu) == UPDATE_NOTE_MAGIC;
 }
 
 
@@ -368,9 +509,12 @@ static void update_feed(TimerHandle_t timer) {
         xTimerStop(timer, 0);
         return;
     }
-    if ((xTaskGetTickCount() - update_trial_started) >= pdMS_TO_TICKS(UPDATE_TRIAL_LIMIT_MS)) {
-        printf("Update: not confirmed within %d s; the watchdog restarts into the other slot\n",
-               UPDATE_TRIAL_LIMIT_MS / 1000);
+    if ((xTaskGetTickCount() - update_trial_started) >= pdMS_TO_TICKS(update_trial_limit_ms())) {
+        printf("Update: not confirmed within %lu s; the watchdog restarts into the other slot\n",
+               (unsigned long) (update_trial_limit_ms() / 1000));
+        if (update_note.stage != UPDATE_STAGE_JOINED) {
+            update_note_stage(UPDATE_STAGE_NO_NETWORK);
+        }
         xTimerStop(timer, 0);
         return;
     }
@@ -387,6 +531,8 @@ void update_init(void) {
     if (!update_slots.on_trial) {
         return;
     }
+    // Nothing the image it may go back to relies on is written until this one is kept (gap 1)
+    config_hold_writes(true);
     watchdog_enable(UPDATE_TRIAL_WATCHDOG_MS, true);
     update_trial_started = xTaskGetTickCount();
     update_feed_timer = xTimerCreate("Update feed", pdMS_TO_TICKS(UPDATE_TRIAL_FEED_MS), pdTRUE, NULL, update_feed);
@@ -400,10 +546,14 @@ void update_network_ready(bool on_its_network) {
     if (!update_slots.on_trial || update_confirmed) {
         return;
     }
-    if (!on_its_network) {
-        printf("Update: not on its network; not confirmed, the unit goes back at the trial's end\n");
+    if (!on_its_network || config_defaults_held(EEPROM_WIRELESS_CONFIG_BASE_ADDR)) {
+        // Its own hotspot is not its network; nor is any network its Wi-Fi settings did not read to name
+        printf("Update: not on its network%s; not confirmed, the unit goes back at the trial's end\n",
+               on_its_network ? " (its Wi-Fi settings did not read)" : "");
+        update_note_stage(UPDATE_STAGE_NO_NETWORK);
         return;
     }
+    update_note_stage(UPDATE_STAGE_JOINED);
 #if RC_TEST_NO_CONFIRM
     // A test build that never confirms itself (rc_run.py slot_trial --expect back)
     printf("Update: a test build: not confirmed\n");
@@ -417,10 +567,28 @@ void update_network_ready(bool on_its_network) {
     update_confirmed = true;
     watchdog_disable();
     update_clear_note();
+    // Kept: what the trial held is written now, and the settings it reset are said (gap 1)
+    uint16_t reset_addrs[sizeof(update_records) / sizeof(update_records[0])];
+    size_t reset_count = config_write_held(reset_addrs, sizeof(reset_addrs) / sizeof(reset_addrs[0]));
+    uint16_t reset = 0;
+    for (size_t idx = 0; idx < reset_count; idx += 1) {
+        for (size_t bit = 0; bit < sizeof(update_records) / sizeof(update_records[0]); bit += 1) {
+            if (update_records[bit].addr == reset_addrs[idx]) {
+                reset |= (uint16_t) (1u << bit);
+            }
+        }
+    }
+    update_note = (update_note_t) {.last_result = UPDATE_RESULT_CONFIRMED, .last_reset = reset,
+                                   .last_version = update_running_version()};
+    update_note_save();
     activity_lock();
-    update_last = (update_last_t) {.result = UPDATE_RESULT_CONFIRMED, .version = update_running_version()};
+    update_last = (update_last_t) {.result = UPDATE_RESULT_CONFIRMED, .version = update_running_version(),
+                                   .reset = reset};
     activity_unlock();
-    update_event(EVENT_CONFIRMED, ACTIVITY_BY_UNIT, EVENT_REASON_NONE, NULL, update_running_version());
+    event_t confirmed = {.source = EVENT_SOURCE_UPDATE, .kind = (uint8_t) EVENT_CONFIRMED,
+                         .by = (uint8_t) ACTIVITY_BY_UNIT, .throw_number = reset,
+                         .version = update_running_version()};
+    events_add(&confirmed);
     printf("Update: slot %c confirmed\n", update_slot_name(update_slots.running));
 }
 
@@ -657,13 +825,18 @@ update_refusal_t update_image_end(uint32_t token, int *status) {
             refusal = update_upload_refusal;
         }
     }
+    activity_lock();
+    if (update_state == UPDATE_RECEIVING && token == update_upload_token) {
+        update_state = UPDATE_CHECKING;     // a stage of its own: the page says so, not 100% received (gap 6)
+    }
+    activity_unlock();
     if (refusal.code == NULL) {
         refusal = update_check_free(&image);
     }
     activity_lock();
     bool ours = token == update_upload_token;
     update_upload_token = ours ? 0 : update_upload_token;
-    if (update_state != UPDATE_RECEIVING || !ours) {
+    if (update_state != UPDATE_CHECKING || !ours) {
         // Stopped, or ended by its time, while the image came
         refusal = update_refuse("not_running", "the update was stopped");
         *status = 409;
@@ -928,11 +1101,12 @@ bool update_console(const char *args, char *reply, size_t reply_size) {
         update_status(&status);
         snprintf(reply, reply_size,
                  "@ok update slot=%c known=%d trial=%d confirmed=%d confirm_result=%d ver=%s block=%d.%d "
-                 "free=0x%lx+0x%lx state=%d takes=%s last=%d",
+                 "free=0x%lx+0x%lx state=%d takes=%s last=%d reason=%s reset=0x%x",
                  update_slot_name(update_slots.running), update_slots_known, update_slots.on_trial,
                  update_confirmed, update_confirm_result, version_string, PICO_CRT0_VERSION_MAJOR,
                  PICO_CRT0_VERSION_MINOR, (unsigned long) update_slots.free_offset,
-                 (unsigned long) update_slots.free_size, (int) status.state, status.takes, (int) status.last.result);
+                 (unsigned long) update_slots.free_size, (int) status.state, status.takes, (int) status.last.result,
+                 events_reason_name((event_reason_t) status.last.reason), (unsigned) status.last.reset);
         return true;
     }
     if (strcmp(args, "try") == 0) {

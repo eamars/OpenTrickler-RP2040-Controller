@@ -179,6 +179,12 @@ option(RC_TEST_AP_PROBE "Test build only: the access point kept up through the s
 if (RC_TEST_AP_PROBE)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_AP_PROBE=1)
 endif()
+# A test build whose stored LED record has another size (ADR-008, gate 2): on trial its settings read as a layout that
+# changed, held as the defaults; kept, the update says it reset them
+option(RC_TEST_LAYOUT_CHANGE "Test build only: the LEDs' stored record a word longer" OFF)
+if (RC_TEST_LAYOUT_CHANGE)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_LAYOUT_CHANGE=1)
+endif()
 # A test build that never confirms itself on trial (ADR-004): the unit goes back to the other slot
 option(RC_TEST_NO_CONFIRM "Test build only: an image on trial never confirms itself" OFF)
 if (RC_TEST_NO_CONFIRM)

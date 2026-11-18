@@ -990,6 +990,7 @@ static const char *update_state_name(update_state_t state) {
     switch (state) {
         case UPDATE_STARTING: return "starting";
         case UPDATE_RECEIVING: return "receiving";
+        case UPDATE_CHECKING: return "checking";
         case UPDATE_READY: return "ready";
         case UPDATE_INSTALLING: return "installing";
         case UPDATE_ENDING: return "ending";
@@ -1096,7 +1097,23 @@ static void reply_update(http_server_reply_t *reply, int status) {
         write_text_or_null(out, room, &len, update.last.code);
         http_json_raw(out, room, &len, ",\"message\":");
         write_text_or_null(out, room, &len, update.last.message);
+        // Why a trial went back, and the settings a kept one reset (ADR-008, gate 2); kept across restarts
+        http_json_raw(out, room, &len, ",\"reason\":");
+        write_text_or_null(out, room, &len, update.last.result == UPDATE_RESULT_BACK ?
+                                            events_reason_name((event_reason_t) update.last.reason) : NULL);
+        http_json_raw(out, room, &len, ",\"reset\":");
+        if (update.last.result == UPDATE_RESULT_CONFIRMED) {
+            update_write_reset(update.last.reset, out, room, &len);
+        }
+        else {
+            http_json_raw(out, room, &len, "null");
+        }
         http_json_raw(out, room, &len, "}");
+    }
+    if (update.state == UPDATE_INSTALLING) {
+        // How long the restart's silence may last before the page says the unit is not back
+        http_json_raw(out, room, &len, ",\"back_within_s\":");
+        http_json_integer(out, room, &len, (long) update_back_within_s());
     }
     http_json_raw(out, room, &len, "}");
     api_send(reply, status, room, len);
@@ -1577,7 +1594,7 @@ static const char *const api_v1_schema_states[] = {
     "information, a driver's fault): a start is refused until it is closed there\"},{\"value\":\"update\","
     "\"about\":\"a firmware update (ADR-004)\"}]",
     "\"update\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
-    "yet\"},{\"value\":\"receiving\",\"about\":\"the image is taken into the free slot\"},{\"value\":\"ready\","
+    "yet\"},{\"value\":\"receiving\",\"about\":\"the image is taken into the free slot\"},{\"value\":\"checking\",\"about\":\"all of the image in: its SHA-256, its board and its seal checked\"},{\"value\":\"ready\","
     "\"about\":\"the image is whole and checked: install, or stop\"},{\"value\":\"installing\",\"about\":\"the "
     "restart into its trial is under way\"},{\"value\":\"ending\",\"about\":\"ended: the screen is given back, "
     "and a start is taken again once it is idle\"}]",
@@ -1631,10 +1648,10 @@ static const char *const api_v1_schema_events[] = {
     "{\"source\":\"update\",\"kind\":\"received\",\"carries\":[\"version\"],\"about\":\"the image is whole and "
     "checked\"}",
     "{\"source\":\"update\",\"kind\":\"installing\",\"carries\":[\"version\"]}",
-    "{\"source\":\"update\",\"kind\":\"confirmed\",\"carries\":[\"version\"],\"about\":\"after the restart, the "
-    "image tried confirmed itself once on its network\"}",
-    "{\"source\":\"update\",\"kind\":\"back\",\"carries\":[\"version\"],\"about\":\"after the restart, the image "
-    "tried was left, and the one before runs\"}",
+    "{\"source\":\"update\",\"kind\":\"confirmed\",\"carries\":[\"version\",\"reset\"],\"about\":\"after the restart, "
+    "the image tried confirmed itself once on its network; reset: the settings it reset to their defaults, by name\"}",
+    "{\"source\":\"update\",\"kind\":\"back\",\"carries\":[\"version\",\"reason\"],\"about\":\"after the restart, the "
+    "image tried was left, and the one before runs; reason: did_not_start, no_network, not_confirmed, power_cut\"}",
     "{\"source\":\"update\",\"kind\":\"found\",\"carries\":[\"version\"],\"about\":\"the poll found a newer release, "
     "now offered: GET /api/v1/update, found\"}",
     "{\"source\":\"setting\",\"kind\":\"changed\",\"carries\":[\"by\",\"path\"],\"about\":\"a settings resource "

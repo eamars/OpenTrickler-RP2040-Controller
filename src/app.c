@@ -57,6 +57,7 @@ int main()
 
     // Initialize EEPROM first
     eeprom_init();
+    update_start_note();     // the trial's note, now the EEPROM is up (ADR-008, gate 2)
 
     // Initialize Neopixel RGB on the mini 12864 board
     neopixel_led_init();

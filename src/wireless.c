@@ -189,6 +189,11 @@ bool wireless_init() {
 }
 
 
+uint32_t wireless_join_timeout_ms(void) {
+    return wireless_config.eeprom_wireless_metadata.timeout_ms;
+}
+
+
 bool wireless_config_save() {
     bool is_ok = save_config(EEPROM_WIRELESS_CONFIG_BASE_ADDR, &wireless_config.eeprom_wireless_metadata, sizeof(eeprom_wireless_metadata_t));
     return is_ok;

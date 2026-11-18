@@ -18,6 +18,7 @@
 #include "cleanup_mode.h"
 #include "common.h"
 #include "eeprom.h"
+#include "events.h"
 #include "http_server.h"
 #include "jobs.h"
 #include "menu_nav.h"
@@ -473,7 +474,14 @@ static const char *update_went_back_label(void) {
     static char line[48];
     update_poll_status_t poll;
     update_found(&poll);
-    snprintf(line, sizeof(line), "%.15s did not start last time.", poll.version);
+    // Why, as the unit knows it (ADR-008, gate 2): not "did not start" when only the router was away
+    update_status_t update;
+    update_status(&update);
+    const char *why = update.last.reason == EVENT_REASON_NO_NETWORK ? "found no network last time." :
+                      update.last.reason == EVENT_REASON_NOT_CONFIRMED ? "was not kept last time." :
+                      update.last.reason == EVENT_REASON_POWER_CUT ? "lost power last time." :
+                      "did not start last time.";
+    snprintf(line, sizeof(line), "%.15s %s", poll.version, why);
     return line;
 }
 
@@ -2397,6 +2405,9 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
             else {
                 snprintf(screen->title, sizeof(screen->title), "%s", update.download ? "Downloading" : "Receiving");
             }
+            break;
+        case UPDATE_CHECKING:
+            snprintf(screen->title, sizeof(screen->title), "Checking");
             break;
         case UPDATE_READY:
             snprintf(screen->title, sizeof(screen->title), "%s", update.download ? "Checking" : "Ready to install");

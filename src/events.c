@@ -89,6 +89,10 @@ const char *events_reason_name(event_reason_t reason) {
         case EVENT_REASON_SCALE_UNRELIABLE: return "scale_unreliable";
         case EVENT_REASON_DRIVER_FAULT: return "driver_fault";
         case EVENT_REASON_REFUSED: return "refused";
+        case EVENT_REASON_DID_NOT_START: return "did_not_start";
+        case EVENT_REASON_NO_NETWORK: return "no_network";
+        case EVENT_REASON_NOT_CONFIRMED: return "not_confirmed";
+        case EVENT_REASON_POWER_CUT: return "power_cut";
         case EVENT_REASON_NONE:
         default: return "none";
     }
@@ -216,6 +220,15 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                 }
                 write_member(out, room, len, "version");
                 http_json_string(out, room, len, version);
+                if (event->kind == EVENT_BACK) {
+                    write_member(out, room, len, "reason");
+                    http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
+                }
+                if (event->kind == EVENT_CONFIRMED) {
+                    // The settings the update reset, by name (ADR-008, gate 2): a stored layout that changed
+                    write_member(out, room, len, "reset");
+                    update_write_reset(event->throw_number, out, room, len);
+                }
             }
             break;
         case EVENT_SOURCE_SETTING: {
