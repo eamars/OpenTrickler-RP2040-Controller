@@ -283,7 +283,19 @@ The agent's review: the text beside the code was drawn half off the glass (its f
 
 The code's screen, a seventh kind, allowed by the owner the same day ("Allow it"): the screen's skill has it as rule 5's seventh kind, with Back at the right on it alone.
 
-### Next in gate 1
+### Gate 1 settled (2026-11-19)
 
-1. The iPhone on the probe image, joining the access point, then the station joined with the phone on it: deferred by the owner (2026-11-18) to when the owner is at the unit, at the start of gate 4 at the latest. No Android phone: taken to work the same, not tested (the owner).
-2. The owner settles `features.md`'s proposals to leave out, and gate 1 by using the mock.
+The owner: "I have reviewed the mock up, but I'm not going to review on my mobile device, and I'm happy to go ahead to the next stage of the development." Read here as:
+- **The look and the styles:** plain CSS of our own, no tool at run time (`scripts/web_build.py` joins and gzips); the portal as the mock draws it, 120,762 bytes, 32,546 gzipped, under the budget of about 50 KB.
+- **Left out:** every row `features.md` proposed to leave out is decided (10, 11, 12, 38, 45, 67, 75, 76, 77). All but one are dead code or a stop no one asked for; row 67, the settings' "Save All Changes to EEPROM", is a control taken away, each part storing from its own bar.
+- **The keep-awake switch** kept by the browser, as proposed.
+- **Commissioning** as drawn, on the page and the screen.
+- **Not done in gate 1, carried:** the owner's own phone and tablet (the three widths were driven in the agent's browser only); the keep-awake video and its battery on a real phone; the iPhone's sign-in sheet and the code read by its camera. All are at the unit with a phone, at gate 4's start, with the iPhone on the probe image ("To find out first"). A page that reads badly on a phone is seen there at the latest, on the pages then built.
+
+`features_check.py`: 105 rows, 85 shown, 14 left out (all decided), 6 to come, `VERDICT PASS`. The Pico W image builds (RAM 99.68% at link).
+
+## Gate 2, the API review
+
+### Next in gate 2
+
+1. The design written into the README, for the owner to approve before it is built (a design gate before a build gate).

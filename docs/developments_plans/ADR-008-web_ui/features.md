@@ -1,6 +1,6 @@
 # ADR-008: the features of today's pages
 
-Every feature a person can see or do on the pages the unit serves today, read line by line on 2026-11-18. It is the owner's rule "no feature is silently dropped" made into a list: each row is placed in the new pages or left out by the owner's decision, with its reason. The "Proposed" column is the agent's proposal; the owner settles it by reading. "Every page" marks a behaviour that belongs to the whole portal, not to one page. Where a row is unsure, it says so.
+Every feature a person can see or do on the pages the unit serves today, read line by line on 2026-11-18. It is the owner's rule "no feature is silently dropped" made into a list: each row is placed in the new pages or left out by the owner's decision, with its reason. The "Proposed" column is the agent's proposal; the owner settles it by reading. The owner settled every row left out with the mock (2026-11-19), so each now reads "Left out (decided)". "Every page" marks a behaviour that belongs to the whole portal, not to one page. Where a row is unsure, it says so.
 
 **Checked, not trusted:** each row is marked where the new pages show it, by a comment `features: <row>` beside the code that does it (`src/web/`), and `tests/features_check.py` lists every row neither marked nor left out, and every row still to come with the gate that brings it. It ends `VERDICT PASS` or `FAIL`; with `--final`, the proof of gates 3 and 4, a row still to come fails too.
 
@@ -24,9 +24,9 @@ The pages read, whole: `src/html/web_portal.html`, `src/html/wizard.html`, `src/
 | 7 | The page's title, "OpenTrickler Web Controller" | `web_portal.html:6` | none | Every page | A name in the browser's tab |
 | 8 | The bottom bar: Trickler, Settings, Purge, each with an icon; the one open is marked | `web_portal.html:817-836`, `:1270-1338` | none | Every page | The new pages' own navigation: charge, profiles, settings, update, set-up, mirror |
 | 9 | The page opens on Trickler | `web_portal.html:1956-1961` | see row 10 | Charge | The charge's page is the first |
-| 10 | Opening the page, or tapping Trickler, stops any cleanup that runs, also one a person started at the unit | `web_portal.html:1283`, `:1757-1767` | `POST /api/v1/cleanup/stop` | Left out (proposed) | Breaks "every client echoes the unit": a page that opens stops a job it did not start. `cleanup/stop` stops whoever's cleanup (`api_v1_commands.c:453-458`) |
-| 11 | Tapping Purge stops any charge that runs, with no question, then starts a cleanup | `web_portal.html:1299-1318` | `POST /api/v1/charge/stop`, then `POST /api/v1/cleanup/start` | Left out (proposed) | The same: a tab is not a stop. The cleanup is started by its own button, with the cup asked (row 30) |
-| 12 | Tapping Settings stops the charge's poll, and leaves a running cleanup running: its speed is still sent again every 2 s, its slider hidden | `web_portal.html:1319-1334`; the resend is not cleared there | none | Left out (proposed) | Looks broken: a motor turns with no control on screen. With the event stream every page shows the job that runs and its stop |
+| 10 | Opening the page, or tapping Trickler, stops any cleanup that runs, also one a person started at the unit | `web_portal.html:1283`, `:1757-1767` | `POST /api/v1/cleanup/stop` | Left out (decided) | Breaks "every client echoes the unit": a page that opens stops a job it did not start. `cleanup/stop` stops whoever's cleanup (`api_v1_commands.c:453-458`) |
+| 11 | Tapping Purge stops any charge that runs, with no question, then starts a cleanup | `web_portal.html:1299-1318` | `POST /api/v1/charge/stop`, then `POST /api/v1/cleanup/start` | Left out (decided) | The same: a tab is not a stop. The cleanup is started by its own button, with the cup asked (row 30) |
+| 12 | Tapping Settings stops the charge's poll, and leaves a running cleanup running: its speed is still sent again every 2 s, its slider hidden | `web_portal.html:1319-1334`; the resend is not cleared there | none | Left out (decided) | Looks broken: a motor turns with no control on screen. With the event stream every page shows the job that runs and its stop |
 | 13 | No light or dark switch; DaisyUI's styles and the icons' `dark:` classes follow the device's setting | `web_portal.html:8-9`, `:819-834` | none | Every page | The README asks the page to follow the device. Thought so (DaisyUI 4's `full.min.css` and the Tailwind CDN's default), not checked in a browser |
 | 14 | Nothing kept in the browser: no local storage, no cookie | whole file (no `localStorage`, `sessionStorage` or `cookie`) | none | Every page | Today a fact. The keep-awake switch would be the first thing kept (README, "Keep the phone awake") |
 | 15 | Phones: the viewport set for a phone, the bottom bar, dialogs from the bottom on a small screen (`modal-bottom sm:modal-middle`); no script of its own for phones | `web_portal.html:11`, `:817`, `:840`, `:859`, `:880` | none | Every page | One layout that grows with the width (README, "Phone first") |
@@ -67,7 +67,7 @@ The pages read, whole: `src/html/web_portal.html`, `src/html/wizard.html`, `src/
 | 35 | Gate Open and Gate Close buttons | `web_portal.html:95`, `:101`, `:113`, `:1184-1186` | `PATCH /api/v1/gate` (`ratio` 0 or 1) | Settings (settings/gate) | The gate's actions, listed with its resource in the schema (README). Shown only when the unit reports a gate (ADR-005, gate 2) |
 | 36 | The gate's ratio, a slider from 0.000 (open) to 1.000 (closed) and a number shown beside it, sent 60 ms after the slider stops | `web_portal.html:104-111`, `:117-131`, `:1196-1257` | `PATCH /api/v1/gate` (`ratio`) | Settings (settings/gate) | As row 35. The number is read-only |
 | 37 | The ratio shows 0.500 when the page opens, never the gate's own: the page never reads the gate | `web_portal.html:109`, `:122`; no `GET /api/v1/gate` in the file | none | Settings (settings/gate) | Looks broken. The new page shows the gate's state and ratio as the unit gives them |
-| 38 | Code for typing the ratio (`onServoGateRatioNumberInput`, `servoGateApplyRatioFromUi`, `debouncedServoGateRatioSendFromNumber`) that nothing calls: the number is read-only | `web_portal.html:1232-1247`, `:1259-1268` | none | Left out (proposed) | Dead code |
+| 38 | Code for typing the ratio (`onServoGateRatioNumberInput`, `servoGateApplyRatioFromUi`, `debouncedServoGateRatioSendFromNumber`) that nothing calls: the number is read-only | `web_portal.html:1232-1247`, `:1259-1268` | none | Left out (decided) | Dead code |
 
 ## The portal: Settings, how they work
 
@@ -79,7 +79,7 @@ The pages read, whole: `src/html/web_portal.html`, `src/html/wizard.html`, `src/
 | 42 | Apply opens "Save <section> Settings: Do you also want to save settings to EEPROM?" with Save to EEPROM, Apply, Cancel | `web_portal.html:859-878`, `:1602-1634` | see row 43 | Settings | Proposed: no dialog at each Apply. A change is live; the resource's `saved` shows it is not stored, and a Store button stores it. The owner to settle |
 | 43 | Apply writes the form; Save to EEPROM writes it, then stores it, then reads it again; the form is filled from the reply | `web_portal.html:1496-1513` | `PATCH <resource>`, `POST <resource's save path>`, `GET <resource>` | Settings | Kept |
 | 44 | "Settings Applied" on success; on a refusal "Not applied" with the field and the unit's words | `web_portal.html:926-934`, `:1506-1512`, `:1479-1494` | the error's `field` and `message` | Settings | Kept, said beside the field the unit refused, not in a dialog |
-| 45 | The old way of writing a form, by GET with its fields as a query and `ee` to store, and the read of a form by its `action` | `web_portal.html:1379-1394`, `:1557-1599` | the old `/rest/` paths, gone (ADR-003, gate 4) | Left out (proposed) | Dead code: every form has a resource or is the system form |
+| 45 | The old way of writing a form, by GET with its fields as a query and `ee` to store, and the read of a form by its `action` | `web_portal.html:1379-1394`, `:1557-1599` | the old `/rest/` paths, gone (ADR-003, gate 4) | Left out (decided) | Dead code: every form has a resource or is the system form |
 
 ## The portal: Settings, by resource
 
@@ -118,7 +118,7 @@ Each resource's form maps its fields one to one with nothing special, unless a r
 | # | Feature | Where | API it uses | Proposed | Why |
 |---|---|---|---|---|---|
 | 66 | The unit's facts, read-only: Unique ID, Firmware Version, VCS Hash, Build Type | `web_portal.html:729-747`, `:1516-1523` | `GET /api/v1` (`unit_id`, `firmware.version`, `.vcs`, `.build`) | System | Kept. The board, the network and the uptime (`GET /api/v1/system`, `/network`) could join them: not on today's page |
-| 67 | Save All Changes to EEPROM (Yes/No) | `web_portal.html:751-757`, `:1529-1531` | `POST /api/v1/settings/save` | Left out (proposed) | Each part stores from its own bar, and the settings' list shows which are not stored (gate 1's mock); a restore stores everything by itself (row 72). A second way to store is one more thing to explain for nothing a person cannot do |
+| 67 | Save All Changes to EEPROM (Yes/No) | `web_portal.html:751-757`, `:1529-1531` | `POST /api/v1/settings/save` | Left out (decided) | Each part stores from its own bar, and the settings' list shows which are not stored (gate 1's mock); a restore stores everything by itself (row 72). A second way to store is one more thing to explain for nothing a person cannot do |
 | 68 | Reboot (Yes/No) | `web_portal.html:760-766`, `:1535-1537` | `POST /api/v1/system/restart` | System | Kept as a button, the page following the unit through its restart |
 | 69 | Erase EEPROM (Yes/No), marked Warning; when Yes, the reboot is not asked | `web_portal.html:768-777`, `:1532-1534` | `POST /api/v1/system/erase` (`confirm`: "erase") | System | The factory reset kept, with its own confirmation saying what is lost; the unit comes back as its access point with a new name (README, "Commissioning") |
 | 70 | Apply shows "Pending Actions", a list of what is chosen ("You cannot undo this action!" for the erase), then Apply or Cancel. **All three choices start at Yes**: nothing selects No, and the form is never filled for them | `web_portal.html:779`, `:840-856`, `:1636-1675`, `:1525-1546` | as rows 67-69 | System | Looks broken: an Apply with no change saves, then erases. Proposed: three buttons, each its own confirmation, nothing chosen in advance |
@@ -131,9 +131,9 @@ Each resource's form maps its fields one to one with nothing special, unless a r
 
 | # | Feature | Where | API it uses | Proposed | Why |
 |---|---|---|---|---|---|
-| 75 | "Failed to Zero Scale" dialog: never shown, a refused zero uses the unit's words (row 34) | `web_portal.html:954-962` | none | Left out (proposed) | Dead |
-| 76 | `enterChargeMode(true)`, a start with no target: never called (Start uses row 23) | `web_portal.html:1018-1019` | `POST /api/v1/charge/start` | Left out (proposed) | Dead branch |
-| 77 | The sidebar's list has a broken attribute, `id=drawerSlide"` | `web_portal.html:796` | none | Left out (proposed) | A typo; nothing reads the id |
+| 75 | "Failed to Zero Scale" dialog: never shown, a refused zero uses the unit's words (row 34) | `web_portal.html:954-962` | none | Left out (decided) | Dead |
+| 76 | `enterChargeMode(true)`, a start with no target: never called (Start uses row 23) | `web_portal.html:1018-1019` | `POST /api/v1/charge/start` | Left out (decided) | Dead branch |
+| 77 | The sidebar's list has a broken attribute, `id=drawerSlide"` | `web_portal.html:796` | none | Left out (decided) | A typo; nothing reads the id |
 
 ## The wizard (`wizard.html`)
 

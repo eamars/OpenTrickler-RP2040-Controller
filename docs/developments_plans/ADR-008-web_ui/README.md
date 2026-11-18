@@ -1,6 +1,6 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Open** 2026-11-18, gate 1 (the mock) under way. Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
+Status: **Open** 2026-11-18. Gate 1 (the mock) settled by the owner 2026-11-19; gate 2 (the API review) next, designed before it is built. Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
 
 ## What we want
 
@@ -210,6 +210,7 @@ The owner: "Keep commissioning in the ADR, Set up on the page. Then continue wit
   - **The key:** eight characters from an alphabet with no i, l, o, 0 or 1, which helvR08 draws alike or nearly (31 characters, about 40 bits; WPA2 takes 8 at the least), made from a SHA-256 of the chip's id of which nothing else is sent ("The key is only as secret as what it is made from", above). Typed as shown, all small letters.
   - **The code:** the phones' own Wi-Fi format, version 3 at level L, 29 modules a side at 2 px, dark modules on a lit ground as a phone reads a code (on the negative glass, the ground lit). A quiet zone of 1.5 modules where the standard asks 4: OpenCV's reader decoded the drawn screen, and the same inside a dark bezel (2026-11-18); a phone's camera at the unit decides, with the iPhone, before gate 4 builds it.
   - **In the firmware:** LVGL's own code widget (`LV_USE_QRCODE`, Nayuki's encoder, in `library/lvgl/src/libs/qrcode`), off today. Its flash is measured in gate 4 against the Pico W's 32.6 KB left.
+- **Settled as drawn** (the owner, 2026-11-19, with the mock); changed at gate 4's start only where the iPhone differs.
 - **Not known before the iPhone:** whether the sign-in sheet opens by itself, and whether the address link on the last step opens in the phone's browser once it is back on its Wi-Fi.
 
 ### To find out first
@@ -397,4 +398,4 @@ Then the proof on both boards; PR #111 is closed once the update is shown end to
 
 Nothing is left to settle before approval. Settled with the owner, 2026-11-18: the budget's rule (from the slot), the styles trimmed and served by the unit (which styles and tools, reopened after approval as the agent's proposal in gate 1), the cup asked on the page only, the event stream to explore, the API review in this ADR, echoing with ADR-004's refusal kept, phone first scaling to a tablet and a computer, the pages as proposed, and the gates.
 
-Settled in gate 1, the mock, by the owner using it: the look and the styles' tools; what `features.md` leaves out; whether the phone's keep-awake switch is kept by the browser; and commissioning, what it covers and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen.
+Settled in gate 1, the mock, by the owner using it (2026-11-19: "I have reviewed the mock up ... happy to go ahead to the next stage"; progress.md says what was carried to gate 4): the look and the styles' tools; what `features.md` leaves out; whether the phone's keep-awake switch is kept by the browser; and commissioning, what it covers and each proposal above (the list of networks, the access point kept up while the station joins, the key and the id from the chip, the QR code), after the phones' captive portals are seen.
