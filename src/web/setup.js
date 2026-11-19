@@ -1,4 +1,6 @@
-// Set up (ADR-008, "Commissioning"): a unit from its first start, or a factory reset, to its first charge, in four
+// Set up (ADR-008, "Commissioning"; "The set-up, designed again", gate 4: the unit keeps its step, which the page tells
+// it and its screen shows; the page and the 12864 move together): a unit from its first start, or a factory reset, to
+// its first charge, in four
 // steps: its Wi-Fi, its scale, its motors, ready. Each step can be skipped, and finishing or skipping the set-up is
 // remembered by the unit (`set_up`, gate 4), so it opens by itself only on a unit never set up, on its own hotspot:
 // offered, never forced, and no pop-up at every start. One column, everything in the page, nothing kept in the
@@ -10,9 +12,13 @@ const SETUP_READ_MS = 700;      // the scale's weight and a join's progress, rea
 let setupTimer = null;
 let setupLeft = false;          // the hotspot stopped at the end: the page is no longer on the unit's network
 
-// The unit's words for a join that failed and for a driver, in plain words
-const JOIN_REFUSED = {wrong_key: "the key is wrong", timeout: "the network did not answer in time",
-                      failed: "the network did not let it join"};
+// A join that failed, said under the password (the unit's reason, by its network's name); a driver, in plain words
+const JOIN_REFUSED = {
+    wrong_password: () => "Wrong password. Check it and try again.",
+    wrong_key: () => "Wrong password. Check it and try again.",
+    timeout: (ssid) => `${ssid} did not answer: move the unit nearer its router, or check it is a 2.4 GHz network.`,
+    failed: (ssid) => `${ssid} did not let the unit join. Check its password and its security.`,
+};
 const DRIVER_WORDS = {ok: "Driver found", absent: "Driver not found: check its cable and the board's power",
                       short: "A short on its motor's wires", hot: "Its driver is too hot", reset: "Its driver restarted",
                       supply: "Its driver's power is too low"};
@@ -50,17 +56,18 @@ async function finishSetup(then) {
     return reply.data;
 }
 
-// --- Wi-Fi: the networks the unit hears, one chosen and joined while the hotspot stays up, the result told here
+// --- Wi-Fi: one thing at a time (gate 4's design): the networks heard; a network's password; joining, its seconds
+// counting; joined. A message stands under what it is about and goes as the person changes it. The hotspot stays up
 
-// A network that needs a key: a lock, drawn in SVG's own namespace (an <svg> made as HTML draws nothing)
+// A network that needs a password: a lock, drawn in SVG's own namespace (an <svg> made as HTML draws nothing)
 function lockIcon() {
-    const span = element("span", {class: "lock", role: "img", "aria-label": "Needs a key"});
+    const span = element("span", {class: "lock", role: "img", "aria-label": "Needs a password"});
     span.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z"/></svg>';
     return span;
 }
 
-function networkRow(network, chosen, onChoose) {
-    const row = element("button", {type: "button", class: chosen ? "row on" : "row"},
+function networkRow(network, onChoose) {
+    const row = element("button", {type: "button", class: "row"},
                         element("span", {}, network.ssid),
                         network.auth === "open" ? null : lockIcon(),
                         element("span", {class: "signal"}, signalWords(network.rssi)));
@@ -68,90 +75,136 @@ function networkRow(network, chosen, onChoose) {
     return row;
 }
 
-function joinForm(network, onJoin) {
-    const other = network.ssid === null;
-    // A network's name and key are taken as typed: shown as text, a phone would capitalise and correct them
-    const exact = {autocomplete: "off", autocapitalize: "none", autocorrect: "off", spellcheck: "false"};
-    const name = element("input", {type: "text", id: "join-ssid", maxlength: 32, ...exact});
-    const security = element("select", {id: "join-auth"},
-                             ...[["wpa2_mixed", "WPA2"], ["wpa2_aes", "WPA2 (AES)"], ["wpa_tkip", "WPA (TKIP)"], ["open", "None"]]
-                                 .map(([value, label]) => new Option(label, value)));
-    const key = element("input", {type: "password", id: "join-key", maxlength: 63, ...exact});
-    const show = element("input", {type: "checkbox", id: "join-show"});
-    show.onchange = () => key.type = show.checked ? "text" : "password";
-    const needsKey = other || network.auth !== "open";
-    const join = element("button", {class: "action go", type: "button"}, `Join ${other ? "" : network.ssid}`.trim());
-    join.onclick = () => onJoin(other ? name.value.trim() : network.ssid, needsKey ? key.value : "",
-                                other ? security.value : network.auth);
-    return element("div", {class: "join"},
-                   other ? element("div", {class: "field"}, element("label", {for: "join-ssid"}, "Network name"), name) : null,
-                   other ? element("div", {class: "field"}, element("label", {for: "join-auth"}, "Security"), security) : null,
-                   needsKey ? element("div", {class: "field"}, element("label", {for: "join-key"}, "Key"), key,
-                                      element("label", {class: "show-key"}, show, " Show the key")) : null,
-                   join);
-}
+// A name or a password is taken as typed: a phone neither capitalises nor corrects it
+const EXACT = {autocomplete: "off", autocapitalize: "none", autocorrect: "off", spellcheck: "false"};
 
 async function drawWifiStep(page) {
     const [network, networks] = await Promise.all([api("GET", "/api/v1/network"), api("GET", "/api/v1/wifi/networks")]);
-    const station = network.ok ? network.data.station : null;
     const body = element("div", {class: "setup-body"});
-    // What the step shows: the networks heard, the one chosen (null: another, typed), a line on the last join. Kept
-    // across each redraw, a scan's or a join's, so a choice and its key are never wiped under the person
-    const state = {heard: networks.ok ? networks.data : {scanning: true, networks: []}, chosen: undefined, said: null};
-    const joinedText = (s, hostname) => [element("p", {class: "setup-status good"}, `Joined ${s.ssid}.`),
-                                         element("p", {}, `Its address there: ${hostname}.local (${s.address}).`),
-                                         element("div", {class: "setup-actions"}, nextButton("wifi"))];
-    const draw = () => {
-        const parts = [element("h2", {}, "Wi-Fi")];
-        if (station && station.state === "joined") {
-            // Joined already: on its network (set up again: changed in Settings), or on the hotspot still
-            if (network.data.mode === "station") {
-                parts.push(element("p", {}, `On ${station.ssid}, at ${network.data.hostname}.local (${station.address}).`),
-                           element("p", {class: "hint"}, "To join another network: Settings, Wi-Fi."),
-                           element("div", {class: "setup-actions"}, nextButton("wifi")));
-            } else {
-                parts.push(...joinedText(station, network.data.hostname));
-            }
-            return body.replaceChildren(...parts);
-        }
-        parts.push(element("p", {class: "hint"}, "Choose your Wi-Fi. The unit keeps its hotspot until the set-up is done, so this page stays open."));
-        if (state.said) {
-            parts.push(state.said);
-        }
+    const state = {heard: networks.ok ? networks.data : {scanning: true, networks: []}};
+    const show = (...parts) => body.replaceChildren(element("h2", {}, "Wi-Fi"), ...parts);
+
+    // View 1: the networks heard, strongest first
+    const listView = () => {
         const list = element("div", {class: "list networks"});
         if (state.heard.scanning && state.heard.networks.length === 0) {
-            list.append(element("p", {class: "row muted"}, "Looking for networks\u2026"));
+            list.append(element("p", {class: "row muted"}, "Looking for networks…"));
         }
-        const choose = (picked) => {
-            Object.assign(state, {chosen: picked, said: null});
-            draw();
-            const field = $("join-key") || $("join-ssid");
-            if (field) {
-                field.focus();      // the key next, with no tap more
-            }
-        };
-        const chosenName = state.chosen === undefined ? undefined : state.chosen.ssid;
         for (const one of state.heard.networks) {
-            list.append(networkRow(one, chosenName === one.ssid, choose));
-            if (chosenName === one.ssid) {
-                list.append(joinForm(one, join));
-            }
+            list.append(networkRow(one, (picked) => passwordView(picked, null)));
         }
-        const other = {ssid: null, auth: "wpa2_mixed"};
-        list.append(networkRow({ssid: "Another network", rssi: 0, auth: "open"}, chosenName === null, () => choose(other)));
-        list.lastChild.querySelector(".signal").textContent = "Type its name";
-        if (chosenName === null) {
-            list.append(joinForm(other, join));
-        }
-        parts.push(list,
-                   element("div", {class: "setup-actions"},
-                           element("button", {class: "ghost", type: "button", onclick: scan}, "Look again"),
-                           skipButton("wifi", "Skip: use its own hotspot")));
-        body.replaceChildren(...parts);
+        const other = networkRow({ssid: "Another network", rssi: 0, auth: "open"}, () => passwordView(null, null));
+        other.querySelector(".signal").textContent = "Type its name";
+        list.append(other);
+        show(element("p", {class: "hint"}, "Choose your Wi-Fi network."), list,
+             element("p", {class: "hint"}, "Not in the list? The unit hears 2.4 GHz networks only."),
+             element("div", {class: "setup-actions"},
+                     element("button", {class: "ghost", type: "button", onclick: scan}, "Look again"),
+                     skipButton("wifi", "Skip: keep the unit's own hotspot")));
+        state.view = "list";
     };
+
+    // View 2: a network's password (and, for another network, its name and security); a refusal said under it
+    const passwordView = (chosen, said) => {
+        state.view = "password";
+        state.chosen = chosen;
+        const open = chosen !== null && chosen.auth === "open";
+        const name = element("input", {type: "text", id: "join-ssid", maxlength: 31, ...EXACT});
+        const security = element("select", {id: "join-auth"},
+                                 ...[["wpa2_mixed", "WPA2"], ["wpa2_aes", "WPA2 (AES)"], ["wpa_tkip", "WPA (TKIP)"],
+                                     ["open", "None"]].map(([value, label]) => new Option(label, value)));
+        const password = element("input", {type: "password", id: "join-password", maxlength: 63, ...EXACT});
+        const reveal = element("input", {type: "checkbox", id: "join-show"});
+        reveal.onchange = () => password.type = reveal.checked ? "text" : "password";
+        const error = element("p", {class: "field-error", hidden: said === null}, said || "");
+        const clear = () => error.hidden = true;
+        password.oninput = clear;
+        name.oninput = clear;
+        const join = element("button", {class: "action go", type: "button"}, "Join");
+        join.onclick = () => {
+            const ssid = chosen === null ? name.value.trim() : chosen.ssid;
+            const auth = chosen === null ? security.value : chosen.auth;
+            const typed = auth === "open" ? "" : password.value;
+            if (!ssid) {
+                error.textContent = "Type the network's name.";
+                error.hidden = false;
+                return;
+            }
+            if (auth !== "open" && (typed.length < 8 || typed.length > 63)) {
+                error.textContent = "A Wi-Fi password has 8 to 63 characters.";
+                error.hidden = false;
+                return;
+            }
+            joinNetwork(ssid, typed, auth, error);
+        };
+        const fields = [];
+        if (chosen === null) {
+            fields.push(element("div", {class: "field"}, element("label", {for: "join-ssid"}, "Network name"), name),
+                        element("div", {class: "field"}, element("label", {for: "join-auth"}, "Security"), security));
+        }
+        if (!open) {
+            fields.push(element("div", {class: "field"}, element("label", {for: "join-password"}, "Password"), password,
+                                element("label", {class: "show-key"}, reveal, " Show password")));
+        }
+        show(element("p", {class: "setup-network"}, chosen === null ? "Another network" : chosen.ssid),
+             element("div", {class: "join"}, ...fields, error, join),
+             element("div", {class: "setup-actions"},
+                     element("button", {class: "ghost", type: "button", onclick: listView}, "Choose another network")));
+        (chosen === null ? name : (open ? join : password)).focus();
+    };
+
+    // View 3: joining, its seconds counting, so the page is seen to move; the unit's screen counts with it
+    const joinNetwork = async (ssid, password, auth, error) => {
+        const reply = await api("POST", "/api/v1/wifi/join", {ssid, password, auth});
+        if (!reply.ok) {
+            error.textContent = reply.data && reply.data.error ? reply.data.error.message : "The unit did not take it.";
+            error.hidden = false;
+            return;
+        }
+        joiningView(ssid, Date.now());
+    };
+    const joiningView = (ssid, since) => {
+        state.view = "joining";
+        const seconds = element("p", {class: "setup-count-up"});
+        const count = () => seconds.textContent = `${Math.round((Date.now() - since) / 1000)} s of up to 30`;
+        count();
+        show(element("p", {class: "setup-status"}, `Joining ${ssid}`), seconds,
+             element("p", {class: "hint"}, "The unit's screen shows it too."));
+        const watch = async () => {
+            if (state.view !== "joining") {
+                return;
+            }
+            count();
+            const now = await api("GET", "/api/v1/network");
+            const s = now.ok ? now.data.station : null;
+            if (s !== null && s.state === "joined") {
+                joinedView(s, now.data.hostname);
+                return;
+            }
+            if (s !== null && s.state === "failed") {
+                const chosen = state.heard.networks.find((one) => one.ssid === s.ssid) || null;
+                const said = JOIN_REFUSED[s.reason] || JOIN_REFUSED.failed;
+                passwordView(chosen || {ssid: s.ssid, auth: "wpa2_mixed"}, said(s.ssid));
+                return;
+            }
+            setupTimer = setTimeout(watch, 1000);     // joining, or the unit not heard: the contact check says so
+        };
+        watch();
+    };
+
+    // View 4: joined; the address it will have there, said again at the end
+    const joinedView = (s, hostname) => {
+        state.view = "joined";
+        show(element("p", {class: "setup-status good"}, `Joined ${s.ssid}.`),
+             element("p", {}, `On your Wi-Fi the unit will be ${hostname}.local (${s.address}).`),
+             element("div", {class: "setup-actions"}, nextButton("wifi")));
+    };
+
     const scan = async () => {
         const reply = await api("POST", "/api/v1/wifi/scan", {});
-        reply.ok ? followScan() : refusal(reply, "Not looked");
+        if (reply.ok) {
+            followScan();
+        }
     };
     const followScan = async () => {
         const reply = await api("GET", "/api/v1/wifi/networks");
@@ -159,52 +212,69 @@ async function drawWifiStep(page) {
             return;
         }
         state.heard = reply.data;
-        // A key being typed is not redrawn away: the list is drawn again only while nothing is chosen
-        if (state.chosen === undefined) {
-            draw();
+        if (state.view === "list") {
+            listView();     // a password being typed is never redrawn away
         }
         if (reply.data.scanning) {
             setupTimer = setTimeout(followScan, SETUP_READ_MS);
         }
     };
-    // The join: tried while the hotspot stays up, followed to its end and said here; nothing restarts
-    const join = async (ssid, key, auth) => {
-        if (!ssid) {
-            say("Type the network's name.");
-            return;
-        }
-        const reply = await api("POST", "/api/v1/wifi/join", {ssid, key, auth});
-        if (!reply.ok) {
-            refusal(reply, "Not joined");
-            return;
-        }
-        body.replaceChildren(element("h2", {}, "Wi-Fi"), element("p", {class: "setup-status"}, `Joining ${ssid}\u2026`));
-        const watch = async () => {
-            const now = await api("GET", "/api/v1/network");
-            const s = now.ok ? now.data.station : null;
-            if (s === null || s.state === "joining") {
-                setupTimer = setTimeout(watch, SETUP_READ_MS);
-                return;
-            }
-            if (s.state === "joined") {
-                body.replaceChildren(element("h2", {}, "Wi-Fi"), ...joinedText(s, now.data.hostname));
-                return;
-            }
-            // Refused: said over the list, the same network chosen again, its key to type again
-            state.said = element("p", {class: "setup-status bad"}, `Not joined: ${JOIN_REFUSED[s.reason] || s.reason}. Try again.`);
-            draw();
-            const field = $("join-key");
-            if (field) {
-                field.focus();
-            }
-        };
-        watch();
-    };
+
     page.replaceChildren(...setupFrame("wifi", body));
-    draw();
-    if (!networks.ok || networks.data.networks.length === 0) {
-        scan();
+    // Where the unit is: joined (on the hotspot still, or set up again from its network), joining, or not yet
+    const station = network.ok ? network.data.station : null;
+    if (station !== null && station.state === "joined") {
+        joinedView(station, network.data.hostname);
+    } else if (station !== null && station.state === "joining") {
+        joiningView(station.ssid, Date.now());
+    } else {
+        listView();
+        if (!networks.ok || networks.data.networks.length === 0) {
+            scan();
+        }
     }
+}
+
+// --- Contact with the unit: through the set-up the page asks the unit its step every 2 s. Unheard for 5 s, the
+// lost view says so (the phone may have left the hotspot); heard again, the set-up goes on from the unit's step
+
+const SETUP_CONTACT_MS = 2000;
+const SETUP_LOST_MS = 5000;
+let setupHeardAt = Date.now();
+let setupLost = false;
+let setupContactTimer = null;
+let setupHotspot = "opentrickler-…";    // the unit's hotspot, as its set-up names it
+
+async function setupContact() {
+    clearTimeout(setupContactTimer);
+    if (pageShown !== "setup" || setupLeft) {
+        return;
+    }
+    const reply = await api("GET", "/api/v1/setup");
+    if (reply.ok) {
+        setupHeardAt = Date.now();
+        setupHotspot = reply.data.hotspot || setupHotspot;
+        if (setupLost) {
+            setupLost = false;
+            const step = SETUP_STEPS.includes(reply.data.step) ? reply.data.step : "wifi";
+            location.hash = `#setup/${step}`;
+            PAGES.setup.enter(step);
+        }
+    } else if (!setupLost && Date.now() - setupHeardAt >= SETUP_LOST_MS) {
+        setupLost = true;
+        clearTimeout(setupTimer);
+        $("page-setup").replaceChildren(...setupFrame("wifi", element("div", {class: "setup-body"},
+            element("h2", {}, "Lost the unit"),
+            element("p", {class: "setup-status bad"}, "Your phone may have left the unit's Wi-Fi."),
+            element("p", {}, "The unit's screen shows how things stand."),
+            element("p", {}, `Join ${setupHotspot} again in your phone's Wi-Fi settings: this page carries on by itself.`))));
+    }
+    setupContactTimer = setTimeout(setupContact, SETUP_CONTACT_MS);
+}
+
+// The step told to the unit as the page goes on, so its screen shows the same stage
+function tellStep(step) {
+    api("PATCH", "/api/v1/setup", {step});
 }
 
 // --- The scale: its make, and a live weight, which shows the scale talks; its port's speed when it does not
@@ -308,7 +378,8 @@ async function drawReadyStep(page) {
                                  element("p", {class: "hint"}, `or http://${n.station.address}`),
                                  element("p", {}, "Then put the empty cup on the scale and try a first charge."));
         };
-        body.append(element("p", {class: "hint"}, "Finishing, the unit leaves its hotspot for your Wi-Fi, and this page closes with it."),
+        // Said before the hotspot stops, as this page, in a phone's sign-in sheet, may close with it
+        body.append(element("p", {}, `Finishing, the unit leaves its hotspot for ${n.station.ssid}. Your phone goes back to your Wi-Fi; open the unit there at http://${n.hostname}.local, or http://${n.station.address}. The unit's screen shows the address too.`),
                     element("div", {class: "setup-actions"}, finish));
     } else {
         body.append(element("p", {class: "hint"}, "Put the empty cup on the scale and try a first charge."),
@@ -327,10 +398,14 @@ PAGES.setup = {
         if (setupLeft) {
             return;     // finished, the unit gone to its network: the last word stays
         }
+        tellStep(step);
+        setupHeardAt = Date.now();
+        setupContact();
         await {wifi: drawWifiStep, scale: drawScaleStep, motors: drawMotorsStep, ready: drawReadyStep}[step](page);
     },
     leave() {
         clearTimeout(setupTimer);
+        clearTimeout(setupContactTimer);
     },
     // Shown again (a phone woken, another app left): the step stays as it was, a key typed included
     resume() {},

@@ -227,6 +227,55 @@ On the unit, with the Pico W on the probe and this workstation's own Wi-Fi as th
 - **Today's captive parts** as a client sees them: the access point's DNS answering every name, the 302 to the unit, and what a request to port 443 gets (refused at once, or left to time out, which keeps a phone's check waiting).
 - **The phones** then on the same image, for the list above.
 
+### The set-up, designed again (gate 4's design gate, 2026-11-19, for the owner to settle)
+
+The set-up as drawn in gate 1 failed on the owner's iPhone at the unit (progress.md, step 4). The owner: "Key is confusing. It should named password. Selecting SSID and password on the same screen doesn't make sense ... The wrong password warning doesn't disappear until it is touched. I stuck at Joining <SSID> view", and then: "the mini display doesn't change neither, and still stuck at the setup page, and because both screens are showing during commissioning, for an average user, it is legitimately stuck." What happened: the unit joined in 3.3 s and stored the network; the hotspot moved from channel 3 to the router's channel 1 with the join, the iPhone did not follow, the page took its failed reads for "still joining", and the 12864 stayed on "A phone joined". "To find out first" named this risk before gate 1; gate 1 saw only a Windows client follow the move, and the phone was never on the hotspot while the unit joined. The owner then asked for the set-up to be designed properly ("Yes, design it"). This design replaces "The set-up as drawn" where they differ; the code, the hotspot's own key and name, and the steps' order stay.
+
+**What it holds to:**
+- **Two screens, one process** (the owner). Through the set-up the phone and the 12864 are two views of one set-up, and both change at every stage. The set-up's stage is kept by the unit, not by the page: the page and the screen each draw it, and a phone that comes back after losing the hotspot finds the set-up where the unit is.
+- **The unit's screen is where the outcome is always shown.** The phone can lose the hotspot (a channel move, its sheet closed, the hotspot stopped at the end); the screen cannot.
+- **Every wait ends** in words: a stage that waits says what it waits for, and after its time says what happened or what to do.
+- **One thing at a time on the phone:** a network chosen, then its password, each a view of its own.
+- **A person's words:** "password", never "key", on the screen, the page and the API (below); "Wi-Fi" and "network" for the person's, "the unit's hotspot" for its own.
+- **A message stands beside what it is about** (under the password, on the network's line), and goes when the person changes it; the page's bar at the top is for what has no place of its own.
+
+**The radio: the hotspot on the network's channel.** The CYW43 keeps its hotspot and its station on one channel, so a join to a router on another channel moves the hotspot, and a phone may not follow (it did not here). Read in the driver: the hotspot's channel is set before it starts (`cyw43_wifi_ap_set_channel`, 3 by default), and a join can name the access point to join (`cyw43_arch_wifi_connect_bssid_timeout_ms`). So:
+- A unit never set up scans at its start, before its hotspot (some 1.3 s), and starts the hotspot on the channel of the strongest network it hears, which is most often the person's own.
+- A join takes, of the chosen network's access points, one on the hotspot's channel when the scan heard one (a mesh, as the owner's, has its nodes on 1, 6 and 11), else the strongest.
+- The hotspot then moves only for a network heard on no access point on its channel; that case is the fallback below, not the rule.
+- To be seen on the unit first, as the build gate's first step: the hotspot started on a chosen channel, a join of an access point on it, the phone kept on the hotspot through the join (the iPhone at the unit, with the owner).
+
+**The stages, each on both screens.** The step names are the page's; the unit keeps the step (`GET /api/v1/setup`) and says each change as an event, which the page and the menu follow.
+
+| Stage | The phone | The 12864 | How it ends, and the way back |
+|---|---|---|---|
+| Never set up, started | (nothing yet) | The main menu leads with "Set up this unit"; the title's hotspot mark | The row opens the code |
+| The code | The camera's notice: join `opentrickler-XXXX` | The code, "Scan this with your phone's camera.", Back | A phone gets an address: the next stage. Back: the main menu, the row still there |
+| A phone joined | The sign-in sheet opens by itself on the set-up's first view | "Set up: Wi-Fi" / "A phone joined." / "Choose your Wi-Fi" / "on your phone."; Back, Show the code | The page's choice. Another phone may scan "Show the code" |
+| Choosing a network | **View 1, Your Wi-Fi:** the networks heard, strongest first, signal in words, a lock where a password is needed; "Another network"; "Look again"; "Not in the list? The unit hears 2.4 GHz networks only."; "Skip: keep the unit's own hotspot" | As above | A network tapped: view 2 |
+| Its password | **View 2, Password for CMCC:** the password field, "Show password", Join; "Choose another network" | "Set up: Wi-Fi" / "Type the password of" / "CMCC" / "on your phone."; Back, Show the code | Join |
+| Joining | **View 3:** "Joining CMCC", its seconds counting ("8 s of up to 30"), "The unit's screen shows it too." | "Joining" / "CMCC" / "8 s of 30", counting each second: a still screen reads as stuck; Back, which leaves the set-up on the phone | The unit's join ends, or the phone loses the unit (below) |
+| Joined | **View 4:** "Joined CMCC." / "On your Wi-Fi the unit will be opentrickler-XXXX.local (192.168.2.168)." / Next | "Joined" / "CMCC" / "Continue on your phone."; Back | Next: the scale |
+| Wrong password | View 2 again, the field kept and focused, under it: "Wrong password. Check it and try again." It goes as the person types | "Wrong password for" / "CMCC" / "Retype it on your phone." | Join again; or "Choose another network" |
+| Not joined, no answer | View 2 again, under the field: "CMCC did not answer: move the unit nearer its router, or check it is a 2.4 GHz network." | "No answer from" / "CMCC" / "Move it nearer the router." (the phone gives the 2.4 GHz hint) | The same |
+| The phone lost the unit (a read unanswered for 5 s at any stage) | **Lost view:** "Lost the unit's Wi-Fi. Your phone may have left it." / "The unit's screen shows how things stand." / "Join opentrickler-XXXX again in your phone's Wi-Fi settings; this page carries on by itself." The page keeps asking, every 2 s | Whatever the unit's stage is: its screen goes on as if nothing happened | The page hears the unit: it reads the stage and goes on from there. The sheet, if iOS closed it, opens again when the phone joins the hotspot, at the unit's stage |
+| The scale | Its make, its live weight; nothing in 3 s: what to check (as drawn) | "Set up: Scale" / the weight as a job's figure / "The scale sends its weight", or "--" and "Nothing from the scale" | Next |
+| The motors | Each driver found or not (as drawn) | "Set up: Motors" / "Coarse driver: found" / "Fine driver: found" / "Continue on your phone." | Next |
+| Ready | What was set; "Finish" | "Set up: Ready" / "Ready." / "Finish on your phone." | Finish |
+| Done, joined | **Before** the hotspot stops, the page says what comes: "The unit is leaving its hotspot for CMCC. Your phone goes back to your Wi-Fi; open the unit there at opentrickler-XXXX.local. The unit's screen shows the address too." Then the sheet may close | "Set up: Done" (the station's mark) / "Open on CMCC:" / "opentrickler-XXXX.local" / "or 192.168.2.168"; OK, which goes to the main menu (no set-up row) | The hotspot stops 2 s after the reply; the address stays on the screen until OK |
+| Done, its own hotspot (Wi-Fi skipped) | "The unit stays its own hotspot. Open http://192.168.4.1 when your phone is on it." | "Set up: Done" / "On its own hotspot." / "Open 192.168.4.1" / "from a phone on it."; OK | The hotspot stays |
+| The unit restarted mid-way | Lost view, then the unit's stage: from the start, unless the network was joined | A network joined and stored: the unit starts on it, set up (a network named); not joined: never set up, as at the start | As those stages |
+
+**Where the 12864 follows the set-up.** Following a process the person runs on the phone is not a pop-up at the start: once a phone has joined (the code shown, or its row), the screen shows the set-up's stage as it changes, unless a job holds the screen. Back leaves it for the main menu, and the set-up goes on on the phone; the main menu's row then opens the set-up's stage, with "Show the code" there. Every set-up screen is a kind the skill has: a dialog (a title, up to three lines, softkeys) or a job's figure (the scale's weight).
+
+**The API it takes** (the build gate's, here for the owner to see the cost):
+- `GET /api/v1/setup`: `set_up`, `step` (code, wifi, scale, motors, ready, done), `phone` (a phone joined the hotspot), `hotspot` (its name, which the lost view names); `PATCH /api/v1/setup` `{"step": ...}` as the page goes on; `POST /api/v1/setup/done` as built. An event `setup` `step` at each change, and the join's end as an event `wifi` `joined` or `not_joined` with its reason, so a page on the stream hears it, and one that comes back reads the step.
+- **"password" in the API too,** before the first user release (the API's names are renamed until then, the owner's rule): the join's `key` becomes `password`, and `settings/wifi`'s `key` with it; the screen's "Key" on the Wi-Fi page is "Password". The stored layout does not change.
+
+**Drawn:** the 12864's stages, `tools/ui_mock/setup_12864.py` (`mockups/setup_12864.png`), every line measured against the panel's width, a network's name on a line of its own (a long one shown); the phone's, on the stand-in (`tests/web_test.py --hotspot`).
+
+**Still not in it:** Android (no phone at hand, the owner); a hidden network beyond typing its name ("Another network").
+
 ## Every client echoes the unit
 
 The owner, 2026-11-18: "echoing the state, not taking over one from another". Read here as: every client (the screen, each browser, each agent) shows the unit's own state as it is; a change made from one is shown by all; no client holds the unit or shuts another out.

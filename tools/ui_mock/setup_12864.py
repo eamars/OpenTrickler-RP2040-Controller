@@ -1,5 +1,5 @@
 """
-The set-up's screens on the mini 12864, as proposed (ADR-008, "Commissioning"; `.agents/skills/embedded-ui-design`
+The set-up's screens on the mini 12864, a stage at a time, as designed again (ADR-008, "The set-up, designed again"; `.agents/skills/embedded-ui-design`
 is the guideline), drawn in the menu's grid and faces (menu_12864.py) onto one sheet, for the owner to settle before
 gate 4 builds them.
 
@@ -24,6 +24,9 @@ DEFAULT_OUT = REPO / "docs" / "developments_plans" / "ADR-008-web_ui" / "mockups
 HOTSPOT = "opentrickler-9CE0"
 KEY = "k7m2x9pq"        # an example: the unit's own is made from its chip
 ADDRESS = "192.168.4.1"
+NETWORK = "Smith home"          # the stand-in's example network, never the owner's
+LONG_NETWORK = "Garage extender 2.4G-Plus"
+JOINED_ADDRESS = "192.168.1.57"
 MODULE = 2              # pixels a module
 CODE_SIDE = 64          # the code's lit square, its quiet zone inside it
 # The title's hotspot mark (scripts/bdf2lvgl.py, ICONS U+E001), shown while the unit is its own access point
@@ -79,9 +82,22 @@ def back_key(panel):
     panel.text(menu.TEXT, x + 3, menu.SOFTKEY_BASE, "Back", lit=False)
 
 
+def lines(panel, *texts):
+    """
+    A dialog's message centred: one or two lines on 29 and 40, three on 26, 37 and 48 (the view's grid). A line wider
+    than the panel is said, as the screen's skill asks every text to have a width.
+    """
+    bases = [29, 40] if len(texts) <= 2 else [26, 37, 48]
+    for base, text in zip(bases, texts):
+        if menu.TEXT.width(text) > W - 2:
+            print(f"too wide ({menu.TEXT.width(text)} px): {text!r}")
+        panel.text(menu.TEXT, 0, base, text, align="center")
+
+
 def screens():
     """
-    The set-up's screens.
+    The set-up's screens, a stage at a time (README, "The set-up, designed again"): each stage as the 12864 shows it
+    while the phone shows its own view of the same stage.
 
     Returns:
         (panels, captions).
@@ -95,31 +111,86 @@ def screens():
     p = Panel(); title(p, "OpenTrickler")
     menu.rows(p, [("Set up this unit", "", True), ("Charge", "", True), ("Purge", "", False), ("Wi-Fi", "", True)],
               0, total=5)
-    add(p, "Main menu, never set up: an offer, no pop-up")
+    add(p, "Never set up: an offer, no pop-up")
 
     p = Panel()
     version, level = join_code(p)
     column(p, ["Scan this", "with your", "phone's", "camera."])
     back_key(p)
-    add(p, f"Set up: the code joins the hotspot (QR {version}-{level})")
+    add(p, f"The code (QR {version}-{level})")
 
-    p = Panel(); title(p, "Set up")
-    p.text(menu.TEXT, 0, 26, "A phone joined.", align="center")
-    p.text(menu.TEXT, 0, 37, "Go on with it there,", align="center")
-    p.text(menu.TEXT, 0, 48, f"or open {ADDRESS}", align="center")
+    p = Panel(); title(p, "Set up: Wi-Fi")
+    lines(p, "A phone joined.", "Choose your Wi-Fi", "on your phone.")
     menu.softkeys(p, "Back", "Show the code", focus="left")
-    add(p, "Set up: a phone joined the hotspot")
+    add(p, "A phone joined; choosing a network")
 
-    wifi = [("Hotspot", HOTSPOT, "pair"), ("Key", KEY, "pair"), ("IP", ADDRESS, "pair"),
+    p = Panel(); title(p, "Set up: Wi-Fi")
+    lines(p, "Type the password of", NETWORK, "on your phone.")
+    menu.softkeys(p, "Back", "Show the code", focus="left")
+    add(p, "Its password, typed on the phone")
+
+    p = Panel(); title(p, "Set up: Wi-Fi")
+    lines(p, "Joining", NETWORK, "8 s of 30")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "Joining: its seconds count up, to 30")
+
+    p = Panel(); title(p, "Set up: Wi-Fi")
+    lines(p, "Joined", NETWORK, "Continue on your phone.")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "Joined: the phone goes on to the scale")
+
+    p = Panel(); title(p, "Set up: Wi-Fi")
+    lines(p, "Wrong password for", NETWORK, "Retype it on your phone.")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "Wrong password")
+
+    p = Panel(); title(p, "Set up: Wi-Fi")
+    lines(p, "No answer from", NETWORK, "Move it nearer the router.")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "No answer (out of reach, or 5 GHz only)")
+
+    p = Panel(); title(p, "Set up: Scale")
+    menu.figure(p, "12.34", "gr")
+    menu.context(p, "The scale sends its weight")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "The scale: its weight, live")
+
+    p = Panel(); title(p, "Set up: Scale")
+    menu.figure(p, "--", "")
+    menu.context(p, "Nothing from the scale")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "The scale: nothing heard in 3 s")
+
+    p = Panel(); title(p, "Set up: Motors")
+    lines(p, "Coarse driver: found", "Fine driver: found", "Continue on your phone.")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "The motors")
+
+    p = Panel(); title(p, "Set up: Ready")
+    lines(p, "Ready.", "Finish on your phone.")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "Ready")
+
+    p = Panel(); menu.title(p, "Set up: Done")
+    lines(p, "Open on " + NETWORK + ":", HOTSPOT + ".local", "or " + JOINED_ADDRESS)
+    menu.softkeys(p, "", "OK", focus="right")
+    add(p, "Done, joined: the hotspot stopped")
+
+    p = Panel(); title(p, "Set up: Done")
+    lines(p, "On its own hotspot.", "Open " + ADDRESS, "from a phone on it.")
+    menu.softkeys(p, "", "OK", focus="right")
+    add(p, "Done, Wi-Fi skipped: the hotspot stays")
+
+    p = Panel(); title(p, "Set up: Wi-Fi")
+    lines(p, "Wrong password for", LONG_NETWORK, "Retype it on your phone.")
+    menu.softkeys(p, "Back", "", focus="left")
+    add(p, "A long network name: its own line")
+
+    wifi = [("Hotspot", HOTSPOT, "pair"), ("Password", KEY, "pair"), ("IP", ADDRESS, "pair"),
             ("Join by camera", "button", False)]
     p = Panel(); title(p, "Wi-Fi", back=True)
     menu.dense(p, wifi, at="top")
-    add(p, "Wi-Fi on its own hotspot: the top")
-
-    wifi[-1] = ("Join by camera", "button", True)
-    p = Panel(); title(p, "Wi-Fi", back=True)
-    menu.dense(p, wifi, at="end")
-    add(p, "Wi-Fi on its own hotspot: its action")
+    add(p, "Wi-Fi on its own hotspot: Password")
     return out, caps
 
 

@@ -412,6 +412,8 @@ body[data-page="setup"] { padding-left: 0; }
 .setup-status { font-weight: 700; }
 .setup-status.good { color: var(--good); }
 .setup-status.bad { color: var(--over); }
+.setup-network { margin: 0; font-size: 1.15rem; font-weight: 700; overflow-wrap: anywhere; }
+.setup-count-up { margin: 0; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .networks .row { width: 100%; border: 0; border-top: 1px solid var(--rule); background: transparent; text-align: left; font: inherit;
                  font-weight: 600; }
 .networks .row.muted { color: var(--soft); font-weight: 500; }

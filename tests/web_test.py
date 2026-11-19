@@ -78,9 +78,14 @@ NETWORKS = [
 ]
 SCAN_MS = 1300                      # two scans of about 650 ms (gate 1's probe)
 JOIN_MS = 4000                      # the station's join, the hotspot kept up meanwhile (5 s on the probe)
-WRONG_KEY = "wrongkey"              # the key the stand-in's networks refuse, to show a wrong key told at once
+WRONG_KEY = "wrongkey"              # the password the stand-in's networks refuse, to show it told at once
+NO_ANSWER = "noanswer1"             # a network that does not answer: the join times out (shorter here than 30 s)
+LOSE_PHONE = "losephone"            # the phone loses the hotspot as the join moves its channel: silent for LOST_MS
+LOST_MS = 12000
+SETUP_STEPS = ["code", "wifi", "scale", "motors", "ready", "done"]
 JOINED_ADDRESS = "192.168.1.57"
 SETUP_PATHS = {"/api/v1/wifi/scan", "/api/v1/wifi/join", "/api/v1/setup/done"}
+SETUP = "/api/v1/setup"             # the set-up's step, kept by the unit (gate 4's design: proposed here)
 
 
 def record(host):
@@ -160,6 +165,8 @@ class StandIn:
             system["set_up"] = False
             network["station"] = {"state": "idle", "ssid": None, "address": None, "reason": None}
         self.scan = {"until_ms": None, "heard": []}
+        self.setup_step = "code" if hotspot else "done"
+        self.lost_until_ms = None       # the phone off the hotspot: nothing answers until then
         self.joining = None             # a join under way: its network, key and end
         if hotspot:
             hostname = network["hostname"]
@@ -183,6 +190,9 @@ class StandIn:
         if joining["key"] == WRONG_KEY:
             station.update(state="failed", ssid=joining["ssid"], address=None, reason="wrong_key")
             return
+        if joining["key"] == NO_ANSWER:
+            station.update(state="failed", ssid=joining["ssid"], address=None, reason="timeout")
+            return
         station.update(state="joined", ssid=joining["ssid"], address=JOINED_ADDRESS, reason=None)
         wifi = self.replies["/api/v1/settings/wifi"]
         wifi.update(enable=True, ssid=joining["ssid"], auth=joining["auth"], saved=True)
@@ -197,16 +207,25 @@ class StandIn:
         if path == "/api/v1/wifi/join":
             if not isinstance(body.get("ssid"), str) or not body["ssid"]:
                 return 400, error("wrong_type", "ssid: the network's name")
-            self.joining = {"ssid": body["ssid"], "key": body.get("key", ""), "auth": body.get("auth", "wpa2_mixed"),
-                            "until_ms": self.now_ms() + JOIN_MS}
+            password = body.get("password", body.get("key", ""))
+            self.joining = {"ssid": body["ssid"], "key": password, "auth": body.get("auth", "wpa2_mixed"),
+                            "until_ms": self.now_ms() + (JOIN_MS * 2 if password == NO_ANSWER else JOIN_MS)}
+            if password == LOSE_PHONE:
+                self.lost_until_ms = self.now_ms() + LOST_MS
             network["station"].update(state="joining", ssid=body["ssid"], address=None, reason=None)
             return 202, network
         # Set up: remembered; joined, the hotspot stops and the unit is on its network alone
         self.replies["/api/v1/system"]["set_up"] = True
+        self.setup_step = "done"
         if network["station"]["state"] == "joined":
             network.update(mode="station", ssid=network["station"]["ssid"], address=network["station"]["address"],
                            rssi=-58)
         return 200, {"set_up": True, "hotspot": network["mode"] == "access_point"}
+
+    def setup_reply(self):
+        """GET /api/v1/setup, as proposed: set up or not, the step the page and the screen show, a phone joined."""
+        return {"set_up": self.replies["/api/v1/system"]["set_up"], "step": self.setup_step, "phone": True,
+                "hotspot": self.replies["/api/v1/network"]["hostname"]}
 
     def add_event(self, source, kind, **carries):
         """Log an event, numbered from 1, as the unit's log does."""
@@ -240,6 +259,8 @@ class StandIn:
                          "next": len(self.events), "events": self.events[after:]}
         if path == "/api/v1/wifi/networks":
             return 200, self.networks()
+        if path == SETUP:
+            return 200, self.setup_reply()
         if path not in self.replies:
             return 404, error("not_found", "no such path on this build")
         reply = self.replies[path]
@@ -273,7 +294,9 @@ class StandIn:
         """
         with self.lock:
             self.tick()
-            return self.down_until_ms is not None
+            if self.lost_until_ms is not None and self.now_ms() >= self.lost_until_ms:
+                self.lost_until_ms = None
+            return self.down_until_ms is not None or self.lost_until_ms is not None
 
     def tick(self):
         """The update job moved on by the clock: its phases, the restart, the trial."""
@@ -452,6 +475,11 @@ class StandIn:
         """
         if method == "POST" and path in SETUP_PATHS:
             return self.setup_act(path, body)
+        if method == "PATCH" and path == SETUP:
+            if body.get("step") not in SETUP_STEPS[1:5]:
+                return 400, error("not_a_choice", "step: wifi, scale, motors or ready")
+            self.setup_step = body["step"]
+            return 200, self.setup_reply()
         # A save: what was written there is stored (the save of all, everything)
         saved = [r["path"] for r in self.schema["resources"] if path in (r["save"], "/api/v1/settings/save")]
         if method == "POST" and saved:
