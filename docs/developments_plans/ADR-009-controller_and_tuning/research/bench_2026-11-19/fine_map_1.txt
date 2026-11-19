@@ -1,0 +1,12 @@
+weight at the start 49.42
+weight at the end 97.16
+saved 4595 frames and 16 runs to C:\workspace\OpenTrickler-RP2040-Controller\logs\adr009\20261119_233912_runs
+tube speed_asked turns run_s gained_gr gr_per_turn gr_per_s late_gr note
+fine 2 4.9856 2.51 +4.040 0.810 1.607 +0.920 map
+fine 0.05 2.0104 40.21 +1.560 0.776 0.039 +0.100 map
+fine 3.5 6.3974 1.85 +5.020 0.785 2.715 +1.400 map
+fine 1 4.9015 4.93 +3.760 0.767 0.763 +0.760 map
+fine 0.1 4.0132 40.15 +2.960 0.738 0.074 +0.080 map
+fine 5 6.8355 1.39 +5.217 0.763 3.759 +2.040 map
+fine 0.2 4.3475 21.76 +3.080 0.708 0.142 +0.060 map
+fine 0.5 4.3619 8.75 +3.280 0.752 0.375 +0.260 map

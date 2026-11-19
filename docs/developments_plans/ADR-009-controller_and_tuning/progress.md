@@ -49,8 +49,53 @@ Asked by the owner while ADR-008 was being built by another session: physics, mo
 - **PR #113 holds no flow figures,** only gains and the fall after the stop. Its other real figures: coarse time 4.4 to 8.4 s in one N135 series; the D term worth under 1% of the fine speed at Kd 4; a stop threshold on an exact multiple of the scale's digit is decided by float rounding.
 - **A matrix run lost a worker once** (`BrokenProcessPool` at the G&G row); the same throws ran clean in one process and by `mc.py`. Not chased.
 
+## 2026-11-19, 23:28 to 23:51: the first bench session
+
+The owner: "The bench is ready now, Pico 2 W on the probe, powder loaded"; this AR2209 "has been exposed in the air for a long time so its property might look different". Pico 2 W, 2.0.3-84 (eaea601, Debug), the A&D FX-300i, the large tube and the low-flow small tube. Open loop through the console (`tools/charge_sim/bench/record.py`); raw frames and step counts in `logs/adr009/` of the main checkout, each run's line in `research/bench_2026-11-19/`. Every session ended `VERDICT PASS`. 193 gr poured into the cup, which now needs emptying.
+
+**Set on the unit, with the owner's word:** the fine motor's gear ratio 2.105263 (generation 1) to 1.818182 (40:22), stored. The settings before are in `logs/adr009/settings_before`. The step counts had confirmed it: 0.5 rev/s asked gave 0.432.
+
+**What was measured**
+
+| Thing | Measured | The simulation had assumed |
+|---|---|---|
+| A&D frames | 20.7 a second; `US` while the weight moves, `ST` at rest | 20.9 |
+| Fine tube, powder per turn | 0.71 to 0.81 gr at every speed from 0.05 to 5 rev/s; 0.70 to 0.86 in nudges | 1.35 (reference), 0.45 (first) |
+| Fine tube at 5 rev/s | 3.8 gr/s; at 3.5 rev/s a steady 3.0 gr/s through 8 s | a ceiling of 2.4 gr/s from the inlet window |
+| Coarse tube, powder per turn | 8.0 to 10.1 gr from 0.1 to 3 rev/s; 23.6 gr/s at 3 rev/s | 12 |
+| Shown only after a stop, as seconds of the flow | 0.5 to 0.65 s, both tubes, 0.4 to 24 gr/s | 0.25 |
+| The reading after a stop | within a digit of its end by 0.8 to 1.0 s | 0.5 s |
+| One kernel after a small turn: the reading first moves | median 1.24 s after the turn began (a tenth by 0.7 s, nine tenths by 2.0 s); still by 1.55 s (nine tenths by 2.6 s) | 0.25 s |
+| A kernel | gains cluster at 0.020 to 0.025 gr | 0.022 |
+| Not primed | the fine tube's first two 2 s runs gave nothing, the next three 0.10, 0.10, 0.26 gr | |
+
+**The nudge test** (fine tube, `motor fine <speed>`, a short pause, `motor fine 0`, then still):
+
+| Run | Turn | Still | Nudges | Nothing | 1 | 2 | 3 or more kernels | Largest |
+|---|---|---|---|---|---|---|---|---|
+| A | 0.030 (11°) | 1.3 s | 100 | 43 | 36 | 9 | 12 | 6 |
+| B | 0.011 (4°) | 1.2 s | 150 | 116 | 17 | 12 | 5 | 4 |
+| C | 0.011 (4°) | 3.0 s | 110 | 84 | 15 | 2 | 9 | 8 |
+
+- **A and B's pauses were too short for this scale:** a kernel can take over 2 s to show, so some were counted to the next nudge. C is the one to read.
+- **In C, of 26 nudges that released anything, 9 released three kernels or more (35%), 5 released five or more.** A 4° turn let go of up to 8 kernels, 0.17 gr. Long runs of nothing come before the large falls.
+- **Read against the bench guide's rule:** clumps are the limit for this batch and this tube. A finish by nudges alone would overcharge far more often than 1 in 50, whatever the controller before it.
+
+**What it changes**
+- **The fine tube's flow follows its speed.** No inlet ceiling, no sag over 8 s, no fall toward 5 rev/s: the held-powder state and the ceiling can leave the model, and the owner's "speed does not correlate with charge speed" did not show in these runs (not looked for: the coarse tube above 3 rev/s, a hopper nearly empty, a long run at 5 rev/s).
+- **The scale is slower to show a kernel than to show a grain,** as a filter with two speeds would be. Whether that second or more is the scale or the kernel falling late after the tube is released (`motor <tube> 0` switches the driver off) is not separated: the chain test of the guide's step 1 would.
+- **A finish that waits for the scale after each nudge costs 2 to 3 s a nudge here,** which does not fit a 7 to 15 s throw. Today's loop is quick because it does not wait; its stop threshold is a guess at what is still to show.
+- **Oscillation (D4) is now the first experiment,** not a later one: the question is whether a swing or a flick breaks a clump before it falls.
+
+**Found in passing**
+- **The scale task's stack:** `stats` gave `stack_min="Scale Task":160` at the session's start and `:48` at its end, after about 20,000 tapped frames. The tap's line is built on that task's stack. Tap recordings were stopped there. For ADR-008's or ADR-013's owner to look at; not changed.
+- `bad_frames=6` from the start of the session to its end: none added by it.
+- The unit's selected profile is "AR2208,gr"; no charge was run.
+
+**Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
+
 **Not done**
-- Nothing measured on a unit. `research/bench_guide.md` is the next step.
+- The simulation still holds its assumed figures: `research/bench_guide.md`'s "After the session" is the next step.
 - Oscillation is not in the simulation: there is nothing to model it from until the bench's step 7.
 - The automatic tuning is designed (README) and its measuring half simulated (`calibrate.py`); its verifying and trimming half is not.
 - numpy and matplotlib were installed into the venv and not used; they are not in `requirements.txt`.
