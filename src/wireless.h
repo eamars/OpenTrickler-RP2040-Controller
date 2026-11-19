@@ -2,7 +2,10 @@
 #define WIRELESS_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+#include "activity.h"
 
 #define EEPROM_WIRELESS_CONFIG_METADATA_REV                     2              // 16 byte 
 
@@ -57,13 +60,44 @@ void wireless_get_link(wireless_info_t *info);
 // The station leaves its network, as when its router goes away: the console's `wifi leave` (ADR-004)
 bool wireless_station_leave(void);
 
-#if RC_TEST_AP_PROBE
-// A probe build only (ADR-008, gate 1): the station's join now, and a scan with the access point up
-#include <cyw43.h>
-bool wireless_probe_join(void);
-int wireless_probe_scan(uint32_t *took_ms);
-const cyw43_ev_scan_result_t *wireless_probe_scan_found(uint8_t i);
-#endif
+/*
+    The set-up's networks and join (ADR-008, gate 4). Every join of the station, the start's, the minute's retry and
+    the set-up's, is the station's state: idle, joining, joined, failed and why (wrong_key, timeout, failed). A join
+    asked over the API is the set-up's: only while the unit is its own hotspot, which it keeps up meanwhile; joined,
+    the network is stored and in effect at once, refused, nothing is stored.
+*/
+typedef struct {
+    const char *state;      // "idle", "joining", "joined", "failed"
+    char ssid[33];          // the network joined or tried; "" with none
+    char address[24];       // the station's address on it; "" with none
+    const char *reason;     // failed: "wrong_key", "timeout", "failed"; NULL otherwise
+} wireless_station_info_t;
+void wireless_get_station(wireless_station_info_t *station);
+
+// A network heard by the scans, merged by name: its strongest signal, and its security as the settings name it
+typedef struct {
+    char ssid[33];
+    int16_t rssi;           // dBm
+    const char *auth;       // "open", "wpa_tkip", "wpa2_aes", "wpa2_mixed"
+} wireless_network_t;
+// A scan asked: two of them, merged; false while a join or a scan runs
+bool wireless_scan_start(void);
+bool wireless_scanning(void);
+// The idx-th network heard, strongest first once the scan ends (as heard while it runs); false past the last
+bool wireless_network_at(size_t idx, wireless_network_t *out);
+
+typedef enum {
+    WIRELESS_JOIN_TAKEN,        // the Wi-Fi task joins it now
+    WIRELESS_JOIN_BUSY,         // a join or a scan runs
+    WIRELESS_JOIN_NOT_HOTSPOT,  // the unit is on its network: a join would leave it
+    WIRELESS_JOIN_BAD_SSID,     // 1 to 31 bytes
+    WIRELESS_JOIN_BAD_KEY,      // 8 to 63 bytes for a network with security
+    WIRELESS_JOIN_BAD_AUTH,     // not one of the settings' choices
+} wireless_join_result_t;
+// A join asked by `by` (the API's, the console's): its network, key and security (the settings' words)
+wireless_join_result_t wireless_join(const char *ssid, const char *key, const char *auth, activity_by_t by);
+// The console's `wifi join`: the stored network, with its stored key, through the same join
+wireless_join_result_t wireless_join_stored(activity_by_t by);
 
 #ifdef __cplusplus
 }

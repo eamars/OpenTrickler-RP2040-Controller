@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-58-dirty",
-   "vcs": "4fd4df9",
+   "version": "2.0.3-63-dirty",
+   "vcs": "ea0b24d",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
   "hostname": "opentrickler-4A82",
-  "boot": 2461114630,
-  "uptime_s": 43,
+  "boot": 1469850380,
+  "uptime_s": 66,
   "features": [
    {
     "name": "servo_gate",
@@ -189,7 +189,28 @@
     "methods": [
      "GET"
     ],
-    "about": "the network the unit is on: its mode, name, address, host name, signal"
+    "about": "the network the unit is on: its mode, name, address, host name, signal; the station's last join and its end"
+   },
+   {
+    "path": "/api/v1/wifi/networks",
+    "methods": [
+     "GET"
+    ],
+    "about": "the networks the last scan heard, strongest first, and whether one runs"
+   },
+   {
+    "path": "/api/v1/wifi/scan",
+    "methods": [
+     "POST"
+    ],
+    "about": "scans for networks: twice, merged by name"
+   },
+   {
+    "path": "/api/v1/wifi/join",
+    "methods": [
+     "POST"
+    ],
+    "about": "the set-up's join, while the unit is its own hotspot, kept up meanwhile: stored once joined, never if refused"
    },
    {
     "path": "/api/v1/update",
@@ -458,8 +479,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-58-dirty",
-   "vcs": "4fd4df9",
+   "version": "2.0.3-63-dirty",
+   "vcs": "ea0b24d",
    "build": "Debug"
   },
   "resources": [
@@ -1963,6 +1984,50 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/wifi/scan",
+    "fields": [],
+    "refused_while": "never",
+    "about": "scans for networks twice, merged by name (202, with GET /api/v1/wifi/networks's reply): scanning until they end, some 2 s. 409 busy while a scan or a join runs"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/wifi/join",
+    "fields": [
+     {
+      "name": "ssid",
+      "type": "string",
+      "min_length": 1,
+      "max_length": 31,
+      "about": "the network's name"
+     },
+     {
+      "name": "key",
+      "type": "string",
+      "max_length": 63,
+      "about": "its key, 8 to 63 bytes with security; never sent back"
+     },
+     {
+      "name": "auth",
+      "type": "choice",
+      "choices": [
+       "open",
+       "wpa_tkip",
+       "wpa2_aes",
+       "wpa2_mixed"
+      ],
+      "about": "its security, as the networks name it; wpa2_mixed without it"
+     }
+    ],
+    "refused_while": "never",
+    "about": "the set-up's join (202, with GET /api/v1/network's reply, its station joining): the unit stays its own hotspot meanwhile, so the page that asked it reads the end in the station: joined (the network stored and in effect, no restart) or failed with its reason (wrong_key, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its network, which a join would leave; 409 busy while a scan or a join runs",
+    "example": {
+     "ssid": "Smith home",
+     "key": "its key",
+     "auth": "wpa2_mixed"
+    }
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/update/start",
     "fields": [
      {
@@ -2393,14 +2458,15 @@
    "wrong_slot",
    "hash_mismatch",
    "not_ready",
-   "no_network"
+   "no_network",
+   "not_on_hotspot"
   ]
  },
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-58-dirty",
-   "vcs": "4fd4df9",
+   "version": "2.0.3-63-dirty",
+   "vcs": "ea0b24d",
    "build": "Debug"
   },
   "unit_id": "4A821948",
@@ -2661,20 +2727,20 @@
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 0,
+  "throw": 2,
   "paused": false,
-  "target": null,
+  "target": 30,
   "powder_profile": 0,
   "powder_profile_name": "AR2208,gr",
   "weight": null,
-  "elapsed_s": 0,
+  "elapsed_s": 9.877,
   "last": {
-   "throw": 0,
+   "throw": 2,
    "result": "none",
-   "reason": "none",
-   "weight": null
+   "reason": "stopped",
+   "weight": 0
   },
-  "event_seq": 1
+  "event_seq": 9
  },
  "/api/v1/purge": {
   "state": "idle",
@@ -2687,7 +2753,7 @@
   "unit": null,
   "driver": "and_fxi",
   "simulated": false,
-  "usual_interval_ms": 0,
+  "usual_interval_ms": 100,
   "bad_frames": 0,
   "actions": [
    "zero"
@@ -2709,13 +2775,13 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-58-dirty",
-   "vcs": "4fd4df9",
+   "version": "2.0.3-63-dirty",
+   "vcs": "ea0b24d",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
-  "uptime_s": 45,
+  "uptime_s": 68,
   "activity": "none",
   "restart_pending": false
  },
@@ -2724,13 +2790,23 @@
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
   "hostname": "opentrickler-4A82",
-  "rssi": -61
+  "rssi": -59,
+  "station": {
+   "state": "joined",
+   "ssid": "dummy_ssid",
+   "address": "192.168.1.57",
+   "reason": null
+  }
+ },
+ "/api/v1/wifi/networks": {
+  "scanning": false,
+  "networks": []
  },
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-58-dirty",
-   "block": "2.0.3-58",
+   "version": "2.0.3-63-dirty",
+   "block": "2.0.3-63",
    "slot": "a",
    "trial": false
   },

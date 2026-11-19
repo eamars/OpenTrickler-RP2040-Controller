@@ -1208,7 +1208,7 @@ static const char *const settings_error_codes[] = {
     "read_only", "confirm_missing", "not_found", "method_not_allowed", "busy", "not_running", "no_target",
     "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
     "wrong_media_type", "failed", "not_an_image", "wrong_chip", "wrong_board", "not_an_update", "not_newer",
-    "wrong_slot", "hash_mismatch", "not_ready", "no_network",
+    "wrong_slot", "hash_mismatch", "not_ready", "no_network", "not_on_hotspot",
 };
 
 
@@ -1528,6 +1528,61 @@ const char *settings_store(const char *path) {
 const char *settings_write_and_save(const char *path, const char *name, const char *value) {
     const char *why = settings_write(path, name, value);
     return why != NULL ? why : settings_store(path);
+}
+
+
+const char *settings_write_and_store_by(const char *path, const char *const names[], const char *const values[],
+                                        size_t count, activity_by_t by) {
+    int32_t id;
+    const settings_resource_t *resource = screen_resource(path, &id);
+    if (resource == NULL || count > SETTINGS_WRITE_BY_MAX) {
+        snprintf(settings_why, sizeof(settings_why), "no such resource, or more than %d fields: %s",
+                 SETTINGS_WRITE_BY_MAX, path);
+        return settings_why;
+    }
+    // A few fields, on the caller's stack: the Wi-Fi task's (settings_patch takes two copies of the struct beside)
+    http_json_member_t members[SETTINGS_WRITE_BY_MAX];
+    for (size_t idx = 0; idx < count; idx += 1) {
+        members[idx] = (http_json_member_t) {.name = names[idx], .name_len = strlen(names[idx]),
+                                             .kind = HTTP_JSON_STRING, .value = values[idx],
+                                             .value_len = strlen(values[idx])};
+    }
+    outcome_t outcome;
+    settings_patch(resource, id, members, count, true, by, &outcome);
+    if (outcome.status != 200) {
+        snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
+        return settings_why;
+    }
+    if (!resource->is_saved() && !store(resource, by)) {
+        snprintf(settings_why, sizeof(settings_why), "the EEPROM did not take it");
+        return settings_why;
+    }
+    return NULL;
+}
+
+
+// The boot's copy of the fields that apply at restart, for one resource: walked as settings_restart_pending walks it
+void settings_in_effect(const char *path) {
+    int32_t id;
+    const settings_resource_t *wanted = screen_resource(path, &id);
+    size_t used = 0;
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        const settings_resource_t *resource = resources[idx];
+        if (resource->id_count != 0) {
+            continue;
+        }
+        const uint8_t *base = resource->live(-1);
+        for (uint8_t field_idx = 0; field_idx < resource->field_count; field_idx += 1) {
+            const setting_field_t *field = &resource->fields[field_idx];
+            if (!applies_at_restart(field) || used + field->size > SETTINGS_BOOT_BYTES) {
+                continue;
+            }
+            if (resource == wanted) {
+                memcpy(settings_boot_bytes + used, base + field->offset, field->size);
+            }
+            used += field->size;
+        }
+    }
 }
 
 

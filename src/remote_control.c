@@ -733,33 +733,41 @@ static bool remote_control_wifi(const char *args, char *reply, size_t reply_size
     while (*args == ' ') {
         args += 1;
     }
-#if RC_TEST_AP_PROBE
+    // `wifi join`: the stored network now, with its stored key, through the set-up's join (ADR-008, gate 4): only
+    // while the unit is its own hotspot; `network`'s station says how it ends
     if (strcmp(args, "join") == 0) {
-        bool asked = wireless_probe_join();
-        snprintf(reply, reply_size, asked ? "@ok wifi join asked" : "@err failed wifi join");
-        return asked;
+        wireless_join_result_t taken = wireless_join_stored(ACTIVITY_BY_CONSOLE);
+        static const char *const why[] = {"taken", "busy", "not on its hotspot", "no network stored", "bad key",
+                                          "bad security"};
+        snprintf(reply, reply_size, taken == WIRELESS_JOIN_TAKEN ? "@ok wifi join asked" : "@err failed wifi join: %s",
+                 why[taken]);
+        return taken == WIRELESS_JOIN_TAKEN;
     }
+    // `wifi scan`: the set-up's scan, waited for, then each network heard as an `@scan` line, strongest first
     if (strcmp(args, "scan") == 0) {
-        uint32_t took_ms = 0;
-        int found = wireless_probe_scan(&took_ms);
-        if (found < 0) {
-            snprintf(reply, reply_size, "@err failed wifi scan");
+        TickType_t started = xTaskGetTickCount();
+        if (!wireless_scan_start()) {
+            snprintf(reply, reply_size, "@err busy wifi scan: a scan or a join runs");
             return false;
         }
-        for (uint8_t i = 0; i < found; i++) {
-            const cyw43_ev_scan_result_t *r = wireless_probe_scan_found(i);
-            char line[96];
-            snprintf(line, sizeof(line), "@scan ssid=%.*s ch=%u rssi=%d auth=%u bssid=%02x:%02x:%02x:%02x:%02x:%02x",
-                     r->ssid_len, r->ssid, r->channel, r->rssi, r->auth_mode, r->bssid[0], r->bssid[1], r->bssid[2],
-                     r->bssid[3], r->bssid[4], r->bssid[5]);
-            write(line, write_ctx);
+        while (wireless_scanning() && xTaskGetTickCount() - started < pdMS_TO_TICKS(12000)) {
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
-        snprintf(reply, reply_size, "@ok wifi scan found=%d took_ms=%lu", found, (unsigned long) took_ms);
+        wireless_network_t network;
+        size_t found = 0;
+        while (wireless_network_at(found, &network)) {
+            char line[80];
+            snprintf(line, sizeof(line), "@scan ssid=\"%s\" rssi=%d auth=%s", network.ssid, network.rssi,
+                     network.auth);
+            write(line, write_ctx);
+            found += 1;
+        }
+        snprintf(reply, reply_size, "@ok wifi scan found=%u took_ms=%lu", (unsigned) found,
+                 (unsigned long) ((xTaskGetTickCount() - started) * portTICK_PERIOD_MS));
         return true;
     }
-#endif
     if (strcmp(args, "leave") != 0) {
-        snprintf(reply, reply_size, "@err usage wifi leave");
+        snprintf(reply, reply_size, "@err usage wifi leave|join|scan");
         return false;
     }
     bool left = wireless_station_leave();

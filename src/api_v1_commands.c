@@ -1401,8 +1401,50 @@ static void api_v1_system_factory_reset(const http_server_request_t *request, ht
 
 // --- The network
 
+/*
+ * The station's last join (ADR-008, gate 4): "station": {"state", "ssid", "address", "reason"}, whichever asked it
+ * (the start's, the minute's retry, the set-up's)
+ */
+static void api_write_station(char *out, size_t room, size_t *len) {
+    wireless_station_info_t station;
+    wireless_get_station(&station);
+    http_json_raw(out, room, len, ",\"station\":{\"state\":");
+    http_json_string(out, room, len, station.state);
+    http_json_raw(out, room, len, ",\"ssid\":");
+    if (station.ssid[0] != '\0') {
+        http_json_string(out, room, len, station.ssid);
+    }
+    else {
+        http_json_raw(out, room, len, "null");
+    }
+    http_json_raw(out, room, len, ",\"address\":");
+    if (station.address[0] != '\0') {
+        http_json_string(out, room, len, station.address);
+    }
+    else {
+        http_json_raw(out, room, len, "null");
+    }
+    http_json_raw(out, room, len, ",\"reason\":");
+    if (station.reason != NULL) {
+        http_json_string(out, room, len, station.reason);
+    }
+    else {
+        http_json_raw(out, room, len, "null");
+    }
+    http_json_raw(out, room, len, "}");
+}
+
+
+static void api_v1_write_network(http_server_reply_t *reply, int status);
+
+
 static void api_v1_get_network(const http_server_request_t *request, http_server_reply_t *reply) {
     (void) request;
+    api_v1_write_network(reply, 200);
+}
+
+
+static void api_v1_write_network(http_server_reply_t *reply, int status) {
     wireless_info_t info;
     wireless_get_info(&info);
     size_t room;
@@ -1428,8 +1470,109 @@ static void api_v1_get_network(const http_server_request_t *request, http_server
     else {
         http_json_raw(out, room, &len, "null");
     }
+    api_write_station(out, room, &len);
     http_json_raw(out, room, &len, "}");
-    api_send(reply, 200, room, len);
+    api_send(reply, status, room, len);
+}
+
+
+// --- The set-up's networks and join (ADR-008, gate 4)
+
+// {"scanning": ..., "networks": [{"ssid", "rssi", "auth"}, ...]}, strongest first
+static void api_v1_write_networks(http_server_reply_t *reply, int status) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"scanning\":");
+    http_json_bool(out, room, &len, wireless_scanning());
+    http_json_raw(out, room, &len, ",\"networks\":[");
+    wireless_network_t network;
+    for (size_t idx = 0; wireless_network_at(idx, &network); idx += 1) {
+        http_json_raw(out, room, &len, idx == 0 ? "{\"ssid\":" : ",{\"ssid\":");
+        http_json_string(out, room, &len, network.ssid);
+        http_json_raw(out, room, &len, ",\"rssi\":");
+        http_json_integer(out, room, &len, network.rssi);
+        http_json_raw(out, room, &len, ",\"auth\":");
+        http_json_string(out, room, &len, network.auth);
+        http_json_raw(out, room, &len, "}");
+    }
+    http_json_raw(out, room, &len, "]}");
+    api_send(reply, status, room, len);
+}
+
+
+static void api_v1_get_networks(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    api_v1_write_networks(reply, 200);
+}
+
+
+// POST /api/v1/wifi/scan {}: two scans, merged; 202 with what is heard so far, `scanning` until they end
+static void api_v1_wifi_scan(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    if (!wireless_scan_start()) {
+        api_busy(reply, "a scan or a join runs");
+        return;
+    }
+    api_v1_write_networks(reply, 202);
+}
+
+
+/*
+ * POST /api/v1/wifi/join {"ssid", "key", "auth"}: the set-up's join, the hotspot kept up; 202 with the network, its
+ * station joining. Joined, the network is stored and in effect; refused, nothing is stored. Only while the unit is
+ * its own hotspot: on its network, a join would leave it
+ */
+static void api_v1_wifi_join(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"ssid", "key", "auth"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 3)) {
+        return;
+    }
+    char ssid[40] = "";
+    char key[72] = "";
+    char auth[16] = "wpa2_mixed";
+    const http_json_member_t *member = api_member(members, count, "ssid");
+    if (member == NULL || !http_json_string_value(member, ssid, sizeof(ssid))) {
+        api_error(reply, 400, "wrong_type", "ssid", "ssid: the network's name, a string", NULL);
+        return;
+    }
+    member = api_member(members, count, "key");
+    if (member != NULL && !http_json_string_value(member, key, sizeof(key))) {
+        api_error(reply, 400, "wrong_type", "key", "key: a string", NULL);
+        return;
+    }
+    member = api_member(members, count, "auth");
+    if (member != NULL && !http_json_string_value(member, auth, sizeof(auth))) {
+        api_error(reply, 400, "not_a_choice", "auth", "auth: open, wpa_tkip, wpa2_aes or wpa2_mixed", NULL);
+        return;
+    }
+    wireless_join_result_t taken = wireless_join(ssid, key, auth, ACTIVITY_BY_API);
+    memset(key, 0, sizeof(key));
+    switch (taken) {
+        case WIRELESS_JOIN_TAKEN:
+            break;
+        case WIRELESS_JOIN_BUSY:
+            api_busy(reply, "a scan or a join runs");
+            return;
+        case WIRELESS_JOIN_NOT_HOTSPOT:
+            api_error(reply, 409, "not_on_hotspot", NULL,
+                      "the unit is on its network: a join is the set-up's, while it is its own hotspot", NULL);
+            return;
+        case WIRELESS_JOIN_BAD_SSID:
+            api_error(reply, 400, "out_of_range", "ssid", "ssid: 1 to 31 bytes", NULL);
+            return;
+        case WIRELESS_JOIN_BAD_KEY:
+            api_error(reply, 400, "out_of_range", "key", "key: 8 to 63 bytes for a network with security", NULL);
+            return;
+        case WIRELESS_JOIN_BAD_AUTH:
+            api_error(reply, 400, "not_a_choice", "auth", "auth: open, wpa_tkip, wpa2_aes or wpa2_mixed", NULL);
+            return;
+    }
+    api_v1_write_network(reply, 202);
 }
 
 
@@ -1481,6 +1624,19 @@ static const char *const api_v1_schema_actions[] = {
     "\"max\":1,\"required\":true,\"about\":\"0 open, 1 closed\"}],\"refused_while\":\"in_throw\","
     "\"about\":\"moves the servo gate; 409 gate_disabled when it is off in settings/gate\"}",
 #endif
+    "{\"method\":\"POST\",\"path\":\"/api/v1/wifi/scan\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"scans for networks twice, merged by name (202, with GET /api/v1/wifi/networks's reply): scanning until "
+    "they end, some 2 s. 409 busy while a scan or a join runs\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/wifi/join\",\"fields\":[{\"name\":\"ssid\",\"type\":\"string\","
+    "\"min_length\":1,\"max_length\":31,\"about\":\"the network's name\"},{\"name\":\"key\",\"type\":\"string\","
+    "\"max_length\":63,\"about\":\"its key, 8 to 63 bytes with security; never sent back\"},{\"name\":\"auth\","
+    "\"type\":\"choice\",\"choices\":[\"open\",\"wpa_tkip\",\"wpa2_aes\",\"wpa2_mixed\"],\"about\":\"its security, as "
+    "the networks name it; wpa2_mixed without it\"}],\"refused_while\":\"never\",\"about\":\"the set-up's join (202, "
+    "with GET /api/v1/network's reply, its station joining): the unit stays its own hotspot meanwhile, so the page "
+    "that asked it reads the end in the station: joined (the network stored and in effect, no restart) or failed "
+    "with its reason (wrong_key, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its "
+    "network, which a join would leave; 409 busy while a scan or a join runs\",\"example\":{\"ssid\":\"Smith home\","
+    "\"key\":\"its key\",\"auth\":\"wpa2_mixed\"}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/update/start\",\"fields\":[{\"name\":\"download\","
     "\"type\":\"boolean\",\"about\":\"true: the job fetches the release the poll found itself (found in GET "
     "/api/v1/update), checks it and installs it, as the offer's Install at the screen does\"}],"
@@ -1708,6 +1864,9 @@ bool api_v1_commands_init(void) {
     // The owner's hello for agents: listed since ADR-008's gate 2, an action of the kind agent
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/agent/hello", api_v1_agent_hello);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/network", api_v1_get_network);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/wifi/networks", api_v1_get_networks);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/scan", api_v1_wifi_scan);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/join", api_v1_wifi_join);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/update", api_v1_get_update);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/start", api_v1_update_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/check", api_v1_update_check);

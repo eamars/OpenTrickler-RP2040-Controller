@@ -97,6 +97,12 @@ def record(host):
         replies[path] = {"base64": base64.b64encode(reply).decode()} if isinstance(reply, bytes) else reply
         replies[path].update(PRIVATE.get(path, {}))
     replies["/api/v1/settings"]["resources"]["/api/v1/settings/wifi"].update(PRIVATE["/api/v1/settings/wifi"])
+    # The station's network as the network's (ADR-008, gate 4), and no networks heard: they are the neighbours' names.
+    # The stand-in plays its own (NETWORKS)
+    station = replies["/api/v1/network"].get("station")
+    if station is not None and station["ssid"] is not None:
+        station.update(ssid=PRIVATE["/api/v1/network"]["ssid"], address=JOINED_ADDRESS)
+    replies["/api/v1/wifi/networks"] = {"scanning": False, "networks": []}
     DATA.write_text(json.dumps(replies, indent=1), encoding="utf-8")
     print(f"{len(replies)} paths of {unit.index['hostname']} (firmware {unit.index['firmware']['version']}) "
           f"recorded into {DATA}")
@@ -140,19 +146,20 @@ class StandIn:
 
     def propose_setup(self, hotspot):
         """
-        The set-up's proposed API, made here until gate 4 builds it: `set_up` in the system's reply (stored; a factory
-        reset clears it), the station's join in the network's, the networks heard. Refused once the unit has them.
+        The set-up as the stand-in plays it. The unit reports the station's join and the networks (gate 4, step 3); the
+        stand-in plays the scan and the join on them. `set_up` in the system's reply (stored; a factory reset clears it)
+        is still proposed here until step 4 builds it, and refused once the unit has it.
 
         Args:
             hotspot: start as a unit never set up, on its own hotspot.
         """
         system = self.replies["/api/v1/system"]
         network = self.replies["/api/v1/network"]
-        if "set_up" in system or "station" in network:
-            sys.exit("the recording has the set-up's API: the unit makes it now, so take out propose_setup")
+        if "set_up" in system:
+            sys.exit("the recording has set_up: the unit makes it now, so take it out of propose_setup")
         system["set_up"] = not hotspot
-        network["station"] = {"state": "joined" if not hotspot else "idle", "ssid": network["ssid"] if not hotspot else None,
-                              "address": network["address"] if not hotspot else None, "reason": None}
+        if hotspot:
+            network["station"] = {"state": "idle", "ssid": None, "address": None, "reason": None}
         self.scan = {"until_ms": None, "heard": []}
         self.joining = None             # a join under way: its network, key and end
         if hotspot:

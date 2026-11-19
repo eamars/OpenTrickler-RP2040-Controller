@@ -2088,6 +2088,23 @@ class Session:
                 self.fail(f"api_check: the poll still checks after {API_CHECK_POLL_S:.0f} s")
         else:
             expect("POST", "update/check", {}, 409, "no_network")
+
+        # The set-up's scan and join (ADR-008, gate 4): a scan asked and waited out; a join's body checked first,
+        # then, on a unit on its network, refused, as it would leave it. A join that runs is the set-up's proof's
+        expect("POST", "wifi/scan", {}, 202)
+        deadline = time.monotonic() + 15.0
+        heard = unit.read("wifi/networks")
+        while heard["scanning"] and time.monotonic() < deadline:
+            time.sleep(0.5)
+            heard = unit.read("wifi/networks")
+        self.log.write("rc", f"api_check: the scan heard {len(heard['networks'])} networks")
+        if heard["scanning"]:
+            self.fail("api_check: the scan still runs after 15 s")
+        expect("POST", "wifi/join", {"ssid": "api_check", "key": "short", "auth": "wpa2_mixed"}, 400, "out_of_range")
+        expect("POST", "wifi/join", {"ssid": "api_check", "auth": "wep"}, 400, "not_a_choice")
+        if network.get("mode") == "station":
+            expect("POST", "wifi/join", {"ssid": "api_check", "key": "api_check_key", "auth": "wpa2_mixed"}, 409,
+                   "not_on_hotspot")
         expect("POST", "update/start", {"download": "yes"}, 400, "wrong_type")
         if unit.read("update")["found"] is None:
             expect("POST", "update/start", {"download": True}, 409, "not_found")

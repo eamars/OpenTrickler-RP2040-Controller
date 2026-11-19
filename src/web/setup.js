@@ -11,8 +11,8 @@ let setupTimer = null;
 let setupLeft = false;          // the hotspot stopped at the end: the page is no longer on the unit's network
 
 // The unit's words for a join that failed and for a driver, in plain words
-const JOIN_REFUSED = {wrong_key: "the key is wrong", not_found: "the network was not found",
-                      timeout: "the network did not answer in time"};
+const JOIN_REFUSED = {wrong_key: "the key is wrong", timeout: "the network did not answer in time",
+                      failed: "the network did not let it join"};
 const DRIVER_WORDS = {ok: "Driver found", absent: "Driver not found: check its cable and the board's power",
                       short: "A short on its motor's wires", hot: "Its driver is too hot", reset: "Its driver restarted",
                       supply: "Its driver's power is too low"};
