@@ -28,6 +28,7 @@
     --top: 12px;                /* above the Trickler: no top row (the owner: a waste of space) */
     --bar: 64px;                /* the navigation bar, under 600 px */
     --gap: 10px;
+    --trickler-floor: 500px;    /* the Trickler's least: below it the page scrolls (.trickler) */
     color-scheme: light dark;
 }
 /* features: 13 */
@@ -51,7 +52,8 @@
     }
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+/* No zoom on a double tap: a key tapped twice (the target's - and +) zoomed the page on a phone. Pinching still zooms */
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
 body { margin: 0; background: var(--ground); color: var(--ink);
        font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; }
 button, input, select { font: inherit; color: inherit; }
@@ -67,11 +69,16 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
            width: min(92vw, 440px); margin: 0; padding: 12px 16px; border-radius: 14px; text-align: center;
            background: var(--over); color: var(--on-stop); font-weight: 700; box-shadow: 0 6px 18px rgb(0 0 0 / 0.25); }
 
-/* The Trickler: exactly the height left, never scrolled */
+/* The Trickler: exactly the height left, never scrolled. The height the browser shows (dvh): Chrome on an iPhone gave
+   svh some 170 px short of it, and the readout was squeezed to nothing under the job's key. A floor where it cannot
+   fit (the figure and its bar need some 72 px beside the rest's 422): there the page scrolls, never overlaps, and the
+   margin under it keeps the job's key clear of the navigation */
 .trickler {
     height: calc(100svh - var(--bar) - env(safe-area-inset-bottom));
+    height: max(calc(100dvh - var(--bar) - env(safe-area-inset-bottom)), var(--trickler-floor));
     display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap);
-    padding: calc(var(--top) + env(safe-area-inset-top)) 12px var(--gap); max-width: 640px; margin: 0 auto;
+    padding: calc(var(--top) + env(safe-area-inset-top)) 12px var(--gap); max-width: 640px;
+    margin: 0 auto calc(var(--bar) + env(safe-area-inset-bottom));
     position: relative;
 }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--well);
@@ -362,7 +369,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
                background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat; }
 /* A number's field as wide as a number needs, its unit beside it, not stretched across a tablet */
 .number { grid-template-columns: minmax(0, 14rem) auto; justify-content: start; }
-/* The tuning guide under the powders: a link out, its line saying it needs the internet */
+/* The tuning guide under the powders: a link out */
 .guide { margin: 14px 4px 0; color: var(--soft); font-size: 0.875rem; }
 .guide a { color: var(--ink); font-weight: 650; display: inline-flex; align-items: center; min-height: 48px; }
 /* The gate moved now (Settings, Servo gate): how open between its keys, Open and Close side by side */
@@ -393,7 +400,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 /* On the Trickler another job's strip takes the row of the Charge and Purge switch, of no use while that job holds the
    unit (both are refused): the same height, so the figure keeps its room */
 body.strip-on #page-trickler .seg { display: none; }
-body.strip-on .trickler { height: calc(100svh - var(--bar) - env(safe-area-inset-bottom) - 60px); padding-top: var(--gap);
+body.strip-on .trickler { height: calc(100svh - var(--bar) - env(safe-area-inset-bottom) - 60px);
+                          height: max(calc(100dvh - var(--bar) - env(safe-area-inset-bottom) - 60px), var(--trickler-floor));
+                          padding-top: var(--gap);
                           grid-template-rows: minmax(0, 1fr); }
 @media (min-width: 600px) { .strip { margin: 12px 16px 0; } }
 /* Set up: a flow of its own, one column of a phone's width, no navigation; it may run in a sign-in sheet (rule 13) */

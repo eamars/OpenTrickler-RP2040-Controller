@@ -107,11 +107,11 @@ PAGES.powders = {
         const chosen = /^\d+$/.test(rest) ? Number(rest) : (SPLIT.matches ? inUse : null);
         page.dataset.open = chosen === null ? "list" : "part";
         const master = element("div", {class: "master"});
-        // The tuning guide (features: 61 95): on GitHub, so it opens only with the internet, and says so
+        // The tuning guide (features: 61 95): on GitHub
         const guide = element("p", {class: "guide"},
                               element("a", {href: "https://github.com/eamars/OpenTrickler/blob/main/Manual/tuning_guide.md",
                                             target: "_blank", rel: "noopener"}, "Tuning guide"),
-                              " on GitHub: needs the internet");
+                              " on GitHub");
         const drawMaster = () => master.replaceChildren(drawPowderList(powders, inUse, chosen), drawPowderTable(powders, inUse, chosen),
                                                         guide);
         drawMaster();

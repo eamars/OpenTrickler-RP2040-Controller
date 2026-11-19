@@ -223,7 +223,7 @@ async function stopPurge() {
 
 async function zero() {
     const reply = await api("POST", "/api/v1/scale/zero", {});
-    reply.ok ? say("Zeroed.") : refusal(reply, "Not zeroed");
+    reply.ok ? say("Zeroed.", "good") : refusal(reply, "Not zeroed");
 }
 
 // The page: its controls wired once, its polling only while it is shown
