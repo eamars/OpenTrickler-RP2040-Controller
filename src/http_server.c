@@ -704,6 +704,12 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
     if (!reply->done) {
         http_server_reply_error(reply, 500, "failed", "the handler gave no reply");
     }
+    if (reply->status >= 400) {
+        // A refusal, said on the console with its own words: a page shows them only to the person in front of it
+        int said = reply->kind == BODY_BUFFER ? (int) (reply->len < 160 ? reply->len : 160) : 0;
+        printf("HTTP: %s %s refused %d %.*s\n", method_name(request->method),
+               request->path != NULL ? request->path : "(no path)", reply->status, said, reply_scratch);
+    }
 
     switch (reply->kind) {
         case BODY_STATIC: {
@@ -1302,6 +1308,8 @@ static void slot_receive(slot_t *slot) {
         if (slot->state == SLOT_PARKED || slot->state == SLOT_SENDING) {
             slot->close_after = true;   // more came while a reply was being made: no pipelining
             slot->drain = true;
+            printf("HTTP: a request came while %s %s was answered; it is dropped and the connection closed\n",
+                   method_name(slot->request.method), slot->request.path != NULL ? slot->request.path : "(no path)");
             return;
         }
         slot_feed(slot, data, (size_t) got);
@@ -1567,11 +1575,14 @@ static void server_timers(void) {
                 }
                 else if (slot->started && quiet > HTTP_SERVER_STALL_MS) {
                     stats.aborted_stalled += 1;
+                    printf("HTTP: a request stalled while it came (%s); the connection is reset\n",
+                           slot->request.path != NULL ? slot->request.path : "its line or headers");
                     slot_close(slot, true);
                 }
                 else if (slot->started && (slot->phase == PHASE_LINE || slot->phase == PHASE_HEADERS) &&
                          now - slot->started_ms > HTTP_SERVER_HEAD_MS) {
                     stats.aborted_stalled += 1;
+                    printf("HTTP: a request's headers took too long; the connection is reset\n");
                     slot_close(slot, true);
                 }
                 break;
@@ -1587,6 +1598,9 @@ static void server_timers(void) {
                 // A reply that makes no progress while there is something to send: lwIP frees what it holds
                 if (quiet > HTTP_SERVER_STALL_MS) {
                     stats.aborted_stalled += 1;
+                    printf("HTTP: the reply to %s %s stalled; the connection is reset\n",
+                           method_name(slot->request.method),
+                           slot->request.path != NULL ? slot->request.path : "(no path)");
                     slot_close(slot, true);
                 }
                 break;
@@ -1610,8 +1624,48 @@ static void server_timers(void) {
 }
 
 
+// Each slot by a letter: s a stream, p parked, a sending, d draining, r a request coming, k kept alive and
+// answered, n a connection taken with no request yet, - free
+static void slots_say(bool room, uint32_t full_ms) {
+    char held[HTTP_SERVER_SLOTS + 1];
+    for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
+        const slot_t *slot = &slots[idx];
+        char c = '-';
+        switch (slot->state) {
+            case SLOT_WAITING:
+                c = 's';
+                break;
+            case SLOT_PARKED:
+                c = 'p';
+                break;
+            case SLOT_SENDING:
+                c = slot->live ? 's' : 'a';
+                break;
+            case SLOT_DRAINING:
+                c = 'd';
+                break;
+            case SLOT_REQUEST:
+                c = slot->started ? 'r' : (slot->served ? 'k' : 'n');
+                break;
+            default:
+                break;
+        }
+        held[idx] = c;
+    }
+    held[HTTP_SERVER_SLOTS] = '\0';
+    if (room) {
+        printf("HTTP: a slot free again after %lu ms (%s)\n", (unsigned long) full_ms, held);
+    }
+    else {
+        printf("HTTP: every slot held, a new connection waits (%s)\n", held);
+    }
+}
+
+
 static void server_task(void *arg) {
     int listen_fd = -1;
+    bool had_room = true;
+    uint32_t full_since_ms = 0;
     while (listen_fd < 0) {
         listen_fd = server_listen();
         if (listen_fd < 0) {
@@ -1633,10 +1687,18 @@ static void server_task(void *arg) {
         uint32_t now = now_ms();
         bool waiting_for_memory = false;
 
-        // The listener only when a slot is free or can be freed, or select() would wake at once and again
-        if (slot_free() != NULL || slot_idlest() != NULL) {
+        // The listener only when a slot is free or can be freed, or select() would wake at once and again. A new
+        // connection meanwhile waits in the backlog: said on the console when it begins and ends, with what holds
+        // each slot
+        bool room = slot_free() != NULL || slot_idlest() != NULL;
+        if (room) {
             FD_SET(listen_fd, &read_set);
             max_fd = listen_fd;
+        }
+        if (room != had_room) {
+            slots_say(room, now - full_since_ms);
+            full_since_ms = now;
+            had_room = room;
         }
         for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
             slot_t *slot = &slots[idx];
