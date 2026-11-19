@@ -71,6 +71,15 @@ Marked **[B]** measured on the bench (Pico 2 W, 2.0.3-84, A&D FX-300i, large tub
 - **Its plant is now known to be wrong in three places** (the fine tube's flow per turn and ceiling, the scale's lag, the clump sizes). **Do not quote its over-rates or times** until it is refitted. What it showed that should outlast the refit: the overcharge rate is set by clump size once the blind feed is removed; sharing the feed between the tubes three ways made no measurable difference; a candidate calibrated on each unit held its figure across differently printed tubes.
 - Tried and dropped: counting powder pushed to the lip as delivered, with a reverse turn (no gain).
 
+## Revised 2026-11-20 by the agent who took over: read this before the interim conclusion
+
+An independent review of the raw recordings (`../progress.md`, "a second agent's review") changes conclusions 1 to 3 and the order of the actions below. In short:
+
+- **Conclusion 1 does not hold as written.** Turning steadily at 0.05 to 0.2 rev/s, this powder leaves the fine tube a kernel at a time (variance over mean of the kernels a window 0.65 to 1.4; the nudges give 4.9). The clumps come from stopping and starting, and from a driver switched off between nudges. They are a fault of the nudged finish (D2), not a limit of powder and tube.
+- **Conclusion 2 is narrower than written.** After a stop from a slow steady turn the reading is still within about 1 s. Only one kernel alone after a nudge takes 2 s.
+- **Conclusion 3's first candidate is the one to test** (stop the steady feed by what is already on its way), and oscillation waits until a steady finish is shown to fail.
+- **Actions, in the new order:** (1) the creep-stop test on the bench (`record.py creepstop`; pass and fail in `../progress.md`); (2) by its result, ten recorded throws of today's loop with its stop moved, the owner at the cup; (3) the ADR revised with the owner. A1's question on the A&D's response setting still stands. A2 and A3 (the simulation refitted, the finish redesigned in it) are not done first: the simulation is refitted when a design question needs it that the bench cannot answer cheaper. A5 (oscillation) is parked with its closing condition: opened only if the creep-stop test fails at 0.02 rev/s too.
+
 ## Interim conclusion
 
 1. **For this powder, tube and scale, clumps at the fine tube's lip are the limit**, not the controller. About a third of the releases from a small turn carry three kernels or more, and three kernels is the width of the band. No stopping rule reaches 1 in 50 against that.

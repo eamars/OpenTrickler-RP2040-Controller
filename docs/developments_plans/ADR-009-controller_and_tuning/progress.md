@@ -111,6 +111,37 @@ Chosen by the owner over a firmware command ("Flick test, console only"), after 
 - **What it says for the next step:** the small shake is worth carrying into a real test, at 20 to 50 Hz and with an exact net turn, which needs the `wiggle` command (bench guide, step 7) and several hundred trials a kind. The trial count matters more than the kinds: a release comes in one trial of four, so 100 trials give about 25 releases.
 - 1.62 gr in the cup at the end. Every session `VERDICT PASS`. Lines in `logs/adr009/flick_*.txt` of the main checkout; `bench/flick_summary.py` sums them.
 
+## 2026-11-20: a second agent's review of the bench's recordings, no unit
+
+Asked by the owner of the agent taking over: an independent review first. Made from the raw frames in `logs/adr009/` of the main checkout, with `tools/charge_sim/bench/steady_release.py` (new). No contact with the unit.
+
+**What the recordings say that the first reading missed**
+
+| Recording | Kernels a second | Variance over mean of the kernels in a window (1 s, 2 s, 4 s) | Largest rise within 0.3 s |
+|---|---|---|---|
+| Fine tube, steady 0.05 rev/s, 38 s | 1.8 | 1.4, 1.1, 0.65 | 3.8 kernels |
+| Steady 0.1 rev/s, 38 s | 3.6 | 1.0, 0.72, 1.1 | 5.7 |
+| Steady 0.2 rev/s, 20 s | 6.8 | 0.83, 0.66, 0.66 | 4.8 |
+| Nudge run C (4° turns, 3 s still, the driver switched off between) | | 4.9, from each nudge's gain | 7.6 in one nudge |
+
+- **Turning steadily, this powder leaves the fine tube a kernel at a time.** Variance over mean is 1 when kernels leave singly and at random; a release of several at once raises it to the size of the release. The steady runs give 0.65 to 1.4; the nudges give 4.9. Both pour the same powder a turn (about 7 kernels a fifth of a turn).
+- **So the clumps of the nudge test are made by nudging,** not carried by the powder: a tube that stops lets powder build at its lip and fall together at a later move. Each console nudge also switches the driver on and off (`remote_control.c`: `motor <tube> 0` calls `motor_enable(false)`), which a charge never does between its start and its end (`charge_mode.cpp`, lines 833 and 878).
+- **"Clumps at the lip are the limit; no stopping rule reaches 1 in 50" does not follow.** It holds for a finish by nudges (D2), which is the research's own candidate, not for a finish that keeps turning. Today's loop finishes by a steady slow turn; that part of it is right.
+- **Oscillation has no problem to answer yet.** It was to break clumps; a steady turn shows none. No research build and no 300-trial series until a steady finish is shown to fail.
+- **The scale after a stop from a slow turn is still within about 1 s** (three stops, at 0.05, 0.1 and 0.2 rev/s: the last change at 0.8, 1.2 and 0.6 s). The 1.2 to 2.6 s of the nudge test is one kernel alone after a tube released: releases of three kernels or more first showed at 0.7 to 1.3 s, single ones at 0.3 to 2.5 s, six of eleven between 1.8 and 2.2 s. Scale or late kernel is still not separated, and matters less: a steady finish does not wait for single kernels.
+- **Not measured at all, and the one figure a finish needs:** how much the reading rises after a stop from a slow steady turn, and how much that varies. Three samples exist: +4.8, +3.8 and +2.9 kernels, from 0.05, 0.1 and 0.2 rev/s, each with the driver switched off at the stop. Their spread decides the over-rate of any finish that stops once; their mean is only an offset.
+
+**On the approach, for the record**
+- The bench work is sound and was kept honest: every run's line, the raw frames, what was not separated. The flow per turn, the gear ratio, the scale's lag after a flow and the kernel's mass stand.
+- The order was the wrong way round: a simulation of 2,000 lines and four desk studies before any measurement, and twenty minutes on the bench then changed its plant in three places. The handover's next actions repeated it (refit and redesign in simulation "before more bench time").
+- The real system's own figure was never taken: no throw of today's loop has been recorded. "1 in 10 to 15" is the owner's memory, from before the fine gear ratio was corrected.
+- **The gear ratio's correction changes today's loop on this unit:** the fine tube now turns 16% faster for the same stored profile (0.864 of the speed asked before). The AR2209 profile's gains and least speed were tuned at the old ratio. Expect more overcharges from today's loop on the Pico 2 W until it is tuned again or replaced; say so before the owner throws real charges with it.
+
+**The next step: the creep-stop test** (`record.py creepstop`, new, console only, no firmware): the fine tube at 0.05 and 0.1 rev/s for 3 to 6 s, stopped, watched for 3 s; 30 stops of each speed with the driver left on (a hold at 0.0005 rev/s, as a charge leaves it) and 30 with it switched off. About 18 minutes, about 30 gr into the cup, the cup not handled.
+- **Pass:** at one of the speeds, with the driver left on, a band of three digits (the tolerance) holds the rise after the stop in at least 29 of 30 stops. Thirty stops cannot show 1 in 50; they show whether it is worth the real throws that can. A finish by one predicted stop from a steady turn can then keep the tolerance; the design is today's finish with its stop moved earlier by the mean, and the feed before it bounded (D1's law). Then real throws.
+- **Fail:** the spread is wider than the band. Then the finish needs a second, slower stage (0.02 rev/s, tried the same way), and only if that fails too is oscillation's question open.
+- It also separates the driver's switching off from the powder (the two kinds of stop), and gives the scale's time to stillness after a real finish's stop.
+
 **Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
 
 **Not done**
