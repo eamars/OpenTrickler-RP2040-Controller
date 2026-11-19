@@ -171,7 +171,8 @@ API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usu
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
 API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
 API_CHECK_POLL_S = 45.0         # an update's poll: three HTTPS handshakes took 15 s on the Pico W (ADR-010, gate 5)
-API_CHECK_TLS_RESERVE = 2048    # what the TLS client leaves the heap (https_client.c, HTTPS_HEAP_RESERVE)
+PULSES_MENU_WAIT_S = 4.0        # the menu's first screen, after a flash, before a motor is taken (pulses)
+API_CHECK_TLS_RESERVE = 2048   # what the TLS client leaves the heap (https_client.c, HTTPS_HEAP_RESERVE)
 API_CHECK_TLS_ROOM = 8192       # what an HTTPS fetch must leave over it (ADR-008; ADR-005's trigger)
 # Two clients follow the event log through every soak with held reads (ADR-003, gate 4): each must see every event
 SOAK_FOLLOWERS = 2
@@ -3221,7 +3222,16 @@ class Session:
             return STEP_RUNNING_FRACTION < self.step_activity()["coarse"] < STEP_STUCK_FRACTION
 
         def start_coarse(case):
-            self.send("motor coarse 1")
+            # Just after a flash the menu may not have drawn its first screen, and a motor is refused until it has
+            # ("a mode is running"); the test builds fault 10 s after their start, so it is waited for a little
+            deadline = time.monotonic() + PULSES_MENU_WAIT_S
+            reply = self.console.command("motor coarse 1")
+            while reply is not None and "a mode is running" in reply and time.monotonic() < deadline:
+                time.sleep(0.2)
+                reply = self.console.command("motor coarse 1")
+            if reply is None or not reply.startswith("@ok"):
+                self.fail(f'{case}: "motor coarse 1": {reply}')
+                return False
             time.sleep(1.5)     # the ramp
             if not pulsing():
                 self.fail(f"{case}: the coarse trickler did not start pulsing")

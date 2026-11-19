@@ -122,7 +122,7 @@ static void https_fail(const char *what, int code) {
     if (https_report.alloc_refused > 0) {
         // A block refused at the reserve: what failed after it failed for that, whatever mbedTLS made of it (a
         // certificate it could not hold reads as one not trusted)
-        char after[sizeof(https_report.error)];
+        char after[sizeof(https_report.error) - sizeof("no room in memory ()")];
         snprintf(after, sizeof(after), "%s", what);
         snprintf(https_report.error, sizeof(https_report.error), "no room in memory (%s)", after);
     }

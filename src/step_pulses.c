@@ -38,6 +38,20 @@ typedef struct {
 
 static step_pulses_channel_t step_pulses_channels[STEP_PULSES_CHANNELS];
 static int step_pulses_program_offset = -1;
+static int step_counter_offsets[NUM_PIOS] = {[0 ... NUM_PIOS - 1] = -1};  // the counter's program, once on each PIO
+
+
+// A state machine turned on or off by the CTRL register's set and clear aliases, one bit alone: the SDK's
+// pio_sm_set_enabled() reads, changes and writes the whole register, and so undoes a change another core made between
+// (ADR-008: the radio's state machine left off, its transfer waiting for ever)
+static void step_pulses_sm_enable(PIO pio, uint sm, bool on) {
+    if (on) {
+        hw_set_bits(&pio->ctrl, 1u << (PIO_CTRL_SM_ENABLE_LSB + sm));
+    }
+    else {
+        hw_clear_bits(&pio->ctrl, 1u << (PIO_CTRL_SM_ENABLE_LSB + sm));
+    }
+}
 
 
 bool step_pulses_init(unsigned int channel, unsigned int step_pin) {
@@ -67,19 +81,38 @@ bool step_pulses_init(unsigned int channel, unsigned int step_pin) {
     ch->offset = (uint) step_pulses_program_offset;
     ch->step_pin = step_pin;
     stepper_program_init(ch->pio, ch->sm, ch->offset, step_pin);
-    pio_sm_set_enabled(ch->pio, ch->sm, true);
+    step_pulses_sm_enable(ch->pio, ch->sm, true);
 
-    // The counter, on any PIO with a state machine to spare. Without one the steps fed stand in for the steps made
-    PIO counter_pio;
-    uint counter_sm;
-    uint counter_offset;
-    ch->has_counter = pio_claim_free_sm_and_add_program_for_gpio_range(&step_counter_program, &counter_pio, &counter_sm,
-                                                                       &counter_offset, step_pin, 1, true);
+    // The counter, on a PIO other than the steppers', with a state machine to spare: the steppers' PIO is kept for the
+    // two of them (a counter there took the second's). It is turned on once, here, so it may share the radio's PIO.
+    // Without one the steps fed stand in for the steps made
+    PIO counter_pio = NULL;
+    uint counter_sm = 0;
+    uint counter_offset = 0;
+    ch->has_counter = false;
+    for (uint idx = 0; idx < NUM_PIOS && !ch->has_counter; idx += 1) {
+        PIO candidate = pio_get_instance(idx);
+        if (candidate == MOTOR_PIO) {
+            continue;
+        }
+        int offset = step_counter_offsets[idx];
+        if (offset < 0 && pio_can_add_program(candidate, &step_counter_program)) {
+            offset = pio_add_program(candidate, &step_counter_program);
+            step_counter_offsets[idx] = offset;
+        }
+        int counter = offset >= 0 ? pio_claim_unused_sm(candidate, false) : -1;
+        if (counter >= 0) {
+            counter_pio = candidate;
+            counter_sm = (uint) counter;
+            counter_offset = (uint) offset;
+            ch->has_counter = true;
+        }
+    }
     if (ch->has_counter) {
         ch->counter_pio = counter_pio;
         ch->counter_sm = counter_sm;
         step_counter_program_init(counter_pio, counter_sm, counter_offset, step_pin);
-        pio_sm_set_enabled(counter_pio, counter_sm, true);
+        step_pulses_sm_enable(counter_pio, counter_sm, true);
     }
     else {
         printf("Step pulses: no state machine free to count channel %u's steps\n", channel);
@@ -104,11 +137,11 @@ float step_pulses_get_rate(unsigned int channel) {
 
 // Stop now: what waits in the FIFO is dropped, and the state machine goes back to its first instruction, STEP low
 static void step_pulses_stop(step_pulses_channel_t *ch) {
-    pio_sm_set_enabled(ch->pio, ch->sm, false);
+    step_pulses_sm_enable(ch->pio, ch->sm, false);
     pio_sm_clear_fifos(ch->pio, ch->sm);
     pio_sm_restart(ch->pio, ch->sm);
     pio_sm_exec(ch->pio, ch->sm, pio_encode_jmp(ch->offset));
-    pio_sm_set_enabled(ch->pio, ch->sm, true);
+    step_pulses_sm_enable(ch->pio, ch->sm, true);
 
     ch->running = false;
     ch->rate_fed = 0.0f;
