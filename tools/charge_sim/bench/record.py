@@ -27,7 +27,8 @@ MICROSTEPS_PER_MOTOR_TURN = 200 * 256
 # Tube turns per motor turn, from the teeth: 40 on the motor, 32 on the large tube, 22 on the low-flow small one.
 # The unit's stored ratio is not used: the Pico 2 W's fine one was a generation-1 figure on 2026-11-19.
 TUBE_PER_MOTOR = {"coarse": 40.0 / 32.0, "fine": 40.0 / 22.0}
-CUP_LIMIT_GR = 260.0
+# The cup holds 700 gr and more (the owner, 2026-11-20: 219 gr was under a third of it)
+CUP_LIMIT_GR = 600.0
 # The flick test's kinds, as the fine tube's speeds one after another. Each ends one forward move further on
 # than it began, as far as the PC's timing holds: a plain nudge; the same with two small swings back and forth;
 # the same with two wide ones; and a step back before two forward.
@@ -233,7 +234,8 @@ class Bench:
                     raise
                 time.sleep(0.5)
 
-    def throws(self, host: str, target: float, profile: int, count: int, watch_s: float, rezero: bool) -> None:
+    def throws(self, host: str, target: float, profile: int, count: int, watch_s: float, rezero: bool,
+               cup_holds: float = 0.0) -> None:
         """
         Real throws of the firmware's own loop, recorded: the charge started over the API with a powder profile,
         the console's state read as fast as it answers.
@@ -251,15 +253,16 @@ class Bench:
             count: throws to record.
             watch_s: how long after the stop the weight at rest is read.
             rezero: zero the scale between throws in place of a changed cup.
+            cup_holds: powder already in the cup from an earlier run, which the first zero then takes away too.
         """
         import unit_api   # beside rc_run.py, of the firmware's time
         unit = unit_api.Unit(host)
         if rezero:
-            if abs(self.weight()) > 2.0:
+            if cup_holds == 0.0 and abs(self.weight()) > 2.0:
                 raise SystemExit("the scale is far from zero: is the empty cup on it?")
             self.zero_scale(unit)
         self.start_charge(unit, target, profile)
-        samples, done, poured, last_state, pending, stopped_at = [], 0, 0.0, None, False, None
+        samples, done, poured, last_state, pending, stopped_at = [], 0, cup_holds, None, False, None
         limit = time.monotonic() + count * 180.0
         while done < count and time.monotonic() < limit:
             sample = self.state()
@@ -477,6 +480,8 @@ def main() -> None:
     throws.add_argument("--watch-s", type=float, default=3.5, help="the cup stays on this long after the tubes stop")
     throws.add_argument("--rezero", action="store_true",
                         help="zero the scale between throws, the powder left in the cup, in place of a changed cup")
+    throws.add_argument("--cup-holds", type=float, default=0.0,
+                        help="grains already in the cup from an earlier run, counted toward its limit")
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
@@ -519,7 +524,7 @@ def main() -> None:
                 trial = bench.flick(name, FLICKS[name], args.pause_ms / 1000.0, args.still_s)
                 print(f"{name} {trial['gained_gr']:+.3f} {trial['steps']} {trial['moves_ms']:.0f}", flush=True)
         elif args.command == "throws":
-            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero)
+            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero, args.cup_holds)
         elif args.command == "creepstop":
             least, most = (float(text) for text in args.run_s.split(":"))
             plan = [(float(speed), stop == "held") for speed in args.speeds.split(",")

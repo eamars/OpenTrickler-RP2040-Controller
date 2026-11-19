@@ -1,0 +1,31 @@
+01:04:34.078 rc      board pico2_w, elf C:\workspace\OpenTrickler-RP2040-Controller\build\app.elf
+weight at the start 20.18
+throw 1: 11.1 s (coarse 6.1 s), at the stop -0.020, a second later +0.060 OVER, at rest +0.080 OVER; 262.6 gr in the cup
+throw 2: 11.7 s (coarse 6.1 s), at the stop -0.020, a second later +0.000 good, at rest +0.000 good; 282.6 gr in the cup
+throw 3: 11.3 s (coarse 6.2 s), at the stop -0.020, a second later +0.080 OVER, at rest +0.080 OVER; 302.6 gr in the cup
+throw 4: 11.1 s (coarse 6.0 s), at the stop -0.020, a second later +0.060 OVER, at rest +0.060 OVER; 322.7 gr in the cup
+throw 5: 10.9 s (coarse 6.1 s), at the stop -0.020, a second later +0.080 OVER, at rest +0.060 OVER; 342.8 gr in the cup
+throw 6: 10.7 s (coarse 6.4 s), at the stop -0.020, a second later +0.080 OVER, at rest +0.080 OVER; 362.9 gr in the cup
+throw 7: 10.7 s (coarse 6.4 s), at the stop -0.020, a second later +0.040 OVER, at rest +0.040 OVER; 382.9 gr in the cup
+throw 8: 10.5 s (coarse 6.3 s), at the stop -0.040, a second later +0.160 OVER, at rest +0.160 OVER; 403.1 gr in the cup
+throw 9: 10.5 s (coarse 6.0 s), at the stop -0.020, a second later +0.000 good, at rest +0.000 good; 423.1 gr in the cup
+throw 10: 11.3 s (coarse 6.1 s), at the stop -0.020, a second later +0.040 OVER, at rest +0.040 OVER; 443.1 gr in the cup
+throw 11: 9.8 s (coarse 6.1 s), at the stop -0.020, a second later +0.140 OVER, at rest +0.140 OVER; 463.2 gr in the cup
+throw 12: 15.7 s (coarse 6.4 s), at the stop +0.000, a second later +0.120 OVER, at rest +0.120 OVER; 483.4 gr in the cup
+weight at the end 20.12
+saved 0 frames and 12 runs to C:\workspace\OpenTrickler-RP2040-Controller\logs\adr009\20261120_010435_throws
+01:08:36.160 rc      VERDICT PASS
+01:08:36.160 rc      log: C:\workspace\OpenTrickler-RP2040-Controller\logs\rc\20261120_010434_adr009_throws.log
+throw 1: 11.1 s (coarse 6.1 s), at the stop -0.020, a second later +0.060 OVER, at rest +0.080 OVER
+throw 2: 11.7 s (coarse 6.1 s), at the stop -0.020, a second later +0.000 good, at rest +0.000 good
+throw 3: 11.3 s (coarse 6.2 s), at the stop -0.020, a second later +0.080 OVER, at rest +0.080 OVER
+throw 4: 11.1 s (coarse 6.0 s), at the stop -0.020, a second later +0.060 OVER, at rest +0.060 OVER
+throw 5: 10.9 s (coarse 6.1 s), at the stop -0.020, a second later +0.080 OVER, at rest +0.060 OVER
+throw 6: 10.7 s (coarse 6.4 s), at the stop -0.020, a second later +0.080 OVER, at rest +0.080 OVER
+throw 7: 10.7 s (coarse 6.4 s), at the stop -0.020, a second later +0.040 OVER, at rest +0.040 OVER
+throw 8: 10.5 s (coarse 6.3 s), at the stop -0.040, a second later +0.160 OVER, at rest +0.160 OVER
+throw 9: 10.5 s (coarse 6.0 s), at the stop -0.020, a second later +0.000 good, at rest +0.000 good
+throw 10: 11.3 s (coarse 6.1 s), at the stop -0.020, a second later +0.040 OVER, at rest +0.040 OVER
+throw 11: 9.8 s (coarse 6.1 s), at the stop -0.020, a second later +0.140 OVER, at rest +0.140 OVER
+throw 12: 15.7 s (coarse 6.4 s), at the stop +0.000, a second later +0.120 OVER, at rest +0.120 OVER
+12 throws at rest: 10 over, 0 under, 2 good (the unit's verdict a second after the stop: 10 over, 0 under); time median 11.0 s, longest 15.7 s; rise after the stop mean +4.6 digits

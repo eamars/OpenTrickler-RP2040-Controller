@@ -210,6 +210,27 @@ The owner: "Emptied. You can start the real throw. You can re-zero the scale aft
 - **This is not the owner's "1 in 10 to 15".** Either this unit's profile was never tuned for these tubes (the Pico 2 W has its own EEPROM, and its fine gear ratio was a generation-1 leftover), or the fine tube turns faster for the same setting than when the profile was tuned. ADR-012 rewrote the step pulses and left its check against the older firmware to these first real throws ("Handed on by ADR-012"): that check is now owed, and its result is "worse" until shown otherwise. The corrected gear ratio accounts for 16%, not for this.
 - **The scale after a stop from a fast flow:** at rest within 0.5 s (the reading a second after the stop is the reading at rest, within a digit). The unit's verdict at one second was right in all five.
 
+## 2026-11-20, 01:00 to 01:09: today's loop with its settings taken from the measurements
+
+The owner: "Cleared"; the cup holds 700 gr and more; "Next time you don't need to throw the 42.5gr, perhaps 20gr or about should be closed enough." Twelve throws at 20 gr a run, the scale zeroed between throws, settings written live through the console and never stored, put back after (`setting ... revert`; both resources read `saved=true`). Both sessions `VERDICT PASS`. 484 gr in the cup at the end. Folders `20261120_010032_throws` and `20261120_010435_throws`.
+
+| Run | Fine tube's settings | Over (at rest, 0.03 gr and more) | At rest, against the target | Rise after the stop | Time |
+|---|---|---|---|---|---|
+| As stored (42.5 gr, above) | Kp 2, most 5 rev/s, least 0.1 | 5 of 5 | +1.18 to +1.46 gr | +59 digits | 6.3 s |
+| Gain from the measurements | Kp 0.8 | 10 of 12 | +0.02 to +0.40 gr | +11.5 digits | 4.4 s |
+| And a slow finish | Kp 0.8, most 1.5 rev/s, least 0.03 (the motor's own least lowered with it) | 10 of 12 | 0.00 to +0.16 gr | +4.6 digits, spread 2.5 | 11.0 s (9.8 to 15.7) |
+
+- **Settings taken from two measured numbers (the tube's gr a turn, the scale's delay) took the error from 1.3 gr to under 0.1 gr with no tuning by trial.** That part of the research (D1, D3) holds on a real unit.
+- **The second run still arrived too fast:** only three throws spent a second at the least speed before the stop (two good at +0.02, one +0.20 from a burst); the other nine reached the target with the fine tube still slowing. The coarse tube stops at a reading 5 gr short with 3 gr and more of both tubes' powder in flight, so the fine tube has 1.5 gr of real room, not 5.
+- **In the third run every throw reached a slow finish, and every stop was at one or two digits short.** What came after the stop: 1, 1, 3, 3, 4, 4, 5, 5, 5, 6, 8 and 10 digits. Its mean (4.6) is an offset that a stop threshold of 0.11 gr in place of 0.03 would take away; its spread (2.5 digits) is what stays. With the best offset, three digits would hold 7 of the 12, with 3 over and 2 under.
+- **That spread is the creep-stop test's** (2.3 to 2.6 digits at 0.05 and 0.1 rev/s), now in real throws: the test's main figure stands. Throw 12 is the burst that crosses: three seconds at 0.03 rev/s one digit short, then 8 digits at once.
+- **At these slow flows the scale is more than a second behind:** 3 digits a second fed at the stop and 4 to 5 digits still to show. The 0.55 s measured after fast flows does not hold for a slow one, and a gain set by it is still too high at the end (0.37 / (1.2 s x 0.75 gr) = 0.4). A finish slow enough for that takes about 13 s by itself.
+
+**Where it stands**
+- **Today's loop, set from measurements, lands within about 0.1 gr in 11 s on this bench; within 0.02 gr about half the time.** The stored profile is 1.3 gr over.
+- **The limit is the scatter of what lands after the stop, about 2.5 digits,** the same in the open-loop test and in real throws, at every speed tried. No setting of today's loop removes it.
+- **Not explained: the owner's "1 in 10 to 15".** This bench cannot give it with any settings tried. Which unit, tubes and powder that figure is from decides whether the bench is the worst case (this batch clumps "more than fresh") or the usual one.
+
 **Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
 
 **Not done**
