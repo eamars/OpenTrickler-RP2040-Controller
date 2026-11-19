@@ -12,6 +12,7 @@ Status: **Draft** 2026-11-13. Not approved. Research made for it on 2026-11-19 i
 ## Owner's direction (2026-11-13)
 
 - Implement better control tuning and a testing function.
+- **Backward compatibility is on the table, but not first** (the owner, 2026-11-19): "backward compatible should not be considered during the initial research. Later when designing 'what to keep', then we will evaluate the cost to transit the system over, as we have 600+ users around the world now." Read here as: the research and the first design are not bent to fit today's profiles, settings or API; a later step, "what to keep", weighs for each change what it costs those users to move (their stored profiles and tuned gains, their habits at the screen and the web, their scales' set-up) and decides what stays, what is migrated and what is dropped.
 - PRs are not merged as they stand. Two of them are about tuning (#113, #101). Since 2026-11-15 nothing is kept of them ahead of this ADR's design ("Handed on by ADR-002").
 
 ## Why here
@@ -164,6 +165,15 @@ The blocks are jobs the firmware runs and bounds by itself, each recorded: a mot
 - **Simulated so far:** mode 1's steps 1 to 4 (`calibrate.py`), on three differently printed tubes and four scales: the candidate calibrated on each holds 11 to 16% over where today's loop with one fixed profile gives 20 to 100%. Steps 5 and 6 are designed, not simulated.
 
 **D7. The simulation is kept, and refitted from each bench session.** Its controller interface (`start`, `on_tick`, `on_reading`; two speeds and `done` out) is the module's. The module's PC tests run against it; a recorded real throw replayed against it is its own check.
+
+**Not weighed in D1 to D7: what it costs today's users to move** (the owner's direction of 2026-11-19, above). What these decisions would change for a unit in use, to be costed at "what to keep":
+- a powder profile of measurements in place of six gains and four speed limits (D3): every stored profile, and every gain a user tuned by hand, has no place in it;
+- the two stop thresholds and the floor speeds lose their meaning (D1, D2); a tolerance takes their place;
+- a calibration run before a powder's first throw (D6), where today a profile is typed in;
+- the verdict's moment and the throw's end reasons (D5), which the API and the event log give out today;
+- a throw that sounds and looks different: the tubes stop and nudge at the end where they now creep.
+
+Whether today's loop stays beside the new one, for how long, and whether old profiles are kept, converted or dropped is that step's to decide, not this research's.
 
 **The order proposed,** each gate ending in a pass or fail on a unit: (1) the bench session; (2) recordings and the open-loop jobs in the firmware; (3) the nudged finish alone; (4) the flow law and the calibration; (5) the G&G's driver read at once after its ask, and the same controller on it; (6) mode 1's trimming, then mode 2's paths; (7) oscillation, if the bench says clumps.
 

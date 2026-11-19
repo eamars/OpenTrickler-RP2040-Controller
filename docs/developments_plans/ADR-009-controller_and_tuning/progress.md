@@ -13,6 +13,7 @@ Asked by the owner while ADR-008 was being built by another session: physics, mo
 - A finely tuned lip is hard to print and not preferred: "I'd prefer using high frequency oscillation if cluster is the real limitation."
 - PR #113 may be read for its data.
 - A second goal: automatic tuning for a community whose printed tubes differ, in two modes, autonomous and assisted by an external AI agent through the API.
+- Backward compatibility is not weighed in the initial research; a later step, "what to keep", costs the move for the 600+ users (README, "Owner's direction").
 - The design is left to the agent; the measurements are to be written down for whoever runs them (`research/bench_guide.md`).
 
 **What was made**
