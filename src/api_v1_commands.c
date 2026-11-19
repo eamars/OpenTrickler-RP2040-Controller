@@ -1301,6 +1301,7 @@ static void api_v1_get_system(const http_server_request_t *request, http_server_
 // A restart, or an erase and a restart, once the reply is out: a task of its own, so the server goes on
 static void api_v1_restart_task(void *erase) {
     vTaskDelay(pdMS_TO_TICKS(API_V1_RESTART_DELAY_MS));
+    http_server_close_all(1000);    // each client told the unit has gone, not left with a request that hangs
     if (erase != NULL) {
         eeprom_erase(true);     // restarts when done
     }

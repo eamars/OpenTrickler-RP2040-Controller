@@ -7,13 +7,15 @@
 const $ = (id) => document.getElementById(id);
 
 // One call to the unit; the link is shown lost when the unit does not answer (web-ui-design, rule 9)
-async function api(method, path, body) {
+// limitMs: a read given up after that long, as one not answered (a unit gone without a word leaves it hanging)
+async function api(method, path, body, limitMs) {
     try {
         const binary = body instanceof Blob || body instanceof ArrayBuffer;
         const response = await fetch(path, {
             method,
             headers: body === undefined ? {} : {"Content-Type": binary ? "application/octet-stream" : "application/json"},
             body: body === undefined ? undefined : (binary ? body : JSON.stringify(body)),
+            signal: limitMs ? AbortSignal.timeout(limitMs) : undefined,
         });
         const data = await response.json().catch(() => null);
         setLink(true);

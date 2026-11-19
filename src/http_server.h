@@ -185,6 +185,13 @@ void http_server_get_stats(http_server_stats_t *stats);
  */
 void http_server_log_requests(bool on);
 
+/**
+ * @brief Before a restart the unit means: what the server holds is sent, then every connection is closed and the
+ * listener with it, so each client learns at once that the unit has gone, not by a request that hangs. Waits up to
+ * wait_ms for the server's task to do it; called from any task but the server's. Nothing is accepted after it
+ */
+void http_server_close_all(uint32_t wait_ms);
+
 #ifdef __cplusplus
 }
 #endif

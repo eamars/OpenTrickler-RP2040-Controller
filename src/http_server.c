@@ -44,6 +44,7 @@
 #define HTTP_SERVER_IDLE_MS 5000            // a kept-alive connection with no request in this long is closed
 #define HTTP_SERVER_STALL_MS 10000          // a request or a reply that makes no progress this long is aborted
 #define HTTP_SERVER_PARK_MAX 2
+#define HTTP_SERVER_RESTART_LATE_MS 5000    // closed for a restart that has not come by then: listening again
 #define HTTP_SERVER_TICK_MS 50              // select() wakes at least this often, for the timers and parked slots
 #define HTTP_SERVER_NO_MEMORY_WAIT_MS 10    // a send lwIP had no memory for waits this long
 #define HTTP_SERVER_DRAIN_MS 2000           // the longest a refused request's unread rest is read before the close
@@ -193,6 +194,9 @@ static http_server_stats_t stats;
 static uint64_t stream_make_us;     // stats.stream_make_ms, kept in microseconds: a chunk takes some milliseconds
 static TaskHandle_t server_task_handle = NULL;
 static volatile bool log_requests = false;
+static volatile bool close_all_asked = false;   // a restart is coming: every connection closed (http_server_close_all)
+static bool closed_for_restart = false;
+static void server_close_all(int *listen_fd);
 static http_server_handler_t usage_handler = NULL;
 
 
@@ -1681,6 +1685,7 @@ static void server_task(void *arg) {
     int listen_fd = -1;
     bool had_room = true;
     uint32_t full_since_ms = 0;
+    uint32_t closed_at_ms = 0;
     while (listen_fd < 0) {
         listen_fd = server_listen();
         if (listen_fd < 0) {
@@ -1705,12 +1710,12 @@ static void server_task(void *arg) {
         // The listener only when a slot is free or can be freed, or select() would wake at once and again. A new
         // connection meanwhile waits in the backlog: said on the console when it begins and ends, with what holds
         // each slot
-        bool room = slot_free() != NULL || slot_idlest() != NULL;
+        bool room = listen_fd >= 0 && (slot_free() != NULL || slot_idlest() != NULL);
         if (room) {
             FD_SET(listen_fd, &read_set);
             max_fd = listen_fd;
         }
-        if (room != had_room) {
+        if (room != had_room && !closed_for_restart) {
             slots_say(room, now - full_since_ms);
             full_since_ms = now;
             had_room = room;
@@ -1744,7 +1749,7 @@ static void server_task(void *arg) {
         }
 
         if (ready > 0) {
-            if (FD_ISSET(listen_fd, &read_set)) {
+            if (listen_fd >= 0 && FD_ISSET(listen_fd, &read_set)) {
                 server_accept(listen_fd);
             }
             for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
@@ -1765,6 +1770,16 @@ static void server_task(void *arg) {
                 }
             }
         }
+        if (close_all_asked) {
+            server_close_all(&listen_fd);
+            closed_at_ms = now_ms();
+        }
+        else if (closed_for_restart && now_ms() - closed_at_ms > HTTP_SERVER_RESTART_LATE_MS) {
+            // The restart did not come (a trial refused): the unit is reached again
+            listen_fd = server_listen();
+            closed_for_restart = listen_fd < 0;
+            printf("HTTP: no restart came; listening again\n");
+        }
         server_timers();
     }
 }
@@ -1772,6 +1787,45 @@ static void server_task(void *arg) {
 
 void http_server_log_requests(bool on) {
     log_requests = on;
+}
+
+
+void http_server_close_all(uint32_t wait_ms) {
+    if (server_task_handle == NULL || xTaskGetCurrentTaskHandle() == server_task_handle) {
+        return;
+    }
+    close_all_asked = true;
+    TickType_t asked = xTaskGetTickCount();
+    while (close_all_asked && xTaskGetTickCount() - asked < pdMS_TO_TICKS(wait_ms)) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+
+// In the server's task, after its sends: each connection closed as a normal close (lwIP sends what it holds, then
+// the end), and the listener, so a new connection is refused rather than left waiting
+static void server_close_all(int *listen_fd) {
+    int open = 0;
+    for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
+        slot_t *slot = &slots[idx];
+        if (slot->state == SLOT_WAITING && slot->live_ready(slot->more_ctx)) {
+            // A stream with something to say (the update's `installing`): said before it ends
+            slot->live_waiting = false;
+            slot->state = SLOT_SENDING;
+            slot_send_some(slot);
+        }
+        if (slot->state != SLOT_FREE) {
+            slot_close(slot, false);
+            open += 1;
+        }
+    }
+    if (*listen_fd >= 0) {
+        lwip_close(*listen_fd);
+        *listen_fd = -1;
+    }
+    closed_for_restart = true;
+    close_all_asked = false;
+    printf("HTTP: %d connections closed for the restart\n", open);
 }
 
 

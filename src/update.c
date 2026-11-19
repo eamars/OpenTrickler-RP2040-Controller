@@ -36,6 +36,7 @@
 #include "eeprom.h"
 #include "events.h"
 #include "http_json.h"
+#include "http_server.h"
 #include "https_client.h"
 #include "menu.h"
 #include "jobs.h"
@@ -485,6 +486,7 @@ static int update_try(uint32_t version) {
     update_note.version = version;
     update_note_stage(UPDATE_STAGE_ASKED);
     update_slots_note_write(UPDATE_NOTE_MAGIC | (uint32_t) (1 - update_slots.running), version);
+    http_server_close_all(1000);    // each client told the unit has gone, not left with a request that hangs
     int refused = update_slots_try_other();
     update_clear_note();
     update_note.tried = 0;

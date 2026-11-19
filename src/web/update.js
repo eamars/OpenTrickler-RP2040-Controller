@@ -4,6 +4,9 @@
 // rule 9): the charge's and the purge's too. Read once a second for now; gate 2's event stream carries the same.
 
 const WATCH_MS = 1000;
+const WATCH_LIMIT_MS = 5000;    // a job's read not answered by then: the unit taken as not reached
+// A job's stages in order: a read answered late never takes the view back past what an event already said
+const JOB_ORDER = ["starting", "receiving", "ready", "installing"];
 const BACK_WITHIN_S = 90;   // a unit not back by then is said so, where the unit does not give its own (gate 2)
 
 /*
@@ -130,7 +133,9 @@ function followUpdate(u, index) {
         return;
     }
     if (u.state !== "idle") {
-        follow.last = u.state;
+        if (JOB_ORDER.indexOf(u.state) >= JOB_ORDER.indexOf(follow.last)) {
+            follow.last = u.state;
+        }
         if (u.download && u.found) {
             follow.version = u.found.version;   // the release the job fetches; a file's version is not known before
         }
@@ -190,6 +195,16 @@ onUnit("state", (state) => {
 });
 onUnit("event", (event) => {
     if (event.source === "update") {
+        // The image whole, then its install: said by the unit as they happen, so the view moves on at once, and the
+        // restart after it is expected, whatever a read still on its way says
+        const stage = {received: "ready", installing: "installing"}[event.kind];
+        if (stage && follow.on) {
+            follow.last = stage;
+            if (watched.update) {
+                watched.update = {...watched.update, state: stage};
+            }
+            drawJobs();
+        }
         watchJobs();
         if (event.kind === "found") {
             markOffer();    // the offer's mark on the Unit's destination, on every page
@@ -199,29 +214,39 @@ onUnit("event", (event) => {
 
 onUnit("afresh", () => watchJobs());
 
+// One watch at a time: a unit slow to answer (a download runs) is not asked again before it has answered
+let watching = false;
+
 async function watchJobs() {
-    if (document.visibilityState !== "visible" || pageShown === null) {
+    if (document.visibilityState !== "visible" || pageShown === null || watching) {
         return;
     }
     if (!(watched.activity === "update" || follow.on || pageShown === "unit")) {
         drawJobs();
         return;     // the stream says the rest
     }
-    const system = await api("GET", "/api/v1/system");
-    if (!system.ok) {
-        goneAway();
-        drawJobs();
-        return;
-    }
-    watched.activity = system.data.activity;
-    if (watched.activity === "update" || follow.on || pageShown === "unit") {
-        const [update, index] = await Promise.all([api("GET", "/api/v1/update"), api("GET", "/api/v1")]);
-        if (update.ok && index.ok) {
-            followUpdate(update.data, index.data);
-            showOfferMark(update.data.found);
+    watching = true;
+    try {
+        const system = await api("GET", "/api/v1/system", undefined, WATCH_LIMIT_MS);
+        if (!system.ok) {
+            goneAway();
+            return;
         }
+        watched.activity = system.data.activity;
+        if (watched.activity === "update" || follow.on || pageShown === "unit") {
+            const [update, index] = await Promise.all([api("GET", "/api/v1/update", undefined, WATCH_LIMIT_MS),
+                                                       api("GET", "/api/v1", undefined, WATCH_LIMIT_MS)]);
+            if (update.ok && index.ok) {
+                followUpdate(update.data, index.data);
+                showOfferMark(update.data.found);
+            } else if (!update.ok && !index.ok) {
+                goneAway();
+            }
+        }
+    } finally {
+        watching = false;
+        drawJobs();
     }
-    drawJobs();
 }
 
 // --- The job's strip, on every page that is not the job's
