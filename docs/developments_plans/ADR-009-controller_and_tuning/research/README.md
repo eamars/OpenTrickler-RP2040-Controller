@@ -2,6 +2,8 @@
 
 2026-11-19. Desk research and simulation, made ahead of ADR-009's design at the owner's request. Nothing here was run on a unit: the probe was in use by ADR-008's work. It is input to ADR-009's revision, not a plan the owner has approved.
 
+**Superseded in part on the same night by the first bench session: read `HANDOVER.md` first.** The bench found the fine tube's flow, the scale's lag and the clump sizes all different from what the simulation here assumed, so this file's simulated over-rates and times are not to be quoted until the simulation is refitted. Its desk research and its reasoning stand.
+
 **Every simulated figure below rests on an assumed powder model.** The tubes' geometry is measured (from the STLs) and the A&D's reading rhythm is measured (ADR-013); how kernels leave a tube's lip is not. The rankings hold only as far as "Which assumptions decide the result" says.
 
 ## The short answer

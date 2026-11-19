@@ -4,6 +4,15 @@ Written 2026-11-19 by the research session, which never touched a unit. It says 
 
 Nothing here needs a firmware change except step 7. Every command below exists on the branch's firmware today (`AGENTS.md`, "Proving a change on a unit"); none was tried by the author of this guide, so step 0 proves the recording chain before powder is spent on it.
 
+## Learned at the first session (2026-11-19), read before following the steps
+
+- **Pause 3 s after a nudge, not 1.5 s:** this scale takes up to 2.6 s to show one kernel. Shorter pauses count kernels to the next nudge.
+- **Judge clumps per release, not per nudge:** most small nudges release nothing, which waters the share down. The number is "of the trials that released anything, how many released three kernels or more".
+- **Plan for several hundred trials a kind:** a release comes in about one trial of four.
+- **Do not leave `scale tap on` running for long:** the scale task's free stack fell to 48 during the session (`stats`). `record.py flick` reads weights by `state` instead.
+- **The recorder exists:** `tools/charge_sim/bench/record.py` (`chain`, `nudges`, `runs`, `steps`, `flick`, `show`), with `lag.py`, `stop_shape.py` and `flick_summary.py` beside it.
+- **Done already:** steps 0 (with powder), 2, 3, 4 (one pass, coarse to 3 rev/s) and a console-only part of 7. Their results and what is left are in `HANDOVER.md` and `../progress.md`.
+
 ## Before any contact
 
 1. **Ask the owner that the bench is ready**, which unit is on the probe, and whether powder is in the hopper. The session wants the Pico 2 W with the A&D FX-300i, the large tube and the low-flow small tube, and AR2209.

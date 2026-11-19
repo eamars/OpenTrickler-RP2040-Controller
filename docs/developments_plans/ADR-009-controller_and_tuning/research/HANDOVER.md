@@ -1,0 +1,124 @@
+# ADR-009 research: handover
+
+Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made the research, the simulation and the first bench session. For the agent who goes on. Read this first; it says what is known, what I think it means, and what to do next, in order.
+
+ADR-009 is a **Draft, not approved**. Everything here is research for its design. Nothing is merged or pushed.
+
+## Where things are
+
+| What | Where |
+|---|---|
+| The branch | `adr009_research`, off local main, local only. Checked out at `.claude/worktrees/adr009-research` (made with plain `git worktree add`) |
+| What was done, with every figure | `../progress.md` |
+| What the research proposes (D1 to D7), the owner's directions | `../README.md`, "Owner's direction" and "Decisions proposed by the research" |
+| The desk research and its sources | `README.md` beside this, `sources/` |
+| The bench procedure | `bench_guide.md` |
+| The bench's results, a line a run | `bench_2026-11-19/` |
+| The bench's raw frames, logs and the settings copy | `logs/adr009/` and `logs/rc/` of the **main checkout** (not tracked) |
+| The simulation | `tools/charge_sim/` (pure Python; its README lists the files) |
+| The recorder and the analysis scripts | `tools/charge_sim/bench/` |
+| PR #113's branch, fetched for its data | local branch `pr113` |
+
+Run the bench tools from the main checkout's venv and against the main checkout's `rc_run.py` and `build/`, which match the unit's firmware: `record.py --repo C:\workspace\OpenTrickler-RP2040-Controller ...`.
+
+## The owner's directions, in their words (2026-11-19)
+
+- Today "around 1 in 10/15 overcharge". "The target speed is ~10 [s] but if you could reach 1/50 overcharge that's a bonus. I'd accept 15s per charge." The design target for AR2209 at 42.5 gr was "around 7-15 seconds depending on the cluster", and "my AR2209 tends to have more cluster than other powder".
+- The fine tube is the low-flow one (22 teeth, generation 2). "You can fix the staled gear ratio in the settings": done.
+- "Fine tuned lip is hard to print, so not prefered. I'd prefer using high frequency oscillation if cluster is the real limitation."
+- "backward compatible should not be considered during the initial research. Later when designing 'what to keep', then we will evaluate the cost to transit the system over, as we have 600+ users around the world now."
+- A second goal: automatic tuning for a community whose printed tubes differ, "in two modes": autonomous, and assisted by an external AI agent through the API.
+- On the tube-flow research: "just focus on flow dynamics instead of the powder behavior".
+- The bench's powder: "this batch of AR2209 has been exposed in the air for a long time so its property might look different than the fresh news ones. but anyway, this is starting point."
+- PR #113 may be read "for data".
+
+## Findings
+
+Marked **[B]** measured on the bench (Pico 2 W, 2.0.3-84, A&D FX-300i, large tube, low-flow small tube, the owner's air-exposed AR2209), **[C]** read in the code, **[S]** simulation on an assumed plant, **[D]** desk research.
+
+### The tubes
+
+- **[B] Flow follows speed, in both tubes.** Fine: 0.71 to 0.81 gr a turn at every speed from 0.05 to 5 rev/s (3.8 gr/s at 5), and a steady 3.0 gr/s through 8 s at 3.5 rev/s. Coarse: 8.0 to 10.1 gr a turn from 0.1 to 3 rev/s (23.6 gr/s at 3). No inlet ceiling, no sag, no fall toward the top speed in these runs.
+  - So the owner's "rotary speed doesn't correlate directly to the charge speed" **did not show in open loop**. Not looked for: the coarse tube above 3 rev/s, a hopper nearly empty, minutes at 5 rev/s, and the closed loop, where the scale's lag makes the reading trail the flow (below). That last one is my best guess at what the owner sees.
+- **[B] A tube that has stood still or been handled gives nothing at first:** the fine tube's first two 2 s runs gave 0, then 0.10, 0.10, 0.26 gr. Prime before measuring.
+- **[C] The firmware's speeds are trickler rev/s** (`motors.c` divides by the gear ratio). The Pico 2 W's fine ratio was a generation-1 leftover (2.105); the step counts showed 0.432 rev/s for 0.5 asked. Now 1.818182, stored, with the owner's word. Other users' units may hold the same leftover.
+- **Measured from the STLs:** both tubes are rifled drums (5-start, about half a kernel deep), 32 and 22 teeth; the small one is fed through one wall window; centrifuging at 5.8 and 8.2 rev/s, above the 5 rev/s limit.
+
+### The scale
+
+- **[B] After a stop, 0.5 to 0.65 s of the flow is still to show**, in both tubes, from 0.4 to 24 gr/s; the reading is within a digit of its end by 0.8 to 1.0 s. I had assumed 0.25 s.
+- **[B] One kernel is far slower to show than a grain:** after a small turn the reading first moved at a median of 1.24 s (a tenth by 0.7 s, nine tenths by 2.0 s) and was still by 1.55 s (nine tenths by 2.6 s).
+  - **Not separated:** whether that is the scale's filter (slow for small changes, as balances with a two-speed filter are) or the kernel falling late after the tube is released. `motor <tube> 0` switches the driver off, so the tube is free to move back.
+- **[B] The A&D's frames carry `US` while the weight moves and `ST` at rest**, 20.7 a second. No driver uses that flag today [C]; it is the natural "settled" signal.
+- **Unknown:** the A&D's response setting (FAST, MID, SLOW) and zero tracking (`trc`). Asked of the owner twice, not yet answered. A slower response would explain the lag.
+
+### The powder at the lip
+
+- **[B] A kernel is 0.020 to 0.025 gr**, one digit of the A&D in grains. The band is ±0.02 gr.
+- **[B] This batch clumps.** With turns of 4° and 3 s pauses, 110 nudges: 84 released nothing, 15 one kernel, 2 two, 9 three or more, up to 8 (0.17 gr). Long runs of nothing come before the large falls.
+- **[B] The earlier nudge runs with 1.2 to 1.3 s pauses under-waited the scale** and counted some kernels to the next nudge. Read only runs with 2.6 s or more.
+- **[B] Shaking from the console (4 to 5 Hz) showed no clear gain.** Three kernels or more, of trials that released: plain nudge 15 of 39, small shake 3 of 18, wide shake 5 of 16. A shaken trial moved half the powder of a plain one.
+
+### Today's loop [C]
+
+- The fine tube turns at its least speed until a lagged reading is within the stop threshold. With the measured figures: 0.1 rev/s is 0.075 gr/s, the scale is 0.55 s or more behind, so about two kernels are unseen at the stop, before any clump.
+- Its gains hold the scale's delay and the powder's flow together; I and D do no useful work; the verdict is one reading a second after the stop, earlier than this scale shows a kernel.
+- **[S]** On slower scales the simulated loop overcharged nearly every throw.
+
+### The simulation [S]
+
+- It runs today's loop (ported line for line) against a candidate with no tuning (`flow_dose`: a flow in proportion to the weight still to go through a measured flow map, then nudges judged on settled readings).
+- **Its plant is now known to be wrong in three places** (the fine tube's flow per turn and ceiling, the scale's lag, the clump sizes). **Do not quote its over-rates or times** until it is refitted. What it showed that should outlast the refit: the overcharge rate is set by clump size once the blind feed is removed; sharing the feed between the tubes three ways made no measurable difference; a candidate calibrated on each unit held its figure across differently printed tubes.
+- Tried and dropped: counting powder pushed to the lip as delivered, with a reverse turn (no gain).
+
+## Interim conclusion
+
+1. **For this powder, tube and scale, clumps at the fine tube's lip are the limit**, not the controller. About a third of the releases from a small turn carry three kernels or more, and three kernels is the width of the band. No stopping rule reaches 1 in 50 against that.
+2. **The scale is too slow for a finish that waits for it.** Judging each nudge on a settled reading costs 2 to 3 s a nudge here. D2 as written (nudges on settled readings) does not fit a 7 to 15 s throw on this scale; it needs rethinking, not tuning.
+3. **So the two things to change are upstream of the controller's finish:** fewer kernels per release (the owner's choice: oscillation, to be tested properly), and a finish that does not need the scale after every move. The candidates I see, none tried:
+   - **count the turn, not the weight, for the last kernels:** the flow per turn is steady (0.75 gr a turn, measured), so stop the continuous feed by a prediction of what is already on its way, then make one measured correction after a single settle;
+   - **read the kernel sooner:** the scale's `US`/`ST` flag, a faster response setting if the scale is not at FAST, or a slope over several readings in place of waiting for stillness;
+   - **make releases smaller and steadier** so that a blind finish has less spread: oscillation is the owner's preference.
+4. **What stands from the proposals:** one demand shared between the tubes (D1), the scale and the powder kept apart (D3), a profile of measurements with a calibration (D3, D6), the verdict on a settled weight (D5), the simulation kept and refitted (D7). The measured maps are as simple as a calibration could wish: one number a tube.
+5. **What is open again:** D2's finish, and D4's place (oscillation moves from "if needed" to the first experiment).
+6. **One batch, one unit, one evening.** The owner says this powder was long exposed to air and clumps more than others. Fresh powder and another print may be kinder. The conclusion is about where to look, not a law.
+
+## Actions for the next agent, in order
+
+**A1. Ask the owner two things before anything else.**
+- The A&D's response setting (hold MODE: FAST, MID or SLOW) and `trc`. If it is not FAST, set it and repeat the single-kernel lag (A4) before believing conclusion 2.
+- Whether to build the `wiggle` test command (A5): a debug image on the Pico 2 W, flashed by the probe.
+
+**A2. Refit the simulation to the bench** (desk work, no unit). In `tools/charge_sim/`:
+- `rigs.py`: coarse 9 gr a turn; fine 0.75 gr a turn with no inlet ceiling (`max_inflow_gr_s=math.inf`, the inlet keeping up); the held-powder dynamics can stay but should do nothing.
+- `rigs.py`, AR2209 as measured: kernel 0.021 gr; releases of 1, 2, 3, 5, 7, 8 kernels in the proportions 15 : 2 : 4 : 2 : 2 : 1 (mean 2.4); long gaps before large releases.
+- `scale.py`, the A&D: about 0.55 s behind a flow; a single kernel first showing at about 1.2 s. In the model that is a slower closed filter (about 1.2 s) and an open one of about 0.25 s; check with `scale_step.py`.
+- `calibrate.py` and `flow_dose.py`: the settle time after a nudge must come from the nudge test (how long a single kernel takes to show), not from 2.5 times the flow's delay, or the candidate will judge too early.
+- **Pass:** today's loop in the refitted simulation gives the owner's own figures (1 overcharge in 10 to 15, 7 to 15 s for 42.5 gr) within reason. If it cannot, a cause is still missing: say so, do not tune it in.
+- Then rerun `matrix.py` and replace the table in `progress.md` and the figures in `README.md` beside this.
+
+**A3. Redesign the finish in simulation** (conclusion 3) before more bench time: a predicted stop with one correction against nudge-and-wait, at the measured lag and clump sizes, judged on over-rate and time. Also ask the simulation how much smaller clumps must be for 1 in 50: that is the target for A5.
+
+**A4. Bench, without powder or with little** (ask the owner that the bench is free; `bench_guide.md`):
+- the scale at rest and with each motor turning, hopper empty (not done: the hopper was loaded);
+- the chain test (guide, step 1), to separate the scale's lag from late-falling kernels. It needs a fine chain from the owner;
+- nudges with the driver left on between them, if a way is found without a firmware change, to see whether releasing the tube causes late falls.
+
+**A5. Oscillation, properly** (the owner's preferred answer to clumps): the `wiggle` command of the guide's step 7 in a research build, then plain nudges against 20 Hz and 50 Hz swings with an exact net turn, **at least 300 trials a kind** (a release comes in about one trial of four; the console test's 18 releases settled nothing). Judge by the share of releases of three kernels or more and by the reading's noise while it swings.
+
+**A6. Ten recorded throws with today's loop**, the owner at the cup, AR2209 profile selected (the unit has "AR2208,gr" selected now). They are the simulation's whole-chain check and give the real throw time.
+
+**A7. Then revise the ADR** with the owner: D2 and D4 as the bench leaves them, the "what to keep" step for the 600+ users, and the gates.
+
+## Traps and facts worth knowing
+
+- **Bench rules:** ask the owner before any contact, every session. The cup holds about 300 gr; the recorder refuses above 250. It held 1.6 gr at 00:13.
+- **The scale task's stack:** `stats` showed `stack_min="Scale Task"` fall from 160 to 48 during about 20,000 tapped frames. I stopped using `scale tap on`. Use `record.py flick`'s way (weights by `state`, averaged) or fix the cause first; tell whoever owns ADR-008 or ADR-013. Not changed by me.
+- **Step counts count both directions**, so a back-and-forth move's net turn is not known from them.
+- **`motor <tube> 0` disables the driver.** A nudge from the console therefore ends with the tube released.
+- **A nudge from the PC is at least about 45 ms**, so about 0.011 turn at 0.2 rev/s; smaller or faster moves need firmware.
+- **Git Bash here-documents** break on apostrophes in this shell: write a script file instead.
+- **numpy and matplotlib** were pip-installed into the repo's venv and never used; not in `requirements.txt`.
+- **A `matrix.py` run lost a worker once** (`BrokenProcessPool`); not reproduced.
+- **Do not push or merge** without the owner's word; main has unpushed commits that go with ADR-008's push.
+- **A usage-policy safeguard stopped one research subagent** on the first try; the owner had it retried on another model with a narrower brief. Keep desk research on flow dynamics, not on the powder's own behaviour.

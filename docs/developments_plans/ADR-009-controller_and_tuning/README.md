@@ -127,6 +127,8 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 
 ## Decisions proposed by the research (2026-11-19)
 
+**After the first bench session (2026-11-19, `progress.md`): D2 and D4 are open again.** This scale takes one to two seconds to show a kernel, so a finish that waits for it after every nudge does not fit a 7 to 15 s throw; and the owner's AR2209 clumps enough that clumps, not the controller, are the limit. `research/HANDOVER.md` has the findings, the interim conclusion and the next actions. D1, D3, D5, D6 and D7 stand.
+
 Proposed, for the owner to weigh; none is approved. They come from the research in `research/README.md`, whose simulation rests on an assumed powder model, and they stand or fall with the first bench session (`research/bench_guide.md`). The owner left the design to the agent on 2026-11-19 and gave the figures in `progress.md`.
 
 **D1. One demand, shared between the tubes; not two loops on one weight.**
