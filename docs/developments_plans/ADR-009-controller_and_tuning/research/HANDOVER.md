@@ -71,6 +71,17 @@ Marked **[B]** measured on the bench (Pico 2 W, 2.0.3-84, A&D FX-300i, large tub
 - **Its plant is now known to be wrong in three places** (the fine tube's flow per turn and ceiling, the scale's lag, the clump sizes). **Do not quote its over-rates or times** until it is refitted. What it showed that should outlast the refit: the overcharge rate is set by clump size once the blind feed is removed; sharing the feed between the tubes three ways made no measurable difference; a candidate calibrated on each unit held its figure across differently printed tubes.
 - Tried and dropped: counting powder pushed to the lip as delivered, with a reverse turn (no gain).
 
+## What these sessions are for: the owner, 2026-11-20, 01:20. Read this first
+
+"Your session, as well as previous session is to capture data so you can design the simulation. I don't want you to slip into the live debug or tuning session. The goal is to design the simulation with adjustable parameter so we don't need to develop the algorithm solely on the device, but based on the simulation and verify by the experiment."
+
+Read here as:
+- **A bench run measures a parameter of the simulation, or checks something the simulation predicted.** A run that tries a controller's setting on the unit to see what it does is tuning, and is not run.
+- **The algorithm is developed in the simulation,** whose parameters are adjustable: a powder, a tube and a scale are each a set of numbers, so another rig is another set and not another round on a unit.
+- **So the next work is the simulation refitted to what is captured** (A2 below), and the sections under this one are corrected by it: where they say the simulation waits ("A2 and A3 are not done first"), that was the agent's, said against this goal, and is withdrawn. What was wrong on 11-19 was a plant assumed before any data, not the simulation.
+- **The real throws of 01:00 to 01:09 were the slip:** two settings of today's loop tried on the unit. They are kept for what they are worth to the simulation: with the five throws as stored, three operating points of today's loop that the refitted simulation must reproduce (`../progress.md`).
+- **The order now:** (1) refit `tools/charge_sim` to the recordings, every parameter in one place, and say which recordings it reproduces and which it cannot; (2) capture on the bench only what that fit lacks; (3) a second parameter set from fresh powder, which also tells this batch from the tubes; (4) the finish and the feed designed in the simulation; (5) its prediction checked by throws. Oscillation is an idea for (4) and (5), not a build before them.
+
 ## Revised 2026-11-20 by the agent who took over: read this before the interim conclusion
 
 An independent review of the raw recordings (`../progress.md`, "a second agent's review") changes conclusions 1 to 3 and the order of the actions below. In short:
