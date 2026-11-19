@@ -25,6 +25,10 @@ typedef struct {
     cyw43_auth_t auth;
     uint32_t timeout_ms;
     bool enable;
+    // The set-up finished or skipped (ADR-008, gate 4). In the struct's filler: the size stays 108 bytes, so no unit's
+    // Wi-Fi resets; a record from before reads it as it was stored there, 0. Not a setting: only POST /api/v1/setup/done
+    // sets it, and a factory reset clears it
+    bool setup_done;
 } eeprom_wireless_metadata_t;
 
 
@@ -98,6 +102,12 @@ typedef enum {
 wireless_join_result_t wireless_join(const char *ssid, const char *key, const char *auth, activity_by_t by);
 // The console's `wifi join`: the stored network, with its stored key, through the same join
 wireless_join_result_t wireless_join_stored(activity_by_t by);
+
+// Set up: the set-up finished or skipped, or a network named (a unit set up before the set-up existed)
+bool wireless_set_up(void);
+// The set-up done, by whom: remembered and stored. Joined, the hotspot stops a moment later; hotspot_stays says
+// whether it stays (not joined: the unit's only network). NULL when done, else why not
+const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays);
 
 #ifdef __cplusplus
 }

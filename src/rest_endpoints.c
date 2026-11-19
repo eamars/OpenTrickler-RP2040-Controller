@@ -18,42 +18,18 @@
 #include "system_control.h"
 #include "version.h"
 
-// Generated headers by html2header.py under scripts
+// The portal, gzipped by scripts/web_build.py at build time (ADR-008, gate 3)
 #include "web_portal.gz.h"
-#include "wizard.html.h"
 
-
-// A page in flash: the generated string carries an HTTP header of its own (html2header.py), passed over here so our
-// server sends the page with its own (ADR-003, gate 2)
-typedef struct {
-    const char *body;
-    size_t len;
-} rest_page_t;
-
-static rest_page_t rest_page_wizard;
-static bool rest_root_is_wizard = false;
 
 // A page's tag is the build's: a page changes only with the firmware
 static char rest_page_etag[40];
 
 
-static rest_page_t rest_page_from(const char *generated) {
-    rest_page_t page;
-    const char *body = strstr(generated, "\r\n\r\n");
-    page.body = body != NULL ? body + 4 : generated;
-    page.len = strlen(page.body);
-    return page;
-}
-
-
-static void rest_send_page(http_server_reply_t *reply, const rest_page_t *page) {
-    http_server_reply_static(reply, 200, "text/html; charset=utf-8", page->body, page->len, rest_page_etag);
-}
-
-
-// features: 3 6
+// features: 1 3 6
 // The portal (ADR-008, gate 3): one page, gzipped, at /, /mobile and /display_mirror (it opens its Unit page there,
-// where the mirror is). Every browser takes gzip; a client that asks for none is sent it all the same
+// where the mirror is), on any network: on its own hotspot, a unit never set up opens the set-up by itself (gate 4).
+// Every browser takes gzip; a client that asks for none is sent it all the same
 static void rest_get_portal(const http_server_request_t *request, http_server_reply_t *reply) {
     (void) request;
     http_server_reply_static_gzip(reply, 200, "text/html; charset=utf-8", (const char *) web_portal_gz,
@@ -61,33 +37,19 @@ static void rest_get_portal(const http_server_request_t *request, http_server_re
 }
 
 
-// The wizard stays at / on the unit's own hotspot until gate 4 builds the set-up into the portal
-static void rest_get_root(const http_server_request_t *request, http_server_reply_t *reply) {
-    if (rest_root_is_wizard) {
-        rest_send_page(reply, &rest_page_wizard);
-        return;
-    }
-    rest_get_portal(request, reply);
-}
-
-
+// features: 4
+// The wizard's old address: the portal's set-up, on any network (ADR-008, gate 4: the wizard is gone)
 static void rest_get_wizard(const http_server_request_t *request, http_server_reply_t *reply) {
-    rest_send_page(reply, &rest_page_wizard);
+    (void) request;
+    http_server_reply_redirect(reply, "/#setup");
 }
 
 
-void rest_endpoints_set_root_wizard(bool wizard) {
-    rest_root_is_wizard = wizard;
-}
-
-
-bool rest_endpoints_init(bool default_wizard) {
-    rest_root_is_wizard = default_wizard;
-    rest_page_wizard = rest_page_from(html_wizard_html);
+bool rest_endpoints_init(void) {
     snprintf(rest_page_etag, sizeof(rest_page_etag), "%s-%s", version_string, vcs_hash);
 
     // The pages
-    http_server_add_route(HTTP_SERVER_GET, "/", rest_get_root);
+    http_server_add_route(HTTP_SERVER_GET, "/", rest_get_portal);
     http_server_add_route(HTTP_SERVER_GET, "/mobile", rest_get_portal);
     http_server_add_route(HTTP_SERVER_GET, "/wizard", rest_get_wizard);
     http_server_add_route(HTTP_SERVER_GET, "/display_mirror", rest_get_portal);

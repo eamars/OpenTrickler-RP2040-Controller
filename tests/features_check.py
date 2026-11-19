@@ -26,9 +26,7 @@ NEW = re.compile(r"^- \*\*(N\d+)\. ")
 
 # The rows the mock does not show yet, each with the gate that brings it. It empties as the gates are built: with
 # --final, any row here fails
-TO_COME = {
-    "4": "gate 4: /wizard opens the portal's set-up (the wizard stays until the set-up is built)",
-}
+TO_COME = {}
 
 
 def read_rows():

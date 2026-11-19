@@ -1,5 +1,6 @@
 """
-A stand-in for the unit, for work on its pages (ADR-003, gate 4): the pages from src/html, read again at each load,
+A stand-in for the unit, for work on its pages (ADR-003, gate 4): the portal as scripts/web_build.py builds it into
+build_web/, read again at each load, at the unit's own addresses,
 and API v1 answered from a recording of a real unit's replies. A write is checked against the recorded schema with
 the client's own checks (tools/remote_control/unit_api.py), refused as the unit would refuse it, and kept in memory
 until the stand-in stops. A charge started throws: its weight rises with each read of the charge, to its target.
@@ -27,8 +28,9 @@ import unit_api  # noqa: E402  (the client's folder, put on the path just above)
 
 DATA = Path(__file__).resolve().with_name("web_test_data.json")
 MOCK = REPO / "build_web"           # ADR-008's pages, built from src/web by scripts/web_build.py
-PAGES = {"/": "web_portal.html", "/mobile": "web_portal.html", "/wizard": "wizard.html",
-         "/display_mirror": "display_mirror.html"}
+# The unit's addresses of the portal (rest_endpoints.c), and the wizard's old one, which it redirects to the set-up
+PAGES = {"/", "/mobile", "/display_mirror"}
+REDIRECTS = {"/wizard": "/#setup"}
 FRAME = "/api/v1/display/frame"
 EVENTS = "/api/v1/events"
 NOT_RECORDED = {EVENTS, EVENTS + "/stream"}   # made here: the log of what the stand-in did, and its stream
@@ -146,19 +148,16 @@ class StandIn:
 
     def propose_setup(self, hotspot):
         """
-        The set-up as the stand-in plays it. The unit reports the station's join and the networks (gate 4, step 3); the
-        stand-in plays the scan and the join on them. `set_up` in the system's reply (stored; a factory reset clears it)
-        is still proposed here until step 4 builds it, and refused once the unit has it.
+        The set-up as the stand-in plays it, on the unit's own replies (gate 4): the station's join, the networks, and
+        `set_up` in the system's reply. With --hotspot it starts as a unit never set up, on its own hotspot.
 
         Args:
             hotspot: start as a unit never set up, on its own hotspot.
         """
         system = self.replies["/api/v1/system"]
         network = self.replies["/api/v1/network"]
-        if "set_up" in system:
-            sys.exit("the recording has set_up: the unit makes it now, so take it out of propose_setup")
-        system["set_up"] = not hotspot
         if hotspot:
+            system["set_up"] = False
             network["station"] = {"state": "idle", "ssid": None, "address": None, "reason": None}
         self.scan = {"until_ms": None, "heard": []}
         self.joining = None             # a join under way: its network, key and end
@@ -679,13 +678,15 @@ def make_handler(stand_in):
             if url.path == "/api/v1/events/stream":
                 self.stream(dict(urllib.parse.parse_qsl(url.query)))
                 return
-            if url.path in PAGES:
-                page = (REPO / "src" / "html" / PAGES[url.path]).read_bytes()
-                self.send(200, page, "text/html")
+            if url.path in REDIRECTS:
+                self.send_response(302)
+                self.send_header("Location", REDIRECTS[url.path])
+                self.send_header("Content-Length", "0")
+                self.end_headers()
                 return
-            # ADR-008's new pages, as scripts/web_build.py made them into build_web/
-            if url.path.startswith("/mock/"):
-                built = MOCK / Path(url.path).name
+            # The portal, as scripts/web_build.py made it into build_web/: at the unit's addresses, and at /mock/
+            if url.path in PAGES or url.path.startswith("/mock/"):
+                built = MOCK / ("index.html" if url.path in PAGES else Path(url.path).name)
                 if built.suffix == ".html" and built.is_file():
                     self.send(200, built.read_bytes(), "text/html")
                 else:

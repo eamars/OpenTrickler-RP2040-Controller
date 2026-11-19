@@ -140,7 +140,7 @@ SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse"
                        "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
                        "api/v1/powder_profiles/0"]
 # Routes the index does not list, by name (ADR-008, gate 2): the pages, and the debug routes (not part of v1)
-API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror"}
+API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror"}     # /wizard: a redirect to the set-up
 STREAM_READ_S = 20              # the event stream's read: past its state again after 15 s quiet
 STREAM_KEEP_ALIVE_S = 15        # ADR-008: the state again after this long quiet
 STREAM_STALL_S = 10             # the server's stall limit: a stream whose client stops reading is closed after it
@@ -1755,6 +1755,39 @@ class Session:
             self.log.write("rc", f"api/v1/debug: {error}")
             return None
 
+    def settings_restore(self, host, restore_dir):
+        """
+        Write an earlier copy back over the web API and store it (ADR-008, gate 4: a factory reset erases every
+        setting, the powders included). Each resource of the copy is written whole in one PATCH, its fields the schema
+        lets a client write; then each save path once. The Wi-Fi's key is write only and never in a copy: the one
+        stored stays. The caller then compares (`settings --restore` does).
+
+        Args:
+            host: the unit's address.
+            restore_dir: the folder of the copy (`settings --save`).
+        """
+        copy = json.loads((Path(restore_dir) / "settings.json").read_text(encoding="utf-8"))
+        unit = unit_api.Unit(host)
+        saves = []
+        for path, values in copy["resources"].items():
+            resource = unit.resource(path)
+            if resource is None:
+                self.fail(f"settings: {path} is not in this unit's schema")
+                continue
+            writable = {field["name"] for field in resource["fields"] if field.get("access", "read_write") == "read_write"}
+            body = {name: value for name, value in values.items() if name in writable}
+            status, reply = unit.request("PATCH", path, body)
+            self.log.write("rc", f"settings: {path} written back, {len(body)} fields: {status}")
+            if status != 200:
+                self.fail(f"settings: {path}: {status} {json.dumps(reply)}")
+            if resource["save"] not in saves:
+                saves.append(resource["save"])
+        for save in saves:
+            status, reply = unit.request("POST", save, {})
+            self.log.write("rc", f"settings: {save}: {status}")
+            if status != 200:
+                self.fail(f"settings: {save}: {status} {json.dumps(reply)}")
+
     def settings_roundtrip(self, host, target):
         """
         The proof of gate 3's tables (ADR-003): every setting read, written back as it was read, and read again,
@@ -2105,6 +2138,12 @@ class Session:
         if network.get("mode") == "station":
             expect("POST", "wifi/join", {"ssid": "api_check", "key": "api_check_key", "auth": "wpa2_mixed"}, 409,
                    "not_on_hotspot")
+        # The set-up done: on a unit on its network, remembered and nothing else (no hotspot to stop)
+        expect("POST", "setup/done", {"now": True}, 400, "unknown_field")
+        if network.get("mode") == "station":
+            done = expect("POST", "setup/done", {}, 200)
+            if done != {"set_up": True, "hotspot": False} or unit.read("system").get("set_up") is not True:
+                self.fail(f"api_check: setup/done answered {done}, set_up {unit.read('system').get('set_up')}")
         expect("POST", "update/start", {"download": "yes"}, 400, "wrong_type")
         if unit.read("update")["found"] is None:
             expect("POST", "update/start", {"download": True}, 409, "not_found")
@@ -3767,6 +3806,8 @@ def main():
     settings_parser.add_argument("--host", required=True, help="the unit's address")
     settings_parser.add_argument("--save", help="keep the copy in this folder")
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
+    settings_parser.add_argument("--restore", help="write the copy in this folder back and store it, then compare: "
+                                                   "after a factory reset (the Wi-Fi's key is never in a copy)")
     robust_parser = sub.add_parser("web_robust", help="wrong and awkward requests, each answered or closed (ADR-003)")
     robust_parser.add_argument("--host", required=True, help="the unit's address")
     stream_parser = sub.add_parser("stream_check", help="the event stream's life cycle, stage by stage (ADR-008, "
@@ -3867,7 +3908,9 @@ def run_command(session, args):
     elif args.command == "watch":
         time.sleep(args.seconds)
     elif args.command == "settings":
-        session.settings(args.host, args.save, args.compare)
+        if args.restore:
+            session.settings_restore(args.host, args.restore)
+        session.settings(args.host, args.save, args.compare or args.restore)
     elif args.command == "web_robust":
         session.web_robust(args.host)
     elif args.command == "stream_check":

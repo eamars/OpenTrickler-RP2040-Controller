@@ -55,6 +55,7 @@ typedef enum {
     WIRELESS_CTRL_LED_OFF,
     WIRELESS_CTRL_SCAN,         // the set-up's scan (ADR-008, gate 4)
     WIRELESS_CTRL_JOIN,         // the set-up's join, the hotspot kept up
+    WIRELESS_CTRL_SETUP_END,    // the set-up done: the hotspot stops once the reply is out
 } wireless_ctrl_t;
 
 
@@ -646,6 +647,57 @@ static void wireless_join_run(void) {
  * router, as its own access point, and the one whose router went away. The access point stays up while it tries, so a
  * person can still reach the unit; once the station joins, it stops, and the root page is the portal again
  */
+// The hotspot stopped, the station joined: the unit on its network alone, where every page is the portal
+static void wireless_hotspot_stop(void) {
+    if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
+        access_point_mode_stop();
+        cyw43_arch_disable_ap_mode();
+    }
+    wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
+}
+
+
+/*
+ * The set-up's end (ADR-008, gate 4): finished or skipped, remembered. Joined, the hotspot stops, a moment after the
+ * reply has gone out over it, and the unit polls for an update as a station does at its start; not joined, the
+ * hotspot stays, the unit's only network
+ */
+#define WIRELESS_SETUP_END_MS 2000
+
+bool wireless_set_up(void) {
+    // A network named counts: a unit set up before the set-up existed, by the wizard or the settings
+    return wireless_config.eeprom_wireless_metadata.setup_done || wireless_config.eeprom_wireless_metadata.ssid[0] != '\0';
+}
+
+
+const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
+    wireless_config.eeprom_wireless_metadata.setup_done = true;
+    const char *why = settings_write_and_store_by("settings/wifi", NULL, NULL, 0, by);
+    if (why != NULL) {
+        return why;
+    }
+    bool hotspot = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
+    bool joined = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
+    *hotspot_stays = hotspot && !joined;
+    if (hotspot && joined) {
+        wireless_ctrl_t ctrl = WIRELESS_CTRL_SETUP_END;
+        xQueueSend(wireless_ctrl_queue, &ctrl, 0);
+    }
+    return NULL;
+}
+
+
+static void wireless_setup_end(void) {
+    vTaskDelay(pdMS_TO_TICKS(WIRELESS_SETUP_END_MS));
+    if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP) {
+        return;     // the station left meanwhile: the hotspot stays, the unit's only network
+    }
+    wireless_hotspot_stop();
+    printf("Wi-Fi: set up; the hotspot stopped, on %s alone\n", wireless_started_with.ssid);
+    update_poll_station_joined();
+}
+
+
 static void wireless_rejoin(void) {
     if (!wireless_started_with.enable || cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP) {
         return;
@@ -663,12 +715,7 @@ static void wireless_rejoin(void) {
         return;
     }
     wireless_station_set(STATION_JOINED, wireless_started_with.ssid, NULL);
-    if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
-        access_point_mode_stop();
-        cyw43_arch_disable_ap_mode();
-        rest_endpoints_set_root_wizard(false);
-    }
-    wireless_config.current_wireless_state = WIRELESS_STATE_STA_MODE_LISTEN;
+    wireless_hotspot_stop();
     wireless_station_mdns();
     printf("Wi-Fi: joined %s\n", wireless_started_with.ssid);
     // An image on trial is on its network now; the start's poll, if it has not run (ADR-010, gate 5)
@@ -877,9 +924,8 @@ void wireless_task(void *p) {
         wireless_station_mdns();
     }
 
-    // Initialize REST endpoints
-    // If the current wireless state is AP mode then we will map / to the wifi configuration
-    rest_endpoints_init(wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN);
+    // The pages and the API: the portal at / on any network, which opens the set-up by itself on a unit never set up
+    rest_endpoints_init();
 
     // Start our own HTTP server (ADR-003, gate 2), in its own task, on lwIP's sockets
     static const http_server_network_t http_network = {
@@ -920,6 +966,9 @@ void wireless_task(void *p) {
                 break;
             case WIRELESS_CTRL_JOIN:
                 wireless_join_run();
+                break;
+            case WIRELESS_CTRL_SETUP_END:
+                wireless_setup_end();
                 break;
             default:
                 break;

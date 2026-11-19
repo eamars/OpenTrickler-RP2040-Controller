@@ -642,12 +642,17 @@ static bool wifi_is_access_point(void) {
 }
 
 
-/*
- * The set-up's offer (ADR-008, gate 4): on its own hotspot with no network named, the unit has never been set up.
- * Step 4 stores whether it was (set_up) and this asks that instead. Where a network is named, the Wi-Fi page keeps
- * its switch, and the hotspot stands in only while that network is away
- */
+// The set-up's offer on the main menu (ADR-008, gate 4): a unit never set up, on its own hotspot; gone once set up
 static bool setup_offered(void) {
+    return wifi_is_access_point() && !wireless_set_up();
+}
+
+
+/*
+ * The Wi-Fi page's button: on its own hotspot with no network named, the code that joins the hotspot; where a network
+ * is named, its switch, the hotspot standing in only while that network is away (gate 1's mock)
+ */
+static bool wifi_code_offered(void) {
     char ssid[40];
     return wifi_is_access_point() && (!settings_read_text("settings/wifi", "ssid", ssid, sizeof(ssid)) ||
                                       ssid[0] == '\0');
@@ -655,7 +660,7 @@ static bool setup_offered(void) {
 
 
 static bool wifi_switch_offered(void) {
-    return !setup_offered();
+    return !wifi_code_offered();
 }
 
 
@@ -1163,7 +1168,7 @@ static const menu_row_t rows_wifi[] = {
     {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
     {.label = "Takes effect at restart", .kind = ROW_INFO, .shown = shown_restart_pending},
-    {.label = "Join by camera", .kind = ROW_ACTION, .act = act_join_by_camera, .shown = setup_offered},
+    {.label = "Join by camera", .kind = ROW_ACTION, .act = act_join_by_camera, .shown = wifi_code_offered},
     {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label,
      .shown = wifi_switch_offered},
 };

@@ -1289,6 +1289,8 @@ static void api_v1_get_system(const http_server_request_t *request, http_server_
     http_json_string(out, room, &len, activity_name(activity_get()));
     http_json_raw(out, room, &len, ",\"restart_pending\":");
     http_json_bool(out, room, &len, settings_restart_pending());
+    http_json_raw(out, room, &len, ",\"set_up\":");
+    http_json_bool(out, room, &len, wireless_set_up());
     http_json_raw(out, room, &len, "}");
     api_send(reply, 200, room, len);
 }
@@ -1577,6 +1579,30 @@ static void api_v1_wifi_join(const http_server_request_t *request, http_server_r
 
 
 /*
+ * POST /api/v1/setup/done {}: the set-up finished or skipped (ADR-008, gate 4): remembered, so it never opens by
+ * itself again (a factory reset forgets it). Joined, the hotspot stops a moment after this reply; not joined, it stays
+ */
+static void api_v1_setup_done(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    bool hotspot_stays = false;
+    const char *why = wireless_setup_done(ACTIVITY_BY_API, &hotspot_stays);
+    if (why != NULL) {
+        api_error(reply, 500, "failed", NULL, why, NULL);
+        return;
+    }
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"set_up\":true,\"hotspot\":");
+    http_json_bool(out, room, &len, hotspot_stays);
+    http_json_raw(out, room, &len, "}");
+    api_send(reply, 200, room, len);
+}
+
+
+/*
     The commands' share of GET /api/v1/schema (gate 4): each action with its body's fields, in the shape of a
     resource's; each kind of state with what each value means; each event kind with what it carries. JSON as sent,
     one item a text, each well under a chunk (settings.c writes them one at a time). `refused_while` is the
@@ -1637,6 +1663,10 @@ static const char *const api_v1_schema_actions[] = {
     "with its reason (wrong_key, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its "
     "network, which a join would leave; 409 busy while a scan or a join runs\",\"example\":{\"ssid\":\"Smith home\","
     "\"key\":\"its key\",\"auth\":\"wpa2_mixed\"}}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/setup/done\",\"fields\":[],\"refused_while\":\"never\",\"about\":\"the "
+    "set-up finished or skipped (200, {set_up, hotspot}): remembered, so the portal never opens it by itself again (a "
+    "factory reset forgets it). Joined, the hotspot stops a moment after the reply (hotspot false) and the unit is on "
+    "its network alone; not joined, the hotspot stays\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/update/start\",\"fields\":[{\"name\":\"download\","
     "\"type\":\"boolean\",\"about\":\"true: the job fetches the release the poll found itself (found in GET "
     "/api/v1/update), checks it and installs it, as the offer's Install at the screen does\"}],"
@@ -1867,6 +1897,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/wifi/networks", api_v1_get_networks);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/scan", api_v1_wifi_scan);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/join", api_v1_wifi_join);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/setup/done", api_v1_setup_done);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/update", api_v1_get_update);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/start", api_v1_update_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/check", api_v1_update_check);

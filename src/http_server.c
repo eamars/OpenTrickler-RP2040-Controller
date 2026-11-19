@@ -526,6 +526,13 @@ void http_server_reply_static(http_server_reply_t *reply, int status, const char
 }
 
 
+// A redirect (302) to a path of the unit's own, with nothing in its body (ADR-008, gate 4: /wizard to the set-up)
+void http_server_reply_redirect(http_server_reply_t *reply, const char *location) {
+    snprintf(reply->location, sizeof(reply->location), "%s", location);
+    http_server_reply_send(reply, 302, NULL, 0);
+}
+
+
 void http_server_reply_static_gzip(http_server_reply_t *reply, int status, const char *content_type, const char *data,
                                    size_t len, const char *etag) {
     http_server_reply_static(reply, status, content_type, data, len, etag);

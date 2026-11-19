@@ -2,15 +2,15 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-63-dirty",
-   "vcs": "ea0b24d",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
   "hostname": "opentrickler-4A82",
-  "boot": 1469850380,
-  "uptime_s": 66,
+  "boot": 3884089477,
+  "uptime_s": 124,
   "features": [
    {
     "name": "servo_gate",
@@ -168,7 +168,7 @@
     "methods": [
      "GET"
     ],
-    "about": "the firmware, the board, the uptime, what the unit is doing, a restart pending"
+    "about": "the firmware, the board, the uptime, what the unit is doing, a restart pending, whether it is set up"
    },
    {
     "path": "/api/v1/system/restart",
@@ -211,6 +211,13 @@
      "POST"
     ],
     "about": "the set-up's join, while the unit is its own hotspot, kept up meanwhile: stored once joined, never if refused"
+   },
+   {
+    "path": "/api/v1/setup/done",
+    "methods": [
+     "POST"
+    ],
+    "about": "the set-up finished or skipped: remembered; joined, the hotspot stops a moment after the reply"
    },
    {
     "path": "/api/v1/update",
@@ -479,8 +486,8 @@
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-63-dirty",
-   "vcs": "ea0b24d",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
   "resources": [
@@ -2028,6 +2035,13 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/setup/done",
+    "fields": [],
+    "refused_while": "never",
+    "about": "the set-up finished or skipped (200, {set_up, hotspot}): remembered, so the portal never opens it by itself again (a factory reset forgets it). Joined, the hotspot stops a moment after the reply (hotspot false) and the unit is on its network alone; not joined, the hotspot stays"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/update/start",
     "fields": [
      {
@@ -2465,8 +2479,8 @@
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.3-63-dirty",
-   "vcs": "ea0b24d",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
   "unit_id": "4A821948",
@@ -2775,15 +2789,16 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.3-63-dirty",
-   "vcs": "ea0b24d",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
   "board": "pico_w",
   "unit_id": "4A821948",
-  "uptime_s": 68,
+  "uptime_s": 126,
   "activity": "none",
-  "restart_pending": false
+  "restart_pending": false,
+  "set_up": true
  },
  "/api/v1/network": {
   "mode": "station",
@@ -2805,8 +2820,8 @@
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.3-63-dirty",
-   "block": "2.0.3-63",
+   "version": "2.0.3-64-dirty",
+   "block": "2.0.3-64",
    "slot": "a",
    "trial": false
   },

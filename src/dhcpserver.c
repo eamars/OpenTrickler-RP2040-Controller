@@ -58,6 +58,7 @@
 #define DHCP_OPT_MAX_MSG_SIZE       (57)
 #define DHCP_OPT_VENDOR_CLASS_ID    (60)
 #define DHCP_OPT_CLIENT_ID          (61)
+#define DHCP_OPT_CAPTIVE_PORTAL     (114)   // RFC 8910
 #define DHCP_OPT_END                (255)
 
 #define PORT_DHCP_SERVER (67)
@@ -282,6 +283,16 @@ static void dhcp_server_process(void *arg, struct udp_pcb *upcb, struct pbuf *p,
     opt_write_n(&opt, DHCP_OPT_ROUTER, 4, &ip4_addr_get_u32(ip_2_ip4(&d->ip))); // aka gateway; can have mulitple addresses
     opt_write_n(&opt, DHCP_OPT_DNS, 4, &ip4_addr_get_u32(ip_2_ip4(&d->ip))); // this server is the dns
     opt_write_u32(&opt, DHCP_OPT_IP_LEASE_TIME, DEFAULT_LEASE_TIME_S);
+    // The captive portal's address (RFC 8910; ADR-008, gate 4): a phone that reads it opens the unit's page in its
+    // sign-in sheet without guessing from its own check; the others still have their check's 302 (http_server.c)
+    char portal[32];
+    char address[16];
+    if (ip4addr_ntoa_r(ip_2_ip4(&d->ip), address, sizeof(address)) != NULL) {
+        int portal_len = snprintf(portal, sizeof(portal), "http://%s/", address);
+        if (portal_len > 0 && portal_len < (int) sizeof(portal)) {
+            opt_write_n(&opt, DHCP_OPT_CAPTIVE_PORTAL, (size_t) portal_len, portal);
+        }
+    }
     *opt++ = DHCP_OPT_END;
     dhcp_socket_sendto(&d->udp, &dhcp_msg, opt - (uint8_t *)&dhcp_msg, 0xffffffff, PORT_DHCP_CLIENT);
 

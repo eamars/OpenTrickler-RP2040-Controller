@@ -364,7 +364,8 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it"},
 #endif
     {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
-    {"/api/v1/system", "[\"GET\"]", "the firmware, the board, the uptime, what the unit is doing, a restart pending"},
+    {"/api/v1/system", "[\"GET\"]",
+     "the firmware, the board, the uptime, what the unit is doing, a restart pending, whether it is set up"},
     {"/api/v1/system/restart", "[\"POST\"]", "restarts the unit, once the reply is out"},
     {"/api/v1/system/factory_reset", "[\"POST\"]",
      "erases the stored settings and restarts: the unit comes back as its own access point"},
@@ -374,6 +375,8 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/wifi/scan", "[\"POST\"]", "scans for networks: twice, merged by name"},
     {"/api/v1/wifi/join", "[\"POST\"]",
      "the set-up's join, while the unit is its own hotspot, kept up meanwhile: stored once joined, never if refused"},
+    {"/api/v1/setup/done", "[\"POST\"]",
+     "the set-up finished or skipped: remembered; joined, the hotspot stops a moment after the reply"},
     {"/api/v1/update", "[\"GET\"]",
      "the firmware update (ADR-004): its state, the image running and its slot, the image this unit takes, the last"},
     {"/api/v1/update/start", "[\"POST\"]",

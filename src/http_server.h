@@ -118,6 +118,8 @@ void http_server_reply_static(http_server_reply_t *reply, int status, const char
 // The same, its bytes gzipped: sent with Content-Encoding: gzip (ADR-008, gate 3: the portal)
 void http_server_reply_static_gzip(http_server_reply_t *reply, int status, const char *content_type, const char *data,
                                    size_t len, const char *etag);
+// A redirect (302) to a location of the unit's own ("/#setup"), up to 47 characters, nothing in its body
+void http_server_reply_redirect(http_server_reply_t *reply, const char *location);
 // Send a reply written as it is made, chunked
 void http_server_reply_stream(http_server_reply_t *reply, int status, const char *content_type,
                               http_server_more_t more, void *ctx);
