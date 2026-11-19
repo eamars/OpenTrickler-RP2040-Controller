@@ -48,6 +48,7 @@ class ScaleModel:
     draught_per_min: float = 0.0
     draught_gr: float = 0.0
     draught_tau_s: float = 1.0
+    hold_s: float = 0.0     # see ScaleState.step: 0 for the slow filter, more for a balance that holds its reading
 
 
 class ScaleState:
@@ -60,6 +61,9 @@ class ScaleState:
         self.delay = deque([0.0] * max(1, round(model.dead_s / dt_s)))
         self.sensor = 0.0
         self.filtered = 0.0
+        self.smooth = 0.0           # hold_s: the balance's own smoothed weight, which its reading follows or holds
+        self.following = False      # hold_s: the reading is following a change now
+        self.held_for_s = 0.0       # hold_s: how long a change too small to follow has been waiting
         self.zero = 0.0
         self.gust = 0.0
         self.gust_left_s = 0.0
@@ -85,8 +89,29 @@ class ScaleState:
         delayed = self.delay.popleft()
         self.sensor += (delayed - self.sensor) * dt / model.sensor_tau_s
         gap = self.sensor - self.filtered
-        tau = model.open_tau_s if abs(gap) > model.open_above_gr else model.closed_tau_s
-        self.filtered += gap * dt / tau
+        if model.hold_s <= 0.0:
+            tau = model.open_tau_s if abs(gap) > model.open_above_gr else model.closed_tau_s
+            self.filtered += gap * dt / tau
+        else:
+            # A balance that holds its reading (the bench's A&D, 2026-11-20). Its own weight is smoothed over
+            # open_tau_s, so that a kernel's landing does not read as a change. A change over open_above_gr is
+            # followed at once, until the reading has caught up; a smaller one that would show another digit
+            # waits hold_s, as the balance makes sure of it, and is then taken whole.
+            self.smooth += (self.sensor - self.smooth) * dt / model.open_tau_s
+            gap = self.smooth - self.filtered
+            if abs(gap) > model.open_above_gr:
+                self.following = True
+            elif abs(gap) < model.digit_gr / 4.0:
+                self.following = False
+            if self.following:
+                self.filtered = self.smooth
+                self.held_for_s = 0.0
+            elif abs(gap) >= model.digit_gr / 2.0:
+                self.held_for_s += dt
+                if self.held_for_s >= model.hold_s:
+                    self.following = True
+            else:
+                self.held_for_s = 0.0
 
         shown = self.filtered - self.zero
         if model.zero_track_gr_s > 0.0 and abs(shown) <= model.zero_track_gr:
@@ -129,11 +154,11 @@ SLOW_STRAIN_GAUGE = ScaleModel(
     link_min_s=0.016, link_max_s=0.036)
 
 # The bench's A&D FX-300i at FAST as measured (the owner confirmed the setting, 2026-11-20): fitted to the stops
-# and nudges of fit/bench_pico2w.json. About half a second passes before a change shows at all; one digit alone
-# is slower still.
+# and nudges of fit/bench_pico2w.json. About half a second passes before a change shows at all; a change of a
+# digit or two is held for a second more, then shown whole.
 AND_FXI_BENCH = ScaleModel(
-    name="A&D FX-300i, FAST, bench", digit_gr=0.02, report_s=0.0483, report_jitter_s=0.002, dead_s=0.45,
-    sensor_tau_s=0.03, open_tau_s=0.08, closed_tau_s=0.60, open_above_gr=0.03, noise_gr=0.003, link_min_s=0.009,
-    link_max_s=0.029)
+    name="A&D FX-300i, FAST, bench", digit_gr=0.02, report_s=0.0483, report_jitter_s=0.002, dead_s=0.42,
+    sensor_tau_s=0.03, open_tau_s=0.10, closed_tau_s=1.30, open_above_gr=0.05, noise_gr=0.0015, link_min_s=0.009,
+    link_max_s=0.029, hold_s=1.2)
 
 SCALES = {"and_bench": AND_FXI_BENCH, "and_fast": AND_FXI_FAST, "and_slow": AND_FXI_SLOW, "gng": GNG_JJB, "slow": SLOW_STRAIN_GAUGE}

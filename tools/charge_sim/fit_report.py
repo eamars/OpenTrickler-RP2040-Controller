@@ -22,6 +22,9 @@ stats = bench_twin.stats    # bench/stats.py, which the recordings were summed u
 # (figure, absolute tolerance, relative tolerance): a figure passes within either.
 CREEP_STOP = [("rate", 0.2, 0.12), ("start_2s", 0.8, 0.3), ("fano_1s", 0.5, 0.35), ("rise", 0.6, 0.25),
               ("rise_sd", 0.6, 0.25), ("three_hold", 0.12, 0.0)]
+# A coarse stop's start is not judged: the bench shuffled plain stops and back-offs, so a trial's start follows
+# another kind's stop.
+COARSE_STOP = [("rise", 5.0, 0.2), ("rise_sd", 6.0, 0.5)]
 CREEP_STEADY = [("rate", 0.2, 0.12), ("fano_1s", 0.5, 0.35), ("fano_2s", 0.5, 0.35), ("fano_4s", 0.5, 0.35),
                 ("most_1s", 2.0, 0.3)]
 NUDGES = [("kernels", 0.1, 0.25), ("fano", 1.0, 0.3), ("nothing", 0.08, 0.0), ("three_up", 0.04, 0.0),
@@ -35,26 +38,6 @@ SIM_STOPS = 150         # stops simulated for each kind the bench made a few doz
 SIM_THROWS = 100
 
 
-class Report:
-    """Lines of measured against simulated, and the count that pass."""
-
-    def __init__(self):
-        self.passed = 0
-        self.judged = 0
-
-    def rows(self, title: str, measured: dict, simulated: dict, figures: list) -> None:
-        cells = []
-        for name, absolute, relative in figures:
-            want, got = measured.get(name), simulated.get(name)
-            if want is None or got is None:
-                continue
-            ok = abs(got - want) <= max(absolute, relative * abs(want))
-            self.judged += 1
-            self.passed += ok
-            cells.append(f"{name} {want:.2f}|{got:.2f}{'' if ok else ' OFF'}")
-        print(f"{title}: " + ", ".join(cells))
-
-
 def map_twin(rig, tube: str) -> dict:
     """A tube's powder a turn and the seconds of its flow that show after a stop, from a fast simulated run."""
     speed = 1.0
@@ -64,41 +47,76 @@ def map_twin(rig, tube: str) -> dict:
     return {"gr_per_turn": rate_gr_s / speed, "late_s_fast": figures["rise"] * stats.DIGIT_GR / rate_gr_s}
 
 
+def evaluate(rig, targets: dict, only: list, seed: int, match: str = "") -> list:
+    """
+    Every measured figure with the simulation's.
+
+    Args:
+        rig: the simulation's parameters.
+        targets: the bench's figures (`bench/measure.py`).
+        only: the kinds of test to run: maps, creep, nudges, throws.
+        seed: the simulation's.
+        match: run only the tests whose title holds one of these texts, comma-separated.
+
+    Returns:
+        (title, figure, measured, simulated, tolerance) for each figure both sides have.
+    """
+    tests = []
+    if "maps" in only:
+        for tube, measured in targets["maps"].items():
+            tests.append((f"map {tube}", measured, MAPS, lambda tube=tube: map_twin(rig, tube)))
+    if "creep" in only:
+        for key, measured in targets["creep"].items():
+            steady = measured["length"] == "steady"
+            count = 8 if steady else 40 if measured["tube"] == "coarse" else SIM_STOPS
+            figures = CREEP_STEADY if steady else COARSE_STOP if measured["tube"] == "coarse" else CREEP_STOP
+            tests.append((key, measured, figures, lambda m=measured, steady=steady, count=count: stats.creep_stats(
+                bench_twin.creep_trials(rig, m["tube"], m["speed_rps"], m["stop"], tuple(m["run_s"]),
+                                        4.0 if steady else 3.0, count, seed))))
+    if "nudges" in only:
+        measured = targets["nudges"]
+        tests.append(("nudges", measured, NUDGES, lambda m=measured: bench_twin.nudge_series(
+            rig, m["speed_rps"], m["turn"], m["still_s"], 600, seed)))
+    if "throws" in only:
+        for name, measured in targets["throws"].items():
+            profile = Profile(fine_kp=measured["fine_kp"], fine_ki=0.0, fine_kd=10.0, fine_min_rps=measured["fine_min"],
+                              fine_max_rps=measured["fine_max"], **COARSE)
+            tests.append((f"throws {name} at {measured['target']:g} gr", measured, THROWS,
+                          lambda m=measured, profile=profile: stats.throw_stats(
+                              bench_twin.throws(rig, profile, m["target"], SIM_THROWS, seed))))
+    rows = []
+    for title, measured, figures, run in tests:
+        if not any(part in title for part in match.split(",")):
+            continue
+        simulated = run()
+        for name, absolute, relative in figures:
+            want, got = measured.get(name), simulated.get(name)
+            if want is not None and got is not None:
+                rows.append((title, name, want, got, max(absolute, relative * abs(want))))
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rig", default="bench_pico2w")
     parser.add_argument("--targets", type=Path, default=Path(__file__).parent / "fit" / "bench_pico2w.json")
     parser.add_argument("--only", default="maps,creep,nudges,throws")
+    parser.add_argument("--match", default="", help="only the tests whose title holds this text")
     parser.add_argument("--seed", type=int, default=1)
     args = parser.parse_args()
     targets = json.loads(args.targets.read_text(encoding="utf-8"))
-    rig = rigs.RIGS[args.rig]
-    only = args.only.split(",")
-    report = Report()
+    rows = evaluate(rigs.RIGS[args.rig], targets, args.only.split(","), args.seed, args.match)
     print(f"measured|simulated, rig {args.rig}; OFF marks a figure outside its tolerance")
-
-    if "maps" in only:
-        for tube, measured in targets["maps"].items():
-            report.rows(f"map {tube}", measured, map_twin(rig, tube), MAPS)
-    if "creep" in only:
-        for key, measured in targets["creep"].items():
-            steady = measured["length"] == "steady"
-            count = 8 if steady else SIM_STOPS
-            trials = bench_twin.creep_trials(rig, measured["tube"], measured["speed_rps"], measured["stop"],
-                                             tuple(measured["run_s"]), 4.0 if steady else 3.0, count, args.seed)
-            report.rows(key, measured, stats.creep_stats(trials), CREEP_STEADY if steady else CREEP_STOP)
-    if "nudges" in only:
-        measured = targets["nudges"]
-        simulated = bench_twin.nudge_series(rig, measured["speed_rps"], measured["turn"], measured["still_s"], 600,
-                                            args.seed)
-        report.rows("nudges", measured, simulated, NUDGES)
-    if "throws" in only:
-        for name, measured in targets["throws"].items():
-            profile = Profile(fine_kp=measured["fine_kp"], fine_ki=0.0, fine_kd=10.0, fine_min_rps=measured["fine_min"],
-                              fine_max_rps=measured["fine_max"], **COARSE)
-            simulated = stats.throw_stats(bench_twin.throws(rig, profile, measured["target"], SIM_THROWS, args.seed))
-            report.rows(f"throws {name} at {measured['target']:g} gr", measured, simulated, THROWS)
-    print(f"{report.passed} of {report.judged} figures within tolerance")
+    titles = []
+    for row in rows:
+        if row[0] not in titles:
+            titles.append(row[0])
+    for title in titles:
+        cells = [f"{name} {want:.2f}|{got:.2f}{'' if abs(got - want) <= tolerance else ' OFF'}"
+                 for row_title, name, want, got, tolerance in rows if row_title == title]
+        print(f"{title}: " + ", ".join(cells))
+    passed = sum(1 for _, _, want, got, tolerance in rows if abs(got - want) <= tolerance)
+    print(f"{passed} of {len(rows)} figures within tolerance")
 
 
 if __name__ == "__main__":

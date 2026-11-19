@@ -1,0 +1,48 @@
+01:28:51.090 rc      board pico2_w, elf C:\workspace\OpenTrickler-RP2040-Controller\build\app.elf
+weight at the start 30.34
+1/36 coarse 1 backoff 2.2 s +324.0 digits, still by 1.92 s
+2/36 coarse 0.3 backoff 1.8 s +130.0 digits, still by 1.19 s
+3/36 coarse 0.1 held 2.4 s +4.0 digits, still by 0.80 s
+4/36 coarse 0.1 backoff 1.7 s +61.0 digits, still by 1.52 s
+5/36 coarse 0.3 held 2.1 s +85.0 digits, still by 1.27 s
+6/36 coarse 1 held 1.9 s +296.0 digits, still by 1.06 s
+7/36 coarse 1 held 2.5 s +273.0 digits, still by 1.08 s
+8/36 coarse 0.3 backoff 1.7 s +147.0 digits, still by 2.27 s
+9/36 coarse 0.3 held 2.4 s +87.0 digits, still by 0.72 s
+10/36 coarse 1 backoff 1.9 s +316.0 digits, still by 1.92 s
+11/36 coarse 1 held 1.9 s +258.0 digits, still by 2.98 s
+12/36 coarse 0.3 held 1.7 s +74.0 digits, still by 0.75 s
+13/36 coarse 0.1 held 2.0 s +65.0 digits, still by 1.17 s
+14/36 coarse 0.3 backoff 2.5 s +119.0 digits, still by 1.14 s
+15/36 coarse 0.1 held 2.5 s +13.0 digits, still by 1.06 s
+16/36 coarse 0.3 backoff 2.5 s +136.0 digits, still by 1.23 s
+17/36 coarse 1 held 2.2 s +291.0 digits, still by 1.03 s
+18/36 coarse 0.3 held 1.8 s +87.0 digits, still by 0.89 s
+19/36 coarse 0.1 held 2.0 s +19.0 digits, still by 2.19 s
+20/36 coarse 0.1 backoff 2.2 s +64.0 digits, still by 1.08 s
+21/36 coarse 1 backoff 1.8 s +306.0 digits, still by 3.36 s
+22/36 coarse 1 backoff 2.5 s +319.0 digits, still by 0.97 s
+23/36 coarse 0.1 backoff 1.6 s +49.0 digits, still by 0.95 s
+24/36 coarse 1 held 1.8 s +289.0 digits, still by 0.98 s
+25/36 coarse 1 backoff 1.7 s +287.0 digits, still by 2.20 s
+26/36 coarse 0.3 held 1.7 s +87.0 digits, still by 0.83 s
+27/36 coarse 0.1 backoff 1.6 s +76.0 digits, still by 1.25 s
+28/36 coarse 0.1 backoff 1.8 s +47.0 digits, still by 1.45 s
+29/36 coarse 0.3 held 1.9 s +74.0 digits, still by 0.75 s
+30/36 coarse 1 held 2.5 s +264.0 digits, still by 0.77 s
+31/36 coarse 0.1 held 2.1 s +23.0 digits, still by 0.77 s
+32/36 coarse 1 backoff 2.1 s +332.0 digits, still by 1.20 s
+33/36 coarse 0.1 held 1.9 s +37.0 digits, still by 0.78 s
+34/36 coarse 0.1 backoff 1.7 s +53.0 digits, still by 0.95 s
+35/36 coarse 0.3 backoff 2.1 s +137.0 digits, still by 2.55 s
+36/36 coarse 0.3 backoff 2.2 s +148.0 digits, still by 1.36 s
+weight at the end 382.44
+saved 0 frames and 37 runs to C:\workspace\OpenTrickler-RP2040-Controller\logs\adr009\20261120_012852_creepstop
+01:32:41.284 rc      VERDICT PASS
+01:32:41.284 rc      log: C:\workspace\OpenTrickler-RP2040-Controller\logs\rc\20261120_012851_adr009_creepstop.log
+coarse 0.1 rev/s, backoff: 6 stops, 63.77 digits/s; after the stop +58.33 digits (spread 9.96), by digit {47: 1, 49: 1, 53: 1, 61: 1, 64: 1, 76: 1}; three digits hold 2 of 6; still by median 1.16 s, longest 1.52 s
+coarse 0.1 rev/s, held: 6 stops, 32.89 digits/s; after the stop +26.83 digits (spread 19.79), by digit {4: 1, 13: 1, 19: 1, 23: 1, 37: 1, 65: 1}; three digits hold 1 of 6; still by median 0.93 s, longest 2.19 s
+coarse 0.3 rev/s, backoff: 6 stops, 135.77 digits/s; after the stop +136.17 digits (spread 9.92), by digit {119: 1, 130: 1, 136: 1, 137: 1, 147: 1, 148: 1}; three digits hold 2 of 6; still by median 1.30 s, longest 2.55 s
+coarse 0.3 rev/s, held: 6 stops, 131.30 digits/s; after the stop +82.33 digits (spread 5.93), by digit {74: 2, 85: 1, 87: 3}; three digits hold 4 of 6; still by median 0.79 s, longest 1.27 s
+coarse 1 rev/s, backoff: 6 stops, 484.10 digits/s; after the stop +314.00 digits (spread 14.41), by digit {287: 1, 306: 1, 316: 1, 319: 1, 324: 1, 332: 1}; three digits hold 1 of 6; still by median 1.92 s, longest 3.36 s
+coarse 1 rev/s, held: 6 stops, 459.46 digits/s; after the stop +278.50 digits (spread 14.34), by digit {258: 1, 264: 1, 273: 1, 289: 1, 291: 1, 296: 1}; three digits hold 2 of 6; still by median 1.05 s, longest 2.98 s

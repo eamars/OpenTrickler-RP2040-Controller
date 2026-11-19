@@ -55,6 +55,14 @@ class Tube:
         nudged, goes on avalanching for about this long whatever its speed; 0 for at once.
     trail_full_turns: a tube that turned less than this since its start has brought fewer kernels to the lip, and
         fewer fall after its stop.
+    reverse_spill_gr: powder that falls when a tube that was turning forward is turned back (the charge's back-off
+        of the coarse tube): the bench measured that a reverse turn spills, where the research had assumed it
+        takes powder back. Mean, in grains.
+    reverse_spill_cv: spread of that spill, as a share of its mean.
+    reverse_spill_s: time over which it falls.
+    rifling_starts: the tube's rifling starts (5 on both of the project's tubes); with rifling_ripple, a variation
+        of the flow once a start, beside the once-a-turn `ripple`. `bench/fold_by_angle.py` measures both on a unit.
+    rifling_ripple: depth of that variation, 0 to 1.
     """
 
     name: str
@@ -75,6 +83,11 @@ class Tube:
     drop_mm: float
     roll_tau_s: float = 0.0
     trail_full_turns: float = 0.25
+    reverse_spill_gr: float = 0.0
+    reverse_spill_cv: float = 0.3
+    reverse_spill_s: float = 0.25
+    rifling_starts: int = 5
+    rifling_ripple: float = 0.0
 
     @property
     def held_steady_gr(self) -> float:
@@ -111,6 +124,7 @@ class TubeState:
         self.released_gr = 0.0
         self.turns = 0.0
         self.turns_since_start = 0.0
+        self.forward_since_reverse = 0.0
         self._next_release()
 
     def _kernel(self) -> float:
@@ -155,7 +169,9 @@ class TubeState:
         flow = tube.out_per_rev * speed * self.held
         flow *= max(0.0, 1.0 - (speed / tube.critical_rps) ** tube.centrifuge_power)
         flow *= self.front * self.front
-        flow *= 1.0 + tube.ripple * math.cos(2.0 * math.pi * self.angle)
+        turn = 2.0 * math.pi * self.angle
+        flow *= max(0.0, 1.0 + tube.ripple * math.cos(turn)
+                    + tube.rifling_ripple * math.cos(tube.rifling_starts * turn))
         return flow
 
     def step(self, now_s: float, dt_s: float, landings: list) -> None:
@@ -189,6 +205,11 @@ class TubeState:
         elif turned < 0.0:
             self.front = max(0.0, self.front + turned / self.tube.retreat_turns)
             self.budget = min(self.budget, 0.0)
+            if self.forward_since_reverse > 0.0:
+                self._spill(now_s, landings)
+            self.forward_since_reverse = 0.0
+        if turned > 0.0:
+            self.forward_since_reverse += turned
 
         if self.speed > 0.0:
             self.turns_since_start = self.turns_since_start + turned if was_moving else turned
@@ -201,6 +222,16 @@ class TubeState:
         fall = self.fall_s * self.rng.uniform(0.95, 1.05)
         heapq.heappush(landings, (now_s + fall, mass, self.land_speed))
 
+    def _spill(self, now_s: float, landings: list) -> None:
+        """What a reverse turn shakes off the lip of a tube that was pouring: in ten parts over the spill's time."""
+        tube = self.tube
+        if tube.reverse_spill_gr <= 0.0:
+            return
+        mass = max(0.0, self.rng.gauss(tube.reverse_spill_gr, tube.reverse_spill_gr * tube.reverse_spill_cv))
+        for _ in range(10):
+            self.held = max(0.0, self.held - mass / 10.0)
+            self._release(now_s + self.rng.uniform(0.0, tube.reverse_spill_s), mass / 10.0, landings)
+
     def _trail(self, now_s: float, landings: list) -> None:
         """Kernels left at the lip that fall after the tube stops; fewer from a slow stop or a retreated front.
 
@@ -210,13 +241,10 @@ class TubeState:
         share = min(1.0, self.speed_before_stop / tube.trail_ref_rps) * self.front
         share *= min(1.0, self.turns_since_start / tube.trail_full_turns)
         mean = tube.trail_kernels * share
+        # Often none and now and then many, as the bench's stops gave (0 to 10 digits): a geometric count
         count = 0
-        # Poisson by multiplication: the means here are a few kernels at most
-        limit = math.exp(-mean)
-        product = self.rng.random()
-        while product > limit:
+        while self.rng.random() < mean / (1.0 + mean):
             count += 1
-            product *= self.rng.random()
         for _ in range(count):
             delay = self.rng.expovariate(1.0 / tube.trail_tau_s)
             kernel = self._kernel()

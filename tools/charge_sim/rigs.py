@@ -47,12 +47,12 @@ POWDERS = {"ar2209": AR2209, "ball": FINE_BALL, "long_stick": LONG_STICK}
 # exposed to air, the A&D FX-300i in grains at FAST. Each number below is fitted to those recordings.
 BENCH_LARGE_TUBE = Tube(name="large, bench", out_per_rev=0.38, in_per_rev=0.6, held_max_gr=40.0,
                         max_inflow_gr_s=math.inf, critical_rps=critical_rps(7.5), centrifuge_power=6.0, ripple=0.10,
-                        slump_deg=3.0, roll_rps=0.2, start_turns=0.5, retreat_turns=0.5, trail_kernels=6.0,
-                        trail_ref_rps=0.5, trail_tau_s=0.30, drop_mm=50.0)
-BENCH_SMALL_TUBE = Tube(name="small low flow, bench", out_per_rev=0.0975, in_per_rev=10.0, held_max_gr=8.0,
-                        max_inflow_gr_s=math.inf, critical_rps=critical_rps(3.74), centrifuge_power=6.0, ripple=0.15,
-                        slump_deg=30.0, roll_rps=0.05, start_turns=0.2, retreat_turns=0.5, trail_kernels=1.5,
-                        trail_ref_rps=0.08, trail_tau_s=0.30, drop_mm=50.0, roll_tau_s=1.5, trail_full_turns=0.05)
+                        slump_deg=3.0, roll_rps=0.2, start_turns=0.1, retreat_turns=0.5, trail_kernels=0.0,
+                        trail_ref_rps=0.5, trail_tau_s=0.30, drop_mm=50.0, reverse_spill_gr=0.8)
+BENCH_SMALL_TUBE = Tube(name="small low flow, bench", out_per_rev=0.094, in_per_rev=10.0, held_max_gr=8.0,
+                        max_inflow_gr_s=math.inf, critical_rps=critical_rps(3.74), centrifuge_power=6.0, ripple=0.40,
+                        slump_deg=20.0, roll_rps=0.1, start_turns=0.2, retreat_turns=0.5, trail_kernels=1.0,
+                        trail_ref_rps=0.06, trail_tau_s=0.20, drop_mm=50.0, roll_tau_s=2.0, trail_full_turns=0.1)
 BENCH_AR2209 = Powder(name="AR2209, long in the air", kernel_gr=0.021, kernel_cv=0.12, clump_mean=1.15,
                       regularity=2.0)
 BENCH_PICO2W = Rig(powder=BENCH_AR2209, coarse=BENCH_LARGE_TUBE, fine=BENCH_SMALL_TUBE, scale=SCALES["and_bench"])

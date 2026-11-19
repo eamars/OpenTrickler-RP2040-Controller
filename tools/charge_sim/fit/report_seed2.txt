@@ -1,0 +1,23 @@
+measured|simulated, rig bench_pico2w; OFF marks a figure outside its tolerance
+map fine: gr_per_turn 0.77|0.74, late_s_fast 0.57|0.69
+map coarse: gr_per_turn 9.31|9.29, late_s_fast 0.63|0.63
+coarse 0.1 backoff stop: rise 58.33|68.30, rise_sd 9.96|11.24
+coarse 0.1 held stop: rise 26.83|29.37, rise_sd 19.79|6.42 OFF
+coarse 0.3 backoff stop: rise 136.17|122.71, rise_sd 9.92|13.80
+coarse 0.3 held stop: rise 82.33|86.22, rise_sd 5.93|5.77
+coarse 1 backoff stop: rise 314.00|321.24, rise_sd 14.41|20.85
+coarse 1 held stop: rise 278.50|280.00, rise_sd 14.34|12.74
+fine 0.02 held steady: rate 0.75|0.74, fano_1s 3.37|3.73, fano_2s 3.29|3.58, fano_4s 2.36|3.22 OFF, most_1s 8.00|20.00 OFF
+fine 0.02 held stop: rate 0.85|0.73, start_2s 0.27|0.48, fano_1s 3.71|2.54, rise 0.43|1.05 OFF, rise_sd 0.92|1.47, three_hold 0.90|0.88
+fine 0.05 held steady: rate 1.90|1.87, fano_1s 1.89|2.14, fano_2s 1.76|1.91, fano_4s 1.24|1.85 OFF, most_1s 9.00|25.00 OFF
+fine 0.05 held stop: rate 1.78|1.65, start_2s 1.29|1.33, fano_1s 2.67|3.71 OFF, rise 2.87|2.88, rise_sd 2.56|2.93, three_hold 0.48|0.55
+fine 0.05 released stop: rate 1.86|1.75, start_2s 1.32|1.32, fano_1s 2.27|2.24, rise 2.60|2.60, rise_sd 2.34|2.05, three_hold 0.52|0.57
+fine 0.1 held steady: rate 3.57|3.74, fano_1s 2.18|1.06 OFF, fano_2s 2.64|0.92 OFF, fano_4s 1.54|0.94 OFF, most_1s 11.00|11.00
+fine 0.1 held stop: rate 3.48|3.56, start_2s 3.65|2.97, fano_1s 1.32|1.47, rise 3.10|4.82 OFF, rise_sd 2.61|2.60, three_hold 0.55|0.51
+fine 0.1 released stop: rate 3.38|3.50, start_2s 3.77|3.37, fano_1s 1.82|1.73, rise 2.90|4.47 OFF, rise_sd 2.28|2.78, three_hold 0.52|0.47
+fine 0.2 held steady: rate 7.10|7.45, fano_1s 0.89|0.97, fano_2s 0.74|0.85, fano_4s 0.45|0.22, most_1s 15.00|17.00
+nudges: kernels 0.46|0.40, fano 4.87|3.89, nothing 0.76|0.80, three_up 0.08|0.04 OFF, first_single_s 1.67|1.90, first_many_s 0.90|0.62 OFF
+throws stored at 42.5 gr: time 6.24|6.95, coarse_s 5.34|5.92, at_stop 0.16|0.06 OFF, at_rest 1.33|1.21, at_rest_sd 0.09|0.13 OFF, over 1.00|1.00
+throws kp08 at 20 gr: time 4.65|5.42 OFF, coarse_s 3.21|3.53, at_stop -0.02|0.00, at_rest 0.21|0.14 OFF, at_rest_sd 0.12|0.10, over 0.83|0.90
+throws slow_finish at 20 gr: time 11.27|11.75, coarse_s 6.18|6.32, at_stop -0.02|-0.01, at_rest 0.07|0.04 OFF, at_rest_sd 0.05|0.04, over 0.83|0.49 OFF
+70 of 90 figures within tolerance

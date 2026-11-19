@@ -1,0 +1,10 @@
+01:21:13.070 rc      board pico2_w, elf C:\workspace\OpenTrickler-RP2040-Controller\build\app.elf
+weight at the start 0.00
+1/2 fine 0.05 held 120.0 s +0.0 digits, still by 0.00 s
+2/2 fine 0.02 held 120.0 s +0.0 digits, still by 2.28 s
+weight at the end 8.68
+saved 0 frames and 3 runs to C:\workspace\OpenTrickler-RP2040-Controller\logs\adr009\20261120_012115_creepstop
+01:25:31.936 rc      VERDICT PASS
+01:25:31.936 rc      log: C:\workspace\OpenTrickler-RP2040-Controller\logs\rc\20261120_012113_adr009_creepstop.log
+fine 0.02 rev/s, held: 1 stops, 0.75 digits/s; after the stop +0.00 digits (spread 0.00), by digit {0: 1}; three digits hold 1 of 1; still by median 2.28 s, longest 2.28 s
+fine 0.05 rev/s, held: 1 stops, 1.89 digits/s; after the stop +0.00 digits (spread 0.00), by digit {0: 1}; three digits hold 1 of 1; still by median 0.00 s, longest 0.00 s

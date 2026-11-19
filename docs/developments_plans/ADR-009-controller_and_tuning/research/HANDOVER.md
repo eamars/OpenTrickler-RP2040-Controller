@@ -82,6 +82,14 @@ Read here as:
 - **The real throws of 01:00 to 01:09 were the slip:** two settings of today's loop tried on the unit. They are kept for what they are worth to the simulation: with the five throws as stored, three operating points of today's loop that the refitted simulation must reproduce (`../progress.md`).
 - **The order now:** (1) refit `tools/charge_sim` to the recordings, every parameter in one place, and say which recordings it reproduces and which it cannot; (2) capture on the bench only what that fit lacks; (3) a second parameter set from fresh powder, which also tells this batch from the tubes; (4) the finish and the feed designed in the simulation; (5) its prediction checked by throws. Oscillation is an idea for (4) and (5), not a build before them.
 
+### Where it stands, 2026-11-20, 02:05 (the owner asleep; decisions left for the owner)
+
+- **(1) is done as far as tonight's recordings carry it:** `tools/charge_sim` has a rig `bench_pico2w` fitted to the bench; `python fit_report.py` sets the simulation beside each of the bench's 90 figures, and 70 to 72 are within tolerance. `../progress.md`, "the simulation refitted", lists what it reproduces, what it does not and what recording would settle each. `tools/charge_sim/README.md` says how to run every part.
+- **It reproduces today's loop at the three settings recorded** (1.3 gr, 0.2 gr and under 0.1 gr over; within 0.12 gr and a second), so it can be used to design the feed. **It is kind at the finish** (half the slow-finish throws over where the bench had 10 of 12), so no over-rate is to be quoted from it yet.
+- **Next, with the owner:** the list "For the owner, tomorrow" in `../progress.md`: fresh powder as a second set of numbers; twenty turns for the rifling; the scale's own response; then the feed and the finish designed in the simulation and checked by throws.
+- **For the agent who goes on:** before a bench run, name the parameter it measures or the prediction it checks. Do not start from the old `flow_dose.py`, `calibrate.py` and `matrix.py` as they stand: they were written against the plant assumed before the bench, and their figures in `README.md` beside this are void. They are the place to start the design in step (4), on the fitted rig.
+- **The bench as left:** Pico 2 W on the probe, idle, its stored settings as before tonight (the live changes reverted, read back `saved=true`); about 382 gr in the cup, which holds 700 and more; the recorder's limit is 600. Powder is still in the hopper.
+
 ## Revised 2026-11-20 by the agent who took over: read this before the interim conclusion
 
 An independent review of the raw recordings (`../progress.md`, "a second agent's review") changes conclusions 1 to 3 and the order of the actions below. In short:

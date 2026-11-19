@@ -244,6 +244,57 @@ The owner: "Cleared"; the cup holds 700 gr and more; "Next time you don't need t
 - **The rule from two measured numbers gave the owner's own hand tuning:** the bound was 0.9, 0.8 was set, and the owner's profile has 0.8 with a top speed of 2. So the calibration can stand in for tuning by hand, and the Pico 2 W's profile was simply never tuned for its tubes. No sign in this of a change by ADR-012; its check against the older firmware is still owed.
 - **With nearly the owner's settings this bench was over in 10 of 12, where the owner's trickler is over in 1 of 10 to 15.** What differs is then not the settings: the powder (this batch long in the air, which the owner says clumps more), the tubes as printed and fitted, or both. Fresh powder in this bench's hopper, with the same two tests, tells which.
 
+## 2026-11-20, 01:20 to 02:05: the owner's direction, two more recordings, the simulation refitted
+
+**The owner, 01:20:** "your session, as well as previous session is to capture data so you can design the simulation. I don't want you to slip into the live debug or tuning session. The goal is to design the simulation with adjustable parameter so we don't need to develop the algorithm solely on the device, but based on the simulation and verify by the experiment." Written into the ADR's "Owner's direction" and the handover. The two runs of throws with changed settings (01:00 to 01:09) were that slip; they are kept as checks the simulation must reproduce. At 01:50: "carry on with your simulation and fitting ... record your progress the same way as the previous agent ... leave the decisions to tomorrow."
+
+**Recorded for the simulation, 01:21 to 01:32** (the owner: "Yes, record"; `record.py creepstop`, weights by `state`, no hand at the cup; every session `VERDICT PASS`; 382 gr in the cup after, the unit idle with its stored settings):
+
+| Recording | What it measures in the simulation | Result |
+|---|---|---|
+| Fine tube steady, 120 s at 0.02 and 0.05 rev/s, 90 s at 0.1 and 0.2 | How the powder leaves at each speed: burst sizes, their spacing, any variation by angle | Variance over mean of the digits in 1, 2 and 4 s: 3.4, 3.3, 2.4 at 0.02; 1.9, 1.8, 1.2 at 0.05; 2.2, 2.6, 1.5 at 0.1; 0.9, 0.7, 0.45 at 0.2. At 0.02 rev/s 35 rises: 19 of one digit, 16 of two to ten: the nudge test's mix |
+| Coarse tube, 36 stops from 0.1, 0.3 and 1 rev/s, half plain and half with the charge's reverse quarter turn | What lands after the coarse tube stops | Plain: 0.54, 1.65 and 5.6 gr, which is the flow times 0.6 s and no more. With the reverse turn: 1.17, 2.72 and 6.3 gr |
+
+- **The charge's back-off of the coarse tube spills powder: 0.6 to 1.1 gr more than a plain stop,** at every speed. It was added (PR #108) so that powder does not trail; the research had assumed a reverse turn takes powder back. Not judged here as good or bad: the fine tube pours after it. The simulation now has it as measured.
+- **Does the tube pour in step with its turning?** (`bench/fold_by_angle.py`, the flow folded onto a part of a turn; 0.5 is even.) Once a turn: 0.74, 0.65, 0.68 and 0.59 at the four speeds, against 0.51 to 0.67 for periods that should show nothing: a once-a-turn unevenness is likely (the small tube is fed through one window). Once a rifling start (a fifth of a turn): 0.69 at 0.05 rev/s on six turns, but 0.60 and 0.54 at 0.1 and 0.2: **not shown.** An agent's note to the owner at 01:29 said it was; the longer runs took that back. About twenty turns at 0.05 rev/s would settle it.
+- **The owner on the rifling (01:40):** it mimics an auger, as the tube has no tilt; "your program should be able to profile the rifling, as people may inherit my designs ... the rifling is already a part of the legacy". The simulation's tube now has the rifling's starts and a depth of its variation as its own numbers (`rifling_starts`, `rifling_ripple`), beside the once-a-turn one, and `fold_by_angle.py` measures both on a unit. The agent's view, given to the owner: keep the rifling; it is what makes a tube pour the same powder a turn at every speed (0.71 to 0.81 gr from 0.05 to 5 rev/s), and nothing measured blames it for the bursts.
+
+**The simulation refitted** (`tools/charge_sim`; its README says how to run each part)
+- **The method:** each bench test is run again in the simulation (`bench_twin.py`), and both are summed up by the same code (`bench/stats.py`). `fit_report.py` prints every measured figure beside the simulated one and marks those outside a tolerance; `fit_search.py` tries sets of parameters and ranks them. The bench's figures are in `fit/bench_pico2w.json`, each with its recordings.
+- **Its parameters are three sets:** a powder, a tube, a scale (`rigs.py`). The bench's unit is the rig `bench_pico2w`.
+- **What the model needed, beyond new numbers:**
+  - the bed goes on avalanching for a time after a start, so a nudged tube and a slow one burst alike (`roll_tau_s`);
+  - what falls after a stop is owed at the next start (the bench: about 1.5 digits missing in a start's first two seconds, about as much landing after a stop);
+  - a reverse turn spills (`reverse_spill_gr`);
+  - the scale holds a change of a digit or two for over a second and then takes it whole, and follows a larger one at once (`hold_s`, `open_above_gr`): one kernel first shows 1.7 s after a nudge, three and more 0.9 s.
+- **The fit:** 70 to 72 of 90 figures within tolerance on three seeds, where the plant assumed before the bench has 18 of 58 (`fit/report_seed*.txt`).
+
+| Today's loop, the three settings recorded | Bench: at rest, time, over | Simulation |
+|---|---|---|
+| As stored, 42.5 gr | +1.33 gr, 6.2 s, 5 of 5 | +1.21 gr, 7.0 s, all |
+| Fine Kp 0.8, 20 gr | +0.21 gr, 4.6 s, 10 of 12 | +0.14 gr, 5.5 s, 9 of 10 |
+| And a slow finish, 20 gr | +0.07 gr, 11.3 s, 10 of 12 | +0.04 gr, 11.7 s, about half |
+
+- **What it reproduces:** each tube's powder a turn; the seconds of flow that show after a stop from a fast turn; the bursts at 0.02, 0.05 and 0.2 rev/s and in nudges; the rise after a stop from 0.05 rev/s, its spread, and the share three digits hold; the coarse tube's stops with and without the back-off; today's loop at three settings within 0.03 to 0.12 gr and under a second.
+- **What it does not, and what would settle each:**
+  - **It is kinder than the bench at the finish:** 0.03 to 0.12 gr less over in each run of throws, and half the slow-finish throws over where the bench had 10 of 12. Twelve throws leave that wide (10 of 12 is 52% to 98%); more throws at that setting would narrow it.
+  - **The rise after a stop is too large from 0.02 and 0.1 rev/s** (1.2 against 0.4 digits; 4.4 against 3.1) and right from 0.05. The fall after a stop is one number here; it may depend on the speed.
+  - **A release of three kernels and more shows 0.25 s sooner than on the bench** (0.63 against 0.90 s), while the delay behind a fast flow is right. The scale's inner filter is a delay and a smoothing here; a known weight put on the pan with no tube turning would give its true shape. Not possible with what is on the bench without the owner's hand or a rig.
+  - **The largest second at a slow turn is larger than the bench's** (21 against 8 digits at 0.02 rev/s), and nudges release three and more half as often (4% against 8%).
+  - **The 0.1 rev/s long run was burstier than the simulation and than the bench's own other runs at that speed** (2.2 against 1.0 to 1.8): the once-a-turn unevenness is the likely cause, not yet in the fitted numbers.
+  - **The coarse tube's start after a back-off** could not be read: plain stops and back-offs were shuffled, so a trial's start follows another kind's stop.
+- **Fit for what, today:** designing the feed (how much flow the delay allows, where the coarse tube stops, what the back-off costs) and comparing finishes against each other. Not yet for quoting a finish's over-rate: there it is known to be kind.
+
+**For the owner, tomorrow** (nothing here was decided or run):
+1. **Fresh AR2209 in this bench's hopper,** the same recordings (about 25 minutes, no hand at the cup after the start): a second powder as a second set of numbers, and whether this batch or the tubes make the bursts.
+2. **Twenty turns at 0.05 rev/s** (7 minutes, 15 gr): the rifling seen or not.
+3. **A known weight on the pan,** if a way is found: the scale's own response, apart from the powder.
+4. **The Pico 2 W's stored AR2209 profile is 1.3 gr over on every throw** with these tubes; the Pico W's has the gain the measurements give. Whether to store a measured profile on the Pico 2 W is the owner's.
+5. **The coarse back-off spills 0.6 to 1.1 gr.** Whether that is wanted is a question for the design in the simulation, not a fault to fix now.
+6. Then the feed and the finish designed in the simulation, and its prediction checked by throws.
+
+**One read of the unit after the owner had gone to bed:** `state` and `stats` at 02:01, to record how the unit was left (idle, both motors at 0, 382.38 gr in the cup, the stored profile selected). The agent had said there would be no contact; this one read changes nothing, and is recorded because it was said.
+
 **Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
 
 **Not done**
