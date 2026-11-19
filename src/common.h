@@ -54,6 +54,23 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
  */
 bool save_config(uint16_t addr, void * cfg, size_t size);
 
+/*
+ * A trial holds its writes (ADR-008, gate 2; the update's life cycle, gap 1). While an image runs on trial, save_config
+ * writes nothing to the EEPROM: each record is held in RAM, the latest of each address, and written when the image
+ * confirms itself. Gone back, nothing was written: the image it went back to reads its settings as it left them. A
+ * record whose stored copy did not read (its layout changed) is held as its defaults, and said so at the confirmation
+ */
+void config_hold_writes(bool hold);
+// Write what was held, and stop holding. The addresses of the records held as defaults, the settings the update
+// reset, into reset (up to room of them); their count
+size_t config_write_held(uint16_t *reset, size_t room);
+// Whether the record at addr is held as its defaults: its stored copy did not read on this trial
+bool config_defaults_held(uint16_t addr);
+// A write that is never held: the update's own note, which a trial must leave as it goes (update.c)
+bool save_config_now(uint16_t addr, void * cfg, size_t size);
+// What the EEPROM holds of a record, its CRC checked; nothing written. False when it does not read
+bool config_read_stored(uint16_t addr, void * cfg, size_t size);
+
 /**
  * @brief Whether the struct in RAM is what was last stored at that address, or read from it at the start: their
  * CRCs (ADR-003, gate 3: `saved`). So a change from the menu or the console counts as one from the web does.

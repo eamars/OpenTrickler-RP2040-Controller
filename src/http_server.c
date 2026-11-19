@@ -36,14 +36,15 @@
 // chip with no FPU and must never take the loop's turn. Below the cyw43 task too (4, the SDK's), which takes in the
 // network's packets and the ACKs the server's replies wait for. lwIP's own thread is at 7
 #define HTTP_SERVER_TASK_PRIORITY 3
-#define HTTP_SERVER_TASK_STACK_WORDS 1536
+#define HTTP_SERVER_TASK_STACK_WORDS 1280    // 2,872 bytes used under ADR-008's full workload (web_robust, soak --load)
 
-#define HTTP_SERVER_ROUTES 80                // gate 3's settings add some 30 to the 32 before them
+#define HTTP_SERVER_ROUTES 112               // 81 at ADR-008's gate 2 (each save's revert, the stream)
 #define HTTP_SERVER_LINE_MAX 256            // a header line the server reads; longer ones are passed over
 #define HTTP_SERVER_HEADERS_MAX 8192        // all of a request's headers, read or passed over
 #define HTTP_SERVER_IDLE_MS 5000            // a kept-alive connection with no request in this long is closed
 #define HTTP_SERVER_STALL_MS 10000          // a request or a reply that makes no progress this long is aborted
 #define HTTP_SERVER_PARK_MAX 2
+#define HTTP_SERVER_RESTART_LATE_MS 5000    // closed for a restart that has not come by then: listening again
 #define HTTP_SERVER_TICK_MS 50              // select() wakes at least this often, for the timers and parked slots
 #define HTTP_SERVER_NO_MEMORY_WAIT_MS 10    // a send lwIP had no memory for waits this long
 #define HTTP_SERVER_DRAIN_MS 2000           // the longest a refused request's unread rest is read before the close
@@ -62,6 +63,7 @@ typedef enum {
     SLOT_PARKED,
     SLOT_SENDING,
     SLOT_DRAINING,      // the reply is out, the request was not all read: what is left is read and dropped
+    SLOT_WAITING,       // a reply that stays open, all sent, waiting for its ready
 } slot_state_t;
 
 typedef enum {
@@ -94,6 +96,8 @@ typedef struct {
     bool line_skip;                        // passing over a header line too long to keep
     size_t headers_total;
     bool started;                          // a byte of this request has come
+    bool served;                           // a reply went on this connection: kept alive, it may be closed for room
+    uint32_t peer;                         // the client's IPv4 address, as lwIP keeps it
     uint32_t started_ms;                   // when it did
     bool http10;
     bool keep_alive;
@@ -104,6 +108,7 @@ typedef struct {
     char host[64];
     char content_type[48];
     char if_none_match[48];
+    char last_event_id[24];                // "<boot>-<seq>"
     long content_length;
     bool chunked_request;
     bool expect_continue;
@@ -129,6 +134,13 @@ typedef struct {
     void *more_ctx;
     bool more_done;
     bool last_chunk_sent;
+    uint8_t retry_after_s;                 // a Retry-After for the reply's head, or 0
+    bool gzip_body;                        // the body is gzipped: Content-Encoding: gzip
+
+    // A reply that stays open: its ready, and whether its more gave nothing for now
+    bool live;
+    bool live_waiting;
+    http_server_ready_t live_ready;
 
     // Parked
     http_server_ready_t park_ready;
@@ -152,8 +164,11 @@ struct http_server_reply {
     const char *data;
     size_t data_len;
     const char *etag;
+    bool gzip;
     http_server_more_t more;
     void *more_ctx;
+    bool live;
+    http_server_ready_t live_ready;
     char location[48];
     char allow[48];
 };
@@ -168,7 +183,7 @@ typedef struct {
 } route_t;
 
 
-static route_t routes[HTTP_SERVER_ROUTES];
+static route_t *routes = NULL;     // from the FreeRTOS heap at the first route, as the slots: the RAM taken at link is full
 static int route_count = 0;
 static slot_t *slots = NULL;
 static char reply_scratch[HTTP_SERVER_REPLY_MAX];
@@ -178,6 +193,11 @@ static volatile uint64_t server_last_write_us = 0;
 static http_server_stats_t stats;
 static uint64_t stream_make_us;     // stats.stream_make_ms, kept in microseconds: a chunk takes some milliseconds
 static TaskHandle_t server_task_handle = NULL;
+static volatile bool log_requests = false;
+static volatile bool close_all_asked = false;   // a restart is coming: every connection closed (http_server_close_all)
+static bool closed_for_restart = false;
+static void server_close_all(int *listen_fd);
+static http_server_handler_t usage_handler = NULL;
 
 
 static uint32_t now_ms(void) {
@@ -205,6 +225,7 @@ static const char *status_text(int status) {
         case 415: return "Unsupported Media Type";
         case 500: return "Internal Server Error";
         case 501: return "Not Implemented";
+        case 503: return "Service Unavailable";
         default: return "Unknown";
     }
 }
@@ -239,6 +260,13 @@ static http_server_method_t parse_method(const char *s, size_t len) {
 
 
 bool http_server_add_route(http_server_method_t method, const char *path, http_server_handler_t handler) {
+    if (routes == NULL) {
+        routes = pvPortMalloc(sizeof(route_t) * HTTP_SERVER_ROUTES);
+        if (routes == NULL) {
+            printf("HTTP: no room for the routes\n");
+            return false;
+        }
+    }
     if (route_count >= HTTP_SERVER_ROUTES) {
         printf("HTTP: no room for the route %s %s\n", method_name(method), path);
         return false;
@@ -353,6 +381,7 @@ static void slot_reset_request(slot_t *slot) {
     slot->host[0] = '\0';
     slot->content_type[0] = '\0';
     slot->if_none_match[0] = '\0';
+    slot->last_event_id[0] = '\0';
     slot->content_length = 0;
     slot->chunked_request = false;
     slot->expect_continue = false;
@@ -374,6 +403,11 @@ static void slot_reset_request(slot_t *slot) {
     slot->more_ctx = NULL;
     slot->more_done = false;
     slot->last_chunk_sent = false;
+    slot->retry_after_s = 0;
+    slot->gzip_body = false;
+    slot->live = false;
+    slot->live_waiting = false;
+    slot->live_ready = NULL;
     slot->park_ready = NULL;
 }
 
@@ -443,6 +477,12 @@ static void slot_make_head(slot_t *slot, int status, const char *content_type, s
     if (allow != NULL && allow[0]) {
         ok = ok && append(out, room, &len, "Allow: %s\r\n", allow);
     }
+    if (slot->gzip_body && status != 304) {
+        ok = ok && append(out, room, &len, "Content-Encoding: gzip\r\nVary: Accept-Encoding\r\n");
+    }
+    if (slot->retry_after_s > 0) {
+        ok = ok && append(out, room, &len, "Retry-After: %u\r\n", (unsigned) slot->retry_after_s);
+    }
     ok = ok && append(out, room, &len, "Connection: %s\r\n\r\n", slot->keep_alive ? "keep-alive" : "close");
     if (!ok) {
         // Never a cut header: the fields above fit in 256 bytes, so this is a fault of ours
@@ -492,6 +532,20 @@ void http_server_reply_static(http_server_reply_t *reply, int status, const char
 }
 
 
+// A redirect (302) to a path of the unit's own, with nothing in its body (ADR-008, gate 4: /wizard to the set-up)
+void http_server_reply_redirect(http_server_reply_t *reply, const char *location) {
+    snprintf(reply->location, sizeof(reply->location), "%s", location);
+    http_server_reply_send(reply, 302, NULL, 0);
+}
+
+
+void http_server_reply_static_gzip(http_server_reply_t *reply, int status, const char *content_type, const char *data,
+                                   size_t len, const char *etag) {
+    http_server_reply_static(reply, status, content_type, data, len, etag);
+    reply->gzip = true;
+}
+
+
 void http_server_reply_stream(http_server_reply_t *reply, int status, const char *content_type,
                               http_server_more_t more, void *ctx) {
     reply->done = true;
@@ -503,13 +557,31 @@ void http_server_reply_stream(http_server_reply_t *reply, int status, const char
 }
 
 
+void http_server_reply_live(http_server_reply_t *reply, const char *content_type, http_server_more_t more,
+                            http_server_ready_t ready, void *ctx) {
+    http_server_reply_stream(reply, 200, content_type, more, ctx);
+    reply->live = true;
+    reply->live_ready = ready;
+}
+
+
 void http_server_reply_etag(http_server_reply_t *reply, const char *etag) {
     reply->etag = etag;
 }
 
 
 void http_server_reply_error(http_server_reply_t *reply, int status, const char *code, const char *message) {
-    int len = snprintf(reply_scratch, sizeof(reply_scratch), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
+    // Under /api/v1, where to read (ADR-008, gate 2): a path not there, the index; a method it does not take, the
+    // path's own GET, which gives an action's usage; else the schema
+    const char *path = reply->slot != NULL ? reply->slot->request.path : NULL;
+    const char *see = NULL;
+    if (path != NULL && strncmp(path, "/api/v1", 7) == 0 && strlen(path) < 64) {
+        see = status == 404 ? "/api/v1" : status == 405 ? path : "/api/v1/schema";
+    }
+    int len = see != NULL ?
+              snprintf(reply_scratch, sizeof(reply_scratch),
+                       "{\"error\":{\"code\":\"%s\",\"message\":\"%s\",\"see\":\"%s\"}}", code, message, see) :
+              snprintf(reply_scratch, sizeof(reply_scratch), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
                        code, message);
     http_server_reply_send(reply, status, "application/json", (size_t) len);
 }
@@ -576,17 +648,48 @@ bool http_server_query_value(const char *query, const char *name, char *out, siz
 }
 
 
+void http_server_set_usage(http_server_handler_t usage) {
+    usage_handler = usage;
+}
+
+
+bool http_server_route_at(int idx, http_server_method_t *method, const char **path) {
+    if (idx < 0 || idx >= route_count) {
+        return false;
+    }
+    *method = routes[idx].method;
+    *path = routes[idx].path;
+    return true;
+}
+
+
+const char *http_server_method_name(http_server_method_t method) {
+    return method_name(method);
+}
+
+
 void http_server_get_stats(http_server_stats_t *out) {
     *out = stats;
     out->stream_make_ms = (uint32_t) (stream_make_us / 1000);
     out->slots_used = 0;
     out->slots_parked = 0;
+    out->slots_live = 0;
     if (slots != NULL) {
         for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
             out->slots_used += slots[idx].state != SLOT_FREE;
             out->slots_parked += slots[idx].state == SLOT_PARKED;
+            out->slots_live += slots[idx].state != SLOT_FREE && slots[idx].live;
         }
     }
+}
+
+
+static int live_count(void) {
+    int count = 0;
+    for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
+        count += slots[idx].state != SLOT_FREE && slots[idx].live;
+    }
+    return count;
 }
 
 
@@ -607,10 +710,17 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
     if (!reply->done) {
         http_server_reply_error(reply, 500, "failed", "the handler gave no reply");
     }
+    if (reply->status >= 400) {
+        // A refusal, said on the console with its own words: a page shows them only to the person in front of it
+        int said = reply->kind == BODY_BUFFER ? (int) (reply->len < 160 ? reply->len : 160) : 0;
+        printf("HTTP: %s %s refused %d %.*s\n", method_name(request->method),
+               request->path != NULL ? request->path : "(no path)", reply->status, said, reply_scratch);
+    }
 
     switch (reply->kind) {
         case BODY_STATIC: {
             int status = reply->status;
+            slot->gzip_body = reply->gzip;
             if (reply->etag != NULL && slot->if_none_match[0]) {
                 // If-None-Match carries the tag in quotes, perhaps among others
                 char quoted[52];
@@ -660,6 +770,9 @@ static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
             slot->body_kind = BODY_STREAM;
             slot->more = reply->more;
             slot->more_ctx = reply->more_ctx;
+            slot->live = reply->live;
+            slot->live_ready = reply->live_ready;
+            slot->live_waiting = false;
             slot->more_done = false;
             slot->last_chunk_sent = false;
             slot->body_ptr = NULL;
@@ -766,6 +879,11 @@ static void slot_dispatch(slot_t *slot) {
     http_server_request_t *request = &slot->request;
     http_server_reply_t reply;
     reply_init(&reply, slot);
+    if (log_requests) {
+        const uint8_t *ip = (const uint8_t *) &slot->peer;
+        printf("HTTP: %lu ms, %u.%u.%u.%u %s %s\n", (unsigned long) now_ms(), ip[0], ip[1], ip[2], ip[3],
+               method_name(request->method), request->path != NULL ? request->path : "(no path)");
+    }
 
     if (!slot_admit(slot, &reply)) {
         return;
@@ -794,6 +912,15 @@ static void slot_dispatch(slot_t *slot) {
         }
     }
     if (found == NULL) {
+        if (allow_len > 0 && wanted == HTTP_SERVER_GET && usage_handler != NULL) {
+            // An action's own GET: its usage, 200, its Allow still saying what it takes
+            usage_handler(request, &reply);
+            if (reply.done) {
+                stats.requests += 1;
+                slot_take_reply(slot, &reply);
+                return;
+            }
+        }
         if (allow_len > 0) {
             http_server_reply_error(&reply, 405, "method_not_allowed", "the path does not take that method");
             stats.refused += 1;
@@ -807,9 +934,24 @@ static void slot_dispatch(slot_t *slot) {
         return;
     }
     reply.allow[0] = '\0';
+    request->last_event_id = slot->last_event_id[0] ? slot->last_event_id : NULL;
 
     found->handler(request, &reply);     // never an upload's route: those are taken at their headers
     stats.requests += 1;
+
+    if (reply.live) {
+        if (live_count() >= HTTP_SERVER_LIVE_MAX) {
+            // No room for another: refused, with when to try again; the handler's state is in the slot, unused
+            stats.live_refused += 1;
+            http_server_reply_t refused;
+            reply_init(&refused, slot);
+            http_server_reply_error(&refused, 503, "busy", "as many streams are open as the unit keeps: try again");
+            slot->retry_after_s = 5;
+            slot_take_reply(slot, &refused);
+            return;
+        }
+        stats.live_opened += 1;
+    }
 
     if (reply.parked) {
         if (parked_count() >= HTTP_SERVER_PARK_MAX) {
@@ -902,6 +1044,9 @@ static void slot_take_header(slot_t *slot) {
     else if (header_is(line, name_len, "If-None-Match")) {
         copy_value(slot->if_none_match, sizeof(slot->if_none_match), value);
     }
+    else if (header_is(line, name_len, "Last-Event-ID")) {
+        copy_value(slot->last_event_id, sizeof(slot->last_event_id), value);
+    }
     else if (header_is(line, name_len, "Expect")) {
         slot->expect_continue = strncasecmp(value, "100-continue", 12) == 0;
     }
@@ -914,7 +1059,7 @@ static void slot_take_header(slot_t *slot) {
 // A header the server reads, by its name at the start of a line
 static bool header_is_kept(const char *line, size_t len) {
     static const char *const kept[] = {"Host", "Content-Length", "Content-Type", "Connection", "If-None-Match",
-                                       "Expect", "Transfer-Encoding"};
+                                       "Last-Event-ID", "Expect", "Transfer-Encoding"};
     for (size_t idx = 0; idx < sizeof(kept) / sizeof(kept[0]); idx += 1) {
         size_t name_len = strlen(kept[idx]);
         if (len > name_len && strncasecmp(line, kept[idx], name_len) == 0 && line[name_len] == ':') {
@@ -1167,9 +1312,15 @@ static void slot_receive(slot_t *slot) {
         if (slot->state == SLOT_DRAINING) {
             return;     // dropped
         }
+        if (slot->live) {
+            slot_close(slot, true);     // a stream is one way: a client that sends on it is not a stream's
+            return;
+        }
         if (slot->state == SLOT_PARKED || slot->state == SLOT_SENDING) {
             slot->close_after = true;   // more came while a reply was being made: no pipelining
             slot->drain = true;
+            printf("HTTP: a request came while %s %s was answered; it is dropped and the connection closed\n",
+                   method_name(slot->request.method), slot->request.path != NULL ? slot->request.path : "(no path)");
             return;
         }
         slot_feed(slot, data, (size_t) got);
@@ -1208,11 +1359,15 @@ static bool slot_next_chunk(slot_t *slot) {
     for (int empty = 0; empty < HTTP_SERVER_EMPTY_CHUNKS_MAX; empty += 1) {
         len = 0;
         slot->more_done = !slot->more(slot->more_ctx, data, room, &len);
-        if (len > 0 || slot->more_done) {
+        if (len > 0 || slot->more_done || slot->live) {
             break;
         }
     }
     stream_make_us += time_us_64() - started_us;
+    if (slot->live && len == 0 && !slot->more_done) {
+        slot->live_waiting = true;      // nothing for now: it waits for its ready
+        return false;
+    }
     // Written past its room (the JSON writer then marks it full, len == room), or no progress: cut off, so the
     // client sees the reply unfinished, not stale bytes as JSON nor a server's task out of stack
     if (len >= room || (len == 0 && !slot->more_done)) {
@@ -1273,6 +1428,10 @@ static bool slot_send_some(slot_t *slot) {
             chunks_made += 1;
             continue;
         }
+        else if (slot->live_waiting && slot->state == SLOT_SENDING) {
+            slot->state = SLOT_WAITING;     // all of it out: nothing is sent until its ready
+            return false;
+        }
         else if (slot->body_kind == BODY_STREAM && chunks_made > 0 && !slot->last_chunk_sent) {
             return false;   // the next chunks on the next pass, after the others
         }
@@ -1314,6 +1473,7 @@ static bool slot_send_some(slot_t *slot) {
 static void slot_after_send(slot_t *slot) {
     if (slot->keep_alive && !slot->close_after) {
         slot_reset_request(slot);
+        slot->served = true;
         slot->last_progress_ms = now_ms();
     }
     else if (slot->drain) {
@@ -1362,12 +1522,15 @@ static int server_listen(void) {
 }
 
 
-// A kept-alive connection waiting for its next request, idle longest: closed to make room
+// A kept-alive connection waiting for its next request, idle longest: closed to make room. Only one already
+// answered: a connection just taken, its request still coming, is never closed for another (ADR-008, gate 2: with
+// the streams and held reads in their slots, that reset requests in flight). With none, the new one waits in the
+// listen backlog until a slot is free
 static slot_t *slot_idlest(void) {
     slot_t *idlest = NULL;
     for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
         slot_t *slot = &slots[idx];
-        if (slot->state == SLOT_REQUEST && !slot->started &&
+        if (slot->state == SLOT_REQUEST && !slot->started && slot->served &&
             (idlest == NULL || (int32_t) (slot->last_progress_ms - idlest->last_progress_ms) < 0)) {
             idlest = slot;
         }
@@ -1396,13 +1559,22 @@ static void server_accept(int listen_fd) {
         stats.closed_for_room += 1;
         slot_close(slot, false);
     }
-    int fd = lwip_accept(listen_fd, NULL, NULL);
+    struct sockaddr_in from;
+    socklen_t from_len = sizeof(from);
+    int fd = lwip_accept(listen_fd, (struct sockaddr *) &from, &from_len);
     if (fd < 0) {
         return;
     }
     lwip_fcntl(fd, F_SETFL, O_NONBLOCK);
     slot->fd = fd;
+    slot->peer = from.sin_addr.s_addr;
+    if (log_requests) {
+        const uint8_t *ip = (const uint8_t *) &slot->peer;
+        printf("HTTP: %lu ms, a connection from %u.%u.%u.%u in slot %d\n", (unsigned long) now_ms(), ip[0], ip[1],
+               ip[2], ip[3], (int) (slot - slots));
+    }
     slot_reset_request(slot);
+    slot->served = false;
     slot->last_progress_ms = now_ms();
     slot->no_memory_until_ms = 0;
     stats.accepted += 1;
@@ -1422,11 +1594,14 @@ static void server_timers(void) {
                 }
                 else if (slot->started && quiet > HTTP_SERVER_STALL_MS) {
                     stats.aborted_stalled += 1;
+                    printf("HTTP: a request stalled while it came (%s); the connection is reset\n",
+                           slot->request.path != NULL ? slot->request.path : "its line or headers");
                     slot_close(slot, true);
                 }
                 else if (slot->started && (slot->phase == PHASE_LINE || slot->phase == PHASE_HEADERS) &&
                          now - slot->started_ms > HTTP_SERVER_HEAD_MS) {
                     stats.aborted_stalled += 1;
+                    printf("HTTP: a request's headers took too long; the connection is reset\n");
                     slot_close(slot, true);
                 }
                 break;
@@ -1442,12 +1617,23 @@ static void server_timers(void) {
                 // A reply that makes no progress while there is something to send: lwIP frees what it holds
                 if (quiet > HTTP_SERVER_STALL_MS) {
                     stats.aborted_stalled += 1;
+                    printf("HTTP: the reply to %s %s stalled; the connection is reset\n",
+                           method_name(slot->request.method),
+                           slot->request.path != NULL ? slot->request.path : "(no path)");
                     slot_close(slot, true);
                 }
                 break;
             case SLOT_DRAINING:
                 if ((int32_t) (now - slot->drain_until_ms) >= 0) {
                     slot_close(slot, true);
+                }
+                break;
+            case SLOT_WAITING:
+                // Waiting is not a stall: its clock starts again when it has something to send
+                if (slot->live_ready(slot->more_ctx)) {
+                    slot->live_waiting = false;
+                    slot->state = SLOT_SENDING;
+                    slot->last_progress_ms = now;
                 }
                 break;
             default:
@@ -1457,8 +1643,49 @@ static void server_timers(void) {
 }
 
 
+// Each slot by a letter: s a stream, p parked, a sending, d draining, r a request coming, k kept alive and
+// answered, n a connection taken with no request yet, - free
+static void slots_say(bool room, uint32_t full_ms) {
+    char held[HTTP_SERVER_SLOTS + 1];
+    for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
+        const slot_t *slot = &slots[idx];
+        char c = '-';
+        switch (slot->state) {
+            case SLOT_WAITING:
+                c = 's';
+                break;
+            case SLOT_PARKED:
+                c = 'p';
+                break;
+            case SLOT_SENDING:
+                c = slot->live ? 's' : 'a';
+                break;
+            case SLOT_DRAINING:
+                c = 'd';
+                break;
+            case SLOT_REQUEST:
+                c = slot->started ? 'r' : (slot->served ? 'k' : 'n');
+                break;
+            default:
+                break;
+        }
+        held[idx] = c;
+    }
+    held[HTTP_SERVER_SLOTS] = '\0';
+    if (room) {
+        printf("HTTP: a slot free again after %lu ms (%s)\n", (unsigned long) full_ms, held);
+    }
+    else {
+        printf("HTTP: every slot held, a new connection waits (%s)\n", held);
+    }
+}
+
+
 static void server_task(void *arg) {
     int listen_fd = -1;
+    bool had_room = true;
+    uint32_t full_since_ms = 0;
+    uint32_t closed_at_ms = 0;
     while (listen_fd < 0) {
         listen_fd = server_listen();
         if (listen_fd < 0) {
@@ -1480,10 +1707,18 @@ static void server_task(void *arg) {
         uint32_t now = now_ms();
         bool waiting_for_memory = false;
 
-        // The listener only when a slot is free or can be freed, or select() would wake at once and again
-        if (slot_free() != NULL || slot_idlest() != NULL) {
+        // The listener only when a slot is free or can be freed, or select() would wake at once and again. A new
+        // connection meanwhile waits in the backlog: said on the console when it begins and ends, with what holds
+        // each slot
+        bool room = listen_fd >= 0 && (slot_free() != NULL || slot_idlest() != NULL);
+        if (room) {
             FD_SET(listen_fd, &read_set);
             max_fd = listen_fd;
+        }
+        if (room != had_room && !closed_for_restart) {
+            slots_say(room, now - full_since_ms);
+            full_since_ms = now;
+            had_room = room;
         }
         for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
             slot_t *slot = &slots[idx];
@@ -1514,7 +1749,7 @@ static void server_task(void *arg) {
         }
 
         if (ready > 0) {
-            if (FD_ISSET(listen_fd, &read_set)) {
+            if (listen_fd >= 0 && FD_ISSET(listen_fd, &read_set)) {
                 server_accept(listen_fd);
             }
             for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
@@ -1535,8 +1770,62 @@ static void server_task(void *arg) {
                 }
             }
         }
+        if (close_all_asked) {
+            server_close_all(&listen_fd);
+            closed_at_ms = now_ms();
+        }
+        else if (closed_for_restart && now_ms() - closed_at_ms > HTTP_SERVER_RESTART_LATE_MS) {
+            // The restart did not come (a trial refused): the unit is reached again
+            listen_fd = server_listen();
+            closed_for_restart = listen_fd < 0;
+            printf("HTTP: no restart came; listening again\n");
+        }
         server_timers();
     }
+}
+
+
+void http_server_log_requests(bool on) {
+    log_requests = on;
+}
+
+
+void http_server_close_all(uint32_t wait_ms) {
+    if (server_task_handle == NULL || xTaskGetCurrentTaskHandle() == server_task_handle) {
+        return;
+    }
+    close_all_asked = true;
+    TickType_t asked = xTaskGetTickCount();
+    while (close_all_asked && xTaskGetTickCount() - asked < pdMS_TO_TICKS(wait_ms)) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+
+// In the server's task, after its sends: each connection closed as a normal close (lwIP sends what it holds, then
+// the end), and the listener, so a new connection is refused rather than left waiting
+static void server_close_all(int *listen_fd) {
+    int open = 0;
+    for (int idx = 0; idx < HTTP_SERVER_SLOTS; idx += 1) {
+        slot_t *slot = &slots[idx];
+        if (slot->state == SLOT_WAITING && slot->live_ready(slot->more_ctx)) {
+            // A stream with something to say (the update's `installing`): said before it ends
+            slot->live_waiting = false;
+            slot->state = SLOT_SENDING;
+            slot_send_some(slot);
+        }
+        if (slot->state != SLOT_FREE) {
+            slot_close(slot, false);
+            open += 1;
+        }
+    }
+    if (*listen_fd >= 0) {
+        lwip_close(*listen_fd);
+        *listen_fd = -1;
+    }
+    closed_for_restart = true;
+    close_all_asked = false;
+    printf("HTTP: %d connections closed for the restart\n", open);
 }
 
 

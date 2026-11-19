@@ -147,6 +147,7 @@ static void menu_panel_invert(bool inverted) {
     display_invert(inverted);
     menu_panel_inverted = inverted;
     xSemaphoreGive(menu_frame_lock);
+    menu_view_set_inverted(inverted);
 }
 
 

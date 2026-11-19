@@ -18,6 +18,8 @@
 #include "cleanup_mode.h"
 #include "common.h"
 #include "eeprom.h"
+#include "unit_id.h"
+#include "events.h"
 #include "http_server.h"
 #include "jobs.h"
 #include "menu_nav.h"
@@ -26,6 +28,7 @@
 #include "scale.h"
 #include "servo_gate.h"
 #include "settings.h"
+#include "setup.h"
 #include "system_control.h"
 #include "update.h"
 #include "update_poll.h"
@@ -35,8 +38,6 @@
 // A write to the API this recent counts as the unit being controlled from elsewhere (menu_design.md, proposed)
 #define MENU_REMOTE_MS 30000
 
-// The gate's state, for the cleanup's screen (servo_gate.c)
-extern servo_gate_t servo_gate;
 #define MENU_FRAMES_MAX 8
 #define MENU_EDIT_DIGITS 5
 
@@ -78,6 +79,8 @@ typedef enum {
     PAGE_LIST = 0,      // rows, one focused
     PAGE_DIALOG,        // its info rows the message, its action the right softkey, Back the left (Cancel)
     PAGE_NOTES,         // lines, wrapped, that end in its action row: the button, reached only by scrolling
+    PAGE_CODE,          // the set-up (ADR-008): its stage as the unit keeps it; at its start the code, its info rows
+                        // the lines beside it
 } page_kind_t;
 
 struct menu_page {
@@ -119,6 +122,9 @@ typedef struct {
                                         // focused row's number is being set in place
     char edit_was[16];                  // FRAME_PAGE, a number being set: its value before, for Back
     uint8_t action_seen;                // FRAME_JOB, the charge: its action when last drawn, so a new one is focused
+    uint32_t code_seen;                 // PAGE_CODE: the hotspot's addresses given when the code was asked for
+    bool code_shown;                    // PAGE_CODE: "Show the code" asked, until a phone joins or Back
+    uint8_t stage;                      // PAGE_CODE: the stage last drawn (setup_stage_t), to draw it afresh on a change
 } frame_t;
 
 static frame_t frames[MENU_FRAMES_MAX];
@@ -188,8 +194,11 @@ static void push_page(const menu_page_t *page) {
             break;
         }
     }
-    // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel
+    // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel. The set-up's softkeys
+    // follow its stage (menu_nav_refresh)
     frame->softkey = page->cancel_first ? 0 : 1;
+    frame->code_seen = access_point_mode_addresses_given();
+    frame->stage = UINT8_MAX;
 }
 
 
@@ -475,7 +484,14 @@ static const char *update_went_back_label(void) {
     static char line[48];
     update_poll_status_t poll;
     update_found(&poll);
-    snprintf(line, sizeof(line), "%.15s did not start last time.", poll.version);
+    // Why, as the unit knows it (ADR-008, gate 2): not "did not start" when only the router was away
+    update_status_t update;
+    update_status(&update);
+    const char *why = update.last.reason == EVENT_REASON_NO_NETWORK ? "found no network last time." :
+                      update.last.reason == EVENT_REASON_NOT_CONFIRMED ? "was not kept last time." :
+                      update.last.reason == EVENT_REASON_POWER_CUT ? "lost power last time." :
+                      "did not start last time.";
+    snprintf(line, sizeof(line), "%.15s %s", poll.version, why);
     return line;
 }
 
@@ -565,9 +581,8 @@ static void value_board(const menu_row_t *row, char *out, size_t room) {
 
 static void value_unit_id(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    char id[9];
-    eeprom_get_board_id(id, 8);
-    id[8] = '\0';
+    char id[UNIT_ID_LENGTH + 1];
+    unit_id_get(id, sizeof(id));
     snprintf(out, room, "%s", id);
 }
 
@@ -628,6 +643,99 @@ static bool wifi_is_access_point(void) {
     wireless_info_t info;
     wireless_get_link(&info);
     return strcmp(info.mode, "access_point") == 0;
+}
+
+
+// The set-up's offer on the main menu (ADR-008, gate 4): a unit never set up, on its own hotspot; gone once set up
+static bool setup_offered(void) {
+    return wifi_is_access_point() && !wireless_set_up();
+}
+
+
+/*
+ * The Wi-Fi page's button: on its own hotspot with no network named, the code that joins the hotspot; where a network
+ * is named, its switch, the hotspot standing in only while that network is away (gate 1's mock)
+ */
+static bool wifi_code_offered(void) {
+    char ssid[40];
+    return wifi_is_access_point() && (!settings_read_text("settings/wifi", "ssid", ssid, sizeof(ssid)) ||
+                                      ssid[0] == '\0');
+}
+
+
+static bool wifi_switch_offered(void) {
+    return !wifi_code_offered();
+}
+
+
+/*
+ * The code the phones' cameras read to join a Wi-Fi network: WIFI:T:WPA;S:<name>;P:<key>;; The format escapes
+ * \ ; , : and " with a backslash; the hotspot's name (opentrickler- and hex digits) and its key (unit_id.c's
+ * alphabet) have none of them
+ */
+static void setup_code_text(char *out, size_t room) {
+    wireless_info_t info;
+    wireless_get_link(&info);
+    snprintf(out, room, "WIFI:T:WPA;S:%s;P:%s;;", info.hostname != NULL ? info.hostname : "",
+             access_point_mode_key());
+}
+
+
+// The set-up's stage on the 12864 (README, "The set-up, designed again": the table's 12864 column), as the unit knows
+// it, so it is true whether or not the phone still reaches the unit
+typedef enum {
+    STAGE_CODE = 0,     // the code: no phone joined yet, or "Show the code" asked
+    STAGE_CHOOSE,       // a phone joined; it chooses a network
+    STAGE_PASSWORD,     // a network chosen; its password typed on the phone
+    STAGE_JOINING,
+    STAGE_JOINED,
+    STAGE_WRONG_PASSWORD,
+    STAGE_NO_ANSWER,
+    STAGE_NOT_JOINED,
+    STAGE_SCALE,
+    STAGE_MOTORS,
+    STAGE_READY,
+    STAGE_DONE,
+} setup_stage_t;
+
+
+static setup_stage_t setup_stage(const frame_t *frame) {
+    if (frame->code_shown) {
+        return STAGE_CODE;
+    }
+    switch (setup_step()) {
+        case SETUP_STEP_DONE:
+            return STAGE_DONE;
+        case SETUP_STEP_READY:
+            return STAGE_READY;
+        case SETUP_STEP_MOTORS:
+            return STAGE_MOTORS;
+        case SETUP_STEP_SCALE:
+            return STAGE_SCALE;
+        case SETUP_STEP_CODE:
+            return wifi_is_access_point() && access_point_mode_addresses_given() > 0 ? STAGE_CHOOSE : STAGE_CODE;
+        case SETUP_STEP_WIFI:
+        default:
+            break;
+    }
+    wireless_station_info_t station;
+    wireless_get_station(&station);
+    char network[SETUP_NETWORK_MAX];
+    setup_network(network, sizeof(network));
+    if (strcmp(station.state, "joining") == 0) {
+        return STAGE_JOINING;
+    }
+    bool this_network = network[0] == '\0' || strcmp(station.ssid, network) == 0;
+    if (strcmp(station.state, "joined") == 0 && this_network) {
+        return STAGE_JOINED;
+    }
+    if (strcmp(station.state, "failed") == 0 && this_network && network[0] != '\0') {
+        if (station.reason != NULL && strcmp(station.reason, "wrong_password") == 0) {
+            return STAGE_WRONG_PASSWORD;
+        }
+        return station.reason != NULL && strcmp(station.reason, "timeout") == 0 ? STAGE_NO_ANSWER : STAGE_NOT_JOINED;
+    }
+    return network[0] != '\0' ? STAGE_PASSWORD : STAGE_CHOOSE;
 }
 
 
@@ -743,6 +851,9 @@ static bool motors_fault_shown(const char *what) {
 }
 
 
+// A page's rows counted from its list, never by hand: a row left out of a build is out of the count too
+#define ROW_COUNT(list) ((uint8_t) (sizeof(list) / sizeof((list)[0])))
+
 static const menu_page_t page_ack_charge;
 static const menu_page_t page_ack_cleanup;
 static const menu_row_t rows_charge[3];
@@ -767,7 +878,7 @@ static void act_charge_start(const menu_row_t *row) {
 
 static void act_cleanup_start(const menu_row_t *row) {
     (void) row;
-    if (!motors_fault_shown("Cleanup")) {
+    if (!motors_fault_shown("Purge")) {
         push_page(&page_ack_cleanup);
     }
 }
@@ -793,7 +904,7 @@ static void act_ack_cleanup(const menu_row_t *row) {
     (void) row;
     cleanup_start_result_t result = cleanup_mode_request_start(ACTIVITY_BY_BUTTON);
     if (result == CLEANUP_START_DRIVER_FAULT) {
-        push_message(motors_get_fault(), "Cleanup", "cannot start");
+        push_message(motors_get_fault(), "Purge", "cannot start");
     }
     else if (result != CLEANUP_START_OK) {
         push_message("Busy", "A job runs", NULL);
@@ -828,10 +939,7 @@ static const char *powder_choose(int idx) {
     if (in_throw) {
         return "not while a throw pours";
     }
-    if (!profile_data_is_saved() && !profile_data_save()) {
-        return "the EEPROM did not take it";
-    }
-    return NULL;
+    return settings_store("/api/v1/powder_profiles/0");    // the eight are stored together, the choice with them
 }
 
 
@@ -1017,7 +1125,10 @@ static bool chart_chosen(void) {
 // --- The servo gate: moved as the API moves it (PATCH /api/v1/gate), and so refused when it is
 
 static const char *gate_move(gate_ratio_t ratio) {
-    if (!servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    if (!FEATURE_SERVO_GATE) {
+        return "no servo gate in this build";
+    }
+    if (!servo_gate_enabled()) {
         return "the gate is off";
     }
     activity_lock();
@@ -1030,16 +1141,18 @@ static const char *gate_move(gate_ratio_t ratio) {
 }
 
 
+// The gate's page, and what only it uses: in a build that carries the gate
+#if FEATURE_SERVO_GATE
 static void value_gate(const menu_row_t *row, char *out, size_t room) {
     (void) row;
-    snprintf(out, room, "%s", servo_gate.gate_state == GATE_OPEN ? "Open" :
-                              (servo_gate.gate_state == GATE_CLOSE ? "Closed" : "Off"));
+    snprintf(out, room, "%s", servo_gate_state() == GATE_OPEN ? "Open" :
+                              (servo_gate_state() == GATE_CLOSE ? "Closed" : "Off"));
 }
 
 
 static void act_gate(const menu_row_t *row) {
     (void) row;
-    const char *why = gate_move(servo_gate.gate_state == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
+    const char *why = gate_move(servo_gate_state() == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
     if (why != NULL) {
         push_message("Not moved", why, NULL);
     }
@@ -1050,6 +1163,7 @@ static void act_gate(const menu_row_t *row) {
 static void gate_show_end(const menu_row_t *row) {
     gate_move(strstr(row->name, "close") != NULL ? SERVO_GATE_RATIO_CLOSED : SERVO_GATE_RATIO_OPEN);
 }
+#endif
 
 
 // --- The tree (menu_design.md)
@@ -1061,15 +1175,15 @@ static const menu_row_t rows_ack_charge[] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_ack_charge},
 };
 static const menu_page_t page_ack_charge = {.kind = PAGE_DIALOG, .id = "ack/charge", .title = "Charge",
-                                            .rows = rows_ack_charge, .row_count = 3};
+                                            .rows = rows_ack_charge, .row_count = ROW_COUNT(rows_ack_charge)};
 
 static const menu_row_t rows_ack_cleanup[] = {
     {.label = "Put the cup on the scale", .kind = ROW_INFO},
     {.label = "to catch the powder", .kind = ROW_INFO},
     {.label = "Start", .kind = ROW_ACTION, .act = act_ack_cleanup},
 };
-static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/cleanup", .title = "Cleanup",
-                                             .rows = rows_ack_cleanup, .row_count = 3};
+static const menu_page_t page_ack_cleanup = {.kind = PAGE_DIALOG, .id = "ack/purge", .title = "Purge",
+                                             .rows = rows_ack_cleanup, .row_count = ROW_COUNT(rows_ack_cleanup)};
 
 static const menu_row_t rows_charge[3] = {
     {.label = "Start", .kind = ROW_ACTION, .act = act_charge_start},
@@ -1077,26 +1191,51 @@ static const menu_row_t rows_charge[3] = {
     {.label = "Powder", .kind = ROW_CHOICE, .value = value_powder, .count = powder_count, .option = powder_option,
      .current = powder_current, .choose = powder_choose},
 };
-static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows = rows_charge, .row_count = 3};
+static const menu_page_t page_charge = {.id = "charge", .title = "Charge", .rows = rows_charge,
+                                       .row_count = ROW_COUNT(rows_charge)};
 
 // Between throws, the charge's Change: its target and powder. It closes when the next throw begins
 static const menu_page_t page_charge_change = {.id = "charge/change", .title = "Change", .rows = &rows_charge[1],
-                                               .row_count = 2};
+                                               .row_count = ROW_COUNT(rows_charge) - 1};
 
-// Notes: each line says what it is, read only, then Wi-Fi turned off or on at the end
+/*
+ * The set-up's code (ADR-008, gate 4; mockups/setup_12864.png): the code that joins the hotspot, these lines beside
+ * it, Back. Once the hotspot gives a phone an address, a dialog in its place: go on with the phone, Back, or the code
+ * again
+ */
+static const menu_row_t rows_setup[] = {
+    {.label = "Scan this", .kind = ROW_INFO},
+    {.label = "with your", .kind = ROW_INFO},
+    {.label = "phone's", .kind = ROW_INFO},
+    {.label = "camera.", .kind = ROW_INFO},
+};
+static const menu_page_t page_setup = {.kind = PAGE_CODE, .id = "setup", .title = "Set up", .rows = rows_setup,
+                                       .row_count = ROW_COUNT(rows_setup)};
+
+
+static void act_join_by_camera(const menu_row_t *row) {
+    (void) row;
+    push_page(&page_setup);
+}
+
+
+// Notes: each line says what it is, read only, then at the end Wi-Fi turned off or on, or on its own hotspot with no
+// network named, the code that joins it
 static const menu_row_t rows_wifi[] = {
     {.label = "", .kind = ROW_INFO, .value = value_wifi_mode, .label_now = wifi_mode_label},
     {.label = "Network", .kind = ROW_INFO, .value = value_wifi_station_network, .shown = wifi_has_trouble},
     {.label = "Hotspot", .kind = ROW_INFO, .value = value_wifi_network, .shown = wifi_is_access_point},
-    {.label = "Key", .kind = ROW_INFO, .value = value_wifi_key, .shown = wifi_is_access_point},
+    {.label = "Password", .kind = ROW_INFO, .value = value_wifi_key, .shown = wifi_is_access_point},
     {.label = "IP", .kind = ROW_INFO, .value = value_wifi_address},
     {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
     {.label = "Takes effect at restart", .kind = ROW_INFO, .shown = shown_restart_pending},
-    {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label},
+    {.label = "Join by camera", .kind = ROW_ACTION, .act = act_join_by_camera, .shown = wifi_code_offered},
+    {.label = "Turn Wi-Fi off", .kind = ROW_ACTION, .act = act_wifi_button, .label_now = wifi_button_label,
+     .shown = wifi_switch_offered},
 };
 static const menu_page_t page_wifi = {.kind = PAGE_NOTES, .id = "wifi", .title = "Wi-Fi", .rows = rows_wifi,
-                                      .row_count = 9};
+                                      .row_count = ROW_COUNT(rows_wifi)};
 
 static const menu_row_t rows_scale[] = {
     {.label = "Reading", .kind = ROW_INFO, .value = value_reading},
@@ -1108,7 +1247,8 @@ static const menu_row_t rows_scale[] = {
     {.kind = ROW_CHOICE, .value = value_setting_choice, .path = "settings/charge", .name = "decimal_places"},
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
-static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale", .rows = rows_scale, .row_count = 7};
+static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale", .rows = rows_scale,
+                                       .row_count = ROW_COUNT(rows_scale)};
 
 // The charge's two stop thresholds: what a person who only uses the screen sees the effect of (the owner)
 static const menu_row_t rows_charge_settings[] = {
@@ -1116,7 +1256,8 @@ static const menu_row_t rows_charge_settings[] = {
     {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/charge", .name = "coarse_stop_threshold"},
 };
 static const menu_page_t page_charge_settings = {.id = "settings/charge", .title = "Charge",
-                                                 .rows = rows_charge_settings, .row_count = 2};
+                                                 .rows = rows_charge_settings,
+                                                 .row_count = ROW_COUNT(rows_charge_settings)};
 
 static const menu_row_t rows_display[] = {
     {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/display",
@@ -1130,9 +1271,10 @@ static const menu_row_t rows_display[] = {
     {.label = "Restart to apply", .kind = ROW_ACTION, .act = act_restart, .shown = shown_restart_pending},
 };
 static const menu_page_t page_display = {.id = "settings/display", .title = "Display", .rows = rows_display,
-                                         .row_count = 6};
+                                         .row_count = ROW_COUNT(rows_display)};
 
 // The servo gate: on or off, the shutters moved, and their ends set while the servo shows them
+#if FEATURE_SERVO_GATE
 static const menu_row_t rows_gate[] = {
     {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/gate", .name = "enable"},
     {.label = "Shutters", .kind = ROW_ACTION, .value = value_gate, .act = act_gate},
@@ -1146,7 +1288,8 @@ static const menu_row_t rows_gate[] = {
      .stepped = gate_show_end},
 };
 static const menu_page_t page_gate = {.id = "settings/gate", .title = "Servo gate", .rows = rows_gate,
-                                      .row_count = 6};
+                                      .row_count = ROW_COUNT(rows_gate)};
+#endif
 
 // Each motor's direction: a motor wired the other way, found at the bench
 static const menu_row_t rows_motors[] = {
@@ -1156,7 +1299,7 @@ static const menu_row_t rows_motors[] = {
      .path = "settings/motors/fine", .name = "invert_direction"},
 };
 static const menu_page_t page_motors = {.id = "settings/motors", .title = "Motors", .rows = rows_motors,
-                                        .row_count = 2};
+                                        .row_count = ROW_COUNT(rows_motors)};
 
 // A list: the facts to read, then the channel set and the check
 static const menu_row_t rows_firmware[] = {
@@ -1173,7 +1316,7 @@ static const menu_row_t rows_firmware[] = {
      .shown = shown_on_station},
 };
 static const menu_page_t page_firmware = {.id = "settings/firmware", .title = "Firmware", .rows = rows_firmware,
-                                          .row_count = 9};
+                                          .row_count = ROW_COUNT(rows_firmware)};
 
 /*
  * The offer, notes: what the release says and what to know before installing, then Install, reached only by
@@ -1191,7 +1334,7 @@ static const menu_row_t rows_update[] = {
     {.label = "Install", .kind = ROW_ACTION, .act = act_update_install},
 };
 static const menu_page_t page_update = {.kind = PAGE_NOTES, .id = "update", .title = "Update", .rows = rows_update,
-                                        .row_count = 9};
+                                        .row_count = ROW_COUNT(rows_update)};
 
 static const menu_row_t rows_factory_reset[] = {
     {.label = "Erase every setting?", .kind = ROW_INFO},
@@ -1199,21 +1342,24 @@ static const menu_row_t rows_factory_reset[] = {
     {.label = "Erase", .kind = ROW_ACTION, .act = act_erase},
 };
 static const menu_page_t page_factory_reset = {.kind = PAGE_DIALOG, .id = "settings/factory_reset",
-                                               .title = "Factory reset", .rows = rows_factory_reset, .row_count = 3,
+                                               .title = "Factory reset", .rows = rows_factory_reset,
+                                               .row_count = ROW_COUNT(rows_factory_reset),
                                                .cancel_first = true};
 
 static const menu_row_t rows_settings[] = {
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge_settings},
     {.label = "Display", .kind = ROW_PAGE, .page = &page_display},
+#if FEATURE_SERVO_GATE
     {.label = "Servo gate", .kind = ROW_PAGE, .page = &page_gate},
+#endif
     {.label = "Motors", .kind = ROW_PAGE, .page = &page_motors},
     {.label = "Firmware", .kind = ROW_PAGE, .page = &page_firmware},
     {.label = "Restart", .kind = ROW_ACTION, .act = act_restart, .label_now = restart_label},
     {.label = "Factory reset", .kind = ROW_PAGE, .page = &page_factory_reset},
 };
 static const menu_page_t page_settings = {.id = "settings", .title = "Settings", .rows = rows_settings,
-                                          .row_count = 8};
+                                          .row_count = ROW_COUNT(rows_settings)};
 
 // "OpenTrickler", or the motor driver that is not OK (ADR-012, step 6)
 static const char *main_title(void) {
@@ -1222,21 +1368,25 @@ static const char *main_title(void) {
 }
 
 static const menu_row_t rows_main[] = {
+    {.label = "Set up this unit", .kind = ROW_PAGE, .page = &page_setup, .shown = setup_offered},
     {.label = "Update available", .kind = ROW_PAGE, .page = &page_update, .label_now = update_row_label,
      .shown = shown_update_found},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge},
-    {.label = "Cleanup", .kind = ROW_ACTION, .act = act_cleanup_start},
+    {.label = "Purge", .kind = ROW_ACTION, .act = act_cleanup_start},
     {.label = "Wi-Fi", .kind = ROW_PAGE, .page = &page_wifi},
     {.label = "Settings", .kind = ROW_PAGE, .page = &page_settings},
 };
 static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .title_now = main_title,
-                                      .rows = rows_main, .row_count = 5};
+                                      .rows = rows_main, .row_count = ROW_COUNT(rows_main)};
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
     &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_charge_settings, &page_display,
-    &page_gate, &page_motors, &page_firmware,
-    &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update,
+#if FEATURE_SERVO_GATE
+    &page_gate,
+#endif
+    &page_motors, &page_firmware,
+    &page_factory_reset, &page_ack_charge, &page_ack_cleanup, &page_update, &page_setup,
 };
 #define ALL_PAGES_COUNT (sizeof(all_pages) / sizeof(all_pages[0]))
 
@@ -1546,7 +1696,7 @@ static void cleanup_key(frame_t *frame, menu_key_t key) {
             frame->editing = true;
             break;
         case CLEANUP_GATE: {
-            const char *why = gate_move(servo_gate.gate_state == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED :
+            const char *why = gate_move(servo_gate_state() == GATE_OPEN ? SERVO_GATE_RATIO_CLOSED :
                                         SERVO_GATE_RATIO_OPEN);
             if (why != NULL) {
                 push_message("Not moved", why, NULL);
@@ -1838,8 +1988,36 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
 // A card, a dialog or notes: their own keys
 static void page_kind_key(frame_t *frame, menu_key_t key) {
     const menu_page_t *page = frame->page;
+    if (key == MENU_KEY_BACK && page->kind == PAGE_CODE && frame->code_shown) {
+        frame->code_shown = false;      // the code asked for: Back goes back to the stage
+        return;
+    }
     if (key == MENU_KEY_BACK) {
         pop();
+        return;
+    }
+    if (page->kind == PAGE_CODE) {
+        // The set-up's stage: Back leaves it for the menu, the set-up going on on the phone; the code asked for goes
+        // back to the stage. Where there are two softkeys the knob moves between them; OK at the end, to the main menu
+        setup_stage_t stage = setup_stage(frame);
+        bool two = stage == STAGE_CHOOSE || stage == STAGE_PASSWORD;
+        if ((key == MENU_KEY_NEXT || key == MENU_KEY_PREV) && two) {
+            frame->softkey = key == MENU_KEY_NEXT ? 1 : 0;
+        }
+        else if (key == MENU_KEY_ENTER && stage == STAGE_DONE) {
+            frame_depth = 1;
+            screen_version += 1;
+        }
+        else if (key == MENU_KEY_ENTER && two && frame->softkey == 1) {
+            frame->code_shown = true;
+            frame->code_seen = access_point_mode_addresses_given();
+        }
+        else if (key == MENU_KEY_ENTER && stage == STAGE_CODE && frame->code_shown) {
+            frame->code_shown = false;
+        }
+        else if (key == MENU_KEY_ENTER) {
+            pop();
+        }
         return;
     }
     if (page->kind == PAGE_DIALOG) {
@@ -1971,7 +2149,7 @@ void menu_nav_job_ended(uint8_t exit_form) {
     }
     if (exit_form == JOBS_EXIT_MOTOR_FAULT) {
         const char *fault = motors_get_fault();
-        push_message(fault != NULL ? fault : "Motor drivers", "Charge and cleanup", "cannot start");
+        push_message(fault != NULL ? fault : "Motor drivers", "Charge and purge", "cannot start");
     }
 }
 
@@ -1989,6 +2167,33 @@ void menu_nav_refresh(void) {
     }
     if (job_idx >= 0 && job_idx < frame_depth - 1 && activity_in_throw()) {
         frame_depth = job_idx + 1;
+        screen_version += 1;
+    }
+    // The set-up: through it the screen shows its stage as it changes (the owner: two screens, one process), unless
+    // a job holds the screen; on the hotspot, or at its end. Back leaves it until the next change
+    static uint32_t setup_changes_seen = 0;
+    uint32_t changes = setup_changes();
+    frame_t *frame = top();
+    bool on_setup = frame->kind == FRAME_PAGE && frame->page->kind == PAGE_CODE;
+    if (changes != setup_changes_seen) {
+        setup_changes_seen = changes;
+        if (!on_setup && !menu_nav_in_job() && (wifi_is_access_point() || setup_step() == SETUP_STEP_DONE)) {
+            menu_nav_goto("setup");
+            frame = top();
+            on_setup = true;
+        }
+    }
+    if (!on_setup) {
+        return;
+    }
+    // The code asked for, and a phone joined since: back to the stage
+    if (frame->code_shown && access_point_mode_addresses_given() != frame->code_seen) {
+        frame->code_shown = false;
+    }
+    setup_stage_t stage = setup_stage(frame);
+    if (stage != frame->stage) {
+        frame->stage = (uint8_t) stage;
+        frame->softkey = stage == STAGE_CODE || stage == STAGE_DONE ? 1 : 0;
         screen_version += 1;
     }
 }
@@ -2114,6 +2319,120 @@ static void screen_dialog(menu_screen_t *screen, const menu_page_t *page, const 
 }
 
 
+static void setup_lines(menu_screen_t *screen, const char *title, const char *a, const char *b, const char *c) {
+    screen->kind = MENU_SCREEN_DIALOG;
+    snprintf(screen->title, sizeof(screen->title), "%s", title);
+    screen_row(screen, a, "", false);
+    if (b != NULL) {
+        screen_row(screen, b, "", false);
+    }
+    if (c != NULL) {
+        screen_row(screen, c, "", false);
+    }
+}
+
+
+// A driver's state in a line: "Coarse driver: found", or what is wrong with it
+static void setup_driver_line(char *out, size_t room, const char *name, motor_select_t motor) {
+    const char *state = motor_driver_get_status_string(motor);
+    snprintf(out, room, "%s driver: %s", name, state == NULL || strcmp(state, "absent") == 0 ? "not found" :
+                                               strcmp(state, "ok") == 0 ? "found" : state);
+}
+
+
+static void screen_setup(menu_screen_t *screen, const menu_page_t *page, const frame_t *frame) {
+    setup_stage_t stage = setup_stage(frame);
+    wireless_station_info_t station;
+    wireless_get_station(&station);
+    char network[SETUP_NETWORK_MAX];
+    setup_network(network, sizeof(network));
+    const char *name = network[0] != '\0' ? network : station.ssid;
+    char line[MENU_TEXT];
+    char other[MENU_TEXT];
+    screen->softkey_focus = frame->softkey;
+    switch (stage) {
+        case STAGE_CODE:
+            screen->kind = MENU_SCREEN_CODE;
+            for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
+                screen_row(screen, page->rows[idx].label, "", false);
+            }
+            setup_code_text(screen->code, sizeof(screen->code));
+            snprintf(screen->softkey_right, MENU_TEXT, "Back");
+            screen->softkey_focus = 1;
+            return;
+        case STAGE_CHOOSE:
+            setup_lines(screen, "Set up: Wi-Fi", "A phone joined.", "Choose your Wi-Fi", "on your phone.");
+            snprintf(screen->softkey_right, MENU_TEXT, "Show the code");
+            break;
+        case STAGE_PASSWORD:
+            setup_lines(screen, "Set up: Wi-Fi", "Type the password of", name, "on your phone.");
+            snprintf(screen->softkey_right, MENU_TEXT, "Show the code");
+            break;
+        case STAGE_JOINING:
+            // Its seconds counting: a still screen reads as stuck (the owner)
+            snprintf(line, sizeof(line), "%lu s of %lu", (unsigned long) (station.joining_ms / 1000),
+                     (unsigned long) (wireless_join_timeout_ms() / 1000));
+            setup_lines(screen, "Set up: Wi-Fi", "Joining", station.ssid, line);
+            break;
+        case STAGE_JOINED:
+            setup_lines(screen, "Set up: Wi-Fi", "Joined", station.ssid, "Continue on your phone.");
+            break;
+        case STAGE_WRONG_PASSWORD:
+            setup_lines(screen, "Set up: Wi-Fi", "Wrong password for", name, "Retype it on your phone.");
+            break;
+        case STAGE_NO_ANSWER:
+            setup_lines(screen, "Set up: Wi-Fi", "No answer from", name, "Move it nearer the router.");
+            break;
+        case STAGE_NOT_JOINED:
+            setup_lines(screen, "Set up: Wi-Fi", "Not joined to", name, "See your phone.");
+            break;
+        case STAGE_SCALE: {
+            screen->kind = MENU_SCREEN_JOB;
+            snprintf(screen->title, sizeof(screen->title), "Set up: Scale");
+            float weight = scale_get_current_measurement();
+            if (isfinite(weight)) {
+                format_weight(weight, screen->figure, sizeof(screen->figure));
+                snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
+                snprintf(screen->context, sizeof(screen->context), "The scale sends its weight");
+            }
+            else {
+                snprintf(screen->figure, sizeof(screen->figure), "--");
+                snprintf(screen->context, sizeof(screen->context), "Nothing from the scale");
+            }
+            screen->edit_at = -1;
+            break;
+        }
+        case STAGE_MOTORS:
+            setup_driver_line(line, sizeof(line), "Coarse", SELECT_COARSE_TRICKLER_MOTOR);
+            setup_driver_line(other, sizeof(other), "Fine", SELECT_FINE_TRICKLER_MOTOR);
+            setup_lines(screen, "Set up: Motors", line, other, "Continue on your phone.");
+            break;
+        case STAGE_READY:
+            setup_lines(screen, "Set up: Ready", "Ready.", "Finish on your phone.", NULL);
+            break;
+        case STAGE_DONE: {
+            wireless_info_t info;
+            wireless_get_link(&info);
+            if (strcmp(station.state, "joined") == 0) {
+                snprintf(line, sizeof(line), "Open on %s:", station.ssid);
+                snprintf(other, sizeof(other), "%s.local", info.hostname);
+                char address[MENU_TEXT];
+                snprintf(address, sizeof(address), "or %s", station.address);
+                setup_lines(screen, "Set up: Done", line, other, address);
+            }
+            else {
+                setup_lines(screen, "Set up: Done", "On its own hotspot.", "Open " ACCESS_POINT_MODE_ADDRESS,
+                            "from a phone on it.");
+            }
+            snprintf(screen->softkey_right, MENU_TEXT, "OK");
+            screen->softkey_focus = 1;
+            return;
+        }
+    }
+    snprintf(screen->softkey_left, MENU_TEXT, "Back");
+}
+
+
 // Notes: their lines from the first shown, ending in their button
 static void screen_lines(menu_screen_t *screen, const frame_t *frame) {
     const menu_page_t *page = frame->page;
@@ -2134,9 +2453,13 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
     const menu_page_t *page = frame->page;
     snprintf(screen->id, sizeof(screen->id), "%s", page->id);
     snprintf(screen->title, sizeof(screen->title), "%s", page->title_now != NULL ? page->title_now() : page->title);
-    screen->title_back = frame_depth > 1 && page->kind != PAGE_DIALOG;
+    screen->title_back = frame_depth > 1 && page->kind != PAGE_DIALOG && page->kind != PAGE_CODE;
     if (page->kind == PAGE_DIALOG) {
         screen_dialog(screen, page, frame);
+        return;
+    }
+    if (page->kind == PAGE_CODE) {
+        screen_setup(screen, page, frame);
         return;
     }
     if (page->kind != PAGE_LIST) {
@@ -2328,11 +2651,11 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         cleanup_status_t cleanup;
         cleanup_mode_get_status(&cleanup);
         screen->kind = MENU_SCREEN_CONTROL;
-        snprintf(screen->id, sizeof(screen->id), "job/cleanup");
+        snprintf(screen->id, sizeof(screen->id), "job/purge");
         bool fault = strcmp(cleanup.state, "fault") == 0;
         bool running = cleanup.speed_rps != 0.0f;
         snprintf(screen->title, sizeof(screen->title), "%s", fault ? cleanup_mode_get_title() :
-                                                             (running ? "Cleanup: running" : "Cleanup"));
+                                                             (running ? "Purge: running" : "Purge"));
         // The weight and the flow to read; Speed and Gate set at the knob
         char weight[16];
         char text[MENU_TEXT];
@@ -2347,8 +2670,8 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
         screen_row(screen, text, flow, false);
         snprintf(text, sizeof(text), "%.1f rev/s", (double) cleanup.speed_rps);
         screen_row(screen, "Speed", text, false);
-        screen_row(screen, "Gate", servo_gate.gate_state == GATE_OPEN ? "Open" :
-                                   (servo_gate.gate_state == GATE_CLOSE ? "Closed" : "Off"), false);
+        screen_row(screen, "Gate", servo_gate_state() == GATE_OPEN ? "Open" :
+                                   (servo_gate_state() == GATE_CLOSE ? "Closed" : "Off"), false);
         if (fault) {
             snprintf(screen->softkey_right, MENU_TEXT, "OK");
             screen->softkey_focus = frame->softkey;
@@ -2382,6 +2705,9 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
             else {
                 snprintf(screen->title, sizeof(screen->title), "%s", update.download ? "Downloading" : "Receiving");
             }
+            break;
+        case UPDATE_CHECKING:
+            snprintf(screen->title, sizeof(screen->title), "Checking");
             break;
         case UPDATE_READY:
             snprintf(screen->title, sizeof(screen->title), "%s", update.download ? "Checking" : "Ready to install");

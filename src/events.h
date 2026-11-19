@@ -18,6 +18,9 @@ typedef enum {
     EVENT_SOURCE_MOTORS,
     EVENT_SOURCE_SYSTEM,
     EVENT_SOURCE_UPDATE,        // ADR-004
+    EVENT_SOURCE_SETTING,       // a settings resource written or stored (ADR-008, gate 2)
+    EVENT_SOURCE_SETUP,         // the set-up's step (ADR-008, gate 4)
+    EVENT_SOURCE_WIFI,          // the set-up's join, and its end (ADR-008, gate 4)
 } event_source_t;
 
 typedef enum {
@@ -34,6 +37,12 @@ typedef enum {
     EVENT_CONFIRMED,
     EVENT_BACK,
     EVENT_FOUND,                // the update's poll found a newer release (ADR-010, gate 5)
+    EVENT_CHANGED,              // a setting's resource written, and what it holds changed
+    EVENT_STORED,               // what was written stored in the EEPROM, where it was not
+    EVENT_STEP,                 // the set-up went on to a step
+    EVENT_JOINING,              // the set-up's join began
+    EVENT_JOINED,
+    EVENT_NOT_JOINED,
 } event_kind_t;
 
 // Why a job stopped or a throw ended (api_v1.md's `reason`)
@@ -48,6 +57,15 @@ typedef enum {
     EVENT_REASON_SCALE_UNRELIABLE,
     EVENT_REASON_DRIVER_FAULT,
     EVENT_REASON_REFUSED,       // an update's image
+    // Why an update's trial went back (ADR-008, gate 2): how far the image tried got
+    EVENT_REASON_DID_NOT_START, // it crashed or hung before it was on its network
+    EVENT_REASON_NO_NETWORK,    // not on its network within the join's time, or its Wi-Fi settings did not read
+    EVENT_REASON_NOT_CONFIRMED, // on its network, and its confirmation did not hold
+    EVENT_REASON_POWER_CUT,     // the power went during the trial
+    // Why the set-up's join did not join (ADR-008, gate 4)
+    EVENT_REASON_WRONG_PASSWORD,
+    EVENT_REASON_TIMEOUT,
+    EVENT_REASON_FAILED,
 } event_reason_t;
 
 // A throw's verdict (api_v1.md's `result`)
@@ -63,14 +81,16 @@ typedef struct {
     uint64_t at_ms;         // set by events_add: the unit's clock, since its start
     uint8_t source;         // event_source_t
     uint8_t kind;           // event_kind_t
-    uint8_t by;             // activity_by_t: a job's start or stop
+    uint8_t by;             // activity_by_t: a job's start or stop, a setting's write or store
     uint8_t reason;         // event_reason_t
     uint16_t throw_number;
-    uint8_t number;         // a pause's number in its throw; a powder profile's id; a motor (motor_select_t)
+    uint8_t number;         // a pause's number in its throw; a powder profile's id; a motor (motor_select_t); a
+                            // setting's resource's id, in place of its path's {id}
     uint8_t result;         // event_result_t
     float value;            // a target, a weight
     float value2;           // a throw's seconds
-    const char *text;       // a driver's fault ("short"), the firmware's version: a string that never changes
+    const char *text;       // a driver's fault ("short"), the firmware's version, a setting's path: a string that
+                            // never changes
     uint32_t version;       // an update's image, its block version: kept as a number, so the event never changes
 } event_t;
 

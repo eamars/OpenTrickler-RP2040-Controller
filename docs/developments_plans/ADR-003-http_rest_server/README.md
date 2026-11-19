@@ -9,6 +9,7 @@ Status: **Built** 2026-11-16, and merged: gate 1 by #128, gates 2 to 4 together 
 - A wrong value is refused, with a reason, and nothing is changed.
 - What a person does with the web page, an agent can do with only the unit's name, and it learns how from the unit itself.
 - The API is stable: once v1 is out, it only grows.
+  - **"Out" is the first release for users** (the owner, 2026-11-18, in ADR-008: "No software released since v1 is proposed so this is a good chance to change everything for those doesn't fit"). Every release since v1 is a candidate, a pre-release. Until the first release for users, a name that does not fit the words a person reads on the screen and the web is changed (ADR-008, "The words": `cleanup` becomes `purge` first), built in ADR-008's API review. From that release on, v1 only grows.
 - Handlers know nothing of lwIP.
 - One server for every board.
 - The web keeps up with two browsers and a charge on the Pico W.

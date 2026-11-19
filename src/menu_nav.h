@@ -14,13 +14,14 @@
     (menu_screen_t) that a view draws (menu_view_12864.c, one per kind of display) and the console prints (`screen`).
     What it does is the API's own entry points, by button. Only the menu's task calls it.
 
-    Six kinds of screen, as the design has them:
+    Seven kinds of screen, as the design has them:
       list     a title and rows of label and value, one focused; a choice's own page is one
-      dialog   a message of one or two lines, and two softkeys
+      dialog   a message of one to three lines, and two softkeys
       notes    lines, no focus, scrolled by the knob, that may end in a button reached only by scrolling to it
       edit     the target, digit by digit, as a figure; two softkeys
       job      the title is the status; one figure and its unit (or the chart); one line under it; two softkeys
       control  a job of rows (the cleanup): a line to read, rows set in place, two softkeys
+      code     a QR code a phone's camera reads (the set-up's, ADR-008), lines beside it, Back its one softkey
     The left softkey says what Back does (the reset button), the right what a click does.
 */
 
@@ -48,7 +49,11 @@ typedef enum {
     MENU_SCREEN_EDIT,
     MENU_SCREEN_JOB,
     MENU_SCREEN_CONTROL,    // a job of rows (the cleanup): a line to read (row 0), rows set in place, softkeys
+    MENU_SCREEN_CODE,       // a QR code of the text in code, the rows' labels the lines beside it, one softkey
 } menu_screen_kind_t;
+
+// The longest text a code carries: the phones' Wi-Fi format with the hotspot's name and key
+#define MENU_CODE_TEXT 64
 
 // What is on screen, in words: what a view draws and the console prints
 typedef struct {
@@ -91,6 +96,9 @@ typedef struct {
     uint32_t chart_step_ms;                 // point n is the weight at n steps into the throw
     uint8_t chart_points[MENU_CHART_POINTS];
     int8_t edit_at;                         // -1 on a job, and on the editor while a softkey has the focus
+
+    // The code's text, which the view draws as a QR code
+    char code[MENU_CODE_TEXT];
 
     // The softkeys: Back's at the left, the action at the right ("" for none). The focused one, which a click does:
     // 0 the left, 1 the right, -1 neither (the editor while a digit has the focus)

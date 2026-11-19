@@ -123,6 +123,9 @@ MENU_TOUR_LIVE_PAGES = {"settings/firmware": "the version, the build and the uni
                         "charge": "the target, which lives in RAM until ADR-014 and a charge or the API sets",
                         "wifi": "the network's address and signal",
                         "settings/scale": "the scale's reading"}
+# Pages whose picture holds a secret: snapped into the session's folder (logs/, not in git), never into a baseline
+# folder, and not compared (ADR-008, gate 4: the set-up's code is the hotspot's key)
+MENU_TOUR_SECRET_PAGES = {"setup": "the code is the unit's hotspot key"}
 # The remote mark stays 30 s after a write over the web (menu_nav.c, MENU_REMOTE_MS), and the Wi-Fi's is missing
 # while the station joins: the tour waits for both to settle
 MENU_TOUR_REMOTE_WAIT_S = 35
@@ -136,6 +139,12 @@ SETTINGS_PAGE_PATHS = ["api/v1/settings/charge", "api/v1/settings/motors/coarse"
                        "api/v1/settings/scale", "api/v1/settings/gate", "api/v1/settings/leds",
                        "api/v1/settings/display", "api/v1/settings/wifi", "api/v1/powder_profiles",
                        "api/v1/powder_profiles/0"]
+# Routes the index does not list, by name (ADR-008, gate 2): the pages, and the debug routes (not part of v1)
+API_CHECK_UNLISTED = {"/", "/mobile", "/wizard", "/display_mirror"}     # /wizard: a redirect to the set-up
+STREAM_READ_S = 20              # the event stream's read: past its state again after 15 s quiet
+STREAM_KEEP_ALIVE_S = 15        # ADR-008: the state again after this long quiet
+STREAM_STALL_S = 10             # the server's stall limit: a stream whose client stops reading is closed after it
+STREAM_BACK_S = 90              # the unit back on the network after a restart or a Wi-Fi leave
 HTTP_TIMEOUT_S = 5.0
 SETTINGS_TRIES = 3
 
@@ -162,6 +171,9 @@ API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usu
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
 API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
 API_CHECK_POLL_S = 45.0         # an update's poll: three HTTPS handshakes took 15 s on the Pico W (ADR-010, gate 5)
+PULSES_MENU_WAIT_S = 4.0        # the menu's first screen, after a flash, before a motor is taken (pulses)
+API_CHECK_TLS_RESERVE = 2048   # what the TLS client leaves the heap (https_client.c, HTTPS_HEAP_RESERVE)
+API_CHECK_TLS_ROOM = 8192       # what an HTTPS fetch must leave over it (ADR-008; ADR-005's trigger)
 # Two clients follow the event log through every soak with held reads (ADR-003, gate 4): each must see every event
 SOAK_FOLLOWERS = 2
 SOAK_EVENTS_WAIT_S = 10
@@ -533,6 +545,137 @@ def raw_exchange(host, payload, timeout_s=5.0, rcvbuf=None, read_limit=None):
         pass
     sock.close()
     return status, headers, body, None
+
+
+class EventStream:
+    """
+    A client of the unit's event stream (ADR-008, gate 2), as a browser's event source reads it: each message as
+    (event, id, data), a comment as ("comment", None, text). Its socket times out, so a read never hangs a check.
+    """
+
+    def __init__(self, host, last_id=None, timeout=STREAM_READ_S):
+        self.conn = http.client.HTTPConnection(host, 80, timeout=timeout)
+        headers = {"Accept": "text/event-stream"}
+        if last_id is not None:
+            headers["Last-Event-ID"] = last_id
+        self.conn.request("GET", "/api/v1/events/stream", headers=headers)
+        self.reply = self.conn.getresponse()
+        self.status = self.reply.status
+        self.closed = False
+
+    def next(self, seconds):
+        """
+        The next message within `seconds`.
+
+        Returns:
+            (event, id, data, the time it came), ("closed", None, None, time) when the unit closed it, or None.
+        """
+        end = time.monotonic() + seconds
+        event, ident, data = None, None, []
+        while time.monotonic() < end:
+            try:
+                line = self.reply.readline()
+            except (socket.timeout, TimeoutError):
+                return None
+            except (OSError, http.client.HTTPException):
+                self.closed = True
+                return ("closed", None, None, time.monotonic())
+            if not line:
+                self.closed = True
+                return ("closed", None, None, time.monotonic())
+            line = line.decode(errors="replace").rstrip("\n")
+            if line == "":
+                if data:
+                    return (event or "message", ident, "\n".join(data), time.monotonic())
+                event, ident, data = None, None, []
+            elif line.startswith(":"):
+                return ("comment", None, line, time.monotonic())
+            elif line.startswith("event: "):
+                event = line[7:]
+            elif line.startswith("id: "):
+                ident = line[4:]
+            elif line.startswith("data: "):
+                data.append(line[6:])
+        return None
+
+    def until(self, wanted, seconds):
+        """The first message whose event is `wanted` within `seconds`, the others passed over; or None."""
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            message = self.next(end - time.monotonic())
+            if message is None or message[0] == "closed" or message[0] == wanted:
+                return message
+        return None
+
+    def close(self):
+        self.conn.close()
+
+
+class StreamFollower(threading.Thread):
+    """
+    A browser's page on the event stream (ADR-008, gate 2), in place of polling the charge: the events it sees and
+    the states. Silent past the keep-alive, or closed, it opens the stream again from its last id, as a page does;
+    a reconnect read afresh is events missed, judged at the end.
+    """
+
+    def __init__(self, name, host, log):
+        super().__init__(daemon=True)
+        self.name, self.host, self.log = name, host, log
+        self.unit = unit_api.Unit(host)
+        self.stop_event = threading.Event()
+        self.events = []
+        self.states = 0
+        self.failed_reads = 0       # reconnects
+        self.afresh = 0             # reconnects that could not go on from the last id
+        self.last_id = None
+        self.stream = None
+
+    def start_following(self):
+        """Open it now, while the unit is quiet: it goes on from the newest event, as the held reads do."""
+        self.stream = EventStream(self.host)
+        unit = self.stream.until("unit", 5)
+        if self.stream.status != 200 or unit is None:
+            raise OSError(f"the stream did not start: {self.stream.status}")
+
+    def run(self):
+        while not self.stop_event.is_set():
+            message = self.stream.next(STREAM_KEEP_ALIVE_S + 5) if self.stream is not None else None
+            if message is not None and message[0] == "message":
+                self.events.append(json.loads(message[2]))
+                self.last_id = message[1]
+            elif message is not None and message[0] == "state":
+                self.states += 1
+            elif message is not None and message[0] == "unit":
+                if not json.loads(message[2])["resumed"]:
+                    self.afresh += 1
+            elif message is None or message[0] == "closed":
+                if self.stop_event.is_set():
+                    break
+                self.failed_reads += 1
+                self.log.write("rc", f"soak: {self.name}: {'closed' if message else 'silent'}, opened again from "
+                                     f"{self.last_id}")
+                try:
+                    if self.stream is not None:
+                        self.stream.close()
+                    self.stream = EventStream(self.host, self.last_id)
+                except (OSError, http.client.HTTPException) as error:
+                    self.log.write("rc", f"soak: {self.name}: {type(error).__name__}: {error}")
+                    self.stream = None
+                    time.sleep(1.0)
+        if self.stream is not None:
+            self.stream.close()
+
+    def problems(self):
+        found = []
+        numbers = [event["seq"] for event in self.events]
+        gaps = [(a, b) for a, b in zip(numbers, numbers[1:]) if b != a + 1]
+        if gaps:
+            found.append(f"gaps in the numbers: {gaps[:5]}")
+        if self.afresh:
+            found.append(f"{self.afresh} reconnects read afresh: events missed")
+        for event in self.events:
+            found.extend(self.unit.event_problems(event))
+        return found
 
 
 def http_call(host, method, path, body=None):
@@ -1445,7 +1588,7 @@ class Session:
             time.sleep(0.5)
         else:
             self.fail("reach: the simulated scale could not be switched off after the charge")
-        self.send("screen ack/cleanup")
+        self.send("screen ack/purge")
         self.press_and_read("enc")
         time.sleep(0.5)
         self.sweep("a cleanup at speed 0")
@@ -1462,7 +1605,8 @@ class Session:
         Args:
             save_dir: where the pictures go (default: logs/rc/snaps/<session>/).
             compare_dir: a folder of earlier pictures; a page missing from either side, or a picture that
-                differs, fails, except the pages in MENU_TOUR_LIVE_PAGES, which are reported.
+                differs, fails, except the pages in MENU_TOUR_LIVE_PAGES, which are reported. The pages in
+                MENU_TOUR_SECRET_PAGES go to the session's folder only, whatever save_dir is, and are not compared.
         """
         reply = self.console.command("screen list")
         if reply is None or not reply.startswith("@ok screen"):
@@ -1479,12 +1623,18 @@ class Session:
             if not re.search(r"marks=\S*R", marks) and re.search(r"marks=(W|AP)", marks):
                 break
             time.sleep(1.0)
-        out_dir = Path(save_dir) if save_dir else LOG_DIR / "snaps" / self.log.path.stem
+        session_dir = LOG_DIR / "snaps" / self.log.path.stem
+        out_dir = Path(save_dir) if save_dir else session_dir
         found = []
         for page_id in page_ids:
             reply = self.console.command(f"screen {page_id}")
             if reply is None or not reply.startswith("@ok"):
                 self.fail(f"page {page_id}: {reply or 'no reply'}")
+                continue
+            if page_id in MENU_TOUR_SECRET_PAGES:
+                # Snapped into the session's own folder only, never a baseline in git, and not compared
+                if self.save_snap(session_dir / f"page_{page_id.replace('/', '-')}.png") is not None:
+                    self.log.write("rc", f"page {page_id}: kept out of {out_dir} ({MENU_TOUR_SECRET_PAGES[page_id]})")
                 continue
             if self.save_snap(out_dir / f"page_{page_id.replace('/', '-')}.png") is not None:
                 found.append(page_id)
@@ -1608,6 +1758,39 @@ class Session:
             self.log.write("rc", f"api/v1/debug: {error}")
             return None
 
+    def settings_restore(self, host, restore_dir):
+        """
+        Write an earlier copy back over the web API and store it (ADR-008, gate 4: a factory reset erases every
+        setting, the powders included). Each resource of the copy is written whole in one PATCH, its fields the schema
+        lets a client write; then each save path once. The Wi-Fi's key is write only and never in a copy: the one
+        stored stays. The caller then compares (`settings --restore` does).
+
+        Args:
+            host: the unit's address.
+            restore_dir: the folder of the copy (`settings --save`).
+        """
+        copy = json.loads((Path(restore_dir) / "settings.json").read_text(encoding="utf-8"))
+        unit = unit_api.Unit(host)
+        saves = []
+        for path, values in copy["resources"].items():
+            resource = unit.resource(path)
+            if resource is None:
+                self.fail(f"settings: {path} is not in this unit's schema")
+                continue
+            writable = {field["name"] for field in resource["fields"] if field.get("access", "read_write") == "read_write"}
+            body = {name: value for name, value in values.items() if name in writable}
+            status, reply = unit.request("PATCH", path, body)
+            self.log.write("rc", f"settings: {path} written back, {len(body)} fields: {status}")
+            if status != 200:
+                self.fail(f"settings: {path}: {status} {json.dumps(reply)}")
+            if resource["save"] not in saves:
+                saves.append(resource["save"])
+        for save in saves:
+            status, reply = unit.request("POST", save, {})
+            self.log.write("rc", f"settings: {save}: {status}")
+            if status != 200:
+                self.fail(f"settings: {save}: {status} {json.dumps(reply)}")
+
     def settings_roundtrip(self, host, target):
         """
         The proof of gate 3's tables (ADR-003): every setting read, written back as it was read, and read again,
@@ -1715,6 +1898,27 @@ class Session:
         if after.get("resources") != export["resources"]:
             self.fail("settings_roundtrip: the settings at the end differ from those at the start")
 
+    def api_check_poll_room(self):
+        """
+        The room an HTTPS fetch leaves in the FreeRTOS heap (ADR-008: a poll ran it dry; ADR-005's trigger for the Pico
+        W's fallback): judged over HTTPS only, where mbedTLS holds its peak; a poll over plain HTTP is reported, not
+        judged. A test build trusts the test roots in place of GitHub's, so its fetch holds what a user's does.
+        """
+        reply = self.console.command("update poll")
+        fields = dict(re.findall(r'(\w+)=("[^"]*"|\S+)', reply or ""))
+        handshakes = [int(ms) for ms in fields.get("handshake_ms", "0").split(",") if ms.isdigit()]
+        low = int(fields.get("heap_low", "0"))
+        refused = int(fields.get("alloc_refused", "0"))
+        if not any(handshakes):
+            self.log.write("rc", "api_check: the poll's room not judged: over plain HTTP")
+            return
+        need = API_CHECK_TLS_RESERVE + API_CHECK_TLS_ROOM
+        self.log.write("rc", f"api_check: an HTTPS fetch left {low} bytes of the heap at its least "
+                             f"({low - API_CHECK_TLS_RESERVE} over the reserve), {refused} blocks refused")
+        if refused > 0 or low < need:
+            self.fail(f"api_check: an HTTPS fetch left {low} bytes of the heap, under {need} "
+                      f"(the reserve and {API_CHECK_TLS_ROOM} over it); {refused} blocks refused")
+
     def api_check(self, host, target):
         """
         The close's proof of API v1 (ADR-003, gate 4), by the client that works from the unit's own description
@@ -1723,7 +1927,7 @@ class Session:
         its kind does), the two reads the same, and the settings and the event log unchanged after: a GET changes
         nothing. Then every action the schema lists, each where it is safe, with the answer api_v1.md gives: the
         stops with nothing to stop; refusals with their codes, changing nothing; the saves of what is stored; the
-        gate; the zero; a charge and a cleanup started and stopped, with their events; and last a restart, after
+        gate; the zero; a charge and a purge started and stopped, with their events; and last a restart, after
         which the boot is new and the system's start is the log's first event. Fails on an action the schema lists
         and this did not call. The hopper is taken to be empty; the simulated scale stands in for the scale.
 
@@ -1752,6 +1956,16 @@ class Session:
         frame_bytes = display["width"] * display["height"] // 8
         paths = unit.paths("GET")
         for path in paths:
+            if path.endswith("/events/stream"):
+                # It never ends (ADR-008, gate 2): read as a stream, its start the unit, then the state
+                stream = EventStream(host)
+                unit_message, state_message = stream.until("unit", 5), stream.until("state", 5)
+                stream.close()
+                self.log.write("rc", f"api_check: {path}: {stream.status}, the unit and the state "
+                                     f"{'read' if unit_message and state_message else 'not read'}")
+                if stream.status != 200 or unit_message is None or state_message is None:
+                    self.fail(f"api_check: {path}: not a stream that starts with the unit and the state")
+                continue
             first = unit.read(path)
             second = unit.read(path)
             for problem in self.api_answer_problems(unit, path, first, frame_bytes):
@@ -1812,7 +2026,7 @@ class Session:
             return None
 
         expect("POST", "charge/stop", {}, 200)
-        expect("POST", "cleanup/stop", {}, 200)
+        expect("POST", "purge/stop", {}, 200)
         expect("POST", "stop", {}, 200)
         if unit.read("charge")["target"] is None:
             expect("PATCH", "charge", {"target": target}, 200)
@@ -1829,23 +2043,36 @@ class Session:
         after = unit.read("charge")
         if (after["state"], after["target"]) != ("idle", charge["target"]):
             self.fail(f"api_check: the refused writes changed the charge: {after['state']}, {after['target']}")
-        expect("PATCH", "cleanup", {"speed_rps": 1}, 409, "not_running")
-        expect("POST", "system/erase", {}, 400, "confirm_missing")
-        gate = unit.read("gate")
-        if gate["state"] == "disabled":
-            expect("PATCH", "gate", {"ratio": 0.5}, 409, "gate_disabled")
+        expect("PATCH", "purge", {"speed_rps": 1}, 409, "not_running")
+        expect("POST", "system/factory_reset", {}, 400, "confirm_missing")
+        # The gate, where the build carries it (ADR-008, gate 2: the index's features); without it, its paths are gone
+        carries = {feature["name"]: feature["present"] for feature in index.get("features", [])}
+        if carries.get("servo_gate", True):
+            gate = unit.read("gate")
+            if gate["state"] == "disabled":
+                expect("PATCH", "gate", {"ratio": 0.5}, 409, "gate_disabled")
+            else:
+                expect("PATCH", "gate", {"ratio": gate["ratio"]}, 200)
         else:
-            expect("PATCH", "gate", {"ratio": gate["ratio"]}, 200)
+            for method, path in (("GET", "/api/v1/gate"), ("GET", "/api/v1/settings/gate")):
+                if http_call(host, method, path)[0] != 404:
+                    self.fail(f"api_check: the build has no servo gate, but {method} {path} answers")
+            if any("gate" in action["path"] for action in schema["actions"]) or "gate" in schema["states"]:
+                self.fail("api_check: the build has no servo gate, but the schema lists it")
         for path, resource in export_before["resources"].items():
             save = unit.resource(path)["save"]
             if resource["saved"] and ("POST", save) not in called:
                 expect("POST", save, {}, 200)
+            # Its revert (ADR-008, gate 2): of what is stored, it changes nothing
+            revert = unit.resource(path).get("revert")
+            if revert is not None and resource["saved"] and ("POST", revert) not in called:
+                expect("POST", revert, {}, 200)
         if all(resource["saved"] for resource in export_before["resources"].values()):
             expect("POST", "settings/save", {}, 200)
         if unit.read("settings") != export_before:
             self.fail("api_check: the settings differ after the refusals and the saves")
 
-        # A charge and a cleanup, by the API, with the simulated scale
+        # A charge and a purge, by the API, with the simulated scale
         if self.send("sim on") is None:
             return
         scale = unit.read("scale")
@@ -1854,22 +2081,24 @@ class Session:
         wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"])
         wait_state("charge", ("zeroing", "charging"))
         expect("POST", "charge/start", {}, 409, "busy")
-        expect("POST", "cleanup/start", {}, 409, "busy")
+        expect("POST", "purge/start", {}, 409, "busy")
+        # The owner's hello for agents, listed since ADR-008's gate 2: refused over a charge, so it never draws here
+        expect("POST", "agent/hello", {"name": "api_check"}, 409, "busy")
         expect("POST", "system/restart", {}, 409, "busy")
         expect("POST", "charge/stop", {}, 202)
         wait_event("charge", "stopped", by="api", reason="stopped")
         wait_state("charge", ("idle",))
-        expect("POST", "cleanup/start", {}, 202)
-        wait_event("cleanup", "started", by="api")
-        wait_state("cleanup", ("running",))
-        expect("PATCH", "cleanup", {"speed_rps": 1, "time_s": 2}, 200)
-        wait_event("cleanup", "stopped", by="unit", reason="time")
-        wait_state("cleanup", ("idle",))
-        expect("POST", "cleanup/start", {}, 202)
-        wait_state("cleanup", ("running",))
+        expect("POST", "purge/start", {}, 202)
+        wait_event("purge", "started", by="api")
+        wait_state("purge", ("running",))
+        expect("PATCH", "purge", {"speed_rps": 1, "time_s": 2}, 200)
+        wait_event("purge", "stopped", by="unit", reason="time")
+        wait_state("purge", ("idle",))
+        expect("POST", "purge/start", {}, 202)
+        wait_state("purge", ("running",))
         expect("POST", "stop", {}, 202)
-        wait_event("cleanup", "stopped", by="api", reason="stopped")
-        wait_state("cleanup", ("idle",))
+        wait_event("purge", "stopped", by="api", reason="stopped")
+        wait_state("purge", ("idle",))
         self.send("sim off")
 
         # The update (ADR-004): the job's shape, nothing installed (rc_run.py update installs an image)
@@ -1901,6 +2130,10 @@ class Session:
         # type, and true only while nothing is found (rc_run.py offer installs one)
         network = unit.read("network")
         if network.get("mode") == "station":
+            # The start's own poll first: just after a flash it may still check, and a second is refused 409 busy
+            deadline = time.monotonic() + API_CHECK_POLL_S
+            while unit.read("update")["poll"]["state"] == "checking" and time.monotonic() < deadline:
+                time.sleep(0.5)
             expect("POST", "update/check", {}, 202)
             deadline = time.monotonic() + API_CHECK_POLL_S
             poll = unit.read("update")["poll"]
@@ -1910,8 +2143,38 @@ class Session:
             self.log.write("rc", f"api_check: the poll ended {json.dumps(poll)}")
             if poll["state"] == "checking":
                 self.fail(f"api_check: the poll still checks after {API_CHECK_POLL_S:.0f} s")
+            self.api_check_poll_room()
         else:
             expect("POST", "update/check", {}, 409, "no_network")
+
+        # The set-up's scan and join (ADR-008, gate 4): a scan asked and waited out; a join's body checked first,
+        # then, on a unit on its network, refused, as it would leave it. A join that runs is the set-up's proof's
+        expect("POST", "wifi/scan", {}, 202)
+        deadline = time.monotonic() + 15.0
+        heard = unit.read("wifi/networks")
+        while heard["scanning"] and time.monotonic() < deadline:
+            time.sleep(0.5)
+            heard = unit.read("wifi/networks")
+        self.log.write("rc", f"api_check: the scan heard {len(heard['networks'])} networks")
+        if heard["scanning"]:
+            self.fail("api_check: the scan still runs after 15 s")
+        expect("POST", "wifi/join", {"ssid": "api_check", "password": "short", "auth": "wpa2_mixed"}, 400, "out_of_range")
+        expect("POST", "wifi/join", {"ssid": "api_check", "auth": "wep"}, 400, "not_a_choice")
+        if network.get("mode") == "station":
+            expect("POST", "wifi/join", {"ssid": "api_check", "password": "api_check_pw", "auth": "wpa2_mixed"}, 409,
+                   "not_on_hotspot")
+        # The set-up's step (gate 4's design): a step refused, then one taken; the screen follows it only on the
+        # unit's own hotspot, so on its network nothing moves on the screen
+        expect("PATCH", "setup", {"step": "done"}, 400, "not_a_choice")
+        stepped = expect("PATCH", "setup", {"step": "wifi", "network": None}, 200)
+        if stepped.get("step") != "wifi":
+            self.fail(f"api_check: PATCH setup answered {stepped}")
+        # The set-up done: on a unit on its network, remembered and nothing else (no hotspot to stop)
+        expect("POST", "setup/done", {"now": True}, 400, "unknown_field")
+        if network.get("mode") == "station":
+            done = expect("POST", "setup/done", {}, 200)
+            if done != {"set_up": True, "hotspot": False} or unit.read("system").get("set_up") is not True:
+                self.fail(f"api_check: setup/done answered {done}, set_up {unit.read('system').get('set_up')}")
         expect("POST", "update/start", {"download": "yes"}, 400, "wrong_type")
         if unit.read("update")["found"] is None:
             expect("POST", "update/start", {"download": True}, 409, "not_found")
@@ -1946,6 +2209,34 @@ class Session:
             self.fail(f"api_check: the schema's {method} {path} was not called")
         self.log.write("rc", f"api_check: {len(called & listed)} of the schema's {len(listed)} actions called")
 
+        # The API describes itself (ADR-008, gate 2): a GET of every action that has no GET of its own gives its
+        # usage with an example; every route the server holds is in the index, the schema, or a named exception; an
+        # error says where to read
+        gets = set(unit.paths("GET"))
+        usages = 0
+        for action in schema["actions"]:
+            if action["path"] in gets or "{id}" in action["path"]:
+                continue
+            status, reply = http_call(host, "GET", action["path"])
+            usage = (reply or {}).get("usage") or {}
+            if status != 200 or usage.get("path") != action["path"] or "example" not in usage or "see" not in reply:
+                self.fail(f"api_check: GET {action['path']}: {status}, not its usage with an example: {reply}")
+            usages += 1
+        self.log.write("rc", f"api_check: {usages} actions' usage read by their GET")
+        status, reply = http_call(host, "GET", "/api/v1/nope")
+        if status != 404 or (reply or {}).get("error", {}).get("see") != "/api/v1":
+            self.fail(f"api_check: a path not there: {status} {reply}, not 404 with see /api/v1")
+        status, reply = http_call(host, "PATCH", "/api/v1/stop", {})
+        if status != 405 or (reply or {}).get("error", {}).get("see") != "/api/v1/stop":
+            self.fail(f"api_check: a method a path does not take: {status} {reply}, not 405 with see the path")
+        status, routes = http_call(host, "GET", "/api/v1/debug/routes")
+        known = gets | set(unit.paths("POST")) | set(unit.paths("PATCH")) | set(unit.paths("PUT")) |             {action["path"] for action in schema["actions"]} | {r["path"] for r in schema["resources"]}
+        not_listed = [f"{method} {path}" for method, path in (routes or {}).get("routes", [])
+                      if path not in known and path not in API_CHECK_UNLISTED and not path.startswith("/api/v1/debug")]
+        self.log.write("rc", f"api_check: {len((routes or {}).get('routes', []))} routes, not listed: {not_listed}")
+        if status != 200 or not_listed:
+            self.fail(f"api_check: routes in neither the index nor the schema: {not_listed}")
+
     @staticmethod
     def api_stable(reply):
         """A reply without what moves between two reads with nothing done (API_CHECK_VOLATILE); bytes by length."""
@@ -1974,7 +2265,7 @@ class Session:
         if name == "settings":
             return [f"{inner}: {problem}" for inner, fields in reply["resources"].items()
                     for problem in unit_api.fields_problems(unit.resource(inner)["fields"], fields, writing=False)]
-        if name in ("charge", "cleanup", "gate", "update"):
+        if name in ("charge", "purge", "gate", "update"):
             return [] if reply["state"] in unit.states(name) else [f"state {reply['state']} is not in the schema's"]
         if name == "motors":
             return [f"{motor}'s driver {reply[motor]['driver']} is not in the schema's" for motor in ("coarse", "fine")
@@ -1993,6 +2284,245 @@ class Session:
         if name == "display/frame":
             return [] if isinstance(reply, bytes) and len(reply) == frame_bytes else ["not the display's frame"]
         return []
+
+    def stream_check(self, host):
+        """
+        The event stream's life cycle (ADR-008, gate 2), each stage with its expected end: the start (the unit, then
+        the state); an event as it happens, with its id; a reconnect that goes on from its Last-Event-ID, nothing
+        missed; one whose event is no longer kept, read afresh; the live weight; the state again after 15 s quiet; the
+        cap; a client that stops reading, closed by the stall limit and its heap given back; a Wi-Fi leave and a
+        restart, each ending every stream, the restart's reconnect read afresh. Nothing stored changes.
+
+        Args:
+            host: the unit's address.
+        """
+        def debug():
+            status, reply = http_call(host, "GET", "/api/v1/debug")
+            return reply["server"] if status == 200 else None
+
+        def wait_back(boot=None):
+            deadline = time.monotonic() + STREAM_BACK_S
+            while time.monotonic() < deadline:
+                try:
+                    status, index = http_call(host, "GET", "/api/v1")
+                    if status == 200 and (boot is None or index["boot"] != boot):
+                        return index
+                except OSError:
+                    pass
+                time.sleep(1.0)
+            return None
+
+        index = wait_back()
+        if index is None:
+            self.fail("stream_check: the unit does not answer")
+            return
+        boot = index["boot"]
+        self.send("setting settings/charge decimal_places=2")
+
+        # The start: the unit, read afresh, then the state
+        stream = EventStream(host)
+        unit = stream.until("unit", 5)
+        state = stream.until("state", 5)
+        self.log.write("rc", f"stream_check: start {stream.status}, unit {unit and unit[2]}")
+        if stream.status != 200 or unit is None or state is None:
+            self.fail("stream_check: the start is not 200, the unit, then the state")
+            return
+        start = json.loads(unit[2])
+        if start["boot"] != boot or start["resumed"]:
+            self.fail(f"stream_check: the start's unit is not this boot, read afresh: {unit[2]}")
+
+        # An event as it happens, with its id
+        self.send("setting settings/charge decimal_places=3")
+        sent_at = time.monotonic()
+        message = stream.until("message", 5)
+        if message is None:
+            self.fail("stream_check: no event within 5 s of a setting changed")
+            return
+        event = json.loads(message[2])
+        self.log.write("rc", f"stream_check: event {message[1]} {message[2]} after {message[3] - sent_at:.2f} s")
+        if (event["source"], event["kind"], event["by"]) != ("setting", "changed", "console") or \
+                message[1] != f"{boot}-{event['seq']}":
+            self.fail(f"stream_check: the event or its id is not the setting changed: {message[1]} {message[2]}")
+        last_id = message[1]
+        stream.close()
+
+        # A reconnect from its last id: what came meanwhile first, nothing missed
+        self.send("setting settings/charge decimal_places=2")
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        missed = stream.until("message", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id}: {unit and unit[2]}, then {missed and missed[1]}")
+        if unit is None or not json.loads(unit[2])["resumed"] or missed is None or \
+                missed[1] != f"{boot}-{event['seq'] + 1}":
+            self.fail("stream_check: a reconnect from its last id did not go on from it")
+        stream.close()
+
+        # A reconnect whose event is no longer kept: read afresh
+        for i in range(70):
+            self.send(f"setting settings/charge decimal_places={3 if i % 2 == 0 else 2}")
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id} after 70 events: {unit and unit[2]}")
+        if unit is None or json.loads(unit[2])["resumed"]:
+            self.fail("stream_check: a reconnect from an event no longer kept was not read afresh")
+
+        # The live weight: the simulated scale's weight set, the state with it within a second
+        self.send("sim on")
+        self.send("sim weight 12.5")
+        set_at = time.monotonic()
+        seen = None
+        while seen is None and time.monotonic() - set_at < 3:
+            message = stream.until("state", 3)
+            if message is not None and message[0] == "state" and \
+                    abs((json.loads(message[2])["charge"]["weight"] or 0) - 12.5) < 0.01:
+                seen = message[3] - set_at
+        self.log.write("rc", f"stream_check: the weight 12.5 seen on the stream after {seen} s")
+        if seen is None or seen > 1.0:
+            self.fail("stream_check: the weight set was not on the stream within 1 s")
+        self.send("sim weight off")
+        self.send("sim off")
+
+        # Quiet: the state again once the keep-alive's time passes with nothing sent (not a comment: a browser's
+        # event source never shows its page one). The scale may settle first after the simulation: the gap counts
+        last_at, took, kind = time.monotonic(), None, None
+        deadline = last_at + 3 * STREAM_KEEP_ALIVE_S
+        while time.monotonic() < deadline:
+            message = stream.next(STREAM_KEEP_ALIVE_S + 5)
+            if message is None or message[0] == "closed":
+                break
+            gap, last_at = message[3] - last_at, message[3]
+            if gap >= STREAM_KEEP_ALIVE_S - 1:
+                took, kind = gap, message[0]
+                break
+        self.log.write("rc", f"stream_check: quiet, then {kind} after {took} s")
+        if took is None or kind != "state" or took > STREAM_KEEP_ALIVE_S + 2:
+            self.fail("stream_check: no state again about 15 s into a quiet stream")
+
+        # The cap: this one and two more open, a fourth refused with when to try again
+        more = [EventStream(host), EventStream(host)]
+        fourth = EventStream(host)
+        retry = fourth.reply.getheader("Retry-After")
+        self.log.write("rc", f"stream_check: the cap: {[s.status for s in more]}, the fourth {fourth.status} "
+                             f"Retry-After {retry}; {debug()}")
+        if [s.status for s in more] != [200, 200] or fourth.status != 503 or retry is None:
+            self.fail("stream_check: three streams not taken, or the fourth not refused with Retry-After")
+        for s in more + [fourth, stream]:
+            s.close()
+        time.sleep(1.0)
+
+        # A client that stops reading: the weight changed ten times a second fills its connection; the unit closes it
+        # within the stall limit of its send buffer staying full, and lwIP's heap is given back
+        before = debug()
+        net_before = self.send("net")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+        sock.settimeout(5)
+        sock.connect((host, 80))
+        sock.sendall(f"GET /api/v1/events/stream HTTP/1.1\r\nHost: {host}\r\n\r\n".encode())
+        self.send("sim on")
+        closed_after = None
+        opened = time.monotonic()
+        weight = 0.0
+        while time.monotonic() - opened < 60:
+            weight += 0.1
+            self.send(f"sim weight {weight:.1f}")
+            server = debug()
+            if server is not None and server["slots_live"] == 0:
+                closed_after = time.monotonic() - opened
+                break
+            time.sleep(0.1)
+        self.send("sim weight off")
+        self.send("sim off")
+        sock.close()
+        after = debug()
+        self.log.write("rc", f"stream_check: a client that stops reading: closed after {closed_after} s; "
+                             f"stalled {before['aborted_stalled']} then {after['aborted_stalled']}")
+        if closed_after is None or after["aborted_stalled"] <= before["aborted_stalled"]:
+            self.fail("stream_check: a stream whose client stopped reading was not closed by the stall limit")
+        time.sleep(2.0)
+        net_after = self.send("net")
+        if net_before and net_after:
+            used = [int(re.search(r"heap_used=(\d+)", line).group(1)) for line in (net_before, net_after)]
+            self.log.write("rc", f"stream_check: lwIP's heap in use {used[0]} before, {used[1]} after")
+            if used[1] > used[0] + 1024:
+                self.fail("stream_check: lwIP's heap was not given back after the stalled stream")
+
+        # The network changes: a unit that leaves its Wi-Fi, or restarts, sends no close; the client knows it by
+        # hearing nothing past the state that comes again after 15 s quiet, and opens the stream again
+
+        def last_event(stream):
+            self.send("setting settings/charge decimal_places=3")
+            message = stream.until("message", 5)
+            self.send("setting settings/charge decimal_places=2")
+            message_back = stream.until("message", 5)
+            return (message_back or message or (None, f"{boot}-1"))[1]
+
+        def silent(stream, what):
+            """Nothing past the keep-alive and a margin, or closed: the client's cue to open it again"""
+            started = time.monotonic()
+            heard = []
+            while time.monotonic() - started < 60:
+                message = stream.next(STREAM_KEEP_ALIVE_S + 5)
+                if message is None or message[0] == "closed":
+                    self.log.write("rc", f"stream_check: {what}: {'closed' if message else 'silent'} after "
+                                         f"{time.monotonic() - started:.1f} s, having heard {heard}")
+                    return True
+                heard.append(message[0])
+            self.fail(f"stream_check: {what}: the old stream still talks after 60 s")
+            return False
+
+        # A Wi-Fi leave: back within a minute, the same boot, and the reconnect goes on from its last id
+        stream = EventStream(host)
+        stream.until("state", 5)
+        last_id = last_event(stream)
+        self.send("wifi leave")
+        silent(stream, "a Wi-Fi leave")
+        stream.close()
+        if wait_back() is None:
+            self.fail("stream_check: the unit did not come back after the Wi-Fi leave")
+            return
+        self.send("setting settings/charge decimal_places=3")
+        self.send("setting settings/charge decimal_places=2")
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        missed = stream.until("message", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id} after the Wi-Fi leave: {unit and unit[2]}, "
+                             f"then {missed and missed[1]}")
+        if unit is None or not json.loads(unit[2])["resumed"] or missed is None:
+            self.fail("stream_check: after a Wi-Fi leave the reconnect did not go on from its last id")
+        # The old stream's slot freed: by the client's close, or the stall limit once its bytes find no client
+        deadline = time.monotonic() + 3 * STREAM_STALL_S
+        live = None
+        while time.monotonic() < deadline:
+            live = debug()["slots_live"]
+            if live <= 1:
+                break
+            time.sleep(1.0)
+        self.log.write("rc", f"stream_check: streams open after the Wi-Fi leave: {live}")
+        if live is None or live > 1:
+            self.fail("stream_check: the stream from before the Wi-Fi leave still holds its slot")
+        stream.close()
+
+        # A restart: the reconnect from its last id is read afresh, of the new boot
+        stream = EventStream(host)
+        stream.until("state", 5)
+        last_id = last_event(stream)
+        status, _ = http_call(host, "POST", "/api/v1/system/restart", {})
+        self.log.write("rc", f"stream_check: a restart asked ({status})")
+        silent(stream, "a restart")
+        stream.close()
+        time.sleep(1.5)
+        self.wait_for_console()
+        back = wait_back(boot)
+        if back is None:
+            self.fail("stream_check: the unit did not come back after its restart")
+            return
+        stream = EventStream(host, last_id)
+        unit = stream.until("unit", 5)
+        self.log.write("rc", f"stream_check: reconnect from {last_id} after the restart: {unit and unit[2]}")
+        if unit is None or json.loads(unit[2])["resumed"] or json.loads(unit[2])["boot"] != back["boot"]:
+            self.fail("stream_check: after a restart the reconnect was not read afresh, of the new boot")
+        stream.close()
 
     def web_robust(self, host):
         """
@@ -2172,7 +2702,8 @@ class Session:
         if state is None:
             self.fail("web_robust: the console did not answer at the end")
 
-    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False, upload=False):
+    def soak(self, host, seconds, target, threshold, max_miss_share, max_miss_run, load=False, upload=False,
+             stream=False):
         """
         Charges back to back with the simulated scale, each judged as charge_cycle judges one, while two
         browsers use the web pages (SOAK_BROWSERS and the intervals above); `state` and `stats` between charges.
@@ -2190,6 +2721,7 @@ class Session:
             max_miss_run: the most misses in a row one poller may have.
             load: also a tuning session's load (SOAK_LOAD_*).
             upload: also ADR-004's image, SOAK_UPLOAD_BYTES sent back to back, each checked by its CRC-32.
+            stream: each browser follows the event stream (ADR-008, gate 2) in place of polling the charge.
         """
         page_size = {}
 
@@ -2220,9 +2752,14 @@ class Session:
             return status == 200 and reply["bytes"] == len(upload_data) and reply["crc32"] == upload_crc
 
         pollers = []
+        streams = []
         for browser in range(1, SOAK_BROWSERS + 1):
             pollers.append(WebPoller(f"browser {browser} mirror", SOAK_MIRROR_S, [("", read_mirror_right)], self.log))
-            pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)], self.log))
+            if stream:
+                streams.append(StreamFollower(f"browser {browser} stream", host, self.log))
+            else:
+                pollers.append(WebPoller(f"browser {browser} charge state", SOAK_STATE_S, [("", read_state)],
+                                         self.log))
         pollers.append(WebPoller("portal page", SOAK_PAGE_S, [("", read_page)], self.log))
         pollers.append(WebPoller("settings", SOAK_SETTINGS_S,
                                  [(path, read_setting(path)) for path in SETTINGS_PAGE_PATHS + [SETTINGS_EXPORT]],
@@ -2252,6 +2789,9 @@ class Session:
         # fails here ends the soak rather than leaving a follower that never began (two did, the first time)
         for follower in followers:
             follower.unit.start_following()
+        for follower in streams:
+            follower.start_following()
+        followers += streams
         for poller in pollers + followers:
             poller.start()
         while True:
@@ -2268,7 +2808,7 @@ class Session:
         for poller in pollers:
             poller.join(timeout=max(HTTP_TIMEOUT_S * (len(SETTINGS_PAGE_PATHS) + 1), SOAK_UPLOAD_TIMEOUT_S) + 1)
         for follower in followers:
-            follower.join(timeout=2 * SOAK_EVENTS_WAIT_S + HTTP_TIMEOUT_S)
+            follower.join(timeout=max(2 * SOAK_EVENTS_WAIT_S + HTTP_TIMEOUT_S, STREAM_KEEP_ALIVE_S + 10))
         time.sleep(SOAK_QUIET_S)
         quiet_end = self.stats()
 
@@ -2290,7 +2830,8 @@ class Session:
         for follower in followers:
             throws = sum(1 for event in follower.events if (event["source"], event["kind"]) == ("throw", "finished"))
             self.log.write("rc", f"soak: {follower.name}: {len(follower.events)} events, {throws} throws finished, "
-                                 f"{follower.failed_reads} reads failed and tried again")
+                                 f"{follower.failed_reads} reads failed and tried again"
+                                 + (f", {follower.states} states" if isinstance(follower, StreamFollower) else ""))
             for problem in follower.problems():
                 self.fail(f"soak: {follower.name}: {problem}")
             if throws < cycles:
@@ -2413,7 +2954,7 @@ class Session:
             self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
         self.send("sim off")
 
-    def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, cleanup_speed, expect, watch_s,
+    def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, purge_speed, expect, watch_s,
                      repeat=1, want=None, want_none=False):
         """
         A charge with the simulated scale and one fault put in partway (ADR-013), `state` read every
@@ -2423,16 +2964,16 @@ class Session:
               while short of the target by more than the stop threshold;
           quiet: no reading for quiet_ms. Seen when a trickler still turns 3 intervals and a ramp after the
               last reading, inside the quiet time;
-          cleanup: the web's cleanup speed sent during the charge. Seen when a trickler takes that speed.
+          purge: the web's purge speed sent during the charge. Seen when a trickler takes that speed.
 
         Args:
-            fault: "bad", "quiet" or "cleanup".
-            host: the unit's address, for the maxima and for the cleanup request.
+            fault: "bad", "quiet" or "purge".
+            host: the unit's address, for the maxima and for the purge request.
             target: the charge's weight.
             at_weight: the weight at which the fault goes in (charging).
             quiet_ms: how long the scale is quiet, for "quiet".
             rate: the simulated scale's readings a second.
-            cleanup_speed: the cleanup speed sent, for "cleanup".
+            purge_speed: the purge speed sent, for "purge".
             expect: "seen" (the code before the fix) or "not-seen" (after it); the other fails.
             watch_s: how long `state` is read after the fault.
             repeat: how many times the fault goes in, each after the charge resumed from the one before.
@@ -2502,10 +3043,10 @@ class Session:
                 self.send("sim bad")
             elif fault == "quiet":
                 self.send(f"sim quiet {quiet_ms}")
-            elif fault == "cleanup":
-                # A cleanup's speed sent during a charge: API v1 refuses it (409 not_running), so no motor sees it
-                status, reply = http_call(host, "PATCH", "/api/v1/cleanup", {"speed_rps": cleanup_speed})
-                self.log.write("rc", f"charge_fault: a cleanup speed during the charge: {status} "
+            elif fault == "purge":
+                # A purge's speed sent during a charge: API v1 refuses it (409 not_running), so no motor sees it
+                status, reply = http_call(host, "PATCH", "/api/v1/purge", {"speed_rps": purge_speed})
+                self.log.write("rc", f"charge_fault: a purge speed during the charge: {status} "
                                      f"{(reply or {}).get('error', {}).get('code', '')}")
             watch(round_events if round_idx < repeat - 1 else None)
             # The next round goes in once the charge pours again
@@ -2537,11 +3078,11 @@ class Session:
             turning = [at for at, _, _, coarse, fine in samples if late < at < quiet_ms / 1000.0 and (coarse or fine)]
             seen = bool(turning)
             how = f"a trickler still turning {turning[-1]:.2f} s into {quiet_ms} ms of quiet" if turning else ""
-        elif fault == "cleanup":
+        elif fault == "purge":
             took = [at for at, _, _, coarse, fine in samples
-                    if abs(coarse - cleanup_speed) < 0.01 or abs(fine - cleanup_speed) < 0.01]
+                    if abs(coarse - purge_speed) < 0.01 or abs(fine - purge_speed) < 0.01]
             seen = bool(took)
-            how = f"a trickler at the cleanup speed {took[0]:.2f} s after it was sent" if took else ""
+            how = f"a trickler at the purge speed {took[0]:.2f} s after it was sent" if took else ""
         else:
             # none: nothing put in; the fault would be a pause or an end where the scale is only slow
             stops = [line for _, line in self.console.charge_events[events_from:] if "paused" in line or "ended" in line]
@@ -2681,7 +3222,16 @@ class Session:
             return STEP_RUNNING_FRACTION < self.step_activity()["coarse"] < STEP_STUCK_FRACTION
 
         def start_coarse(case):
-            self.send("motor coarse 1")
+            # Just after a flash the menu may not have drawn its first screen, and a motor is refused until it has
+            # ("a mode is running"); the test builds fault 10 s after their start, so it is waited for a little
+            deadline = time.monotonic() + PULSES_MENU_WAIT_S
+            reply = self.console.command("motor coarse 1")
+            while reply is not None and "a mode is running" in reply and time.monotonic() < deadline:
+                time.sleep(0.2)
+                reply = self.console.command("motor coarse 1")
+            if reply is None or not reply.startswith("@ok"):
+                self.fail(f'{case}: "motor coarse 1": {reply}')
+                return False
             time.sleep(1.5)     # the ramp
             if not pulsing():
                 self.fail(f"{case}: the coarse trickler did not start pulsing")
@@ -2749,7 +3299,7 @@ class Session:
         self.link_seen = len(self.openocd.output)
         return None
 
-    def slot_trial(self, image_elf, expect, corrupt):
+    def slot_trial(self, image_elf, expect, corrupt, reason=None, reset=None):
         """
         A trial of an image in the other slot (ADR-004, gate 1). The image's .bin is written through the probe into
         the slot the unit does not run from, the unit is restarted on what it runs, and a trial is asked
@@ -2829,6 +3379,22 @@ class Session:
         if tried is None or tried["slot"] != new_slot or tried["trial"] != "1":
             self.fail(f"slot_trial: slot {new_slot} should run on trial: {tried}")
             return
+        if expect == "power-trial":
+            # The power cut while the image runs on trial (ADR-008, gate 2): back on the old image at once, and the
+            # unit says why. The image is one that never confirms itself, so it is still on trial when cut
+            time.sleep(10.0)
+            self.power_cut()
+            state = None
+            deadline = time.monotonic() + 30
+            while state is None and time.monotonic() < deadline:
+                time.sleep(1.0)
+                state = self.update_state(old_elf, CONSOLE_TIMEOUT_S)
+            self.log.write("rc", f"slot_trial: after the power cut: {state}")
+            if state is None or state["slot"] != old_slot or state["trial"] != "0":
+                self.fail(f"slot_trial: after a power cut on trial the unit should be back on slot {old_slot}: {state}")
+                return
+            self.slot_trial_last(state, "2", reason, reset, old_elf)
+            return
         if expect == "confirmed":
             deadline = started + 60
             state = tried
@@ -2846,6 +3412,7 @@ class Session:
                 self.fail(f"slot_trial: after a restart slot {new_slot} (block {new_block}) should run: {kept}")
                 return
             self.log.write("rc", f"slot_trial: after a restart the unit runs slot {new_slot}, block {kept['block']}")
+            self.slot_trial_last(kept, "1", reason, reset, new_elf)
             return
 
         # back: the trial's watchdog is fed for its minute, then it restarts the unit into the old image
@@ -2863,6 +3430,22 @@ class Session:
             return
         self.log.write("rc", f"slot_trial: back on slot {old_slot} {time.monotonic() - started:.1f} s after the "
                              f"trial was asked, block {state['block']}")
+        self.slot_trial_last(state, "2", reason, reset, old_elf)
+
+    def slot_trial_last(self, state, result, reason, reset, elf):
+        """
+        How the trial ended, as the unit keeps it (ADR-008, gate 2): `last` (1 confirmed, 2 back), its reason and the
+        settings it reset, read after the end and again after a restart, which must not forget it.
+        """
+        for moment in ("after the end", "after a restart"):
+            if moment == "after a restart":
+                self.reset()
+                state = self.update_state(elf, CONSOLE_TIMEOUT_S)
+            self.log.write("rc", f"slot_trial: last {moment}: {state and (state.get('last'), state.get('reason'), state.get('reset'))}")
+            if state is None or state.get("last") != result or \
+                    (reason is not None and state.get("reason") != reason) or \
+                    (reset is not None and int(state.get("reset", "0"), 16) != reset):
+                self.fail(f"slot_trial: last {moment} should be {result}, reason {reason}, reset {reset}: {state}")
 
     def update(self, host, manifest_path, expect, refused_code, new_elf, browsers=False):
         """
@@ -3253,14 +3836,23 @@ def main():
     trial_parser = sub.add_parser("slot_trial", help="an image written into the other slot and tried (ADR-004)")
     trial_parser.add_argument("--image", required=True,
                               help="the update image's ELF (built with APP_TRIAL_IMAGE); its .bin is written")
-    trial_parser.add_argument("--expect", choices=["confirmed", "back", "refused"], required=True)
+    trial_parser.add_argument("--expect", choices=["confirmed", "back", "refused", "power-trial"], required=True)
+    trial_parser.add_argument("--reason", help="the reason `last` must give (ADR-008, gate 2): did_not_start, "
+                                               "no_network, not_confirmed, power_cut")
+    trial_parser.add_argument("--reset", type=lambda text: int(text, 0),
+                              help="the settings `last` must name as reset, their bits (0x20 the LEDs)")
     trial_parser.add_argument("--corrupt", action="store_true", help="change one byte of the image first")
     settings_parser = sub.add_parser("settings", help="copy the stored settings over the web API, and compare")
     settings_parser.add_argument("--host", required=True, help="the unit's address")
     settings_parser.add_argument("--save", help="keep the copy in this folder")
     settings_parser.add_argument("--compare", help="fail on a field that differs from the copy in this folder")
+    settings_parser.add_argument("--restore", help="write the copy in this folder back and store it, then compare: "
+                                                   "after a factory reset (the Wi-Fi's key is never in a copy)")
     robust_parser = sub.add_parser("web_robust", help="wrong and awkward requests, each answered or closed (ADR-003)")
     robust_parser.add_argument("--host", required=True, help="the unit's address")
+    stream_parser = sub.add_parser("stream_check", help="the event stream's life cycle, stage by stage (ADR-008, "
+                                                        "gate 2); restarts the unit")
+    stream_parser.add_argument("--host", required=True, help="the unit's address")
     api_parser = sub.add_parser("api_check", help="every path the index lists read twice and checked against the "
                                                   "schema; every action called (ADR-003, gate 4); ends with a restart")
     api_parser.add_argument("--host", required=True, help="the unit's address")
@@ -3280,6 +3872,8 @@ def main():
     soak_parser.add_argument("--load", action="store_true",
                              help="also a tuning session's load: a throw's samples pulled back to back, and a "
                                   "client asking four times a second (ADR-003, gate 2)")
+    soak_parser.add_argument("--stream", action="store_true",
+                             help="each browser follows the event stream in place of polling the charge (ADR-008)")
     soak_parser.add_argument("--upload", action="store_true",
                              help="also ADR-004's image: 700 KB sent back to back as a body in pieces, each checked "
                                   "by its CRC-32 (ADR-003, gate 4)")
@@ -3291,7 +3885,7 @@ def main():
     frames_parser.add_argument("--reboots", type=int, default=2, help="restarts")
     frames_parser.add_argument("--motors", type=float, default=60.0, help="seconds with both motors turning")
     fault_parser = sub.add_parser("charge_fault", help="a simulated charge with one fault put in partway")
-    fault_parser.add_argument("fault", choices=["bad", "quiet", "cleanup", "none"])
+    fault_parser.add_argument("fault", choices=["bad", "quiet", "purge", "none"])
     fault_parser.add_argument("--host", required=True, help="the unit's address")
     fault_parser.add_argument("--expect", choices=["seen", "not-seen"], required=True,
                               help="seen: the code before the fix; not-seen: after it")
@@ -3299,7 +3893,7 @@ def main():
     fault_parser.add_argument("--at", type=float, help="the weight the fault goes in at (default: 1 short of the target)")
     fault_parser.add_argument("--quiet-ms", type=int, default=1500)
     fault_parser.add_argument("--rate", type=float, default=10.0, help="the simulated scale's readings a second")
-    fault_parser.add_argument("--cleanup-speed", type=float, default=3.0)
+    fault_parser.add_argument("--purge-speed", type=float, default=3.0)
     fault_parser.add_argument("--watch", type=float, default=3.0, help="seconds watched after the fault")
     fault_parser.add_argument("--repeat", type=int, default=1, help="how many times the fault goes in")
     fault_parser.add_argument("--want", help="words that must come in the charge's events, in order, comma-separated")
@@ -3346,7 +3940,7 @@ def run_command(session, args):
     elif args.command == "update":
         session.update(args.host, args.manifest, args.expect, args.refused_code, args.new_elf, args.browsers)
     elif args.command == "slot_trial":
-        session.slot_trial(args.image, args.expect, args.corrupt)
+        session.slot_trial(args.image, args.expect, args.corrupt, args.reason, args.reset)
     elif args.command == "flash":
         session.flash()
     elif args.command == "reset":
@@ -3354,21 +3948,25 @@ def run_command(session, args):
     elif args.command == "watch":
         time.sleep(args.seconds)
     elif args.command == "settings":
-        session.settings(args.host, args.save, args.compare)
+        if args.restore:
+            session.settings_restore(args.host, args.restore)
+        session.settings(args.host, args.save, args.compare or args.restore)
     elif args.command == "web_robust":
         session.web_robust(args.host)
+    elif args.command == "stream_check":
+        session.stream_check(args.host)
     elif args.command == "api_check":
         session.api_check(args.host, args.target)
     elif args.command == "settings_roundtrip":
         session.settings_roundtrip(args.host, args.target)
     elif args.command == "soak":
         session.soak(args.host, args.seconds, args.target, args.threshold, args.max_miss_share, args.max_miss_run,
-                     args.load, args.upload)
+                     args.load, args.upload, args.stream)
     elif args.command == "scale_frames":
         session.scale_frames(args.idle, args.handovers, args.reboots, args.motors)
     elif args.command == "charge_fault":
         at = args.at if args.at is not None else args.target - 1.0
-        session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.cleanup_speed,
+        session.charge_fault(args.fault, args.host, args.target, at, args.quiet_ms, args.rate, args.purge_speed,
                              args.expect, args.watch, args.repeat,
                              args.want.split(",") if args.want else None, args.want_none)
 

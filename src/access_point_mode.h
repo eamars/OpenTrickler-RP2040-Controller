@@ -12,8 +12,14 @@ uint8_t access_point_mode_menu();
 
 bool access_point_mode_start();
 bool access_point_mode_stop();
+// The access point's key made, from the chip, before the scheduler starts (ADR-008, gate 4)
+void access_point_mode_init(void);
 // The access point's key, as the screen's Wi-Fi page shows it (ADR-010, gate 4)
 const char *access_point_mode_key(void);
+// The addresses its DHCP server has given since the unit started: it rises when a phone joins (the set-up's code)
+uint32_t access_point_mode_addresses_given(void);
+// Its own address, as a person types it (access_point_mode_start gives the interface the same)
+#define ACCESS_POINT_MODE_ADDRESS "192.168.4.1"
 
 #ifdef __cplusplus
 }

@@ -25,7 +25,6 @@
 // Memory from other modules
 extern QueueHandle_t encoder_event_queue;
 extern charge_mode_config_t charge_mode_config;
-extern servo_gate_t servo_gate;
 extern QueueHandle_t encoder_event_queue;
 
 // Internal
@@ -113,7 +112,7 @@ uint8_t cleanup_mode_menu() {
     cleanup_mode_running = true;
 
     // Open servo gate (if enabled)
-    if (servo_gate.gate_state != GATE_DISABLED) {
+    if (servo_gate_state() != GATE_DISABLED) {
         servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, true);
     }
 

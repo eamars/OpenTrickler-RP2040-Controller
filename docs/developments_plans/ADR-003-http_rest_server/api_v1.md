@@ -4,10 +4,12 @@ ADR-003's API, written for gate 2's approval (2026-11-15). It was checked agains
 
 Each field below comes from today's stored structs, read in the code on 2026-11-15. Where today's code has no limit, the limit here is a **proposal** (marked *p*), for the owner to look at.
 
+**Renamed in ADR-008's gate 2** (2026-11-19, before the first release for users): `cleanup` is `purge` (its paths, `activity`, its events, its state's kind, `no_purge_runs`), and `system/erase` is `system/factory_reset`, its confirmation `factory_reset`, its reply `resetting`. The screen and the pages use the same words (ADR-008, "The words"). The review's record below keeps the words of its time.
+
 ## Words
 
 - **The charge** is the job, from `charge/start` to its stop: charge mode, a loop of throws. **A throw** is one cup, numbered from 1 at each start of the unit. A throw lasts from the start of `zeroing` until its verdict is given, a second after the cup is due off. While it lasts, `in_throw` is true.
-- **A job** is long work: the charge and the cleanup now; tuning, an update, a motor's test run later. **The unit runs one job at a time.** `GET /api/v1/system` says which (`activity`).
+- **A job** is long work: the charge and the purge now; tuning, an update, a motor's test run later. **The unit runs one job at a time.** `GET /api/v1/system` says which (`activity`).
 
 ## The rules
 
@@ -15,7 +17,7 @@ Each field below comes from today's stored structs, read in the code on 2026-11-
 - **A read is a GET, and it changes nothing.** Not a selection, not an event, not a light.
 - **A write is a PATCH** with a JSON object of the fields to change, one or many. **A PATCH's fields are the GET's fields:** same name, same type. The whole request is checked first; if any field is refused, nothing in the request is written. The reply is the whole resource as it now is.
 - **An action is a POST** to a path named for it (`/charge/start`), with a JSON body (`{}` when it takes nothing). The reply is the state it led to: 202 when the action goes on after the reply (a charge, a restart), 200 when it is done. **An action that is refused changes nothing**, fields it carries included.
-- **A stop never fails.** Every job's stop, and `POST /api/v1/stop`, answer 202 when they stopped something and 200 with the state when there was nothing to stop. A client may repeat one after a lost reply. The charge and the cleanup take a stop; a view is a person's at the unit, so a stop then answers 200 `"stopped": false` with the `activity` (review C1, 2026-11-16). Since ADR-010 there is no view: a job takes the screen from any page.
+- **A stop never fails.** Every job's stop, and `POST /api/v1/stop`, answer 202 when they stopped something and 200 with the state when there was nothing to stop. A client may repeat one after a lost reply. The charge and the purge take a stop; a view is a person's at the unit, so a stop then answers 200 `"stopped": false` with the `activity` (review C1, 2026-11-16). Since ADR-010 there is no view: a job takes the screen from any page.
 - **Only the unit's own name is served.** An API request whose `Host` is not the unit's address or its host name (with or without `.local`) is refused with 403. A page asked for under another name is redirected to the unit's address, which the captive portal needs too. This stops a page that has pointed its own name at the unit (DNS rebinding).
 - **A write or an action must be sent as `application/json`**, or as `application/octet-stream` where a path takes bytes (ADR-004's image). Anything else is refused with 415, a POST with no body and no `Content-Type` included. The unit sends no CORS headers and answers `OPTIONS` with 405. A browser asks a server's leave before it sends either type from another site, and the unit never gives it. With the `Host` rule, a page from another site cannot make a browser write to the unit.
 - **Settings are live when written and stored when saved.** A PATCH changes the setting at once (or at the next start, where the schema says so). A save stores it. Every settings resource carries `"saved": true|false`. `saved` is worked out, not remembered: the struct in RAM against what was last stored, by their CRCs. So a change made at the menu or at the console counts too.
@@ -53,7 +55,7 @@ What may change within v1, and what a client does about it:
 | 400 | Not JSON, an unknown field, a wrong type, a value outside its limits, a missing confirmation, a start with no target |
 | 403 | A `Host` that is not the unit's |
 | 404 | No such path on this build, or no such id |
-| 405 | The path exists, the method does not; `Allow` lists the methods |
+| 405 | The path exists, the method does not; `Allow` lists the methods. A GET of an action's path is not refused: it gives the action's usage (below) |
 | 409 | Refused at this moment: another job runs, a throw is under way, no job runs that the command needs, a driver is at fault, the gate is disabled |
 | 411 | A body with no `Content-Length` (a chunked one included) |
 | 413 | A request larger than the unit takes: a JSON body over 1 KB; headers over 8 KB in all; one of the headers the unit reads, longer than its line. Other headers, a long `Cookie:` line among them, are passed over unread |
@@ -62,25 +64,38 @@ What may change within v1, and what a client does about it:
 | 500 | The unit failed to do it, such as a save the EEPROM did not take |
 | 501 | The path is known, but this make of scale cannot do it: the Steinberg, Creedmoor, Sartorius, US Solid, JM Science and generic drivers cannot zero their scale (TODOs in their code); `actions` in `GET /api/v1/scale` says which can |
 
-Every error has the same body:
+**The API describes itself** (ADR-008, gate 2):
+- **A GET of an action** (a path that takes only a POST, a PUT or a PATCH) gives 200 `{"usage": <the action as the schema gives it, with an "example" body>, "see": "/api/v1/schema"}`, its `Allow` still saying what it takes. A GET still changes nothing.
+- **Every error under `/api/v1` says where to read,** in `see`: a path not there, `/api/v1`; a method a path does not take, the path itself (its GET); any other, `/api/v1/schema`.
+- **The root points to the index:** each page's head carries `<link rel="service-doc" href="/api/v1">` and `<link rel="service-desc" href="/api/v1/schema">` (RFC 8631).
+- **Every route is listed** in the index or the schema, or named as a page (`/`, `/mobile`, `/wizard`, `/display_mirror`) or a debug route: `rc_run.py api_check` reads the server's routes (`GET /api/v1/debug/routes`, not part of v1) and fails on one in none.
+- **The hello for agents** (`POST /api/v1/agent/hello`) is listed, an action of the kind `agent`, `refused_while` `a_charge_runs`.
+
+Every error has the same body (with `see` under `/api/v1`):
 
 ```json
 {"error": {"code": "out_of_range", "field": "fine_stop_threshold", "message": "12 is above the most, 10", "min": 0, "max": 10}}
 ```
 
-The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`; for an update's image (ADR-004) `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update`, `not_newer`, `wrong_slot`, `hash_mismatch` and `not_ready`; for the update's poll (ADR-010) `no_network`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
+The codes are `bad_json`, `length_required`, `unknown_field`, `wrong_type`, `out_of_range`, `not_a_choice`, `read_only`, `confirm_missing`, `not_found`, `method_not_allowed`, `busy` (with `activity` and `state`), `not_running`, `no_target`, `weight_off_zero` (with `weight`), `driver_fault` (with `motor` and `fault`), `gate_disabled`, `not_supported`, `wrong_host`, `too_large`, `wrong_media_type` and `failed`; for an update's image (ADR-004) `not_an_image`, `wrong_chip`, `wrong_board`, `not_an_update`, `not_newer`, `wrong_slot`, `hash_mismatch` and `not_ready`; for the update's poll (ADR-010) `no_network`; for the set-up's join (ADR-008) `not_on_hotspot`. `field`, `min`, `max`, `choices`, `activity`, `state`, `motor` and `fault` are given when they apply. More codes may come; the schema lists them.
 
 ## What the unit is
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1` | | `api` ("1"); `firmware` {`version`, `vcs`, `build`}; `board` (pico_w, pico2_w; esp32_s3_pico with ADR-007); `unit_id`; `hostname`; `boot`, a 32-bit random number new at each start (the SDK's `pico_rand`; 32 bits, since a browser's JSON keeps only 53); `uptime_s`; `features`, a list of names of the optional parts this board carries (ADR-005; empty today: every board carries every part); `guide`, a page of plain words for a client new to the unit (the job cycle, what stop does, what the unit cannot know); `resources`: each path with its methods and a line on what it is |
+| `GET /api/v1` | | `api` ("1"); `firmware` {`version`, `vcs`, `build`}; `board` (pico_w, pico2_w; esp32_s3_pico with ADR-007); `unit_id` (eight hex digits made from the Pico's own unique id: the same across a factory reset, never stored; ADR-008, gate 4); `hostname` (`opentrickler-` and the id's first four); `boot`, a 32-bit random number new at each start (the SDK's `pico_rand`; 32 bits, since a browser's JSON keeps only 53); `uptime_s`; `features`, each part a build may leave out, `{name, present, about}`, present or not (ADR-008, gate 2; ADR-005's feature table): today `servo_gate`, which `-DFEATURE_SERVO_GATE=OFF` leaves out with its paths, its settings, its schema entries and its menu page; a client shows only what is present; `guide`, a page of plain words for a client new to the unit (the job cycle, what stop does, what the unit cannot know); `resources`: each path with its methods and a line on what it is |
 | `GET /api/v1/schema` | | Every resource's fields **and every action's body**: `name`, `label`, `group`, `type` (number, integer, boolean, string, colour, choice), `unit`, `min`, `max`, `step`, `choices` (each `{value, label}`), `access` (read, read_write, write_only), `applies` (now, at_restart, or as the field says), `refused_while` (in_throw, a_job_runs, or never), and a line on what it is. Each settings resource names its save path. Also every state and what it means, every event kind and what it carries, and every error code. ADR-008's forms and ADR-010's settings screen are drawn from it. It changes only with the firmware |
-| `GET /api/v1/system` | | `firmware`, `board`, `unit_id`, `uptime_s`; `activity` (none, charge, cleanup, view, update; more later); `restart_pending` (a setting that applies at restart was changed). `view` is never reported since ADR-010 (a job takes the screen from any page); it stays a name of v1. It was: a person has a screen open at the unit that is not a job, and a start is refused until it is closed there. A job in `fault` is still that job's `activity`: the mode holds the screen and the motors until it is acknowledged. A view is no job: it refuses a start, and nothing else (`refused_while: a_job_runs` is the charge, a cleanup and an update). The scale's calibration was removed in ADR-010 (the owner: no scale supports it) |
-| `GET /api/v1/network` | | `mode` (station, access_point), `ssid`, `address`, `hostname` (the mDNS name), `rssi`: the menu's Wi-Fi info, and how a person or an agent finds which unit is which |
+| `GET /api/v1/system` | | `firmware`, `board`, `unit_id`, `uptime_s`; `activity` (none, charge, purge, view, update; more later); `restart_pending` (a setting that applies at restart was changed). `view` is never reported since ADR-010 (a job takes the screen from any page); it stays a name of v1. It was: a person has a screen open at the unit that is not a job, and a start is refused until it is closed there. A job in `fault` is still that job's `activity`: the mode holds the screen and the motors until it is acknowledged. A view is no job: it refuses a start, and nothing else (`refused_while: a_job_runs` is the charge, a cleanup and an update). The scale's calibration was removed in ADR-010 (the owner: no scale supports it) `set_up` (ADR-008, gate 4): the set-up finished or skipped, or a network named; false after a factory reset, when the portal opens the set-up by itself on the unit's own hotspot |
+| `GET /api/v1/network` | | `mode` (station, access_point), `ssid`, `address`, `hostname` (the mDNS name), `rssi`: the menu's Wi-Fi info, and how a person or an agent finds which unit is which. `station` (ADR-008, gate 4): the station's last join, whichever asked it (the start's, the minute's retry, the set-up's): `state` (idle, joining, joined, failed), `ssid`, `address` on that network, `reason` when failed (wrong_password, timeout, failed), `joining_ms` while joining (since it began: the page and the screen count the same seconds). On its own hotspot with the station joined beside it, `mode` is access_point and `station` says where else it is |
+| `GET /api/v1/setup` | | `set_up`; `step` (code, wifi, scale, motors, ready, done); `network` (chosen on the Wi-Fi step, or null); `phone` (a phone has an address from its hotspot); `hotspot` (its name while it is up, else null). Kept in RAM: a restart begins it again (ADR-008, gate 4) |
+| `GET /api/v1/wifi/networks` | | `scanning`, and `networks`: each `ssid`, `rssi` (dBm), `auth` (open, wpa_tkip, wpa2_aes, wpa2_mixed: the radio tells WPA2 from WPA, not AES from TKIP), merged by name, strongest first. Hidden networks and WEP alone are left out (ADR-008, gate 4) |
 | `POST /api/v1/stop` | `{}` | Stops whatever job runs, or a start asked and not yet begun. A stop: never refused (the rule above). `{"stopped": true\|false, "activity"}`: 202 when it stopped one, 200 when there was nothing |
+| `POST /api/v1/wifi/scan` | `{}` | 202 with `/api/v1/wifi/networks`'s reply: two scans, merged, `scanning` until they end (some 1.5 s). 409 `busy` while a scan or a join runs |
+| `POST /api/v1/wifi/join` | `{"ssid": "Smith home", "password": "...", "auth": "wpa2_mixed"}` | The set-up's join (ADR-008, gate 4): 202 with `/api/v1/network`'s reply, its `station` joining. The unit stays its own hotspot meanwhile, so the page that asked reads the end there: joined (the network stored, by `api`, and in effect: no restart pending) or failed with its `reason` (nothing stored; told within seconds for a wrong key). `auth` wpa2_mixed when left out; `password` 8 to 63 bytes with security. The join takes the network's access point on the hotspot's channel when the scan heard one, so the hotspot stays where the phone is (the hotspot starts on the strongest access point's channel); events `wifi` `joining`, then `joined` or `not_joined` with its reason. 409 `not_on_hotspot` when the unit is on its network, which a join would leave; 409 `busy` while a scan or a join runs; 400 `out_of_range`, `not_a_choice`, `wrong_type` |
+| `PATCH /api/v1/setup` | `{"step": "wifi", "network": "Smith home"}` | 200 with `GET /api/v1/setup`'s reply: the set-up's step as the page goes on (wifi, scale, motors, ready), with the network chosen on the Wi-Fi step or null. The unit keeps it (ADR-008, gate 4: two screens, one process): its screen shows the same stage, on its own hotspot, and a page that lost the hotspot reads where the set-up is. An event `setup` `step`. 400 `not_a_choice` for code or done (done is the POST below) |
+| `POST /api/v1/setup/done` | `{}` | 200 `{"set_up": true, "hotspot": ...}`: the set-up finished or skipped (ADR-008, gate 4), remembered, so the portal never opens it by itself again; a factory reset forgets it. Joined, the hotspot stops a moment after the reply (`hotspot` false) and the unit is on its network alone; not joined, the hotspot stays (`hotspot` true). `/wizard`, the old wizard's address, redirects to the portal's set-up (`/#setup`) |
 | `POST /api/v1/system/restart` | `{}` | 202 `{"restarting": true}`; the unit restarts once the reply is out. 409 `busy` while a job runs: stop it first |
-| `POST /api/v1/system/erase` | `{"confirm": "erase"}` | 202 `{"erasing": true}`. The stored settings are erased, then the unit restarts. **It then leaves the network and comes back as its own access point, with a new id and host name** (the id is kept in the EEPROM, and the name is made from it). 400 `confirm_missing` without the confirmation; 409 `busy` while a job runs |
+| `POST /api/v1/system/factory_reset` | `{"confirm": "factory_reset"}` | 202 `{"resetting": true}`. The stored settings are erased, then the unit restarts. **It then leaves the network and comes back as its own access point**, with the same id and host name: the id is read from the Pico (ADR-008, gate 4). 400 `confirm_missing` without the confirmation; 409 `busy` while a job runs |
 | `GET /api/v1/debug` | | Not part of v1: today `heap_free` (FreeRTOS) and `net` (lwIP's heap and pools, as the console's `net`) |
 
 ## The event log
@@ -90,6 +105,21 @@ One log for the whole unit, which any number of clients read, each from where it
 | Method and path | Reply |
 |---|---|
 | `GET /api/v1/events?after=N` | `boot` (as in the index: when it changes, the unit restarted and the numbers began again); `now_ms`, the unit's clock now; `events`, each with `seq`, `at_ms` (the unit's 64-bit clock, in ms since the start), `source` and `kind`, and what that kind carries; `next`, the number to ask after next time. The newest 64 are kept *p*. `seq` goes up by one, so a client sees a gap: one that asks after a number no longer kept gets all that are, and `first`, the oldest kept. With `wait`, a read after a number above the newest (one from before a restart) is answered at once, with the new `boot` and `next` |
+
+**The same log as it happens** (ADR-008, gate 2): `GET /api/v1/events/stream`, server-sent events (`text/event-stream`), as a browser's `EventSource` reads them, or `curl -N`:
+
+| Message | When | `data` |
+|---|---|---|
+| `retry: 3000` | first | how soon a browser opens it again once it drops |
+| `event: unit` | first, and again when events were missed | `boot`, `first`, `newest`, `resumed`: true when the stream goes on from the client's `Last-Event-ID` (`<boot>-<seq>`, which a browser sends by itself on its reconnect) or `?after=N`, nothing missed; false when it starts afresh (no id, another `boot`, or the event no longer kept), and the client then reads what it shows again |
+| `event: state` | after the unit, then whenever it changes, no oftener than every 100 ms | `activity`, `charge` (as `GET /api/v1/charge`, its live weight included) and `purge` (as `GET /api/v1/purge`): the weight comes at the scale's own rate. Not an event: not numbered, not kept |
+| `id: <boot>-<seq>` with no `event:` | each event as it is logged | the event, as `GET /api/v1/events` gives it |
+| `event: state` again | after 15 s with nothing sent | the state, as above: the connection is alive. Not a comment: a browser's `EventSource` never shows its page one (found in ADR-008's gate 3) |
+
+- **At most 3 at once,** so a request always finds one of the server's 6 slots: a fourth is answered 503 `busy` with `Retry-After: 5`. A browser's `EventSource` does not try again after an error status: a page does, after `Retry-After`.
+- **A client that stops reading** is closed by the server's stall limit (10 s with its bytes not taken), so a dead connection never holds lwIP's heap for long.
+- **A unit that restarts or leaves its network sends no close:** the client hears nothing. It knows by the comment that should come within 15 s: nothing for some 20 s, it opens the stream again (a page does this itself; an `EventSource` alone may wait much longer). Of the same `boot`, it goes on from its last id; after a restart, `resumed` is false.
+- Held reads stay, for agents: they need no connection kept.
 
 An event is a change, not a state: a fault that stands is one event when it appears and one when it clears, not one a second. The kinds now:
 
@@ -102,8 +132,8 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
 | throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault), and for a driver's fault its `motor` and `fault` |
-| cleanup | started | `by` |
-| cleanup | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
+| purge | started | `by` |
+| purge | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
 | motors | fault, cleared | `motor`, `fault` |
 | system | started | `firmware`, at each start |
 | update | started | `by` |
@@ -113,6 +143,8 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | update | confirmed | `version`: after the restart, the image confirmed itself once on its network |
 | update | back | `version`: after the restart, the image tried was left, and the one before runs |
 | update | found | `version`: the poll found a newer release, now offered (ADR-010, gate 5) |
+| setting | changed | `by` (button for the menu, api, console), `path`: a settings resource or a powder written, and what it holds changed; one for each resource written, none for a write that changed nothing (ADR-008, gate 2) |
+| setting | stored | `by`, `path`: the save's path; what was written stored where it was not, so each resource that save stores is `saved` again (ADR-008, gate 2) |
 
 Later ADRs add sources and kinds (the rules above). **`?wait=s`** (1 to 30): the request is held until there is an event after N, or the time is out, and then answered whole, as any other. Built in gate 4 with the owner's leave ("For the owner", 7); without it, reserved, and the server built to take it.
 
@@ -129,14 +161,14 @@ The charge in `fault` has ended on one: it waits, as the screen does, to be ackn
 
 ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_profile`, in the GET, the PATCH and start. A target or a powder profile given beside it overrides it for that charge.
 
-## Cleanup
+## Purge
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/cleanup` | | `state` (idle, starting, running, fault), `by` (button, api, console; null with none), `speed_rps`, `time_left_s` (null when the speed was given with no time) |
-| `POST /api/v1/cleanup/start` | `{}` | 202. The cleanup runs, at speed 0 until a PATCH gives one. 409 `busy` while another job runs; 409 `driver_fault` (looked at afresh, as the charge's) |
-| `POST /api/v1/cleanup/stop` | `{}` | A stop; it acknowledges `fault` |
-| `PATCH /api/v1/cleanup` | `{"speed_rps": 2.0}`, or `{"speed_rps": 2.0, "time_s": 30}` | 200. Both tricklers turn at that speed, within ± the lower of the two motors' `max_speed_rps` at that moment. With `time_s` (1 to 600 *p*), for at most that long: a new PATCH before then sets a new speed and a new time, and when the time runs out with none, the cleanup stops by itself (`cleanup stopped`, `by` the unit, `reason` time). A client with no person at the unit gives a short time and sends the speed again while it wants it, so a client that loses the network leaves no motor turning for longer than its last time. Without `time_s` it turns until stopped, as at the unit. 409 `not_running` when idle. A speed beyond the motors' limit is turned at the limit, not refused: the limit follows the motors' settings, so the schema cannot give it, and the reply's `speed_rps` is the speed taken. In `fault` no speed is taken (409 `not_running`): the motors stay stopped until the cleanup is acknowledged (review D1, C6) |
+| `GET /api/v1/purge` | | `state` (idle, starting, running, fault), `by` (button, api, console; null with none), `speed_rps`, `time_left_s` (null when the speed was given with no time) |
+| `POST /api/v1/purge/start` | `{}` | 202. The purge runs, at speed 0 until a PATCH gives one. 409 `busy` while another job runs; 409 `driver_fault` (looked at afresh, as the charge's) |
+| `POST /api/v1/purge/stop` | `{}` | A stop; it acknowledges `fault` |
+| `PATCH /api/v1/purge` | `{"speed_rps": 2.0}`, or `{"speed_rps": 2.0, "time_s": 30}` | 200. Both tricklers turn at that speed, within ± the lower of the two motors' `max_speed_rps` at that moment. With `time_s` (1 to 600 *p*), for at most that long: a new PATCH before then sets a new speed and a new time, and when the time runs out with none, the purge stops by itself (`purge stopped`, `by` the unit, `reason` time). A client with no person at the unit gives a short time and sends the speed again while it wants it, so a client that loses the network leaves no motor turning for longer than its last time. Without `time_s` it turns until stopped, as at the unit. 409 `not_running` when idle. A speed beyond the motors' limit is turned at the limit, not refused: the limit follows the motors' settings, so the schema cannot give it, and the reply's `speed_rps` is the speed taken. In `fault` no speed is taken (409 `not_running`): the motors stay stopped until the purge is acknowledged (review D1, C6) |
 
 ## The scale, the gate, the motors, the screen
 
@@ -154,7 +186,7 @@ ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_prof
 
 | State | A zero over the API |
 |---|---|
-| No job, a cleanup, `fault` | Taken (the page's Scale Zero is on the purge page too, for the container) |
+| No job, a purge, `fault` | Taken (the page's Scale Zero is on the purge page too, for the container) |
 | `starting`, `zeroing` | Taken only while the weight is within 5 times `zero_mean_margin` of zero *p* (0.1 at the default 0.02): a cup that reads 0.05 is put right. Otherwise 409 `weight_off_zero`, with `weight`: "the scale reads 30.02; over the API a zero puts right only a drift; empty the cup or put it on, or zero at the unit". A remote start passes no "Put pan on the scale" form: with the cup off the scale reads about minus the cup, and with a charge left in it about plus the charge |
 | `charging`, `waiting_for_cup_removal`, `waiting_for_cup_return` | 409 `busy`. While it waits for the cup's return the unit takes the cup to be away, and a zero there starts the next throw at once. |
 
@@ -174,6 +206,11 @@ Offered at the screen since ADR-010's gate 5, from the unit's own poll; the web 
 | `POST /api/v1/update/stop` | `{}` | A stop: 202, or 200 with nothing to stop. The image written stays in the free slot, never booted. 409 `busy` while `installing`: the restart is under way |
 
 - **Time limits** *p*: a job `receiving` that gets no bytes for 30 s, or `ready` and not installed within 60 s, ends by itself (`time`).
+- **The update's life cycle made whole** (ADR-008, gate 2):
+  - `checking` is a state between `receiving` and `ready`: all of the image in, its SHA-256, its board and its seal checked.
+  - While `installing`, `GET /api/v1/update` (and the install's reply) gives `back_within_s`: the longest the restart's silence may last, the trial's longest and some 20 s, before a client says the unit is not back.
+  - `last` gains `reason`, why a trial went back (`did_not_start`, `no_network`: not on its network within the Wi-Fi join's time and a margin, or its Wi-Fi settings did not read; `not_confirmed`; `power_cut`), and `reset`, the settings a kept update reset to their defaults, by name (`leds`, `charge`, ...): a stored layout that changed. Both are kept in the EEPROM with the trial's note, so a later restart does not forget how the last update ended. The events `back` (with `reason`) and `confirmed` (with `reset`) say the same.
+  - **On trial, nothing is written to the EEPROM** but the trial's own note: each setting's write is held and written when the image confirms itself. Gone back, the image before reads its settings as it left them.
 - **The image** is the release's update image for the unit's board and free slot (ADR-004): the release's manifest names each, and `takes` says which one this unit wants. A newer version only: going back is a full erase and a USB install.
 - **The poll** (ADR-010, gate 5) reads the source's releases as GitHub lays them out. Stable reads `releases/latest/download/manifest.json`, which GitHub never resolves to a pre-release; none there is no stable release yet, `up_to_date`. Beta reads the newest release's tag from GitHub's list of releases (`api.github.com/repos/<owner>/<repo>/releases?per_page=1` for github.com, `/api/v3/repos/...` on any other host, as GitHub Enterprise has it), then that release's manifest. A release no newer than the image running is `up_to_date`. Over HTTPS the unit trusts GitHub's two roots only; it has no clock, so a certificate's dates are not checked.
 
@@ -205,14 +242,15 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 - **`GET /api/v1/settings`**: every settings resource and the powder profiles in one document, with the firmware's version: the portal's export, `rc_run.py settings`, and the copy taken before a flash (AGENTS.md). It holds no Wi-Fi key, so a copy cannot bring a wiped unit back onto the network by itself.
 - **An import is the client's work:** a PATCH of each resource and each profile in turn, leaving out fields the schema marks read-only or does not list, and saying what it left out. A bulk write may come later, as a new method on this path.
 - **`POST /api/v1/settings/save`** `{}`: every settings resource and the powder profiles stored. 500 names the one that failed.
+- **A revert beside each save** (ADR-008, gate 2): `POST` the save's path with `/revert` in place of `/save` (`/api/v1/settings/charge/revert`, `/api/v1/powder_profiles/revert`, `/api/v1/settings/motors/revert`), `{}`: every resource stored there given back what the EEPROM holds, undoing what was written since. Each part is written as a write is: refused whole with 409 `busy` as a write to it would be (the motors' while a job runs, the powder in use during a throw), and a `setting changed` event for each resource that changed. 200 `{"reverted": true}`. The schema gives it as each resource's `revert`, and as an action.
 - **A test stand-in is never stored.** The console's simulated scale runs in place of the stored driver and never shows in `settings/scale`, and no save stores it.
 - **The shapes, as built in gate 3:**
   - `GET /api/v1/settings` is `{"api": "1", "firmware": {"version", "vcs", "build"}, "unit_id", "resources": {...}}`, each resource under its path (`"/api/v1/settings/charge"`, `"/api/v1/powder_profiles/0"`) as its own GET gives it. An import PATCHes each path with its fields, `saved` left out.
   - A save, and `POST /api/v1/settings/save`, answer 200 `{"saved": true}`, or 500 `failed`; their body is `{}`, and a field in it is refused (400 `unknown_field`). `saved` sent in a PATCH is 400 `read_only`.
   - `GET /api/v1/schema` is `{"api", "firmware", "resources": [...], "actions": [...], "errors": [...]}`. A resource: `path`, `methods`, `save`, `label`, `about`, `ids` (for `{id}`), `refused_while`, `fields`. A field: `name`, `label`, `group`, `type`, `unit`, `min`, `max`, `step`, `min_length` and `max_length` (a string's bytes), `choices` (`{value, label}`, and `short_label` where the label is long), `nullable`, `access`, `applies`, `refused_while`, `about`, each given where it applies: `min`, `max` and `step` for numbers only. For a client with little room (ADR-010, gate 6: the unit's screen; ADR-008's pages may use them): `short_label` (where the label and a value do not fit 128 px), `edit_step` (what one detent, or an arrow, moves a number by), and a boolean's `on_label` and `off_label` ("Reversed", "Normal"). `refused_while` is `never`, `in_throw`, `a_job_runs`, or for the powder profiles `in_throw_when_in_use`.
-  - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_cleanup_runs` for the cleanup's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `cleanup`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. A client works from these (`tools/remote_control/unit_api.py`).
-  - `GET /api/v1/powder_profiles/{id}` gives `saved` (all eight are one block) and its fields; `GET /api/v1/powder_profiles` gives `saved` and each profile's `id` and `name`.
-  - `GET /api/v1/settings/motors/coarse` and `/fine` give `saved` (the two are one block) and their fields; `GET /api/v1/settings/motors` gives `saved` and each motor's `id` and `label`.
+  - **Gate 4's share of the schema:** an action is `method`, `path`, `fields` (its body's, in a field's shape, with `required` where one must be given; empty for `{}`), `refused_while` (as above, and `no_purge_runs` for the purge's speed; absent for the zero, whose rule is in its `about`) and `about`; the saves are actions too. `states` gives each kind (`activity`, `charge`, `purge`, `gate`, `driver`) as a list of `{value, about}`. `events` gives each kind as `{source, kind, carries, about}`: `carries` names what it may carry beside `seq`, `at_ms`, `source` and `kind`. A client works from these (`tools/remote_control/unit_api.py`).
+  - `GET /api/v1/powder_profiles/{id}` gives `saved`, this powder's own (ADR-008, gate 2: the eight are one block in the EEPROM, and a powder is saved when it is as the EEPROM holds it, whatever the others are) and its fields; `GET /api/v1/powder_profiles` gives `saved`, the block's, and each profile's `id` and `name`.
+  - `GET /api/v1/settings/motors/coarse` and `/fine` give `saved`, each motor's own as a powder's, and their fields; `GET /api/v1/settings/motors` gives `saved` and each motor's `id` and `label`.
 
 ### `/api/v1/settings/charge`, saved at `/api/v1/settings/charge/save` (refused while `in_throw`)
 
@@ -241,7 +279,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `PATCH /api/v1/settings/motors/{motor}` | Fields, below | 200; 409 `busy` while a job runs |
 | `POST /api/v1/settings/motors/save` | `{}` | 200: both stored |
 
-The two are stored as one block, so they are saved together, and each one's `saved` is the block's. Between throws the motors are still enabled, and some of these set the driver up again, so they are refused while charge mode or cleanup runs at all, as the console's `tmc ... setup` is. Today's checks (`motor_persistent_config_is_valid`) stay.
+The two are stored as one block, so they are saved together, and each one's `saved` is the block's. Between throws the motors are still enabled, and some of these set the driver up again, so they are refused while a charge or a purge runs at all, as the console's `tmc ... setup` is. Today's checks (`motor_persistent_config_is_valid`) stay.
 
 | Field | Type | Unit | Limits | When | Today |
 |---|---|---|---|---|---|

@@ -35,6 +35,7 @@
 #define HTTPS_HOST_MAX 128
 #define HTTPS_TIMEOUT_S 15          // a read that waits longer than this fails
 #define HTTPS_ALLOC_HEADER 8        // each mbedTLS block carries its size ahead of it, so what it holds is counted
+#define HTTPS_HEAP_RESERVE 2048     // what a fetch leaves in the FreeRTOS heap for the rest of the unit, at the least
 
 typedef struct {
     bool tls;
@@ -72,6 +73,12 @@ static void *https_calloc(size_t count, size_t size) {
         return NULL;
     }
     size_t bytes = count * size;
+    // The fetch is the heap's one large, optional user: it gives way, so a heap short of room ends the fetch with a
+    // reason (mbedTLS's "no memory") and never the unit (the hook's assertion, as the Pico 2 W's poll did, ADR-008)
+    if (xPortGetFreeHeapSize() < bytes + HTTPS_ALLOC_HEADER + HTTPS_HEAP_RESERVE) {
+        https_report.alloc_refused += 1;
+        return NULL;
+    }
     uint8_t *block = pvPortMalloc(bytes + HTTPS_ALLOC_HEADER);
     if (block == NULL) {
         return NULL;
@@ -81,6 +88,10 @@ static void *https_calloc(size_t count, size_t size) {
     https_in_use += bytes;
     if (https_in_use > https_report.mbedtls_peak) {
         https_report.mbedtls_peak = (uint32_t) https_in_use;
+    }
+    size_t left = xPortGetFreeHeapSize();
+    if (https_report.heap_low == 0 || left < https_report.heap_low) {
+        https_report.heap_low = (uint32_t) left;
     }
     return block + HTTPS_ALLOC_HEADER;
 }
@@ -108,7 +119,14 @@ bool https_client_init(void) {
 // --- The connection
 
 static void https_fail(const char *what, int code) {
-    if (code != 0) {
+    if (https_report.alloc_refused > 0) {
+        // A block refused at the reserve: what failed after it failed for that, whatever mbedTLS made of it (a
+        // certificate it could not hold reads as one not trusted)
+        char after[sizeof(https_report.error) - sizeof("no room in memory ()")];
+        snprintf(after, sizeof(after), "%s", what);
+        snprintf(https_report.error, sizeof(https_report.error), "no room in memory (%s)", after);
+    }
+    else if (code != 0) {
         snprintf(https_report.error, sizeof(https_report.error), "%s (-0x%04x)", what, (unsigned) -code);
     }
     else {
@@ -208,6 +226,9 @@ static bool https_handshake(https_conn_t *conn, const https_url_t *url, int hop)
             uint32_t flags = mbedtls_ssl_get_verify_result(&https_ssl);
             snprintf(https_report.error, sizeof(https_report.error), "the handshake failed (-0x%04x), verify 0x%lx",
                      (unsigned) -ret, (unsigned long) flags);
+            if (https_report.alloc_refused > 0) {
+                https_fail(https_report.error, 0);  // said as no room, which was the cause (it copies first)
+            }
             return false;
         }
     }

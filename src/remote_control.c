@@ -23,6 +23,7 @@
 #include "scale.h"
 #include "profile.h"
 #include "eeprom.h"
+#include "unit_id.h"
 #include "version.h"
 #include "menu.h"
 #include "display.h"
@@ -32,6 +33,7 @@
 #include "activity.h"
 #include "update.h"
 #include "wireless.h"
+#include "http_server.h"
 
 
 // Longest list of tasks `stats` looks through for the smallest stack margin
@@ -65,7 +67,6 @@ typedef struct {
 
 extern charge_mode_config_t charge_mode_config;
 extern scale_config_t scale_config;
-extern eeprom_metadata_t metadata;
 extern QueueHandle_t encoder_event_queue;
 extern mini_12864_module_config_t mini_12864_module_config;
 
@@ -84,10 +85,12 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
                                  void *write_ctx) {
     profile_t *profile = profile_get_selected();
     uint32_t up_s = (uint32_t) (time_us_64() / 1000000);
+    char unit_id[UNIT_ID_LENGTH + 1];
+    unit_id_get(unit_id, sizeof(unit_id));
 
-    // unique_id and the profile name are stored without a terminator: print them by their length
+    // The profile's name is stored without a terminator: print it by its length
     snprintf(reply, reply_size,
-             "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%.*s "
+             "@ok state charge=%d weight=%.3f target=%.3f scale=\"%s\" ver=%s vcs=%s build=%s board=%s id=%s "
              "up=%lu profile=\"%.*s\" form=%d sim=%d coarse=%.3f fine=%.3f drivers=%s,%s",
              (int) charge_mode_config.charge_mode_state,
              scale_config.current_scale_measurement,
@@ -95,7 +98,7 @@ static bool remote_control_state(const char *args, char *reply, size_t reply_siz
              get_scale_driver_string(),
              version_string, vcs_hash, build_type,
              REMOTE_CONTROL_BOARD,
-             (int) sizeof(metadata.unique_id), metadata.unique_id,
+             unit_id,
              (unsigned long) up_s,
              (int) sizeof(profile->name), profile->name,
              menu_get_current_form_id(),
@@ -165,6 +168,21 @@ static const struct {
 
 static bool remote_control_net(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                void *write_ctx) {
+    // `net log on|off`: each connection and request on the console, never stored
+    if (args != NULL && strncmp(args, "log", 3) == 0) {
+        const char *what = args + 3;
+        while (*what == ' ') {
+            what += 1;
+        }
+        bool on = strcmp(what, "on") == 0;
+        if (!on && strcmp(what, "off") != 0) {
+            snprintf(reply, reply_size, "@err usage net [log on|off]");
+            return false;
+        }
+        http_server_log_requests(on);
+        snprintf(reply, reply_size, "@ok net log %s", on ? "on" : "off");
+        return true;
+    }
     // lwIP's heap and pools (ADR-003, gate 1): in use now, the most ever in use, the size, and the allocations
     // that failed. Read without lwIP's lock: counters, only read here
     size_t len = snprintf(reply, reply_size, "@ok net heap_used=%u heap_max=%u heap_size=%u heap_err=%lu",
@@ -183,6 +201,13 @@ static bool remote_control_net(const char *args, char *reply, size_t reply_size,
                         name, (unsigned) pool->max,
                         name, (unsigned) pool->avail,
                         name, (unsigned long) pool->err);
+    }
+    // The event streams (ADR-008, gate 2): open now, opened and refused since the start
+    http_server_stats_t server;
+    http_server_get_stats(&server);
+    if (len < reply_size) {
+        snprintf(reply + len, reply_size - len, " live=%u live_opened=%lu live_refused=%lu", server.slots_live,
+                 (unsigned long) server.live_opened, (unsigned long) server.live_refused);
     }
     return true;
 }
@@ -247,11 +272,11 @@ static bool remote_control_press(const char *args, char *reply, size_t reply_siz
 
 /*
  * The screen in words (ADR-010): a `@screen` line; then a list's `@row` lines, a card's or notes' `@line` lines
- * (each "first" marks the first shown) and their `@button`, a dialog's `@line` lines, or the editor's and a job's
- * `@figure` line; then `@softkeys` where there are any
+ * (each "first" marks the first shown) and their `@button`, a dialog's `@line` lines, the code's `@code` text and its
+ * `@line` lines, or the editor's and a job's `@figure` line; then `@softkeys` where there are any
  */
 static void remote_control_screen_lines(const menu_screen_t *screen, remote_control_write_fn write, void *write_ctx) {
-    static const char *const kinds[] = {"list", "dialog", "notes", "edit", "job", "control"};
+    static const char *const kinds[] = {"list", "dialog", "notes", "edit", "job", "control", "code"};
     char line[160];
     snprintf(line, sizeof(line), "@screen id=%s kind=%s title=\"%s\"%s%s%s focus=%d marks=%s%s%s%s%s", screen->id,
              kinds[screen->kind], screen->title, screen->title_note[0] != '\0' ? " note=\"" : "", screen->title_note,
@@ -270,6 +295,11 @@ static void remote_control_screen_lines(const menu_screen_t *screen, remote_cont
                 write(line, write_ctx);
             }
             break;
+        case MENU_SCREEN_CODE:
+            // The code's text, then the lines beside it as a dialog's
+            snprintf(line, sizeof(line), "@code \"%s\"", screen->code);
+            write(line, write_ctx);
+            // fall through
         case MENU_SCREEN_NOTES:
         case MENU_SCREEN_DIALOG:
             for (int idx = 0; idx < screen->row_count; idx += 1) {
@@ -718,8 +748,41 @@ static bool remote_control_wifi(const char *args, char *reply, size_t reply_size
     while (*args == ' ') {
         args += 1;
     }
+    // `wifi join`: the stored network now, with its stored key, through the set-up's join (ADR-008, gate 4): only
+    // while the unit is its own hotspot; `network`'s station says how it ends
+    if (strcmp(args, "join") == 0) {
+        wireless_join_result_t taken = wireless_join_stored(ACTIVITY_BY_CONSOLE);
+        static const char *const why[] = {"taken", "busy", "not on its hotspot", "no network stored", "bad key",
+                                          "bad security"};
+        snprintf(reply, reply_size, taken == WIRELESS_JOIN_TAKEN ? "@ok wifi join asked" : "@err failed wifi join: %s",
+                 why[taken]);
+        return taken == WIRELESS_JOIN_TAKEN;
+    }
+    // `wifi scan`: the set-up's scan, waited for, then each network heard as an `@scan` line, strongest first
+    if (strcmp(args, "scan") == 0) {
+        TickType_t started = xTaskGetTickCount();
+        if (!wireless_scan_start()) {
+            snprintf(reply, reply_size, "@err busy wifi scan: a scan or a join runs");
+            return false;
+        }
+        while (wireless_scanning() && xTaskGetTickCount() - started < pdMS_TO_TICKS(12000)) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        wireless_network_t network;
+        size_t found = 0;
+        while (wireless_network_at(found, &network)) {
+            char line[80];
+            snprintf(line, sizeof(line), "@scan ssid=\"%s\" rssi=%d auth=%s", network.ssid, network.rssi,
+                     network.auth);
+            write(line, write_ctx);
+            found += 1;
+        }
+        snprintf(reply, reply_size, "@ok wifi scan found=%u took_ms=%lu", (unsigned) found,
+                 (unsigned long) ((xTaskGetTickCount() - started) * portTICK_PERIOD_MS));
+        return true;
+    }
     if (strcmp(args, "leave") != 0) {
-        snprintf(reply, reply_size, "@err usage wifi leave");
+        snprintf(reply, reply_size, "@err usage wifi leave|join|scan");
         return false;
     }
     bool left = wireless_station_leave();

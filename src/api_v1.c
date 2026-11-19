@@ -25,6 +25,8 @@
 #include "display.h"
 #include "menu.h"
 #include "eeprom.h"
+#include "unit_id.h"
+#include "servo_gate.h"
 #include "settings.h"
 #include "version.h"
 
@@ -98,7 +100,7 @@ static void api_v1_get_debug(const http_server_request_t *request, http_server_r
     size_t len = 0;
     http_server_stats_t server;
     http_server_get_stats(&server);
-    char text[384];     // the server's line, every count at 10 digits: about 305
+    char text[448];     // the server's line, every count at 10 digits: about 370
 
     snprintf(text, sizeof(text), "{\"heap_free\":%u,\"heap_min\":%u,\"net\":{\"heap\":{\"used\":%u,\"max\":%u,"
              "\"size\":%u,\"err\":%lu},", (unsigned) xPortGetFreeHeapSize(),
@@ -117,13 +119,14 @@ static void api_v1_get_debug(const http_server_request_t *request, http_server_r
     snprintf(text, sizeof(text), "},\"server\":{\"accepted\":%lu,\"requests\":%lu,\"closed_idle\":%lu,"
              "\"closed_for_room\":%lu,\"aborted_stalled\":%lu,\"refused\":%lu,\"send_no_memory\":%lu,"
              "\"send_failed\":%lu,\"stream_make_ms\":%lu,\"stream_bytes\":%lu,\"stream_failed\":%lu,\"slots_used\":%u,"
-             "\"slots_parked\":%u},",
+             "\"slots_parked\":%u,\"slots_live\":%u,\"live_opened\":%lu,\"live_refused\":%lu},",
              (unsigned long) server.accepted, (unsigned long) server.requests, (unsigned long) server.closed_idle,
              (unsigned long) server.closed_for_room, (unsigned long) server.aborted_stalled,
              (unsigned long) server.refused, (unsigned long) server.send_no_memory,
              (unsigned long) server.send_failed, (unsigned long) server.stream_make_ms,
              (unsigned long) server.stream_bytes, (unsigned long) server.stream_failed, server.slots_used,
-             server.slots_parked);
+             server.slots_parked, server.slots_live, (unsigned long) server.live_opened,
+             (unsigned long) server.live_refused);
     http_json_raw(out, room, &len, text);
     snprintf(text, sizeof(text), "\"uploads\":{\"done\":%lu,\"aborted\":%lu}}", (unsigned long) api_v1_uploads_done,
              (unsigned long) api_v1_uploads_aborted);
@@ -341,22 +344,42 @@ static const api_v1_resource_t api_v1_resources[] = {
      "PATCH sets the target or the profile the next throw uses"},
     {"/api/v1/charge/start", "[\"POST\"]", "starts a charge: {}, or the target and the powder profile to set first"},
     {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
-    {"/api/v1/cleanup", "[\"GET\",\"PATCH\"]",
-     "the cleanup: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
-    {"/api/v1/cleanup/start", "[\"POST\"]", "starts a cleanup, at speed 0"},
-    {"/api/v1/cleanup/stop", "[\"POST\"]", "stops the cleanup, and acknowledges its fault; never fails"},
+    {"/api/v1/purge", "[\"GET\",\"PATCH\"]",
+     "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"},
+    {"/api/v1/purge/start", "[\"POST\"]", "starts a purge, at speed 0"},
+    {"/api/v1/purge/stop", "[\"POST\"]", "stops the purge, and acknowledges its fault; never fails"},
     {"/api/v1/stop", "[\"POST\"]", "stops whatever job runs; never fails"},
+    {"/api/v1/agent/hello", "[\"POST\"]",
+     "for agents: say hello, and the screen shows who is watching for 2 s; never over a charge"},
     {"/api/v1/events", "[\"GET\"]",
      "the unit's changes after a number (?after=N), held until there is one with ?wait=s"},
+    {"/api/v1/events/stream", "[\"GET\"]",
+     "the same changes as they happen, as server-sent events: first the unit (its boot, and whether it goes on from "
+     "the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, "
+     "the purge), then each event with its id, and the state again as it changes and after 15 s quiet. At most "
+     "3 at once: 503 then, with Retry-After"},
     {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
+#if FEATURE_SERVO_GATE
     {"/api/v1/gate", "[\"GET\",\"PATCH\"]", "the servo gate: its state and ratio; a PATCH moves it"},
+#endif
     {"/api/v1/motors", "[\"GET\"]", "each motor's speed and its driver's state"},
-    {"/api/v1/system", "[\"GET\"]", "the firmware, the board, the uptime, what the unit is doing, a restart pending"},
+    {"/api/v1/system", "[\"GET\"]",
+     "the firmware, the board, the uptime, what the unit is doing, a restart pending, whether it is set up"},
     {"/api/v1/system/restart", "[\"POST\"]", "restarts the unit, once the reply is out"},
-    {"/api/v1/system/erase", "[\"POST\"]",
+    {"/api/v1/system/factory_reset", "[\"POST\"]",
      "erases the stored settings and restarts: the unit comes back as its own access point"},
-    {"/api/v1/network", "[\"GET\"]", "the network the unit is on: its mode, name, address, host name, signal"},
+    {"/api/v1/network", "[\"GET\"]",
+     "the network the unit is on: its mode, name, address, host name, signal; the station's last join and its end"},
+    {"/api/v1/wifi/networks", "[\"GET\"]", "the networks the last scan heard, strongest first, and whether one runs"},
+    {"/api/v1/wifi/scan", "[\"POST\"]", "scans for networks: twice, merged by name"},
+    {"/api/v1/wifi/join", "[\"POST\"]",
+     "the set-up's join, while the unit is its own hotspot, kept up meanwhile: stored once joined, never if refused"},
+    {"/api/v1/setup", "[\"GET\",\"PATCH\"]",
+     "the set-up's stage, kept by the unit: set up or not, the step, the network chosen, a phone on its hotspot, the "
+     "hotspot's name; a PATCH gives the page's step"},
+    {"/api/v1/setup/done", "[\"POST\"]",
+     "the set-up finished or skipped: remembered; joined, the hotspot stops a moment after the reply"},
     {"/api/v1/update", "[\"GET\"]",
      "the firmware update (ADR-004): its state, the image running and its slot, the image this unit takes, the last"},
     {"/api/v1/update/start", "[\"POST\"]",
@@ -375,9 +398,9 @@ static const char api_v1_guide[] =
     "when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, "
     "and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: "
     "the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, "
-    "the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the "
+    "the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the "
     "scale's own unit. "
-    "The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start "
+    "The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start "
     "once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to "
     "the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops "
     "whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at "
@@ -410,13 +433,11 @@ static void api_v1_index_resource(char *out, size_t room, size_t *len, bool firs
 }
 
 
-static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
-    api_v1_index_t *index = ctx;
-    *len = 0;
+// One item of the index: its head, the guide, a path, a settings' path, a save with its revert. False after the last
+static bool api_v1_index_item(api_v1_index_t *index, char *buf, size_t room, size_t *len) {
     if (index->phase == 0) {
-        char unit_id[9];
-        eeprom_get_board_id(unit_id, 8);
-        unit_id[8] = '\0';
+        char unit_id[UNIT_ID_LENGTH + 1];
+        unit_id_get(unit_id, sizeof(unit_id));
         http_json_raw(buf, room, len, "{\"api\":\"1\",\"firmware\":{\"version\":");
         http_json_string(buf, room, len, version_string);
         http_json_raw(buf, room, len, ",\"vcs\":");
@@ -433,7 +454,11 @@ static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
         http_json_unsigned(buf, room, len, api_v1_boot);
         http_json_raw(buf, room, len, ",\"uptime_s\":");
         http_json_integer(buf, room, len, (long) (time_us_64() / 1000000u));
-        http_json_raw(buf, room, len, ",\"features\":[],\"guide\":");
+        // What this build carries (ADR-008, gate 2): each feature that can be left out, by name, present or not
+        http_json_raw(buf, room, len, ",\"features\":[{\"name\":\"servo_gate\",\"present\":");
+        http_json_bool(buf, room, len, FEATURE_SERVO_GATE);
+        http_json_raw(buf, room, len, ",\"about\":\"the shutters' servos: GET /api/v1/gate, settings/gate, the "
+                                      "screen's Settings, Servo gate\"}],\"guide\":");
         index->phase = 1;
         return true;
     }
@@ -482,10 +507,39 @@ static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
             }
         }
         api_v1_index_resource(buf, room, len, false, resource->save_path, "[\"POST\"]", about);
+        // Its revert beside it (ADR-008, gate 2): "stores X" becomes "puts back what is stored of X"
+        char undo[112];
+        snprintf(undo, sizeof(undo), "puts back what is stored of %s", about + strlen("stores "));
+        api_v1_index_resource(buf, room, len, false, resource->revert_path, "[\"POST\"]", undo);
         return true;
     }
     http_json_raw(buf, room, len, "]}");
     return false;
+}
+
+
+/*
+ * As many items as fit a chunk (ADR-008, gate 2). A path a chunk made some 50 chunks of a hundred bytes, each with
+ * its own segment and its own wait for the client's ACK: 7.4 KB took 1.5 s, the schema's 34.8 KB in full chunks 0.9 s.
+ * An item that does not fit is taken back and begins the next chunk
+ */
+static bool api_v1_index_more(void *ctx, char *buf, size_t room, size_t *len) {
+    api_v1_index_t *index = ctx;
+    *len = 0;
+    while (true) {
+        size_t mark = *len;
+        api_v1_index_t before = *index;
+        bool more = api_v1_index_item(index, buf, room, len);
+        if (!http_json_fits(room, *len) && mark > 0) {
+            *len = mark;
+            buf[mark] = '\0';
+            *index = before;
+            return true;
+        }
+        if (!more) {
+            return false;
+        }
+    }
 }
 
 

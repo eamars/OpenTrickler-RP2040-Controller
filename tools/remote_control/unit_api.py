@@ -289,7 +289,7 @@ class Unit:
         return None
 
     def states(self, kind):
-        """The values a kind of state takes (charge, cleanup, gate, activity, driver), by the schema."""
+        """The values a kind of state takes (charge, purge, gate, activity, driver), by the schema."""
         return [state["value"] for state in self.schema["states"][kind]]
 
     # --- Reads, writes, actions
@@ -318,7 +318,7 @@ class Unit:
     def write(self, path, **fields):
         """
         A PATCH: a settings resource's fields, or the fields of a resource's PATCH action (the charge's target,
-        the cleanup's speed, the gate's ratio), each checked against the schema first. Live, not stored: save stores.
+        the purge's speed, the gate's ratio), each checked against the schema first. Live, not stored: save stores.
 
         Args:
             path: the resource's path.

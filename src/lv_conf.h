@@ -91,4 +91,14 @@
 #define LV_USE_TILEVIEW 0
 #define LV_USE_WIN 0
 
+// The set-up's code (ADR-008, gate 4): only LVGL's copy of Nayuki's encoder is used (qrcodegen.c), the view paints
+// the modules itself. LVGL builds it only with the QR code widget, the widget only with the canvas, the canvas only
+// with the image (lv_conf_internal.h refuses otherwise): the widget and the canvas are left out at the link, the
+// image's support stays, some 3.7 KB with the encoder's 2.4 KB (the Pico W, 2026-11-19)
+#define LV_USE_QRCODE 1
+#undef LV_USE_CANVAS
+#define LV_USE_CANVAS 1
+#undef LV_USE_IMAGE
+#define LV_USE_IMAGE 1
+
 #endif  // LV_CONF_H
