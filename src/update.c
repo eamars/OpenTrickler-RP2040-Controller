@@ -83,7 +83,7 @@ static TimerHandle_t update_feed_timer = NULL;
 static volatile update_state_t update_state = UPDATE_IDLE;
 static update_last_t update_last = {.result = UPDATE_RESULT_NONE};
 static uint32_t update_job_version = 0;     // the block version of the image the job takes: 0 until its first block is in
-static uint8_t *update_sector = NULL;       // a sector of the image as it comes: from the heap at the first job, kept
+static uint8_t *update_sector = NULL;       // a sector of the image as it comes: from the heap for the job's life
 static uint32_t update_sector_fill = 0;
 static uint32_t update_written = 0;         // the bytes written into the free slot, whole sectors
 static uint32_t update_taken = 0;           // the image's bytes taken so far: `received`
@@ -796,7 +796,7 @@ update_refusal_t update_image_begin(uint32_t bytes, int *status, uint32_t *token
 }
 
 
-bool update_image_piece(uint32_t token, const uint8_t *data, size_t len) {
+static bool update_image_piece_in(uint32_t token, const uint8_t *data, size_t len) {
     while (len > 0) {
         if (update_state != UPDATE_RECEIVING || token != update_upload_token ||
             update_taken + len > update_expected) {
@@ -823,7 +823,7 @@ bool update_image_piece(uint32_t token, const uint8_t *data, size_t len) {
 }
 
 
-update_refusal_t update_image_end(uint32_t token, int *status) {
+static update_refusal_t update_image_end_in(uint32_t token, int *status) {
     if (token != update_upload_token) {
         // An upload the job no longer takes: its job ended while it came
         *status = 409;
@@ -831,8 +831,8 @@ update_refusal_t update_image_end(uint32_t token, int *status) {
     }
     picobin_image_t image;
     update_refusal_t refusal = update_upload_refusal;
-    if (refusal.code == NULL && update_sector_fill > 0) {
-        // The last sector, filled out as erased flash
+    if (refusal.code == NULL && update_sector_fill > 0 && update_state == UPDATE_RECEIVING) {
+        // The last sector, filled out as erased flash; only while the job runs, whose buffer it is
         memset(update_sector + update_sector_fill, 0xff, FLASH_SECTOR_SIZE - update_sector_fill);
         if (!update_write_sector()) {
             refusal = update_upload_refusal;
@@ -864,6 +864,44 @@ update_refusal_t update_image_end(uint32_t token, int *status) {
         update_end_locked(UPDATE_RESULT_REFUSED, update_downloading ? ACTIVITY_BY_UNIT : ACTIVITY_BY_API, refusal);
     }
     activity_unlock();
+    return refusal;
+}
+
+
+/*
+ * The sector's buffer is the job's: taken at its start and given back at its end (update_mode_menu), so it does not
+ * hold 4 KB of the heap that an HTTPS poll needs (ADR-008: the Pico 2 W's poll ran the heap dry). A piece of an upload
+ * comes in the server's task and checks the job's state without the lock, so it says it is in the buffer before it
+ * checks, and the job's end waits for it to leave before the buffer goes
+ */
+static volatile int update_sector_users = 0;
+
+static void update_sector_enter(void) {
+    taskENTER_CRITICAL();
+    update_sector_users += 1;
+    taskEXIT_CRITICAL();
+}
+
+
+static void update_sector_leave(void) {
+    taskENTER_CRITICAL();
+    update_sector_users -= 1;
+    taskEXIT_CRITICAL();
+}
+
+
+bool update_image_piece(uint32_t token, const uint8_t *data, size_t len) {
+    update_sector_enter();
+    bool taken = update_image_piece_in(token, data, len);
+    update_sector_leave();
+    return taken;
+}
+
+
+update_refusal_t update_image_end(uint32_t token, int *status) {
+    update_sector_enter();
+    update_refusal_t refusal = update_image_end_in(token, status);
+    update_sector_leave();
     return refusal;
 }
 
@@ -1097,8 +1135,15 @@ uint8_t update_mode_menu(void) {
     activity_job_end();
     activity_lock();
     update_state = UPDATE_IDLE;
+    update_upload_token = 0;    // an upload still coming is no longer this job's
     update_giving_back = true;
     activity_unlock();
+    // The sector's buffer given back: a piece already in it is let finish (it finds the job ended and copies nothing)
+    while (update_sector_users > 0) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    vPortFree(update_sector);
+    update_sector = NULL;
     return 1;
 }
 

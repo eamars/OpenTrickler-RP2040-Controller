@@ -709,8 +709,8 @@ bool update_poll_console(char *reply, size_t reply_size) {
     static const char *const states[] = {"idle", "checking", "up_to_date", "found", "failed"};
     snprintf(reply, reply_size,
              "@ok update poll state=%s channel=%s source=%s bench=%s version=%s error=\"%s\" fetch_status=%d bytes=%lu hops=%u "
-             "handshake_ms=%lu,%lu,%lu total_ms=%lu mbedtls_peak=%lu heap_before=%lu heap_min=%lu stack_left=%lu "
-             "fetch_error=\"%s\"",
+             "handshake_ms=%lu,%lu,%lu total_ms=%lu mbedtls_peak=%lu heap_before=%lu heap_min=%lu heap_low=%lu "
+             "alloc_refused=%lu stack_left=%lu fetch_error=\"%s\"",
              states[status.state], update_config.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
              update_config.source, update_poll_bench[0] != '\0' ? update_poll_bench : "none",
              status.state == UPDATE_POLL_FOUND ? status.version : "", status.error,
@@ -718,7 +718,8 @@ bool update_poll_console(char *reply, size_t reply_size) {
              (unsigned long) report.handshake_ms[0], (unsigned long) report.handshake_ms[1],
              (unsigned long) report.handshake_ms[2], (unsigned long) report.total_ms,
              (unsigned long) report.mbedtls_peak, (unsigned long) report.heap_free_before,
-             (unsigned long) report.heap_min_after, (unsigned long) report.stack_left, report.error);
+             (unsigned long) report.heap_min_after, (unsigned long) report.heap_low,
+             (unsigned long) report.alloc_refused, (unsigned long) report.stack_left, report.error);
     return true;
 }
 

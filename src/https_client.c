@@ -35,6 +35,7 @@
 #define HTTPS_HOST_MAX 128
 #define HTTPS_TIMEOUT_S 15          // a read that waits longer than this fails
 #define HTTPS_ALLOC_HEADER 8        // each mbedTLS block carries its size ahead of it, so what it holds is counted
+#define HTTPS_HEAP_RESERVE 2048     // what a fetch leaves in the FreeRTOS heap for the rest of the unit, at the least
 
 typedef struct {
     bool tls;
@@ -72,6 +73,12 @@ static void *https_calloc(size_t count, size_t size) {
         return NULL;
     }
     size_t bytes = count * size;
+    // The fetch is the heap's one large, optional user: it gives way, so a heap short of room ends the fetch with a
+    // reason (mbedTLS's "no memory") and never the unit (the hook's assertion, as the Pico 2 W's poll did, ADR-008)
+    if (xPortGetFreeHeapSize() < bytes + HTTPS_ALLOC_HEADER + HTTPS_HEAP_RESERVE) {
+        https_report.alloc_refused += 1;
+        return NULL;
+    }
     uint8_t *block = pvPortMalloc(bytes + HTTPS_ALLOC_HEADER);
     if (block == NULL) {
         return NULL;
@@ -81,6 +88,10 @@ static void *https_calloc(size_t count, size_t size) {
     https_in_use += bytes;
     if (https_in_use > https_report.mbedtls_peak) {
         https_report.mbedtls_peak = (uint32_t) https_in_use;
+    }
+    size_t left = xPortGetFreeHeapSize();
+    if (https_report.heap_low == 0 || left < https_report.heap_low) {
+        https_report.heap_low = (uint32_t) left;
     }
     return block + HTTPS_ALLOC_HEADER;
 }
