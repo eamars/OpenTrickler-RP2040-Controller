@@ -136,3 +136,11 @@ On the agent's proposal, closed by the owner ("Yes, close it"):
   - HTTPS's cost to wherever the unit's own fetch is designed (ADR-008);
   - to ADR-009: tuning done at `-O0` is shown again on the optimised build, if that comes after.
 - **The rules:** rule 1 is the owner's. Rules 2 and 5 stand as written, as principles. Rule 3's table is ADR-008's. Rule 4's budgets in CI wait for the trigger; until then the linker's slot limit is the budget.
+
+## The Pico W's fallback: updates by file only (2026-11-19)
+
+Found in ADR-008's proof on both boards: an HTTPS fetch is the FreeRTOS heap's largest user (mbedTLS's peak some 35 KB with GitHub's kinds of chain), and on the Pico W its margin had gone (the poll left 5.6 KB of the 112 KB heap, the reserve 2 KB; the Pico W's RAM is 99% taken at link, so the heap cannot grow). Weighed with the owner, who chose "Yes, trim now": the Pico W keeps the unit's own poll and download, its tasks' stacks sized from what they use (ADR-008's progress). Its TLS client is 69.8 KB of the image's 960.5 KB (7.3%).
+
+- **The fallback,** written here so it is not lost: the Pico W build leaves out the unit's HTTPS fetch (its poll, its download, mbedTLS's TLS part; the SHA-256 an image is checked by stays), as a build option reported absent in the unit's features (rule 3), and updates by the page's "Install from a file" only. Possibly with the page itself reading GitHub's API for the newest release and linking the file for this unit's slot, so a person is still offered it (whether GitHub's API answers a page from another origin is not checked).
+- **What it costs:** the screen's and the page's offer on the Pico W, unless the page reads it; the person finds, downloads and uploads the right one of two files (its slot's).
+- **Its trigger:** the Pico W's HTTPS poll, measured on a test-roots build (ADR-008's `api_check`), leaving less than 8 KB over the TLS client's reserve; or the Pico W's image no longer fitting its slot, where it comes before the optimised build's turn is weighed.
