@@ -191,6 +191,25 @@ The owner: "Bench is ready"; "don't fill over 300 grain"; "The A&D is at FAST se
 
 **What it predicts, to be checked by real throws:** today's loop stops on the first reading within 0.03 gr under the target and calls a throw over at 0.03 gr above. With these rises, a stop from its least speed would end over in about half the throws (16 of 30 in each kind with the driver on), where the owner remembers 1 in 10 to 15. Either a real throw's finish is kinder than this test's (its tube has been turning for seconds, not started from rest three seconds before), or the powder and the corrected gear ratio have made today's loop that much worse. Ten recorded throws tell which; nothing else does.
 
+## 2026-11-20, 00:55: the first real throws recorded, today's loop as stored
+
+The owner: "Emptied. You can start the real throw. You can re-zero the scale after each throw so I don't need to [go] and empty the cup." `record.py throws --host 192.168.2.166 --target 42.5 --profile 1 --count 6 --rezero`: each throw a charge started over the API with the stored "AR2209,gr" profile, the console's `state` read 45 times a second, then the charge stopped and the scale zeroed with the powder left in the cup. `VERDICT PASS`. Five throws, not six: each poured 43.8 gr, and the sixth would have passed the recorder's 260 gr. 219 gr in the cup. Folder `20261120_005513_throws`.
+
+| Throw | Time | Coarse ran | Reading at the stop | A second later (the unit's verdict) | At rest |
+|---|---|---|---|---|---|
+| 1 | 6.2 s | 5.3 s | +0.10 | +1.30 over | +1.30 |
+| 2 | 6.3 s | 5.4 s | +0.18 | +1.40 over | +1.38 |
+| 3 | 6.3 s | 5.4 s | +0.16 | +1.16 over | +1.18 |
+| 4 | 6.1 s | 5.3 s | +0.10 | +1.32 over | +1.34 |
+| 5 | 6.3 s | 5.3 s | +0.24 | +1.46 over | +1.46 |
+
+**Every throw over, by 1.2 to 1.5 gr.** Not the finish: the throw never reaches one.
+- **The fine tube turns at 5 rev/s, its most, until the reading is 2.5 gr short** (its Kp of 2 asks for 2 rev/s a grain to go), and is still at 2.4 rev/s a quarter second before the stop. At 5 rev/s this tube pours 3.8 gr/s (11-19's map), a third of the whole feed. What is in flight behind the scale at the stop is the 1.2 to 1.5 gr.
+- **By the research's own rule the gain is four times too high for this tube and scale:** a proportional feed round a delay overshoots above 0.37 / (delay x flow per turn) = 0.37 / (0.55 s x 0.75 gr) = 0.9 rev/s a grain for the fine tube. Stored: 2, and a D term that does not help.
+- **The prediction made before the throws ("over in about half") was wrong in its reason:** it assumed a finish at the least speed.
+- **This is not the owner's "1 in 10 to 15".** Either this unit's profile was never tuned for these tubes (the Pico 2 W has its own EEPROM, and its fine gear ratio was a generation-1 leftover), or the fine tube turns faster for the same setting than when the profile was tuned. ADR-012 rewrote the step pulses and left its check against the older firmware to these first real throws ("Handed on by ADR-012"): that check is now owed, and its result is "worse" until shown otherwise. The corrected gear ratio accounts for 16%, not for this.
+- **The scale after a stop from a fast flow:** at rest within 0.5 s (the reading a second after the stop is the reading at rest, within a digit). The unit's verdict at one second was right in all five.
+
 **Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
 
 **Not done**

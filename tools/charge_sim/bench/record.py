@@ -27,7 +27,7 @@ MICROSTEPS_PER_MOTOR_TURN = 200 * 256
 # Tube turns per motor turn, from the teeth: 40 on the motor, 32 on the large tube, 22 on the low-flow small one.
 # The unit's stored ratio is not used: the Pico 2 W's fine one was a generation-1 figure on 2026-11-19.
 TUBE_PER_MOTOR = {"coarse": 40.0 / 32.0, "fine": 40.0 / 22.0}
-CUP_LIMIT_GR = 250.0
+CUP_LIMIT_GR = 260.0
 # The flick test's kinds, as the fine tube's speeds one after another. Each ends one forward move further on
 # than it began, as far as the PC's timing holds: a plain nudge; the same with two small swings back and forth;
 # the same with two wide ones; and a step back before two forward.
@@ -200,26 +200,66 @@ class Bench:
         return {"t": time.monotonic(), "charge": int(fields["charge"]), "weight": float(fields["weight"]),
                 "coarse": float(fields["coarse"]), "fine": float(fields["fine"])}
 
-    def throws(self, host: str, target: float, profile: int, count: int, watch_s: float) -> None:
+    def end_charge(self) -> None:
+        """Stop the charge and wait until the menu is back at its forms."""
+        self.session.send("charge stop")
+        self.charging = False
+        while self.state()["charge"] != CHARGE_EXIT:
+            time.sleep(0.1)
+        time.sleep(1.0)
+
+    def zero_scale(self, unit) -> None:
+        """Ask the scale to zero over the API (taken with no job) until it reads zero and stays there."""
+        for _ in range(3):
+            unit.act("scale/zero")
+            asked = time.monotonic()
+            still = 0
+            while time.monotonic() - asked < 6.0:
+                still = still + 1 if abs(self.weight()) < DIGIT_GR / 2.0 else 0
+                if still >= 20:
+                    return
+        raise SystemExit("the scale did not come to zero")
+
+    def start_charge(self, unit, target: float, profile: int) -> None:
+        """A start over the API, asked again while the menu is still leaving the last charge."""
+        import unit_api
+        for attempt in range(10):
+            try:
+                unit.act("charge/start", target=target, powder_profile=profile)
+                self.charging = True
+                return
+            except unit_api.ApiError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.5)
+
+    def throws(self, host: str, target: float, profile: int, count: int, watch_s: float, rezero: bool) -> None:
         """
         Real throws of the firmware's own loop, recorded: the charge started over the API with a powder profile,
-        the console's state read as fast as it answers, a person changing the cup after each throw.
+        the console's state read as fast as it answers.
 
-        Each throw is kept from its zeroing to the cup's removal: the time the tubes ran, the reading when they
-        stopped, a second later (the unit's verdict) and at rest. The cup must stay on for the watch after the
-        tubes stop, or the throw has no weight at rest.
+        Each throw is kept from its zeroing to the end of its watch: the time the tubes ran, the reading when
+        they stopped, a second later (the unit's verdict) and at rest. Between throws either a person changes the
+        cup (it must stay on for the watch after the tubes stop), or, with rezero, the charge is stopped, the
+        scale zeroed with the powder left in the cup and a new charge started: no hand at the cup, and no more
+        throws than the cup holds.
 
         Args:
-            host: the unit's address, for the start.
+            host: the unit's address, for the start and the zero.
             target: the charge's target.
             profile: the powder profile's id.
             count: throws to record.
             watch_s: how long after the stop the weight at rest is read.
+            rezero: zero the scale between throws in place of a changed cup.
         """
         import unit_api   # beside rc_run.py, of the firmware's time
-        unit_api.Unit(host).act("charge/start", target=target, powder_profile=profile)
-        self.charging = True
-        samples, done, last_state, pending, stopped_at = [], 0, None, False, None
+        unit = unit_api.Unit(host)
+        if rezero:
+            if abs(self.weight()) > 2.0:
+                raise SystemExit("the scale is far from zero: is the empty cup on it?")
+            self.zero_scale(unit)
+        self.start_charge(unit, target, profile)
+        samples, done, poured, last_state, pending, stopped_at = [], 0, 0.0, None, False, None
         limit = time.monotonic() + count * 180.0
         while done < count and time.monotonic() < limit:
             sample = self.state()
@@ -234,18 +274,24 @@ class Bench:
                 stopped_at = sample["t"]
             # A throw is whole once it has been watched after its stop, or the cup has gone before that
             watched = stopped_at is not None and sample["t"] - stopped_at >= watch_s + 0.1
-            if pending and stopped_at is not None and (watched or sample["charge"] != CHARGE_WAIT_FOR_CUP_REMOVAL):
-                done += 1
-                pending = False
-                self.runs.append(throw_facts(samples, target, watch_s))
-                print(throw_line(done, self.runs[-1]) + ("" if done == count else "; change the cup"), flush=True)
             last_state = sample["charge"]
+            if not (pending and stopped_at is not None and (watched or sample["charge"] != CHARGE_WAIT_FOR_CUP_REMOVAL)):
+                continue
+            done += 1
+            pending = False
+            self.runs.append(throw_facts(samples, target, watch_s))
+            poured += self.runs[-1]["at_verdict"]
+            print(throw_line(done, self.runs[-1]) + f"; {poured:.1f} gr in the cup", flush=True)
+            if rezero and done < count:
+                if poured + target > CUP_LIMIT_GR:
+                    print("stopping: the cup would pass its limit")
+                    break
+                self.end_charge()
+                self.zero_scale(unit)
+                self.start_charge(unit, target, profile)
+                last_state = None
         if self.charging:
-            self.session.send("charge stop")
-            self.charging = False
-            while self.state()["charge"] != CHARGE_EXIT:
-                time.sleep(0.1)
-            time.sleep(1.0)
+            self.end_charge()
 
     def precondition(self, tube: str, seconds: float) -> None:
         """The same state before every run: a time at 1 rev/s, then 5 s still. 0 for none."""
@@ -255,8 +301,7 @@ class Bench:
     def close(self) -> int:
         """Stop a charge left running and both motors, save the frames and the runs, end with the verdict."""
         if self.charging:
-            self.session.send("charge stop")
-            time.sleep(1.0)
+            self.end_charge()
         for tube in ("coarse", "fine"):
             self.session.send(f"motor {tube} 0")
         self.session.send("scale tap off")
@@ -430,6 +475,8 @@ def main() -> None:
     throws.add_argument("--profile", type=int, required=True, help="the powder profile's id")
     throws.add_argument("--count", type=int, default=10)
     throws.add_argument("--watch-s", type=float, default=3.5, help="the cup stays on this long after the tubes stop")
+    throws.add_argument("--rezero", action="store_true",
+                        help="zero the scale between throws, the powder left in the cup, in place of a changed cup")
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
@@ -472,7 +519,7 @@ def main() -> None:
                 trial = bench.flick(name, FLICKS[name], args.pause_ms / 1000.0, args.still_s)
                 print(f"{name} {trial['gained_gr']:+.3f} {trial['steps']} {trial['moves_ms']:.0f}", flush=True)
         elif args.command == "throws":
-            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s)
+            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero)
         elif args.command == "creepstop":
             least, most = (float(text) for text in args.run_s.split(":"))
             plan = [(float(speed), stop == "held") for speed in args.speeds.split(",")

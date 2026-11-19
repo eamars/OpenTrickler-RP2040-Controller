@@ -1,0 +1,18 @@
+00:55:12.292 rc      board pico2_w, elf C:\workspace\OpenTrickler-RP2040-Controller\build\app.elf
+weight at the start 0.00
+throw 1: 6.2 s (coarse 5.3 s), at the stop +0.100, a second later +1.300 OVER, at rest +1.300 OVER; 43.8 gr in the cup
+throw 2: 6.3 s (coarse 5.4 s), at the stop +0.180, a second later +1.400 OVER, at rest +1.380 OVER; 87.7 gr in the cup
+throw 3: 6.3 s (coarse 5.4 s), at the stop +0.160, a second later +1.160 OVER, at rest +1.180 OVER; 131.4 gr in the cup
+throw 4: 6.1 s (coarse 5.3 s), at the stop +0.100, a second later +1.320 OVER, at rest +1.340 OVER; 175.2 gr in the cup
+throw 5: 6.3 s (coarse 5.3 s), at the stop +0.240, a second later +1.460 OVER, at rest +1.460 OVER; 219.1 gr in the cup
+stopping: the cup would pass its limit
+weight at the end 43.96
+saved 0 frames and 5 runs to C:\workspace\OpenTrickler-RP2040-Controller\logs\adr009\20261120_005513_throws
+00:56:29.164 rc      VERDICT PASS
+00:56:29.164 rc      log: C:\workspace\OpenTrickler-RP2040-Controller\logs\rc\20261120_005512_adr009_throws.log
+throw 1: 6.2 s (coarse 5.3 s), at the stop +0.100, a second later +1.300 OVER, at rest +1.300 OVER
+throw 2: 6.3 s (coarse 5.4 s), at the stop +0.180, a second later +1.400 OVER, at rest +1.380 OVER
+throw 3: 6.3 s (coarse 5.4 s), at the stop +0.160, a second later +1.160 OVER, at rest +1.180 OVER
+throw 4: 6.1 s (coarse 5.3 s), at the stop +0.100, a second later +1.320 OVER, at rest +1.340 OVER
+throw 5: 6.3 s (coarse 5.3 s), at the stop +0.240, a second later +1.460 OVER, at rest +1.460 OVER
+5 throws at rest: 5 over, 0 under, 0 good (the unit's verdict a second after the stop: 5 over, 0 under); time median 6.3 s, longest 6.3 s; rise after the stop mean +58.8 digits
