@@ -35,7 +35,11 @@ Revised the same day, after PR #113's one real figure corrected the simulated fi
 | Kernels that fall after a stop | Assumed | `rigs.py` |
 | That reversing a tube takes back what hangs at its lip | Assumed, from the coarse back-off's purpose | `plant.py` |
 
-One check against reality was possible. The owner sees about 1 overcharge in 10 to 15 throws with AR2209 on the A&D; the simulated loop with the assumed plant gives 12 to 15% (1 in 7 to 8). The assumptions were chosen with that in view, so it is a calibration, not a proof, and several different sets of assumptions meet it.
+Two checks against reality were possible, and they pull apart:
+- **The owner's figures:** about 1 overcharge in 10 to 15 throws with AR2209 on the A&D, 7 to 15 s for 42.5 gr. The first plant (a weak fine tube) gave 12 to 15% over in 19 s: the rate fits, the time does not.
+- **PR #113's measured fall after the stop** (N135, an A&D): +0.156 gr at a fine Kp of 6, 0 to +0.028 gr at 3. The first plant gave +0.02 gr at Kp 6. With the fine tube's flow tripled the simulation gives +0.19 and +0.04, and a throw in 9.4 s (`pr113_check.py`). That is the reference plant now; it gives today's loop 25% over, above the owner's figure.
+
+So the truth lies between the two plants, and each is a calibration to one figure, not a proof.
 
 ## The owner's seven points
 
@@ -74,15 +78,15 @@ The candidate, `flow_dose`:
 - **What a nudge gives is learned** as it goes, as two sums, so one reading's rounding cannot swing it.
 - **Sticky powder, print variation, a slow scale** each show as a number the calibration measures (a flatter flow map, a lower yield per nudge, a longer delay), and the same law runs slower. Nothing is tuned by hand.
 
-Tried and dropped in simulation: counting the powder pushed to the lip and not yet seen as already delivered, with a reverse turn when too much hangs there. It gave 14% over against 12 to 16% without it, for more code.
+Tried and dropped in simulation: counting the powder pushed to the lip and not yet seen as already delivered, with a reverse turn when too much hangs there. It gave 14% over against 12% without it (first plant, 1000 throws), for more code.
 
 ### 4. Avoiding overcharge
 
 - **Never feed into the blind window:** the flow law above, and decisions only on settled readings.
 - **Leave the last kernels to nudges**, each sized to release less than one kernel on average.
-- **Then the floor is the clump:** the chance that the release which crosses into the band carries three or more kernels. The control agent's sketch and this simulation agree: about 2% over with single kernels and small nudges, about 30% with clumps of two.
+- **Then the floor is the clump:** the chance that the release which crosses into the band carries three or more kernels. The control agent's sketch and this simulation agree: 0 to 2.5% over with single kernels and small nudges, about 30% with clumps of two.
 - **So the lever after the controller is mechanical or procedural:** the lip, an insert, tilt, or a release aid, each judged by the nudge test. That is outside a controller's reach and should be said to the user as the powder's verdict.
-- **Read the verdict when the scale has settled**, not one second after the stop: on a slow scale today's verdict misses most overcharges (shown 14%, true 36% in simulation at the A&D's SLOW).
+- **Read the verdict when the scale has settled**, not one second after the stop: on a slow scale today's verdict misses most overcharges (shown 77%, true 93% in simulation at the A&D's SLOW).
 
 ### 5. High-frequency oscillation
 
@@ -103,7 +107,7 @@ Tried and dropped in simulation: counting the powder pushed to the lip and not y
 | Slow, or never ends | A nudge that yields nothing (tube starved, hopper empty) | A limit on nudges, then a named end reason |
 | Wrong on another scale | Gains that hold the scale's delay inside them | Delay and flow kept apart |
 
-In simulation, six gusts a minute of 0.06 gr leave the candidate's true overcharges where they were and give 12% true unders (6% shown), about what today's loop shows without any draught. The draught model's size is a guess.
+In simulation, six gusts a minute of 0.06 gr leave the candidate's true overcharges near where they were (10%) and give 10% true unders (5.5% shown); today's loop gives 28% over and 8% under with them. The draught model's size is a guess.
 
 ## Which assumptions decide the result
 
