@@ -351,6 +351,8 @@ typedef struct {
     uint8_t last_reason;        // event_reason_t
     uint16_t last_reset;        // the settings it reset, a bit each (update_records)
     uint32_t last_version;
+    uint32_t on_version;        // the version running when the last result was written: another running, an install
+                                // came after it (USB or the probe), and the result is not this image's
 } update_note_t;
 
 static update_note_t update_note;
@@ -438,7 +440,8 @@ void update_start_note(void) {
         }
         else if (tried == update_slots.running) {
             // Confirmed, and the power went before the note said so: kept
-            update_note = (update_note_t) {.last_result = UPDATE_RESULT_CONFIRMED, .last_version = update_note.version};
+            update_note = (update_note_t) {.last_result = UPDATE_RESULT_CONFIRMED, .last_version = update_note.version,
+                                           .on_version = update_running_version()};
             update_note_save();
         }
         else {
@@ -452,13 +455,21 @@ void update_start_note(void) {
                    update_stage_name(update_note.stage), update_slot_name(update_slots.running),
                    events_reason_name(reason));
             update_note = (update_note_t) {.last_result = UPDATE_RESULT_BACK, .last_reason = (uint8_t) reason,
-                                           .last_version = version};
+                                           .last_version = version, .on_version = update_running_version()};
             update_note_save();
             update_clear_note();
             update_event_reason(EVENT_BACK, reason, version);
         }
     }
-    if (update_note.last_result == UPDATE_RESULT_CONFIRMED || update_note.last_result == UPDATE_RESULT_BACK) {
+    bool said = update_note.last_result == UPDATE_RESULT_CONFIRMED || update_note.last_result == UPDATE_RESULT_BACK;
+    if (said && update_note.tried == 0 && update_note.on_version != update_running_version()) {
+        // Written while another image ran: an install by USB or the probe came after, so it is not this one's
+        printf("Update: the last update's note was written under another image; let go\n");
+        memset(&update_note, 0, sizeof(update_note));
+        update_note_save();
+        said = false;
+    }
+    if (said) {
         update_last = (update_last_t) {.result = (update_result_t) update_note.last_result,
                                        .version = update_note.last_version, .reason = update_note.last_reason,
                                        .reset = update_note.last_reset};
@@ -579,7 +590,7 @@ void update_network_ready(bool on_its_network) {
         }
     }
     update_note = (update_note_t) {.last_result = UPDATE_RESULT_CONFIRMED, .last_reset = reset,
-                                   .last_version = update_running_version()};
+                                   .last_version = update_running_version(), .on_version = update_running_version()};
     update_note_save();
     activity_lock();
     update_last = (update_last_t) {.result = UPDATE_RESULT_CONFIRMED, .version = update_running_version(),
