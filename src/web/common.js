@@ -29,7 +29,9 @@ async function api(method, path, body, limitMs) {
 function setLink(reached) {
     // A restart this page follows is not a lost unit (update.js), nor a hotspot the set-up has just left (setup.js);
     // through the set-up its own lost view says it, with what to do (setup.js, setupContact)
-    $("link").hidden = reached || follow.away || setupLeft || pageShown === "setup";
+    // An update this page follows, once installing, restarts the unit: any read may be the first to find it gone
+    const restarting = follow.on && ["ready", "installing"].includes(follow.last);
+    $("link").hidden = reached || follow.away || restarting || setupLeft || pageShown === "setup";
 }
 
 // A line over the page, the unit's own words when it refuses; gone at the next action or a tap
