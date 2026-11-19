@@ -25,10 +25,11 @@ LARGE_TUBE = Tube(name="large", out_per_rev=0.6, in_per_rev=0.6, held_max_gr=40.
                   drop_mm=50.0)
 
 # The small low-flow tube: bore radius 3.74 mm, fed once a turn through one window about 3 mm by 55 degrees, which
-# caps what it can pass however fast it turns. Priors: 5 gr held and 0.45 gr delivered a turn while the inlet keeps
-# up, a ceiling of 0.8 gr/s (0.1 to 0.8 by a hopper-orifice estimate, the low end for sticks).
-SMALL_LOW_FLOW_TUBE = Tube(name="small low flow", out_per_rev=0.09, in_per_rev=0.15, held_max_gr=8.0,
-                           max_inflow_gr_s=0.8, critical_rps=critical_rps(3.74), centrifuge_power=6.0, ripple=0.30,
+# caps what it can pass however fast it turns. 5 gr held, 1.35 gr delivered a turn while the inlet keeps up, and a
+# ceiling of 2.4 gr/s: three times the first priors, set so that today's loop falls after its stop as PR #113
+# measured on a unit (pr113_check.py: fine Kp 6 gives +0.19 gr here, +0.156 measured; Kp 3 +0.04, 0 to +0.03).
+SMALL_LOW_FLOW_TUBE = Tube(name="small low flow", out_per_rev=0.27, in_per_rev=0.15, held_max_gr=8.0,
+                           max_inflow_gr_s=2.4, critical_rps=critical_rps(3.74), centrifuge_power=6.0, ripple=0.30,
                            slump_deg=3.0, roll_rps=0.2, start_turns=0.2, retreat_turns=0.5, trail_kernels=0.5,
                            trail_ref_rps=0.2, trail_tau_s=0.30, drop_mm=50.0)
 

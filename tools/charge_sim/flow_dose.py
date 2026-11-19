@@ -34,6 +34,9 @@ class DoseSettings:
     coarse_least_rps, fine_least_rps: the least speed each tube delivers regularly at.
     nudge_kernels: kernels a single nudge aims to release, on average.
     commit: count the powder the fine tube has pushed to its lip and the scale has not shown as delivered.
+    allocation: how the two tubes share the feed. parallel: each by its own law on the same weight, both
+        from the start. sequential: the fine tube waits until the coarse has stopped. split: one demand for
+        the whole flow, the fine tube taking what it can and the coarse the rest.
     """
 
     kernel_gr: float
@@ -44,6 +47,7 @@ class DoseSettings:
     fine_least_rps: float = 0.1
     nudge_kernels: float = 0.4
     commit: bool = False
+    allocation: str = "parallel"
 
 
 class FlowMap:
@@ -177,7 +181,10 @@ class FlowDose:
 
         if self.coarse_on:
             room = self.target - weight - settings.coarse_margin_gr
-            speed = self.coarse_map.speed_for(max(0.0, GAIN_SHARE / self.coarse_blind * room))
+            demand = GAIN_SHARE / self.coarse_blind * room
+            if settings.allocation == "split":
+                demand -= self.fine_map.flows[-1]
+            speed = self.coarse_map.speed_for(max(0.0, demand))
             if speed < settings.coarse_least_rps:
                 self.coarse_on = False
                 self.coarse_rps = -BACKOFF_RPS
@@ -195,6 +202,8 @@ class FlowDose:
             self.fine_on = False
             self.fine_rps = 0.0
             self.still_since = now
+        elif self.coarse_on and settings.allocation == "sequential":
+            self.fine_rps = 0.0
         else:
             self.fine_rps = max(speed, settings.fine_least_rps)
 

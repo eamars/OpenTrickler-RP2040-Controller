@@ -6,12 +6,14 @@
 
 ## The short answer
 
-1. **Overcharges come from one of two places, and the bench must say which.** Either the fine tube still feeds while the scale has not caught up (a control fault, curable), or several kernels leave the lip together (a property of powder and tube, not curable by any stopping rule). In the simulation the second dominates: the overcharge rate follows the clump size whatever the controller is.
-2. **AR2209's kernel is the tolerance.** One kernel is 0.020 to 0.025 gr (community figures); the A&D's digit in grains is 0.02 gr; the band is ±0.02 gr. Three kernels falling together from just under the band is an overcharge. The first thing to measure on the bench is how often that happens.
-3. **A controller without tuning is within reach, and it is faster.** The candidate (`flow_dose`) takes its numbers from a calibration of about two minutes and the powder's kernel mass. In simulation a 42.5 gr throw takes 12 s against today's 19 s, on every scale it holds the overcharge rate at the clump's floor, and it ends under on about 1% of throws against today's 12 to 14%.
-4. **It does not reach 1 in 50 by itself** unless real clumps are rarer than assumed. With single, regular kernels it gives 0.5% over; with the assumed clumps 13 to 16%, the same as today's loop.
-5. **Today's loop is tuned to one scale.** On the slower scales it overcharges in 36 to 78% of simulated throws, and its verdict a second after the stop reads too early to show most of them.
-6. **High-frequency oscillation is unproven either way.** Nothing published uses it on a rotary tube. Nudges with a pause are established practice (two commercial dispensers, industry's "jog"). Oscillation is a bench experiment judged by one number, the share of nudges that release three or more kernels.
+Revised the same day, after PR #113's one real figure corrected the simulated fine tube (`../progress.md`).
+
+1. **Overcharges have two causes, and both are real in the reference plant.** The fine tube feeds while the scale has not caught up (a control fault, curable), and several kernels leave the lip together (a property of powder and tube, which no stopping rule cures).
+2. **AR2209's kernel is the tolerance.** One kernel is 0.020 to 0.025 gr (community figures); the A&D's digit in grains is 0.02 gr; the band is +-0.02 gr. Three kernels falling together from just under the band is an overcharge. The owner's AR2209 clumps more than other powders.
+3. **A controller without tuning removes the first cause.** The candidate (`flow_dose`) takes its numbers from a calibration of about two minutes and the powder's kernel mass. In simulation, on the reference plant, it gives 14% over against today's 25%, in the same 9 to 10 s; with kernels leaving singly, 0 to 2.5% against 15 to 17%.
+4. **It reaches 1 in 50 only if clumps are rare.** With the clumps assumed it stays at 10 to 16%. The owner prefers oscillation to a changed lip for that; the bench's nudge test says whether it is needed, and judges it.
+5. **It holds its figure where today's loop does not:** across three differently printed tubes (11 to 16% against 20 to 28%), and on slow scales (14 to 15% against 93 to 100%), where it is slow by physics, about 30 s.
+6. **High-frequency oscillation is unproven either way.** Nothing published uses it on a rotary tube. Nudges with a pause are established practice. Oscillation is tested on the bench as a kind of nudge, by one number.
 
 ## Corrections to what was said during the session
 
@@ -105,52 +107,19 @@ In simulation, six gusts a minute of 0.06 gr leave the candidate's true overchar
 
 ## Which assumptions decide the result
 
-400 throws each, 42.5 gr, `python matrix.py`. "Over" and "under" are the unit's verdict rule on the settled truth; time is the median.
-
-| Plant | Today's loop: over, under, time | Candidate: over, under, time |
-|---|---|---|
-| As assumed (clumps of 1.3, irregular) | 15%, 12%, 18.7 s | 16%, 0%, 12.1 s |
-| Single kernels, regular | 1.5%, 11%, 18.7 s | 0.5%, 0%, 10.5 s |
-| Single kernels, irregular | 6%, 13%, 18.7 s | 3.5%, 0%, 11.0 s |
-| Clumps of 2 | 29%, 11%, 18.6 s | 29%, 0%, 11.1 s |
-| Fine tube flow halved | 13%, 17%, 19.9 s | 12%, 0%, 9.3 s |
-| Fine tube flow tripled | 15%, 7%, 17.2 s | 12%, 0%, 9.4 s |
-| Draughts, 6 a minute | 16%, 16%, 18.7 s | 13%, 12%, 12.3 s |
-| A&D at SLOW (5 readings a second) | 36%, 0%, 17.9 s | 12%, 0%, 14.0 s |
-| G&G JJ-B, polled | 55%, 2%, 16.1 s | 13%, 1%, 30.9 s |
-| Strain gauge, 2 readings a second | 78%, 0%, 15.8 s | 10%, 6%, 30.5 s |
-| Fine ball, 0.004 gr | 3%, 4%, 12.3 s | 4%, 0%, 4.8 s |
-| Long stick, 0.04 gr | 52%, 12%, 26.0 s | 48%, 0%, 9.4 s |
-
-Read:
-- **Clumping moves the overcharge rate from 1% to 29%; nothing else moves it much.** The fine tube's flow, which the first sweep suspected, hardly matters once the powder held in the tube is modelled.
-- **The candidate's gain is time, unders, and holding its figure on any scale.** On overs it equals today's loop on the A&D at FAST.
-- **A slow scale is slow by physics:** about 30 s with nudges and long settles. The alternative is not a faster good throw.
-- The first row moved between 13.5% and 16% for the candidate across two runs of 400 throws: the last digit of these figures is noise.
+The table is in `../progress.md` (400 throws a row, `python matrix.py`). Read:
+- **The fine tube's flow decides how much the blind window costs today's loop:** 15% over at a third of the reference flow, 25% at the reference, 55% at double. The candidate stays at 14 to 16% across the same range.
+- **Clumping sets the floor for both:** the candidate goes from 0% (single, regular kernels) to 30% (clumps of two).
+- **A slow scale is slow by physics:** about 30 s with nudges and long settles. The alternative is not a faster good throw: today's loop overcharges every throw there.
+- The last digit of every figure is noise: two runs of one row differed by 2.5 points.
 
 ## The first bench session
 
-Before any controller is built. All of it is open-loop and needs no firmware change: the console's `motor <tube> <rev/s>` gives the speed and the steps counted, `scale tap on` gives every A&D frame with its time. The cup holds about 300 gr and is zeroed between batches; the owner empties it.
-
-1. **The scale alone, no powder:** five minutes at rest, then with each motor turning: noise, drift, what the motors' vibration does to the reading.
-2. **The nudge test, fine tube:** 100 small turns with a pause after each, at two sizes. It gives the kernel's mass as the unit sees it, the yield per turn, and the share that release three or more kernels. **This one number says whether 1 in 50 is the controller's to reach or the tube's.**
-3. **The flow map, both tubes:** 0.05 to 5 rev/s, each speed until 20 gr or 60 s, three times, with a stop and a settle after each. It gives flow against speed, where it levels off, the scale's delay as the controller meets it, and the late kernels.
-4. **History:** a minute slow then a step to fast, against a minute fast. It says whether the powder held in the tube matters (the owner's "speed does not correlate with charge speed").
-5. **Ten real throws with today's loop, recorded,** to replay against the simulation.
-6. **Optional:** reverse turns (does a retreat take back what hangs?), and the oscillation and flick variants of the nudge.
-
-About two to three hours with powder, most of it step 3. Steps 1, 2 and 5 answer the main question in under an hour.
+`bench_guide.md`, written for the agent who runs it: the order, the commands, and what each result decides. Its main question is the nudge test: the share of small turns of the fine tube that release three kernels or more.
 
 ## Proposed architecture
 
-To be weighed in ADR-009's revision; it keeps the draft's seam (a controller with no hardware in it, a tuner that hands out trials and takes results).
-
-- **A controller module:** readings and times in, two speeds out, a state machine of feed, settle, nudge, done. The simulation's `flow_dose.py` is its reference, with its tests on a PC against the simulated plant.
-- **A scale record, kept with the scale:** its reading interval (measured already), its delay and settle time (measured by any stop).
-- **A powder profile of measurements:** the two flow maps, kernel mass, nudge yield, nudge quality. It replaces six gains and four speed limits, so the stored struct changes (ADR-014 is to migrate profiles in any case).
-- **A calibration job** of about two minutes into the cup, ending in a verdict about the powder, started from the screen and the web.
-- **Every throw recorded,** as the draft and api_v1.md already plan, with the stage it was in: the same rows the simulation writes.
-- **The verdict on a settled weight,** and an end reason when a nudge limit is hit.
+In the ADR's README, "Decisions proposed by the research": the controller as one demand with an allocation, the scale's record, the powder's profile of measurements, and automatic tuning in two modes.
 
 ## Roadmap
 
@@ -166,11 +135,10 @@ Each gate ends in a pass or fail on a unit.
 
 ## Open questions for the owner
 
-- **How long does a throw take today,** for which target? The simulation says 19 s for 42.5 gr; the owner aims at 10 and accepts 15. It anchors the coarse tube's assumed flow.
-- **Which small tube and pulley are on the Pico 2 W?** Its stored gear ratio is 40:19; the low-flow STL is 22 teeth.
-- **The A&D's settings:** response FAST, `SPd 2`, and `trc` (zero tracking, which the maker says to turn off for very light samples and which neither set-up guide mentions).
-- **Is a mechanical change to the fine tube's lip in scope** if the nudge test says clumps are the limit?
-- **PR #113's measured stick-powder data** was not read (the owner asked for a judgement independent of the PRs). It may hold real flow figures. Read it now for its data only, or leave it?
+Answered on 2026-11-19 (`../progress.md`): the throw's time, the tube, the lip, PR #113. Still open:
+- **The A&D's settings:** response FAST, `SPd 2`, and `trc` (zero tracking), which neither set-up guide mentions.
+- **The Pico 2 W's fine gear ratio** is stored as 40:19; with the 22-tooth tube it should be 1.818. To be changed with the owner's word at the bench.
+- **A test command for oscillation** (`bench_guide.md`, step 7) is a small firmware addition in a research build, flashed by the probe. Built only if the nudge test says clumps are the limit.
 
 ## Sources
 

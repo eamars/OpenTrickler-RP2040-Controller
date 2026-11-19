@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Draft** 2026-11-13. Not approved. Captures how the charge is controlled today, what is known to be wrong, and ideas. Nothing here has been tried on powder.
+Status: **Draft** 2026-11-13. Not approved. Research made for it on 2026-11-19 is in `research/` and `progress.md`; what it proposes is under "Decisions proposed by the research". Captures how the charge is controlled today, what is known to be wrong, and ideas. Nothing here has been tried on powder.
 
 ## What we want
 
@@ -123,6 +123,49 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 **Test functions,** on the screen and the web: a test throw that is recorded, a motor at a set speed for a set time, the scale's readings and their rate.
 
 **Automatic tuning,** designed here on its own, run through the same controller and judged by the same recordings. PR #113's tuner is then judged against that design ("Handed on by ADR-002").
+
+## Decisions proposed by the research (2026-11-19)
+
+Proposed, for the owner to weigh; none is approved. They come from the research in `research/README.md`, whose simulation rests on an assumed powder model, and they stand or fall with the first bench session (`research/bench_guide.md`). The owner left the design to the agent on 2026-11-19 and gave the figures in `progress.md`.
+
+**D1. One demand, shared between the tubes; not two loops on one weight.**
+- **Why two PID loops on one reading are poor practice.** Two controllers with integral action on one measured value have no settled state: each takes the other's work for its own error, and they drift against each other. Today's loops avoid that only because Ki is kept at 0 and the two aim at different weights, which is a split of the range by hand. What remains wrong with it:
+  - each tube's gains were found with the other tube running, so they are tied together: a change to the fine tube's top speed moves where the coarse one stops;
+  - the coarse loop's D term reads the fine tube's flow as its own;
+  - nobody owns the whole flow, so "no more flow than the scale can show in time" cannot even be stated;
+  - a third actuator (the servo gate) has no place in it.
+- **The usual form** in process control is one controller and an allocation: split range for a coarse and a fine actuator, bulk and dribble in batch weighing.
+- **Proposed:** one law gives the flow the weight still to go can absorb, flow = 0.37 / (the scale's delay + its reading interval) x (weight to go - margin). An allocation turns it into two speeds through each tube's measured flow map: the coarse tube until its share falls under the least it delivers regularly, then stopped for good; the fine tube for the rest; then nudges.
+- **What the simulation says of it:** the three ways of sharing tried (both tubes from the start, the fine one waiting, one demand split) differ by less than the noise of 800 throws. So the gain is one invariant and gains that are not tied together, not seconds. Both tubes feed together early, as now: it costs nothing and is the quickest.
+
+**D2. The finish is nudges judged on settled readings.** No floor speed. A nudge is a small turn of the fine tube sized to release under one kernel on average; the judgement is on the mean of the readings in a pause, which is finer than a digit; the throw ends at the first settled weight no more than the tolerance under the target. The pause is the scale's, so a slow scale gets a slow, sound finish by itself.
+
+**D3. The scale and the powder are kept apart.** A scale's record holds its reading interval (measured already), its delay and its settle time. A powder's profile holds measurements, not gains: each tube's flow at six speeds, the highest speed worth using, the least regular speed, the kernel's mass, what a nudge releases, and the share of nudges that release three kernels or more. A profile then moves between scales, and a new scale needs no new powder tuning. The stored profile changes shape; ADR-014 migrates profiles in any case.
+
+**D4. Oscillation before a changed lip** (the owner, 2026-11-19: a fine lip is hard to print). If the nudge test says clumps are the limit, oscillation and a forward-and-back flick are tried as kinds of nudge, each judged by the share of releases of three kernels or more and by the reading's noise while it swings. It needs one test command in the motor task. It is not designed in until the bench shows it helps.
+
+**D5. The verdict is read when the scale has settled,** not one second after the stop, and a throw that hits its limit of nudges ends with a reason of its own.
+
+**D6. Automatic tuning in two modes, on one set of building blocks** (the owner's second goal, 2026-11-19: a community whose printed tubes differ).
+
+The blocks are jobs the firmware runs and bounds by itself, each recorded: a motor run (a tube, a speed, a time or a weight), a nudge series, a scale recording, a test throw, and the cup's account of what was poured (api_v1.md reserves all of them). A tuner hands out the next trial and takes its result; it never turns a motor itself. That is the seam both PRs arrived at.
+
+- **Mode 1, autonomous: the unit decides, by fixed rules on the trials' statistics.** One button, about two minutes, into the cup:
+  1. prime both tubes;
+  2. each tube at six speeds with a stop after each: the flow map, the scale's delay, the settle time;
+  3. thirty nudges: the kernel as the unit sees it, the yield, the nudge quality;
+  4. the rules: the highest useful speed is the first that gives 95% of the most; the least regular speed is the lowest whose flow repeats within 30%; the nudge is the turn that gives 0.4 of a kernel; the coarse margin is three times the largest fall after a stop;
+  5. **a verdict about the powder in words:** nudge quality under 3%, holds the tolerance; 3 to 10%, holds it slowly; over 10%, this powder in this tube will not, with what to try (the oscillating nudge if the build has it, or a wider band);
+  6. ten throws to prove it, then trimming in use: a share of each throw's first settled error into the margins, with a cap, a dead band, and nothing learned from a throw that was disturbed or topped up.
+- **Mode 2, assisted: an external agent decides, with the same trials.** It reads the unit's own description (`GET /api/v1` and its schema), starts trials, downloads their recordings, and writes the profile through the settings' paths, checked by the same tables as any write.
+  - **What an agent adds:** choosing the next most telling trial instead of a fixed list; seeing what the rules do not look for (a once-a-turn ripple from an eccentric tube, an inlet that bridges, a gear ratio left from another generation, a scale left at 5 readings a second); fitting the PC simulation (`tools/charge_sim`) to the unit's recordings and trying settings there before spending powder; saying in words what it found.
+  - **What it cannot do, by the firmware and not by its good will:** run a motor without a bound in time and weight, pour past the cup's account, write outside a field's limits, act during a user's charge. Every trial ends by itself.
+  - **The unit never needs it.** Mode 1 is the product; mode 2 is the same blocks under another decision-maker, and what it does is in the event log under its name.
+- **Simulated so far:** mode 1's steps 1 to 4 (`calibrate.py`), on three differently printed tubes and four scales: the candidate calibrated on each holds 11 to 16% over where today's loop with one fixed profile gives 20 to 100%. Steps 5 and 6 are designed, not simulated.
+
+**D7. The simulation is kept, and refitted from each bench session.** Its controller interface (`start`, `on_tick`, `on_reading`; two speeds and `done` out) is the module's. The module's PC tests run against it; a recorded real throw replayed against it is its own check.
+
+**The order proposed,** each gate ending in a pass or fail on a unit: (1) the bench session; (2) recordings and the open-loop jobs in the firmware; (3) the nudged finish alone; (4) the flow law and the calibration; (5) the G&G's driver read at once after its ask, and the same controller on it; (6) mode 1's trimming, then mode 2's paths; (7) oscillation, if the bench says clumps.
 
 ## A gate: the servo gate tuned by eye (the owner, 2026-11-19)
 

@@ -23,11 +23,20 @@ def cases() -> list:
     for clump, regularity in ((1.0, 8.0), (1.0, 2.0), (2.0, 2.0)):
         powder = dataclasses.replace(base.powder, clump_mean=clump, regularity=regularity)
         out.append((f"clump {clump:g}, regularity {regularity:g}", dataclasses.replace(base, powder=powder)))
-    for factor in (0.5, 3.0):
-        fine = dataclasses.replace(base.fine, out_per_rev=base.fine.out_per_rev * factor)
-        out.append((f"fine tube flow x{factor:g}", dataclasses.replace(base, fine=fine)))
+    for factor in (1.0 / 3.0, 2.0):
+        fine = dataclasses.replace(base.fine, out_per_rev=base.fine.out_per_rev * factor,
+                                   max_inflow_gr_s=base.fine.max_inflow_gr_s * factor)
+        out.append((f"fine tube flow x{factor:.2g}", dataclasses.replace(base, fine=fine)))
     scale = dataclasses.replace(base.scale, draught_per_min=6.0, draught_gr=0.06, draught_tau_s=1.0)
     out.append(("draughts, 6 a minute", dataclasses.replace(base, scale=scale)))
+    # Tubes as different printers make them: the flow per turn, the inlet's ceiling and the ripple all move
+    for label, coarse_x, fine_x, inlet_x, ripple in (("print A: both tubes x0.6", 0.6, 0.6, 1.0, 0.3),
+                                                     ("print B: coarse x1.5, fine x0.6, rough", 1.5, 0.6, 1.0, 0.6),
+                                                     ("print C: fine inlet x0.4", 1.0, 1.0, 0.4, 0.3)):
+        coarse = dataclasses.replace(base.coarse, out_per_rev=base.coarse.out_per_rev * coarse_x)
+        fine = dataclasses.replace(base.fine, out_per_rev=base.fine.out_per_rev * fine_x, ripple=ripple,
+                                   max_inflow_gr_s=base.fine.max_inflow_gr_s * inlet_x)
+        out.append((label, dataclasses.replace(base, coarse=coarse, fine=fine)))
     for scale_name in ("and_slow", "gng", "slow"):
         out.append((f"scale {scale_name}", make_rig("ar2209", scale_name)))
     for powder_name in ("ball", "long_stick"):
