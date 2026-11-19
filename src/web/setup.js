@@ -15,7 +15,6 @@ let setupLeft = false;          // the hotspot stopped at the end: the page is n
 // A join that failed, said under the password (the unit's reason, by its network's name); a driver, in plain words
 const JOIN_REFUSED = {
     wrong_password: () => "Wrong password. Check it and try again.",
-    wrong_key: () => "Wrong password. Check it and try again.",
     timeout: (ssid) => `${ssid} did not answer: move the unit nearer its router, or check it is a 2.4 GHz network.`,
     failed: (ssid) => `${ssid} did not let the unit join. Check its password and its security.`,
 };
@@ -86,6 +85,7 @@ async function drawWifiStep(page) {
 
     // View 1: the networks heard, strongest first
     const listView = () => {
+        tellStep("wifi", null);
         const list = element("div", {class: "list networks"});
         if (state.heard.scanning && state.heard.networks.length === 0) {
             list.append(element("p", {class: "row muted"}, "Looking for networks…"));
@@ -108,6 +108,9 @@ async function drawWifiStep(page) {
     const passwordView = (chosen, said) => {
         state.view = "password";
         state.chosen = chosen;
+        if (chosen !== null) {
+            tellStep("wifi", chosen.ssid);
+        }
         const open = chosen !== null && chosen.auth === "open";
         const name = element("input", {type: "text", id: "join-ssid", maxlength: 31, ...EXACT});
         const security = element("select", {id: "join-auth"},
@@ -155,6 +158,7 @@ async function drawWifiStep(page) {
 
     // View 3: joining, its seconds counting, so the page is seen to move; the unit's screen counts with it
     const joinNetwork = async (ssid, password, auth, error) => {
+        tellStep("wifi", ssid);
         const reply = await api("POST", "/api/v1/wifi/join", {ssid, password, auth});
         if (!reply.ok) {
             error.textContent = reply.data && reply.data.error ? reply.data.error.message : "The unit did not take it.";
@@ -177,6 +181,10 @@ async function drawWifiStep(page) {
             count();
             const now = await api("GET", "/api/v1/network");
             const s = now.ok ? now.data.station : null;
+            if (s !== null && s.state === "joining" && typeof s.joining_ms === "number") {
+                since = Date.now() - s.joining_ms;      // the unit's count, so both screens show the same seconds
+                count();
+            }
             if (s !== null && s.state === "joined") {
                 joinedView(s, now.data.hostname);
                 return;
@@ -272,9 +280,10 @@ async function setupContact() {
     setupContactTimer = setTimeout(setupContact, SETUP_CONTACT_MS);
 }
 
-// The step told to the unit as the page goes on, so its screen shows the same stage
-function tellStep(step) {
-    api("PATCH", "/api/v1/setup", {step});
+// The step told to the unit as the page goes on, with the network chosen on the Wi-Fi step, so its screen shows the
+// same stage
+function tellStep(step, network) {
+    api("PATCH", "/api/v1/setup", network === undefined ? {step} : {step, network});
 }
 
 // --- The scale: its make, and a live weight, which shows the scale talks; its port's speed when it does not

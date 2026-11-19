@@ -21,6 +21,8 @@
 #include "cleanup_mode.h"
 #include "eeprom.h"
 #include "unit_id.h"
+#include "setup.h"
+#include "access_point_mode.h"
 #include "events.h"
 #include "http_json.h"
 #include "http_server.h"
@@ -1433,6 +1435,8 @@ static void api_write_station(char *out, size_t room, size_t *len) {
     else {
         http_json_raw(out, room, len, "null");
     }
+    http_json_raw(out, room, len, ",\"joining_ms\":");
+    http_json_integer(out, room, len, (long) station.joining_ms);
     http_json_raw(out, room, len, "}");
 }
 
@@ -1523,12 +1527,12 @@ static void api_v1_wifi_scan(const http_server_request_t *request, http_server_r
 
 
 /*
- * POST /api/v1/wifi/join {"ssid", "key", "auth"}: the set-up's join, the hotspot kept up; 202 with the network, its
+ * POST /api/v1/wifi/join {"ssid", "password", "auth"}: the set-up's join, the hotspot kept up; 202 with the network, its
  * station joining. Joined, the network is stored and in effect; refused, nothing is stored. Only while the unit is
  * its own hotspot: on its network, a join would leave it
  */
 static void api_v1_wifi_join(const http_server_request_t *request, http_server_reply_t *reply) {
-    static const char *const allowed[] = {"ssid", "key", "auth"};
+    static const char *const allowed[] = {"ssid", "password", "auth"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
     if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 3)) {
@@ -1542,9 +1546,9 @@ static void api_v1_wifi_join(const http_server_request_t *request, http_server_r
         api_error(reply, 400, "wrong_type", "ssid", "ssid: the network's name, a string", NULL);
         return;
     }
-    member = api_member(members, count, "key");
+    member = api_member(members, count, "password");
     if (member != NULL && !http_json_string_value(member, key, sizeof(key))) {
-        api_error(reply, 400, "wrong_type", "key", "key: a string", NULL);
+        api_error(reply, 400, "wrong_type", "password", "password: a string", NULL);
         return;
     }
     member = api_member(members, count, "auth");
@@ -1568,13 +1572,87 @@ static void api_v1_wifi_join(const http_server_request_t *request, http_server_r
             api_error(reply, 400, "out_of_range", "ssid", "ssid: 1 to 31 bytes", NULL);
             return;
         case WIRELESS_JOIN_BAD_KEY:
-            api_error(reply, 400, "out_of_range", "key", "key: 8 to 63 bytes for a network with security", NULL);
+            api_error(reply, 400, "out_of_range", "password", "password: 8 to 63 bytes for a network with security",
+                      NULL);
             return;
         case WIRELESS_JOIN_BAD_AUTH:
             api_error(reply, 400, "not_a_choice", "auth", "auth: open, wpa_tkip, wpa2_aes or wpa2_mixed", NULL);
             return;
     }
     api_v1_write_network(reply, 202);
+}
+
+
+// {"set_up", "step", "network", "phone", "hotspot"}: the set-up's stage (ADR-008, gate 4)
+static void api_v1_write_setup(http_server_reply_t *reply) {
+    wireless_info_t info;
+    wireless_get_link(&info);
+    char network[SETUP_NETWORK_MAX];
+    setup_network(network, sizeof(network));
+    bool hotspot = strcmp(info.mode, "access_point") == 0;
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    http_json_raw(out, room, &len, "{\"set_up\":");
+    http_json_bool(out, room, &len, wireless_set_up());
+    http_json_raw(out, room, &len, ",\"step\":");
+    http_json_string(out, room, &len, setup_step_name(setup_step()));
+    http_json_raw(out, room, &len, ",\"network\":");
+    if (network[0] != '\0') {
+        http_json_string(out, room, &len, network);
+    }
+    else {
+        http_json_raw(out, room, &len, "null");
+    }
+    http_json_raw(out, room, &len, ",\"phone\":");
+    http_json_bool(out, room, &len, hotspot && access_point_mode_addresses_given() > 0);
+    http_json_raw(out, room, &len, ",\"hotspot\":");
+    if (hotspot) {
+        http_json_string(out, room, &len, info.hostname);
+    }
+    else {
+        http_json_raw(out, room, &len, "null");
+    }
+    http_json_raw(out, room, &len, "}");
+    api_send(reply, 200, room, len);
+}
+
+
+static void api_v1_get_setup(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    api_v1_write_setup(reply);
+}
+
+
+/*
+ * PATCH /api/v1/setup {"step", "network"}: the page's step as it goes on (wifi, scale, motors, ready), with the
+ * network chosen on the Wi-Fi step, so the unit's screen shows the same stage. Done is POST /api/v1/setup/done
+ */
+static void api_v1_patch_setup(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"step", "network"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 2)) {
+        return;
+    }
+    char name[12] = "";
+    char network[SETUP_NETWORK_MAX] = "";
+    setup_step_t step;
+    const http_json_member_t *member = api_member(members, count, "step");
+    if (member == NULL || !http_json_string_value(member, name, sizeof(name)) || !setup_step_from_name(name, &step) ||
+        step == SETUP_STEP_CODE || step == SETUP_STEP_DONE) {
+        api_error(reply, 400, "not_a_choice", "step", "step: wifi, scale, motors or ready (done: POST setup/done)",
+                  NULL);
+        return;
+    }
+    member = api_member(members, count, "network");
+    if (member != NULL && member->kind != HTTP_JSON_NULL &&
+        (!http_json_string_value(member, network, sizeof(network)) || network[0] == '\0')) {
+        api_error(reply, 400, "out_of_range", "network", "network: its name, 1 to 31 bytes, or null", NULL);
+        return;
+    }
+    setup_set_step(step, step == SETUP_STEP_WIFI ? network : NULL, ACTIVITY_BY_API);
+    api_v1_write_setup(reply);
 }
 
 
@@ -1654,15 +1732,21 @@ static const char *const api_v1_schema_actions[] = {
     "\"about\":\"scans for networks twice, merged by name (202, with GET /api/v1/wifi/networks's reply): scanning until "
     "they end, some 2 s. 409 busy while a scan or a join runs\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/wifi/join\",\"fields\":[{\"name\":\"ssid\",\"type\":\"string\","
-    "\"min_length\":1,\"max_length\":31,\"about\":\"the network's name\"},{\"name\":\"key\",\"type\":\"string\","
+    "\"min_length\":1,\"max_length\":31,\"about\":\"the network's name\"},{\"name\":\"password\",\"type\":\"string\","
     "\"max_length\":63,\"about\":\"its key, 8 to 63 bytes with security; never sent back\"},{\"name\":\"auth\","
     "\"type\":\"choice\",\"choices\":[\"open\",\"wpa_tkip\",\"wpa2_aes\",\"wpa2_mixed\"],\"about\":\"its security, as "
     "the networks name it; wpa2_mixed without it\"}],\"refused_while\":\"never\",\"about\":\"the set-up's join (202, "
     "with GET /api/v1/network's reply, its station joining): the unit stays its own hotspot meanwhile, so the page "
     "that asked it reads the end in the station: joined (the network stored and in effect, no restart) or failed "
-    "with its reason (wrong_key, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its "
+    "with its reason (wrong_password, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its "
     "network, which a join would leave; 409 busy while a scan or a join runs\",\"example\":{\"ssid\":\"Smith home\","
-    "\"key\":\"its key\",\"auth\":\"wpa2_mixed\"}}",
+    "\"password\":\"its password\",\"auth\":\"wpa2_mixed\"}}",
+    "{\"method\":\"PATCH\",\"path\":\"/api/v1/setup\",\"fields\":[{\"name\":\"step\",\"type\":\"choice\","
+    "\"choices\":[\"wifi\",\"scale\",\"motors\",\"ready\"],\"about\":\"the step the page is on\"},{\"name\":\"network\","
+    "\"type\":\"string\",\"max_length\":31,\"about\":\"on the Wi-Fi step, the network chosen, or null\"}],"
+    "\"refused_while\":\"never\",\"about\":\"the set-up's step as the page goes on (200, GET /api/v1/setup's reply): "
+    "the unit keeps it, so its screen shows the same stage and a page that lost the hotspot reads where it is; a "
+    "setup step event. Done is POST /api/v1/setup/done\",\"example\":{\"step\":\"wifi\",\"network\":\"Smith home\"}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/setup/done\",\"fields\":[],\"refused_while\":\"never\",\"about\":\"the "
     "set-up finished or skipped (200, {set_up, hotspot}): remembered, so the portal never opens it by itself again (a "
     "factory reset forgets it). Joined, the hotspot stops a moment after the reply (hotspot false) and the unit is on "
@@ -1847,6 +1931,14 @@ static const char *const api_v1_schema_events[] = {
     "write that changed nothing; by: button (the menu), api, console\"}",
     "{\"source\":\"setting\",\"kind\":\"stored\",\"carries\":[\"by\",\"path\"],\"about\":\"what was written stored "
     "where it was not; path: the save's, so every resource stored by it is saved again\"}",
+    "{\"source\":\"setup\",\"kind\":\"step\",\"carries\":[\"step\",\"by\"],\"about\":\"the set-up went on to a step "
+    "(code, wifi, scale, motors, ready, done): read GET /api/v1/setup; the unit's screen shows the same stage\"}",
+    "{\"source\":\"wifi\",\"kind\":\"joining\",\"carries\":[],\"about\":\"the set-up's join began: GET "
+    "/api/v1/network's station names the network\"}",
+    "{\"source\":\"wifi\",\"kind\":\"joined\",\"carries\":[],\"about\":\"the set-up's join joined: the network "
+    "stored and in effect, its address in GET /api/v1/network's station\"}",
+    "{\"source\":\"wifi\",\"kind\":\"not_joined\",\"carries\":[\"reason\"],\"about\":\"the set-up's join did not "
+    "join, nothing stored; reason: wrong_password, timeout, failed\"}",
 };
 
 
@@ -1898,6 +1990,8 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/scan", api_v1_wifi_scan);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/wifi/join", api_v1_wifi_join);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/setup/done", api_v1_setup_done);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/setup", api_v1_get_setup);
+    ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/setup", api_v1_patch_setup);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/update", api_v1_get_update);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/start", api_v1_update_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/update/check", api_v1_update_check);

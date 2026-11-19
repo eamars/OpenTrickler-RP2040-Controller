@@ -166,6 +166,7 @@ class StandIn:
             network["station"] = {"state": "idle", "ssid": None, "address": None, "reason": None}
         self.scan = {"until_ms": None, "heard": []}
         self.setup_step = "code" if hotspot else "done"
+        self.setup_network = None
         self.lost_until_ms = None       # the phone off the hotspot: nothing answers until then
         self.joining = None             # a join under way: its network, key and end
         if hotspot:
@@ -188,7 +189,7 @@ class StandIn:
         joining, self.joining = self.joining, None
         station = self.replies["/api/v1/network"]["station"]
         if joining["key"] == WRONG_KEY:
-            station.update(state="failed", ssid=joining["ssid"], address=None, reason="wrong_key")
+            station.update(state="failed", ssid=joining["ssid"], address=None, reason="wrong_password")
             return
         if joining["key"] == NO_ANSWER:
             station.update(state="failed", ssid=joining["ssid"], address=None, reason="timeout")
@@ -207,7 +208,7 @@ class StandIn:
         if path == "/api/v1/wifi/join":
             if not isinstance(body.get("ssid"), str) or not body["ssid"]:
                 return 400, error("wrong_type", "ssid: the network's name")
-            password = body.get("password", body.get("key", ""))
+            password = body.get("password", "")
             self.joining = {"ssid": body["ssid"], "key": password, "auth": body.get("auth", "wpa2_mixed"),
                             "until_ms": self.now_ms() + (JOIN_MS * 2 if password == NO_ANSWER else JOIN_MS)}
             if password == LOSE_PHONE:
@@ -224,8 +225,10 @@ class StandIn:
 
     def setup_reply(self):
         """GET /api/v1/setup, as proposed: set up or not, the step the page and the screen show, a phone joined."""
-        return {"set_up": self.replies["/api/v1/system"]["set_up"], "step": self.setup_step, "phone": True,
-                "hotspot": self.replies["/api/v1/network"]["hostname"]}
+        network = self.replies["/api/v1/network"]
+        return {"set_up": self.replies["/api/v1/system"]["set_up"], "step": self.setup_step,
+                "network": self.setup_network, "phone": network["mode"] == "access_point",
+                "hotspot": network["hostname"] if network["mode"] == "access_point" else None}
 
     def add_event(self, source, kind, **carries):
         """Log an event, numbered from 1, as the unit's log does."""
@@ -479,6 +482,7 @@ class StandIn:
             if body.get("step") not in SETUP_STEPS[1:5]:
                 return 400, error("not_a_choice", "step: wifi, scale, motors or ready")
             self.setup_step = body["step"]
+            self.setup_network = body.get("network") if body["step"] == "wifi" else None
             return 200, self.setup_reply()
         # A save: what was written there is stored (the save of all, everything)
         saved = [r["path"] for r in self.schema["resources"] if path in (r["save"], "/api/v1/settings/save")]

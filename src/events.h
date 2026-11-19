@@ -19,6 +19,8 @@ typedef enum {
     EVENT_SOURCE_SYSTEM,
     EVENT_SOURCE_UPDATE,        // ADR-004
     EVENT_SOURCE_SETTING,       // a settings resource written or stored (ADR-008, gate 2)
+    EVENT_SOURCE_SETUP,         // the set-up's step (ADR-008, gate 4)
+    EVENT_SOURCE_WIFI,          // the set-up's join, and its end (ADR-008, gate 4)
 } event_source_t;
 
 typedef enum {
@@ -37,6 +39,10 @@ typedef enum {
     EVENT_FOUND,                // the update's poll found a newer release (ADR-010, gate 5)
     EVENT_CHANGED,              // a setting's resource written, and what it holds changed
     EVENT_STORED,               // what was written stored in the EEPROM, where it was not
+    EVENT_STEP,                 // the set-up went on to a step
+    EVENT_JOINING,              // the set-up's join began
+    EVENT_JOINED,
+    EVENT_NOT_JOINED,
 } event_kind_t;
 
 // Why a job stopped or a throw ended (api_v1.md's `reason`)
@@ -56,6 +62,10 @@ typedef enum {
     EVENT_REASON_NO_NETWORK,    // not on its network within the join's time, or its Wi-Fi settings did not read
     EVENT_REASON_NOT_CONFIRMED, // on its network, and its confirmation did not hold
     EVENT_REASON_POWER_CUT,     // the power went during the trial
+    // Why the set-up's join did not join (ADR-008, gate 4)
+    EVENT_REASON_WRONG_PASSWORD,
+    EVENT_REASON_TIMEOUT,
+    EVENT_REASON_FAILED,
 } event_reason_t;
 
 // A throw's verdict (api_v1.md's `result`)

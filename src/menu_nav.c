@@ -28,6 +28,7 @@
 #include "scale.h"
 #include "servo_gate.h"
 #include "settings.h"
+#include "setup.h"
 #include "system_control.h"
 #include "update.h"
 #include "update_poll.h"
@@ -78,7 +79,8 @@ typedef enum {
     PAGE_LIST = 0,      // rows, one focused
     PAGE_DIALOG,        // its info rows the message, its action the right softkey, Back the left (Cancel)
     PAGE_NOTES,         // lines, wrapped, that end in its action row: the button, reached only by scrolling
-    PAGE_CODE,          // the set-up's code (ADR-008), its info rows the lines beside it; a dialog once a phone joins
+    PAGE_CODE,          // the set-up (ADR-008): its stage as the unit keeps it; at its start the code, its info rows
+                        // the lines beside it
 } page_kind_t;
 
 struct menu_page {
@@ -120,8 +122,9 @@ typedef struct {
                                         // focused row's number is being set in place
     char edit_was[16];                  // FRAME_PAGE, a number being set: its value before, for Back
     uint8_t action_seen;                // FRAME_JOB, the charge: its action when last drawn, so a new one is focused
-    uint32_t code_seen;                 // PAGE_CODE: the hotspot's addresses given when the code was last shown
-    bool code_joined;                   // PAGE_CODE: one given since, so a phone joined: the dialog in its place
+    uint32_t code_seen;                 // PAGE_CODE: the hotspot's addresses given when the code was asked for
+    bool code_shown;                    // PAGE_CODE: "Show the code" asked, until a phone joins or Back
+    uint8_t stage;                      // PAGE_CODE: the stage last drawn (setup_stage_t), to draw it afresh on a change
 } frame_t;
 
 static frame_t frames[MENU_FRAMES_MAX];
@@ -191,10 +194,11 @@ static void push_page(const menu_page_t *page) {
             break;
         }
     }
-    // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel. The code's one softkey,
-    // Back, is at the right
+    // A dialog opens on its action, so one click goes on; one that destroys opens on Cancel. The set-up's softkeys
+    // follow its stage (menu_nav_refresh)
     frame->softkey = page->cancel_first ? 0 : 1;
     frame->code_seen = access_point_mode_addresses_given();
+    frame->stage = UINT8_MAX;
 }
 
 
@@ -674,6 +678,64 @@ static void setup_code_text(char *out, size_t room) {
     wireless_get_link(&info);
     snprintf(out, room, "WIFI:T:WPA;S:%s;P:%s;;", info.hostname != NULL ? info.hostname : "",
              access_point_mode_key());
+}
+
+
+// The set-up's stage on the 12864 (README, "The set-up, designed again": the table's 12864 column), as the unit knows
+// it, so it is true whether or not the phone still reaches the unit
+typedef enum {
+    STAGE_CODE = 0,     // the code: no phone joined yet, or "Show the code" asked
+    STAGE_CHOOSE,       // a phone joined; it chooses a network
+    STAGE_PASSWORD,     // a network chosen; its password typed on the phone
+    STAGE_JOINING,
+    STAGE_JOINED,
+    STAGE_WRONG_PASSWORD,
+    STAGE_NO_ANSWER,
+    STAGE_NOT_JOINED,
+    STAGE_SCALE,
+    STAGE_MOTORS,
+    STAGE_READY,
+    STAGE_DONE,
+} setup_stage_t;
+
+
+static setup_stage_t setup_stage(const frame_t *frame) {
+    if (frame->code_shown) {
+        return STAGE_CODE;
+    }
+    switch (setup_step()) {
+        case SETUP_STEP_DONE:
+            return STAGE_DONE;
+        case SETUP_STEP_READY:
+            return STAGE_READY;
+        case SETUP_STEP_MOTORS:
+            return STAGE_MOTORS;
+        case SETUP_STEP_SCALE:
+            return STAGE_SCALE;
+        case SETUP_STEP_CODE:
+            return wifi_is_access_point() && access_point_mode_addresses_given() > 0 ? STAGE_CHOOSE : STAGE_CODE;
+        case SETUP_STEP_WIFI:
+        default:
+            break;
+    }
+    wireless_station_info_t station;
+    wireless_get_station(&station);
+    char network[SETUP_NETWORK_MAX];
+    setup_network(network, sizeof(network));
+    if (strcmp(station.state, "joining") == 0) {
+        return STAGE_JOINING;
+    }
+    bool this_network = network[0] == '\0' || strcmp(station.ssid, network) == 0;
+    if (strcmp(station.state, "joined") == 0 && this_network) {
+        return STAGE_JOINED;
+    }
+    if (strcmp(station.state, "failed") == 0 && this_network && network[0] != '\0') {
+        if (station.reason != NULL && strcmp(station.reason, "wrong_password") == 0) {
+            return STAGE_WRONG_PASSWORD;
+        }
+        return station.reason != NULL && strcmp(station.reason, "timeout") == 0 ? STAGE_NO_ANSWER : STAGE_NOT_JOINED;
+    }
+    return network[0] != '\0' ? STAGE_PASSWORD : STAGE_CHOOSE;
 }
 
 
@@ -1163,7 +1225,7 @@ static const menu_row_t rows_wifi[] = {
     {.label = "", .kind = ROW_INFO, .value = value_wifi_mode, .label_now = wifi_mode_label},
     {.label = "Network", .kind = ROW_INFO, .value = value_wifi_station_network, .shown = wifi_has_trouble},
     {.label = "Hotspot", .kind = ROW_INFO, .value = value_wifi_network, .shown = wifi_is_access_point},
-    {.label = "Key", .kind = ROW_INFO, .value = value_wifi_key, .shown = wifi_is_access_point},
+    {.label = "Password", .kind = ROW_INFO, .value = value_wifi_key, .shown = wifi_is_access_point},
     {.label = "IP", .kind = ROW_INFO, .value = value_wifi_address},
     {.label = "Name", .kind = ROW_INFO, .value = value_wifi_name},
     {.label = "Signal", .kind = ROW_INFO, .value = value_wifi_signal, .shown = wifi_is_station},
@@ -1926,28 +1988,35 @@ static void list_key(frame_t *frame, menu_key_t key, int count) {
 // A card, a dialog or notes: their own keys
 static void page_kind_key(frame_t *frame, menu_key_t key) {
     const menu_page_t *page = frame->page;
+    if (key == MENU_KEY_BACK && page->kind == PAGE_CODE && frame->code_shown) {
+        frame->code_shown = false;      // the code asked for: Back goes back to the stage
+        return;
+    }
     if (key == MENU_KEY_BACK) {
         pop();
         return;
     }
     if (page->kind == PAGE_CODE) {
-        // The code: its one softkey, Back. A phone joined: Back at the left, the code again at the right
-        if (!frame->code_joined) {
-            if (key == MENU_KEY_ENTER) {
-                pop();
-            }
-        }
-        else if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+        // The set-up's stage: Back leaves it for the menu, the set-up going on on the phone; the code asked for goes
+        // back to the stage. Where there are two softkeys the knob moves between them; OK at the end, to the main menu
+        setup_stage_t stage = setup_stage(frame);
+        bool two = stage == STAGE_CHOOSE || stage == STAGE_PASSWORD;
+        if ((key == MENU_KEY_NEXT || key == MENU_KEY_PREV) && two) {
             frame->softkey = key == MENU_KEY_NEXT ? 1 : 0;
         }
-        else if (key == MENU_KEY_ENTER && frame->softkey == 0) {
-            pop();
+        else if (key == MENU_KEY_ENTER && stage == STAGE_DONE) {
+            frame_depth = 1;
+            screen_version += 1;
+        }
+        else if (key == MENU_KEY_ENTER && two && frame->softkey == 1) {
+            frame->code_shown = true;
+            frame->code_seen = access_point_mode_addresses_given();
+        }
+        else if (key == MENU_KEY_ENTER && stage == STAGE_CODE && frame->code_shown) {
+            frame->code_shown = false;
         }
         else if (key == MENU_KEY_ENTER) {
-            frame->code_seen = access_point_mode_addresses_given();
-            frame->code_joined = false;
-            frame->softkey = 1;
-            screen_version += 1;
+            pop();
         }
         return;
     }
@@ -2100,12 +2169,31 @@ void menu_nav_refresh(void) {
         frame_depth = job_idx + 1;
         screen_version += 1;
     }
-    // The set-up's code: the hotspot gave an address while it was shown, so a phone joined
+    // The set-up: through it the screen shows its stage as it changes (the owner: two screens, one process), unless
+    // a job holds the screen; on the hotspot, or at its end. Back leaves it until the next change
+    static uint32_t setup_changes_seen = 0;
+    uint32_t changes = setup_changes();
     frame_t *frame = top();
-    if (frame->kind == FRAME_PAGE && frame->page->kind == PAGE_CODE && !frame->code_joined &&
-        access_point_mode_addresses_given() != frame->code_seen) {
-        frame->code_joined = true;
-        frame->softkey = 0;
+    bool on_setup = frame->kind == FRAME_PAGE && frame->page->kind == PAGE_CODE;
+    if (changes != setup_changes_seen) {
+        setup_changes_seen = changes;
+        if (!on_setup && !menu_nav_in_job() && (wifi_is_access_point() || setup_step() == SETUP_STEP_DONE)) {
+            menu_nav_goto("setup");
+            frame = top();
+            on_setup = true;
+        }
+    }
+    if (!on_setup) {
+        return;
+    }
+    // The code asked for, and a phone joined since: back to the stage
+    if (frame->code_shown && access_point_mode_addresses_given() != frame->code_seen) {
+        frame->code_shown = false;
+    }
+    setup_stage_t stage = setup_stage(frame);
+    if (stage != frame->stage) {
+        frame->stage = (uint8_t) stage;
+        frame->softkey = stage == STAGE_CODE || stage == STAGE_DONE ? 1 : 0;
         screen_version += 1;
     }
 }
@@ -2231,25 +2319,117 @@ static void screen_dialog(menu_screen_t *screen, const menu_page_t *page, const 
 }
 
 
-// The set-up's code and the lines beside it, Back at the right; once a phone joined, the dialog in its place
-static void screen_code(menu_screen_t *screen, const menu_page_t *page, const frame_t *frame) {
-    if (frame->code_joined) {
-        screen->kind = MENU_SCREEN_DIALOG;
-        screen_row(screen, "A phone joined.", "", false);
-        screen_row(screen, "Go on with it there,", "", false);
-        screen_row(screen, "or open " ACCESS_POINT_MODE_ADDRESS, "", false);
-        snprintf(screen->softkey_left, MENU_TEXT, "Back");
-        snprintf(screen->softkey_right, MENU_TEXT, "Show the code");
-        screen->softkey_focus = frame->softkey;
-        return;
+static void setup_lines(menu_screen_t *screen, const char *title, const char *a, const char *b, const char *c) {
+    screen->kind = MENU_SCREEN_DIALOG;
+    snprintf(screen->title, sizeof(screen->title), "%s", title);
+    screen_row(screen, a, "", false);
+    if (b != NULL) {
+        screen_row(screen, b, "", false);
     }
-    screen->kind = MENU_SCREEN_CODE;
-    for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
-        screen_row(screen, page->rows[idx].label, "", false);
+    if (c != NULL) {
+        screen_row(screen, c, "", false);
     }
-    setup_code_text(screen->code, sizeof(screen->code));
-    snprintf(screen->softkey_right, MENU_TEXT, "Back");
-    screen->softkey_focus = 1;
+}
+
+
+// A driver's state in a line: "Coarse driver: found", or what is wrong with it
+static void setup_driver_line(char *out, size_t room, const char *name, motor_select_t motor) {
+    const char *state = motor_driver_get_status_string(motor);
+    snprintf(out, room, "%s driver: %s", name, state == NULL || strcmp(state, "absent") == 0 ? "not found" :
+                                               strcmp(state, "ok") == 0 ? "found" : state);
+}
+
+
+static void screen_setup(menu_screen_t *screen, const menu_page_t *page, const frame_t *frame) {
+    setup_stage_t stage = setup_stage(frame);
+    wireless_station_info_t station;
+    wireless_get_station(&station);
+    char network[SETUP_NETWORK_MAX];
+    setup_network(network, sizeof(network));
+    const char *name = network[0] != '\0' ? network : station.ssid;
+    char line[MENU_TEXT];
+    char other[MENU_TEXT];
+    screen->softkey_focus = frame->softkey;
+    switch (stage) {
+        case STAGE_CODE:
+            screen->kind = MENU_SCREEN_CODE;
+            for (uint8_t idx = 0; idx < page->row_count; idx += 1) {
+                screen_row(screen, page->rows[idx].label, "", false);
+            }
+            setup_code_text(screen->code, sizeof(screen->code));
+            snprintf(screen->softkey_right, MENU_TEXT, "Back");
+            screen->softkey_focus = 1;
+            return;
+        case STAGE_CHOOSE:
+            setup_lines(screen, "Set up: Wi-Fi", "A phone joined.", "Choose your Wi-Fi", "on your phone.");
+            snprintf(screen->softkey_right, MENU_TEXT, "Show the code");
+            break;
+        case STAGE_PASSWORD:
+            setup_lines(screen, "Set up: Wi-Fi", "Type the password of", name, "on your phone.");
+            snprintf(screen->softkey_right, MENU_TEXT, "Show the code");
+            break;
+        case STAGE_JOINING:
+            // Its seconds counting: a still screen reads as stuck (the owner)
+            snprintf(line, sizeof(line), "%lu s of %lu", (unsigned long) (station.joining_ms / 1000),
+                     (unsigned long) (wireless_join_timeout_ms() / 1000));
+            setup_lines(screen, "Set up: Wi-Fi", "Joining", station.ssid, line);
+            break;
+        case STAGE_JOINED:
+            setup_lines(screen, "Set up: Wi-Fi", "Joined", station.ssid, "Continue on your phone.");
+            break;
+        case STAGE_WRONG_PASSWORD:
+            setup_lines(screen, "Set up: Wi-Fi", "Wrong password for", name, "Retype it on your phone.");
+            break;
+        case STAGE_NO_ANSWER:
+            setup_lines(screen, "Set up: Wi-Fi", "No answer from", name, "Move it nearer the router.");
+            break;
+        case STAGE_NOT_JOINED:
+            setup_lines(screen, "Set up: Wi-Fi", "Not joined to", name, "See your phone.");
+            break;
+        case STAGE_SCALE: {
+            screen->kind = MENU_SCREEN_JOB;
+            snprintf(screen->title, sizeof(screen->title), "Set up: Scale");
+            float weight = scale_get_current_measurement();
+            if (isfinite(weight)) {
+                format_weight(weight, screen->figure, sizeof(screen->figure));
+                snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
+                snprintf(screen->context, sizeof(screen->context), "The scale sends its weight");
+            }
+            else {
+                snprintf(screen->figure, sizeof(screen->figure), "--");
+                snprintf(screen->context, sizeof(screen->context), "Nothing from the scale");
+            }
+            screen->edit_at = -1;
+            break;
+        }
+        case STAGE_MOTORS:
+            setup_driver_line(line, sizeof(line), "Coarse", SELECT_COARSE_TRICKLER_MOTOR);
+            setup_driver_line(other, sizeof(other), "Fine", SELECT_FINE_TRICKLER_MOTOR);
+            setup_lines(screen, "Set up: Motors", line, other, "Continue on your phone.");
+            break;
+        case STAGE_READY:
+            setup_lines(screen, "Set up: Ready", "Ready.", "Finish on your phone.", NULL);
+            break;
+        case STAGE_DONE: {
+            wireless_info_t info;
+            wireless_get_link(&info);
+            if (strcmp(station.state, "joined") == 0) {
+                snprintf(line, sizeof(line), "Open on %s:", station.ssid);
+                snprintf(other, sizeof(other), "%s.local", info.hostname);
+                char address[MENU_TEXT];
+                snprintf(address, sizeof(address), "or %s", station.address);
+                setup_lines(screen, "Set up: Done", line, other, address);
+            }
+            else {
+                setup_lines(screen, "Set up: Done", "On its own hotspot.", "Open " ACCESS_POINT_MODE_ADDRESS,
+                            "from a phone on it.");
+            }
+            snprintf(screen->softkey_right, MENU_TEXT, "OK");
+            screen->softkey_focus = 1;
+            return;
+        }
+    }
+    snprintf(screen->softkey_left, MENU_TEXT, "Back");
 }
 
 
@@ -2279,7 +2459,7 @@ static void screen_page(menu_screen_t *screen, const frame_t *frame) {
         return;
     }
     if (page->kind == PAGE_CODE) {
-        screen_code(screen, page, frame);
+        screen_setup(screen, page, frame);
         return;
     }
     if (page->kind != PAGE_LIST) {

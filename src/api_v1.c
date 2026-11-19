@@ -375,6 +375,9 @@ static const api_v1_resource_t api_v1_resources[] = {
     {"/api/v1/wifi/scan", "[\"POST\"]", "scans for networks: twice, merged by name"},
     {"/api/v1/wifi/join", "[\"POST\"]",
      "the set-up's join, while the unit is its own hotspot, kept up meanwhile: stored once joined, never if refused"},
+    {"/api/v1/setup", "[\"GET\",\"PATCH\"]",
+     "the set-up's stage, kept by the unit: set up or not, the step, the network chosen, a phone on its hotspot, the "
+     "hotspot's name; a PATCH gives the page's step"},
     {"/api/v1/setup/done", "[\"POST\"]",
      "the set-up finished or skipped: remembered; joined, the hotspot stops a moment after the reply"},
     {"/api/v1/update", "[\"GET\"]",

@@ -2133,11 +2133,17 @@ class Session:
         self.log.write("rc", f"api_check: the scan heard {len(heard['networks'])} networks")
         if heard["scanning"]:
             self.fail("api_check: the scan still runs after 15 s")
-        expect("POST", "wifi/join", {"ssid": "api_check", "key": "short", "auth": "wpa2_mixed"}, 400, "out_of_range")
+        expect("POST", "wifi/join", {"ssid": "api_check", "password": "short", "auth": "wpa2_mixed"}, 400, "out_of_range")
         expect("POST", "wifi/join", {"ssid": "api_check", "auth": "wep"}, 400, "not_a_choice")
         if network.get("mode") == "station":
-            expect("POST", "wifi/join", {"ssid": "api_check", "key": "api_check_key", "auth": "wpa2_mixed"}, 409,
+            expect("POST", "wifi/join", {"ssid": "api_check", "password": "api_check_pw", "auth": "wpa2_mixed"}, 409,
                    "not_on_hotspot")
+        # The set-up's step (gate 4's design): a step refused, then one taken; the screen follows it only on the
+        # unit's own hotspot, so on its network nothing moves on the screen
+        expect("PATCH", "setup", {"step": "done"}, 400, "not_a_choice")
+        stepped = expect("PATCH", "setup", {"step": "wifi", "network": None}, 200)
+        if stepped.get("step") != "wifi":
+            self.fail(f"api_check: PATCH setup answered {stepped}")
         # The set-up done: on a unit on its network, remembered and nothing else (no hotspot to stop)
         expect("POST", "setup/done", {"now": True}, 400, "unknown_field")
         if network.get("mode") == "station":

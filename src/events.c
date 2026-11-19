@@ -65,7 +65,8 @@ bool events_get(uint32_t seq, event_t *event) {
 
 
 static const char *source_name(uint8_t source) {
-    static const char *const names[] = {"charge", "throw", "purge", "motors", "system", "update", "setting"};
+    static const char *const names[] = {"charge", "throw", "purge", "motors", "system", "update", "setting", "setup",
+                                        "wifi"};
     return source < sizeof(names) / sizeof(names[0]) ? names[source] : "other";
 }
 
@@ -73,7 +74,7 @@ static const char *source_name(uint8_t source) {
 static const char *kind_name(uint8_t kind) {
     static const char *const names[] = {"started", "stopped", "paused", "resumed", "finished", "ended", "fault",
                                         "cleared", "received", "installing", "confirmed", "back", "found", "changed",
-                                        "stored"};
+                                        "stored", "step", "joining", "joined", "not_joined"};
     return kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "other";
 }
 
@@ -93,6 +94,9 @@ const char *events_reason_name(event_reason_t reason) {
         case EVENT_REASON_NO_NETWORK: return "no_network";
         case EVENT_REASON_NOT_CONFIRMED: return "not_confirmed";
         case EVENT_REASON_POWER_CUT: return "power_cut";
+        case EVENT_REASON_WRONG_PASSWORD: return "wrong_password";
+        case EVENT_REASON_TIMEOUT: return "timeout";
+        case EVENT_REASON_FAILED: return "failed";
         case EVENT_REASON_NONE:
         default: return "none";
     }
@@ -251,6 +255,20 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
         case EVENT_SOURCE_SYSTEM:
             write_member(out, room, len, "firmware");
             http_json_string(out, room, len, event->text != NULL ? event->text : "");
+            break;
+        case EVENT_SOURCE_SETUP:
+            // The step it went on to, and who asked: a page and the menu read GET /api/v1/setup again
+            write_member(out, room, len, "step");
+            http_json_string(out, room, len, event->text != NULL ? event->text : "");
+            write_member(out, room, len, "by");
+            http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
+            break;
+        case EVENT_SOURCE_WIFI:
+            // The network is in GET /api/v1/network's station: a name is not a string the log may keep
+            if (event->kind == EVENT_NOT_JOINED) {
+                write_member(out, room, len, "reason");
+                http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
+            }
             break;
         default:
             break;

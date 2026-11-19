@@ -66,7 +66,7 @@ bool wireless_station_leave(void);
 
 /*
     The set-up's networks and join (ADR-008, gate 4). Every join of the station, the start's, the minute's retry and
-    the set-up's, is the station's state: idle, joining, joined, failed and why (wrong_key, timeout, failed). A join
+    the set-up's, is the station's state: idle, joining, joined, failed and why (wrong_password, timeout, failed). A join
     asked over the API is the set-up's: only while the unit is its own hotspot, which it keeps up meanwhile; joined,
     the network is stored and in effect at once, refused, nothing is stored.
 */
@@ -74,7 +74,8 @@ typedef struct {
     const char *state;      // "idle", "joining", "joined", "failed"
     char ssid[33];          // the network joined or tried; "" with none
     char address[24];       // the station's address on it; "" with none
-    const char *reason;     // failed: "wrong_key", "timeout", "failed"; NULL otherwise
+    const char *reason;     // failed: "wrong_password", "timeout", "failed"; NULL otherwise
+    uint32_t joining_ms;    // joining: since it began, so both screens count from the same start
 } wireless_station_info_t;
 void wireless_get_station(wireless_station_info_t *station);
 
@@ -87,7 +88,7 @@ typedef struct {
 // A scan asked: two of them, merged; false while a join or a scan runs
 bool wireless_scan_start(void);
 bool wireless_scanning(void);
-// The idx-th network heard, strongest first once the scan ends (as heard while it runs); false past the last
+// The idx-th network heard, strongest first; false past the last, and while a scan runs
 bool wireless_network_at(size_t idx, wireless_network_t *out);
 
 typedef enum {

@@ -16,6 +16,8 @@
 #include "update.h"
 #include "update_poll.h"
 #include "lwip/apps/mdns.h"
+#include "events.h"
+#include "setup.h"
 #include <string.h>
 #include <strings.h>
 
@@ -25,6 +27,7 @@
 static void wireless_station_mdns(void);
 static void wireless_rejoin(void);
 static void wireless_station_up(void);
+static void wireless_hotspot_on_strongest_channel(void);
 static void wireless_scan_run(void);
 static void wireless_join_run(void);
 static void srv_txt(struct mdns_service *service, void *txt_userdata);
@@ -111,8 +114,8 @@ static const setting_field_t wifi_fields[] = {
     {.name = "ssid", .label = "Network name",
      .about = "The network's name (SSID)",
      .type = SETTING_STRING, WIFI_FIELD(ssid), .length_min = 1, .applies = "at_restart"},
-    {.name = "key", .label = "Key",
-     .about = "The network's key; never sent back",
+    {.name = "password", .label = "Password",
+     .about = "The network's password; never sent back",
      .type = SETTING_STRING, WIFI_FIELD(pw), .access = SETTING_WRITE_ONLY, .applies = "at_restart"},
     {.name = "auth", .label = "Security",
      .about = "The network's security",
@@ -323,6 +326,7 @@ static void wireless_station_mdns(void) {
 // --- The station's state, the networks heard and the set-up's join (ADR-008, gate 4)
 
 #define WIRELESS_NETWORKS_MAX 24
+#define WIRELESS_ACCESS_POINTS_MAX 32   // the access points behind them: a mesh has a few under one name
 #define WIRELESS_SCAN_PASSES 2          // each scan hears part of the networks (gate 1's probe: 7, then 10, of ~18)
 #define WIRELESS_SCAN_PASS_MS 4500
 
@@ -337,6 +341,7 @@ typedef enum {
 static station_state_t wireless_station_state = STATION_IDLE;
 static char wireless_station_ssid[33];
 static const char *wireless_station_reason = NULL;
+static TickType_t wireless_station_since = 0;           // when the state was last set: a join's start
 
 // A join asked, waiting for the Wi-Fi task: its network, its key (wiped once tried), its security, who asked
 static struct {
@@ -347,10 +352,30 @@ static struct {
     activity_by_t by;
 } wireless_join_asked;
 
-// The networks heard by the last scan, merged by name: from the FreeRTOS heap at the first scan (RAM at link is full)
+// The networks heard by the last scan, merged by name, in the order heard, and the order a reader takes them in,
+// strongest first; and each access point heard, its network by index: from the FreeRTOS heap at the first scan (RAM
+// at link is full)
+typedef struct {
+    uint8_t bssid[6];
+    uint8_t channel;
+    uint8_t network;        // its index in wireless_heard
+    int16_t rssi;
+} wireless_access_point_t;
+
 static wireless_network_t *wireless_heard = NULL;
+static uint8_t wireless_heard_order[WIRELESS_NETWORKS_MAX];
 static uint8_t wireless_heard_count = 0;
+static wireless_access_point_t *wireless_access_points = NULL;
+static uint8_t wireless_access_point_count = 0;
 static volatile bool wireless_scan_running = false;
+
+/*
+ * The hotspot's channel (ADR-008, gate 4's design): the CYW43 keeps its hotspot and its station on one channel, so a
+ * join to a router on another moves the hotspot, and a phone on it may not follow (the owner's iPhone did not). The
+ * hotspot starts on the strongest access point's channel, most often the person's own router, and a join takes its
+ * network's access point on that channel when one was heard. 0: not known (it moved with a join that could not)
+ */
+static uint8_t wireless_hotspot_channel = 0;
 
 
 static void wireless_station_set(station_state_t state, const char *ssid, const char *reason) {
@@ -362,6 +387,7 @@ static void wireless_station_set(station_state_t state, const char *ssid, const 
         wireless_station_ssid[len] = '\0';
     }
     wireless_station_reason = reason;
+    wireless_station_since = xTaskGetTickCount();
     taskEXIT_CRITICAL();
 }
 
@@ -369,7 +395,7 @@ static void wireless_station_set(station_state_t state, const char *ssid, const 
 // A join's end in the API's words
 static const char *wireless_join_reason(int joined) {
     if (joined == PICO_ERROR_BADAUTH) {
-        return "wrong_key";
+        return "wrong_password";
     }
     return joined == PICO_ERROR_TIMEOUT ? "timeout" : "failed";
 }
@@ -396,7 +422,11 @@ void wireless_get_station(wireless_station_info_t *station) {
     station_state_t state = wireless_station_state;
     memcpy(station->ssid, wireless_station_ssid, sizeof(station->ssid));
     station->reason = wireless_station_reason;
+    TickType_t since = wireless_station_since;
     taskEXIT_CRITICAL();
+    if (state == STATION_JOINING) {
+        station->joining_ms = (uint32_t) ((xTaskGetTickCount() - since) * portTICK_PERIOD_MS);
+    }
     bool up = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
     if (state == STATION_JOINED && !up) {
         state = STATION_IDLE;       // it left (its router went away, `wifi leave`): the retry says what comes next
@@ -460,8 +490,39 @@ static int wireless_scan_result(void *env, const cyw43_ev_scan_result_t *result)
         wireless_heard[idx].rssi = result->rssi;
         wireless_heard[idx].auth = wireless_auth_text(auth);
     }
+    // Its access point, by BSSID, its strongest signal
+    if (idx < wireless_heard_count) {
+        uint8_t ap = 0;
+        while (ap < wireless_access_point_count && memcmp(wireless_access_points[ap].bssid, result->bssid, 6) != 0) {
+            ap += 1;
+        }
+        if (ap == wireless_access_point_count && ap < WIRELESS_ACCESS_POINTS_MAX) {
+            memcpy(wireless_access_points[ap].bssid, result->bssid, 6);
+            wireless_access_points[ap].rssi = INT16_MIN;
+            wireless_access_point_count += 1;
+        }
+        if (ap < wireless_access_point_count && result->rssi > wireless_access_points[ap].rssi) {
+            wireless_access_points[ap].rssi = result->rssi;
+            wireless_access_points[ap].channel = (uint8_t) (result->channel & 0xff);
+            wireless_access_points[ap].network = idx;
+        }
+    }
     taskEXIT_CRITICAL();
     return 0;
+}
+
+
+// The strongest access point heard, of a network (NULL: any), on a channel (0: any); NULL when none was
+static const wireless_access_point_t *wireless_access_point_of(const char *ssid, uint8_t channel) {
+    const wireless_access_point_t *best = NULL;
+    for (uint8_t ap = 0; ap < wireless_access_point_count; ap += 1) {
+        const wireless_access_point_t *one = &wireless_access_points[ap];
+        if ((ssid == NULL || strcmp(wireless_heard[one->network].ssid, ssid) == 0) &&
+            (channel == 0 || one->channel == channel) && (best == NULL || one->rssi > best->rssi)) {
+            best = one;
+        }
+    }
+    return best;
 }
 
 
@@ -469,14 +530,16 @@ static int wireless_scan_result(void *env, const cyw43_ev_scan_result_t *result)
 static void wireless_scan_run(void) {
     if (wireless_heard == NULL) {
         wireless_heard = pvPortMalloc(WIRELESS_NETWORKS_MAX * sizeof(wireless_network_t));
+        wireless_access_points = pvPortMalloc(WIRELESS_ACCESS_POINTS_MAX * sizeof(wireless_access_point_t));
     }
-    if (wireless_heard == NULL) {
+    if (wireless_heard == NULL || wireless_access_points == NULL) {
         printf("Wi-Fi: no room for the networks heard\n");
         wireless_scan_running = false;
         return;
     }
     taskENTER_CRITICAL();
     wireless_heard_count = 0;
+    wireless_access_point_count = 0;
     taskEXIT_CRITICAL();
     wireless_station_up();
     TickType_t started = xTaskGetTickCount();
@@ -495,16 +558,16 @@ static void wireless_scan_run(void) {
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
-    // Strongest first, once, so a reader takes them in order a network at a time
+    // Strongest first, once, so a reader takes them in order a network at a time; the table itself stays as heard,
+    // the access points pointing into it
     taskENTER_CRITICAL();
-    for (uint8_t idx = 1; idx < wireless_heard_count; idx += 1) {
-        wireless_network_t network = wireless_heard[idx];
+    for (uint8_t idx = 0; idx < wireless_heard_count; idx += 1) {
         uint8_t at = idx;
-        while (at > 0 && wireless_heard[at - 1].rssi < network.rssi) {
-            wireless_heard[at] = wireless_heard[at - 1];
+        while (at > 0 && wireless_heard[wireless_heard_order[at - 1]].rssi < wireless_heard[idx].rssi) {
+            wireless_heard_order[at] = wireless_heard_order[at - 1];
             at -= 1;
         }
-        wireless_heard[at] = network;
+        wireless_heard_order[at] = idx;
     }
     taskEXIT_CRITICAL();
     wireless_scan_running = false;
@@ -539,9 +602,9 @@ bool wireless_scanning(void) {
 
 bool wireless_network_at(size_t idx, wireless_network_t *out) {
     taskENTER_CRITICAL();
-    bool there = wireless_heard != NULL && idx < wireless_heard_count;
+    bool there = wireless_heard != NULL && idx < wireless_heard_count && !wireless_scan_running;
     if (there) {
-        *out = wireless_heard[idx];
+        *out = wireless_heard[wireless_heard_order[idx]];
     }
     taskEXIT_CRITICAL();
     return there;
@@ -614,19 +677,37 @@ static void wireless_join_run(void) {
     const char *ssid = wireless_join_asked.ssid;
     cyw43_auth_t auth = wireless_join_asked.auth;
     wireless_station_up();
-    printf("Wi-Fi: joining %s, the hotspot kept up\n", ssid);
-    int joined = cyw43_arch_wifi_connect_timeout_ms(ssid, auth != AUTH_OPEN ? wireless_join_asked.key : NULL,
-                                                    get_cyw43_auth(auth), wireless_join_timeout_ms());
+    event_t began = {.source = EVENT_SOURCE_WIFI, .kind = EVENT_JOINING, .by = (uint8_t) wireless_join_asked.by};
+    events_add(&began);
+    const char *password = auth != AUTH_OPEN ? wireless_join_asked.key : NULL;
+    const wireless_access_point_t *on_channel = wireless_hotspot_channel != 0 && wireless_access_points != NULL
+                                                    ? wireless_access_point_of(ssid, wireless_hotspot_channel) : NULL;
+    int joined;
+    if (on_channel != NULL) {
+        printf("Wi-Fi: joining %s on channel %u, the hotspot's, the hotspot kept up\n", ssid, wireless_hotspot_channel);
+        joined = cyw43_arch_wifi_connect_bssid_timeout_ms(ssid, on_channel->bssid, password, get_cyw43_auth(auth),
+                                                         wireless_join_timeout_ms());
+    }
+    else {
+        printf("Wi-Fi: joining %s, heard on no access point on channel %u: the hotspot moves to its channel\n", ssid,
+               wireless_hotspot_channel);
+        joined = cyw43_arch_wifi_connect_timeout_ms(ssid, password, get_cyw43_auth(auth), wireless_join_timeout_ms());
+        wireless_hotspot_channel = 0;   // where it went is not known here
+    }
     if (joined != PICO_OK) {
         cyw43_arch_lwip_begin();
         cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
         cyw43_arch_lwip_end();
         memset(wireless_join_asked.key, 0, sizeof(wireless_join_asked.key));
         wireless_station_set(STATION_FAILED, ssid, wireless_join_reason(joined));
+        event_t ended = {.source = EVENT_SOURCE_WIFI, .kind = EVENT_NOT_JOINED, .by = (uint8_t) wireless_join_asked.by,
+                         .reason = (uint8_t) (joined == PICO_ERROR_BADAUTH ? EVENT_REASON_WRONG_PASSWORD :
+                                              joined == PICO_ERROR_TIMEOUT ? EVENT_REASON_TIMEOUT : EVENT_REASON_FAILED)};
+        events_add(&ended);
         printf("Wi-Fi: not joined %s (%d), nothing stored\n", ssid, joined);
         return;
     }
-    static const char *const names[] = {"enable", "ssid", "auth", "key"};
+    static const char *const names[] = {"enable", "ssid", "auth", "password"};
     const char *values[] = {"true", ssid, wireless_auth_text(auth), wireless_join_asked.key};
     const char *why = settings_write_and_store_by("settings/wifi", names, values,
                                                   wireless_join_asked.stored_key ? 3 : 4, wireless_join_asked.by);
@@ -637,6 +718,8 @@ static void wireless_join_run(void) {
     settings_in_effect("settings/wifi");
     wireless_started_with = wireless_config.eeprom_wireless_metadata;
     wireless_station_set(STATION_JOINED, ssid, NULL);
+    event_t ended = {.source = EVENT_SOURCE_WIFI, .kind = EVENT_JOINED, .by = (uint8_t) wireless_join_asked.by};
+    events_add(&ended);
     wireless_station_mdns();
     printf("Wi-Fi: joined %s, stored; the hotspot stays up\n", ssid);
 }
@@ -647,6 +730,25 @@ static void wireless_join_run(void) {
  * router, as its own access point, and the one whose router went away. The access point stays up while it tries, so a
  * person can still reach the unit; once the station joins, it stops, and the root page is the portal again
  */
+/*
+ * Before the hotspot starts: a scan (some 1.3 s; its networks ready for the set-up's list), and the hotspot's channel
+ * the strongest access point's, which is most often the person's own router
+ */
+static void wireless_hotspot_on_strongest_channel(void) {
+    wireless_scan_running = true;
+    wireless_scan_run();
+    const wireless_access_point_t *strongest = wireless_access_points != NULL
+                                                   ? wireless_access_point_of(NULL, 0) : NULL;
+    wireless_hotspot_channel = strongest != NULL && strongest->channel >= 1 && strongest->channel <= 13
+                                   ? strongest->channel : 0;
+    if (wireless_hotspot_channel != 0) {
+        cyw43_wifi_ap_set_channel(&cyw43_state, wireless_hotspot_channel);
+        printf("Wi-Fi: the hotspot on channel %u, the strongest network's (%s, %d dBm)\n", wireless_hotspot_channel,
+               wireless_heard[strongest->network].ssid, strongest->rssi);
+    }
+}
+
+
 // The hotspot stopped, the station joined: the unit on its network alone, where every page is the portal
 static void wireless_hotspot_stop(void) {
     if (wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN) {
@@ -676,6 +778,7 @@ const char *wireless_setup_done(activity_by_t by, bool *hotspot_stays) {
     if (why != NULL) {
         return why;
     }
+    setup_set_step(SETUP_STEP_DONE, NULL, by);
     bool hotspot = wireless_config.current_wireless_state == WIRELESS_STATE_AP_MODE_LISTEN;
     bool joined = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
     *hotspot_stays = hotspot && !joined;
@@ -917,6 +1020,7 @@ void wireless_task(void *p) {
     if (wireless_config.current_wireless_state == WIRELESS_STATE_IDLE) {
         // If previous configured, then start STA mode by default
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_INIT;
+        wireless_hotspot_on_strongest_channel();
         access_point_mode_start();
         wireless_config.current_wireless_state = WIRELESS_STATE_AP_MODE_LISTEN;
     }
