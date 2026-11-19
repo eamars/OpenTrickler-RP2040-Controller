@@ -83,9 +83,12 @@ function control(id, field, value, write) {
         };
         return element("div", {class: "number"}, input, unitOf(field) ? element("span", {class: "unit-of"}, unitOf(field)) : null);
     }
+    // A text setting is a name or an address taken as typed (a network, the update's source): a phone neither
+    // capitalises nor corrects it
     const input = element("input", {type: field.access === "write_only" ? "password" : "text", id,
                                     value: field.access === "write_only" ? "" : (value || ""),
                                     maxlength: field.max_length || false, autocomplete: "off",
+                                    autocapitalize: "none", autocorrect: "off", spellcheck: "false",
                                     placeholder: field.access === "write_only" ? "Unchanged" : ""});
     input.onchange = () => write(input.value);
     return input;

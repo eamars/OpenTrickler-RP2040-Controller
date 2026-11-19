@@ -70,11 +70,13 @@ function networkRow(network, chosen, onChoose) {
 
 function joinForm(network, onJoin) {
     const other = network.ssid === null;
-    const name = element("input", {type: "text", id: "join-ssid", autocomplete: "off", maxlength: 32});
+    // A network's name and key are taken as typed: shown as text, a phone would capitalise and correct them
+    const exact = {autocomplete: "off", autocapitalize: "none", autocorrect: "off", spellcheck: "false"};
+    const name = element("input", {type: "text", id: "join-ssid", maxlength: 32, ...exact});
     const security = element("select", {id: "join-auth"},
                              ...[["wpa2_mixed", "WPA2"], ["wpa2_aes", "WPA2 (AES)"], ["wpa_tkip", "WPA (TKIP)"], ["open", "None"]]
                                  .map(([value, label]) => new Option(label, value)));
-    const key = element("input", {type: "password", id: "join-key", autocomplete: "off", maxlength: 63});
+    const key = element("input", {type: "password", id: "join-key", maxlength: 63, ...exact});
     const show = element("input", {type: "checkbox", id: "join-show"});
     show.onchange = () => key.type = show.checked ? "text" : "password";
     const needsKey = other || network.auth !== "open";
