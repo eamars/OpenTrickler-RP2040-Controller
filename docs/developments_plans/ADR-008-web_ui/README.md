@@ -1,6 +1,6 @@
 # ADR-008: a web UI that needs no internet
 
-Status: **Open** 2026-11-18. Gate 1 (the mock) settled by the owner 2026-11-19; gate 2 (the API review) approved 2026-11-19 and built and proven the same day; gate 3 (the pages) started overnight on the owner's word, its plan for the owner's review; gate 4 (commissioning) approved 2026-11-19 with the iPhone moved to before its step 4 ("Approve, start step 1"). The whole ADR goes by one PR, #134 (the owner, 2026-11-19: "I'd merge ADR-008 as one PR, as more will change when you are implementing the actual code to the device"). Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
+Status: **Built** 2026-11-19, closed on its branch before its one PR, #134: every gate built and proven on the Pico W and the Pico 2 W (progress.md, "Closed"). PR #111 is closed with its note when #134 is merged. Was **Open** from 2026-11-18. Gate 1 (the mock) settled by the owner 2026-11-19; gate 2 (the API review) approved 2026-11-19 and built and proven the same day; gate 3 (the pages) started overnight on the owner's word, its plan for the owner's review; gate 4 (commissioning) approved 2026-11-19 with the iPhone moved to before its step 4 ("Approve, start step 1"). The whole ADR goes by one PR, #134 (the owner, 2026-11-19: "I'd merge ADR-008 as one PR, as more will change when you are implementing the actual code to the device"). Drafted 2026-11-13, revised 2026-11-18 (ADR-015, commissioning, folded in; the requirements aligned with the owner), approved by the owner the same day: "Approve, but don't start yet." Revised again that day with the agent's review of the plan against the code, and started at the owner's word, the Pico W given for gate 1's probes ("Pico W is connected so you can use the real device").
 
 ## What we want
 
@@ -453,7 +453,7 @@ Gate 3 builds the pages gate 1's mock settled onto the unit, on the API gate 2 m
 
 **How it is proven:** the pages driven in a browser against the Pico W at a phone's, a tablet's and a computer's width, each screenshot beside the mock's; `features_check.py --final` with only gate 4's rows left; `api_check`, `charge_cycle`, a soak with the pages' own reads (the stream and the mirror), and `menu_tour --compare` on the new baseline. The Pico 2 W at its next turn on the probe.
 
-**Left for the owner:** the pages on the owner's own phone (carried from gate 1), and the new menu baseline's pictures.
+**Left for the owner:** the pages on the owner's own phone (carried from gate 1), and the new menu baseline's pictures. The phone done 2026-11-19 ("All fine", progress.md); the pictures are in #134 for the owner's review.
 
 ### Gate 4's plan (the agent's proposal, approved by the owner 2026-11-19)
 
