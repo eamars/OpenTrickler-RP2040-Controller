@@ -171,6 +171,8 @@ API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usu
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
 API_CHECK_BACK_S = 60.0         # from a restart until the unit answers on the network again
 API_CHECK_POLL_S = 45.0         # an update's poll: three HTTPS handshakes took 15 s on the Pico W (ADR-010, gate 5)
+API_CHECK_TLS_RESERVE = 2048    # what the TLS client leaves the heap (https_client.c, HTTPS_HEAP_RESERVE)
+API_CHECK_TLS_ROOM = 8192       # what an HTTPS fetch must leave over it (ADR-008; ADR-005's trigger)
 # Two clients follow the event log through every soak with held reads (ADR-003, gate 4): each must see every event
 SOAK_FOLLOWERS = 2
 SOAK_EVENTS_WAIT_S = 10
@@ -1895,6 +1897,27 @@ class Session:
         if after.get("resources") != export["resources"]:
             self.fail("settings_roundtrip: the settings at the end differ from those at the start")
 
+    def api_check_poll_room(self):
+        """
+        The room an HTTPS fetch leaves in the FreeRTOS heap (ADR-008: a poll ran it dry; ADR-005's trigger for the Pico
+        W's fallback): judged over HTTPS only, where mbedTLS holds its peak; a poll over plain HTTP is reported, not
+        judged. A test build trusts the test roots in place of GitHub's, so its fetch holds what a user's does.
+        """
+        reply = self.console.command("update poll")
+        fields = dict(re.findall(r'(\w+)=("[^"]*"|\S+)', reply or ""))
+        handshakes = [int(ms) for ms in fields.get("handshake_ms", "0").split(",") if ms.isdigit()]
+        low = int(fields.get("heap_low", "0"))
+        refused = int(fields.get("alloc_refused", "0"))
+        if not any(handshakes):
+            self.log.write("rc", "api_check: the poll's room not judged: over plain HTTP")
+            return
+        need = API_CHECK_TLS_RESERVE + API_CHECK_TLS_ROOM
+        self.log.write("rc", f"api_check: an HTTPS fetch left {low} bytes of the heap at its least "
+                             f"({low - API_CHECK_TLS_RESERVE} over the reserve), {refused} blocks refused")
+        if refused > 0 or low < need:
+            self.fail(f"api_check: an HTTPS fetch left {low} bytes of the heap, under {need} "
+                      f"(the reserve and {API_CHECK_TLS_ROOM} over it); {refused} blocks refused")
+
     def api_check(self, host, target):
         """
         The close's proof of API v1 (ADR-003, gate 4), by the client that works from the unit's own description
@@ -2119,6 +2142,7 @@ class Session:
             self.log.write("rc", f"api_check: the poll ended {json.dumps(poll)}")
             if poll["state"] == "checking":
                 self.fail(f"api_check: the poll still checks after {API_CHECK_POLL_S:.0f} s")
+            self.api_check_poll_room()
         else:
             expect("POST", "update/check", {}, 409, "no_network")
 

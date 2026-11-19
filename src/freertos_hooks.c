@@ -17,10 +17,14 @@ void vApplicationMallocFailedHook( void )
 }
 /*-----------------------------------------------------------*/
 
+// The task whose stack overflowed, for the probe to read after the assertion (the stacks are sized from what each
+// used, ADR-008); nothing is printed from a stack that may be spent
+volatile const char *stack_overflow_task = NULL;
+
 void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName )
 {
-    ( void ) pcTaskName;
     ( void ) pxTask;
+    stack_overflow_task = pcTaskName;
 
     /* Run time stack overflow checking is performed if
     configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook

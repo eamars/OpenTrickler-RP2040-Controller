@@ -119,7 +119,14 @@ bool https_client_init(void) {
 // --- The connection
 
 static void https_fail(const char *what, int code) {
-    if (code != 0) {
+    if (https_report.alloc_refused > 0) {
+        // A block refused at the reserve: what failed after it failed for that, whatever mbedTLS made of it (a
+        // certificate it could not hold reads as one not trusted)
+        char after[sizeof(https_report.error)];
+        snprintf(after, sizeof(after), "%s", what);
+        snprintf(https_report.error, sizeof(https_report.error), "no room in memory (%s)", after);
+    }
+    else if (code != 0) {
         snprintf(https_report.error, sizeof(https_report.error), "%s (-0x%04x)", what, (unsigned) -code);
     }
     else {
@@ -219,6 +226,9 @@ static bool https_handshake(https_conn_t *conn, const https_url_t *url, int hop)
             uint32_t flags = mbedtls_ssl_get_verify_result(&https_ssl);
             snprintf(https_report.error, sizeof(https_report.error), "the handshake failed (-0x%04x), verify 0x%lx",
                      (unsigned) -ret, (unsigned long) flags);
+            if (https_report.alloc_refused > 0) {
+                https_fail(https_report.error, 0);  // said as no room, which was the cause (it copies first)
+            }
             return false;
         }
     }

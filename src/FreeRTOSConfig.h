@@ -85,7 +85,8 @@
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configCHECK_FOR_STACK_OVERFLOW          1
+// 2: the stack's last words checked too at each switch, as the stacks are sized from what they used (ADR-008)
+#define configCHECK_FOR_STACK_OVERFLOW          2
 #define configUSE_MALLOC_FAILED_HOOK            1
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
@@ -102,7 +103,8 @@
 #define configUSE_TIMERS                        1
 #define configTIMER_TASK_PRIORITY               ( configMAX_PRIORITIES - 1 )
 #define configTIMER_QUEUE_LENGTH                10
-#define configTIMER_TASK_STACK_DEPTH            1024
+// The timer service runs the update trial's watchdog feed alone: 276 bytes used under ADR-008's full workload
+#define configTIMER_TASK_STACK_DEPTH            256
 
 /* Interrupt nesting behaviour configuration. */
 /*

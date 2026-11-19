@@ -36,7 +36,7 @@
 // chip with no FPU and must never take the loop's turn. Below the cyw43 task too (4, the SDK's), which takes in the
 // network's packets and the ACKs the server's replies wait for. lwIP's own thread is at 7
 #define HTTP_SERVER_TASK_PRIORITY 3
-#define HTTP_SERVER_TASK_STACK_WORDS 1536
+#define HTTP_SERVER_TASK_STACK_WORDS 1280    // 2,872 bytes used under ADR-008's full workload (web_robust, soak --load)
 
 #define HTTP_SERVER_ROUTES 112               // 81 at ADR-008's gate 2 (each save's revert, the stream)
 #define HTTP_SERVER_LINE_MAX 256            // a header line the server reads; longer ones are passed over
