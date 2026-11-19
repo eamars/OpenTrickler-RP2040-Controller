@@ -26,13 +26,20 @@ MICROSTEPS_PER_MOTOR_TURN = 200 * 256
 # The unit's stored ratio is not used: the Pico 2 W's fine one was a generation-1 figure on 2026-11-19.
 TUBE_PER_MOTOR = {"coarse": 40.0 / 32.0, "fine": 40.0 / 22.0}
 CUP_LIMIT_GR = 250.0
+# The flick test's kinds, as the fine tube's speeds one after another. Each ends one forward move further on
+# than it began, as far as the PC's timing holds: a plain nudge; the same with two small swings back and forth;
+# the same with two wide ones; and a step back before two forward.
+FLICKS = {"nudge": [0.2],
+          "shake": [0.2, -0.2, 0.2, -0.2, 0.2],
+          "shake_wide": [0.2, -0.6, 0.6, -0.6, 0.6],
+          "retract": [-0.2, 0.2, 0.2]}
 PRECONDITION_RPS = 1.0
 
 
 class Bench:
     """A session on the unit: commands, the tap's frames, and the runs made."""
 
-    def __init__(self, repo: Path, name: str, board: str):
+    def __init__(self, repo: Path, name: str, board: str, tap: bool = True):
         sys.path.insert(0, str(repo / "tools" / "remote_control"))
         import rc_run   # the checkout's own runner, of the firmware's time: found only once the repo is known
         self.session = rc_run.Session(argparse.Namespace(board=board, elf=None), f"adr009_{name}")
@@ -47,7 +54,8 @@ class Bench:
                 match = re.match(r"@setting gear_ratio=([\d.]+)", line)
                 if match:
                     self.stored_ratio[tube] = float(match.group(1))
-        self.session.send("scale tap on")
+        if tap:
+            self.session.send("scale tap on")
 
     def motor_stats(self) -> dict:
         """The unit's clock and the steps each motor has made."""
@@ -101,6 +109,41 @@ class Bench:
                "stored_gear_ratio": self.stored_ratio.get(tube)}
         self.runs.append(run)
         return run
+
+    def settled_weight(self, reads: int = 6, gap_s: float = 0.1) -> float:
+        """The mean of a few readings a tenth of a second apart: finer than one reading's digit, and no tap."""
+        values = []
+        for _ in range(reads):
+            values.append(self.weight())
+            time.sleep(gap_s)
+        return statistics.fmean(values)
+
+    def flick(self, variant: str, moves: list, pause_s: float, still_s: float) -> dict:
+        """
+        One trial of the flick test: the fine tube through a list of speeds one after another, then still.
+
+        Args:
+            variant: the trial's kind, kept with it.
+            moves: speeds in rev/s, each held for the pause; negative is backwards.
+            pause_s: how long each speed is held, before the command's own time.
+            still_s: how long to stay still before the settled weight is read.
+
+        Returns:
+            The trial's facts: the weight gained and the steps made (forward and back both count).
+        """
+        before_weight = self.settled_weight()
+        before = self.motor_stats()
+        for speed in moves:
+            self.session.send(f"motor fine {speed:g}")
+            time.sleep(pause_s)
+        self.session.send("motor fine 0")
+        after = self.motor_stats()
+        time.sleep(still_s)
+        gained = self.settled_weight() - before_weight
+        trial = {"variant": variant, "gained_gr": gained, "steps": after["fine"] - before["fine"],
+                 "moves_ms": after["t_ms"] - before["t_ms"], "note": "flick"}
+        self.runs.append(trial)
+        return trial
 
     def precondition(self, tube: str, seconds: float) -> None:
         """The same state before every run: a time at 1 rev/s, then 5 s still. 0 for none."""
@@ -179,6 +222,11 @@ def main() -> None:
     steps = sub.add_parser("steps", help="speeds one after another with no stop between: speed:seconds,...")
     steps.add_argument("--tube", required=True, choices=("coarse", "fine"))
     steps.add_argument("--plan", required=True)
+    flick = sub.add_parser("flick", help="plain nudges against shaken ones, turn about, weights by `state` (no tap)")
+    flick.add_argument("--count", type=int, default=40, help="trials of each kind")
+    flick.add_argument("--still-s", type=float, default=2.6)
+    flick.add_argument("--pause-ms", type=float, default=10.0)
+    flick.add_argument("--variants", default="nudge,shake,shake_wide")
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
@@ -187,7 +235,7 @@ def main() -> None:
         summarise(args.folder)
         return
 
-    bench = Bench(args.repo, args.command, args.board)
+    bench = Bench(args.repo, args.command, args.board, tap=args.command != "flick")
     try:
         start = bench.weight()
         print(f"weight at the start {start:.2f}")
@@ -208,6 +256,12 @@ def main() -> None:
                     break
                 bench.precondition(args.tube, args.precondition_s)
                 bench.turn(args.tube, speed, args.limit_s, args.still_s, note="map", limit_gr=args.limit_gr)
+        elif args.command == "flick":
+            names = args.variants.split(",")
+            for index in range(args.count * len(names)):
+                name = names[index % len(names)]
+                trial = bench.flick(name, FLICKS[name], args.pause_ms / 1000.0, args.still_s)
+                print(f"{name} {trial['gained_gr']:+.3f} {trial['steps']} {trial['moves_ms']:.0f}", flush=True)
         elif args.command == "steps":
             bench.precondition(args.tube, 5.0)
             first = bench.motor_stats()

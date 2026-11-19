@@ -92,6 +92,25 @@ The owner: "The bench is ready now, Pico 2 W on the probe, powder loaded"; this 
 - `bad_frames=6` from the start of the session to its end: none added by it.
 - The unit's selected profile is "AR2208,gr"; no charge was run.
 
+## 2026-11-19 23:53 to 2026-11-20 00:13: the flick test, console only
+
+Chosen by the owner over a firmware command ("Flick test, console only"), after emptying the cup. `record.py flick`: the fine tube through a list of speeds one after another, then 2.6 s still; weights by `state`, six readings averaged, no tap. A swing made from the PC is about 45 ms a move, so 4 to 5 Hz: far below the 20 to 50 Hz the research pointed at.
+
+| Kind | Moves, rev/s | Trials | Kernels a trial | Trials that released | one | two | three or more | Largest |
+|---|---|---|---|---|---|---|---|---|
+| Plain nudge (run C above, with the tap) | 0.2 | 110 | 0.57 | 26 | 15 | 2 | 9 | 8 |
+| Plain nudge, turn about with the two below | 0.2 | 40 | 0.82 | 13 | 4 | 3 | 6 | 5 |
+| Small shake, turn about | 0.2, -0.2, 0.2, -0.2, 0.2 | 40 | 0.23 | 6 | 4 | 1 | 1 | 3 |
+| Wide shake, turn about | 0.2, -0.6, 0.6, -0.6, 0.6 | 40 | 0.25 | 7 | 5 | 1 | 1 | 3 |
+| Small shake, alone | as above | 70 | 0.30 | 12 | 7 | 3 | 2 | 5 |
+| Wide shake, alone | as above | 70 | 0.31 | 9 | 2 | 3 | 4 | 4 |
+
+- **Three kernels or more, of the trials that released:** plain 15 of 39 (38%), small shake 3 of 18 (17%), wide shake 5 of 16 (31%).
+- **Verdict: no clear winner.** The small shake's share is half the plain nudge's, but on 18 releases that is within chance (about 1 in 8 by Fisher's test), and the wide shake shows nothing. A slow shake from the console does not settle whether oscillation breaks clumps.
+- **A shaken trial moves about half the powder of a plain one** (0.3 against 0.6 to 0.8 kernels), so its back-and-forth is not one clean forward move: either the timing from the PC is uneven or a backward move takes powder back from the lip. Turn about, the plain nudges released more than alone (0.82 against 0.57): they may have collected what the shakes left.
+- **What it says for the next step:** the small shake is worth carrying into a real test, at 20 to 50 Hz and with an exact net turn, which needs the `wiggle` command (bench guide, step 7) and several hundred trials a kind. The trial count matters more than the kinds: a release comes in one trial of four, so 100 trials give about 25 releases.
+- 1.62 gr in the cup at the end. Every session `VERDICT PASS`. Lines in `logs/adr009/flick_*.txt` of the main checkout; `bench/flick_summary.py` sums them.
+
 **Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
 
 **Not done**
