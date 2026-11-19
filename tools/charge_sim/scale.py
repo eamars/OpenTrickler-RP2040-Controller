@@ -128,4 +128,12 @@ SLOW_STRAIN_GAUGE = ScaleModel(
     sensor_tau_s=0.05, open_tau_s=0.30, closed_tau_s=1.20, open_above_gr=0.08, noise_gr=0.010,
     link_min_s=0.016, link_max_s=0.036)
 
-SCALES = {"and_fast": AND_FXI_FAST, "and_slow": AND_FXI_SLOW, "gng": GNG_JJB, "slow": SLOW_STRAIN_GAUGE}
+# The bench's A&D FX-300i at FAST as measured (the owner confirmed the setting, 2026-11-20): fitted to the stops
+# and nudges of fit/bench_pico2w.json. About half a second passes before a change shows at all; one digit alone
+# is slower still.
+AND_FXI_BENCH = ScaleModel(
+    name="A&D FX-300i, FAST, bench", digit_gr=0.02, report_s=0.0483, report_jitter_s=0.002, dead_s=0.45,
+    sensor_tau_s=0.03, open_tau_s=0.08, closed_tau_s=0.60, open_above_gr=0.03, noise_gr=0.003, link_min_s=0.009,
+    link_max_s=0.029)
+
+SCALES = {"and_bench": AND_FXI_BENCH, "and_fast": AND_FXI_FAST, "and_slow": AND_FXI_SLOW, "gng": GNG_JJB, "slow": SLOW_STRAIN_GAUGE}

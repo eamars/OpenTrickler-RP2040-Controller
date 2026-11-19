@@ -42,7 +42,27 @@ LONG_STICK = Powder(name="long stick", kernel_gr=0.040, kernel_cv=0.10, clump_me
 
 POWDERS = {"ar2209": AR2209, "ball": FINE_BALL, "long_stick": LONG_STICK}
 
+# --- The bench's unit as measured on 2026-11-19 and 20 (fit/bench_pico2w.json; `python fit_report.py` sets the
+# simulation beside every figure). Pico 2 W, the large tube and the low-flow small tube, the owner's AR2209 long
+# exposed to air, the A&D FX-300i in grains at FAST. Each number below is fitted to those recordings.
+BENCH_LARGE_TUBE = Tube(name="large, bench", out_per_rev=0.38, in_per_rev=0.6, held_max_gr=40.0,
+                        max_inflow_gr_s=math.inf, critical_rps=critical_rps(7.5), centrifuge_power=6.0, ripple=0.10,
+                        slump_deg=3.0, roll_rps=0.2, start_turns=0.5, retreat_turns=0.5, trail_kernels=6.0,
+                        trail_ref_rps=0.5, trail_tau_s=0.30, drop_mm=50.0)
+BENCH_SMALL_TUBE = Tube(name="small low flow, bench", out_per_rev=0.0975, in_per_rev=10.0, held_max_gr=8.0,
+                        max_inflow_gr_s=math.inf, critical_rps=critical_rps(3.74), centrifuge_power=6.0, ripple=0.15,
+                        slump_deg=30.0, roll_rps=0.05, start_turns=0.2, retreat_turns=0.5, trail_kernels=1.5,
+                        trail_ref_rps=0.08, trail_tau_s=0.30, drop_mm=50.0, roll_tau_s=1.5, trail_full_turns=0.05)
+BENCH_AR2209 = Powder(name="AR2209, long in the air", kernel_gr=0.021, kernel_cv=0.12, clump_mean=1.15,
+                      regularity=2.0)
+BENCH_PICO2W = Rig(powder=BENCH_AR2209, coarse=BENCH_LARGE_TUBE, fine=BENCH_SMALL_TUBE, scale=SCALES["and_bench"])
+
 
 def make_rig(powder: str = "ar2209", scale: str = "and_fast") -> Rig:
     """The ADR-009 unit with a powder and a scale by their short names."""
     return Rig(powder=POWDERS[powder], coarse=LARGE_TUBE, fine=SMALL_LOW_FLOW_TUBE, scale=SCALES[scale])
+
+
+# The rigs by name. "reference" is the research's first plant, made before any bench session: kept to show what the
+# refit changed, not to be quoted.
+RIGS = {"reference": make_rig(), "bench_pico2w": BENCH_PICO2W}

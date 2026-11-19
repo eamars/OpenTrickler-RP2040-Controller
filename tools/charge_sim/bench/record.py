@@ -41,6 +41,9 @@ PRECONDITION_RPS = 1.0
 # `motor fine 0` switches the driver off, which a charge never does between its start and its end.
 HOLD_RPS = 0.0005
 DIGIT_GR = 0.02
+# The charge's reverse turn of the coarse tube when it stops, at its default settings (charge_mode.cpp)
+BACKOFF_RPS = 1.0
+BACKOFF_TURNS = 0.25
 # The charge's states as the console's `state` gives them (charge_mode.h), and its default stop threshold
 CHARGE_EXIT, CHARGE_WAIT_FOR_ZERO, CHARGE_WAIT_FOR_COMPLETE = 0, 1, 2
 CHARGE_WAIT_FOR_CUP_REMOVAL, CHARGE_WAIT_FOR_CUP_RETURN = 3, 4
@@ -157,38 +160,51 @@ class Bench:
         self.runs.append(trial)
         return trial
 
-    def creep_stop(self, speed_rps: float, run_s: float, still_s: float, held: bool) -> dict:
+    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str) -> dict:
         """
-        One trial of the creep-stop test: the fine tube at a steady slow speed, stopped, then still.
+        One trial of the creep-stop test: a tube at a steady speed, stopped, then still.
 
         It measures what a finish by one stop has to allow for: how much the reading still rises after the stop,
-        and for how long. Weights are read by `state` as fast as the console answers, on the PC's clock.
+        and for how long; and, from the readings before the stop, how evenly the powder leaves at that speed.
+        Weights are read by `state` as fast as the console answers, on the PC's clock.
 
         Args:
-            speed_rps: the creep's speed.
+            tube: coarse or fine.
+            speed_rps: the steady speed.
             run_s: how long to turn before the stop.
             still_s: how long to watch after it.
-            held: stop with the driver left on (as in a charge), not switched off.
+            stop: "held" (the driver left on, as in a charge), "released" (switched off), or "backoff" (held, after
+                the charge's own reverse turn at the coarse stop: its default quarter turn at 1 rev/s).
 
         Returns:
-            The trial's facts: the readings during the creep and after the stop, each with its time from the stop.
+            The trial's facts: the readings during the turn and after the stop, each with its time from the stop.
         """
         before = self.motor_stats()
-        self.session.send(f"motor fine {speed_rps:g}")
+        self.session.send(f"motor {tube} {speed_rps:g}")
         started = time.monotonic()
         during = []
         while time.monotonic() - started < run_s:
             during.append((time.monotonic(), self.weight()))
-        self.session.send(f"motor fine {HOLD_RPS:g}" if held else "motor fine 0")
         stopped = time.monotonic()
+        if stop == "backoff":
+            self.session.send(f"motor {tube} {-BACKOFF_RPS:g}")
+            reversed_at = time.monotonic()
+            after = []
+            while time.monotonic() - reversed_at < BACKOFF_TURNS / BACKOFF_RPS:
+                after.append((time.monotonic(), self.weight()))
+            self.session.send(f"motor {tube} {HOLD_RPS:g}")
+        else:
+            self.session.send(f"motor {tube} {HOLD_RPS:g}" if stop == "held" else f"motor {tube} 0")
+            stopped = time.monotonic()
+            after = []
         made = self.motor_stats()
-        after = []
         while time.monotonic() - stopped < still_s:
             after.append((time.monotonic(), self.weight()))
-        if held:
-            self.session.send("motor fine 0")
-        trial = {"note": "creepstop", "speed_asked_rps": speed_rps, "held": held, "run_s": stopped - started,
-                 "turns": (made["fine"] - before["fine"]) / MICROSTEPS_PER_MOTOR_TURN * TUBE_PER_MOTOR["fine"],
+        if stop != "released":
+            self.session.send(f"motor {tube} 0")
+        trial = {"note": "creepstop", "tube": tube, "speed_asked_rps": speed_rps, "stop": stop,
+                 "held": stop != "released", "run_s": stopped - started,
+                 "turns": (made[tube] - before[tube]) / MICROSTEPS_PER_MOTOR_TURN * TUBE_PER_MOTOR[tube],
                  "during": [(round(t - stopped, 3), w) for t, w in during],
                  "after": [(round(t - stopped, 3), w) for t, w in after]}
         self.runs.append(trial)
@@ -417,9 +433,12 @@ def summarise_creep(folder: Path) -> None:
     of stops a band of three digits holds, which is the most a finish by one stop from that speed can keep."""
     trials = [run for run in json.loads((folder / "runs.json").read_text(encoding="utf-8"))
               if run["note"] == "creepstop"]
-    kinds = sorted({(trial["speed_asked_rps"], trial["held"]) for trial in trials})
-    for speed, held in kinds:
-        group = [trial for trial in trials if (trial["speed_asked_rps"], trial["held"]) == (speed, held)]
+    for trial in trials:   # folders from before the coarse tube and the back-off were added
+        trial.setdefault("tube", "fine")
+        trial.setdefault("stop", "held" if trial["held"] else "released")
+    kinds = sorted({(trial["tube"], trial["speed_asked_rps"], trial["stop"]) for trial in trials})
+    for tube, speed, stop in kinds:
+        group = [trial for trial in trials if (trial["tube"], trial["speed_asked_rps"], trial["stop"]) == (tube, speed, stop)]
         gains, settles, rates = [], [], []
         for trial in group:
             gain, settle = creep_gain(trial)
@@ -431,7 +450,7 @@ def summarise_creep(folder: Path) -> None:
         counts = {digit: gains.count(digit) for digit in sorted(set(gains))}
         best = max(sum(1 for gain in gains if low <= gain <= low + 2) for low in range(min(gains), max(gains) + 1))
         spread = statistics.pstdev(gains) if len(gains) > 1 else 0.0
-        print(f"fine {speed:g} rev/s, {'driver on' if held else 'driver off'}: {len(group)} stops, "
+        print(f"{tube} {speed:g} rev/s, {stop}: {len(group)} stops, "
               f"{statistics.fmean(rates) / DIGIT_GR:.2f} digits/s; after the stop +{statistics.fmean(gains):.2f} digits "
               f"(spread {spread:.2f}), by digit {counts}; three digits hold {best} of {len(gains)}; "
               f"still by median {statistics.median(settles):.2f} s, longest {max(settles):.2f} s")
@@ -464,13 +483,15 @@ def main() -> None:
     flick.add_argument("--still-s", type=float, default=2.6)
     flick.add_argument("--pause-ms", type=float, default=10.0)
     flick.add_argument("--variants", default="nudge,shake,shake_wide")
-    creep = sub.add_parser("creepstop", help="the fine tube at a slow steady speed, stopped, watched: what a finish "
-                                             "by one stop must allow for (weights by `state`, no tap)")
+    creep = sub.add_parser("creepstop", help="a tube at a steady speed, stopped, watched: how evenly it pours and "
+                                             "what a stop must allow for (weights by `state`, no tap)")
+    creep.add_argument("--tube", default="fine", choices=("coarse", "fine"))
     creep.add_argument("--speeds", default="0.05,0.1", help="comma-separated rev/s")
     creep.add_argument("--count", type=int, default=30, help="stops of each speed and each kind of stop")
     creep.add_argument("--run-s", default="3:6", help="least:most seconds of turning before a stop, drawn at random")
     creep.add_argument("--still-s", type=float, default=3.0)
-    creep.add_argument("--stops", default="held,released", help="held (driver on, as in a charge), released, or both")
+    creep.add_argument("--stops", default="held,released",
+                       help="held (driver on, as in a charge), released, backoff (the charge's reverse turn first)")
     throws = sub.add_parser("throws", help="real throws of the firmware's own loop, recorded by `state`; a person "
                                            "changes the cup after each")
     throws.add_argument("--host", required=True, help="the unit's address, for the start over the API")
@@ -527,18 +548,18 @@ def main() -> None:
             bench.throws(args.host, args.target, args.profile, args.count, args.watch_s, args.rezero, args.cup_holds)
         elif args.command == "creepstop":
             least, most = (float(text) for text in args.run_s.split(":"))
-            plan = [(float(speed), stop == "held") for speed in args.speeds.split(",")
+            plan = [(float(speed), stop) for speed in args.speeds.split(",")
                     for stop in args.stops.split(",")] * args.count
             draw = random.Random(len(plan))
             draw.shuffle(plan)
-            bench.turn("fine", PRECONDITION_RPS, 3.0, 5.0, note="precondition")
-            for index, (speed, held) in enumerate(plan):
+            bench.turn(args.tube, PRECONDITION_RPS, 3.0, 5.0, note="precondition")
+            for index, (speed, stop) in enumerate(plan):
                 if bench.weight() > CUP_LIMIT_GR:
                     print("stopping: the cup is near full")
                     break
-                trial = bench.creep_stop(speed, draw.uniform(least, most), args.still_s, held)
+                trial = bench.creep_stop(args.tube, speed, draw.uniform(least, most), args.still_s, stop)
                 gain, settle = creep_gain(trial)
-                print(f"{index + 1}/{len(plan)} {speed:g} {'held' if held else 'released'} "
+                print(f"{index + 1}/{len(plan)} {args.tube} {speed:g} {stop} "
                       f"{trial['run_s']:.1f} s {gain:+.1f} digits, still by {settle:.2f} s", flush=True)
         elif args.command == "steps":
             bench.precondition(args.tube, 5.0)

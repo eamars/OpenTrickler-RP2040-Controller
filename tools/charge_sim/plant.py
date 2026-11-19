@@ -12,7 +12,6 @@ from dataclasses import dataclass
 
 GRAVITY_M_S2 = 9.80665
 GR_PER_G = 15.4323584
-TRAIL_FULL_TURNS = 0.25     # a tube that turned less than this since its start has brought fewer kernels to the lip
 
 
 @dataclass(frozen=True)
@@ -52,6 +51,10 @@ class Tube:
     trail_kernels: mean kernels that fall after a stop from trail_ref_rps or faster.
     trail_tau_s: time constant of those late kernels.
     drop_mm: fall from the lip to the cup.
+    roll_tau_s: time the bed takes to settle into its speed's way of flowing. A tube that has just started, or is
+        nudged, goes on avalanching for about this long whatever its speed; 0 for at once.
+    trail_full_turns: a tube that turned less than this since its start has brought fewer kernels to the lip, and
+        fewer fall after its stop.
     """
 
     name: str
@@ -70,6 +73,8 @@ class Tube:
     trail_ref_rps: float
     trail_tau_s: float
     drop_mm: float
+    roll_tau_s: float = 0.0
+    trail_full_turns: float = 0.25
 
     @property
     def held_steady_gr(self) -> float:
@@ -93,6 +98,7 @@ class TubeState:
         self.max_speed = max_speed_rps
         self.target = 0.0
         self.speed = 0.0
+        self.rolling = 0.0          # the speed the bed flows as if at: the speed itself, trailing by roll_tau_s
         self.angle = rng.random()
         self.front = 1.0            # 1: powder at the lip; 0: fully retreated
         self.held = tube.held_steady_gr * powder.flow_scale
@@ -120,7 +126,7 @@ class TubeState:
         """
         powder = self.powder
         tube = self.tube
-        slumping = 1.0 / (1.0 + (abs(self.speed) / tube.roll_rps) ** 2)
+        slumping = 1.0 / (1.0 + (self.rolling / tube.roll_rps) ** 2)
         avalanche = tube.out_per_rev * self.held * tube.slump_deg / 360.0 * slumping
         mean_kernels = max(powder.clump_mean, avalanche / powder.kernel_gr)
         count = 1
@@ -160,6 +166,10 @@ class TubeState:
             self.speed = min(self.target, self.speed + change)
         elif self.speed > self.target:
             self.speed = max(self.target, self.speed - change)
+        if self.tube.roll_tau_s > 0.0:
+            self.rolling += (abs(self.speed) - self.rolling) * dt_s / self.tube.roll_tau_s
+        else:
+            self.rolling = abs(self.speed)
         turned = self.speed * dt_s
         self.angle = (self.angle + turned) % 1.0
         self.turns += abs(turned)
@@ -192,10 +202,13 @@ class TubeState:
         heapq.heappush(landings, (now_s + fall, mass, self.land_speed))
 
     def _trail(self, now_s: float, landings: list) -> None:
-        """Kernels left at the lip that fall after the tube stops; fewer from a slow stop or a retreated front."""
+        """Kernels left at the lip that fall after the tube stops; fewer from a slow stop or a retreated front.
+
+        What falls is owed: the next turn first brings as much back to the lip before anything leaves it.
+        """
         tube = self.tube
         share = min(1.0, self.speed_before_stop / tube.trail_ref_rps) * self.front
-        share *= min(1.0, self.turns_since_start / TRAIL_FULL_TURNS)
+        share *= min(1.0, self.turns_since_start / tube.trail_full_turns)
         mean = tube.trail_kernels * share
         count = 0
         # Poisson by multiplication: the means here are a few kernels at most
@@ -208,6 +221,7 @@ class TubeState:
             delay = self.rng.expovariate(1.0 / tube.trail_tau_s)
             kernel = self._kernel()
             self.held = max(0.0, self.held - kernel)
+            self.budget -= kernel
             self._release(now_s + delay, kernel, landings)
 
 
