@@ -9,6 +9,7 @@ Usage, with the repository's venv, the unit on the probe and the bench rules kep
     python record.py --repo ... runs --tube fine --speeds 0.1,0.5,2 --repeats 3 --limit-gr 5 --limit-s 60
     python record.py --repo ... steps --tube fine --plan 0.1:60,2:20
     python record.py --repo ... creepstop --speeds 0.05,0.1 --count 30
+    python record.py --repo ... throws --host <address> --target 42.5 --profile 1 --count 10
 Output: <repo>/logs/adr009/<time>_<name>/frames.csv (t_ms, weight, header) and runs.json (one entry a run).
 """
 
@@ -39,6 +40,10 @@ PRECONDITION_RPS = 1.0
 # `motor fine 0` switches the driver off, which a charge never does between its start and its end.
 HOLD_RPS = 0.0005
 DIGIT_GR = 0.02
+# The charge's states as the console's `state` gives them (charge_mode.h), and its default stop threshold
+CHARGE_EXIT, CHARGE_WAIT_FOR_ZERO, CHARGE_WAIT_FOR_COMPLETE = 0, 1, 2
+CHARGE_WAIT_FOR_CUP_REMOVAL, CHARGE_WAIT_FOR_CUP_RETURN = 3, 4
+FINE_STOP_THRESHOLD_GR = 0.03
 
 
 class Bench:
@@ -52,6 +57,7 @@ class Bench:
         self.folder = repo / "logs" / "adr009" / f"{stamp}_{name}"
         self.folder.mkdir(parents=True)
         self.runs = []
+        self.charging = False
         self.stored_ratio = {}
         for tube in ("coarse", "fine"):
             self.session.send(f"setting settings/motors/{tube}")
@@ -187,13 +193,70 @@ class Bench:
         self.runs.append(trial)
         return trial
 
+    def state(self) -> dict:
+        """The console's state now: the charge's state, the weight and both speeds, with the PC's clock."""
+        reply = self.session.send("state")
+        fields = dict(re.findall(r"(\w+)=(-?[\d.]+|nan|inf)", reply))
+        return {"t": time.monotonic(), "charge": int(fields["charge"]), "weight": float(fields["weight"]),
+                "coarse": float(fields["coarse"]), "fine": float(fields["fine"])}
+
+    def throws(self, host: str, target: float, profile: int, count: int, watch_s: float) -> None:
+        """
+        Real throws of the firmware's own loop, recorded: the charge started over the API with a powder profile,
+        the console's state read as fast as it answers, a person changing the cup after each throw.
+
+        Each throw is kept from its zeroing to the cup's removal: the time the tubes ran, the reading when they
+        stopped, a second later (the unit's verdict) and at rest. The cup must stay on for the watch after the
+        tubes stop, or the throw has no weight at rest.
+
+        Args:
+            host: the unit's address, for the start.
+            target: the charge's target.
+            profile: the powder profile's id.
+            count: throws to record.
+            watch_s: how long after the stop the weight at rest is read.
+        """
+        import unit_api   # beside rc_run.py, of the firmware's time
+        unit_api.Unit(host).act("charge/start", target=target, powder_profile=profile)
+        self.charging = True
+        samples, done, last_state, pending, stopped_at = [], 0, None, False, None
+        limit = time.monotonic() + count * 180.0
+        while done < count and time.monotonic() < limit:
+            sample = self.state()
+            if sample["charge"] == CHARGE_EXIT and last_state not in (None, CHARGE_EXIT):
+                print("the charge ended at the unit")
+                self.charging = False
+                break
+            if sample["charge"] == CHARGE_WAIT_FOR_COMPLETE and last_state != CHARGE_WAIT_FOR_COMPLETE:
+                samples, pending, stopped_at = [], True, None
+            samples.append(sample)
+            if sample["charge"] == CHARGE_WAIT_FOR_CUP_REMOVAL and last_state == CHARGE_WAIT_FOR_COMPLETE:
+                stopped_at = sample["t"]
+            # A throw is whole once it has been watched after its stop, or the cup has gone before that
+            watched = stopped_at is not None and sample["t"] - stopped_at >= watch_s + 0.1
+            if pending and stopped_at is not None and (watched or sample["charge"] != CHARGE_WAIT_FOR_CUP_REMOVAL):
+                done += 1
+                pending = False
+                self.runs.append(throw_facts(samples, target, watch_s))
+                print(throw_line(done, self.runs[-1]) + ("" if done == count else "; change the cup"), flush=True)
+            last_state = sample["charge"]
+        if self.charging:
+            self.session.send("charge stop")
+            self.charging = False
+            while self.state()["charge"] != CHARGE_EXIT:
+                time.sleep(0.1)
+            time.sleep(1.0)
+
     def precondition(self, tube: str, seconds: float) -> None:
         """The same state before every run: a time at 1 rev/s, then 5 s still. 0 for none."""
         if seconds > 0.0:
             self.turn(tube, PRECONDITION_RPS, seconds, 5.0, note="precondition")
 
     def close(self) -> int:
-        """Stop both motors, save the frames and the runs, end the session with its verdict."""
+        """Stop a charge left running and both motors, save the frames and the runs, end with the verdict."""
+        if self.charging:
+            self.session.send("charge stop")
+            time.sleep(1.0)
         for tube in ("coarse", "fine"):
             self.session.send(f"motor {tube} 0")
         self.session.send("scale tap off")
@@ -240,6 +303,57 @@ def summarise(folder: Path) -> None:
         per_turn = gained / run["turns"] if run["turns"] else float("nan")
         print(f"{run['tube']} {run['speed_asked_rps']:g} {run['turns']:.4f} {run_s:.2f} {gained:+.3f} {per_turn:.3f} "
               f"{gained / run_s:.3f} {late:+.3f} {run['note']}")
+
+
+def throw_facts(samples: list, target: float, watch_s: float) -> dict:
+    """One throw from its state samples (zeroing to the cup's removal), or None when it never charged."""
+    charging = [s for s in samples if s["charge"] == CHARGE_WAIT_FOR_COMPLETE]
+    after = [s for s in samples if s["charge"] == CHARGE_WAIT_FOR_CUP_REMOVAL]
+    if not charging or not after:
+        return None
+    stop = after[0]["t"]
+    coarse_on = [s["t"] for s in charging if s["coarse"] > 0.0]
+    # At rest: the readings late in the watch, while the cup is still on (a lifted cup reads far under the target)
+    rest = [s["weight"] for s in after if watch_s - 1.0 <= s["t"] - stop <= watch_s and s["weight"] > target - 1.0]
+    verdict = [s["weight"] for s in after if s["t"] - stop <= 1.0]
+    return {"note": "throw", "target": target, "time_s": stop - charging[0]["t"],
+            "coarse_s": (coarse_on[-1] - charging[0]["t"]) if coarse_on else 0.0,
+            "at_stop": charging[-1]["weight"], "at_verdict": verdict[-1],
+            "at_rest": statistics.median(rest) if rest else None,
+            "samples": [(round(s["t"] - stop, 3), s["charge"], s["weight"], s["coarse"], s["fine"])
+                        for s in samples if s["charge"] != CHARGE_WAIT_FOR_ZERO]}
+
+
+def throw_result(error: float) -> str:
+    """Over, under or good, by the unit's own rule at its default stop threshold."""
+    return "OVER" if error >= FINE_STOP_THRESHOLD_GR - 1e-6 else "under" if error <= -FINE_STOP_THRESHOLD_GR + 1e-6 \
+        else "good"
+
+
+def throw_line(index: int, throw: dict) -> str:
+    """A throw as one line."""
+    target = throw["target"]
+    rest = throw["at_rest"]
+    end = f"at rest {rest - target:+.3f} {throw_result(rest - target)}" if rest is not None else "cup lifted early"
+    return (f"throw {index}: {throw['time_s']:.1f} s (coarse {throw['coarse_s']:.1f} s), at the stop "
+            f"{throw['at_stop'] - target:+.3f}, a second later {throw['at_verdict'] - target:+.3f} "
+            f"{throw_result(throw['at_verdict'] - target)}, {end}")
+
+
+def summarise_throws(folder: Path) -> None:
+    """Every throw's line, then the counts by the weight at rest."""
+    throws = [run for run in json.loads((folder / "runs.json").read_text(encoding="utf-8")) if run["note"] == "throw"]
+    for index, throw in enumerate(throws):
+        print(throw_line(index + 1, throw))
+    rested = [throw for throw in throws if throw["at_rest"] is not None]
+    results = [throw_result(throw["at_rest"] - throw["target"]) for throw in rested]
+    shown = [throw_result(throw["at_verdict"] - throw["target"]) for throw in rested]
+    if rested:
+        print(f"{len(rested)} throws at rest: {results.count('OVER')} over, {results.count('under')} under, "
+              f"{results.count('good')} good (the unit's verdict a second after the stop: {shown.count('OVER')} over, "
+              f"{shown.count('under')} under); time median {statistics.median(t['time_s'] for t in rested):.1f} s, "
+              f"longest {max(t['time_s'] for t in rested):.1f} s; rise after the stop mean "
+              f"{statistics.fmean((t['at_rest'] - t['at_stop']) / DIGIT_GR for t in rested):+.1f} digits")
 
 
 def creep_gain(trial: dict) -> tuple:
@@ -309,6 +423,13 @@ def main() -> None:
     creep.add_argument("--run-s", default="3:6", help="least:most seconds of turning before a stop, drawn at random")
     creep.add_argument("--still-s", type=float, default=3.0)
     creep.add_argument("--stops", default="held,released", help="held (driver on, as in a charge), released, or both")
+    throws = sub.add_parser("throws", help="real throws of the firmware's own loop, recorded by `state`; a person "
+                                           "changes the cup after each")
+    throws.add_argument("--host", required=True, help="the unit's address, for the start over the API")
+    throws.add_argument("--target", type=float, required=True)
+    throws.add_argument("--profile", type=int, required=True, help="the powder profile's id")
+    throws.add_argument("--count", type=int, default=10)
+    throws.add_argument("--watch-s", type=float, default=3.5, help="the cup stays on this long after the tubes stop")
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
@@ -317,15 +438,17 @@ def main() -> None:
         runs = json.loads((args.folder / "runs.json").read_text(encoding="utf-8"))
         if any(run["note"] == "creepstop" for run in runs):
             summarise_creep(args.folder)
+        elif any(run["note"] == "throw" for run in runs):
+            summarise_throws(args.folder)
         else:
             summarise(args.folder)
         return
 
-    bench = Bench(args.repo, args.command, args.board, tap=args.command not in ("flick", "creepstop"))
+    bench = Bench(args.repo, args.command, args.board, tap=args.command not in ("flick", "creepstop", "throws"))
     try:
         start = bench.weight()
         print(f"weight at the start {start:.2f}")
-        if start > CUP_LIMIT_GR:
+        if start > CUP_LIMIT_GR and args.command != "throws":
             raise SystemExit("the cup is near full: ask the owner to empty it")
         if args.command == "chain":
             for _ in range(5):
@@ -348,6 +471,8 @@ def main() -> None:
                 name = names[index % len(names)]
                 trial = bench.flick(name, FLICKS[name], args.pause_ms / 1000.0, args.still_s)
                 print(f"{name} {trial['gained_gr']:+.3f} {trial['steps']} {trial['moves_ms']:.0f}", flush=True)
+        elif args.command == "throws":
+            bench.throws(args.host, args.target, args.profile, args.count, args.watch_s)
         elif args.command == "creepstop":
             least, most = (float(text) for text in args.run_s.split(":"))
             plan = [(float(speed), stop == "held") for speed in args.speeds.split(",")
@@ -385,6 +510,8 @@ def main() -> None:
         summarise(bench.folder)
     if args.command == "creepstop":
         summarise_creep(bench.folder)
+    if args.command == "throws":
+        summarise_throws(bench.folder)
     sys.exit(code)
 
 

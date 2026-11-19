@@ -142,6 +142,55 @@ Asked by the owner of the agent taking over: an independent review first. Made f
 - **Fail:** the spread is wider than the band. Then the finish needs a second, slower stage (0.02 rev/s, tried the same way), and only if that fails too is oscillation's question open.
 - It also separates the driver's switching off from the powder (the two kinds of stop), and gives the scale's time to stillness after a real finish's stop.
 
+## 2026-11-20, 00:26 to 00:42: the creep-stop test on the bench
+
+The owner: "Bench is ready"; "don't fill over 300 grain"; "The A&D is at FAST settings." Pico 2 W, 2.0.3-84, the same powder and tubes. `record.py creepstop --speeds 0.05,0.1 --count 30`: 120 stops in a shuffled order, weights by `state` (47 a second), no tap. The session ended `VERDICT PASS`; 4.9 gr in the cup before, 35.8 gr after. Folder `logs/adr009/20261120_002709_creepstop`, its lines in `research/bench_2026-11-20/`.
+
+| Fine tube | Driver at the stop | Flow before, digits a second | Rise after the stop, digits (0.02 gr) | Spread | Three digits hold | Still by (median, longest) |
+|---|---|---|---|---|---|---|
+| 0.05 rev/s | on | 1.8 | +3.0 | 2.6 | 15 of 30 | 0.7 s, 3.0 s |
+| 0.05 rev/s | off | 1.9 | +2.7 | 2.3 | 15 of 30 | 0.7 s, 3.0 s |
+| 0.1 rev/s | on | 3.7 | +3.1 | 2.6 | 17 of 30 | 0.6 s, 2.5 s |
+| 0.1 rev/s | off | 3.4 | +2.9 | 2.3 | 15 of 30 | 0.6 s, 2.5 s |
+
+**Verdict: fail.** The pass was 29 of 30 within three digits; the best is 17. A finish by one stop on the reading, from either speed, lands in the tolerance about half the time.
+
+**What it shows**
+- **The rise after a stop does not follow the speed.** It is +3 digits from 0.05 and from 0.1 rev/s alike. What the scale had not yet shown accounts for about 1 digit at 0.05 and 2 at 0.1 (the flow times 0.55 s); the rest, 1 to 2 digits on average, comes with the stop itself.
+- **Its spread is the trouble, not its mean:** from 0 (8 stops of 30) to 10 digits (0.2 gr). The largest rises followed one to two seconds with no gain before the stop: powder gathered at the lip, then fell together.
+- **The driver's switching off is not the cause:** the two kinds of stop differ by less than their spread.
+- **The reading is still within 1 to 1.5 s of the stop** (nine tenths of the rise by 1.0 s, at both speeds). That stands from the review.
+- **The steady turn was lumpier here than in the long runs of 11-19:** the digits gained a second have a variance over mean of 1.8 to 2.9 at 0.05 rev/s and 1.3 to 1.6 at 0.1, against 1.0 to 1.4 then. Over a whole trial, 1.6.
+- **Each turn starts late:** nothing shows in the first second at 0.05 rev/s (0.18 digits at 0.1), a second and more than the scale's lag explains. A tube that has stopped gives up what stood at its lip and must bring powder forward again.
+
+**What the review got wrong, and what stands.** "Turning steadily, this powder leaves a kernel at a time" was drawn from three recordings of 20 to 38 s and was too strong: bursts are in a steady turn too, milder than in nudges (variance over mean 1.3 to 2.9 against 4.9), with a tail to ten kernels. The first agent's "clumps at the lip are the limit" is nearer the truth than the review allowed, for every finish tried so far and not only for nudges. What stands: nudging makes it worse, the driver's switching does not matter, and the scale is still by 1.5 s after a stop.
+
+**The slower stage, 00:45 to 00:50** (`--speeds 0.02 --count 30 --stops held --run-s 6:10`; `VERDICT PASS`; 41.4 gr in the cup after; folder `20261120_004507_creepstop`):
+
+| Fine tube | Flow before, digits a second | Rise after the stop | Spread | By digit | Three digits hold |
+|---|---|---|---|---|---|
+| 0.02 rev/s, driver on | 0.8 | +0.4 | 0.9 | -1: 2, 0: 18, +1: 7, +2: 1, +3: 2 | 27 of 30 |
+
+- **Fail by the rule (29 of 30), and nearer than the faster speeds.** The rise is what the scale had not shown and no more (0.8 digits a second times half a second): the "1 to 2 digits that come with the stop" seen at 0.05 and 0.1 rev/s are not here, so they are not made by stopping. What they are is not known.
+- **But the flow at 0.02 rev/s comes in bursts:** the digits gained in a second have a variance over mean of 2.0 to 5.8, as lumpy as the nudges (4.9), with up to 10 digits in one second after seconds of nothing. A stop at a moment chosen by the PC seldom meets a burst, which is why the rise is small.
+- **The test's own limit, seen only now:** a real finish stops when the reading crosses a threshold, and a burst is what carries it across. This test stopped at random moments, so it measured what lands after the stop and not how far the crossing itself overshoots. At 0.02 rev/s the crossing is the larger part. The test understates a real finish's overs wherever the flow is bursty.
+- **The reading at this flow is slow to move:** nearly nothing of the rise shows before 0.9 s, most of it between 0.9 and 1.5 s. One digit alone is slower to show than a flow, as the nudges said.
+
+**Where that leaves the finish**
+
+| Fine tube's speed | How the powder leaves (variance over mean, 1 s) | In flight when the scale shows it |
+|---|---|---|
+| Nudges of 4° | 4.9, to 8 kernels | nothing, but 2 s a nudge |
+| 0.02 rev/s | 2.0 to 5.8, to 10 digits | under 1 digit |
+| 0.05 rev/s | 1.8 to 2.9 | about 3 digits, spread 2.4 |
+| 0.1 rev/s | 1.3 to 1.6 | about 3 digits, spread 2.4 |
+| 0.2 rev/s and over (11-19's runs) | 0.7 to 0.8 | 4 digits and more |
+
+- **The bind:** the powder leaves evenly only when the tube turns fast enough that several digits are in flight behind the scale; slow enough for the scale, it leaves in bursts. No speed in this table gives both.
+- **So the first agent's direction was right and the review's was not:** what would help is the powder leaving evenly at a low speed, which is what the owner's oscillation is for. The review parked it on evidence from 0.05 rev/s and over; at 0.02 rev/s the bursts are as large as the nudges'. By the closing condition the review itself set (a fail at 0.02 rev/s), oscillation's question is open again.
+
+**What it predicts, to be checked by real throws:** today's loop stops on the first reading within 0.03 gr under the target and calls a throw over at 0.03 gr above. With these rises, a stop from its least speed would end over in about half the throws (16 of 30 in each kind with the driver on), where the owner remembers 1 in 10 to 15. Either a real throw's finish is kinder than this test's (its tube has been turning for seconds, not started from rest three seconds before), or the powder and the corrected gear ratio have made today's loop that much worse. Ten recorded throws tell which; nothing else does.
+
 **Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
 
 **Not done**

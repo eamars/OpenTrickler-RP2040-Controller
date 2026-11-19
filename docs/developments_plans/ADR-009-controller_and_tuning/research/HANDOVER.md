@@ -50,7 +50,7 @@ Marked **[B]** measured on the bench (Pico 2 W, 2.0.3-84, A&D FX-300i, large tub
 - **[B] One kernel is far slower to show than a grain:** after a small turn the reading first moved at a median of 1.24 s (a tenth by 0.7 s, nine tenths by 2.0 s) and was still by 1.55 s (nine tenths by 2.6 s).
   - **Not separated:** whether that is the scale's filter (slow for small changes, as balances with a two-speed filter are) or the kernel falling late after the tube is released. `motor <tube> 0` switches the driver off, so the tube is free to move back.
 - **[B] The A&D's frames carry `US` while the weight moves and `ST` at rest**, 20.7 a second. No driver uses that flag today [C]; it is the natural "settled" signal.
-- **Unknown:** the A&D's response setting (FAST, MID, SLOW) and zero tracking (`trc`). Asked of the owner twice, not yet answered. A slower response would explain the lag.
+- **The A&D's response setting is FAST** (the owner, 2026-11-20: "The A&D is at FAST settings"). So the lag measured is the scale at its quickest: there is no faster setting to gain from. Zero tracking (`trc`) is still not known.
 
 ### The powder at the lip
 
@@ -79,6 +79,16 @@ An independent review of the raw recordings (`../progress.md`, "a second agent's
 - **Conclusion 2 is narrower than written.** After a stop from a slow steady turn the reading is still within about 1 s. Only one kernel alone after a nudge takes 2 s.
 - **Conclusion 3's first candidate is the one to test** (stop the steady feed by what is already on its way), and oscillation waits until a steady finish is shown to fail.
 - **Actions, in the new order:** (1) the creep-stop test on the bench (`record.py creepstop`; pass and fail in `../progress.md`); (2) by its result, ten recorded throws of today's loop with its stop moved, the owner at the cup; (3) the ADR revised with the owner. A1's question on the A&D's response setting still stands. A2 and A3 (the simulation refitted, the finish redesigned in it) are not done first: the simulation is refitted when a design question needs it that the bench cannot answer cheaper. A5 (oscillation) is parked with its closing condition: opened only if the creep-stop test fails at 0.02 rev/s too.
+
+### After the creep-stop test (2026-11-20, 00:26 to 00:50): the revision above is itself revised
+
+The test failed at 0.05, 0.1 and 0.02 rev/s (`../progress.md`, with the table "Where that leaves the finish"). In short:
+
+- **Bursts are in a steady turn too,** and grow as the tube slows: at 0.02 rev/s as large as the nudges'. Conclusion 1 below is nearer the truth than the revision above allowed. What stands of the revision: nudging is the worst case, the driver's switching does not matter, the scale is still within 1.5 s of a stop.
+- **The bind:** even flow needs a speed at which three digits and more are in flight behind the scale; a speed slow enough for the scale gives bursts.
+- **Oscillation's question is open again** (its closing condition was met: a fail at 0.02 rev/s). What it must show is narrower now: an even flow at 0.02 to 0.05 rev/s, judged by the variance over mean of the digits a second (`creepstop` gives it), not by nudges.
+- **The actions now:** (1) ten real throws of today's loop, recorded (`record.py throws`, written, tried only against a made-up unit): the baseline never taken, and the check of the prediction that today's loop on this unit is over in about half its throws; (2) by its result, with the owner: the `wiggle` research build for an oscillation laid over a slow turn; (3) the ADR revised.
+- **A trap in `creepstop`:** it stops at moments the PC chooses, so it understates a real finish's overs where the flow is bursty: a real stop is triggered by a burst arriving.
 
 ## Interim conclusion
 
