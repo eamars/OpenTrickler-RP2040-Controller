@@ -179,6 +179,12 @@ typedef struct {
 
 void http_server_get_stats(http_server_stats_t *stats);
 
+/**
+ * @brief Each connection taken and each request on the console, with the client's address and the unit's time, or
+ * not (the default). Never stored: a link's rhythm read from a client's own reads
+ */
+void http_server_log_requests(bool on);
+
 #ifdef __cplusplus
 }
 #endif

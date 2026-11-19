@@ -168,6 +168,21 @@ static const struct {
 
 static bool remote_control_net(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                void *write_ctx) {
+    // `net log on|off`: each connection and request on the console, never stored
+    if (args != NULL && strncmp(args, "log", 3) == 0) {
+        const char *what = args + 3;
+        while (*what == ' ') {
+            what += 1;
+        }
+        bool on = strcmp(what, "on") == 0;
+        if (!on && strcmp(what, "off") != 0) {
+            snprintf(reply, reply_size, "@err usage net [log on|off]");
+            return false;
+        }
+        http_server_log_requests(on);
+        snprintf(reply, reply_size, "@ok net log %s", on ? "on" : "off");
+        return true;
+    }
     // lwIP's heap and pools (ADR-003, gate 1): in use now, the most ever in use, the size, and the allocations
     // that failed. Read without lwIP's lock: counters, only read here
     size_t len = snprintf(reply, reply_size, "@ok net heap_used=%u heap_max=%u heap_size=%u heap_err=%lu",

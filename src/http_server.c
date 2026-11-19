@@ -96,6 +96,7 @@ typedef struct {
     size_t headers_total;
     bool started;                          // a byte of this request has come
     bool served;                           // a reply went on this connection: kept alive, it may be closed for room
+    uint32_t peer;                         // the client's IPv4 address, as lwIP keeps it
     uint32_t started_ms;                   // when it did
     bool http10;
     bool keep_alive;
@@ -191,6 +192,7 @@ static volatile uint64_t server_last_write_us = 0;
 static http_server_stats_t stats;
 static uint64_t stream_make_us;     // stats.stream_make_ms, kept in microseconds: a chunk takes some milliseconds
 static TaskHandle_t server_task_handle = NULL;
+static volatile bool log_requests = false;
 static http_server_handler_t usage_handler = NULL;
 
 
@@ -873,6 +875,11 @@ static void slot_dispatch(slot_t *slot) {
     http_server_request_t *request = &slot->request;
     http_server_reply_t reply;
     reply_init(&reply, slot);
+    if (log_requests) {
+        const uint8_t *ip = (const uint8_t *) &slot->peer;
+        printf("HTTP: %lu ms, %u.%u.%u.%u %s %s\n", (unsigned long) now_ms(), ip[0], ip[1], ip[2], ip[3],
+               method_name(request->method), request->path != NULL ? request->path : "(no path)");
+    }
 
     if (!slot_admit(slot, &reply)) {
         return;
@@ -1548,12 +1555,20 @@ static void server_accept(int listen_fd) {
         stats.closed_for_room += 1;
         slot_close(slot, false);
     }
-    int fd = lwip_accept(listen_fd, NULL, NULL);
+    struct sockaddr_in from;
+    socklen_t from_len = sizeof(from);
+    int fd = lwip_accept(listen_fd, (struct sockaddr *) &from, &from_len);
     if (fd < 0) {
         return;
     }
     lwip_fcntl(fd, F_SETFL, O_NONBLOCK);
     slot->fd = fd;
+    slot->peer = from.sin_addr.s_addr;
+    if (log_requests) {
+        const uint8_t *ip = (const uint8_t *) &slot->peer;
+        printf("HTTP: %lu ms, a connection from %u.%u.%u.%u in slot %d\n", (unsigned long) now_ms(), ip[0], ip[1],
+               ip[2], ip[3], (int) (slot - slots));
+    }
     slot_reset_request(slot);
     slot->served = false;
     slot->last_progress_ms = now_ms();
@@ -1752,6 +1767,11 @@ static void server_task(void *arg) {
         }
         server_timers();
     }
+}
+
+
+void http_server_log_requests(bool on) {
+    log_requests = on;
 }
 
 
