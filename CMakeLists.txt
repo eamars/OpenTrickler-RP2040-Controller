@@ -127,12 +127,14 @@ list(FILTER MBEDTLS_SOURCES EXCLUDE REGEX "/sha256\\.c$")
 set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
 
 # The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/github_roots.pem). A test build
-# (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots too (tools/ota_server.py --make-certs); no other does
-option(HTTPS_TEST_CA "Test build only: also trust the local OTA server's test roots" OFF)
+# (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots in their place (tools/ota_server.py --make-certs),
+# two of the same kinds, so a fetch on the bench holds what a user's does (ADR-008: with all four, 3.3 KB more); no
+# other build does, and a test build reaches no GitHub, as the bench rules ask
+option(HTTPS_TEST_CA "Test build only: trust the local OTA server's test roots in place of GitHub's" OFF)
 set(HTTPS_CA_FILES ${SRC_DIRECTORY}/github_roots.pem)
 if (HTTPS_TEST_CA)
-    list(APPEND HTTPS_CA_FILES ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/ecc_root.pem
-                               ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/rsa_root.pem)
+    set(HTTPS_CA_FILES ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/ecc_root.pem
+                       ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/rsa_root.pem)
 endif()
 set(https_ca_text "")
 foreach(ca_file IN LISTS HTTPS_CA_FILES)
