@@ -231,6 +231,19 @@ The owner: "Cleared"; the cup holds 700 gr and more; "Next time you don't need t
 - **The limit is the scatter of what lands after the stop, about 2.5 digits,** the same in the open-loop test and in real throws, at every speed tried. No setting of today's loop removes it.
 - **Not explained: the owner's "1 in 10 to 15".** This bench cannot give it with any settings tried. Which unit, tubes and powder that figure is from decides whether the bench is the worst case (this batch clumps "more than fresh") or the usual one.
 
+**The owner's answer (2026-11-20, 01:12): "I was on the Pico W setup on 192.168.2.168 so it was not the same."** The "1 in 10 to 15" is the Pico W's, the owner's own trickler. Its settings as copied on 11-19 (`logs/adr008/picow/bench_after`, read from disk, no contact with the unit):
+
+| | Pico W, tuned by the owner | Pico 2 W, as stored | Pico 2 W, set from the measurements tonight |
+|---|---|---|---|
+| Fine Kp | 0.8 | 2 | 0.8 |
+| Fine tube's most | 2 rev/s (the motor's 3) | 5 | 1.5 |
+| Fine tube's least | 0.08 (the motor's 0.01) | 0.1 (the motor's) | 0.03 |
+| Fine gear ratio | 1.818 | 2.105 until 11-19 | 1.818 |
+| Coarse Kp, most | 0.05, 5 (the motor's) | 0.02, 5 | as stored |
+
+- **The rule from two measured numbers gave the owner's own hand tuning:** the bound was 0.9, 0.8 was set, and the owner's profile has 0.8 with a top speed of 2. So the calibration can stand in for tuning by hand, and the Pico 2 W's profile was simply never tuned for its tubes. No sign in this of a change by ADR-012; its check against the older firmware is still owed.
+- **With nearly the owner's settings this bench was over in 10 of 12, where the owner's trickler is over in 1 of 10 to 15.** What differs is then not the settings: the powder (this batch long in the air, which the owner says clumps more), the tubes as printed and fitted, or both. Fresh powder in this bench's hopper, with the same two tests, tells which.
+
 **Not done in this session:** the scale at rest and with the motors turning on an empty hopper (the hopper was loaded); the chain test; a second pass of the maps; the coarse tube above 3 rev/s; the history run; ten recorded throws with today's loop (each needs the cup taken off and put back); oscillation and the flick; the simulation refitted to these figures.
 
 **Not done**
