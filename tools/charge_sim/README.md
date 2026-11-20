@@ -50,6 +50,7 @@ Another unit, powder or scale is another record, made by the same command. Nothi
 | `flow_dose.py`, `calibrate.py` | The first candidate and its calibration, written before any bench session: they run on a record, their old figures are void, and the design that follows starts from them |
 | `controllers.py` | The controllers by name |
 | `throw.py` | One throw to its verdict; a session of throws on one rig |
+| `workers.py` | Jobs spread over half the PC's cores: fresh processes for every batch and a failed job run once more (its head says why) |
 | `geometry/` | The scripts that measured the tubes from their STLs |
 
 A controller has `start(target, now_ms)`, `on_tick(now_ms)` once a millisecond, `on_reading(now_ms, weight)` on each reading, and the attributes `coarse_rps`, `fine_rps` and `done`. That is the seam ADR-009's controller module would have.

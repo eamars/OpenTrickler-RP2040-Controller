@@ -23,7 +23,7 @@ from legacy_pid import Profile
 stats = bench_twin.stats    # bench/stats.py, which the recordings were summed up with
 
 # (figure, absolute tolerance, relative tolerance): a figure passes within either.
-CREEP_STOP = [("rate", 0.2, 0.12), ("start_2s", 0.8, 0.3), ("fano_1s", 0.5, 0.35), ("rise", 0.6, 0.25),
+CREEP_STOP = [("rate", 0.2, 0.12), ("start_1s", 0.5, 0.3), ("start_2s", 0.8, 0.3), ("fano_1s", 0.5, 0.35), ("rise", 0.6, 0.25),
               ("rise_sd", 0.6, 0.25), ("three_hold", 0.12, 0.0)]
 # A coarse stop's start is not judged: the bench shuffled plain stops and back-offs, so a trial's start follows
 # another kind's stop.
@@ -31,7 +31,7 @@ COARSE_STOP = [("rise", 5.0, 0.2), ("rise_sd", 6.0, 0.5)]
 CREEP_STEADY = [("rate", 0.2, 0.12), ("fano_1s", 0.5, 0.35), ("fano_2s", 0.5, 0.35), ("fano_4s", 0.5, 0.35),
                 ("most_1s", 2.0, 0.3), ("fold_turn", 0.06, 0.0), ("fold_rifling", 0.06, 0.0)]
 NUDGES = [("kernels", 0.1, 0.25), ("fano", 1.0, 0.3), ("nothing", 0.08, 0.0), ("three_up", 0.04, 0.0),
-          ("first_single_s", 0.4, 0.0), ("first_many_s", 0.25, 0.0)]
+          ("first_single_s", 0.4, 0.0), ("first_many_s", 0.25, 0.0), ("single_late", 0.15, 0.0)]
 THROWS = [("time", 0.7, 0.15), ("coarse_s", 0.5, 0.15), ("at_stop", 0.04, 0.3), ("at_rest", 0.03, 0.25),
           ("at_rest_sd", 0.03, 0.4), ("over", 0.17, 0.0)]
 MAPS = [("gr_per_turn", 0.0, 0.08), ("late_s_fast", 0.12, 0.0)]

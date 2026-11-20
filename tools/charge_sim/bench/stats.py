@@ -16,6 +16,7 @@ START_SKIP_S = 2.0      # a turn's first seconds are its start, not its steady f
 FOLD_BINS = 10
 FOLD_LEAST_S = 30.0     # a run shorter than this is not folded by angle
 RIFLING_STARTS = 5      # both of the project's tubes
+SINGLE_LATE_S = 1.5     # a single kernel first shown later than this after its nudge is a late one
 
 
 def reading_at(series: list, t: float) -> float:
@@ -166,7 +167,8 @@ def nudge_stats(gains_kernels: list, first_moves_s: list) -> dict:
     Returns:
         nudges; kernels (the mean a nudge); fano (variance over mean of the gains); nothing, one, two, three_up
         (shares of the nudges); first_single_s and first_many_s (the median time to the reading's first move, for
-        releases of one kernel and of three or more).
+        releases of one kernel and of three or more); single_late (the share of single kernels whose first move
+        came later than SINGLE_LATE_S: how slowly the scale takes a small change).
     """
     counts = [round(gain) for gain in gains_kernels]
     total = len(counts)
@@ -178,4 +180,5 @@ def nudge_stats(gains_kernels: list, first_moves_s: list) -> dict:
             "one": counts.count(1) / total, "two": counts.count(2) / total,
             "three_up": sum(1 for count in counts if count >= 3) / total,
             "first_single_s": statistics.median(single) if single else None,
+            "single_late": sum(1 for seconds in single if seconds > SINGLE_LATE_S) / len(single) if single else None,
             "first_many_s": statistics.median(many) if many else None}

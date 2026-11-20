@@ -20,12 +20,12 @@ import json
 import os
 import statistics
 import sys
-from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
 import fit_report
 import rigs
+from workers import Workers
 
 sys.path.insert(0, str(Path(__file__).parent / "bench"))
 
@@ -44,7 +44,8 @@ FLAT_SHARE = 0.10           # a flow map whose points all lie this near its medi
 # What no recording gives yet. Each is named "assumed" in the record's sources.
 ASSUMED_SCALE = {"report_jitter_s": 0.002, "sensor_tau_s": 0.03, "open_tau_s": 0.10, "closed_tau_s": 1.30,
                  "link_min_s": 0.009, "link_max_s": 0.029}
-OPEN_ABOVE_DIGITS = 2.5     # the scale follows a change over this many digits at once
+OPEN_ABOVE_DIGITS = 2.5     # the scale follows a change over this many digits at once: the bench's A&D first showed
+                            # a large release as a jump of 2 or 3 digits (the tapped frames of 2026-11-19)
 NOISE_DIGITS = 0.075
 ASSUMED_POWDER = {"kernel_cv": 0.12}
 ASSUMED_TUBE = {"regularity": 2.0, "settle_s": 0.0, "after_stop_tau_s": 0.2, "after_stop_full_turns": 0.1,
@@ -297,7 +298,7 @@ def build(targets: dict, passes: int) -> dict:
     """
     sources = {}
     record = first_record(targets, sources)
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
+    with Workers() as pool:
         for index in range(passes):
             print(f"pass {index + 1} of {passes}", flush=True)
             for batch in problems_of(targets, index == 0):

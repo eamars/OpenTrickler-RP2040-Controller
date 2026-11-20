@@ -14,12 +14,11 @@ Usage:
 
 import argparse
 import dataclasses
-import os
-from concurrent.futures import ProcessPoolExecutor
 
 import mc
 import rigs
 from legacy_pid import PICO2W_SLOW_FINISH
+from workers import Workers
 
 BURST_SHARES = (1.0, 0.5, 0.25, 0.0)
 AFTER_STOP_SHARES = (1.0, 0.0)
@@ -59,8 +58,8 @@ def main() -> None:
             made = mc.session_jobs(changed, profile, args.target, args.throws, args.seed)
             spans.append(((hold, burst, regularity, after, stop), len(jobs), len(jobs) + len(made)))
             jobs.extend(made)
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
-        sessions = list(pool.map(mc.run_session, jobs))
+    with Workers() as pool:
+        sessions = pool.map(mc.run_session, jobs)
     sums = {key: mc.summarise([result for session in sessions[first:last] for result in session])
             for key, first, last in spans}
 

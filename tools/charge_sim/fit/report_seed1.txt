@@ -8,17 +8,17 @@ coarse 0.3 held stop: rise 82.33|85.08, rise_sd 5.93|8.04
 coarse 1 backoff stop: rise 314.00|313.22, rise_sd 14.41|21.85 OFF
 coarse 1 held stop: rise 278.50|268.03, rise_sd 14.34|17.07
 fine 0.02 held steady: rate 0.75|0.76, fano_1s 3.37|3.39, fano_2s 3.29|3.25, fano_4s 2.36|3.01, most_1s 8.00|15.00 OFF, fold_turn 0.74|0.67 OFF, fold_rifling 0.66|0.64
-fine 0.02 held stop: rate 0.85|0.80, start_2s 0.27|0.67, fano_1s 3.71|3.21, rise 0.43|0.74, rise_sd 0.92|1.38, three_hold 0.90|0.92
+fine 0.02 held stop: rate 0.85|0.80, start_1s 0.03|0.25, start_2s 0.27|0.67, fano_1s 3.71|3.21, rise 0.43|0.74, rise_sd 0.92|1.38, three_hold 0.90|0.92
 fine 0.05 held steady: rate 1.90|1.92, fano_1s 1.89|2.06, fano_2s 1.76|1.98, fano_4s 1.24|1.60, most_1s 9.00|15.00 OFF, fold_turn 0.65|0.64, fold_rifling 0.69|0.58 OFF
-fine 0.05 held stop: rate 1.78|1.79, start_2s 1.29|1.80, fano_1s 2.67|2.12, rise 2.87|2.41, rise_sd 2.56|2.06, three_hold 0.48|0.55
-fine 0.05 released stop: rate 1.86|1.81, start_2s 1.32|1.53, fano_1s 2.27|1.95, rise 2.60|2.61, rise_sd 2.34|2.24, three_hold 0.52|0.57
+fine 0.05 held stop: rate 1.78|1.79, start_1s 0.03|0.25, start_2s 1.29|1.80, fano_1s 2.67|2.12, rise 2.87|2.41, rise_sd 2.56|2.06, three_hold 0.48|0.55
+fine 0.05 released stop: rate 1.86|1.81, start_1s -0.03|0.17, start_2s 1.32|1.53, fano_1s 2.27|1.95, rise 2.60|2.61, rise_sd 2.34|2.24, three_hold 0.52|0.57
 fine 0.1 held steady: rate 3.57|3.84, fano_1s 2.18|2.45, fano_2s 2.64|2.06, fano_4s 1.54|1.81, most_1s 11.00|20.00 OFF, fold_turn 0.68|0.64, fold_rifling 0.60|0.57
-fine 0.1 held stop: rate 3.48|3.87, start_2s 3.65|4.25, fano_1s 1.32|2.18 OFF, rise 3.10|3.13, rise_sd 2.61|2.46, three_hold 0.55|0.49
-fine 0.1 released stop: rate 3.38|3.86 OFF, start_2s 3.77|4.47, fano_1s 1.82|2.28, rise 2.90|3.23, rise_sd 2.28|2.81, three_hold 0.52|0.49
+fine 0.1 held stop: rate 3.48|3.87, start_1s 0.19|0.93 OFF, start_2s 3.65|4.25, fano_1s 1.32|2.18 OFF, rise 3.10|3.13, rise_sd 2.61|2.46, three_hold 0.55|0.49
+fine 0.1 released stop: rate 3.38|3.86 OFF, start_1s 0.16|0.99 OFF, start_2s 3.77|4.47, fano_1s 1.82|2.28, rise 2.90|3.23, rise_sd 2.28|2.81, three_hold 0.52|0.49
 fine 0.2 held steady: rate 7.10|7.67, fano_1s 0.89|1.05, fano_2s 0.74|1.03, fano_4s 0.45|0.26, most_1s 15.00|18.00, fold_turn 0.59|0.63, fold_rifling 0.54|0.53
-nudges: kernels 0.46|0.41, fano 4.87|4.97, nothing 0.76|0.85 OFF, three_up 0.08|0.06, first_single_s 1.67|1.74, first_many_s 0.90|0.62 OFF
+nudges: kernels 0.46|0.41, fano 4.87|4.97, nothing 0.76|0.85 OFF, three_up 0.08|0.06, first_single_s 1.67|1.74, first_many_s 0.90|0.62 OFF, single_late 0.57|0.82 OFF
 throws stored at 42.5 gr: time 6.24|6.62, coarse_s 5.34|5.66, at_stop 0.16|0.08 OFF, at_rest 1.33|1.36, at_rest_sd 0.09|0.22 OFF, over 1.00|1.00
 throws kp08 at 20 gr: time 4.65|5.14, coarse_s 3.21|3.34, at_stop -0.02|0.00, at_rest 0.21|0.17, at_rest_sd 0.12|0.17 OFF, over 0.83|0.86
 throws slow_finish at 20 gr: time 11.27|11.30, coarse_s 6.18|6.10, at_stop -0.02|-0.01, at_rest 0.07|0.04 OFF, at_rest_sd 0.05|0.04, over 0.83|0.49 OFF
-the record's own recordings: 69 of 80 figures within tolerance
+the record's own recordings: 72 of 86 figures within tolerance
 the check, throws of today's loop: 13 of 18 figures within tolerance

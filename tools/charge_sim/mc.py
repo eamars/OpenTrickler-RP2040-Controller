@@ -7,12 +7,12 @@ Usage: python mc.py [--rig bench_pico2w] [--controller legacy_slow_finish] [--ta
 import argparse
 import dataclasses
 import statistics
-from concurrent.futures import ProcessPoolExecutor
 
 import rigs
 from controllers import CONTROLLERS, VERDICT_TOLERANCE_GR
 from legacy_pid import LegacyPid, Profile
 from throw import Session
+from workers import Workers
 
 THROWS_PER_SESSION = 25     # a session keeps the tubes' state from throw to throw, as a loading session does
 
@@ -48,7 +48,7 @@ def run_many(rig, controller, target: float, throws: int, seed: int, pool=None) 
     jobs = session_jobs(rig, controller, target, throws, seed)
     if pool is not None:
         return [result for results in pool.map(run_session, jobs) for result in results]
-    with ProcessPoolExecutor() as own:
+    with Workers() as own:
         return [result for results in own.map(run_session, jobs) for result in results]
 
 

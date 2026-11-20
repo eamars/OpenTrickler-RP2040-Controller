@@ -337,7 +337,7 @@ The owner: "Cleared"; the cup holds 700 gr and more; "Next time you don't need t
 - **Loose and harmless to today's loop, 24:** among them every number of the fine tube turned backward. Harmless only because today's loop never turns it back: for an oscillating finish they are simply not measured.
 - **Loose and a throw notices, 2: both are the shape of the scale's response to a small change** (how fast it follows, and from what size of change it follows at once). No recording used gives them, and a half more or less moves the overs by 11 to 12 throws in 100.
 
-**Why the simulation is kind at the finish: the scale, not the powder.**
+**Why the simulation is kind at the finish: the scale, not the powder.** *(Wrong, as the evening's work below showed: three shapes of the scale's response left the finish where it was. What follows is kept as it was written.)*
 - Trading the scale's delay for a slow rise of the same total lateness takes the slow finish from 52% over to 92% (the bench: 83%) and the rise after its stop from 2.1 to 4.3 digits (the bench: 4.6), while the stops' figures hardly move. But the coarse tube's stops show the scale is sharp for a large flow (three quarters of the rise by 0.4 s, all by 0.8 s). So it is the small changes that the model has wrong.
 - **The raw frames show what the scale does** (11-19's tapped folders; nothing new recorded):
   - it calls the weight stable 0.38 s after the last change (140 times in three folders, nine in ten of them within 3 ms of 0.380 s), and never changes the weight without first calling it unstable (1,636 changes);
@@ -382,3 +382,72 @@ The owner: "Cleared"; the cup holds 700 gr and more; "Next time you don't need t
 5. **A second unit and other powders,** to tell tube from powder: the owner offers the Pico W's own build, fresh AR2209, AR2208 and ADI BM2.
 
 **Next, in order:** (1) the scale's stable band fitted from the frames, the record rebuilt, the slow finish checked again; (2) the capture protocol written as one fixed script that leaves one folder and one manifest a cell; (3) the campaign; (4) the finish and the feed designed on the records, the predictions written down before the verifying throws.
+
+## 2026-11-20, evening: the scale's shape tried three ways; the finish's gap is the powder's, not the scale's
+
+The owner, to "fit the scale's small-change behaviour from the frames already recorded?": "Yes, fit it". No unit. **The record and the model are as committed in the afternoon: nothing tried here was better by the figures, so nothing was kept but the tools' worker pool and two more judged figures.**
+
+**What the frames say of the scale, with no model** (the tapped folders of 11-19)
+- **A large change is followed after a plain delay.** After a stop from a fast flow (coarse 1 and 3 rev/s, fine 3.5 and 5) the reading goes on rising in a straight line and is done by 0.6 to 0.7 s: 0.18, 0.35, 0.53, 0.72, 0.88, 0.96, 1.00 of the rise by each tenth of a second.
+- **A small change from rest is followed slowly, and not as "held, then shown whole":**
+
+| Release, digits | Releases | The reading first moves, s after the nudge | First jump, digits | Then |
+|---|---|---|---|---|
+| 1 | 13 | 0.29, 0.71, then 1.81 to 3.08 | 1 | |
+| 2 | 4 | 0.82 to 1.53 | 1 | the second digit 1.4 to 1.9 s later |
+| 3 | 3 | 0.90 to 1.26 | 1, 1, 2 | 0.06 to 0.12 s a digit |
+| 5 and more | 5 | 0.73 to 0.94 | 2 or 3 | 0.10 to 0.14 s a digit |
+
+**Three shapes of the scale's response, each against the bench's figures and the slow-finish throws**
+
+| The scale | Its own figures | Slow finish: rise after the stop, over |
+|---|---|---|
+| The bench | | 4.6 digits, 10 of 12 |
+| Holds a small change, then shows it whole (as committed) | 63 to 70 of 80 | 2.2, 54% |
+| Follows a small change slowly, a large one at once (two speeds) | 65 to 69 of 81; the nudges worse (a single kernel shows too soon: late ones 24 to 32% against 57%) | 1.9 to 2.5, 44 to 55% |
+| Holds only from rest: follows small changes until still for 0.38 s | not built | 1.6 to 2.7, 38 to 56% |
+
+- **Verdict: fail, three times.** No shape of the scale's response to a small change moves the slow finish. The afternoon's "the cause is the scale's response to a small change" was wrong, and "a throw notices" in `pinned.py` was true of the simulation, not of the bench.
+- **The two-speed shape is the truer picture of a single kernel and of two** (the table above), and the hold fits the figures better. Neither is right; what would tell is several hundred nudges with five seconds between and the frames kept.
+
+**What the recorded throws themselves show** (the twelve slow-finish throws, sample by sample, beside 150 simulated)
+
+| In the last second | Bench | Simulation |
+|---|---|---|
+| Fine tube 1 s and 0.5 s before the stop, rev/s | 0.217, 0.105 | 0.156, 0.082 |
+| Reading 1 s before the stop, digits short of the target | 13.7 (from 2 to 26) | 9.2 |
+| Rise after the stop by 0.2, 0.6 and 3 s, digits | 1.8, 4.0, 4.5 | 0.1, 0.5, 1.9 |
+
+- **A slow-finish throw never creeps.** It reaches the stop still slowing down, its reading climbing 12 digits a second, and what follows the stop comes within 0.6 s, as a pipe empties. The scale is following at once there; its small-change behaviour is not in play.
+- **The bench pours more powder for the same commanded turns while the fine tube slows down** than the simulation does: 17 digits arrive from one second before the stop against 11, roughly a third more once the bench's faster turning is allowed for (a rough figure, from the means at six moments). The simulation's flow is its speed times a constant, at once.
+- The reading trails the commanded speed by 0.58 to 0.72 s over the last four seconds (best fit, each throw; the simulation 0.60), so it is not a longer delay overall.
+
+**One thing did move the finish: the flow following the speed over a part of a turn.** Tried by hand on the committed record, the fine tube's flow made to follow its speed over 0.035 of a turn (a hundredth of a second at 3 rev/s, a second at 0.03):
+
+| | Bench | As committed | With the lag |
+|---|---|---|---|
+| Slow finish: at rest, rise after the stop, over | +0.072 gr, 4.6, 83% | +0.039, 2.2, 54% | +0.074, 3.9, 81% |
+| Fine Kp 0.8: at rest, rise | +0.21 gr, 11.5 | +0.20, 9.4 | +0.24, 11.9 |
+| As stored: at rest | +1.33 gr | +1.36 | +1.46 |
+| Starts, digits in the first second at 0.02, 0.05, 0.1 rev/s | 0.03, 0.03, 0.19 | 0.33, 0.19, 0.95 | 0.0, 0.01, 0.33 |
+
+- **The starts are open-loop recordings of the record's own,** and they ask for the same part of a turn: at 0.02, 0.05 and 0.1 rev/s the tube turns about 0.03 of a turn before powder comes. So the value is not taken from the throws, and it then lands the slow finish.
+- **Not adopted, because it starves the nudges.** As modelled, a tube that starts pours nothing over its first 0.03 of a turn and never makes it up; a nudge of 0.011 of a turn would then give about a seventh of what the bench's nudges gave (0.46 kernels a nudge, the full grains a turn): by calculation, not run. Made to give it back (the powder under way falling after the stop), the starts and the rises after a stop go wrong instead (rise from 0.05 rev/s 3.6 to 4.4 digits against 2.9). A lag in time (0.2 s) lands the slow finish too and puts the faster throws 0.5 gr over.
+- **Read (the agent's):** something of this kind is real: a tube that slows down goes on pouring at its faster rate for a part of a turn. Its right form is not in these recordings, because none of them slows a tube down in open loop.
+
+**The figures the report now judges, for the next agent:** `start_1s` (the digits in a turn's first second: the simulation starts too soon, 0.25 against 0.03 and 0.9 against 0.2) and the nudges' `single_late` (the share of single kernels first shown later than 1.5 s: 57% on the bench, 82 to 96% with the hold). With them the committed record has 66 to 73 of 86 of its own figures and 13 to 14 of 18 on the throws.
+
+**Found in passing: worker processes that fail after many jobs** (`tools/charge_sim/workers.py`)
+- Five builds in five lost a worker process with no error, or once raised `ZeroDivisionError: float modulo` on `x % 1.0`, which correct arithmetic cannot do. Never at the same job twice; nothing in Windows' logs; the PC was busy with other work (an LLM server, an image server).
+- The same jobs never failed in a process started for them: one job run 96 times side by side on 16 cores gave the same number to the last bit, and the failing batch passed alone three times.
+- **Cause not found.** What holds: fresh worker processes for every batch, on half the cores, and a failed job run once more (the runs are seeded, so it gives what it would have). A build made this way gave the committed record again with no difference, one job failing on the way (a `TypeError`) and passing when run again.
+- The first agent's lost worker of 11-19 ("not reproduced") is likely the same.
+
+**What settles the finish, for the capture campaign** (each measures a number of the simulation; none tries a setting)
+1. **A tube slowed down in open loop:** the fine tube from 1.5 to 0.03 rev/s over two to four seconds, then stopped, thirty times, and the same held at 0.03 for three seconds first. Whether more powder comes than the turns account for, and over what part of a turn.
+2. **Speed steps with no stop between** (`record.py steps` does it): up and down between 0.05, 0.2 and 1 rev/s. The flow's answer to a change of speed, both ways.
+3. **Stops and steady runs of the fine tube between 0.2 and 1 rev/s:** today's loop's last second lives there, and there is one run.
+4. **Several hundred nudges with five seconds between, the frames kept:** the scale's small-change shape, which a finish that adds single kernels will lean on.
+5. As before: the fine tube turned backward, the coarse tube's evenness, a second unit and other powders.
+
+**Next, in order:** (1) the capture protocol as one fixed script, with these in it; (2) the campaign; (3) the flow's lag and the scale's shape fitted from it; (4) the design.

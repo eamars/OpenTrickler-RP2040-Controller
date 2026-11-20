@@ -18,8 +18,6 @@ Usage:
 
 import argparse
 import json
-import os
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import build_rig
@@ -27,6 +25,7 @@ import fit_report
 import mc
 import rigs
 from legacy_pid import PICO2W_SLOW_FINISH
+from workers import Workers
 
 HERE = Path(__file__).parent
 FACTOR = 1.5
@@ -118,8 +117,8 @@ def main() -> None:
     tried = [(path, value, move) for path, value in numbers(record) for move in moves(path, value)]
     jobs = [(record, targets, seed, args.throws) for seed in (SEED, *CHANCE_SEEDS)]
     jobs += [(build_rig.with_value(record, path, move), targets, SEED, args.throws) for path, _, move in tried]
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
-        looks = list(pool.map(look, jobs))
+    with Workers() as pool:
+        looks = pool.map(look, jobs)
     base, others = looks[0], looks[1:1 + len(CHANCE_SEEDS)]
     floor = {key: max(abs(other[0][key][0] - got) for other in others if key in other[0])
              for key, (got, _) in base[0].items()}

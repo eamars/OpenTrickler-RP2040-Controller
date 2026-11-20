@@ -14,14 +14,13 @@ Usage:
 
 import argparse
 import dataclasses
-import os
-from concurrent.futures import ProcessPoolExecutor
 
 import mc
 import rigs
 from controllers import CONTROLLERS
 from legacy_pid import PICO2W_SLOW_FINISH
 from plant import table_value
+from workers import Workers
 
 DELAYS_S = (0.2, 0.45, 0.8, 1.2)
 PERIODS_S = (0.05, 0.1, 0.25, 0.5)
@@ -57,8 +56,8 @@ def main() -> None:
         made = mc.session_jobs(changed, controller, args.target, args.throws, args.seed)
         spans.append((len(jobs), len(jobs) + len(made)))
         jobs.extend(made)
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
-        sessions = list(pool.map(mc.run_session, jobs))
+    with Workers() as pool:
+        sessions = pool.map(mc.run_session, jobs)
     sums = {cell: mc.summarise([result for session in sessions[first:last] for result in session])
             for cell, (first, last) in zip(cells, spans)}
 
