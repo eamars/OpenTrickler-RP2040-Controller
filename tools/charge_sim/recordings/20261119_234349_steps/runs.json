@@ -1,0 +1,29 @@
+[
+ {
+  "tube": "fine",
+  "speed_asked_rps": 1.0,
+  "note": "precondition",
+  "t_before_ms": 1737578.842,
+  "t_stop_asked_ms": 1742618.915,
+  "t_stopped_ms": 1742658.795,
+  "t_after_ms": 1747678.842,
+  "steps": 141915,
+  "steps_at_stop_ask": 141145,
+  "turns": 5.039595170454546,
+  "stored_gear_ratio": 1.818182
+ },
+ {
+  "tube": "fine",
+  "speed_asked_rps": 3.5,
+  "note": "step",
+  "t_ms": 1747738.831,
+  "steps_so_far": 401
+ },
+ {
+  "tube": "fine",
+  "speed_asked_rps": 0.0,
+  "note": "step end",
+  "t_ms": 1760781.898,
+  "steps_so_far": 792430
+ }
+]

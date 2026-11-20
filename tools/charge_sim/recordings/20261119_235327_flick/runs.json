@@ -1,0 +1,44 @@
+[
+ {
+  "variant": "nudge",
+  "gained_gr": 0.0,
+  "steps": 227,
+  "moves_ms": 100.01399999996647,
+  "note": "flick"
+ },
+ {
+  "variant": "shake",
+  "gained_gr": 0.0,
+  "steps": 965,
+  "moves_ms": 220.33600000012666,
+  "note": "flick"
+ },
+ {
+  "variant": "shake_wide",
+  "gained_gr": 0.0,
+  "steps": 1844,
+  "moves_ms": 239.97499999962747,
+  "note": "flick"
+ },
+ {
+  "variant": "nudge",
+  "gained_gr": 0.0,
+  "steps": 227,
+  "moves_ms": 99.99599999981001,
+  "note": "flick"
+ },
+ {
+  "variant": "shake",
+  "gained_gr": 0.0,
+  "steps": 861,
+  "moves_ms": 204.32800000021234,
+  "note": "flick"
+ },
+ {
+  "variant": "shake_wide",
+  "gained_gr": 0.0,
+  "steps": 1853,
+  "moves_ms": 200.97200000006706,
+  "note": "flick"
+ }
+]

@@ -1,0 +1,26 @@
+{
+ "name": "bm2_pico2w",
+ "powder": "ADI BM2",
+ "board": "pico2_w",
+ "started": "20261120_235008",
+ "steps": [
+  {
+   "step": 1,
+   "test": "prime_fine",
+   "what": "the fine tube 15 turns, to fill it with this powder",
+   "passed": true,
+   "folder": "20261120_235010_prime",
+   "runs": 1,
+   "cup_gr_after": 4.06
+  },
+  {
+   "step": 2,
+   "test": "prime_coarse",
+   "what": "the coarse tube 4 turns, to fill it with this powder",
+   "passed": true,
+   "folder": "20261120_235032_prime",
+   "runs": 1,
+   "cup_gr_after": 28.02
+  }
+ ]
+}

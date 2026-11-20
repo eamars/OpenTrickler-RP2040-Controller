@@ -1,0 +1,134 @@
+{
+ "name": "bm2_pico2w",
+ "powder": "ADI BM2",
+ "board": "pico2_w",
+ "started": "20261120_235234",
+ "steps": [
+  {
+   "step": 3,
+   "test": "fine_moves",
+   "what": "fine tube, fixed moves of 0.03 to 0.5 turn at 0.05, 0.2 and 1 rev/s",
+   "passed": true,
+   "folder": "20261120_235236_ramp",
+   "runs": 313,
+   "cup_gr_after": 74.86
+  },
+  {
+   "step": 4,
+   "test": "fine_stops_low",
+   "what": "fine tube, stops from 0.02, 0.05 and 0.1 rev/s",
+   "passed": true,
+   "folder": "20261121_002032_creepstop",
+   "runs": 61,
+   "cup_gr_after": 84.7
+  },
+  {
+   "step": 5,
+   "test": "fine_stops_mid",
+   "what": "fine tube, stops from 0.2, 0.5 and 1 rev/s",
+   "passed": true,
+   "folder": "20261121_002826_creepstop",
+   "runs": 37,
+   "cup_gr_after": 119.88
+  },
+  {
+   "step": 6,
+   "test": "like_throw",
+   "what": "fine tube through a real finish's speeds with no controller, stopped",
+   "passed": true,
+   "folder": "20261121_003217_ramp",
+   "runs": 31,
+   "cup_gr_after": 146.1
+  },
+  {
+   "step": 7,
+   "test": "slow",
+   "what": "fine tube slowed from 1.5 to 0.03 rev/s, stopped; and held at 0.03 first",
+   "passed": true,
+   "folder": "20261121_003606_ramp",
+   "runs": 31,
+   "cup_gr_after": 171.24
+  },
+  {
+   "step": 8,
+   "test": "steady_a",
+   "what": "fine tube steady 90 s at 0.02 and 0.05 rev/s",
+   "passed": true,
+   "folder": "20261121_004046_creepstop",
+   "runs": 3,
+   "cup_gr_after": 176.24
+  },
+  {
+   "step": 9,
+   "test": "steady_b",
+   "what": "fine tube steady 60 s at 0.1 and 0.2 rev/s",
+   "passed": true,
+   "folder": "20261121_004405_creepstop",
+   "runs": 3,
+   "cup_gr_after": 187.42
+  },
+  {
+   "step": 10,
+   "test": "steady_c",
+   "what": "fine tube steady 30 s at 0.5 rev/s",
+   "passed": true,
+   "folder": "20261121_004624_creepstop",
+   "runs": 2,
+   "cup_gr_after": 197.12
+  },
+  {
+   "step": 11,
+   "test": "steady_d",
+   "what": "fine tube steady 20 s at 1 rev/s",
+   "passed": true,
+   "folder": "20261121_004708_creepstop",
+   "runs": 2,
+   "cup_gr_after": 210.1
+  },
+  {
+   "step": 12,
+   "test": "steps",
+   "what": "fine tube stepped between 0.05, 0.2 and 1 rev/s with no stop",
+   "passed": true,
+   "folder": "20261121_004743_ramp",
+   "runs": 4,
+   "cup_gr_after": 231.72
+  },
+  {
+   "step": 13,
+   "test": "reverse_stops",
+   "what": "fine tube stopped plainly and with a reverse quarter turn, from 0.05, 0.1 and 0.3 rev/s",
+   "passed": true,
+   "folder": "20261121_005048_creepstop",
+   "runs": 73,
+   "cup_gr_after": 253.4
+  },
+  {
+   "step": 14,
+   "test": "reverse_lengths",
+   "what": "fine tube forward, back by 0.05 to 0.5 turn, forward again",
+   "passed": true,
+   "folder": "20261121_010051_ramp",
+   "runs": 25,
+   "cup_gr_after": 276.08
+  },
+  {
+   "step": 15,
+   "test": "swings",
+   "what": "fine tube a minute at a net 0.05 rev/s: steady, small swings, wide swings",
+   "passed": true,
+   "folder": "20261121_010645_ramp",
+   "runs": 7,
+   "cup_gr_after": 287.98
+  },
+  {
+   "step": 16,
+   "test": "nudges",
+   "what": "240 nudges of the fine tube, the reading watched 5 s after each",
+   "passed": true,
+   "folder": "20261121_011340_nudgewatch",
+   "runs": 241,
+   "cup_gr_after": 292.02
+  }
+ ]
+}

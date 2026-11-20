@@ -10,6 +10,8 @@ A simulation of one charge: two rotary tubes, falling kernels, a scale, and a co
 
 Another unit, powder or scale is another record, made by the same command. Nothing is tuned to make it fit.
 
+**The bench's recordings are in `recordings/`** (its README says what a folder and a trial hold): every session so far, copied from the bench's own folder by `bench/keep.py`. Wherever a command below takes `--logs`, `recordings` serves.
+
 ## From a bench session to a rig
 
 ```

@@ -1,0 +1,44 @@
+{
+ "name": "bm2_pico2w",
+ "powder": "ADI BM2",
+ "board": "pico2_w",
+ "started": "20261121_014641",
+ "steps": [
+  {
+   "step": 17,
+   "test": "coarse_steady_a",
+   "what": "coarse tube steady 20 s at 0.1 rev/s",
+   "passed": true,
+   "folder": "20261121_014643_creepstop",
+   "runs": 2,
+   "cup_gr_after": 249.76
+  },
+  {
+   "step": 18,
+   "test": "coarse_steady_b",
+   "what": "coarse tube steady 12 s at 0.3 rev/s",
+   "passed": true,
+   "folder": "20261121_014716_creepstop",
+   "runs": 1,
+   "cup_gr_after": 279.06
+  },
+  {
+   "step": 19,
+   "test": "coarse_steady_c",
+   "what": "coarse tube steady 6 s at 1 rev/s",
+   "passed": true,
+   "folder": "20261121_014735_creepstop",
+   "runs": 1,
+   "cup_gr_after": 327.02
+  },
+  {
+   "step": 20,
+   "test": "coarse_moves",
+   "what": "coarse tube, fixed moves of 0.25 and 0.5 turn at 0.5 and 2 rev/s",
+   "passed": true,
+   "folder": "20261121_014747_ramp",
+   "runs": 20,
+   "cup_gr_after": 391.66
+  }
+ ]
+}

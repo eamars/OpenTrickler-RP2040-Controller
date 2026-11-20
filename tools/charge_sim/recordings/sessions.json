@@ -1,0 +1,22 @@
+[
+ {
+  "name": "pico2w_ar2209",
+  "from": "20261119_232800",
+  "to": "20261120_234000",
+  "unit": "Pico 2 W, firmware 2.0.3-84, large coarse tube (32 teeth), low-flow fine tube (22 teeth)",
+  "powder": "AR2209",
+  "powder_note": "long exposed to air; the owner: clumps more than fresh. Kernel taken as 0.021 gr (the owner's word)",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "docs/developments_plans/ADR-009-controller_and_tuning/progress.md, from '2026-11-19, 23:28 to 23:51' to '2026-11-20, 22:53 to 23:34'"
+ },
+ {
+  "name": "pico2w_bm2",
+  "from": "20261120_234500",
+  "to": "20261121_024000",
+  "unit": "Pico 2 W, firmware 2.0.3-84, the same tubes, cleared of AR2209 and the unit restarted first",
+  "powder": "ADI BM2",
+  "powder_note": "Kernel 0.0117 gr: the owner counted 12 kernels in 0.14 gr",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "docs/developments_plans/ADR-009-controller_and_tuning/progress.md, '2026-11-21, 01:50: ADI BM2 recorded in one batch'"
+ }
+]

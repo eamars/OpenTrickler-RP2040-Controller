@@ -1,0 +1,67 @@
+[
+ {
+  "tube": "fine",
+  "speed_asked_rps": 0.5,
+  "note": "chain",
+  "t_before_ms": 898969.819,
+  "t_stop_asked_ms": 901011.856,
+  "t_stopped_ms": 901051.836,
+  "t_after_ms": 904071.932,
+  "steps": 24835,
+  "steps_at_stop_ask": 24539,
+  "turns": 0.8819247159090908,
+  "stored_gear_ratio": 2.105263
+ },
+ {
+  "tube": "fine",
+  "speed_asked_rps": 0.5,
+  "note": "chain",
+  "t_before_ms": 904091.89,
+  "t_stop_asked_ms": 906131.847,
+  "t_stopped_ms": 906172.152,
+  "t_after_ms": 909195.866,
+  "steps": 24811,
+  "steps_at_stop_ask": 24515,
+  "turns": 0.8810724431818182,
+  "stored_gear_ratio": 2.105263
+ },
+ {
+  "tube": "fine",
+  "speed_asked_rps": 0.5,
+  "note": "chain",
+  "t_before_ms": 909215.857,
+  "t_stop_asked_ms": 911255.896,
+  "t_stopped_ms": 911295.875,
+  "t_after_ms": 914316.834,
+  "steps": 24812,
+  "steps_at_stop_ask": 24516,
+  "turns": 0.8811079545454545,
+  "stored_gear_ratio": 2.105263
+ },
+ {
+  "tube": "fine",
+  "speed_asked_rps": 0.5,
+  "note": "chain",
+  "t_before_ms": 914336.828,
+  "t_stop_asked_ms": 916376.844,
+  "t_stopped_ms": 916417.789,
+  "t_after_ms": 919437.833,
+  "steps": 24811,
+  "steps_at_stop_ask": 24515,
+  "turns": 0.8810724431818182,
+  "stored_gear_ratio": 2.105263
+ },
+ {
+  "tube": "fine",
+  "speed_asked_rps": 0.5,
+  "note": "chain",
+  "t_before_ms": 919457.814,
+  "t_stop_asked_ms": 921497.848,
+  "t_stopped_ms": 921537.797,
+  "t_after_ms": 924559.846,
+  "steps": 24811,
+  "steps_at_stop_ask": 24515,
+  "turns": 0.8810724431818182,
+  "stored_gear_ratio": 2.105263
+ }
+]
