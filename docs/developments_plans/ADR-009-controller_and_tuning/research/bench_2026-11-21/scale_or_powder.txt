@@ -1,0 +1,74 @@
+
+pico2w_ar2209 (AR2209), fine tube, plain stops held
+  rev/s   stops  flow d/s  arrived  se    sd    s of flow   arrived by 0.2s 0.4s 0.6s 0.8s 1s 1.5s 2s
+  0.02      31     0.81    +0.42  0.17  0.92      0.52      0.1   0.0   0.1   0.1   0.3   0.4   0.4
+  0.05      47     1.73    +2.45  0.36  2.44      1.41      0.6   1.0   1.5   1.8   2.2   2.4   2.4
+  0.1       47     3.48    +3.09  0.36  2.47      0.89      0.9   1.5   2.0   2.5   2.9   3.1   3.1
+  0.2       17     7.16    +9.65  0.89  3.66      1.35      2.2   4.3   6.6   8.4   9.3   9.5   9.5
+  0.3       15     9.44    +9.93  0.95  3.67      1.05      2.3   4.5   6.9   8.7   9.6  10.0  10.0
+  0.5       16    19.20   +16.88  0.94  3.76      0.88      4.1   7.8  11.2  13.9  15.8  16.9  16.9
+  1         16    39.98   +25.13  1.89  7.56      0.63      9.8  17.3  22.0  23.4  24.3  25.1  25.1
+
+pico2w_bm2 (ADI BM2), fine tube, plain stops held
+  rev/s   stops  flow d/s  arrived  se    sd    s of flow   arrived by 0.2s 0.4s 0.6s 0.8s 1s 1.5s 2s
+  0.02      21     0.42    +1.05  0.27  1.24      2.47      0.0   0.1   0.4   0.5   0.6   0.9   1.0
+  0.05      33     1.25    +1.36  0.24  1.39      1.09      0.2   0.6   0.8   1.0   1.1   1.1   1.3
+  0.1       33     2.71    +2.52  0.30  1.70      0.93      0.5   0.9   1.4   1.9   2.2   2.4   2.4
+  0.2       13     5.39    +5.54  0.37  1.33      1.03      1.4   2.6   3.7   4.6   5.2   5.7   5.6
+  0.3       12     7.39    +6.42  0.50  1.73      0.87      1.5   3.1   4.4   5.5   6.1   6.4   6.4
+  0.5       13    13.30   +12.46  0.83  2.99      0.94      2.9   5.6   8.6  10.5  11.9  12.4  12.4
+  1         13    27.50   +24.38  0.53  1.89      0.89      6.2  12.1  17.5  21.2  23.4  24.4  24.4
+
+What a run's start is short of its flow by its first 2 s, beside what its stop leaves, digits
+  AR2209   0.02  rev/s: the start short by  +1.36 (se 0.15), the stop leaves  +0.42 (se 0.17)
+  AR2209   0.05  rev/s: the start short by  +2.34 (se 0.27), the stop leaves  +2.45 (se 0.36)
+  AR2209   0.1   rev/s: the start short by  +4.06 (se 0.40), the stop leaves  +3.09 (se 0.36)
+  AR2209   0.2   rev/s: the start short by  +6.62 (se 0.43), the stop leaves  +9.65 (se 0.89)
+  AR2209   0.3   rev/s: the start short by +11.61 (se 0.75), the stop leaves  +9.93 (se 0.95)
+  AR2209   0.5   rev/s: the start short by +18.09 (se 0.97), the stop leaves +16.88 (se 0.94)
+  AR2209   1     rev/s: the start short by +25.96 (se 1.65), the stop leaves +25.13 (se 1.89)
+  ADI BM2  0.02  rev/s: the start short by  +0.71 (se 0.08), the stop leaves  +1.05 (se 0.27)
+  ADI BM2  0.05  rev/s: the start short by  +1.80 (se 0.20), the stop leaves  +1.36 (se 0.24)
+  ADI BM2  0.1   rev/s: the start short by  +3.27 (se 0.33), the stop leaves  +2.52 (se 0.30)
+  ADI BM2  0.2   rev/s: the start short by  +4.01 (se 0.44), the stop leaves  +5.54 (se 0.37)
+  ADI BM2  0.3   rev/s: the start short by  +8.20 (se 0.90), the stop leaves  +6.42 (se 0.50)
+  ADI BM2  0.5   rev/s: the start short by +10.46 (se 0.49), the stop leaves +12.46 (se 0.83)
+  ADI BM2  1     rev/s: the start short by +23.16 (se 1.40), the stop leaves +24.38 (se 0.53)
+
+the plain delay, from 21 stops of the coarse tube in both sessions: 0.58 s of its flow
+
+1. At the same flow: ADI BM2's stops forecast from AR2209's alone, digits
+  rev/s   flow d/s  measured  se   | the scale's  off   in se | same grains  off | same kernels  off
+  0.02       0.42    +1.05  0.27 |     +0.22  +0.83   +2.9 |     +0.19  +0.85 |     +0.22  +0.83
+  0.05       1.25    +1.36  0.24 |     +1.38  -0.02   -0.1 |     +2.17  -0.80 |     +1.53  -0.16
+  0.1        2.71    +2.52  0.30 |     +2.80  -0.29   -0.7 |     +2.64  -0.12 |     +2.17  +0.35
+  0.2        5.39    +5.54  0.37 |     +6.49  -0.96   -1.6 |     +8.62  -3.08 |     +6.19  -0.65
+  0.3        7.39    +6.42  0.50 |     +9.68  -3.26   -3.5 |     +8.74  -2.33 |     +6.78  -0.36
+  0.5       13.30   +12.46  0.83 |    +12.68  -0.22   -0.2 |    +13.44  -0.98 |    +10.92  +1.54
+  1         27.50   +24.38  0.53 |    +20.17  +4.21   +3.9 |    +17.86  +6.53 |    +17.04  +7.34
+  root mean square off: scale 2.07, grains 2.92, kernels 2.87
+  CHECK 1 FAIL for the scale: off 2.07 digits (1 allowed), one by 4.2 past two digits and twice its error, nearest is scale
+
+2. The trial before: what arrives after a stop, after a faster trial and after a slower or equal one, digits
+  AR2209   0.05  rev/s: after faster  +2.16 (31), after slower or equal  +3.00 (16), difference -0.84 se 0.73
+  AR2209   0.1   rev/s: after faster  +3.22 (9), after slower or equal  +3.05 (38), difference +0.17 se 0.92
+  AR2209   0.2   rev/s: after faster +10.42 (12), after slower or equal  +7.80 (5), difference +2.62 se 2.03
+  AR2209   0.5   rev/s: after faster +17.00 (7), after slower or equal +16.78 (9), difference +0.22 se 1.89
+  ADI BM2  0.02  rev/s: after faster  +1.20 (15), after slower or equal  +0.67 (6), difference +0.53 se 0.59
+  ADI BM2  0.05  rev/s: after faster  +1.28 (18), after slower or equal  +1.47 (15), difference -0.19 se 0.49
+  ADI BM2  0.1   rev/s: after faster  +3.33 (6), after slower or equal  +2.33 (27), difference +1.00 se 0.93
+  ADI BM2  0.2   rev/s: after faster  +5.50 (8), after slower or equal  +5.60 (5), difference -0.10 se 0.82
+  ADI BM2  0.5   rev/s: after faster +11.83 (6), after slower or equal +13.00 (7), difference -1.17 se 1.77
+  CHECK 2 PASS for the scale
+
+3. The trial before: the gain over a run's first 2 s, after a faster trial and after a slower or equal one, digits
+  AR2209   0.05  rev/s: after faster  +1.32 (31), after slower or equal  +0.75 (16), difference +0.57 se 0.57
+  AR2209   0.1   rev/s: after faster  +2.22 (9), after slower or equal  +3.05 (38), difference -0.83 se 0.92
+  AR2209   0.2   rev/s: after faster  +7.67 (12), after slower or equal  +7.80 (5), difference -0.13 se 0.81
+  AR2209   0.5   rev/s: after faster +20.57 (7), after slower or equal +20.11 (9), difference +0.46 se 2.09
+  ADI BM2  0.02  rev/s: after faster  +0.13 (15), after slower or equal  +0.17 (6), difference -0.03 se 0.19
+  ADI BM2  0.05  rev/s: after faster  +0.78 (18), after slower or equal  +0.60 (15), difference +0.18 se 0.40
+  ADI BM2  0.1   rev/s: after faster  +1.33 (6), after slower or equal  +2.33 (27), difference -1.00 se 0.80
+  ADI BM2  0.2   rev/s: after faster  +6.87 (8), after slower or equal  +6.60 (5), difference +0.28 se 0.98
+  ADI BM2  0.5   rev/s: after faster +16.33 (6), after slower or equal +16.00 (7), difference +0.33 se 1.03
+  CHECK 3 PASS for the scale

@@ -692,3 +692,49 @@ And the watched nudges give the same scale's first answer to a sudden change: 0.
 **For the owner's question, how a powder relates to the step and how the step is set for a powder: what this pair of powders says must be measured on the unit, for each powder, and what carried over.** Measured for each powder: the grains a turn of each tube (not from a density table, and not one factor for both tubes), the delay from the tube to the reading, what a stop leaves, and what a reverse costs. Carried over unchanged: the turn and not the speed sets the powder; the once-a-turn wave; the scale's answer to a digit; the share of the shortest moves that pour nothing. No design follows from it here.
 
 **The bench as left (01:49):** Pico 2 W on the probe, idle, both motors at 0, BM2 in the hopper and both tubes; 391.7 gr in the cup.
+
+## 2026-11-21, daytime: is what arrives after a stop the scale's or the powder's? A desk test, its pass written first
+
+No unit. Another agent took over from the handover. **The recordings are now in the repository** (`tools/charge_sim/recordings/`, copied by `bench/keep.py`, with an index and each session's unit, powder and scale) and the branch is on GitHub: the owner, "push the record to the github for future analysis, by me or other people". The console's own logs are left out; the settings copy is without its Wi-Fi, update source and id. `measure.py` gives the same figures from the copy as from the bench's folder.
+
+**The question** is 03:00's lead, and the owner said to test it before anything is built on it. The simulation is kind at the finish because too little arrives after a stop. Either the scale's lag is not one number (longer for a trickle than for a stream), or powder is left at the lip and falls after the stop, owed at the next start. The first is mended in the scale, the second in the tube. Both powders were weighed by the same scale, which is what the test leans on.
+
+**Three checks, from the recordings alone, with no model.** What arrives after a stop is the reading 2.4 to 3.0 s after it less the reading at it (every stop was watched 3 s at least), in digits; only plain stops with the driver held, the fine tube.
+
+1. **At the same flow.** If it is the scale's, a stop of BM2 looks like a stop of AR2209 from the same flow in digits a second, whatever the tube's speed. For each speed BM2 was stopped from, three forecasts of what arrives, each from AR2209's stops alone:
+   - **the scale's:** AR2209's figure at BM2's flow, on a straight line between AR2209's two nearest flows (none arrives at no flow);
+   - **the powder's, the same in grains:** AR2209's figure at the same speed, less the plain delay's share of the difference in flow;
+   - **the powder's, the same in kernels:** as the last, what is beyond the plain delay scaled by the kernels' masses (0.0117 over 0.021).
+   The plain delay is the coarse tube's (what arrives after its stops over its flow), where nothing was found beyond it.
+   **Pass for the scale:** its forecasts are off by a digit or less (root mean square over the speeds), none is off by more than two digits and more than twice its standard error, and it is the nearest of the three. A digit, because a digit is the charge's tolerance: a model that is a digit wrong after a stop cannot judge a finish.
+2. **The trial before.** If it is the scale's, what arrives after a stop cannot depend on the trial before it: the reading had rested. For each powder and speed, the stops that followed a faster trial against those that followed a slower or equal one. **Pass for the scale:** at no speed do the two differ by more than a digit and more than twice the difference's standard error. (Of about a dozen comparisons, chance alone gives one past twice its error in two sets like this, so one such is read with its neighbours.)
+3. **The start after.** If powder is owed, a run begins short, and shorter after a trial that left more. The reading's gain over a run's first 2 s, split the same way. **Pass for the scale:** as in 2.
+
+**The verdict:** the scale's part alone stands if 1 passes and 2 and 3 show nothing. If 1 fails, or 2 or 3 show the trial before, a part is the powder's and is built into the tube (the handover's step 3).
+
+### Run: the scale alone fails; what arrives after a stop stays a measured table of each powder
+
+`bench/scale_or_powder.py --first pico2w_ar2209 --second pico2w_bm2`; its figures are `research/bench_2026-11-21/scale_or_powder.txt`.
+
+| Fine tube | AR2209: stops, flow d/s, arrived (its error), s of the flow | BM2: the same | BM2 forecast from AR2209 at the same flow, and off by |
+|---|---|---|---|
+| 0.02 rev/s | 31, 0.81, 0.42 (0.17), 0.52 | 21, 0.42, 1.05 (0.27), 2.47 | 0.22, +0.83 |
+| 0.05 | 47, 1.73, 2.45 (0.36), 1.41 | 33, 1.25, 1.36 (0.24), 1.09 | 1.38, -0.02 |
+| 0.1 | 47, 3.48, 3.09 (0.36), 0.89 | 33, 2.71, 2.52 (0.30), 0.93 | 2.80, -0.29 |
+| 0.2 | 17, 7.16, 9.65 (0.89), 1.35 | 13, 5.39, 5.54 (0.37), 1.03 | 6.49, -0.96 |
+| 0.3 | 15, 9.44, 9.93 (0.95), 1.05 | 12, 7.39, 6.42 (0.50), 0.87 | 9.68, -3.26 |
+| 0.5 | 16, 19.2, 16.9 (0.94), 0.88 | 13, 13.3, 12.5 (0.83), 0.94 | 12.7, -0.22 |
+| 1 | 16, 40.0, 25.1 (1.9), 0.63 | 13, 27.5, 24.4 (0.53), 0.89 | 20.2, +4.21 |
+
+- **Check 1 fails for the scale.** Its forecasts are off by 2.07 digits (a digit allowed), two of them past two digits and three times their error (0.3 and 1 rev/s). It is the nearest of the three all the same: the powder's forecasts are off by 2.92 (the same in grains) and 2.87 (the same in kernels). So neither "it is all the scale's" nor last night's two ways of putting it on the powder forecasts a second powder to a digit.
+- **Check 2 passes, check 3 passes, and neither could have seen much.** At no speed does a stop, or a start, differ by the trial before it by more than a digit and twice its error; but those errors are 0.5 to 2 digits, so a part of one or two digits would not have shown. AR2209 at 0.2 rev/s leaves 10.4 after a faster trial and 7.8 after another (the figure of 11-20), with an error of 2.0.
+- **A start is short by what a stop leaves** (the tool's second table): by its first 2 s a run is behind its flow by 2.3, 4.1, 6.6, 11.6, 18.1 and 26.0 digits from 0.05 to 1 rev/s (AR2209), where the stops leave 2.5, 3.1, 9.7, 9.9, 16.9 and 25.1; BM2 the same way. Any delay between the tube and the reading gives that, the scale's or the powder's. **So 11-20's "what falls is owed at the next start" is not a finding of its own:** the recordings do not tell powder owed from a reading that is late.
+
+**What the recordings do say, as figures:**
+- **BM2 is a plain delay.** From 0.05 to 1 rev/s (1.3 to 27.5 digits a second) 0.87 to 1.09 s of its flow arrives after a stop, a stop 1.3 to 3.0 digits off. One number.
+- **AR2209 is that on average and uneven by speed.** 0.88 to 0.89 s at 0.1 and 0.5 rev/s; 1.35 s at 0.2 and 1.41 s at 0.05 (3.2 and 0.9 digits more than 0.9 s gives); 0.63 s at 1 rev/s. From 0.05 to 0.5 rev/s a stop is 2.4 to 3.8 digits off, and from 1 rev/s 7.6: its sixteen stops left 11 to 37 digits, where BM2's thirteen left 22 to 29.
+- **Every curve rises at its full flow for the first 0.55 to 0.6 s after the stop,** both powders, both tubes: that much is a delay all share. The coarse tube's stops end there (0.58 s of its flow, 21 stops). What differs is what comes after it.
+
+**Read after the result, so a lead and not a finding:** one curve would still fit both powders if the scale answers sooner above a flow somewhere between 27.5 digits a second (BM2 at 1 rev/s, 0.89 s) and 40 (AR2209 at 1 rev/s, 0.63 s; the coarse tube from 49 up, 0.51 to 0.57 s), with AR2209's 1 to 3 digits more at 0.05 to 0.3 rev/s as its own. No recording lies in that gap with both powders: BM2's fine tube was never turned above 1 rev/s, AR2209's never stopped between 0.5 and 1, and the coarse tube at 0.1 rev/s with BM2 is one lumpy stop. **The recording that settles it,** at the next powder loaded: the fine tube stopped from 0.7, 1.5 and 2 rev/s, fifteen stops each, beside the batch's own 0.5 and 1. If the seconds of the flow fall at the same digits a second for the powder loaded as for these two, the step is the scale's.
+
+**What follows for the simulation, by the rule written first:** what arrives after a stop is kept as a measured table by speed for each powder and tube, over a scale with the delay all the curves share. That is the handover's step 3 as it was written, and `plant.py` already has the place for it (`after_stop_kernels`, to 1 rev/s now). No scale of a new shape is built. **What stays open, and for whom it matters:** how much of that table is the scale's. For one unit with one scale the throws come out the same either way; it decides only how the table is carried to another scale, which is the owner's question on other makes, and the three stops above answer it.

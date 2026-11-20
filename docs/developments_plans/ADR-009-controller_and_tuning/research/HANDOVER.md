@@ -4,7 +4,17 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 is a **Draft, not approved**. Everything here is research for its design. Nothing is merged or pushed.
 
-## Where it stands, 2026-11-21, 01:50: read this first
+## Where it stands, 2026-11-21, daytime: read this first
+
+Another agent took over. Two things changed; the section below still holds otherwise.
+
+- **The recordings are in the repository and the branch is on GitHub** (the owner: "push the record to the github for future analysis, by me or other people"). `tools/charge_sim/recordings/` holds every session's `runs.json`, an index and each session's unit, powder and scale; its README says what a trial holds. After a bench session: add it to `sessions.json`, run `bench/keep.py`. Every tool's `--logs` takes that folder, so the desk work no longer needs the main checkout's `logs/adr009`.
+- **The lead that step 3 was to test first is tested** (`../progress.md`, "is what arrives after a stop the scale's or the powder's?", its pass written before the run; `bench/scale_or_powder.py`). The scale alone does not forecast BM2's stops from AR2209's to a digit (off by 2.07); the powder's two forecasts are worse. A start is short by what a stop leaves, which any delay gives: "owed at the next start" is not a finding of its own. **So step 3 stands as written:** what arrives after a stop is a measured table by speed, for each powder and tube, over a scale with the 0.55 to 0.6 s delay every curve shares. BM2's table is one number (0.9 s of its flow); AR2209's is uneven by speed.
+- **One recording is added to the next batch:** the fine tube stopped from 0.7, 1.5 and 2 rev/s, fifteen stops each. It says how much of the table is the scale's, which decides how a record is carried to another scale. `protocol.py` does not have it yet; it goes in with the throws of step 1 below.
+- **A trap in `measure.py`:** with no folders named it reads every stop under `--logs`, and the folder now holds two powders. Step 2 below (a session's figures from its batch) must take its folders from the session, as `scale_or_powder.py` does from `sessions.json`.
+- **Next is step 2 below, unchanged.** No bench step.
+
+## Where it stood, 2026-11-21, 01:50
 
 The owner's direction for the bench (11-20, evening): sessions capture data and verify written assumptions ("make assumption, and use the actual trickler to verify the assumption"); no tuning on the unit and no design decision while capturing; hybrid control is open, to be decided later. `../progress.md` has it in the owner's words.
 
