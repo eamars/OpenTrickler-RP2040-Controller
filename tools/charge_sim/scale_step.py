@@ -4,7 +4,7 @@ For a step of one kernel and of one grain, placed at a known moment: when the re
 half-way, and when it stays within a digit of the end. The rig's own scale is its record's, measured; the others
 are the estimates in scale.py. A known weight set on a real pan gives the same three times to set beside these.
 
-Usage: python scale_step.py [--rig bench_pico2w]
+Usage: python scale_step.py [--rig pico2w_ar2209]
 """
 
 import argparse
@@ -42,7 +42,7 @@ def step_times(model, step_gr: float, seed: int) -> tuple:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rig", default="bench_pico2w")
+    parser.add_argument("--rig", default="pico2w_ar2209")
     args = parser.parse_args()
     print("model, step: first change / half-way / within a digit of the end (median seconds over %d runs)" % RUNS)
     for model in (rigs.get_rig(args.rig).scale, *SCALES.values()):

@@ -5,11 +5,11 @@ that summed up the recording (`bench/stats.py`). A figure passes when the simula
 measurement; the tolerances are engineering ones (what a controller designed on the simulation would notice), wider
 where the measurement is itself a few dozen trials.
 
-The open-loop tests (maps, stops, steady runs, nudges) are what `build_rig.py` made the record from. The throws of
-today's loop are not: they are the check, and are counted apart.
+The maps, stops, steady runs and nudges are what `build_rig.py` made the record from. The speed plans turned
+with no controller (ramps) and the throws of today's loop are not: they are the check, and are counted apart.
 
 Usage:
-    python fit_report.py [--rig bench_pico2w] [--targets fit/<rig>.json] [--only creep,throws] [--seed 1]
+    python fit_report.py [--rig pico2w_ar2209] [--targets fit/<rig>.json] [--only creep,throws] [--seed 1]
 """
 
 import argparse
@@ -35,10 +35,14 @@ NUDGES = [("kernels", 0.1, 0.25), ("fano", 1.0, 0.3), ("nothing", 0.08, 0.0), ("
 THROWS = [("time", 0.7, 0.15), ("coarse_s", 0.5, 0.15), ("at_stop", 0.04, 0.3), ("at_rest", 0.03, 0.25),
           ("at_rest_sd", 0.03, 0.4), ("over", 0.17, 0.0)]
 MAPS = [("gr_per_turn", 0.0, 0.08), ("late_s_fast", 0.12, 0.0)]
+# A speed plan's stop is judged as a stop is: what arrives after it, and how much that varies
+RAMPS = [("rise", 0.6, 0.25), ("rise_sd", 0.6, 0.25)]
+CHECKS = ("ramp", "throws")     # the titles of the tests no record is made from
 # The unit's stored coarse settings, the same in every recorded throw (logs/adr009/settings_before)
 COARSE = {"coarse_kp": 0.02, "coarse_ki": 0.0, "coarse_kd": 0.3, "coarse_min_rps": 0.1, "coarse_max_rps": 5.0}
 SIM_STOPS = 150         # stops simulated for each kind the bench made a few dozen of
 SIM_THROWS = 100
+SIM_RAMPS = 150
 
 
 def map_twin(rig, tube: str) -> dict:
@@ -57,7 +61,7 @@ def evaluate(rig, targets: dict, only: list, seed: int, match: str = "", missing
     Args:
         rig: the simulation's parameters.
         targets: the bench's figures (`bench/measure.py`).
-        only: the kinds of test to run: maps, creep, nudges, throws.
+        only: the kinds of test to run: maps, creep, nudges, ramps, throws.
         seed: the simulation's.
         match: run only the tests whose title holds one of these texts, comma-separated.
         missing: also give the figures the bench has and the simulation could not make, with None for it.
@@ -81,6 +85,10 @@ def evaluate(rig, targets: dict, only: list, seed: int, match: str = "", missing
         measured = targets["nudges"]
         tests.append(("nudges", measured, NUDGES, lambda m=measured: bench_twin.nudge_series(
             rig, m["speed_rps"], m["turn"], m["still_s"], 600, seed)))
+    if "ramps" in only:
+        for name, measured in targets.get("ramps", {}).items():
+            tests.append((f"ramp {name}", measured, RAMPS, lambda m=measured: stats.ramp_stats(
+                bench_twin.ramp_trials(rig, m["tube"], m["plan"], m["still_s"], SIM_RAMPS, seed))))
     if "throws" in only:
         for name, measured in targets["throws"].items():
             profile = Profile(fine_kp=measured["fine_kp"], fine_ki=0.0, fine_kd=10.0, fine_min_rps=measured["fine_min"],
@@ -102,9 +110,9 @@ def evaluate(rig, targets: dict, only: list, seed: int, match: str = "", missing
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rig", default="bench_pico2w")
+    parser.add_argument("--rig", default="pico2w_ar2209")
     parser.add_argument("--targets", type=Path, help="the bench's figures; fit/<rig>.json when not given")
-    parser.add_argument("--only", default="maps,creep,nudges,throws")
+    parser.add_argument("--only", default="maps,creep,nudges,ramps,throws")
     parser.add_argument("--match", default="", help="only the tests whose title holds this text")
     parser.add_argument("--seed", type=int, default=1)
     args = parser.parse_args()
@@ -120,8 +128,9 @@ def main() -> None:
         cells = [f"{name} {want:.2f}|{got:.2f}{'' if abs(got - want) <= tolerance else ' OFF'}"
                  for row_title, name, want, got, tolerance in rows if row_title == title]
         print(f"{title}: " + ", ".join(cells))
-    for label, wanted in (("the record's own recordings", False), ("the check, throws of today's loop", True)):
-        judged = [row for row in rows if row[0].startswith("throws") == wanted]
+    for label, wanted in (("the record's own recordings", False),
+                          ("the check, speed plans with no controller and throws of today's loop", True)):
+        judged = [row for row in rows if row[0].startswith(CHECKS) == wanted]
         passed = sum(1 for _, _, want, got, tolerance in judged if abs(got - want) <= tolerance)
         print(f"{label}: {passed} of {len(judged)} figures within tolerance")
 

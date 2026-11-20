@@ -1,0 +1,15 @@
+{
+ "name": "pico2w_bm2",
+ "session": "pico2w_bm2",
+ "recordings": {
+  "nudges": "20261121_011340_nudgewatch",
+  "ramps": ["20261121_003217_ramp", "20261121_003606_ramp"]
+ },
+ "stated": {
+  "scale": {"name": "A&D FX-300i, FAST", "digit_gr": 0.02},
+  "powder": {"name": "ADI BM2"},
+  "coarse": {"name": "large tube", "rifling_starts": 5, "drop_mm": 50.0},
+  "fine": {"name": "small low-flow tube", "rifling_starts": 5, "drop_mm": 50.0},
+  "motors": {"acceleration_rps2": 50.0, "max_speed_rps": 5.0}
+ }
+}

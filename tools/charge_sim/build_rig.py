@@ -3,15 +3,19 @@
 No number in a record is set by hand. Each is one of:
 - measured: read straight off a figure (a tube's grains a turn, the scale's rhythm, what a reverse turn spills);
 - solved: the one value at which the simulation, run through the bench's own test, gives the bench's figure (the
-  scale's delay from what shows after a stop; a tube's bursts at a speed from how unevenly it poured there);
+  scale's delay from what shows after a stop from a fast flow; a tube's bursts at a speed from how unevenly it
+  poured there; how late its powder shows at a speed from what arrives after its stops from that speed);
 - stated: known of the rig without a recording (the scale's digit, the kernel, the fall to the cup);
+- taken: the scale of another record, for a session weighed by the same scale (`--scale-from`);
 - assumed: no recording gives it yet. `pinned.py` says which of these matter.
 
-The throws of today's loop are never used here: they are the check (`fit_report.py`).
+The speed plans with no controller and the throws of today's loop are never used here: they are the check
+(`fit_report.py`).
 
 Usage:
-    python build_rig.py --figures fit/bench_pico2w.json
-    python build_rig.py --logs <checkout>/logs/adr009 --manifest fit/bench_pico2w.manifest.json
+    python build_rig.py --session pico2w_ar2209
+    python build_rig.py --session pico2w_bm2 --scale-from pico2w_ar2209
+    python build_rig.py --figures fit/pico2w_ar2209.json
 """
 
 import argparse
@@ -40,6 +44,7 @@ CAP = 3.0                   # a figure's miss counts for no more than this many 
 AS_GOOD = (1.5, 0.1)        # a score within this ratio and this much of the best explains the figures as well:
                             # two scores of one value on other seeds differ by about as much
 FLAT_SHARE = 0.10           # a flow map whose points all lie this near its median is one number
+LATE_MOST_S = 1.5           # the most a tube's powder is looked for behind the scale's own delay
 
 # What no recording gives yet. Each is named "assumed" in the record's sources.
 ASSUMED_SCALE = {"report_jitter_s": 0.002, "sensor_tau_s": 0.03, "open_tau_s": 0.10, "closed_tau_s": 1.30,
@@ -48,8 +53,7 @@ OPEN_ABOVE_DIGITS = 2.5     # the scale follows a change over this many digits a
                             # a large release as a jump of 2 or 3 digits (the tapped frames of 2026-11-19)
 NOISE_DIGITS = 0.075
 ASSUMED_POWDER = {"kernel_cv": 0.12}
-ASSUMED_TUBE = {"regularity": 2.0, "settle_s": 0.0, "after_stop_tau_s": 0.2, "after_stop_full_turns": 0.1,
-                "ripple_turn": 0.0, "ripple_rifling": 0.0, "reverse_spill_gr": 0.0, "reverse_spill_cv": 0.3,
+ASSUMED_TUBE = {"regularity": 2.0, "settle_s": 0.0, "ripple_turn": 0.0, "ripple_rifling": 0.0, "reverse_spill_gr": 0.0, "reverse_spill_cv": 0.3,
                 "reverse_spill_s": 0.25, "start_turns": 0.2, "retreat_turns": 0.5}
 FANO = ("fano_1s", "fano_2s", "fano_4s")
 VERBOSE = bool(os.environ.get("BUILD_RIG_VERBOSE"))     # print every value tried with its miss
@@ -196,15 +200,24 @@ def flow_map(runs: list) -> list:
     return [[speed, round(value, 4)] for speed, value in points]
 
 
-def first_record(targets: dict, sources: dict) -> dict:
-    """The record before anything is solved: what is measured, stated and assumed, and tables at a first guess."""
+def first_record(targets: dict, sources: dict, scale_from: str) -> dict:
+    """The record before anything is solved: what is measured, stated and assumed, and tables at a first guess.
+
+    With `scale_from`, the scale is that record's whole: the same balance weighed both sessions.
+    """
     stated = targets["stated"]
     digit = stated["scale"]["digit_gr"]
-    scale = {**ASSUMED_SCALE, "open_above_gr": OPEN_ABOVE_DIGITS * digit, "noise_gr": NOISE_DIGITS * digit,
-             "dead_s": 0.3, "hold_s": 0.0, "report_s": round(targets["scale"]["report_s"], 5), **stated["scale"]}
-    for name in (*ASSUMED_SCALE, "open_above_gr", "noise_gr"):
-        sources[f"scale.{name}"] = {"how": "assumed"}
-    sources["scale.report_s"] = {"how": "measured", "from": "the scale's frames"}
+    if scale_from:
+        scale = rigs.load_record(scale_from)["scale"]
+        for name in scale:
+            if name != "name":
+                sources[f"scale.{name}"] = {"how": "taken", "from": f"the record {Path(scale_from).stem}"}
+    else:
+        scale = {**ASSUMED_SCALE, "open_above_gr": OPEN_ABOVE_DIGITS * digit, "noise_gr": NOISE_DIGITS * digit,
+                 "dead_s": 0.3, "hold_s": 0.0, "report_s": round(targets["scale"]["report_s"], 5), **stated["scale"]}
+        for name in (*ASSUMED_SCALE, "open_above_gr", "noise_gr"):
+            sources[f"scale.{name}"] = {"how": "assumed"}
+        sources["scale.report_s"] = {"how": "measured", "from": "the scale's frames"}
     record = {"name": targets["name"], "what": targets["rig"], "scale": scale,
               "powder": {**ASSUMED_POWDER, **stated["powder"]}}
     sources["powder.kernel_cv"] = {"how": "assumed"}
@@ -213,7 +226,7 @@ def first_record(targets: dict, sources: dict) -> dict:
         stops = sorted(speed for speed, rows in by_speed.items() if any(row["length"] == "stop" for _, row in rows))
         fields = {**ASSUMED_TUBE, **stated[tube], "gr_per_turn": flow_map(targets["maps"][tube]["runs"]),
                   "burst_kernels": [[speed, 1.5] for speed in sorted(by_speed)] or [[1.0, 1.0]],
-                  "after_stop_kernels": [[speed, 0.0] for speed in stops] or [[1.0, 0.0]]}
+                  "late_s": [[speed, 0.0] for speed in stops] or [[1.0, 0.0]]}
         for name in ASSUMED_TUBE:
             sources[f"{tube}.{name}"] = {"how": "assumed"}
         sources[f"{tube}.gr_per_turn"] = {"how": "measured", "from": f"map {tube}"}
@@ -230,23 +243,24 @@ def first_record(targets: dict, sources: dict) -> dict:
     record["motors"] = stated["motors"]
     for part, fields in stated.items():
         for name in fields:
-            if name != "name":
+            if name != "name" and not (part == "scale" and scale_from):
                 sources[f"{part}.{name}"] = {"how": "stated"}
     return record
 
 
-def problems_of(targets: dict, first: bool) -> list:
+def problems_of(targets: dict, first: bool, scale_given: bool) -> list:
     """
     The numbers to solve, in the order they lean on one another.
 
     Args:
         targets: the bench's figures.
         first: the first pass, which alone solves what is solved once.
+        scale_given: the scale is another record's, and none of its numbers is solved.
 
     Returns:
         batches of problems; those in one batch are solved side by side.
     """
-    bursts, after_stops, ripples = [], [], []
+    bursts, lates, ripples = [], [], []
     for tube in ("coarse", "fine"):
         for speed, rows in sorted(creep_rows(targets, tube).items()):
             prefix = f"{tube} {speed:g} "
@@ -258,10 +272,9 @@ def problems_of(targets: dict, first: bool) -> list:
                                       ("rise_sd",)))
             plain = [row for _, row in rows if row["length"] == "stop" and row["stop"] != "backoff"]
             if plain:
-                most = max(4.0, 1.5 * max(row["rise"] for row in plain))
+                # A measured mean, not an effect that may not be there: the best value, not the least
                 match = ",".join(f"{prefix}{kind} stop" for kind in ("held", "released"))
-                after_stops.append(Problem((tube, "after_stop_kernels", speed), 0.0, most, False, "creep", match,
-                                           ("rise",), True))
+                lates.append(Problem((tube, "late_s", speed), 0.0, LATE_MOST_S, False, "creep", match, ("rise",)))
         steady = ",".join(title for speed, rows in creep_rows(targets, tube).items() for title, row in rows
                           if row.get("fold_turn") is not None)
         if steady:
@@ -273,35 +286,36 @@ def problems_of(targets: dict, first: bool) -> list:
     fine_steady = ",".join(title for title, row in targets["creep"].items()
                            if row["tube"] == "fine" and row["fano_1s"] is not None)
     # The scale's delay is what shows after a stop from a fast flow, where a few kernels more or less do not
-    # count: solved first and once, with nothing falling after a stop, so the two are never traded for each other.
+    # count: solved first and once, with no powder late, so the two are never traded for each other.
     once = [[Problem(("scale", "dead_s"), 0.05, 1.0, False, "maps", "map", ("late_s_fast",))]]
-    return (once if first else []) + [
-        [Problem(("scale", "hold_s"), 0.0, 3.0, False, "nudges", "nudges", ("first_single_s",))],
+    scale = [[Problem(("scale", "hold_s"), 0.0, 3.0, False, "nudges", "nudges", ("first_single_s",))]]
+    return ([] if scale_given else (once if first else []) + scale) + [
         bursts + ripples,
-        after_stops,
+        lates,
         [Problem(("fine", "settle_s"), 0.0, 6.0, False, "creep,nudges", f"nudges,{fine_stops}",
                  ("fano", "nothing", "three_up", "kernels", "fano_1s"), True)],
         [Problem(("fine", "regularity"), 1.0, 8.0, True, "creep", fine_steady, FANO, True)],
     ]
 
 
-def build(targets: dict, passes: int) -> dict:
+def build(targets: dict, passes: int, scale_from: str = "") -> dict:
     """
     A record from a session's figures.
 
     Args:
         targets: the bench's figures (`bench/measure.py`).
         passes: how many times the solved numbers are gone through; each leans a little on the others.
+        scale_from: a record whose scale weighed this session too; its scale is taken whole.
 
     Returns:
         the record, with every number's source.
     """
     sources = {}
-    record = first_record(targets, sources)
+    record = first_record(targets, sources, scale_from)
     with Workers() as pool:
         for index in range(passes):
             print(f"pass {index + 1} of {passes}", flush=True)
-            for batch in problems_of(targets, index == 0):
+            for batch in problems_of(targets, index == 0, bool(scale_from)):
                 if batch:
                     record = solve(record, batch, targets, pool, sources)
     record["sources"] = dict(sorted(sources.items()))
@@ -311,20 +325,20 @@ def build(targets: dict, passes: int) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--figures", type=Path, help="a session's figures, as bench/measure.py writes them")
-    parser.add_argument("--logs", type=Path, help="the session's raw folders: measured first, with --manifest")
-    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--session", help="a session of recordings/: measured first, by fit/<session>.manifest.json")
+    parser.add_argument("--recordings", type=Path, default=HERE / "recordings")
+    parser.add_argument("--scale-from", default="", help="a record whose scale weighed this session too")
     parser.add_argument("--out", type=Path, help="records/<name>.json when not given")
     parser.add_argument("--passes", type=int, default=2)
     args = parser.parse_args()
-    if args.logs:
-        manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-        targets = measure.session_figures(args.logs, manifest)
-        figures_path = HERE / "fit" / f"{manifest['name']}.json"
+    if args.session:
+        targets = measure.session_figures(args.recordings, measure.manifest_of(args.session))
+        figures_path = HERE / "fit" / f"{args.session}.json"
         figures_path.write_text(json.dumps(targets, indent=1), encoding="utf-8")
         print(f"wrote {figures_path}")
     else:
         targets = json.loads(args.figures.read_text(encoding="utf-8"))
-    record = build(targets, args.passes)
+    record = build(targets, args.passes, args.scale_from)
     out = args.out or rigs.RECORDS / f"{targets['name']}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, indent=1), encoding="utf-8")

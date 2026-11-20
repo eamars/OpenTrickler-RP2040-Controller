@@ -1,16 +1,10 @@
 {
- "name": "bench_pico2w",
- "rig": {
-  "unit": "Pico 2 W, 2.0.3-84",
-  "coarse": "large tube, 32 teeth",
-  "fine": "small low-flow tube, 22 teeth",
-  "powder": "AR2209, long exposed to air (the owner: clumps more than fresh)",
-  "scale": "A&D FX-300i in grains, response FAST",
-  "recorded": "2026-11-19 and 2026-11-20"
- },
+ "name": "pico2w_ar2209",
+ "session": "pico2w_ar2209",
  "recordings": {
   "maps": {"fine": "20261119_233912_runs", "coarse": "20261119_234312_runs"},
-  "nudges": {"folder": "20261119_234447_nudges", "still_s": 3.0, "speed_rps": 0.2},
+  "nudges": "20261120_220430_nudgewatch",
+  "ramps": ["20261120_211314_ramp", "20261120_212307_ramp"],
   "throws": {
    "20261120_005513_throws": {"name": "stored", "fine_kp": 2.0, "fine_max": 5.0, "fine_min": 0.1},
    "20261120_010032_throws": {"name": "kp08", "fine_kp": 0.8, "fine_max": 5.0, "fine_min": 0.1},
@@ -19,7 +13,7 @@
  },
  "stated": {
   "scale": {"name": "A&D FX-300i, FAST", "digit_gr": 0.02},
-  "powder": {"name": "AR2209, long in the air", "kernel_gr": 0.021},
+  "powder": {"name": "AR2209, long in the air"},
   "coarse": {"name": "large tube", "rifling_starts": 5, "drop_mm": 50.0},
   "fine": {"name": "small low-flow tube", "rifling_starts": 5, "drop_mm": 50.0},
   "motors": {"acceleration_rps2": 50.0, "max_speed_rps": 5.0}

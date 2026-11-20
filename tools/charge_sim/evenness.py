@@ -4,12 +4,12 @@ The rig's fine tube is made kinder in steps, each a thing an oscillation or anot
 achieve, and today's loop with the recorded slow-finish settings is thrown on each:
 - bursts: the share kept of what its releases carry beyond one kernel (1: as measured; 0: a kernel at a time);
 - regularity: how even the gaps between releases are (as measured; 8; 30, close to a metronome);
-- after a stop: the share kept of the kernels that fall after it.
+- lateness: the share kept of how much later than the scale's own delay its powder shows.
 For each, the weight short of the target at which the fine tube stops is swept and the best one taken, so a
 variant is judged at its own best stop. A second table does the same with the scale showing every change at once.
 
 Usage:
-    python evenness.py [--rig bench_pico2w] [--throws 400] [--target 20] [--least-rps 0.03]
+    python evenness.py [--rig pico2w_ar2209] [--throws 400] [--target 20] [--least-rps 0.03]
 """
 
 import argparse
@@ -21,17 +21,17 @@ from legacy_pid import PICO2W_SLOW_FINISH
 from workers import Workers
 
 BURST_SHARES = (1.0, 0.5, 0.25, 0.0)
-AFTER_STOP_SHARES = (1.0, 0.0)
+LATE_SHARES = (1.0, 0.0)
 REGULARITIES = (None, 8.0, 30.0)        # None: as measured
 STOPS_GR = (0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.15)
 
 
-def kinder(rig, burst_share: float, regularity, after_stop_share: float, hold_s):
-    """The rig with its fine tube's releases, their evenness and what follows a stop changed, and the scale's hold."""
+def kinder(rig, burst_share: float, regularity, late_share: float, hold_s):
+    """The rig with its fine tube's releases, their evenness and its powder's lateness changed, and the scale's hold."""
     fine = rig.fine
     fine = dataclasses.replace(
         fine, burst_kernels=tuple((speed, 1.0 + burst_share * (kernels - 1.0)) for speed, kernels in fine.burst_kernels),
-        after_stop_kernels=tuple((speed, after_stop_share * kernels) for speed, kernels in fine.after_stop_kernels),
+        late_s=tuple((speed, late_share * seconds) for speed, seconds in fine.late_s),
         regularity=fine.regularity if regularity is None else regularity)
     scale = rig.scale if hold_s is None else dataclasses.replace(rig.scale, hold_s=hold_s)
     return dataclasses.replace(rig, fine=fine, scale=scale)
@@ -39,7 +39,7 @@ def kinder(rig, burst_share: float, regularity, after_stop_share: float, hold_s)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rig", default="bench_pico2w")
+    parser.add_argument("--rig", default="pico2w_ar2209")
     parser.add_argument("--throws", type=int, default=400)
     parser.add_argument("--target", type=float, default=20.0)
     parser.add_argument("--least-rps", type=float, default=PICO2W_SLOW_FINISH.fine_min_rps,
@@ -49,7 +49,7 @@ def main() -> None:
     rig = rigs.get_rig(args.rig)
     variants = [(hold, burst, regularity, after)
                 for hold in (None, 0.0) for burst in BURST_SHARES for regularity in REGULARITIES
-                for after in AFTER_STOP_SHARES]
+                for after in LATE_SHARES]
     jobs, spans = [], []
     for hold, burst, regularity, after in variants:
         changed = kinder(rig, burst, regularity, after, hold)
@@ -67,11 +67,11 @@ def main() -> None:
           f"stop at {args.target:g} gr; over and under are of the true weight, 0.03 gr and more off")
     for hold in (None, 0.0):
         print(f"\nthe scale {'as measured' if hold is None else 'showing every change at once (hold 0)'}")
-        print(f"{'bursts kept':>12s}{'regularity':>12s}{'after stop':>12s}{'best stop':>11s}{'over':>7s}{'under':>7s}"
+        print(f"{'bursts kept':>12s}{'regularity':>12s}{'lateness':>12s}{'best stop':>11s}{'over':>7s}{'under':>7s}"
               f"{'good':>7s}{'spread gr':>11s}{'time s':>8s}")
         for burst in BURST_SHARES:
             for regularity in REGULARITIES:
-                for after in AFTER_STOP_SHARES:
+                for after in LATE_SHARES:
                     best = max(STOPS_GR, key=lambda stop: sums[(hold, burst, regularity, after, stop)]["good_true"])
                     s = sums[(hold, burst, regularity, after, best)]
                     order = f"{rig.fine.regularity:g}" if regularity is None else f"{regularity:g}"

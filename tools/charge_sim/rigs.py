@@ -14,7 +14,7 @@ from scale import ScaleModel
 from throw import Rig
 
 RECORDS = Path(__file__).parent / "records"
-TABLES = ("gr_per_turn", "burst_kernels", "after_stop_kernels")
+TABLES = ("gr_per_turn", "burst_kernels", "late_s")
 
 
 def tube_from_record(fields: dict) -> Tube:

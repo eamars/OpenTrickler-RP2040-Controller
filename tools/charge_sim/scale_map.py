@@ -8,7 +8,7 @@ Everything else is the rig's. A scale of another make is a point on this map onc
 the map does not claim what any make's figures are.
 
 Usage:
-    python scale_map.py [--rig bench_pico2w] [--controller legacy_slow_finish] [--throws 300] [--target 20]
+    python scale_map.py [--rig pico2w_ar2209] [--controller legacy_slow_finish] [--throws 300] [--target 20]
                         [--gain-rule]
 """
 
@@ -37,7 +37,7 @@ def by_rule(rig):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rig", default="bench_pico2w")
+    parser.add_argument("--rig", default="pico2w_ar2209")
     parser.add_argument("--controller", default="legacy_slow_finish", choices=sorted(CONTROLLERS))
     parser.add_argument("--throws", type=int, default=300)
     parser.add_argument("--target", type=float, default=20.0)

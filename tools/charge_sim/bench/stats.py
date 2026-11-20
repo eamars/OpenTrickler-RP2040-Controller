@@ -9,7 +9,6 @@ import bisect
 import statistics
 
 DIGIT_GR = 0.02
-KERNEL_GR = 0.021
 FINE_STOP_THRESHOLD_GR = 0.03
 RISE_MARKS_S = (0.4, 0.8, 1.2, 2.0)
 START_SKIP_S = 2.0      # a turn's first seconds are its start, not its steady flow
@@ -119,6 +118,25 @@ def creep_stats(trials: list) -> dict:
         mean = statistics.fmean(gains) if gains else 0.0
         out[f"fano_{window_s:g}s"] = statistics.pvariance(gains) / mean if len(gains) >= 8 and mean > 0.0 else None
     return out
+
+
+def ramp_stats(trials: list) -> dict:
+    """
+    Trials of one speed plan with no controller (`record.py ramp`), stopped at its end, as figures.
+
+    Args:
+        trials: each with `during` as (seconds from the stop, reading, speed) and `after` as (seconds, reading).
+
+    Returns:
+        ramps; gain and gain_sd (digits from the plan's start to the reading at rest); rise and rise_sd (digits
+        after the stop); rise_by (the mean rise by each of RISE_MARKS_S).
+    """
+    gains = [(end_reading(trial) - trial["during"][0][1]) / DIGIT_GR for trial in trials]
+    rises = [(end_reading(trial) - trial["during"][-1][1]) / DIGIT_GR for trial in trials]
+    by_mark = {str(mark): statistics.fmean((reading_at(trial["after"], mark) - trial["during"][-1][1]) / DIGIT_GR
+                                           for trial in trials) for mark in RISE_MARKS_S}
+    return {"ramps": len(trials), "gain": statistics.fmean(gains), "gain_sd": spread(gains),
+            "rise": statistics.fmean(rises), "rise_sd": spread(rises), "rise_by": by_mark}
 
 
 def throw_result(error_gr: float) -> str:

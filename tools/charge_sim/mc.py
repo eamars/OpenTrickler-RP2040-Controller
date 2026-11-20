@@ -1,6 +1,6 @@
 """Many throws of a controller on a rig, summed up: how often over, how often under, how wide, how long.
 
-Usage: python mc.py [--rig bench_pico2w] [--controller legacy_slow_finish] [--target 20] [--throws 500] [--seed 1]
+Usage: python mc.py [--rig pico2w_ar2209] [--controller legacy_slow_finish] [--target 20] [--throws 500] [--seed 1]
                     [--scale dead_s=0.8,report_s=0.25]
 """
 
@@ -112,7 +112,7 @@ def with_scale(rig, changes: str):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rig", default="bench_pico2w", help="a record's name in records/, or a path to one")
+    parser.add_argument("--rig", default="pico2w_ar2209", help="a record's name in records/, or a path to one")
     parser.add_argument("--controller", default="legacy_slow_finish", choices=sorted(CONTROLLERS))
     parser.add_argument("--target", type=float, default=20.0)
     parser.add_argument("--throws", type=int, default=500)

@@ -13,7 +13,7 @@ Chance is measured first: the record as built, run on other seeds. A figure or a
 moved only when it moves by more than its own limit and by more than chance moved it.
 
 Usage:
-    python pinned.py [--rig bench_pico2w] [--throws 600] [--out fit/pinned_<rig>.txt]
+    python pinned.py [--rig pico2w_ar2209] [--throws 600] [--out fit/pinned_<rig>.txt]
 """
 
 import argparse
@@ -29,7 +29,7 @@ from workers import Workers
 
 HERE = Path(__file__).parent
 FACTOR = 1.5
-FROM_ZERO = {"ripple_turn": 0.3, "ripple_rifling": 0.3, "settle_s": 2.0, "after_stop_kernels": 1.0,
+FROM_ZERO = {"ripple_turn": 0.3, "ripple_rifling": 0.3, "settle_s": 2.0, "late_s": 0.3,
              "reverse_spill_gr": 0.5, "hold_s": 1.0}
 SKIP = {"name", "digit_gr", "rifling_starts", "report_jitter_s", "link_min_s", "link_max_s"}
 LEAST = {"burst_kernels": 1.0, "regularity": 1.0}
@@ -105,7 +105,7 @@ def compare(base: tuple, moved: tuple, floor: dict) -> tuple:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rig", default="bench_pico2w")
+    parser.add_argument("--rig", default="pico2w_ar2209")
     parser.add_argument("--throws", type=int, default=600)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()

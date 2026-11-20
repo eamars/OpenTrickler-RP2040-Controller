@@ -77,19 +77,50 @@ class TwinBench:
         samples = self.advance(turn / speed_rps)
         self.tubes["fine"].set_speed(0.0)
         samples += self.advance(still_s)
-        gain = (statistics.fmean(w for t, w in samples if t >= self.now - 0.7) - before) / stats.KERNEL_GR
+        gain = (statistics.fmean(w for t, w in samples if t >= self.now - 0.7) - before) / self.rig.powder.kernel_gr
         moved = [t for t, w in samples if w >= before + stats.DIGIT_GR / 2.0]
         return gain, (moved[0] - start if moved else None)
 
 
-def creep_trials(rig: Rig, tube: str, speed_rps: float, stop: str, run_s: tuple, still_s: float, count: int,
-                 seed: int) -> list:
-    """A series of creep-stop trials of one kind, after the bench's own priming turn."""
+    def ramp(self, tube: str, plan: list, still_s: float) -> dict:
+        """One trial of a speed plan with no controller, as record.py's: the speeds in turn, a stop, a watch."""
+        state = self.tubes[tube]
+        during = []
+        for speed_rps, seconds in plan:
+            state.set_speed(speed_rps)
+            during += [(t, w, speed_rps) for t, w in self.advance(seconds)]
+        stopped = self.now
+        state.set_speed(0.0)
+        after = self.advance(still_s)
+        return {"note": "ramp", "tube": tube, "plan": plan, "stop": "held",
+                "during": [(t - stopped, w, speed) for t, w, speed in during],
+                "after": [(t - stopped, w) for t, w in after]}
+
+
+def primed(rig: Rig, tube: str, seed: int) -> TwinBench:
+    """A bench after the recorder's own priming turn of a tube."""
     bench = TwinBench(rig, seed)
     bench.tubes[tube].set_speed(1.0)
     bench.advance(3.0)
     bench.tubes[tube].set_speed(0.0)
     bench.advance(HOLD_STILL_S)
+    return bench
+
+
+def ramp_trials(rig: Rig, tube: str, plan: list, still_s: float, count: int, seed: int) -> list:
+    """A series of trials of one speed plan."""
+    bench = primed(rig, tube, seed)
+    trials = []
+    for _ in range(count):
+        trials.append(bench.ramp(tube, plan, still_s))
+        bench.advance(0.5)
+    return trials
+
+
+def creep_trials(rig: Rig, tube: str, speed_rps: float, stop: str, run_s: tuple, still_s: float, count: int,
+                 seed: int) -> list:
+    """A series of creep-stop trials of one kind, after the bench's own priming turn."""
+    bench = primed(rig, tube, seed)
     trials = []
     for _ in range(count):
         trials.append(bench.creep_stop(tube, speed_rps, bench.rng.uniform(*run_s), still_s, stop))
@@ -98,12 +129,8 @@ def creep_trials(rig: Rig, tube: str, speed_rps: float, stop: str, run_s: tuple,
 
 
 def nudge_series(rig: Rig, speed_rps: float, turn: float, still_s: float, count: int, seed: int) -> dict:
-    """A nudge series as the bench's run C, summed up."""
-    bench = TwinBench(rig, seed)
-    bench.tubes["fine"].set_speed(1.0)
-    bench.advance(3.0)
-    bench.tubes["fine"].set_speed(0.0)
-    bench.advance(HOLD_STILL_S)
+    """A series of watched nudges, summed up."""
+    bench = primed(rig, "fine", seed)
     gains, moves = [], []
     for _ in range(count):
         gain, moved = bench.nudge(speed_rps, turn, still_s)
