@@ -14,7 +14,7 @@ The owner's direction for the bench (11-20, evening): sessions capture data and 
 - **One console session at a time.** A recorder that loses its console leaves the motor turning: send `motor fine 0` and `motor coarse 0` after any session that ends badly. It happened twice on 11-21.
 - **Fitting is not begun** (the owner: capture first). The order in the section below stands; the capture protocol it asks for is written.
 - **Still to capture:** the second unit (the Pico W's build), fresh AR2209, AR2208; BM2's kernel mass (the owner was asked for the weight of 50 or 100 kernels).
-- **The bench as left (02:35 on 11-21):** Pico 2 W on the probe, idle, BM2 in the hopper and tubes, 12 kernels in the cup. BM2's kernel is 0.0117 gr (the owner's count); AR2209's 0.021 gr stands on the owner's word ("0.021gr is about the weight per kernel. So I don't think it worth a weight").
+- **The bench as left (02:35 on 11-21):** Pico 2 W on the probe, idle; the owner packed BM2 away after the kernel count, so the hopper is taken as empty and the tubes as unprimed. BM2's kernel is 0.0117 gr (the owner's count); AR2209's 0.021 gr stands on the owner's word ("0.021gr is about the weight per kernel. So I don't think it worth a weight").
 
 ### Interim conclusion, 2026-11-21, 02:40, as given to the owner (two powders, one unit, one scale; nothing fitted yet)
 
@@ -29,7 +29,7 @@ The owner's direction for the bench (11-20, evening): sessions capture data and 
 
 ### Tomorrow's order (the owner asked for it; nothing below is begun)
 
-1. **Bench, about 15 minutes, before BM2 is taken out:** 30 throws of today's loop as stored, with BM2 (`record.py throws --rezero`). Not tuning: they are the held-out check for BM2's record, as the three sets of throws are for AR2209's. Without them BM2's record can be built but not checked in closed loop.
+1. **No bench step.** The agent named 30 throws of today's loop with BM2 as a held-out check only after telling the owner the capture was complete, and the owner had packed BM2 away ("I thought you finished the BM2 today so I packed them up already"). They are not asked for again now. BM2's record is checked on its throw-shaped ramp (30 trials, open loop, in the batch); its closed-loop check comes later as a prediction: the simulation's figures for today's loop with BM2 written first, then the throws, when BM2 is next loaded. **The cause is the protocol's: a batch did not hold the throws.** Before the next powder's batch, `protocol.py` gets them as its last step (the unit's address, a profile and a target as options), so "complete" means the check is in it.
 2. **Desk:** `measure.py` takes a batch (`batch.json`) and makes the figures file for a powder: the fixed moves, the stops to 1 rev/s, the ramps, the speed steps, the reverse lengths, the watched nudges.
 3. **Desk:** the simulation's tube doses by turns: what a stop leaves by speed, what the next start owes, what a reverse costs, and the powder's own delay apart from the scale's. The scale's small-change answer from the watched nudges.
 4. **Desk:** two records built (AR2209, BM2), each checked on its throw-shaped ramp and its throws. Pass: the slow finish's over-rate within the throws' own scatter, which the simulation has never met.
