@@ -87,3 +87,12 @@ coarse tube: spread of the digits poured over a part of a turn, inside steady ru
 20261120_232930_ramp: 48 moves of up to 0.6 turn, the tube turned 34.6 turns in all
   mean of the moves in each eighth of a turn, in spreads of their own kind: +0.10  +0.12  +0.25  +0.29  -0.26  +0.33  -0.30  -0.58
   once-a-turn wave: 0.28 spreads; chance alone gives 0.24 (19 in 20 under 0.52); larger than chance in 60% of shuffles
+
+== added 23:36: the coarse tube steady for 20 s at 0.3 and 1 rev/s (233605_creepstop), by bench/stats.py and within_run.py
+coarse 0.3 rev/s, 20 s, 6.00 turns: 149 digits/s (9.93 gr a turn); variance over mean of the digits in 1, 2, 4 s: 2.71, 0.97, -; after the stop +78 digits = 0.52 s of flow
+coarse 1 rev/s, 20 s, 20.01 turns: 490 digits/s (9.80 gr a turn); variance over mean of the digits in 1, 2, 4 s: 0.39, 0.56, -; after the stop +266 digits = 0.54 s of flow
+coarse tube: spread of the digits poured over a part of a turn, inside steady runs
+ rev/s  run s    0.05t     0.1t    0.25t     0.5t       1t       2t   digits a turn
+   0.1     30     15.6     25.4     19.5        -        -        -   496.2
+   0.3     20        -        -     16.8     14.2        -        -   497.3
+     1     20        -        -        -     17.8     16.8     17.5   491.2

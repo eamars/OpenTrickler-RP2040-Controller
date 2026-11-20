@@ -583,6 +583,16 @@ The PC cannot time a move at 1 rev/s finer than about 0.09 of a turn; the turn g
 
 **The coarse tube by turns:** 0.26 of a turn 122 digits (spread 17), 0.51 266 (13), at 0.5 rev/s; 0.29 137 (16), 0.53 247 (12), 1.04 477 (20) at 2 rev/s: 9.2 to 10.4 gr a turn, a move 12 to 20 digits (0.24 to 0.4 gr) off whatever its size or speed. The day's earlier trials (stops after mixed kinds, some after a reverse turn) had put it at 43 to 65 digits.
 
+**The coarse tube steady, 23:36** (the owner: "Cup is empty"; `233605_creepstop`, 20 s each, `VERDICT PASS`, 286 gr in the cup after): the evenness the 8 s runs could not give.
+
+| Coarse tube | Grains a turn | Variance over mean of the digits in 1 and 2 s | Spread of the digits over 0.25, 0.5, 1, 2 turns | After the stop |
+|---|---|---|---|---|
+| 0.1 rev/s (30 s, earlier) | 9.9 | 5.5, 4.6 | 20 over a quarter | 0.57 s of its flow |
+| 0.3 | 9.9 | 2.7, 1.0 | 17, 14 | 0.52 s |
+| 1 | 9.8 | 0.4, 0.6 | -, 18, 17, 18 | 0.54 s |
+
+Its scatter inside a run levels off as the fine tube's does, at 14 to 18 digits (about 0.3 gr), the figure its fixed moves gave. It pours evenly at 1 rev/s and in lumps at 0.1. After a stop from any of the three speeds 0.52 to 0.57 s of its flow follows and no more: nothing beyond the scale's delay, where the fine tube leaves 4 to 6 digits from its middle speeds.
+
 **Not answered, and why:** how powders differ in what a turn pours and in a move's spread: one powder. The assumption to test when another is loaded: the grains a turn follow the bulk density (this AR2209 gives 0.757 gr a turn in the fine tube and about 9.4 in the coarse), the turn that is one kernel follows the kernel's mass (0.028 of a turn here), and the spread stays a few kernels.
 
 **Next (fitting, not begun, by the owner's word "before working on any fitting"):** (1) `measure.py` and the simulation's twin take the new tests (stops to 1 rev/s, the ramps, the reverse lengths, the watched nudges); (2) the record built again with what follows a stop at every speed and what a reverse costs; the throw-shaped ramp and the three sets of throws as its checks; (3) the scale's small-change shape from point 8; (4) the capture protocol as one script for the second unit and the other powders; (5) the design.
