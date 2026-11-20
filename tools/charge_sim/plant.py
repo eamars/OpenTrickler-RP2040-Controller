@@ -1,8 +1,10 @@
 """The plant of a throw: two rotary tubes dropping kernels into the cup.
 
 Weights are in grains, times in seconds, speeds in trickler rev/s as the firmware takes them (it divides by the
-belt ratio itself). The model's shape follows the tubes' geometry and the flow research (README.md); its numbers
-are priors until open-loop recordings on a real unit replace them.
+belt ratio itself). A tube is described by what a calibration measures of it with a powder in it: its flow a turn
+at each speed, the size of its releases at each speed, what falls after a stop from each speed. Nothing here is a
+figure of a tube's geometry that a unit could not measure through its scale. `build_rig.py` makes the tubes from a
+bench's recordings; `records/` holds them.
 """
 
 import heapq
@@ -14,94 +16,89 @@ GRAVITY_M_S2 = 9.80665
 GR_PER_G = 15.4323584
 
 
+def table_value(table: tuple, x: float) -> float:
+    """
+    A measured table read at x.
+
+    Args:
+        table: ((x, y), ...) by rising x, every x above 0.
+        x: where to read it.
+
+    Returns:
+        y, straight between two points on a log scale of x, and the end point's outside them: nothing was
+        measured there.
+    """
+    if x <= table[0][0]:
+        return table[0][1]
+    if x >= table[-1][0]:
+        return table[-1][1]
+    for (x0, y0), (x1, y1) in zip(table, table[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * math.log(x / x0) / math.log(x1 / x0)
+    return table[-1][1]
+
+
 @dataclass(frozen=True)
 class Powder:
-    """What the plant needs to know of a powder.
+    """What the plant needs to know of a powder apart from any tube.
 
     kernel_gr: mean mass of one kernel.
     kernel_cv: spread of a kernel's mass, as a share of the mean.
-    clump_mean: mean kernels that leave the tube together at speed; 1 is one at a time.
-    regularity: order of the gamma-distributed gaps between releases. 1 is a Poisson drip, higher is steadier.
-    flow_scale: this powder's flow against the reference powder's, for both tubes (bulk density, how it packs).
     """
 
     name: str
     kernel_gr: float
     kernel_cv: float
-    clump_mean: float
-    regularity: float
-    flow_scale: float = 1.0
 
 
 @dataclass(frozen=True)
 class Tube:
-    """One rotary tube with the reference powder in it.
+    """One rotary tube with one powder in it, as a calibration measures the two together.
 
-    out_per_rev: share of the powder held in the tube that leaves per turn (outflow = out_per_rev x speed x held).
-    in_per_rev: share of the tube's free room that the inlet fills per turn.
-    held_max_gr: what the tube holds when the inlet no longer adds to it.
-    max_inflow_gr_s: ceiling of the inlet (inf for none): the small tube fills through one window a turn.
-    critical_rps: speed at which the bore's wall holds the powder by centrifugal force.
-    centrifuge_power: how sharply the flow per turn falls toward the critical speed.
-    ripple: once-a-turn variation of the flow, 0 to 1 (the window, a seam, eccentricity).
-    slump_deg: turn of the tube between avalanches of the bed at low speed.
-    roll_rps: speed above which the avalanches merge into a steady stream.
+    gr_per_turn: the flow map, ((speed, grains a turn), ...): one point when the flow follows the speed.
+    burst_kernels: ((speed, mean kernels that leave together), ...): 1 is a kernel at a time. Slow turning lets
+        the bed avalanche, so the low speeds hold the large figures.
+    after_stop_kernels: ((speed before the stop, mean kernels that fall after it), ...).
+    regularity: order of the gamma-distributed gaps between releases. 1 is a Poisson drip, higher is steadier.
+    settle_s: time the bed takes to come out of its slow way of flowing. A tube that has just started, or is
+        nudged, goes on releasing as its lowest speed does for about this long; 0 for at once. A tube that slows
+        down takes up the slower speed's way at once: avalanches begin as soon as the turning no longer carries
+        the bed.
+    after_stop_tau_s: time constant of the kernels that fall after a stop.
+    after_stop_full_turns: a tube that turned less than this since its start has brought fewer kernels to the
+        lip, and fewer fall after its stop.
+    ripple_turn: once-a-turn variation of the flow, 0 to 1 (the window, a seam, eccentricity).
+    rifling_starts, ripple_rifling: the tube's rifling starts (5 on both of the project's tubes) and the depth of
+        a variation of the flow once a start. `bench/fold_by_angle.py` measures both ripples on a unit.
+    reverse_spill_gr: powder that falls when a tube that was turning forward is turned back (the charge's
+        back-off of the coarse tube). Mean, in grains.
+    reverse_spill_cv, reverse_spill_s: spread of that spill as a share of its mean, and the time it falls over.
     start_turns: forward turns that bring a retreated front back to the lip.
     retreat_turns: reverse turns that take the front fully back.
-    trail_kernels: mean kernels that fall after a stop from trail_ref_rps or faster.
-    trail_tau_s: time constant of those late kernels.
     drop_mm: fall from the lip to the cup.
-    roll_tau_s: time the bed takes to settle into its speed's way of flowing. A tube that has just started, or is
-        nudged, goes on avalanching for about this long whatever its speed; 0 for at once.
-    trail_full_turns: a tube that turned less than this since its start has brought fewer kernels to the lip, and
-        fewer fall after its stop.
-    reverse_spill_gr: powder that falls when a tube that was turning forward is turned back (the charge's back-off
-        of the coarse tube): the bench measured that a reverse turn spills, where the research had assumed it
-        takes powder back. Mean, in grains.
-    reverse_spill_cv: spread of that spill, as a share of its mean.
-    reverse_spill_s: time over which it falls.
-    rifling_starts: the tube's rifling starts (5 on both of the project's tubes); with rifling_ripple, a variation
-        of the flow once a start, beside the once-a-turn `ripple`. `bench/fold_by_angle.py` measures both on a unit.
-    rifling_ripple: depth of that variation, 0 to 1.
     """
 
     name: str
-    out_per_rev: float
-    in_per_rev: float
-    held_max_gr: float
-    max_inflow_gr_s: float
-    critical_rps: float
-    centrifuge_power: float
-    ripple: float
-    slump_deg: float
-    roll_rps: float
-    start_turns: float
-    retreat_turns: float
-    trail_kernels: float
-    trail_ref_rps: float
-    trail_tau_s: float
-    drop_mm: float
-    roll_tau_s: float = 0.0
-    trail_full_turns: float = 0.25
+    gr_per_turn: tuple
+    burst_kernels: tuple
+    after_stop_kernels: tuple
+    regularity: float = 2.0
+    settle_s: float = 0.0
+    after_stop_tau_s: float = 0.2
+    after_stop_full_turns: float = 0.1
+    ripple_turn: float = 0.0
+    rifling_starts: int = 5
+    ripple_rifling: float = 0.0
     reverse_spill_gr: float = 0.0
     reverse_spill_cv: float = 0.3
     reverse_spill_s: float = 0.25
-    rifling_starts: int = 5
-    rifling_ripple: float = 0.0
-
-    @property
-    def held_steady_gr(self) -> float:
-        """What the tube holds at a steady slow speed, where the inlet keeps up."""
-        return self.held_max_gr * self.in_per_rev / (self.in_per_rev + self.out_per_rev)
-
-    @property
-    def gr_per_rev(self) -> float:
-        """Powder delivered per turn at a steady slow speed."""
-        return self.out_per_rev * self.held_steady_gr
+    start_turns: float = 0.2
+    retreat_turns: float = 0.5
+    drop_mm: float = 50.0
 
 
 class TubeState:
-    """A tube turning: its ramped speed, the powder it holds, where its front is, and the kernels it releases."""
+    """A tube turning: its ramped speed, where its front is, and the kernels it releases."""
 
     def __init__(self, tube: Tube, powder: Powder, rng: random.Random, acceleration_rps2: float, max_speed_rps: float):
         self.tube = tube
@@ -111,10 +108,10 @@ class TubeState:
         self.max_speed = max_speed_rps
         self.target = 0.0
         self.speed = 0.0
-        self.rolling = 0.0          # the speed the bed flows as if at: the speed itself, trailing by roll_tau_s
+        self.rolling = 0.0          # the speed the bed flows as if at: the lower of the speed and its trail
+        self.trailing = 0.0         # the speed, trailing by settle_s
         self.angle = rng.random()
         self.front = 1.0            # 1: powder at the lip; 0: fully retreated
-        self.held = tube.held_steady_gr * powder.flow_scale
         self.budget = 0.0           # powder brought to the lip and not yet released
         self.clump = 0.0            # the next release, and the budget that lets it go
         self.threshold = 0.0
@@ -125,6 +122,8 @@ class TubeState:
         self.turns = 0.0
         self.turns_since_start = 0.0
         self.forward_since_reverse = 0.0
+        self.map_speed = -1.0       # the speed the flow map was last read at, and what it gave
+        self.map_gr_per_turn = 0.0
         self._next_release()
 
     def _kernel(self) -> float:
@@ -133,16 +132,8 @@ class TubeState:
         return max(mass, 0.2 * self.powder.kernel_gr)
 
     def _next_release(self) -> None:
-        """Draw the next release: its kernels, and the powder the bed must bring to the lip before it goes.
-
-        At speed a release is the powder's own clump. Turning slowly the bed avalanches, and a release is what
-        one avalanche carries over the lip when that is more.
-        """
-        powder = self.powder
-        tube = self.tube
-        slumping = 1.0 / (1.0 + (self.rolling / tube.roll_rps) ** 2)
-        avalanche = tube.out_per_rev * self.held * tube.slump_deg / 360.0 * slumping
-        mean_kernels = max(powder.clump_mean, avalanche / powder.kernel_gr)
+        """Draw the next release: its kernels, and the powder the bed must bring to the lip before it goes."""
+        mean_kernels = table_value(self.tube.burst_kernels, self.rolling)
         count = 1
         extra = mean_kernels - 1.0
         if extra > 0.0:
@@ -150,7 +141,7 @@ class TubeState:
             while self.rng.random() < stay:
                 count += 1
         self.clump = sum(self._kernel() for _ in range(count))
-        order = powder.regularity
+        order = self.tube.regularity
         self.threshold = self.clump * self.rng.gammavariate(order, 1.0 / order)
 
     def set_speed(self, speed_rps: float) -> None:
@@ -161,18 +152,18 @@ class TubeState:
         self.target = speed_rps
 
     def mean_flow(self) -> float:
-        """Mean discharge in gr/s at the present speed, front, angle and what the tube holds."""
+        """Mean discharge in gr/s at the present speed, front and angle."""
         speed = self.speed
         if speed <= 0.0:
             return 0.0
         tube = self.tube
-        flow = tube.out_per_rev * speed * self.held
-        flow *= max(0.0, 1.0 - (speed / tube.critical_rps) ** tube.centrifuge_power)
-        flow *= self.front * self.front
+        if speed != self.map_speed:
+            self.map_speed = speed
+            self.map_gr_per_turn = table_value(tube.gr_per_turn, speed)
+        flow = self.map_gr_per_turn * speed * self.front * self.front
         turn = 2.0 * math.pi * self.angle
-        flow *= max(0.0, 1.0 + tube.ripple * math.cos(turn)
-                    + tube.rifling_ripple * math.cos(tube.rifling_starts * turn))
-        return flow
+        return flow * max(0.0, 1.0 + tube.ripple_turn * math.cos(turn)
+                          + tube.ripple_rifling * math.cos(tube.rifling_starts * turn))
 
     def step(self, now_s: float, dt_s: float, landings: list) -> None:
         """Advance one time step, pushing (landing time, mass, landing speed) for each release onto the heap."""
@@ -182,8 +173,9 @@ class TubeState:
             self.speed = min(self.target, self.speed + change)
         elif self.speed > self.target:
             self.speed = max(self.target, self.speed - change)
-        if self.tube.roll_tau_s > 0.0:
-            self.rolling += (abs(self.speed) - self.rolling) * dt_s / self.tube.roll_tau_s
+        if self.tube.settle_s > 0.0:
+            self.trailing += (abs(self.speed) - self.trailing) * dt_s / self.tube.settle_s
+            self.rolling = min(self.trailing, abs(self.speed))
         else:
             self.rolling = abs(self.speed)
         turned = self.speed * dt_s
@@ -191,15 +183,10 @@ class TubeState:
         self.turns += abs(turned)
 
         if turned > 0.0:
-            tube = self.tube
-            scale = self.powder.flow_scale
-            self.front = min(1.0, self.front + turned / tube.start_turns)
-            inflow = tube.in_per_rev * self.speed * max(0.0, tube.held_max_gr * scale - self.held)
-            self.held += min(inflow, tube.max_inflow_gr_s * scale) * dt_s
+            self.front = min(1.0, self.front + turned / self.tube.start_turns)
             self.budget += self.mean_flow() * dt_s
             while self.budget >= self.threshold:
                 self.budget -= self.clump
-                self.held = max(0.0, self.held - self.clump)
                 self._release(now_s, self.clump, landings)
                 self._next_release()
         elif turned < 0.0:
@@ -229,26 +216,23 @@ class TubeState:
             return
         mass = max(0.0, self.rng.gauss(tube.reverse_spill_gr, tube.reverse_spill_gr * tube.reverse_spill_cv))
         for _ in range(10):
-            self.held = max(0.0, self.held - mass / 10.0)
             self._release(now_s + self.rng.uniform(0.0, tube.reverse_spill_s), mass / 10.0, landings)
 
     def _trail(self, now_s: float, landings: list) -> None:
-        """Kernels left at the lip that fall after the tube stops; fewer from a slow stop or a retreated front.
+        """Kernels left at the lip that fall after the tube stops; fewer from a retreated front or a short turn.
 
         What falls is owed: the next turn first brings as much back to the lip before anything leaves it.
         """
         tube = self.tube
-        share = min(1.0, self.speed_before_stop / tube.trail_ref_rps) * self.front
-        share *= min(1.0, self.turns_since_start / tube.trail_full_turns)
-        mean = tube.trail_kernels * share
+        share = self.front * min(1.0, self.turns_since_start / tube.after_stop_full_turns)
+        mean = table_value(tube.after_stop_kernels, self.speed_before_stop) * share
         # Often none and now and then many, as the bench's stops gave (0 to 10 digits): a geometric count
         count = 0
         while self.rng.random() < mean / (1.0 + mean):
             count += 1
         for _ in range(count):
-            delay = self.rng.expovariate(1.0 / tube.trail_tau_s)
+            delay = self.rng.expovariate(1.0 / tube.after_stop_tau_s)
             kernel = self._kernel()
-            self.held = max(0.0, self.held - kernel)
             self.budget -= kernel
             self._release(now_s + delay, kernel, landings)
 

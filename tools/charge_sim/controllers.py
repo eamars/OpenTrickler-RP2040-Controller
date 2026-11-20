@@ -4,11 +4,9 @@ The verdict's tolerance is the firmware's for every controller, so they are judg
 above the target on the reading a second after the stop.
 """
 
-import dataclasses
-
 from calibrate import calibrate
 from flow_dose import DoseSettings, FlowDose
-from legacy_pid import AR2209_PICO2W, LegacyPid
+from legacy_pid import AR2209_PICO2W, PICO2W_KP08, PICO2W_SLOW_FINISH, LegacyPid
 from throw import Session
 
 VERDICT_TOLERANCE_GR = 0.03
@@ -42,13 +40,16 @@ def make_flow_dose_split(rig) -> tuple:
     return make_flow_dose(rig, allocation="split")
 
 
-def make_legacy_kp(fine_kp: float):
-    """Today's loop with another fine Kp, to set against PR #113's measured fall after the stop."""
-    def make(rig) -> tuple:
-        return LegacyPid(dataclasses.replace(AR2209_PICO2W, fine_kp=fine_kp)), VERDICT_TOLERANCE_GR
-    return make
+def make_legacy_kp08(rig) -> tuple:
+    """Today's loop with the fine gain the bench's measurements give, as thrown on 2026-11-20."""
+    return LegacyPid(PICO2W_KP08), VERDICT_TOLERANCE_GR
 
 
-CONTROLLERS = {"legacy": make_legacy, "flow_dose": make_flow_dose, "flow_dose_commit": make_flow_dose_commit,
-               "flow_dose_sequential": make_flow_dose_sequential, "flow_dose_split": make_flow_dose_split,
-               "legacy_kp3": make_legacy_kp(3.0), "legacy_kp6": make_legacy_kp(6.0)}
+def make_legacy_slow_finish(rig) -> tuple:
+    """Today's loop with that gain and a slow finish, as thrown on 2026-11-20."""
+    return LegacyPid(PICO2W_SLOW_FINISH), VERDICT_TOLERANCE_GR
+
+
+CONTROLLERS = {"legacy": make_legacy, "legacy_kp08": make_legacy_kp08, "legacy_slow_finish": make_legacy_slow_finish,
+               "flow_dose": make_flow_dose, "flow_dose_commit": make_flow_dose_commit,
+               "flow_dose_sequential": make_flow_dose_sequential, "flow_dose_split": make_flow_dose_split}

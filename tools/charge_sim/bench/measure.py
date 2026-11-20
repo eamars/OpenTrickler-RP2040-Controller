@@ -1,10 +1,13 @@
 """The bench's recordings as the figures the simulation is fitted to and checked against.
 
-Reads the raw folders under <repo>/logs/adr009 (not tracked) and writes one JSON of figures (tracked): the targets
-of `fit_report.py`. Each figure names the recordings it came from.
+Reads the raw folders of one bench session (a unit, a powder, a scale; under <repo>/logs/adr009, not tracked) and
+writes one JSON of figures (tracked): what `build_rig.py` makes a rig's record from and `fit_report.py` checks it
+against. Each figure names the recordings it came from. The session's manifest says which folder is which test,
+what the throws' settings were, and what is known of the rig without a recording.
 
 Usage:
-    python measure.py --logs C:\\workspace\\OpenTrickler-RP2040-Controller\\logs\\adr009 --out ../fit/bench_pico2w.json
+    python measure.py --logs C:\\workspace\\OpenTrickler-RP2040-Controller\\logs\\adr009
+                      --manifest ../fit/bench_pico2w.manifest.json --out ../fit/bench_pico2w.json
 """
 
 import argparse
@@ -14,16 +17,6 @@ from pathlib import Path
 
 import stats
 
-# What the unit, the powder and the scale were: the simulation's rig of the same name is fitted to this file.
-RIG = {"unit": "Pico 2 W, 2.0.3-84", "coarse": "large tube, 32 teeth", "fine": "small low-flow tube, 22 teeth",
-       "powder": "AR2209, long exposed to air (the owner: clumps more than fresh)",
-       "scale": "A&D FX-300i in grains, response FAST, 20.7 frames a second"}
-# The throws' folders and the settings each ran with (progress.md, 2026-11-20). Fine tube: Kp, most, least rev/s.
-THROWS = {"20261120_005513_throws": {"name": "stored", "fine_kp": 2.0, "fine_max": 5.0, "fine_min": 0.1},
-          "20261120_010032_throws": {"name": "kp08", "fine_kp": 0.8, "fine_max": 5.0, "fine_min": 0.1},
-          "20261120_010435_throws": {"name": "slow_finish", "fine_kp": 0.8, "fine_max": 1.5, "fine_min": 0.03}}
-NUDGES = "20261119_234447_nudges"          # run C: 4 degree turns, 3 s still; the earlier runs under-waited the scale
-MAPS = {"fine": "20261119_233912_runs", "coarse": "20261119_234312_runs"}
 LONG_RUN_S = 30.0       # a creep-stop trial this long is a steady run: read for its flow, not only its stop
 
 
@@ -41,10 +34,11 @@ def load_frames(folder: Path) -> list:
     return frames
 
 
-def creep_figures(logs: Path) -> dict:
-    """Every creep-stop trial under the logs, by tube, speed, kind of stop and whether it was a long steady run."""
+def creep_figures(logs: Path, folders: list) -> dict:
+    """The creep-stop trials of the folders named (every one under the logs when none is), by tube, speed, kind
+    of stop and whether it was a long steady run."""
     groups = {}
-    for folder in sorted(logs.glob("*_creepstop")):
+    for folder in sorted(logs / name for name in folders) if folders else sorted(logs.glob("*_creepstop")):
         if not (folder / "runs.json").exists():     # a run still under way
             continue
         for trial in load_runs(folder):
@@ -66,18 +60,19 @@ def creep_figures(logs: Path) -> dict:
     return out
 
 
-def throw_figures(logs: Path) -> dict:
+def throw_figures(logs: Path, recorded: dict) -> dict:
+    """The recorded throws of today's loop, by the settings each folder ran with."""
     out = {}
-    for folder, settings in THROWS.items():
+    for folder, settings in recorded.items():
         throws = [run for run in load_runs(logs / folder) if run["note"] == "throw"]
         out[settings["name"]] = {**settings, "target": throws[0]["target"], "from": [folder],
                                  **stats.throw_stats(throws)}
     return out
 
 
-def nudge_figures(logs: Path) -> dict:
-    """Run C's nudges: each one's gain, and for those that released the time until the reading first moved."""
-    folder = logs / NUDGES
+def nudge_figures(logs: Path, recorded: dict) -> dict:
+    """A nudge series: each nudge's gain, and for those that released the time until the reading first moved."""
+    folder = logs / recorded["folder"]
     frames, runs = load_frames(folder), load_runs(folder)
     gains, moves, turns = [], [], []
     for run in runs:
@@ -93,14 +88,15 @@ def nudge_figures(logs: Path) -> dict:
         moved = [t for t, w in span if t > run["t_before_ms"] and w >= base + stats.DIGIT_GR / 2.0]
         if gain >= 0.7 and moved:
             moves.append((gain, (moved[0] - run["t_before_ms"]) / 1000.0))
-    return {"turn": statistics.fmean(turns), "still_s": 3.0, "speed_rps": 0.2, "from": [NUDGES],
+    return {"turn": statistics.fmean(turns), "still_s": recorded["still_s"], "speed_rps": recorded["speed_rps"],
+            "from": [recorded["folder"]],
             **stats.nudge_stats(gains, moves)}
 
 
-def map_figures(logs: Path) -> dict:
+def map_figures(logs: Path, recorded: dict) -> dict:
     """Each tube's open-loop map: powder a turn at each speed, and the seconds of its flow that showed after a stop."""
     out = {}
-    for tube, name in MAPS.items():
+    for tube, name in recorded.items():
         folder = logs / name
         frames, rows = load_frames(folder), []
         for run in load_runs(folder):
@@ -123,13 +119,42 @@ def map_figures(logs: Path) -> dict:
     return out
 
 
+def scale_figures(logs: Path, folder: str) -> dict:
+    """The scale's rhythm from a tapped folder's frames: the usual time between two, and how much it varies."""
+    times = [t for t, _ in load_frames(logs / folder)]
+    gaps = sorted(later - earlier for earlier, later in zip(times, times[1:]))
+    usual = statistics.median(gaps)
+    near = [gap for gap in gaps if 0.5 * usual <= gap <= 1.5 * usual]
+    return {"from": [folder], "report_s": statistics.fmean(near) / 1000.0, "frames": len(times)}
+
+
+def session_figures(logs: Path, manifest: dict) -> dict:
+    """
+    One bench session as figures.
+
+    Args:
+        logs: the folder holding the session's raw folders.
+        manifest: its name, what the rig was, which folder is which test, and what is stated of the rig.
+
+    Returns:
+        the figures by test, with the manifest's name, rig and stated parts copied in.
+    """
+    recorded = manifest["recordings"]
+    return {"name": manifest["name"], "rig": manifest["rig"], "stated": manifest["stated"],
+            "scale": scale_figures(logs, recorded["maps"]["fine"]),
+            "maps": map_figures(logs, recorded["maps"]),
+            "creep": creep_figures(logs, recorded.get("creepstop", [])),
+            "nudges": nudge_figures(logs, recorded["nudges"]),
+            "throws": throw_figures(logs, recorded.get("throws", {}))}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--logs", required=True, type=Path, help="the checkout's logs/adr009")
+    parser.add_argument("--manifest", required=True, type=Path, help="the session's folders, settings and rig")
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
-    figures = {"rig": RIG, "maps": map_figures(args.logs), "creep": creep_figures(args.logs),
-               "nudges": nudge_figures(args.logs), "throws": throw_figures(args.logs)}
+    figures = session_figures(args.logs, json.loads(args.manifest.read_text(encoding="utf-8")))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(figures, indent=1), encoding="utf-8")
     print(f"wrote {args.out}")

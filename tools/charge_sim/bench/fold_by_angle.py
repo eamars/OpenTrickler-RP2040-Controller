@@ -15,30 +15,6 @@ from pathlib import Path
 
 import stats
 
-BINS = 10
-
-
-def fold(trial: dict, period_turns: float) -> list:
-    """Digits gained in each of BINS equal parts of the period, summed over the trial's steady part."""
-    speed = trial["speed_asked_rps"]
-    bin_s = period_turns / BINS / speed
-    start = -trial["run_s"] + stats.START_SKIP_S
-    sums = [0.0] * BINS
-    index = 0
-    while start + bin_s <= 0.0:
-        gain = stats.reading_at(trial["during"], start + bin_s) - stats.reading_at(trial["during"], start)
-        sums[index % BINS] += gain / stats.DIGIT_GR
-        start += bin_s
-        index += 1
-    return sums
-
-
-def fuller_half(sums: list) -> float:
-    """The largest share of the flow that any half of the period (consecutive bins, wrapping) holds."""
-    total = sum(sums)
-    half = BINS // 2
-    return max(sum(sums[(first + offset) % BINS] for offset in range(half)) for first in range(BINS)) / total
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -52,8 +28,8 @@ def main() -> None:
             turns = trial["speed_asked_rps"] * (trial["run_s"] - stats.START_SKIP_S)
             print(f"{trial.get('tube', 'fine')} {trial['speed_asked_rps']:g} rev/s, {turns:.1f} turns")
             for period in (float(text) for text in args.periods.split(",")):
-                sums = fold(trial, period)
-                print(f"  period {period:g} turn: fuller half holds {fuller_half(sums):.2f}; digits by tenth of the "
+                sums = stats.fold(trial, period)
+                print(f"  period {period:g} turn: fuller half holds {stats.fuller_half(sums):.2f}; digits by tenth of the "
                       f"period {[round(value) for value in sums]}")
 
 

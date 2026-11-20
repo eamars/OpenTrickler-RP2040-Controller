@@ -13,6 +13,9 @@ KERNEL_GR = 0.021
 FINE_STOP_THRESHOLD_GR = 0.03
 RISE_MARKS_S = (0.4, 0.8, 1.2, 2.0)
 START_SKIP_S = 2.0      # a turn's first seconds are its start, not its steady flow
+FOLD_BINS = 10
+FOLD_LEAST_S = 30.0     # a run shorter than this is not folded by angle
+RIFLING_STARTS = 5      # both of the project's tubes
 
 
 def reading_at(series: list, t: float) -> float:
@@ -40,6 +43,36 @@ def window_gains(trial: dict, window_s: float) -> list:
         gains.append((reading_at(trial["during"], end) - reading_at(trial["during"], end - window_s)) / DIGIT_GR)
         end -= window_s
     return gains
+
+
+def fold(trial: dict, period_turns: float) -> list:
+    """Digits gained in each of FOLD_BINS equal parts of a period of the tube's turn, summed over the steady part."""
+    bin_s = period_turns / FOLD_BINS / trial["speed_asked_rps"]
+    start = -trial["run_s"] + START_SKIP_S
+    sums = [0.0] * FOLD_BINS
+    index = 0
+    while start + bin_s <= 0.0:
+        gain = reading_at(trial["during"], start + bin_s) - reading_at(trial["during"], start)
+        sums[index % FOLD_BINS] += gain / DIGIT_GR
+        start += bin_s
+        index += 1
+    return sums
+
+
+def fuller_half(sums: list):
+    """The largest share of the flow that any half of the period (consecutive bins, wrapping) holds; None for no flow."""
+    total = sum(sums)
+    if total <= 0.0:
+        return None
+    half = FOLD_BINS // 2
+    return max(sum(sums[(first + offset) % FOLD_BINS] for offset in range(half)) for first in range(FOLD_BINS)) / total
+
+
+def fold_figure(trials: list, period_turns: float):
+    """The mean fuller half of the long trials' flow folded onto a period; 0.5 is a flow that ignores the angle."""
+    shares = [fuller_half(fold(trial, period_turns)) for trial in trials if trial["run_s"] >= FOLD_LEAST_S]
+    shares = [share for share in shares if share is not None]
+    return statistics.fmean(shares) if shares else None
 
 
 def creep_stats(trials: list) -> dict:
@@ -79,7 +112,8 @@ def creep_stats(trials: list) -> dict:
            "most_1s": max(windows[1.0]) if windows[1.0] else None,
            "rise": statistics.fmean(rises), "rise_sd": spread(rises),
            "rise_by": {str(mark): statistics.fmean(values) for mark, values in by_mark.items()},
-           "three_hold": best / len(rounded), "rises": sorted(rounded)}
+           "three_hold": best / len(rounded), "rises": sorted(rounded),
+           "fold_turn": fold_figure(trials, 1.0), "fold_rifling": fold_figure(trials, 1.0 / RIFLING_STARTS)}
     for window_s, gains in windows.items():
         mean = statistics.fmean(gains) if gains else 0.0
         out[f"fano_{window_s:g}s"] = statistics.pvariance(gains) / mean if len(gains) >= 8 and mean > 0.0 else None

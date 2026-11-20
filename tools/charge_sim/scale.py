@@ -4,8 +4,9 @@ One chain for every make, a parameter set per make and setting:
 pan load -> dead time -> sensor lag -> a filter with two speeds -> zero tracking -> rounding -> a report every
 interval -> the link and the driver's poll. Weights in grains, times in seconds.
 
-Only the A&D's report interval, readability and link figures are measured or documented; every time constant is an
-estimate to be replaced by the bench's step and ramp tests (README.md).
+The sets at the end of this file are estimates made before any bench session. A scale that was measured is
+part of its rig's record (`records/`, made by `build_rig.py`): its delay from what shows after a stop, and how
+long it holds back a change of a digit or two from single kernels.
 """
 
 import random
@@ -153,12 +154,6 @@ SLOW_STRAIN_GAUGE = ScaleModel(
     sensor_tau_s=0.05, open_tau_s=0.30, closed_tau_s=1.20, open_above_gr=0.08, noise_gr=0.010,
     link_min_s=0.016, link_max_s=0.036)
 
-# The bench's A&D FX-300i at FAST as measured (the owner confirmed the setting, 2026-11-20): fitted to the stops
-# and nudges of fit/bench_pico2w.json. About half a second passes before a change shows at all; a change of a
-# digit or two is held for a second more, then shown whole.
-AND_FXI_BENCH = ScaleModel(
-    name="A&D FX-300i, FAST, bench", digit_gr=0.02, report_s=0.0483, report_jitter_s=0.002, dead_s=0.42,
-    sensor_tau_s=0.03, open_tau_s=0.10, closed_tau_s=1.30, open_above_gr=0.05, noise_gr=0.0015, link_min_s=0.009,
-    link_max_s=0.029, hold_s=1.2)
-
-SCALES = {"and_bench": AND_FXI_BENCH, "and_fast": AND_FXI_FAST, "and_slow": AND_FXI_SLOW, "gng": GNG_JJB, "slow": SLOW_STRAIN_GAUGE}
+# Sets of estimates, made before any bench session and never measured: kept to see what a controller does on a
+# scale of another kind, not to say what any make does. A measured scale is part of a rig's record (`records/`).
+SCALES = {"and_fast": AND_FXI_FAST, "and_slow": AND_FXI_SLOW, "gng": GNG_JJB, "slow": SLOW_STRAIN_GAUGE}

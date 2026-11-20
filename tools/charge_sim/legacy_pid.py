@@ -6,6 +6,7 @@ the start. Everything stops when the reading is within the fine stop threshold o
 loop's known faults (ADR-009): the I term is not scaled by time, and the back-off ends only when a reading comes.
 """
 
+import dataclasses
 from dataclasses import dataclass
 
 
@@ -34,6 +35,10 @@ class Profile:
 # profile's minimum is raised to the motor's own, 0.1 rev/s, as charge_mode.cpp does.
 AR2209_PICO2W = Profile(coarse_kp=0.02, coarse_ki=0.0, coarse_kd=0.3, coarse_min_rps=0.1, coarse_max_rps=5.0,
                         fine_kp=2.0, fine_ki=0.0, fine_kd=10.0, fine_min_rps=0.1, fine_max_rps=5.0)
+# The two other settings recorded as real throws on 2026-11-20: the fine gain the measurements give, and that
+# gain with a slow finish (the fine tube held to 1.5 rev/s, its least speed 0.03).
+PICO2W_KP08 = dataclasses.replace(AR2209_PICO2W, fine_kp=0.8)
+PICO2W_SLOW_FINISH = dataclasses.replace(AR2209_PICO2W, fine_kp=0.8, fine_max_rps=1.5, fine_min_rps=0.03)
 
 
 class LegacyPid:

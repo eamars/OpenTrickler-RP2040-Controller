@@ -1,0 +1,63 @@
+rig bench_pico2w; throws: today's loop at the slow-finish settings, 600 at 20 gr; as built: error +0.040 gr, band 0.036, over 56%, 11.1 s
+chance alone (4 other seeds, the most each moved): 6 of 80 figures past their tolerance; throws: error 0.003, band 0.001, over 5%, time 0.1 s
+a throw notices from: error 0.010 gr, band 0.010 gr, over 8%, time 0.7 s
+
+pinned: 26
+  scale.dead_s = 0.4062 (solved): 9 figures (coarse 0.1 held stop: rise; coarse 0.3 backoff stop: rise; ...); throws: error +0.057, band +0.009, over +36%, time -1.3 s  <-- a throw notices
+  scale.hold_s = 1.125 (solved): 1 figures (nudges: first_single_s); throws: error +0.005, band +0.001, over -5%, time +0.0 s
+  scale.report_s = 0.04749 (measured): 6 figures (fine 0.02 held steady: fano_4s; fine 0.02 held steady: most_1s; ...); throws: error -0.002, band -0.002, over -5%, time +0.1 s
+  powder.kernel_cv = 0.12 (assumed): 4 figures (fine 0.02 held steady: most_1s; fine 0.02 held stop: rise_sd; ...); throws: error -0.003, band +0.003, over -3%, time +0.1 s
+  powder.kernel_gr = 0.021 (stated): 19 figures (fine 0.02 held steady: fano_1s; fine 0.02 held steady: fano_2s; ...); throws: error +0.015, band +0.010, over -12%, time +0.1 s  <-- a throw notices
+  coarse.regularity = 2 (assumed): 5 figures (fine 0.02 held steady: fano_1s; fine 0.02 held steady: fano_2s; ...); throws: error +0.001, band -0.003, over -2%, time +0.1 s
+  coarse.settle_s = 0 (assumed): 1 figures (coarse 0.3 held stop: rise_sd); throws: error -0.001, band +0.001, over -3%, time +0.0 s
+  coarse.ripple_turn = 0 (assumed): 4 figures (coarse 0.3 backoff stop: rise_sd; coarse 0.3 held stop: rise_sd; ...); throws: error +0.002, band +0.000, over -3%, time +0.1 s
+  coarse.ripple_rifling = 0 (assumed): 1 figures (coarse 0.3 backoff stop: rise_sd); throws: error -0.002, band -0.001, over -4%, time -0.0 s
+  coarse.gr_per_turn.0.1 = 10.1476 (measured): 1 figures (coarse 0.1 held stop: rise); throws: error -0.004, band -0.001, over -4%, time +0.9 s  <-- a throw notices
+  coarse.gr_per_turn.0.3 = 9.6213 (measured): 2 figures (coarse 0.3 backoff stop: rise; coarse 0.3 held stop: rise); throws: error -0.006, band -0.003, over -9%, time +0.7 s  <-- a throw notices
+  coarse.gr_per_turn.1 = 9.0048 (measured): 3 figures (coarse 1 backoff stop: rise; coarse 1 held stop: rise; ...); throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  coarse.burst_kernels.0.1 = 10.0048 (solved): 1 figures (coarse 0.1 held stop: rise); throws: error +0.004, band -0.003, over -4%, time +0.1 s
+  coarse.burst_kernels.1 = 5.5068 (solved): 3 figures (coarse 0.1 backoff stop: rise_sd; coarse 1 backoff stop: rise_sd; ...); throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.regularity = 1.834 (solved): 6 figures (fine 0.02 held steady: fano_4s; fine 0.02 held stop: fano_1s; ...); throws: error +0.006, band -0.005, over -6%, time +0.2 s
+  fine.settle_s = 1 (solved): 2 figures (fine 0.05 held steady: most_1s; fine 0.05 held stop: fano_1s); throws: error -0.001, band -0.002, over -4%, time -0.1 s
+  fine.ripple_turn = 0.3937 (solved): 12 figures (fine 0.02 held steady: fano_2s; fine 0.02 held steady: fano_4s; ...); throws: error +0.008, band -0.002, over +8%, time -0.2 s  <-- a throw notices
+  fine.ripple_rifling = 0 (solved): 3 figures (fine 0.1 held steady: fold_rifling; fine 0.1 held stop: fano_1s; ...); throws: error +0.002, band +0.000, over +1%, time +0.0 s
+  fine.gr_per_turn.1 = 0.7652 (measured): 24 figures (fine 0.02 held steady: most_1s; fine 0.02 held steady: rate; ...); throws: error +0.110, band +0.031, over +43%, time +5.2 s  <-- a throw notices
+  fine.burst_kernels.0.02 = 2.0642 (solved): 9 figures (fine 0.02 held steady: fano_1s; fine 0.02 held steady: fano_2s; ...); throws: error -0.002, band -0.002, over -5%, time +0.1 s
+  fine.burst_kernels.0.05 = 1.5131 (solved): 8 figures (fine 0.05 held steady: fano_1s; fine 0.05 held steady: fano_2s; ...); throws: error +0.003, band -0.003, over +0%, time +0.1 s
+  fine.burst_kernels.0.1 = 1.8612 (solved): 9 figures (fine 0.02 held stop: rise_sd; fine 0.05 released stop: rate; ...); throws: error -0.007, band -0.006, over -7%, time +0.1 s
+  fine.burst_kernels.0.2 = 1.1091 (solved): 2 figures (fine 0.02 held steady: most_1s; fine 0.2 held steady: fano_1s); throws: error +0.011, band +0.006, over +7%, time -0.1 s  <-- a throw notices
+  fine.after_stop_kernels.0.02 = 0 (solved): 3 figures (fine 0.02 held stop: rise; fine 0.02 held stop: rise_sd; ...); throws: error +0.005, band +0.000, over +5%, time +0.1 s
+  fine.after_stop_kernels.0.05 = 0.7177 (solved): 1 figures (fine 0.05 held steady: most_1s); throws: error -0.003, band +0.004, over -5%, time +0.0 s
+  fine.after_stop_kernels.0.1 = 0 (solved): 2 figures (fine 0.1 held stop: rise; fine 0.1 released stop: rise); throws: error +0.002, band +0.002, over +2%, time -0.0 s
+
+loose, matters: 2
+  scale.open_tau_s = 0.1 (assumed): no figure; throws: error -0.007, band -0.001, over -11%, time -0.4 s  <-- a throw notices
+  scale.open_above_gr = 0.05 (assumed): no figure; throws: error -0.009, band -0.004, over -12%, time +0.0 s  <-- a throw notices
+
+loose, harmless: 24
+  scale.sensor_tau_s = 0.03 (assumed): no figure; throws: error -0.002, band -0.003, over -2%, time +0.2 s
+  scale.closed_tau_s = 1.3 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  scale.noise_gr = 0.0015 (assumed): no figure; throws: error +0.005, band -0.002, over +3%, time +0.1 s
+  coarse.after_stop_tau_s = 0.2 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  coarse.after_stop_full_turns = 0.1 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  coarse.reverse_spill_gr = 0.806 (measured): no figure; throws: error +0.006, band -0.003, over -1%, time +0.4 s
+  coarse.reverse_spill_cv = 0.3 (assumed): no figure; throws: error -0.002, band +0.003, over -3%, time +0.2 s
+  coarse.reverse_spill_s = 0.25 (assumed): no figure; throws: error -0.002, band +0.001, over -4%, time +0.1 s
+  coarse.start_turns = 0.2 (assumed): no figure; throws: error +0.003, band +0.004, over -3%, time +0.2 s
+  coarse.retreat_turns = 0.5 (assumed): no figure; throws: error +0.002, band -0.002, over +1%, time +0.2 s
+  coarse.drop_mm = 50 (stated): no figure; throws: error -0.001, band +0.002, over -3%, time +0.1 s
+  coarse.gr_per_turn.3 = 8.0069 (measured): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  coarse.burst_kernels.0.3 = 2.3466 (solved): no figure; throws: error -0.001, band -0.002, over -2%, time +0.1 s
+  coarse.after_stop_kernels.0.1 = 0 (solved): no figure; throws: error -0.003, band -0.002, over -6%, time -0.0 s
+  coarse.after_stop_kernels.0.3 = 0 (solved): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  coarse.after_stop_kernels.1 = 0 (solved): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.after_stop_tau_s = 0.2 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.after_stop_full_turns = 0.1 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.reverse_spill_gr = 0 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.reverse_spill_cv = 0.3 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.reverse_spill_s = 0.25 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.start_turns = 0.2 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.retreat_turns = 0.5 (assumed): no figure; throws: error +0.000, band +0.000, over +0%, time +0.0 s
+  fine.drop_mm = 50 (stated): no figure; throws: error -0.005, band -0.003, over -3%, time +0.1 s
+
+not tried (zero, no plain value): 0

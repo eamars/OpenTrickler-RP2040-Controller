@@ -4,6 +4,19 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 is a **Draft, not approved**. Everything here is research for its design. Nothing is merged or pushed.
 
+## Where it stands, 2026-11-20, daytime: read this before everything below
+
+The owner read the night's notes and set the next stage: "I don't want you to enter the tuning mode. Your job is to build simulation to answer my above questions without touching the physical units later on." Calibration is to be three parts (scale, tube, powder), built into the OpenTrickler and working without an AI agent; the simulation is to be one other users can adopt. `../progress.md`, "the simulation rebuilt on measured records", has every figure. In short:
+
+- **The simulation's input is now a record of measurements** (`tools/charge_sim/records/`), made from a session's raw folders by one command (`build_rig.py`), with every number's source. Nothing is set by hand, and the throws of today's loop are the check, not a target. The hand fit of 02:05, `fit_search.py`, `matrix.py` and `pr113_check.py` are gone. `tools/charge_sim/README.md` has the commands.
+- **It passes as a pipeline:** 63 to 70 of 80 of its own figures, 13 to 14 of 18 on throws it never saw.
+- **It is still kind at the slow finish, and the cause is found:** the scale's response to a small change, the only loose numbers a throw notices (`pinned.py`). The raw frames of 11-19 show a balance that holds its reading in a band while it calls it stable (stable 0.38 s after the last change; one kernel shows after 0.7 to 3.1 s; a large release as a jump and a ramp). **The next step is to fit that from the frames already recorded and rebuild. No bench is needed for it.**
+- **A finish by one stop on the reading cannot reach 1 over in 50 at any evenness of the powder** (`evenness.py`): the finish must end short and add what is missing. Oscillation alone is not the answer.
+- **Today's loop holds only near the scale it was set on** (`scale_map.py`).
+- **Not measured at all:** the fine tube turned backward, the coarse tube's evenness, a stop the reading triggers. They go into the capture campaign with a second unit and other powders (the owner offers the Pico W's build, fresh AR2209, AR2208, ADI BM2). The campaign's protocol is not yet written.
+- **The order:** the scale's stable band; the capture protocol as one fixed script; the campaign; the design on the records, predictions written before the verifying throws.
+- The sections below are the night's, kept as they were written. Where they name `rigs.py`'s parameters, `fit_search.py` or the rig `reference`, those no longer exist.
+
 ## Where things are
 
 | What | Where |

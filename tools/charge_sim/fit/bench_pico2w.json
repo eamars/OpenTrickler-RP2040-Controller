@@ -1,10 +1,43 @@
 {
+ "name": "bench_pico2w",
  "rig": {
   "unit": "Pico 2 W, 2.0.3-84",
   "coarse": "large tube, 32 teeth",
   "fine": "small low-flow tube, 22 teeth",
   "powder": "AR2209, long exposed to air (the owner: clumps more than fresh)",
-  "scale": "A&D FX-300i in grains, response FAST, 20.7 frames a second"
+  "scale": "A&D FX-300i in grains, response FAST",
+  "recorded": "2026-11-19 and 2026-11-20"
+ },
+ "stated": {
+  "scale": {
+   "name": "A&D FX-300i, FAST",
+   "digit_gr": 0.02
+  },
+  "powder": {
+   "name": "AR2209, long in the air",
+   "kernel_gr": 0.021
+  },
+  "coarse": {
+   "name": "large tube",
+   "rifling_starts": 5,
+   "drop_mm": 50.0
+  },
+  "fine": {
+   "name": "small low-flow tube",
+   "rifling_starts": 5,
+   "drop_mm": 50.0
+  },
+  "motors": {
+   "acceleration_rps2": 50.0,
+   "max_speed_rps": 5.0
+  }
+ },
+ "scale": {
+  "from": [
+   "20261119_233912_runs"
+  ],
+  "report_s": 0.04748521236379809,
+  "frames": 4595
  },
  "maps": {
   "fine": {
@@ -133,6 +166,8 @@
     64,
     76
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": null,
    "fano_2s": null,
    "fano_4s": null
@@ -171,6 +206,8 @@
     37,
     65
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": null,
    "fano_2s": null,
    "fano_4s": null
@@ -209,6 +246,8 @@
     147,
     148
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": null,
    "fano_2s": null,
    "fano_4s": null
@@ -247,6 +286,8 @@
     87,
     87
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": null,
    "fano_2s": null,
    "fano_4s": null
@@ -285,6 +326,8 @@
     324,
     332
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": null,
    "fano_2s": null,
    "fano_4s": null
@@ -323,6 +366,8 @@
     291,
     296
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": null,
    "fano_2s": null,
    "fano_4s": null
@@ -356,6 +401,8 @@
    "rises": [
     0
    ],
+   "fold_turn": 0.7415730337078646,
+   "fold_rifling": 0.6629213483146048,
    "fano_1s": 3.3693582174823864,
    "fano_2s": 3.2892782327175865,
    "fano_4s": 2.3580007748934615
@@ -418,6 +465,8 @@
     3,
     3
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": 3.713924050632872,
    "fano_2s": 3.5326086956521165,
    "fano_4s": 2.5333333333333417
@@ -451,6 +500,8 @@
    "rises": [
     0
    ],
+   "fold_turn": 0.6473214285714287,
+   "fold_rifling": 0.6875000000000001,
    "fano_1s": 1.8874092009685204,
    "fano_2s": 1.7569612590799035,
    "fano_4s": 1.235052198671308
@@ -515,6 +566,8 @@
     8,
     10
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": 2.6744066047471606,
    "fano_2s": 2.541176470588245,
    "fano_4s": null
@@ -579,6 +632,8 @@
     7,
     9
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": 2.2694152923538096,
    "fano_2s": 2.772296015180268,
    "fano_4s": null
@@ -612,6 +667,8 @@
    "rises": [
     7
    ],
+   "fold_turn": 0.6847133757961786,
+   "fold_rifling": 0.5955414012738864,
    "fano_1s": 2.177041111754484,
    "fano_2s": 2.6407064273306182,
    "fano_4s": 1.5361899247249469
@@ -676,6 +733,8 @@
     10,
     10
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": 1.316239316239319,
    "fano_2s": 1.596037072547144,
    "fano_4s": null
@@ -740,6 +799,8 @@
     8,
     9
    ],
+   "fold_turn": null,
+   "fold_rifling": null,
    "fano_1s": 1.8180734179371394,
    "fano_2s": 1.0999999999999752,
    "fano_4s": null
@@ -773,6 +834,8 @@
    "rises": [
     8
    ],
+   "fold_turn": 0.5888000000000003,
+   "fold_rifling": 0.5360000000000017,
    "fano_1s": 0.8897272727272753,
    "fano_2s": 0.7410545454545434,
    "fano_4s": 0.453309090909091

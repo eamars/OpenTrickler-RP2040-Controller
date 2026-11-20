@@ -1,15 +1,17 @@
 """How long each scale model takes to show a weight put on its pan: the measurement's lag, in its parts.
 
 For a step of one kernel and of one grain, placed at a known moment: when the reading first moves, when it is
-half-way, and when it stays within a digit of the end. Every figure follows from estimates in scale.py; the bench
-measures the real ones (the research README's first session).
+half-way, and when it stays within a digit of the end. The rig's own scale is its record's, measured; the others
+are the estimates in scale.py. A known weight set on a real pan gives the same three times to set beside these.
 
-Usage: python scale_step.py
+Usage: python scale_step.py [--rig bench_pico2w]
 """
 
+import argparse
 import random
 import statistics
 
+import rigs
 from scale import SCALES, ScaleState
 
 DT_S = 0.001
@@ -39,8 +41,11 @@ def step_times(model, step_gr: float, seed: int) -> tuple:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--rig", default="bench_pico2w")
+    args = parser.parse_args()
     print("model, step: first change / half-way / within a digit of the end (median seconds over %d runs)" % RUNS)
-    for name, model in SCALES.items():
+    for model in (rigs.get_rig(args.rig).scale, *SCALES.values()):
         for step_gr in (0.022, 1.0):
             runs = [step_times(model, step_gr, seed) for seed in range(RUNS)]
             medians = [statistics.median(r[index] for r in runs if r[index] is not None) for index in range(3)]

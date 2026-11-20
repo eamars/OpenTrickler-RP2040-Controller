@@ -302,3 +302,83 @@ The owner: "Cleared"; the cup holds 700 gr and more; "Next time you don't need t
 - Oscillation is not in the simulation: there is nothing to model it from until the bench's step 7.
 - The automatic tuning is designed (README) and its measuring half simulated (`calibrate.py`); its verifying and trimming half is not.
 - numpy and matplotlib were installed into the venv and not used; they are not in `requirements.txt`.
+
+## 2026-11-20, daytime: the simulation rebuilt on measured records, no unit
+
+**The owner, after reading the night's notes:** "I don't want you to enter the tuning mode. Your job is to build simulation to answer my above questions without touching the physical units later on." The questions: what the simulation still needs and which powders; how it is calibrated to another setup; control beyond PID; other scales by their lag and period; speed against accuracy as a user's choice; whether a tube may turn back and forth. Calibration is seen in three parts (scale, tube, powder), built into the OpenTrickler, working without an AI agent; and the simulation must be one other users can adopt. To the review's proposal (the calibration's measurements become the simulation's input; one capture campaign; then no unit until verification): "Yes, start". No contact with a unit in this session.
+
+**What was wrong with the fit of 02:05.** About twenty physics numbers a tube, searched by hand until the figures agreed, the three runs of throws among the targets. Nobody could repeat that for another unit, and "it reproduces today's loop" was partly fitted.
+
+**What was built** (`tools/charge_sim`; its README has the commands)
+- **A tube is tables a calibration measures** (`plant.py`): its grains a turn, the size of its releases and what falls after a stop, each by speed. The held powder, the inlet, the centrifuging and the avalanche formula are gone: no recording could give them. Checked first against the hand fit written as tables: 74 of 90 figures, as before (70 to 72).
+- **A rig is a record** (`records/bench_pico2w.json`): a scale, a powder's kernel, each tube with that powder in it, and every number's source: measured, solved, stated or assumed.
+- **One command makes it from a session's raw folders** (`build_rig.py --logs ... --manifest ...`, 6 minutes on 32 cores). Each solved number is the value at which the simulation, run through the bench's own test, gives the bench's figure, one number at a time. An effect that may not be there (a ripple, kernels after a stop, an evenness) is taken at the least value that explains the figures, so none is claimed from noise. The scale's delay is solved once, from fast flows, so it is never traded against powder falling after a stop (the first build did trade them: 35 kernels after a coarse stop).
+- **The throws of today's loop are no longer used to make the record.** They are the check.
+- **`bench/measure.py` reads a session's manifest** in place of folder names in the code, and gives two new figures: the scale's frame rhythm (0.0475 s) and the flow folded by the tube's angle. Run again on the raw recordings it gives every earlier figure unchanged.
+- Removed: `matrix.py`, `pr113_check.py`, `fit_search.py` (the assumed plant's, and the hand search). They are in git before this commit.
+
+**Does the built record reproduce the bench?** (`fit/report_seed1.txt` to `3`)
+
+| | Hand fit of 02:05 | Built by the command |
+|---|---|---|
+| The record's own recordings (maps, stops, steady runs, nudges) | 60 of 72 | 63 to 70 of 80 |
+| Throws of today's loop | 14 of 18, fitted to them | 13 to 14 of 18, never shown them |
+
+| Today's loop | Bench: at rest, time, over | Built record |
+|---|---|---|
+| As stored, 42.5 gr | +1.33 gr, 6.2 s, 5 of 5 | +1.36 gr, 6.6 s, all |
+| Fine Kp 0.8, 20 gr | +0.21 gr, 4.6 s, 10 of 12 | +0.17 gr, 5.1 s, 86% |
+| And a slow finish, 20 gr | +0.07 gr, 11.3 s, 10 of 12 | +0.04 gr, 11.3 s, 49% |
+
+**Verdict: pass for the pipeline.** A record made with no hand in it predicts throws it never saw as well as the hand fit that was shown them. **It is still kind at the slow finish** (49 to 54% over on three seeds against 10 of 12; its spread on the stored profile's throws is also twice the bench's, from coarse bursts solved on six stops a speed), which is the next thing to mend.
+
+**Which numbers the recordings pin down** (`pinned.py`, `fit/pinned_bench_pico2w.txt`): each number moved by a half, chance measured first on four other seeds.
+- **Pinned, 26:** the scale's delay and its hold; both tubes' grains a turn; the fine tube's bursts at each speed, its once-a-turn ripple (0.39: real, where the rifling's is 0), what falls after its stops; the coarse tube's bursts.
+- **Loose and harmless to today's loop, 24:** among them every number of the fine tube turned backward. Harmless only because today's loop never turns it back: for an oscillating finish they are simply not measured.
+- **Loose and a throw notices, 2: both are the shape of the scale's response to a small change** (how fast it follows, and from what size of change it follows at once). No recording used gives them, and a half more or less moves the overs by 11 to 12 throws in 100.
+
+**Why the simulation is kind at the finish: the scale, not the powder.**
+- Trading the scale's delay for a slow rise of the same total lateness takes the slow finish from 52% over to 92% (the bench: 83%) and the rise after its stop from 2.1 to 4.3 digits (the bench: 4.6), while the stops' figures hardly move. But the coarse tube's stops show the scale is sharp for a large flow (three quarters of the rise by 0.4 s, all by 0.8 s). So it is the small changes that the model has wrong.
+- **The raw frames show what the scale does** (11-19's tapped folders; nothing new recorded):
+  - it calls the weight stable 0.38 s after the last change (140 times in three folders, nine in ten of them within 3 ms of 0.380 s), and never changes the weight without first calling it unstable (1,636 changes);
+  - a release of 7 or 8 kernels first shows 0.7 to 0.9 s after the nudge, as a jump of 2 or 3 digits, then a digit about every 0.1 s: a ramp, not "followed at once";
+  - one kernel first shows anywhere from 0.7 to 3.1 s after the nudge. The model holds every small change 1.1 s, then shows it whole.
+- **Read (the agent's, not yet fitted):** the balance holds its reading inside a band while it calls it stable, and lets go when the change is clear or after a time that varies. At a finish of one to two digits a second the reading is then one to two digits behind and catches up in a jump: the stop comes late. That would be the selection the creep-stop test could not show ("a real stop is triggered by a burst arriving").
+- **Not mended in this session.** It is the next piece of desk work and needs no bench: the frames of 11-19 hold about 1,600 changes of weight with their flags to fit a stable-band model to.
+
+**Other scales** (`scale_map.py`, `fit/scale_map_bench_pico2w.txt`; today's loop, slow finish, 300 throws a cell, overs of the true weight, the scale's hold as measured)
+
+| Delay | A reading every 0.05 s | 0.25 s | 0.5 s |
+|---|---|---|---|
+| 0.2 s | 43% | 46% | 59% |
+| 0.45 s (the bench's is 0.41) | 58% | 75% | 98% |
+| 0.8 s | 100% | 100% | 100% |
+| 1.2 s | 100% | 100% | 100% |
+
+- **Today's loop with one set of settings holds only near the scale it was set on.** With its fine gain set for each scale by the rule (0.37 / (lag x grains a turn)) it stays at 45 to 70% up to a delay of 0.8 s at any period, and fails at 1.2 s (about 90%): the coarse tube's stop is not set by any rule.
+- The map is of delay, period and hold, not of makes: a make is a point on it once its three figures are measured.
+
+**How evenly must the fine tube pour?** (`evenness.py`, `fit/evenness_bench_pico2w.txt`; today's finish at 0.03 rev/s, each variant at its own best stop, 400 throws)
+
+| Fine tube | Scale | Over | Under | Good |
+|---|---|---|---|---|
+| As measured | as measured | 29% | 14% | 57% |
+| Nothing falls after a stop | as measured | 21% | 12% | 67% |
+| A kernel at a time | as measured | 19% | 9% | 72% |
+| A kernel at a time, like a metronome, nothing after a stop | as measured | 5% | 7% | 88% |
+| The same | shows every change at once | 5% | 1% | 95% |
+
+- **Verdict: no evenness gives 1 over in 50 with a finish by one stop on the reading.** A tube that pours one kernel at a time, as evenly as a metronome, with nothing falling after its stop, still leaves 1 in 20 over and 1 in 14 under on this scale.
+- **So oscillation alone is not the answer, and neither is a better stop.** The finish itself must change: a stage that ends short on purpose and adds what is missing, judged on a weight the scale has had time to show. What oscillation would buy is a smaller, steadier last stage, and the scale's own hold costs about as much as the powder's bursts.
+- The simulation is kind at the finish, so the real figures are worse than these, not better. The order of the rows is what to read.
+
+**The first candidate (`flow_dose`) on the measured rig:** 98% over, +0.63 gr (100 throws). Its calibration and its nudges were written for the plant assumed before the bench. It is a place to start the design from, not a figure.
+
+**What the recordings do not yet give, for the capture campaign**
+1. **The scale's response to a small change:** to be fitted from the frames already recorded (above). The campaign then needs its frames with their flags: weights by `state` lose them, and the tap ran the scale task's stack down on 11-19, so the stack is mended first or the tap kept short.
+2. **The fine tube turned backward:** a reverse turn after a stop, the start after it, a back-and-forth at the console's rate. Nothing of it is measured.
+3. **The coarse tube's evenness:** it has no run longer than 2.5 s, and six stops a speed; its bursts are solved from the spread of six rises.
+4. **A stop the reading triggers,** in open loop, and a stop after slowing down from speed: what a real finish does and the creep-stop test did not.
+5. **A second unit and other powders,** to tell tube from powder: the owner offers the Pico W's own build, fresh AR2209, AR2208 and ADI BM2.
+
+**Next, in order:** (1) the scale's stable band fitted from the frames, the record rebuilt, the slow finish checked again; (2) the capture protocol written as one fixed script that leaves one folder and one manifest a cell; (3) the campaign; (4) the finish and the feed designed on the records, the predictions written down before the verifying throws.

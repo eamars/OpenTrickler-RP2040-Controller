@@ -1,12 +1,15 @@
 """The simulation against the bench: every figure the bench measured, beside the same figure from the simulation.
 
-Each bench test is run again in the simulation (`bench_twin.py`) on a rig's parameters and summed up by the code
+Each bench test is run again in the simulation (`bench_twin.py`) on a rig's record and summed up by the code
 that summed up the recording (`bench/stats.py`). A figure passes when the simulation is within its tolerance of the
 measurement; the tolerances are engineering ones (what a controller designed on the simulation would notice), wider
 where the measurement is itself a few dozen trials.
 
+The open-loop tests (maps, stops, steady runs, nudges) are what `build_rig.py` made the record from. The throws of
+today's loop are not: they are the check, and are counted apart.
+
 Usage:
-    python fit_report.py [--rig bench_pico2w] [--targets fit/bench_pico2w.json] [--only creep,throws] [--seed 1]
+    python fit_report.py [--rig bench_pico2w] [--targets fit/<rig>.json] [--only creep,throws] [--seed 1]
 """
 
 import argparse
@@ -26,7 +29,7 @@ CREEP_STOP = [("rate", 0.2, 0.12), ("start_2s", 0.8, 0.3), ("fano_1s", 0.5, 0.35
 # another kind's stop.
 COARSE_STOP = [("rise", 5.0, 0.2), ("rise_sd", 6.0, 0.5)]
 CREEP_STEADY = [("rate", 0.2, 0.12), ("fano_1s", 0.5, 0.35), ("fano_2s", 0.5, 0.35), ("fano_4s", 0.5, 0.35),
-                ("most_1s", 2.0, 0.3)]
+                ("most_1s", 2.0, 0.3), ("fold_turn", 0.06, 0.0), ("fold_rifling", 0.06, 0.0)]
 NUDGES = [("kernels", 0.1, 0.25), ("fano", 1.0, 0.3), ("nothing", 0.08, 0.0), ("three_up", 0.04, 0.0),
           ("first_single_s", 0.4, 0.0), ("first_many_s", 0.25, 0.0)]
 THROWS = [("time", 0.7, 0.15), ("coarse_s", 0.5, 0.15), ("at_stop", 0.04, 0.3), ("at_rest", 0.03, 0.25),
@@ -41,13 +44,13 @@ SIM_THROWS = 100
 def map_twin(rig, tube: str) -> dict:
     """A tube's powder a turn and the seconds of its flow that show after a stop, from a fast simulated run."""
     speed = 1.0
-    trials = bench_twin.creep_trials(rig, tube, speed, "held", (5.0, 5.0), 4.0, 12, 11)
+    trials = bench_twin.creep_trials(rig, tube, speed, "held", (5.0, 5.0), 4.0, 30, 11)
     figures = stats.creep_stats(trials)
     rate_gr_s = figures["rate"] * stats.DIGIT_GR
     return {"gr_per_turn": rate_gr_s / speed, "late_s_fast": figures["rise"] * stats.DIGIT_GR / rate_gr_s}
 
 
-def evaluate(rig, targets: dict, only: list, seed: int, match: str = "") -> list:
+def evaluate(rig, targets: dict, only: list, seed: int, match: str = "", missing: bool = False) -> list:
     """
     Every measured figure with the simulation's.
 
@@ -57,6 +60,7 @@ def evaluate(rig, targets: dict, only: list, seed: int, match: str = "") -> list
         only: the kinds of test to run: maps, creep, nudges, throws.
         seed: the simulation's.
         match: run only the tests whose title holds one of these texts, comma-separated.
+        missing: also give the figures the bench has and the simulation could not make, with None for it.
 
     Returns:
         (title, figure, measured, simulated, tolerance) for each figure both sides have.
@@ -91,7 +95,7 @@ def evaluate(rig, targets: dict, only: list, seed: int, match: str = "") -> list
         simulated = run()
         for name, absolute, relative in figures:
             want, got = measured.get(name), simulated.get(name)
-            if want is not None and got is not None:
+            if want is not None and (got is not None or missing):
                 rows.append((title, name, want, got, max(absolute, relative * abs(want))))
     return rows
 
@@ -99,13 +103,14 @@ def evaluate(rig, targets: dict, only: list, seed: int, match: str = "") -> list
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rig", default="bench_pico2w")
-    parser.add_argument("--targets", type=Path, default=Path(__file__).parent / "fit" / "bench_pico2w.json")
+    parser.add_argument("--targets", type=Path, help="the bench's figures; fit/<rig>.json when not given")
     parser.add_argument("--only", default="maps,creep,nudges,throws")
     parser.add_argument("--match", default="", help="only the tests whose title holds this text")
     parser.add_argument("--seed", type=int, default=1)
     args = parser.parse_args()
-    targets = json.loads(args.targets.read_text(encoding="utf-8"))
-    rows = evaluate(rigs.RIGS[args.rig], targets, args.only.split(","), args.seed, args.match)
+    targets_path = args.targets or Path(__file__).parent / "fit" / f"{Path(args.rig).stem}.json"
+    targets = json.loads(targets_path.read_text(encoding="utf-8"))
+    rows = evaluate(rigs.get_rig(args.rig), targets, args.only.split(","), args.seed, args.match)
     print(f"measured|simulated, rig {args.rig}; OFF marks a figure outside its tolerance")
     titles = []
     for row in rows:
@@ -115,8 +120,10 @@ def main() -> None:
         cells = [f"{name} {want:.2f}|{got:.2f}{'' if abs(got - want) <= tolerance else ' OFF'}"
                  for row_title, name, want, got, tolerance in rows if row_title == title]
         print(f"{title}: " + ", ".join(cells))
-    passed = sum(1 for _, _, want, got, tolerance in rows if abs(got - want) <= tolerance)
-    print(f"{passed} of {len(rows)} figures within tolerance")
+    for label, wanted in (("the record's own recordings", False), ("the check, throws of today's loop", True)):
+        judged = [row for row in rows if row[0].startswith("throws") == wanted]
+        passed = sum(1 for _, _, want, got, tolerance in judged if abs(got - want) <= tolerance)
+        print(f"{label}: {passed} of {len(judged)} figures within tolerance")
 
 
 if __name__ == "__main__":
