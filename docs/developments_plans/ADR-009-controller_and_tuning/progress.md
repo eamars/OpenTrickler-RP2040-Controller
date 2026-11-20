@@ -660,7 +660,7 @@ Its scatter inside a run levels off as the fine tube's does, at 14 to 18 digits 
 - a watched nudge gave 0.58 digits, one kernel, on average, and showed nothing 70% of the time: a single BM2 kernel is less than a digit and often does not show. So assumption 4's verdict ("a short move pours nothing as often as with AR2209") is of what the scale shows, not of what fell: with this powder the two differ.
 The looks' "variance over mean" for BM2 are to be multiplied by 1.8 (0.021 over 0.0117) to be in BM2's own kernels.
 
-**AR2209's kernel stays 0.021 gr, on the owner's word (02:38):** "For AR2209, 0.021gr is about the weight per kernel. So I don't think it worth a weight." The owner then asked for an interim conclusion and the next step for a full analysis: both are at the top of `research/HANDOVER.md` ("Interim conclusion, 2026-11-21" and "Tomorrow's order"), as given to the owner.
+**AR2209's kernel stays 0.021 gr, on the owner's word (02:38):** "For AR2209, 0.021gr is about the weight per kernel. So I don't think it worth a weight." The owner then asked for an interim conclusion and the next step for a full analysis: the next step is at the top of `research/HANDOVER.md` ("Tomorrow's order"); the interim conclusion, with the talk that followed it, is in `research/talk_2026-11-21.md`, which the owner asked to be kept "only as the record, and not to be directly cited as the reference".
 
 ## 2026-11-21, 03:00: the two powders read together (the owner: "What can we learn from today's data so far, combined with two powder?")
 
