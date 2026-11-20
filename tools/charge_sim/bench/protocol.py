@@ -11,6 +11,14 @@ once the cup is emptied. A recording that does not pass stops the batch.
 
 The bench rules hold: the owner's word that the bench is ready, the powder loaded, an empty cup on the pan.
 
+Two things learned on 2026-11-20 with a second powder:
+- **The two priming steps are a first fill, not proof.** A tube emptied for another powder gave nothing for four
+  turns and was not steady by fifteen (the coarse tube not by four). Prime until two runs of ten turns pour the
+  same (`record.py --label prime ramp --plans 1:10 --precondition-s 0`), then begin at step 3; and prime the coarse
+  tube again just before its steps (17 on), since a tube that has stood still starts low.
+- **A batch stopped from outside leaves the tube at its last speed.** Stop both motors at once:
+  `rc_run.py send "motor fine 0" "motor coarse 0"`.
+
 Usage, with the checkout's venv:
     python protocol.py --repo C:\\workspace\\OpenTrickler-RP2040-Controller --name bm2_pico2w --powder "ADI BM2"
     python protocol.py --repo ... --name bm2_pico2w --powder "ADI BM2" --from 13 --cup-gr 0
@@ -116,6 +124,7 @@ def main() -> None:
     parser.add_argument("--name", required=True, help="the batch's name: the unit and the powder, as a record's")
     parser.add_argument("--powder", required=True, help="the powder in the hopper, kept with the batch")
     parser.add_argument("--from", dest="first", type=int, default=1, help="the step to begin at, counted from 1")
+    parser.add_argument("--to", dest="last", type=int, default=len(STEPS), help="the last step to run")
     parser.add_argument("--cup-gr", type=float, default=0.0, help="what is in the cup at the start")
     parser.add_argument("--cup-holds", type=float, default=680.0, help="the most the cup may hold")
     parser.add_argument("--list", action="store_true", help="print the steps and what they pour, and run nothing")
@@ -132,7 +141,7 @@ def main() -> None:
     batch = {"name": args.name, "powder": args.powder, "board": args.board, "started": stamp, "steps": []}
     cup = args.cup_gr
     for index, (name, what, grains, arguments) in enumerate(STEPS, start=1):
-        if index < args.first:
+        if index < args.first or index > args.last:
             continue
         if cup + grains > args.cup_holds:
             print(f"STOPPED before step {index} ({name}): {cup:.0f} gr in the cup and about {grains} more to pour. "

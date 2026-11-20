@@ -4,7 +4,7 @@ A scatter that grew as kernels leaving at random would grow with the square root
 off says the tube delivers a fixed amount a turn into something small at the lip whose content wanders.
 
 Usage:
-    python within_run.py <logs/adr009> [--since 20261120] [--tube fine]
+    python within_run.py <logs/adr009> [--since 20261120] [--tube fine] [--folders <name> ...]
 """
 
 import argparse
@@ -35,10 +35,11 @@ def main() -> None:
     parser.add_argument("logs", type=Path)
     parser.add_argument("--since", default="20261120")
     parser.add_argument("--tube", default="fine", choices=("coarse", "fine"))
+    parser.add_argument("--folders", nargs="*", default=[], help="only these folders of the logs")
     args = parser.parse_args()
     runs = []
-    for folder in sorted(args.logs.glob("*_creepstop")):
-        if folder.name[:8] < args.since:
+    for folder in [args.logs / name for name in args.folders] or sorted(args.logs.glob("*_creepstop")):
+        if (not args.folders and folder.name[:8] < args.since) or not folder.name.endswith("_creepstop"):
             continue
         runs += [run for run in json.loads((folder / "runs.json").read_text(encoding="utf-8"))
                  if run["note"] == "creepstop" and run["run_s"] >= LEAST_RUN_S and run.get("tube", "fine") == args.tube]

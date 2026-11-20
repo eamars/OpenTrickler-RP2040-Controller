@@ -7,7 +7,7 @@ turn), and how far a trial falls from its line. Then all speeds on one line: how
 speed altogether.
 
 Usage:
-    python turns_to_weight.py <logs/adr009> [--since 20261120]
+    python turns_to_weight.py <logs/adr009> [--since 20261120] [--folders <name> ...]
 """
 
 import argparse
@@ -40,11 +40,13 @@ def through_zero(points: list) -> tuple:
     return slope, spread
 
 
-def trials_of(logs: Path, since: str) -> list:
-    """(tube, kind, speed or plan, turns, digits poured) for every trial that began and ended at rest."""
+def trials_of(logs: Path, since: str, names: list) -> list:
+    """(tube, kind, speed or plan, turns, digits poured) for every trial that began and ended at rest, of the
+    folders named, or of every stop and ramp folder from a day on when none is."""
     out = []
-    for folder in sorted(logs.glob("*_creepstop")) + sorted(logs.glob("*_ramp")):
-        if folder.name[:8] < since or not (folder / "runs.json").exists():
+    folders = [logs / name for name in names] or sorted(logs.glob("*_creepstop")) + sorted(logs.glob("*_ramp"))
+    for folder in folders:
+        if (not names and folder.name[:8] < since) or not (folder / "runs.json").exists():
             continue
         for run in json.loads((folder / "runs.json").read_text(encoding="utf-8")):
             if run["note"] not in ("creepstop", "ramp") or "turns" not in run:
@@ -53,6 +55,8 @@ def trials_of(logs: Path, since: str) -> list:
                 continue        # a reverse turn's steps are counted with the forward ones
             if run["note"] == "ramp" and any(speed < 0.0 for _, speed in run["marks"]):
                 continue
+            if run["note"] == "ramp" and run["name"] == "prime":
+                continue        # a tube being filled is not yet the tube
             after = run["after"]
             end = statistics.median(w for t, w in after if t >= after[-1][0] - 0.6)
             poured = (end - run["during"][0][1]) / DIGIT_GR
@@ -65,8 +69,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("logs", type=Path)
     parser.add_argument("--since", default="20261120", help="folders from this day on (their names' first eight)")
+    parser.add_argument("--folders", nargs="*", default=[], help="only these folders of the logs")
     args = parser.parse_args()
-    trials = trials_of(args.logs, args.since)
+    trials = trials_of(args.logs, args.since, args.folders)
     for tube in ("fine", "coarse"):
         mine = [trial for trial in trials if trial[0] == tube]
         if not mine:

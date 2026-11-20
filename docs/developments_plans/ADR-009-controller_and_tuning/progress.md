@@ -618,3 +618,39 @@ Its scatter inside a run levels off as the fine tube's does, at 14 to 18 digits 
 | 9 | What a reverse costs is the tube's | levels off at a third of a turn | the same within 0.1 turn |
 
 **Next (fitting, not begun, by the owner's word "before working on any fitting"):** (1) `measure.py` and the simulation's twin take the new tests (stops to 1 rev/s, the ramps, the reverse lengths, the watched nudges); (2) the record built again with what follows a stop at every speed and what a reverse costs; the throw-shaped ramp and the three sets of throws as its checks; (3) the scale's small-change shape from point 8; (4) the capture protocol as one script for the second unit and the other powders; (5) the design.
+
+## 2026-11-21, 01:50: ADI BM2 recorded in one batch; the nine assumptions judged
+
+**What was run.** `bench/protocol.py` on the Pico 2 W (2.0.3-84, eaea601), the A&D at FAST, the tubes cleared of AR2209 and the unit restarted first (the owner). Steps 3 to 16, the fine tube, 23:52 to 01:34 (833 trials); the cup emptied by the owner; steps 17 to 20, the coarse tube, 01:46 to 01:49 (24 trials). Every step PASS. Every figure below is in `research/bench_2026-11-21/bm2_batch.txt`, made by `bench/batch_look.py`; the raw folders are under the checkout's `logs/adr009/`, named in it. Nothing on the unit was stored or changed. No fitting and no design was done (the owner: "focus on the data capture").
+
+**Priming: the owner's warning held, and fixed turns are not a priming.** The fine tube, cleared, poured nothing for 4 turns and 0.27 gr a turn over its first 15; the coarse tube 5.97 gr a turn over its first 4. The batch was stopped and the fine tube turned in runs of 10 turns until two poured the same (0.553 and 0.532 gr a turn). The coarse tube was primed just before its own steps (8.06, 8.25, 8.14 gr a turn over three runs of 4 turns), since a tube that has stood through the fine tube's hour and a half is not the tube that was primed. `protocol.py` has `--to` for this, and says so at its top. The batch's own two priming steps are kept only as a first fill.
+
+**Two faults of the session, both the agent's, both the same trap.** A recorder that loses its console leaves the motor at its last speed: the firmware turns until told otherwise. (1) The first batch, stopped from outside, left the fine tube at 0.2 rev/s for about 5 s. (2) A background reader of the scale was making its last reading as the coarse priming began; the two console sessions collided, the priming session lost its connection with the coarse tube at 1 rev/s, and it turned unrecorded for 16 s (122 gr) until stopped. One console session at a time: a background session is seen to have exited before another starts, and after any session that ends badly `motor fine 0` and `motor coarse 0` are sent at once.
+
+**The nine assumptions, written before the first run, against what was recorded** (the fine tube unless said):
+
+| | Assumption | AR2209 | BM2 | Verdict |
+|---|---|---|---|---|
+| 1 | The grains a turn follow the bulk density | fine 0.757; coarse 9.4 to 9.9 | fine 0.548; coarse 8.0 to 8.35 | **Fails.** 28% less in the fine tube, 16% less in the coarse: not one factor for a powder either |
+| 2 | A turn's powder is set by the turn and not the speed | the same from a move at 0.05, 0.2 and 1 rev/s | 0.511 to 0.535 gr a turn from 0.02 to 0.5 rev/s; 0.561 at 1 rev/s; steady runs 26.1 to 26.6 digits a turn, 28.2 at 1 rev/s | **Holds,** with about 6% more a turn at 1 rev/s |
+| 3 | A move's spread is a few kernels, so smaller in grains | 4.4 to 4.7 digits at half a turn | 2.9 to 3.1 | **Holds roughly** (2.5 was expected) |
+| 3b | The rival: the same in grains | | | **Fails** |
+| 4 | A short move pours nothing less often | 0.03 turn: nothing 60 to 67% of the time | 62 to 71% | **Fails:** no change |
+| 5 | A stop from the middle speeds leaves a few kernels beyond 0.6 s of the flow | 5.8, 4.3, 6.3 digits from 0.2, 0.3, 0.5 rev/s; 0.5 from 1 | 2.1, 2.0, 4.9; 8.5 from 1 | **Neither 5 nor 5b:** it grows with the speed (below) |
+| 6 | The once-a-turn wave is the tube's | 0.52 spreads, chance 0.09 | 0.51 spreads, chance 0.11 | **Holds.** Its place in the turn cannot be compared: the unit was restarted |
+| 7 | Slow turning is less lumpy | variance over mean of the digits in a second at 0.05 rev/s: 1.7 to 1.9 | 1.5 to 2.2 | **Fails** over a second. Over a quarter turn and more it is evener: a fixed move's variance over mean 0.5 to 0.8 against 1.0 to 1.7 |
+| 8 | The scale's answer to a small change is the scale's | one digit first shows after a median 1.95 s; two after 1.17 s; five after 0.81 s | 2.22 s; 1.52 s; 0.81 s | **Holds** (within 0.4 s) |
+| 9 | What a reverse costs is the tube's | 0.12, 0.23, 0.36, 0.33 turn for 0.05, 0.1, 0.25, 0.5 turn back | 0.37, 0.43, 0.51, 0.59 turn | **Fails:** it costs more and does not level off by half a turn back |
+
+**Not predicted, and found:**
+- **The delay from the tube to the reading is longer with BM2.** The reading trails the tube's speed by 0.80 to 0.85 s in the three ramps (AR2209: 0.60 to 0.65 s); a speed step shows in the reading's slope 0.83 to 0.92 s after its command; and what arrives after a stop is 0.88 to 1.06 s of the flow at every speed from 0.05 to 1 rev/s. So part of what the record calls the scale's delay is the powder's way from the tube to the pan, and it differs by powder. AR2209's after-stop was nearer a fixed amount (1.44 s of the flow at 0.2 rev/s, 0.61 s at 1); BM2's is nearer a fixed time.
+- **The throw-shaped ramp with no controller** leaves 3.0 digits after its stop (sd 1.8); AR2209 left 4.5 (sd 2.2).
+- **A reverse quarter turn at a stop spills more with BM2:** 1.6 to 3.0 digits more than a plain stop from 0.05 to 0.3 rev/s (AR2209: 0.7 to 0.8).
+- **On 3, a third reading the two powders cannot tell from "a few kernels":** a half-turn move's spread is about a quarter of what it poured for both (3.0 of 13 digits; 4.5 of 18).
+- **The coarse tube's fixed moves are as wide in grains as AR2209's:** a quarter or half turn is 8.5 to 19 digits off (AR2209 11.6 to 16.9), five moves a cell.
+
+**As found, not looked into:** the unit counted 47 late feeds of the fine motor's step pulses over the session (16.7 million steps; none of the coarse motor's); when they fell is not known. `stats` shows one frame of the scale that did not parse. BM2's kernel mass is not measured: every "variance over mean" in the looks is in AR2209's kernel (0.021 gr), so those figures compare the two powders only as spreads in digits; the owner was asked for the weight of 50 or 100 kernels, at leisure.
+
+**For the owner's question, how a powder relates to the step and how the step is set for a powder: what this pair of powders says must be measured on the unit, for each powder, and what carried over.** Measured for each powder: the grains a turn of each tube (not from a density table, and not one factor for both tubes), the delay from the tube to the reading, what a stop leaves, and what a reverse costs. Carried over unchanged: the turn and not the speed sets the powder; the once-a-turn wave; the scale's answer to a digit; the share of the shortest moves that pour nothing. No design follows from it here.
+
+**The bench as left (01:49):** Pico 2 W on the probe, idle, both motors at 0, BM2 in the hopper and both tubes; 391.7 gr in the cup.

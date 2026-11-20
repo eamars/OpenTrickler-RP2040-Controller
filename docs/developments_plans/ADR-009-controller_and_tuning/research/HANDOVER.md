@@ -4,7 +4,19 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 is a **Draft, not approved**. Everything here is research for its design. Nothing is merged or pushed.
 
-## Where it stands, 2026-11-20, daytime: read this before everything below
+## Where it stands, 2026-11-21, 01:50: read this first
+
+The owner's direction for the bench (11-20, evening): sessions capture data and verify written assumptions ("make assumption, and use the actual trickler to verify the assumption"); no tuning on the unit and no design decision while capturing; hybrid control is open, to be decided later. `../progress.md` has it in the owner's words.
+
+- **Two powders are now recorded on the Pico 2 W by the same tests:** AR2209 (air-exposed; 11-20, 21:08 to 23:36) and ADI BM2 (11-20 23:50 to 11-21 01:49). The capture is one script, `bench/protocol.py` (twenty steps, about two hours and one cup-emptying), summed up by `bench/batch_look.py`. Figures: `bench_2026-11-20/evening_capture.txt`, `late_capture.txt`, `bench_2026-11-21/bm2_batch.txt`.
+- **What the two powders say** (`../progress.md`, "ADI BM2 recorded in one batch"): the powder follows the tube's turns, not its speed, for both. A powder's grains a turn cannot be had from its density (BM2 is 28% under AR2209 in the fine tube, 16% under in the coarse). The delay from the tube to the reading differs by powder (BM2 0.2 s longer), so it is not all the scale's. What a stop leaves and what a reverse costs differ by powder. The once-a-turn wave and the scale's answer to a digit carried over.
+- **Prime until steady, not by a count of turns,** and prime a tube just before its own steps: `protocol.py`'s top says how.
+- **One console session at a time.** A recorder that loses its console leaves the motor turning: send `motor fine 0` and `motor coarse 0` after any session that ends badly. It happened twice on 11-21.
+- **Fitting is not begun** (the owner: capture first). The order in the section below stands; the capture protocol it asks for is written.
+- **Still to capture:** the second unit (the Pico W's build), fresh AR2209, AR2208; BM2's kernel mass (the owner was asked for the weight of 50 or 100 kernels).
+- **The bench as left (01:49 on 11-21):** Pico 2 W on the probe, idle, BM2 in the hopper and tubes, 391.7 gr in the cup.
+
+## Where it stands, 2026-11-20, daytime
 
 The owner read the night's notes and set the next stage: "I don't want you to enter the tuning mode. Your job is to build simulation to answer my above questions without touching the physical units later on." Calibration is to be three parts (scale, tube, powder), built into the OpenTrickler and working without an AI agent; the simulation is to be one other users can adopt. `../progress.md`, "the simulation rebuilt on measured records", has every figure. In short:
 

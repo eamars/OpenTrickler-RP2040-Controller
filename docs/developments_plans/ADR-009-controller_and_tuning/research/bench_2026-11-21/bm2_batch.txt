@@ -1,0 +1,190 @@
+ADI BM2 on the Pico 2 W (2.0.3-84, eaea601), A&D FX-300i at FAST, 2026-11-20 23:50 to 2026-11-21 01:49.
+The tubes were cleared of AR2209 and the unit restarted before it. Made by bench/protocol.py and bench/batch_look.py.
+
+== priming runs (each: turns, grains, grains a turn), by the tube's order of turning
+20261120_235010_prime fine prime: 15.01 turns, 4.06 gr, 0.271 gr a turn
+20261120_235032_prime coarse prime: 4.02 turns, 23.96 gr, 5.965 gr a turn
+20261120_235149_prime fine prime: 10.02 turns, 5.54 gr, 0.553 gr a turn
+20261120_235205_prime fine prime: 10.03 turns, 5.34 gr, 0.532 gr a turn
+20261121_014555_prime coarse prime: 4.03 turns, 32.46 gr, 8.059 gr a turn
+20261121_014555_prime coarse prime: 4.02 turns, 33.12 gr, 8.248 gr a turn
+20261121_014555_prime coarse prime: 4.05 turns, 32.93 gr, 8.136 gr a turn
+(between the two coarse priming folders the coarse tube turned 16 s at 1 rev/s unrecorded, 122 gr: two console sessions collided)
+
+Batch bm2_pico2w, ADI BM2, board pico2_w, started 20261120_235234.
+Raw folders under the checkout's logs/adr009 (not tracked); each block is made by the script named.
+
+  step  3 fine_moves       PASS   313 runs  20261120_235236_ramp  74.9 gr in the cup after
+  step  4 fine_stops_low   PASS    61 runs  20261121_002032_creepstop  84.7 gr in the cup after
+  step  5 fine_stops_mid   PASS    37 runs  20261121_002826_creepstop  119.9 gr in the cup after
+  step  6 like_throw       PASS    31 runs  20261121_003217_ramp  146.1 gr in the cup after
+  step  7 slow             PASS    31 runs  20261121_003606_ramp  171.2 gr in the cup after
+  step  8 steady_a         PASS     3 runs  20261121_004046_creepstop  176.2 gr in the cup after
+  step  9 steady_b         PASS     3 runs  20261121_004405_creepstop  187.4 gr in the cup after
+  step 10 steady_c         PASS     2 runs  20261121_004624_creepstop  197.1 gr in the cup after
+  step 11 steady_d         PASS     2 runs  20261121_004708_creepstop  210.1 gr in the cup after
+  step 12 steps            PASS     4 runs  20261121_004743_ramp  231.7 gr in the cup after
+  step 13 reverse_stops    PASS    73 runs  20261121_005048_creepstop  253.4 gr in the cup after
+  step 14 reverse_lengths  PASS    25 runs  20261121_010051_ramp  276.1 gr in the cup after
+  step 15 swings           PASS     7 runs  20261121_010645_ramp  288.0 gr in the cup after
+  step 16 nudges           PASS   241 runs  20261121_011340_nudgewatch  292.0 gr in the cup after
+
+== turns_to_weight.py: the tubes being primed, and every trial's true turns against its powder
+fine tube, 477 trials
+  0.02 rev/s          21 trials, 0.07 to 1.80 turns: 0.516 gr a turn through nothing, a trial 1.7 digits off it (variance over mean 0.60); free line 0.527 gr a turn, -0.5 digits at no turn, 1.7 off it
+  0.05 rev/s          21 trials, 0.16 to 4.50 turns: 0.511 gr a turn through nothing, a trial 1.7 digits off it (variance over mean 0.26); free line 0.511 gr a turn, +0.1 digits at no turn, 1.8 off it
+  0.1 rev/s           21 trials, 0.31 to 6.00 turns: 0.519 gr a turn through nothing, a trial 2.6 digits off it (variance over mean 0.33); free line 0.511 gr a turn, +1.0 digits at no turn, 2.5 off it
+  0.2 rev/s           13 trials, 0.46 to 12.01 turns: 0.533 gr a turn through nothing, a trial 2.6 digits off it (variance over mean 0.16); free line 0.528 gr a turn, +1.9 digits at no turn, 2.0 off it
+  0.5 rev/s           13 trials, 1.10 to 15.01 turns: 0.535 gr a turn through nothing, a trial 3.0 digits off it (variance over mean 0.13); free line 0.531 gr a turn, +1.6 digits at no turn, 2.7 off it
+  1 rev/s             13 trials, 2.37 to 19.99 turns: 0.561 gr a turn through nothing, a trial 4.2 digits off it (variance over mean 0.14); free line 0.570 gr a turn, -3.9 digits at no turn, 3.2 off it
+  plan like_throw     30 trials, 1.47 to 1.53 turns: 0.547 gr a turn through nothing, a trial 4.5 digits off it (variance over mean 0.46); free line 1.575 gr a turn, -76.9 digits at no turn, 4.5 off it
+  plan slow           15 trials, 1.33 to 1.42 turns: 0.567 gr a turn through nothing, a trial 2.8 digits off it (variance over mean 0.20); free line 1.679 gr a turn, -76.2 digits at no turn, 2.7 off it
+  plan slow_hold      15 trials, 1.42 to 1.48 turns: 0.545 gr a turn through nothing, a trial 4.3 digits off it (variance over mean 0.46); free line 0.179 gr a turn, +26.5 digits at no turn, 4.5 off it
+  plan steps           3 trials, 12.06 to 12.10 turns: 0.550 gr a turn through nothing, a trial 9.2 digits off it (variance over mean 0.24); free line 9.516 gr a turn, -5413.8 digits at no turn, 0.4 off it
+  plan v0.05_a0.03    24 trials, 0.03 to 0.03 turns: 0.271 gr a turn through nothing, a trial 1.1 digits off it (variance over mean 2.66); free line 13.809 gr a turn, -21.5 digits at no turn, 1.0 off it
+  plan v0.05_a0.06    24 trials, 0.06 to 0.06 turns: 0.558 gr a turn through nothing, a trial 1.6 digits off it (variance over mean 1.47); free line 7.123 gr a turn, -20.1 digits at no turn, 1.7 off it
+  plan v0.05_a0.12    24 trials, 0.12 to 0.12 turns: 0.453 gr a turn through nothing, a trial 2.1 digits off it (variance over mean 1.48); free line 7.828 gr a turn, -44.8 digits at no turn, 2.1 off it
+  plan v0.05_a0.25    24 trials, 0.25 to 0.25 turns: 0.534 gr a turn through nothing, a trial 2.3 digits off it (variance over mean 0.76); free line -9.119 gr a turn, +121.3 digits at no turn, 2.4 off it
+  plan v0.2_a0.03     24 trials, 0.03 to 0.04 turns: 0.678 gr a turn through nothing, a trial 1.9 digits off it (variance over mean 2.79); free line 1.249 gr a turn, -1.0 digits at no turn, 1.9 off it
+  plan v0.2_a0.06     24 trials, 0.07 to 0.07 turns: 0.273 gr a turn through nothing, a trial 1.2 digits off it (variance over mean 1.61); free line 1.694 gr a turn, -4.8 digits at no turn, 1.3 off it
+  plan v0.2_a0.12     24 trials, 0.12 to 0.13 turns: 0.647 gr a turn through nothing, a trial 2.1 digits off it (variance over mean 1.06); free line -0.400 gr a turn, +6.6 digits at no turn, 2.2 off it
+  plan v0.2_a0.25     24 trials, 0.25 to 0.26 turns: 0.531 gr a turn through nothing, a trial 2.0 digits off it (variance over mean 0.55); free line 4.369 gr a turn, -48.9 digits at no turn, 2.0 off it
+  plan v0.2_a0.5      24 trials, 0.50 to 0.51 turns: 0.505 gr a turn through nothing, a trial 3.2 digits off it (variance over mean 0.75); free line -4.292 gr a turn, +121.1 digits at no turn, 3.2 off it
+  plan v1_a0.06       24 trials, 0.06 to 0.10 turns: 0.638 gr a turn through nothing, a trial 1.5 digits off it (variance over mean 0.84); free line 0.346 gr a turn, +1.2 digits at no turn, 1.6 off it
+  plan v1_a0.12       24 trials, 0.12 to 0.17 turns: 0.589 gr a turn through nothing, a trial 1.9 digits off it (variance over mean 0.78); free line 0.781 gr a turn, -1.4 digits at no turn, 1.9 off it
+  plan v1_a0.25       24 trials, 0.25 to 0.29 turns: 0.561 gr a turn through nothing, a trial 2.5 digits off it (variance over mean 0.76); free line 0.262 gr a turn, +4.1 digits at no turn, 2.5 off it
+  plan v1_a0.5        24 trials, 0.51 to 0.54 turns: 0.517 gr a turn through nothing, a trial 2.9 digits off it (variance over mean 0.58); free line 2.209 gr a turn, -44.3 digits at no turn, 2.8 off it
+  every speed on one line: 0.548 gr a turn; a trial is 2.8 digits off it (0.057 gr)
+  trials of up to 3 turns on one line: 0.547 gr a turn; 2.5 digits off it
+
+== within_run.py: inside steady runs, the fine tube
+fine tube: spread of the digits poured over a part of a turn, inside steady runs
+ rev/s  run s    0.05t     0.1t    0.25t     0.5t       1t       2t   digits a turn
+  0.02     90      1.5      1.3        -        -        -        -   26.3
+  0.05     90      1.5      1.9      2.3      3.0        -        -   26.1
+   0.1     60      1.0      1.4      2.3      3.4        -        -   26.3
+   0.2     60        -      0.9      1.1      1.7      2.0        -   26.5
+   0.5     30        -        -      1.2      1.6      2.3        -   26.6
+     1     20        -        -        -      4.1      2.5      2.5   28.2
+
+== moves_look.py: fixed moves
+20261120_235236_ramp: 312 moves
+  tube    rev/s   turn  moves  digits  spread  var/mean  nothing  within 1  gr a turn
+  fine     0.05  0.032     24     0.4     1.1      2.65     0.71      0.71       0.26
+  fine     0.05  0.061     24     1.7     1.6      1.42     0.17      0.50       0.56
+  fine     0.05  0.122     24     2.7     2.0      1.42     0.17      0.38       0.45
+  fine     0.05  0.251     24     6.7     2.3      0.73     0.00      0.38       0.53
+  fine      0.2  0.036     24     1.2     1.8      2.69     0.62      0.75       0.68
+  fine      0.2  0.067     24     0.9     1.2      1.55     0.42      0.79       0.27
+  fine      0.2  0.126     24     4.1     2.1      1.01     0.04      0.33       0.65
+  fine      0.2  0.255     24     6.7     1.9      0.53     0.00      0.25       0.53
+  fine      0.2  0.505     24    12.8     3.1      0.72     0.00      0.17       0.51
+  fine        1  0.084     24     2.7     1.5      0.81     0.08      0.38       0.64
+  fine        1  0.146     24     4.3     1.9      0.79     0.00      0.50       0.59
+  fine        1  0.272     24     7.6     2.4      0.73     0.00      0.29       0.56
+  fine        1  0.523     24    13.5     2.9      0.59     0.00      0.21       0.52
+
+== phase_look.py: a move's powder against the tube's angle in its turn
+20261120_235236_ramp: 264 moves of up to 0.3 turn, the tube turned 63.2 turns in all
+  mean of the moves in each eighth of a turn, in spreads of their own kind: -0.08  -0.51  -0.13  -0.56  -0.02  +0.84  +0.45  -0.05
+  once-a-turn wave: 0.51 spreads; chance alone gives 0.11 (19 in 20 under 0.21); larger than chance in 100% of shuffles
+
+== after_stop.py: stops from a steady turn, plain and with the reverse quarter turn
+fine 0.02 rev/s held: 20 stops; 0.3 digits/s before; after the stop +1.1 digits (sd 1.2) = 4.13 s of the flow; beyond 0.6 s of it: +0.9 digits
+     arrived by 0.2s:0.0  0.4s:0.1  0.6s:0.4  0.8s:0.5  1s:0.6  1.5s:1.0  2s:1.0  3s:1.1
+fine 0.05 rev/s backoff: 12 stops; 0.4 digits/s before; after the stop +3.0 digits (sd 1.4) = 6.75 s of the flow; beyond 0.6 s of it: +2.7 digits
+     arrived by 0.2s:0.6  0.4s:0.9  0.6s:1.1  0.8s:1.4  1s:1.8  1.5s:2.4  2s:2.7  3s:3.0
+fine 0.05 rev/s held: 32 stops; 1.3 digits/s before; after the stop +1.4 digits (sd 1.4) = 1.06 s of the flow; beyond 0.6 s of it: +0.6 digits
+     arrived by 0.2s:0.2  0.4s:0.6  0.6s:0.8  0.8s:1.0  1s:1.1  1.5s:1.1  2s:1.3  3s:1.4
+fine 0.1 rev/s backoff: 12 stops; 0.9 digits/s before; after the stop +5.5 digits (sd 1.8) = 5.82 s of the flow; beyond 0.6 s of it: +4.9 digits
+     arrived by 0.2s:0.9  0.4s:1.7  0.6s:2.4  0.8s:3.3  1s:4.2  1.5s:5.5  2s:5.5  3s:5.5
+fine 0.1 rev/s held: 32 stops; 2.4 digits/s before; after the stop +2.5 digits (sd 1.7) = 1.05 s of the flow; beyond 0.6 s of it: +1.1 digits
+     arrived by 0.2s:0.5  0.4s:0.9  0.6s:1.4  0.8s:1.9  1s:2.2  1.5s:2.4  2s:2.4  3s:2.5
+fine 0.2 rev/s held: 12 stops; 5.8 digits/s before; after the stop +5.6 digits (sd 1.3) = 0.97 s of the flow; beyond 0.6 s of it: +2.1 digits
+     arrived by 0.2s:1.4  0.4s:2.7  0.6s:3.8  0.8s:4.8  1s:5.3  1.5s:5.8  2s:5.7  3s:5.6
+fine 0.3 rev/s backoff: 12 stops; 7.1 digits/s before; after the stop +8.9 digits (sd 1.8) = 1.26 s of the flow; beyond 0.6 s of it: +4.7 digits
+     arrived by 0.2s:1.9  0.4s:3.7  0.6s:5.3  0.8s:6.8  1s:7.8  1.5s:8.8  2s:8.9  3s:8.9
+fine 0.3 rev/s held: 12 stops; 7.2 digits/s before; after the stop +6.3 digits (sd 1.7) = 0.88 s of the flow; beyond 0.6 s of it: +2.0 digits
+     arrived by 0.2s:1.5  0.4s:3.1  0.6s:4.4  0.8s:5.5  1s:6.1  1.5s:6.4  2s:6.4  3s:6.4
+fine 0.5 rev/s held: 12 stops; 13.1 digits/s before; after the stop +12.7 digits (sd 2.8) = 0.97 s of the flow; beyond 0.6 s of it: +4.9 digits
+     arrived by 0.2s:3.0  0.4s:5.7  0.6s:8.7  0.8s:10.7  1s:12.2  1.5s:12.7  2s:12.7  3s:12.7
+fine 1 rev/s held: 12 stops; 26.6 digits/s before; after the stop +24.5 digits (sd 1.8) = 0.92 s of the flow; beyond 0.6 s of it: +8.5 digits
+     arrived by 0.2s:6.2  0.4s:12.1  0.6s:17.7  0.8s:21.2  1s:23.5  1.5s:24.5  2s:24.5  3s:24.5
+
+== ramp_look.py: the fine tube slowed down, then stopped
+like_throw: 30 trials; 0.547 gr a turn (sd 0.059); after the stop +3.0 digits (sd 1.8), the last 0.6 s of turning accounts for 2.2
+     arrived by 0.2s:1.0  0.4s:1.8  0.6s:2.4  0.8s:2.7  1s:2.9  1.5s:3.0  2s:3.0  3s:3.0
+     the reading trails the tube's speed by 0.80 s (from 0.70 to 0.95), at 0.54 gr a turn
+slow_hold: 15 trials; 0.545 gr a turn (sd 0.058); after the stop +1.0 digits (sd 1.2), the last 0.6 s of turning accounts for 0.7
+     arrived by 0.2s:0.3  0.4s:0.4  0.6s:0.4  0.8s:0.4  1s:0.5  1.5s:0.9  2s:0.9  3s:1.0
+     the reading trails the tube's speed by 0.80 s (from 0.55 to 1.05), at 0.55 gr a turn
+slow: 15 trials; 0.566 gr a turn (sd 0.040); after the stop +1.3 digits (sd 1.0), the last 0.6 s of turning accounts for 0.9
+     arrived by 0.2s:0.5  0.4s:0.8  0.6s:1.0  0.8s:1.3  1s:1.3  1.5s:1.4  2s:1.3  3s:1.3
+     the reading trails the tube's speed by 0.85 s (from 0.55 to 1.00), at 0.56 gr a turn
+
+== steps_look.py: speed steps with no stop between
+0.05 -> 0.2 rev/s: 6 changes; flow 1.2 -> 5.5 digits/s; the reading's slope changes 0.87 s after the command (from -0.12 to 1.00); powder against a clean change at 0.6 s: -0.4 digits (-1 -2 -1 +1 -1 +3)
+0.05 -> 1 rev/s: 3 changes; flow 0.8 -> 27.8 digits/s; the reading's slope changes 0.88 s after the command (from 0.73 to 0.89); powder against a clean change at 0.6 s: -6.3 digits (-4 -8 -7)
+0.2 -> 0.05 rev/s: 6 changes; flow 4.8 -> 1.3 digits/s; the reading's slope changes 1.36 s after the command (from 0.71 to 1.53); powder against a clean change at 0.6 s: +2.3 digits (+4 +0 +3 +1 +3 +2)
+0.2 -> 1 rev/s: 3 changes; flow 5.6 -> 29.3 digits/s; the reading's slope changes 0.89 s after the command (from 0.84 to 1.27); powder against a clean change at 0.6 s: -9.6 digits (-17 -5 -7)
+1 -> 0.05 rev/s: 3 changes; flow 27.9 -> 1.1 digits/s; the reading's slope changes 0.92 s after the command (from 0.82 to 0.92); powder against a clean change at 0.6 s: +7.7 digits (+6 +9 +8)
+1 -> 0.2 rev/s: 3 changes; flow 29.1 -> 4.7 digits/s; the reading's slope changes 0.83 s after the command (from 0.80 to 0.85); powder against a clean change at 0.6 s: +5.5 digits (+5 +5 +6)
+
+== reverse_look.py: forward, back, forward again; and a minute at a net 0.05 rev/s
+back005: 6 trials, back by 0.053 turn; while turning back +1.2 digits (sd 0.7); the forward turn after it gave 14.3 digits less than its turns (sd 2.8) = 0.373 turn
+     digits by each second of the forward turn after it: 1s:2.8 (steady 7.7)  2s:9.0 (steady 15.3)  3s:14.5 (steady 23.0)  4s:19.8 (steady 30.6)  5s:24.7 (steady 38.2)  6s:29.7 (steady 45.9)
+back010: 6 trials, back by 0.103 turn; while turning back +2.0 digits (sd 1.4); the forward turn after it gave 16.5 digits less than its turns (sd 3.0) = 0.431 turn
+     digits by each second of the forward turn after it: 1s:0.8 (steady 7.7)  2s:5.5 (steady 15.3)  3s:11.7 (steady 23.0)  4s:17.3 (steady 30.6)  5s:22.5 (steady 38.2)  6s:28.0 (steady 45.9)
+back025: 6 trials, back by 0.253 turn; while turning back +2.0 digits (sd 0.6); the forward turn after it gave 19.6 digits less than its turns (sd 2.5) = 0.512 turn
+     digits by each second of the forward turn after it: 1s:1.8 (steady 7.7)  2s:5.3 (steady 15.3)  3s:10.5 (steady 23.0)  4s:15.0 (steady 30.6)  5s:20.7 (steady 38.2)  6s:25.0 (steady 45.9)
+back050: 6 trials, back by 0.503 turn; while turning back +4.5 digits (sd 1.7); the forward turn after it gave 22.4 digits less than its turns (sd 3.0) = 0.585 turn
+     digits by each second of the forward turn after it: 1s:0.7 (steady 7.7)  2s:3.7 (steady 15.3)  3s:8.3 (steady 23.0)  4s:13.0 (steady 30.6)  5s:17.7 (steady 38.2)  6s:22.2 (steady 45.9)
+steady005: 60 s, 1.43 digits/s net; variance over mean of the digits in 1, 2, 4 s: 2.24, 1.58, 1.14; largest second 7
+steady005: 60 s, 1.40 digits/s net; variance over mean of the digits in 1, 2, 4 s: 1.50, 1.06, 0.62; largest second 5
+swing_small: 65 s, 1.29 digits/s net; variance over mean of the digits in 1, 2, 4 s: 2.16, 1.99, 1.96; largest second 8
+swing_small: 65 s, 1.35 digits/s net; variance over mean of the digits in 1, 2, 4 s: 2.02, 1.53, 0.49; largest second 5
+swing_wide: 66 s, 1.31 digits/s net; variance over mean of the digits in 1, 2, 4 s: 1.37, 0.84, 0.59; largest second 5
+swing_wide: 64 s, 1.23 digits/s net; variance over mean of the digits in 1, 2, 4 s: 1.84, 1.79, 0.76; largest second 6
+
+== nudge_watch.py: watched nudges
+20261121_011340_nudgewatch: 240 nudges of 0.0172 turn, 0.58 digits a nudge
+  share by digits given (0, 1, 2, ...; the last is that many and more): 0.696, 0.163, 0.062, 0.042, 0.021, 0.017
+  1 digits, 39 releases: the reading first moves 0.44, 1.36, 2.22, 2.59, 3.45 s after the nudge began (a tenth, a quarter, half, three quarters, nine tenths of them); later than 1.5 s: 0.72; first jump 1.0 digits
+  2 digits, 15 releases: the reading first moves 0.89, 1.33, 1.52, 1.67, 1.86 s after the nudge began (a tenth, a quarter, half, three quarters, nine tenths of them); later than 1.5 s: 0.53; first jump 1.1 digits
+  3 digits, 10 releases: the reading first moves 0.62, 0.80, 1.05, 1.14, 1.27 s after the nudge began (a tenth, a quarter, half, three quarters, nine tenths of them); later than 1.5 s: 0.00; first jump 1.5 digits
+  4 digits, 5 releases: the reading first moves 0.73, 0.80, 0.95, 1.05, 1.05 s after the nudge began (a tenth, a quarter, half, three quarters, nine tenths of them); later than 1.5 s: 0.00; first jump 1.8 digits
+  5 digits, 4 releases: the reading first moves 0.77, 0.77, 0.81, 0.86, 0.86 s after the nudge began (a tenth, a quarter, half, three quarters, nine tenths of them); later than 1.5 s: 0.00; first jump 2.0 digits
+  two digits shown one at a time: 13 releases, the second 1.47 s after the first (median)
+
+Batch bm2_pico2w, ADI BM2, board pico2_w, started 20261121_014641.
+Raw folders under the checkout's logs/adr009 (not tracked); each block is made by the script named.
+
+  step 17 coarse_steady_a  PASS     2 runs  20261121_014643_creepstop  249.8 gr in the cup after
+  step 18 coarse_steady_b  PASS     1 runs  20261121_014716_creepstop  279.1 gr in the cup after
+  step 19 coarse_steady_c  PASS     1 runs  20261121_014735_creepstop  327.0 gr in the cup after
+  step 20 coarse_moves     PASS    20 runs  20261121_014747_ramp  391.7 gr in the cup after
+
+== turns_to_weight.py: the tubes being primed, and every trial's true turns against its powder
+coarse tube, 23 trials
+  0.1 rev/s            1 trials, 2.00 to 2.00 turns: 8.350 gr a turn
+  0.3 rev/s            1 trials, 3.61 to 3.61 turns: 8.128 gr a turn
+  1 rev/s              1 trials, 6.02 to 6.02 turns: 7.965 gr a turn
+  plan v0.5_a0.25      5 trials, 0.26 to 0.27 turns: 7.855 gr a turn through nothing, a trial 15.5 digits off it (variance over mean 2.20); free line 32.062 gr a turn, -320.2 digits at no turn, 16.6 off it
+  plan v0.5_a0.5       5 trials, 0.50 to 0.52 turns: 8.938 gr a turn through nothing, a trial 18.9 digits off it (variance over mean 1.48); free line -11.402 gr a turn, +522.0 digits at no turn, 21.0 off it
+  plan v2_a0.25        5 trials, 0.25 to 0.32 turns: 7.590 gr a turn through nothing, a trial 10.7 digits off it (variance over mean 0.98); free line 12.316 gr a turn, -69.5 digits at no turn, 8.6 off it
+  plan v2_a0.5         5 trials, 0.53 to 0.58 turns: 7.423 gr a turn through nothing, a trial 9.4 digits off it (variance over mean 0.42); free line 3.713 gr a turn, +101.7 digits at no turn, 9.8 off it
+  every speed on one line: 8.035 gr a turn; a trial is 20.5 digits off it (0.410 gr)
+  trials of up to 3 turns on one line: 8.203 gr a turn; 20.0 digits off it
+
+== within_run.py: inside steady runs, the coarse tube
+coarse tube: spread of the digits poured over a part of a turn, inside steady runs
+ rev/s  run s    0.05t     0.1t    0.25t     0.5t       1t       2t   digits a turn
+   0.1     20     12.3     11.3        -        -        -        -   415.2
+
+== moves_look.py: fixed moves
+20261121_014747_ramp: 20 moves
+  tube    rev/s   turn  moves  digits  spread  var/mean  nothing  within 1  gr a turn
+  coarse    0.5  0.265      5   103.8    14.5      1.94     0.00      0.00       7.85
+  coarse    0.5  0.513      5   229.4    16.5      1.13     0.00      0.00       8.94
+  coarse      2  0.291      5   109.8    19.0      3.13     0.00      0.00       7.54
+  coarse      2  0.548      5   203.4     8.5      0.33     0.00      0.20       7.43
