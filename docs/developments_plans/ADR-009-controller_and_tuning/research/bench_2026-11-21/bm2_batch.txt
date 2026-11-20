@@ -188,3 +188,6 @@ coarse tube: spread of the digits poured over a part of a turn, inside steady ru
   coarse    0.5  0.513      5   229.4    16.5      1.13     0.00      0.00       8.94
   coarse      2  0.291      5   109.8    19.0      3.13     0.00      0.00       7.54
   coarse      2  0.548      5   203.4     8.5      0.33     0.00      0.20       7.43
+
+== added 02:30: the kernel, counted by the owner
+half a turn of the fine tube (0.508 turn, folder 20261121_022935_kernelcount) into the emptied cup: 0.14 gr, 12 kernels counted: 0.0117 gr a kernel (0.0108 to 0.0125)
