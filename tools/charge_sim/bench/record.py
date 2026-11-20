@@ -206,6 +206,7 @@ class Bench:
         trial = {"note": "creepstop", "tube": tube, "speed_asked_rps": speed_rps, "stop": stop,
                  "held": stop != "released", "run_s": stopped - started,
                  "turns": (made[tube] - before[tube]) / MICROSTEPS_PER_MOTOR_TURN * TUBE_PER_MOTOR[tube],
+                 "steps_at_stop": made[tube],   # the unit's own count since its start: where the tube is in its turn
                  "during": [(round(t - stopped, 3), w) for t, w in during],
                  "after": [(round(t - stopped, 3), w) for t, w in after]}
         self.runs.append(trial)
@@ -247,6 +248,7 @@ class Bench:
         self.session.send(f"motor {tube} 0")
         trial = {"note": "ramp", "tube": tube, "name": name, "plan": plan, "stop": "held",
                  "turns": (made[tube] - before[tube]) / MICROSTEPS_PER_MOTOR_TURN * TUBE_PER_MOTOR[tube],
+                 "steps_at_stop": made[tube],   # the unit's own count since its start: where the tube is in its turn
                  "marks": [(round(t - stopped, 3), speed) for t, speed in marks],
                  "during": [(round(t - stopped, 3), w, speed) for t, w, speed in during],
                  "after": [(round(t - stopped, 3), w) for t, w in after]}
@@ -510,6 +512,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", required=True, type=Path, help="the checkout whose rc_run.py and build match the unit")
     parser.add_argument("--board", default="pico2_w")
+    parser.add_argument("--label", default="", help="the end of the session's folder name, in place of the test's")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("chain", help="five short runs of the fine tube: the recording chain's proof")
     nudges = sub.add_parser("nudges", help="small turns of the fine tube, each followed by a pause")
@@ -536,6 +539,7 @@ def main() -> None:
     creep = sub.add_parser("creepstop", help="a tube at a steady speed, stopped, watched: how evenly it pours and "
                                              "what a stop must allow for (weights by `state`, no tap)")
     creep.add_argument("--tube", default="fine", choices=("coarse", "fine"))
+    creep.add_argument("--precondition-s", type=float, default=3.0, help="seconds at 1 rev/s before the first trial")
     creep.add_argument("--speeds", default="0.05,0.1", help="comma-separated rev/s")
     creep.add_argument("--count", type=int, default=30, help="stops of each speed and each kind of stop")
     creep.add_argument("--run-s", default="3:6", help="least:most seconds of turning before a stop, drawn at random")
@@ -556,6 +560,7 @@ def main() -> None:
     ramp = sub.add_parser("ramp", help="a tube through speeds one after another with no stop between, then "
                                        "stopped and watched: how its flow follows a change of speed")
     ramp.add_argument("--tube", default="fine", choices=("coarse", "fine"))
+    ramp.add_argument("--precondition-s", type=float, default=3.0, help="seconds at 1 rev/s before the first trial")
     ramp.add_argument("--plans", required=True, help="plans separated by ';', each speed:seconds,speed:seconds,...")
     ramp.add_argument("--names", default="", help="a name for each plan, comma-separated")
     ramp.add_argument("--count", type=int, default=30, help="trials of each plan, in a shuffled order")
@@ -574,7 +579,7 @@ def main() -> None:
             summarise(args.folder)
         return
 
-    bench = Bench(args.repo, args.command, args.board, tap=args.command not in ("flick", "creepstop", "throws", "ramp"))
+    bench = Bench(args.repo, args.label or args.command, args.board, tap=args.command not in ("flick", "creepstop", "throws", "ramp"))
     try:
         start = bench.weight()
         print(f"weight at the start {start:.2f}")
@@ -609,7 +614,8 @@ def main() -> None:
                     for stop in args.stops.split(",")] * args.count
             draw = random.Random(len(plan))
             draw.shuffle(plan)
-            bench.turn(args.tube, PRECONDITION_RPS, 3.0, 5.0, note="precondition")
+            if args.precondition_s > 0.0:
+                bench.turn(args.tube, PRECONDITION_RPS, args.precondition_s, 5.0, note="precondition")
             for index, (speed, stop) in enumerate(plan):
                 if bench.weight() > CUP_LIMIT_GR:
                     print("stopping: the cup is near full")
@@ -625,7 +631,8 @@ def main() -> None:
             names = args.names.split(",") if args.names else [f"plan{index + 1}" for index in range(len(plans))]
             order = list(range(len(plans))) * args.count
             random.Random(len(order)).shuffle(order)
-            bench.turn(args.tube, PRECONDITION_RPS, 3.0, 5.0, note="precondition")
+            if args.precondition_s > 0.0:
+                bench.turn(args.tube, PRECONDITION_RPS, args.precondition_s, 5.0, note="precondition")
             for index, which in enumerate(order):
                 if bench.weight() > CUP_LIMIT_GR:
                     print("stopping: the cup is near full")

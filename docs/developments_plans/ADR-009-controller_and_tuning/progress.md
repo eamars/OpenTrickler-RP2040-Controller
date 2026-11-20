@@ -595,4 +595,26 @@ Its scatter inside a run levels off as the fine tube's does, at 14 to 18 digits 
 
 **Not answered, and why:** how powders differ in what a turn pours and in a move's spread: one powder. The assumption to test when another is loaded: the grains a turn follow the bulk density (this AR2209 gives 0.757 gr a turn in the fine tube and about 9.4 in the coarse), the turn that is one kernel follows the kernel's mass (0.028 of a turn here), and the spread stays a few kernels.
 
+## 2026-11-20, 23:45: a second powder, ADI BM2: what is expected, written before its first run
+
+**The owner:** "Next powder is ADI benchmark 2. smaller kernel and less clump, on pico 2w still. I want to perform all tests in one batch if possible." And: "You may need to prime the tubes before taking formal measurements."
+
+**The batch** is `bench/protocol.py`: tonight's recordings as one fixed list of twenty steps, both tubes primed first (the fine tube 15 turns, the coarse 4, each recorded), each step its own session and verdict, the cup's room checked before each. About two hours and 590 gr, so one cup. The recorder now keeps the unit's own step count with every trial, so the tube's place in its turn can be set beside another session's.
+
+**Assumptions, each with what the recording will show if it holds.** The figures for AR2209 are tonight's on this unit. BM2's bulk density and kernel are from memory and from the owner's "smaller kernel", not looked up: the kernel taken as about half of AR2209's 0.021 gr.
+
+| | Assumption | AR2209 here | BM2 if it holds |
+|---|---|---|---|
+| 1 | The grains a turn follow the bulk density | fine 0.757, coarse 9.8 to 9.9 | within 5% of the same: the two powders' densities differ by about 2%, so this pair cannot test it sharply |
+| 2 | What a turn pours is still set by the turn and not the speed | the same digits from a move at 0.05, 0.2 and 1 rev/s | the same |
+| 3 | A move's spread is a few kernels, so it is smaller in grains for a smaller kernel | 4.4 to 4.7 digits at half a turn (about 4 kernels) | about 2.5 digits at half a turn |
+| 3b | The rival: the spread is a volume at the lip, the same in grains | | 4 to 5 digits again |
+| 4 | A short move pours nothing less often | a move of 0.03 turn: nothing two times in three | under half the time |
+| 5 | What a stop from the middle speeds leaves is a few kernels | 4 to 6 digits beyond the delay, from 0.2 to 0.5 rev/s | 2 to 3 digits |
+| 5b | The rival: it is a layer of powder in motion, the same in grains | | 4 to 6 digits again |
+| 6 | The once-a-turn wave is the tube's | a wave of half a spread | a wave again, and at the same place in the turn by the step count if the tube was not taken out and the unit not restarted |
+| 7 | Slow turning is less lumpy (the owner: less clump) | variance over mean 1.9 to 3.4 at 0.02 to 0.05 rev/s | under 1.5 |
+| 8 | The scale's answer to a small change is the scale's | one digit first shows after a median 1.95 s | the same within 0.4 s |
+| 9 | What a reverse costs is the tube's | levels off at a third of a turn | the same within 0.1 turn |
+
 **Next (fitting, not begun, by the owner's word "before working on any fitting"):** (1) `measure.py` and the simulation's twin take the new tests (stops to 1 rev/s, the ramps, the reverse lengths, the watched nudges); (2) the record built again with what follows a stop at every speed and what a reverse costs; the throw-shaped ramp and the three sets of throws as its checks; (3) the scale's small-change shape from point 8; (4) the capture protocol as one script for the second unit and the other powders; (5) the design.
