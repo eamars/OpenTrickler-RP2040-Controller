@@ -660,6 +660,8 @@ Its scatter inside a run levels off as the fine tube's does, at 14 to 18 digits 
 - a watched nudge gave 0.58 digits, one kernel, on average, and showed nothing 70% of the time: a single BM2 kernel is less than a digit and often does not show. So assumption 4's verdict ("a short move pours nothing as often as with AR2209") is of what the scale shows, not of what fell: with this powder the two differ.
 The looks' "variance over mean" for BM2 are to be multiplied by 1.8 (0.021 over 0.0117) to be in BM2's own kernels.
 
+**AR2209's kernel stays 0.021 gr, on the owner's word (02:38):** "For AR2209, 0.021gr is about the weight per kernel. So I don't think it worth a weight." The owner then asked for an interim conclusion and the next step for a full analysis: both are at the top of `research/HANDOVER.md` ("Interim conclusion, 2026-11-21" and "Tomorrow's order"), as given to the owner.
+
 **For the owner's question, how a powder relates to the step and how the step is set for a powder: what this pair of powders says must be measured on the unit, for each powder, and what carried over.** Measured for each powder: the grains a turn of each tube (not from a density table, and not one factor for both tubes), the delay from the tube to the reading, what a stop leaves, and what a reverse costs. Carried over unchanged: the turn and not the speed sets the powder; the once-a-turn wave; the scale's answer to a digit; the share of the shortest moves that pour nothing. No design follows from it here.
 
 **The bench as left (01:49):** Pico 2 W on the probe, idle, both motors at 0, BM2 in the hopper and both tubes; 391.7 gr in the cup.

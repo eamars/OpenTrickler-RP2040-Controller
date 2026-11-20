@@ -14,7 +14,27 @@ The owner's direction for the bench (11-20, evening): sessions capture data and 
 - **One console session at a time.** A recorder that loses its console leaves the motor turning: send `motor fine 0` and `motor coarse 0` after any session that ends badly. It happened twice on 11-21.
 - **Fitting is not begun** (the owner: capture first). The order in the section below stands; the capture protocol it asks for is written.
 - **Still to capture:** the second unit (the Pico W's build), fresh AR2209, AR2208; BM2's kernel mass (the owner was asked for the weight of 50 or 100 kernels).
-- **The bench as left (01:49 on 11-21):** Pico 2 W on the probe, idle, BM2 in the hopper and tubes, 391.7 gr in the cup.
+- **The bench as left (02:35 on 11-21):** Pico 2 W on the probe, idle, BM2 in the hopper and tubes, 12 kernels in the cup. BM2's kernel is 0.0117 gr (the owner's count); AR2209's 0.021 gr stands on the owner's word ("0.021gr is about the weight per kernel. So I don't think it worth a weight").
+
+### Interim conclusion, 2026-11-21, 02:40, as given to the owner (two powders, one unit, one scale; nothing fitted yet)
+
+1. **The tube is a doser of turns.** For both powders and both tubes the powder poured follows the turns made, not the speed. Speed only sets how soon. The calibration's main number is grains a turn, for each tube with each powder.
+2. **A move is off by four to five kernels however long it is,** once it is past about half a turn; a move of a few hundredths of a turn is off by one to two digits. So accuracy comes from ending short and adding small moves, not from a better stop.
+3. **What a stop leaves, and the delay to the reading, belong to the powder as well as the scale,** and both grow with the speed stopped from: the last speed before a stop is what matters.
+4. **The scale shows one digit only after about 2 s** (one time in ten after 3.5 to 4 s); a larger change shows in under a second. A finish that waits for single digits is slow on the A&D and would be far slower on a scale like the owner's G&G.
+5. **Turning back is not free and has not been seen to help:** it costs 0.1 to 0.6 of a turn of the forward flow after it, spills kernels with BM2, and back-and-forth was no more even than steady turning.
+6. **Published powder data does not give the pour:** two powders of the same bulk density differ by 28% in the fine tube. Each powder is measured on the unit.
+7. **The three-part calibration stands, with one change seen so far:** the scale's part is its own; the once-a-turn wave is the tube's; but grains a turn, the stop and the reverse are of tube and powder together (BM2 is 28% under in one tube and 16% under in the other). Which of these a second unit shares is not known.
+8. **Not concluded:** any over-rate or time for any controller. The simulation is not yet fitted to these recordings.
+
+### Tomorrow's order (the owner asked for it; nothing below is begun)
+
+1. **Bench, about 15 minutes, before BM2 is taken out:** 30 throws of today's loop as stored, with BM2 (`record.py throws --rezero`). Not tuning: they are the held-out check for BM2's record, as the three sets of throws are for AR2209's. Without them BM2's record can be built but not checked in closed loop.
+2. **Desk:** `measure.py` takes a batch (`batch.json`) and makes the figures file for a powder: the fixed moves, the stops to 1 rev/s, the ramps, the speed steps, the reverse lengths, the watched nudges.
+3. **Desk:** the simulation's tube doses by turns: what a stop leaves by speed, what the next start owes, what a reverse costs, and the powder's own delay apart from the scale's. The scale's small-change answer from the watched nudges.
+4. **Desk:** two records built (AR2209, BM2), each checked on its throw-shaped ramp and its throws. Pass: the slow finish's over-rate within the throws' own scatter, which the simulation has never met.
+5. **Desk, only once 4 passes:** the owner's questions by simulation: other scales by delay and small-change answer, finishes other than PID (dose by turns, end short, add), speed against accuracy, each with its figures.
+6. **Bench, later, the owner's choice of when:** the same batch on the second unit (the Pico W's build) with one of these two powders, which tells tube from powder; then fresh AR2209 and AR2208, AR2208 held out as a prediction.
 
 ## Where it stands, 2026-11-20, daytime
 
