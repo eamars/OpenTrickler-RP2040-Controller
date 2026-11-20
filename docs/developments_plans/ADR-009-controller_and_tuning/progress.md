@@ -542,4 +542,47 @@ The last 0.6 s of its turning accounts for 2.1 of the 4.5. The gentler ramp, whi
 
 **Not captured:** a second unit, another powder, an oscillation faster than the PC can command, the coarse tube's evenness at 0.3 and 1 rev/s over a longer run, the scale with a known weight.
 
+**The owner then asked a question under the whole design, and set the night's frame** (the README's "Owner's direction" has the words): is speed against charge weight the right relationship at all, where steps against weight or step frequency against weight are others; how powders differ in their "step size" and how a step parameter would be tuned for each; that a scale shows a stream of change sooner than one small change (his G&G JJ223BF takes 5 s and more for a tiny one); that the control may be a hybrid; and: no decision while capturing, "make assumption, and use the actual trickler to verify the assumption". The cup was cleared for it. What follows is capture and verdicts on assumptions; nothing of the design is chosen.
+
+## 2026-11-20, 22:53 to 23:34: turns against weight, by fixed moves
+
+**From the recordings already made** (`bench/turns_to_weight.py`, `bench/within_run.py`; `research/bench_2026-11-20/late_capture.txt`): every trial of the day that begins and ends at rest, its true turns (the unit's count of its steps) against the powder in the cup.
+
+| Fine tube | Trials | Turns | Grains a turn | A trial off the line by |
+|---|---|---|---|---|
+| 0.02 rev/s | 31 | 0.12 to 2.4 | 0.74 | 3.4 digits |
+| 0.05 | 78 | 0.15 to 6 | 0.74 | 3.7 |
+| 0.1 | 78 | 0.3 to 9 | 0.71 | 5.1 |
+| 0.2 | 17 | 0.4 to 18 | 0.72 | 5.4 |
+| 0.5 | 16 | 1 to 20 | 0.77 | 4.8 |
+| 1 | 16 | 2.5 to 20 | 0.80 | 4.8 |
+| The slowing ramps | 90 | 1.3 to 1.5 | 0.77 | 6 |
+| Every speed on one line | 348 | | 0.757 | 6.6 digits |
+
+- One line through nothing fits every speed; a start and a stop together cost nothing (the free lines pass within 3 digits of no powder at no turn).
+- The scatter does not grow with the amount: 0.15 of a turn and 20 turns are both 4 to 6 digits off. Inside a steady run it levels off the same way (0.2 rev/s: 1.7 digits over a tenth of a turn, 2.4 over a quarter, 2.6 over a half, 2.7 over one, 3.7 over two).
+- Step frequency is the speed by another name: it is not a third relationship.
+
+**Three assumptions, each run on the unit** (fixed moves from rest to rest by `record.py ramp` with one speed a plan, 4 s watched after each, the kinds shuffled; `VERDICT PASS`; folders `225315_ramp` fine, 390 moves, and `232930_ramp` coarse, 60; 384 gr in the cup after; `bench/moves_look.py`, `bench/phase_look.py`)
+
+**1. What a move pours is set by its turn and not by its speed. Holds.**
+
+| Fine tube, a move of | At 0.05 rev/s: digits, spread | At 0.2 | At 1 |
+|---|---|---|---|
+| 0.03 turn | 0.8, 1.3 | 0.9, 1.4 | |
+| 0.06 | 1.6, 1.7 | 1.9, 2.0 | 5.1, 2.8 (0.086 turn) |
+| 0.12 | 4.1, 2.5 | 3.3, 2.4 | 5.5, 2.7 (0.145 turn) |
+| 0.25 | 8.8, 3.5 | 9.1, 4.0 | 10.0, 3.5 |
+| 0.5 | | 18.4, 4.4 | 17.8, 4.7 |
+
+The PC cannot time a move at 1 rev/s finer than about 0.09 of a turn; the turn given is the one the steps counted.
+
+**2. A move's spread levels off as the move grows. Holds, at about half a turn.** From 1.3 digits at 0.03 of a turn to 4.4 to 4.7 at a half, where the longer moves and the steady runs sit. A move of 0.03 of a turn pours nothing two times in three; of 0.06, four times in ten at 0.05 rev/s. The moves of 0.03 and 0.06 of a turn gave 0.5 gr a turn where the longer ones gave 0.7: 4 s is too short a watch for a single kernel on this scale (one in ten takes longer), and what a short move leaves at the lip the next move takes.
+
+**3. Part of that spread is the tube's once-a-turn unevenness, and the step count alone says where the tube is in its turn. Holds for the fine tube.** The tube's angle was followed through the session's 78 turns by adding up the steps of every move. Each move's powder against the mean of its own kind, by the eighth of a turn its middle fell in: -0.20, +0.29, -0.38, -0.72, -0.14, +0.07, +0.26, +0.88 of that kind's spread. A wave of 0.52 of a spread where chance (the same moves, their angles shuffled) gives 0.09, and none of 500 shuffles as large. The same holds for the moves of up to 0.15 of a turn alone (0.41) and with the half turns (0.57). **Not shown for the coarse tube** (0.28 against chance's 0.24, 48 moves).
+
+**The coarse tube by turns:** 0.26 of a turn 122 digits (spread 17), 0.51 266 (13), at 0.5 rev/s; 0.29 137 (16), 0.53 247 (12), 1.04 477 (20) at 2 rev/s: 9.2 to 10.4 gr a turn, a move 12 to 20 digits (0.24 to 0.4 gr) off whatever its size or speed. The day's earlier trials (stops after mixed kinds, some after a reverse turn) had put it at 43 to 65 digits.
+
+**Not answered, and why:** how powders differ in what a turn pours and in a move's spread: one powder. The assumption to test when another is loaded: the grains a turn follow the bulk density (this AR2209 gives 0.757 gr a turn in the fine tube and about 9.4 in the coarse), the turn that is one kernel follows the kernel's mass (0.028 of a turn here), and the spread stays a few kernels.
+
 **Next (fitting, not begun, by the owner's word "before working on any fitting"):** (1) `measure.py` and the simulation's twin take the new tests (stops to 1 rev/s, the ramps, the reverse lengths, the watched nudges); (2) the record built again with what follows a stop at every speed and what a reverse costs; the throw-shaped ramp and the three sets of throws as its checks; (3) the scale's small-change shape from point 8; (4) the capture protocol as one script for the second unit and the other powders; (5) the design.

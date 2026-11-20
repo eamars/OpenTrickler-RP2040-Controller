@@ -1,0 +1,89 @@
+Capture of 2026-11-20, 22:53 to 23:34: fixed moves from rest to rest. Pico 2 W 2.0.3-84, the air-exposed AR2209, A&D FX-300i at FAST.
+Raw folders under the main checkout's logs/adr009 (not tracked); each block is made by the script named.
+
+== turns_to_weight.py: every trial of the day that begins and ends at rest, its true turns against its powder
+fine tube, 738 trials
+  0.02 rev/s          31 trials, 0.12 to 2.40 turns: 0.742 gr a turn through nothing, a trial 3.4 digits off it (variance over mean 1.32); free line 0.743 gr a turn, -0.1 digits at no turn, 3.5 off it
+  0.05 rev/s          78 trials, 0.15 to 6.00 turns: 0.744 gr a turn through nothing, a trial 3.7 digits off it (variance over mean 1.20); free line 0.749 gr a turn, -0.4 digits at no turn, 3.7 off it
+  0.1 rev/s           78 trials, 0.30 to 9.00 turns: 0.712 gr a turn through nothing, a trial 5.1 digits off it (variance over mean 1.30); free line 0.728 gr a turn, -1.8 digits at no turn, 4.9 off it
+  0.2 rev/s           17 trials, 0.43 to 18.00 turns: 0.720 gr a turn through nothing, a trial 5.4 digits off it (variance over mean 0.34); free line 0.715 gr a turn, +2.7 digits at no turn, 4.9 off it
+  0.3 rev/s           15 trials, 0.93 to 1.50 turns: 0.610 gr a turn through nothing, a trial 5.8 digits off it (variance over mean 0.86); free line 0.847 gr a turn, -14.9 digits at no turn, 5.6 off it
+  0.5 rev/s           16 trials, 1.02 to 20.01 turns: 0.766 gr a turn through nothing, a trial 4.8 digits off it (variance over mean 0.22); free line 0.771 gr a turn, -2.5 digits at no turn, 4.3 off it
+  1 rev/s             16 trials, 2.45 to 20.01 turns: 0.799 gr a turn through nothing, a trial 4.8 digits off it (variance over mean 0.13); free line 0.803 gr a turn, -1.6 digits at no turn, 4.9 off it
+  plan like_throw     30 trials, 1.47 to 1.55 turns: 0.776 gr a turn through nothing, a trial 6.7 digits off it (variance over mean 0.74); free line 0.915 gr a turn, -10.6 digits at no turn, 6.9 off it
+  plan slow           30 trials, 1.32 to 1.45 turns: 0.765 gr a turn through nothing, a trial 5.8 digits off it (variance over mean 0.62); free line 0.277 gr a turn, +33.6 digits at no turn, 5.9 off it
+  plan slow_hold      30 trials, 1.41 to 1.54 turns: 0.771 gr a turn through nothing, a trial 6.1 digits off it (variance over mean 0.62); free line 1.619 gr a turn, -62.0 digits at no turn, 6.0 off it
+  plan steady005       2 trials, 3.00 to 3.00 turns: 0.676 gr a turn
+  plan steps           5 trials, 12.05 to 12.10 turns: 0.755 gr a turn through nothing, a trial 9.4 digits off it (variance over mean 0.19); free line -4.378 gr a turn, +3100.9 digits at no turn, 9.4 off it
+  plan v0.05_a0.03    30 trials, 0.03 to 0.03 turns: 0.484 gr a turn through nothing, a trial 1.3 digits off it (variance over mean 2.10); free line 11.521 gr a turn, -17.6 digits at no turn, 1.3 off it
+  plan v0.05_a0.06    30 trials, 0.06 to 0.06 turns: 0.510 gr a turn through nothing, a trial 1.8 digits off it (variance over mean 1.92); free line -8.915 gr a turn, +28.9 digits at no turn, 1.8 off it
+  plan v0.05_a0.12    30 trials, 0.12 to 0.12 turns: 0.674 gr a turn through nothing, a trial 2.5 digits off it (variance over mean 1.47); free line -30.936 gr a turn, +192.1 digits at no turn, 2.4 off it
+  plan v0.05_a0.25    30 trials, 0.25 to 0.25 turns: 0.704 gr a turn through nothing, a trial 3.5 digits off it (variance over mean 1.33); free line 32.399 gr a turn, -398.0 digits at no turn, 3.5 off it
+  plan v0.2_a0.03     30 trials, 0.03 to 0.04 turns: 0.488 gr a turn through nothing, a trial 1.5 digits off it (variance over mean 2.34); free line -2.025 gr a turn, +4.6 digits at no turn, 1.5 off it
+  plan v0.2_a0.06     30 trials, 0.06 to 0.07 turns: 0.572 gr a turn through nothing, a trial 2.0 digits off it (variance over mean 1.97); free line 0.303 gr a turn, +0.9 digits at no turn, 2.0 off it
+  plan v0.2_a0.12     30 trials, 0.12 to 0.13 turns: 0.525 gr a turn through nothing, a trial 2.5 digits off it (variance over mean 1.73); free line -1.265 gr a turn, +11.4 digits at no turn, 2.5 off it
+  plan v0.2_a0.25     30 trials, 0.25 to 0.26 turns: 0.712 gr a turn through nothing, a trial 4.1 digits off it (variance over mean 1.75); free line 1.104 gr a turn, -5.0 digits at no turn, 4.2 off it
+  plan v0.2_a0.5      30 trials, 0.50 to 0.51 turns: 0.729 gr a turn through nothing, a trial 4.5 digits off it (variance over mean 1.05); free line -0.129 gr a turn, +21.7 digits at no turn, 4.6 off it
+  plan v1_a0.06       30 trials, 0.08 to 0.10 turns: 1.173 gr a turn through nothing, a trial 3.0 digits off it (variance over mean 1.68); free line -1.622 gr a turn, +12.1 digits at no turn, 2.8 off it
+  plan v1_a0.12       30 trials, 0.12 to 0.17 turns: 0.750 gr a turn through nothing, a trial 2.8 digits off it (variance over mean 1.35); free line -0.809 gr a turn, +11.3 digits at no turn, 2.7 off it
+  plan v1_a0.25       30 trials, 0.25 to 0.29 turns: 0.754 gr a turn through nothing, a trial 3.4 digits off it (variance over mean 1.12); free line 1.827 gr a turn, -14.3 digits at no turn, 3.5 off it
+  plan v1_a0.5        30 trials, 0.51 to 0.54 turns: 0.685 gr a turn through nothing, a trial 4.6 digits off it (variance over mean 1.12); free line 5.745 gr a turn, -131.9 digits at no turn, 4.0 off it
+  every speed on one line: 0.757 gr a turn; a trial is 5.1 digits off it (0.102 gr)
+  trials of up to 3 turns on one line: 0.745 gr a turn; 4.3 digits off it
+coarse tube, 81 trials
+  0.1 rev/s            7 trials, 0.19 to 3.00 turns: 9.889 gr a turn through nothing, a trial 48.9 digits off it (variance over mean 7.50); free line 10.102 gr a turn, -23.0 digits at no turn, 48.3 off it
+  0.3 rev/s            7 trials, 0.51 to 2.41 turns: 9.133 gr a turn through nothing, a trial 65.0 digits off it (variance over mean 10.46); free line 10.283 gr a turn, -76.6 digits at no turn, 45.3 off it
+  1 rev/s              7 trials, 1.77 to 8.02 turns: 9.428 gr a turn through nothing, a trial 61.7 digits off it (variance over mean 2.59); free line 9.775 gr a turn, -76.8 digits at no turn, 43.1 off it
+  plan v0.5_a0.25     12 trials, 0.26 to 0.28 turns: 9.388 gr a turn through nothing, a trial 16.9 digits off it (variance over mean 2.21); free line 15.371 gr a turn, -78.1 digits at no turn, 17.5 off it
+  plan v0.5_a0.5      12 trials, 0.50 to 0.53 turns: 10.422 gr a turn through nothing, a trial 12.6 digits off it (variance over mean 0.57); free line 19.437 gr a turn, -230.4 digits at no turn, 12.9 off it
+  plan v2_a0.25       12 trials, 0.24 to 0.33 turns: 9.560 gr a turn through nothing, a trial 14.6 digits off it (variance over mean 1.49); free line 8.121 gr a turn, +20.7 digits at no turn, 15.3 off it
+  plan v2_a0.5        12 trials, 0.49 to 0.54 turns: 9.353 gr a turn through nothing, a trial 12.1 digits off it (variance over mean 0.56); free line 4.659 gr a turn, +123.9 digits at no turn, 12.3 off it
+  plan v2_a1          12 trials, 1.02 to 1.07 turns: 9.229 gr a turn through nothing, a trial 15.0 digits off it (variance over mean 0.45); free line 16.765 gr a turn, -389.9 digits at no turn, 13.7 off it
+  every speed on one line: 9.446 gr a turn; a trial is 33.4 digits off it (0.669 gr)
+  trials of up to 3 turns on one line: 9.225 gr a turn; 30.8 digits off it
+
+== within_run.py: inside steady runs
+fine tube: spread of the digits poured over a part of a turn, inside steady runs
+ rev/s  run s    0.05t     0.1t    0.25t     0.5t       1t       2t   digits a turn
+  0.02    120      2.5      3.5      2.6        -        -        -   37.9
+  0.05    120      1.8      2.6      4.6      6.0        -        -   38.1
+   0.1     90      1.6      2.5      4.4      4.0      4.4        -   35.8
+   0.2     90        -      1.7      2.4      2.6      2.7      3.7   35.5
+   0.2     60        -      1.8      2.5      3.0      1.8        -   36.5
+   0.5     40        -        -      3.2      4.0      3.0      4.6   38.1
+     1     20        -        -        -     10.6      7.6      6.7   40.1
+coarse tube: spread of the digits poured over a part of a turn, inside steady runs
+ rev/s  run s    0.05t     0.1t    0.25t     0.5t       1t       2t   digits a turn
+   0.1     30     15.6     25.4     19.5        -        -        -   496.2
+
+== moves_look.py: fixed moves (225315 fine, 232930 coarse)
+20261120_225315_ramp: 390 moves
+  tube    rev/s   turn  moves  digits  spread  var/mean  nothing  within 1  gr a turn
+  fine     0.05  0.032     30     0.8     1.3      2.04     0.67      0.77       0.48
+  fine     0.05  0.061     30     1.6     1.7      1.85     0.43      0.27       0.51
+  fine     0.05  0.122     30     4.1     2.5      1.41     0.07      0.23       0.67
+  fine     0.05  0.251     30     8.8     3.5      1.29     0.00      0.17       0.70
+  fine      0.2  0.036     30     0.9     1.4      2.21     0.60      0.73       0.49
+  fine      0.2  0.068     30     1.9     2.0      1.90     0.23      0.27       0.57
+  fine      0.2  0.127     30     3.3     2.4      1.66     0.13      0.13       0.53
+  fine      0.2  0.255     30     9.1     4.0      1.69     0.00      0.13       0.71
+  fine      0.2  0.505     30    18.4     4.4      1.01     0.00      0.17       0.73
+  fine        1  0.086     30     5.1     2.8      1.46     0.00      0.17       1.19
+  fine        1  0.145     30     5.5     2.7      1.23     0.03      0.23       0.76
+  fine        1  0.267     30    10.0     3.5      1.15     0.00      0.27       0.75
+  fine        1  0.521     30    17.8     4.7      1.17     0.00      0.07       0.68
+20261120_232930_ramp: 60 moves
+  tube    rev/s   turn  moves  digits  spread  var/mean  nothing  within 1  gr a turn
+  coarse    0.5  0.261     12   122.4    16.9      2.22     0.00      0.00       9.38
+  coarse    0.5  0.511     12   266.3    13.0      0.61     0.00      0.00      10.42
+  coarse      2  0.286     12   136.9    16.1      1.81     0.00      0.00       9.57
+  coarse      2  0.528     12   246.8    11.6      0.52     0.00      0.08       9.36
+  coarse      2  1.035     12   477.2    19.9      0.79     0.00      0.00       9.23
+
+== phase_look.py: a move's powder against the tube's angle in its turn, the angle followed by step counts alone
+20261120_225315_ramp: 330 moves of up to 0.3 turn, the tube turned 78.1 turns in all
+  mean of the moves in each eighth of a turn, in spreads of their own kind: -0.20  +0.29  -0.38  -0.72  -0.14  +0.07  +0.26  +0.88
+  once-a-turn wave: 0.52 spreads; chance alone gives 0.09 (19 in 20 under 0.19); larger than chance in 100% of shuffles
+20261120_232930_ramp: 48 moves of up to 0.6 turn, the tube turned 34.6 turns in all
+  mean of the moves in each eighth of a turn, in spreads of their own kind: +0.10  +0.12  +0.25  +0.29  -0.26  +0.33  -0.30  -0.58
+  once-a-turn wave: 0.28 spreads; chance alone gives 0.24 (19 in 20 under 0.52); larger than chance in 60% of shuffles
