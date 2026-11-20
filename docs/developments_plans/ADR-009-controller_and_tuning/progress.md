@@ -662,6 +662,33 @@ The looks' "variance over mean" for BM2 are to be multiplied by 1.8 (0.021 over 
 
 **AR2209's kernel stays 0.021 gr, on the owner's word (02:38):** "For AR2209, 0.021gr is about the weight per kernel. So I don't think it worth a weight." The owner then asked for an interim conclusion and the next step for a full analysis: both are at the top of `research/HANDOVER.md` ("Interim conclusion, 2026-11-21" and "Tomorrow's order"), as given to the owner.
 
+## 2026-11-21, 03:00: the two powders read together (the owner: "What can we learn from today's data so far, combined with two powder?")
+
+No new recording; the figures are those above, put in each powder's own kernel (AR2209 0.021 gr, BM2 0.0117 gr) and against the flow in digits a second. **Two readings below revise what was written earlier tonight; they are leads for the fit to test, not results.**
+
+**1. In kernels the two powders scatter alike.** A fixed move of a quarter to half a turn: variance over mean, in the powder's own kernels, 1.0 to 1.7 for AR2209 and 0.95 to 1.3 for BM2 (the looks' 0.53 to 0.73 times 1.8). So kernels leave nearly one by one at random, a little bunched, and a move's error is about the square root of 1.0 to 1.7 times the kernels it pours, levelling at 4 to 5 kernels past half a turn (AR2209 4.3, BM2 5.1). A powder's scatter in grains follows from its kernel's mass. The shortest moves are more bunched for both (2 and more).
+
+**2. The step for a powder is two measured numbers, not a tuned one.** Kernels a turn of the fine tube: AR2209 36, BM2 47; so one kernel is 0.028 and 0.021 of a turn (about 790 and 600 microsteps). The turn that is one kernel is the kernel's mass over the grains a turn.
+
+**3. What arrives after a stop, as seconds of the flow before it, lies on one curve against that flow for both powders and both tubes** (`after_stop.py`; the coarse tube's are single stops):
+
+| Flow before the stop, digits/s | AR2209 | BM2 |
+|---|---|---|
+| 1 to 3 (fine, 0.05 to 0.1 rev/s) | 1.71, 0.96 | 1.06, 1.05 |
+| 6 to 10 (fine) | 1.44, 1.06 | 0.97, 0.88 |
+| 13 to 27 (fine) | 0.96 | 0.97, 0.92 |
+| 41 (fine, 1 rev/s) | 0.61 | |
+| 125 to 490 (coarse, 0.3 and 1 rev/s) | 0.53, 0.54 | 0.62, 0.50 |
+
+And the watched nudges give the same scale's first answer to a sudden change: 0.8 s for five digits, about 2 s for one. **The lead:** the lag from tube to reading is not one number; it falls from about 2 s for a single digit to about 1 s for a slow stream and 0.5 s for a fast one, and it is mostly the scale's, since two powders and two tubes share it. It is the owner's note of 11-20 (a stream of change shows sooner than one small change), seen on the A&D in figures.
+- **This revises 01:50's "the delay from the tube to the reading is longer with BM2 ... part of the delay is the powder's".** At the same speed BM2 flows at 28% fewer digits a second; at the same digits a second (13 to 27) the two powders agree (0.96 against 0.92 to 0.97). BM2's speed steps fit a plain lag of about 0.9 s: a step up by 27 digits/s gave 6.3 digits less than a change at 0.6 s would, a step down 7.7 more.
+- **It puts 11-20's "a stop from 0.2 to 0.5 rev/s leaves 4 to 6 digits beyond the scale's 0.6 s delay, and the next start owes them" in question.** Counted against 0.95 s of the flow in place of 0.6 s, AR2209's stops leave +3.3, +1.0 and +0.3 digits from 0.2, 0.3 and 0.5 rev/s, and BM2's +0.1, -0.5 and +0.3. What then remains as the powder's own is AR2209 at its slow speeds (0.05 and 0.2 rev/s: 1 to 3 digits more than BM2), which fits its clumping. Either way the simulation was kind for the same reason, too little arriving after a stop at these flows; but the mend differs: a scale whose lag depends on the flow, or powder left at the lip.
+- **Not settled by these recordings:** the fine tube's flows and the coarse tube's do not overlap except at AR2209's one point (41 digits/s), so a lag that is the fine tube's own cannot be ruled out. **The desk test:** the scale is the same in both sessions, so the scale's part of the record must come out the same from AR2209's recordings and from BM2's; a model that needs two scales for one scale is wrong. A bench test, when a powder is next loaded: the two tubes at the same digits a second (the coarse at 0.05 rev/s, the fine at 1 to 1.5), stops from each.
+
+**4. What stays the powder's (with this tube):** the grains a turn (the same bulk density, 28% apart, so the bed the fine tube carries is shallower with BM2: 0.039 cc a turn against 0.054), what a reverse costs, and AR2209's bunching at slow speeds.
+
+**5. What two powders on one unit and one scale can and cannot separate.** They separate the scale from the powder (point 3's test). They cannot separate the tube from the powder: that is the second unit's. A third powder with AR2209's kernel (AR2208, 0.020 gr) tests whether the grains a turn go with the kernel's size.
+
 **For the owner's question, how a powder relates to the step and how the step is set for a powder: what this pair of powders says must be measured on the unit, for each powder, and what carried over.** Measured for each powder: the grains a turn of each tube (not from a density table, and not one factor for both tubes), the delay from the tube to the reading, what a stop leaves, and what a reverse costs. Carried over unchanged: the turn and not the speed sets the powder; the once-a-turn wave; the scale's answer to a digit; the share of the shortest moves that pour nothing. No design follows from it here.
 
 **The bench as left (01:49):** Pico 2 W on the probe, idle, both motors at 0, BM2 in the hopper and both tubes; 391.7 gr in the cup.
