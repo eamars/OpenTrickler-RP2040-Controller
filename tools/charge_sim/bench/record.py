@@ -9,6 +9,7 @@ Usage, with the repository's venv, the unit on the probe and the bench rules kep
     python record.py --repo ... runs --tube fine --speeds 0.1,0.5,2 --repeats 3 --limit-gr 5 --limit-s 60
     python record.py --repo ... steps --tube fine --plan 0.1:60,2:20
     python record.py --repo ... creepstop --speeds 0.05,0.1 --count 30
+    python record.py --repo ... ramp --plans "1.5:0.2,0.6:0.2,0.2:0.2,0.06:0.2,0.03:0.4" --count 30
     python record.py --repo ... throws --host <address> --target 42.5 --profile 1 --count 10
 Output: <repo>/logs/adr009/<time>_<name>/frames.csv (t_ms, weight, header) and runs.json (one entry a run).
 """
@@ -209,6 +210,52 @@ class Bench:
                  "after": [(round(t - stopped, 3), w) for t, w in after]}
         self.runs.append(trial)
         return trial
+
+    def ramp(self, tube: str, name: str, plan: list, still_s: float) -> dict:
+        """
+        One trial of a tube taken through speeds one after another with no stop between, then stopped and watched.
+
+        It measures how the flow follows a change of speed: whether a tube that slows down pours more than its
+        turns account for, and how soon the flow answers a step up or down. Weights and the tube's own speed
+        are read by `state` as fast as the console answers, on the PC's clock.
+
+        Args:
+            tube: coarse or fine.
+            name: the plan's name, kept with the trial.
+            plan: (speed in rev/s, seconds) one after another.
+            still_s: how long to watch after the stop, the driver left on as in a charge.
+
+        Returns:
+            The trial's facts: when each speed was asked, and the readings with the tube's speed during the
+            turn and after the stop, each with its time from the stop.
+        """
+        before = self.motor_stats()
+        marks, during, after = [], [], []
+        for speed, seconds in plan:
+            self.session.send(f"motor {tube} {speed:g}")
+            asked = time.monotonic()
+            marks.append((asked, speed))
+            while time.monotonic() - asked < seconds:
+                now = self.state()
+                during.append((now["t"], now["weight"], now[tube]))
+        self.session.send(f"motor {tube} {HOLD_RPS:g}")
+        stopped = time.monotonic()
+        made = self.motor_stats()
+        while time.monotonic() - stopped < still_s:
+            now = self.state()
+            after.append((now["t"], now["weight"]))
+        self.session.send(f"motor {tube} 0")
+        trial = {"note": "ramp", "tube": tube, "name": name, "plan": plan, "stop": "held",
+                 "turns": (made[tube] - before[tube]) / MICROSTEPS_PER_MOTOR_TURN * TUBE_PER_MOTOR[tube],
+                 "marks": [(round(t - stopped, 3), speed) for t, speed in marks],
+                 "during": [(round(t - stopped, 3), w, speed) for t, w, speed in during],
+                 "after": [(round(t - stopped, 3), w) for t, w in after]}
+        self.runs.append(trial)
+        return trial
+
+    def save_runs(self) -> None:
+        """Write the runs made so far: a long session keeps what it has if the PC stops."""
+        (self.folder / "runs.json").write_text(json.dumps(self.runs, indent=1), encoding="utf-8")
 
     def state(self) -> dict:
         """The console's state now: the charge's state, the weight and both speeds, with the PC's clock."""
@@ -433,6 +480,9 @@ def summarise_creep(folder: Path) -> None:
     of stops a band of three digits holds, which is the most a finish by one stop from that speed can keep."""
     trials = [run for run in json.loads((folder / "runs.json").read_text(encoding="utf-8"))
               if run["note"] == "creepstop"]
+    if trials and all(run["run_s"] < 1.5 for run in trials):
+        print("watched nudges (turns under 1.5 s): sum them up with nudge_watch.py")
+        return
     for trial in trials:   # folders from before the coarse tube and the back-off were added
         trial.setdefault("tube", "fine")
         trial.setdefault("stop", "held" if trial["held"] else "released")
@@ -503,6 +553,13 @@ def main() -> None:
                         help="zero the scale between throws, the powder left in the cup, in place of a changed cup")
     throws.add_argument("--cup-holds", type=float, default=0.0,
                         help="grains already in the cup from an earlier run, counted toward its limit")
+    ramp = sub.add_parser("ramp", help="a tube through speeds one after another with no stop between, then "
+                                       "stopped and watched: how its flow follows a change of speed")
+    ramp.add_argument("--tube", default="fine", choices=("coarse", "fine"))
+    ramp.add_argument("--plans", required=True, help="plans separated by ';', each speed:seconds,speed:seconds,...")
+    ramp.add_argument("--names", default="", help="a name for each plan, comma-separated")
+    ramp.add_argument("--count", type=int, default=30, help="trials of each plan, in a shuffled order")
+    ramp.add_argument("--still-s", type=float, default=4.0)
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
@@ -517,7 +574,7 @@ def main() -> None:
             summarise(args.folder)
         return
 
-    bench = Bench(args.repo, args.command, args.board, tap=args.command not in ("flick", "creepstop", "throws"))
+    bench = Bench(args.repo, args.command, args.board, tap=args.command not in ("flick", "creepstop", "throws", "ramp"))
     try:
         start = bench.weight()
         print(f"weight at the start {start:.2f}")
@@ -558,9 +615,28 @@ def main() -> None:
                     print("stopping: the cup is near full")
                     break
                 trial = bench.creep_stop(args.tube, speed, draw.uniform(least, most), args.still_s, stop)
+                bench.save_runs()
                 gain, settle = creep_gain(trial)
                 print(f"{index + 1}/{len(plan)} {args.tube} {speed:g} {stop} "
                       f"{trial['run_s']:.1f} s {gain:+.1f} digits, still by {settle:.2f} s", flush=True)
+        elif args.command == "ramp":
+            plans = [[tuple(float(text) for text in part.split(":")) for part in plan.split(",")]
+                     for plan in args.plans.split(";")]
+            names = args.names.split(",") if args.names else [f"plan{index + 1}" for index in range(len(plans))]
+            order = list(range(len(plans))) * args.count
+            random.Random(len(order)).shuffle(order)
+            bench.turn(args.tube, PRECONDITION_RPS, 3.0, 5.0, note="precondition")
+            for index, which in enumerate(order):
+                if bench.weight() > CUP_LIMIT_GR:
+                    print("stopping: the cup is near full")
+                    break
+                trial = bench.ramp(args.tube, names[which], plans[which], args.still_s)
+                bench.save_runs()
+                first, at_stop = trial["during"][0][1], trial["during"][-1][1]
+                end = statistics.median(w for t, w in trial["after"] if t >= trial["after"][-1][0] - 0.6)
+                print(f"{index + 1}/{len(order)} {names[which]} {trial['turns']:.2f} turns, "
+                      f"{(at_stop - first) / DIGIT_GR:+.0f} digits to the stop, {(end - at_stop) / DIGIT_GR:+.1f} after, "
+                      f"{(end - first) / trial['turns']:.2f} gr a turn", flush=True)
         elif args.command == "steps":
             bench.precondition(args.tube, 5.0)
             first = bench.motor_stats()

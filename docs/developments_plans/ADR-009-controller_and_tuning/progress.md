@@ -451,3 +451,95 @@ The owner, to "fit the scale's small-change behaviour from the frames already re
 5. As before: the fine tube turned backward, the coarse tube's evenness, a second unit and other powders.
 
 **Next, in order:** (1) the capture protocol as one fixed script, with these in it; (2) the campaign; (3) the flow's lag and the scale's shape fitted from it; (4) the design.
+
+## 2026-11-20, 21:08 to 22:31: a capture session, the same unit and powder
+
+**The owner:** "Before working on any fitting, I have the scale with powder loaded. Do you want to capture more data per our earlier discussion?" Asked which unit, powder, cup and how much: the Pico 2 W as before, the same air-exposed AR2209, an empty cup on the pan, all of the list. During it: "Are you going to run forward AND reverse, and other capture as well?", for which two recordings were added (a reverse of four lengths, and back and forth). The PC had died just before (the owner: "Computer died"); nothing was lost.
+
+**What each recording measures is a number of the simulation; no setting of today's loop was tried.** Pico 2 W, 2.0.3-84, the A&D at FAST. Every weight by `state` (47 a second), no tap. Every session `VERDICT PASS`. Nothing stored or changed on the unit; it is idle, 546 gr in the cup, which needs emptying. Raw folders under the main checkout's `logs/adr009`; the figures below in `research/bench_2026-11-20/evening_capture.txt`, each made by a script kept in `tools/charge_sim/bench/`.
+
+| Folder | Recording | Trials |
+|---|---|---|
+| `210809_creepstop` | Fine tube, stops from 0.2, 0.5 and 1 rev/s | 15 a speed |
+| `211314_ramp` | Fine tube slowed from 1.5 to 0.03 rev/s in fifteen equal ratios over 3.3 s, stopped; and the same held 3 s at 0.03 first | 30 and 30 |
+| `212307_ramp` | Fine tube slowed as the recorded throws' last three seconds (1.0, 0.75, 0.5, 0.31, 0.22, 0.105, 0.05 rev/s), stopped | 30 |
+| `212658_ramp` | Fine tube stepped between 0.05, 0.2 and 1 rev/s with no stop | 5 runs of eight changes |
+| `213243`, `213358`, `213453_creepstop` | Fine tube steady: 60 s at 0.2, 40 s at 0.5, 20 s at 1 rev/s | 1 each |
+| `213528_creepstop` | Fine tube stopped plainly and with the charge's reverse quarter turn, from 0.05, 0.1 and 0.3 rev/s | 15 a speed and kind |
+| `214803_ramp` | Fine tube forward at 0.2 rev/s, back by 0.05, 0.1, 0.25 or 0.5 of a turn, forward again 6 s | 8 a length |
+| `215552_ramp` | A minute at a net 0.05 rev/s: steady, in small swings (+0.25, -0.15 rev/s) and in wide ones (+0.45, -0.35), about four swings a second | 2 each |
+| `220252`, `220337_creepstop` | Coarse tube steady: 30 s at 0.1, 8 s at 0.3 and at 1 rev/s | 1 each |
+| `220430_nudgewatch` | 300 nudges of 0.017 of a turn, the reading watched 5 s after each | 300 |
+
+**1. The finish's missing powder is ordinary open-loop behaviour.** The tube taken through a real finish's speeds with no controller leaves what the real throws left:
+
+| After the stop | The twelve slow-finish throws | The throw-shaped ramp, open loop |
+|---|---|---|
+| Digits landed, mean and spread | 4.5, 2.5 | 4.5, 2.2 |
+| Arrived by 0.2, 0.6 and 1.0 s | 1.8, 4.0, 4.5 | 1.5, 3.8, 4.4 |
+
+The last 0.6 s of its turning accounts for 2.1 of the 4.5. The gentler ramp, which spends its last second under 0.1 rev/s, leaves 2.0 (its turning accounts for 0.9), and 1.2 when held at 0.03 rev/s first.
+
+**2. What a stop leaves depends on the speed it comes from, and most at the middle speeds.** Stops from a steady turn, last night's and today's together:
+
+| Fine tube | Flow before, digits a second | After the stop, digits | Of them beyond 0.6 s of the flow | All in by |
+|---|---|---|---|---|
+| 0.02 rev/s | 0.9 | +0.4 | -0.1 | 1.5 s |
+| 0.05 | 1.5 | +2.6 | +1.7 | 1.5 s |
+| 0.1 | 3.1 | +3.0 | +1.1 | 1.5 s |
+| 0.2 | 6.9 | +9.9 | +5.8 | 1.5 s |
+| 0.3 | 9.5 | +10.0 | +4.3 | 1.5 s |
+| 0.5 | 17.2 | +16.6 | +6.3 | 1.5 s |
+| 1 | 41.4 | +25.3 | +0.5 | 1.5 s (24.5 by 1.0 s) |
+
+- **From 0.2 to 0.5 rev/s about 4 to 6 digits more than the delay accounts for land after a stop;** from 1 rev/s next to none. The simulation had no stop above 0.1 rev/s and took what follows a stop there for nothing. Today's loop passes through 0.2 to 0.5 rev/s in its last second.
+- It does not depend on the run's length (2 to 4 s) and little on the trial before (0.2 rev/s: 7.8 digits after a trial at 0.2, 11.6 after one at 1).
+- **What falls is owed at the next start** (from the reverse stops' session, starts after a plain stop): at 0.3 rev/s the start is 6 digits short of a steady flow by its third second, at 0.1 rev/s 4 short, at 0.05 rev/s 1 short.
+
+**3. A tube that slows down does not lag, and pours its usual powder.** Over each kind of ramp the reading trails the tube's own speed by 0.60 to 0.65 s (best fit a trial, 0.45 to 1.0), the same as after a steady stop, at 0.77 gr a turn (spread 0.08). **So the evening's lead, "the flow follows the speed over a part of a turn", is wrong as a lag:** what it stood in for is point 2.
+
+**4. Speed steps with no stop.** From 1 rev/s down to 0.2 or 0.05 the reading's slope changes 0.47 to 0.56 s after the command and no powder is gained or lost (-0.3 and -1.3 digits). From 0.2 down to 0.05, about 2 digits more arrive than a clean change gives (9 changes of 10). Steps up are too noisy on five runs to read.
+
+**5. The fine tube turned backward** (nothing of it was measured before)
+- **The charge's reverse quarter turn after a stop spills about a kernel:** +1.7 digits at 0.05 rev/s, +0.8 at 0.1, +0.7 at 0.3, where the coarse tube's spills 0.6 to 1.1 gr.
+- **The forward turn after a reverse gives less than its turns,** and the loss levels off at a third of a turn:
+
+| Back by | While turning back, digits | The forward turn after it is short by |
+|---|---|---|
+| 0.05 turn | +1.2 | 0.12 turn (4 digits; spread 7) |
+| 0.10 | +1.4 | 0.23 turn (9 digits) |
+| 0.25 | +5.0 | 0.36 turn (14 digits) |
+| 0.50 | +4.6 | 0.33 turn (13 digits) |
+
+  About a second after it starts forward again the flow is back at its steady rate.
+- **Back and forth at four swings a second does not even the slow flow.** Variance over mean of the digits in 1, 2 and 4 s: steady 1.7 to 1.9, 1.6 to 2.1, 0.7 to 1.0; small swings 2.3, 2.5 to 2.7, 0.8 to 2.9; wide swings 1.6 to 2.4, 1.8 to 3.1, 2.3 to 2.9. Two runs of a minute each: not worse by much, and no better. With last night's flick test that is twice the same answer for swings made from the PC; a fast oscillation needs a command in the firmware and is still not measured.
+
+**6. The fine tube steady at the middle speeds** pours evenly: variance over mean in 1, 2 and 4 s 0.77, 0.94, 0.19 at 0.2 rev/s and 0.86, 0.62, 0.36 at 0.5; 0.73 to 0.82 gr a turn.
+
+**7. The coarse tube at 0.1 rev/s is lumpy:** variance over mean 5.5 and 4.6 in 1 and 2 s, its largest second 79 digits of a mean 49; 0.57 s of its flow after the stop. The 8 s runs at 0.3 and 1 rev/s give its flow (9.7 and 9.4 gr a turn) and its stop (0.62 and 0.55 s of flow) but are too short for windows of a second; their samples are there for shorter ones.
+
+**8. How the scale shows a small change** (300 nudges; 69% gave nothing, 13% one digit, 8% two, 4% three, 6% four and more; 0.69 digits a nudge, which is the tube's full 0.81 gr a turn)
+
+| The release, digits | Releases | The reading first moves, s after the nudge began: a tenth, half, nine tenths of them |
+|---|---|---|
+| 1 | 40 | 0.67, 1.95, 4.05 |
+| 2 | 24 | 0.80, 1.17, 1.61 |
+| 3 | 13 | 0.86, 1.05, 1.17 |
+| 4 | 6 | 0.80, 0.87, 0.92 |
+| 5 and more | 11 | 0.61, 0.81, 0.91 |
+
+- The time to the first move falls steadily with the size of the change; one digit alone is spread from under a second to over four. Of the two-digit releases, 15 of 24 were shown a digit at a time, the second 1.5 s after the first.
+- **For a finish that adds single kernels:** a wait of 2 s sees half of them, 4 s nine in ten.
+
+**What changes in the afternoon's and the evening's conclusions**
+- The simulation is kind at the finish because **it has nothing falling after a stop from the middle speeds**, and no mass owed at the start after. That is now measured from 0.02 to 1 rev/s, and the throw-shaped ramp is an open-loop check of it that is not the throws.
+- "The flow follows the speed over a part of a turn" is withdrawn (point 3).
+- "No evenness of the powder gives 1 over in 50 with a finish by one stop" was drawn on a simulation without this; it is to be run again once the record has it. It can only get harder for one stop: what a stop leaves is spread by 2 to 4 digits at every speed above 0.02 rev/s.
+
+**In the recorder** (`bench/record.py`): a `ramp` test (speeds one after another with no stop, negative ones too, then a stop, the tube's own speed read with each weight); the runs written after every trial, so a PC that stops loses one trial; a watched nudge is `creepstop` with a turn of 0.05 s, summed by `nudge_watch.py`.
+
+**Found in passing, for ADR-012's owner:** the unit's count of late step feeds on the fine motor went from 18 to 101 over the session (`motor`: `fine_underruns`), the coarse motor's stayed 0. Not looked into; the session sent the fine motor a new speed up to eight times a second for minutes.
+
+**Not captured:** a second unit, another powder, an oscillation faster than the PC can command, the coarse tube's evenness at 0.3 and 1 rev/s over a longer run, the scale with a known weight.
+
+**Next (fitting, not begun, by the owner's word "before working on any fitting"):** (1) `measure.py` and the simulation's twin take the new tests (stops to 1 rev/s, the ramps, the reverse lengths, the watched nudges); (2) the record built again with what follows a stop at every speed and what a reverse costs; the throw-shaped ramp and the three sets of throws as its checks; (3) the scale's small-change shape from point 8; (4) the capture protocol as one script for the second unit and the other powders; (5) the design.

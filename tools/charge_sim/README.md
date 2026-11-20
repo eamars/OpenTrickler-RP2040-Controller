@@ -41,7 +41,7 @@ Another unit, powder or scale is another record, made by the same command. Nothi
 | `fit_report.py` | The simulation beside the bench, figure by figure; `fit/` holds the figures and the last comparisons |
 | `pinned.py` | Which numbers the recordings pin down, and which of the rest a throw notices |
 | `bench_twin.py` | The bench's tests (a steady turn and a stop, nudges, today's loop's throws) run against the simulation, in the shape the bench saves |
-| `bench/` | The bench's own tools: `record.py` (recordings through the debug probe), `stats.py` (a recording as figures, for the bench and the simulation alike), `measure.py`, and the looks at a recording |
+| `bench/` | The bench's own tools: `record.py` (recordings through the debug probe: maps, stops, nudges, throws, and `ramp` for speeds one after another with no stop, backward too), `stats.py` (a recording as figures, for the bench and the simulation alike), `measure.py`, and the looks at a recording (`after_stop.py`, `ramp_look.py`, `steps_look.py`, `reverse_look.py`, `nudge_watch.py` for the session of 2026-11-20's evening, not yet figures of `stats.py`) |
 | `mc.py` | Many throws summed up: over, under, error, time, and the seconds a good throw costs |
 | `scale_map.py` | A controller across scales: overs and time against a scale's delay, reading period and hold |
 | `evenness.py` | How evenly the fine tube must pour at low speed for a finish to hold the tolerance |
