@@ -15,7 +15,7 @@ ADR-009 is a **Draft, not approved**. Everything here is research for its design
 - **The tool changed** (`tools/charge_sim/bench/trial.py`; `trial_guide.md` is as it now stands): it reads the unit's own step count each round, makes a short turn with nothing read in between, starts a held tube from switched off, and can measure a kept trial's turns again (`--remeasure`). **Start any trial with `--throws 2`:** three faults showed there before an hour was spent.
 - **The recordings are kept** (`tools/charge_sim/recordings/`, the session `pico2w_ar2209_trial`): four folders, of which `20261121_162403` is the trial that is judged.
 
-**What is the owner's to say next** (put to him 17:30, not answered): whether to run the same trial with BM2 (an hour; its forecast is written, `fit/trial_forecast_pico2w_bm2.json`: proposal 1 94% and proposal 2 88% within 0.02 gr). It says whether the ranking turns for a fine powder too.
+**The same trial with BM2 was put to the owner at 17:30; his answer: "Not today".** It is put off, not refused, and nothing else was asked for: no desk step below is begun or approved. Ask again when a session next has the bench. What it is: the same trial with BM2 (an hour; its forecast is written, `fit/trial_forecast_pico2w_bm2.json`: proposal 1 94% and proposal 2 88% within 0.02 gr). It says whether the ranking turns for a fine powder too.
 
 **What I would do after it, in order, none begun and none approved:**
 1. **Mend AR2209's record from the trial** (`proposals_2026-11-21.md`, section 5's last list): its small moves, its first rise after a coarse start, its coarse tube's powder a turn at speed.
