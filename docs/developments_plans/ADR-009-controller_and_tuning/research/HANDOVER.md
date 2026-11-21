@@ -4,7 +4,7 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 is a **Draft, not approved**. Everything here is research for its design. Nothing is merged or pushed.
 
-## Where it stands, 2026-11-21, 17:30: read this first
+## Where it stands, 2026-11-21, 17:29: read this first
 
 **Both proposals have thrown on the real unit, with AR2209, and the trial is judged.** `../progress.md`, "the two proposals on the unit" (the three short runs, what they found, what was mended) and "the full trial with AR2209, judged". `proposals_2026-11-21.md` now opens with what the bench did to it. In short:
 
@@ -15,13 +15,49 @@ ADR-009 is a **Draft, not approved**. Everything here is research for its design
 - **The tool changed** (`tools/charge_sim/bench/trial.py`; `trial_guide.md` is as it now stands): it reads the unit's own step count each round, makes a short turn with nothing read in between, starts a held tube from switched off, and can measure a kept trial's turns again (`--remeasure`). **Start any trial with `--throws 2`:** three faults showed there before an hour was spent.
 - **The recordings are kept** (`tools/charge_sim/recordings/`, the session `pico2w_ar2209_trial`): four folders, of which `20261121_162403` is the trial that is judged.
 
-**The same trial with BM2 was put to the owner at 17:30; his answer: "Not today".** It is put off, not refused, and nothing else was asked for: no desk step below is begun or approved. Ask again when a session next has the bench. What it is: the same trial with BM2 (an hour; its forecast is written, `fit/trial_forecast_pico2w_bm2.json`: proposal 1 94% and proposal 2 88% within 0.02 gr). It says whether the ranking turns for a fine powder too.
+**The owner's direction for what comes next (2026-11-21, 17:29):** "BM2 is low risk, so the next won't run the BM2 bench test. Instead, I'd expect the next agent to start to implement the controller and calibration in the firmware, and perform basic tune, against the calibration on the same rig based on proposal today. The next agent will be hands on, based on your research and simulation today." It is in `../README.md` in his words. (At 17:30 he had answered "Not today" to a BM2 trial; this replaces it.)
 
-**What I would do after it, in order, none begun and none approved:**
-1. **Mend AR2209's record from the trial** (`proposals_2026-11-21.md`, section 5's last list): its small moves, its first rise after a coarse start, its coarse tube's powder a turn at speed.
-2. **Let the calibration choose the finish:** play the finish on its own measured moves and stops (`best_finish.py` is that play, at the desk) for the aim, the move to make from each shortfall, and the share of good throws to tell the user. In the simulation first.
-3. **Rehearse as a throw ends,** not with a short stream from rest: the rehearsals' spread was twice the throws' and set proposal 1's aim too far short.
-4. **The coarse tube's last powder at its floor:** five throws of 100 ended 6 to 26 digits short after the coarse tube alone, one within 0.12 gr of an over.
+### For the agent who implements it
+
+**Read in this order:** this section; `proposals_2026-11-21.md` (its first section, then 2 and 3.2); `tools/charge_sim/staged.py`, which is the proposal as about 500 lines of code and the reference to port; `../progress.md` from "the two proposals on the unit" on.
+
+**Before any code, three things of this repository's rules:**
+1. **Fetch, and start from `origin/main`.** This branch is 77 commits behind it and 45 ahead, all of them documents and `tools/charge_sim` (nothing under `src/`). It is not pushed since ff87a43 this morning.
+2. **The ADR is still written as a Draft.** The owner's word above is the direction; the ADR's own "what we do", its gates and "how the unit shows it works" are not written. Write them and put them to him before the first gate is built (AGENTS.md: approval first; stage gates inside the ADR).
+3. **Ask again whether the bench is ready.** As left: the Pico 2 W on the probe, AR2209 in the hopper, 558.5 gr in the cup.
+
+**What is settled, and what is not:**
+- **Settled by the owner:** the controller and its calibration go into the firmware now; the rig is the same one (Pico 2 W, A&D FX-300i, the air-exposed AR2209); the tune is hands on, on that rig. That is new: through the research his rule was that the bench captures data and nothing is tuned on the unit ("I don't want you to enter the tuning mode", 2026-11-20). I read today's word as lifting it for this stage; if a step feels like the old tuning by trial, ask him.
+- **Settled by the owner:** no BM2 trial first. The frame carries both finishes as two numbers, so BM2 is thrown by the firmware itself when he loads it.
+- **Mine, not his:** which finish is the default. I would build the frame once and start with proposal 2's finish (the creep and a stop a digit short), since it is the one that held on this rig, with proposal 1's kept as the other setting of the same two numbers.
+
+**The bar to meet on the rig** (the PC's trial of today, 25 throws of 10 gr a set; `tools/charge_sim/recordings/20261121_162403_trial_pico2w_ar2209`): proposal 2's finish 68% good within 0.02 gr and 84% within 0.04 gr, 13 s a throw, no under. The firmware should do no worse and should be the quicker: it acts every millisecond where the PC acted every 40 to 80 ms. About 70% and 90% is this powder's ceiling here (`bench/best_finish.py`), so a tune that chases more within 0.02 gr with AR2209 is chasing the powder.
+
+**What the rig's calibration gave, to tune against** (that folder's `calibration.json` and each set's own in `throws_*.json`): coarse 9.60 and fine 0.797 gr a turn; the coarse tube's spread 6.1% a run; lags of 0.60, 0.55, 0.58 s (coarse at 0.3, 1, 2 rev/s) and 1.02 to 0.82 s (fine, from 1 to 20 digits a second); every watch 5.3 s; the three moves 0.024, 0.071 and 0.158 of a turn. Proposal 2 within 0.02 gr: floor 0.025 rev/s, stop at 1 to 1.5 digits of room, at its floor from 5.2 digits, glide 0.66 s, coarse margin 0.61 gr, rest 2.3 s.
+
+**What the firmware has that the PC did not, and what it must add:**
+- **The step count is its own,** and a decision every millisecond: the motor task already ticks at 1 ms. Today's charge loop runs once a scale reading (`charge_mode.cpp`); the controller's seam is `start`, a tick, a reading (`tools/charge_sim/README.md`, last paragraph).
+- **A small move is a number of steps.** The PIO makes only the steps it is fed (`step_pulses.c`), so a move fed as a count is exact. There is no such call today.
+- **A stopped tube is held at zero, never at a creeping speed.** The PC's stand-in for a hold made a start up to 0.7 s late, because a new step rate waits for two segments at the old one. From a stop it does not wait. Check it once on the unit before trusting a move's timing; it is ADR-012's code.
+- **The calibration is a job** like a cleanup (`jobs.c`), offered from the powder's profile, with the cup step kept before it. It took 13 minutes and 173 gr on this rig.
+- **Where its tables are stored is a stored layout's change** and is said in the ADR: a profile today holds the two PIDs' gains and speed limits (`profile.h`), and eight profiles share one record.
+- **ADR-013's rule stays:** no fresh reading, no turning. And nothing of today's loop is mended on the way: it is the code this replaces.
+
+**Weak points the trial left, to mend while building, none begun:**
+1. **The rehearsals:** ten throws of 1 gr from rest spread twice as widely as real throws' stops. Rehearse as a throw ends.
+2. **Which move to make:** the rule is not the best play of a powder's odds (56% where the best play of the same moves gives 66%). `bench/best_finish.py` is that play at the desk; the calibration could keep its table.
+3. **The coarse tube's last powder at its floor:** five throws of 100 ended 6 to 26 digits short after the coarse tube alone, one within 0.12 gr of an over.
+4. **A small charge is slow at its start:** the coarse tube leaves about 2 gr of a 10 gr charge to the fine tube, five seconds of it. That margin is three spreads of an unseen coarse stream; a larger charge loses less.
+5. **Not tried at all:** the Pico W, a second scale, BM2, any charge but 10 gr on the unit and 20 gr in the simulation, the servo gate.
+
+**The simulation stays the place to try a change before the unit,** where it can say: `python bench/trial.py --made-up pico2w_ar2209` runs the same controller code against it in a minute. Its small moves are kinder than the rig's and its coarse start shows 0.1 s late (`proposals_2026-11-21.md`, section 5's last list); the recordings to mend it with are kept.
+
+**Gates I would propose to the owner, as a start for the ADR's plan and no more than that:**
+1. The controller as a module with no hardware in it, built for the PC too and checked there against `staged.py` throw for throw; every throw recorded.
+2. That module in the charge, its numbers given from today's measured calibration, on the rig: the bar above.
+3. The calibration as a job on the unit, its numbers against today's.
+4. The screens and the web for both (every setting on both), and what the calibration tells the user.
+5. The Pico W; a second powder.
 
 **Bench traps met today, besides those below:**
 - A tube started from the console's hold speed starts up to 0.7 s late: the firmware puts a new step rate on the pin only when two segments at the old rate are made (`step_pulses.c`). Switch it off first. This is ADR-012's to know of.
