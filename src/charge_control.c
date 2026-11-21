@@ -27,7 +27,9 @@ typedef charge_control_real_t real_t;
 
 #define COARSE 0
 #define FINE 1
-#define BAND_EPSILON_GR REAL(1e-6)
+// A weight at rest lies on the scale's digits, and a reading less a large base is off them in real_t by more than a
+// millionth (10.02 over a cup of 60 gr: 0.0200043): the band's edge is a quarter digit past the band
+#define BAND_EDGE_DIGITS REAL(0.25)
 // Two times this close are the same time: a tie on the millisecond's grid falls the same way in real_t as in the
 // reference's double (staged.py's TIE_S)
 #define TIE_S REAL(1e-4)
@@ -491,12 +493,13 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
         c->first_error_gr = at_rest - c->target_gr;
         learn(c);
     }
-    if (c->rehearsal || short_gr <= cal->band_gr + BAND_EPSILON_GR || !tries_left) {
+    real_t band_edge = cal->band_gr + BAND_EDGE_DIGITS * cal->digit_gr;
+    if (c->rehearsal || short_gr <= band_edge || !tries_left) {
         charge_control_result_t result = CHARGE_CONTROL_RESULT_GOOD;
-        if (at_rest - c->target_gr > cal->band_gr + BAND_EPSILON_GR) {
+        if (at_rest - c->target_gr > band_edge) {
             result = CHARGE_CONTROL_RESULT_OVER;
         }
-        else if (short_gr > cal->band_gr + BAND_EPSILON_GR) {
+        else if (short_gr > band_edge) {
             result = CHARGE_CONTROL_RESULT_SHORT;
         }
         stop_all(c, result, at_rest);

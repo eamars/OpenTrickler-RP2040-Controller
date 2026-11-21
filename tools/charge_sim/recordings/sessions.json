@@ -24,12 +24,23 @@
  {
   "name": "pico2w_ar2209_trial",
   "from": "20261121_145000",
-  "to": "20261121_235959",
+  "to": "20261121_213959",
   "unit": "Pico 2 W, firmware 2.0.3-84, the same tubes",
   "powder": "AR2209",
   "kernel_gr": 0.021,
   "powder_note": "the same air-exposed AR2209 as the session of 2026-11-19 and 20",
   "scale": "A&D FX-300i in grains, response FAST",
   "notes": "docs/developments_plans/ADR-009-controller_and_tuning/progress.md, 'the two proposals on the unit' (14:52 to 16:22) and 'the full trial with AR2209, judged' (16:24 to 17:15). Folders of bench/trial.py: a calibration's turns (runs.json of 145252 alone), each set's rehearsals and throws. 145252 and 152433 are of the tool before its mends (their jog throws are void, their rows have no step count); 160810 is the short check of the mends; 162403 is the trial that is judged"
+ },
+ {
+  "name": "pico2w_ar2209_gate2",
+  "from": "20261121_214000",
+  "to": "20261122_235959",
+  "unit": "Pico 2 W, firmware 2.0.3-142-dirty (adr009_controller, gate 2): the staged controller in the firmware",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same air-exposed AR2209 as the sessions before",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "docs/developments_plans/ADR-009-controller_and_tuning/progress.md, 'gate 2 built, and its first throws on the rig' (series A and B, 2026-11-21) and 'the cause is the calibration's lags' (series C, 2026-11-22). Folders of bench/series.py: series.json alone"
  }
 ]

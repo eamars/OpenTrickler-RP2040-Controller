@@ -70,6 +70,7 @@ LEARN_DEAD_DIGITS = 0.25        # nor less
 # a parcel falls due on a reading's very millisecond often, and which way such a tie falls must not hang on the last
 # bit of a float: the firmware's port (src/charge_control.c), in single precision, breaks it the same way (ADR-009)
 TIE_S = 1e-4
+BAND_EDGE_DIGITS = 0.25        # a rest within the band and this much of a digit is in it
 
 
 @dataclass(frozen=True)
@@ -482,7 +483,9 @@ class Staged:
         if self.first_error is None:
             self.first_error = weight - self.target
             self._learn()
-        if self.rehearsal or short <= cal.band_gr + 1e-6 or not tries_left:
+        # a rest lies on the scale's digits; a quarter digit past the band is its edge, so that a reading less a large
+        # base, a digit's float off it, falls the right way (the firmware's real_t: 10.02 over 60 gr is 0.0200043)
+        if self.rehearsal or short <= cal.band_gr + BAND_EDGE_DIGITS * cal.digit_gr or not tries_left:
             self.log.append((self.first_error, self.moves, self.streams))
             self.done = True
             return

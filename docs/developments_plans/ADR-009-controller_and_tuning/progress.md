@@ -1224,3 +1224,18 @@ The simulation makes the rig's two kinds of throw from this one difference: **pa
 - **Gate 3 needs nothing new:** the calibration as a job on the unit measures the lags in the firmware's own time. Its pass against the trial's lags ("each lag within 0.1 s") holds with them 0.055 s shorter.
 
 **Step 5, the rig, its forecast written first:** series C, the same as series B (the trial's calibration, B's first errors, `fine_top_rps=1.0`, 10 gr, 25 throws) but for the lags. Expected: the coarse tube at about 8.5 gr in at least 22 throws of 25, a median of 12 to 14 s, and more overs than B's 5 (the simulation: 29%; series A's on-time throws were often over). Pass: gate 2's bar, at least 68% good within 0.02 gr with a median of at most 13 s.
+
+### 11:50 to 12:00: series C on the rig, judged; the band's edge mended
+
+The owner: "Bench ready". `20261122_115105_series_glide002_c_lagshift_pico2w_ar2209` (two throws first, both good, the coarse tube at 7.7 and 8.0 gr): series B's calibration, first errors and `fine_top_rps=1.0`, every lag 0.055 s earlier.
+
+| Series (glide, 0.02 gr, 25 throws) | Coarse tube's powder | Good | Over | Under | Median |
+|---|---|---|---|---|---|
+| B, lags as the PC measured them | about 6.5 gr, every throw | 20 (80%) | 5 | 0 | 18.0 s |
+| C, lags 0.055 s earlier | 7.4 to 8.6 gr; at least 7.5 in 24 of 25 | 15 (60%) | 10 | 0 | 13.7 s |
+
+- **The cause is confirmed on the rig:** the coarse tube stops where the margin puts it, and the time falls by 4.3 s, as the simulation said (12.7 s there).
+- **Against gate 2's bar: fail** (60% good against 68%; 13.7 s against 13). The forecast had more overs coming (the simulation: 29%), but not 40%.
+- **Where the overs come from:** five throws first rested 2 to 6 digits over, the stream's own stop (the learning moved the stop room from 0.031 to 0.043 gr over the series); four rested 1 to 3 digits short and one small move released 4 to 6 digits; and one, throw 37, first rested at 9.98, inside the band, and was moved on to 10.08.
+- **Throw 37 is a fault of the controller's edge, now mended.** A rest's weight is a reading less the cup's base, and in the unit's float 10.02 over a cup of 60 gr is 0.0200043 over the target, past the band's edge of a millionth: three rests at 10.02 were logged over (32, 40, 49), and three at 9.98 were moved on (37, 40, 52). On a charge of 100 gr the same falls by chance with no base at all (100.02 less 100 is 0.0199966). The edge is now a quarter digit past the band, in `charge_control.c` and `staged.py` alike (rests lie on the scale's digits). Gate 1's check again: lockstep 200 of 200 in all 8 sets, float and counted within noise, the rules agree: **pass**. Not yet on the unit.
+- **B against C is the trade of this powder:** B's fine tube carried 3.5 gr at its slow end and rested in the band four times in five, at 18 s; C's carries 1.5 gr and is quick, and the stream's stop and the moves' clumps cost it a throw in five. The bar asks for both at once; the trial's ceiling for this AR2209 (about 70% within 0.02, `bench/best_finish.py`) is close to it.
