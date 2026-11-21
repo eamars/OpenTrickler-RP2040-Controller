@@ -459,11 +459,15 @@ class Staged:
         weight = self.highest if REST_ON == "highest" else self.lowest
         short = self.target - weight
         tries_left = self.moves + self.streams < MOST_MOVES
-        if not self.rehearsal and tries_left and short > cal.moves[-1].most_gr:
-            # Short by more than the largest small move gives: back to the stream, by the same law, from this
-            # reading at rest. Whatever made the forecast stop the tubes early (it counted a fast coarse stream
-            # twice on the bench, 2026-11-21; a hopper that bridged would do the same) costs the throw time and
-            # not its weight. Nothing is learnt from such a rest: the stop was not where the margin put it.
+        if not self.rehearsal and tries_left and short - self.stop_room > cal.moves[-1].mean_gr:
+            # Short by more than the stream's own stop margin and the largest small move together: the stream
+            # would pour more from this rest than that move gives, so back to the stream, by the same law.
+            # Whatever made the forecast stop the tubes early (it counted a fast coarse stream twice on the
+            # bench, 2026-11-21; a hopper that bridged would do the same) costs the throw time and not its
+            # weight. Nothing is learnt from such a rest: the stop was not where the margin put it.
+            # A rest inside the stop's margin is the moves' to mend, however far it is: a stream begun there
+            # stops at once. Measured against the largest move alone, one throw on the bench went back eight
+            # times, poured nothing and ended 11 digits short.
             self.streams += 1
             self.phase = "feed"
             self.coarse_on = short > cal.coarse_room_gr + 0.5 * cal.coarse_gr_turn

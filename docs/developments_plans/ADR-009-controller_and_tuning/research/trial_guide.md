@@ -2,7 +2,7 @@
 
 2026-11-21. The owner, on being asked: "Yes, prepare it". For whoever runs it, person or agent. It is the first contact of `proposals_2026-11-21.md` with a real tube.
 
-**Nothing here has touched a unit.** The tool was tried against a made-up unit, which is the simulation answering the console's commands (`trial.py --made-up`). The bench rules hold (AGENTS.md): no run before the owner says the bench is ready.
+**First run on a unit: 2026-11-21, afternoon, with AR2209.** Three short runs came before the full one and found faults in the tool and in the controller, each mended at the desk before the unit turned again (`progress.md`, "the two proposals on the unit"). This guide is as the tool stands after them. Before a unit, the tool is tried against a made-up unit, which is the simulation answering the console's commands (`trial.py --made-up`). The bench rules hold (AGENTS.md): no run before the owner says the bench is ready.
 
 ## What it is
 
@@ -12,7 +12,9 @@ The PC is the controller. `tools/charge_sim/bench/trial.py` reads the weight by 
 2. **Four sets,** in this order: proposal 1 within 0.02 gr, proposal 2 within 0.02 gr, proposal 1 within 0.04 gr, proposal 2 within 0.04 gr. Each set is ten rehearsals of 1 gr and then 25 throws of 10 gr.
 3. **The scale is never zeroed.** Each throw is counted from the weight the cup rests at, so the cup fills as in a recording.
 
-**What a unit's own firmware would do better:** it counts its steps, where the PC counts the speeds it asked for; and it acts every millisecond, where the PC acts once a console command (20 to 45 ms). A proposal that holds from the PC holds there.
+**What a unit's own firmware would do better:** it acts every millisecond, where the PC acts once a round of console commands (the weight, the unit's count of its steps, a speed or two: 40 to 80 ms). The turns are the unit's own count either way: the PC reads it each round (`motor`), and makes a small move as a speed, a wait and a hold with nothing read in between, so that it is the turn asked. A proposal that holds from the PC holds there.
+
+**Start with two throws a set** (`--throws 2`, a quarter of an hour): a fault of the tool shows there, before an hour and two cups of powder are spent.
 
 ## What it needs from the owner
 
@@ -38,6 +40,12 @@ venv\Scripts\python .claude\worktrees\adr009-research\tools\charge_sim\bench\tri
 
 `--name pico2w_ar2209` for AR2209. The name picks the forecast the trial is set beside at its end.
 
+A new trial on the measurements of an earlier one, its kept turns measured again by the rules as they now stand and no tube turned for them (the sets begin afresh, with their rehearsals):
+
+```
+venv\Scripts\python .claude\worktrees\adr009-research\tools\charge_sim\bench\trial.py --repo C:\workspace\OpenTrickler-RP2040-Controller --name pico2w_ar2209 --remeasure logs\adr009\<stamp>_trial_pico2w_ar2209
+```
+
 ## How it stops, and how it is stopped
 
 - **By itself,** with both motors stopped: when the cup needs emptying; when a throw is not done in 120 s; when a reading is 3 gr over its target; when a tube has turned further than a throw can need; when the scale gives no weight or the console no reply. It prints `STOPPED:` and the reason.
@@ -49,10 +57,11 @@ venv\Scripts\python tools\remote_control\rc_run.py --board pico2_w send "motor c
 ```
 
 - **A held tube is not switched off.** The console's `motor <tube> 0` switches the driver off, which a charge never does; so through a throw a stopped tube is asked for a speed too slow to pour (in a minute a thousandth of a coarse turn, six thousandths of a fine one). At a throw's end both are switched off.
+- **A held tube is switched off for the moment it is started again.** The firmware puts a new speed on the pin only when the steps already handed to the PIO are made, and at a hold's speed that is a third of a second and more (`step_pulses.c`): a small move started from a hold was over before its first step (the first run, 2026-11-21).
 
 ## What is kept
 
-In the trial's folder, `logs\adr009\<stamp>_trial_<name>` of the main checkout: `calibration.json` (what was measured), `throws_<finish>_<band>.json` (the set's calibration, and every throw's readings, speeds and forecast), `trial.json` (the figures), and `runs.json` (the calibration's stops and moves, as the recorder keeps them). `bench\keep.py` copies them into the repository after the session, once the session is added to `recordings/sessions.json`.
+In the trial's folder, `logs\adr009\<stamp>_trial_<name>` of the main checkout: `calibration.json` (what was measured), `throws_<finish>_<band>.json` (the set's calibration, and every throw's rows: time, reading, the two speeds asked, the forecast, and each tube's turns by the unit's count), `trial.json` (the figures), and `runs.json` (the calibration's stops and moves, as the recorder keeps them). `bench\keep.py` copies them into the repository after the session, once the session is added to `recordings/sessions.json`.
 
 ## The forecast, written first
 
@@ -67,14 +76,18 @@ In the trial's folder, `logs\adr009\<stamp>_trial_<name>` of the main checkout: 
 
 | AR2209, air-exposed | Good | Over | A throw, median | Moves a throw | First rest against the target, digits; its spread |
 |---|---|---|---|---|---|
-| Proposal 1 within 0.02 gr | 76%; 60 to 84% | 16%; 4 to 32% | 14.5 s; 13.8 to 21.8 | 3.6; 3.2 to 5.4 | -7.2; 4.3 (2.8 to 12.8) |
-| Proposal 2 within 0.02 gr | 74%; 52 to 84% | 26%; 12 to 48% | 10.9 s; 7.5 to 14.5 | 1.2; 0.5 to 1.8 | -0.9; 2.6 (1.8 to 6.6) |
-| Proposal 1 within 0.04 gr | 90%; 84 to 96% | 8%; 4 to 16% | 12.0 s; 9.7 to 17.7 | 2.6; 1.6 to 4.2 | -6.9; 3.7 |
-| Proposal 2 within 0.04 gr | 88%; 84 to 96% | 10%; 4 to 16% | 9.1 s; 7.9 to 11.8 | 0.5; 0.2 to 0.8 | -0.9; 2.1 |
+| Proposal 1 within 0.02 gr | 74%; 64 to 84% | 16%; 8 to 28% | 17.6 s; 14.5 to 24.2 | 3.5; 2.7 to 4.2 | -5.0; 2.5 (1.9 to 2.9) |
+| Proposal 2 within 0.02 gr | 70%; 64 to 84% | 28%; 16 to 36% | 13.0 s; 10.6 to 19.2 | 1.2; 0.8 to 1.6 | -0.7; 2.4 (1.7 to 3.2) |
+| Proposal 1 within 0.04 gr | 92%; 72 to 96% | 6%; 0 to 16% | 13.1 s; 11.6 to 18.4 | 2.0; 1.2 to 2.7 | -4.9; 2.8 |
+| Proposal 2 within 0.04 gr | 88%; 76 to 96% | 12%; 4 to 24% | 11.6 s; 9.0 to 16.0 | 0.4; 0.1 to 0.9 | -0.8; 2.4 |
 
 With 25 throws one throw is four points, so the ranges are wide.
 
+**AR2209's table is of the controller as mended on 2026-11-21's afternoon,** written again before the full run. Before the mends it read 76%, 74%, 90% and 88% good in 14.5, 10.9, 12.0 and 9.1 s: the mends cost the simulation two to three seconds a throw and none of its good throws. **BM2's table is still of the controller before the mends** and is written again before a BM2 trial.
+
 ## Where I expect the bench to differ from the forecast, said before the run
+
+Said before the first run on a unit. What the short runs then showed, and what was expected of the full run before it began, is in `progress.md` ("The forecast written again, and what I expect, before the full run").
 
 1. **Slower.** The simulation's scale shows nine small moves in ten within 2 to 2.5 s; the bench's A&D took 4 s. The probe will set longer waits. Each move and each rest then costs about 1.5 s more: 5 to 8 s a throw for proposal 1 within 0.02 gr, 2 to 4 s for proposal 2.
 2. **Slower again, by 1 to 3 s,** because the bench's coarse tube stops less tightly than the simulation's (a spread of 0.12 to 0.5 gr against 0.05 to 0.13 gr): its margin will be nearer 1 to 2 gr, and the fine tube carries that at the 0.5 rev/s the trial holds it to.
