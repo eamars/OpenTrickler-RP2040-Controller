@@ -528,6 +528,25 @@ static const settings_resource_t fine_motor_settings = {
     end, and the direction pin changes in the next, on a motor that is still.
 */
 static void motor_tick(motor_config_t * motor_config, float dt_s) {
+    // A move asked: its count goes to the pulses, then the speed as any other (ADR-009)
+    if (motor_config->move_asked) {
+        motor_config->move_asked = false;
+        step_pulses_set_budget(motor_config->pulse_channel, motor_config->move_steps);
+        motor_config->target_velocity = motor_config->move_velocity;
+        motor_config->move_running = true;
+    }
+    if (motor_config->move_running) {
+        bool spent = step_pulses_budget_spent(motor_config->pulse_channel);
+        if (spent || motor_config->target_velocity == 0.0f) {
+            // Made, or cut short by a speed of 0: the motor is held at zero at once, its steps all on the pin
+            step_pulses_clear_budget(motor_config->pulse_channel);
+            motor_config->target_velocity = 0.0f;
+            motor_config->velocity = 0.0f;
+            motor_config->move_running = false;
+            motor_config->move_done = true;
+        }
+    }
+
     float target = motor_config->target_velocity;
     float velocity = motor_config->velocity;
     float max_change = motor_config->persistent_config.angular_acceleration * dt_s;
@@ -933,6 +952,48 @@ void motors_fault_stop(void) {
 
 void motor_get_step_stats(motor_select_t selected_motor, step_pulses_stats_t * stats) {
     step_pulses_get_stats(motor_get_config(selected_motor)->pulse_channel, stats);
+}
+
+
+uint32_t motor_get_steps_made(motor_select_t selected_motor) {
+    step_pulses_stats_t stats;
+    // The count is read by putting two instructions into its state machine: one task at a time
+    taskENTER_CRITICAL();
+    step_pulses_get_stats(motor_get_config(selected_motor)->pulse_channel, &stats);
+    taskEXIT_CRITICAL();
+    return stats.steps_made;
+}
+
+
+float motor_get_steps_per_turn(motor_select_t selected_motor) {
+    motor_persistent_config_t *config = &motor_get_config(selected_motor)->persistent_config;
+    return (float) config->full_steps_per_rotation * (float) config->microsteps / config->gear_ratio;
+}
+
+
+bool motor_move_turns(motor_select_t selected_motor, float turns, float speed_rps) {
+    motor_config_t *motor_config = motor_get_config(selected_motor);
+    if (motor_config->velocity != 0.0f || motor_config->move_running || motor_config->move_asked ||
+        !(turns >= 0.0f) || !(speed_rps > 0.0f)) {
+        return false;
+    }
+    float steps = turns * motor_get_steps_per_turn(selected_motor);
+    motor_config->move_done = false;
+    if (steps < 0.5f) {
+        motor_config->move_done = true;
+        return true;
+    }
+    motor_config->move_steps = (uint32_t) lroundf(steps);
+    float velocity = fminf(speed_rps, (float) motor_config->persistent_config.max_speed_rps) /
+                     motor_config->persistent_config.gear_ratio;
+    motor_config->move_velocity = velocity;     // forward: the direction pin is the motors' task's
+    motor_config->move_asked = true;
+    return true;
+}
+
+
+bool motor_move_done(motor_select_t selected_motor) {
+    return motor_get_config(selected_motor)->move_done;
 }
 
 

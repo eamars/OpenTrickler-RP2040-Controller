@@ -19,9 +19,19 @@ static const setting_choice_t decimal_places_choices[] = {
 };
 
 
+static const setting_choice_t controller_choices[] = {
+    {.held = CHARGE_CONTROLLER_STAGED, .text = "staged", .label = "Staged (calibrated)", .short_label = "Staged"},
+    {.held = CHARGE_CONTROLLER_PID, .text = "pid", .label = "PID (the profile's gains)", .short_label = "PID"},
+};
+
+
 #define CHARGE_FIELD(member) SETTING_AT(eeprom_charge_mode_data_t, member)
 
 static const setting_field_t charge_fields[] = {
+    {.name = "controller", .label = "Controller", .group = "Control", .short_label = "Controller",
+     .about = "The loop that pours a throw: the staged controller, which takes every number from the powder's "
+              "calibration, or the PID loop, which takes the powder profile's gains and the thresholds below",
+     .type = SETTING_CHOICE, CHARGE_FIELD(controller), SETTING_CHOICES(controller_choices), .applies = "now"},
     {.name = "coarse_stop_threshold", .label = "Coarse stop threshold", .group = "Thresholds",
      .short_label = "Coarse stop", .edit_step = 0.1f,
      .about = "The coarse trickler stops this far below the target",

@@ -20,6 +20,13 @@ typedef enum {
     CHARGE_MODE_WAIT_FOR_CUP_RETURN = 4,
 } charge_mode_state_t;
 
+// The loop that pours a throw (ADR-009): the staged controller by default, today's PID loop beside it until what is
+// kept for users is decided (gate 6)
+typedef enum {
+    CHARGE_CONTROLLER_STAGED = 0,
+    CHARGE_CONTROLLER_PID = 1,
+} charge_controller_t;
+
 typedef struct {
     uint16_t charge_mode_data_rev;
 
@@ -31,6 +38,9 @@ typedef struct {
     float coarse_stop_gate_ratio; // 0.0=open, 1.0=close, -1.0=disabled (optional)
 
     bool coarse_stop_backoff_enable;
+    // Which loop pours a throw (ADR-009): charge_controller_t. In the filler after the bool above, so the record's
+    // size and CRC stay: a unit's stored 0 there is the staged controller
+    uint8_t controller;
     float coarse_stop_backoff_turns; // 0.125, 0.25, 0.5, 1.0
     float coarse_stop_backoff_speed_rps; // if <=0 uses min speed
 
@@ -101,8 +111,22 @@ typedef enum {
     CHARGE_START_BUSY,          // a job runs, a start is asked already, or a person has a mode or a view at the unit
     CHARGE_START_DRIVER_FAULT,
     CHARGE_START_NO_TARGET,
+    CHARGE_START_NOT_CALIBRATED,    // the staged controller, and the powder profile holds no calibration (ADR-009)
 } charge_start_result_t;
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
+
+/*
+ * For the bench (ADR-009): the next charge is a series of `throws` into the same cup, with no cup lifted between
+ * them. Each throw starts from the weight the cup rests at and is judged from it, as the PC's trial did; the series
+ * ends after its last throw, or when the cup holds CHARGE_SERIES_CUP_MOST. 0: the next charge as any other. Taken by
+ * the next start and never stored.
+ */
+#define CHARGE_SERIES_CUP_MOST 600.0f
+void charge_mode_set_series(uint16_t throws);
+
+// The console's `ccrec`: the last staged throw's rows (ADR-009)
+void charge_mode_record_console(char *reply, size_t reply_size, void (*write)(const char *line, void *ctx),
+                                void *write_ctx);
 
 // The charge as GET /api/v1/charge gives it
 typedef struct {

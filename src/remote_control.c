@@ -20,6 +20,7 @@
 
 #include "remote_control.h"
 #include "charge_mode.h"
+#include "charge_calibration.h"
 #include "scale.h"
 #include "profile.h"
 #include "eeprom.h"
@@ -704,8 +705,19 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
 
     char *end;
     float target = strtof(args, &end);
+    // `charge <gr> series <n>`: n throws into the same cup with no cup lifted, for the bench (ADR-009)
+    long series = 0;
+    if (strncmp(end, " series ", 8) == 0) {
+        char *series_end;
+        series = strtol(end + 8, &series_end, 10);
+        if (series_end == end + 8 || *series_end != '\0' || series < 1 || series > 500) {
+            snprintf(reply, reply_size, "@err usage: charge <gr> series <1..500>");
+            return false;
+        }
+        end = series_end;
+    }
     if (end == args || *end != '\0' || !isfinite(target) || target <= 0.0f || target > 1000.0f) {
-        snprintf(reply, reply_size, "@err usage: charge <0..1000> | charge stop");
+        snprintf(reply, reply_size, "@err usage: charge <0..1000> [series <n>] | charge stop");
         return false;
     }
     if (activity_get() != ACTIVITY_NONE || menu_get_current_form_id() < 0) {
@@ -716,9 +728,15 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         snprintf(reply, reply_size, "@err %.3f is not a target the menu's digits can show", target);
         return false;
     }
+    charge_mode_set_series((uint16_t) series);
     switch (charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1)) {
         case CHARGE_START_OK:
             break;
+        case CHARGE_START_NOT_CALIBRATED:
+            charge_mode_set_series(0);
+            snprintf(reply, reply_size, "@err the powder profile holds no calibration: ccal, or setting "
+                     "settings/charge controller=pid");
+            return false;
         case CHARGE_START_DRIVER_FAULT:
             snprintf(reply, reply_size, "@err a motor driver is not OK: %s", motors_get_fault());
             return false;
@@ -727,7 +745,32 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
             return false;
     }
 
-    snprintf(reply, reply_size, "@ok charge target=%.3f", target);
+    snprintf(reply, reply_size, "@ok charge target=%.3f series=%ld", target, series);
+    return true;
+}
+
+
+// `ccal ...`: a powder profile's calibration for the staged controller, written from the PC (ADR-009)
+static bool remote_control_ccal(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                void *write_ctx) {
+    charge_calibration_console(args, reply, reply_size, write, write_ctx);
+    return strncmp(reply, "@ok", 3) == 0;
+}
+
+
+// `ccon [name=value ...|defaults]`: the staged controller's constants, live, never stored (ADR-009)
+static bool remote_control_ccon(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                void *write_ctx) {
+    charge_constants_console(args, reply, reply_size, write, write_ctx);
+    return strncmp(reply, "@ok", 3) == 0;
+}
+
+
+// `ccrec`: the last staged throw's rows, `@r <ms> <reading> <forecast> <coarse rev/s> <fine rev/s>` (ADR-009)
+static bool remote_control_ccrec(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                 void *write_ctx) {
+    (void) args;
+    charge_mode_record_console(reply, reply_size, write, write_ctx);
     return true;
 }
 
@@ -815,6 +858,9 @@ static const remote_control_command_t remote_control_commands[] = {
     {"knob", remote_control_knob},
     {"tmc", remote_control_tmc},
     {"charge", remote_control_charge},
+    {"ccal", remote_control_ccal},
+    {"ccon", remote_control_ccon},
+    {"ccrec", remote_control_ccrec},
     {"setting", remote_control_setting},
     {"update", remote_control_update},
     {"wifi", remote_control_wifi},

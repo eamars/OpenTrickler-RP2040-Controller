@@ -392,7 +392,7 @@ void charge_control_tick(charge_control_t *c, uint32_t now_ms) {
     if (c->phase == CHARGE_CONTROL_PHASE_FEED) {
         feed(c, now_s);
     }
-    else if (c->phase == CHARGE_CONTROL_PHASE_MOVE && now_s >= c->move_until_s - TIE_S) {
+    else if (c->phase == CHARGE_CONTROL_PHASE_MOVE && !c->moves_by_caller && now_s >= c->move_until_s - TIE_S) {
         end_move(c, now_s);
     }
 }

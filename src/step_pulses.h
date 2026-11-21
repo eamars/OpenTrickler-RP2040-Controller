@@ -43,6 +43,15 @@ void step_pulses_feed(void);
 
 void step_pulses_get_stats(unsigned int channel, step_pulses_stats_t *stats);
 
+/*
+ * A move of an exact count (ADR-009): from now on no more than `steps` are fed, whatever the rate, and the channel
+ * idles once they are made. Spent: every step of it made, the PIO idle. Cleared: no budget, the rate alone again.
+ * From the task that feeds the pulses only.
+ */
+void step_pulses_set_budget(unsigned int channel, uint32_t steps);
+bool step_pulses_budget_spent(unsigned int channel);
+void step_pulses_clear_budget(unsigned int channel);
+
 // For a fault handler: every channel's pulses stopped by register writes alone. Not undone short of a restart
 void step_pulses_fault_stop(void);
 

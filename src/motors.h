@@ -76,6 +76,13 @@ typedef struct {
     volatile float target_velocity;     // Set by anyone; the motors' task takes it from here
     float velocity;                     // The speed now, ramps included: the motors' task's alone
     bool step_direction;                // The direction pin's level
+
+    // A move of an exact count of steps (ADR-009): asked by anyone, made by the motors' task
+    volatile uint32_t move_steps;
+    volatile float move_velocity;       // in the motor's own rev/s
+    volatile bool move_asked;
+    volatile bool move_done;            // the last move asked is made, or was cut short by a new speed of 0
+    bool move_running;                  // the motors' task's alone
 } motor_config_t;
 
 
@@ -103,6 +110,21 @@ void motor_driver_get_stats(motor_select_t selected_motor, motor_driver_stats_t 
 
 // The steps made and fed, and the rate the pulses were last fed at, in steps a second
 void motor_get_step_stats(motor_select_t selected_motor, step_pulses_stats_t * stats);
+
+/*
+    For the charge's controller (ADR-009): the steps counted on the STEP pin, read by any task (the console's `motor`
+    reads them too), and how many make a turn of the trickler. Turns since a moment are the steps since it over that
+*/
+uint32_t motor_get_steps_made(motor_select_t selected_motor);
+float motor_get_steps_per_turn(motor_select_t selected_motor);
+
+/*
+    A move of the trickler by an exact number of turns, at a speed (ADR-009): the motors' task feeds that many steps
+    and no more, from a stop, then holds the motor at zero. motor_move_done() is true once it is made, or once a
+    speed of 0 cut it short. False when the motor is turning: a move starts from a stop
+*/
+bool motor_move_turns(motor_select_t selected_motor, float turns, float speed_rps);
+bool motor_move_done(motor_select_t selected_motor);
 float motor_get_step_rate(motor_select_t selected_motor);
 
 // For a fault handler: the pulses and the drivers off, by register writes alone

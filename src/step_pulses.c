@@ -34,6 +34,9 @@ typedef struct {
 
     uint32_t steps_fed;
     uint32_t underruns;
+
+    bool budget_on;                 // A move of an exact count: no more than budget_left steps are fed
+    uint32_t budget_left;
 } step_pulses_channel_t;
 
 static step_pulses_channel_t step_pulses_channels[STEP_PULSES_CHANNELS];
@@ -163,6 +166,16 @@ static void step_pulses_feed_channel(step_pulses_channel_t *ch) {
         return;
     }
 
+    // A budget fed whole: nothing more, and the channel is idle once its last steps are made. Not a stop, which
+    // would cut the last segment short
+    if (ch->budget_on && ch->budget_left == 0) {
+        if (ch->running && pio_sm_get_pc(ch->pio, ch->sm) == ch->offset) {
+            ch->running = false;
+            ch->rate_fed = 0.0f;
+        }
+        return;
+    }
+
     // Nothing waiting, and the state machine back at its first instruction: the pulses have paused for want of feed
     if (ch->running && pio_sm_get_pc(ch->pio, ch->sm) == ch->offset) {
         ch->underruns += 1;
@@ -184,6 +197,12 @@ static void step_pulses_feed_channel(step_pulses_channel_t *ch) {
     uint32_t steps = segment_cycles / period;
     if (steps == 0) {
         steps = 1;
+    }
+    if (ch->budget_on) {
+        if (steps > ch->budget_left) {
+            steps = ch->budget_left;
+        }
+        ch->budget_left -= steps;
     }
 
     pio_sm_put(ch->pio, ch->sm, steps - 1);
@@ -220,6 +239,32 @@ void step_pulses_get_stats(unsigned int channel, step_pulses_stats_t *stats) {
         pio_sm_exec(ch->counter_pio, ch->counter_sm, pio_encode_mov(pio_isr, pio_x));
         pio_sm_exec(ch->counter_pio, ch->counter_sm, pio_encode_push(false, false));
         stats->steps_made = 0u - pio_sm_get(ch->counter_pio, ch->counter_sm);
+    }
+}
+
+
+void step_pulses_set_budget(unsigned int channel, uint32_t steps) {
+    if (channel < STEP_PULSES_CHANNELS) {
+        step_pulses_channels[channel].budget_left = steps;
+        step_pulses_channels[channel].budget_on = true;
+    }
+}
+
+
+bool step_pulses_budget_spent(unsigned int channel) {
+    if (channel >= STEP_PULSES_CHANNELS) {
+        return true;
+    }
+    step_pulses_channel_t *ch = &step_pulses_channels[channel];
+    return ch->budget_on && ch->budget_left == 0 && pio_sm_is_tx_fifo_empty(ch->pio, ch->sm) &&
+           pio_sm_get_pc(ch->pio, ch->sm) == ch->offset;
+}
+
+
+void step_pulses_clear_budget(unsigned int channel) {
+    if (channel < STEP_PULSES_CHANNELS) {
+        step_pulses_channels[channel].budget_on = false;
+        step_pulses_channels[channel].budget_left = 0;
     }
 }
 

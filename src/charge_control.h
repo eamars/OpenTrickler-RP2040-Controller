@@ -138,6 +138,8 @@ typedef struct {
     charge_control_calibration_t cal;
     charge_control_constants_t k;
     bool rehearsal;                 // end at the first reading at rest: the calibration's own throws
+    bool moves_by_caller;           // the caller makes each small move to its count, and says when (the unit);
+                                    // else a move ends by the time its turns take at move_rps (the simulation)
     charge_control_real_t stop_room_gr;             // where the fine tube stops, as learned from throw to throw
 
     // Out, read after every call

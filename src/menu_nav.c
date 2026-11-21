@@ -894,6 +894,9 @@ static void act_ack_charge(const menu_row_t *row) {
     else if (result == CHARGE_START_NO_TARGET) {
         push_message("No target", "Set a target first", NULL);
     }
+    else if (result == CHARGE_START_NOT_CALIBRATED) {
+        push_message("Not calibrated", "Calibrate the powder,", "or choose PID");
+    }
     else if (result != CHARGE_START_OK) {
         push_message("Busy", "A job runs", NULL);
     }

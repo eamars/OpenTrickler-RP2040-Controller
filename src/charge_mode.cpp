@@ -24,6 +24,8 @@
 #include "servo_gate.h"
 #include "menu.h"
 #include "jobs.h"
+#include "charge_control.h"
+#include "charge_calibration.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -83,6 +85,42 @@ static volatile event_reason_t charge_last_reason = EVENT_REASON_NONE;
 static volatile float charge_last_weight = NAN;
 static activity_by_t charge_end_by = ACTIVITY_BY_BUTTON;
 static bool charge_stop_logged = false;     // the charge's stopped event is out: at its fault, or at its end
+
+
+/*
+    The staged controller (ADR-009): one for the whole charge, so what it learns from a throw goes on to the next;
+    its calibration is the powder profile's, read as the charge begins. A series for the bench pours its throws into
+    the same cup, each from the weight the cup rests at (charge_mode_set_series)
+*/
+static charge_control_t charge_controller;
+static charge_control_calibration_t charge_calibration;
+static bool charge_staged = false;          // this charge's throws are the staged controller's
+static bool charge_staged_verdict = false;  // the last throw ended at its rest, judged by the controller
+static float charge_staged_weight = NAN;    // its weight at rest, from the throw's base
+static volatile uint16_t charge_series_asked = 0;
+static uint16_t charge_series_left = 0;     // this charge's throws still to pour, in a series; 0: no series
+static float charge_base = 0.0f;            // the weight a throw starts from: 0, but in a series
+
+/*
+    The last staged throw's rows, a reading each, for the bench (`ccrec`). 16 bytes a row; at 21 readings a second
+    the A&D fills it in 38 s
+*/
+#define CHARGE_RECORD_ROWS 800
+typedef struct {
+    uint32_t t_ms;
+    float reading;
+    float forecast;         // the reading and what is on its way
+    uint16_t coarse_mrps;   // the speeds asked, thousandths of a rev/s
+    uint16_t fine_mrps;
+} charge_record_row_t;
+static charge_record_row_t charge_record[CHARGE_RECORD_ROWS];
+static uint16_t charge_record_rows = 0;
+static uint16_t charge_record_throw = 0;
+
+
+void charge_mode_set_series(uint16_t throws) {
+    charge_series_asked = throws;
+}
 
 
 // A stop asked at the unit (the screen's Back, by button), by the API or by the console: each ends the charge (gate 4).
@@ -215,6 +253,38 @@ void charge_mode_wait_for_zero() {
 
     // Update current status
     snprintf(title_string, sizeof(title_string), "Waiting for Zero");
+
+    // A series (ADR-009): no zero. The throw pours from the weight the cup rests at, steady as the zero test judges
+    // it less its zero; a cup that holds enough ends the series
+    if (charge_series_left > 0) {
+        snprintf(title_string, sizeof(title_string), "Series: steady");
+        while (true) {
+            TickType_t last_measurement_tick = xTaskGetTickCount();
+            if (charge_mode_stop_asked()) {
+                charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+                return;
+            }
+            if (charge_mode_end_on_motor_fault()) {
+                return;
+            }
+            float current_measurement;
+            if (scale_block_wait_for_next_measurement(300, &current_measurement)) {
+                data_buffer.enqueue(current_measurement);
+            }
+            if (data_buffer.getCounter() >= 10 &&
+                data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
+                charge_base = data_buffer.getMean();
+                if (charge_base + charge_mode_config.target_charge_weight > CHARGE_SERIES_CUP_MOST) {
+                    printf("Charge: series ended, the cup holds %.2f\n", charge_base);
+                    charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+                    return;
+                }
+                charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
+                return;
+            }
+            vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
+        }
+    }
 
     // A zero asked, at the unit or over the API, starts the count of steady readings again: none from before it, or
     // from before it lands, makes the zero this throw pours from (ADR-003, gate 4)
@@ -415,6 +485,178 @@ static bool charge_mode_end_on_motor_fault(void) {
     return true;
 }
 
+static uint32_t charge_mode_now_ms(void) {
+    return (uint32_t) (xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
+
+
+static void charge_mode_record(uint32_t t_ms, float reading) {
+    if (charge_record_rows >= CHARGE_RECORD_ROWS) {
+        return;
+    }
+    charge_record_row_t *row = &charge_record[charge_record_rows++];
+    row->t_ms = t_ms;
+    row->reading = reading;
+    row->forecast = charge_controller.reading + charge_controller.unseen_gr;
+    row->coarse_mrps = (uint16_t) lroundf(fminf(charge_controller.coarse_rps, 65.0f) * 1000.0f);
+    row->fine_mrps = (uint16_t) lroundf(fminf(charge_controller.fine_rps, 65.0f) * 1000.0f);
+}
+
+
+/*
+    One throw by the staged controller (ADR-009), from its zero to its rest: every millisecond each tube's turns by the
+    steps counted on its pin, the controller's tick, each reading as it comes, and the speeds it asks for; a small move
+    is made to its count by the motors' task. A missing reading pauses both tubes as in the PID loop (ADR-013). True at
+    the throw's rest; false when it ended otherwise, the charge's state set.
+*/
+static bool charge_mode_staged_throw(const char *target_weight_string) {
+    const float target = charge_mode_config.target_charge_weight;
+    charge_control_t *cc = &charge_controller;
+
+    uint32_t usual_interval_ms = scale_get_usual_interval_ms();
+    if (usual_interval_ms == 0) {
+        usual_interval_ms = CHARGE_USUAL_INTERVAL_UNKNOWN_MS;
+    }
+    const uint32_t stale_ms = CHARGE_STALE_INTERVALS * usual_interval_ms;
+    uint32_t lost_ms = CHARGE_LOST_INTERVALS * usual_interval_ms;
+    if (lost_ms < CHARGE_LOST_MIN_MS) {
+        lost_ms = CHARGE_LOST_MIN_MS;
+    }
+    uint8_t pause_count = 0;
+
+    const float coarse_steps_turn = motor_get_steps_per_turn(SELECT_COARSE_TRICKLER_MOTOR);
+    const float fine_steps_turn = motor_get_steps_per_turn(SELECT_FINE_TRICKLER_MOTOR);
+    const uint32_t coarse_base = motor_get_steps_made(SELECT_COARSE_TRICKLER_MOTOR);
+    const uint32_t fine_base = motor_get_steps_made(SELECT_FINE_TRICKLER_MOTOR);
+
+    // The constants as they are now: a `ccon` between throws applies from this one
+    cc->k = *charge_calibration_constants();
+    cc->moves_by_caller = true;
+    uint32_t start_ms = charge_mode_now_ms();
+    charge_control_start(cc, target, start_ms);
+    charge_record_rows = 0;
+    charge_record_throw = charge_throw_number;
+
+    float coarse_sent = -1.0f;
+    float fine_sent = -1.0f;
+    bool moving = false;
+    TickType_t last_reading_tick = xTaskGetTickCount();
+    TickType_t wake = xTaskGetTickCount();
+    uint32_t fault_check_ms = start_ms;
+
+    while (!cc->done) {
+        if (charge_mode_stop_asked()) {
+            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+            charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+            return false;
+        }
+        uint32_t now_ms = charge_mode_now_ms();
+        if (now_ms - fault_check_ms >= 100) {
+            fault_check_ms = now_ms;
+            if (charge_mode_end_on_motor_fault()) {
+                return false;
+            }
+        }
+
+        float weight;
+        bool have_reading = scale_take_new_measurement(&weight);
+        if (have_reading) {
+            last_reading_tick = xTaskGetTickCount();
+            weight -= charge_base;
+        }
+        else if ((xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS >= stale_ms) {
+            // No fresh reading: no turning (ADR-013). A move cut short is over; the weight settled is the next reading
+            pause_count += 1;
+            charge_pause_result_t pause = charge_mode_pause(pause_count, lost_ms, &last_reading_tick, &weight);
+            coarse_sent = 0.0f;
+            fine_sent = 0.0f;
+            if (moving) {
+                moving = false;
+                charge_control_moved(cc, charge_mode_now_ms());
+            }
+            if (pause == CHARGE_PAUSE_EXIT) {
+                charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+                return false;
+            }
+            if (pause != CHARGE_PAUSE_RESUMED) {
+                charge_mode_scale_fault(pause == CHARGE_PAUSE_LOST ? "Scale: no reading" :
+                                        pause == CHARGE_PAUSE_UNSTEADY ? "Scale: unsteady" : "Scale: unreliable",
+                                        pause == CHARGE_PAUSE_LOST ? EVENT_REASON_SCALE_NO_READING :
+                                        pause == CHARGE_PAUSE_UNSTEADY ? EVENT_REASON_SCALE_UNSTEADY :
+                                        EVENT_REASON_SCALE_UNRELIABLE, 0, NULL);
+                return false;
+            }
+            snprintf(title_string, sizeof(title_string), "Target: %s", target_weight_string);
+            weight -= charge_base;
+            have_reading = true;
+            now_ms = charge_mode_now_ms();
+            wake = xTaskGetTickCount();
+        }
+
+        // The turns since the start, as the unit counts its steps
+        float coarse_turns = (float) (uint32_t) (motor_get_steps_made(SELECT_COARSE_TRICKLER_MOTOR) - coarse_base) /
+                             coarse_steps_turn;
+        float fine_turns = (float) (uint32_t) (motor_get_steps_made(SELECT_FINE_TRICKLER_MOTOR) - fine_base) /
+                           fine_steps_turn;
+        charge_control_count(cc, now_ms, coarse_turns, fine_turns);
+        charge_control_tick(cc, now_ms);
+        if (have_reading) {
+            charge_control_reading(cc, now_ms, weight);
+            charge_mode_record(now_ms - start_ms, weight);
+        }
+
+        // A small move, made to its count from a stop; the fine tube's speed otherwise
+        if (moving) {
+            if (motor_move_done(SELECT_FINE_TRICKLER_MOTOR)) {
+                moving = false;
+                fine_sent = 0.0f;
+                charge_control_moved(cc, charge_mode_now_ms());
+            }
+        }
+        else if (cc->phase == CHARGE_CONTROL_PHASE_MOVE && cc->move_turns >= 0.0f) {
+            if (motor_move_turns(SELECT_FINE_TRICKLER_MOTOR, cc->move_turns, cc->k.move_rps)) {
+                moving = true;
+            }
+        }
+        else if (cc->fine_rps != fine_sent) {
+            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, cc->fine_rps);
+            fine_sent = cc->fine_rps;
+        }
+        if (cc->coarse_rps != coarse_sent) {
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, cc->coarse_rps);
+            coarse_sent = cc->coarse_rps;
+        }
+
+        vTaskDelayUntil(&wake, 1);
+    }
+    motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+    motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+
+    charge_staged_verdict = true;
+    charge_staged_weight = cc->rest_weight;
+    float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
+    printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=%u elapsed=%.2f "
+           "coarse_turns=%.4f fine_turns=%.4f stop_room=%.4f base=%.3f rows=%u\n",
+           charge_throw_number, charge_control_result_string((charge_control_result_t) cc->result), cc->rest_weight,
+           target, cc->have_first_error ? cc->first_error_gr : NAN, cc->moves, cc->streams, elapsed_s,
+           cc->turned[0], cc->turned[1], cc->stop_room_gr, charge_base, charge_record_rows);
+    return true;
+}
+
+
+void charge_mode_record_console(char *reply, size_t reply_size, void (*write)(const char *line, void *ctx),
+                                void *write_ctx) {
+    char line[80];
+    for (uint16_t i = 0; i < charge_record_rows; i++) {
+        const charge_record_row_t *row = &charge_record[i];
+        snprintf(line, sizeof(line), "@r %lu %.3f %.4f %.3f %.3f", (unsigned long) row->t_ms, row->reading,
+                 row->forecast, row->coarse_mrps / 1000.0f, row->fine_mrps / 1000.0f);
+        write(line, write_ctx);
+    }
+    snprintf(reply, reply_size, "@ok ccrec throw=%u rows=%u", charge_record_throw, charge_record_rows);
+}
+
 
 void charge_mode_wait_for_complete() {
 
@@ -441,6 +683,21 @@ void charge_mode_wait_for_complete() {
     snprintf(title_string, sizeof(title_string), 
              "Target: %s", 
              target_weight_string);
+
+    // The staged controller pours the throw, to its rest (ADR-009); the PID loop below otherwise, as it was
+    charge_staged_verdict = false;
+    if (charge_staged) {
+        if (!charge_mode_staged_throw(target_weight_string)) {
+            return;
+        }
+        last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
+        charge_timer_running = false;
+        if (servo_gate_enabled()) {
+            servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, true);
+        }
+        charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
+        return;
+    }
 
     // Read trickling parameter from the current profile
     profile_t * current_profile = profile_get_selected();
@@ -502,6 +759,7 @@ void charge_mode_wait_for_complete() {
         }
         if (scale_block_wait_for_next_measurement(wait_ms, &current_weight)) {
             last_reading_tick = xTaskGetTickCount();
+            current_weight -= charge_base;      // 0, but in a bench's series (ADR-009)
         }
         else {
             silent_ms = (xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS;
@@ -524,6 +782,7 @@ void charge_mode_wait_for_complete() {
                 return;
             }
             snprintf(title_string, sizeof(title_string), "Target: %s", target_weight_string);
+            current_weight -= charge_base;
             resumed = true;
         }
         current_sample_tick = xTaskGetTickCount();
@@ -650,13 +909,19 @@ void charge_mode_wait_for_cup_removal() {
     // Post charge analysis (while waiting for removal of the cup)
     vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for other tasks to complete
 
-    // Take current measurement
-    float current_measurement = scale_get_current_measurement();
+    // Take current measurement: the PID loop's a second after its stop; the staged controller's at its rest, judged
+    // by its band, half a digit beyond it (0.03 gr for 0.02 gr on the A&D, today's threshold) (ADR-009)
+    float current_measurement = scale_get_current_measurement() - charge_base;
+    float fine_stop_threshold = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
+    if (charge_staged_verdict) {
+        current_measurement = charge_staged_weight;
+        fine_stop_threshold = charge_controller.cal.band_gr + 0.5f * charge_controller.cal.digit_gr;
+    }
     float error = charge_mode_config.target_charge_weight - current_measurement;
 
     // Update LED colour before moving to the next stage
     // Over charged
-    if (error <= -charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
+    if (error <= -fine_stop_threshold) {
         neopixel_led_set_colour(
             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
@@ -668,7 +933,7 @@ void charge_mode_wait_for_cup_removal() {
         charge_mode_config.charge_mode_event |= CHARGE_MODE_EVENT_OVER_CHARGE;
     }
     // Under charged
-    else if (error >= charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
+    else if (error >= fine_stop_threshold) {
         neopixel_led_set_colour(
             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
@@ -695,7 +960,6 @@ void charge_mode_wait_for_cup_removal() {
 
     // The verdict is given, by the test above: the throw is finished, and what it read may be written again
     // (ADR-003, gates 3 and 4)
-    float fine_stop_threshold = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
     event_result_t result = error <= -fine_stop_threshold ? EVENT_RESULT_OVER :
                             error >= fine_stop_threshold ? EVENT_RESULT_UNDER : EVENT_RESULT_GOOD;
     charge_last_throw = charge_throw_number;
@@ -707,6 +971,13 @@ void charge_mode_wait_for_cup_removal() {
                         .value2 = last_charge_elapsed_seconds};
     events_add(&finished);
     activity_throw_end();
+
+    // A series goes on to its next throw in the same cup, with no cup lifted (ADR-009)
+    if (charge_series_left > 0) {
+        charge_series_left -= 1;
+        charge_mode_config.charge_mode_state = charge_series_left > 0 ? CHARGE_MODE_WAIT_FOR_ZERO : CHARGE_MODE_EXIT;
+        return;
+    }
 
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
     while (true) {
@@ -829,6 +1100,24 @@ uint8_t charge_mode_menu(void) {
                        .value = charge_mode_config.target_charge_weight};
     events_add(&started);
 
+    // The controller for the whole charge, and a series if one was asked (ADR-009)
+    charge_series_left = charge_series_asked;
+    charge_series_asked = 0;
+    charge_base = 0.0f;
+    charge_staged = charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED;
+    if (charge_staged) {
+        if (!charge_calibration_get((uint8_t) profile_get_selected_idx(), &charge_calibration)) {
+            // Refused at the start already (charge_mode_request_start); here only if the slot changed since
+            charge_mode_scale_fault("Not calibrated", EVENT_REASON_REFUSED, 0, NULL);
+            activity_job_end();
+            return 1;
+        }
+        charge_control_init(&charge_controller, &charge_calibration, charge_calibration_constants(), 0.0f, false);
+        printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f\n", profile_get_selected_idx(),
+               charge_calibration.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide", charge_calibration.band_gr,
+               charge_calibration.stop_room_gr);
+    }
+
     // Enable motor on entering the charge mode
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, true);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
@@ -895,6 +1184,11 @@ bool charge_mode_config_init(void) {
     if (!is_ok) {
         printf("Unable to read charge mode configuration\n");
         return is_ok;
+    }
+
+    // The controller sits in a filler byte (ADR-009): anything but a known loop there is the staged controller
+    if (charge_mode_config.eeprom_charge_mode_data.controller > CHARGE_CONTROLLER_PID) {
+        charge_mode_config.eeprom_charge_mode_data.controller = CHARGE_CONTROLLER_STAGED;
     }
 
     // Register to eeprom save all
@@ -995,6 +1289,14 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     }
     if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {
         return CHARGE_START_NO_TARGET;
+    }
+    // The staged controller takes every number from the powder's calibration: none, no start (ADR-009)
+    if (charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED) {
+        static charge_control_calibration_t check;
+        uint8_t profile = powder_profile >= 0 ? (uint8_t) powder_profile : (uint8_t) profile_get_selected_idx();
+        if (!charge_calibration_get(profile, &check)) {
+            return CHARGE_START_NOT_CALIBRATED;
+        }
     }
     // The menu takes a start under the activity lock, so the target and the profile are in before it can
     activity_lock();

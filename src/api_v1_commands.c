@@ -346,6 +346,11 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
         case CHARGE_START_NO_TARGET:
             api_error(reply, 400, "no_target", "target", "no target is set: give one", NULL);
             return;
+        case CHARGE_START_NOT_CALIBRATED:
+            api_error(reply, 409, "not_calibrated", "powder_profile",
+                      "the staged controller needs the powder's calibration: calibrate it, or choose the PID "
+                      "controller (settings/charge controller)", NULL);
+            return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
             return;

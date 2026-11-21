@@ -103,6 +103,8 @@ bool scale_simulation_start(void);
 void scale_simulation_stop(void);
 bool scale_simulation_is_on(void);
 bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement);
+// A reading published since the last taken, with no wait: for a loop that runs on its own clock (ADR-009)
+bool scale_take_new_measurement(float * current_measurement);
 
 /**
  * @brief The remote control's frame tap (ADR-013): while it is on, a driver that calls scale_tap_frame() copies

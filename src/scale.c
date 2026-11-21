@@ -590,6 +590,15 @@ uint32_t scale_get_usual_interval_ms(void) {
 
     block_time_ms set to 0 to wait indefinitely.
 */
+bool scale_take_new_measurement(float * current_measurement) {
+    if (xSemaphoreTake(scale_config.scale_measurement_ready, 0) == pdTRUE) {
+        *current_measurement = scale_get_current_measurement();
+        return true;
+    }
+    return false;
+}
+
+
 bool scale_block_wait_for_next_measurement(uint32_t block_time_ms, float * current_measurement) {
     TickType_t delay_ticks;
 
