@@ -1,0 +1,10 @@
+500 throws each at 20 gr, seed 1; shares of all throws, of the true weight
+rig             scale     controller             good 0.02   over  under  good 0.04   over  under  error gr  spread  time s    95%  timeout  shown good
+pico2w_bm2      late_small  jog                        89.8%   9.0%   1.2%      97.2%   2.8%   0.0%    -0.002   0.022    15.9   31.5     0.0%       91.6%
+pico2w_bm2      late_small  jog_loose                  65.0%   5.6%  29.4%      98.0%   2.0%   0.0%    -0.014   0.025    12.0   19.9     0.0%       98.6%
+pico2w_bm2      late_small  glide                      85.2%  14.4%   0.4%      94.0%   6.0%   0.0%    +0.006   0.027    15.2   26.3     0.0%       87.2%
+pico2w_bm2      late_small  glide_loose                80.2%   5.8%  14.0%      98.4%   1.6%   0.0%    -0.007   0.022    11.6   17.0     0.0%       98.8%
+pico2w_ar2209   late_small  jog                        77.8%  13.8%   8.4%      90.0%   6.8%   3.2%    +0.002   0.036    22.5   44.4     0.0%       77.2%
+pico2w_ar2209   late_small  jog_loose                  57.2%  12.2%  30.6%      91.4%   6.6%   2.0%    -0.006   0.040    17.6   36.4     0.0%       91.2%
+pico2w_ar2209   late_small  glide                      68.4%  28.4%   3.2%      84.2%  15.2%   0.6%    +0.017   0.038    15.2   41.8     0.0%       69.0%
+pico2w_ar2209   late_small  glide_loose                63.6%  20.6%  15.8%      87.8%  11.8%   0.4%    +0.006   0.041    13.1   24.0     0.0%       88.6%

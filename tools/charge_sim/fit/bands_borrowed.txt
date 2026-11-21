@@ -1,0 +1,6 @@
+500 throws each at 20 gr, seed 1; shares of all throws, of the true weight
+rig             scale     controller             good 0.02   over  under  good 0.04   over  under  error gr  spread  time s    95%  timeout  shown good
+pico2w_bm2      measured  jog_borrowed               94.2%   5.8%   0.0%      99.2%   0.8%   0.0%    -0.006   0.018    12.1   20.4     0.0%       94.0%
+pico2w_bm2      measured  glide_borrowed             88.6%  11.2%   0.2%      96.0%   3.8%   0.2%    +0.003   0.022    15.4   22.8     0.0%       89.4%
+pico2w_ar2209   measured  jog_borrowed               69.8%  15.2%  15.0%      84.2%   8.2%   7.6%    -0.001   0.040    20.7   30.2     0.0%       70.0%
+pico2w_ar2209   measured  glide_borrowed             73.8%  20.6%   5.6%      84.8%  12.6%   2.6%    +0.009   0.041    11.4   28.8     0.0%       74.6%

@@ -33,7 +33,7 @@ def run_session(job: tuple) -> list:
     if isinstance(controller, Profile):
         made, tolerance = LegacyPid(controller), VERDICT_TOLERANCE_GR
     else:
-        made, tolerance = CONTROLLERS[controller](rig)
+        made, tolerance = CONTROLLERS[controller](rig, seed)
     return [session.throw(made, target, tolerance) for _ in range(throws)]
 
 

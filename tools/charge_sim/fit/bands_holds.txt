@@ -1,0 +1,10 @@
+500 throws each at 20 gr, seed 1; shares of all throws, of the true weight
+rig             scale     controller             good 0.02   over  under  good 0.04   over  under  error gr  spread  time s    95%  timeout  shown good
+pico2w_bm2      holds     jog                        89.0%   7.0%   4.0%      96.0%   3.0%   1.0%    -0.017   0.191    36.7   68.6     0.0%       87.4%
+pico2w_bm2      holds     jog_loose                  61.6%   4.0%  34.4%      97.2%   1.4%   1.4%    -0.041   0.263    26.9   45.5     0.0%       96.8%
+pico2w_bm2      holds     glide                      86.8%  12.4%   0.8%      96.0%   4.0%   0.0%    +0.004   0.024    31.6   55.0     0.0%       87.0%
+pico2w_bm2      holds     glide_loose                68.8%  10.6%  20.6%      95.4%   4.0%   0.6%    -0.023   0.227    27.0   37.0     0.0%       95.6%
+pico2w_ar2209   holds     jog                        74.8%  16.4%   8.8%      89.2%   8.2%   2.6%    +0.004   0.038    33.9   73.7     0.0%       77.0%
+pico2w_ar2209   holds     jog_loose                  59.8%  15.2%  25.0%      90.4%   8.6%   1.0%    -0.004   0.037    23.1   59.7     0.0%       91.2%
+pico2w_ar2209   holds     glide                      67.6%  29.4%   3.0%      82.2%  16.8%   1.0%    +0.020   0.046    24.6   66.7     0.0%       71.0%
+pico2w_ar2209   holds     glide_loose                62.8%  23.4%  13.8%      84.8%  14.8%   0.4%    +0.012   0.047    22.1   40.3     0.0%       87.0%

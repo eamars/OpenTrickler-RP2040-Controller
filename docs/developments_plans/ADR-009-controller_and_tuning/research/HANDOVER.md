@@ -34,6 +34,16 @@ Another agent took over. Two things changed; the section below still holds other
 - **What a finish by small moves could reach, from the recorded nudges alone** (`bench/topup_bound.py`): within 0.02 gr, 88 to 90% good with BM2 and 80% with AR2209, however it is controlled; within 0.04 gr, 99% and 92 to 94%. So one over in fifty within 0.02 gr is not a controller's to give with moves of that size: it asks for smaller releases (the owner's oscillation). And such a finish is slow: 10 to 20 s for three digits.
 - **Where a controller can win:** AR2209, from 15% to near 80%, and time. **Next, if the owner says so** (asked 11-21, evening): a finish that stops the steady stream by counted turns short of the target, then corrects once or twice, designed on the two records and judged by `bands.py` against these two tables. Its design is put to the owner before it is built.
 
+### The same day, night: two proposals made, the owner to choose
+
+**Read `proposals_2026-11-21.md` before anything else in this folder:** it is what the owner asked for and has not yet answered. `../progress.md`, "two proposals for the controller and its calibration", has how it was made.
+
+- **The owner's direction** (`../README.md`): no scale is characterised by hand, since the firmware reads nine; the calibration must find each scale's lag, and the lag depends on how fast the weight changes. Two proposals, each with its control and its calibration in detail, for any build, powder and scale, ranked by confidence.
+- **The two are one controller** (`tools/charge_sim/staged.py`): a forecast (the reading plus the powder turned out and not yet shown, each parcel with the lag of its flow), one law a tube, a verdict on a reading at rest, small moves for a throw that rests short, and one calibration that measures every number on the unit. They differ in the fine tube's slowest speed and in how far short it stops.
+- **Proposal 1, stop short and jog, confidence high; proposal 2, glide and stop, confidence medium.** In the simulation, within 0.02 gr on the measured scale: proposal 1 94% good with BM2 and 74% with AR2209 (5% and 17% over) in 12.7 and 16.6 s; proposal 2 89% and 74% (11% and 24% over) in 11.9 and 13.0 s; today's slow finish 79% and 15%. On a scale twice as late today's loop puts every throw over and both proposals keep 60 to 90%, in half a minute.
+- **What limits the trial** (the file's section 5): the simulated fine tube is lumpier than the bench's (held to 0.5 rev/s for it; its model of a release needs mending above that); the simulated scale shows a small move sooner than the bench's; nothing is measured on a second scale.
+- **Next, by the owner's answer:** the cheapest real check is the PC running these same controllers on the bench's unit through the console, the simulation's figures written first (the file's section 7). No firmware is designed until the owner chooses.
+
 ## Where it stood, 2026-11-21, 01:50
 
 The owner's direction for the bench (11-20, evening): sessions capture data and verify written assumptions ("make assumption, and use the actual trickler to verify the assumption"); no tuning on the unit and no design decision while capturing; hybrid control is open, to be decided later. `../progress.md` has it in the owner's words.

@@ -857,3 +857,46 @@ A nudge gave nothing two times in three; one in sixteen read a digit less (the b
 - **To come within two points of the best, a move must be waited 4 s:** the last three digits then cost 19 to 23 s on average and a minute one time in twenty. At 2 s a move the finish gives up 6 to 7 points and still costs 10 to 12 s.
 - **So the bench's A&D makes a finish by moves and waits either slow or worse than the table above, and it is the scale's answer to one small change that does it,** as the owner's note of 11-20 said. A balance that takes 5 s and more for a small change (the owner's G&G JJ223BF) would be worse again; by how much is not known here, since no nudge was ever recorded on one. That is an input the research lacks: the same watched nudges on that scale would give its row.
 - **It strengthens the case for the next thing to try:** a finish that leans on the stream, which the scale follows 0.6 to 0.9 s behind whatever the size, and waits for a single small change as few times as it can.
+
+## 2026-11-21, night: two proposals for the controller and its calibration, built and tried in the simulation
+
+**The owner:** "There are more than 7 scale to be supported, so I'm not planning to evaluate each of them to account for individual measurement lag. Therefore the later calibration routine must account for that, and your simulation today should assume the inconsistent measurement lag subject to the weight change speed." And: "I'd like you to make two proposals ... with confident ranking from high to med. Each proposal shall include the detailed procedure for both trickle control, as well as calibration routine ... on ANY opentrickler build/material/finish, and ANY powder, and ANY scale." (The README has both as direction.)
+
+**The proposals are `research/proposals_2026-11-21.md`:** the frame both share, each one's throw and calibration step by step, the trial's tables, what the bench itself says, what is lacking. No unit; nothing is approved. This entry is what was built and measured to write it.
+
+**What was read first:** the nine scale drivers (2 to 21 readings a second; four frames carry a stable mark no driver reads) and the desk research of 2026-11-19 (`research/sources/dosing_control.md`, `scale_dynamics.md`), whose "bulk, dribble, jog with a learned cut-off" is proposal 1's ancestor.
+
+**What was built** (`tools/charge_sim/`):
+- `staged.py`: one controller with two finishes ("jog": proposal 1; "glide": proposal 2), and the calibration both take their numbers from, run on the simulated rig as a unit would run it. Nothing in it is set for a rig.
+- `scales_like.py`: four other scales, each the measured one with its delays stretched; the controller is calibrated again on each.
+- `bands.py` takes scales; `mc.py` gives each session its own seed, so each session of 25 throws has its own calibration.
+
+**Found while building, each of which changed the design:**
+1. **The forecast must give each parcel of powder the lag of the flow it was turned out at.** With one lag for the recent past (the present speed's), a slowing tube's fast powder was counted as still on its way after it had shown, and the rehearsals rested 10 to 16 digits short. With a lag a parcel they rested within two digits with no correction. This is the owner's "lag subject to the weight change speed", inside the controller.
+2. **The simulated fine tube is lumpier than the bench's above 0.5 rev/s.** One AR2209 throw went 61 digits over: at 1 rev/s the simulated tube poured nothing for 2 s and then 1.4 gr at once. The bench's recordings, the reading's gain in every half second of every steady run: at 1 rev/s the least was 0.30 of the mean, the most 2.2, and the longest time with no rise 0.2 s (AR2209); the simulation's, -0.05, 4.3 and 1.4 s. At 0.5 rev/s the two agree in spread (0.36 against 0.37 of the mean; BM2 0.19 against 0.29) and the simulation's gaps are still the longer (0.7 s against 0.2). **So the trial holds the fine tube to 0.5 rev/s, and the record's releases at high speed are a fault of the plant's model to mend** (the gaps come from a release whose wait is in proportion to its own size, with no bound). Changing how even the releases are did not bring it to the bench (regularity 4 to 16, bursts halved).
+3. **A stop aimed at the target has too many overs.** The stream finish aimed at the target, a digit under and two under (400 throws each): AR2209 69%, 74%, 74% good with 27%, 20%, 20% over; BM2 83%, 88%, 86% with 14%, 6%, 6%. A digit under is the rule.
+4. **A throw at rest is judged on the lowest reading it shows since its last rise.** Judged on the highest, a reading flickering across the band's lower edge was called good: the jog finish with BM2 86% good and 11% under; on the lowest, 94% and none under (AR2209: 70% to 74%).
+5. **A slower creep did not help** (the powder on its way at half the band): AR2209 75% against 76%, BM2 88% against 86%, 1.5 to 2 s slower.
+6. **The calibration's own waits must come from the scale.** Fixed at the A&D's 4 s, the routine could not see a later scale's small changes. Four first moves, each watched up to 15 s, now set every later watch.
+
+**The trial's tables** are in the proposals' file and in `tools/charge_sim/fit/bands_proposals.txt` (the measured scale and two later ones), `bands_late_small.txt`, `bands_holds.txt` and `bands_borrowed.txt`; 500 throws of 20 gr a row, of the true weight. In short, good within 0.02 gr and the median time:
+
+| | BM2: jog | glide | today's slow finish | AR2209: jog | glide | today's |
+|---|---|---|---|---|---|---|
+| The scale as measured | 94.4%, 12.7 s | 89.0%, 11.9 s | 79.4%, 15.3 s | 73.8%, 16.6 s | 74.4%, 13.0 s | 15.0%, 10.6 s |
+| Every small change held 2.5 s | 89.8%, 15.9 s | 85.2%, 15.2 s | | 77.8%, 22.5 s | 68.4%, 15.2 s | |
+| A small change held 5 s, four readings a second | 89.0%, 36.7 s | 86.8%, 31.6 s | | 74.8%, 33.9 s | 67.6%, 24.6 s | |
+| Twice as late in everything | 89.6%, 31.5 s | 82.2%, 28.4 s | 0.2% | 67.6%, 36.1 s | 59.6%, 25.6 s | 0.4% |
+| Three times as late | 72.4%, 58.6 s | 65.0%, 45.9 s | 0% | 41.6% (42% not ended in 90 s) | 42.0% (29%) | 0% |
+
+Overs on the measured scale: jog 4.8% and 17.4%, glide 10.8% and 24.0%, today's 20% and 85%. Within 0.04 gr, as a mode of its own: jog 98.6% in 8.9 s and 91.0% in 12.8 s; glide 98.6% in 9.2 s and 87.2% in 10.2 s.
+
+**The scale's part carried from one powder to the other** (`bands_borrowed.txt`; the lag table measured with the other powder, the rest with its own): jog 94.2% against 94.4% (BM2) and 69.8% against 73.8%, 4 s slower (AR2209); glide 88.6% against 89.0%, 3.5 s slower, and 73.8% against 74.4%. It holds within four points: the rehearsals place the stop whatever the table says, and a table that is off costs time.
+
+**What the calibration cost in the trial:** 10 to 12.5 minutes and 135 to 155 gr through the cup on the measured scale; 18 to 21 and 24 to 31 minutes on the two later ones. Its watches: 3.2 to 4.2 s, 8.2 to 9.3 s, 12 to 15 s.
+
+**From the bench's own fixed moves, by size** (the moves of 2026-11-20 and BM2's batch, no model): 0.03 of a turn gave nothing 63% (AR2209) and 67% (BM2) of the time, and of those that gave, four digits and more in 14% and 31%; 0.06 of a turn gave nothing 24% of the time and four and more in 40% and 19%; 0.12 of a turn, 65% and 58%. So a move twice as large halves the empty waits and has far more large releases: the smallest move stays small.
+
+**The ranking, and why it turned during the work.** I began with the stream finish as the first proposal: the owner's point that a stream is shown sooner than a small change, and the bench's stops from 0.02 rev/s. The trial put the jog finish first on accuracy on every scale, by 0 to 8 points, with half to three quarters of the overs; the stream finish is the quicker by 1 to 4 s on the measured scale and 3 to 10 s on later ones. A margin takes what a stream does late; a stop a digit short cannot. **Proposal 1 (confidence high) is stop short and jog; proposal 2 (medium) is glide and stop.** They are one controller with two numbers changed.
+
+**Not done:** no throw of either on a unit; the calibration's verdict to the user (step 9) and the learning of grains a turn are designed and not tried; the shorter calibration is tried only in its lag table.

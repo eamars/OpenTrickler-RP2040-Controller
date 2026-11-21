@@ -34,10 +34,16 @@ Another unit, powder or scale is another record, made by the same command. Nothi
 ..\..\venv\Scripts\python scale_map.py --rig pico2w_ar2209
 ..\..\venv\Scripts\python evenness.py --rig pico2w_ar2209
 ..\..\venv\Scripts\python scale_step.py --rig pico2w_ar2209
+..\..\venv\Scripts\python bands.py --controllers jog,glide,legacy_slow_finish --scales measured,slow
 ```
+
+**The two proposals of 2026-11-21** (`docs/developments_plans/ADR-009-controller_and_tuning/research/proposals_2026-11-21.md`) are the controllers `jog` and `glide` (`jog_loose` and `glide_loose` for the band of 0.04 gr). Each session of throws begins with its own calibration on the rig.
 
 | File | What it is |
 |---|---|
+| `staged.py` | The two proposals as one controller with two finishes, and the calibration both take every number from, run on the rig as a unit would run it |
+| `bands.py` | Controllers on rigs and scales, each judged within 0.02 and within 0.04 gr: good, over, under, time |
+| `scales_like.py` | Other scales to try a controller on: the measured one with its delays stretched. Stand-ins, not any make |
 | `plant.py` | A tube with a powder in it, as tables a calibration measures (its flow a turn, the size of its releases and how late its powder shows, each by speed), and the cup |
 | `scale.py` | A scale as the charge loop meets it: a delay, then a reading that follows a change at once or holds a small one before taking it. Its sets of estimates for other makes are priors, never measured |
 | `rigs.py`, `records/` | The rigs: a record read into the simulation's parts |
@@ -45,7 +51,7 @@ Another unit, powder or scale is another record, made by the same command. Nothi
 | `fit_report.py` | The simulation beside the bench, figure by figure; `fit/` holds the figures and the last comparisons |
 | `pinned.py` | Which numbers the recordings pin down, and which of the rest a throw notices |
 | `bench_twin.py` | The bench's tests (a steady turn and a stop, nudges, a speed plan with no controller, today's loop's throws) run against the simulation, in the shape the bench saves |
-| `bench/` | The bench's own tools: `record.py` (recordings through the debug probe: maps, stops, nudges, throws, and `ramp` for speeds one after another with no stop, backward too), `stats.py` (a recording as figures, for the bench and the simulation alike), `measure.py`, and the looks at a recording (`after_stop.py`, `ramp_look.py`, `steps_look.py`, `reverse_look.py`, `nudge_watch.py` for the session of 2026-11-20's evening, not yet figures of `stats.py`) |
+| `bench/` | The bench's own tools: `record.py` (recordings through the debug probe: maps, stops, nudges, throws, and `ramp` for speeds one after another with no stop, backward too), `stats.py` (a recording as figures, for the bench and the simulation alike), `measure.py`, and the looks at a recording (`after_stop.py`, `ramp_look.py`, `steps_look.py`, `reverse_look.py`, `nudge_watch.py` for the session of 2026-11-20's evening, not yet figures of `stats.py`); `keep.py` (a session's recordings copied into `recordings/`); `scale_or_powder.py` and `topup_bound.py` (two questions answered from the recordings alone, with no model: whether what arrives after a stop is the scale's, and what a finish by small moves can reach) |
 | `mc.py` | Many throws summed up: over, under, error, time, and the seconds a good throw costs |
 | `scale_map.py` | A controller across scales: overs and time against a scale's delay, reading period and hold |
 | `evenness.py` | How evenly the fine tube must pour at low speed for a finish to hold the tolerance |
