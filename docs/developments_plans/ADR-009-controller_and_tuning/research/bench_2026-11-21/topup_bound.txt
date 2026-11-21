@@ -1,20 +1,56 @@
 pico2w_bm2, 240 watched nudges (20261121_011340_nudgewatch); a nudge's gain in digits, share of nudges:
   -1: 6.2%, +0: 63.3%, +1: 16.2%, +2: 6.2%, +3: 4.2%, +4: 2.1%, +5: 1.2%, +6: 0.4%
-    band  ends short    good    over  moves, mean   95%   time at 2 s   time at 4 s
- 0.02 gr         3 d   88.4%   11.6%          5.6    15          11 s          22 s
- 0.02 gr         6 d   90.4%    9.6%         11.2    25          22 s          45 s
- 0.02 gr        10 d   90.4%    9.6%         18.9    37          38 s          76 s
- 0.04 gr         3 d   98.7%    1.3%          3.7    11           7 s          15 s
- 0.04 gr         6 d   99.3%    0.7%          9.3    22          19 s          37 s
- 0.04 gr        10 d   99.4%    0.6%         17.0    34          34 s          68 s
+  of the nudges that gave something, the share the scale had shown in full by 0.5 s: 5%, 1 s: 7%, 1.5 s: 33%, 2 s: 47%, 3 s: 75%, 4 s: 95%
+
+the kindest finish: each move's whole gain known
+    band  ends short    good    over  moves, mean   95%
+ 0.02 gr         3 d   88.4%   11.6%          5.6    15
+ 0.02 gr         6 d   90.4%    9.6%         11.2    25
+ 0.02 gr        10 d   90.4%    9.6%         18.9    37
+ 0.04 gr         3 d   98.7%    1.3%          3.7    11
+ 0.04 gr         6 d   99.3%    0.7%          9.3    22
+ 0.04 gr        10 d   99.4%    0.6%         17.0    34
+
+the same finish deciding after a wait, from 3 digits short
+    band    wait    good    over   under  moves, mean  finish, mean     95%
+ 0.02 gr   0.5 s   52.8%   42.9%    4.3%          8.4           4 s     9 s
+ 0.02 gr     1 s   70.1%   25.1%    4.8%          6.8           7 s    16 s
+ 0.02 gr   1.5 s   79.0%   17.1%    4.0%          6.2           9 s    24 s
+ 0.02 gr     2 s   81.5%   14.8%    3.7%          6.0          12 s    30 s
+ 0.02 gr     3 s   85.1%   12.8%    2.1%          5.8          17 s    45 s
+ 0.02 gr     4 s   86.9%   11.8%    1.3%          5.6          23 s    60 s
+ 0.04 gr   0.5 s   80.4%   14.1%    5.6%          6.2           3 s     7 s
+ 0.04 gr     1 s   88.9%    4.7%    6.3%          4.7           5 s    12 s
+ 0.04 gr   1.5 s   92.0%    2.4%    5.6%          4.2           6 s    16 s
+ 0.04 gr     2 s   92.7%    1.9%    5.5%          3.9           8 s    22 s
+ 0.04 gr     3 s   94.9%    1.4%    3.7%          3.7          11 s    33 s
+ 0.04 gr     4 s   96.3%    1.3%    2.4%          3.6          15 s    44 s
 
 pico2w_ar2209, 300 watched nudges (20261120_220430_nudgewatch); a nudge's gain in digits, share of nudges:
   -1: 6.0%, +0: 62.7%, +1: 13.3%, +2: 8.0%, +3: 4.3%, +4: 2.0%, +5: 1.0%, +6: 1.7%, +7: 0.3%, +8: 0.7%
-    band  ends short    good    over  moves, mean   95%   time at 2 s   time at 4 s
- 0.02 gr         3 d   80.3%   19.7%          5.0    13          10 s          20 s
- 0.02 gr         6 d   80.4%   19.6%          9.4    22          19 s          38 s
- 0.02 gr        10 d   81.1%   18.9%         15.3    31          31 s          61 s
- 0.04 gr         3 d   91.7%    8.3%          3.5    10           7 s          14 s
- 0.04 gr         6 d   94.2%    5.8%          8.0    19          16 s          32 s
- 0.04 gr        10 d   94.3%    5.7%         13.8    29          28 s          55 s
+  of the nudges that gave something, the share the scale had shown in full by 0.5 s: 3%, 1 s: 14%, 1.5 s: 47%, 2 s: 61%, 3 s: 81%, 4 s: 93%
+
+the kindest finish: each move's whole gain known
+    band  ends short    good    over  moves, mean   95%
+ 0.02 gr         3 d   80.3%   19.7%          5.0    13
+ 0.02 gr         6 d   80.4%   19.6%          9.4    22
+ 0.02 gr        10 d   81.1%   18.9%         15.3    31
+ 0.04 gr         3 d   91.7%    8.3%          3.5    10
+ 0.04 gr         6 d   94.2%    5.8%          8.0    19
+ 0.04 gr        10 d   94.3%    5.7%         13.8    29
+
+the same finish deciding after a wait, from 3 digits short
+    band    wait    good    over   under  moves, mean  finish, mean     95%
+ 0.02 gr   0.5 s   48.2%   46.2%    5.6%          7.1           4 s     8 s
+ 0.02 gr     1 s   63.1%   30.8%    6.1%          5.7           6 s    14 s
+ 0.02 gr   1.5 s   71.9%   23.5%    4.6%          5.3           8 s    21 s
+ 0.02 gr     2 s   73.7%   21.8%    4.5%          5.1          10 s    26 s
+ 0.02 gr     3 s   77.0%   20.3%    2.8%          5.0          15 s    39 s
+ 0.02 gr     4 s   77.7%   19.7%    2.6%          4.9          19 s    52 s
+ 0.04 gr   0.5 s   71.4%   21.7%    6.9%          5.4           3 s     6 s
+ 0.04 gr     1 s   79.7%   12.2%    8.1%          4.1           4 s    10 s
+ 0.04 gr   1.5 s   83.5%    9.7%    6.8%          3.8           6 s    15 s
+ 0.04 gr     2 s   84.3%    8.8%    6.8%          3.5           7 s    20 s
+ 0.04 gr     3 s   86.2%    8.1%    5.7%          3.4          10 s    27 s
+ 0.04 gr     4 s   87.7%    8.2%    4.1%          3.4          14 s    40 s
 

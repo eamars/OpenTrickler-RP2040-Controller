@@ -838,3 +838,22 @@ A nudge gave nothing two times in three; one in sixteen read a digit less (the b
 - **A finish by moves and waits is slow:** three digits short is 10 to 20 s by itself.
 
 **Not said by these:** what a move of another size or kind releases. The steady stream is even where the nudges are not (variance over mean of the kernels 0.9 at 0.2 rev/s against 3 to 5 in nudges, 11-20), and a stop from the slowest speeds scatters by 0.9 to 1.4 digits; a finish that stops a stream at the right count of turns may do as well as the moves, sooner. That is the next thing to try in the simulation. And one over in fifty within 0.02 gr asks for smaller releases, which is the owner's oscillation: a question for the tube and the firmware, not for the controller.
+
+### The owner's question: does that finish count the scale's longer lag for a single small change? It did not; with it
+
+**The owner:** "Does the nudge styled finish considered the longer lag from the scale due to its inconsistent weight change?" No: the table above is the kindest finish, which knows each move's whole gain (the reading 5 s after) and charges the scale's lag only as a wait a move. `topup_bound.py` now draws the same finish deciding after a wait: of every move so far it sees only what the scale had shown by then (each recorded nudge's own readings, every quarter second), moves again while that is short of the band and stops when it is in. What shows late is then moved for twice or arrives after the stop. From 3 digits short, of the true weight (`research/bench_2026-11-21/topup_bound.txt`):
+
+| Wait after each move | BM2 within 0.02 gr: good, over | AR2209 within 0.02 gr | BM2 within 0.04 gr | AR2209 within 0.04 gr | The finish alone: mean; one in twenty over (BM2, 0.02 gr) |
+|---|---|---|---|---|---|
+| 0.5 s | 53%, 43% | 48%, 46% | 80%, 14% | 71%, 22% | 4 s; 9 s |
+| 1 s | 70%, 25% | 63%, 31% | 89%, 5% | 80%, 12% | 7 s; 16 s |
+| 2 s | 82%, 15% | 74%, 22% | 93%, 2% | 84%, 9% | 12 s; 30 s |
+| 3 s | 85%, 13% | 77%, 20% | 95%, 1% | 86%, 8% | 17 s; 45 s |
+| 4 s | 87%, 12% | 78%, 20% | 96%, 1% | 88%, 8% | 23 s; 60 s |
+| Each gain known | 88%, 12% | 80%, 20% | 99%, 1% | 92%, 8% | |
+
+(What is neither good nor over is under: 1 to 8%, a reading that flickered into the band.) Of the nudges that gave something, the A&D had shown the whole of it by 1 s for 7 to 14%, by 2 s for 47 to 61%, by 3 s for 75 to 81%, by 4 s for 93 to 95%.
+
+- **To come within two points of the best, a move must be waited 4 s:** the last three digits then cost 19 to 23 s on average and a minute one time in twenty. At 2 s a move the finish gives up 6 to 7 points and still costs 10 to 12 s.
+- **So the bench's A&D makes a finish by moves and waits either slow or worse than the table above, and it is the scale's answer to one small change that does it,** as the owner's note of 11-20 said. A balance that takes 5 s and more for a small change (the owner's G&G JJ223BF) would be worse again; by how much is not known here, since no nudge was ever recorded on one. That is an input the research lacks: the same watched nudges on that scale would give its row.
+- **It strengthens the case for the next thing to try:** a finish that leans on the stream, which the scale follows 0.6 to 0.9 s behind whatever the size, and waits for a single small change as few times as it can.
