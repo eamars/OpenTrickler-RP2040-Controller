@@ -78,13 +78,16 @@ static const char *charge_calibration_lacks(const charge_calibration_record_t *r
 }
 
 
+bool charge_calibration_held(uint8_t profile) {
+    return profile < MAX_PROFILE_CNT &&
+           config_read_stored(charge_calibration_addr(profile), &charge_calibration_read,
+                              sizeof(charge_calibration_read)) &&
+           charge_calibration_read.valid && charge_calibration_lacks(&charge_calibration_read) == NULL;
+}
+
+
 bool charge_calibration_get(uint8_t profile, charge_control_calibration_t *out) {
-    if (profile >= MAX_PROFILE_CNT) {
-        return false;
-    }
-    if (!config_read_stored(charge_calibration_addr(profile), &charge_calibration_read,
-                            sizeof(charge_calibration_read)) || !charge_calibration_read.valid ||
-        charge_calibration_lacks(&charge_calibration_read) != NULL) {
+    if (!charge_calibration_held(profile)) {
         return false;
     }
     charge_calibration_make(&charge_calibration_read, out);

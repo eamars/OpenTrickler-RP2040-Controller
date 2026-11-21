@@ -87,6 +87,8 @@ def main() -> int:
                         help="a calibration in staged.to_json's shape, or a throw set with one under `calibration`")
     parser.add_argument("--errors-from", type=Path,
                         help="a throw set whose calibration holds the rehearsals' first errors (else the calibration's)")
+    parser.add_argument("--errors", help="the rehearsals' first errors, comma separated, in place of the calibration's: "
+                        "a series' own, each corrected to the rule's stop (first + stop_room - the rule's stop room)")
     parser.add_argument("--finish", choices=("glide", "jog"), default="glide")
     parser.add_argument("--band", type=float, default=0.02)
     parser.add_argument("--target", type=float, default=10.0)
@@ -99,6 +101,8 @@ def main() -> int:
     errors = cal.first_errors
     if args.errors_from:
         errors = json.loads(args.errors_from.read_text())["calibration"]["first_errors"]
+    if args.errors:
+        errors = [float(value) for value in args.errors.split(",")]
 
     sys.path.insert(0, str(args.repo / "tools" / "remote_control"))
     import argparse as _argparse
@@ -108,7 +112,8 @@ def main() -> int:
     folder = args.repo / "logs" / "adr009" / f"{stamp}_series_{args.name}"
     folder.mkdir(parents=True)
     record = {"name": args.name, "started": stamp, "target_gr": args.target, "finish": args.finish,
-              "band_gr": args.band, "calibration_file": str(args.calibration), "throws": []}
+              "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "ccon_asked": args.ccon,
+              "throws": []}
     started_charge = False
     try:
         now = state(session)

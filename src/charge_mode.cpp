@@ -92,8 +92,21 @@ static bool charge_stop_logged = false;     // the charge's stopped event is out
     its calibration is the powder profile's, read as the charge begins. A series for the bench pours its throws into
     the same cup, each from the weight the cup rests at (charge_mode_set_series)
 */
-static charge_control_t charge_controller;
-static charge_control_calibration_t charge_calibration;
+typedef struct {
+    charge_control_t controller;
+    charge_control_calibration_t cal;
+} charge_staged_block_t;
+static charge_staged_block_t *charge_staged_block = NULL;     // while a staged charge runs
+static charge_control_t *charge_controller = NULL;
+
+
+static void charge_mode_staged_free(void) {
+    if (charge_staged_block != NULL) {
+        vPortFree(charge_staged_block);
+    }
+    charge_staged_block = NULL;
+    charge_controller = NULL;
+}
 static bool charge_staged = false;          // this charge's throws are the staged controller's
 static bool charge_staged_verdict = false;  // the last throw ended at its rest, judged by the controller
 static float charge_staged_weight = NAN;    // its weight at rest, from the throw's base
@@ -103,9 +116,14 @@ static float charge_base = 0.0f;            // the weight a throw starts from: 0
 
 /*
     The last staged throw's rows, a reading each, for the bench (`ccrec`). 16 bytes a row; at 21 readings a second
-    the A&D fills it in 38 s
+    the A&D fills it in 38 s. The Pico W has no room for it (its RAM was within 5 KB of full): its recordings are
+    decided with the API's, in a RAM budget of their own (ADR-009, gate 7)
 */
+#if PICO_RP2350
 #define CHARGE_RECORD_ROWS 800
+#else
+#define CHARGE_RECORD_ROWS 1
+#endif
 typedef struct {
     uint32_t t_ms;
     float reading;
@@ -268,12 +286,16 @@ void charge_mode_wait_for_zero() {
                 return;
             }
             float current_measurement;
+            static float last_measurement = 0.0f;
             if (scale_block_wait_for_next_measurement(300, &current_measurement)) {
                 data_buffer.enqueue(current_measurement);
+                last_measurement = current_measurement;
             }
             if (data_buffer.getCounter() >= 10 &&
                 data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
-                charge_base = data_buffer.getMean();
+                // A reading, not the mean of ten: the throw is judged on the scale's own digits. The mean of a
+                // flickering rest lay between them and put throws off the grid (10.068 gr; one of 10.02 judged over)
+                charge_base = last_measurement;
                 if (charge_base + charge_mode_config.target_charge_weight > CHARGE_SERIES_CUP_MOST) {
                     printf("Charge: series ended, the cup holds %.2f\n", charge_base);
                     charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
@@ -497,9 +519,9 @@ static void charge_mode_record(uint32_t t_ms, float reading) {
     charge_record_row_t *row = &charge_record[charge_record_rows++];
     row->t_ms = t_ms;
     row->reading = reading;
-    row->forecast = charge_controller.reading + charge_controller.unseen_gr;
-    row->coarse_mrps = (uint16_t) lroundf(fminf(charge_controller.coarse_rps, 65.0f) * 1000.0f);
-    row->fine_mrps = (uint16_t) lroundf(fminf(charge_controller.fine_rps, 65.0f) * 1000.0f);
+    row->forecast = charge_controller->reading + charge_controller->unseen_gr;
+    row->coarse_mrps = (uint16_t) lroundf(fminf(charge_controller->coarse_rps, 65.0f) * 1000.0f);
+    row->fine_mrps = (uint16_t) lroundf(fminf(charge_controller->fine_rps, 65.0f) * 1000.0f);
 }
 
 
@@ -511,7 +533,7 @@ static void charge_mode_record(uint32_t t_ms, float reading) {
 */
 static bool charge_mode_staged_throw(const char *target_weight_string) {
     const float target = charge_mode_config.target_charge_weight;
-    charge_control_t *cc = &charge_controller;
+    charge_control_t *cc = charge_controller;
 
     uint32_t usual_interval_ms = scale_get_usual_interval_ms();
     if (usual_interval_ms == 0) {
@@ -915,7 +937,7 @@ void charge_mode_wait_for_cup_removal() {
     float fine_stop_threshold = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
     if (charge_staged_verdict) {
         current_measurement = charge_staged_weight;
-        fine_stop_threshold = charge_controller.cal.band_gr + 0.5f * charge_controller.cal.digit_gr;
+        fine_stop_threshold = charge_controller->cal.band_gr + 0.5f * charge_controller->cal.digit_gr;
     }
     float error = charge_mode_config.target_charge_weight - current_measurement;
 
@@ -1106,16 +1128,25 @@ uint8_t charge_mode_menu(void) {
     charge_base = 0.0f;
     charge_staged = charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED;
     if (charge_staged) {
-        if (!charge_calibration_get((uint8_t) profile_get_selected_idx(), &charge_calibration)) {
-            // Refused at the start already (charge_mode_request_start); here only if the slot changed since
-            charge_mode_scale_fault("Not calibrated", EVENT_REASON_REFUSED, 0, NULL);
+        // The controller and its calibration for this charge, from the heap, given back as the charge ends: the Pico
+        // W has no RAM to keep them for a charge that may never come
+        charge_staged_block = (charge_staged_block_t *) pvPortMalloc(sizeof(charge_staged_block_t));
+        const char *refused = charge_staged_block == NULL ? "No memory" :
+            !charge_calibration_get((uint8_t) profile_get_selected_idx(), &charge_staged_block->cal) ?
+            "Not calibrated" : NULL;
+        if (refused != NULL) {
+            // Refused at the start already (charge_mode_request_start) when not calibrated; here only if the slot
+            // changed since
+            charge_mode_staged_free();
+            charge_mode_scale_fault(refused, EVENT_REASON_REFUSED, 0, NULL);
             activity_job_end();
             return 1;
         }
-        charge_control_init(&charge_controller, &charge_calibration, charge_calibration_constants(), 0.0f, false);
+        charge_controller = &charge_staged_block->controller;
+        charge_control_init(charge_controller, &charge_staged_block->cal, charge_calibration_constants(), 0.0f, false);
         printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f\n", profile_get_selected_idx(),
-               charge_calibration.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide", charge_calibration.band_gr,
-               charge_calibration.stop_room_gr);
+               charge_controller->cal.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide",
+               charge_controller->cal.band_gr, charge_controller->cal.stop_room_gr);
     }
 
     // Enable motor on entering the charge mode
@@ -1170,6 +1201,8 @@ uint8_t charge_mode_menu(void) {
     // The job is over, a throw cut short with it (ADR-003, gates 3 and 4): logged, unless a fault logged it
     charge_mode_throw_ended(EVENT_REASON_STOPPED, 0, NULL);
     charge_mode_log_stopped(charge_end_by, EVENT_REASON_STOPPED);
+    charge_staged_verdict = false;
+    charge_mode_staged_free();
     activity_job_end();
 
     return 1;  // return back to main menu
@@ -1292,9 +1325,8 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     }
     // The staged controller takes every number from the powder's calibration: none, no start (ADR-009)
     if (charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED) {
-        static charge_control_calibration_t check;
         uint8_t profile = powder_profile >= 0 ? (uint8_t) powder_profile : (uint8_t) profile_get_selected_idx();
-        if (!charge_calibration_get(profile, &check)) {
+        if (!charge_calibration_held(profile)) {
             return CHARGE_START_NOT_CALIBRATED;
         }
     }

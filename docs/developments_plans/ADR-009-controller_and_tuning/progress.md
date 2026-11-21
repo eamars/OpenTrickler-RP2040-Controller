@@ -1117,3 +1117,28 @@ A band of a digit either side needs one to three digits from a move. The bench's
 - **The coarse tube's last powder at its floor** (above): at the desk.
 - **For ADR-012's record:** a new step rate is on the pin only when the steps already handed to the PIO are made, two segments at the old rate, which is tenths of a second and more under ten steps a second (`step_pulses.c`).
 - Nothing is approved and no firmware is designed: the ADR is a draft.
+
+## 2026-11-21, 21:14 to 21:31: gates 0 and 1, the controller in C, checked at the desk
+
+The plan was approved this evening ("Approved. You can start with gate 0, 1, and 2."), with both loops kept behind one setting (README, "Four answers for the build" and the revision after them).
+
+**Gate 0.** The research branch, with the plan and the ADR marked Open, merged into main and pushed once (`929f538`). The build's branch, `adr009_controller`, starts there.
+
+**Gate 1, what was built** (`79f53a8`):
+- `src/charge_control.c` and `.h`: `staged.py`'s `Staged` and `set_rules`, and the end of `rehearse` that places the stop (`charge_control_place_stop`), in C, in its order. No FreeRTOS, no motor, no allocation. Its number type is float on the unit; `CHARGE_CONTROL_DOUBLE` builds it in double for the PC's check of its logic. Differences from the reference, each in the file's head: times are seconds since the throw's start; given the unit's count, a parcel is still made every 10 ms on the tick, its speed the turns over that stretch; the limits (120 s, 15 fine turns, 3 gr over) are the firmware's own.
+- Zig 0.13.0, pinned in `toolchain.env` and fetched by both setup scripts, is the PC's C compiler (`zig cc`); the firmware is not built with it. `tools/charge_sim/firmware_controller.py` builds the controller as a library and loads it by ctypes, with `staged.Staged`'s interface; `check_firmware_controller.py` judges it; CI runs its exact part.
+- `staged.py` and the C break a time tie the same way (`TIE_S`, a tenth of a millisecond): the simulation's times and a record's numbers lie on a millisecond's grid, and a parcel due on a reading's millisecond fell one way in double and the other in float. And the C counts its parcels with an integer: a sum of 0.01 s in float drifted past the tie.
+
+**Gate 1, its pass** (written in the plan before it ran; 200 throws a set, 20 gr, both records, both finishes, both bands):
+
+| | Result |
+|---|---|
+| The rules, C (float) against `set_rules` | agree to a part in ten thousand in all 8 sets |
+| Lockstep, the C in double given the reference's very calls | 1600 of 1600 throws with no difference in their decisions, speeds or first errors |
+| The float build, thrown apart | within three standard errors of the reference in all 8 sets (e.g. AR2209 glide 0.02: 72% / 75% good, 13.5 s / 13.5 s) |
+| The firmware's own path, the turns given by count | the same (AR2209 glide 0.02: 72%) |
+| The bench trial's kept calibration through the C rules | agrees, both finishes and bands |
+
+What the check found on its way, each mended before it passed: the parcel tie and the float sum above; and, later in gate 2, that 128 parcels a tube are too few (with BM2's record a creep's powder takes over 1.28 s to show; merging the overflow stopped glides up to 0.5 s early): 256, as first written.
+
+**Pass: gate 1 is built.**

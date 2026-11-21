@@ -41,7 +41,11 @@ typedef float charge_control_real_t;
 #define CHARGE_CONTROL_COARSE_STOPS_MAX 4
 #define CHARGE_CONTROL_FINE_STOPS_MAX 8
 #define CHARGE_CONTROL_MOVES 3
-#define CHARGE_CONTROL_PARCELS_MAX 256         // a tube's powder on its way, in parcels: 2.56 s at 10 ms a parcel
+// A tube's powder on its way, in parcels: 2.56 s at 10 ms a parcel. 128 was too few: with BM2's record a creep's
+// powder took longer than 1.28 s to show, and merging the overflow stopped glides up to 0.5 s early (the PC's check,
+// ADR-009, gate 2). A scale later still has its parcels merged into the last, shown no sooner than either: the
+// forecast stays whole and the throw stops earlier, never later. The charge takes the controller from the heap
+#define CHARGE_CONTROL_PARCELS_MAX 256
 
 typedef enum {
     CHARGE_CONTROL_FINISH_GLIDE = 0,    // proposal 2: the fine tube creeps and stops a digit short (the default)
