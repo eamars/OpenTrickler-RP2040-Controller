@@ -757,3 +757,45 @@ No unit. Another agent took over from the handover. **The recordings are now in 
 - **AR2209's throws of today's loop,** three settings (29 throws); the slow finish is 10 over of 12, at rest +0.072 gr.
 - **Tolerances are `fit_report.py`'s own, set on 11-20 before any of this:** what arrives after a stop and its spread within 0.6 digit or a quarter; a set of throws' share over within 0.17, its weight at rest within 0.03 gr or a quarter.
 - **Pass:** for each powder `like_throw`'s two figures within tolerance; and for AR2209 the slow finish's share over and weight at rest within tolerance. The simulation gave about half over before, against the bench's 10 of 12: that is the figure this was built to mend. The other plans and settings are reported, each within or outside.
+
+### Built and checked: BM2's record passes; AR2209's passes on its throws and fails on its throw-shaped ramp
+
+`build_rig.py --session pico2w_ar2209`, then `--session pico2w_bm2 --scale-from pico2w_ar2209`; each record beside the bench in `tools/charge_sim/fit/report_<record>.txt` (`fit_report.py`, seed 1). The scale, solved once from AR2209's session: delay 0.406 s, a small change held 0.875 s.
+
+**How late the fine tube's powder shows, mean seconds beyond the scale's delay** (`late_s`, solved a speed at a time from that speed's stops; the coarse tube's is 0.03 s at most at every speed, both powders):
+
+| Fine tube, rev/s | 0.02 | 0.05 | 0.1 | 0.2 | 0.3 | 0.5 | 1 |
+|---|---|---|---|---|---|---|---|
+| AR2209 | 0 | 0.38 | 0 | 0.56 | 0.19 | 0.19 | 0 |
+| BM2 | 1.47 | 0.19 | 0.03 | 0.19 | 0.19 | 0.25 | 0.25 |
+
+BM2's is one number from 0.2 to 1 rev/s, as this morning's figures said. Its entry at 0.02 rev/s is at the end of the range looked in (1.5 s) and stands on 20 stops that left one digit each: not a measurement to lean on. AR2209's is uneven, with its most at 0.2 rev/s.
+
+**The check** (measured | simulated; nothing here was used to make a record):
+
+| | Arrives after the stop, digits | Its spread | |
+|---|---|---|---|
+| BM2, `like_throw` | 3.00 \| 3.56 | 1.77 \| 1.32 | **within** |
+| BM2, `slow_hold` | 1.00 \| 1.42 | 1.21 \| 1.12 | within |
+| BM2, `slow` | 1.27 \| 1.92 | 1.00 \| 1.02 | outside by 0.05 digit |
+| AR2209, `like_throw` | 4.50 \| 6.59 | 2.19 \| 3.19 | **outside** |
+| AR2209, `slow_hold` | 1.23 \| 1.32 | 1.63 \| 1.76 | within |
+| AR2209, `slow` | 1.97 \| 2.58 | 1.83 \| 2.12 | outside by 0.01 digit |
+
+| AR2209, today's loop | Share over | At rest, gr | Its spread, gr | Time, s |
+|---|---|---|---|---|
+| Slow finish (12 throws) | 0.83 \| 0.82 **within** | +0.07 \| +0.10 **within** | 0.05 \| 0.11 outside | 11.3 \| 10.7 |
+| Fine gain 0.8 (12) | 0.83 \| 0.97 within | +0.21 \| +0.27 outside by 0.01 | 0.12 \| 0.18 outside | 4.6 \| 5.0 |
+| As stored (5) | 1.00 \| 1.00 | +1.33 \| +1.36 | 0.09 \| 0.30 outside | 6.2 \| 6.6 |
+
+**By the pass written first:** BM2 passes. AR2209 passes on the slow finish, the figure this was built to mend (the same record with no lateness gives 0.47 over, the old simulation's figure), and fails on `like_throw`: the simulation leaves two digits too many after a tube slowed through a finish's speeds.
+
+**Where AR2209's two digits come from: one entry, 0.2 rev/s** (a diagnosis; no record was changed by it). The same record with that one entry at its neighbours' 0.19 s: `like_throw` 5.32 (spread 2.27), within; the slow finish 0.76 over, at rest +0.08 (spread 0.07), all within; and then its own stops from 0.2 rev/s read 7.1 digits where the bench's fifteen left 9.9. So a stop from a steady 0.2 rev/s leaves about three digits that a tube passing through 0.22 rev/s for half a second does not. That part is not a lateness of the powder released at that speed, and the table cannot hold both.
+
+**A lead on what it is, from 17 stops, so no more than a lead:** the stops from 0.2 rev/s were shuffled with stops from 0.5 and 1. The ten that came a few seconds after a faster trial left 11.0 digits; the five after a trial at 0.2 left 7.8, and the two after 60 and 90 s of steady turning left 8 and 7: seven stops at 7.7, which is what the neighbours' lateness gives. The difference is twice its error. BM2 shows none (5.5 against 5.6). And AR2209's stops from 1 rev/s leave less than any lateness accounts for (0.63 s of the flow) and scatter from 11 to 37 digits. Read together: with this clumping powder a fast run's stop keeps some powder at the lip, and the next trial pours it. If so, the entry at 0.2 rev/s is the test's order and not the tube's lateness, and this morning's check 2, which found nothing past twice its error, was too weak to see it.
+
+**The recording that settles it,** at the next AR2209 loaded (fresh AR2209 is on the owner's list): the stops of each speed in a block of their own, the block's first stop not counted, in place of shuffled speeds. `protocol.py` shuffles today. It goes in with the stops from 0.7, 1.5 and 2 rev/s and the throws.
+
+**Also outside, in the records' own recordings** (100 of 118 figures within for BM2, 106 of 147 for AR2209): the spread of what a stop from 1 rev/s leaves (BM2 1.8 measured, 6.5 simulated: the releases at 1 rev/s are solved too lumpy from one 20 s run); AR2209's flow in the first seconds of a run from 0.1 to 0.3 rev/s (the simulation starts quicker than the bench); and a throw's spread at rest for AR2209, twice the bench's at every setting.
+
+**Where this leaves the handover's order.** Step 4 (two records, each checked) is done: BM2's record can be designed on; AR2209's gives the right share over for today's loop but is two digits harsh where a finish slows through 0.2 rev/s, and its spread at rest is double, so a figure from it is quoted with that said. Step 5 (the owner's questions by simulation) is next and needs no bench.

@@ -1,0 +1,36 @@
+measured|simulated, rig pico2w_ar2209; OFF marks a figure outside its tolerance
+map fine: gr_per_turn 0.77|0.76, late_s_fast 0.57|0.66
+map coarse: gr_per_turn 9.31|9.00, late_s_fast 0.63|0.62
+coarse 0.1 backoff stop: rise 58.33|69.38, rise_sd 9.96|23.70 OFF
+coarse 0.1 held steady: rate 49.33|50.54, fano_1s 5.50|5.46, fano_2s 4.61|1.76 OFF, most_1s 79.00|112.00 OFF, fold_turn 0.59|0.56, fold_rifling 0.74|0.68
+coarse 0.1 held stop: rise 26.83|34.05 OFF, rise_sd 19.79|17.21
+coarse 0.3 backoff stop: rise 136.17|127.30, rise_sd 9.92|14.48
+coarse 0.3 held stop: rise 82.75|87.85, rise_sd 5.99|4.90
+coarse 1 backoff stop: rise 314.00|317.92, rise_sd 14.41|14.52
+coarse 1 held stop: rise 274.63|275.52, rise_sd 14.19|8.65
+fine 0.02 held steady: rate 0.75|0.77, fano_1s 3.37|2.93, fano_2s 3.29|2.73, fano_4s 2.36|2.39, most_1s 8.00|14.00 OFF, fold_turn 0.74|0.66 OFF, fold_rifling 0.66|0.66
+fine 0.02 held stop: rate 0.85|0.77, start_1s 0.03|0.07, start_2s 0.27|0.77, fano_1s 3.71|5.47 OFF, rise 0.43|0.70, rise_sd 0.92|1.38, three_hold 0.90|0.91
+fine 0.05 backoff stop: rate 1.58|0.04 OFF, start_1s 0.07|-0.01, start_2s 1.67|-0.01 OFF, fano_1s 1.26|2.77 OFF, rise 3.40|0.73 OFF, rise_sd 1.74|0.59 OFF, three_hold 0.67|0.98 OFF
+fine 0.05 held steady: rate 1.90|1.91, fano_1s 1.89|1.94, fano_2s 1.76|1.56, fano_4s 1.24|1.15, most_1s 9.00|15.00 OFF, fold_turn 0.65|0.62, fold_rifling 0.69|0.60 OFF
+fine 0.05 held stop: rate 1.52|1.80 OFF, start_1s -0.00|0.08, start_2s 1.17|1.21, fano_1s 2.72|1.65 OFF, rise 2.50|2.77, rise_sd 2.41|2.19, three_hold 0.54|0.53
+fine 0.05 released stop: rate 1.86|1.88, start_1s -0.03|0.10, start_2s 1.32|1.24, fano_1s 2.27|1.95, rise 2.60|2.69, rise_sd 2.34|2.21, three_hold 0.52|0.55
+fine 0.1 backoff stop: rate 2.26|3.50 OFF, start_1s 0.07|0.02, start_2s 0.87|1.35, fano_1s 0.98|1.93 OFF, rise 3.67|3.52, rise_sd 2.18|2.40, three_hold 0.60|0.58
+fine 0.1 held steady: rate 3.57|3.84, fano_1s 2.18|1.35 OFF, fano_2s 2.64|0.99 OFF, fano_4s 1.54|0.71 OFF, most_1s 11.00|17.00 OFF, fold_turn 0.68|0.61 OFF, fold_rifling 0.60|0.59
+fine 0.1 held stop: rate 3.27|3.92 OFF, start_1s 0.13|0.89 OFF, start_2s 2.85|4.27 OFF, fano_1s 1.41|1.94 OFF, rise 3.02|3.20, rise_sd 2.44|2.03, three_hold 0.50|0.55
+fine 0.1 released stop: rate 3.38|3.93 OFF, start_1s 0.16|0.89 OFF, start_2s 3.77|4.30, fano_1s 1.82|1.53, rise 2.90|3.24, rise_sd 2.28|2.07, three_hold 0.52|0.58
+fine 0.2 held steady: rate 7.20|7.68, fano_1s 0.84|1.01, fano_2s 0.83|0.67, fano_4s 0.35|0.23, most_1s 15.00|16.00, fold_turn 0.61|0.60, fold_rifling 0.54|0.54
+fine 0.2 held stop: rate 6.47|8.04 OFF, start_1s 0.27|0.03, start_2s 7.60|5.16 OFF, fano_1s 0.44|1.02 OFF, rise 9.93|9.87, rise_sd 3.68|2.84, three_hold 0.40|0.39
+fine 0.3 backoff stop: rate 9.78|11.53 OFF, start_1s 0.47|0.16, start_2s 8.67|10.21, fano_1s 1.00|0.75, rise 10.67|10.87, rise_sd 2.55|2.49, three_hold 0.47|0.45
+fine 0.3 held stop: rate 9.35|11.68 OFF, start_1s 0.40|1.35 OFF, start_2s 7.27|12.65 OFF, fano_1s 0.79|0.71, rise 10.00|10.04, rise_sd 3.65|2.42 OFF, three_hold 0.33|0.48 OFF
+fine 0.5 held steady: rate 19.06|19.12, fano_1s 0.86|0.99, fano_2s 0.62|0.44, fano_4s 0.36|0.36, most_1s 35.00|40.00, fold_turn 0.58|0.58, fold_rifling 0.51|0.54
+fine 0.5 held stop: rate 18.04|19.37, start_1s 2.67|3.05, start_2s 20.13|22.55, rise 16.60|15.67, rise_sd 3.59|3.61, three_hold 0.47|0.36
+fine 1 held stop: rate 41.70|38.06, start_1s 11.13|15.75 OFF, start_2s 52.00|54.03, fano_1s 3.00|2.70, rise 25.13|23.39, rise_sd 7.32|10.50 OFF, three_hold 0.25|0.18
+nudges: kernels 0.64|0.63, fano 3.15|3.40, nothing 0.69|0.76, three_up 0.10|0.09, first_single_s 1.96|2.18, first_many_s 0.91|1.07, single_late 0.75|0.87
+ramp slow: rise 1.97|2.58 OFF, rise_sd 1.83|2.12
+ramp slow_hold: rise 1.23|1.32, rise_sd 1.63|1.76
+ramp like_throw: rise 4.50|6.59 OFF, rise_sd 2.19|3.19 OFF
+throws stored at 42.5 gr: time 6.24|6.58, coarse_s 5.34|5.65, at_stop 0.16|0.10 OFF, at_rest 1.33|1.36, at_rest_sd 0.09|0.30 OFF, over 1.00|1.00
+throws kp08 at 20 gr: time 4.65|5.04, coarse_s 3.21|3.34, at_stop -0.02|0.02 OFF, at_rest 0.21|0.27 OFF, at_rest_sd 0.12|0.18 OFF, over 0.83|0.97
+throws slow_finish at 20 gr: time 11.27|10.66, coarse_s 6.18|6.10, at_stop -0.02|-0.00, at_rest 0.07|0.10, at_rest_sd 0.05|0.11 OFF, over 0.83|0.82
+the record's own recordings: 106 of 147 figures within tolerance
+the check, speed plans with no controller and throws of today's loop: 15 of 24 figures within tolerance

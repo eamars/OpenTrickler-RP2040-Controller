@@ -1,0 +1,27 @@
+measured|simulated, rig pico2w_bm2; OFF marks a figure outside its tolerance
+map coarse: gr_per_turn 8.13|8.12, late_s_fast 0.50|0.60
+map fine: gr_per_turn 0.51|0.53, late_s_fast 0.88|0.96
+coarse 0.1 held stop: rise 13.00|24.67 OFF, rise_sd 0.00|1.13
+coarse 0.3 held stop: rise 78.00|77.02, rise_sd 0.00|2.26
+coarse 1 held stop: rise 200.00|242.62 OFF, rise_sd 0.00|5.78
+fine 0.02 held steady: rate 0.52|0.46, fano_1s 2.17|2.08, fano_2s 2.04|1.84, fano_4s 1.56|1.77, most_1s 4.00|8.00 OFF, fold_turn 0.71|0.65 OFF, fold_rifling 0.67|0.66
+fine 0.02 held stop: rate 0.31|0.35, start_1s 0.00|0.06, start_2s 0.10|0.09, fano_1s 1.67|1.84, rise 1.10|1.09, rise_sd 1.22|1.39, three_hold 0.75|0.89 OFF
+fine 0.05 backoff stop: rate 0.33|0.28, start_1s 0.08|-0.10, start_2s 0.08|-0.08, fano_1s 0.79|2.27 OFF, rise 3.00|2.88, rise_sd 1.35|1.29, three_hold 0.75|0.80
+fine 0.05 held steady: rate 1.29|1.20, fano_1s 1.49|1.06, fano_2s 1.06|0.68, fano_4s 0.40|0.50, most_1s 5.00|8.00 OFF, fold_turn 0.57|0.57, fold_rifling 0.72|0.60 OFF
+fine 0.05 held stop: rate 1.14|1.13, start_1s 0.00|0.05, start_2s 0.72|0.89, fano_1s 1.93|1.37, rise 1.38|1.59, rise_sd 1.39|1.25, three_hold 0.75|0.81
+fine 0.1 backoff stop: rate 1.34|2.59 OFF, start_1s 0.08|0.03, start_2s 1.33|0.59, fano_1s 1.03|0.93, rise 5.50|4.76, rise_sd 1.85|1.55, three_hold 0.67|0.71
+fine 0.1 held steady: rate 2.60|2.50, fano_1s 0.71|0.74, fano_2s 0.36|0.46, fano_4s 0.20|0.26, most_1s 6.00|10.00 OFF, fold_turn 0.62|0.54 OFF, fold_rifling 0.63|0.58
+fine 0.1 held stop: rate 2.51|2.48, start_1s 0.19|0.19, start_2s 2.25|2.67, fano_1s 0.85|0.73, rise 2.48|2.56, rise_sd 1.66|1.29, three_hold 0.59|0.78 OFF
+fine 0.2 held steady: rate 5.31|5.54, fano_1s 0.31|0.27, fano_2s 0.26|0.18, fano_4s 0.31|0.08, most_1s 8.00|8.00, fold_turn 0.55|0.54, fold_rifling 0.53|0.58
+fine 0.2 held stop: rate 5.36|5.81, start_1s 0.00|0.21, start_2s 6.83|5.38, fano_1s 0.22|0.52, rise 5.58|5.42, rise_sd 1.32|1.53, three_hold 0.75|0.71
+fine 0.3 backoff stop: rate 7.21|6.93, start_1s 0.00|-0.02, start_2s 6.50|5.43, fano_1s 0.32|0.35, rise 8.92|8.85, rise_sd 1.75|1.40, three_hold 0.67|0.71
+fine 0.3 held stop: rate 7.04|6.87, start_1s 0.08|0.29, start_2s 6.58|7.01, fano_1s 0.40|0.30, rise 6.33|6.42, rise_sd 1.70|1.21, three_hold 0.67|0.79
+fine 0.5 held steady: rate 13.28|13.55, fano_1s 0.27|0.33, fano_2s 0.15|0.15, most_1s 18.00|18.00, fold_turn 0.55|0.53, fold_rifling 0.53|0.55
+fine 0.5 held stop: rate 13.21|13.42, start_1s 2.17|1.27 OFF, start_2s 15.92|14.96, rise 12.75|12.71, rise_sd 2.80|1.71 OFF, three_hold 0.42|0.67 OFF
+fine 1 held stop: rate 27.40|27.20, start_1s 4.46|4.11, start_2s 31.85|32.63, fano_1s 1.22|1.91 OFF, rise 24.38|24.48, rise_sd 1.82|6.51 OFF, three_hold 0.69|0.26 OFF
+nudges: kernels 0.89|0.81, fano 4.51|3.92, nothing 0.70|0.73, three_up 0.14|0.12, first_many_s 1.12|0.89
+ramp like_throw: rise 3.00|3.56, rise_sd 1.77|1.32
+ramp slow_hold: rise 1.00|1.42, rise_sd 1.21|1.12
+ramp slow: rise 1.27|1.92 OFF, rise_sd 1.00|1.02
+the record's own recordings: 100 of 118 figures within tolerance
+the check, speed plans with no controller and throws of today's loop: 5 of 6 figures within tolerance

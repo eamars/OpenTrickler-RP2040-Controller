@@ -14,6 +14,18 @@ Another agent took over. Two things changed; the section below still holds other
 - **A trap in `measure.py`:** with no folders named it reads every stop under `--logs`, and the folder now holds two powders. Step 2 below (a session's figures from its batch) must take its folders from the session, as `scale_or_powder.py` does from `sessions.json`.
 - **Next is step 2 below, unchanged.** No bench step.
 
+### The same day, afternoon: steps 2 to 4 below are done; step 5 is next
+
+`../progress.md`, "a record for each powder", has the pass written first and every figure. In short:
+
+- **A record for each powder:** `tools/charge_sim/records/pico2w_ar2209.json` and `pico2w_bm2.json`, each built from its session by `build_rig.py --session <name>` (BM2's with `--scale-from pico2w_ar2209`: one scale weighed both). `bench_pico2w` is gone. `tools/charge_sim/README.md` has the commands; a record's report is `fit/report_<record>.txt`.
+- **The simulation's tube changed.** The leftover dropped at a stop and owed to the next start is removed: the recordings are not that shape. A tube has a table `late_s`, how much later than the scale's delay its powder shows at each speed, which holds at a stop, while slowing and at a start. BM2's is one number (0.19 to 0.25 s from 0.2 to 1 rev/s).
+- **The check** (the speed plans with no controller, and AR2209's throws; none used to build): **BM2 passes.** **AR2209 passes on its throws** (slow finish 0.82 over against the bench's 0.83; the old simulation gave 0.47) **and fails on its throw-shaped ramp** (6.6 digits after the stop against 4.5).
+- **AR2209's failure is one entry, the stops from 0.2 rev/s,** and the lead is that it is the test's order: those stops were shuffled with faster ones, and the ten that followed a faster trial left 11.0 digits where the seven that did not left 7.7. Not changed by hand. Until it is settled, a figure from AR2209's record is quoted with this said: two digits harsh where a finish slows through 0.2 rev/s, and a throw's spread at rest double the bench's.
+- **For the next batch, three things in `protocol.py`, none yet in it:** each speed's stops in a block of their own, the first not counted, in place of shuffled speeds; the fine tube's stops from 0.7, 1.5 and 2 rev/s; the throws of today's loop as its last step.
+- **GRT** (the owner sent its pages for both powders; `sources/grt_two_powders.md`): the two densities and no kernel size. The bulk densities are 1% apart. Asked of the owner: the window's "Detail Picture" tab for each powder, for a kernel's length and width.
+- **Next: step 5 below,** the owner's questions by simulation, on BM2's record first. No bench step.
+
 ## Where it stood, 2026-11-21, 01:50
 
 The owner's direction for the bench (11-20, evening): sessions capture data and verify written assumptions ("make assumption, and use the actual trickler to verify the assumption"); no tuning on the unit and no design decision while capturing; hybrid control is open, to be decided later. `../progress.md` has it in the owner's words.

@@ -264,7 +264,8 @@ def problems_of(targets: dict, first: bool, scale_given: bool) -> list:
     for tube in ("coarse", "fine"):
         for speed, rows in sorted(creep_rows(targets, tube).items()):
             prefix = f"{tube} {speed:g} "
-            if any(row["fano_1s"] is not None for _, row in rows):
+            # A coarse stop is judged on what arrives after it alone (fit_report's COARSE_STOP), whatever its length
+            if any(row["fano_1s"] is not None and (tube == "fine" or row["length"] == "steady") for _, row in rows):
                 bursts.append(Problem((tube, "burst_kernels", speed), 1.0, 12.0, True, "creep", prefix, FANO))
             elif any(row["stop"] == "held" for _, row in rows):
                 # No run long enough to show how evenly it pours: the spread of what lands after its stops stands in

@@ -4,45 +4,47 @@ A simulation of one charge: two rotary tubes, falling kernels, a scale, and a co
 
 **A rig is a record of what was measured on a unit,** one JSON file in `records/`: a scale, a powder's kernel, and each tube with that powder in it. No number in it is set by hand. Each names its source:
 - **measured:** read straight off a recording (a tube's grains a turn, the scale's rhythm, what a reverse turn spills);
-- **solved:** the one value at which the simulation, run through the bench's own test, gives the bench's figure (the scale's delay, a tube's bursts at each speed, what falls after a stop from each speed);
+- **solved:** the one value at which the simulation, run through the bench's own test, gives the bench's figure (the scale's delay, a tube's bursts at each speed, how late its powder shows at each speed);
+- **taken:** the scale of another record, for a session the same scale weighed;
 - **stated:** known of the rig without a recording (the scale's digit, the kernel's mass, the fall to the cup);
 - **assumed:** no recording gives it yet. `pinned.py` says which of these matter.
 
 Another unit, powder or scale is another record, made by the same command. Nothing is tuned to make it fit.
 
-**The bench's recordings are in `recordings/`** (its README says what a folder and a trial hold): every session so far, copied from the bench's own folder by `bench/keep.py`. Wherever a command below takes `--logs`, `recordings` serves.
+**The bench's recordings are in `recordings/`** (its README says what a folder and a trial hold): every session so far, copied from the bench's own folder by `bench/keep.py`. `recordings/sessions.json` names each session's unit, powder and scale; a record is built from one session.
 
 ## From a bench session to a rig
 
 ```
-..\..\venv\Scripts\python build_rig.py --logs <checkout>\logs\adr009 --manifest fit\bench_pico2w.manifest.json
-..\..\venv\Scripts\python fit_report.py --rig bench_pico2w
-..\..\venv\Scripts\python pinned.py --rig bench_pico2w
+..\..\venv\Scripts\python build_rig.py --session pico2w_ar2209
+..\..\venv\Scripts\python build_rig.py --session pico2w_bm2 --scale-from pico2w_ar2209
+..\..\venv\Scripts\python fit_report.py --rig pico2w_bm2
+..\..\venv\Scripts\python pinned.py --rig pico2w_ar2209
 ```
 
-1. **The manifest** (`fit/<name>.manifest.json`) says which folder of the session is which test, the settings of any throws recorded, and what is stated of the rig.
-2. **`build_rig.py`** sums the recordings up as figures (`fit/<name>.json`, by `bench/measure.py`) and makes the record (`records/<name>.json`) from the open-loop tests alone: the maps, the stops, the steady runs and the nudges. About ten minutes on a PC with many cores.
-3. **`fit_report.py`** sets every figure the bench measured beside the simulation's. The throws of today's loop were not used to make the record: they are the check, counted apart.
+1. **The manifest** (`fit/<session>.manifest.json`) names the folders no rule finds (the watched nudges, the speed plans with no controller, the throws and their settings, the tapped maps where the session has them) and what is stated of the rig. A session's stops are every `*_creepstop` folder in its time span.
+2. **`build_rig.py`** sums the session up as figures (`fit/<session>.json`, by `bench/measure.py`) and makes the record (`records/<session>.json`) from the maps, the stops, the steady runs and the nudges. A second powder weighed by the same scale takes that scale from the first record (`--scale-from`) and solves its tubes alone.
+3. **`fit_report.py`** sets every figure the bench measured beside the simulation's. The speed plans turned with no controller and the throws of today's loop were not used to make the record: they are the check, counted apart.
 4. **`pinned.py`** moves each number of the record by a half and says which the recordings pin down, and which of the others a throw would notice: those need a recording at the next session.
 
 ## What to ask of a rig
 
 ```
-..\..\venv\Scripts\python mc.py --rig bench_pico2w --controller legacy_slow_finish --throws 500
-..\..\venv\Scripts\python scale_map.py --rig bench_pico2w
-..\..\venv\Scripts\python evenness.py --rig bench_pico2w
-..\..\venv\Scripts\python scale_step.py --rig bench_pico2w
+..\..\venv\Scripts\python mc.py --rig pico2w_ar2209 --controller legacy_slow_finish --throws 500
+..\..\venv\Scripts\python scale_map.py --rig pico2w_ar2209
+..\..\venv\Scripts\python evenness.py --rig pico2w_ar2209
+..\..\venv\Scripts\python scale_step.py --rig pico2w_ar2209
 ```
 
 | File | What it is |
 |---|---|
-| `plant.py` | A tube with a powder in it, as tables a calibration measures (its flow a turn, the size of its releases and what falls after a stop, each by speed), and the cup |
+| `plant.py` | A tube with a powder in it, as tables a calibration measures (its flow a turn, the size of its releases and how late its powder shows, each by speed), and the cup |
 | `scale.py` | A scale as the charge loop meets it: a delay, then a reading that follows a change at once or holds a small one before taking it. Its sets of estimates for other makes are priors, never measured |
 | `rigs.py`, `records/` | The rigs: a record read into the simulation's parts |
 | `build_rig.py` | A record from a session's figures |
 | `fit_report.py` | The simulation beside the bench, figure by figure; `fit/` holds the figures and the last comparisons |
 | `pinned.py` | Which numbers the recordings pin down, and which of the rest a throw notices |
-| `bench_twin.py` | The bench's tests (a steady turn and a stop, nudges, today's loop's throws) run against the simulation, in the shape the bench saves |
+| `bench_twin.py` | The bench's tests (a steady turn and a stop, nudges, a speed plan with no controller, today's loop's throws) run against the simulation, in the shape the bench saves |
 | `bench/` | The bench's own tools: `record.py` (recordings through the debug probe: maps, stops, nudges, throws, and `ramp` for speeds one after another with no stop, backward too), `stats.py` (a recording as figures, for the bench and the simulation alike), `measure.py`, and the looks at a recording (`after_stop.py`, `ramp_look.py`, `steps_look.py`, `reverse_look.py`, `nudge_watch.py` for the session of 2026-11-20's evening, not yet figures of `stats.py`) |
 | `mc.py` | Many throws summed up: over, under, error, time, and the seconds a good throw costs |
 | `scale_map.py` | A controller across scales: overs and time against a scale's delay, reading period and hold |

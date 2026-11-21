@@ -26,11 +26,14 @@ A recording named `nudgewatch` is `creepstop` trials of 0.05 s each: one small m
 
 ## Reading them with this folder's tools
 
-Every tool that takes `--logs` takes this folder:
+A session's figures, and its record for the simulation (`../README.md`):
 
 ```
-..\..\venv\Scripts\python bench\measure.py --logs recordings --manifest fit\bench_pico2w.manifest.json --out <a file>
+..\..\venv\Scripts\python bench\measure.py --session pico2w_bm2 --out <a file>
+..\..\venv\Scripts\python build_rig.py --session pico2w_bm2 --scale-from pico2w_ar2209
 ```
+
+The looks in `bench/` take a recording's folder, or `--logs` this folder.
 
 ## Adding a session
 
