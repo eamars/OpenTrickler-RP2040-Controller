@@ -66,6 +66,13 @@ $Parts = @(
         Url = "https://github.com/raspberrypi/pico-sdk-tools/releases/download/$($V.OPENOCD_RELEASE)/openocd-$($V.OPENOCD)-x64-win.zip"
         Dest = "openocd\$($V.OPENOCD)"
         Probe = 'openocd.exe'
+    },
+    @{
+        # A C compiler for the PC only: the charge controller as a library for the simulation (ADR-009, gate 1)
+        Name = "Zig $($V.ZIG) (a C compiler for the PC), about 80 MB"
+        Url = "https://ziglang.org/download/$($V.ZIG)/zig-windows-x86_64-$($V.ZIG).zip"
+        Dest = "zig\$($V.ZIG)"
+        Probe = 'zig.exe'
     }
 )
 

@@ -1,0 +1,251 @@
+"""The firmware's charge controller (src/charge_control.c) in the simulation: built as a library, loaded by ctypes.
+
+ADR-009, gate 1: the simulation runs the very C code the unit runs, so a change to the controller is tried at the
+desk on the firmware's own code, and the PC checks the port against its reference (`staged.py`,
+`check_firmware_controller.py`). The library is built with the PC's C compiler that toolchain.env names (Zig, used
+only as `zig cc`), into `build_host/` at the repository's root, whenever a source is newer than it. It is built in
+the unit's float, and, for the check of the port's logic, in double as the reference computes
+(`CHARGE_CONTROL_DOUBLE`).
+
+`FirmwareStaged` has the interface of `staged.Staged` (start, on_tick, on_reading, count, moved; coarse_rps,
+fine_rps, done, move_turns, phase, log, stop_room), so every harness that throws `staged.Staged` throws it too.
+"""
+
+import ctypes
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import staged
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parent.parent
+SOURCES = [REPO / "src" / "charge_control.c", HERE / "c" / "charge_control_shim.c"]
+HEADER = REPO / "src" / "charge_control.h"
+BUILD = REPO / "build_host"
+
+FINISHES = {"glide": 0, "jog": 1}
+RESULTS = {0: "none", 1: "good", 2: "over", 3: "short", 4: "limit"}
+PHASES = ("feed", "rest", "move")
+COARSE_STOPS_MAX = 4
+FINE_STOPS_MAX = 8
+MOVES = 3
+OUTPUTS = 19
+RULES = ("floor_rps", "stop_room_gr", "aim_gr", "glide_room_gr", "glide_s", "coarse_room_gr", "coarse_glide_s",
+         "rest_s")
+
+
+def _types(real) -> tuple:
+    """The C structs as ctypes Structures, in the precision the library was built with."""
+
+    class Stop(ctypes.Structure):
+        _fields_ = [(name, real) for name in ("speed_rps", "unseen_gr", "spread_gr", "quiet_s", "lag_s")]
+
+    class Move(ctypes.Structure):
+        _fields_ = [(name, real) for name in ("turns", "mean_gr", "most_gr", "wait_s")]
+
+    class Calibration(ctypes.Structure):
+        _fields_ = ([(name, real) for name in ("digit_gr", "interval_s", "coarse_gr_turn", "fine_gr_turn")]
+                    + [(name, ctypes.c_uint8) for name in ("coarse_stop_count", "fine_stop_count", "move_count",
+                                                           "finish")]
+                    + [("coarse_stops", Stop * COARSE_STOPS_MAX), ("fine_stops", Stop * FINE_STOPS_MAX),
+                       ("moves", Move * MOVES)]
+                    + [(name, real) for name in ("watch_s", "coarse_share", "band_gr", "floor_rps", "stop_room_gr",
+                                                 "aim_gr", "glide_room_gr", "glide_s", "coarse_room_gr",
+                                                 "coarse_glide_s", "rest_s")])
+
+    class Constants(ctypes.Structure):
+        _fields_ = ([(name, real) for name in (
+            "move_rps", "parcel_s", "fine_top_rps", "coarse_top_rps", "coarse_floor_rps", "dribble_digits_s",
+            "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
+            "learn_dead_digits", "still_least_s")]
+                    + [("most_moves", ctypes.c_uint8)]
+                    + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_most_gr")])
+
+    return Stop, Move, Calibration, Constants
+
+
+def _library_path(double: bool) -> Path:
+    name = "charge_control_double" if double else "charge_control"
+    return BUILD / (f"{name}.dll" if sys.platform == "win32" else f"lib{name}.so")
+
+
+def _zig() -> str:
+    """The Zig that toolchain.env names: where the setup scripts put it, or on the path."""
+    version = next(line.split("=", 1)[1].strip() for line in (REPO / "toolchain.env").read_text().splitlines()
+                   if line.startswith("ZIG="))
+    for candidate in (Path(os.environ.get("USERPROFILE", "")) / ".pico-sdk" / "zig" / version / "zig.exe",
+                      REPO / ".toolchain" / f"zig-{version}" / "zig"):
+        if candidate.exists():
+            return str(candidate)
+    found = shutil.which("zig")
+    if found:
+        return found
+    raise RuntimeError(f"Zig {version} is not found: run setup_toolchain.ps1 (Windows) or setup_toolchain.sh (Linux)")
+
+
+def build(double: bool = False) -> Path:
+    """The library, built again when a source or the header is newer than it."""
+    library_file = _library_path(double)
+    newest = max(path.stat().st_mtime for path in SOURCES + [HEADER])
+    if library_file.exists() and library_file.stat().st_mtime >= newest:
+        return library_file
+    BUILD.mkdir(exist_ok=True)
+    command = [_zig(), "cc", "-shared", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-ffp-contract=off"]
+    if sys.platform == "win32":
+        command += ["-target", "x86_64-windows-gnu", "-Wl,--export-all-symbols"]
+    if double:
+        command += ["-DCHARGE_CONTROL_DOUBLE"]
+    command += ["-I", str(REPO / "src"), "-o", str(library_file)] + [str(source) for source in SOURCES]
+    subprocess.run(command, check=True, cwd=BUILD)
+    return library_file
+
+
+class Library:
+    """The library of one precision, its functions typed, and its structs."""
+
+    def __init__(self, double: bool):
+        real = ctypes.c_double if double else ctypes.c_float
+        self.Stop, self.Move, self.Calibration, self.Constants = _types(real)
+        lib = ctypes.CDLL(str(build(double)))
+        for name, struct in (("controller", None), ("calibration", self.Calibration), ("constants", self.Constants)):
+            getattr(lib, f"shim_sizeof_{name}").restype = ctypes.c_size_t
+            if struct is not None and getattr(lib, f"shim_sizeof_{name}")() != ctypes.sizeof(struct):
+                raise RuntimeError(f"firmware_controller's {name} does not match charge_control.h")
+        cal_p, k_p = ctypes.POINTER(self.Calibration), ctypes.POINTER(self.Constants)
+        lib.charge_control_set_rules.argtypes = [cal_p, ctypes.c_int, real, k_p]
+        lib.charge_control_place_stop.argtypes = [cal_p, ctypes.POINTER(real), ctypes.c_uint16]
+        lib.charge_control_init.argtypes = [ctypes.c_void_p, cal_p, k_p, real, ctypes.c_bool]
+        lib.charge_control_start.argtypes = [ctypes.c_void_p, real, ctypes.c_uint32]
+        lib.charge_control_count.argtypes = [ctypes.c_void_p, ctypes.c_uint32, real, real]
+        lib.charge_control_tick.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        lib.charge_control_reading.argtypes = [ctypes.c_void_p, ctypes.c_uint32, real]
+        lib.charge_control_moved.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        lib.charge_control_default_constants.argtypes = [k_p]
+        lib.shim_outputs.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
+        lib.shim_parcels.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_double),
+                                     ctypes.POINTER(ctypes.c_double)]
+        lib.shim_parcels.restype = ctypes.c_uint16
+        self.lib = lib
+
+    def default_constants(self):
+        k = self.Constants()
+        self.lib.charge_control_default_constants(ctypes.byref(k))
+        return k
+
+
+_libraries = {}
+
+
+def library(double: bool = False) -> Library:
+    if double not in _libraries:
+        _libraries[double] = Library(double)
+    return _libraries[double]
+
+
+def to_c(cal: staged.Calibration, double: bool = False):
+    """A `staged.Calibration` as the firmware holds one, rules and all."""
+    lib = library(double)
+    if len(cal.coarse_stops) > COARSE_STOPS_MAX or len(cal.fine_stops) > FINE_STOPS_MAX or len(cal.moves) != MOVES:
+        raise ValueError("the calibration has more stops or moves than the firmware holds")
+    out = lib.Calibration(digit_gr=cal.digit_gr, interval_s=cal.interval_s, coarse_gr_turn=cal.coarse_gr_turn,
+                          fine_gr_turn=cal.fine_gr_turn, coarse_stop_count=len(cal.coarse_stops),
+                          fine_stop_count=len(cal.fine_stops), move_count=len(cal.moves),
+                          finish=FINISHES[cal.finish], watch_s=cal.watch_s, coarse_share=cal.coarse_share,
+                          band_gr=cal.band_gr, floor_rps=cal.floor_rps, stop_room_gr=cal.stop_room_gr,
+                          aim_gr=cal.aim_gr, glide_room_gr=cal.glide_room_gr, glide_s=cal.glide_s,
+                          coarse_room_gr=cal.coarse_room_gr, coarse_glide_s=cal.coarse_glide_s, rest_s=cal.rest_s)
+    for i, stop in enumerate(cal.coarse_stops):
+        out.coarse_stops[i] = lib.Stop(stop.speed, stop.unseen_gr, stop.spread_gr, stop.quiet_s,
+                                       -1.0 if stop.lag_s is None else stop.lag_s)
+    for i, stop in enumerate(cal.fine_stops):
+        out.fine_stops[i] = lib.Stop(stop.speed, stop.unseen_gr, stop.spread_gr, stop.quiet_s,
+                                     -1.0 if stop.lag_s is None else stop.lag_s)
+    for i, move in enumerate(cal.moves):
+        out.moves[i] = lib.Move(move.turns, move.mean_gr, move.most_gr, move.wait_s)
+    return out
+
+
+def rules_in_c(measured: staged.Calibration, finish: str, band_gr: float, double: bool = False) -> dict:
+    """The rules the firmware makes from a measured calibration, by name, as `staged.set_rules` names them."""
+    cal = to_c(measured, double)
+    k = library(double).default_constants()
+    library(double).lib.charge_control_set_rules(ctypes.byref(cal), FINISHES[finish], band_gr, ctypes.byref(k))
+    return {name: getattr(cal, name) for name in RULES}
+
+
+class FirmwareStaged:
+    """`staged.Staged`'s interface on the firmware's controller."""
+
+    def __init__(self, cal: staged.Calibration, acceleration_rps2: float, rehearsal: bool = False,
+                 double: bool = False):
+        lib = library(double)
+        self._lib = lib.lib
+        self._c = ctypes.create_string_buffer(self._lib.shim_sizeof_controller())
+        self._cal = to_c(cal, double)
+        self._k = lib.default_constants()
+        self._lib.charge_control_init(self._c, ctypes.byref(self._cal), ctypes.byref(self._k), acceleration_rps2,
+                                      rehearsal)
+        self._out = (ctypes.c_double * OUTPUTS)()
+        self.cal = cal
+        self.name = cal.finish + (" (firmware, double)" if double else " (firmware)")
+        self.rehearsal = rehearsal
+        self.log = []
+        self._logged = False
+        self._read()
+
+    def _read(self) -> None:
+        self._lib.shim_outputs(self._c, self._out)
+        out = self._out
+        self.coarse_rps = out[0]
+        self.fine_rps = out[1]
+        self.move_turns = out[2] if out[2] >= 0.0 else None
+        self.done = out[3] != 0.0
+        self.result = RESULTS[int(out[4])]
+        self.phase = PHASES[int(out[5])]
+        self.rest_weight = out[6]
+        self.stop_room = out[7]
+        self.first_error = out[9] if out[8] else None
+        self.moves = int(out[10])
+        self.streams = int(out[11])
+        self.unseen = out[12]
+        self.coarse_unseen = out[13]
+        self.reading = out[14]
+        self.turned = {"coarse": out[15], "fine": out[16]}
+        self.speed = {"coarse": out[17], "fine": out[18]}
+        if self.done and not self._logged:
+            self.log.append((self.first_error, self.moves, self.streams))
+            self._logged = True
+
+    def parcels(self, tube: str) -> list:
+        """(due, grains) of a tube's powder on its way: for a test."""
+        due, grains = (ctypes.c_double * 256)(), (ctypes.c_double * 256)()
+        count = self._lib.shim_parcels(self._c, 0 if tube == "coarse" else 1, due, grains)
+        return [(due[i], grains[i]) for i in range(count)]
+
+    @staticmethod
+    def _ms(now_ms: float) -> int:
+        return int(round(now_ms))
+
+    def start(self, target_gr: float, now_ms: float) -> None:
+        self._lib.charge_control_start(self._c, target_gr, self._ms(now_ms))
+        self._logged = False
+        self._read()
+
+    def count(self, now_ms: float, turns: dict) -> None:
+        self._lib.charge_control_count(self._c, self._ms(now_ms), turns["coarse"], turns["fine"])
+        self._read()
+
+    def on_tick(self, now_ms: float) -> None:
+        self._lib.charge_control_tick(self._c, self._ms(now_ms))
+        self._read()
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        self._lib.charge_control_reading(self._c, self._ms(now_ms), weight)
+        self._read()
+
+    def moved(self, now_ms: float) -> None:
+        self._lib.charge_control_moved(self._c, self._ms(now_ms))
+        self._read()

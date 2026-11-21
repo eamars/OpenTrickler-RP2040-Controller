@@ -39,6 +39,14 @@ jobs:
       if: steps.toolchain-cache.outputs.cache-hit != 'true'
       run: ./setup_toolchain.sh
 
+    # The charge controller (src/charge_control.c) against its reference in the simulation (ADR-009, gate 1): built
+    # for the PC with the Zig that toolchain.env names, its rules and its decisions throw for throw
+    - name: Check the charge controller against its reference
+      shell: bash
+      run: |
+        source ./configure_env.sh
+        cd tools/charge_sim && python3 check_firmware_controller.py --throws 40 --logic-only
+
     # A release's five builds and its folder, as a PC makes them with the same script (ADR-004, gate 3): each board's
     # full install, the update images (the Pico W's for each slot), each named with the version,
     # manifest.json and SHA256SUMS. On every build, so every pull request shows the release it would make. On a tag

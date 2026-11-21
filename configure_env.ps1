@@ -24,3 +24,6 @@ $env:Path = "$PicoSdkRoot\tools\$($V.PICO_TOOLS)\pioasm;" + $env:Path
 $OPENOCD_PATH = "$PicoSdkRoot\openocd\$($V.OPENOCD)"
 $env:Path = "$OPENOCD_PATH;" + $env:Path
 $env:OPENOCD_SCRIPTS = "$OPENOCD_PATH\scripts"
+
+# Zig, the PC's C compiler for the simulation's copy of the charge controller (ADR-009)
+$env:Path = "$PicoSdkRoot\zig\$($V.ZIG);" + $env:Path

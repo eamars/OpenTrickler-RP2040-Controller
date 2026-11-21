@@ -66,6 +66,10 @@ CREEP_MOST_S = 6.0              # the creep is never so slow that its stretch ta
 LEARN_SHARE = 0.15              # of a throw's first error at rest, into where the fine tube stops
 LEARN_MOST_DIGITS = 2.0         # no throw teaches more than this
 LEARN_DEAD_DIGITS = 0.25        # nor less
+# Two times this close are the same time. The simulation's times and a record's numbers lie on a millisecond's grid, so
+# a parcel falls due on a reading's very millisecond often, and which way such a tie falls must not hang on the last
+# bit of a float: the firmware's port (src/charge_control.c), in single precision, breaks it the same way (ADR-009)
+TIE_S = 1e-4
 
 
 @dataclass(frozen=True)
@@ -406,12 +410,12 @@ class Staged:
                 speed = min(asked, speed + change) if speed < asked else max(asked, speed - change)
                 self.speed[tube] = speed
                 self.turned[tube] += speed * elapsed
-            if now >= self.next_mark:
+            if now >= self.next_mark - TIE_S:
                 self._parcel(now)
                 self.next_mark += PARCEL_S
         if self.phase == "feed":
             self._feed(now)
-        elif self.phase == "move" and now >= self.move_until:
+        elif self.phase == "move" and now >= self.move_until - TIE_S:
             self._end_move(now)
 
     def _feed(self, now: float) -> None:
@@ -448,13 +452,13 @@ class Staged:
         self.lowest = min(self.lowest, weight)
         self.reading = weight
         if self.parcels:                # what was due to show by now is in this reading
-            self.parcels = [parcel for parcel in self.parcels if parcel[0] > now]
+            self.parcels = [parcel for parcel in self.parcels if parcel[0] > now + TIE_S]
             self.unseen = sum(parcel[1] for parcel in self.parcels)
             self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse")
         if self.phase != "rest":
             return
         still = max(0.4, 2.0 * cal.interval_s)
-        if now < self.stopped_at + self.wait or now < self.last_rise + still:
+        if now < self.stopped_at + self.wait - TIE_S or now < self.last_rise + still - TIE_S:
             return
         weight = self.highest if REST_ON == "highest" else self.lowest
         short = self.target - weight

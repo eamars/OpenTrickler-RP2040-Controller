@@ -18,7 +18,8 @@ else
     echo "Warning: ${TOOLCHAIN_DIR} is missing. Run ./setup_toolchain.sh first."
 fi
 for TOOL_DIR in "${TOOLCHAIN_DIR}/bin" "${TOOLCHAIN_ROOT}/cmake-${CMAKE}/bin" "${TOOLCHAIN_ROOT}/ninja-${NINJA}" \
-                "${TOOLCHAIN_ROOT}/picotool-${PICO_TOOLS}/picotool" "${TOOLCHAIN_ROOT}/pico-sdk-tools-${PICO_TOOLS}/pioasm"; do
+                "${TOOLCHAIN_ROOT}/picotool-${PICO_TOOLS}/picotool" "${TOOLCHAIN_ROOT}/pico-sdk-tools-${PICO_TOOLS}/pioasm" \
+                "${TOOLCHAIN_ROOT}/zig-${ZIG}"; do
     if [[ -d "${TOOL_DIR}" ]]; then
         export PATH="${TOOL_DIR}:${PATH}"
     fi

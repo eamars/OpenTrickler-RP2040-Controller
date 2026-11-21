@@ -61,5 +61,8 @@ fetch "picotool ${PICO_TOOLS}" "${TOOLS_URL}/picotool-${PICO_TOOLS}-x86_64-lin.t
     "picotool-${PICO_TOOLS}" picotool/picotool
 fetch "pioasm ${PICO_TOOLS}" "${TOOLS_URL}/pico-sdk-tools-${PICO_TOOLS}-x86_64-lin.tar.gz" \
     "pico-sdk-tools-${PICO_TOOLS}" pioasm/pioasm
+# A C compiler for the PC only: the charge controller as a library for the simulation (ADR-009, gate 1)
+fetch "Zig ${ZIG}" "https://ziglang.org/download/${ZIG}/zig-linux-x86_64-${ZIG}.tar.xz" \
+    "zig-${ZIG}" zig
 
 echo "Source ./configure_env.sh before building."
