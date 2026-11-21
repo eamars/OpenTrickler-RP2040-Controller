@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Draft** 2026-11-13. Not approved. Research made for it on 2026-11-19 is in `research/` and `progress.md`; what it proposes is under "Decisions proposed by the research". Captures how the charge is controlled today, what is known to be wrong, and ideas. Nothing here has been tried on powder.
+Status: **Draft** 2026-11-13. Not approved. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), for the owner's approval; nothing of it is built.
 
 ## What we want
 
@@ -23,7 +23,12 @@ Status: **Draft** 2026-11-13. Not approved. Research made for it on 2026-11-19 i
 - **The tolerance, and a looser one** (the owner, 2026-11-21, starting the design questions): "AR2209 throw is much harder than BM2 due to its kernel size. In most cases +/-0.02 gr is acceptable, and I'd accept +/- 0.04 gr for loads that doesn't need to be that accurate." And on the work: "don't over do, if you need any help, let me know, and also let me know if you lacks of any input." Read here as: a throw is good within 0.02 gr of its target (a digit of the A&D either way, which is the firmware's rule today: over or under from 0.03 gr), and a second, looser band of 0.04 gr is one a user may choose; every figure for a controller is given at both. A kernel of AR2209 is a whole digit and one of BM2 a little over half, so the same finish is judged harder on AR2209.
 - **No scale is characterised by hand; the calibration finds each one's lag** (the owner, 2026-11-21, on being shown what a finish by small moves costs on the bench's A&D): "There are more than 7 scale to be supported, so I'm not planning to evaluate each of them to account for individual measurement lag. Therefore the later calibration routine must account for that, and your simulation today should assume the inconsistent measurement lag subject to the weight change speed." Read here as: the firmware carries no table of scales' delays. A unit measures, with its own tubes and powder, how late its scale shows a flow at each rate of flow and how late a single small change, and the controller takes those from the calibration. The simulation treats a scale's lag as depending on how fast the weight changes, and a controller is tried on scales it was not designed on.
 - **Two proposals, for any build, powder and scale** (the owner, the same message): "Instead of letting me to review, I'd like you to make two proposals based on the knowledge and data to date, with confident ranking from high to med. Each proposal shall include the detailed procedure for both trickle control, as well as calibration routine. And remember, those proposals will be used on ANY opentrickler build/material/finish, and ANY powder, and ANY scale. therefore the proposal must be flexible and consider general use cases". They are in `research/proposals_2026-11-21.md`. Neither is approved.
-- **The controller and its calibration go into the firmware next, tuned hands on, on the bench's rig** (the owner, 2026-11-21, 17:29, after the bench trial of the two proposals with AR2209): "BM2 is low risk, so the next won't run the BM2 bench test. Instead, I'd expect the next agent to start to implement the controller and calibration in the firmware, and perform basic tune, against the calibration on the same rig based on proposal today. The next agent will be hands on, based on your research and simulation today." So no BM2 trial comes first, and for this stage a tune on the unit is his word, where the research's bench sessions only captured data. `research/HANDOVER.md` has what the trial found and where the next agent starts. This ADR's own plan and gates are not yet written for it.
+- **The controller and its calibration go into the firmware next, tuned hands on, on the bench's rig** (the owner, 2026-11-21, 17:29, after the bench trial of the two proposals with AR2209): "BM2 is low risk, so the next won't run the BM2 bench test. Instead, I'd expect the next agent to start to implement the controller and calibration in the firmware, and perform basic tune, against the calibration on the same rig based on proposal today. The next agent will be hands on, based on your research and simulation today." So no BM2 trial comes first, and for this stage a tune on the unit is his word, where the research's bench sessions only captured data. `research/HANDOVER.md` has what the trial found and where the next agent starts. The plan and its gates are under "What we do".
+- **Four answers for the build** (the owner, 2026-11-21, just before 20:58, to the implementing agent's questions):
+  - **The finish:** glide and stop (proposal 2) is a unit's default; stop short and jog (proposal 1) is the other setting of the same two numbers.
+  - **The PC twin:** a host C compiler is added, pinned in `toolchain.env`, so the simulation runs the firmware's own controller code on the PC and in CI.
+  - **Today's loop:** replaced by the new controller, "and I will want to run a side-by-side comparison later". Read here as: the two PID loops go; a gate throws today's firmware and the new one on the same rig, powder and target, and what is kept for users is decided with its figures.
+  - **Hands on:** the agent tunes the frame's constants on the unit (the margins' multipliers, the creep's share of the band, the rest and watch times), each change committed with its recorded throws and replayed in the simulation; a new mechanism goes to the owner first.
 - PRs are not merged as they stand. Two of them are about tuning (#113, #101). Since 2026-11-15 nothing is kept of them ahead of this ADR's design ("Handed on by ADR-002").
 
 ## Why here
@@ -190,6 +195,41 @@ Whether today's loop stays beside the new one, for how long, and whether old pro
 
 **The order proposed,** each gate ending in a pass or fail on a unit: (1) the bench session; (2) recordings and the open-loop jobs in the firmware; (3) the nudged finish alone; (4) the flow law and the calibration; (5) the G&G's driver read at once after its ask, and the same controller on it; (6) mode 1's trimming, then mode 2's paths; (7) oscillation, if the bench says clumps.
 
+## What we do (planned 2026-11-21, 20:58; for the owner's approval)
+
+The controller is the research's frame with proposal 2's finish by default (`research/proposals_2026-11-21.md`, sections 2 and 4), ported from its reference, `tools/charge_sim/staged.py`, as it stood after the bench trial. Its calibration is the routine of the same file's section 3.2. Nothing is designed again here: what the bench found weak is mended where the gates below say, and nothing else is added. The gates are built in order, each ending in a pass or a fail written before it is run. The early gates go for speed: the controller is proven end to end on the rig (gates 1 to 3) before anything is polished (gates 4 to 6). One PR, when the ADR closes, unless the owner picks a gate to merge on its own.
+
+**Gate 0: the research onto main, and the branch.** The research branch (`adr009_research`: documents, `tools/charge_sim`, the recordings; nothing under `src/`) is merged into main as an ADR change, with one push. The build's branch starts from `origin/main`.
+
+**Gate 1: the controller in C, checked at the desk.**
+- `src/charge_control.c` and `.h`: `staged.py`'s controller and its rules (`Staged`, `set_rules`) in C. In: a start (the target, the time), each tube's turns since the start (the unit's own step count), a tick, each reading with its time. Out: each tube's speed, a small move as a number of turns, done, the verdict and its reason, and the marks a recording keeps (the coarse stop, the fine stop, each rest, each move, a return to the stream, the verdict). No FreeRTOS, no motor, no scale, no allocation: the powder on its way is a fixed array of parcels.
+- The calibration is one C struct, the measured numbers and those the rules make from them; the rules run on the unit, so a calibration is stored as measured.
+- **The PC twin** (the owner's answer): a host C compiler, its version written once in `toolchain.env` and fetched by both setup scripts, builds the module as a library that the simulation loads (`tools/charge_sim`, beside `staged.py`). It is a tool for the PC's checks only: the firmware's build and its compiler do not change. Read here as within the rule that keeps a dependency update out of a functional ADR, since no dependency of the firmware changes.
+- **Pass:** on both records (`pico2w_ar2209`, `pico2w_bm2`), both finishes and both bands, 200 throws each on the same seeds: the C controller's verdict is `staged.py`'s in at least 99 throws of 100, and every throw's weight at rest within a digit of it; the trial's kept calibration (`recordings/20261121_162403_trial_pico2w_ar2209`) read into the C rules gives `staged.py`'s numbers. CI runs it, in about a minute.
+
+**Gate 2: the controller in the charge, tuned on the rig.**
+- **The motors** gain two things: a move made as a count of steps by the motors' task (the PIO makes only the steps it is fed, so the count is exact), and each tube's turns since the throw began, from the steps counted on its pin, read every millisecond. A tube between moves stays enabled at a rate of zero, never at a creeping speed. A start from zero is measured once on the unit, step count against command, before a move's timing is trusted (the bench's 0.7 s late start came from a held creeping speed, `step_pulses.c`).
+- **The charge:** the job task runs the controller every millisecond, hands it each reading as it comes, and sets the two speeds. Kept from today: the zero, the cup's removal and return, ADR-013's pause on a missing reading (now in the controller's step: no fresh reading for three of the scale's intervals, both tubes at zero), ADR-012's end on a driver's fault, the LEDs, the API's throw and its states. Gone: the two PID loops, the two stop thresholds, the coarse back-off and the precharge; their stored settings stay in their records, unread, until gate 6.
+- **A powder with no calibration is refused at the start,** in words, with what to do. The simulated scale gets a calibration of its own for `charge_cycle`, and stops holding its weight at the target within 0.1 gr, which would hide an over.
+- **The calibration's stored form,** a change of the stored layout said here: one EEPROM slot for each of the eight powder profiles' calibrations (13 to 20 K; 12 K is the highest in use, and the CAT24C256 holds 32 K), each the whole calibration of that powder on that scale, with its CRC. No existing record changes. In this gate the trial's calibration is written into it from the PC; gate 3's job writes it on the unit.
+- **Every throw recorded,** as api_v1.md reserves it (`/api/v1/recordings`: a summary, the marks, the samples): the newest throws' summaries and the last throw's samples in a fixed RAM budget, measured on the Pico W in gate 7. The PC's trial tool reads them into `tools/charge_sim/recordings/`, and a recorded throw is replayed in the simulation against the C controller.
+- **The tune, hands on** (the owner's answer): the frame's constants against the bar below, each change committed with its throws and replayed in the simulation. Two weak points of the trial are looked at here, as constants or by one mend each: the coarse tube's last powder at its floor (5 throws in 100 ended 6 to 26 digits short after it) and the slow start of a small charge (2 gr of a 10 gr charge left to the fine tube).
+- **Pass, on the rig** (Pico 2 W, A&D FX-300i, the air-exposed AR2209, 10 gr, 25 throws a set): within 0.02 gr at least 68% good with a median at most 13 s; within 0.04 gr at least 84% good; no throw short because of a fault. Every throw recorded and read back. `charge_cycle`, `pulses` and `menu_tour --compare` pass, and `motor` shows no late feed over the 50 throws.
+
+**Gate 3: the calibration as a job on the unit.**
+- A job like a cleanup (`jobs.c`), started from the powder's profile, with the cup step before it (a safety step, kept). It pours into the declared cup of api_v1.md and is bounded in time and in powder; each of its runs is a recording. Its steps are 3.2's, prime to rehearsals, with one mend: a rehearsal is a throw's last stretch, not a short stream from rest (its rehearsals spread twice as widely as real throws' stops). It ends with its verdict, the share of throws expected in the band and the seconds a throw, and stores the calibration on the user's yes.
+- **Pass, on the rig:** its numbers against the trial's (grains a turn within 3%, each lag within 0.1 s); 25 throws a band on its own calibration meet gate 2's bar; under 15 minutes and 200 gr. Its recordings build a simulation record on the PC (`build_rig.py`), so any user's unit can be made a record the same way.
+
+**Gate 4: the screens and the web, designed.** Mocks of both, by the skills `embedded-ui-design` and `web-ui-design`, for the owner to settle before anything is built: the calibration's row in a powder's profile, its progress and its verdict; the band and the finish as a profile's settings; a throw's new end reasons; a throw's recording drawn on the web; and what goes from both of today's screens.
+
+**Gate 5: the screens and the web, built.** Every setting on both (screen and web parity). The menu's baselines saved again; `menu_tour`, `reach`, `api_check` and `settings_roundtrip` pass.
+
+**Gate 6: side by side, and what to keep** (the owner's answer). Today's firmware (`origin/main` as this ADR's branch starts) and the new, flashed in turn by the probe with the settings copied first, on the same rig, powder and target, 25 throws a band each. Then, with those figures, what is kept for users is decided with the owner: the stored profiles' gains and speed limits, the two thresholds, the back-off and the precharge are dropped, migrated or kept, and the profile record's change, with ADR-014's, is said here.
+
+**Gate 7: the Pico W, and a second powder.** The Pico W, since the motors' change and the millisecond's work in the job task are timing and memory: gate 2's checks and a charge set on it. BM2, when the owner loads it, its forecast written first: a calibration and 25 throws a band.
+
+**Not in these gates, kept as ideas:** the calibration choosing the finish from its own moves and stops; the move chosen as the best play of the powder's odds (`bench/best_finish.py`); a shorter calibration that keeps the scale's lag from one powder to the next (section 3.2: within four points); the trimming of grains a turn from the throws.
+
 ## A gate: the servo gate tuned by eye (the owner, 2026-11-19)
 
 The owner, during ADR-008's phone checks: "I want you to consider a servo gate tuning feature, perhaps offer that in initial commissioning as well as in the settings menu." Weighed the same day against ADR-008, the owner chose "A gate in ADR-009": ADR-008 was at its last checks, and the bench's unit has no gate fitted to prove it on. Here because this ADR holds how the charge uses the gate (it moves at the coarse stop, above), and tuning is the set-up half of the same part.
@@ -212,11 +252,11 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
 
 ## How the unit shows it works
 
-- The owner's recorded throws before and after, same powder, same target, at least ten each: time to target, overshoot and spread no worse, and better where a fault was fixed. The first set is also ADR-012's check: against the firmware before ADR-012, no worse ("Handed on by ADR-012").
-- The PC tests in CI.
-- `charge_cycle` passes.
-- A tuning run completes, saves a profile, and ten charges with it land inside the threshold.
-- On each supported board.
+Each gate's pass, under "What we do". Together:
+- The C controller gives the reference's verdicts on the PC, in CI (gate 1).
+- On the rig with AR2209 at 10 gr, from the unit's own calibration: at least 68% good within 0.02 gr in a median 13 s or less, at least 84% within 0.04 gr, every throw recorded (gates 2 and 3).
+- Today's firmware and the new side by side on the same rig, powder and target (gate 6).
+- `charge_cycle`, `pulses`, `menu_tour`, `reach`, `api_check` and `settings_roundtrip` pass, on the Pico 2 W and the Pico W (gates 2, 5 and 7).
 
 ## Not in this ADR
 
@@ -225,6 +265,7 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
 
 ## To settle before approval
 
-- What "better" is, as numbers the owner cares about: time to target, overshoot, spread.
-- Whether the controller and its recordings move ahead of ADR-008.
-- Which powders and which scale the proof is made with.
+Settled since: what "better" is (the two bands, 2026-11-21), the order (ADR-008 closed first), the rig the proof is made on (the owner, 2026-11-21, 17:29). Left for the owner, with the plan under "What we do":
+- **The plan's approval,** gate by gate as written, or changed.
+- **ADR-012's check against the firmware before it** ("Handed on by ADR-012"): proposed retired. The bench trial ran on ADR-012's motors, and today's loop puts 85% of AR2209's throws over on either firmware, so the comparison would say nothing of the motors; gate 6's side by side is against today's firmware.
+- **PR #113** (ADR-002 left its end here): its tuner tunes the two PID loops this ADR removes, so nothing of it is taken. Proposed: closed with thanks and a note naming what this ADR built, at the owner's word, when this ADR's PR is opened.
