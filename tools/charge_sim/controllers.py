@@ -88,7 +88,12 @@ def make_jog_borrowed(rig, seed: int = 0) -> tuple:
     return staged.make(rig, seed, "jog", 0.02, other_powder(rig)), VERDICT_TOLERANCE_GR
 
 
-CONTROLLERS = {"glide_borrowed": make_glide_borrowed, "jog_borrowed": make_jog_borrowed, "glide": make_glide, "glide_loose": make_glide_loose, "jog": make_jog, "jog_loose": make_jog_loose,
+def make_glide_pc_lags(rig, seed: int = 0) -> tuple:
+    """Proposal 2 on a calibration whose lags are 0.055 s long, as a PC's through the console were (2026-11-22)."""
+    return staged.make(rig, seed, "glide", 0.02, lag_shift_s=0.055), VERDICT_TOLERANCE_GR
+
+
+CONTROLLERS = {"glide_pc_lags": make_glide_pc_lags, "glide_borrowed": make_glide_borrowed, "jog_borrowed": make_jog_borrowed, "glide": make_glide, "glide_loose": make_glide_loose, "jog": make_jog, "jog_loose": make_jog_loose,
                "legacy": make_legacy, "legacy_kp08": make_legacy_kp08, "legacy_slow_finish": make_legacy_slow_finish,
                "flow_dose": make_flow_dose, "flow_dose_commit": make_flow_dose_commit,
                "flow_dose_sequential": make_flow_dose_sequential, "flow_dose_split": make_flow_dose_split}

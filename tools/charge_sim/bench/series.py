@@ -94,10 +94,15 @@ def main() -> int:
     parser.add_argument("--target", type=float, default=10.0)
     parser.add_argument("--throws", type=int, default=25)
     parser.add_argument("--ccon", default="", help="constants for this series: `name=value ...` (never stored)")
+    parser.add_argument("--lag-shift", type=float, default=0.0,
+                        help="seconds added to every stop's lag before it is written: -0.055 for a calibration made by "
+                             "the PC through the console, whose lags ran that far behind the firmware's (2026-11-22)")
     args = parser.parse_args()
 
     kept = json.loads(args.calibration.read_text())
     cal = staged.from_json(kept.get("calibration", kept))
+    if args.lag_shift:
+        staged.shift_lags(cal, args.lag_shift)
     errors = cal.first_errors
     if args.errors_from:
         errors = json.loads(args.errors_from.read_text())["calibration"]["first_errors"]
@@ -113,7 +118,7 @@ def main() -> int:
     folder.mkdir(parents=True)
     record = {"name": args.name, "started": stamp, "target_gr": args.target, "finish": args.finish,
               "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "ccon_asked": args.ccon,
-              "throws": []}
+              "lag_shift_s": args.lag_shift, "throws": []}
     started_charge = False
     try:
         now = state(session)

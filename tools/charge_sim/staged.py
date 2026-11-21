@@ -149,7 +149,9 @@ def behind(trial: dict, before: float, end: float, quiet: float) -> float:
     delay at that flow, with whatever lateness is the powder's own. It is taken over the whole run and not at the
     moment of the stop. What is unseen at a stop also holds whatever the one who turns the tubes adds (a PC's
     reading is a command old and its stop a command late: 0.07 s on the bench, 2026-11-21), and a forecast that
-    took that for the scale's delay counted a fast stream twice while its first powder showed.
+    took that for the scale's delay counted a fast stream twice while its first powder showed. Taken over the run it
+    holds less of that, but not none: a PC's lags through the console ran 0.055 s behind those the firmware's own
+    throws show (2026-11-22, `bench/forecast_replay.py --fit`), so a calibration is measured where its controller runs.
     """
     run_s = trial["run_s"]
     poured = end - before
@@ -525,15 +527,25 @@ def borrow_stops(cal: Calibration, other: Calibration) -> None:
                             for stop in getattr(other, name)])
 
 
-def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None) -> Calibration:
+def shift_lags(cal: Calibration, shift_s: float) -> None:
+    """Every stop's lag moved by `shift_s`: a calibration measured where the controller does not run holds that
+    place's latency. One made by a PC through the console ran 0.055 s behind the firmware's own (2026-11-22)."""
+    for name in ("coarse_stops", "fine_stops"):
+        setattr(cal, name, [dataclasses.replace(stop, lag_s=max(0.0, stop.lag_s + shift_s)) for stop in getattr(cal, name)])
+
+
+def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shift_s: float = 0.0) -> Calibration:
     """The whole calibration: the open-loop measurements, the rules, then rehearsals that place the stop.
 
     With `lag_rig`, the scale's part (the stops by flow) is taken from a calibration on that rig, another powder
-    on the same scale, as a unit would keep the scale's part from one powder to the next.
+    on the same scale, as a unit would keep the scale's part from one powder to the next. `lag_shift_s` moves every
+    lag after it is measured (`shift_lags`), to see what a calibration made elsewhere does.
     """
     cal = measure(rig, seed)
     if lag_rig is not None:
         borrow_stops(cal, measure(lag_rig, seed + 7))
+    if lag_shift_s:
+        shift_lags(cal, lag_shift_s)
     set_rules(cal, finish, band_gr)
     rehearse(cal, Session(rig, seed + 1), rig.acceleration_rps2)
     return cal
@@ -564,5 +576,5 @@ def rehearse(cal: Calibration, session, acceleration_rps2: float) -> None:
     cal.coarse_room_gr += shift
 
 
-def make(rig, seed: int, finish: str, band_gr: float, lag_rig=None) -> Staged:
-    return Staged(calibrate(rig, seed, finish, band_gr, lag_rig), rig.acceleration_rps2)
+def make(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shift_s: float = 0.0) -> Staged:
+    return Staged(calibrate(rig, seed, finish, band_gr, lag_rig, lag_shift_s), rig.acceleration_rps2)

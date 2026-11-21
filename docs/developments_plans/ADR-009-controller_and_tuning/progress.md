@@ -1170,3 +1170,57 @@ What they say:
 - **The time is in the last 0.3 gr:** at low speed this powder pours less than its 0.8 gr a turn, the forecast falls back to what the scale confirms, and the fine tube creeps on for several seconds; a throw that rests short adds a move of 2 to 4 s. Stopping near the target (A's first half, and the trial) is 13 s with half the throws over; stopping two digits short is 69 to 80% good in 18 to 20 s.
 
 **Against gate 2's bar** (68% good within 0.02 gr, median at most 13 s): the accuracy is met (B: 80%), the time is not (18 s). The 0.04 gr band is not yet thrown.
+
+## 2026-11-22, 11:33: the forecast's scale, a delay and then a lag; its passes written first
+
+The owner chose this before the rest of gate 2 ("Yes, fix forecast"). It is the mend gate 2's plan names for "the slow start of a small charge".
+
+**Why first, from series A and B's own throws:** the throws split by where the coarse tube stopped. Ten of A's stopped it on time, at about 8.5 gr, and took a median 13.3 s. Fifteen of A's and all 25 of B's stopped it at about 6.5 gr, and took a median 18 s. The early stop is the whole gap to gate 2's 13 s.
+
+**The change:** a parcel of powder is no longer all unseen until its lag and then all shown. It starts to show after a delay, and then shows as a first-order lag τ does, the delay and τ adding to the lag measured at its flow. So the measured lags, and with them the forecast of a steady stream, are unchanged; what changes is a start and a stop.
+
+**The passes, before each step is run:**
+1. **The shape, from the recordings.** Fitted run by run on the trial calibration's 102 runs (`20261121_145252_trial_pico2w_ar2209`) and on the coarse starts of the 52 throws. Pass: one τ for the coarse tube, the runs at 0.3, 1 and 2 rev/s within 30% of their median, the fit within 1.5 digits RMS. If τ follows the speed, it is a table by speed, as the lag is.
+2. **The replay, on the 52 throws.** The coarse tube's flow made again from the speeds asked (50 rev/s² ramps, scaled to each throw's counted turns). First the old forecast, made again this way, matches the one the unit logged within 0.15 gr RMS over the first 2 s; otherwise the replay proves nothing. Then the bulge (the forecast's highest in the first second, above where it settles once the coarse tube's powder has all shown, the fine tube's powder in between taken off) is under 0.2 gr in 50 of 52 throws, against about 1.4 gr today.
+3. **The simulation,** both records, both finishes, both bands, 200 throws each on the seeds of gate 1. Pass: the good share in each set is within three standard errors of today's or better, and the median time is no longer. On AR2209's record the coarse tube's share of a 20 gr charge rises.
+4. **The C,** the same change: gate 1's pass again (the lockstep 1600 of 1600, the float build within noise).
+5. **The rig,** 25 throws, gate 2's bar: at least 68% good within 0.02 gr with a median of at most 13 s. Expected: the coarse tube at about 8.5 gr in nearly every throw, and a median near 13 s.
+
+### 11:40 to 12:30: the cause is the calibration's lags, not the forecast's shape
+
+**Step 1, the shape (`bench/scale_shape.py`, the trial calibration's 102 runs): fails as written.** A delay and then a lag τ, fitted run by run:
+
+| Tube, rev/s | Runs | Delay s | τ s | Delay + τ | Mean lag (`behind`) | RMS, digits (delay alone) |
+|---|---|---|---|---|---|---|
+| coarse 0.3 | 3 | 0.584 | 0.004 | 0.588 | 0.588 | 3.97 (3.98) |
+| coarse 1 | 9 | 0.442 | 0.076 | 0.518 | 0.539 | 5.77 (6.75) |
+| coarse 2 | 2 | 0.448 | 0.098 | 0.546 | 0.560 | 11.5 (13.7) |
+| fine, 0.025 to 1 | 43 | 0.61 to 1.2 | 0.04 to 0.32 | | | 0.35 to 3.7 (0.44 to 3.7) |
+
+τ is not one number (none at 0.3 rev/s), and no fit comes within 1.5 digits: what is left is the coarse tube's lumps, not the scale. The second number buys little.
+
+**Step 2, the replay (`bench/forecast_replay.py`, the 52 throws of series A and B):**
+- **The remaking is good:** the old forecast made again from the speeds asked matches the unit's logged one within a median 0.09 gr RMS over the first 2 s (90%: 0.13), and its bulges are the logged ones (median 0.89 against 0.86 gr).
+- **τ alone does little** (fails as written): with τ = 0.1 s the bulge falls from a median 0.89 to 0.61 gr, under 0.2 gr in 12 throws of 50.
+- **The readings say what is wrong** (`--fit`, every throw's readings to the coarse tube's stop and a second after, the coarse tube's powder a turn fitted for each throw): the best fit moves every measured lag 0.05 to 0.06 s earlier, with τ 0.10 to 0.12 s, at 0.150 gr RMS. As calibrated: 0.467. τ alone: 0.368. The move alone (−0.06 s): 0.213.
+- **With the lags 0.055 s earlier,** the bulge's median is gone (−0.01 gr; 90% 0.47 gr), with τ or without it. It is under 0.2 gr in 34 throws of 50, not in 50 of 52 as written: what is left is the lumps again, and the margin that grows with the coarse tube's unseen powder is there for them.
+
+**So the trial's calibration, made by the PC through the console, holds lags 0.055 s longer than the firmware meets.** The measure over a whole run (the mend of 2026-11-21, 16:22) took out most of the PC's latency but not all of it: a reading is stamped when it reaches the PC, and a start lands a command late. The PC's own loop had the same latency, so the PC's trial threw well on it (68%, 13 s); the firmware does not, so on the firmware every parcel was held unseen 0.055 s after it showed, at the start's 19 gr a second. The scale's τ is real (about 0.11 s; the record's assumed split of 0.41 and 0.10 s fits it), but it does not change where the coarse tube stops once the lags are right.
+
+**The simulation tried the cause** (AR2209's record, 10 gr, glide at 0.02, 200 throws each; the controller `glide_pc_lags` is the same calibration with every lag 0.055 s later, `staged.shift_lags`):
+
+| | Coarse tube's powder (10% to 90%) | Median | Good | Over |
+|---|---|---|---|---|
+| Simulation, its own lags | 8.58 gr (7.02 to 8.80) | 12.7 s | 69% | 29% |
+| Simulation, lags 0.055 s late | 6.58 gr (6.35 to 6.76) | 18.6 s | 72% | 27% |
+| Rig, series A's throws with the coarse tube on time (10) | about 8.5 gr | 13.3 s | | |
+| Rig, series B (25) | about 6.5 gr | 18.0 s | 80% | 20% |
+
+The simulation makes the rig's two kinds of throw from this one difference: **pass, the cause is found.**
+
+**What changes, and what does not:**
+- **No mechanism changes.** The forecast stays as it is; steps 3 and 4 above (the forecast's new shape in the simulation and in C) are not done.
+- **Gate 2:** the trial's calibration is written to the unit with every lag 0.055 s earlier (`series.py --lag-shift -0.055`, kept in the series' record). The rules made from the lags move with them (the creep, the glide's and the coarse tube's slowing).
+- **Gate 3 needs nothing new:** the calibration as a job on the unit measures the lags in the firmware's own time. Its pass against the trial's lags ("each lag within 0.1 s") holds with them 0.055 s shorter.
+
+**Step 5, the rig, its forecast written first:** series C, the same as series B (the trial's calibration, B's first errors, `fine_top_rps=1.0`, 10 gr, 25 throws) but for the lags. Expected: the coarse tube at about 8.5 gr in at least 22 throws of 25, a median of 12 to 14 s, and more overs than B's 5 (the simulation: 29%; series A's on-time throws were often over). Pass: gate 2's bar, at least 68% good within 0.02 gr with a median of at most 13 s.
