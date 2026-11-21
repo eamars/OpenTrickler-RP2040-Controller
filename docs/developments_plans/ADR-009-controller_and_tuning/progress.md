@@ -1297,3 +1297,26 @@ The edge fault's mend flashed first (`rc_run.py flash`, PASS; `setting settings/
 - each tube's grains a turn in a throw's own shape: the coarse tube 3 to 6% more than a run from rest at 1 rev/s, the fine tube about 20% less at the finish (0.63 against 0.80);
 - what arrives after a stop at the creep the unit really uses (its rule moves with the grains a turn).
 `verify_series.py` on a calibration job's own throws is its check.
+
+### Series E, the 0.04 gr band, its forecast written first
+
+The owner emptied the cup ("Cup emptied, go"). Series D's calibration and settings (lags 0.055 s earlier, grains a turn 10.17 and 0.715, B's first errors, `fine_top_rps=1.0`), the band 0.04 gr, 10 gr, 25 throws, two first. The aim is the same as at 0.02 (a digit short: `-max(digit, band / 2)`), so the stream's stop does not move; what changes is that a rest within two digits ends the throw, so fewer small moves are made.
+- **Pass, gate 2's bar:** at least 84% good within 0.04 gr.
+- **Expected:** 88 to 96% (the simulation's glide at 0.04: 90%; D's own throws judged at 0.04: their first rests within two digits in 20 of 25, their final rests in 22 of 25); a median under D's 11.7 s; the forecast at a creep stop as in D (+0.003 gr, sd 0.045).
+
+### 12:26 to 12:34: series E at 0.04 gr, judged; the stop's learning chases the stop's spread
+
+`20261122_122716_series_glide004_e_pico2w_ar2209` (its two throws first: both good). The band's rules moved the creep from 0.029 to 0.058 rev/s (it follows the band) and the coarse tube's margin a little; the aim and the stop room stayed.
+
+| Series (10 gr, 25 throws) | Band | Good within 0.04 gr | Over | Under | Median |
+|---|---|---|---|---|---|
+| D (the 0.02 gr band), judged at 0.04 | 0.02 | 22 (88%) | 3 | 0 | 11.7 s |
+| E | 0.04 | **20 (80%)** | 5 | 0 | **9.2 s** |
+
+**Against its forecast:** gate 2's bar at 0.04 gr is **not met** (80% against 84%, a throw short); 88 to 96% was expected. Quicker than D, as expected. The algorithm's check holds: at a stop from the creep the throw rested +0.003 gr from the forecast, sd 0.045, as in D. What arrives after the stop, +0.050 gr (sd 0.047), is the calibration's at that creep (+0.048 at 0.05 rev/s): the faster creep cost no accuracy at its stop.
+
+**Where the five overs come from:** four first rests 3 to 5 digits over, the stream's own stop (31, 45, 47, 48), against one such rest in D; one from small moves (33).
+
+**The cause is the stop's learning, a rule, not a calibrated number.** Each throw's first error moves the stop by 15% of its distance from the aim, whatever the stop's spread. With this powder's spread (sd 0.045 gr, more than two digits) that is a walk on noise: over E the stop room went from 0.031 to 0.010 and back to 0.040, as wide as the band itself (D's: 0.031 to 0.055). At 0.04 gr a first rest of −0.04 is good and ends the throw, but it still taught the stop to come later (13 first rests at −0.04 or below; their median −0.04 against the aim's −0.02), and the overs at the stream's stop followed the low point (45, 47, 48 at a room of 0.022 to 0.034 after 0.010). The rule was written for a stop whose spread is about a digit (the simulation's).
+
+**So, on the rig, gate 2's two bars stand as:** 0.02 gr met (D: 80%, 11.7 s); 0.04 gr met by D's throws (88%) and not by the 0.04 setting's own (E: 80%), for the learning's walk. Proposed, not built: a learning that takes the stop's own measured spread into account (for instance the mean of the first errors so far, its gain falling as the throws add up, and nothing learnt within the spread), tried in the simulation on both bands with the rig's spread before it is thrown. A change of the rule is the owner's to approve.
