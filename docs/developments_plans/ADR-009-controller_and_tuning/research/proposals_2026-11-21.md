@@ -253,7 +253,7 @@ The same with the band at 0.04 gr: the creep is twice as fast, since twice as mu
 
 ## 7. What I lack, and the session that would settle the ranking
 
-- **No throw of either proposal on a real unit.** The cheapest real check needs no firmware: the PC runs these same controllers through the console, as the recorder turns the tubes today, on the bench's unit. The calibration (11 minutes), then 30 throws of each finish at each band, the simulation's figures written first. About an hour and a half a powder.
+- **No throw of either proposal on a real unit.** The cheapest real check needs no firmware: the PC runs these same controllers through the console, as the recorder turns the tubes today, on the bench's unit. The calibration (11 minutes), then 25 throws of each finish at each band, the simulation's figures written first. **Prepared the same day, the owner's "Yes, prepare it": `trial_guide.md`** has the tool, the session's steps, the forecast and what the trial is judged on. Not yet run.
 - **No recording on a second scale.** Nothing says how the owner's G&G shows a stream against a small change but his own account. The calibration's steps 3, 5 and 6 on it, through the same PC tool, would give its row.
 - **No throw of today's loop with BM2** (the forecast of this evening stands unchecked), and AR2209's stops in blocks by speed (this afternoon).
 

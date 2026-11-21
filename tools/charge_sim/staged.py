@@ -18,10 +18,14 @@ The finish:
 The proposals themselves, with the trial's figures, are in
 `docs/developments_plans/ADR-009-controller_and_tuning/research/proposals_2026-11-21.md`.
 
-Nothing is tuned: every number a controller uses is measured by `calibrate()`, which turns the tubes on the rig as
-a unit would (`bench_twin.py`), or follows from those by a rule written here. The user gives the band.
+Nothing is tuned: every number a controller uses is measured by the calibration, which turns the tubes on a
+bench, or follows from those by a rule written here. The user gives the band.
+
+The bench is the simulation's (`bench_twin.TwinBench`, with `throw.Session` for the rehearsals: `calibrate()`) or
+a real unit's through its console (`bench/trial.py`): `measure_on()` and `rehearse()` take either.
 """
 
+import dataclasses
 import statistics
 from dataclasses import dataclass, field
 
@@ -116,18 +120,22 @@ def percentile(values: list, share: float) -> float:
     return ordered[min(len(ordered) - 1, int(share * len(ordered)))]
 
 
-def run_stop(bench: TwinBench, tube: str, speed: float, run_s: float, watch_s: float, digit: float) -> dict:
-    """One steady turn and a stop, from rest to rest: its powder, what arrived after the stop, when it was still."""
+def run_stop(bench, tube: str, speed: float, run_s: float, watch_s: float, digit: float) -> dict:
+    """One steady turn and a stop, from rest to rest: its powder, what arrived after the stop, when it was still.
+
+    The turns are the unit's own count where the bench gives it, else the speed over the time the tube really turned.
+    """
     trial = bench.creep_stop(tube, speed, run_s, watch_s, "held")
     bench.advance(0.3)
     before, at_stop = trial["during"][0][1], trial["during"][-1][1]
     end = statistics.median(w for t, w in trial["after"] if t >= watch_s - 0.6)
     # when the reading first reaches where it ends: powder only adds, and a digit's flicker after it is not waited for
     quiet = next((t for t, w in trial["after"] if w >= end - digit / 2.0), watch_s)
-    return {"gain": end - before, "rise": end - at_stop, "quiet": quiet, "turns": speed * run_s}
+    return {"gain": end - before, "rise": end - at_stop, "quiet": quiet,
+            "turns": trial.get("turns", speed * trial["run_s"])}
 
 
-def stops_at(bench: TwinBench, tube: str, speed: float, count: int, run_s: float, watch_s: float, digit: float) -> Stop:
+def stops_at(bench, tube: str, speed: float, count: int, run_s: float, watch_s: float, digit: float) -> Stop:
     runs = [run_stop(bench, tube, speed, run_s, watch_s, digit) for _ in range(count)]
     rises = [run["rise"] for run in runs]
     return Stop(speed, statistics.fmean(rises), statistics.stdev(rises), percentile([run["quiet"] for run in runs], 0.9))
@@ -143,10 +151,16 @@ def table(points: list, x: float) -> float:
     return points[-1][1]
 
 
-def measure(rig, seed: int) -> Calibration:
-    """The calibration's open-loop part: prime, each tube's powder a turn, its stops by flow, and the small moves."""
-    bench = TwinBench(rig, seed)
-    digit = rig.scale.digit_gr
+def measure_on(bench, digit: float, interval_s: float) -> Calibration:
+    """The calibration's open-loop part: prime, each tube's powder a turn, its stops by flow, and the small moves.
+
+    Args:
+        bench: turns a tube and reads the scale: `creep_stop(tube, speed, run_s, watch_s, "held")` gives a trial
+            as `bench/record.py` saves one, `advance(seconds)` lets time pass, `now` is its clock and
+            `cup.landed_gr` the powder in the cup.
+        digit: the scale's digit, in grains.
+        interval_s: the usual time between two readings.
+    """
     for tube, turns in (("coarse", 1.0), ("fine", 3.0)):    # prime until two runs pour the same, not by a count
         last = None
         for _ in range(5):
@@ -182,9 +196,32 @@ def measure(rig, seed: int) -> Calibration:
                 shown.append(run["quiet"])
         wait = percentile(shown, 0.9) + 0.3 if shown else watch_s
         moves.append(Move(turns, statistics.fmean(gains), percentile(gains, 0.9), wait))
-    return Calibration(digit_gr=digit, interval_s=rig.scale.report_s, coarse_gr_turn=coarse_gr, fine_gr_turn=fine_gr,
+    return Calibration(digit_gr=digit, interval_s=interval_s, coarse_gr_turn=coarse_gr, fine_gr_turn=fine_gr,
                        coarse_stops=coarse_stops, fine_stops=fine_stops, moves=moves, watch_s=watch_s,
                        seconds=bench.now, poured_gr=bench.cup.landed_gr)
+
+
+def measure(rig, seed: int) -> Calibration:
+    """The open-loop part on the simulation's bench."""
+    return measure_on(TwinBench(rig, seed), rig.scale.digit_gr, rig.scale.report_s)
+
+
+def for_finish(measured: Calibration, finish: str, band_gr: float) -> Calibration:
+    """A calibration for one finish and band from what was measured once: its own copy, with the rules set."""
+    cal = dataclasses.replace(measured, first_errors=[])
+    set_rules(cal, finish, band_gr)
+    return cal
+
+
+def to_json(cal: Calibration) -> dict:
+    return dataclasses.asdict(cal)
+
+
+def from_json(kept: dict) -> Calibration:
+    kept = dict(kept)
+    for name, kind in (("coarse_stops", Stop), ("fine_stops", Stop), ("moves", Move)):
+        kept[name] = [kind(**row) for row in kept[name]]
+    return Calibration(**kept)
 
 
 def lag_table(stops: list, gr_turn: float) -> list:
@@ -396,10 +433,23 @@ def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None) -> Cali
     if lag_rig is not None:
         borrow_stops(cal, measure(lag_rig, seed + 7))
     set_rules(cal, finish, band_gr)
-    session = Session(rig, seed + 1)
-    controller = Staged(cal, rig.acceleration_rps2, rehearsal=True)
+    rehearse(cal, Session(rig, seed + 1), rig.acceleration_rps2)
+    return cal
+
+
+def rehearse(cal: Calibration, session, acceleration_rps2: float) -> None:
+    """The rehearsals: throws of a grain with the fine tube alone, each ended at its first rest, that place the stop.
+
+    Args:
+        cal: the calibration with its rules set (`for_finish`); its stop is moved here.
+        session: throws on the bench: `throw(controller, target, tolerance)` gives a result with `elapsed_s` and
+            `true_gr` (`throw.Session`, or a unit's in `bench/trial.py`).
+        acceleration_rps2: the motors' ramp, for the controller's own count of the turns.
+    """
+    finish = cal.finish
+    controller = Staged(cal, acceleration_rps2, rehearsal=True)
     for _ in range(REHEARSALS):
-        result = session.throw(controller, REHEARSAL_GR, band_gr + cal.digit_gr / 2.0)
+        result = session.throw(controller, REHEARSAL_GR, cal.band_gr + cal.digit_gr / 2.0)
         cal.seconds += result.elapsed_s + 1.0
         cal.poured_gr += result.true_gr
     cal.first_errors = [first for first, _ in controller.log]
@@ -410,7 +460,6 @@ def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None) -> Cali
     cal.stop_room_gr += shift       # the margins above the stop move with it
     cal.glide_room_gr += shift
     cal.coarse_room_gr += shift
-    return cal
 
 
 def make(rig, seed: int, finish: str, band_gr: float, lag_rig=None) -> Staged:

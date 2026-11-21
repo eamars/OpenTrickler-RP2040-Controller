@@ -900,3 +900,36 @@ Overs on the measured scale: jog 4.8% and 17.4%, glide 10.8% and 24.0%, today's 
 **The ranking, and why it turned during the work.** I began with the stream finish as the first proposal: the owner's point that a stream is shown sooner than a small change, and the bench's stops from 0.02 rev/s. The trial put the jog finish first on accuracy on every scale, by 0 to 8 points, with half to three quarters of the overs; the stream finish is the quicker by 1 to 4 s on the measured scale and 3 to 10 s on later ones. A margin takes what a stream does late; a stop a digit short cannot. **Proposal 1 (confidence high) is stop short and jog; proposal 2 (medium) is glide and stop.** They are one controller with two numbers changed.
 
 **Not done:** no throw of either on a unit; the calibration's verdict to the user (step 9) and the learning of grains a turn are designed and not tried; the shorter calibration is tried only in its lag table.
+
+## 2026-11-21, late night: the bench trial of the two proposals prepared; its forecast and its pass written first
+
+**The owner, asked whether to prepare the trial that runs both proposals on the real unit from the PC:** "Yes, prepare it". No unit was touched: the bench rules ask for the owner's word that the bench is ready, and it has not been given in this session.
+
+**What was built** (`research/trial_guide.md` is the session's guide):
+- **`tools/charge_sim/bench/trial.py`:** the PC as the controller. It reads the weight by the console's `state` and turns the tubes by `motor`, as the recorder does, and runs on that the code the simulation ran: the calibration's measurements once, then for each finish and band ten rehearsals and 25 throws of 10 gr. The scale is never zeroed: a throw is counted from the weight the cup rests at. It keeps the calibration and every throw as it goes and goes on from a stop (`--resume`), since the cup must be emptied twice.
+- **`staged.py`'s calibration runs on any bench** (`measure_on`, `rehearse`): the simulation's, or a unit's through the console. The simulation's figures are unchanged by it (the four rows of the measured scale run again: 94.4%, 89.0%, 73.8%, 74.4%, to the last digit).
+- **A made-up unit:** the simulation answering the console's commands, each taking what a command takes on the bench (18 to 26 ms). The whole trial was run against it for both powders, from a fresh start and from a kept calibration, with its comparison against the forecast.
+- **`keep.py`** copies a trial's calibration and throws into the repository with its recordings.
+
+**Its limits against a unit's own firmware, both to the proposals' disadvantage:** the PC counts the speeds it asked for and not the unit's steps, and acts once a command and not every millisecond.
+
+**How it is kept safe:** both motors are stopped however it ends (a limit, the keyboard, a fault of its own), and before its first weight. A throw is stopped when it is not done in 120 s, when a reading is 3 gr over, when a tube has turned further than a throw can need, when the scale gives no weight or the console no reply; a step is not begun that the cup has no room for (600 gr). What it cannot cover is the recorder's own trap: a PC or a console that dies leaves the last speed turning, and the guide gives the command for it.
+
+**A held tube from the console:** `motor <tube> 0` switches the driver off, and the recorder's stand-in for a held stop, 0.0005 rev/s, would creep a coarse tube by 0.12 gr in a throw of 25 s. The trial holds at 0.00002 rev/s (coarse) and 0.0001 rev/s (fine). Read in `remote_control.c` and `motors.c`: the console takes any speed within the maximum and nothing clamps a small one. Not yet seen on the unit.
+
+**The forecast** (`trial.py --forecast`, `tools/charge_sim/fit/trial_forecast_<record>.json`): the same trial against the simulation sixteen times, each with its own calibration; the middle, and the range without the lowest and the highest. Good, and a throw's median time:
+
+| | BM2: good | Time | AR2209: good | Time |
+|---|---|---|---|---|
+| Proposal 1 within 0.02 gr | 96%; 80 to 100% | 11.4 s; 8.9 to 14.3 | 76%; 60 to 84% | 14.5 s; 13.8 to 21.8 |
+| Proposal 2 within 0.02 gr | 84%; 76 to 96% | 11.2 s; 7.5 to 13.0 | 74%; 52 to 84% | 10.9 s; 7.5 to 14.5 |
+| Proposal 1 within 0.04 gr | 100%; 96 to 100% | 8.3 s; 7.4 to 10.6 | 90%; 84 to 96% | 12.0 s; 9.7 to 17.7 |
+| Proposal 2 within 0.04 gr | 100%; 92 to 100% | 8.5 s; 7.2 to 10.4 | 88%; 84 to 96% | 9.1 s; 7.9 to 11.8 |
+
+Proposal 2's first rest within a digit of its aim: 76% (56 to 88%) with BM2, 52% (44 to 60%) with AR2209.
+
+**Where the bench is expected to differ, said before the run:** slower by 5 to 8 s a throw for proposal 1 within 0.02 gr and 2 to 4 s for proposal 2 (the bench's scale shows a small move later than the simulation's); slower again by 1 to 3 s (the bench's coarse tube stops less tightly, so the fine tube carries more); proposal 1's good share nearer the recordings' ceiling (82 to 87% with BM2, 74 to 78% with AR2209); proposal 2's first rests the open question, either way.
+
+**What the trial is judged on** (the guide has the table): A, it runs to its end with no limit tripped; B, proposal 1 within 0.02 gr good in at least 80% (BM2) or 60% (AR2209); C, proposal 2 within 0.02 gr good in at least 76% or 52% and over in no more than 24% or 48%; D, proposal 2's first rest within a digit of its aim in at least 20 throws of 25; E, within 0.04 gr good in at least 96% and 92% (BM2) or 84% and 84% (AR2209). Time is set beside the forecast and not judged.
+
+**Next:** the owner's word that the bench is ready, with which powder. About an hour and ten minutes and two emptyings of the cup.

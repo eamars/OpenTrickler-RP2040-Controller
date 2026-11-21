@@ -1,7 +1,7 @@
 """The bench's recordings copied into the repository, so that anyone can analyse them.
 
 A bench session writes into <repo>/logs/adr009, which git does not track. This copies what an analysis reads
-(each folder's runs.json, frames.csv and batch.json) into `tools/charge_sim/recordings/`, and writes the index of
+(each folder's runs.json, frames.csv and batch.json, and a trial's calibration and throws) into `tools/charge_sim/recordings/`, and writes the index of
 what each folder is. Left out: the console's own logs (four times the size, and no tool reads them), and from a
 copy of the unit's settings its Wi-Fi, its update source and its id.
 
@@ -17,7 +17,8 @@ import json
 import shutil
 from pathlib import Path
 
-KEPT = ("runs.json", "frames.csv", "batch.json")
+KEPT = ("runs.json", "frames.csv", "batch.json", "calibration.json", "trial.json")
+KEPT_LIKE = "throws_*.json"     # a trial's sets (`trial.py`)
 # Resources of a settings copy that say where the unit is and not how it charges
 PRIVATE_RESOURCES = ("/api/v1/settings/wifi", "/api/v1/settings/update")
 PRIVATE_KEYS = ("unit_id",)
@@ -79,7 +80,7 @@ def main() -> None:
 
     lines = []
     for folder in sorted(path for path in args.logs.iterdir() if path.is_dir()):
-        files = [folder / name for name in KEPT if (folder / name).exists()]
+        files = [folder / name for name in KEPT if (folder / name).exists()] + sorted(folder.glob(KEPT_LIKE))
         if folder.name.startswith("settings"):
             keep_settings(folder / "settings.json", args.out / folder.name / "settings.json")
             continue

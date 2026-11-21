@@ -1,0 +1,217 @@
+{
+ "record": "pico2w_bm2",
+ "target_gr": 10.0,
+ "throws_a_set": 25,
+ "trials": 16,
+ "what": "each figure's middle over the trials, and the range all but the lowest and the highest fell in",
+ "sets": {
+  "jog_0.02": {
+   "throws": {
+    "low": 25,
+    "middle": 25.0,
+    "high": 25
+   },
+   "good": {
+    "low": 0.8,
+    "middle": 0.96,
+    "high": 1.0
+   },
+   "over": {
+    "low": 0.0,
+    "middle": 0.04,
+    "high": 0.2
+   },
+   "under": {
+    "low": 0.0,
+    "middle": 0.0,
+    "high": 0.04
+   },
+   "time_median_s": {
+    "low": 8.90099999978952,
+    "middle": 11.3714999997311,
+    "high": 14.275999999662417
+   },
+   "time_most_s": {
+    "low": 12.641999999701056,
+    "middle": 18.20449999956952,
+    "high": 22.7979999994609
+   },
+   "first_error_digits": {
+    "low": -6.0,
+    "middle": -3.280000000000001,
+    "high": -2.7200000000003683
+   },
+   "first_spread_digits": {
+    "low": 1.0007996802558565,
+    "middle": 1.257275506106026,
+    "high": 3.023640190234421
+   },
+   "first_near": {
+    "low": 0.44,
+    "middle": 0.6000000000000001,
+    "high": 0.76
+   },
+   "moves": {
+    "low": 1.68,
+    "middle": 2.44,
+    "high": 3.8
+   }
+  },
+  "glide_0.02": {
+   "throws": {
+    "low": 25,
+    "middle": 25.0,
+    "high": 25
+   },
+   "good": {
+    "low": 0.76,
+    "middle": 0.84,
+    "high": 0.96
+   },
+   "over": {
+    "low": 0.04,
+    "middle": 0.16,
+    "high": 0.24
+   },
+   "under": {
+    "low": 0.0,
+    "middle": 0.0,
+    "high": 0.0
+   },
+   "time_median_s": {
+    "low": 7.488999999822909,
+    "middle": 11.19299999973532,
+    "high": 12.973999999693206
+   },
+   "time_most_s": {
+    "low": 13.271999999686159,
+    "middle": 16.333499999613764,
+    "high": 18.68699999955811
+   },
+   "first_error_digits": {
+    "low": -1.239999999999668,
+    "middle": -0.9199999999998454,
+    "high": -0.4799999999992224
+   },
+   "first_spread_digits": {
+    "low": 1.095445115010685,
+    "middle": 1.5691021541815906,
+    "high": 4.140338150441068
+   },
+   "first_near": {
+    "low": 0.56,
+    "middle": 0.76,
+    "high": 0.88
+   },
+   "moves": {
+    "low": 0.32,
+    "middle": 0.5800000000000001,
+    "high": 0.84
+   }
+  },
+  "jog_0.04": {
+   "throws": {
+    "low": 25,
+    "middle": 25.0,
+    "high": 25
+   },
+   "good": {
+    "low": 0.96,
+    "middle": 1.0,
+    "high": 1.0
+   },
+   "over": {
+    "low": 0.0,
+    "middle": 0.0,
+    "high": 0.04
+   },
+   "under": {
+    "low": 0.0,
+    "middle": 0.0,
+    "high": 0.0
+   },
+   "time_median_s": {
+    "low": 7.404999999824895,
+    "middle": 8.306499999803577,
+    "high": 10.630000002165616
+   },
+   "time_most_s": {
+    "low": 11.095999999737614,
+    "middle": 12.92200000055061,
+    "high": 15.610000003180176
+   },
+   "first_error_digits": {
+    "low": -5.120000000000346,
+    "middle": -3.180000000000291,
+    "high": -2.5599999999999454
+   },
+   "first_spread_digits": {
+    "low": 1.077775486823998,
+    "middle": 1.606381170115243,
+    "high": 3.111269837221107
+   },
+   "first_near": {
+    "low": 0.4,
+    "middle": 0.52,
+    "high": 0.64
+   },
+   "moves": {
+    "low": 0.68,
+    "middle": 1.24,
+    "high": 1.52
+   }
+  },
+  "glide_0.04": {
+   "throws": {
+    "low": 25,
+    "middle": 25.0,
+    "high": 25
+   },
+   "good": {
+    "low": 0.92,
+    "middle": 1.0,
+    "high": 1.0
+   },
+   "over": {
+    "low": 0.0,
+    "middle": 0.0,
+    "high": 0.08
+   },
+   "under": {
+    "low": 0.0,
+    "middle": 0.0,
+    "high": 0.0
+   },
+   "time_median_s": {
+    "low": 7.178000001462351,
+    "middle": 8.496500001730965,
+    "high": 10.36000000211061
+   },
+   "time_most_s": {
+    "low": 8.968000001827022,
+    "middle": 12.396000002525398,
+    "high": 18.687000003807043
+   },
+   "first_error_digits": {
+    "low": -1.199999999999818,
+    "middle": -1.0,
+    "high": -0.839999999999918
+   },
+   "first_spread_digits": {
+    "low": 0.924337600664838,
+    "middle": 1.2623787070439432,
+    "high": 2.052900387256609
+   },
+   "first_near": {
+    "low": 0.72,
+    "middle": 0.76,
+    "high": 0.92
+   },
+   "moves": {
+    "low": 0.04,
+    "middle": 0.12,
+    "high": 0.4
+   }
+  }
+ }
+}
