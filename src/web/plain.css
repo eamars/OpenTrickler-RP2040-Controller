@@ -1,0 +1,442 @@
+/* The portal's look, plain CSS of our own (ADR-008; the skill web-ui-design). Calm neutral greys; colour only where
+   it means something, in the unit's meanings: blue not ready, green good, yellow under, red over and faults. The one
+   action that moves the job on is in the ink, Stop in red. Light or dark follows the device.
+   Widths (rule 1): a bar at the bottom under 600 px, a rail at the left from 600; one column at every width, its
+   groups in their order, never side by side (the owner, 2026-11-18). The Trickler's views fit the visible height and never scroll (rule 14): the readout is a container, and the
+   figure and its ring scale to it; where it is short the ring gives way to a bar. */
+:root {
+    --ground: #ecece8;
+    --card: #fafaf8;
+    --well: #f0f0ec;
+    --ink: #17191c;
+    --on-ink: #fafaf8;
+    --soft: #5c636c;            /* 5.6:1 on the card */
+    --rule: #d9d9d3;
+    --edge: #8d939b;            /* a control's edge, 3:1 on the card */
+    --not-ready: #1d63c9;
+    --good: #18803c;
+    --under: #8a6a00;           /* yellow, darkened to keep 4.5:1 as text on the card */
+    --under-mark: #e6b800;
+    --over: #c5242b;
+    --stop: #c5242b;
+    --on-stop: #ffffff;
+    --tint: 12%;
+    --r-card: 18px;
+    --r-control: 14px;
+    --tap: 52px;                /* every control at least 48 px */
+    --job-key: 60px;            /* Start, Stop, the target's and the speed's keys */
+    --top: 12px;                /* above the Trickler: no top row (the owner: a waste of space) */
+    --bar: 64px;                /* the navigation bar, under 600 px */
+    --gap: 10px;
+    --trickler-floor: 500px;    /* the Trickler's least: below it the page scrolls (.trickler) */
+    color-scheme: light dark;
+}
+/* features: 13 */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --ground: #0e1012;
+        --card: #181b1f;
+        --well: #1f2328;
+        --ink: #eceef1;
+        --on-ink: #121417;
+        --soft: #a7afba;
+        --rule: #2b3037;
+        --edge: #6b737e;
+        --not-ready: #7fb0ff;
+        --good: #5fd08a;
+        --under: #f3d25a;
+        --under-mark: #f3d25a;
+        --over: #ff7b7f;
+        --stop: #e5484d;
+        --tint: 16%;
+    }
+}
+* { box-sizing: border-box; }
+/* No zoom on a double tap: a key tapped twice (the target's - and +) zoomed the page on a phone. Pinching still zooms */
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
+body { margin: 0; background: var(--ground); color: var(--ink);
+       font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled, select:disabled, input:disabled { opacity: 0.55; cursor: default; }
+h3, p { margin: 0; }
+svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 3px solid var(--not-ready); outline-offset: 2px; }
+
+/* The link, only when it is lost: a banner over the page, gone when the unit answers again (rule 9) */
+.offline { position: fixed; z-index: 3; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+           width: min(92vw, 440px); margin: 0; padding: 12px 16px; border-radius: 14px; text-align: center;
+           background: var(--over); color: var(--on-stop); font-weight: 700; box-shadow: 0 6px 18px rgb(0 0 0 / 0.25); }
+
+/* The Trickler: exactly the height left, never scrolled. The height the browser shows (dvh): Chrome on an iPhone gave
+   svh some 170 px short of it, and the readout was squeezed to nothing under the job's key. A floor where it cannot
+   fit (the figure and its bar need some 72 px beside the rest's 422): there the page scrolls, never overlaps, and the
+   margin under it keeps the job's key clear of the navigation */
+.trickler {
+    height: calc(100svh - var(--bar) - env(safe-area-inset-bottom));
+    height: max(calc(100dvh - var(--bar) - env(safe-area-inset-bottom)), var(--trickler-floor));
+    display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap);
+    padding: calc(var(--top) + env(safe-area-inset-top)) 12px var(--gap); max-width: 640px;
+    margin: 0 auto calc(var(--bar) + env(safe-area-inset-bottom));
+    position: relative;
+}
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--well);
+       border: 1px solid var(--rule); border-radius: var(--r-control); }
+.seg button { min-height: 48px; border: 0; border-radius: 10px; background: transparent; font-weight: 700;
+              color: var(--soft); }
+.seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+/* A view in its groups (rule 15): the charge, the scale, the job, one under another at every width */
+.view { min-height: 0; display: grid; gap: var(--gap); container: view / size; --state: var(--ink);
+        grid-template-areas: "setup" "scale" "job"; grid-template-rows: auto minmax(0, 1fr) auto; }
+#purge-panel { grid-template-areas: "scale" "job"; grid-template-rows: minmax(0, 1fr) auto; }
+.view[data-mood="not-ready"] { --state: var(--not-ready); }
+.view[data-mood="good"] { --state: var(--good); }
+.view[data-mood="under"] { --state: var(--under-mark); }
+.view[data-mood="over"] { --state: var(--over); }
+.group { min-height: 0; }
+.card, .setup, .scale { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); }
+
+/* The charge: what to throw */
+.setup { grid-area: setup; padding: 12px; display: grid; gap: 8px; }
+.setup .field { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; gap: 10px; }
+.setup .field > span { color: var(--soft); font-weight: 650; }
+.setup select {
+    appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; min-height: var(--job-key);
+    padding: 0 38px 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control); background-color: var(--well);
+    font-size: 1.15rem; font-weight: 650; text-overflow: ellipsis;
+    background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%),
+                      linear-gradient(135deg, var(--soft) 50%, transparent 50%);
+    background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat;
+}
+
+/* The scale: what is on the pan, and its Zero */
+.scale { grid-area: scale; padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; }
+/* A group's name and its action, in the flow: a button laid over the reading collided with a wide figure */
+/* The reading's head: its state on the left, its action (Zero) on the right, both 44 px tall */
+.group-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 48px; }
+.group-head .ghost { min-height: 48px; }
+.ghost { min-height: var(--tap); min-width: var(--tap); padding: 0 16px; border-radius: var(--r-control);
+         border: 1px solid var(--edge); background: var(--card); font-weight: 650; }
+
+/* The job: where the cycle is, and what to do */
+.job { grid-area: job; display: grid; gap: 8px; }
+
+/* The readout: a container the figure and the ring scale to */
+.readout { position: relative; min-height: 0; display: grid; place-items: center; container: readout / size; }
+.ring { position: absolute; width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); transform: rotate(-90deg);
+        display: none; }
+.ring .track { stroke: var(--rule); stroke-width: 7; }
+.ring .arc { stroke: var(--state); stroke-width: 7; stroke-dasharray: 1000; stroke-dashoffset: 1000;
+             transition: stroke-dashoffset 0.3s ease-out; }
+.readout-text { position: relative; display: grid; justify-items: center; text-align: center; gap: 2px; width: 100%; }
+.figure { font-size: clamp(2.5rem, min(17cqw, 50cqh), 6rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+          font-variant-numeric: tabular-nums; }
+/* A figure of three characters (the purge's speed) may be twice as large as the weight's six */
+.figure.short { font-size: clamp(3rem, min(36cqw, 50cqh), 10rem); }
+/* The figure with its unit beside it, on its baseline, as the screen draws it */
+/* The figures are centred (the owner, 2026-11-18): with tabular digits they move sideways only when the count of
+   digits or the sign changes (9.99 to 10.00, once a throw), not as the value changes */
+/* The number alone is centred; its unit hangs off its right, on its baseline, and takes no part in the centring
+   (centred as one block, "30.00 gr" put the number 17 px left of the card's middle, "0.0 rev/s" more) */
+.figure-line { position: relative; display: inline-block; justify-self: center; }
+.unit { position: absolute; left: calc(100% + 0.4rem); bottom: 0.12em; white-space: nowrap; color: var(--soft);
+        font-weight: 650; font-size: clamp(1rem, 5cqmin, 1.6rem); line-height: 1; }
+/* The purge's keys either side of the speed they set; kept in place (unseen) while it is idle, so the speed stays centred */
+.speed-line { display: grid; grid-template-columns: var(--job-key) minmax(0, 1fr) var(--job-key); align-items: center;
+              gap: 8px; width: 100%; }
+/* What a state hides keeps its room, so nothing on the view moves when the state changes (the speed jumped when
+   the purge started and its line went) */
+.speed-line .key[hidden], #purge-hint[hidden] { display: block !important; visibility: hidden; }
+.time { color: var(--soft); font-weight: 500; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
+.time::before { content: "\00b7"; margin-right: 8px; }
+.hint { color: var(--soft); font-size: 0.9375rem; margin-top: 8px; max-width: 30ch; }
+.bar { width: min(80%, 320px); height: 8px; border-radius: 4px; background: var(--rule); overflow: hidden; margin: 8px 0 2px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--state); transition: width 0.3s ease-out; }
+/* Room for the ring: the bar gives way to it, the figure sized to sit inside it */
+@container readout (min-height: 230px) and (min-width: 230px) {
+    .ring { display: block; }
+    .bar { display: none; }
+    .ringed { font-size: clamp(3rem, 19cqmin, 8rem); }
+}
+
+.status { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; min-width: 0;
+          white-space: nowrap; overflow: hidden;
+          border-radius: 999px; font-weight: 700; font-size: 1.05rem; background: var(--well); color: var(--ink);
+          border: 1px solid var(--rule); }
+#status, #purge-status { overflow: hidden; text-overflow: ellipsis; }
+/* A narrow view: the status never wraps; its time goes first, the word stays */
+@container view (max-width: 360px) { .time { display: none; } }
+.status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--state); }
+.view[data-mood="not-ready"] .status, .view[data-mood="good"] .status, .view[data-mood="over"] .status {
+    color: var(--state); background: color-mix(in srgb, var(--state) var(--tint), var(--card));
+    border-color: color-mix(in srgb, var(--state) 40%, var(--card)); }
+.view[data-mood="under"] .status { color: var(--under); background: color-mix(in srgb, var(--under-mark) 18%, var(--card));
+                                    border-color: var(--under-mark); }
+
+
+/* Keys and steppers, wherever they are */
+.stepper { display: grid; grid-template-columns: var(--job-key) minmax(0, 1fr) var(--job-key); gap: 8px; align-items: center; }
+.stepper input { width: 100%; min-width: 0; min-height: var(--job-key); text-align: center; font-size: 1.6rem; font-weight: 700;
+                 font-variant-numeric: tabular-nums; background: var(--well); border: 1px solid var(--edge);
+                 border-radius: var(--r-control); }
+.key { height: var(--job-key); border-radius: var(--r-control); border: 1px solid var(--edge); background: var(--card);
+       font-size: 1.8rem; line-height: 1; }
+.action { width: 100%; min-height: var(--job-key); border: 0; border-radius: var(--r-control); font-size: 1.15rem;
+          font-weight: 700; }
+.go { background: var(--ink); color: var(--on-ink); }
+.halt { background: var(--stop); color: var(--on-stop); }
+@media (hover: hover) and (pointer: fine) {
+    .key:hover, .ghost:hover { background: var(--well); }
+    .go:hover { filter: brightness(1.15); }
+}
+
+/* A line over the page, above the navigation: a refusal in red, a done thing in green; gone when empty or tapped */
+.message { position: fixed; z-index: 3; left: 50%; transform: translateX(-50%); width: min(92vw, 520px);
+           bottom: calc(var(--bar) + 12px + env(safe-area-inset-bottom)); margin: 0; padding: 12px 16px; border-radius: 14px;
+           background: var(--card); border: 1px solid var(--over); color: var(--over); font-weight: 650;
+           box-shadow: 0 6px 18px rgb(0 0 0 / 0.18); }
+.message.good { border-color: var(--good); color: var(--good); }
+.message:empty { display: none; }
+
+/* Navigation: a bar at the bottom on a phone, a rail at the left from 600 px */
+.nav { position: fixed; inset: auto 0 0 0; height: calc(var(--bar) + env(safe-area-inset-bottom));
+       display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px 8px env(safe-area-inset-bottom);
+       background: var(--card); border-top: 1px solid var(--rule); z-index: 2; }
+.nav a { display: grid; justify-items: center; align-content: center; gap: 2px; border-radius: 12px; color: var(--soft);
+         text-decoration: none; font-size: 0.8125rem; font-weight: 650; }
+.nav svg { width: 24px; height: 24px; }
+.nav a.on { color: var(--ink); background: var(--well); }
+.nav a.on svg { stroke-width: 2.4; }
+/* A release found: a dot on the Unit's icon, the ink's for a normal one, red for a critical one (rule 5) */
+.nav a { position: relative; }
+.nav a.offer-mark::after { content: ""; position: absolute; top: 8px; left: calc(50% + 8px); width: 10px; height: 10px;
+                           border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 2px var(--card); }
+.nav a.offer-mark.critical::after { background: var(--over); }
+
+/* features: 15 */
+@media (min-width: 600px) {
+    :root { --bar: 0px; --gap: 14px; }
+    body { padding-left: 96px; }
+    .nav { inset: 0 auto 0 0; width: 88px; height: auto; grid-template-columns: none; grid-auto-rows: 72px;
+           align-content: start; padding: 16px 8px 8px; border-top: 0; border-right: 1px solid var(--rule); }
+    .trickler { padding: 0 16px 16px; }
+    .setup, .scale { padding: 16px; }
+}
+/* A short phone (an iPhone SE with its bars shown is about 550 px): the job's keys a little lower, the figure first */
+@media (max-height: 640px) { :root { --job-key: 56px; --gap: 8px; } .setup, .scale { padding: 10px; } .bar { margin: 4px 0 0; } .readout-text { gap: 0; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* The pages that are read and set, not worked at a job: they scroll (rule 14) */
+.page { max-width: 640px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 12px calc(var(--bar) + 88px); }
+.page h2 { font-size: 1.15rem; margin: 0 0 10px; }
+.page h3 { font-size: 1rem; margin: 18px 4px 8px; color: var(--soft); }
+/* A list and the part it opens: on a phone one or the other, the address says which; on a wide window side by side */
+.split-page[data-open="part"] .master { display: none; }
+.split-page[data-open="list"] .detail { display: none; }
+.back { display: inline-flex; align-items: center; min-height: 48px; color: var(--soft); text-decoration: none; font-weight: 650;
+        margin-left: 4px; }
+.list { display: grid; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); overflow: hidden; }
+.list .row { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 16px; color: var(--ink);
+             text-decoration: none; font-weight: 600; border-top: 1px solid var(--rule); }
+.list .row:first-child { border-top: 0; }
+.list .row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .row.on { background: var(--well); }
+.chevron { color: var(--soft); font-size: 1.5rem; line-height: 1; }
+.tag { flex: none; font-size: 0.8125rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--well);
+       border: 1px solid var(--rule); color: var(--soft); }
+.tag.in-use { color: var(--ink); border-color: var(--ink); }
+.tag.critical { color: var(--over); border-color: var(--over); margin-left: 8px; }
+.compare { display: none; }
+@media (min-width: 1000px) {
+    .page.split-page { max-width: 1100px; display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 20px;
+                       align-items: start; }
+    .split-page[data-open] .master, .split-page[data-open] .detail { display: block; }
+    .split-page .back { display: none; }
+    .split-page .detail > h2 { display: none; }
+}
+
+/* A form drawn from the schema */
+.form { display: grid; gap: 14px; }
+.fields { margin: 0; padding: 4px 16px 8px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
+          display: grid; min-width: 0; }
+.fields .fields-title { margin: 0; padding: 14px 0 4px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.06em;
+                        text-transform: uppercase; color: var(--soft); }
+.field { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--rule); }
+.fields-title + .field, .fields > .field:first-child { border-top: 0; }
+.field > label:first-child { font-weight: 650; }
+.field.inline { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.field.inline .field-help, .field.inline .field-error { grid-column: 1 / -1; }
+.field-help { margin: 0; color: var(--soft); font-size: 0.875rem; }
+.field-error { margin: 0; color: var(--over); font-weight: 650; font-size: 0.9375rem; }
+.form input[type="text"], .form input[type="password"], .form select, .setup-body select {
+    width: 100%; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control);
+    background: var(--well); font-size: 1.0625rem; }
+.number { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.number input { font-variant-numeric: tabular-nums; }
+.unit-of { color: var(--soft); font-weight: 600; min-width: 3ch; }
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--well);
+             border: 1px solid var(--rule); border-radius: var(--r-control); }
+.segmented button { min-height: 48px; border: 0; border-radius: 10px; background: transparent; font-weight: 650; color: var(--soft); }
+.segmented button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.colour { display: flex; align-items: center; gap: 12px; }
+.colour input { width: 64px; height: var(--tap); padding: 4px; border: 1px solid var(--edge); border-radius: var(--r-control);
+                background: var(--well); }
+.colour code { color: var(--soft); }
+/* Changed, not stored: one bar, one action (rule 7), above the navigation while it is needed */
+.store-bar { position: sticky; bottom: calc(var(--bar) + 12px + env(safe-area-inset-bottom)); display: flex; align-items: center;
+             gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-card); background: var(--ink); color: var(--on-ink);
+             box-shadow: 0 6px 18px rgb(0 0 0 / 0.2); }
+.store-bar { flex-wrap: wrap; }
+.store-bar span { flex: 1 1 14rem; font-weight: 600; }
+.store-actions { display: flex; gap: 10px; margin-left: auto; }
+.store-bar .action { width: auto; min-height: 48px; padding: 0 20px; background: var(--on-ink); color: var(--ink); }
+.store-bar .undo { min-height: 48px; padding: 0 16px; border-radius: var(--r-control); background: transparent;
+                   color: var(--on-ink); border: 1px solid currentColor; font-weight: 650; }
+
+/* Powders side by side, a wide window's view of the list */
+@media (min-width: 1000px) {
+    .powders-list { display: none; }
+    .compare { display: table; width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card);
+               border: 1px solid var(--rule); border-radius: var(--r-card); overflow: hidden; font-variant-numeric: tabular-nums; }
+    .compare th, .compare td { padding: 10px 10px; text-align: right; border-top: 1px solid var(--rule); white-space: nowrap; }
+    .compare thead tr:first-child th { border-top: 0; }
+    .compare th[scope="row"] { text-align: left; }
+    .compare th[scope="row"] a { color: var(--ink); text-decoration: none; font-weight: 650; margin-right: 8px; }
+    .compare th[scope="row"] .tag + .tag { margin-left: 6px; }
+    .compare thead th { color: var(--soft); font-size: 0.8125rem; font-weight: 700; }
+    .compare .group-row th { text-align: center; text-transform: uppercase; letter-spacing: 0.06em; }
+    .compare .split { border-left: 1px solid var(--rule); }
+    .compare tbody tr { cursor: pointer; }
+    .compare tbody tr.on { background: var(--well); }
+}
+
+/* The Unit: cards of facts and actions */
+.cards { display: grid; gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 16px; }
+.facts { display: grid; margin: 0; }
+.fact { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--rule); }
+.fact:first-child { border-top: 0; padding-top: 0; }
+.fact dt { color: var(--soft); }
+.fact dd { margin: 0; font-weight: 650; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.offer { margin: 12px 0; padding: 14px; border-radius: var(--r-control); background: var(--well); display: grid; gap: 10px; }
+.offer.critical { border: 1px solid var(--over); }
+.offer-title { font-weight: 700; }
+.button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.link-button { display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; }
+.ghost.danger { color: var(--over); border-color: var(--over); }
+.mirror-frame { display: grid; place-items: center; padding: 14px; border-radius: var(--r-control); background: #1c2228; }
+.mirror { width: 100%; max-width: 512px; aspect-ratio: 2 / 1; image-rendering: pixelated; }
+
+/* The cup's question, and the confirmation of what cannot be undone */
+.sheet { border: 0; padding: 24px 20px 20px; border-radius: 22px; width: min(94vw, 440px); background: var(--card);
+         color: var(--ink); text-align: center; }
+.sheet::backdrop { background: rgb(8 9 11 / 0.55); }
+.sheet h3 { font-size: 1.3rem; margin-top: 8px; }
+.sheet p { color: var(--soft); margin-top: 4px; }
+.cup { width: 64px; height: 64px; stroke-width: 2.2; }
+.cup .drop { fill: currentColor; stroke: none; }
+/* Side by side, the safe one first; a pair too long for one row stacks rather than wraps its words */
+.sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.sheet-actions button { flex: 1 1 auto; width: auto; white-space: nowrap; padding: 0 16px; }
+
+/* A switch for an on or off setting: 52 by 32, its state in the ink, focus drawn round it */
+.switch { position: relative; display: inline-flex; align-items: center; min-height: var(--tap); cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch span { width: 52px; height: 32px; border-radius: 16px; background: var(--well); border: 1px solid var(--edge);
+               position: relative; flex: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+                      background: var(--soft); transition: left 0.15s; }
+.switch input:checked + span { background: var(--ink); border-color: var(--ink); }
+.switch input:checked + span::after { left: 23px; background: var(--on-ink); }
+.switch input:focus-visible + span { outline: 3px solid var(--not-ready); outline-offset: 2px; }
+
+/* A part opened from a list is the page on a phone, its row out of view: its name is the page's title. Side by side
+   the row says it, and the name goes (rule 16). A part's switch (the motors) over its form */
+.detail > h2 { font-size: 1.6rem; margin: 0 4px 14px; }
+.detail > .seg { margin-bottom: 14px; }
+
+/* The powders' table needs its room: a wider list column on that page, and never under the form (it collided) */
+@media (min-width: 1000px) {
+    #page-powders.split-page { grid-template-columns: minmax(460px, 560px) minmax(0, 1fr); }
+    #page-powders .master { overflow-x: auto; }
+    .compare thead tr:last-child th:first-child { text-align: left; }
+}
+/* One select for the whole portal: the form's as the Trickler's, its own arrow */
+.form select, .setup-body select { appearance: none; -webkit-appearance: none; padding-right: 38px; text-overflow: ellipsis;
+               background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%),
+                                 linear-gradient(135deg, var(--soft) 50%, transparent 50%);
+               background-position: right 20px top 50%, right 14px top 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+/* A number's field as wide as a number needs, its unit beside it, not stretched across a tablet */
+.number { grid-template-columns: minmax(0, 14rem) auto; justify-content: start; }
+/* The tuning guide under the powders: a link out */
+.guide { margin: 14px 4px 0; color: var(--soft); font-size: 0.875rem; }
+.guide a { color: var(--ink); font-weight: 650; display: inline-flex; align-items: center; min-height: 48px; }
+/* The gate moved now (Settings, Servo gate): how open between its keys, Open and Close side by side */
+.gate-control { margin-bottom: 14px; }
+.gate-open { display: grid; place-items: center; min-height: var(--job-key); font-size: 1.6rem; font-weight: 700;
+             font-variant-numeric: tabular-nums; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* The update as a job in its card: the screen's word, how far as a figure and a bar, the power, Stop in its place */
+.job-view { display: grid; gap: 8px; margin-top: 12px; }
+.job-word { font-weight: 700; font-size: 1.15rem; }
+.job-figure { display: flex; align-items: baseline; justify-content: center; gap: 4px; font-size: 3rem; font-weight: 700;
+              line-height: 1.1; font-variant-numeric: tabular-nums; }
+.job-unit { font-size: 1rem; color: var(--soft); font-weight: 650; }
+.job-view .bar { width: 100%; margin: 0; }
+.job-view .bar i { background: var(--ink); }
+.job-note { color: var(--soft); }
+.last { margin: 4px 0 0; }
+/* The job's strip over a page that is not the job's: what it does and a way to it, its Stop at the right */
+.strip { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; min-height: 52px;
+         margin: 8px 12px 0; padding: 2px 4px 2px 14px; border-radius: var(--r-control); background: var(--ink);
+         color: var(--on-ink); box-shadow: 0 4px 12px rgb(0 0 0 / 0.18); }
+.strip a { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 48px; color: inherit;
+           text-decoration: none; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--on-ink); }
+.strip button { min-height: 44px; min-width: 72px; border: 1px solid currentColor; border-radius: 10px; background: transparent;
+                font-weight: 700; }
+.strip button[hidden] { display: none; }
+/* On the Trickler another job's strip takes the row of the Charge and Purge switch, of no use while that job holds the
+   unit (both are refused): the same height, so the figure keeps its room */
+body.strip-on #page-trickler .seg { display: none; }
+body.strip-on .trickler { height: calc(100svh - var(--bar) - env(safe-area-inset-bottom) - 60px);
+                          height: max(calc(100dvh - var(--bar) - env(safe-area-inset-bottom) - 60px), var(--trickler-floor));
+                          padding-top: var(--gap);
+                          grid-template-rows: minmax(0, 1fr); }
+@media (min-width: 600px) { .strip { margin: 12px 16px 0; } }
+/* Set up: a flow of its own, one column of a phone's width, no navigation; it may run in a sign-in sheet (rule 13) */
+body[data-page="setup"] .nav { display: none; }
+body[data-page="setup"] { padding-left: 0; }
+.page.setup-page { max-width: 480px; padding-bottom: 32px; }
+.setup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 4px 14px; }
+.setup-head h1 { font-size: 1.3rem; margin: 0; }
+.setup-count { color: var(--soft); font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.setup-body { display: grid; gap: 14px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-card);
+              padding: 16px; }
+.setup-body h2 { margin: 0; font-size: 1.15rem; }
+.setup-actions { display: grid; gap: 10px; margin-top: 4px; }
+.setup-actions .link-button { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.setup-actions .action { color: var(--on-ink); }
+.setup-status { font-weight: 700; }
+.setup-status.good { color: var(--good); }
+.setup-status.bad { color: var(--over); }
+.setup-network { margin: 0; font-size: 1.15rem; font-weight: 700; overflow-wrap: anywhere; }
+.setup-count-up { margin: 0; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.networks .row { width: 100%; border: 0; border-top: 1px solid var(--rule); background: transparent; text-align: left; font: inherit;
+                 font-weight: 600; }
+.networks .row.muted { color: var(--soft); font-weight: 500; }
+.networks .signal { flex: none; color: var(--soft); font-size: 0.875rem; font-weight: 600; }
+.networks .lock svg { width: 18px; height: 18px; color: var(--soft); }
+.join { display: grid; gap: 12px; padding: 4px 16px 16px; background: var(--well); }
+.join input[type="text"], .join input[type="password"], .join select {
+    width: 100%; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--edge); border-radius: var(--r-control);
+    background: var(--card); font-size: 1rem; }
+.show-key { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--soft); }
+.setup-weight { display: flex; align-items: baseline; gap: 4px; margin: 0; font-size: 2.6rem; font-weight: 700;
+                font-variant-numeric: tabular-nums; line-height: 1.1; }
+.setup-help { display: grid; gap: 10px; }
+.facts .missing dd { color: var(--over); }
+.setup-address { font-size: 1.3rem; font-weight: 700; color: var(--ink); word-break: break-all; }
+/* A fact's name holds its line; its value gives way (rule: text holds its line) */
+.facts dt { white-space: nowrap; }

@@ -709,8 +709,8 @@ bool update_poll_console(char *reply, size_t reply_size) {
     static const char *const states[] = {"idle", "checking", "up_to_date", "found", "failed"};
     snprintf(reply, reply_size,
              "@ok update poll state=%s channel=%s source=%s bench=%s version=%s error=\"%s\" fetch_status=%d bytes=%lu hops=%u "
-             "handshake_ms=%lu,%lu,%lu total_ms=%lu mbedtls_peak=%lu heap_before=%lu heap_min=%lu stack_left=%lu "
-             "fetch_error=\"%s\"",
+             "handshake_ms=%lu,%lu,%lu total_ms=%lu mbedtls_peak=%lu heap_before=%lu heap_min=%lu heap_low=%lu "
+             "alloc_refused=%lu stack_left=%lu fetch_error=\"%s\"",
              states[status.state], update_config.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
              update_config.source, update_poll_bench[0] != '\0' ? update_poll_bench : "none",
              status.state == UPDATE_POLL_FOUND ? status.version : "", status.error,
@@ -718,7 +718,8 @@ bool update_poll_console(char *reply, size_t reply_size) {
              (unsigned long) report.handshake_ms[0], (unsigned long) report.handshake_ms[1],
              (unsigned long) report.handshake_ms[2], (unsigned long) report.total_ms,
              (unsigned long) report.mbedtls_peak, (unsigned long) report.heap_free_before,
-             (unsigned long) report.heap_min_after, (unsigned long) report.stack_left, report.error);
+             (unsigned long) report.heap_min_after, (unsigned long) report.heap_low,
+             (unsigned long) report.alloc_refused, (unsigned long) report.stack_left, report.error);
     return true;
 }
 
@@ -733,11 +734,11 @@ static const setting_choice_t update_channel_choices[] = {
 #define UPDATE_FIELD(member) SETTING_AT(eeprom_update_config_t, member)
 
 static const setting_field_t update_fields[] = {
-    {.name = "channel", .label = "Channel", .group = "Update",
+    {.name = "channel", .label = "Channel",
      .about = "Which releases are offered: stable ones, or the newest of all with pre-releases (beta). Leaving beta "
               "goes back to no version: nothing is offered until a stable release is newer than the one running",
      .type = SETTING_CHOICE, UPDATE_FIELD(channel), SETTING_CHOICES(update_channel_choices), .applies = "now"},
-    {.name = "source", .label = "Source", .group = "Update",
+    {.name = "source", .label = "Source",
      .about = "Where the releases are: a repository's address, its releases laid out under it as GitHub lays them "
               "out (releases/latest/download/manifest.json). GitHub's own by default",
      .type = SETTING_STRING, UPDATE_FIELD(source), .length_min = 8, .applies = "now"},
@@ -787,6 +788,8 @@ static bool update_settings_is_saved(void) {
 static const settings_resource_t update_settings = {
     .path = "/api/v1/settings/update",
     .save_path = "/api/v1/settings/update/save",
+    .revert_path = "/api/v1/settings/update/revert",
+    .addr = EEPROM_UPDATE_CONFIG_BASE_ADDR,
     .label = "Update",
     .about = "Where the unit looks for a firmware update, and which releases it offers",
     SETTING_FIELDS(update_fields),

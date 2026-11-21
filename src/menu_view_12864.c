@@ -7,7 +7,10 @@
       11      a rule
       13-63   a list: four rows of 13 px, label left, value right, ">" for a row that opens something
               a card or notes: lines of 11 px (the text's 10 and 1), notes ending in their button; a scroll bar
-              a dialog: two lines centred, on baselines 29 and 40
+              a dialog: one or two lines centred, on baselines 29 and 40; three on 26, 37 and 48
+      0-63    the code (ADR-008): a square of 64 x 64 at the left that reads light however the panel is shown, no
+              title band, its dark modules 2 x 2; four
+              lines at x 68 on baselines 12 to 45; Back, its one softkey, at the right
               the editor and a job: the figure and its unit on baseline 38, a line under it on 49
       53-63   the softkeys: Back's at the left, the action at the right; the focused one in reverse
     Every text is placed by its baseline, so the faces' heights decide nothing else.
@@ -17,6 +20,7 @@
 #include <string.h>
 
 #include "menu_view_12864.h"
+#include "src/libs/qrcode/qrcodegen.h"
 
 #define VIEW_W 128
 #define VIEW_H 64
@@ -37,6 +41,15 @@
 #define VIEW_CHART_H 26
 #define VIEW_MESSAGE_BASE_1 29
 #define VIEW_MESSAGE_BASE_2 40
+#define VIEW_MESSAGE_LINES 4
+#define VIEW_MESSAGE_THREE_BASE 26          // three lines: 26, 37, 48 (mockups/setup_12864.png)
+// The code (ADR-008, gate 4; the skill's seventh kind): a lit square at the left, the code's modules 2 px, centred in
+// it (version 3, 29 modules: a quiet zone of 3 px); its lines at the right, centred in the room above the softkey
+#define VIEW_CODE_SIDE 64
+#define VIEW_CODE_MODULE 2
+#define VIEW_CODE_VERSION_MAX 3
+#define VIEW_CODE_COLUMN_X (VIEW_CODE_SIDE + 4)
+#define VIEW_CODE_BASE_1 12
 #define VIEW_FIGURE_BASE 38
 #define VIEW_CONTEXT_BASE 49
 #define VIEW_SOFTKEY_TOP 53
@@ -65,7 +78,16 @@ static lv_obj_t *view_button;                   // notes' button
 static lv_obj_t *view_button_label;
 static lv_obj_t *view_track;
 static lv_obj_t *view_thumb;
-static lv_obj_t *view_message[2];
+static lv_obj_t *view_message[VIEW_MESSAGE_LINES];   // a dialog's lines, centred; the code's, beside it
+static lv_obj_t *view_rule;
+static lv_obj_t *view_code_box;
+// The code drawn: its text, and its modules as qrcodegen made them (size 0: none), painted by menu_view_paint
+static char view_code_text[MENU_CODE_TEXT];
+static uint8_t view_code_modules[qrcodegen_BUFFER_LEN_FOR_VERSION(VIEW_CODE_VERSION_MAX)];
+static int view_code_size = 0;
+static bool view_code_shown = false;
+static bool view_panel_inverted = false;    // menu_view_set_inverted: the code's ground follows it
+static void view_paint_pixel(uint8_t *rows, const lv_area_t *area, int x, int y);
 static lv_obj_t *view_figure;
 static lv_obj_t *view_unit;
 static lv_obj_t *view_cursor;
@@ -231,7 +253,7 @@ void menu_view_init(lv_display_t *display) {
     view_title = view_label(view_title_box, &menu_font_bold, LV_TEXT_ALIGN_LEFT);
     view_marks = view_label(view_title_box, &menu_font_regular, LV_TEXT_ALIGN_RIGHT);
     view_place(view_marks, 64, VIEW_W - 64 - 1, VIEW_TITLE_BASE);
-    view_box(screen, 0, VIEW_RULE_Y, VIEW_W, 1, true);
+    view_rule = view_box(screen, 0, VIEW_RULE_Y, VIEW_W, 1, true);
 
     for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
         view_rows[idx] = view_box(screen, 0, VIEW_CONTENT_TOP + idx * VIEW_ROW_H, VIEW_W, VIEW_ROW_H - 1, false);
@@ -246,10 +268,11 @@ void menu_view_init(lv_display_t *display) {
     view_track = view_box(screen, VIEW_W - 1, VIEW_CONTENT_TOP, 1, VIEW_H - VIEW_CONTENT_TOP, true);
     view_thumb = view_box(screen, VIEW_W - 3, VIEW_CONTENT_TOP, 3, 8, true);
 
-    for (int idx = 0; idx < 2; idx += 1) {
+    for (int idx = 0; idx < VIEW_MESSAGE_LINES; idx += 1) {
         view_message[idx] = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_CENTER);
-        view_place(view_message[idx], 0, VIEW_W, idx == 0 ? VIEW_MESSAGE_BASE_1 : VIEW_MESSAGE_BASE_2);
     }
+    view_code_box = view_box(screen, 0, 0, VIEW_CODE_SIDE, VIEW_CODE_SIDE, true);
+    view_show(view_code_box, false);
     view_figure = view_label(screen, &menu_font_figure, LV_TEXT_ALIGN_LEFT);
     view_unit = view_label(screen, &menu_font_regular, LV_TEXT_ALIGN_LEFT);
     view_cursor = view_box(screen, 0, VIEW_FIGURE_BASE + 3, 8, 2, true);
@@ -414,9 +437,52 @@ static void view_lines(const menu_screen_t *screen) {
 }
 
 
+// A dialog's lines, centred: one or two on 29 and 40, three on 26, 37 and 48
 static void view_dialog(const menu_screen_t *screen) {
-    for (int idx = 0; idx < 2; idx += 1) {
+    bool three = screen->row_count > 2;
+    for (int idx = 0; idx < VIEW_MESSAGE_LINES; idx += 1) {
+        bool shown = idx < (three ? 3 : 2);
+        view_show(view_message[idx], shown);
+        if (!shown) {
+            continue;
+        }
+        lv_obj_set_style_text_align(view_message[idx], LV_TEXT_ALIGN_CENTER, 0);
+        int base = three ? VIEW_MESSAGE_THREE_BASE + idx * VIEW_LINE_H
+                         : (idx == 0 ? VIEW_MESSAGE_BASE_1 : VIEW_MESSAGE_BASE_2);
+        view_place(view_message[idx], 0, VIEW_W, base);
         view_text(view_message[idx], idx < screen->row_count ? screen->row_label[idx] : "");
+    }
+}
+
+
+/*
+ * The code: its square lit, its lines at the right, together centred in the room above the softkey. The modules are
+ * made when the text changes (qrcodegen, LVGL's copy of Nayuki's, at level L as the mock drew it, version 3 at the
+ * most: 2 px a module fills the square) and painted dark into the frame at the flush (menu_view_paint)
+ */
+static void view_code(const menu_screen_t *screen) {
+    if (strcmp(screen->code, view_code_text) != 0) {
+        snprintf(view_code_text, sizeof(view_code_text), "%s", screen->code);
+        uint8_t scratch[qrcodegen_BUFFER_LEN_FOR_VERSION(VIEW_CODE_VERSION_MAX)];
+        bool made = qrcodegen_encodeText(view_code_text, scratch, view_code_modules, qrcodegen_Ecc_LOW,
+                                         qrcodegen_VERSION_MIN, VIEW_CODE_VERSION_MAX, qrcodegen_Mask_AUTO, false);
+        view_code_size = made ? qrcodegen_getSize(view_code_modules) : 0;
+        if (!made) {
+            printf("Menu: the code's text does not fit version %d: %s\n", VIEW_CODE_VERSION_MAX, view_code_text);
+        }
+        lv_obj_invalidate(view_code_box);
+    }
+    int lines = screen->row_count < VIEW_MESSAGE_LINES ? screen->row_count : VIEW_MESSAGE_LINES;
+    int first = VIEW_CODE_BASE_1 + (VIEW_MESSAGE_LINES - lines) * VIEW_LINE_H / 2;
+    for (int idx = 0; idx < VIEW_MESSAGE_LINES; idx += 1) {
+        bool shown = idx < lines;
+        view_show(view_message[idx], shown);
+        if (!shown) {
+            continue;
+        }
+        lv_obj_set_style_text_align(view_message[idx], LV_TEXT_ALIGN_LEFT, 0);
+        view_place(view_message[idx], VIEW_CODE_COLUMN_X, VIEW_W - VIEW_CODE_COLUMN_X - 1, first + idx * VIEW_LINE_H);
+        view_text(view_message[idx], screen->row_label[idx]);
     }
 }
 
@@ -487,7 +553,16 @@ void menu_view_draw(const menu_screen_t *screen) {
     bool dialog = screen->kind == MENU_SCREEN_DIALOG;
     bool figure = screen->kind == MENU_SCREEN_EDIT || screen->kind == MENU_SCREEN_JOB;
     bool control = screen->kind == MENU_SCREEN_CONTROL;
+    bool code = screen->kind == MENU_SCREEN_CODE;
 
+    // The code has no title band: the square takes the panel's height
+    view_show(view_title_box, !code);
+    view_show(view_rule, !code);
+    if (code != view_code_shown) {
+        view_code_shown = code;
+        view_show(view_code_box, code);
+        lv_obj_invalidate(view_code_box);
+    }
     view_title_and_marks(screen, (list || lines || control) && screen->focus == -1);
     if (!list && !lines) {
         for (int idx = 0; idx < VIEW_ROWS; idx += 1) {
@@ -499,8 +574,11 @@ void menu_view_draw(const menu_screen_t *screen) {
     if (!lines) {
         view_show(view_button, false);
     }
-    view_show(view_message[0], dialog);
-    view_show(view_message[1], dialog);
+    if (!dialog && !code) {
+        for (int idx = 0; idx < VIEW_MESSAGE_LINES; idx += 1) {
+            view_show(view_message[idx], false);
+        }
+    }
     view_show(view_figure, figure);
     view_show(view_unit, figure);
     view_show(view_context, figure);
@@ -508,7 +586,7 @@ void menu_view_draw(const menu_screen_t *screen) {
         view_show(view_cursor, false);
         view_show(view_edit_box, false);
     }
-    if (!dialog && !figure && !control) {
+    if (!dialog && !figure && !control && !code) {
         view_show(view_softkey_left_box, false);
         view_show(view_softkey_box, false);
     }
@@ -525,11 +603,14 @@ void menu_view_draw(const menu_screen_t *screen) {
     else if (control) {
         view_control(screen);
     }
+    else if (code) {
+        view_code(screen);
+    }
     else {
         view_figure_and_unit(screen);
     }
     view_chart_draw(screen, figure && screen->chart);
-    if (dialog || figure || control) {
+    if (dialog || figure || control || code) {
         view_softkeys(screen);
     }
 }
@@ -585,7 +666,59 @@ static void view_paint_pixel(uint8_t *rows, const lv_area_t *area, int x, int y)
 }
 
 
+static void view_paint_clear(uint8_t *rows, const lv_area_t *area, int x, int y);
+
+
+/*
+ * The code's dark modules, each 2 x 2, the code centred in its square. A person reads it dark on a light ground as a
+ * phone's reader does, whichever way the panel is shown: on a panel not inverted the square is lit and the modules
+ * cleared out of it, on an inverted one the square is dark and the modules lit
+ */
+static void view_code_paint(uint8_t *rows, const lv_area_t *area) {
+    if (!view_code_shown || view_code_size == 0) {
+        return;
+    }
+    int offset = (VIEW_CODE_SIDE - view_code_size * VIEW_CODE_MODULE) / 2;
+    for (int my = 0; my < view_code_size; my += 1) {
+        for (int mx = 0; mx < view_code_size; mx += 1) {
+            if (!qrcodegen_getModule(view_code_modules, mx, my)) {
+                continue;
+            }
+            for (int dy = 0; dy < VIEW_CODE_MODULE; dy += 1) {
+                for (int dx = 0; dx < VIEW_CODE_MODULE; dx += 1) {
+                    int x = offset + mx * VIEW_CODE_MODULE + dx;
+                    int y = offset + my * VIEW_CODE_MODULE + dy;
+                    if (view_panel_inverted) {
+                        view_paint_pixel(rows, area, x, y);
+                    }
+                    else {
+                        view_paint_clear(rows, area, x, y);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// The code's square: lit on a panel shown as it is, dark on an inverted one, so a person sees a light ground
+static void view_code_ground(void) {
+    lv_obj_set_style_bg_color(view_code_box, view_panel_inverted ? lv_color_black() : lv_color_white(), 0);
+    lv_obj_invalidate(view_code_box);
+}
+
+
+void menu_view_set_inverted(bool inverted) {
+    if (inverted == view_panel_inverted) {
+        return;
+    }
+    view_panel_inverted = inverted;
+    view_code_ground();
+}
+
+
 void menu_view_paint(uint8_t *rows, const lv_area_t *area) {
+    view_code_paint(rows, area);
     view_bubble_paint(rows, area);
     if (!view_chart_shown) {
         return;

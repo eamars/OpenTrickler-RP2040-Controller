@@ -41,6 +41,8 @@ typedef struct _dhcp_server_t {
     ip_addr_t nm;
     dhcp_server_lease_t lease[DHCPS_MAX_IP];
     struct udp_pcb *udp;
+    volatile uint32_t given;    // addresses given (each ACK) since the unit started, never reset: a phone joined
+                                // the hotspot when it rises (ADR-008, the set-up's code)
 } dhcp_server_t;
 
 void dhcp_server_init(dhcp_server_t *d, ip_addr_t *ip, ip_addr_t *nm);

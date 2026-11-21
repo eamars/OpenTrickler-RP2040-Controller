@@ -32,7 +32,6 @@ charge_mode_config_t charge_mode_config;
 
 // Scale related
 extern scale_config_t scale_config;
-extern servo_gate_t servo_gate;
 
 
 const eeprom_charge_mode_data_t default_charge_mode_data = {
@@ -371,7 +370,7 @@ static void charge_mode_scale_fault(const char * reason, event_reason_t throw_re
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
-    if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    if (servo_gate_enabled()) {
         servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, true);
     }
 
@@ -432,7 +431,7 @@ void charge_mode_wait_for_complete() {
     );
 
     // If the servo gate is used then it has to be opened
-    if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    if (servo_gate_enabled()) {
         servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, false);
     }
     // Update current status
@@ -568,7 +567,7 @@ void charge_mode_wait_for_complete() {
 
             // NEW: When the coarse trickler stops, move the servo gate to a configured ratio
             // Ratio convention: 0.0 = open, 1.0 = close
-            if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+            if (servo_gate_enabled()) {
                 float r = charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio;
 
                 servo_gate_set_ratio(r, false); // don't block the charge loop
@@ -619,13 +618,13 @@ void charge_mode_wait_for_complete() {
     charge_timer_running = false;
 
     // Close the gate if the servo gate is present
-    if (servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    if (servo_gate_enabled()) {
     servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, true);
     }
 
     // Precharge
     if (charge_mode_config.eeprom_charge_mode_data.precharge_enable &&
-    servo_gate.eeprom_servo_gate_config.servo_gate_enable) {
+    servo_gate_enabled()) {
         // Set a fixed delay between closing the gate and precharge to allow the gate to fully close
         vTaskDelay(pdMS_TO_TICKS(500));
 

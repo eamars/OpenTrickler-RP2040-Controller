@@ -34,6 +34,8 @@ typedef struct {
     uint32_t mbedtls_peak;                  // the most mbedTLS held at once, in bytes
     uint32_t heap_free_before;              // the FreeRTOS heap free when it began
     uint32_t heap_min_after;                // the heap's low mark after it, over the unit's whole run
+    uint32_t heap_low;                      // the heap's least free while it ran, read at each of mbedTLS's blocks
+    uint32_t alloc_refused;                 // mbedTLS's blocks refused: the heap would have fallen under the reserve
     uint32_t stack_left;                    // the calling task's stack never touched, in bytes
     char error[96];                         // "" when it went through
 } https_report_t;

@@ -16,6 +16,7 @@ typedef enum {
     UPDATE_IDLE = 0,
     UPDATE_STARTING,            // asked, and the menu has not begun it yet
     UPDATE_RECEIVING,           // the job runs: the image is taken into the free slot
+    UPDATE_CHECKING,            // all of it in: its SHA-256, its board and its seal checked (ADR-008, gate 2)
     UPDATE_READY,               // the image is whole and checked
     UPDATE_INSTALLING,          // the restart into its trial is under way
     UPDATE_ENDING,              // ended: the mode gives the screen back, and the job is idle once the menu is back
@@ -42,6 +43,8 @@ typedef struct {
     const char *code;           // a refusal's, or NULL
     const char *message;
     uint32_t version;           // the block version tried, or 0
+    uint8_t reason;             // event_reason_t: why a trial went back (ADR-008, gate 2); EVENT_REASON_NONE else
+    uint16_t reset;             // the settings a confirmed update reset, a bit each (update_write_reset)
 } update_last_t;
 
 typedef struct {
@@ -101,6 +104,13 @@ update_refusal_t update_image_begin(uint32_t bytes, int *status, uint32_t *token
 bool update_image_piece(uint32_t token, const uint8_t *data, size_t len);
 update_refusal_t update_image_end(uint32_t token, int *status);
 void update_image_abort(uint32_t token);
+
+// After eeprom_init: the trial's note read, and how the last update ended (ADR-008, gate 2: kept in the EEPROM)
+void update_start_note(void);
+// How long a client waits through an install's restart before it says the unit is not back: a trial's longest
+uint32_t update_back_within_s(void);
+// The settings an update reset, as a JSON list of names, from their bits
+void update_write_reset(uint16_t reset, char *out, size_t room, size_t *len);
 
 // A block version as the firmware's version string has it: (512, 256) is 2.0.1, (276, 218) is 1.20.0-218
 void update_version_text(uint32_t version, char *out, size_t size);

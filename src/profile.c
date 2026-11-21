@@ -113,32 +113,32 @@ bool profile_data_is_saved(void) {
     compatibility are used by nothing, and are not in the API.
 */
 #define PROFILE_FIELD(member) SETTING_AT(profile_t, member)
-#define PROFILE_GAIN(field_name, field_label, member, field_group, field_about) \
-    {.name = field_name, .label = field_label, .group = field_group, .about = field_about, \
+#define PROFILE_GAIN(field_name, field_label, member, field_about) \
+    {.name = field_name, .label = field_label, .about = field_about, \
      .type = SETTING_NUMBER, PROFILE_FIELD(member), .min = 0.0f, .max = NAN, .applies = "the next throw"}
-#define PROFILE_SPEED(field_name, field_label, member, field_group, field_about) \
-    {.name = field_name, .label = field_label, .group = field_group, .about = field_about, \
+#define PROFILE_SPEED(field_name, field_label, member, field_about) \
+    {.name = field_name, .label = field_label, .about = field_about, \
      .type = SETTING_NUMBER, PROFILE_FIELD(member), .unit = "rev/s", .min = 0.0f, .max = 100.0f, \
      .applies = "the next throw"}
 
 static const setting_field_t profile_fields[] = {
-    {.name = "name", .label = "Name", .group = "Profile",
-     .about = "The profile's name, as the menu shows it: printable ASCII, the screen's font draws nothing else",
+    {.name = "name", .label = "Name",
+     .about = "The powder's name, as the menu shows it: printable ASCII, the screen's font draws nothing else",
      .type = SETTING_STRING, PROFILE_FIELD(name), .length_min = 1, .applies = "now"},
-    PROFILE_GAIN("coarse_kp", "Coarse Kp", coarse_kp, "Coarse trickler", "The coarse trickler's proportional gain"),
-    PROFILE_GAIN("coarse_ki", "Coarse Ki", coarse_ki, "Coarse trickler", "The coarse trickler's integral gain"),
-    PROFILE_GAIN("coarse_kd", "Coarse Kd", coarse_kd, "Coarse trickler", "The coarse trickler's derivative gain"),
-    PROFILE_SPEED("coarse_min_speed_rps", "Coarse minimum speed", coarse_min_flow_speed_rps, "Coarse trickler",
-                  "The coarse trickler's slowest while it pours; not above its maximum"),
-    PROFILE_SPEED("coarse_max_speed_rps", "Coarse maximum speed", coarse_max_flow_speed_rps, "Coarse trickler",
-                  "The coarse trickler's fastest, used up to the coarse motor's max_speed_rps"),
-    PROFILE_GAIN("fine_kp", "Fine Kp", fine_kp, "Fine trickler", "The fine trickler's proportional gain"),
-    PROFILE_GAIN("fine_ki", "Fine Ki", fine_ki, "Fine trickler", "The fine trickler's integral gain"),
-    PROFILE_GAIN("fine_kd", "Fine Kd", fine_kd, "Fine trickler", "The fine trickler's derivative gain"),
-    PROFILE_SPEED("fine_min_speed_rps", "Fine minimum speed", fine_min_flow_speed_rps, "Fine trickler",
-                  "The fine trickler's slowest while it pours; not above its maximum"),
-    PROFILE_SPEED("fine_max_speed_rps", "Fine maximum speed", fine_max_flow_speed_rps, "Fine trickler",
-                  "The fine trickler's fastest, used up to the fine motor's max_speed_rps"),
+    PROFILE_GAIN("coarse_kp", "Coarse Kp", coarse_kp, "The coarse motor's proportional gain"),
+    PROFILE_GAIN("coarse_ki", "Coarse Ki", coarse_ki, "The coarse motor's integral gain"),
+    PROFILE_GAIN("coarse_kd", "Coarse Kd", coarse_kd, "The coarse motor's derivative gain"),
+    PROFILE_SPEED("coarse_min_speed_rps", "Coarse minimum speed", coarse_min_flow_speed_rps,
+                  "The coarse motor's slowest while it pours; not above its maximum"),
+    PROFILE_SPEED("coarse_max_speed_rps", "Coarse maximum speed", coarse_max_flow_speed_rps,
+                  "The coarse motor's fastest while it pours; not above its Maximum speed in Settings, Motors"),
+    PROFILE_GAIN("fine_kp", "Fine Kp", fine_kp, "The fine motor's proportional gain"),
+    PROFILE_GAIN("fine_ki", "Fine Ki", fine_ki, "The fine motor's integral gain"),
+    PROFILE_GAIN("fine_kd", "Fine Kd", fine_kd, "The fine motor's derivative gain"),
+    PROFILE_SPEED("fine_min_speed_rps", "Fine minimum speed", fine_min_flow_speed_rps,
+                  "The fine motor's slowest while it pours; not above its maximum"),
+    PROFILE_SPEED("fine_max_speed_rps", "Fine maximum speed", fine_max_flow_speed_rps,
+                  "The fine motor's fastest while it pours; not above its Maximum speed in Settings, Motors"),
 };
 
 
@@ -180,7 +180,9 @@ static const char *profile_settings_refuse(int32_t id) {
 static const settings_resource_t profile_settings = {
     .path = "/api/v1/powder_profiles/{id}",
     .save_path = "/api/v1/powder_profiles/save",
-    .label = "Powder profile",
+    .revert_path = "/api/v1/powder_profiles/revert",
+    .addr = EEPROM_PROFILE_DATA_BASE_ADDR + offsetof(eeprom_profile_data_t, profiles),
+    .label = "Powder",
     .about = "How a powder flows, and the controller's gains for it",
     SETTING_FIELDS(profile_fields),
     .refused_while = SETTINGS_REFUSED_NEVER,

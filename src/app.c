@@ -57,6 +57,7 @@ int main()
 
     // Initialize EEPROM first
     eeprom_init();
+    update_start_note();     // the trial's note, now the EEPROM is up (ADR-008, gate 2)
 
     // Initialize Neopixel RGB on the mini 12864 board
     neopixel_led_init();
@@ -95,7 +96,7 @@ int main()
     // The menu draws with LVGL: at 1024 words it had 142 left (ADR-010, gate 4). Its locks first: the web and the
     // console read its frame
     menu_init();
-    xTaskCreate(menu_task, "Menu Task", 1536, NULL, 6, NULL);
+    xTaskCreate(menu_task, "Menu Task", 1280, NULL, 6, NULL);  // 3,784 bytes used through `reach` (ADR-008)
 
     // The remote control's console task
     rc_console_init();

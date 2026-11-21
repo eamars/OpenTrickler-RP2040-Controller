@@ -71,6 +71,14 @@ add_subdirectory(${SRC_DIRECTORY})
 file(GLOB SRC ${SRC_DIRECTORY}/*.c 
               ${SRC_DIRECTORY}/*.cpp)
 
+# What a build carries (ADR-008, gate 2; ADR-005's feature table): a feature is in the build or out of it, never built
+# a second way, and the unit reports each by name (the index's `features`). On by default on both boards
+option(FEATURE_SERVO_GATE "The servo gate: its module, its settings, its menu page and its API" ON)
+if (NOT FEATURE_SERVO_GATE)
+    list(REMOVE_ITEM SRC ${SRC_DIRECTORY}/servo_gate.c)
+endif()
+message(STATUS "Features: servo_gate=${FEATURE_SERVO_GATE}")
+
 # Include application source file
 target_sources("${TARGET_NAME}" PUBLIC
     ${SRC}
@@ -78,6 +86,11 @@ target_sources("${TARGET_NAME}" PUBLIC
 
 # Include additional headers
 target_include_directories("${TARGET_NAME}" PUBLIC ${CMAKE_SOURCE_DIR}/targets)
+if (FEATURE_SERVO_GATE)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=1)
+else()
+    target_compile_definitions("${TARGET_NAME}" PRIVATE FEATURE_SERVO_GATE=0)
+endif()
 
 # Include libraries1
 target_link_libraries("${TARGET_NAME}"
@@ -114,12 +127,14 @@ list(FILTER MBEDTLS_SOURCES EXCLUDE REGEX "/sha256\\.c$")
 set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
 
 # The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/github_roots.pem). A test build
-# (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots too (tools/ota_server.py --make-certs); no other does
-option(HTTPS_TEST_CA "Test build only: also trust the local OTA server's test roots" OFF)
+# (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots in their place (tools/ota_server.py --make-certs),
+# two of the same kinds, so a fetch on the bench holds what a user's does (ADR-008: with all four, 3.3 KB more); no
+# other build does, and a test build reaches no GitHub, as the bench rules ask
+option(HTTPS_TEST_CA "Test build only: trust the local OTA server's test roots in place of GitHub's" OFF)
 set(HTTPS_CA_FILES ${SRC_DIRECTORY}/github_roots.pem)
 if (HTTPS_TEST_CA)
-    list(APPEND HTTPS_CA_FILES ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/ecc_root.pem
-                               ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/rsa_root.pem)
+    set(HTTPS_CA_FILES ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/ecc_root.pem
+                       ${CMAKE_SOURCE_DIR}/logs/ota_server/certs/rsa_root.pem)
 endif()
 set(https_ca_text "")
 foreach(ca_file IN LISTS HTTPS_CA_FILES)
@@ -159,6 +174,18 @@ endif()
 option(RC_TEST_WIFI_FIRST_JOIN_FAILS "Test build only: the start's Wi-Fi join is skipped" OFF)
 if (RC_TEST_WIFI_FIRST_JOIN_FAILS)
     target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_WIFI_FIRST_JOIN_FAILS=1)
+endif()
+# A probe build (ADR-008, gate 1): the start's join skipped, so the unit starts as its own access point; the station
+# joins only on the console's `wifi join`, and the access point is kept up when it does; `wifi scan` lists networks
+option(RC_TEST_AP_PROBE "Test build only: the access point kept up through the station's join, wifi join and scan" OFF)
+if (RC_TEST_AP_PROBE)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_AP_PROBE=1)
+endif()
+# A test build whose stored LED record has another size (ADR-008, gate 2): on trial its settings read as a layout that
+# changed, held as the defaults; kept, the update says it reset them
+option(RC_TEST_LAYOUT_CHANGE "Test build only: the LEDs' stored record a word longer" OFF)
+if (RC_TEST_LAYOUT_CHANGE)
+    target_compile_definitions("${TARGET_NAME}" PRIVATE RC_TEST_LAYOUT_CHANGE=1)
 endif()
 # A test build that never confirms itself on trial (ADR-004): the unit goes back to the other slot
 option(RC_TEST_NO_CONFIRM "Test build only: an image on trial never confirms itself" OFF)

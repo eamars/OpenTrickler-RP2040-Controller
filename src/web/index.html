@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- features: 7 15 94 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>OpenTrickler</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317191c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v16M5 20h14M4 8h16M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z'/%3E%3C/svg%3E">
+<link rel="service-doc" href="/api/v1">
+<link rel="service-desc" href="/api/v1/schema">
+<style>/*STYLE*/</style>
+</head>
+<body>
+<!-- The link to the unit is shown only when it is lost (web-ui-design, rule 9): normal takes no room -->
+<!-- features: 29 89 -->
+<p id="link" class="offline" role="alert" hidden>Unit not reached. Trying again&hellip;</p>
+<!-- The job that runs, on every page but its own (web-ui-design, rule 9): what it does, a way to it, its Stop -->
+<div id="strip" class="strip" role="status" hidden>
+  <a id="strip-go" href="#unit"><span class="strip-dot"></span><span id="strip-word"></span></a>
+  <button id="strip-stop" type="button">Stop</button>
+</div>
+
+<main id="page-trickler" class="trickler" hidden>
+  <div class="seg" role="tablist" aria-label="Job">
+    <button id="seg-charge" role="tab" class="on" aria-selected="true">Charge</button>
+    <button id="seg-purge" role="tab" aria-selected="false">Purge</button>
+  </div>
+
+  <!-- The charge, in three groups (web-ui-design, rule 15): what to throw; what is on the pan (its state, its Zero, the
+       weight against the target); what to do. The mood on the view colours the ring, the bar and the status -->
+  <!-- features: 16 17 18 19 20 21 22 23 24 25 26 34 -->
+  <section id="panel" class="view" data-mood="normal">
+    <div class="group setup">
+      <label class="field"><span>Powder</span><select id="powder"></select></label>
+      <div class="field"><span>Target</span>
+        <div class="stepper">
+          <button class="key" data-step="-1" aria-label="Less">&minus;</button>
+          <input id="target" type="number" inputmode="decimal" step="0.001" min="0.001" aria-label="Target" placeholder="not set">
+          <button class="key" data-step="1" aria-label="More">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="group scale">
+      <div class="group-head">
+        <div class="status"><span id="status">Ready</span><span id="elapsed" class="time" hidden></span></div>
+        <button id="zero" class="ghost">Zero</button>
+      </div>
+      <div class="readout">
+        <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="track" cx="100" cy="100" r="90"/>
+          <circle id="ring" class="arc" cx="100" cy="100" r="90" pathLength="1000"/>
+        </svg>
+        <div class="readout-text">
+          <div class="figure-line"><span id="weight" class="figure ringed">---</span><span id="unit" class="unit">gr</span></div>
+          <div class="bar"><i id="bar"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="group job">
+      <button id="start" class="action go">Start charge</button>
+      <button id="stop" class="action halt" hidden>Stop</button>
+    </div>
+  </section>
+
+  <!-- The purge, the same way: its state and its speed, the keys either side of the speed they set; Start or Stop -->
+  <!-- features: 30 31 33 -->
+  <section id="purge-panel" class="view" data-mood="normal" hidden>
+    <div class="group scale">
+      <div class="group-head">
+        <div class="status"><span id="purge-status">Ready</span></div>
+      </div>
+      <div class="readout">
+        <div class="readout-text">
+          <div class="speed-line">
+            <button class="key" data-speed="-1" aria-label="Slower">&minus;</button>
+            <div class="figure-line"><span id="speed" class="figure short">0.0</span><span class="unit">rev/s</span></div>
+            <button class="key" data-speed="1" aria-label="Faster">+</button>
+          </div>
+          <p id="purge-hint" class="hint">Runs both motors to empty them into the cup.</p>
+        </div>
+      </div>
+    </div>
+    <div class="group job">
+      <button id="purge-start" class="action go">Start purge</button>
+      <button id="purge-stop" class="action halt" hidden>Stop purge</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- The other pages, drawn by their scripts from what the unit says of itself; they scroll, a job's page does not -->
+<main id="page-powders" class="page split-page" hidden></main>
+<main id="page-settings" class="page split-page" hidden></main>
+<main id="page-unit" class="page" hidden></main>
+<main id="page-setup" class="page setup-page" hidden></main>
+
+<p id="message" class="message" role="status"></p>
+
+<!-- features: 8 -->
+<nav class="nav">
+  <a href="#trickler" data-page="trickler"><svg viewBox="0 0 24 24"><path d="M12 4v16M5 20h14M4 8h16M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z"/></svg>Trickler</a>
+  <a href="#powders" data-page="powders"><svg viewBox="0 0 24 24"><path d="M8 3h8v3H8zM6 6h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM6 12h12"/></svg>Powders</a>
+  <a href="#settings" data-page="settings"><svg viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h11m4 0h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+  <a href="#unit" data-page="unit"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Unit</a>
+</nav>
+
+<!-- features: N5 -->
+<dialog id="cup" class="sheet">
+  <form method="dialog">
+    <svg class="cup" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 22h28l-3 30a3 3 0 0 1-3 3H24a3 3 0 0 1-3-3zM10 58h44"/><path class="drop" d="M32 6c-3 5-4 7-4 9a4 4 0 0 0 8 0c0-2-1-4-4-9z"/></svg>
+    <h3>Put the empty cup on the scale</h3>
+    <p>To catch the powder.</p>
+    <div class="sheet-actions">
+      <button class="ghost" value="no">Not yet</button>
+      <button class="action go" value="yes">The cup is on</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm" class="sheet">
+  <form method="dialog">
+    <h3 id="confirm-title"></h3>
+    <p id="confirm-text"></p>
+    <div class="sheet-actions">
+      <button id="confirm-keep" class="ghost" value="keep"></button>
+      <button id="confirm-act" class="action halt" value="act"></button>
+    </div>
+  </form>
+</dialog>
+
+<script>/*SCRIPT*/</script>
+</body>
+</html>

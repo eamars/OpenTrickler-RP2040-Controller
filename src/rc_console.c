@@ -29,7 +29,7 @@
 // RTT has no interrupt, so the console is polled. A line of 128 characters arrives within a few polls
 #define RC_CONSOLE_POLL_MS 20
 
-#define RC_CONSOLE_TASK_STACK 1024      // words
+#define RC_CONSOLE_TASK_STACK 768       // words: 2,164 bytes used under ADR-008's full workload
 #define RC_CONSOLE_TASK_PRIORITY 2      // below the menu (6) and the modes
 
 // A test build (-DRC_TEST_FAULT=1 or 2, see CMakeLists.txt) faults this long after start-up

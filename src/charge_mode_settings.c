@@ -133,6 +133,8 @@ static void charge_settings_apply(const void *before, int32_t id) {
 static const settings_resource_t charge_settings = {
     .path = "/api/v1/settings/charge",
     .save_path = "/api/v1/settings/charge/save",
+    .revert_path = "/api/v1/settings/charge/revert",
+    .addr = EEPROM_CHARGE_MODE_BASE_ADDR,
     .label = "Charge",
     .about = "How a throw is poured and judged",
     SETTING_FIELDS(charge_fields),

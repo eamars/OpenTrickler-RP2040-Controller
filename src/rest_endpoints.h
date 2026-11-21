@@ -10,9 +10,8 @@ extern "C" {
 #endif
 
 
-bool rest_endpoints_init(bool default_wizard);
-// The root page: the wizard as the unit's own access point, the portal once it is on its network (ADR-004)
-void rest_endpoints_set_root_wizard(bool wizard);
+// The pages and the API: the portal at / on any network (ADR-008, gate 4: the wizard is gone)
+bool rest_endpoints_init(void);
 
 
 

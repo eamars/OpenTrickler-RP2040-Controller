@@ -11,6 +11,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "activity.h"
+
 typedef enum {
     SETTING_NUMBER,     // a float, or a whole number in an integer (held_as_integer)
     SETTING_INTEGER,    // a whole number, held in an unsigned integer of `size` bytes
@@ -75,6 +77,8 @@ typedef enum {
 typedef struct {
     const char *path;           // "/api/v1/settings/charge"; "{id}" for one of several ("/api/v1/powder_profiles/{id}")
     const char *save_path;      // where it is stored; resources stored as one block share it
+    const char *revert_path;    // the save's, /revert in place of /save: what is stored put back (ADR-008, gate 2)
+    uint16_t addr;              // where its part lies in the EEPROM, as stored: its id's at addr + id * size
     const char *label;
     const char *about;
     const setting_field_t *fields;
@@ -134,6 +138,17 @@ const char *settings_write_and_save(const char *path, const char *name, const ch
 // a path's resource, if it changed. NULL when done, else why not
 const char *settings_write(const char *path, const char *name, const char *value);
 const char *settings_store(const char *path);
+/*
+ * Several fields written as the console writes them, by whom (the set-up's join: the network it joined, by the API
+ * or the console), and the resource stored: NULL when done, else why not. Then what the resource holds now is in
+ * effect, as if the unit had started with it: a network the station joined needs no restart (restart_pending)
+ */
+#define SETTINGS_WRITE_BY_MAX 8
+const char *settings_write_and_store_by(const char *path, const char *const names[], const char *const values[],
+                                        size_t count, activity_by_t by);
+void settings_in_effect(const char *path);
+// A save's or a revert's usage for its own GET (ADR-008, gate 2), into out; false when the path is neither
+bool settings_action_usage(const char *path, char *out, size_t room, size_t *len);
 
 #ifdef __cplusplus
 }

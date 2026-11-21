@@ -74,11 +74,19 @@
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
 // 16 KB of it given to lwIP's heap (lwipopts.h, ADR-003 gate 2), which on sockets holds every byte sent until it is
 // acknowledged: the FreeRTOS heap had some 75 KB free through every soak, the web server's slots and task included
+// An HTTPS fetch is its largest user: mbedTLS's peak with GitHub's kinds of chain is some 35 KB, and it must leave
+// 8 KB over its 2 KB reserve (ADR-008: at 112 KB it left 5.6 KB). The Pico 2 W has the RAM; the Pico W has not, and
+// is held to it by its tasks' stacks, sized from what they used
+#if PICO_RP2350
+#define configTOTAL_HEAP_SIZE                   (144*1024)
+#else
 #define configTOTAL_HEAP_SIZE                   (112*1024)
+#endif
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configCHECK_FOR_STACK_OVERFLOW          1
+// 2: the stack's last words checked too at each switch, as the stacks are sized from what they used (ADR-008)
+#define configCHECK_FOR_STACK_OVERFLOW          2
 #define configUSE_MALLOC_FAILED_HOOK            1
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
@@ -95,7 +103,8 @@
 #define configUSE_TIMERS                        1
 #define configTIMER_TASK_PRIORITY               ( configMAX_PRIORITIES - 1 )
 #define configTIMER_QUEUE_LENGTH                10
-#define configTIMER_TASK_STACK_DEPTH            1024
+// The timer service runs the update trial's watchdog feed alone: 276 bytes used under ADR-008's full workload
+#define configTIMER_TASK_STACK_DEPTH            256
 
 /* Interrupt nesting behaviour configuration. */
 /*

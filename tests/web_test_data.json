@@ -2,17 +2,23 @@
  "/api/v1": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
   "board": "pico_w",
-  "unit_id": "9CE00000",
-  "hostname": "opentrickler-9CE0",
-  "boot": 2579517273,
-  "uptime_s": 105,
-  "features": [],
-  "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a cleanup runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a cleanup. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
+  "unit_id": "4A821948",
+  "hostname": "opentrickler-4A82",
+  "boot": 3884089477,
+  "uptime_s": 124,
+  "features": [
+   {
+    "name": "servo_gate",
+    "present": true,
+    "about": "the shutters' servos: GET /api/v1/gate, settings/gate, the screen's Settings, Servo gate"
+   }
+  ],
+  "guide": "A GET reads and changes nothing. A setting is written with a PATCH of its resource, any of its fields at once, checked whole: if one field is refused, nothing is written. A setting written is live at once, or when its schema's 'applies' says; 'saved' in each settings reply says whether what runs is what is stored, and a POST of {} to the resource's save path stores it. A write may be refused for a moment with 409 busy: the charge's, the scale's and the gate's settings and the powder profile in use while a throw is under way, the motors' while the charge or a purge runs. GET /api/v1/schema describes every field. Weights are in the scale's own unit. The unit runs one job at a time: a charge or a purge. A charge is started with POST /api/v1/charge/start once a target is set, and throws until it is stopped: each throw waits for the scale to read zero, pours to the target, gives its verdict, and waits for the cup to be lifted and put back. POST /api/v1/stop stops whatever job runs, and never fails; a job that ended on a fault waits in 'fault' until a stop or a press at the unit. Follow GET /api/v1/events?after=N&wait=30 to see each change, from where you left off. The unit cannot know what is in the cup, nor whether the hopper holds powder: a zero and then a start pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.",
   "resources": [
    {
     "path": "/api/v1",
@@ -79,26 +85,26 @@
     "about": "stops the charge, and acknowledges its fault; never fails"
    },
    {
-    "path": "/api/v1/cleanup",
+    "path": "/api/v1/purge",
     "methods": [
      "GET",
      "PATCH"
     ],
-    "about": "the cleanup: its state and speed; a PATCH sets the speed, with a time to run no longer than"
+    "about": "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"
    },
    {
-    "path": "/api/v1/cleanup/start",
+    "path": "/api/v1/purge/start",
     "methods": [
      "POST"
     ],
-    "about": "starts a cleanup, at speed 0"
+    "about": "starts a purge, at speed 0"
    },
    {
-    "path": "/api/v1/cleanup/stop",
+    "path": "/api/v1/purge/stop",
     "methods": [
      "POST"
     ],
-    "about": "stops the cleanup, and acknowledges its fault; never fails"
+    "about": "stops the purge, and acknowledges its fault; never fails"
    },
    {
     "path": "/api/v1/stop",
@@ -108,11 +114,25 @@
     "about": "stops whatever job runs; never fails"
    },
    {
+    "path": "/api/v1/agent/hello",
+    "methods": [
+     "POST"
+    ],
+    "about": "for agents: say hello, and the screen shows who is watching for 2 s; never over a charge"
+   },
+   {
     "path": "/api/v1/events",
     "methods": [
      "GET"
     ],
     "about": "the unit's changes after a number (?after=N), held until there is one with ?wait=s"
+   },
+   {
+    "path": "/api/v1/events/stream",
+    "methods": [
+     "GET"
+    ],
+    "about": "the same changes as they happen, as server-sent events: first the unit (its boot, and whether it goes on from the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, the purge), then each event with its id, and the state again as it changes and after 15 s quiet. At most 3 at once: 503 then, with Retry-After"
    },
    {
     "path": "/api/v1/scale",
@@ -148,7 +168,7 @@
     "methods": [
      "GET"
     ],
-    "about": "the firmware, the board, the uptime, what the unit is doing, a restart pending"
+    "about": "the firmware, the board, the uptime, what the unit is doing, a restart pending, whether it is set up"
    },
    {
     "path": "/api/v1/system/restart",
@@ -158,7 +178,7 @@
     "about": "restarts the unit, once the reply is out"
    },
    {
-    "path": "/api/v1/system/erase",
+    "path": "/api/v1/system/factory_reset",
     "methods": [
      "POST"
     ],
@@ -169,7 +189,35 @@
     "methods": [
      "GET"
     ],
-    "about": "the network the unit is on: its mode, name, address, host name, signal"
+    "about": "the network the unit is on: its mode, name, address, host name, signal; the station's last join and its end"
+   },
+   {
+    "path": "/api/v1/wifi/networks",
+    "methods": [
+     "GET"
+    ],
+    "about": "the networks the last scan heard, strongest first, and whether one runs"
+   },
+   {
+    "path": "/api/v1/wifi/scan",
+    "methods": [
+     "POST"
+    ],
+    "about": "scans for networks: twice, merged by name"
+   },
+   {
+    "path": "/api/v1/wifi/join",
+    "methods": [
+     "POST"
+    ],
+    "about": "the set-up's join, while the unit is its own hotspot, kept up meanwhile: stored once joined, never if refused"
+   },
+   {
+    "path": "/api/v1/setup/done",
+    "methods": [
+     "POST"
+    ],
+    "about": "the set-up finished or skipped: remembered; joined, the hotspot stops a moment after the reply"
    },
    {
     "path": "/api/v1/update",
@@ -257,7 +305,7 @@
      "GET",
      "PATCH"
     ],
-    "about": "The coarse trickler's motor and its driver"
+    "about": "The coarse motor and its driver"
    },
    {
     "path": "/api/v1/settings/motors/fine",
@@ -265,7 +313,7 @@
      "GET",
      "PATCH"
     ],
-    "about": "The fine trickler's motor and its driver"
+    "about": "The fine motor and its driver"
    },
    {
     "path": "/api/v1/settings/scale",
@@ -312,7 +360,14 @@
     "methods": [
      "POST"
     ],
-    "about": "stores LEDs"
+    "about": "stores Lights"
+   },
+   {
+    "path": "/api/v1/settings/leds/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Lights"
    },
    {
     "path": "/api/v1/settings/display/save",
@@ -322,6 +377,13 @@
     "about": "stores Display"
    },
    {
+    "path": "/api/v1/settings/display/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Display"
+   },
+   {
     "path": "/api/v1/settings/wifi/save",
     "methods": [
      "POST"
@@ -329,11 +391,25 @@
     "about": "stores Wi-Fi"
    },
    {
+    "path": "/api/v1/settings/wifi/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Wi-Fi"
+   },
+   {
     "path": "/api/v1/settings/motors/save",
     "methods": [
      "POST"
     ],
-    "about": "stores Coarse trickler motor and Fine trickler motor"
+    "about": "stores Coarse motor and Fine motor"
+   },
+   {
+    "path": "/api/v1/settings/motors/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Coarse motor and Fine motor"
    },
    {
     "path": "/api/v1/settings/scale/save",
@@ -343,6 +419,13 @@
     "about": "stores Scale"
    },
    {
+    "path": "/api/v1/settings/scale/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Scale"
+   },
+   {
     "path": "/api/v1/settings/charge/save",
     "methods": [
      "POST"
@@ -350,11 +433,25 @@
     "about": "stores Charge"
    },
    {
+    "path": "/api/v1/settings/charge/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Charge"
+   },
+   {
     "path": "/api/v1/powder_profiles/save",
     "methods": [
      "POST"
     ],
-    "about": "stores Powder profile"
+    "about": "stores Powder"
+   },
+   {
+    "path": "/api/v1/powder_profiles/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Powder"
    },
    {
     "path": "/api/v1/settings/gate/save",
@@ -364,19 +461,33 @@
     "about": "stores Servo gate"
    },
    {
+    "path": "/api/v1/settings/gate/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Servo gate"
+   },
+   {
     "path": "/api/v1/settings/update/save",
     "methods": [
      "POST"
     ],
     "about": "stores Update"
+   },
+   {
+    "path": "/api/v1/settings/update/revert",
+    "methods": [
+     "POST"
+    ],
+    "about": "puts back what is stored of Update"
    }
   ]
  },
  "/api/v1/schema": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
   "resources": [
@@ -387,14 +498,15 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/leds/save",
-    "label": "LEDs",
+    "revert": "/api/v1/settings/leds/revert",
+    "label": "Lights",
     "about": "The display's backlight and LEDs, and the LEDs on PWM3",
     "refused_while": "never",
     "fields": [
      {
       "name": "backlight_colour",
       "label": "Backlight",
-      "group": "Display",
+      "group": "Display board",
       "type": "colour",
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
@@ -404,7 +516,7 @@
      {
       "name": "led1_colour",
       "label": "LED 1",
-      "group": "Display",
+      "group": "Display board",
       "type": "colour",
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
@@ -414,7 +526,7 @@
      {
       "name": "led2_colour",
       "label": "LED 2",
-      "group": "Display",
+      "group": "Display board",
       "type": "colour",
       "access": "read_write",
       "applies": "now when no mode has the LEDs; otherwise when it gives them back",
@@ -473,6 +585,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/display/save",
+    "revert": "/api/v1/settings/display/revert",
     "label": "Display",
     "about": "The display and its encoder",
     "refused_while": "never",
@@ -480,7 +593,6 @@
      {
       "name": "invert_encoder",
       "label": "Invert the encoder",
-      "group": "Display",
       "type": "boolean",
       "short_label": "Invert knob",
       "access": "read_write",
@@ -491,7 +603,6 @@
      {
       "name": "rotation",
       "label": "Rotation",
-      "group": "Display",
       "type": "choice",
       "unit": "degrees",
       "choices": [
@@ -512,7 +623,6 @@
      {
       "name": "invert_display",
       "label": "Invert the screen",
-      "group": "Display",
       "type": "boolean",
       "short_label": "Invert screen",
       "access": "read_write",
@@ -523,7 +633,6 @@
      {
       "name": "charge_view",
       "label": "Charge view",
-      "group": "Display",
       "type": "choice",
       "choices": [
        {
@@ -549,15 +658,16 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/wifi/save",
+    "revert": "/api/v1/settings/wifi/revert",
     "label": "Wi-Fi",
     "about": "The network the unit joins",
     "refused_while": "never",
     "fields": [
      {
       "name": "enable",
-      "label": "Wi-Fi",
-      "group": "Wi-Fi",
+      "label": "Join a network",
       "type": "boolean",
+      "short_label": "Wi-Fi",
       "access": "read_write",
       "applies": "at_restart",
       "refused_while": "never",
@@ -566,7 +676,6 @@
      {
       "name": "ssid",
       "label": "Network name",
-      "group": "Wi-Fi",
       "type": "string",
       "min_length": 1,
       "max_length": 31,
@@ -578,7 +687,6 @@
      {
       "name": "key",
       "label": "Key",
-      "group": "Wi-Fi",
       "type": "string",
       "min_length": 0,
       "max_length": 63,
@@ -590,7 +698,6 @@
      {
       "name": "auth",
       "label": "Security",
-      "group": "Wi-Fi",
       "type": "choice",
       "choices": [
        {
@@ -618,7 +725,6 @@
      {
       "name": "timeout_ms",
       "label": "Join timeout",
-      "group": "Wi-Fi",
       "type": "integer",
       "unit": "ms",
       "min": 1000,
@@ -638,14 +744,14 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/motors/save",
-    "label": "Coarse trickler motor",
-    "about": "The coarse trickler's motor and its driver",
+    "revert": "/api/v1/settings/motors/revert",
+    "label": "Coarse motor",
+    "about": "The coarse motor and its driver",
     "refused_while": "a_job_runs",
     "fields": [
      {
       "name": "full_steps_per_rotation",
       "label": "Full steps a rotation",
-      "group": "Motor",
       "type": "integer",
       "unit": "steps",
       "min": 20,
@@ -721,7 +827,6 @@
      {
       "name": "max_speed_rps",
       "label": "Maximum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 1,
@@ -749,7 +854,6 @@
      {
       "name": "acceleration_rps2",
       "label": "Acceleration",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s2",
       "min": 0.1,
@@ -762,7 +866,6 @@
      {
       "name": "min_speed_rps",
       "label": "Minimum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -775,7 +878,6 @@
      {
       "name": "gear_ratio",
       "label": "Gear ratio",
-      "group": "Motor",
       "type": "number",
       "min": 0.01,
       "max": 100,
@@ -816,14 +918,14 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/motors/save",
-    "label": "Fine trickler motor",
-    "about": "The fine trickler's motor and its driver",
+    "revert": "/api/v1/settings/motors/revert",
+    "label": "Fine motor",
+    "about": "The fine motor and its driver",
     "refused_while": "a_job_runs",
     "fields": [
      {
       "name": "full_steps_per_rotation",
       "label": "Full steps a rotation",
-      "group": "Motor",
       "type": "integer",
       "unit": "steps",
       "min": 20,
@@ -899,7 +1001,6 @@
      {
       "name": "max_speed_rps",
       "label": "Maximum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 1,
@@ -927,7 +1028,6 @@
      {
       "name": "acceleration_rps2",
       "label": "Acceleration",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s2",
       "min": 0.1,
@@ -940,7 +1040,6 @@
      {
       "name": "min_speed_rps",
       "label": "Minimum speed",
-      "group": "Motor",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -953,7 +1052,6 @@
      {
       "name": "gear_ratio",
       "label": "Gear ratio",
-      "group": "Motor",
       "type": "number",
       "min": 0.01,
       "max": 100,
@@ -994,14 +1092,14 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/scale/save",
+    "revert": "/api/v1/settings/scale/revert",
     "label": "Scale",
     "about": "The scale on the serial port",
     "refused_while": "in_throw",
     "fields": [
      {
       "name": "driver",
-      "label": "Scale",
-      "group": "Scale",
+      "label": "Make",
       "type": "choice",
       "short_label": "Make",
       "choices": [
@@ -1110,6 +1208,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/charge/save",
+    "revert": "/api/v1/settings/charge/revert",
     "label": "Charge",
     "about": "How a throw is poured and judged",
     "refused_while": "in_throw",
@@ -1329,7 +1428,8 @@
      "PATCH"
     ],
     "save": "/api/v1/powder_profiles/save",
-    "label": "Powder profile",
+    "revert": "/api/v1/powder_profiles/revert",
+    "label": "Powder",
     "about": "How a powder flows, and the controller's gains for it",
     "ids": [
      0,
@@ -1346,52 +1446,47 @@
      {
       "name": "name",
       "label": "Name",
-      "group": "Profile",
       "type": "string",
       "min_length": 1,
       "max_length": 15,
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw_when_in_use",
-      "about": "The profile's name, as the menu shows it: printable ASCII, the screen's font draws nothing else"
+      "about": "The powder's name, as the menu shows it: printable ASCII, the screen's font draws nothing else"
      },
      {
       "name": "coarse_kp",
       "label": "Coarse Kp",
-      "group": "Coarse trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's proportional gain"
+      "about": "The coarse motor's proportional gain"
      },
      {
       "name": "coarse_ki",
       "label": "Coarse Ki",
-      "group": "Coarse trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's integral gain"
+      "about": "The coarse motor's integral gain"
      },
      {
       "name": "coarse_kd",
       "label": "Coarse Kd",
-      "group": "Coarse trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's derivative gain"
+      "about": "The coarse motor's derivative gain"
      },
      {
       "name": "coarse_min_speed_rps",
       "label": "Coarse minimum speed",
-      "group": "Coarse trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1399,12 +1494,11 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's slowest while it pours; not above its maximum"
+      "about": "The coarse motor's slowest while it pours; not above its maximum"
      },
      {
       "name": "coarse_max_speed_rps",
       "label": "Coarse maximum speed",
-      "group": "Coarse trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1412,45 +1506,41 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The coarse trickler's fastest, used up to the coarse motor's max_speed_rps"
+      "about": "The coarse motor's fastest while it pours; not above its Maximum speed in Settings, Motors"
      },
      {
       "name": "fine_kp",
       "label": "Fine Kp",
-      "group": "Fine trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's proportional gain"
+      "about": "The fine motor's proportional gain"
      },
      {
       "name": "fine_ki",
       "label": "Fine Ki",
-      "group": "Fine trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's integral gain"
+      "about": "The fine motor's integral gain"
      },
      {
       "name": "fine_kd",
       "label": "Fine Kd",
-      "group": "Fine trickler",
       "type": "number",
       "min": 0,
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's derivative gain"
+      "about": "The fine motor's derivative gain"
      },
      {
       "name": "fine_min_speed_rps",
       "label": "Fine minimum speed",
-      "group": "Fine trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1458,12 +1548,11 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's slowest while it pours; not above its maximum"
+      "about": "The fine motor's slowest while it pours; not above its maximum"
      },
      {
       "name": "fine_max_speed_rps",
       "label": "Fine maximum speed",
-      "group": "Fine trickler",
       "type": "number",
       "unit": "rev/s",
       "min": 0,
@@ -1471,7 +1560,7 @@
       "access": "read_write",
       "applies": "the next throw",
       "refused_while": "in_throw_when_in_use",
-      "about": "The fine trickler's fastest, used up to the fine motor's max_speed_rps"
+      "about": "The fine motor's fastest while it pours; not above its Maximum speed in Settings, Motors"
      }
     ]
    },
@@ -1482,15 +1571,16 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/gate/save",
+    "revert": "/api/v1/settings/gate/revert",
     "label": "Servo gate",
     "about": "The gate between the tricklers and the cup",
     "refused_while": "in_throw",
     "fields": [
      {
       "name": "enable",
-      "label": "Servo gate",
-      "group": "Gate",
+      "label": "Fitted",
       "type": "boolean",
+      "short_label": "Servo gate",
       "access": "read_write",
       "applies": "now",
       "refused_while": "in_throw",
@@ -1587,6 +1677,7 @@
      "PATCH"
     ],
     "save": "/api/v1/settings/update/save",
+    "revert": "/api/v1/settings/update/revert",
     "label": "Update",
     "about": "Where the unit looks for a firmware update, and which releases it offers",
     "refused_while": "never",
@@ -1594,7 +1685,6 @@
      {
       "name": "channel",
       "label": "Channel",
-      "group": "Update",
       "type": "choice",
       "choices": [
        {
@@ -1615,7 +1705,6 @@
      {
       "name": "source",
       "label": "Source",
-      "group": "Update",
       "type": "string",
       "min_length": 8,
       "max_length": 127,
@@ -1637,10 +1726,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/leds/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/display/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/display/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -1651,10 +1754,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/wifi/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/motors/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/motors/revert",
+    "fields": [],
+    "refused_while": "a_job_runs",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -1665,10 +1782,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/scale/revert",
+    "fields": [],
+    "refused_while": "in_throw",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/charge/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/charge/revert",
+    "fields": [],
+    "refused_while": "in_throw",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -1679,10 +1810,24 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/powder_profiles/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/gate/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores what was written there"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/settings/gate/revert",
+    "fields": [],
+    "refused_while": "in_throw",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
    },
    {
     "method": "POST",
@@ -1693,10 +1838,36 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/settings/update/revert",
+    "fields": [],
+    "refused_while": "never",
+    "about": "puts back what is stored there, undoing what was written since: each resource that changed gives its setting changed event. 409 busy as a write is"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/settings/save",
     "fields": [],
     "refused_while": "never",
     "about": "stores every setting and the powder profiles"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/agent/hello",
+    "fields": [
+     {
+      "name": "name",
+      "type": "string",
+      "min_length": 1,
+      "max_length": 16,
+      "about": "who you are, printable ASCII; without it, Claude-chan"
+     }
+    ],
+    "refused_while": "a_charge_runs",
+    "kind": "agent",
+    "about": "an agent says hello: the screen shows Claude-chan rising at its bottom right, a bubble over her saying '<name> is watching ya!', for 2 s. 409 busy while a charge runs: its screen is never covered. It changes nothing else; send it only when no person reads the screen for a test",
+    "example": {
+     "name": "Claude"
+    }
    },
    {
     "method": "PATCH",
@@ -1740,7 +1911,10 @@
      }
     ],
     "refused_while": "a_job_runs",
-    "about": "starts a charge (202); a target or a powder profile given is set only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 no_target when none is set"
+    "about": "starts a charge (202); a target or a powder profile given is set only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 no_target when none is set",
+    "example": {
+     "target": 30
+    }
    },
    {
     "method": "POST",
@@ -1751,14 +1925,14 @@
    },
    {
     "method": "POST",
-    "path": "/api/v1/cleanup/start",
+    "path": "/api/v1/purge/start",
     "fields": [],
     "refused_while": "a_job_runs",
-    "about": "starts a cleanup (202), at speed 0 until a PATCH gives one; 409 driver_fault"
+    "about": "starts a purge (202), at speed 0 until a PATCH gives one; 409 driver_fault"
    },
    {
     "method": "PATCH",
-    "path": "/api/v1/cleanup",
+    "path": "/api/v1/purge",
     "fields": [
      {
       "name": "speed_rps",
@@ -1773,18 +1947,18 @@
       "unit": "s",
       "min": 1,
       "max": 600,
-      "about": "for at most this long, then the cleanup stops by itself; without it, until stopped. A client with no person at the unit gives a short time and sends the speed again while it wants it"
+      "about": "for at most this long, then the purge stops by itself; without it, until stopped. A client with no person at the unit gives a short time and sends the speed again while it wants it"
      }
     ],
-    "refused_while": "no_cleanup_runs",
-    "about": "the cleanup's speed; 409 not_running when none runs, and in its fault, where the motors stay stopped until it is acknowledged"
+    "refused_while": "no_purge_runs",
+    "about": "the purge's speed; 409 not_running when none runs, and in its fault, where the motors stay stopped until it is acknowledged"
    },
    {
     "method": "POST",
-    "path": "/api/v1/cleanup/stop",
+    "path": "/api/v1/purge/stop",
     "fields": [],
     "refused_while": "never",
-    "about": "stops the cleanup (202), or 200 with nothing to stop; it acknowledges the cleanup's fault"
+    "about": "stops the purge (202), or 200 with nothing to stop; it acknowledges the purge's fault"
    },
    {
     "method": "POST",
@@ -1797,7 +1971,7 @@
     "method": "POST",
     "path": "/api/v1/scale/zero",
     "fields": [],
-    "about": "asks the scale to zero, not that it did. Taken with no job, in a cleanup and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
+    "about": "asks the scale to zero, not that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the cup; 501 not_supported where the make cannot (GET /api/v1/scale, actions)"
    },
    {
     "method": "PATCH",
@@ -1817,6 +1991,57 @@
    },
    {
     "method": "POST",
+    "path": "/api/v1/wifi/scan",
+    "fields": [],
+    "refused_while": "never",
+    "about": "scans for networks twice, merged by name (202, with GET /api/v1/wifi/networks's reply): scanning until they end, some 2 s. 409 busy while a scan or a join runs"
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/wifi/join",
+    "fields": [
+     {
+      "name": "ssid",
+      "type": "string",
+      "min_length": 1,
+      "max_length": 31,
+      "about": "the network's name"
+     },
+     {
+      "name": "key",
+      "type": "string",
+      "max_length": 63,
+      "about": "its key, 8 to 63 bytes with security; never sent back"
+     },
+     {
+      "name": "auth",
+      "type": "choice",
+      "choices": [
+       "open",
+       "wpa_tkip",
+       "wpa2_aes",
+       "wpa2_mixed"
+      ],
+      "about": "its security, as the networks name it; wpa2_mixed without it"
+     }
+    ],
+    "refused_while": "never",
+    "about": "the set-up's join (202, with GET /api/v1/network's reply, its station joining): the unit stays its own hotspot meanwhile, so the page that asked it reads the end in the station: joined (the network stored and in effect, no restart) or failed with its reason (wrong_key, timeout, failed; nothing stored). 409 not_on_hotspot when the unit is on its network, which a join would leave; 409 busy while a scan or a join runs",
+    "example": {
+     "ssid": "Smith home",
+     "key": "its key",
+     "auth": "wpa2_mixed"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/api/v1/setup/done",
+    "fields": [],
+    "refused_while": "never",
+    "about": "the set-up finished or skipped (200, {set_up, hotspot}): remembered, so the portal never opens it by itself again (a factory reset forgets it). Joined, the hotspot stops a moment after the reply (hotspot false) and the unit is on its network alone; not joined, the hotspot stays"
+   },
+   {
+    "method": "POST",
     "path": "/api/v1/update/start",
     "fields": [
      {
@@ -1826,7 +2051,10 @@
      }
     ],
     "refused_while": "a_job_runs",
-    "about": "starts a firmware update (202): the menu takes it and it holds the screen; then PUT the image, unless it downloads. 409 busy also while a person has a screen open at the unit or a poll runs; 409 not_found for a download with nothing found"
+    "about": "starts a firmware update (202): the menu takes it and it holds the screen; then PUT the image, unless it downloads. 409 busy also while a person has a screen open at the unit or a poll runs; 409 not_found for a download with nothing found",
+    "example": {
+     "download": true
+    }
    },
    {
     "method": "POST",
@@ -1865,22 +2093,25 @@
    },
    {
     "method": "POST",
-    "path": "/api/v1/system/erase",
+    "path": "/api/v1/system/factory_reset",
     "fields": [
      {
       "name": "confirm",
       "type": "choice",
       "choices": [
        {
-        "value": "erase",
-        "label": "Erase"
+        "value": "factory_reset",
+        "label": "Factory reset"
        }
       ],
       "required": true
      }
     ],
     "refused_while": "a_job_runs",
-    "about": "erases the stored settings and restarts (202): the unit then leaves the network and comes back as its own access point, with a new id and host name. 400 confirm_missing without the confirmation"
+    "about": "erases the stored settings and restarts (202): the unit then leaves the network and comes back as its own access point, with a new id and host name. 400 confirm_missing without the confirmation",
+    "example": {
+     "confirm": "factory_reset"
+    }
    }
   ],
   "states": {
@@ -1893,7 +2124,7 @@
      "value": "charge"
     },
     {
-     "value": "cleanup"
+     "value": "purge"
     },
     {
      "value": "view",
@@ -1915,6 +2146,10 @@
     {
      "value": "receiving",
      "about": "the image is taken into the free slot"
+    },
+    {
+     "value": "checking",
+     "about": "all of the image in: its SHA-256, its board and its seal checked"
     },
     {
      "value": "ready",
@@ -1958,7 +2193,7 @@
      "about": "the charge ended on a fault (last.reason) and waits for a stop or a press to acknowledge it"
     }
    ],
-   "cleanup": [
+   "purge": [
     {
      "value": "idle"
     },
@@ -2088,14 +2323,14 @@
     "about": "a throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and fault only with driver_fault"
    },
    {
-    "source": "cleanup",
+    "source": "purge",
     "kind": "started",
     "carries": [
      "by"
     ]
    },
    {
-    "source": "cleanup",
+    "source": "purge",
     "kind": "stopped",
     "carries": [
      "by",
@@ -2165,17 +2400,19 @@
     "source": "update",
     "kind": "confirmed",
     "carries": [
-     "version"
+     "version",
+     "reset"
     ],
-    "about": "after the restart, the image tried confirmed itself once on its network"
+    "about": "after the restart, the image tried confirmed itself once on its network; reset: the settings it reset to their defaults, by name"
    },
    {
     "source": "update",
     "kind": "back",
     "carries": [
-     "version"
+     "version",
+     "reason"
     ],
-    "about": "after the restart, the image tried was left, and the one before runs"
+    "about": "after the restart, the image tried was left, and the one before runs; reason: did_not_start, no_network, not_confirmed, power_cut"
    },
    {
     "source": "update",
@@ -2184,6 +2421,24 @@
      "version"
     ],
     "about": "the poll found a newer release, now offered: GET /api/v1/update, found"
+   },
+   {
+    "source": "setting",
+    "kind": "changed",
+    "carries": [
+     "by",
+     "path"
+    ],
+    "about": "a settings resource or a powder written, and what it holds changed: read path again. One for each resource written, never for a write that changed nothing; by: button (the menu), api, console"
+   },
+   {
+    "source": "setting",
+    "kind": "stored",
+    "carries": [
+     "by",
+     "path"
+    ],
+    "about": "what was written stored where it was not; path: the save's, so every resource stored by it is saved again"
    }
   ],
   "errors": [
@@ -2217,17 +2472,18 @@
    "wrong_slot",
    "hash_mismatch",
    "not_ready",
-   "no_network"
+   "no_network",
+   "not_on_hotspot"
   ]
  },
  "/api/v1/settings": {
   "api": "1",
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
-  "unit_id": "9CE00000",
+  "unit_id": "4A821948",
   "resources": {
    "/api/v1/settings/leds": {
     "saved": true,
@@ -2243,7 +2499,7 @@
     "invert_encoder": false,
     "rotation": 180,
     "invert_display": true,
-    "charge_view": "weight"
+    "charge_view": "chart"
    },
    "/api/v1/settings/wifi": {
     "saved": true,
@@ -2427,7 +2683,7 @@
    },
    "/api/v1/settings/update": {
     "saved": true,
-    "channel": "stable",
+    "channel": "beta",
     "source": "http://192.168.2.13:8080/a/b"
    }
   }
@@ -2474,33 +2730,33 @@
   "motors": [
    {
     "id": "coarse",
-    "label": "Coarse trickler motor"
+    "label": "Coarse motor"
    },
    {
     "id": "fine",
-    "label": "Fine trickler motor"
+    "label": "Fine motor"
    }
   ]
  },
  "/api/v1/charge": {
   "state": "idle",
   "in_throw": false,
-  "throw": 3,
+  "throw": 2,
   "paused": false,
   "target": 30,
-  "powder_profile": 1,
-  "powder_profile_name": "AR2209,gr",
+  "powder_profile": 0,
+  "powder_profile_name": "AR2208,gr",
   "weight": null,
-  "elapsed_s": 16.88,
+  "elapsed_s": 9.877,
   "last": {
-   "throw": 3,
+   "throw": 2,
    "result": "none",
    "reason": "stopped",
    "weight": 0
   },
-  "event_seq": 11
+  "event_seq": 9
  },
- "/api/v1/cleanup": {
+ "/api/v1/purge": {
   "state": "idle",
   "by": null,
   "speed_rps": 0,
@@ -2533,28 +2789,39 @@
  },
  "/api/v1/system": {
   "firmware": {
-   "version": "2.0.2-53-dirty",
-   "vcs": "3ce28b4",
+   "version": "2.0.3-64-dirty",
+   "vcs": "8449f9a",
    "build": "Debug"
   },
   "board": "pico_w",
-  "unit_id": "9CE00000",
-  "uptime_s": 108,
+  "unit_id": "4A821948",
+  "uptime_s": 126,
   "activity": "none",
-  "restart_pending": false
+  "restart_pending": false,
+  "set_up": true
  },
  "/api/v1/network": {
   "mode": "station",
   "ssid": "dummy_ssid",
   "address": "192.168.4.1",
-  "hostname": "opentrickler-9CE0",
-  "rssi": -56
+  "hostname": "opentrickler-4A82",
+  "rssi": -59,
+  "station": {
+   "state": "joined",
+   "ssid": "dummy_ssid",
+   "address": "192.168.1.57",
+   "reason": null
+  }
+ },
+ "/api/v1/wifi/networks": {
+  "scanning": false,
+  "networks": []
  },
  "/api/v1/update": {
   "state": "idle",
   "running": {
-   "version": "2.0.2-53-dirty",
-   "block": "2.0.2-53",
+   "version": "2.0.3-64-dirty",
+   "block": "2.0.3-64",
    "slot": "a",
    "trial": false
   },
@@ -2568,7 +2835,14 @@
    "error": "no connection"
   },
   "found": null,
-  "last": null
+  "last": {
+   "result": "back",
+   "version": "2.0.3-137",
+   "code": null,
+   "message": null,
+   "reason": "not_confirmed",
+   "reset": null
+  }
  },
  "/api/v1/display": {
   "width": 128,
@@ -2576,7 +2850,7 @@
   "format": "mono_rows"
  },
  "/api/v1/display/frame": {
-  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABB5AAAAAAAAAAAAAAAAAAAQhQAAAAAAAAAAAAAAAAAAEIFnKaYAAAAAAAAAAAAACBCBkLJpAAAAAAAAAAAAAAQQgROiLwAAAAAAAAAAAAACEIEUoigAAAAAAAAAAAAABBCFFKJpAAAAAAAAAAAAAAgQeRNhpgAAAAAAAAAAAAAAEAAAACAAAAAAAAAAAAAAABAAAAHAAAAAAAAAAAAAAAAf////////////////////////////////////////////////////////////////hv///////////////////3r///////////////////9+zGm1P///////////////fremtN///////////////36GLrXf//////////////9+va613///////////////erWutN///////////////4bOTsU////////////////////9/////////////////////f///////////////////////////////////////////////////////////////////////////////u5+B/////////////////7u/v//////////////////bX73///////////////3/21+F///////////////+/9VRvf///////////////3/u373///////////////7/7t+9///////////////9/+7fvf///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+P92//////////////////d/d//////////////////35iKnLP////////////9/+Nt2mst/////////////v/9Ddrrs/////////////9/3X3a673////////////+/91t2ust/////////////f/jnMrss////////////////////7////////////////////x///////////////w=="
+  "base64": "///////////////////////////////////////////j///gfPzz///////////zyf//+f/88///////////85ynGnnQxJMaf////////5Ockkk5xJQySP////////+TnJIJOcyccgn////////8k5ySeTnMnDJ5/////////JPJkkk5zJSSSf///////+ST44cZOczEwxn////////kk/+f//////////////////8AAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABB5AAAAAAAAAAAAAAAAAAAQhQAAAAAAAAAAAAAAAAAAEIFnKaYAAAAAAAAAAAAACBCBkLJpAAAAAAAAAAAAAAQQgROiLwAAAAAAAAAAAAACEIEUoigAAAAAAAAAAAAABBCFFKJpAAAAAAAAAAAAAAgQeRNhpgAAAAAAAAAAAAAAEAAAACAAAAAAAAAAAAAAABAAAAHAAAAAAAAAAAAAAAAf////////////////////////////////////////////////////////////////D////////////////////3f///////////////////91qyz/////////////////DabLf////////////////32u6H////////////////99ruv/////////////////fa7Lf////////////////34vLP///////////////////+////////////////////8f/////////////////////////////////////////////////////////////////////////////////u5+B/////////////////7u/v//////////////////bX73///////////////3/21+F///////////////+/9VRvf///////////////3/u373///////////////7/7t+9///////////////9/+7fvf///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+P92//////////////////d/d//////////////////35iKnLP////////////9/+Nt2mst/////////////v/9Ddrrs/////////////9/3X3a673////////////+/91t2ust/////////////f/jnMrss////////////////////7////////////////////x///////////////w=="
  },
  "/api/v1/settings/leds": {
   "saved": true,
@@ -2592,7 +2866,7 @@
   "invert_encoder": false,
   "rotation": 180,
   "invert_display": true,
-  "charge_view": "weight"
+  "charge_view": "chart"
  },
  "/api/v1/settings/wifi": {
   "saved": true,
@@ -2776,7 +3050,7 @@
  },
  "/api/v1/settings/update": {
   "saved": true,
-  "channel": "stable",
+  "channel": "beta",
   "source": "http://192.168.2.13:8080/a/b"
  }
 }

@@ -13,6 +13,21 @@
 // Attributes
 servo_gate_t servo_gate;
 
+
+bool servo_gate_enabled(void) {
+    return servo_gate.eeprom_servo_gate_config.servo_gate_enable;
+}
+
+
+gate_state_t servo_gate_state(void) {
+    return servo_gate.gate_state;
+}
+
+
+float servo_gate_ratio(void) {
+    return servo_gate.gate_ratio;
+}
+
 // Const settings
 const float _servo_pwm_freq = 50.0;
 const uint16_t _pwm_full_scale_level = 65535;
@@ -180,7 +195,7 @@ bool servo_gate_config_save(void) {
 #define GATE_FIELD(member) SETTING_AT(eeprom_servo_gate_config_t, member)
 
 static const setting_field_t gate_fields[] = {
-    {.name = "enable", .label = "Servo gate", .group = "Gate",
+    {.name = "enable", .label = "Fitted", .short_label = "Servo gate",
      .about = "The unit has a servo gate, and uses it",
      .type = SETTING_BOOLEAN, GATE_FIELD(servo_gate_enable), .applies = "now"},
     {.name = "shutter0_close_duty", .label = "Shutter 0 closed", .group = "Shutters",
@@ -235,6 +250,8 @@ static bool gate_settings_is_saved(void) {
 static const settings_resource_t gate_settings = {
     .path = "/api/v1/settings/gate",
     .save_path = "/api/v1/settings/gate/save",
+    .revert_path = "/api/v1/settings/gate/revert",
+    .addr = EEPROM_SERVO_GATE_CONFIG_BASE_ADDR,
     .label = "Servo gate",
     .about = "The gate between the tricklers and the cup",
     SETTING_FIELDS(gate_fields),

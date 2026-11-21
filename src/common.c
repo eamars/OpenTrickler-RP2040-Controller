@@ -2,6 +2,7 @@
 #include <task.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "common.h"
 #include "pico/time.h"
@@ -151,6 +152,96 @@ static void config_stored_set(uint16_t addr, uint32_t crc) {
 }
 
 
+// The writes a trial holds: the latest of each address
+static bool config_holding = false;
+static struct {
+    uint16_t addr;
+    uint16_t size;
+    bool defaults;
+    uint8_t *data;
+} config_held[CONFIG_STORED_MAX];
+static size_t config_held_count = 0;
+
+
+void config_hold_writes(bool hold) {
+    config_holding = hold;
+}
+
+
+static bool config_hold(uint16_t addr, const void * cfg, size_t size, bool defaults) {
+    size_t idx = 0;
+    while (idx < config_held_count && config_held[idx].addr != addr) {
+        idx += 1;
+    }
+    if (idx == CONFIG_STORED_MAX) {
+        printf("Config: no room to hold the write at 0x%04x\n", addr);
+        return false;
+    }
+    if (idx == config_held_count) {
+        config_held[idx].data = malloc(size);
+        if (config_held[idx].data == NULL) {
+            printf("Config: no memory to hold the write at 0x%04x\n", addr);
+            return false;
+        }
+        config_held[idx].addr = addr;
+        config_held[idx].size = (uint16_t) size;
+        config_held[idx].defaults = false;
+        config_held_count += 1;
+    }
+    memcpy(config_held[idx].data, cfg, size);
+    config_held[idx].defaults = config_held[idx].defaults || defaults;
+    config_stored_set(addr, software_crc32((void *) cfg, size));
+    printf("Config: on trial, the write at 0x%04x held until the update is confirmed\n", addr);
+    return true;
+}
+
+
+size_t config_write_held(uint16_t *reset, size_t room) {
+    config_holding = false;
+    size_t reset_count = 0;
+    for (size_t idx = 0; idx < config_held_count; idx += 1) {
+        if (!save_config_now(config_held[idx].addr, config_held[idx].data, config_held[idx].size)) {
+            printf("Config: the held write at 0x%04x failed\n", config_held[idx].addr);
+        }
+        if (config_held[idx].defaults && reset_count < room) {
+            reset[reset_count++] = config_held[idx].addr;
+        }
+        free(config_held[idx].data);
+    }
+    config_held_count = 0;
+    return reset_count;
+}
+
+
+bool config_defaults_held(uint16_t addr) {
+    for (size_t idx = 0; idx < config_held_count; idx += 1) {
+        if (config_held[idx].addr == addr) {
+            return config_held[idx].defaults;
+        }
+    }
+    return false;
+}
+
+
+bool config_read_stored(uint16_t addr, void * cfg, size_t size) {
+    uint32_t received_crc32;
+    uint8_t *buf = malloc(size + sizeof(received_crc32));
+    if (buf == NULL) {
+        return false;
+    }
+    bool is_ok = eeprom_read(addr, buf, size + sizeof(received_crc32));
+    uint16_t received_rev;
+    memcpy(&received_rev, buf, sizeof(received_rev));
+    memcpy(&received_crc32, buf + size, sizeof(received_crc32));
+    is_ok = is_ok && received_rev == 0 && software_crc32(buf, size) == received_crc32;
+    if (is_ok) {
+        memcpy(cfg, buf, size);
+    }
+    free(buf);
+    return is_ok;
+}
+
+
 bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
     uint32_t crc = software_crc32((void *) cfg, size);
     for (size_t idx = 0; idx < config_stored_count; idx += 1) {
@@ -224,9 +315,12 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
         if (calculated_crc32 != received_crc32) {
             printf("CRC32 mismatch at address %x, received: %08lX, calculated: %08lX\n", addr, received_crc32, calculated_crc32);
         }
-        // Apply the default configuration
+        // Apply the default configuration: on trial, held as the defaults, written only once the update is kept
         free(buf);
         memcpy(cfg, default_cfg, size);
+        if (config_holding) {
+            return config_hold(addr, cfg, size, true);
+        }
         return save_config(addr, cfg, size);
     }
     else {
@@ -243,6 +337,14 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
 
 
 bool save_config(uint16_t addr, void * cfg, size_t size) {
+    if (config_holding) {
+        return config_hold(addr, cfg, size, false);
+    }
+    return save_config_now(addr, cfg, size);
+}
+
+
+bool save_config_now(uint16_t addr, void * cfg, size_t size) {
     bool is_ok;
     uint32_t calculated_crc32;
 

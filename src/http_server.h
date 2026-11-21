@@ -46,6 +46,7 @@ typedef struct {
     bool body_is_json;           // sent as application/json
     int32_t path_id;             // the number in place of "{id}", or -1
     const char *if_none_match;   // or NULL
+    const char *last_event_id;   // Last-Event-ID, which a browser's event source sends when it reconnects; or NULL
 } http_server_request_t;
 
 typedef struct http_server_reply http_server_reply_t;
@@ -114,9 +115,22 @@ void http_server_reply_send(http_server_reply_t *reply, int status, const char *
 // Send bytes that stay where they are until the reply is out (the pages, in flash). etag may be NULL
 void http_server_reply_static(http_server_reply_t *reply, int status, const char *content_type, const char *data,
                               size_t len, const char *etag);
+// The same, its bytes gzipped: sent with Content-Encoding: gzip (ADR-008, gate 3: the portal)
+void http_server_reply_static_gzip(http_server_reply_t *reply, int status, const char *content_type, const char *data,
+                                   size_t len, const char *etag);
+// A redirect (302) to a location of the unit's own ("/#setup"), up to 47 characters, nothing in its body
+void http_server_reply_redirect(http_server_reply_t *reply, const char *location);
 // Send a reply written as it is made, chunked
 void http_server_reply_stream(http_server_reply_t *reply, int status, const char *content_type,
                               http_server_more_t more, void *ctx);
+// A reply that stays open, written as things happen (ADR-008, gate 2: the event stream). Chunked, made by `more` as
+// a stream's, except that `more` may give nothing for now (true, *len 0): the slot then waits, sending nothing and
+// never counted as stalled, until ready(ctx) says there is more (looked at each tick, 50 ms). Bytes the client leaves
+// unread are the stall limit's, as any reply's: a client that stops reading is closed. At most HTTP_SERVER_LIVE_MAX
+// at once, so a request always finds a slot: one past them is answered 503 with Retry-After
+#define HTTP_SERVER_LIVE_MAX 3
+void http_server_reply_live(http_server_reply_t *reply, const char *content_type, http_server_more_t more,
+                            http_server_ready_t ready, void *ctx);
 // Give a stream a tag (the schema, the build's hash): answered 304 with nothing made when the client has it
 void http_server_reply_etag(http_server_reply_t *reply, const char *etag);
 // An error, in api_v1.md's form: {"error": {"code": ..., "message": ...}}
@@ -135,6 +149,14 @@ void *http_server_reply_context(http_server_reply_t *reply, size_t size);
 // A query's value by its name, decoded ('+' a space), into out. False when the name is not there
 bool http_server_query_value(const char *query, const char *name, char *out, size_t len);
 
+// A GET of a path that takes only other methods (an action): answered by this handler with the action's usage
+// (ADR-008, gate 2). A handler that gives no reply leaves it 405, as before
+void http_server_set_usage(http_server_handler_t usage);
+
+// The routes, one at a time, for the check that every route is in the index (ADR-008, gate 2). False past the last
+bool http_server_route_at(int idx, http_server_method_t *method, const char **path);
+const char *http_server_method_name(http_server_method_t method);
+
 // The server's own figures, for GET /api/v1/debug
 typedef struct {
     uint32_t accepted;          // connections taken
@@ -148,11 +170,27 @@ typedef struct {
     uint32_t stream_make_ms;    // time in the handlers' `more`, making streamed chunks, the task's preemption included
     uint32_t stream_bytes;      // the bytes they made
     uint32_t stream_failed;     // streams cut off: a chunk that overflowed, or no progress (a fault of the build)
+    uint32_t live_opened;       // replies that stay open (the event stream), opened
+    uint32_t live_refused;      // and refused, past HTTP_SERVER_LIVE_MAX
     uint8_t slots_used;
     uint8_t slots_parked;
+    uint8_t slots_live;         // open now: waiting, or sending what came
 } http_server_stats_t;
 
 void http_server_get_stats(http_server_stats_t *stats);
+
+/**
+ * @brief Each connection taken and each request on the console, with the client's address and the unit's time, or
+ * not (the default). Never stored: a link's rhythm read from a client's own reads
+ */
+void http_server_log_requests(bool on);
+
+/**
+ * @brief Before a restart the unit means: what the server holds is sent, then every connection is closed and the
+ * listener with it, so each client learns at once that the unit has gone, not by a request that hangs. Waits up to
+ * wait_ms for the server's task to do it; called from any task but the server's. Nothing is accepted after it
+ */
+void http_server_close_all(uint32_t wait_ms);
 
 #ifdef __cplusplus
 }

@@ -6,9 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "hardware/regs/rosc.h"
-#include "hardware/regs/addressmap.h"
-
 #include "eeprom.h"
 #include "scale.h"
 #include "motors.h"
@@ -35,22 +32,7 @@ typedef struct _eeprom_save_handler_node {
 
 // Singleton variables
 SemaphoreHandle_t eeprom_access_mutex = NULL;
-eeprom_metadata_t metadata;
 static _eeprom_save_handler_node_t * eeprom_save_handler_head = NULL;
-
-
-uint32_t rnd(void){
-    int k, random=0;
-    volatile uint32_t *rnd_reg=(uint32_t *)(ROSC_BASE + ROSC_RANDOMBIT_OFFSET);
-    
-    for(k=0;k<32;k++){
-    
-    random = random << 1;
-    random = random + (0x00000001 & (*rnd_reg));
-
-    }
-    return random;
-}
 
 
 void eeprom_register_handler(eeprom_save_handler_t handler) {
@@ -95,32 +77,6 @@ bool eeprom_init(void) {
     
     cat24c256_eeprom_init();
 
-    // Generate a default metadata (in case the metadata is invalid)
-    eeprom_metadata_t default_eeprom_metadata;
-
-    // Generate id
-    char buf[9];
-    snprintf(buf, sizeof(buf), "%08lX", rnd() & 0xffffffff);
-    memcpy(default_eeprom_metadata.unique_id, buf, sizeof(default_eeprom_metadata.unique_id));
-
-    // Generate rev
-    default_eeprom_metadata.eeprom_metadata_rev = 0x0;
-
-    // Load eeprom data
-    memset(&metadata, 0x0, sizeof(metadata));
-    is_ok = load_config(EEPROM_METADATA_BASE_ADDR, &metadata, &default_eeprom_metadata, sizeof(metadata), EEPROM_METADATA_REV);
-    if (!is_ok) {
-        printf("Unable to read EEPROM configuration\n");
-    }
-
-    // Register to eeprom save all
-    eeprom_register_handler(eeprom_config_save);
-
-    return is_ok;
-}
-
-bool eeprom_config_save() {
-    bool is_ok = save_config(EEPROM_METADATA_BASE_ADDR, &metadata, sizeof(metadata));
     return is_ok;
 }
 
@@ -162,11 +118,4 @@ bool eeprom_write(uint16_t data_addr, uint8_t * data, size_t len) {
     _give_mutex(scheduler_state);
 
     return is_ok;
-}
-
-
-bool eeprom_get_board_id(char *board_id_buffer, size_t bytes_to_copy) {
-    memcpy(board_id_buffer, metadata.unique_id, bytes_to_copy);
-
-    return true;
 }
