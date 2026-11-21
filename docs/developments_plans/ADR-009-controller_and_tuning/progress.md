@@ -1142,3 +1142,31 @@ The plan was approved this evening ("Approved. You can start with gate 0, 1, and
 What the check found on its way, each mended before it passed: the parcel tie and the float sum above; and, later in gate 2, that 128 parcels a tube are too few (with BM2's record a creep's powder takes over 1.28 s to show; merging the overflow stopped glides up to 0.5 s early): 256, as first written.
 
 **Pass: gate 1 is built.**
+
+## 2026-11-21, 21:31 to 22:07: gate 2 built, and its first throws on the rig
+
+**What was built** (`0df64e6`, `0c2b449`):
+- **The motors:** a move of an exact count of steps (`motor_move_turns`): the motors' task gives the pulse feed a budget (`step_pulses_set_budget`), the PIO makes those steps and no more, and the motor is held at zero once they are on the pin. The steps counted on each pin are read every millisecond (`motor_get_steps_made`, one task at a time).
+- **The charge:** `settings/charge controller`, `staged` (default) or `pid`, chooses the loop. The staged throw runs every millisecond in the job task: the turns from the steps counted, each reading as it comes (`scale_take_new_measurement`), the speeds asked, a small move made to its count. ADR-013's pause, the zero, the cup and the API's throw are the PID loop's, shared. The PID loop is as it was, but for subtracting a series' base (0 outside one).
+- **Stored layout, said here:** `controller` is a byte in the filler after `coarse_stop_backoff_enable` (offset 0x19); `eeprom_charge_mode_data_t` stays 64 bytes and a unit's stored record its CRC (seen on the bench: `saved=true`, `controller="staged"`). Each powder profile's calibration has a slot of its own, 13 to 20 K, 420 bytes (the measured part, the rehearsals' first errors, finish and band; the rules are made on the unit). No existing record changes.
+- **A start with no calibration is refused:** 409 `not_calibrated` (API), "Not calibrated / Calibrate the powder, / or choose PID" (screen), an `@err` (console).
+- **The console:** `ccal` writes a calibration from the PC (`tools/charge_sim/bench/series.py` sends it), `ccon` sets the frame's constants live, never stored, `ccrec` gives the last throw's rows, `charge <gr> series <n>` pours n throws into one cup for the bench, each from the weight the cup rests at.
+- **Memory:** the controller and its calibration (about 5 KB) come from the FreeRTOS heap for a staged charge and go back at its end; the Pico W's RAM at link time is 252.9 of 256 KB (it overflowed by 17 KB with them static). The row record (`ccrec`, 800 rows) is the Pico 2 W's only: the Pico W's recordings are gate 7's, with the API's.
+
+**Not yet built of gate 2's plan:** the API's recordings (`/api/v1/recordings`); the simulated scale's own calibration and its weight no longer held at the target, so `charge_cycle` runs the staged controller; the proofs `charge_cycle`, `pulses` and `menu_tour --compare` on this build.
+
+**The throws** (Pico 2 W, A&D FX-300i, the air-exposed AR2209, 10 gr, the bench trial's calibration of this afternoon pushed by `ccal`; `tools/charge_sim/recordings/*_series_*`; `bench/series_look.py` reads them):
+
+| Series (glide, 0.02 gr) | Its stop | Good | Over | Under | Median |
+|---|---|---|---|---|---|
+| A, throws 1 to 12 | the PC trial's rehearsals (stop room 0), learned up to 0.033 | 6 of 12 | 6 | 0 | 13 s |
+| A, throws 13 to 25 | learned, 0.032 to 0.039 | 9 of 13 (69%) | 4 | 0 | 19.7 s |
+| B, 25 throws | placed from A's own throws (0.034), `fine_top_rps=1.0` | 20 of 25 (80%) | 5 | 0 | 18.0 s |
+
+What they say:
+- **The firmware's controller works on the unit:** 52 throws, no fault, no under, every move made to its count, the learning moving the stop as designed.
+- **The stop the PC's rehearsals placed is the PC's:** at the fine stop, a throw came to rest a median +0.04 gr above its forecast in series A; the stop learned from the unit's own throws is 0.034 gr, about two digits earlier. So a calibration's rehearsals must be the unit's own throws ending, as the trial's weak point 1 said.
+- **The coarse tube stops early when the forecast counts its first powder twice.** A fast start's powder first moved the reading at 0.485 s, where its lag is 0.58 s; for a moment the forecast holds it twice (8.3 gr at 0.66 s, falling to 7.6 as its parcels fall due). When that bulge crosses the coarse margin the coarse stops for good about 1 gr early: 15 throws of 25 in A, and all 25 in B, where the fine tube's own powder at 1 rev/s adds to the bulge. The fine tube then carries 3.5 gr in place of 1.5. The forecast's model of the scale is a pure delay where the scale is a delay and a filter: the cause is there, not in a constant.
+- **The time is in the last 0.3 gr:** at low speed this powder pours less than its 0.8 gr a turn, the forecast falls back to what the scale confirms, and the fine tube creeps on for several seconds; a throw that rests short adds a move of 2 to 4 s. Stopping near the target (A's first half, and the trial) is 13 s with half the throws over; stopping two digits short is 69 to 80% good in 18 to 20 s.
+
+**Against gate 2's bar** (68% good within 0.02 gr, median at most 13 s): the accuracy is met (B: 80%), the time is not (18 s). The 0.04 gr band is not yet thrown.
