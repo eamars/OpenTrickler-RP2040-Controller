@@ -4,6 +4,8 @@
 
 **First run on a unit: 2026-11-21, afternoon, with AR2209.** Three short runs came before the full one and found faults in the tool and in the controller, each mended at the desk before the unit turned again (`progress.md`, "the two proposals on the unit"). This guide is as the tool stands after them. Before a unit, the tool is tried against a made-up unit, which is the simulation answering the console's commands (`trial.py --made-up`). The bench rules hold (AGENTS.md): no run before the owner says the bench is ready.
 
+**The first trial's outcome** (AR2209, 2026-11-21, 16:24 to 17:15; `progress.md`, "the full trial with AR2209, judged"): A passes; B fails (56% where 60% was asked); C passes (68% good, 32% over); D fails (15 of 25); E passes on the line (84% and 84%). Its folder is `tools/charge_sim/recordings/20261121_162403_trial_pico2w_ar2209`.
+
 ## What it is
 
 The PC is the controller. `tools/charge_sim/bench/trial.py` reads the weight by the console's `state` and turns the tubes by `motor`, as the recorder does, and runs on that the very code the simulation ran (`tools/charge_sim/staged.py`). No firmware is changed and none is flashed.
@@ -69,10 +71,10 @@ In the trial's folder, `logs\adr009\<stamp>_trial_<name>` of the main checkout: 
 
 | ADI BM2 | Good | Over | A throw, median | Moves a throw | First rest against the target, digits; its spread |
 |---|---|---|---|---|---|
-| Proposal 1 within 0.02 gr | 96%; 80 to 100% | 4%; 0 to 20% | 11.4 s; 8.9 to 14.3 | 2.4; 1.7 to 3.8 | -3.3; 1.3 (1.0 to 3.0) |
-| Proposal 2 within 0.02 gr | 84%; 76 to 96% | 16%; 4 to 24% | 11.2 s; 7.5 to 13.0 | 0.6; 0.3 to 0.8 | -0.9; 1.6 (1.1 to 4.1) |
-| Proposal 1 within 0.04 gr | 100%; 96 to 100% | 0%; 0 to 4% | 8.3 s; 7.4 to 10.6 | 1.2; 0.7 to 1.5 | -3.2; 1.6 |
-| Proposal 2 within 0.04 gr | 100%; 92 to 100% | 0%; 0 to 8% | 8.5 s; 7.2 to 10.4 | 0.1; 0.0 to 0.4 | -1.0; 1.3 |
+| Proposal 1 within 0.02 gr | 94%; 88 to 100% | 4%; 0 to 12% | 11.3 s; 9.2 to 14.6 | 2.2; 1.7 to 2.9 | -3.2; 1.3 (1.0 to 1.7) |
+| Proposal 2 within 0.02 gr | 88%; 84 to 96% | 12%; 4 to 16% | 13.0 s; 9.2 to 15.3 | 0.6; 0.4 to 1.3 | -0.9; 1.3 (1.0 to 1.6) |
+| Proposal 1 within 0.04 gr | 100%; 92 to 100% | 0%; 0 to 8% | 9.2 s; 7.6 to 10.0 | 1.0; 0.7 to 1.4 | -3.4; 1.3 |
+| Proposal 2 within 0.04 gr | 98%; 92 to 100% | 2%; 0 to 8% | 10.4 s; 9.5 to 13.3 | 0.1; 0.0 to 0.2 | -0.9; 1.3 |
 
 | AR2209, air-exposed | Good | Over | A throw, median | Moves a throw | First rest against the target, digits; its spread |
 |---|---|---|---|---|---|
@@ -83,7 +85,9 @@ In the trial's folder, `logs\adr009\<stamp>_trial_<name>` of the main checkout: 
 
 With 25 throws one throw is four points, so the ranges are wide.
 
-**AR2209's table is of the controller as mended on 2026-11-21's afternoon,** written again before the full run. Before the mends it read 76%, 74%, 90% and 88% good in 14.5, 10.9, 12.0 and 9.1 s: the mends cost the simulation two to three seconds a throw and none of its good throws. **BM2's table is still of the controller before the mends** and is written again before a BM2 trial.
+**Both tables are of the controller as mended on 2026-11-21's afternoon.** AR2209's was written again before its full run; before the mends it read 76%, 74%, 90% and 88% good in 14.5, 10.9, 12.0 and 9.1 s. BM2's was written again at 17:20 the same day, before any BM2 throw; before the mends it read 96%, 84%, 100% and 100% good in 11.4, 11.2, 8.3 and 8.5 s.
+
+**Read BM2's table with what AR2209's trial showed:** the simulation's small moves are kinder than the unit's, so proposal 1's forecast is the one to doubt. What is expected of the bench is written into `progress.md` before a BM2 run, as it was for AR2209.
 
 ## Where I expect the bench to differ from the forecast, said before the run
 
@@ -101,10 +105,12 @@ Each passes or fails, for the powder loaded.
 | | The check | Pass |
 |---|---|---|
 | A | The tool and both controllers run on a real unit | The calibration completes; every throw ends by its own verdict; no limit trips |
-| B | Proposal 1 within 0.02 gr | Good in at least the forecast's low end: 80% (BM2), 60% (AR2209) |
-| C | Proposal 2 within 0.02 gr | Good in at least 76% (BM2), 52% (AR2209), and over in no more than 24%, 48% |
-| D | The stream's stop itself | Proposal 2's first rest within a digit of its aim (a digit under the target) in at least 20 throws of 25. The forecast has 76% (56 to 88%) with BM2 and 52% (44 to 60%) with AR2209, so passing it with AR2209 means the bench is tighter than the simulation |
-| E | Within 0.04 gr | Good in at least 96% and 92% (BM2), 84% and 84% (AR2209) |
+| B | Proposal 1 within 0.02 gr | Good in at least the forecast's low end: 88% (BM2), 60% (AR2209) |
+| C | Proposal 2 within 0.02 gr | Good in at least 84% (BM2), 52% (AR2209), and over in no more than 16%, 48% |
+| D | The stream's stop itself | Proposal 2's first rest within a digit of its aim (a digit under the target) in at least 20 throws of 25. The forecast has 80% (60 to 92%) with BM2 and 54% (44 to 80%) with AR2209 |
+| E | Within 0.04 gr | Good in at least 92% and 92% (BM2), 84% and 84% (AR2209) |
+
+**AR2209's lines are as they were written before its trial** (from the forecast before the mends) and are how it was judged. **BM2's lines are the low ends of its forecast of 2026-11-21, 17:20,** set before any BM2 throw; before that they read 80%, 76% and 24%, 96% and 92%.
 
 **Time is set beside the forecast and not judged:** the forecast's scale is known to be the quicker (points 1 and 2 above).
 

@@ -1,0 +1,54 @@
+{
+ "jog_0.02": {
+  "throws": 2,
+  "good": 0.0,
+  "over": 0.5,
+  "under": 0.5,
+  "time_median_s": 36.34399999999732,
+  "time_most_s": 39.75,
+  "first_error_digits": -5.499999999999972,
+  "first_spread_digits": 3.500000000000014,
+  "first_near": 0.0,
+  "moves": 6.0,
+  "streams": 0.5
+ },
+ "glide_0.02": {
+  "throws": 2,
+  "good": 1.0,
+  "over": 0.0,
+  "under": 0.0,
+  "time_median_s": 19.06300000000192,
+  "time_most_s": 27.860000000000582,
+  "first_error_digits": -0.5000000000000782,
+  "first_spread_digits": 1.4999999999998792,
+  "first_near": 0.5,
+  "moves": 2.0,
+  "streams": 0.0
+ },
+ "jog_0.04": {
+  "throws": 2,
+  "good": 1.0,
+  "over": 0.0,
+  "under": 0.0,
+  "time_median_s": 15.88300000000163,
+  "time_most_s": 19.860000000000582,
+  "first_error_digits": -5.000000000000071,
+  "first_spread_digits": 5.000000000000071,
+  "first_near": 0.0,
+  "moves": 1.0,
+  "streams": 0.0
+ },
+ "glide_0.04": {
+  "throws": 2,
+  "good": 0.5,
+  "over": 0.5,
+  "under": 0.0,
+  "time_median_s": 17.19550000000163,
+  "time_most_s": 23.672000000005937,
+  "first_error_digits": -1.5000000000000568,
+  "first_spread_digits": 1.5000000000000568,
+  "first_near": 0.5,
+  "moves": 1.0,
+  "streams": 0.0
+ }
+}

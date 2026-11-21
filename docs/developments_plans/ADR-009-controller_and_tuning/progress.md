@@ -693,7 +693,9 @@ And the watched nudges give the same scale's first answer to a sudden change: 0.
 
 **The bench as left (01:49):** Pico 2 W on the probe, idle, both motors at 0, BM2 in the hopper and both tubes; 391.7 gr in the cup.
 
-## 2026-11-21, daytime: is what arrives after a stop the scale's or the powder's? A desk test, its pass written first
+## 2026-11-21, about 12:30: is what arrives after a stop the scale's or the powder's? A desk test, its pass written first
+
+*This heading and the next four first named a time of day (daytime, afternoon, evening, night, late night) that was not the clock's: all five were written between 12:30 and 14:50. They are set to the times of their commits.*
 
 No unit. Another agent took over from the handover. **The recordings are now in the repository** (`tools/charge_sim/recordings/`, copied by `bench/keep.py`, with an index and each session's unit, powder and scale) and the branch is on GitHub: the owner, "push the record to the github for future analysis, by me or other people". The console's own logs are left out; the settings copy is without its Wi-Fi, update source and id. `measure.py` gives the same figures from the copy as from the bench's folder.
 
@@ -739,7 +741,7 @@ No unit. Another agent took over from the handover. **The recordings are now in 
 
 **What follows for the simulation, by the rule written first:** what arrives after a stop is kept as a measured table by speed for each powder and tube, over a scale with the delay all the curves share. That is the handover's step 3 as it was written, and `plant.py` already has the place for it (`after_stop_kernels`, to 1 rev/s now). No scale of a new shape is built. **What stays open, and for whom it matters:** how much of that table is the scale's. For one unit with one scale the throws come out the same either way; it decides only how the table is carried to another scale, which is the owner's question on other makes, and the three stops above answer it.
 
-## 2026-11-21, afternoon: a record for each powder; the pass written before the build
+## 2026-11-21, 12:50 to 13:20: a record for each powder; the pass written before the build
 
 **The owner: "Yes please go on"**, with GRT's pages for both powders and a copy of the program.
 
@@ -800,7 +802,7 @@ BM2's is one number from 0.2 to 1 rev/s, as this morning's figures said. Its ent
 
 **Where this leaves the handover's order.** Step 4 (two records, each checked) is done: BM2's record can be designed on; AR2209's gives the right share over for today's loop but is two digits harsh where a finish slows through 0.2 rev/s, and its spread at rest is double, so a figure from it is quoted with that said. Step 5 (the owner's questions by simulation) is next and needs no bench.
 
-## 2026-11-21, evening: the owner's two tolerances; where today's loop stands and what a finish by small moves could reach
+## 2026-11-21, 13:30: the owner's two tolerances; where today's loop stands and what a finish by small moves could reach
 
 **The owner:** "Yes please go on, and remember, don't over do ... AR2209 throw is much harder than BM2 due to its kernel size. In most cases +/-0.02 gr is acceptable, and I'd accept +/- 0.04 gr for loads that doesn't need to be that accurate." (The README has it as direction.) With two pictures of the kernels from GRT, "mostly visual based": `research/sources/grt_two_powders.md` has what they give, a shape and not a mass to the tenth wanted. No unit; nothing new is built into the simulation here, and no controller is designed.
 
@@ -858,7 +860,7 @@ A nudge gave nothing two times in three; one in sixteen read a digit less (the b
 - **So the bench's A&D makes a finish by moves and waits either slow or worse than the table above, and it is the scale's answer to one small change that does it,** as the owner's note of 11-20 said. A balance that takes 5 s and more for a small change (the owner's G&G JJ223BF) would be worse again; by how much is not known here, since no nudge was ever recorded on one. That is an input the research lacks: the same watched nudges on that scale would give its row.
 - **It strengthens the case for the next thing to try:** a finish that leans on the stream, which the scale follows 0.6 to 0.9 s behind whatever the size, and waits for a single small change as few times as it can.
 
-## 2026-11-21, night: two proposals for the controller and its calibration, built and tried in the simulation
+## 2026-11-21, 13:35 to 14:30: two proposals for the controller and its calibration, built and tried in the simulation
 
 **The owner:** "There are more than 7 scale to be supported, so I'm not planning to evaluate each of them to account for individual measurement lag. Therefore the later calibration routine must account for that, and your simulation today should assume the inconsistent measurement lag subject to the weight change speed." And: "I'd like you to make two proposals ... with confident ranking from high to med. Each proposal shall include the detailed procedure for both trickle control, as well as calibration routine ... on ANY opentrickler build/material/finish, and ANY powder, and ANY scale." (The README has both as direction.)
 
@@ -901,7 +903,7 @@ Overs on the measured scale: jog 4.8% and 17.4%, glide 10.8% and 24.0%, today's 
 
 **Not done:** no throw of either on a unit; the calibration's verdict to the user (step 9) and the learning of grains a turn are designed and not tried; the shorter calibration is tried only in its lag table.
 
-## 2026-11-21, late night: the bench trial of the two proposals prepared; its forecast and its pass written first
+## 2026-11-21, 14:30 to 14:50: the bench trial of the two proposals prepared; its forecast and its pass written first
 
 **The owner, asked whether to prepare the trial that runs both proposals on the real unit from the PC:** "Yes, prepare it". No unit was touched: the bench rules ask for the owner's word that the bench is ready, and it has not been given in this session.
 
@@ -934,7 +936,7 @@ Proposal 2's first rest within a digit of its aim: 76% (56 to 88%) with BM2, 52%
 
 **Next:** the owner's word that the bench is ready, with which powder. About an hour and ten minutes and two emptyings of the cup.
 
-## 2026-11-21, afternoon: the two proposals on the unit: short runs first, what they found, what was mended
+## 2026-11-21, 14:52 to 16:22: the two proposals on the unit: short runs first, what they found, what was mended
 
 **The owner:** "Ready, AR2209 loaded". The Pico 2 W on the probe (firmware 2.0.3-84, eaea601), the A&D FX-300i, AR2209 long in the air, an empty cup on the zeroed scale. Before the first turn: `state` gave charge 0, weight 0.000 and both drivers ok, and the two hold speeds were taken with the weight unmoved (0.0001 rev/s is 2.82 steps a second of the fine tube, 0.00002 rev/s 0.82 of the coarse).
 
@@ -1028,3 +1030,90 @@ Proposal 2's first rest within a digit of its aim: 54% (44 to 80%). The mends co
 - **D fails:** its first rests so far lay within a digit of the aim in three throws of six, where the check asks for 20 of 25.
 - **E:** proposal 1 passes or is close; proposal 2 is the doubt, since one move's clump of four to seven digits is over a band of two.
 - **So the ranking may turn on the bench:** with this powder the stream's stop is the tighter end and the moves the looser, the reverse of the simulation.
+
+## 2026-11-21, 16:24 to 17:15: the full trial with AR2209, judged
+
+`20261121_162403_trial_pico2w_ar2209` (kept in `tools/charge_sim/recordings/` with the three short runs; `recordings/sessions.json` says which is which). The first run's turns measured again; for each set ten rehearsals of 1 gr, then 25 throws of 10 gr. 46 minutes of running, with one stop at 594 gr for the cup, which the owner emptied. No limit tripped. At its end the cup held 558.5 gr and both motors were off.
+
+| AR2209, 25 throws a set | Good | Over | Under | A throw, median | Moves a throw | The forecast: good; time | Said before the run |
+|---|---|---|---|---|---|---|---|
+| Proposal 1 (jog) within 0.02 gr | **56%** (14) | 24% | 20% | 25.1 s | 4.4 | 74%, 64 to 84%; 17.6 s, 14.5 to 24.2 | 35 to 60%, 25 to 35 s |
+| Proposal 2 (glide) within 0.02 gr | **68%** (17) | 32% | 0% | 13.2 s | 0.7 | 70%, 64 to 84%; 13.0 s, 10.6 to 19.2 | 60 to 80% |
+| Proposal 1 within 0.04 gr | **84%** (21) | 12% | 4% | 14.7 s | 1.8 | 92%, 72 to 96%; 13.1 s, 11.6 to 18.4 | passes or is close |
+| Proposal 2 within 0.04 gr | **84%** (21) | 16% | 0% | 12.8 s | 0.6 | 88%, 76 to 96%; 11.6 s, 9.0 to 16.0 | the doubt |
+
+**The checks, as written before any run:**
+
+| | The check | Result | |
+|---|---|---|---|
+| A | The tool and both controllers run on a real unit | The calibration was measured on the unit (the first short run) and every throw of the trial ended by its own verdict; no limit tripped | **passes** |
+| B | Proposal 1 within 0.02 gr good in at least 60% | 56% | **fails** |
+| C | Proposal 2 within 0.02 gr good in at least 52%, over in no more than 48% | 68% good, 32% over | **passes** |
+| D | Proposal 2's first rest within a digit of its aim in at least 20 throws of 25 | 15 of 25 | **fails** |
+| E | Within 0.04 gr good in at least 84% and 84% | 84% and 84% | **passes**, on the line |
+
+By the guide's reading of the outcomes: B failed, so "the simulation is kinder to small moves than the bench by more than I allowed; read the throws' moves and waits before anything is built". They are read below.
+
+**One throw of the first set was lost to a fault of the rule added that afternoon.** A rest was sent back to the stream when it was short by more than the largest small move gives at most (11 digits). The fine tube's learned stop margin had by then grown to 11 digits of room, so a stream begun from 11 digits short stopped at once: throw 17 went back eight times, poured nothing and ended 11 short. Six more throws of that set went back when moves would have served (three good, two over, one under). The rule was corrected before the third set (a rest goes back only when the stream would pour more from it than the largest move gives on average: short by more than the stop margin and that move together) and tried on the made-up unit; after it two throws of 54 went back. With throw 17 good, B would have stood at 60%, its line: **B fails narrowly either way, and the finding does not hang on it.**
+
+### What the forecast had right, and what it had wrong
+
+**Right, the stream's stop.** Every figure of proposal 2 fell inside its forecast's range but one (within 0.02 gr it made fewer moves than forecast, 0.7 a throw against 0.8 to 1.6), and every figure of both sets within 0.04 gr did. The first rests spread by 1.7 and 2.2 digits (proposal 2; forecast 2.4) and by 2.2 and 3.5 (proposal 1, stopped from its dribble of 8 digits a second; forecast 2.5 and 2.8). The creep stopped by the reading, which no real scale had shown before today, is as tight on the bench as in the simulation.
+
+**Wrong, the small moves.** The same two sizes, by what one move gave, in digits:
+
+| | Nothing | 1 | 2 | 3 | 4 to 6 | 7 and more |
+|---|---|---|---|---|---|---|
+| Smallest (0.024 of a turn), bench, 142 moves | 66% | 11% | 6% | 4% | 9% | 5% |
+| Smallest, simulation, 1,759 | 60% | 16% | 10% | 6% | 7% | 2% |
+| Middle (0.07 of a turn), bench, 59 | 25% | 12% | 7% | 10% | 34% | 12% |
+| Middle, simulation, 1,095 | 16% | 16% | 19% | 18% | 25% | 7% |
+
+A band of a digit either side needs one to three digits from a move. The bench's smallest move gives that one time in five and the simulation's one in three; the bench's middle move gives four and more nearly half the time. The powder gathers at the tube's lip and falls as a clump: six smallest moves in a row gave nothing in one throw, and one gave nine digits in another.
+
+**What that did to proposal 1 within 0.02 gr:** every throw of it needs moves (its first rests lay 3 to 11 digits short, as designed). Nine throws of 25 spent all eight tries; five were taken over by a move's clump. Each smallest move waits 4.4 s for the scale. Hence 25 s a throw where the forecast said 17.6.
+
+**The rehearsals overstate the spread of proposal 1's stop.** Ten throws of 1 gr with the fine tube alone rested with a spread of 4.1 digits, so the aim was set 9.1 digits short; the 25 throws' own first rests spread by 2.2, which would have set it 5.4 short. A rehearsal's short stream from rest is not a throw's.
+
+### The ceiling, from the trial's own measurements
+
+`tools/charge_sim/bench/best_finish.py`: the finish played on what was measured, with no model of the powder. A first rest is drawn from the stops measured (54 of each kind), moved to an aim; from any rest the better of "stop here" and "one more move of this size" is taken, a move's gain drawn from the moves measured (142 and 59); eight tries. Draws are taken as independent, which the lip's gathering is not, so it is an estimate.
+
+| AR2209 on this unit | Within 0.02 gr | Within 0.04 gr |
+|---|---|---|
+| The stream's stop as proposal 2 makes it, best aimed a digit short | **71% good**, 1.5 moves a throw | **90% good**, 0.7 moves |
+| The stop from proposal 1's dribble, best aimed 4 to 5 digits short | 67%, 2.9 moves | 89%, 1.7 moves |
+| The trial itself | 68% (proposal 2), 56% (proposal 1) | 84%, 84% |
+| The same play on the simulation's own moves and stops | 79% | 92% |
+
+- **With this powder the ceiling within 0.02 gr is about 70%, whatever the finish.** The curve is flat from an aim of ten digits short to the target itself (65 to 71%): the aim does not decide how many throws are good. It decides how many moves a throw makes, and so its time.
+- **From a rest two to four digits short, a throw is rescued little better than one time in two** (53 to 59%); from six or seven short, 71 to 73%.
+- **Proposal 2 reached its ceiling (68 of 71). Proposal 1 did not (56 of 66 at its aim):** its rule for choosing a move is not the best play of these odds, and one throw was lost to the fault above.
+
+### The coarse tube in a small charge
+
+- **Its powder a turn, throw by throw:** 9.71 gr on average with a spread of 5.1% (8.6 to 11.0), where the calibration's ten runs said 6.1%. The margin that grows with its unseen powder stands on that figure, and the trial bears it out.
+- **It left a median of 90 to 100 digits for the fine tube** (as meant: its margin and 18% of what is unseen), which the fine tube carries in about five seconds.
+- **In 23 throws of 100 its stage outlasted the scale's delay** (0.9 to 1.4 s where the others took 0.5 to 0.9 s): the reading came, the margin shrank as it should, and the tube went on at its floor. Those throws ended a median of 36 digits short after the coarse tube alone, which is its margin of 30; but five ended 6, 20, 22, 24 and 26 digits short. None was over. In those the forecast held the tube's last powder at its floor for less than it was (the calibration's own runs at 0.3 rev/s gave 9.75 to 11.3 gr a turn, against the 9.6 used). **A risk to mend at the desk: one throw in 100 came within 0.12 gr of an over by the coarse tube alone.**
+
+### What it means for the two proposals
+
+1. **The frame holds on a real unit:** the forecast, one law a tube, the verdict at rest, the calibration that takes every number from the unit. With the hardest of the two powders it gave 68% within 0.02 gr in 13 s and 84% within 0.04 gr in 13 s, where today's loop put 85% of its throws over with this powder (the simulation's figure for it; the bench's own throws of 2026-11-20 agreed).
+2. **With this powder the ranking turns.** Proposal 2 is the more accurate within 0.02 gr (68% against 56%) in half the time, and level within 0.04 gr. Proposal 1's finish rests on a move this powder does not give.
+3. **It is one powder.** BM2's kernel is half a digit and its recorded nudges were kinder (88 to 90% at best within 0.02 gr); proposal 1 may still lead there. The simulation's forecast for BM2 with the mended controller: proposal 1 94% (88 to 100%) in 11.3 s, proposal 2 88% (84 to 96%) in 13.0 s. No BM2 throw of either has been made.
+4. **The two are one controller, and the trial says who should choose between them: the calibration.** It already measures what each move gives and where the stream's stop rests. Playing the finish on those, as the ceiling above was found, gives the aim that makes the most good throws in the fewest moves, the move to make from each shortfall, and the share of good throws to tell the user before the first throw (the proposals' sixth rule). With AR2209 it picks proposal 2's finish. Designed here in one afternoon and tried on nothing: a direction, not a result.
+
+### The simulation after the bench
+
+- **The mended controller in the simulation** (`fit/bands_after_bench.txt`; 500 throws of 20 gr on the measured scale): proposal 1 94.8% good in 11.6 s (BM2) and 73.6% in 16.9 s (AR2209); proposal 2 87.8% in 13.4 s and 72.2% in 12.9 s. Within two points of the figures before the mends (94.4, 73.8, 89.0, 74.4%).
+- **BM2's forecast written again** for the mended controller (`fit/trial_forecast_pico2w_bm2.json`).
+- **What the record of AR2209 has wrong, each now measured:** its small moves are too kind (the table above); its reading rises 0.1 s later after a coarse start than the bench's; its coarse tube pours less a turn at speed than today's did (8.4 against 9.5 to 9.8 gr at 2 rev/s). The recordings to mend it with are in the repository. Not done.
+
+### Not done, and what comes next
+
+- **A trial with BM2:** the same tool, an hour, its forecast written. It says whether the ranking turns for a fine powder too, and whether the calibration should choose.
+- **The record rebuilt** from the trial's moves and starts, so that the simulation's small moves are the bench's.
+- **The finish chosen by the calibration** (point 4): in the simulation first.
+- **The coarse tube's last powder at its floor** (above): at the desk.
+- **For ADR-012's record:** a new step rate is on the pin only when the steps already handed to the PIO are made, two segments at the old rate, which is tenths of a second and more under ten steps a second (`step_pulses.c`).
+- Nothing is approved and no firmware is designed: the ADR is a draft.

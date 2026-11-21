@@ -1,0 +1,50 @@
+{
+ "jog_0.02": {
+  "throws": 2,
+  "good": 0.0,
+  "over": 0.0,
+  "under": 1.0,
+  "time_median_s": 40.13249999999971,
+  "time_most_s": 48.062000000005355,
+  "first_error_digits": -56.00000000000023,
+  "first_spread_digits": 52.00000000000102,
+  "first_near": 0.0,
+  "moves": 8.0
+ },
+ "glide_0.02": {
+  "throws": 2,
+  "good": 1.0,
+  "over": 0.0,
+  "under": 0.0,
+  "time_median_s": 18.32850000000326,
+  "time_most_s": 19.828000000008615,
+  "first_error_digits": 0.0,
+  "first_spread_digits": 1.0000000000019327,
+  "first_near": 0.5,
+  "moves": 0.0
+ },
+ "jog_0.04": {
+  "throws": 2,
+  "good": 0.5,
+  "over": 0.0,
+  "under": 0.5,
+  "time_median_s": 20.77350000000297,
+  "time_most_s": 31.875,
+  "first_error_digits": -71.99999999999989,
+  "first_spread_digits": 71.99999999999989,
+  "first_near": 0.0,
+  "moves": 4.0
+ },
+ "glide_0.04": {
+  "throws": 2,
+  "good": 0.5,
+  "over": 0.0,
+  "under": 0.5,
+  "time_median_s": 32.65600000000268,
+  "time_most_s": 46.437000000005355,
+  "first_error_digits": -2.5000000000005684,
+  "first_spread_digits": 0.49999999999954525,
+  "first_near": 0.5,
+  "moves": 4.0
+ }
+}

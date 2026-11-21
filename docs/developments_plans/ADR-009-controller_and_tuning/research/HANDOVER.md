@@ -4,7 +4,33 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 is a **Draft, not approved**. Everything here is research for its design. Nothing is merged or pushed.
 
-## Where it stands, 2026-11-21, daytime: read this first
+## Where it stands, 2026-11-21, 17:30: read this first
+
+**Both proposals have thrown on the real unit, with AR2209, and the trial is judged.** `../progress.md`, "the two proposals on the unit" (the three short runs, what they found, what was mended) and "the full trial with AR2209, judged". `proposals_2026-11-21.md` now opens with what the bench did to it. In short:
+
+- **The frame holds on a unit; the ranking turned for this powder.** 25 throws a set at 10 gr: proposal 1 (stop short and jog) 56% good within 0.02 gr in 25 s, where its check asked 60%; proposal 2 (glide and stop) 68% in 13 s; both 84% within 0.04 gr. Checks A, C and E pass, B and D fail.
+- **Why:** this powder gathers at the fine tube's lip and falls as a clump. The smallest move gave nothing 66 times in 100 and four to nine digits 14 times. The stream's stop is tight (first rests spread by about two digits). The simulation had the stop right and the moves too kind.
+- **The ceiling with AR2209, from the trial's own moves and stops** (`tools/charge_sim/bench/best_finish.py`): about 70% within 0.02 gr and 90% within 0.04 gr, whatever the finish. The finish decides the time.
+- **The controller changed** (`tools/charge_sim/staged.py`): the lag is measured over a whole run; both tubes keep clear of the coarse tube's unseen powder; the fine tube takes its stop on its own powder alone; a rest far short goes back to the stream; a move is a turn made to the unit's step count. The simulation's figures moved by two points at most (`fit/bands_after_bench.txt`).
+- **The tool changed** (`tools/charge_sim/bench/trial.py`; `trial_guide.md` is as it now stands): it reads the unit's own step count each round, makes a short turn with nothing read in between, starts a held tube from switched off, and can measure a kept trial's turns again (`--remeasure`). **Start any trial with `--throws 2`:** three faults showed there before an hour was spent.
+- **The recordings are kept** (`tools/charge_sim/recordings/`, the session `pico2w_ar2209_trial`): four folders, of which `20261121_162403` is the trial that is judged.
+
+**What is the owner's to say next** (put to him 17:30, not answered): whether to run the same trial with BM2 (an hour; its forecast is written, `fit/trial_forecast_pico2w_bm2.json`: proposal 1 94% and proposal 2 88% within 0.02 gr). It says whether the ranking turns for a fine powder too.
+
+**What I would do after it, in order, none begun and none approved:**
+1. **Mend AR2209's record from the trial** (`proposals_2026-11-21.md`, section 5's last list): its small moves, its first rise after a coarse start, its coarse tube's powder a turn at speed.
+2. **Let the calibration choose the finish:** play the finish on its own measured moves and stops (`best_finish.py` is that play, at the desk) for the aim, the move to make from each shortfall, and the share of good throws to tell the user. In the simulation first.
+3. **Rehearse as a throw ends,** not with a short stream from rest: the rehearsals' spread was twice the throws' and set proposal 1's aim too far short.
+4. **The coarse tube's last powder at its floor:** five throws of 100 ended 6 to 26 digits short after the coarse tube alone, one within 0.12 gr of an over.
+
+**Bench traps met today, besides those below:**
+- A tube started from the console's hold speed starts up to 0.7 s late: the firmware puts a new step rate on the pin only when two segments at the old rate are made (`step_pulses.c`). Switch it off first. This is ADR-012's to know of.
+- A lag measured at the moment of a stop holds the latency of whoever turns the tubes; a PC's is 0.07 s, which is 1.3 gr of a coarse stream.
+- The owner may empty the cup between runs without saying so beforehand; the tool counts every throw from the weight the cup rests at, so it does no harm, and it is read off the first weight.
+
+**The bench as left (17:15):** the Pico 2 W on the probe, idle, both motors off; AR2209 in the hopper and 558.5 gr of it in the cup; no console session open.
+
+## Where it stood, 2026-11-21, 12:30
 
 Another agent took over. Two things changed; the section below still holds otherwise.
 
@@ -14,7 +40,7 @@ Another agent took over. Two things changed; the section below still holds other
 - **A trap in `measure.py`:** with no folders named it reads every stop under `--logs`, and the folder now holds two powders. Step 2 below (a session's figures from its batch) must take its folders from the session, as `scale_or_powder.py` does from `sessions.json`.
 - **Next is step 2 below, unchanged.** No bench step.
 
-### The same day, afternoon: steps 2 to 4 below are done; step 5 is next
+### The same day, 13:20: steps 2 to 4 below are done; step 5 is next
 
 `../progress.md`, "a record for each powder", has the pass written first and every figure. In short:
 
@@ -26,15 +52,15 @@ Another agent took over. Two things changed; the section below still holds other
 - **GRT** (the owner sent its pages for both powders; `sources/grt_two_powders.md`): the two densities and no kernel size. The bulk densities are 1% apart. Asked of the owner: the window's "Detail Picture" tab for each powder, for a kernel's length and width.
 - **Next: step 5 below,** the owner's questions by simulation, on BM2's record first. No bench step.
 
-### The same day, evening: step 5 begun; the first figures, and the owner's two tolerances
+### The same day, 13:30: step 5 begun; the first figures, and the owner's two tolerances
 
 `../progress.md`, "the owner's two tolerances". **The owner: good is within 0.02 gr, and within 0.04 gr for loads that need less; "don't over do"; tell him when an input is lacking** (`../README.md`). In short:
 
 - **Every controller is now judged at both bands** (`tools/charge_sim/bands.py`). Today's loop with a slow finish: BM2 79% good within 0.02 gr in 15 s (a forecast: no BM2 throw is recorded), AR2209 15% (the bench's 10 over of 12). `flow_dose` is worse than that with both powders: not the candidate to go on from.
 - **What a finish by small moves could reach, from the recorded nudges alone** (`bench/topup_bound.py`): within 0.02 gr, 88 to 90% good with BM2 and 80% with AR2209, however it is controlled; within 0.04 gr, 99% and 92 to 94%. So one over in fifty within 0.02 gr is not a controller's to give with moves of that size: it asks for smaller releases (the owner's oscillation). And such a finish is slow: 10 to 20 s for three digits.
-- **Where a controller can win:** AR2209, from 15% to near 80%, and time. **Next, if the owner says so** (asked 11-21, evening): a finish that stops the steady stream by counted turns short of the target, then corrects once or twice, designed on the two records and judged by `bands.py` against these two tables. Its design is put to the owner before it is built.
+- **Where a controller can win:** AR2209, from 15% to near 80%, and time. **Next, if the owner says so** (asked 11-21, 13:30): a finish that stops the steady stream by counted turns short of the target, then corrects once or twice, designed on the two records and judged by `bands.py` against these two tables. Its design is put to the owner before it is built.
 
-### The same day, night: two proposals made, the owner to choose
+### The same day, 14:30: two proposals made, the owner to choose
 
 **Read `proposals_2026-11-21.md` before anything else in this folder:** it is what the owner asked for and has not yet answered. `../progress.md`, "two proposals for the controller and its calibration", has how it was made.
 
@@ -42,7 +68,7 @@ Another agent took over. Two things changed; the section below still holds other
 - **The two are one controller** (`tools/charge_sim/staged.py`): a forecast (the reading plus the powder turned out and not yet shown, each parcel with the lag of its flow), one law a tube, a verdict on a reading at rest, small moves for a throw that rests short, and one calibration that measures every number on the unit. They differ in the fine tube's slowest speed and in how far short it stops.
 - **Proposal 1, stop short and jog, confidence high; proposal 2, glide and stop, confidence medium.** In the simulation, within 0.02 gr on the measured scale: proposal 1 94% good with BM2 and 74% with AR2209 (5% and 17% over) in 12.7 and 16.6 s; proposal 2 89% and 74% (11% and 24% over) in 11.9 and 13.0 s; today's slow finish 79% and 15%. On a scale twice as late today's loop puts every throw over and both proposals keep 60 to 90%, in half a minute.
 - **What limits the trial** (the file's section 5): the simulated fine tube is lumpier than the bench's (held to 0.5 rev/s for it; its model of a release needs mending above that); the simulated scale shows a small move sooner than the bench's; nothing is measured on a second scale.
-- **Next: the bench trial, prepared and not yet run** (the owner: "Yes, prepare it"). `trial_guide.md` is its guide: the tool (`tools/charge_sim/bench/trial.py`, the PC as the controller through the console, no firmware change), what the owner sets up, the commands, how it stops, the forecast written first (`tools/charge_sim/fit/trial_forecast_<record>.json`) and the five checks it is judged on. **It waits for the owner's word that the bench is ready, and the powder's name;** it was tried only against a made-up unit. About an hour and ten minutes and two emptyings of the cup. No firmware is designed until the trial is read with the owner.
+- **The bench trial was run the same afternoon** (the section at the top). As it stood at 14:50: prepared and not yet run (the owner: "Yes, prepare it"). `trial_guide.md` is its guide: the tool (`tools/charge_sim/bench/trial.py`, the PC as the controller through the console, no firmware change), what the owner sets up, the commands, how it stops, the forecast written first (`tools/charge_sim/fit/trial_forecast_<record>.json`) and the five checks it is judged on. **It waits for the owner's word that the bench is ready, and the powder's name;** it was tried only against a made-up unit. About an hour and ten minutes and two emptyings of the cup. No firmware is designed until the trial is read with the owner.
 
 ## Where it stood, 2026-11-21, 01:50
 

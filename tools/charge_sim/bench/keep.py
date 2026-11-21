@@ -86,6 +86,10 @@ def main() -> None:
             continue
         if not files:
             continue
+        runs_file = folder / "runs.json"
+        if all(file.name in ("runs.json", "frames.csv") for file in files) and runs_file.exists() \
+                and not json.loads(runs_file.read_text(encoding="utf-8")):
+            continue        # a session that turned nothing: a trial gone on with --resume keeps its throws elsewhere
         (args.out / folder.name).mkdir(parents=True, exist_ok=True)
         for file in files:
             shutil.copyfile(file, args.out / folder.name / file.name)

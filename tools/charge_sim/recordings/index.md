@@ -68,3 +68,7 @@ Trials are counted without the turn that preconditions the tube.
 | `20261121_014735_creepstop` | ADI BM2 | creepstop | coarse | 1 | 1 rev/s | step 19: coarse tube steady 6 s at 1 rev/s |
 | `20261121_014747_ramp` | ADI BM2 | ramp | coarse | 20 | 4 speed plans | step 20: coarse tube, fixed moves of 0.25 and 0.5 turn at 0.5 and 2 rev/s |
 | `20261121_022935_kernelcount` | ADI BM2 | kernelcount | fine | 1 | 1 speed plans |  |
+| `20261121_145252_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 | coarse, fine | 102 | 0.0251003, 0.0502005, 0.100401, 0.2, 0.200802, 0.3, 0.401604, 0.5, 1, 2 rev/s |  |
+| `20261121_152433_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 |  | 0 |  |  |
+| `20261121_160810_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 |  | 0 |  |  |
+| `20261121_162403_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 |  | 0 |  |  |

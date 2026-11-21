@@ -2,9 +2,48 @@
 
 2026-11-21. Asked for by the owner: "I'd like you to make two proposals based on the knowledge and data to date, with confident ranking from high to med. Each proposal shall include the detailed procedure for both trickle control, as well as calibration routine. And remember, those proposals will be used on ANY opentrickler build/material/finish, and ANY powder, and ANY scale." And: "There are more than 7 scale to be supported, so I'm not planning to evaluate each of them ... the later calibration routine must account for that, and your simulation today should assume the inconsistent measurement lag subject to the weight change speed."
 
-**Neither proposal is approved, and neither has turned a real tube.** Both were written as code and tried in the simulation (`tools/charge_sim/staged.py`), on the two records made from the bench's recordings and on four other scales that stand in for scales never measured. Every figure below says whether it is the bench's or the simulation's. `../progress.md` has the runs.
+**Neither proposal is approved.** Both were written as code and tried in the simulation (`tools/charge_sim/staged.py`), on the two records made from the bench's recordings and on four other scales that stand in for scales never measured. **Both have since thrown on the real unit, with AR2209** (the same afternoon; the next section). Every figure below says whether it is the bench's or the simulation's. `../progress.md` has the runs.
 
-## The short answer
+## After the bench trial (2026-11-21, afternoon): what stands, what fell, what changed
+
+**What was run:** the PC as the controller, through the unit's console, on the Pico 2 W with the A&D and the air-exposed AR2209 (`trial_guide.md`): the calibration on the unit, then for each proposal and band ten rehearsals and 25 throws of 10 gr. Three short runs came first and found faults, each mended at the desk before the unit turned again.
+
+| AR2209 on the unit, 25 throws a set | Good | Over | Under | A throw, median | Moves a throw | Its check |
+|---|---|---|---|---|---|---|
+| Proposal 1 within 0.02 gr | 56% | 24% | 20% | 25.1 s | 4.4 | at least 60% good: **fails** |
+| Proposal 2 within 0.02 gr | 68% | 32% | 0% | 13.2 s | 0.7 | at least 52% good, at most 48% over: **passes** |
+| Proposal 1 within 0.04 gr | 84% | 12% | 4% | 14.7 s | 1.8 | at least 84%: **passes**, on the line |
+| Proposal 2 within 0.04 gr | 84% | 16% | 0% | 12.8 s | 0.6 | at least 84%: **passes**, on the line |
+
+Proposal 2's first rest lay within a digit of its aim in 15 throws of 25, where its own check asked for 20: **fails**.
+
+**What stands:**
+- **The frame holds on a real unit.** The forecast, one law a tube, the verdict at rest, a calibration that takes every number from the unit. With the harder of the two powders it gave 68% within 0.02 gr and 84% within 0.04 gr in 13 s a throw, where today's loop puts 85% of its throws over with this powder.
+- **The stream's stop is as tight as the simulation said.** First rests spread by 1.7 to 2.2 digits for proposal 2 and 2.2 to 3.5 for proposal 1's stop from its dribble. Every figure of proposal 2 but one, and every figure of both sets within 0.04 gr, fell inside the forecast written before the run.
+
+**What fell:**
+- **The ranking, for this powder.** I gave proposal 1 the higher confidence. With AR2209 on the unit proposal 2 is the more accurate within 0.02 gr, in half the time, and level within 0.04 gr.
+- **The small move.** Proposal 1's finish rests on a small move that adds a little. This powder gathers at the tube's lip and falls as a clump: the smallest move (0.024 of a turn) gave nothing 66 times in 100, one to three digits 21 times and four to nine digits 14 times; the next size gave four digits and more nearly half the time. The simulation's moves were kinder (one to three digits 32 times in 100).
+
+**The ceiling with this powder, from the trial's own moves and stops, no model** (the finish played on what was measured, the best choice at every rest; `tools/charge_sim/bench/best_finish.py`): **about 70% good within 0.02 gr and 90% within 0.04 gr, whatever the finish.** Where the stream's stop is aimed changes that by a few points only (65 to 71% from ten digits short to the target itself). It decides the moves a throw makes, and so its time: 1.5 a throw aimed a digit short, 4 aimed nine short. From a rest two to four digits short a throw is rescued little better than one time in two.
+
+**What changed in the frame,** each from a fault the unit showed (sections 2 and 3.2 below are as the code now stands):
+1. **The lag is the powder's time from turned out to shown, measured over a whole run,** not what is unseen at the moment of a stop. The stop's figure also held the latency of whoever turns the tubes, and a forecast built on it counted a fast coarse stream twice.
+2. **Both tubes keep clear of the coarse tube's powder still unseen,** by three times its spread a turn (5 to 6% with AR2209). A small charge is all unseen when the coarse tube stops.
+3. **The fine tube takes its stop on its own powder alone:** a forecast at its margin while coarse powder is unseen pauses it.
+4. **A rest far short goes back to the stream:** when the stream would pour more from it than the largest small move gives. Before, a throw that stopped two grains short had eight small moves and no more.
+5. **A small move is a turn, made to the unit's step count:** the calibration keeps the turn each size really was.
+
+**What I recommend now:**
+1. **Build the frame once, as before; that part of the recommendation stands, and on a real unit now.**
+2. **Do not make proposal 1's finish the default.** With a powder whose kernel is a digit it is the slower and the less accurate.
+3. **Let the calibration choose the finish.** The two are one controller, and the calibration already measures what decides between them: what each move gives, and where the stream's stop rests. Playing the finish on those gives the aim with the most good throws in the fewest moves, the move to make from each shortfall, and the share of good throws to tell the user before the first throw. With AR2209 it chooses proposal 2's finish. **This is a direction, worked out at the desk in one afternoon and tried on nothing.**
+4. **Before that: the same trial with BM2** (an hour; its forecast is written: proposal 1 94% and proposal 2 88% good within 0.02 gr). BM2's kernel is half a digit, and its moves may be the kind proposal 1 needs. Until then the ranking is known for one powder.
+5. **One over in fifty within 0.02 gr with a powder like AR2209 is not a controller's to give:** it needs a tube that releases less at a time (section 8).
+
+## The short answer, as the simulation gave it before the bench
+
+*The bullets and tables of this section are the simulation's, of the controller before the bench's mends (which moved its figures by two points at most: `tools/charge_sim/fit/bands_after_bench.txt`). Its ranking and its recommendation are superseded by the section above.*
 
 - **The two proposals are one controller.** They share a frame (section 2) and one calibration, and differ in two numbers: how slow the fine tube goes before it stops, and how far short of the target it stops. So the firmware is built once, and which finish a powder gets on a scale can be decided by the calibration.
 - **Proposal 1, "stop short and jog": confidence high.** The fine tube stops from a steady dribble while clearly short, and small moves add the rest, each judged on a reading at rest. It is industry's way, its ceiling can be read off the bench's own recordings with no model, and in the simulation it was as accurate as proposal 2 or more so on every scale tried, by up to 9 points, with fewer overs on each. Its cost is time: it waits for the scale after every move.
@@ -76,9 +115,11 @@ Both proposals keep these. They are what lets one controller serve a unit nobody
 
 The weight the controller acts on is not the reading. It is **the reading, plus the powder turned out that the reading does not show yet.**
 
-- Every 10 ms each tube's turns since the last count become a parcel: its grains (turns x that tube's grains a turn), and the moment it is due to show (now + the lag at that tube's present flow, from the table).
+- Every 10 ms each tube's turns since the last count become a parcel: its grains (turns x that tube's grains a turn), and the moment it is due to show (the middle of those 10 ms + the lag at that tube's present flow, from the table). The turns are the unit's own count of its steps.
 - When a reading comes, every parcel due by then is dropped: the reading holds it now.
 - The forecast is the latest reading plus the parcels still due. The room is the target less the forecast.
+- **The lag at a flow is how long that flow's powder took from turned out to shown, over a whole run** (after the bench): the area between the powder turned out and the reading, over the powder poured. Measured at the moment of a stop it also held the latency of whoever turned the tubes (0.07 s from the PC), and the forecast then counted a coarse stream of 19 gr a second twice while its first powder showed: two throws of eight stopped 2 to 3 gr short.
+- **What it still gets wrong, measured on the unit:** through a start of the coarse tube at 2 rev/s it is over by up to 1.4 gr and under by up to 0.8 gr, and usually 0.3 gr off. The first powder of a fast start shows sooner than its lag. Two other ways of letting a parcel show were tried on the same recordings and were no better. The margin of 2.2 is what covers it.
 
 **Why each parcel has its own lag:** this is the owner's point, that the lag depends on how fast the weight changes, put into the controller. A first version used one lag for the whole recent past, that of the present speed. While the tube slowed it took fast powder for still on its way long after it had shown, and stopped 12 digits early. With a lag a parcel, the rehearsals rested within two digits of their aim with no correction.
 
@@ -91,13 +132,18 @@ Each tube has one law: **a speed in proportion to the room above its own margin,
 - **The coarse tube:** speed = (room - coarse margin) / (grains a turn x coarse glide time), held between 0.3 rev/s (below it the bench's coarse tube poured in lumps) and its top. It stops, held, when the room reaches the coarse margin. There is no reverse turn: the bench found a stopped, held coarse tube drops nothing late, and that the reverse quarter turn spills 0.6 to 1.1 gr. A gate, where fitted, closes at this stop.
 - **The fine tube** turns at its top speed while the coarse tube runs. Then: speed = (room - glide margin) / (grains a turn x glide time), between its floor and its top. It stops when the room is down to its stop margin. **The floor and the stop margin are where the two proposals differ.**
 - A charge smaller than the coarse margin and half a coarse turn is the fine tube's alone.
+- **Both tubes keep clear of the coarse tube's powder still unseen** (after the bench): the room both laws work on is less by three times the coarse tube's spread a turn, of what it has turned out and the reading does not show yet. That powder is known by its turns alone, and a turn's powder varied by 5 to 6% on the unit. A charge of 10 gr is all unseen when the coarse tube stops, so it stops 2 gr short and the fine tube carries that; in a large charge the reading has caught up and little is added.
+- **The fine tube takes its stop on its own powder alone** (after the bench): while a digit or more of the coarse tube's powder is unseen, a forecast at the stop margin pauses the fine tube and does not end the stream.
 
 ### 2.3 The rest, the verdict, the top-up
 
 - **At rest:** the calibrated wait since the stop has passed, and the reading has made no new high for 0.4 s (or two reading intervals, if that is longer).
 - **The reading judged is the lowest shown since its last rise.** A reading that flickers across the band's lower edge is then taken as outside it, and the throw is topped up. Judged on the highest, one throw in ten rested just under the band and was called good (proposal 1 with BM2: 86% good against 94%).
 - **Within the band:** done, good. **Above it:** done, over. **Below it:** a small move of the fine tube.
-- **The move** is the largest of three calibrated sizes whose average release is no more than half the way from the present weight to the band's top. After it, that size's own calibrated wait, then rest, then judged again. At most eight moves; then the throw ends "short", and the user sees it.
+- **The move** is the largest of three calibrated sizes whose average release is no more than half the way from the present weight to the band's top. It is a turn, made to the unit's step count: the turn that size really was in the calibration. After it, that size's own calibrated wait, then rest, then judged again.
+- **Far short, back to the stream** (after the bench): a rest short by more than the fine tube's stop margin and the largest move's average release together goes back to the stream, by the same law, from the reading at rest. Whatever stopped the tubes early then costs the throw time and not its weight. Nothing is learnt from such a rest.
+- **Eight tries after the first rest,** moves and returns together; then the throw ends "short", and the user sees it.
+- **Where the trial found this rule weak:** it is not the best play of a powder's odds. With AR2209 the best play of the measured moves gives 66% good from proposal 1's aim, and the rule gave 56% (the first section). The calibration can work out the move to make from each shortfall; not built.
 
 ### 2.4 Between throws
 
@@ -115,19 +161,22 @@ Each tube has one law: **a speed in proportion to the room above its own margin,
 | Number | Rule | From the calibration's |
 |---|---|---|
 | Grains a turn, each tube | measured | three runs from rest to rest |
-| Lag at a flow, each tube | what arrived after stops from that flow, over the flow | stops from six flows (fine), three speeds (coarse) |
+| Lag at a flow, each tube | the powder's time from turned out to shown, over the whole of each run (the area between the two, over the powder poured) | runs and stops from six flows (fine), three speeds (coarse) |
 | Coarse and fine glide time | 0.6 x the lag (coarse: at its floor; fine: the longest at its middle flows), between set limits | lag table |
 | Coarse margin | 3 x the spread of a coarse stop from its floor + the fine tube's glide margin + 0.2 gr | coarse stops |
+| What both tubes keep clear of the coarse tube's unseen powder | 3 x the spread of its grains a turn, run to run, as a share | every coarse run of the calibration (ten) |
 | Fine top speed | the highest speed measured even | fine stops |
 | Rest time | the slowest the reading came to rest after stops near the fine tube's floor, + 0.3 s | fine stops |
-| Move sizes | the turns meant to release 0.7, 2.5 and 6 digits | grains a turn |
+| Move sizes | the turns meant to release 0.7, 2.5 and 6 digits, each kept as the turn the unit's steps say it was | grains a turn; the small moves |
 | A move's release and its wait | measured | small moves |
 | The fine tube's stop margin | by the proposal's rule, then moved so the rehearsals rest where they are meant to | rehearsals |
 | Every watch of the calibration itself | half as long again as the slowest of four first moves took to show, + 1 s | probe |
 
-## 3. Proposal 1: stop short and jog. Confidence: high
+## 3. Proposal 1: stop short and jog. Confidence: high before the bench; with AR2209 it failed its check
 
 **In one sentence:** the fine tube stops from a steady dribble while still clearly short, and the rest is added by small moves, each judged on a reading at rest.
+
+**On the unit with AR2209:** 56% good within 0.02 gr in 25 s a throw (its check asked 60%; the forecast said 74% in 17.6 s), 84% within 0.04 gr in 14.7 s. Its stop from the dribble was tight (first rests spread by 2.2 digits). Its moves were not: nine throws of 25 spent all eight tries, five were taken over by a move's clump. Not yet thrown with BM2, whose moves may be the kind it needs.
 
 This is industry's bulk, dribble and jog, and what the research proposed on 2026-11-19 (D2), with what the bench taught since: the stop is placed by the forecast, the moves' sizes and waits are measured and not assumed, and the coarse tube does not reverse.
 
@@ -153,12 +202,14 @@ This is industry's bulk, dribble and jog, and what the research proposed on 2026
 | 1. Zero, and the scale at rest | nothing | the digit; the interval |
 | 2. Prime | each tube, in runs, until two runs pour the same within a tenth | (nothing kept) |
 | 3. Probe | four small moves of the fine tube, each watched up to 15 s | how long this scale takes to show a small move: every later watch follows from it (3 to 4 s on the A&D, 8 to 9 s and 12 to 15 s on the later stand-ins) |
-| 4. Grains a turn | each tube three times from rest to rest | grains a turn |
-| 5. The lag by flow | the fine tube stopped from 1, 2, 4, 8, 16 and 32 digits a second (as far as its top speed), eight stops at the two slowest and four at the others; the coarse tube from 0.3, 1 and 2 rev/s | after each stop: what still arrived (mean and spread) and when the reading came to rest |
-| 6. Small moves | three sizes, 24, 12 and 8 of them | what each size releases, and how long it took to show |
+| 4. Grains a turn | each tube three times from rest to rest | grains a turn; with step 5's coarse runs, how far the coarse tube's varies from run to run |
+| 5. The lag by flow | the fine tube stopped from 1, 2, 4, 8, 16 and 32 digits a second (as far as its top speed), eight stops at the two slowest and four at the others; the coarse tube from 0.3, 1 and 2 rev/s | over each run: how long its powder took from turned out to shown (the lag); after each stop: what still arrived (its spread) and when the reading came to rest |
+| 6. Small moves | three sizes, 24, 12 and 8 of them | the turn each really was; what each size releases, and how long it took to show |
 | 7. The rules | nothing | the numbers of 2.6 |
 | 8. Rehearsals | ten throws of 1 gr, the fine tube alone, each ended at its first rest | where they rest and how widely: the stop margin is set from their spread and moved so their middle one rests on its aim |
 | 9. The verdict | nothing | from the rehearsals and the moves: how many throws in ten are expected in the band, and the seconds a throw (designed, not tried) |
+
+**On the unit** (2026-11-21, AR2209, steps 2 to 6): 13.0 minutes and 173 gr through the cup, every watch 5.3 s. Its rehearsals of 1 gr rested more widely than its throws then did (a spread of 4.1 digits against 2.2 for proposal 1), which set proposal 1's aim further short than its throws needed: **a rehearsal should be a throw's last stretch, not a short stream from rest.** Not mended.
 
 **What it costs, in the trial:** 10 to 12.5 minutes and 135 to 155 gr through the cup on the A&D; 18 to 21 minutes on the scale twice as late; 24 to 31 minutes on the one three times as late. Most of it is waiting: each of about ninety stops and moves is watched as long as the scale needs to show a small change. The research's "about two minutes" of 2026-11-19 assumed 0.6 s where the bench's scale needs 4.
 
@@ -184,10 +235,13 @@ The same throw with the band at 0.04 gr. The stop and the moves are the same; a 
 - **Its margin takes what a stream does late.** It stops 3 to 6 digits short, so a lump after the stop lands inside the room left.
 - **It costs time, and more on the bench than in the simulation.** A rest and three to four moves, each waited for. On the bench's A&D that is 13 to 16 s a throw with BM2 and 17 to 22 s with AR2209 within 0.02 gr, against the owner's 15 s; within 0.04 gr, 9 to 12 s and 13 to 18 s (the short answer's point 5).
 - **What would prove it wrong:** a scale whose reading never comes to rest in a usable time (the third stand-in is at that edge), or a powder whose small moves mostly release four digits and more (the bench's moves of 0.06 of a turn did, four times in ten with AR2209: the smallest move must stay small).
+- **The bench proved the second, in a way this list did not foresee:** with AR2209 the smallest move stayed small on average (1.1 digits) and was useless all the same. It gave nothing two times in three and a clump of four to nine digits one time in seven. What a finish by moves needs is not a small average but a move that gives one to three digits most of the time, and this powder has none.
 
-## 4. Proposal 2: glide and stop. Confidence: medium
+## 4. Proposal 2: glide and stop. Confidence: medium before the bench; with AR2209 it did as forecast
 
 **In one sentence:** the fine tube slows to a creep the scale can follow, stops where the forecast is a digit short of the target, and only a throw that rests short is topped up.
+
+**On the unit with AR2209:** 68% good within 0.02 gr in 13.2 s a throw (the forecast: 70% in 13.0 s) and 84% within 0.04 gr in 12.8 s. Its key step is now seen on a real scale: a creep stopped by the reading rested with a spread of 1.7 to 2.2 digits, 18 throws of 25 needing no move. It has no unders and more overs (32% within 0.02 gr): three throws of 25 were over at the first rest, five were taken over by the move that mends a short one. Its own check of the stop (the first rest within a digit of the aim eight times in ten) failed: 15 of 25.
 
 It leans on what the owner said of scales and the bench confirmed: a stream is shown sooner than a single small change. Two of its throws in three need one wait for the scale, where proposal 1's need four.
 
@@ -237,6 +291,11 @@ The same with the band at 0.04 gr: the creep is twice as fast, since twice as mu
   3. **AR2209's record is two digits harsh** where a finish slows through 0.2 rev/s, and its throws' spread at rest is double the bench's (this afternoon). Both proposals' AR2209 figures lean to the harsh side.
   4. **The simulated coarse tube stops more tightly than the bench's** (a spread of 0.05 to 0.13 gr against 0.12 to 0.5 gr). On the bench the coarse margin would be nearer 1 to 2 gr and the fine tube's stretch 1 to 2 s longer.
   5. **No draught, no vibration, no second unit.** And the other scales are stand-ins: nothing here is measured on any scale but the A&D.
+- **What the bench then showed the simulation has wrong** (2026-11-21, afternoon; each measured, none yet mended in the records):
+  1. **Its small moves are too kind.** One to three digits from the smallest move 32 times in 100, where the unit gave 21; four and more from the middle move 32 times, where the unit gave 46. This is why proposal 1's forecast failed.
+  2. **Its reading rises 0.1 s later after a coarse start** than the unit's, at the same lag by a stop. The record splits the scale's delay and its filter's lag by an assumption, and only their sum was pinned. So it could not show the forecast counting a coarse stream twice.
+  3. **Its coarse tube pours less a turn at speed** than the unit's did that day (8.4 against 9.5 to 9.8 gr at 2 rev/s).
+  4. **Its stream's stop was right:** every figure of proposal 2 but one fell inside the forecast.
 
 ## 6. What the bench itself says, with no model
 
@@ -253,9 +312,10 @@ The same with the band at 0.04 gr: the creep is twice as fast, since twice as mu
 
 ## 7. What I lack, and the session that would settle the ranking
 
-- **No throw of either proposal on a real unit.** The cheapest real check needs no firmware: the PC runs these same controllers through the console, as the recorder turns the tubes today, on the bench's unit. The calibration (11 minutes), then 25 throws of each finish at each band, the simulation's figures written first. **Prepared the same day, the owner's "Yes, prepare it": `trial_guide.md`** has the tool, the session's steps, the forecast and what the trial is judged on. Not yet run.
+- **The trial on a real unit was run the same afternoon, with AR2209** (the first section; `trial_guide.md` has the tool and the session). **What is lacking now is the same trial with BM2:** an hour, its forecast written. It says whether the ranking turns for a fine powder too.
+- **The record of AR2209 mended from the trial's own moves and starts** (section 5's last list), so that what is designed next is tried on moves as unkind as the unit's.
 - **No recording on a second scale.** Nothing says how the owner's G&G shows a stream against a small change but his own account. The calibration's steps 3, 5 and 6 on it, through the same PC tool, would give its row.
-- **No throw of today's loop with BM2** (the forecast of this evening stands unchecked), and AR2209's stops in blocks by speed (this afternoon).
+- **No throw of today's loop with BM2** (the forecast of 2026-11-21 stands unchecked), and AR2209's stops in blocks by speed (this afternoon).
 
 ## 8. What neither proposal does, and why
 
@@ -273,3 +333,4 @@ The same with the band at 0.04 gr: the creep is twice as fast, since twice as mu
 - **D5 (the verdict on a reading at rest):** kept, on the lowest reading shown.
 - **D6 (automatic tuning, by the unit or by an agent):** kept. Its two minutes are eleven in the trial.
 - **New:** the forecast by parcels, each with the lag of its flow; no reverse turn of the coarse tube; the rehearsals; a stop aimed under the target; the probe that sets the calibration's own waits.
+- **New after the bench:** the lag measured over a run; the margin that grows with the coarse tube's unseen powder; the fine tube's stop on its own powder alone; the return to the stream; a move made to a turn by the step count. And as a direction only: the finish chosen by the calibration from its own moves and stops.
