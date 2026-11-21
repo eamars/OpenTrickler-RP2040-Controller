@@ -933,3 +933,98 @@ Proposal 2's first rest within a digit of its aim: 76% (56 to 88%) with BM2, 52%
 **What the trial is judged on** (the guide has the table): A, it runs to its end with no limit tripped; B, proposal 1 within 0.02 gr good in at least 80% (BM2) or 60% (AR2209); C, proposal 2 within 0.02 gr good in at least 76% or 52% and over in no more than 24% or 48%; D, proposal 2's first rest within a digit of its aim in at least 20 throws of 25; E, within 0.04 gr good in at least 96% and 92% (BM2) or 84% and 84% (AR2209). Time is set beside the forecast and not judged.
 
 **Next:** the owner's word that the bench is ready, with which powder. About an hour and ten minutes and two emptyings of the cup.
+
+## 2026-11-21, afternoon: the two proposals on the unit: short runs first, what they found, what was mended
+
+**The owner:** "Ready, AR2209 loaded". The Pico 2 W on the probe (firmware 2.0.3-84, eaea601), the A&D FX-300i, AR2209 long in the air, an empty cup on the zeroed scale. Before the first turn: `state` gave charge 0, weight 0.000 and both drivers ok, and the two hold speeds were taken with the weight unmoved (0.0001 rev/s is 2.82 steps a second of the fine tube, 0.00002 rev/s 0.82 of the coarse).
+
+**Short runs before the long one:** the trial was first run with two throws a set, to see the tool work on a unit before an hour and two cups of powder were spent on it. Three such runs were needed. None is the trial: its checks A to E are judged on the full run alone.
+
+### The first run: the calibration, and moves that released nothing
+
+`20261121_145252_trial_pico2w_ar2209`. **The calibration's measurements** took 13.0 minutes and 173 gr:
+- grains a turn: coarse 9.60, fine 0.797;
+- every watch 5.3 s (the scale showed the slowest probe move after 2.9 s);
+- the fine tube's stops, the lag by flow: 1.37, 1.19, 1.44, 0.94, 0.72, 0.79 s at 1, 2, 4, 8, 16 and 20 digits a second; the coarse tube's: 0.66, 0.58, 0.61 s at 0.3, 1 and 2 rev/s, its spread at a stop 0.10, 0.45 and 0.27 gr;
+- the small moves: 0.58 digits on average (three at most) and shown within 4.4 s; 3.25 (eight at most) within 2.0 s; 5.63 (eleven at most) within 2.8 s.
+
+**The glide finish worked at once:** its rehearsals rested at +3, -1, +1, -2, 0, -4, -2, -1, -2, -2 digits, and its throws within 0.02 gr at +1 and 0 (19.7 and 14.4 s).
+
+**The jog finish's throws were void:** each made its eight moves and none released anything.
+
+**Why: a tube started from a hold starts late.** The console's stand-in for a held tube is a speed too slow to pour. The firmware hands the PIO its steps a segment ahead, and a new speed is on the pin only when the steps already handed over are made: two segments at the old speed (`step_pulses.c`). At 2.82 steps a second a segment is one step, so a move of a third of a second was over before its first step. **Mended in the tool:** a held tube is switched off (`motor <tube> 0`, which stops the pulses at once) and then started. The made-up unit was given the firmware's way of taking a speed, and showed both the fault and the mend before the unit turned again.
+
+**For ADR-012's record, not this ADR's to change:** a new step rate waits for two segments at the old one, which is tenths of a second and more at rates under ten steps a second. A charge that creeps a tube and then asks for a speed would meet it.
+
+### The second run: throws that stopped two and three grains short
+
+`20261121_152433_trial_pico2w_ar2209`, the first run's calibration. The glide finish again good in both throws within 0.02 gr (first rests -1 and +1, 19.8 and 16.8 s). But:
+- jog within 0.02 gr: one throw first rested 4 digits short and made eight moves for two digits; the other **first rested 108 digits short**, and eight moves left it 63 short;
+- jog within 0.04 gr: one throw **first rested 144 digits short**; the other was good in 9.7 s;
+- glide within 0.04 gr: one throw rested 3 digits short and eight moves added nothing.
+
+**Read from the kept rows and the console's log, no unit touched.** Four things, each measured:
+
+1. **The forecast counted a fast coarse stream twice for a moment.** In the throw that rested 108 digits short the coarse tube's first powder showed 0.56 s after the throw began, and the forecast dropped the first parcel only at 0.73 s. For those tenths the reading rose and nothing was taken off what was held unseen: 2.4 gr counted twice, at 19 gr a second. The forecast passed the target, both tubes stopped, and the fine tube's stop was final. Where the 0.17 s came from:
+   - the lag was measured at a stop, as what arrives after it over the flow. From a PC that holds the scale's delay and also the PC's own: the reading it decides on is a command old and its stop lands a command later. 0.60 s at 2 rev/s where the reading ran 0.53 s behind the turns all through the run (the calibration's own two stops, sample by sample);
+   - the PC counted the turns from the speeds it had asked for, and booked each round's powder at the round's end: its first round of a throw was 0.105 s long;
+   - a fast start shows sooner than its lag: the first powder at 0.44 to 0.46 s.
+2. **Every throw's coarse tube left far more than its margin**, for the same reason: a median of 60 to 96 digits in the first run and 115 to 139 in the second (which sent one more command before each start), where the margin was 30. The simulated trials left a median of 25.
+3. **A throw's small moves were smaller than the moves the calibration had measured.** The calibration's smallest move was asked as 0.0176 of a turn and was 0.0240 by the unit's own count (0.0706 for 0.0628; 0.158 for 0.151): its turn was ended a command or two late. A throw's move was ended by the clock within one round, 0.014 to 0.022 of a turn. So a throw's moves released less than the table said they would.
+4. **A throw found far short at rest had no way back.** Eight small moves were all it had, and they cannot add two grains.
+
+**Why the simulation had not shown it:** it has the fault, in 1% of its throws (10 and 11 of 800 jog throws first rested further than 30 digits short). Its reading rises 0.57 to 0.61 s after a coarse start at 2 rev/s where the bench's rises after 0.48 s, with the same lag at a stop (0.63 against 0.61 s). So what the forecast holds unseen is nearly right in the simulation through a start, and is not on the bench. **The record's scale has its delay and its filter's lag split by an assumption** (0.41 and 0.10 s), and only their sum was pinned. The first rise after a start pins the split; it is not yet a figure of the record. Not done here: the record is rebuilt after the trial, not during it.
+
+### What was mended, in the simulation's code, before the unit turned again
+
+In the controller and its calibration (`staged.py`), which the proposals are:
+- **The lag is the powder's time from turned out to shown, taken over the whole run** (the area between the powder turned out and the reading, over the powder poured), not what is unseen at the moment of a stop. It is the same quantity where the two can be told apart, and it does not hold the latency of whoever turns the tubes. On the kept stops: coarse 0.60, 0.55, 0.58 s (by the stop: 0.66, 0.58, 0.61); fine 1.02, 1.17, 1.10, 1.06, 0.85, 0.82 s (by the stop: 1.37, 1.19, 1.44, 0.94, 0.72, 0.79), a steadier table.
+- **Both tubes keep clear of the coarse tube's powder still unseen, by three times its spread a turn.** That powder is known by its turns alone, and a turn's powder varied by 6.1% from run to run in the calibration. A small charge is all unseen when the coarse tube stops: 6% of its nine grains is 0.55 gr, as much as the whole margin of 0.6 gr that was kept. In a large charge the reading has caught up and little is added.
+- **The fine tube takes its stop on its own powder alone:** while a digit or more of the coarse tube's powder is unseen, a forecast at its margin pauses the fine tube and does not end the stream.
+- **A rest short by more than the largest small move gives at most goes back to the stream,** by the same law, from the reading at rest. Whatever stopped the tubes early then costs the throw time and not its weight. A throw has eight tries after its first rest, moves and returns together. Nothing is learnt from a rest that is returned from.
+- **A small move is a turn, made to the unit's count:** the calibration keeps the turn each size really was, and a throw's move is made to it.
+
+In the tool (`bench/trial.py`), which stands in for the firmware:
+- **The turns are the unit's own count** (`motor`, each round), in place of the PC's reckoning from the speeds it asked for. A unit's firmware has that count for nothing.
+- A reading is stamped when it comes, and a turn shorter than a second is made with nothing read in between (the speed, the wait, the hold).
+- A first start of a throw is not switched off first: the last throw's end left both tubes off.
+- `--remeasure <folder>`: a kept trial's turns measured again by the rules as they stand, with no tube turned. The first run's 102 turns gave the figures above.
+
+**What the forecast still gets wrong, measured on the kept coarse stops:** at 2 rev/s it is over by 1.4 gr at most, 0.6 s after a start, and under by 0.8 gr at most; usually 0.3 gr off. Two other ways of letting a parcel show (evenly between the first rise and as long after the lag; a first rise and a tail) were tried on the same stops and came to 1.1 and 1.2 gr: no better, and not taken. The margin that grows with the coarse tube's unseen powder is what covers it.
+
+### The third run: the mends on the unit
+
+`20261121_160810_trial_pico2w_ar2209`: the first run's turns measured again (`--remeasure`), two throws a set, from a cup the owner had emptied. **Said before it ran:** the coarse tube leaves 1 to 3 gr for the fine tube and causes no over; a first rest more than 11 digits short goes back to the stream and does not end under; the small moves are within a fifth of their turn by the unit's count.
+
+**All three held:**
+- the forecast's furthest above where the throw ended: 0 to 9 digits in the eight throws (over 100 in the second run's two);
+- the coarse tube turned 0.73 to 0.86 of a turn and left 0.9 to 2.9 gr (44 to 147 digits), and no throw first rested more than a digit over;
+- one throw first rested 12 digits short, went back to the stream once and came to 2 short;
+- 20 small moves: 0.0242 to 0.0246 of a turn where 0.0240 was asked, 0.0723 and 0.0725 for 0.0706, 0.156 for 0.158.
+
+**The throws:** jog within 0.02 gr, one over (+2) and one under (-3, its eight tries spent); glide within 0.02 gr, both good (10.3 and 27.9 s); jog within 0.04 gr, both good (11.9 and 19.9 s); glide within 0.04 gr, one good, one over (+4).
+
+**What the smallest move does with this powder, now that its turn is exact:** 17 moves of 0.024 of a turn gave 0, 0, 0, 3, 0, 7, 0, 0, 0, 4, 0, 0, 0, 0, -1, 0, 2 digits. Nothing in 12 of 17, and then two to seven digits at once. Six in a row gave nothing in the throw that ended under; the one that gave seven took a throw from 3 short to 4 over. The calibration had said the same in its own way (0.58 digits on average, three at most nine times in ten). A band of one digit either side needs one to three digits from a move, and this tube with this powder seldom gives that.
+
+### The forecast written again, and what I expect, before the full run
+
+The controller changed, so its forecast was run again (`tools/charge_sim/fit/trial_forecast_pico2w_ar2209.json`; sixteen simulated trials of 25 throws a set at 10 gr; the middle, and the range without the lowest and the highest):
+
+| AR2209 | Good | Over | A throw, median | Moves a throw | Before the mends: good, time |
+|---|---|---|---|---|---|
+| Proposal 1 within 0.02 gr | 74%; 64 to 84% | 16%; 8 to 28% | 17.6 s; 14.5 to 24.2 | 3.5 | 76%, 14.5 s |
+| Proposal 2 within 0.02 gr | 70%; 64 to 84% | 28%; 16 to 36% | 13.0 s; 10.6 to 19.2 | 1.2 | 74%, 10.9 s |
+| Proposal 1 within 0.04 gr | 92%; 72 to 96% | 6%; 0 to 16% | 13.1 s; 11.6 to 18.4 | 2.0 | 90%, 12.0 s |
+| Proposal 2 within 0.04 gr | 88%; 76 to 96% | 12%; 4 to 24% | 11.6 s; 9.0 to 16.0 | 0.4 | 88%, 9.1 s |
+
+Proposal 2's first rest within a digit of its aim: 54% (44 to 80%). The mends cost the simulation two to three seconds a throw (the coarse tube's wider margin on a small charge: it now leaves a median of 57 to 82 digits where it left 25) and leave its good shares where they were. In the simulation no throw of 1,600 now first rests further than 30 digits short.
+
+**The checks A to E stay as they were written** before any run (`research/trial_guide.md`), though the new forecast's low ends for 0.04 gr (72% and 76%) are under check E's 84%.
+
+**What I expect of the bench, from the three short runs, said before the full run:**
+- **A passes.**
+- **B fails or is close:** proposal 1 within 0.02 gr good in 35 to 60% of throws, 25 to 35 s a throw. Its three valid throws so far were none good, and its finish rests on a move this powder does not give.
+- **C passes:** proposal 2 within 0.02 gr good in 60 to 80%. Its six throws so far were all good.
+- **D fails:** its first rests so far lay within a digit of the aim in three throws of six, where the check asks for 20 of 25.
+- **E:** proposal 1 passes or is close; proposal 2 is the doubt, since one move's clump of four to seven digits is over a band of two.
+- **So the ranking may turn on the bench:** with this powder the stream's stop is the tighter end and the moves the looser, the reverse of the simulation.

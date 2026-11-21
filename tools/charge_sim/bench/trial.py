@@ -5,8 +5,9 @@ The PC is the controller. It reads the weight by the console's `state` and turns
 calibration's turns, stops and small moves, the rehearsals, then throws of each finish at each band. The scale is
 never zeroed: each throw is counted from the weight the cup rests at, so the cup fills as in a recording.
 
-What a unit's own firmware would do better: it counts its steps (the PC counts the speeds it asked for), and it
-acts every millisecond (the PC once a console command, 20 to 45 ms). A proposal that holds from the PC holds there.
+What a unit's own firmware would do better: it acts every millisecond, where the PC acts once a round of console
+commands (the weight, the unit's count of its steps, a speed or two: 40 to 80 ms). The turns are the unit's own
+count either way (`motor`), and a small move is made to its turn. A proposal that holds from the PC holds there.
 
 The bench rules hold (AGENTS.md): no run before the owner says the bench is ready, powder in the hopper, an empty
 cup on a zeroed scale. The tool is one console session; it stops both motors however it ends. If it is killed from
@@ -15,6 +16,8 @@ outside, or loses its console, a motor may be left turning: send `motor coarse 0
 Usage, with the repository's venv:
     python trial.py --repo C:\\workspace\\OpenTrickler-RP2040-Controller --name pico2w_bm2
     python trial.py --repo ... --resume <the trial's folder>      go on after the cup was emptied
+    python trial.py --repo ... --name pico2w_bm2 --remeasure <an earlier trial's folder>
+                                                                   its kept stops and moves measured again, no turn
     python trial.py --made-up pico2w_bm2 --seed 3                  the same against the simulation, no unit
     python trial.py --forecast pico2w_bm2                          what the simulation expects of it: written first
 """
@@ -43,7 +46,20 @@ SETS = (("jog", 0.02), ("glide", 0.02), ("jog", 0.04), ("glide", 0.04))
 # never does, so a held tube is asked for a speed too slow to pour (in a minute: a thousandth of a coarse turn,
 # six thousandths of a fine one)
 HOLD_RPS = {"coarse": 0.00002, "fine": 0.0001}
+# The firmware's step pulses take a new speed only once the steps already handed to the PIO are made: two segments
+# at the old rate (`step_pulses.c`), and at a hold's rate a segment is one step of a third of a second or more. So
+# a tube started from a hold is switched off first, which stops the pulses at once, and then started: as every
+# move of the calibration and of the bench's recordings began. Found on the unit, 2026-11-21: without it eight
+# moves of a jog finish in a row released nothing, each over before its first step
+RELEASE_FIRST = True
+STEPS_A_TURN = {"coarse": 200 * 256 / 1.25, "fine": 200 * 256 / (40.0 / 22.0)}    # microsteps a turn of each tube
+SEGMENT_S = 0.002                   # the firmware hands the PIO its steps this far ahead, or one step if that is longer
+STOPPED_STEPS_S = 0.05              # a rate under this is a stop (`STEP_PULSES_MIN_RATE`)
 COMMAND_S = (0.018, 0.026)          # what one console command takes (47 `state` a second on the bench)
+COMMAND_MID_S = 0.022
+# A turn shorter than this is made as a small move is: the speed, the wait, the hold, with nothing read in between.
+# Read through, a turn ends a command or two late, which is a third of the smallest move
+SHORT_RUN_S = 1.0
 SPEED_STEP = 0.02                   # a new speed is sent when it differs from the last sent by this share
 REST_STILL_S = 1.0                  # the cup is at rest when its reading has not changed for this long
 REST_MOST_S = 20.0
@@ -69,9 +85,24 @@ class MadeUpUnit:
         self.digit, self.interval_s, self.acceleration = rig.scale.digit_gr, rig.scale.report_s, rig.acceleration_rps2
         self.cup_limit_gr = math.inf    # a made-up cup is never full: a forecast is not stopped to empty it
         self.runs = []
+        self.asked = {"coarse": 0.0, "fine": 0.0}       # the speed each tube's pulses are made at now
+        self.pending = {}                               # tube: (when its new speed is taken, the speed)
+
+    def _advance(self, seconds: float) -> None:
+        """Let time pass, each tube taking a speed that waits for it when its moment comes."""
+        end = self.bench.now + seconds
+        while self.pending:
+            tube, (when, rps) = min(self.pending.items(), key=lambda item: item[1][0])
+            if when > end:
+                break
+            self.bench.advance(max(0.0, when - self.bench.now))
+            self.bench.tubes[tube].set_speed(rps)
+            self.asked[tube] = rps
+            del self.pending[tube]
+        self.bench.advance(max(0.0, end - self.bench.now))
 
     def _command(self) -> None:
-        self.bench.advance(self.rng.uniform(*COMMAND_S))
+        self._advance(self.rng.uniform(*COMMAND_S))
 
     def clock(self) -> float:
         return self.bench.now
@@ -81,22 +112,42 @@ class MadeUpUnit:
         return self.bench.reading
 
     def set_speed(self, tube: str, rps: float) -> None:
+        """As the firmware takes a speed: a stop at once, any other once the steps already handed over are made."""
         self._command()
-        self.bench.tubes[tube].set_speed(rps)
+        rate = abs(self.asked[tube]) * STEPS_A_TURN[tube]
+        if rps == 0.0 or rate < STOPPED_STEPS_S:
+            wait = 0.0
+        else:
+            segment = max(SEGMENT_S, 1.0 / rate)
+            wait = segment * self.rng.uniform(1.0, 2.0)
+        self.pending[tube] = (self.bench.now + wait, rps)
+        self._advance(0.0)
 
     def turned(self, tube: str) -> float:
+        return self.turns()[tube]
+
+    def turns(self) -> dict:
+        """Each tube's turns by the unit's own count of its steps: one command."""
         self._command()
-        return self.bench.tubes[tube].turns
+        return {tube: self.bench.tubes[tube].turns for tube in ("coarse", "fine")}
+
+    def move(self, tube: str, rps: float, turns: float) -> None:
+        """A short turn from a tube switched off, then held: nothing is read in between, so it is as long as asked."""
+        self.set_speed(tube, rps)
+        self._advance(max(0.0, turns / rps - COMMAND_MID_S))
+        self.set_speed(tube, HOLD_RPS[tube])
 
     def sleep(self, seconds: float) -> None:
-        self.bench.advance(seconds)
+        self._advance(seconds)
 
     def ready(self) -> None:
         pass
 
     def stop(self) -> None:
+        self.pending.clear()
         for tube in ("coarse", "fine"):
             self.bench.tubes[tube].set_speed(0.0)
+            self.asked[tube] = 0.0
 
     def close(self) -> int:
         return 0
@@ -135,8 +186,19 @@ class RealUnit:
         self._send(f"motor {tube} {rps:.5f}")
 
     def turned(self, tube: str) -> float:
+        return self.turns()[tube]
+
+    def turns(self) -> dict:
+        """Each tube's turns by the unit's own count of the steps on its pin: one command."""
         fields = dict(part.split("=") for part in self._send("motor").split() if "=" in part)
-        return int(fields[f"{tube}_made"]) / self.record.MICROSTEPS_PER_MOTOR_TURN * self.record.TUBE_PER_MOTOR[tube]
+        return {tube: int(fields[f"{tube}_made"]) / self.record.MICROSTEPS_PER_MOTOR_TURN * self.record.TUBE_PER_MOTOR[tube]
+                for tube in ("coarse", "fine")}
+
+    def move(self, tube: str, rps: float, turns: float) -> None:
+        """A short turn from a tube switched off, then held: nothing is read in between, so it is as long as asked."""
+        self.set_speed(tube, rps)
+        time.sleep(max(0.0, turns / rps - COMMAND_MID_S))
+        self.set_speed(tube, HOLD_RPS[tube])
 
     def sleep(self, seconds: float) -> None:
         time.sleep(seconds)
@@ -175,33 +237,74 @@ class UnitBench:
     def advance(self, seconds: float) -> None:
         self.unit.sleep(seconds)
 
-    def _weight(self) -> float:
+    def _weight(self) -> tuple:
+        """A reading with the time it came at: (time, weight)."""
         self.last = self.unit.weight()
         if self.last > self.unit.cup_limit_gr:
             raise UnitTrouble(f"the cup holds {self.last:.0f} gr: past its limit")
-        return self.last
+        return self.unit.clock(), self.last
 
     def creep_stop(self, tube: str, speed_rps: float, run_s: float, watch_s: float, stop: str) -> dict:
         unit = self.unit
         turned_before = unit.turned(tube)
-        during = [(unit.clock(), self._weight())]      # the cup at rest, before the tube turns
-        unit.set_speed(tube, speed_rps)
+        during = [self._weight()]       # the cup at rest, before the tube turns
         started = unit.clock()
-        while unit.clock() - started < run_s:
-            during.append((unit.clock(), self._weight()))
-        unit.set_speed(tube, HOLD_RPS[tube])
+        if run_s < SHORT_RUN_S:
+            unit.move(tube, speed_rps, speed_rps * run_s)
+        else:
+            unit.set_speed(tube, speed_rps)
+            started = unit.clock()
+            while unit.clock() - started < run_s:
+                during.append(self._weight())
+            unit.set_speed(tube, HOLD_RPS[tube])
         stopped = unit.clock()
         turned = unit.turned(tube) - turned_before
         after = []
         while unit.clock() - stopped < watch_s:
-            after.append((unit.clock(), self._weight()))
+            after.append(self._weight())
         unit.set_speed(tube, 0.0)
         trial = {"note": "creepstop", "tube": tube, "speed_asked_rps": speed_rps, "stop": stop, "held": True,
-                 "run_s": stopped - started, "turns": turned,
+                 "run_s": stopped - started, "turns": turned, "stamped": "reply",
                  "during": [(round(t - stopped, 3), w) for t, w in during],
                  "after": [(round(t - stopped, 3), w) for t, w in after]}
         unit.runs.append(trial)
         return trial
+
+
+class KeptBench:
+    """A calibration's kept turns given again in their order: its measurements made anew, and no tube turned."""
+
+    def __init__(self, runs: list, seconds: float, poured_gr: float):
+        self.runs = list(runs)
+        self.now = seconds
+        self.cup = self
+        self.landed_gr = poured_gr
+
+    def advance(self, seconds: float) -> None:
+        pass
+
+    def creep_stop(self, tube: str, speed_rps: float, run_s: float, watch_s: float, stop: str) -> dict:
+        if not self.runs:
+            raise UnitTrouble("the kept turns ran out: they are not this calibration's")
+        trial = dict(self.runs.pop(0))
+        if trial["tube"] != tube or abs(trial["speed_asked_rps"] - speed_rps) > 1e-6 * speed_rps:
+            raise UnitTrouble(f"the kept turns are not this calibration's: {trial['tube']} at "
+                              f"{trial['speed_asked_rps']} rev/s where {tube} at {speed_rps} was due")
+        if trial.get("stamped") != "reply":
+            # kept before 2026-11-21's mend: a reading was stamped when it was asked for, a command before it came
+            times = [t for t, _ in trial["during"]]
+            late = statistics.median(b - a for a, b in zip(times, times[1:])) if len(times) > 2 else COMMAND_MID_S
+            trial["during"] = [(t + late, w) for t, w in trial["during"]]
+            trial["after"] = [(t + late, w) for t, w in trial["after"]]
+        return trial
+
+
+def measured_again(folder: Path) -> staged.Calibration:
+    """A kept trial's calibration made again from its kept turns (`runs.json`), by the rules as they now stand."""
+    old = json.loads((folder / "calibration.json").read_text(encoding="utf-8"))
+    runs = [run for run in json.loads((folder / "runs.json").read_text(encoding="utf-8")) if run.get("note") == "creepstop"]
+    bench = KeptBench(runs, old["seconds"], old["poured_gr"])
+    return staged.measure_on(bench, old["digit_gr"], old["interval_s"])
 
 
 class UnitSession:
@@ -236,17 +339,22 @@ class UnitSession:
             raise UnitTrouble("no room in the cup for a throw")
         coarse_most = target_gr / controller.cal.coarse_gr_turn + 1.5
         sent = {"coarse": 0.0, "fine": 0.0}
+        held = {"coarse": False, "fine": False}     # the last throw's end switched both off
         rows = []
+        turns_before = unit.turns()
         started = unit.clock()
         controller.start(target_gr, 0.0)
         try:
             while True:
                 weight = unit.weight() - base
+                controller.on_reading((unit.clock() - started) * 1000.0, weight)
+                turns = unit.turns()
                 now = unit.clock() - started
+                controller.count(now * 1000.0, {tube: turns[tube] - turns_before[tube] for tube in turns})
                 controller.on_tick(now * 1000.0)
-                controller.on_reading(now * 1000.0, weight)
                 rows.append((round(now, 3), round(weight, 3), controller.coarse_rps, round(controller.fine_rps, 4),
-                             round(weight + controller.unseen, 3)))
+                             round(weight + controller.unseen, 3), round(controller.turned["coarse"], 4),
+                             round(controller.turned["fine"], 4)))
                 if controller.done:
                     break
                 if now > THROW_MOST_S:
@@ -255,11 +363,20 @@ class UnitSession:
                     raise UnitTrouble(f"the reading is {weight - target_gr:.2f} gr over the target")
                 if controller.turned["coarse"] > coarse_most or controller.turned["fine"] > FINE_MOST_TURNS:
                     raise UnitTrouble("a tube turned further than a throw can need")
+                if controller.move_turns is not None:       # a small move: made to its turn, nothing read meanwhile
+                    if RELEASE_FIRST and held["fine"]:
+                        unit.set_speed("fine", 0.0)
+                    unit.move("fine", staged.MOVE_RPS, controller.move_turns)
+                    controller.moved((unit.clock() - started) * 1000.0)
+                    sent["fine"], held["fine"] = 0.0, True
+                    continue
                 for tube, wanted in (("coarse", controller.coarse_rps), ("fine", controller.fine_rps)):
                     if wanted != sent[tube] and (wanted == 0.0 or sent[tube] == 0.0
                                                  or abs(wanted - sent[tube]) > SPEED_STEP * sent[tube]):
+                        if RELEASE_FIRST and wanted > 0.0 and held[tube]:
+                            unit.set_speed(tube, 0.0)       # from a hold: off first, so the new speed is taken at once
                         unit.set_speed(tube, wanted if wanted > 0.0 else HOLD_RPS[tube])
-                        sent[tube] = wanted
+                        sent[tube], held[tube] = wanted, wanted == 0.0
             done_at = unit.clock() - started
             for tube in ("coarse", "fine"):     # held through the watch, as through the throw
                 if sent[tube] != 0.0:
@@ -271,7 +388,8 @@ class UnitSession:
             unit.stop()
         rest = statistics.median(weight for t, weight in watched if t >= done_at + WATCH_AFTER_S - 0.6)
         verdict = "over" if rest - target_gr >= tolerance_gr else "under" if target_gr - rest >= tolerance_gr else "good"
-        rows.extend((round(t, 3), round(weight, 3), 0.0, 0.0, round(weight, 3)) for t, weight in watched)
+        rows.extend((round(t, 3), round(weight, 3), 0.0, 0.0, round(weight, 3), rows[-1][5], rows[-1][6])
+                    for t, weight in watched)
         return Result(target=target_gr, elapsed_s=done_at, reading=rows[len(rows) - len(watched) - 1][1], true_gr=rest,
                       verdict=verdict, coarse_gr=0.0, fine_gr=0.0, rows=rows)
 
@@ -298,7 +416,8 @@ def summed(throws: list, band_gr: float, digit: float, aim_gr: float) -> dict:
             "first_error_digits": statistics.fmean(throw["first_error_gr"] for throw in throws) / digit,
             "first_spread_digits": statistics.pstdev(throw["first_error_gr"] for throw in throws) / digit,
             "first_near": sum(1 for throw in throws if abs(throw["first_error_gr"] - aim_gr) <= 1.01 * digit) / count,
-            "moves": statistics.fmean(throw["moves"] for throw in throws)}
+            "moves": statistics.fmean(throw["moves"] for throw in throws),
+            "streams": statistics.fmean(throw.get("streams", 0) for throw in throws)}
 
 
 def cup_room(unit, needed_gr: float, what: str) -> None:
@@ -359,21 +478,21 @@ def run_trial(unit, folder: Path, target_gr: float, throws_a_set: int, say=print
         while len(kept["throws"]) < throws_a_set:
             cup_room(unit, target_gr + OVER_MOST_GR, f"a throw of {name}")
             result = session.throw(controller, target_gr, band + cal.digit_gr / 2.0)
-            first, moves = controller.log[-1]
+            first, moves, streams = controller.log[-1]
             kept["throws"].append({"elapsed_s": result.elapsed_s, "rest_error_gr": result.true_gr - target_gr,
                                    "shown_error_gr": result.reading - target_gr, "first_error_gr": first,
-                                   "moves": moves, "verdict": result.verdict, "rows": result.rows})
+                                   "moves": moves, "streams": streams, "verdict": result.verdict, "rows": result.rows})
             kept["stop_room_gr"] = controller.stop_room
             set_file.write_text(json.dumps(kept), encoding="utf-8")
             say(f"{name} throw {len(kept['throws']):2d}: {result.elapsed_s:5.1f} s, first rest "
-                f"{first / cal.digit_gr:+.0f} digits, {moves} moves, at rest {(result.true_gr - target_gr) / cal.digit_gr:+.1f} "
-                f"digits: {result.verdict}")
+                f"{first / cal.digit_gr:+.0f} digits, {moves} moves{f', back to the stream {streams}x' if streams else ''}, "
+                f"at rest {(result.true_gr - target_gr) / cal.digit_gr:+.1f} digits: {result.verdict}")
         summary[name] = summed(kept["throws"], band, cal.digit_gr, cal.aim_gr)
         figures = summary[name]
         say(f"{name}: good {figures['good']:.0%}, over {figures['over']:.0%}, under {figures['under']:.0%}; "
             f"{figures['time_median_s']:.1f} s, one in twenty over {figures['time_most_s']:.1f} s; "
-            f"{figures['moves']:.1f} moves a throw; the first rest within a digit of its aim in "
-            f"{figures['first_near']:.0%}")
+            f"{figures['moves']:.1f} moves a throw, back to the stream {figures['streams']:.2f} times; the first "
+            f"rest within a digit of its aim in {figures['first_near']:.0%}")
     (folder / "trial.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     return summary
 
@@ -419,6 +538,10 @@ def main() -> int:
     parser.add_argument("--name", help="the trial's name: the unit and the powder, as a record's (pico2w_bm2)")
     parser.add_argument("--board", default="pico2_w")
     parser.add_argument("--resume", type=Path, help="a trial's folder, to go on from where it stopped")
+    parser.add_argument("--calibration", type=Path, help="an earlier trial's calibration.json: its measurements "
+                                                         "are taken, and the sets begin afresh")
+    parser.add_argument("--remeasure", type=Path, help="an earlier trial's folder: its kept turns measured again by "
+                                                       "the rules as they now stand, and the sets begin afresh")
     parser.add_argument("--made-up", help="a record: the trial against the simulation, no unit")
     parser.add_argument("--forecast", help="a record: write what the simulation expects of the trial")
     parser.add_argument("--seed", type=int, default=1)
@@ -449,6 +572,13 @@ def main() -> int:
         name = args.name or args.resume.name.split("_trial_", 1)[1]
         unit = RealUnit(args.repo, name, args.board, args.digit, args.interval, args.acceleration)
         folder = args.resume or unit.folder
+    if args.calibration:
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "calibration.json").write_text(args.calibration.read_text(encoding="utf-8"), encoding="utf-8")
+    if args.remeasure:
+        folder.mkdir(parents=True, exist_ok=True)
+        again = staged.to_json(measured_again(args.remeasure))
+        (folder / "calibration.json").write_text(json.dumps(again, indent=1), encoding="utf-8")
     stamp = datetime.datetime.now().strftime("%H:%M:%S")
     print(f"{stamp} the trial of {name}: {args.throws} throws a set at {args.target:g} gr, kept in {folder}", flush=True)
     summary = None

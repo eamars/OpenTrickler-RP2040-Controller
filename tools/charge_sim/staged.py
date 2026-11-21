@@ -53,7 +53,8 @@ LEAST_WATCH_S = 3.0
 DRIBBLE_DIGITS_S = 8.0          # the jog finish's dribble: the slowest flow the bench found even (0.2 rev/s, AR2209)
 REHEARSALS = 10
 REHEARSAL_GR = 1.0
-MOST_MOVES = 8
+MOST_MOVES = 8                  # tries a throw is given after its first rest: small moves, and returns to the stream
+COARSE_SPREADS = 3.0            # of the coarse tube's spread a turn, kept clear of its powder still unseen
 # The creep's powder still on its way, as a share of the band. Half of it was tried: 1.5 to 2 s slower a throw and
 # no more good ones (progress.md, 2026-11-21)
 CREEP_BAND_SHARE = 1.0
@@ -75,6 +76,7 @@ class Stop:
     unseen_gr: float
     spread_gr: float
     quiet_s: float
+    lag_s: float = None             # how long its powder took from turned out to shown; None in a calibration kept before it
 
 
 @dataclass(frozen=True)
@@ -99,6 +101,7 @@ class Calibration:
     fine_stops: list
     moves: list
     watch_s: float = 4.0            # how long this scale's stops and moves had to be watched
+    coarse_share: float = 0.0       # how far the coarse tube's powder a turn varied from run to run, as a share
     # by rule, from the above and the band
     band_gr: float = 0.02
     finish: str = "glide"
@@ -132,13 +135,40 @@ def run_stop(bench, tube: str, speed: float, run_s: float, watch_s: float, digit
     # when the reading first reaches where it ends: powder only adds, and a digit's flicker after it is not waited for
     quiet = next((t for t, w in trial["after"] if w >= end - digit / 2.0), watch_s)
     return {"gain": end - before, "rise": end - at_stop, "quiet": quiet,
-            "turns": trial.get("turns", speed * trial["run_s"])}
+            "turns": trial.get("turns", speed * trial["run_s"]), "behind": behind(trial, before, end, quiet)}
 
 
-def stops_at(bench, tube: str, speed: float, count: int, run_s: float, watch_s: float, digit: float) -> Stop:
+def behind(trial: dict, before: float, end: float, quiet: float) -> float:
+    """How far the reading ran behind the powder turned out, summed over one turn and its stop, in grain-seconds.
+
+    Over the powder poured it is how long that powder took, on average, from turned out to shown: the scale's
+    delay at that flow, with whatever lateness is the powder's own. It is taken over the whole run and not at the
+    moment of the stop. What is unseen at a stop also holds whatever the one who turns the tubes adds (a PC's
+    reading is a command old and its stop a command late: 0.07 s on the bench, 2026-11-21), and a forecast that
+    took that for the scale's delay counted a fast stream twice while its first powder showed.
+    """
+    run_s = trial["run_s"]
+    poured = end - before
+    samples = [(t + run_s, min(w, end) - before) for t, w in trial["during"] + trial["after"] if t <= quiet]
+    area = 0.0
+    for (t0, shown0), (t1, shown1) in zip(samples, samples[1:]):
+        out0 = poured * min(1.0, max(0.0, t0 / run_s))      # turned out evenly from the start to the stop
+        out1 = poured * min(1.0, max(0.0, t1 / run_s))
+        area += ((out0 - shown0) + (out1 - shown1)) / 2.0 * (t1 - t0)
+    return area
+
+
+def stops_at(bench, tube: str, speed: float, count: int, run_s: float, watch_s: float, digit: float,
+             yields: list = None) -> Stop:
+    """A tube's stops from one speed. `yields` takes each run's grains a turn, for whoever wants their spread."""
     runs = [run_stop(bench, tube, speed, run_s, watch_s, digit) for _ in range(count)]
+    if yields is not None:
+        yields.extend(run["gain"] / run["turns"] for run in runs)
     rises = [run["rise"] for run in runs]
-    return Stop(speed, statistics.fmean(rises), statistics.stdev(rises), percentile([run["quiet"] for run in runs], 0.9))
+    poured = sum(run["gain"] for run in runs)
+    lag = max(0.0, sum(run["behind"] for run in runs) / poured) if poured >= digit else None
+    return Stop(speed, statistics.fmean(rises), statistics.stdev(rises), percentile([run["quiet"] for run in runs], 0.9),
+                lag)
 
 
 def table(points: list, x: float) -> float:
@@ -183,21 +213,28 @@ def measure_on(bench, digit: float, interval_s: float) -> Calibration:
             fine_stops.append(stops_at(bench, "fine", speed, count, run_s, watch_s, digit))
     if fine_stops[-1].speed < FINE_TOP_RPS:
         fine_stops.append(stops_at(bench, "fine", FINE_TOP_RPS, 4, 3.0, watch_s, digit))
-    coarse_stops = [stops_at(bench, "coarse", speed, count, run_s, watch_s, digit) for speed, count, run_s in COARSE_STOPS]
+    # the coarse tube's powder a turn, run by run: its spread is how far a count of its turns can be off
+    coarse_yields = [run["gain"] / run["turns"] for run in coarse_runs]
+    coarse_stops = [stops_at(bench, "coarse", speed, count, run_s, watch_s, digit, coarse_yields)
+                    for speed, count, run_s in COARSE_STOPS]
 
     moves = []
     for digits, count in MOVES_DIGITS:
         turns = digits * digit / fine_gr
-        gains, shown = [], []
+        gains, shown, turned = [], [], []
         for _ in range(count):
             run = run_stop(bench, "fine", MOVE_RPS, turns / MOVE_RPS, watch_s, digit)
             gains.append(run["gain"])
+            turned.append(run["turns"])
             if run["gain"] >= digit / 2.0:
                 shown.append(run["quiet"])
         wait = percentile(shown, 0.9) + 0.3 if shown else watch_s
-        moves.append(Move(turns, statistics.fmean(gains), percentile(gains, 0.9), wait))
+        # the move is the turn the tube really made, by the unit's own count where the bench gives it: a throw's
+        # move is made to that
+        moves.append(Move(statistics.fmean(turned), statistics.fmean(gains), percentile(gains, 0.9), wait))
     return Calibration(digit_gr=digit, interval_s=interval_s, coarse_gr_turn=coarse_gr, fine_gr_turn=fine_gr,
                        coarse_stops=coarse_stops, fine_stops=fine_stops, moves=moves, watch_s=watch_s,
+                       coarse_share=statistics.stdev(coarse_yields) / statistics.fmean(coarse_yields),
                        seconds=bench.now, poured_gr=bench.cup.landed_gr)
 
 
@@ -226,7 +263,8 @@ def from_json(kept: dict) -> Calibration:
 
 def lag_table(stops: list, gr_turn: float) -> list:
     """(speed, seconds): how far behind the pan the reading is at each speed's flow."""
-    return [(stop.speed, max(0.0, stop.unseen_gr) / (gr_turn * stop.speed)) for stop in stops]
+    return [(stop.speed, stop.lag_s if stop.lag_s is not None else max(0.0, stop.unseen_gr) / (gr_turn * stop.speed))
+            for stop in stops]
 
 
 def set_rules(cal: Calibration, finish: str, band_gr: float) -> None:
@@ -275,7 +313,8 @@ class Staged:
         self.fine_lags = lag_table(cal.fine_stops, cal.fine_gr_turn)
         self.stop_room = cal.stop_room_gr
         self.name = cal.finish
-        self.log = []                   # per throw: (first error at rest, moves made)
+        # per throw: (the error at the rest after its last stream, moves made, times it went back to the stream)
+        self.log = []
 
     def start(self, target_gr: float, now_ms: float) -> None:
         cal = self.cal
@@ -288,9 +327,12 @@ class Staged:
         self.coarse_on = target_gr > cal.coarse_room_gr + 0.5 * cal.coarse_gr_turn
         self.turned = {"coarse": 0.0, "fine": 0.0}      # as the unit counts its steps
         self.speed = {"coarse": 0.0, "fine": 0.0}       # the motors' own ramped speeds
-        self.parcels = []               # [when it will show, grains]: turned out, not yet in the reading
+        self.counted = False            # the harness gives the unit's own count of the turns (`count`)
+        self.parcels = []               # [when it will show, grains, tube]: turned out, not yet in the reading
         self.unseen = 0.0               # their sum
+        self.coarse_unseen = 0.0        # the coarse tube's part of it
         self.marked = {"coarse": 0.0, "fine": 0.0}      # each tube's turns at the last parcel
+        self.marked_at = now_ms / 1000.0
         self.next_mark = now_ms / 1000.0 + PARCEL_S
         self.last_tick = now_ms / 1000.0
         self.reading = 0.0
@@ -300,47 +342,84 @@ class Staged:
         self.stopped_at = None
         self.wait = 0.0
         self.move_until = None
+        self.move_turns = None          # while a small move is asked for: the turn it is to be
         self.moves = 0
+        self.streams = 0                # times a rest far short sent the throw back to the stream
         self.first_error = None
 
     def _parcel(self, now: float) -> None:
-        """Count what each tube turned out since the last parcel: it will show after the lag of its present flow."""
+        """Count what each tube turned out since the last parcel: it will show after the lag of its present flow.
+
+        The parcel was turned out over the stretch since the last one, and is counted from that stretch's middle.
+        """
         cal = self.cal
+        turned_out_at = (self.marked_at + now) / 2.0
+        self.marked_at = now
         for tube, gr_turn, lags in (("coarse", cal.coarse_gr_turn, self.coarse_lags), ("fine", cal.fine_gr_turn, self.fine_lags)):
             turned = self.turned[tube] - self.marked[tube]
             self.marked[tube] = self.turned[tube]
             if turned > 0.0:
                 grains = gr_turn * turned
-                self.parcels.append([now + table(lags, self.speed[tube]), grains])
+                self.parcels.append([turned_out_at + table(lags, self.speed[tube]), grains, tube])
                 self.unseen += grains
+                if tube == "coarse":
+                    self.coarse_unseen += grains
 
     def _forecast(self) -> float:
         """The weight in the cup once all that was turned out has shown: the reading and what is on its way."""
         return self.reading + self.unseen
 
+    def count(self, now_ms: float, turns: dict) -> None:
+        """Each tube's turns since the throw began, by the unit's own count of its steps.
+
+        A harness that has the count gives it before each tick, and the controller then reckons nothing itself: a
+        unit's firmware has it for nothing. A PC that reckoned the turns from the speeds it had asked for was a
+        command ahead of the motors (bench, 2026-11-21).
+        """
+        now = now_ms / 1000.0
+        elapsed = now - self.marked_at
+        for tube in ("coarse", "fine"):
+            if elapsed > 0.0:
+                self.speed[tube] = (turns[tube] - self.turned[tube]) / elapsed
+            self.turned[tube] = turns[tube]
+        self.counted = True
+        self._parcel(now)
+
+    def moved(self, now_ms: float) -> None:
+        """The harness made the small move asked for (`move_turns`) itself, to its step count: the move is over."""
+        self._end_move(now_ms / 1000.0)
+
+    def _end_move(self, now: float) -> None:
+        self.fine_rps = 0.0
+        self.move_turns = None
+        self.phase = "rest"
+        self.stopped_at = now
+
     def on_tick(self, now_ms: float) -> None:
         now = now_ms / 1000.0
         elapsed = now - self.last_tick
         self.last_tick = now
-        for tube, asked in (("coarse", self.coarse_rps), ("fine", self.fine_rps)):
-            change = self.acceleration * elapsed
-            speed = self.speed[tube]
-            speed = min(asked, speed + change) if speed < asked else max(asked, speed - change)
-            self.speed[tube] = speed
-            self.turned[tube] += speed * elapsed
-        if now >= self.next_mark:
-            self._parcel(now)
-            self.next_mark += PARCEL_S
+        if not self.counted:
+            for tube, asked in (("coarse", self.coarse_rps), ("fine", self.fine_rps)):
+                change = self.acceleration * elapsed
+                speed = self.speed[tube]
+                speed = min(asked, speed + change) if speed < asked else max(asked, speed - change)
+                self.speed[tube] = speed
+                self.turned[tube] += speed * elapsed
+            if now >= self.next_mark:
+                self._parcel(now)
+                self.next_mark += PARCEL_S
         if self.phase == "feed":
             self._feed(now)
         elif self.phase == "move" and now >= self.move_until:
-            self.fine_rps = 0.0
-            self.phase = "rest"
-            self.stopped_at = now
+            self._end_move(now)
 
     def _feed(self, now: float) -> None:
         cal = self.cal
-        room = self.target - self._forecast()
+        # The coarse tube's powder still unseen is known only by its turns, and a turn's powder varies: three times
+        # that spread of it is kept clear by both tubes. A small charge is all unseen when the coarse tube stops,
+        # and its margin is the wider for it; in a large one the reading has caught up and little is added
+        room = self.target - self._forecast() - COARSE_SPREADS * cal.coarse_share * self.coarse_unseen
         if self.coarse_on:
             if room <= cal.coarse_room_gr:
                 self.coarse_on = False
@@ -350,6 +429,8 @@ class Staged:
                 self.coarse_rps = min(COARSE_TOP_RPS, max(COARSE_FLOOR_RPS, asked))
         if not self.coarse_on and room <= self.stop_room:
             self.fine_rps = 0.0
+            if self.coarse_unseen >= cal.digit_gr:
+                return      # a pause, not its stop: the fine tube's stop is taken on its own powder alone
             self.phase = "rest"
             self.stopped_at = now
             self.wait = cal.rest_s
@@ -368,7 +449,8 @@ class Staged:
         self.reading = weight
         if self.parcels:                # what was due to show by now is in this reading
             self.parcels = [parcel for parcel in self.parcels if parcel[0] > now]
-            self.unseen = sum(grains for _, grains in self.parcels)
+            self.unseen = sum(parcel[1] for parcel in self.parcels)
+            self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse")
         if self.phase != "rest":
             return
         still = max(0.4, 2.0 * cal.interval_s)
@@ -376,17 +458,29 @@ class Staged:
             return
         weight = self.highest if REST_ON == "highest" else self.lowest
         short = self.target - weight
+        tries_left = self.moves + self.streams < MOST_MOVES
+        if not self.rehearsal and tries_left and short > cal.moves[-1].most_gr:
+            # Short by more than the largest small move gives: back to the stream, by the same law, from this
+            # reading at rest. Whatever made the forecast stop the tubes early (it counted a fast coarse stream
+            # twice on the bench, 2026-11-21; a hopper that bridged would do the same) costs the throw time and
+            # not its weight. Nothing is learnt from such a rest: the stop was not where the margin put it.
+            self.streams += 1
+            self.phase = "feed"
+            self.coarse_on = short > cal.coarse_room_gr + 0.5 * cal.coarse_gr_turn
+            self.stopped_at = None
+            return
         if self.first_error is None:
             self.first_error = weight - self.target
             self._learn()
-        if self.rehearsal or short <= cal.band_gr + 1e-6 or self.moves >= MOST_MOVES:
-            self.log.append((self.first_error, self.moves))
+        if self.rehearsal or short <= cal.band_gr + 1e-6 or not tries_left:
+            self.log.append((self.first_error, self.moves, self.streams))
             self.done = True
             return
         move = self._move_for(short)
         self.moves += 1
         self.phase = "move"
         self.fine_rps = MOVE_RPS
+        self.move_turns = move.turns
         self.move_until = now + move.turns / MOVE_RPS
         self.wait = move.wait_s
 
@@ -419,7 +513,7 @@ def borrow_stops(cal: Calibration, other: Calibration) -> None:
     """
     for name, mine, theirs in (("coarse_stops", cal.coarse_gr_turn, other.coarse_gr_turn),
                                ("fine_stops", cal.fine_gr_turn, other.fine_gr_turn)):
-        setattr(cal, name, [Stop(stop.speed * theirs / mine, stop.unseen_gr, stop.spread_gr, stop.quiet_s)
+        setattr(cal, name, [Stop(stop.speed * theirs / mine, stop.unseen_gr, stop.spread_gr, stop.quiet_s, stop.lag_s)
                             for stop in getattr(other, name)])
 
 
@@ -452,7 +546,7 @@ def rehearse(cal: Calibration, session, acceleration_rps2: float) -> None:
         result = session.throw(controller, REHEARSAL_GR, cal.band_gr + cal.digit_gr / 2.0)
         cal.seconds += result.elapsed_s + 1.0
         cal.poured_gr += result.true_gr
-    cal.first_errors = [first for first, _ in controller.log]
+    cal.first_errors = [entry[0] for entry in controller.log]
     if finish == "jog":
         # short by twice the rehearsals' own spread and a digit: few first readings at rest are over
         cal.aim_gr = -(2.0 * statistics.stdev(cal.first_errors) + cal.digit_gr)
