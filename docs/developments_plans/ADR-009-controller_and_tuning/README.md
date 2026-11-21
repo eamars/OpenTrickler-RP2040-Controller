@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Draft** 2026-11-13. Not approved. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), for the owner's approval; nothing of it is built.
+Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built.
 
 ## What we want
 
@@ -196,7 +196,7 @@ Whether today's loop stays beside the new one, for how long, and whether old pro
 
 **The order proposed,** each gate ending in a pass or fail on a unit: (1) the bench session; (2) recordings and the open-loop jobs in the firmware; (3) the nudged finish alone; (4) the flow law and the calibration; (5) the G&G's driver read at once after its ask, and the same controller on it; (6) mode 1's trimming, then mode 2's paths; (7) oscillation, if the bench says clumps.
 
-## What we do (planned 2026-11-21, 20:58; for the owner's approval)
+## What we do (planned 2026-11-21, 20:58; approved the same evening)
 
 The controller is the research's frame with proposal 2's finish by default (`research/proposals_2026-11-21.md`, sections 2 and 4), ported from its reference, `tools/charge_sim/staged.py`, as it stood after the bench trial. Its calibration is the routine of the same file's section 3.2. Nothing is designed again here: what the bench found weak is mended where the gates below say, and nothing else is added. The gates are built in order, each ending in a pass or a fail written before it is run. The early gates go for speed: the controller is proven end to end on the rig (gates 1 to 3) before anything is polished (gates 4 to 6). One PR, when the ADR closes, unless the owner picks a gate to merge on its own.
 
@@ -268,6 +268,5 @@ Each gate's pass, under "What we do". Together:
 ## To settle before approval
 
 Settled since: what "better" is (the two bands, 2026-11-21), the order (ADR-008 closed first), the rig the proof is made on (the owner, 2026-11-21, 17:29). Left for the owner, with the plan under "What we do":
-- **The plan's approval,** gate by gate as written, or changed.
 - **ADR-012's check against the firmware before it** ("Handed on by ADR-012"): proposed retired. The bench trial ran on ADR-012's motors, and today's loop puts 85% of AR2209's throws over on either firmware, so the comparison would say nothing of the motors; gate 6's side by side is against today's loop on the same firmware.
 - **PR #113** (ADR-002 left its end here): its tuner tunes the two PID loops, which stay only as the fallback until gate 6, so nothing of it is taken. Proposed: closed with thanks and a note naming what this ADR built, at the owner's word, when this ADR's PR is opened.
