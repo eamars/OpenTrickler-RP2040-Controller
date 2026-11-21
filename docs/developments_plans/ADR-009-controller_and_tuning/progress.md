@@ -1239,3 +1239,61 @@ The owner: "Bench ready". `20261122_115105_series_glide002_c_lagshift_pico2w_ar2
 - **Where the overs come from:** five throws first rested 2 to 6 digits over, the stream's own stop (the learning moved the stop room from 0.031 to 0.043 gr over the series); four rested 1 to 3 digits short and one small move released 4 to 6 digits; and one, throw 37, first rested at 9.98, inside the band, and was moved on to 10.08.
 - **Throw 37 is a fault of the controller's edge, now mended.** A rest's weight is a reading less the cup's base, and in the unit's float 10.02 over a cup of 60 gr is 0.0200043 over the target, past the band's edge of a millionth: three rests at 10.02 were logged over (32, 40, 49), and three at 9.98 were moved on (37, 40, 52). On a charge of 100 gr the same falls by chance with no base at all (100.02 less 100 is 0.0199966). The edge is now a quarter digit past the band, in `charge_control.c` and `staged.py` alike (rests lie on the scale's digits). Gate 1's check again: lockstep 200 of 200 in all 8 sets, float and counted within noise, the rules agree: **pass**. Not yet on the unit.
 - **B against C is the trade of this powder:** B's fine tube carried 3.5 gr at its slow end and rested in the band four times in five, at 18 s; C's carries 1.5 gr and is quick, and the stream's stop and the moves' clumps cost it a throw in five. The bar asks for both at once; the trial's ceiling for this AR2209 (about 70% within 0.02, `bench/best_finish.py`) is close to it.
+
+## 2026-11-22, 12:05: the algorithm verified on the throws, the calibration checked number by number
+
+The owner: "Continue. I want you to also make sure you focus is to verify the control algorithm, and validate the calibration accuracy, not stuck in the manual tuning nightmare." So no constant is searched for on the rig: each miss is traced to a calibrated number or a rule, from the throws' own rows.
+
+**The tool,** `bench/verify_series.py`: a series' throws against the calibration they were thrown on. In closed loop every throw lands at its target, so the two tubes' grains a turn cannot be told apart by a regression; each tube is read where only its own powder is arriving (the coarse tube once it is quiet after its stop, the fine tube from there to the first rest, in throws with no move).
+
+| The calibration's number | Calibration | Series A | Series B and C | Verdict |
+|---|---|---|---|---|
+| Coarse tube's spread a throw | 6.1% | 5.3% | 6.0% | right |
+| What arrives after a stop from the creep | +0.027 gr, sd 0.028 | +0.037, sd 0.031 | +0.026, sd 0.033 | right |
+| Coarse tube's grains a turn | 9.60 | 9.88 (+2.9%) | 10.17 (+5.9%) | low |
+| Fine tube's grains a turn, at the finish | 0.797 | 0.753 (−5.5%) | 0.715 (−10.2%, sd 0.17 a throw) | high |
+| Lags | as the PC measured | | 0.055 s long | mended (above) |
+
+The calibration's own stops, run from rest at each speed, give 9.6 to 9.9 gr a coarse turn and 0.66 to 0.79 a fine one: a short run from rest is not what a throw does. That is gate 3's planned mend (its rehearsals a throw's last stretch, not a stream from rest), now with numbers.
+
+**The algorithm, against the truth** (series C; the truth is what finally landed, less what the fine tube had still to turn out):
+- **At a stop from the creep, with the coarse tube quiet** (20 throws): the throw rested +0.004 gr from the forecast, sd 0.036. The forecast is right where the controller acts on it, and its spread is the powder's own after-stop spread. **Pass.**
+- **At a stop while the coarse tube's powder was still arriving** (5 throws, all about 0.75 s after the coarse stop, where the calibration has the coarse tube quiet only after 0.91 s): −0.057, sd 0.076, twice as wide.
+- **From the coarse tube's stop on:** the forecast is 0.25 gr low at the stop (sd 0.27), right within 0.4 s (sd 0.22, then 0.13 at 0.6 s). The coarse tube's 6% more powder a turn is about half of that bias (6% of the 2 gr still unseen).
+
+**Where series C's ten overs come from:**
+- two stream stops on a forecast still low from the coarse tube's tail (30, 41);
+- three stream stops from the creep that rested 2 to 5 digits over: the after-stop spread, lumps;
+- five small moves that released a clump (37's from a rest the edge fault had refused).
+
+**Series D, its forecast written first:** series C's settings and the edge fault mended, with the two grains a turn the throws gave (coarse 10.17, fine 0.715) written into the calibration in place of the trial's. Nothing else changes; the rules made from them move with them, as on any unit.
+- **The calibration's check, pass:** the forecast at the coarse tube's stop within ±0.10 gr of the truth on average (against −0.25 in C), and the fine tube's grains a turn from D's throws within 5% of the 0.715 written.
+- **The algorithm's check, pass:** at a stop from the creep, the rest within ±0.01 gr of the forecast on average, sd at most 0.04.
+- **The outcome, expected, not judged:** 60 to 72% good within 0.02 gr, a median of 12 to 14 s. The stream's stop spread (sd 0.035) against a band of ±0.02 and the small moves' clumps are this powder's limit, about 70% (the trial's ceiling), so gate 2's bar is judged, not expected.
+
+### 12:12 to 12:21: series D, the calibration's grains a turn from the throws, judged
+
+The edge fault's mend flashed first (`rc_run.py flash`, PASS; `setting settings/charge` the same before and after). `20261122_121340_series_glide002_d_yields_pico2w_ar2209`: series C's settings, the calibration's grains a turn 10.17 and 0.715 (`series.py --coarse-gr-turn --fine-gr-turn`). Its rules moved with them: the creep 0.0247 to 0.0291 rev/s, the wait before a rest is judged 2.33 to 2.82 s (the faster creep counts the 0.05 rev/s stop's quiet time).
+
+| Series (glide, 0.02 gr, 25 throws) | Good | Over | Under | Median |
+|---|---|---|---|---|
+| B: lags as the PC measured them | 20 (80%) | 5 | 0 | 18.0 s |
+| C: lags mended | 15 (60%) | 10 | 0 | 13.7 s |
+| D: lags and grains a turn mended | **20 (80%)** | 5 | 0 | **11.7 s** |
+
+**Against its forecast** (`bench/verify_series.py`):
+- the forecast at the coarse tube's stop: −0.072 gr on average (C: −0.25), sd 0.21: **pass**;
+- the fine tube's grains a turn: D's throws give 0.625, 12.6% under the 0.715 written, sd 0.19 a throw: **fail**. The figure at the finish is about 0.63 in C and D alike; B's 0.71 was over a wider stretch, at higher speeds;
+- the coarse tube's: 10.50, 3.2% over the 10.17 written. Series by series it was 9.88, 10.22, 10.18 and 10.50: it moves by about 3% from one series to the next, half its spread a throw;
+- at a stop from the creep, the rest less the forecast: +0.003 gr (pass), sd 0.045 (fail against 0.04, just). What arrives after the stop is +0.051, sd 0.048 at the faster creep, against the calibration's +0.027, sd 0.028 at 0.025 rev/s;
+- the outcome came out above the range expected (80% against 60 to 72%; 11.7 s against 12 to 14 s). Over 25 throws, 80% is between 59 and 93% at 95%: C and D differ by 1.6 standard errors, so D is not yet proof that the mend is worth 20 points, only that it costs nothing and takes the bias out.
+
+**Where D's five overs come from:** four from small moves that released a clump (6, 15, 16, 20: rests 2 to 6 digits short, ended 2 to 4 over); one fine stop on a forecast still low from the coarse tube's tail (24: 4.5 s, +0.08).
+
+**Gate 2's bar at 0.02 gr is met on D** (at least 68% good, a median of at most 13 s). Not yet thrown or built of the gate: the 0.04 gr band (84%), the API's recordings, the simulated scale's calibration for `charge_cycle`, the proofs (`charge_cycle`, `pulses`, `menu_tour --compare`, `motor` over the 50 throws).
+
+**What the verification hands to gate 3** (the calibration as a job on the unit), each a number the throws measured and the open-loop runs from rest did not:
+- the lags, in the firmware's own time (0.055 s shorter than the PC's);
+- each tube's grains a turn in a throw's own shape: the coarse tube 3 to 6% more than a run from rest at 1 rev/s, the fine tube about 20% less at the finish (0.63 against 0.80);
+- what arrives after a stop at the creep the unit really uses (its rule moves with the grains a turn).
+`verify_series.py` on a calibration job's own throws is its check.

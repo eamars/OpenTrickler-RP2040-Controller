@@ -97,12 +97,19 @@ def main() -> int:
     parser.add_argument("--lag-shift", type=float, default=0.0,
                         help="seconds added to every stop's lag before it is written: -0.055 for a calibration made by "
                              "the PC through the console, whose lags ran that far behind the firmware's (2026-11-22)")
+    parser.add_argument("--coarse-gr-turn", type=float, help="in place of the calibration's: a figure the throws gave "
+                        "(verify_series.py)")
+    parser.add_argument("--fine-gr-turn", type=float, help="in place of the calibration's, as --coarse-gr-turn")
     args = parser.parse_args()
 
     kept = json.loads(args.calibration.read_text())
     cal = staged.from_json(kept.get("calibration", kept))
     if args.lag_shift:
         staged.shift_lags(cal, args.lag_shift)
+    if args.coarse_gr_turn:
+        cal.coarse_gr_turn = args.coarse_gr_turn
+    if args.fine_gr_turn:
+        cal.fine_gr_turn = args.fine_gr_turn
     errors = cal.first_errors
     if args.errors_from:
         errors = json.loads(args.errors_from.read_text())["calibration"]["first_errors"]
@@ -118,7 +125,8 @@ def main() -> int:
     folder.mkdir(parents=True)
     record = {"name": args.name, "started": stamp, "target_gr": args.target, "finish": args.finish,
               "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "ccon_asked": args.ccon,
-              "lag_shift_s": args.lag_shift, "throws": []}
+              "lag_shift_s": args.lag_shift,
+              "coarse_gr_turn": cal.coarse_gr_turn, "fine_gr_turn": cal.fine_gr_turn, "throws": []}
     started_charge = False
     try:
         now = state(session)
