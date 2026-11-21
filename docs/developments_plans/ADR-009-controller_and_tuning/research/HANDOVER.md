@@ -15,7 +15,7 @@ ADR-009 is a **Draft, not approved**. Everything here is research for its design
 - **The tool changed** (`tools/charge_sim/bench/trial.py`; `trial_guide.md` is as it now stands): it reads the unit's own step count each round, makes a short turn with nothing read in between, starts a held tube from switched off, and can measure a kept trial's turns again (`--remeasure`). **Start any trial with `--throws 2`:** three faults showed there before an hour was spent.
 - **The recordings are kept** (`tools/charge_sim/recordings/`, the session `pico2w_ar2209_trial`): four folders, of which `20261121_162403` is the trial that is judged.
 
-**The owner's direction for what comes next (2026-11-21, 17:29):** "BM2 is low risk, so the next won't run the BM2 bench test. Instead, I'd expect the next agent to start to implement the controller and calibration in the firmware, and perform basic tune, against the calibration on the same rig based on proposal today. The next agent will be hands on, based on your research and simulation today." It is in `../README.md` in his words. (At 17:30 he had answered "Not today" to a BM2 trial; this replaces it.)
+**The owner's direction for what comes next (2026-11-21, 17:29):** "BM2 is low risk, so the next won't run the BM2 bench test. Instead, I'd expect the next agent to start to implement the controller and calibration in the firmware, and perform basic tune, against the calibration on the same rig based on proposal today. The next agent will be hands on, based on your research and simulation today." It is in `../README.md` in his words. (Minutes before, asked whether to run a BM2 trial, he had answered "Not today"; this replaces it.)
 
 ### For the agent who implements it
 
