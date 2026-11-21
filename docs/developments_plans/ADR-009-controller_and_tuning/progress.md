@@ -799,3 +799,42 @@ BM2's is one number from 0.2 to 1 rev/s, as this morning's figures said. Its ent
 **Also outside, in the records' own recordings** (100 of 118 figures within for BM2, 106 of 147 for AR2209): the spread of what a stop from 1 rev/s leaves (BM2 1.8 measured, 6.5 simulated: the releases at 1 rev/s are solved too lumpy from one 20 s run); AR2209's flow in the first seconds of a run from 0.1 to 0.3 rev/s (the simulation starts quicker than the bench); and a throw's spread at rest for AR2209, twice the bench's at every setting.
 
 **Where this leaves the handover's order.** Step 4 (two records, each checked) is done: BM2's record can be designed on; AR2209's gives the right share over for today's loop but is two digits harsh where a finish slows through 0.2 rev/s, and its spread at rest is double, so a figure from it is quoted with that said. Step 5 (the owner's questions by simulation) is next and needs no bench.
+
+## 2026-11-21, evening: the owner's two tolerances; where today's loop stands and what a finish by small moves could reach
+
+**The owner:** "Yes please go on, and remember, don't over do ... AR2209 throw is much harder than BM2 due to its kernel size. In most cases +/-0.02 gr is acceptable, and I'd accept +/- 0.04 gr for loads that doesn't need to be that accurate." (The README has it as direction.) With two pictures of the kernels from GRT, "mostly visual based": `research/sources/grt_two_powders.md` has what they give, a shape and not a mass to the tenth wanted. No unit; nothing new is built into the simulation here, and no controller is designed.
+
+**1. What is there today, on each record, at both tolerances** (`bands.py`; 500 throws at 20 gr, of the true weight; `fit/bands.txt`). Today's loop with the three settings thrown on the bench on 11-20, and `flow_dose`, the candidate written before any bench session:
+
+| | Good within 0.02 gr | Over | Good within 0.04 gr | Over | Error, gr (spread) | Time, s |
+|---|---|---|---|---|---|---|
+| **BM2**, today's loop as stored | 0% | 100% | 0% | 100% | +1.06 (0.14) | 6.0 |
+| BM2, fine gain 0.8 | 50% | 50% | 74% | 26% | +0.04 (0.06) | 8.8 |
+| BM2, fine gain 0.8 and a slow finish | 79% | 20% | 90% | 10% | +0.02 (0.06) | 15.3 |
+| BM2, `flow_dose` | 68% | 32% | 77% | 23% | +0.05 (0.15) | 6.6 (one in twenty over 23.7) |
+| **AR2209**, today's loop as stored | 0% | 100% | 0% | 100% | +1.42 (0.28) | 4.2 |
+| AR2209, fine gain 0.8 | 4% | 96% | 7% | 93% | +0.29 (0.23) | 4.8 |
+| AR2209, fine gain 0.8 and a slow finish | 15% | 85% | 26% | 74% | +0.11 (0.11) | 10.6 |
+| AR2209, `flow_dose` | 2% | 98% | 2% | 98% | +0.70 (0.34) | 4.5 |
+
+- **BM2's rows are a forecast:** no throw of today's loop was recorded with BM2 (the handover's step 1). They are written here before any such throw. AR2209's slow finish is the one the bench threw (10 over of 12); its record is two digits harsh where a finish slows through 0.2 rev/s (this afternoon), so its rows lean to the harsh side.
+- **The same settings are 79% good with BM2 and 15% with AR2209.** The owner's "much harder" in figures: AR2209 pours 38% more a turn and its kernel is a whole digit, so the same least speed leaves more unseen at the stop, in larger pieces.
+- **The looser band mends BM2 (90%) and not AR2209 (26%):** AR2209's overs are a tenth of a grain, not a digit.
+- **`flow_dose` is not the candidate to go on from:** worse than the slow finish with both powders.
+
+**2. What a finish by small moves and waits could reach, from the recorded nudges alone** (`bench/topup_bound.py`, no model; `research/bench_2026-11-21/topup_bound.txt`). The finish ends short and adds moves of the fine tube until the settled reading is in the band; each move's gain is drawn from the session's own watched nudges (0.017 of a turn, the reading 5 s after). It knows each gain exactly and never moves once in the band, so what is over is the powder's doing and no controller's.
+
+| | Within 0.02 gr: good, over | Within 0.04 gr: good, over | Moves from 3 digits short (mean; one in twenty over) |
+|---|---|---|---|
+| BM2 (240 nudges) | 88 to 90%, 10 to 12% | 99%, 1% | 5.6; 15 |
+| AR2209 (300 nudges) | 80 to 81%, 19 to 20% | 92 to 94%, 6 to 8% | 5.0; 13 |
+
+A nudge gave nothing two times in three; one in sixteen read a digit less (the balance's own flicker), and with AR2209 one in eighteen gave four digits or more (BM2: one in twenty-seven). At a wait of 2 s a move, which shows half of the single digits, three digits short costs 10 s; at 4 s, which shows nine in ten, 20 s.
+
+**What the two tables say together**
+- **Within 0.02 gr, one over in fifty is out of reach of a finish by moves of this size with either powder:** one over in five with AR2209 and one in ten with BM2 is the best such a finish does, and it is the size of what a move releases that sets it. The owner's own figure for his trickler today, one over in ten to fifteen, is in that range.
+- **Within 0.04 gr it is in reach for BM2** (one in a hundred) **and near for AR2209** (one in fifteen).
+- **With BM2 today's loop is already near that best** when it finishes slowly (79% against 88 to 90%), at 15 s a throw. **With AR2209 it is far from it** (15% against 80%): that gap is the controller's, not the powder's, and is what a better finish can win.
+- **A finish by moves and waits is slow:** three digits short is 10 to 20 s by itself.
+
+**Not said by these:** what a move of another size or kind releases. The steady stream is even where the nudges are not (variance over mean of the kernels 0.9 at 0.2 rev/s against 3 to 5 in nudges, 11-20), and a stop from the slowest speeds scatters by 0.9 to 1.4 digits; a finish that stops a stream at the right count of turns may do as well as the moves, sooner. That is the next thing to try in the simulation. And one over in fifty within 0.02 gr asks for smaller releases, which is the owner's oscillation: a question for the tube and the firmware, not for the controller.

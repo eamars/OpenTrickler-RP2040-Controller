@@ -26,6 +26,14 @@ Another agent took over. Two things changed; the section below still holds other
 - **GRT** (the owner sent its pages for both powders; `sources/grt_two_powders.md`): the two densities and no kernel size. The bulk densities are 1% apart. Asked of the owner: the window's "Detail Picture" tab for each powder, for a kernel's length and width.
 - **Next: step 5 below,** the owner's questions by simulation, on BM2's record first. No bench step.
 
+### The same day, evening: step 5 begun; the first figures, and the owner's two tolerances
+
+`../progress.md`, "the owner's two tolerances". **The owner: good is within 0.02 gr, and within 0.04 gr for loads that need less; "don't over do"; tell him when an input is lacking** (`../README.md`). In short:
+
+- **Every controller is now judged at both bands** (`tools/charge_sim/bands.py`). Today's loop with a slow finish: BM2 79% good within 0.02 gr in 15 s (a forecast: no BM2 throw is recorded), AR2209 15% (the bench's 10 over of 12). `flow_dose` is worse than that with both powders: not the candidate to go on from.
+- **What a finish by small moves could reach, from the recorded nudges alone** (`bench/topup_bound.py`): within 0.02 gr, 88 to 90% good with BM2 and 80% with AR2209, however it is controlled; within 0.04 gr, 99% and 92 to 94%. So one over in fifty within 0.02 gr is not a controller's to give with moves of that size: it asks for smaller releases (the owner's oscillation). And such a finish is slow: 10 to 20 s for three digits.
+- **Where a controller can win:** AR2209, from 15% to near 80%, and time. **Next, if the owner says so** (asked 11-21, evening): a finish that stops the steady stream by counted turns short of the target, then corrects once or twice, designed on the two records and judged by `bands.py` against these two tables. Its design is put to the owner before it is built.
+
 ## Where it stood, 2026-11-21, 01:50
 
 The owner's direction for the bench (11-20, evening): sessions capture data and verify written assumptions ("make assumption, and use the actual trickler to verify the assumption"); no tuning on the unit and no design decision while capturing; hybrid control is open, to be decided later. `../progress.md` has it in the owner's words.
