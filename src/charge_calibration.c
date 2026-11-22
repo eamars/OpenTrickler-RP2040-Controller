@@ -7,6 +7,7 @@
 #include "common.h"
 #include "eeprom.h"
 #include "profile.h"
+#include "scale.h"
 
 #define CHARGE_CALIBRATION_SLOT_SIZE 1024
 
@@ -78,7 +79,57 @@ static const char *charge_calibration_lacks(const charge_calibration_record_t *r
 }
 
 
+/*
+    The simulated scale's own calibration (ADR-009, gate 2): its tubes pour their made-up grains a turn at once and
+    evenly, and it reads them at its interval, so a stop at any speed leaves half an interval of flow unseen, and a
+    small move releases its turns' grains. Made from the scale's own constants, not measured; a charge on the
+    simulated scale takes it whatever the profile holds, and nothing stored is read or written. The glide at 0.02 gr
+*/
+static void charge_calibration_simulated(charge_calibration_record_t *record) {
+    static const float coarse_speeds[] = {0.3f, 1.0f, 2.0f};
+    static const float fine_speeds[] = {0.025f, 0.05f, 0.1f, 0.2f, 0.5f};
+    static const float move_digits[] = {0.7f, 2.5f, 6.0f};
+    charge_control_calibration_t *cal = &record->measured;
+    memset(record, 0, sizeof(*record));
+    float interval_s = 1.0f / simulated_scale_get_rate();
+    float lag_s = interval_s / 2.0f;
+    cal->digit_gr = SIMULATED_SCALE_DIGIT_GR;
+    cal->interval_s = interval_s;
+    cal->coarse_gr_turn = SIMULATED_SCALE_COARSE_GR_TURN;
+    cal->fine_gr_turn = SIMULATED_SCALE_FINE_GR_TURN;
+    cal->coarse_stop_count = sizeof(coarse_speeds) / sizeof(coarse_speeds[0]);
+    cal->fine_stop_count = sizeof(fine_speeds) / sizeof(fine_speeds[0]);
+    cal->move_count = CHARGE_CONTROL_MOVES;
+    for (uint8_t i = 0; i < cal->coarse_stop_count; i++) {
+        cal->coarse_stops[i] = (charge_control_stop_t) {coarse_speeds[i], coarse_speeds[i] * cal->coarse_gr_turn * lag_s,
+                                                        cal->digit_gr, lag_s + interval_s, lag_s};
+    }
+    for (uint8_t i = 0; i < cal->fine_stop_count; i++) {
+        cal->fine_stops[i] = (charge_control_stop_t) {fine_speeds[i], fine_speeds[i] * cal->fine_gr_turn * lag_s,
+                                                      cal->digit_gr / 2.0f, lag_s + interval_s, lag_s};
+    }
+    for (uint8_t i = 0; i < CHARGE_CONTROL_MOVES; i++) {
+        float grains = move_digits[i] * cal->digit_gr;
+        cal->moves[i] = (charge_control_move_t) {grains / cal->fine_gr_turn, grains, grains + cal->digit_gr,
+                                                 lag_s + 2.0f * interval_s};
+    }
+    cal->watch_s = 1.0f;
+    cal->coarse_share = 0.01f;
+    cal->finish = CHARGE_CONTROL_FINISH_GLIDE;
+    cal->band_gr = 0.02f;
+    record->valid = 1;
+}
+
+
+static bool charge_calibration_simulated_scale(void) {
+    return scale_get_running_driver() == SCALE_DRIVER_SIMULATED;
+}
+
+
 bool charge_calibration_held(uint8_t profile) {
+    if (charge_calibration_simulated_scale()) {
+        return profile < MAX_PROFILE_CNT;
+    }
     return profile < MAX_PROFILE_CNT &&
            config_read_stored(charge_calibration_addr(profile), &charge_calibration_read,
                               sizeof(charge_calibration_read)) &&
@@ -87,6 +138,11 @@ bool charge_calibration_held(uint8_t profile) {
 
 
 bool charge_calibration_get(uint8_t profile, charge_control_calibration_t *out) {
+    if (charge_calibration_simulated_scale() && profile < MAX_PROFILE_CNT) {
+        charge_calibration_simulated(&charge_calibration_read);
+        charge_calibration_make(&charge_calibration_read, out);
+        return true;
+    }
     if (!charge_calibration_held(profile)) {
         return false;
     }

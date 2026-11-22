@@ -120,6 +120,14 @@ bool scale_tap_is_on(void);
  * simulated_scale_go_quiet(): nothing published for that many ms; its powder keeps falling meanwhile.
  */
 bool simulated_scale_set_rate(float per_second);
+/*
+ * The simulated scale's made-up tubes and pan (ADR-009): powder lands at these grains a turn of each trickler, at
+ * once, and is read at its interval rounded to its digit. Its calibration for the staged controller follows from
+ * them (charge_calibration.c), so a charge on it needs no stored one.
+ */
+#define SIMULATED_SCALE_COARSE_GR_TURN 10.0f
+#define SIMULATED_SCALE_FINE_GR_TURN 0.8f
+#define SIMULATED_SCALE_DIGIT_GR 0.02f
 float simulated_scale_get_rate(void);
 void simulated_scale_send_bad(void);
 // A weight published in place of the simulated powder's, until it is switched off (ADR-012); never stored

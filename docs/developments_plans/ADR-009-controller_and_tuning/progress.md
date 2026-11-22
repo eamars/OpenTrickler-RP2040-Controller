@@ -1336,3 +1336,28 @@ The owner took the proposal ("I'll take your proposal"). Tried first in a play o
 **And so E's miss is not the learning's.** With the stop placed right, the walk costs nothing at 0.04 gr: the first rests over are 8% either way, two throws in 25, where E had four (one series in about seven). E's 80% is within the noise of what the rig's stop allows at 0.04 gr; the lead I wrote under series E was a guess from one series, and the play does not bear it out.
 
 **What limits the 0.04 gr band is the stop's spread on the rig, sd 0.046 gr**, wider than the calibration measured it (0.028 at the creep's own stops from rest; 0.039 in its rehearsals). That is a third number for gate 3's calibration to measure in a throw's shape, beside the lags and the grains a turn.
+
+## 2026-11-22, 13:20 to 13:45: gate 2's proofs on the Pico 2 W
+
+The owner: "Proofs next ... don't drift into the tuning. your job is to verify the robustness of the controller." The cup emptied.
+
+**`motor`, the step pulses over the 54 throws since the 12:12 flash: fail, then mended.** The fine motor's feed had run late 8 times (`fine_underruns=8`; the coarse motor's 0). The same count had grown on the old firmware too (18 to 101 on 11-20, noted then for ADR-012 and not looked into). The cause, predicted from the arithmetic and then measured: the feed runs every millisecond and queues one segment of steps only once the queue is empty, and a segment's steps were rounded down, so at a rate just under 1,000 steps a second a segment lasted barely 1 ms and the next feed had no time to spare. On the fine tube that is 0.027 to 0.035 rev/s, the 0.02 gr band's creep.
+
+| Fine tube, held 10 s | Segment, rounded down | Slack | Late feeds before | After the mend |
+|---|---|---|---|---|
+| 0.0340 rev/s | 1.044 ms | 0.04 ms | 18 | 0 |
+| 0.0355 rev/s | 1.000 ms | 0 | 16 | 0 |
+| 0.0290 rev/s (series D's creep) | 1.224 ms | 0.22 ms | 2 | 0 |
+| 0.05, 0.1 rev/s; coarse 0.3 rev/s | 1.4 ms and more | 0.4 ms and more | 0 | 0 |
+
+The mend (`step_pulses.c`): a segment's steps rounded up, so a segment is never shorter than 2 ms and the feed always has a millisecond to spare. A new rate reaches the pin within about 4 ms, as before at most. The steps made follow the speed asked (0.034 rev/s for 10 s: 9,618 steps). It is the step feed, so the Pico W proves it too (gate 7).
+
+**`pulses`: pass** (on its second run). A probe reset, an assert and a hard fault each stop the step pulses, with the fault images built from this source (`build_2w_fault1`, `build_2w_fault2`). The first run did not judge the hard fault: openocd's ROM call to erase the flash failed once, after the assert, the first time in thirteen runs of `pulses`; the second run had none.
+
+**`menu_tour --compare tests/menu_baseline/pico2_w`: pass.** Fourteen pages, all as the baseline but the two that are not judged (the scale's reading, the version).
+
+**`charge_cycle`: the simulated scale given what the staged controller needs, then pass.** As it was, it could not judge the new controller: its powder followed the motors' shaft speeds at made-up factors, it was read and poured once a reading (so a small move between two readings poured nothing: the first cycle's eight moves released nothing and it ended 0.04 gr short), it snapped the weight to the target within 0.1 gr and held it there (an over could not show), and it lifted the cup by its own clock (which a throw's rests between moves would trip). Now (`simulated_scale.c`, `charge_calibration.c`):
+- each tube pours 10 and 0.8 gr a turn of its own (not of its motor's shaft), forward only (the PID loop's back-off pours nothing), added up every 2 ms, read at the scale's interval and rounded to a 0.02 gr digit; an over shows as one;
+- the cup is lifted when the charge asks for it, and put back as before;
+- its calibration is its own, written from those numbers (a stop at any speed leaves half an interval of flow unseen, a move releases its turns' powder): used whenever the simulated scale runs, whatever the profile holds; nothing stored is read or written.
+Then: the staged controller 30.000 for 30, 5.7 s (first rest −0.06, four moves); the PID loop, switched to live and back, 30.000, 8.5 s.

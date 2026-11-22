@@ -6,8 +6,9 @@
  * "steps made so far": it knows the PIO and the STEP pins, and nothing of drivers, ramps or tricklers.
  *
  * The PIO makes only the steps it is fed (stepper.pio). step_pulses_feed() tops each running channel up, a few
- * milliseconds at a time, and must be called every millisecond: when the calls stop, the pulses stop within
- * STEP_PULSES_SEGMENT_MS twice over. A rate of zero stops a channel at its next feed.
+ * milliseconds at a time, and must be called every millisecond: when the calls stop, the pulses stop within two
+ * segments, each STEP_PULSES_SEGMENT_MS and less than a step more (or one step, when a step is longer). A rate of
+ * zero stops a channel at its next feed.
  */
 
 #include <stdbool.h>
