@@ -1304,7 +1304,7 @@ The owner emptied the cup ("Cup emptied, go"). Series D's calibration and settin
 - **Pass, gate 2's bar:** at least 84% good within 0.04 gr.
 - **Expected:** 88 to 96% (the simulation's glide at 0.04: 90%; D's own throws judged at 0.04: their first rests within two digits in 20 of 25, their final rests in 22 of 25); a median under D's 11.7 s; the forecast at a creep stop as in D (+0.003 gr, sd 0.045).
 
-### 12:26 to 12:34: series E at 0.04 gr, judged; the stop's learning chases the stop's spread
+### 12:26 to 12:34: series E at 0.04 gr, judged
 
 `20261122_122716_series_glide004_e_pico2w_ar2209` (its two throws first: both good). The band's rules moved the creep from 0.029 to 0.058 rev/s (it follows the band) and the coarse tube's margin a little; the aim and the stop room stayed.
 
@@ -1317,6 +1317,22 @@ The owner emptied the cup ("Cup emptied, go"). Series D's calibration and settin
 
 **Where the five overs come from:** four first rests 3 to 5 digits over, the stream's own stop (31, 45, 47, 48), against one such rest in D; one from small moves (33).
 
-**The cause is the stop's learning, a rule, not a calibrated number.** Each throw's first error moves the stop by 15% of its distance from the aim, whatever the stop's spread. With this powder's spread (sd 0.045 gr, more than two digits) that is a walk on noise: over E the stop room went from 0.031 to 0.010 and back to 0.040, as wide as the band itself (D's: 0.031 to 0.055). At 0.04 gr a first rest of −0.04 is good and ends the throw, but it still taught the stop to come later (13 first rests at −0.04 or below; their median −0.04 against the aim's −0.02), and the overs at the stream's stop followed the low point (45, 47, 48 at a room of 0.022 to 0.034 after 0.010). The rule was written for a stop whose spread is about a digit (the simulation's).
+**A lead, not the cause (tested below, and rejected): the stop's learning.** Each throw's first error moves the stop by 15% of its distance from the aim, whatever the stop's spread. With this powder's spread (sd 0.045 gr, more than two digits) that is a walk on noise: over E the stop room went from 0.031 to 0.010 and back to 0.040, as wide as the band itself (D's: 0.031 to 0.055). At 0.04 gr a first rest of −0.04 is good and ends the throw, but it still taught the stop to come later (13 first rests at −0.04 or below; their median −0.04 against the aim's −0.02), and the overs at the stream's stop followed the low point (45, 47, 48 at a room of 0.022 to 0.034 after 0.010). The rule was written for a stop whose spread is about a digit (the simulation's).
 
-**So, on the rig, gate 2's two bars stand as:** 0.02 gr met (D: 80%, 11.7 s); 0.04 gr met by D's throws (88%) and not by the 0.04 setting's own (E: 80%), for the learning's walk. Proposed, not built: a learning that takes the stop's own measured spread into account (for instance the mean of the first errors so far, its gain falling as the throws add up, and nothing learnt within the spread), tried in the simulation on both bands with the rig's spread before it is thrown. A change of the rule is the owner's to approve.
+**So, on the rig, gate 2's two bars stand as:** 0.02 gr met (D: 80%, 11.7 s); 0.04 gr met by D's throws (88%) and not by the 0.04 setting's own (E: 80%). Proposed at the time, tested below and not built: a learning that takes the stop's own measured spread into account (for instance the mean of the first errors so far, its gain falling as the throws add up, and nothing learnt within the spread), tried in the simulation on both bands with the rig's spread before it is thrown. A change of the rule is the owner's to approve.
+
+### 12:36 to 13:15: the stop's learning tried on the rig's own stops: kept as it is
+
+The owner took the proposal ("I'll take your proposal"). Tried first in a play of the learning alone, since the simulation's stops spread far less than the rig's: `bench/learning_loop.py` takes each first rest of series D and E plus the stop room it was thrown with as the rig's own noise (48 throws, sd 0.046 gr) and plays 2,000 sessions of 25 throws with each rule, from a stop placed right and placed two digits wrong.
+
+| Stop placed | | The controller's rule (15% of each first error) | Proposed (the mean of the stop rooms each throw asks for, against the placed stop worth 5.3 throws) |
+|---|---|---|---|
+| right | stop room's wander, second half (sd) | 0.0105 gr | 0.0071 gr |
+| right | first rests over, at 0.02 / 0.04 gr | 15.4% / 8.2% | 14.2% / 8.1% |
+| two digits wrong | throws until within half a digit | 13 to 15 | more than 25 |
+
+**Verdict: the proposal fails, and the rule stays.** It wanders a third less but buys a point at most, and it mends a wrong placement too slowly: a stop is learnt to mend a calibration that is off, and the cap of two digits a throw clips a real error with the noise. (Its first form, the mean of the errors themselves, was worse: they shrink as the stop moves.) Nothing is built; `staged.py` is as it was.
+
+**And so E's miss is not the learning's.** With the stop placed right, the walk costs nothing at 0.04 gr: the first rests over are 8% either way, two throws in 25, where E had four (one series in about seven). E's 80% is within the noise of what the rig's stop allows at 0.04 gr; the lead I wrote under series E was a guess from one series, and the play does not bear it out.
+
+**What limits the 0.04 gr band is the stop's spread on the rig, sd 0.046 gr**, wider than the calibration measured it (0.028 at the creep's own stops from rest; 0.039 in its rehearsals). That is a third number for gate 3's calibration to measure in a throw's shape, beside the lags and the grains a turn.
