@@ -41,7 +41,7 @@ Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner (
   - The design drafted from it: `controller_design_draft.md` (Draft, not approved).
 - **Bad gains** (the owner, the same night): "own carried stop, also, consider what if the PID value is bad to begin with."
 - **The facility, not this unit** (the owner, the same night): "I want you to make sure you are building the facility, not sliding into the tuning against this particular unit. Any data captured today should be used for future calibration." The agent agreed, and named where it had slid (below, "Proposed for approval").
-- **The controller's document** (the owner, the same night): a live document of how the charge controller works, "consumed by human and AI agents": `docs/charge_controller.md`, which a change to the controller updates in the same commit (AGENTS.md).
+- **The controller's document** (the owner, the same night): a live document of how the charge controller works, "consumed by human and AI agents". One was written that night (`docs/charge_controller.md`) and **deleted at the owner's word the same night**. It described the branch's debug switches as a user's choices and one unit's calibrated numbers as the controller's, and so misled. Not to be revived from git as it was.
 - PRs are not merged as they stand. Two of them are about tuning (#113, #101). Since 2026-11-15 nothing is kept of them ahead of this ADR's design ("Handed on by ADR-002").
 
 ## Why here
@@ -310,7 +310,7 @@ The controller is the research's frame with proposal 2's finish by default (`res
    - BM2 when the owner loads it.
 - **Sign-off,** as before: the cup lifted and no powder flowing met on both units.
 
-**Built tonight and to be folded or removed by these gates** (each experimental, each in `docs/charge_controller.md`):
+**Built tonight and to be folded or removed by these gates** (each experimental, for evaluation only):
 - `controller=pid_learnt` and `charge_pid_learnt.c`;
 - `ccon speed_law`, `pid_envelope`;
 - the 21 K record;
@@ -349,7 +349,7 @@ Each gate's pass, under "What we do". Together:
 ## Open, to be discussed
 
 - **A powder profile portable and shareable** (the owner, 2026-11-22: "any storage decision should be temporary, and later we will discuss how to make the per powder profile portable and sharable (noted although the powder profile is not 100% portable, but a good profile is a starting point when combined with auto learning feature"). Until it is discussed, every stored form gate 2 has made is temporary: the calibration's slot of each powder profile, the throws' first errors carried into it at a charge's end, the mode in the charge settings' filler. **Closes** when the owner and the agent have settled the stored and shared form, before gate 3's calibration job writes a calibration of its own.
-  - **Drafted** 2026-11-22, 19:45, with the owner's direction of that night (split by physics; the powder's part shared; the scale's and the printed parts' part on the unit, not configurable, backed up and restored; the glide kept beside a PID): [controller_design_draft.md](controller_design_draft.md). It covers one frame with two speed laws, the four records, each parameter's life cycle, the faults, tuning by hand with the auto-tuner, the timings, the servo gate (issue #135), the migration and the stored form, and ends with the owner's eight decisions. Not approved. How the controller works as built: [docs/charge_controller.md](../../charge_controller.md).
+  - **Drafted** 2026-11-22, 19:45, with the owner's direction of that night (split by physics; the powder's part shared; the scale's and the printed parts' part on the unit, not configurable, backed up and restored; the glide kept beside a PID): [controller_design_draft.md](controller_design_draft.md). It covers one frame with two speed laws, the four records, each parameter's life cycle, the faults, tuning by hand with the auto-tuner, the timings, the servo gate (issue #135), the migration and the stored form, and ends with the owner's eight decisions. Not approved.
 
 ## Not in this ADR
 

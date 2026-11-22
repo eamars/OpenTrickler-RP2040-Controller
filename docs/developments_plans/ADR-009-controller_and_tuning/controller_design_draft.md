@@ -1,6 +1,6 @@
 # ADR-009: one frame, two speed laws, a profile split by physics (a draft)
 
-Status: **Draft** 2026-11-22, 19:45 NZDT. Not approved, and nothing here is built beyond the experiments it cites. It answers the README's "Open, to be discussed" item (a powder profile portable and shareable). That item **closes** when the owner has settled the decisions at the end of this page, before gate 3's calibration job writes a calibration of its own. How the controller works today is in [docs/charge_controller.md](../../charge_controller.md); this page is what would change.
+Status: **Draft** 2026-11-22, 19:45 NZDT. Not approved, and nothing here is built beyond the experiments it cites. It answers the README's "Open, to be discussed" item (a powder profile portable and shareable). That item **closes** when the owner has settled the decisions at the end of this page, before gate 3's calibration job writes a calibration of its own.
 
 ## What we want (the owner, 2026-11-22 night)
 
@@ -286,7 +286,7 @@ stateDiagram-v2
 
 ## 8. The live document
 
-[docs/charge_controller.md](../../charge_controller.md) explains how the charge controller works, as built: a throw's states, the predictor, the two laws with real throws as examples, the learning, where each number lives, the faults, and how the simulation and the unit check each other. It is kept true in the same commit as any change to the controller. This page is the design; that one is the record of what is.
+Written the same night (`docs/charge_controller.md`) and deleted at the owner's word: it described the branch's debug switches as a user's choices and one unit's calibrated numbers as the controller's. Not to be revived from git as it was.
 
 ## 9. Other things to weigh
 

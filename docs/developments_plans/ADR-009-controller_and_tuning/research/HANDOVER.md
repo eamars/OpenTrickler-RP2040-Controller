@@ -12,9 +12,8 @@ Written at the owner's request ("prepare to hand over to the next agent to build
 
 1. **`../README.md`:** the owner's direction of 2026-11-22 night (in his words), then **"Proposed for approval: the remaining gates for the final firmware"**. That is the plan. **It is not approved: put it to the owner first** (AGENTS.md: approval first; design gates before build gates).
 2. **`../controller_design_draft.md`** (Draft): one frame with two speed laws, the profile split by physics, each parameter's life cycle, the faults, tuning by hand with the auto-tuner, the timings, the servo gate (issue #135), the migration, the stored form, and the owner's eight decisions. Gate D is the owner settling them.
-3. **`docs/charge_controller.md`:** how the controller works as built, with two real throws, the faults, where every number lives, and the loop between the simulation and the unit. AGENTS.md: a change to the controller updates it in the same commit.
-4. **`pid_learning_2026-11-22.md`:** the night's six experiments, each with its passes written first, its rig ABBA and its verdict.
-5. The section "Where it stood, 2026-11-22, 18:00" below: gate 2 as built, what the day before established.
+3. **`pid_learning_2026-11-22.md`:** the night's six experiments, each with its passes written first, its rig ABBA and its verdict.
+4. The section "Where it stood, 2026-11-22, 18:00" below: gate 2 as built, what the day before established.
 
 ### The principle (the owner, 2026-11-22 night)
 
@@ -111,7 +110,7 @@ The cause: without a calibration the PID stops at its least speed (0.1 rev/s her
   - the offer with a slower fine rule and the mended carry, on the rig;
   - the glide's carry seen settling across sessions.
 
-The owner's design questions are drafted in `../controller_design_draft.md`, and the live description is `docs/charge_controller.md` (AGENTS.md: kept true in the same commit as any change to the controller).
+The owner's design questions are drafted in `../controller_design_draft.md`. (A live description, `docs/charge_controller.md`, was written that night and deleted at the owner's word: it misled.)
 
 The owner, after the first run, settled a direction:
 - split the profile by physics;
