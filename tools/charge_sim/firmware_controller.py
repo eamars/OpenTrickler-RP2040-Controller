@@ -60,7 +60,7 @@ def _types(real) -> tuple:
         _fields_ = ([(name, real) for name in (
             "move_rps", "parcel_s", "fine_top_rps", "coarse_top_rps", "coarse_floor_rps", "dribble_digits_s",
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
-            "learn_dead_digits", "still_least_s")]
+            "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "still_least_s")]
                     + [("most_moves", ctypes.c_uint8)]
                     + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_most_gr")])
 
@@ -128,6 +128,7 @@ class Library:
         lib.shim_parcels.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_double),
                                      ctypes.POINTER(ctypes.c_double)]
         lib.shim_parcels.restype = ctypes.c_uint16
+        lib.shim_set_fine_learning.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_double]
         self.lib = lib
 
     def default_constants(self):
@@ -195,6 +196,10 @@ class FirmwareStaged:
         self.log = []
         self._logged = False
         self._read()
+
+    def set_fine_learning(self, n: int, total: float, current: float) -> None:
+        """The fine tube's learnt state carried from another controller (the check's lockstep)."""
+        self._lib.shim_set_fine_learning(self._c, float(n), total, current)
 
     def _read(self) -> None:
         self._lib.shim_outputs(self._c, self._out)

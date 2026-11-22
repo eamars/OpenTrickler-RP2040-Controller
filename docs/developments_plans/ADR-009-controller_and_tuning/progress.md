@@ -1439,3 +1439,20 @@ What it says:
 - **The forecast and the calibration still hold** (`verify_series.py` on each series): a rest from the creep lies −0.005 to +0.012 gr from the forecast on average; the coarse tube's grains a turn within 4% of the calibration's, the fine tube's within 0 to 12%.
 - **After the verdict:** in 11 throws of 80 the settled weight differed from the rest by a digit (late kernels or the scale's flicker). Fast at 20 gr's two "settled over" are such: +0.04 at rest, +0.06 settled.
 - **The step pulses:** no late feed on either motor over the 82 throws (`motor`: 0 and 0), the creep at 0.029 and 0.058 rev/s.
+
+## 2026-11-22, 15:30 to 15:45: the fine tube's grains a turn learnt over a session, on the unit; the fine-tube session's forecast
+
+From the talk of this afternoon (`research/talk_2026-11-22.md`, a record, not a reference): the owner, "Yes. let's try it." and, for the tests, "let's skip the coarse trickler, as the coarse tricker doesn't contribute to the accuracy, and we are already satisfied with its performance. Therefore, perhaps let's only trickle on small tube, with 5 gr target?" At 5 gr the controller already runs the fine tube alone (a charge under the coarse tube's margin and half its turn, 5.7 gr here, is the fine tube's), so these throws are what a small charge is on any unit.
+
+**Built** (the reference `staged.Staged` and `src/charge_control.c` alike):
+- each throw's fine powder from the fine tube's slowing (after the coarse tube is quiet, if it ran) to the first rest, over the fine turns whose powder showed in that stretch, each parcel at its own lag;
+- the figure used is the session's mean of those against the calibration's, which counts for 3 throws (`ccon learn_fine_prior`, 0 to switch it off), never more than 25% from it (`learn_fine_most`);
+- the throw line gives `fine_gr` and `learnt`.
+Gate 1's check with it on: lockstep 200 of 200 in all 8 sets, float and counted within the noise, the rules agree: **pass**. No stored layout changes: the learning is the controller's, for one charge.
+
+**Found on the way, and corrected in the talk record:** the variant of the talk read its stretch with one lag for all turns and so read the figure low; its 1.3 to 2.1 s were that. `verify_series.py` now takes each turn at its own lag; the rig's finish still pours 0.64 to 0.71 gr a fine turn against the 0.715 thrown with.
+
+**The session:** the Pico 2 W, the A&D, AR2209, series D's calibration (fine 0.715), fast mode, `fine_top_rps=1.0`, 5 gr, 20 throws a series: first with the learning off (`learn_fine_prior=0`), then on.
+- **Pass, the learning:** with it on, the figure in use by the series' end within 5% of the fine figure `verify_series.py` gives for that series' own throws, and below 0.715 (the rig pours less at the finish than calibrated).
+- **Pass, no harm:** with it on, the median no longer than with it off, and the overs no more than three throws above it.
+- **Expected:** the figure near 0.65 within about ten throws; the time a second shorter at most (the simulation, a calibration 15% high at 5 gr: 0.5 s with AR2209, 1.4 s with BM2); the accuracy as with it off.

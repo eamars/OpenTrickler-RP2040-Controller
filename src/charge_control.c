@@ -30,6 +30,7 @@ typedef charge_control_real_t real_t;
 // A weight at rest lies on the scale's digits, and a reading less a large base is off them in real_t by more than a
 // millionth (10.02 over a cup of 60 gr: 0.0200043): the band's edge is a quarter digit past the band
 #define BAND_EDGE_DIGITS REAL(0.25)
+#define LEARN_FINE_LEAST_TURNS REAL(0.2)    // a stretch shorter than this teaches nothing (staged.py's)
 // Two times this close are the same time: a tie on the millisecond's grid falls the same way in real_t as in the
 // reference's double (staged.py's TIE_S)
 #define TIE_S REAL(1e-4)
@@ -48,6 +49,8 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->learn_share = REAL(0.15);
     k->learn_most_digits = REAL(2.0);
     k->learn_dead_digits = REAL(0.25);
+    k->learn_fine_prior = REAL(3.0);
+    k->learn_fine_most = REAL(0.25);
     k->still_least_s = REAL(0.4);
     k->most_moves = 8;
     k->throw_most_s = REAL(120.0);
@@ -200,6 +203,7 @@ void charge_control_init(charge_control_t *c, const charge_control_calibration_t
     c->rehearsal = rehearsal;
     c->stop_room_gr = cal->stop_room_gr;
     c->move_turns = -REAL(1.0);
+    c->fine_gr_measured = cal->fine_gr_turn;
 }
 
 
@@ -241,6 +245,11 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     c->have_first_error = false;
     c->first_error_gr = REAL(0.0);
     c->rest_weight = REAL(0.0);
+    c->coarse_ran = c->coarse_on;
+    c->coarse_off_s = -REAL(1.0);
+    c->window_open = false;
+    c->window_reading = REAL(0.0);
+    c->window_shown_turns = REAL(0.0);
 }
 
 
@@ -342,6 +351,9 @@ static void feed(charge_control_t *c, real_t now_s) {
         if (room <= cal->coarse_room_gr) {
             c->coarse_on = false;
             c->coarse_rps = REAL(0.0);
+            if (c->coarse_off_s < REAL(0.0)) {
+                c->coarse_off_s = now_s;
+            }
         }
         else {
             real_t asked = (room - cal->coarse_room_gr) / (cal->coarse_gr_turn * cal->coarse_glide_s);
@@ -415,6 +427,55 @@ static const charge_control_move_t *move_for(const charge_control_t *c, real_t s
 
 
 // A share of the first error at rest moves where the fine tube stops: capped, and nothing from a small one
+// The fine tube's turns whose powder has not shown yet: its parcels on their way
+static real_t fine_unseen_turns(const charge_control_t *c) {
+    real_t grains = REAL(0.0);
+    for (uint16_t i = 0; i < c->parcel_count[FINE]; i++) {
+        grains += c->parcels[FINE][i].grains;
+    }
+    return grains / c->cal.fine_gr_turn;
+}
+
+
+// The fine tube's stretch begins at the first reading at which it is slowing, the coarse tube quiet if it ran
+static void open_window(charge_control_t *c, real_t now_s, real_t weight) {
+    const charge_control_calibration_t *cal = &c->cal;
+    if (c->window_open || c->rehearsal || !(c->k.learn_fine_prior > REAL(0.0)) || c->phase != CHARGE_CONTROL_PHASE_FEED) {
+        return;
+    }
+    if (!(c->fine_rps > REAL(0.0) && c->fine_rps < c->k.fine_top_rps)) {
+        return;
+    }
+    if (c->coarse_ran && (c->coarse_off_s < REAL(0.0) ||
+                          now_s < c->coarse_off_s + cal->coarse_stops[0].quiet_s + REAL(0.3) - TIE_S)) {
+        return;
+    }
+    c->window_open = true;
+    c->window_reading = weight;
+    c->window_shown_turns = c->turned[FINE] - fine_unseen_turns(c);
+}
+
+
+// The stretch's powder over its turns, into the session's mean against the calibration's figure
+static void learn_fine(charge_control_t *c, real_t at_rest) {
+    const charge_control_constants_t *k = &c->k;
+    if (!c->window_open || !(k->learn_fine_prior > REAL(0.0))) {
+        return;
+    }
+    real_t turns = c->turned[FINE] - fine_unseen_turns(c) - c->window_shown_turns;
+    real_t gained = at_rest - c->window_reading;
+    if (turns < LEARN_FINE_LEAST_TURNS || gained <= REAL(0.0)) {
+        return;
+    }
+    c->fine_learn_n++;
+    c->fine_learn_sum += gained / turns;
+    real_t mean = (k->learn_fine_prior * c->fine_gr_measured + c->fine_learn_sum) /
+                  (k->learn_fine_prior + (real_t) c->fine_learn_n);
+    real_t most = k->learn_fine_most * c->fine_gr_measured;
+    c->cal.fine_gr_turn = min_f(c->fine_gr_measured + most, max_f(c->fine_gr_measured - most, mean));
+}
+
+
 static void learn(charge_control_t *c) {
     const charge_control_calibration_t *cal = &c->cal;
     const charge_control_constants_t *k = &c->k;
@@ -469,6 +530,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
         stop_all(c, CHARGE_CONTROL_RESULT_LIMIT, weight);
         return;
     }
+    open_window(c, now_s, weight);
     if (c->phase != CHARGE_CONTROL_PHASE_REST) {
         return;
     }
@@ -492,6 +554,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
         c->have_first_error = true;
         c->first_error_gr = at_rest - c->target_gr;
         learn(c);
+        learn_fine(c, at_rest);
     }
     real_t band_edge = cal->band_gr + BAND_EDGE_DIGITS * cal->digit_gr;
     if (c->rehearsal || short_gr <= band_edge || !tries_left) {

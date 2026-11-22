@@ -124,6 +124,11 @@ typedef struct {
     charge_control_real_t learn_share;              // of a throw's first error at rest, into where the fine tube stops
     charge_control_real_t learn_most_digits;        // no throw teaches more than this
     charge_control_real_t learn_dead_digits;        // nor less
+    // The fine tube's grains a turn learnt over a session (ADR-009, 2026-11-22): the calibration's figure counts
+    // for this many throws against the throws' own (0: none learnt), and the figure never moves further than
+    // learn_fine_most of it
+    charge_control_real_t learn_fine_prior;
+    charge_control_real_t learn_fine_most;
     charge_control_real_t still_least_s;            // at rest: no new high for this long, or two reading intervals if longer
     uint8_t most_moves;             // tries a throw is given after its first rest
     // Limits of the firmware's own, not the research's: a throw that passes one ends with CHARGE_CONTROL_RESULT_LIMIT
@@ -145,6 +150,11 @@ typedef struct {
     bool moves_by_caller;           // the caller makes each small move to its count, and says when (the unit);
                                     // else a move ends by the time its turns take at move_rps (the simulation)
     charge_control_real_t stop_room_gr;             // where the fine tube stops, as learned from throw to throw
+    // The fine tube's grains a turn learnt from throw to throw: the calibration's, and the throws' sum and count;
+    // the figure in use is cal.fine_gr_turn
+    charge_control_real_t fine_gr_measured;
+    charge_control_real_t fine_learn_sum;
+    uint16_t fine_learn_n;
 
     // Out, read after every call
     charge_control_real_t coarse_rps;
@@ -183,6 +193,12 @@ typedef struct {
     uint8_t streams;                // times a rest far short sent the throw back to the stream
     bool have_first_error;
     charge_control_real_t first_error_gr;
+    // The fine tube's stretch, its learning's: from its slowing, the coarse tube quiet if it ran, to the first rest
+    bool coarse_ran;
+    charge_control_real_t coarse_off_s;             // below zero until the coarse tube stops at its margin
+    bool window_open;
+    charge_control_real_t window_reading;
+    charge_control_real_t window_shown_turns;       // the fine tube's turns whose powder had shown at its start
 } charge_control_t;
 
 void charge_control_default_constants(charge_control_constants_t *k);

@@ -45,6 +45,14 @@ void shim_outputs(const charge_control_t *c, double *out) {
     out[18] = c->speed[1];
 }
 
+// The fine tube's learning carried from another controller (the check's lockstep: a throw starts from the
+// reference's learnt state, as it starts from its learnt stop)
+void shim_set_fine_learning(charge_control_t *c, double n, double sum, double current) {
+    c->fine_learn_n = (uint16_t) n;
+    c->fine_learn_sum = (charge_control_real_t) sum;
+    c->cal.fine_gr_turn = (charge_control_real_t) current;
+}
+
 // A tube's parcels on their way (0 coarse, 1 fine), for a test: their count, and each one's due time and grains
 uint16_t shim_parcels(const charge_control_t *c, int tube, double *due_s, double *grains) {
     for (uint16_t i = 0; i < c->parcel_count[tube]; i++) {
