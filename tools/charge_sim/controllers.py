@@ -8,7 +8,7 @@ import rigs
 import staged
 from calibrate import calibrate
 from flow_dose import DoseSettings, FlowDose
-from legacy_pid import AR2209_PICO2W, AR2209_PICOW_168, PICO2W_KP08, PICO2W_SLOW_FINISH, ForecastPid, LegacyPid
+from legacy_pid import AR2209_PICO2W, AR2209_PICOW_168, PICO2W_KP08, PICO2W_SLOW_FINISH, ForecastPid, GuardedPid, LegacyPid
 from throw import Session
 
 VERDICT_TOLERANCE_GR = 0.03
@@ -121,7 +121,38 @@ def make_forecast_pid_picow(rig, seed: int = 0) -> tuple:
     return ForecastPid(AR2209_PICOW_168, staged.measure(rig, seed), rig.acceleration_rps2), VERDICT_TOLERANCE_GR
 
 
-CONTROLLERS = {"forecast_pid_picow": make_forecast_pid_picow, "legacy_picow": make_legacy_picow, "legacy_picow_loose": make_legacy_picow_loose,
+def guarded_cal(rig, seed: int):
+    return staged.for_finish(staged.measure(rig, seed), "glide", 0.02)
+
+
+def make_guarded_pid(rig, seed: int = 0) -> tuple:
+    """The talk of 2026-11-22: the owner's PID stream, the forecast's early stop, a top-up at the profile's least speed."""
+    return GuardedPid(AR2209_PICOW_168, guarded_cal(rig, seed), rig.acceleration_rps2), VERDICT_TOLERANCE_GR
+
+
+def make_guarded_pid_creep(rig, seed: int = 0) -> tuple:
+    """The same, its top-up at the calibration's creep in place of the profile's least speed."""
+    cal = guarded_cal(rig, seed)
+    return GuardedPid(AR2209_PICOW_168, cal, rig.acceleration_rps2, creep_rps=cal.floor_rps), VERDICT_TOLERANCE_GR
+
+
+def make_glide_quick_rest(rig, seed: int = 0) -> tuple:
+    """The talk of 2026-11-22: proposal 2 with its rest judged when the forecast holds nothing to show."""
+    return staged.make_quick_rest(rig, seed, "glide", 0.02), VERDICT_TOLERANCE_GR
+
+
+def make_glide_loose_quick_rest(rig, seed: int = 0) -> tuple:
+    return staged.make_quick_rest(rig, seed, "glide", 0.04), LOOSE_TOLERANCE_GR
+
+
+def make_guarded_pid_forecast(rig, seed: int = 0) -> tuple:
+    """The talk of 2026-11-22: the owner's PID gains on the forecast, its early stop, a top-up at the least speed."""
+    return GuardedPid(AR2209_PICOW_168, guarded_cal(rig, seed), rig.acceleration_rps2, on_forecast=True),         VERDICT_TOLERANCE_GR
+
+
+CONTROLLERS = {"guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
+               "guarded_pid": make_guarded_pid, "guarded_pid_creep": make_guarded_pid_creep,
+               "forecast_pid_picow": make_forecast_pid_picow, "legacy_picow": make_legacy_picow, "legacy_picow_loose": make_legacy_picow_loose,
                "glide_coarse_low": make_glide_coarse_low, "glide_fine_high": make_glide_fine_high,
                "glide_all_off": make_glide_all_off,
                "glide_pc_lags": make_glide_pc_lags, "glide_borrowed": make_glide_borrowed, "jog_borrowed": make_jog_borrowed, "glide": make_glide, "glide_loose": make_glide_loose, "jog": make_jog, "jog_loose": make_jog_loose,

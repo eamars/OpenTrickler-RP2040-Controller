@@ -586,3 +586,24 @@ def rehearse(cal: Calibration, session, acceleration_rps2: float) -> None:
 def make(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shift_s: float = 0.0,
          gr_turn_factors: tuple = (1.0, 1.0)) -> Staged:
     return Staged(calibrate(rig, seed, finish, band_gr, lag_rig, lag_shift_s, gr_turn_factors), rig.acceleration_rps2)
+
+
+class StagedQuickRest(Staged):
+    """A variant talked over on 2026-11-22, tried in the simulation; not a plan (research/talk_2026-11-22.md).
+
+    The staged controller, its rest judged as soon as the forecast holds nothing still to show (under half a digit)
+    and the reading has stopped rising, in place of the wait the calibration sets from its slowest stops (`rest_s`,
+    and each move's watched wait).
+    """
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        now = now_ms / 1000.0
+        if self.phase == "rest" and self.stopped_at is not None:
+            unseen = sum(parcel[1] for parcel in self.parcels if parcel[0] > now + TIE_S)
+            if unseen < self.cal.digit_gr / 2.0:
+                self.wait = min(self.wait, max(0.0, now - self.stopped_at))
+        super().on_reading(now_ms, weight)
+
+
+def make_quick_rest(rig, seed: int, finish: str, band_gr: float) -> Staged:
+    return StagedQuickRest(calibrate(rig, seed, finish, band_gr), rig.acceleration_rps2)

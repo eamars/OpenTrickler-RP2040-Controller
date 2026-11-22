@@ -176,3 +176,67 @@ class ForecastPid(LegacyPid):
         now = now_ms / 1000.0
         self.parcels = [p for p in self.parcels if p[0] > now]
         super().on_reading(now_ms, weight + sum(p[1] for p in self.parcels))
+
+
+class GuardedPid(ForecastPid):
+    """A design talked over on 2026-11-22, tried in the simulation; not a plan (research/talk_2026-11-22.md).
+
+    Today's PID loop runs the stream on the reading, as it does now. The forecast runs beside it and stops the
+    stream early, when it says the powder already turned out will bring the cup to the stop room under the target.
+    Then no wait for the scale to be steady: as soon as the forecast holds nothing still to show (under half a digit)
+    the reading is taken; under the target by more than the band, the fine tube tops up at its least speed until the
+    forecast reaches the stop room again; within the band, done. The stop room is learnt over the session from each
+    throw's first such reading, as the staged controller learns its stop.
+    """
+
+    name = "guarded_pid"
+
+    def __init__(self, profile: Profile, cal, acceleration_rps2: float, creep_rps: float = None,
+                 on_forecast: bool = False):
+        super().__init__(profile, cal, acceleration_rps2)
+        import staged
+        self._staged = staged
+        self.stop_room = cal.stop_room_gr
+        self.creep_rps = creep_rps if creep_rps is not None else profile.fine_min_rps
+        self.on_forecast = on_forecast      # the PID loop's speeds made from the forecast in place of the reading
+
+    def start(self, target_gr: float, now_ms: float) -> None:
+        super().start(target_gr, now_ms)
+        self.phase = "stream"
+        self.first_error = None
+        self.tops = 0
+        self.stopped_at = None
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        now = now_ms / 1000.0
+        cal = self.cal
+        self.parcels = [p for p in self.parcels if p[0] > now]
+        unseen = sum(p[1] for p in self.parcels)
+        forecast = weight + unseen
+        if self.phase in ("stream", "creep") and forecast >= self.target - self.stop_room:
+            self.coarse_rps = self.fine_rps = 0.0
+            self.phase, self.stopped_at = "settle", now
+            return
+        if self.phase == "stream":
+            LegacyPid.on_reading(self, now_ms, forecast if self.on_forecast else weight)
+            if self.done:               # the PID loop's own stop came first
+                self.done = False
+                self.phase, self.stopped_at = "settle", now
+            return
+        if self.phase == "creep":
+            self.fine_rps = self.creep_rps
+            return
+        # settle: the reading is taken once nothing is left to show by the forecast, with no wait for steady
+        if unseen >= cal.digit_gr / 2.0 or now < self.stopped_at + 2.0 * cal.interval_s:
+            return
+        error = weight - self.target
+        if self.first_error is None:
+            self.first_error = error
+            off = max(-2.0, min(2.0, (error - cal.aim_gr) / cal.digit_gr))
+            if abs(off) >= 0.25:
+                self.stop_room += 0.15 * off * cal.digit_gr
+        if error < -(cal.band_gr + cal.digit_gr / 4.0) and self.tops < 8:
+            self.tops += 1
+            self.phase, self.fine_rps = "creep", self.creep_rps
+            return
+        self.done = True
