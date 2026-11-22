@@ -2,6 +2,12 @@
 
 Status: **Draft** 2026-11-22, 19:45 NZDT. Not approved, and nothing here is built beyond the experiments it cites. It answers the README's "Open, to be discussed" item (a powder profile portable and shareable). That item **closes** when the owner has settled the decisions at the end of this page, before gate 3's calibration job writes a calibration of its own.
 
+**Overridden in part, 2026-11-22, about 22:00,** by the README's "Sign-off: what ADR-009 delivers", which wins where the two differ:
+- **One controller, no choice:** no `auto` per powder, no law a user pins; the speed laws are internal.
+- **The user's PID values stay in the powder profile as they are,** corrected by the calibration and the auto-tuner. The draft's move of them out of the profile is withdrawn.
+- **The existing settings are not legacy:** their function is kept.
+- **A user's AI agent may change a unit's calibration and learnt data directly,** on the user's yes, through the API. Never during development.
+
 ## What we want (the owner, 2026-11-22 night)
 
 - "Use legacy PID parameter that people already uses, so they don't need to re-tune everything."

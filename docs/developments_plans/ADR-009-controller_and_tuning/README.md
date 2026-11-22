@@ -42,6 +42,20 @@ Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner (
 - **Bad gains** (the owner, the same night): "own carried stop, also, consider what if the PID value is bad to begin with."
 - **The facility, not this unit** (the owner, the same night): "I want you to make sure you are building the facility, not sliding into the tuning against this particular unit. Any data captured today should be used for future calibration." The agent agreed, and named where it had slid (below, "Proposed for approval").
 - **The controller's document** (the owner, the same night): a live document of how the charge controller works, "consumed by human and AI agents". One was written that night (`docs/charge_controller.md`) and **deleted at the owner's word the same night**. It described the branch's debug switches as a user's choices and one unit's calibrated numbers as the controller's, and so misled. Not to be revived from git as it was.
+- **What ADR-009 must deliver** (the owner, 2026-11-22, about 22:00, his hard gates; the agent's comments and the owner's answers settled them into the sign-off list below). The final controller SHALL:
+  1. "From user's perspective, one controller. You can run multiple controllers behind the sense in parallel, including the auto tuner and predictor, but NONE should be visible to the user."
+  2. "New parameters or settings should be organized, approved explicitly by myself, with justification."
+  3. "Auto learned data, and calibration data shall allow the export and import, but not exposed to the average user. Also, be VERY CAREFUL with what makes people thinking the parameter is portable and sharable. Advanced settings exclusive one particular opentrickler shall be nested under settings, not to be confused with the powder profile, and I don't want you to explicit write anything in the settings page or sorts 'this is not portable'. No, this is bad UI design."
+  4. "Use common sense when delivering. DO NOT slip into the tuning session. Tuning must through calibration, no other routes during development."
+  5. "Tuning shall allow the help from external AI agent for an average user."
+- **The owner's answers to the agent's comments** (the same exchange):
+  - "One slip of #5 per your understanding: You are forbidden to tune on my unit, but firmware should allow the tuning of calibration by user's AI agent in the future."
+  - "User's existing PID data can live as is, and I'd expect two ways can be used to correct: the auto tuner and calibration. The autotuner should automatically correct the value over the coarse of the trickle, and the calibration should fix the PID, and other 'hidden' variables off one go." Read here, as the agent answered and the owner did not correct:
+    - the auto-tuner corrects, throw by throw, the measured numbers each throw shows (the stop, the grains a turn, the lag);
+    - the PID values are derived from those by the calibration's own rule, never learnt as free numbers.
+  - "You should not need to touch the existing settings, and they are not legacy. Its function must also be preserved (with bug fixed of course)."
+  - "You can record your hand tuned value, this is a good indication of what the auto tuner and calibration should achieve at the end of the calibration."
+  - "Agent can override values with agreement from the user. Just like what you did today to help with calibration, but NEVER to be done during the development. The development should aim to improve the auto tuner and calibration so they will automatically derive the hand tuned values, without the help from AI. If not, then the calibration routine needed to be fixed. But again, the procedure should be made generic, not tuned towards MY unit."
 - PRs are not merged as they stand. Two of them are about tuning (#113, #101). Since 2026-11-15 nothing is kept of them ahead of this ADR's design ("Handed on by ADR-002").
 
 ## Why here
@@ -266,7 +280,8 @@ The controller is the research's frame with proposal 2's finish by default (`res
 **The gates proposed,** in order. Each ends in a pass written before it is run. Gates 0 to 2 stand as built; gate 2 keeps its last piece.
 1. **Gate 2's rest:** the API's recordings (`/api/v1/recordings`), as planned.
 2. **Gate D, the design settled** (a design gate, before any build below):
-   - The owner decides `controller_design_draft.md`'s eight questions: one frame with two speed laws; the four records; learning never overwriting the seed; `auto` per powder; issue #135; the backup; the shared powder figures; the order.
+   - The owner decides what the sign-off (below) leaves open in `controller_design_draft.md`. The sign-off already settles: one controller with no choice; the user's PID values staying where they are; the existing settings kept.
+   - The register's first entries are made and approved.
    - **Closes** the README's "Open, to be discussed" item.
 3. **Gate S, the simulation from the night's data.** From the recordings (`tools/charge_sim/recordings/`, the series of 11-21 and 11-22), model the two blind spots the rig found:
    - the scale's lag growing at a low flow (the rig's learnt figure 1.2 to 2.1 gr a turn of the window, the simulation's 0.75);
@@ -287,7 +302,7 @@ The controller is the research's frame with proposal 2's finish by default (`res
    - the gate's waits and the preload in the forecast (issue #135), and the reverse's spill in the forecast;
    - the cup-lifted and no-powder checks.
    - **The constants above** go to the device record or the calibration: the scale's lag and rest from the device record, the frame's tops from the calibration's measured range.
-   - `controller=pid_learnt` goes; today's `pid` loop stays until gate 6.
+   - Every debug choice goes from the user's reach (sign-off item 1): `controller`, the mode, `pid_learnt`, `speed_law`. The existing settings keep their function (item 3).
    - **Pass:**
      - the throw-for-throw check for both laws and both sources;
      - `robust_staged.py` with every case, `cup_lifted` and a new `no_powder` among them;
@@ -303,7 +318,7 @@ The controller is the research's frame with proposal 2's finish by default (`res
 7. **Gates 4 and 5, the screens and the web:**
    - designed (mocks for the owner), then built;
    - adding the law per powder, "set" and "in use", the offer, keeping and forgetting what was learnt, a new lot, the backup and restore.
-8. **Gate 6, what to keep:** today's `pid` loop and its settings, with the evidence gathered (the night's ABBAs, and the shadow law in the recordings if built).
+8. **Gate 6, the migration shown:** an update from 2.0.3 on both units, every setting and profile kept and working in the one controller (sign-off items 3 and 10), and today's loop's code removed once the results bar (item 11) is met against it.
 9. **Gate 7, the Pico W, a second powder, and the facility's proof.** On a unit it was not built on (the Pico W at .168, the owner's own trickler with its own tubes), from nothing:
    - calibrate, take the offer, throw both laws, with no hand settings;
    - **pass:** gate 2's bar on that unit.
@@ -337,14 +352,94 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
 
 **How the unit shows it works:** a gate fitted on the bench (or, before one is, a servo on its connector), tuned from the set-up and again from Settings on the screen and on the web; both shutters closing and opening at their ends; a charge with the gate, `charge_cycle` passing; the stored ends surviving a restart.
 
-## How the unit shows it works
+## Sign-off: what ADR-009 delivers
 
-Each gate's pass, under "What we do". Together:
-- The C controller gives the reference's verdicts on the PC, in CI (gate 1).
-- On the rig with AR2209 at 10 gr, from the unit's own calibration: at least 68% good within 0.02 gr in a median 13 s or less, at least 84% within 0.04 gr, every throw recorded (gates 2 and 3).
-- The PID loop and the new one side by side on one firmware, the same rig, powder and target (gate 6).
-- `charge_cycle`, `pulses`, `menu_tour`, `reach`, `api_check` and `settings_roundtrip` pass, on the Pico 2 W and the Pico W (gates 2, 5 and 7).
-- **Safety, a condition of sign-off, not of any one gate** (the owner, 2026-11-22: "The safety must be a sign off condition, but not the current focus"): a cup lifted during a throw stops both tubes until it is back. Found on the unit on 2026-11-22: with the cup lifted for 2 s in the coarse stream, both loops kept turning at full speed and poured about 48 gr onto the bare pan (`tools/charge_sim/bench/robust_staged.py`, case `cup_lifted`; progress.md, 13:46). It holds for every loop the ADR leaves to users (gate 6 decides whether the PID loop is one). Shown by `robust_staged.py` passing every case, `cup_lifted` among them, on the Pico 2 W and the Pico W, before the ADR is closed.
+Settled with the owner 2026-11-22, about 22:00 (his hard gates and answers, under "Owner's direction"). This list replaces "How the unit shows it works" as it was approved on 2026-11-21: its items are folded in below. **ADR-009 closes when every item is shown,** each by the proof named with it, on the units named. An agent who builds toward it reads this list first. A piece of work that serves none of it is out of scope; raise it with the owner, do not build it.
+
+**The final controller SHALL:**
+
+1. **Be one controller to the user.**
+   - The screen, the web and the API show one controller. Its parts (the predictor, the auto-tuner, the calibration's rules, any speed law) run inside it, none of them visible or chosen.
+   - The debug switches of the build go before the close: `settings/charge controller`, `settings/charge mode`, `controller=pid_learnt`, `ccon speed_law` and the like. What the bench still needs stays on the console only, never in the API or the screens.
+   - *Shown by:* the API's index and schema, `menu_tour` and the web's pages carrying no such choice; the API frozen with it at the first user release.
+2. **Change no parameter or setting without the owner's approval.** Every one added, kept with a new meaning, moved or removed is an entry in the parameter register (below), with its justification and the owner's approval and date.
+   - *Shown by:* the register complete against the stored records and the settings tables, every entry approved.
+3. **Keep the existing settings and their function** (the owner: "they are not legacy"), with their bugs fixed.
+   - Each one's meaning in the one controller is a register entry: the fine stop threshold as the user's tolerance; the coarse stop threshold, the back-off, the precharge, the gate at the coarse stop, the decimal places.
+   - A bug fix that changes what a user's setting does (the D term taken per millisecond, for one) is an entry of its own.
+   - *Shown by:* each existing setting's function shown on the unit; `settings_roundtrip` and `api_check` pass.
+4. **Keep the user's PID values where they are, and correct them two ways:**
+   - **the calibration,** one routine on the user's word, which measures the unit and derives every number in one go (the PID values, the stop, the hidden ones), stored on the user's yes;
+   - **the auto-tuner,** which corrects throw by throw the measured numbers the throws show (the stop, the grains a turn, the lag). The PID values are derived from those by the calibration's own rule, never learnt as free numbers.
+   - A powder never calibrated runs from the user's PID values, guarded by the controller's frame (the forecast, the speed envelope, the settled verdict), from its first charge.
+   - *Shown by:* a powder with no calibration throwing on the unit; a calibration changing its PID values on yes; the auto-tuner's corrections bounded and recorded.
+5. **Keep a unit's own data apart from the powder profile.**
+   - Calibration and learnt data that belong to one OpenTrickler are nested under Settings (an advanced part), never in the powder profile, with no words telling the user what is or is not portable: the structure keeps them apart.
+   - They export and import through that advanced part and the backup, not exposed to the average user. The backup holds everything, so an update or a factory reset loses nothing. An import never applies another unit's own data to this one.
+   - *Shown by:* backup, factory reset and restore giving every calibration back; another unit's backup imported leaving this unit's own data as it was; the screens' and web's mocks approved by the owner.
+6. **Derive every number it uses from a rule of the controller or from this unit's calibration and learning,** never from one unit's throws.
+   - During development nobody tunes the bench unit's numbers except by running the calibration itself. A value found by hand is recorded in the yardstick (below) as what the calibration and auto-tuner must reach by themselves. If they cannot, the calibration is mended, generically.
+   - *Shown by:* an inventory of every numeric constant in the controller, each a rule with its reason or read from the calibration; the yardstick reached by the calibration with no hand settings; and **the proof on a unit it was not developed on**: the Pico W at .168, the owner's own trickler with its own tubes, calibrated from nothing, throwing to the results bar with no hand settings.
+7. **Let a user's AI agent help tune that unit,** through the public API, on the user's agreement:
+   - read the unit's calibration, learnt data, throw recordings, verdicts and events;
+   - run the calibration;
+   - change the calibration and learnt data directly. Each write is checked against its schema and bounds, backed up first, logged as the agent's, revertable, and stored on the user's yes.
+   - The safety rules (item 8) are never within its reach.
+   - Never done during development (item 6).
+   - *Shown by:* an `api_check` covering these actions; a write outside its bounds refused; a write reverted; the event log naming the agent.
+8. **Be safe:**
+   - no turning without a fresh reading;
+   - every fault stops both tubes before anything else: a scale lost or unsteady, a driver fault, a limit passed, **a cup lifted mid-throw** (the owner's sign-off condition of 2026-11-22), **no powder flowing** (an empty hopper, a jammed tube, a gate that did not open);
+   - a throw past its limits ends short, never over.
+   - *Shown by:* `robust_staged.py` with every case, `cup_lifted` and `no_powder` among them, on the Pico 2 W and the Pico W; `pulses`.
+9. **Lose no feature a user has:** the servo gate (its waits by its own travel, issue #135), the precharge (counted in the forecast), the back-off (its spill counted), the LEDs and the verdict, series of charges, the API's throw and its events.
+   - *Shown by:* each on the unit; the gate's on the day one is fitted, with a servo on its connector before.
+10. **Migrate transparently:**
+    - an update from 2.0.3 keeps every profile and setting;
+    - the first charge after it works with no calibration;
+    - the calibration is offered, never forced.
+    - *Shown by:* the update on both units from 2.0.3, the settings compared before and after (`rc_run.py settings --compare`), and a charge thrown at once.
+11. **Meet the results bar,** at the user's tolerance, on two units and two powders:
+    - no worse than today's loop with the user's own settings on the same unit;
+    - within the owner's over budget of one in fifteen where the powder allows it;
+    - where a powder cannot (clumps), the calibration's verdict tells the user so, in words.
+    - *Shown by:* ABBA series against today's loop, written first; the gate-2 figures of the Pico 2 W with AR2209 as the floor already met.
+12. **Have its calibration as a job on the unit:**
+    - the cup step kept;
+    - bounded in powder and time, stoppable;
+    - its verdict in words;
+    - stored on the user's yes, run again whenever wanted;
+    - measuring what the controller needs, generically: each tube's lag at every flow down to the creep, the grains a turn at each speed, the stop's spread against the approach time, the reverse's spill.
+    - *Shown by:* gate 3's pass, and the yardstick reached.
+13. **Learn within bounds, stably.**
+    - A session resting on its aim leaves the next one's stop where it was (the carry's fault of 2026-11-22).
+    - No session moves a stored number past its bound.
+    - The simulated scale teaches nothing.
+    - *Shown by:* simulation cases and a test on the unit for each.
+14. **Pass the proofs,** on the Pico 2 W and the Pico W: `menu_tour`, `reach`, `api_check`, `settings_roundtrip`, `charge_cycle`, `pulses`, the controller's throw-for-throw check against its reference in CI, and memory and timing on the Pico W.
+15. **Declare every stored layout change in this ADR,** each with its migration, as AGENTS.md asks.
+
+### The yardstick: values found by hand on the bench unit
+
+Recorded at the owner's word ("this is a good indication of what the auto tuner and calibration should achieve"). They are the Pico 2 W's, with the A&D FX-300i and the air-exposed AR2209 (`tools/charge_sim/recordings/`, `progress.md`).
+- **They are a target, never a constant:** the calibration on the unit, and the auto-tuner after it, must reach them by themselves (item 6). They do not port to any other unit.
+
+| What was set by hand | The calibration's value | Set to | What it gave | Where |
+|---|---|---|---|---|
+| Every lag (scale and powder) | as the PC measured it through the console | 0.055 s earlier | the coarse tube on time; the median 18.0 to 13.7 s | progress.md, 2026-11-22, series C (`--lag-shift -0.055`) |
+| The coarse tube's grains a turn | 9.60 | 10.17, from the throws | with the fine's below: 80% within 0.02 gr, 11.7 s (series D) | progress.md, 12:12 |
+| The fine tube's grains a turn at the finish | 0.797 | 0.715, from the throws (later throws 0.63 to 0.71) | the same | the same |
+| The fine tube's top | 0.5 rev/s (the default) | 1.0 rev/s (`ccon fine_top_rps=1.0`) | every glide series since 11-21; fast at 10 gr 90% within 0.04, 8.2 s | progress.md, 14:57 |
+| The fine figure's learning | on | off (`learn_fine_prior=0`) | it read through the fine tube's unmeasured lag at 1 rev/s | progress.md, 16:23 to 16:37 |
+| The stop | placed by the PC's rehearsals | placed from series A's own throws (0.034 gr) | series B | progress.md, series B |
+| The owner's own PID values on his trickler (.168) | none | fine kp 0.8, kd 15, 0.08 to 2 rev/s; coarse kp 0.05, kd 0.3, 0.1 to 8 rev/s; coarse stop 5 gr | today's loop on his rig, about one over in 10 to 15; on the bench unit, his fine values in the controller's frame with the coarse tube's from the calibration, 17 of 20 within 0.04 gr, 10.5 s | `recordings/settings_picow_168_20261122`, `research/pid_learning_2026-11-22.md` |
+
+### The parameter register
+
+Every parameter or setting the work adds, keeps with a new meaning, moves or removes, one line each. **Nothing in it is approved until the owner's approval and date are in its row** (item 2). The design draft's records (`controller_design_draft.md`, sections 6 and 7) are its first candidates. So are the existing settings' meanings in the one controller (item 3), and the night's experimental stores (the 21 K record, `ccon`'s constants).
+
+| Parameter | Where it is stored | Who sets it | The powder's or this unit's | Default, bounds | Why | Its life cycle | Approved |
+|---|---|---|---|---|---|---|---|
 
 ## Open, to be discussed
 
