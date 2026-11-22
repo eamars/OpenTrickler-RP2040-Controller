@@ -537,7 +537,8 @@ def shift_lags(cal: Calibration, shift_s: float) -> None:
         setattr(cal, name, [dataclasses.replace(stop, lag_s=max(0.0, stop.lag_s + shift_s)) for stop in getattr(cal, name)])
 
 
-def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shift_s: float = 0.0) -> Calibration:
+def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shift_s: float = 0.0,
+              gr_turn_factors: tuple = (1.0, 1.0)) -> Calibration:
     """The whole calibration: the open-loop measurements, the rules, then rehearsals that place the stop.
 
     With `lag_rig`, the scale's part (the stops by flow) is taken from a calibration on that rig, another powder
@@ -549,6 +550,9 @@ def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shi
         borrow_stops(cal, measure(lag_rig, seed + 7))
     if lag_shift_s:
         shift_lags(cal, lag_shift_s)
+    # each tube's grains a turn off by these factors, to see what a calibration's error costs (2026-11-22)
+    cal.coarse_gr_turn *= gr_turn_factors[0]
+    cal.fine_gr_turn *= gr_turn_factors[1]
     set_rules(cal, finish, band_gr)
     rehearse(cal, Session(rig, seed + 1), rig.acceleration_rps2)
     return cal
@@ -579,5 +583,6 @@ def rehearse(cal: Calibration, session, acceleration_rps2: float) -> None:
     cal.coarse_room_gr += shift
 
 
-def make(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shift_s: float = 0.0) -> Staged:
-    return Staged(calibrate(rig, seed, finish, band_gr, lag_rig, lag_shift_s), rig.acceleration_rps2)
+def make(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shift_s: float = 0.0,
+         gr_turn_factors: tuple = (1.0, 1.0)) -> Staged:
+    return Staged(calibrate(rig, seed, finish, band_gr, lag_rig, lag_shift_s, gr_turn_factors), rig.acceleration_rps2)

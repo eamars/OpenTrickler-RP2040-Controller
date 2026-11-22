@@ -38,6 +38,12 @@ AR2209_PICO2W = Profile(coarse_kp=0.02, coarse_ki=0.0, coarse_kd=0.3, coarse_min
 # The two other settings recorded as real throws on 2026-11-20: the fine gain the measurements give, and that
 # gain with a slow finish (the fine tube held to 1.5 rev/s, its least speed 0.03).
 PICO2W_KP08 = dataclasses.replace(AR2209_PICO2W, fine_kp=0.8)
+# The owner's own trickler, the Pico W at 192.168.2.168, its AR2209 profile as he tuned it by hand (read over its web
+# API on 2026-11-22, logs/adr009/picow_168_20261122; the same as on 11-19): the coarse tube's top of 8 rev/s held to
+# its motor's 5. Its charge settings are the defaults here (stops at 5 and 0.03 gr, the back-off on). Its own tubes
+# and gears are not the bench's: on the bench's rig these are its gains, not its rig
+AR2209_PICOW_168 = Profile(coarse_kp=0.05, coarse_ki=0.0, coarse_kd=0.3, coarse_min_rps=0.1, coarse_max_rps=5.0,
+                           fine_kp=0.8, fine_ki=0.0, fine_kd=15.0, fine_min_rps=0.08, fine_max_rps=2.0)
 PICO2W_SLOW_FINISH = dataclasses.replace(AR2209_PICO2W, fine_kp=0.8, fine_max_rps=1.5, fine_min_rps=0.03)
 
 
@@ -125,3 +131,48 @@ class LegacyPid:
             return
         self.coarse_rps = -speed
         self.backoff_until_ms = now_ms + time_ms
+
+
+class ForecastPid(LegacyPid):
+    """Today's loop, its gains untouched, fed the staged controller's forecast in place of the reading (2026-11-22).
+
+    The forecast is the reading and the powder turned out that it does not show yet: each tube's turns (reckoned from
+    the speeds it asked for, at the motors' ramp) at the calibration's grains a turn, each parcel due after the lag
+    the calibration measured at its flow. A tube turned backwards pours nothing. A question for the simulation: what
+    the PID loop gains by knowing what is in the air, with nothing else of the staged controller.
+    """
+
+    name = "forecast_pid"
+
+    def __init__(self, profile: Profile, cal, acceleration_rps2: float):
+        super().__init__(profile)
+        import staged
+        self.cal = cal
+        self.acceleration = acceleration_rps2
+        self.lags = {"coarse": staged.lag_table(cal.coarse_stops, cal.coarse_gr_turn),
+                     "fine": staged.lag_table(cal.fine_stops, cal.fine_gr_turn)}
+        self.gr_turn = {"coarse": cal.coarse_gr_turn, "fine": cal.fine_gr_turn}
+        self._table = staged.table
+
+    def start(self, target_gr: float, now_ms: float) -> None:
+        super().start(target_gr, now_ms)
+        self.speed = {"coarse": 0.0, "fine": 0.0}
+        self.parcels = []           # (due s, grains)
+        self.last_tick_s = now_ms / 1000.0
+
+    def on_tick(self, now_ms: float) -> None:
+        now = now_ms / 1000.0
+        dt = now - self.last_tick_s
+        self.last_tick_s = now
+        for tube, asked in (("coarse", self.coarse_rps), ("fine", self.fine_rps)):
+            change = self.acceleration * dt
+            v = self.speed[tube]
+            v = min(asked, v + change) if v < asked else max(asked, v - change)
+            self.speed[tube] = v
+            if v > 0.0 and dt > 0.0:
+                self.parcels.append((now + self._table(self.lags[tube], v), v * dt * self.gr_turn[tube]))
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        now = now_ms / 1000.0
+        self.parcels = [p for p in self.parcels if p[0] > now]
+        super().on_reading(now_ms, weight + sum(p[1] for p in self.parcels))
