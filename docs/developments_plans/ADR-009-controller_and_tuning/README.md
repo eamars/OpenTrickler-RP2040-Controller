@@ -259,6 +259,7 @@ Each gate's pass, under "What we do". Together:
 - On the rig with AR2209 at 10 gr, from the unit's own calibration: at least 68% good within 0.02 gr in a median 13 s or less, at least 84% within 0.04 gr, every throw recorded (gates 2 and 3).
 - The PID loop and the new one side by side on one firmware, the same rig, powder and target (gate 6).
 - `charge_cycle`, `pulses`, `menu_tour`, `reach`, `api_check` and `settings_roundtrip` pass, on the Pico 2 W and the Pico W (gates 2, 5 and 7).
+- **Safety, a condition of sign-off, not of any one gate** (the owner, 2026-11-22: "The safety must be a sign off condition, but not the current focus"): a cup lifted during a throw stops both tubes until it is back. Found on the unit on 2026-11-22: with the cup lifted for 2 s in the coarse stream, both loops kept turning at full speed and poured about 48 gr onto the bare pan (`tools/charge_sim/bench/robust_staged.py`, case `cup_lifted`; progress.md, 13:46). It holds for every loop the ADR leaves to users (gate 6 decides whether the PID loop is one). Shown by `robust_staged.py` passing every case, `cup_lifted` among them, on the Pico 2 W and the Pico W, before the ADR is closed.
 
 ## Not in this ADR
 
