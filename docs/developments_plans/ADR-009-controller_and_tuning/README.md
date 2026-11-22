@@ -56,6 +56,9 @@ Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner (
   - "You should not need to touch the existing settings, and they are not legacy. Its function must also be preserved (with bug fixed of course)."
   - "You can record your hand tuned value, this is a good indication of what the auto tuner and calibration should achieve at the end of the calibration."
   - "Agent can override values with agreement from the user. Just like what you did today to help with calibration, but NEVER to be done during the development. The development should aim to improve the auto tuner and calibration so they will automatically derive the hand tuned values, without the help from AI. If not, then the calibration routine needed to be fixed. But again, the procedure should be made generic, not tuned towards MY unit."
+- **The auto-tuner's switch, and the design overview** (the owner, the same exchange):
+  - "I'd like to add the switch to the auto tuner so user can disable it on demand. And the auto tuner should be turned on."
+  - "At the end of ADR-009, the new controller design overview should be drafted, with correct level of information disclosed, NEVER drift the document into a development note."
 - PRs are not merged as they stand. Two of them are about tuning (#113, #101). Since 2026-11-15 nothing is kept of them ahead of this ADR's design ("Handed on by ADR-002").
 
 ## Why here
@@ -372,7 +375,13 @@ Settled with the owner 2026-11-22, about 22:00 (his hard gates and answers, unde
    - **the calibration,** one routine on the user's word, which measures the unit and derives every number in one go (the PID values, the stop, the hidden ones), stored on the user's yes;
    - **the auto-tuner,** which corrects throw by throw the measured numbers the throws show (the stop, the grains a turn, the lag). The PID values are derived from those by the calibration's own rule, never learnt as free numbers.
    - A powder never calibrated runs from the user's PID values, guarded by the controller's frame (the forecast, the speed envelope, the settled verdict), from its first charge.
-   - *Shown by:* a powder with no calibration throwing on the unit; a calibration changing its PID values on yes; the auto-tuner's corrections bounded and recorded.
+   - **The auto-tuner has a switch the user can turn off on demand, and it is on by default** (the owner). It is a setting of the register (its first row). Where it sits, once for the unit or for each powder, is decided at gate D, and so is what "off" keeps.
+   - *Shown by:*
+     - a powder with no calibration throwing on the unit;
+     - a calibration changing its PID values on yes;
+     - the auto-tuner's corrections bounded and recorded;
+     - with the switch off, a session that corrects nothing and carries nothing;
+     - a new or reset unit with the switch on.
 5. **Keep a unit's own data apart from the powder profile.**
    - Calibration and learnt data that belong to one OpenTrickler are nested under Settings (an advanced part), never in the powder profile, with no words telling the user what is or is not portable: the structure keeps them apart.
    - They export and import through that advanced part and the backup, not exposed to the average user. The backup holds everything, so an update or a factory reset loses nothing. An import never applies another unit's own data to this one.
@@ -418,6 +427,21 @@ Settled with the owner 2026-11-22, about 22:00 (his hard gates and answers, unde
     - *Shown by:* simulation cases and a test on the unit for each.
 14. **Pass the proofs,** on the Pico 2 W and the Pico W: `menu_tour`, `reach`, `api_check`, `settings_roundtrip`, `charge_cycle`, `pulses`, the controller's throw-for-throw check against its reference in CI, and memory and timing on the Pico W.
 15. **Declare every stored layout change in this ADR,** each with its migration, as AGENTS.md asks.
+16. **Have its design overview drafted at the end of ADR-009,** with the right level of information, and never a development note (the owner).
+    - **Its reader:** a person or an agent who needs to know how the controller works and why, without reading the code. A contributor, an advanced user, or a user's AI agent helping with a unit.
+    - **What it holds:**
+      - what the controller does for the user, and what the user gives it;
+      - its parts by their role (the predictor, the calibration, the auto-tuner, the safety rules) and how they work together through a throw and a session;
+      - the rules it keeps and why, in words and symbols;
+      - what a user and an agent can see and change, and where;
+      - what the controller will never do.
+    - **What it never holds:**
+      - development history, experiments, results, figures or numbers of any one unit;
+      - debug switches, console commands, internal constants' values;
+      - the state of gates or of work in progress.
+    - **The first attempt, deleted:** a "live document" of 2026-11-22 night held all of these and misled. Its lesson stands here: the overview describes the design, not a branch.
+    - **Its outline is approved by the owner before it is written.** It changes only when the design changes, on the owner's word.
+    - *Shown by:* the owner's approval of the outline, then of the overview.
 
 ### The yardstick: values found by hand on the bench unit
 
@@ -440,6 +464,7 @@ Every parameter or setting the work adds, keeps with a new meaning, moves or rem
 
 | Parameter | Where it is stored | Who sets it | The powder's or this unit's | Default, bounds | Why | Its life cycle | Approved |
 |---|---|---|---|---|---|---|---|
+| The auto-tuner's switch | To be decided at gate D: a setting of the unit, or of each powder | The user, on demand; an agent on the user's yes | To be decided at gate D | On | The owner: "so user can disable it on demand" | Recommended (for gate D): off freezes the auto-tuner, nothing more learnt or carried, the numbers in use kept; going back to the calibration's own numbers is a separate "forget what was learnt" | The switch and its default on: the owner, 2026-11-22. Where it sits and what off keeps: not yet |
 
 ## Open, to be discussed
 
