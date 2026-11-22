@@ -97,10 +97,16 @@ def main() -> int:
     parser.add_argument("--lag-shift", type=float, default=0.0,
                         help="seconds added to every stop's lag before it is written: -0.055 for a calibration made by "
                              "the PC through the console, whose lags ran that far behind the firmware's (2026-11-22)")
+    parser.add_argument("--mode", choices=("accurate", "fast"),
+                        help="the charge's mode, set live and never stored: the staged controller's rules made for "
+                             "its band (0.02 or 0.04 gr) and the glide, whatever --finish and --band say; the throws "
+                             "are judged at that band")
     parser.add_argument("--coarse-gr-turn", type=float, help="in place of the calibration's: a figure the throws gave "
                         "(verify_series.py)")
     parser.add_argument("--fine-gr-turn", type=float, help="in place of the calibration's, as --coarse-gr-turn")
     args = parser.parse_args()
+    if args.mode:
+        args.finish, args.band = "glide", {"accurate": 0.02, "fast": 0.04}[args.mode]
 
     kept = json.loads(args.calibration.read_text())
     cal = staged.from_json(kept.get("calibration", kept))
@@ -125,7 +131,7 @@ def main() -> int:
     folder.mkdir(parents=True)
     record = {"name": args.name, "started": stamp, "target_gr": args.target, "finish": args.finish,
               "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "ccon_asked": args.ccon,
-              "lag_shift_s": args.lag_shift,
+              "lag_shift_s": args.lag_shift, "mode": args.mode,
               "coarse_gr_turn": cal.coarse_gr_turn, "fine_gr_turn": cal.fine_gr_turn, "throws": []}
     started_charge = False
     try:
@@ -148,6 +154,8 @@ def main() -> int:
         session.send("ccon")
         record["ccon"] = list(session.console.data_lines)
         session.send("setting settings/charge controller=staged")
+        if args.mode:
+            session.send(f"setting settings/charge mode={args.mode}")
         session.console.charge_events.clear()
         reply = session.send(f"charge {args.target:g} series {args.throws}")
         if reply is None or not reply.startswith("@ok"):
@@ -192,6 +200,7 @@ def main() -> int:
             session.send("charge stop")
         for tube in ("coarse", "fine"):
             session.send(f"motor {tube} 0")
+        session.send("setting settings/charge revert")     # the mode and the controller back as stored
         # Each throw's settled weight: the next one's base less its own
         throws = record["throws"]
         for i, entry in enumerate(throws):

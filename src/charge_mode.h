@@ -27,6 +27,14 @@ typedef enum {
     CHARGE_CONTROLLER_PID = 1,
 } charge_controller_t;
 
+// The staged controller's pace (ADR-009, the MVP of 2026-11-22): the band it pours to, its glide made for it
+typedef enum {
+    CHARGE_TRICKLE_ACCURATE = 0,    // within 0.02 gr
+    CHARGE_TRICKLE_FAST = 1,        // within 0.04 gr
+} charge_trickle_mode_t;
+#define CHARGE_TRICKLE_ACCURATE_BAND_GR 0.02f
+#define CHARGE_TRICKLE_FAST_BAND_GR 0.04f
+
 typedef struct {
     uint16_t charge_mode_data_rev;
 
@@ -41,6 +49,8 @@ typedef struct {
     // Which loop pours a throw (ADR-009): charge_controller_t. In the filler after the bool above, so the record's
     // size and CRC stay: a unit's stored 0 there is the staged controller
     uint8_t controller;
+    // The staged controller's pace: charge_trickle_mode_t, in the same filler (a stored 0 is accurate, today's band)
+    uint8_t trickle_mode;
     float coarse_stop_backoff_turns; // 0.125, 0.25, 0.5, 1.0
     float coarse_stop_backoff_speed_rps; // if <=0 uses min speed
 

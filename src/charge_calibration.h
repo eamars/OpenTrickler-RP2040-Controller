@@ -37,7 +37,8 @@ typedef struct {
 const charge_control_constants_t *charge_calibration_constants(void);
 
 // The calibration of a powder profile with its rules made, for a throw. False when the profile has none
-bool charge_calibration_get(uint8_t profile, charge_control_calibration_t *out);
+// With band_gr above 0, its rules are made for that band and the glide, whatever band the calibration was written for
+bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calibration_t *out);
 // Whether it holds one a throw may use, for a start's refusal
 bool charge_calibration_held(uint8_t profile);
 

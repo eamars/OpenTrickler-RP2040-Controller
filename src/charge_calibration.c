@@ -38,10 +38,17 @@ static uint16_t charge_calibration_addr(uint8_t profile) {
 
 
 // The rules made from a record's measured part, its finish and band, then its stop placed by its rehearsals
-static void charge_calibration_make(const charge_calibration_record_t *record, charge_control_calibration_t *out) {
+static void charge_calibration_make(const charge_calibration_record_t *record, float band_gr,
+                                    charge_control_calibration_t *out) {
     *out = record->measured;
-    charge_control_set_rules(out, (charge_control_finish_t) record->measured.finish, record->measured.band_gr,
-                             charge_calibration_constants());
+    charge_control_finish_t finish = (charge_control_finish_t) record->measured.finish;
+    if (band_gr > 0.0f) {
+        finish = CHARGE_CONTROL_FINISH_GLIDE;       // the modes are the glide's (ADR-009, 2026-11-22)
+    }
+    else {
+        band_gr = record->measured.band_gr;
+    }
+    charge_control_set_rules(out, finish, band_gr, charge_calibration_constants());
     if (record->first_error_count > 0) {
         charge_control_place_stop(out, record->first_errors, record->first_error_count);
     }
@@ -137,16 +144,16 @@ bool charge_calibration_held(uint8_t profile) {
 }
 
 
-bool charge_calibration_get(uint8_t profile, charge_control_calibration_t *out) {
+bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calibration_t *out) {
     if (charge_calibration_simulated_scale() && profile < MAX_PROFILE_CNT) {
         charge_calibration_simulated(&charge_calibration_read);
-        charge_calibration_make(&charge_calibration_read, out);
+        charge_calibration_make(&charge_calibration_read, band_gr, out);
         return true;
     }
     if (!charge_calibration_held(profile)) {
         return false;
     }
-    charge_calibration_make(&charge_calibration_read, out);
+    charge_calibration_make(&charge_calibration_read, band_gr, out);
     return true;
 }
 
@@ -214,7 +221,7 @@ static void charge_calibration_show(const charge_calibration_record_t *record, r
         return;
     }
     charge_control_calibration_t made;
-    charge_calibration_make(record, &made);
+    charge_calibration_make(record, 0.0f, &made);
     snprintf(line, sizeof(line), "@cal rules finish=%s band=%g floor=%g stop_room=%g aim=%g glide_room=%g glide=%g",
              made.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide", made.band_gr, made.floor_rps,
              made.stop_room_gr, made.aim_gr, made.glide_room_gr, made.glide_s);

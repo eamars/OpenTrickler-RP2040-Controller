@@ -1389,3 +1389,25 @@ The owner: "consider and compare the old PID in simulation first, you can plug i
 - **The PID loop fed the forecast** (`legacy_pid.ForecastPid`, its gains untouched) is no longer over (10% at most, on either scale) but short (48 to 79%): it has no finish. The forecast and a finish together are the staged controller; what the PID loop can give it is speed (its waits) and plain gains made by the calibration.
 
 **The owner on the cup lifted mid-throw (14:10):** "Document in the ADR sign off. I don't want you to lose your focus to the controller design to the safety. The safety must be a sign off condition, but not the current focus." Written into the README's "How the unit shows it works" as a condition of the ADR's sign-off: `robust_staged.py`'s `cup_lifted` passes on both units, for every loop left to users, before the ADR closes. Nothing built now.
+
+## 2026-11-22, 14:47 to 14:49: the two modes on the unit (an MVP), and their session's forecast
+
+The owner, after the talk of this afternoon (`research/talk_2026-11-22.md`, a record, not a reference): "I'd like to see the MVP running ... build it first on the target, and let's have a real world trickling session, each 10-20gr trickle target, with different mode, and let's compare the real world obseration versus the simulation." No plan revision: how the parameters are packed is still open.
+
+**Built, the least that runs the two modes:**
+- `settings/charge mode`: `accurate` (within 0.02 gr) or `fast` (within 0.04 gr), applied at the next charge;
+- at each staged charge's start the calibration's rules are made for the mode's band and the glide, whatever band the calibration was written with (`charge_calibration_get(profile, band, ...)`);
+- **stored layout, said here:** `trickle_mode` is a byte in the charge settings' filler after `controller` (0x1A); `eeprom_charge_mode_data_t` stays 64 bytes, the next field at 0x1C as before, so a unit's stored record keeps its CRC and a stored 0 there is accurate, the band of every throw before;
+- `series.py --mode` sets it live, never stored, judges the throws at its band, and puts the stored charge settings back at the end.
+Not built: the mode on the screen and in the portal's form (the screens are gates 4 and 5).
+
+**The session:** the Pico 2 W, the A&D FX-300i, the air-exposed AR2209, series D's calibration (lags 0.055 s earlier, grains a turn 10.17 and 0.715), B's first errors, `fine_top_rps=1.0`. Four series of 20 throws, the modes taken in turn: accurate at 10 gr, fast at 10 gr, accurate at 20 gr, fast at 20 gr. That is 1,200 gr; the cup holds 600 before a series stops, so the owner empties it between.
+
+**The simulation's forecast** (AR2209's record, 300 throws each, its own calibration, each mode judged at its own band; `fit/study_20261122/mvp_forecast_*gr.txt`):
+
+| Mode | 10 gr: good / over / median | 20 gr: good / over / median |
+|---|---|---|
+| accurate, ±0.02 | 72% / 26% / 12.5 s | 76% / 22% / 12.9 s |
+| fast, ±0.04 | 91% / 8% / 10.0 s | 90% / 10% / 10.6 s |
+
+**What the rig is expected to show against it,** from series D and E: accurate about as the simulation or better (D was 80% good, 20% over, at 11.7 s, where the simulation said 72%); fast worse than the simulation (E was 80% good, 20% over, at 9.2 s, where it said 91%), since the rig's stops scatter more than the simulation's (sd 0.046 against 0.028 gr) and a wider band leaves more to that scatter. At 20 gr the coarse tube pours more and the time grows by about a second. The comparison is judged figure by figure: good, over, median time, the coarse tube's share, and the forecast against the rest (`verify_series.py`).

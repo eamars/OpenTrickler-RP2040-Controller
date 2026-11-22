@@ -1131,8 +1131,11 @@ uint8_t charge_mode_menu(void) {
         // The controller and its calibration for this charge, from the heap, given back as the charge ends: the Pico
         // W has no RAM to keep them for a charge that may never come
         charge_staged_block = (charge_staged_block_t *) pvPortMalloc(sizeof(charge_staged_block_t));
+        // The mode's band: the calibration's rules are made for it at each charge's start (ADR-009, 2026-11-22)
+        float band_gr = charge_mode_config.eeprom_charge_mode_data.trickle_mode == CHARGE_TRICKLE_FAST ?
+                        CHARGE_TRICKLE_FAST_BAND_GR : CHARGE_TRICKLE_ACCURATE_BAND_GR;
         const char *refused = charge_staged_block == NULL ? "No memory" :
-            !charge_calibration_get((uint8_t) profile_get_selected_idx(), &charge_staged_block->cal) ?
+            !charge_calibration_get((uint8_t) profile_get_selected_idx(), band_gr, &charge_staged_block->cal) ?
             "Not calibrated" : NULL;
         if (refused != NULL) {
             // Refused at the start already (charge_mode_request_start) when not calibrated; here only if the slot
@@ -1222,6 +1225,9 @@ bool charge_mode_config_init(void) {
     // The controller sits in a filler byte (ADR-009): anything but a known loop there is the staged controller
     if (charge_mode_config.eeprom_charge_mode_data.controller > CHARGE_CONTROLLER_PID) {
         charge_mode_config.eeprom_charge_mode_data.controller = CHARGE_CONTROLLER_STAGED;
+    }
+    if (charge_mode_config.eeprom_charge_mode_data.trickle_mode > CHARGE_TRICKLE_FAST) {
+        charge_mode_config.eeprom_charge_mode_data.trickle_mode = CHARGE_TRICKLE_ACCURATE;
     }
 
     // Register to eeprom save all
