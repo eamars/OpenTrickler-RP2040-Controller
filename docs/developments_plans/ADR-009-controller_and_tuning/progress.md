@@ -1513,3 +1513,34 @@ The owner: "Yes, simulation first then on the bench."
 - The difference it could make (under a second, in the simulation) is smaller than one series' drift from the next.
 - The time is in the top-ups (a throw with none, 10.5 to 12.6 s; with one, 17 to 24 s), and the overs are the stream's stop and the clumps, as before.
 - The learning stays in the code, on by default since 15:45 (`learn_fine_prior`, `learn_fine_split`). Whether to switch it off is the owner's.
+
+## 2026-11-22, 16:45: learning on and off from a fresh calibration, its passes written first
+
+The owner, on the sessions before: "My only concern is your result is biased, because you have access to all data, and calibration is almost perfectly turned for this setup, the learning benefits is already built-in to the calibration". Agreed: series D's calibration had been mended by hand from this rig's own throws (the lags, both grains a turn), which is the learning's work done at the desk. Then: "Perhaps let's assume we know nothing, and for a system let's starts with calibration, then trickle with learning on and off for a simple test."
+
+**The test:**
+- **A fresh calibration** by `bench/trial.py` (the PC through the console, as the trial of 11-21), its measurements and, for each finish and band, its own ten rehearsals; no throws by the PC.
+- **One known fault of that tool corrected, and nothing else:** its lags are the PC's, 0.055 s late, which a calibration on the unit would not have (`--lag-shift -0.055`). Its grains a turn and its stop stay as it measured them.
+- **Two series of the firmware from it:** 5 gr, the fine tube alone, fast mode, `fine_top_rps=1.0`, 20 throws each. First with every learning off (`learn_share=0 learn_fine_prior=0`: the stop and the fine figure as calibrated), then with both on (`learn_share=0.15 learn_fine_prior=3 learn_fine_split=1`, the defaults).
+
+**The passes, judged within each series** (two series an hour apart with nothing changed differed by a second, so medians across series judge nothing):
+- **The learning moves the right way:** with it on, by the 20th throw the median first rest of the last ten throws within a digit of the aim (−0.02 gr), and the fine figures off the calibrated one in the direction of the throws' own grains over turns.
+- **The learning pays within the session:** with it on, the last ten throws' median time shorter than the first ten's by more than the same difference with it off; or, if the times do not move, the last ten throws' overs fewer than the first ten's by more than with it off.
+- **Expected:** the calibration's fine figure from runs at 1 rev/s from rest, about 0.77 to 0.80; its rehearsals, by the PC at the reference's top of 0.5 rev/s, placing the firmware's stop (at 1 rev/s) off by a digit or two. With the learning off that offset stays all series; with it on, the stop room moves it out within about ten throws (15% of each first error). The fine figures matter less: under a second, in the simulation.
+
+### 16:46 to 17:17: the fresh calibration, and the learning off and on from it: judged
+
+**The calibration** (`recordings/20261122_164634_trial_pico2w_ar2209`): 9.2 min and 164 gr of measurements, then four sets of ten rehearsals (the tool's `--throws 0`, which first stopped on its own summary of a set with no throws: mended in `trial.py`). Coarse 10.19, fine 0.814 gr a turn, from runs at 1 rev/s from rest. The glide at 0.04's rehearsals rested −3 to +5 digits from the target, its stop room 0.030 gr. Its lags shifted 0.055 s earlier for the firmware, nothing else changed.
+
+| Fresh calibration, 5 gr, the fine tube alone, fast, 20 throws | First ten: good / over / median | Last ten: good / over / median | All twenty |
+|---|---|---|---|
+| every learning off (16:51) | 6 / 4 / 13.8 s | 7 / 3 / 14.3 s | 65% good, 7 over, 14.0 s |
+| the learning on (17:11) | 7 / 3 / 12.3 s | 9 / 1 / 11.6 s | 80% good, 4 over, 12.1 s |
+
+**Against the passes:**
+- **The learning moves the right way: pass for the stop, fail for the fine figures.** The last ten first rests' median is −0.02, the aim. The stop room moved from 0.030 to 0.042 gr: the tool's rehearsals (by the PC, its fine top 0.5 rev/s) had placed the firmware's stop late. The fine figures did not settle on anything the throws show. The finish's went to its limit (0.814 to 0.611, −25%) and the stream's to 0.932, while the throws' own grains over turns are 0.831. The stream's stretch is read through the fine tube's lag at 1 rev/s, which no calibration has measured (16:37); these figures carry that fault.
+- **The learning pays within the session: pass, on its letter.** With it on, the last ten were 0.7 s quicker than the first ten and had 1 over against 3; with it off, 0.5 s slower and 3 against 4. Ten throws a half is little; across the two series the learning's was the better (80% against 65%, 12.1 against 14.0 s), within about two of the noise's widths of twenty throws and a second of the drift seen at 16:37.
+
+**What it comes to:**
+- **The owner's point stands.** From a calibration that knows nothing of the rig's throws, the learning is worth having. Most of what it bought here is the stop's learning, which mended a stop the tool's own rehearsals had placed late.
+- **The fine figures' learning is not to be trusted as it reads now:** one hit its limit, the other ran past the throws' own figure. It needs the fine tube's lags at the speeds a throw uses, a calibration's job (gate 3), before its figures mean anything.

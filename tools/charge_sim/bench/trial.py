@@ -408,6 +408,8 @@ def summed(throws: list, band_gr: float, digit: float, aim_gr: float) -> dict:
     errors = [throw["rest_error_gr"] for throw in throws]
     times = [throw["elapsed_s"] for throw in throws]
     count = len(throws)
+    if count == 0:      # a set rehearsed and not thrown (--throws 0: a calibration for the firmware's own throws)
+        return {"throws": 0}
     return {"throws": count,
             "good": sum(1 for error in errors if abs(error) < edge) / count,
             "over": sum(1 for error in errors if error >= edge) / count,
@@ -489,6 +491,8 @@ def run_trial(unit, folder: Path, target_gr: float, throws_a_set: int, say=print
                 f"at rest {(result.true_gr - target_gr) / cal.digit_gr:+.1f} digits: {result.verdict}")
         summary[name] = summed(kept["throws"], band, cal.digit_gr, cal.aim_gr)
         figures = summary[name]
+        if not figures["throws"]:
+            continue
         say(f"{name}: good {figures['good']:.0%}, over {figures['over']:.0%}, under {figures['under']:.0%}; "
             f"{figures['time_median_s']:.1f} s, one in twenty over {figures['time_most_s']:.1f} s; "
             f"{figures['moves']:.1f} moves a throw, back to the stream {figures['streams']:.2f} times; the first "
@@ -525,6 +529,8 @@ def forecast(record: str, target_gr: float, throws_a_set: int, out: Path, scratc
 def compare(summary: dict, expected: dict, say=print) -> None:
     """Each of the trial's figures beside the forecast's range."""
     for name, figures in summary.items():
+        if not figures["throws"]:
+            continue        # rehearsed, not thrown
         for figure in ("good", "over", "first_near", "time_median_s", "first_spread_digits", "moves"):
             row = expected["sets"][name][figure]
             inside = row["low"] <= figures[figure] <= row["high"]
