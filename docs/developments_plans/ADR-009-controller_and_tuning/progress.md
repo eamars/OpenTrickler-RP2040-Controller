@@ -1337,7 +1337,7 @@ The owner took the proposal ("I'll take your proposal"). Tried first in a play o
 
 **What limits the 0.04 gr band is the stop's spread on the rig, sd 0.046 gr**, wider than the calibration measured it (0.028 at the creep's own stops from rest; 0.039 in its rehearsals). That is a third number for gate 3's calibration to measure in a throw's shape, beside the lags and the grains a turn.
 
-## 2026-11-22, 13:20 to 13:45: gate 2's proofs on the Pico 2 W
+## 2026-11-22, 13:29 to 13:45: gate 2's proofs on the Pico 2 W
 
 The owner: "Proofs next ... don't drift into the tuning. your job is to verify the robustness of the controller." The cup emptied.
 
@@ -1361,3 +1361,21 @@ The mend (`step_pulses.c`): a segment's steps rounded up, so a segment is never 
 - the cup is lifted when the charge asks for it, and put back as before;
 - its calibration is its own, written from those numbers (a stop at any speed leaves half an interval of flow unseen, a move releases its turns' powder): used whenever the simulated scale runs, whatever the profile holds; nothing stored is read or written.
 Then: the staged controller 30.000 for 30, 5.7 s (first rest −0.06, four moves); the PID loop, switched to live and back, 30.000, 8.5 s.
+
+### 13:46 to 13:55: the staged controller under faults, on the unit (`bench/robust_staged.py`)
+
+Each case a charge of 20 gr on the simulated scale (10 readings a second: a pause after 300 ms without one, lost after 1 s), one fault put in at a stage of the throw, `state` read every 30 ms. The passes are in the tool's head, written before its first run.
+
+| Case | Staged | PID loop | What was seen |
+|---|---|---|---|
+| none | pass | | a throw, no pause (19.98, 4.1 s) |
+| three frames that do not parse, in the coarse stream | pass | | counted (`bad_frames` +3), no pause, a throw |
+| no reading for 0.6 s: in the coarse stream / the fine creep / a small move | pass ×3 | | a pause after 300 ms, both tubes still to the quiet's end, resumed from the settled weight, a good throw (the move cut short and its powder taken from the settled weight) |
+| no reading for 5 s, in the coarse stream | pass | | paused, then "Charge: ended, Scale: no reading", both tubes still |
+| `charge stop` in the coarse stream | pass | pass | over 16 ms after it; both tubes still from 0.2 s (the coarse tube's ramp down) |
+| the fine driver read as shorted, in the fine stream | pass | | "Charge: ended, Fine driver short", both tubes still |
+| the cup lifted for 2 s in the coarse stream, then put back | **fail** | **fail** | both tubes turned the whole time the cup was off, in both loops. The staged throw ended at its limit, 49.7 gr for 20: 48 gr poured onto the bare pan |
+
+Two faults of the harness, not of the unit, mended on the way: the stop's window was judged with no samples once the charge had ended; an aborted charge left the simulated pan full, so the next case waited for a zero (the simulated scale is now zeroed between cases, as a person empties the cup).
+
+**Found, for the owner: a cup lifted mid-throw is poured on, in both loops.** The reading falls by the cup's weight, both loops read it as a charge far short, and both turn at full speed. Not new: today's PID loop does the same. The staged controller already holds that powder only adds (its rest is a reading that makes no new high); a reading that falls well below the throw's highest (more than a few of the scale's digits; a cup is grams) is a cup lifted or something knocked, and both tubes would pause, as at a missing reading, until the reading is back where it was. Not built: it changes what both loops do, and the plan keeps the PID loop as it is.
