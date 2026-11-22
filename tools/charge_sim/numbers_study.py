@@ -97,10 +97,22 @@ def main() -> None:
             for scale in args.scales.split(","):
                 rig = scales_like.like(rigs.get_rig(rig_name), scale)
                 for band, tolerance in BANDS:
+                    # Every case of this rig and band in one pass over the workers: the same throws as one by one
+                    cases = [(None, None, 1), (None, None, 2)] + [(name, value, 1) for _, name, given in studied
+                                                                    for value in values(name, given)]
+                    jobs = [mc.session_jobs(rig, case_name(name, value, band), TARGET_GR, args.throws, seed)
+                            for name, value, seed in cases]
+                    flat = [job for case_jobs in jobs for job in case_jobs]
+                    results = pool.map(mc.run_session, flat)
+                    done, at = {}, 0
+                    for case, case_jobs in zip(cases, jobs):
+                        throws = [r for rs in results[at:at + len(case_jobs)] for r in rs]
+                        at += len(case_jobs)
+                        s = mc.summarise(throws, tolerance)
+                        done[case] = (s["good_true"], s["over_true"], s["time_median"])
+
                     def run(name, value, seed=1):
-                        s = mc.summarise(mc.run_many(rig, case_name(name, value, band), TARGET_GR, args.throws, seed,
-                                                     pool), tolerance)
-                        return s["good_true"], s["over_true"], s["time_median"]
+                        return done[(name, value, seed)]
                     base = run(None, None)
                     again = run(None, None, seed=2)
                     n_good, n_over = noise(base[0], args.throws), noise(base[1], args.throws)

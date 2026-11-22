@@ -202,9 +202,24 @@ The proposals above come from the code, its comments and the record. What remain
   - **The noise:** two SDs of the difference between two independent runs of 800, 2 × √(2p(1 − p)/800), from the baseline's share p. The baseline is run on a second seed as well, to show it.
   - **One amendment before the run:** a 200-throw timing check showed the baseline's median moving 1.5 s between two seeds. So where the baseline's two seeds differ by more than 0.5 s in median, that case's median bar is their difference.
   - **The literals named first:** in `staged.py`, as module constants. The firmware's lockstep check passes on both laws, so the refactor changed nothing.
-- **The limits that may never bind** (D7, D8): read from the 53 recorded series whether the clamp ever acted.
-- **The fallback before any calibration** (G1, G2): what errs short on every recorded scale and powder.
-- **The fixed weights in grains** (D9's 0.2 gr, C19's turns, C20, E13): their meaning on a scale set to grams.
+- **The limits, checked 2026-11-22, 23:05** (D7, D8): 0.6 × the lag against each limit, on the three distinct calibrations in the recordings, and on the simulation's calibrations of both records on the five scales (three seeds each):
+  - **D7's 2.0 s acts** on the slowest stand-in scale with AR2209 (2.12 to 2.30 s, so held at 2.0); nowhere else. Its 0.4 s never acts: the least was 0.53 s, on the bench.
+  - **D8's 0.3 s comes within 0.02 s of acting on the bench** (0.320 to 0.359 s); its 1.5 s never acts (the most was 1.07 s).
+  - So two of the four limits matter: the fine time's top on a slow scale, and the coarse time's floor on the bench's own. The study above says whether moving them changes a result.
+- **The fallback before any calibration** (G1, G2): what errs short on every recorded scale and powder. The study, `tools/charge_sim/fallback_study.py` (written 2026-11-22, 23:20, before its run):
+  - **The controller:** the PID on a learnt forecast (the firmware's `charge_pid_learnt.c`) with the owner's .168 gains, as the rig threw it.
+  - **The numbers tried:** its lag 0.9 s, rest 2.5 s and prior 2.0 gr a turn, each as built, at half and at twice.
+  - **The cases:** both records, the five scales, both bands, 10 gr, 3,200 throws a case in sessions of 25 from a fresh figure.
+  - **The pass:** the numbers hold on any scale when, as built, on every stand-in scale the first three throws of a session are over no more often than on the measured scale, within two SDs of the difference. Where they are over more often, the numbers are this scale's and must be measured on each unit (a check of the scale without powder, or the calibration).
+- **The fixed weights in grains** (D9's 0.2 gr, C19's turns, C20, E13), checked in the code 2026-11-22, 23:10:
+  - The firmware reads a weight as a bare number in the scale's own unit. Only the A&D's frame carries the unit (`scale_get_unit`, `scale.c:128`), and the charge reads it nowhere.
+  - So on a scale set to grams every literal written in grains is read as grams:
+    - D9's 0.2 gr is 0.2 g, about 3 gr;
+    - C20's far-over stop is 3 g, about 46 gr;
+    - E13's cup limit is 600 g;
+    - E14's bands are 0.02 and 0.04 g, about 0.3 and 0.6 gr.
+  - The user's thresholds (A6 to A9) are in the scale's unit by design, so they hold.
+  - **Proposed:** no literal is a weight. A margin is in digits (B1) or in the user's tolerance (A7). A safety limit is in the target's own terms (for example, a share of the target over). Research each one's form with its row.
 - **What the auto-tuner writes into the profile** (A1, A3, A4): the PID values and the creep, while it is on. What "off" keeps is the register's first row.
 - **One open trade, not a rule:** the offer's fine factor (D19), decided by gate 3's measurement on each unit.
 
