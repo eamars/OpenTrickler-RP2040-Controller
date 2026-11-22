@@ -1680,3 +1680,26 @@ The first run's cause, mended the glide's way with no calibration: the fine tube
   - the PID law 15 of 20 settled good, 5 over, 12.1 s; the glide 16, 4, 10.7 s. All three bars pass.
   - Own stop: P1 carried into the PID list (median −0.0385, the glide's 0.0150); P2 started from it (stop room 0.0015) and its first throw rested at +0.000.
 - The bench left at `controller=staged`, `ccon` at its defaults. The PID law's list for profile 0 holds P2's carried first errors (median 0.0000).
+
+## 2026-11-22, 20:55 to 21:30: the auto-tuner's offer, and a fault in the carry
+
+`research/pid_learning_2026-11-22.md`, "The sixth experiment".
+- **Built:**
+  - **the auto-tuner** (`staged.pid_offer`, `charge_calibration_offer`):
+    - the coarse tube kp 1 / (grains a turn × coarse glide time), 0.3 to 2 rev/s;
+    - the fine tube kp 0.6 / (grains a turn × glide time), its time constant its longest lag, the frame's floor and top;
+    - no I or D.
+    - Chosen in the simulation (`offer_study.py`) over the glide's own gain and half of it.
+  - **The console's `ctune`** (the selected profile's "set" against the offer); `ctune accept` writes the offer live (save to keep), refused while a job runs, and forgets the PID law's carried stop for that profile.
+  - **A law's first carry into an empty list is taken whole,** later ones capped as before.
+  - **The screen and the web:** not built; they wait for the design gate.
+- **Simulation:** the offer AR2209 10 gr 90%, 8.7 s against the glide's 89%, 10.1 s; BM2 99%, 8.0 against 97%, 9.1 s; every bad seed brought back.
+- **Rig, two ABBA runs at 10 gr** (the offer taken over the bench unit's bad seed; `ctune` gave fine kp 1.40201 and coarse kp 0.306316, as by hand):
+  - 21:01: the offer 14 of 20 settled good, 6 over, 9.3 s; the glide 15, 4, 10.9 s. The PID law's first carry was refused by the 3-digit cap, so both blocks threw from the glide's stop: mended.
+  - 21:14: the offer 15 good, 5 over, 8.2 s; the glide 19, 1, 11.2 s.
+  - Time passes in both (2 to 3 s quicker); overs fail in both. The offer's first rests spread by 0.055 to 0.058 gr against the glide's 0.035 to 0.075.
+- **A fault found in the carry, older than tonight** (the 17:27 build):
+  - carried first errors were translated to the placed stop room instead of the rules' own, so a session on its aim moved the next session's stop by the whole placement;
+  - P1 at 21:16 rested on its aim and P2's stop moved 0.022 gr later (three of its overs); the glide's placed rooms tonight jumped the same way.
+  - **Mended** in the firmware (`charge_calibration_base_stop_room`) and in `carry_stop.py`, and flashed (21:26). The carry study re-run with the mend (`fit/study_20261122/carry_stop_base_room.txt`): AR2209 the same within the noise; BM2's 0.7 s cost of carrying with the stop placed right, which the first study counted a failure, falls to 0.2 s. The simulation's rehearsals placed the stop only a digit from the rules' own room, so the fault showed less there than on the rig.
+- The bench left at `controller=staged`, `ccon` at its defaults, profile 0's gains as stored (the offer reverted).

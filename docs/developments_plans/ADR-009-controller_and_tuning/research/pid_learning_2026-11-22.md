@@ -451,3 +451,100 @@ The owner, after the fourth: "own carried stop, also, consider what if the PID v
   - in the frame with the envelope they are within a throw of the glide's accuracy;
   - they cost only the time their slow coarse gain costs.
 - **What is left to a person or the auto-tuner is time, not safety:** gains too slow are slow. That is the draft's "offer the calibration's gains", not a guard.
+
+## The sixth experiment: the auto-tuner's offer (2026-11-22 night)
+
+The owner: "Build the offer." What a bad seed leaves is time; the offer gives a seed the calibration's gains, on the user's yes.
+
+**The offer's rule,** chosen in the simulation (`offer_study.py`, `fit/study_20261122/offer.txt`; the PID law in the frame, the envelope on, 300 throws a case at 0.04 gr):
+- **the coarse tube:** kp 1 / (grains a turn × coarse glide time), between the frame's coarse floor and top, as options 1 and 2 threw it;
+- **the fine tube:** kp 0.6 / (grains a turn × glide time), a P loop whose time constant is the fine tube's longest lag (the glide time is 0.6 of it). Its least speed is the frame's floor, its top the frame's top;
+- **no I and no D.**
+
+| Gains | AR2209 10 gr | AR2209 5 gr | BM2 10 gr | BM2 5 gr |
+|---|---|---|---|---|
+| The glide | 89%, 10.1 s | 91%, 18.6 s | 97%, 9.1 s | 99%, 8.7 s |
+| Seed: the bench unit's stored | 85%, 10.8 s | 87%, 16.2 s | 98%, 13.2 s | 98%, 10.1 s |
+| Seed: sluggish | 86%, 24.5 s | 85%, 44.6 s | 99%, 33.8 s | 97%, 28.9 s |
+| Offer, the fine gain the glide's own | 90%, 7.3 s | 84%, 16.5 s | 99%, 7.1 s | 98%, 6.9 s |
+| **Offer, the fine time constant its lag (chosen)** | **90%, 8.7 s** | **88%, 17.5 s** | **99%, 8.0 s** | **99%, 7.7 s** |
+| Offer, half the glide's gain | 88%, 9.6 s | 87%, 18.3 s | 99%, 8.5 s | 99%, 8.4 s |
+
+The glide's own gain is quickest but costs 7 points with AR2209 at 5 gr. The chosen rule keeps accuracy everywhere and beats the glide's time at 10 gr on both powders.
+
+**Built:**
+- `staged.pid_offer` (the reference) and `charge_calibration_offer` (the unit).
+- The console's `ctune`: the selected profile's PID settings ("set") and the offer, made for the mode's band.
+- `ctune accept`:
+  - writes the offer into the profile, live: stored by `setting powder_profiles/<n> save`, put back by `revert`;
+  - is refused while a job runs;
+  - forgets the PID law's carried stop for that profile, since a stop learnt with the old gains says nothing of the new.
+- The screen and the web: not built. They wait for their design gate (`../controller_design_draft.md`, section 3).
+
+**The rig test, its passes written before it** (glide 10, PID law with the offer 10, the same 10, glide 10; 10 gr; fast; `fine_top_rps=1.0` for both, so the offer's top is 1.0):
+- **The offer as computed:** on this unit's calibration, `ctune` offers a fine kp of 1.40 and a coarse kp of 0.306 (by hand from the slot: 0.6 / (0.81407 × 0.52570) and 1 / (10.194 × 0.32025)), within a part in a thousand.
+- **Against the glide, the same bars:** settled good at most 2 throws fewer, overs at most 1 more.
+- **Time:** the offer's median no longer than the glide's (the simulation: 1.4 s shorter). This is the offer's point: the bad seed of the fifth run took 1.4 s longer than the glide.
+- **Expected:** all pass.
+
+**The rig, 21:01 to 21:12** (build 2.0.3-176-dirty at 827e4a0; recordings `logs/adr009/20261122_210154_series_offer_g1`, `_210438_series_offer_p1`, `_210711_series_offer_p2`, `_210945_series_offer_g2`; the offer taken into profile 0 live by `ctune accept` after G1, over the bench unit's own bad seed):
+
+| 20 throws each | Settled good / over | Median | Bulk / approach / rest | First rests' mean | Topped up |
+|---|---|---|---|---|---|
+| Glide | 15 / 4 | 10.9 s | 3.2 / 4.5 / 2.6 s | −0.004 | 6 |
+| PID law, the offer taken | 14 / 6 | **9.3 s** | 3.3 / 1.7 / 3.9 s | −0.039 | 10 |
+
+**Against the passes:**
+- **the offer as computed: passed** (`ctune`: fine kp 1.40201, coarse kp 0.306316, as by hand);
+- **settled good: passed,** 14 against 15;
+- **time: passed,** 9.3 against 10.9 s. The bad seed it replaced took 12.1 s in the fifth run; the offer's bulk is the glide's;
+- **overs: failed by one throw,** 6 against 4.
+
+**Why, and a fault found:**
+- P1's carry was refused: "9 first errors not carried (from 0.0190 to −0.0460)". The offer's gains rest 3.25 digits from the glide's stop, past the carry's 3-digit cap. So P2 started on the glide's stop too.
+- The glide's stop is about 3 digits early for the offer's quicker approach: the first rests' mean was −0.039 against an aim of −0.020.
+- So 10 throws were topped up against the glide's 6, and the top-ups' clumps made the overs (4 of the 6).
+- The cap was meant to guard a list against one session's drift; for a law's first carry it guards nothing.
+- **Mended:** a law's first carry, into an empty list, is taken whole; later ones are capped as before.
+
+**The re-run with the mend, its passes written before it** (the same blocks; the offer taken again after the flash, which empties the PID law's list):
+- **The mend:**
+  - P1's charge ends carrying into the PID law's list ("carried ... PID law's stop");
+  - P2 starts from it;
+  - P2's first rests' mean lies nearer the aim (−0.020) than P1's.
+- **Against the glide, the same bars:** settled good at most 2 fewer, overs at most 1 more; and the median no longer than the glide's.
+- **Expected:** all pass, the overs falling with the top-ups in P2.
+
+**The re-run, 21:14 to 21:25** (recordings `logs/adr009/20261122_211409_series_offer2_g1`, `_211644_series_offer2_p1`, `_211904_series_offer2_p2`, `_212225_series_offer2_g2`):
+
+| 20 throws each | Settled good / over | Median | Bulk / approach / rest | First rests: mean, sd | Topped up |
+|---|---|---|---|---|---|
+| Glide | 19 / 1 | 11.2 s | 3.0 / 4.0 / 2.6 s | −0.005, 0.035 | 4 |
+| PID law, the offer | 15 / 5 | **8.2 s** | 2.9 / 2.3 / 2.6 s | +0.001, 0.058 | 5 |
+
+**Against the passes:**
+- **the mend: passed:** P1 carried into the PID law's list ("placed from a median of −0.0230, was −0.0010"), and P2 started from it (stop room 0.0170);
+- **P2's first rests nearer the aim: failed** (P1 −0.006, P2 +0.008), for the fault below;
+- **time: passed,** 3.0 s quicker than the glide;
+- **settled good: failed,** 15 against 19 (bar 2 fewer);
+- **overs: failed,** 5 against 1.
+
+**A fault found in the carry, older than tonight's work:**
+- **What happens:** a carried first error was translated to the stop room as placed for its charge (`charge_mode.cpp`, and the simulation's `carry_stop.py`). The next charge places its stop from the rules' own room, where the rehearsals were thrown. So a session resting on its aim moved the next session's stop by the whole placement:
+  - with the right room R*, the next room is 0.02 + R* − P, P being this charge's, which jumps back and forth;
+  - P1 rested on its aim (median −0.023 against −0.020) and P2's stop moved 0.022 gr later; three of P2's overs are that;
+  - the glide's placed rooms tonight jumped the same way (0.0615, 0.0465, 0.040, 0.0345, 0.055, 0.039).
+- **Mended:** a carried first error is translated to the rules' own room (`charge_calibration_base_stop_room`). `series.py --errors` already did so.
+- **The new firmware is on the unit (21:26).** The slot's lists still hold tonight's errors translated the old way, until 16 newer ones replace them.
+- **In the simulation** (`carry_stop.py` re-run, `fit/study_20261122/carry_stop_base_room.txt`, against `carry_stop.txt`):
+  - AR2209: the same within the noise;
+  - BM2: carrying with the stop placed right cost 0.7 s, which the first study counted a failure on time; it now costs 0.2 s.
+  - The simulation's rehearsals placed the stop about a digit from the rules' own room, where the rig's placement sat about a digit further (0.039 against 0.02), so the fault showed more on the rig.
+  - `talk_2026-11-22.md`'s carry table and its reading are of the faulty carry; that file is a record, kept as it was.
+
+**What the two offer runs say together** (the offer 14 and 15 settled good of 20, 6 and 5 overs, 9.3 and 8.2 s; the glide 15 and 19, 4 and 1, 10.9 and 11.2 s):
+- **The offer buys 2 to 3 s a throw** (the simulation said 1.4 s).
+- **It costs overs on this rig:** its first rests spread by 0.055 to 0.058 gr against the glide's 0.035 to 0.075. Its approach is quicker (2.3 against 4.0 s), so it spends less time at the floor before the stop.
+- **The simulation did not show that cost.** Its stops scatter less than the rig's, as known.
+- **The fault above added three overs to the second run.**
+- **So the offer's fine gain is a trade of time against overs.** With the carry mended, the offer's rule may need the slower of the tried ones (half the glide's gain: 9.6 s in the simulation) to keep the glide's overs. That is a rig test for the next session, with the mended carry.

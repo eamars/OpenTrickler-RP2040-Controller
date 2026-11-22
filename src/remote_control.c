@@ -774,6 +774,14 @@ static bool remote_control_cpid(const char *args, char *reply, size_t reply_size
 }
 
 
+// `ctune [accept]`: the auto-tuner's offer for the selected profile against its PID settings (ADR-009)
+static bool remote_control_ctune(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                 void *write_ctx) {
+    charge_tune_console(args, reply, reply_size, write, write_ctx);
+    return strncmp(reply, "@ok", 3) == 0;
+}
+
+
 // `ccrec`: the last staged throw's rows, `@r <ms> <reading> <forecast> <coarse rev/s> <fine rev/s>` (ADR-009)
 static bool remote_control_ccrec(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
@@ -869,6 +877,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"ccal", remote_control_ccal},
     {"ccon", remote_control_ccon},
     {"cpid", remote_control_cpid},
+    {"ctune", remote_control_ctune},
     {"ccrec", remote_control_ccrec},
     {"setting", remote_control_setting},
     {"update", remote_control_update},

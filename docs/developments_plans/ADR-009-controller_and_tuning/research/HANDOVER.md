@@ -33,6 +33,13 @@ The cause: without a calibration the PID stops at its least speed (0.1 rev/s her
   - all bars pass.
 - Gains too slow stay slow; their remedy is the calibration's gains offered.
 
+**A sixth run (20:55 to 21:30): the auto-tuner's offer** (`ctune`, `ctune accept`; the screen and the web wait for their design gate).
+- **What the rig showed:** the offer made from the calibration (fine kp 1.40, coarse kp 0.306 here) is 2 to 3 s quicker than the glide, and costs overs (14 and 15 of 20 good against 15 and 19).
+- **A fault found in the carry, mended and flashed:** carried first errors were translated to the placed stop room, not the rules' own, and the stop jumped between sessions.
+- **Next:**
+  - the offer with a slower fine rule and the mended carry, on the rig;
+  - the glide's carry seen settling across sessions.
+
 The owner's design questions are drafted in `../controller_design_draft.md`, and the live description is `docs/charge_controller.md` (AGENTS.md: kept true in the same commit as any change to the controller).
 
 The owner, after the first run, settled a direction:

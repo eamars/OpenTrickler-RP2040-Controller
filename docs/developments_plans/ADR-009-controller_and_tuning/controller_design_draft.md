@@ -187,6 +187,10 @@ sequenceDiagram
     - coarse stop = the coarse room.
 
     On this rig's calibration (`ccal load`, 2026-11-22) these come to about 2.3, 0.058 rev/s, 0.31 and 1.44 gr. The owner's are 0.8, 0.08, 0.05 and 5.
+  - **Built and thrown 2026-11-22 night** (the console's `ctune`):
+    - the rule chosen in the simulation is a fine kp of 0.6 / (grains a turn × glide time), the P loop's time constant the fine tube's lag;
+    - on the rig it is 2 to 3 s quicker than the glide and costs overs (`research/pid_learning_2026-11-22.md`, "The sixth experiment");
+    - which fine rule to offer is a trade of time against overs, for the owner once the slower rule has been thrown with the mended carry.
   - **The learning** trims them throw by throw: the stop, the figures, and the least speed by the band rule.
 - **How the two meet:**
   - The screen and the web show each tuned number twice, "set" (the seed) and "in use" (what the throw used), with how many throws taught it.

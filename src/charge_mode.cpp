@@ -124,6 +124,7 @@ static float charge_base = 0.0f;            // the weight a throw starts from: 0
 static float charge_carry_errors[CHARGE_CARRY_THROWS_MAX];
 static uint8_t charge_carry_count = 0;
 static uint8_t charge_law = 0;              // the charge's speed law (ccon speed_law at its start): its stop its own
+static float charge_base_room = 0.0f;       // the calibration's stop room before its stop was placed, this charge
 
 /*
     The last staged throw's rows, a reading each, for the bench (`ccrec`). 16 bytes a row; at 21 readings a second
@@ -689,7 +690,10 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     // the throws of the charge's law only, so one law's stops never move the other's
     if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
         (cc->k.speed_law ? 1 : 0) == charge_law && charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
-        charge_carry_errors[charge_carry_count++] = cc->first_error_gr + room_at_start - cc->cal.stop_room_gr;
+        // Translated to the rules' own stop room, where the rehearsals were thrown and from which the next charge
+        // places its stop. Not the placed one: a session resting on its aim then moved the next one's stop by the
+        // whole placement (2026-11-22 night: P1 of the offer on its aim, P2's stop 0.022 gr later)
+        charge_carry_errors[charge_carry_count++] = cc->first_error_gr + room_at_start - charge_base_room;
     }
 
     charge_staged_verdict = true;
@@ -1360,6 +1364,7 @@ uint8_t charge_mode_menu(void) {
             activity_job_end();
             return 1;
         }
+        charge_base_room = charge_calibration_base_stop_room();
         charge_controller = &charge_staged_block->controller;
         charge_control_init(charge_controller, &charge_staged_block->cal, charge_calibration_constants(), 0.0f, false);
         printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f, law %s\n", profile_get_selected_idx(),

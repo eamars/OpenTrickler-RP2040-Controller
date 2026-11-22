@@ -356,6 +356,18 @@ def pid_law_from(cal: Calibration, fine_kp: float = 0.8, fine_ki: float = 0.0, f
                   fine_kd=fine_kd, fine_max_rps=fine_max_rps)
 
 
+def pid_offer(cal: Calibration) -> PidLaw:
+    """The auto-tuner's offer (ADR-009, 2026-11-22 night): the PID law's gains made from a calibration with its rules
+    set. The coarse tube: kp 1 / (its grains a turn x its glide time), between the frame's coarse floor and top, as
+    options 1 and 2 threw it. The fine tube: kp 0.6 / (its grains a turn x the glide time), a P loop whose time constant
+    is the fine tube's longest lag (the glide time is 0.6 of it), the frame's top; its least speed is the frame's floor
+    whatever the profile says. No I or D: they added nothing on the rig. Chosen in `offer_study.py`
+    (fit/study_20261122/offer.txt) over the glide's own gain (7 points worse with AR2209 at 5 gr) and half of it."""
+    return PidLaw(coarse_kp=1.0 / (cal.coarse_gr_turn * cal.coarse_glide_s), coarse_ki=0.0, coarse_kd=0.0,
+                  coarse_min_rps=COARSE_FLOOR_RPS, coarse_max_rps=COARSE_TOP_RPS,
+                  fine_kp=0.6 / (cal.fine_gr_turn * cal.glide_s), fine_ki=0.0, fine_kd=0.0, fine_max_rps=FINE_TOP_RPS)
+
+
 class Staged:
     """The controller. The harness reads coarse_rps, fine_rps and done after each call.
 

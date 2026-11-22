@@ -56,7 +56,8 @@ bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t coun
     first errors are the calibration's own (above); the PID law's are kept apart, a list a profile in one record of
     their own (EEPROM_CHARGE_LAW_STOPS_ADDR), so no stored record changes. A law whose list is empty places its stop
     from the glide's. Its carry is the glide's: the newest CHARGE_CALIBRATION_FIRST_ERRORS_MAX, at most
-    CHARGE_CARRY_MOST_DIGITS at once, never for the simulated scale.
+    CHARGE_CARRY_MOST_DIGITS at once, never for the simulated scale; but its first carry, into an empty list, is taken
+    whole, since the glide's stop it was placed from is not its own.
 */
 #define CHARGE_CALIBRATION_PROFILES 8
 typedef struct {
@@ -71,6 +72,37 @@ bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, cha
 // list was empty and its stop came from the glide's
 bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
                                   float *after);
+
+/*
+    The auto-tuner's offer (ADR-009, 2026-11-22 night): the PID law's gains made from a profile's calibration, its rules
+    set for the band, as staged.pid_offer makes them. The coarse tube: kp 1 / (grains a turn x coarse glide time),
+    between the frame's coarse floor and top. The fine tube: kp 0.6 / (grains a turn x glide time), the P loop's time
+    constant its longest lag; its least speed the frame's floor, its top the frame's. No I, no D. False when the
+    profile holds no calibration.
+*/
+typedef struct {
+    float coarse_kp;
+    float coarse_ki;
+    float coarse_kd;
+    float coarse_min_rps;
+    float coarse_max_rps;
+    float fine_kp;
+    float fine_ki;
+    float fine_kd;
+    float fine_min_rps;
+    float fine_max_rps;
+} charge_calibration_offer_t;
+
+bool charge_calibration_offer(uint8_t profile, float band_gr, charge_calibration_offer_t *out);
+
+// The console's `ctune`: the selected profile's PID settings and the offer; `ctune accept` writes the offer into the
+// profile, live (stored by `setting powder_profiles/<n> save`), and forgets the PID law's carried stop for it
+void charge_tune_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                         void *write_ctx);
+
+// The stop room of the last calibration made for a throw before its stop was placed (the rules' own, where the
+// rehearsals were thrown): a carried first error is translated to it (2026-11-22 night)
+float charge_calibration_base_stop_room(void);
 
 // Whether it holds one a throw may use, for a start's refusal
 bool charge_calibration_held(uint8_t profile);

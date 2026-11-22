@@ -3,11 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "activity.h"
 #include "charge_calibration.h"
+#include "charge_mode.h"
 #include "common.h"
 #include "eeprom.h"
 #include "profile.h"
 #include "scale.h"
+
+// The charge's settings, for the band the offer is made for (as the other modules that read them)
+extern charge_mode_config_t charge_mode_config;
 
 #define CHARGE_CALIBRATION_SLOT_SIZE 1024
 
@@ -18,6 +23,13 @@ static bool charge_constants_set = false;
 static charge_calibration_record_t charge_calibration_staged;
 // A throw's read of its slot: the job task's alone
 static charge_calibration_record_t charge_calibration_read;
+// The stop room the rules made before the first errors placed the stop: the room the rehearsals were thrown at
+static float charge_calibration_base_room_gr = 0.0f;
+
+
+float charge_calibration_base_stop_room(void) {
+    return charge_calibration_base_room_gr;
+}
 
 _Static_assert(sizeof(charge_calibration_record_t) + sizeof(uint32_t) <= CHARGE_CALIBRATION_SLOT_SIZE,
                "a calibration and its CRC fit their slot");
@@ -49,6 +61,7 @@ static void charge_calibration_make(const charge_calibration_record_t *record, f
         band_gr = record->measured.band_gr;
     }
     charge_control_set_rules(out, finish, band_gr, charge_calibration_constants());
+    charge_calibration_base_room_gr = out->stop_room_gr;
     if (record->first_error_count > 0) {
         charge_control_place_stop(out, record->first_errors, record->first_error_count);
     }
@@ -251,7 +264,10 @@ bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *err
     uint8_t keep = total > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? CHARGE_CALIBRATION_FIRST_ERRORS_MAX : total;
     const float *newest = &merged[total - keep];
     *after = charge_calibration_median(newest, keep);
-    if (fabsf(*after - *before) > CHARGE_CARRY_MOST_DIGITS * charge_calibration_read.measured.digit_gr) {
+    // The cap guards a list the law has against one session's drift. A law's first carry is its first knowledge of
+    // its own stop, and the glide's it was placed from is not its own: taken whole (2026-11-22 night: the offer's gains
+    // rested 3.25 digits from the glide's stop, and a capped first carry left the next charge on the glide's)
+    if (held > 0 && fabsf(*after - *before) > CHARGE_CARRY_MOST_DIGITS * charge_calibration_read.measured.digit_gr) {
         return false;
     }
     for (uint8_t i = 0; i < keep; i++) {
@@ -714,3 +730,92 @@ void charge_pid_console(const char *args, char *reply, size_t reply_size, remote
     write(line, write_ctx);
     snprintf(reply, reply_size, "@ok cpid");
 }
+
+
+bool charge_calibration_offer(uint8_t profile, float band_gr, charge_calibration_offer_t *out) {
+    charge_control_calibration_t cal;
+    if (!charge_calibration_get(profile, band_gr, &cal)) {
+        return false;
+    }
+    const charge_control_constants_t *k = charge_calibration_constants();
+    out->coarse_kp = 1.0f / (cal.coarse_gr_turn * cal.coarse_glide_s);
+    out->coarse_ki = 0.0f;
+    out->coarse_kd = 0.0f;
+    out->coarse_min_rps = k->coarse_floor_rps;
+    out->coarse_max_rps = k->coarse_top_rps;
+    out->fine_kp = 0.6f / (cal.fine_gr_turn * cal.glide_s);
+    out->fine_ki = 0.0f;
+    out->fine_kd = 0.0f;
+    out->fine_min_rps = cal.floor_rps;
+    out->fine_max_rps = k->fine_top_rps;
+    return true;
+}
+
+
+static void charge_tune_line(const char *which, const charge_calibration_offer_t *g, remote_control_write_fn write,
+                             void *write_ctx) {
+    char line[160];
+    snprintf(line, sizeof(line), "@ctune %s coarse_kp=%g coarse_ki=%g coarse_kd=%g coarse_min_speed_rps=%g "
+             "coarse_max_speed_rps=%g", which, g->coarse_kp, g->coarse_ki, g->coarse_kd, g->coarse_min_rps,
+             g->coarse_max_rps);
+    write(line, write_ctx);
+    snprintf(line, sizeof(line), "@ctune %s fine_kp=%g fine_ki=%g fine_kd=%g fine_min_speed_rps=%g "
+             "fine_max_speed_rps=%g", which, g->fine_kp, g->fine_ki, g->fine_kd, g->fine_min_rps, g->fine_max_rps);
+    write(line, write_ctx);
+}
+
+
+void charge_tune_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                         void *write_ctx) {
+    uint8_t profile = (uint8_t) profile_get_selected_idx();
+    float band_gr = charge_mode_config.eeprom_charge_mode_data.trickle_mode == CHARGE_TRICKLE_FAST ?
+                    CHARGE_TRICKLE_FAST_BAND_GR : CHARGE_TRICKLE_ACCURATE_BAND_GR;
+    charge_calibration_offer_t offer;
+    if (!charge_calibration_offer(profile, band_gr, &offer)) {
+        snprintf(reply, reply_size, "@err no calibration for profile %u: nothing to offer", profile);
+        return;
+    }
+    bool accept = strcmp(args, "accept") == 0;
+    if (!accept && args[0] != '\0') {
+        snprintf(reply, reply_size, "@err usage: ctune [accept]");
+        return;
+    }
+    activity_lock();
+    if (accept && activity_job_runs()) {
+        activity_unlock();
+        snprintf(reply, reply_size, "@err busy: the offer is taken between charges");
+        return;
+    }
+    profile_t *p = profile_get_selected();
+    if (accept) {
+        p->coarse_kp = offer.coarse_kp;
+        p->coarse_ki = offer.coarse_ki;
+        p->coarse_kd = offer.coarse_kd;
+        p->coarse_min_flow_speed_rps = offer.coarse_min_rps;
+        p->coarse_max_flow_speed_rps = offer.coarse_max_rps;
+        p->fine_kp = offer.fine_kp;
+        p->fine_ki = offer.fine_ki;
+        p->fine_kd = offer.fine_kd;
+        p->fine_min_flow_speed_rps = offer.fine_min_rps;
+        p->fine_max_flow_speed_rps = offer.fine_max_rps;
+    }
+    charge_calibration_offer_t set = {p->coarse_kp, p->coarse_ki, p->coarse_kd, p->coarse_min_flow_speed_rps,
+                                      p->coarse_max_flow_speed_rps, p->fine_kp, p->fine_ki, p->fine_kd,
+                                      p->fine_min_flow_speed_rps, p->fine_max_flow_speed_rps};
+    activity_unlock();
+    if (accept) {
+        // A stop learnt with the old gains says nothing of the new: the PID law starts again from the glide's
+        charge_calibration_law_stops_read();
+        if (charge_calibration_law_stops.counts[profile] != 0) {
+            charge_calibration_law_stops.counts[profile] = 0;
+            charge_calibration_law_stops.legacy_rev = 0;
+            save_config(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_law_stops,
+                        sizeof(charge_calibration_law_stops));
+        }
+    }
+    charge_tune_line("set", &set, write, write_ctx);
+    charge_tune_line("offer", &offer, write, write_ctx);
+    snprintf(reply, reply_size, accept ? "@ok ctune accepted into profile %u, live (save it to keep it)" :
+             "@ok ctune profile %u", profile);
+}
+

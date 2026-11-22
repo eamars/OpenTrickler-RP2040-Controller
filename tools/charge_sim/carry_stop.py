@@ -67,7 +67,9 @@ def run(job: tuple) -> list:
             out.append((k, i, error >= TOLERANCE_GR - 1e-9, abs(error) < TOLERANCE_GR - 1e-9, result.elapsed_s))
             first = controller.first_error
             if carry and first is not None and controller.streams == 0 and result.verdict != "timeout":
-                errors = (errors + [first + room_used - cal.stop_room_gr])[-CARRY_KEPT:]
+                # translated to the rules' own room, where the rehearsals were thrown (2026-11-22 night: it was
+                # the placed room, which moved a session's stop by the whole placement of the one before)
+                errors = (errors + [first + room_used - rules.stop_room_gr])[-CARRY_KEPT:]
     return out
 
 

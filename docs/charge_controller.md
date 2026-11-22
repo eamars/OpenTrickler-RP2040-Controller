@@ -107,10 +107,26 @@ A port of `tools/charge_sim/staged.py`, kept in its order so the two read side b
 - **On the rig** (the owner's fine gains, the coarse tube's from the calibration: kp 0.306, 0.3 to 2 rev/s): 17 of 20 settled good, 3 over, 10.5 s, against the glide's 19, 1, 11.4 s.
 - `check_firmware_controller.py --pid` checks it throw for throw against `staged.py`.
 
+**The auto-tuner's offer** (`ctune`; an experiment of 2026-11-22):
+- **What it is:** the PID law's gains made from the profile's calibration:
+  - the coarse tube kp 1 / (grains a turn × coarse glide time), 0.3 to 2 rev/s;
+  - the fine tube kp 0.6 / (grains a turn × glide time), its time constant its longest lag, the frame's floor and top;
+  - no I or D.
+- **Using it:** `ctune` shows the selected profile's PID settings ("set") against the offer. `ctune accept` writes the offer into the profile:
+  - live; `setting powder_profiles/<n> save` keeps it;
+  - refused while a job runs;
+  - it forgets the PID law's carried stop for that profile.
+- **On the rig:** 2 to 3 s a throw quicker than the glide, with more overs (14 and 15 of 20 good against 15 and 19).
+- **Not on the screen or the web:** they wait for their design gate.
+
 **What it learns:**
 - **The stop.** At each throw's first rest, 15% of its first error against the aim moves the stop room (nothing under a quarter digit, at most 2 digits a throw).
 - **The fine tube's figures** (`learn_fine_prior`, `learn_fine_split`, both on by default). Not to be trusted yet: they read through the fine tube's lag at 1 rev/s, which was never measured (`research/HANDOVER.md`).
-- **The carry.** At a charge's end, its throws' first errors (from at least 5 throws that rested as they should, never the simulated scale) go into the profile's calibration slot, the newest 16 kept, and the next charge places its stop from them, never more than 3 digits at once. A temporary form.
+- **The carry.** At a charge's end, its throws' first errors (from at least 5 throws that rested as they should, never the simulated scale) go into its law's list, the newest 16 kept, and the next charge of that law places its stop from them:
+  - the glide's list is the calibration slot's, the PID law's its own;
+  - each error is translated to the rules' own stop room, the one the rehearsals were thrown at, not the room as placed (mended 2026-11-22, 21:26: translated to the placed room, the stop jumped between sessions);
+  - never more than 3 digits at once, but a law's first carry into an empty list is taken whole;
+  - a temporary form.
 
 ## Today's PID loop (`charge_mode_wait_for_complete`, the `pid` choice)
 
