@@ -95,6 +95,10 @@ def main() -> int:
     parser.add_argument("--gains-profile", type=int, default=1, help="the profile of that copy (the owner's AR2209: 1)")
     parser.add_argument("--profile", type=int, default=0, help="the bench unit's profile in use, to set and revert")
     parser.add_argument("--cpid", default="", help="pid_learnt: its constants, `name=value ...` (never stored)")
+    parser.add_argument("--profile-set", default="", help="pid_learnt: profile fields over the copy's, `name=value ...` "
+                        "(live, never stored), e.g. a coarse tube set from the calibration")
+    parser.add_argument("--charge-set", default="", help="charge settings for the series, `name=value ...` (live, "
+                        "never stored; put back at the end)")
     parser.add_argument("--cpid-reset", action="store_true", help="pid_learnt: its learnt figure back to its prior")
     parser.add_argument("--calibration", type=Path,
                         help="a calibration in staged.to_json's shape, or a throw set with one under `calibration`")
@@ -135,6 +139,9 @@ def main() -> int:
     if pid:
         copy = json.loads(args.gains.read_text())["resources"][f"/api/v1/powder_profiles/{args.gains_profile}"]
         gains = {name: value for name, value in copy.items() if name != "name" and name != "saved"}
+        for pair in args.profile_set.split():
+            name, value = pair.split("=", 1)
+            gains[name] = float(value)
     kept = json.loads(args.calibration.read_text()) if args.calibration else {"calibration": None}
     cal = staged.from_json(kept.get("calibration", kept)) if not pid else None
     if cal is not None and args.lag_shift:
@@ -200,6 +207,12 @@ def main() -> int:
         session.send(f"setting settings/charge controller={args.controller}")
         if args.mode:
             session.send(f"setting settings/charge mode={args.mode}")
+        if args.charge_set:
+            reply = session.send(f"setting settings/charge {args.charge_set}")
+            if reply is None or reply.startswith("@err"):
+                print(f"charge settings: {reply}")
+                return 1
+        record["charge_set"] = args.charge_set
         session.console.charge_events.clear()
         reply = session.send(f"charge {args.target:g} series {args.throws}")
         if reply is None or not reply.startswith("@ok"):

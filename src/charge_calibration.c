@@ -552,7 +552,8 @@ static const charge_constant_t charge_pid_table[] = {
     CHARGE_PID_CONSTANT(lag_s), CHARGE_PID_CONSTANT(rest_s), CHARGE_PID_CONSTANT(gr_turn_prior),
     CHARGE_PID_CONSTANT(learn_share), CHARGE_PID_CONSTANT(coarse_quiet_s), CHARGE_PID_CONSTANT(throw_most_s),
     CHARGE_PID_CONSTANT(over_most_gr), CHARGE_PID_CONSTANT(digit_gr), CHARGE_PID_CONSTANT(floor_band_share),
-    CHARGE_PID_CONSTANT(floor_least_rps),
+    CHARGE_PID_CONSTANT(floor_least_rps), CHARGE_PID_CONSTANT(coarse_gr_turn), CHARGE_PID_CONSTANT(coarse_lag_s),
+    CHARGE_PID_CONSTANT(coarse_margin_share),
     {"most_tops", offsetof(charge_pid_constants_t, most_tops), true},
 };
 

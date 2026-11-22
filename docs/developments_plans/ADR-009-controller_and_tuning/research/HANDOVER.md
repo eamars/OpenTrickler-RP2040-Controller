@@ -15,6 +15,14 @@ The cause: without a calibration the PID stops at its least speed (0.1 rev/s her
 
 **A second run (19:10 to 19:22):** the PID's least speed was set from its learnt figure, the glide's rule with no calibration. **It matched the glide's accuracy** (16 of 20 settled good against 15, 4 overs against 5) **and was 4.5 s slower** (15.5 against 11.0 s). So the predictor and the finish give the accuracy. **Corrected at 19:40:** the 4.5 s is all in the bulk, from the coarse tube's settings (the owner's coarse kp 0.05 and 5 gr stop). The approach and the rest took the same time as the glide's (`bench/phase_times.py`). So "the lag at every speed gives the time" is not shown; the next test is a coarse tube set from the calibration.
 
+**A third run (19:51 to 20:04), the owner's option 1:** the PID's coarse tube set from the calibration (kp 0.306, a stop 1.43 gr short, 0.3 to 2 rev/s, its powder in the forecast, the back-off off).
+- **Accuracy beat the glide:** 19 of 20 settled good, 1 over, against 16 and 4.
+- **Time failed:** 14.8 against 11.2 s.
+- **The cause:** the coarse tube stops about 2.5 gr early. The fine tube's powder at 2 rev/s is forecast with the creep's learnt figure (1.48 to 2.06), and the A&D lags longer at a low flow. The simulation's scale does not, and missed it.
+- **Next, proposed:** the PID law on the glide's own predictor (lags by flow), with a scale in the simulation that lags longer at a low flow.
+
+The owner's design questions are drafted in `../controller_design_draft.md`, and the live description is `docs/charge_controller.md` (AGENTS.md: kept true in the same commit as any change to the controller).
+
 The owner, after the first run, settled a direction:
 - split the profile by physics;
 - share the powder's part;

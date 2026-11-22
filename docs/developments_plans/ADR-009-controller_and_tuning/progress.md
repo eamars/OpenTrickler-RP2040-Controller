@@ -1627,3 +1627,21 @@ The first run's cause, mended the glide's way with no calibration: the fine tube
   - the rest and top-ups: 2.58 against 2.54 s.
   - So the 4.5 s is the coarse tube's settings (the owner's coarse kp 0.05, the 5 gr coarse stop), not the finish or the lag by speed. The reading above, "the calibration's lag at every speed buys time", is withdrawn. The figure and least speed's pull cost about 1 s of approach in P2.
 - The bench left at `controller=staged`, the constants at their defaults (`cpid defaults`), the profile's gains as stored.
+
+## 2026-11-22, 19:25 to 20:04: the PID with its coarse tube set from the calibration (the owner's option 1)
+
+`research/pid_learning_2026-11-22.md`, "The third experiment".
+- **Built:**
+  - the coarse tube's powder in `pid_learnt`'s forecast (`cpid coarse_gr_turn`, `coarse_lag_s`), with the glide's margin for it (`coarse_margin_share`);
+  - its forward turns only (a back-off's steps are not powder);
+  - the fine figure learnt with the coarse tube's unseen powder taken off, and not at all when its margin is more than the band (without that, the figure ran to 4 to 8 in the simulation).
+  - The unit's C agrees with the Python on 900 throws.
+- **The simulation:**
+  - AR2209 at 10 gr: 89% good, 11.0 s with the back-off off, against the glide's 89%, 10.1 s; with today's back-off 83%. The rig's coarse tube spills 0.83 gr a reverse, measured on 11-21.
+  - BM2: 98%, 10.1 s against 97%, 9.1 s.
+- **The rig** (19:51 to 20:04, ABBA at 10 gr, fast; coarse kp 0.306, stop 1.43 gr, 0.3 to 2 rev/s, back-off off, live):
+  - the PID 19 of 20 settled good, 1 over, 14.8 s; the glide 16 good, 4 over, 11.2 s.
+  - Accuracy passes and beats the glide; the mechanism (bulk 6.2 against 3.2 s) and time (+3.6 s) fail.
+- **The cause:** the fine tube's powder in the air at 2 rev/s forecast with a figure learnt at the creep (1.48, then 2.06), where the A&D lags longer, so the coarse tube stopped about 2.5 gr early. The simulation's scale does not lag longer at a low flow and missed it.
+- **Next:** the PID law on the glide's own predictor (option 2).
+- The bench left at `controller=staged`, the profile, the charge settings and `cpid` as stored or default.

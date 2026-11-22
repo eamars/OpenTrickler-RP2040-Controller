@@ -43,7 +43,7 @@ Run `git fetch` and compare your `main` with `origin/main` before you read the c
 | `app.c` | Start-up order |
 | `menu.c`, `menu_nav.c`, `menu_view_12864.c`, `lv_conf.h` | The menu (ADR-010, `menu_design.md`). `menu.c` is its task: LVGL and the screen's one frame (LVGL draws only what changed; the web's mirror and `snap` copy it), the knob and the buttons as four keys, the jobs' starts and ends. `menu_nav.c` is the tree as one table and what is open; it fills a screen model in words and acts through the API's own entry points, by button. `menu_view_12864.c` draws that model on the 12864; another display is another view. The fonts are made at build time from the BDF files in `fonts/` (`scripts/bdf2lvgl.py`), with their notice |
 | `jobs.c` | The job task (ADR-010, gate 2): the charge, a purge and an update run here, not in the menu's task |
-| `charge_control.c`, `charge_pid_learnt.c`, `charge_calibration.c` | The charge's controllers (ADR-009): the staged controller, the experiment of a PID on a learnt forecast, the calibration's slots and the console's `ccal`, `ccon`, `cpid`. How a throw is poured: [docs/charge_controller.md](docs/charge_controller.md), kept true in the same commit as any change |
+| `charge_control.c`, `charge_pid_learnt.c`, `charge_calibration.c` | The charge's controllers (ADR-009): the staged controller, the experiment of a PID on a learnt forecast, the calibration's slots and the console's `ccal`, `ccon`, `cpid`. How a throw is poured: [docs/charge_controller.md](docs/charge_controller.md) |
 | `charge_mode.cpp`, `cleanup_mode.cpp` | The two modes. Each reads no button and draws nothing: the menu shows their screens from their status |
 | `scale.c`, `*_scale.c` | The scale: one driver per make, each a task that reads the serial port. `simulated_scale.c` is a driver with no scale behind it: its weight follows the motors' speeds |
 | `motors.c` | The two steppers: one task that ramps both speeds and feeds the step pulses every millisecond, the stored settings, and the task that reads the drivers once a second |
@@ -158,6 +158,7 @@ Work is planned and recorded as architecture decision records in [docs/developme
 
 ## Do not
 
+- **Do not change the charge controller without its document.** A change to how a throw is poured (the controllers, their rules, constants, learning, faults, timings, the stored numbers they read, or the simulation that checks them) updates [docs/charge_controller.md](docs/charge_controller.md) in the same commit, so the page always says what the code does.
 - **Do not edit `src/generated/`.** Change the source (a page, a `.pio` file, `scripts/gen_version.py`) and build.
 - **Do not change anything under `library/`.** It is third-party code in submodules.
 - **Do not change a stored struct's layout without saying so in the ADR** (see "Settings in the EEPROM").

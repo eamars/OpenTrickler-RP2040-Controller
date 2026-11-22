@@ -217,3 +217,82 @@ Recordings: `logs/adr009/20261122_191001_series_night_g1`, `_191245_series_night
    - On these throws the time comes from the coarse tube's gain and its stop, not the finish.
    - The next test is the owner's option 1: the coarse tube's PID settings made from the calibration. That means a coarse kp from its grains a turn and glide time, and a coarse stop from its room, with the coarse tube's own powder in the forecast. If that closes the 4.5 s, a PID-shaped controller with an auto-tuner matches the glide on this rig.
    - The pull between the figure and the least speed needs a bound or a figure by speed (about 1 s here).
+
+## The third experiment: the coarse tube set from the calibration (the owner's option 1, 2026-11-22 night)
+
+**Why:** the second run's 4.5 s was all in the bulk, from the owner's coarse settings (kp 0.05, a stop 5 gr short), tuned on a lagging reading on another rig. The owner chose to test option 1: the PID's numbers made from the calibration.
+
+**What changes,** the coarse tube only (the fine tube stays as the second run: the owner's gains, its least speed learnt):
+- **Its PID numbers from the unit's calibration:**
+  - kp = 1 / (coarse grains a turn × coarse glide time) = 1 / (10.194 × 0.320) = 0.306;
+  - its stop at the coarse room, 1.43 gr;
+  - between the glide's coarse floor and top, 0.3 and 2 rev/s.
+- **Its powder in the forecast** (`cpid coarse_gr_turn=10.194 coarse_lag_s=0.51`, the calibration's lag at 2 rev/s): until now the PID's forecast held only the fine tube's.
+- **The glide's margin for it** (`cpid coarse_margin_share=0.164`, 3 × the calibration's spread a turn): both tubes act as if that much more of the coarse tube's unseen powder were coming.
+- **The back-off off** (`coarse_stop_backoff_enable=false`, live), for the reason below.
+
+**Found in the simulation on the way, and mended before the rig:**
+- **The fine figure ran away** (to 4 to 8 gr a turn; throws stopped 5 gr short). With the coarse tube fast, much of what landed after the fine tube's stop was the coarse tube's. Now:
+  - the coarse tube's unseen powder at that moment is taken off before the fine figure learns;
+  - a throw whose margin on it is more than the band teaches nothing.
+- **The back-off spills.** The rig measured that reversing the coarse tube drops 0.83 gr of AR2209 on average (`records/pico2w_ar2209.json`, `coarse.reverse_spill_gr`, from the 11-21 coarse stops).
+  - With a 5 gr coarse margin that never mattered; with 1.43 gr it is an over.
+  - The simulation, AR2209 at 10 gr: 83% good with the back-off, 89% without. The glide has none.
+  - The frame's way to keep a reverse is to count its spill in the forecast, a measured number (`controller_design_draft.md`).
+
+**The simulation** (`pid_learning_study.py --coarse`, `fit/study_20261122/pid_learning_coarse.txt`, back-off on; the back-off's effect checked apart, 300 throws a case):
+
+| 10 gr, judged at 0.04 gr | AR2209: good / over / median | BM2 |
+|---|---|---|
+| Glide | 89% / 11% / 10.1 s | 97% / 3% / 9.1 s |
+| PID, least speed learnt (the second run's) | 85% / 15% / 12.3 s | 95% / 5% / 15.5 s |
+| PID, coarse from the calibration, back-off on | 83% / 17% / 10.0 s | 97% / 3% / 9.5 s |
+| PID, coarse from the calibration, back-off off | 89% / 11% / 11.0 s | 98% / 2% / 10.1 s |
+
+The unit's C agrees with the Python on 900 throws (79% and 78%, back-off on, AR2209 at 10 gr, another seed).
+
+**The passes, written before the rig** (the same blocks: glide 10, PID 10 from a fresh start, PID 10 learnt, glide 10; 10 gr; fast):
+- **The mechanism:** the PID's bulk (to within 0.7 gr) has a median at most 1 s longer than the glide's (the second run: 4.6 s longer).
+- **Against the glide, the same bars:** settled good at most 2 throws fewer, overs at most 1 more, median at most 2.5 s longer.
+- **Expected, from the simulation:**
+  - the mechanism passes;
+  - accuracy equal within the noise;
+  - the median about 1 s longer (P1's cautious first throw adds to it);
+  - **all three bars pass.**
+
+**The rig, 19:51 to 20:04** (build 2.0.3-173-dirty at 104fbd2; `bench/abba_look.py`, `bench/phase_times.py`):
+
+| Block | Settled good / over | Median | First rest: mean, sd | Fine tube at its stop | Bulk / approach / rest |
+|---|---|---|---|---|---|
+| G1, glide | 7 / 3 | 11.8 s | −0.010, 0.051 | 0.058 rev/s | |
+| P1, PID coarse from the calibration, fresh | 9 / 1 | 14.2 s | −0.020, 0.050 | 0.028 | |
+| P2, the same, learnt | 10 / 0 | 15.4 s | +0.004, 0.034 | 0.028 | |
+| G2, glide | 9 / 1 | 10.9 s | −0.012, 0.040 | 0.058 | |
+| **Glide, 20** | **16 / 4** | **11.2 s** | −0.011, 0.045 | 0.058 | 3.2 / 4.4 / 2.6 s |
+| **PID, coarse from the calibration, 20** | **19 / 1** | **14.8 s** | −0.008, 0.043 | 0.028 | 6.2 / 5.3 / 2.5 s |
+
+Recordings: `logs/adr009/20261122_195132_series_coarse_g1`, `_195425_series_coarse_p1`, `_195812_series_coarse_p2`, `_200144_series_coarse_g2`. Before it the owner confirmed the cup had room; the scale's zero no longer told what was in it.
+
+**Against the passes:**
+- **settled good: passed, and better than the glide,** 19 against 16;
+- **overs: passed, and better,** 1 against 4;
+- **the mechanism: failed,** the bulk 3.0 s longer (bar 1 s);
+- **time: failed,** 3.6 s longer (bar 2.5 s).
+
+**Why the bulk stayed long,** from the rows (P1, throw 4):
+- **The coarse tube stopped early.** At 0.5 s the forecast stood at 8.3 gr, the coarse tube's stop at 8.57, and the coarse tube stopped at 0.74 s. What it had poured landed at about 6.8 gr.
+- **The forecast was high by the fine tube's powder in the air at speed.** The fine tube ran at 2 rev/s and was forecast with the figure learnt at its creep: 1.48 gr a turn of its window, so about 2.7 gr in the air, where about 1 gr was (0.8 gr a turn × about 0.6 s).
+- **The A&D lags longer at a low flow,** so a figure learnt at the creep overstates the powder in the air at speed. Over P2 it climbed further (1.48 to 2.06) and the least speed fell to 0.028 rev/s.
+- **The result is a forecast that errs high:**
+  - every stop comes early and slow, which is why accuracy is the best of the night (first rests' spread 0.034 in P2) and the time the worst;
+  - the fine tube then made up 2 to 3 gr at its P approach.
+- **The simulation missed it:** its scale does not lag longer at a low flow as the A&D does. Its learnt figure stays near 0.75 gr a turn where the rig's runs from 1.2 to 2.1.
+- **So this time the lag at every speed does cost time:** the fine tube's powder in the air at speed has to come from the calibration's lags by flow, the glide's predictor. The learnt figure would then trim only the creep.
+
+**What the three runs say together:**
+- **Accuracy is the frame's.** The forecast, a stop at a least speed set from it, one settled reading and the learning gave the PID settings the glide's accuracy or better in both later runs, with or without a calibration.
+- **Time is the predictor's at speed.**
+  - With the owner's coarse settings the bulk was slow by design (5 gr short at 0.1 to 0.25 rev/s).
+  - With the calibration's coarse settings it is slow because the one learnt figure overstates the fine tube's powder at speed.
+  - The next test is the owner's option 2 proper: the PID law on the glide's own predictor (the calibration's figures and lags by flow, as `charge_control.c` keeps them in parcels), the learning trimming them.
+- **A reverse spills, measured:** 0.83 gr of AR2209 a back-off. Keeping today's back-off in the frame means counting that in the forecast; until then it is off where the coarse tube stops close.

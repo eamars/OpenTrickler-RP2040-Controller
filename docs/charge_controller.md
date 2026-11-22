@@ -2,7 +2,7 @@
 
 A living description of the firmware's charge controller, for people and for AI agents who change, tune or operate it. It says what is built and points to where each part lives. What is proposed and not built is in [ADR-009's design draft](developments_plans/ADR-009-controller_and_tuning/controller_design_draft.md), never here.
 
-**As of** 2026-11-22, branch `adr009_controller` at 2f17d10 (not yet on `main`; `main` has only today's PID loop). **Keep it true:** a commit that changes how a throw is poured changes this page in the same commit. If this page and the code disagree, the code is right and this page is a bug.
+**Keep it true:** a commit that changes how a throw is poured changes this page in the same commit (AGENTS.md). If this page and the code disagree, the code is right and this page is a bug.
 
 ## A throw, start to end
 
@@ -47,7 +47,7 @@ The staged controller acts on a **forecast**: the reading plus what each tube ha
 
 **An example,** this rig's calibration (2026-11-22): the fine tube pours 0.814 gr a turn. At its creep of 0.058 rev/s with a lag of about 0.9 s, about 0.04 gr is in the air at any moment: one band's worth. That is how the creep is chosen (next section).
 
-`pid_learnt` has a simpler predictor with no calibration: the fine tube's turns over the last 0.9 s × one figure learnt from its throws (`src/charge_pid_learnt.c`).
+`pid_learnt` has a simpler predictor with no calibration: the fine tube's turns over the last 0.9 s × one figure learnt from its throws (`src/charge_pid_learnt.c`). Given a coarse figure, it counts the coarse tube's forward turns over that tube's lag too. That one learnt figure is right only near the speed it was learnt at: the A&D lags longer at a low flow, so a figure learnt at the creep overstates the fine tube's powder in the air at 2 rev/s (rig, 2026-11-22: 1.5 to 2.1 gr a window-turn, where the tube pours about 0.8).
 
 ## The staged controller (`src/charge_control.c`)
 
@@ -119,7 +119,10 @@ Today's loop's settings, with the frame added, and no calibration:
 - the figure learnt at each first rest (a mean of the throws so far, the newest at least 15%);
 - the figure starts at 2.0, on purpose high, so that a fresh powder starts short, never over;
 - the learnt figure is kept in RAM while the unit runs;
-- with `cpid floor_band_share=1`, its least speed is set the glide's way, from the figure.
+- with `cpid floor_band_share=1`, its least speed is set the glide's way, from the figure;
+- with `cpid coarse_gr_turn=<x> coarse_lag_s=<x>`, the coarse tube's powder is in the forecast (its forward turns only: a back-off's steps are not powder), and with `coarse_margin_share` the glide's margin for it;
+- the fine figure is learnt with the coarse tube's powder still in the air taken off, and not at all from a throw whose coarse margin is more than the band.
+- Its coarse PID numbers can be set from the calibration (`series.py --profile-set`, `--charge-set`): on this rig kp 0.306, a stop 1.43 gr short, between 0.3 and 2 rev/s. The back-off is then turned off: the rig's coarse tube spills 0.83 gr of AR2209 a reverse (measured 2026-11-21), which a stop 1.43 gr short cannot absorb.
 
 **A real throw** (the night's PID block P1, throw 5: 10.00 gr in 12.3 s, `logs/adr009/20261122_191245_series_night_p1`): the coarse tube at 0.25 to 0.10 rev/s (the owner's coarse kp of 0.05) until 2 s, the fine tube at 2 rev/s until 3.4 s, a P approach from 9.2 gr at 6 s, stopped at 9.76 s, the verdict at 12.3 s.
 
@@ -131,6 +134,11 @@ Today's loop's settings, with the frame added, and no calibration:
 | `pid_learnt` | 7.77 s | 4.47 s | 2.54 s |
 
 So the PID's time is in the bulk, by its coarse settings; its finish is the glide's.
+
+With its coarse tube set from the calibration (2026-11-22, 19:51 to 20:04; 20 throws each):
+- the PID: 19 settled good, 1 over, 14.8 s, bulk 6.2 s;
+- the glide: 16 good, 4 over, 11.2 s, bulk 3.2 s.
+- The coarse tube now stops about 2.5 gr early, because the fine tube's powder in the air at speed is forecast with the creep's figure. Accurate, and slow.
 
 ## Faults, and what the unit does today
 

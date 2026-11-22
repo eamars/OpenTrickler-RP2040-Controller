@@ -26,7 +26,10 @@ Status: **Draft** 2026-11-22, 19:45 NZDT. Not approved, and nothing here is buil
 | Second run: PID with a learnt forecast, its least speed learnt | 16 | 4 | 15.5 s | 7.8 / 4.5 / 2.5 s |
 
 - **The accuracy comes from the frame,** not the speed law: the forecast, a stop at a least speed set from it, one settled reading, and the learning. With those, today's PID settings and no calibration were as accurate as the glide.
-- **The time was lost in the bulk.** The owner's coarse kp (0.05) and coarse stop (5 gr) hold the coarse tube at 0.1 to 0.25 rev/s, where the glide runs it at 2 rev/s to 1.44 gr short. The approach and the rest took the same time in both. Whether coarse settings made from the calibration close the gap is the first test below.
+- **The time was lost in the bulk.** The owner's coarse kp (0.05) and coarse stop (5 gr) hold the coarse tube at 0.1 to 0.25 rev/s, where the glide runs it at 2 rev/s to 1.44 gr short. The approach and the rest took the same time in both. Whether coarse settings made from the calibration close the gap was tested the same night (19:51 to 20:04):
+  - **Accuracy:** the PID 19 of 20 settled good, 1 over, against the glide's 16 and 4.
+  - **Time:** 14.8 s against 11.2 s, the bulk still 3 s longer.
+  - **Why:** the coarse tube stopped about 2.5 gr early. The fine tube's powder in the air at 2 rev/s was forecast with the figure learnt at the creep, and the A&D lags longer at a low flow. So the lag at every speed does cost time, through the predictor.
 - **A learnt figure and a least speed set from it pull on each other** on a scale that lags longer at low flow (the A&D: the figure 1.18 to 1.39, the least speed 0.043 to 0.032 rev/s, about 1 s of approach). It needs a bound.
 - **PID gains do not carry from rig to rig:** the owner's .168 gains gave 10% good within 0.02 gr on this rig in the simulation, the bench unit's own 0% (`research/pid_and_staged_2026-11-22.md`).
 
@@ -69,6 +72,7 @@ flowchart LR
 ```
 
 - **The frame** is what the night showed to give the accuracy, and what the owner named to keep: the predictor, the stop, the rest and verdict, the top-ups, the learning, the gate and precharge, the reverse (today's back-off), and the safety checks. Both laws use all of it.
+- **The reverse's spill is counted.** The rig's coarse tube spills 0.83 gr of AR2209 a reverse (measured 2026-11-21), so a back-off goes into the forecast as a parcel of the calibration's spill, due after the coarse lag. Until it is, the back-off is off wherever the coarse tube stops close.
 - **A speed law** turns the forecast into the two tubes' speeds:
   - the **PID law** is today's loop on the forecast, the profile's gains and speeds;
   - the **glide law** is the staged controller's stream, from the calibration.
@@ -292,6 +296,11 @@ Proposed, for the owner to approve. Gates 0 to 2 stand as built.
    - The PID law with its coarse kp and coarse stop made from the calibration, and the coarse tube's powder in the forecast; the simulation, then ABBA on the rig against the glide.
    - Pass: the bars of 2026-11-22 (settled good at most 2 fewer, overs at most 1 more, the median at most 2.5 s longer).
    - **Expected: the bulk falls from about 7.8 s to the glide's 3.2 s, and the PID law passes.**
+   - **Run 2026-11-22, 19:51 to 20:04:**
+     - accuracy passed and beat the glide (19 settled good of 20, 1 over, against 16 and 4);
+     - time failed (14.8 against 11.2 s), the bulk 6.2 s.
+     - The cause is the predictor at speed (section "What we know"). Closed.
+   - **Then option 2 proper** (a closing condition: its verdict in the same file): the PID law on the glide's own predictor, the calibration's figures and lags by flow in parcels as `charge_control.c` keeps them, the learning trimming the creep's figure; the simulation first, with a scale that lags longer at a low flow as the A&D does (its record lacks that), then ABBA on the rig. Pass: the same bars. Expected: the bulk near the glide's, the accuracy kept.
 2. **The records and the migration** (sections 6 and 7) before gate 3, since the calibration job writes into them.
 3. **Gate 3, the calibration job,** writing the device record and the powder-on-unit record, offering the PID law's numbers as a seed.
 4. **The frame's missing parts:**
@@ -311,4 +320,4 @@ With the agent's recommendation first:
 5. **#135:** is the reading above right? If so: each gate wait its own travel plus a settle, no option; the preload counted in the forecast; the precharge as a weight in the frame.
 6. **The backup:** one file of everything, a device record restored onto another unit kept "to check" (recommended).
 7. **The shared powder figures** relative to the standard tube design (recommended), or the PID seed only.
-8. **Run the coarse test (option 1) next**, before more design (recommended).
+8. **Run option 2 proper next** (the PID law on the glide's predictor; item 1's last point in the plan above), before more design (recommended). Option 1 is run and closed.

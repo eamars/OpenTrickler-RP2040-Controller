@@ -63,6 +63,14 @@ typedef struct {
     // floor_least_rps. 0: the profile's, as today's loop
     float floor_band_share;
     float floor_least_rps;
+    // The coarse tube's powder in the forecast too (the third experiment, the owner's option 1, 2026-11-22 night): its
+    // forward turns over the last coarse_lag_s at coarse_gr_turn, the calibration's. 0: left out, and the fine tube's
+    // stop pauses for coarse_quiet_s instead, as before
+    float coarse_gr_turn;
+    float coarse_lag_s;
+    // The glide's margin for that powder, whose turn-to-turn spread is the calibration's: both tubes act as if this
+    // share more of it were coming (the glide's 3 spreads x the calibration's spread a turn). 0: none
+    float coarse_margin_share;
     uint8_t most_tops;
 } charge_pid_constants_t;
 
@@ -92,7 +100,7 @@ typedef struct {
     bool have_first_error;
     float first_error_gr;
     uint8_t tops;
-    float unseen_gr;                // the forecast's powder in the air, at the last reading
+    float unseen_gr;                // the forecast's powder in the air, at the last reading, the coarse margin with it
 
     // The throw
     uint32_t start_ms;
@@ -109,6 +117,11 @@ typedef struct {
     float window_at_s;              // the current step's start
     float window_base_turns;        // the turns counted at it
     float fine_turns;
+    float coarse_window[CHARGE_PID_WINDOW_STEPS];   // the coarse tube's forward turns, the same steps
+    float coarse_window_base;       // its forward turns at the current step's start
+    float coarse_forward;           // its forward turns since the start: a back-off pours nothing
+    float coarse_counted;           // the coarse turns last counted, either way
+    bool coarse_forwards;           // the coarse tube was last asked forwards
 
     // Today's loop
     float coarse_integral;
@@ -131,12 +144,14 @@ typedef struct {
     bool have_stop;
     float stop_reading;
     float stop_window_turns;
+    float stop_coarse_unseen;       // the coarse tube's powder in the air then, by the forecast, no margin
 } charge_pid_t;
 
 void charge_pid_default_constants(charge_pid_constants_t *k);
 void charge_pid_start(charge_pid_t *c, const charge_pid_settings_t *s, const charge_pid_constants_t *k,
                       charge_pid_learning_t *learning, float target_gr, uint32_t now_ms);
-void charge_pid_count(charge_pid_t *c, float fine_turns);
+// Each tube's turns since the start, as the unit counts its steps (the coarse tube's back-off counts too)
+void charge_pid_count(charge_pid_t *c, float coarse_turns, float fine_turns);
 void charge_pid_tick(charge_pid_t *c, uint32_t now_ms);
 void charge_pid_reading(charge_pid_t *c, uint32_t now_ms, float weight);
 // The fine tube's turns over the last lag_s

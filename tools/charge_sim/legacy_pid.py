@@ -269,6 +269,11 @@ class LearntPid(LegacyPid):
       the glide's rule without its calibration: the speed at which the powder in the air (figure x lag_s x speed) is
       that share of the band; never above the profile's least speed (with the motor's), never below
       floor_least_rps. 0: the profile's, as today.
+    - coarse_gr_turn (the third experiment, the owner's option 1, 2026-11-22 night): the coarse tube's powder in the
+      forecast too, its forward turns over the last coarse_lag_s at that figure (the calibration's). 0: left out, the
+      fine tube's stop pausing for coarse_quiet_s instead, as before. coarse_margin_share: the glide's margin for the
+      coarse tube's powder in the air, whose turn-to-turn spread is the calibration's: both tubes act as if that much
+      more of it were coming (the glide's 3 spreads x the calibration's spread a turn).
     """
 
     name = "learnt_pid"
@@ -278,7 +283,8 @@ class LearntPid(LegacyPid):
     def __init__(self, profile: Profile, digit_gr: float, interval_s: float, band_gr: float = 0.04,
                  on_forecast: bool = True, lag_s: float = 0.9, gr_turn_prior: float = 2.0, rest_s: float = 2.5,
                  acceleration_rps2: float = 50.0, most_tops: int = 8, coarse_quiet_s: float = 1.0,
-                 floor_band_share: float = 0.0, floor_least_rps: float = 0.02):
+                 floor_band_share: float = 0.0, floor_least_rps: float = 0.02, coarse_gr_turn: float = 0.0,
+                 coarse_lag_s: float = 0.6, coarse_margin_share: float = 0.0):
         # Today's loop inside, its own fine stop taken out: the stop is the room's
         super().__init__(dataclasses.replace(profile, fine_stop_threshold=-1e9))
         self.digit = digit_gr
@@ -295,6 +301,9 @@ class LearntPid(LegacyPid):
         self.floor_band_share = floor_band_share
         self.floor_least_rps = floor_least_rps
         self.profile_least_rps = profile.fine_min_rps
+        self.coarse_gr_turn = coarse_gr_turn
+        self.coarse_lag_s = coarse_lag_s
+        self.coarse_margin_share = coarse_margin_share
         self.aim = -max(digit_gr, band_gr / 2.0)
         self.stop_room = -self.aim if on_forecast else profile.fine_stop_threshold
         self.learnt = 0             # throws the learning has taken in
@@ -307,11 +316,15 @@ class LearntPid(LegacyPid):
         self.window = []            # fine turns a WINDOW_STEP_S, newest last
         self.window_s = now_ms / 1000.0
         self.window_turns = 0.0
+        self.coarse_speed = 0.0
+        self.coarse_window = []     # the coarse tube's forward turns a WINDOW_STEP_S
+        self.coarse_window_turns = 0.0
         self.last_tick_s = now_ms / 1000.0
         self.coarse_off_s = None
         self.stop_s = None
         self.stop_reading = None
         self.stop_window_turns = None
+        self.stop_coarse_unseen = 0.0
         self.first_error = None
         self.tops = 0
         self.highest = None
@@ -324,9 +337,15 @@ class LearntPid(LegacyPid):
         steps = max(1, round(self.lag_s / self.WINDOW_STEP_S))
         return sum(self.window[-steps:]) + self.window_turns
 
+    def coarse_held(self) -> float:
+        """The coarse tube's forward turns over the last coarse_lag_s."""
+        steps = max(1, round(self.coarse_lag_s / self.WINDOW_STEP_S))
+        return sum(self.coarse_window[-steps:]) + self.coarse_window_turns
+
     def unseen(self) -> float:
-        """The fine tube's powder in the air: its turns over the last lag_s at the learnt figure."""
-        return self.gr_turn * self.window_held()
+        """The powder in the air: the fine tube's turns over the last lag_s at the learnt figure, and the coarse
+        tube's over its lag at its figure when it has one."""
+        return self.gr_turn * self.window_held() + self.coarse_gr_turn * self.coarse_held()
 
     def least_rps(self) -> float:
         """The fine tube's least speed: the profile's, or the one at which the band's share is in the air."""
@@ -342,7 +361,9 @@ class LearntPid(LegacyPid):
         return min(self.stop_room, self.threshold)
 
     def forecast(self) -> float:
-        return self.reading + (self.unseen() if self.on_forecast else 0.0)
+        if not self.on_forecast:
+            return self.reading
+        return self.reading + self.unseen() + self.coarse_margin_share * self.coarse_gr_turn * self.coarse_held()
 
     def on_tick(self, now_ms: float) -> None:
         now = now_ms / 1000.0
@@ -354,9 +375,18 @@ class LearntPid(LegacyPid):
         self.fine_speed = v
         if v > 0.0:
             self.window_turns += v * dt
+        v = self.coarse_speed
+        v = min(self.coarse_rps, v + change) if v < self.coarse_rps else max(self.coarse_rps, v - change)
+        self.coarse_speed = v
+        if v > 0.0:                     # a back-off pours nothing
+            self.coarse_window_turns += v * dt
         while now >= self.window_s + self.WINDOW_STEP_S:
             self.window.append(self.window_turns)
             self.window_turns = 0.0
+            self.coarse_window.append(self.coarse_window_turns)
+            self.coarse_window_turns = 0.0
+            if len(self.coarse_window) > 400:
+                del self.coarse_window[:100]
             self.window_s += self.WINDOW_STEP_S
             if len(self.window) > 400:
                 del self.window[:100]
@@ -401,6 +431,7 @@ class LearntPid(LegacyPid):
                 # What lands after the fine tube stops, the pause's stop or the stop's, is what the window held
                 self.stop_reading = self.reading
                 self.stop_window_turns = self.window_held()
+                self.stop_coarse_unseen = self.coarse_gr_turn * self.coarse_held()
             if self.coarse_moves:
                 self.coarse_moves = False
                 self.coarse_rps = 0.0
@@ -440,7 +471,11 @@ class LearntPid(LegacyPid):
             turns = self.stop_window_turns
             if turns is None or turns < 0.01:
                 return
-            seen = (at_rest - self.stop_reading) / turns
+            # The coarse tube's powder still in the air is not the fine tube's: taken off; and a throw whose doubt
+            # on it (its margin) is more than the band teaches nothing of the fine tube
+            if self.coarse_margin_share * self.stop_coarse_unseen > self.band:
+                return
+            seen = (at_rest - self.stop_reading - self.stop_coarse_unseen) / turns
             seen = min(2.0 * self.gr_turn, max(0.5 * self.gr_turn, seen))
             self.gr_turn += share * (seen - self.gr_turn)
         else:

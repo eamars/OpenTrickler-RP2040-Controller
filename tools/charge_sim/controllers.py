@@ -241,6 +241,38 @@ for _share, _s in ((0.0, "rig"), (1.0, "floor")):
     LEARNT_PID_CONTROLLERS[f"lpid_{_s}_fw_fast"] = _rig_pid(_share, True)
 
 
+# The third experiment (2026-11-22 night, the owner's option 1): the PID's coarse tube set from the calibration (kp
+# from its grains a turn and glide time, its stop at the coarse room, between the glide's floor and top), its powder in
+# the forecast at the calibration's figure and lag; the fine tube as the second experiment (the owner's gains, its least
+# speed learnt)
+def coarse_from_calibration(rig, seed: int, profile=None):
+    """(profile, coarse_gr_turn, coarse_lag_s, coarse_margin_share) for the PID law, from the rig's calibration."""
+    cal = staged.for_finish(staged.measure(rig, seed), "glide", 0.04)
+    profile = _dc.replace(profile or AR2209_PICOW_168_RIG,
+                          coarse_kp=1.0 / (cal.coarse_gr_turn * cal.coarse_glide_s), coarse_ki=0.0, coarse_kd=0.0,
+                          coarse_min_rps=staged.COARSE_FLOOR_RPS, coarse_max_rps=staged.COARSE_TOP_RPS,
+                          coarse_stop_threshold=cal.coarse_room_gr)
+    lag = staged.table(staged.lag_table(cal.coarse_stops, cal.coarse_gr_turn), staged.COARSE_TOP_RPS)
+    return profile, cal.coarse_gr_turn, lag, staged.COARSE_SPREADS * cal.coarse_share
+
+
+def _coarse_pid(firmware):
+    def make(rig, seed=0):
+        if firmware:
+            from firmware_pid import FirmwarePid as made
+        else:
+            made = LearntPid
+        profile, coarse_gr, coarse_lag, margin = coarse_from_calibration(rig, seed)
+        return made(profile, rig.scale.digit_gr, rig.scale.report_s, 0.04, acceleration_rps2=rig.acceleration_rps2,
+                    floor_band_share=1.0, coarse_gr_turn=coarse_gr, coarse_lag_s=coarse_lag,
+                    coarse_margin_share=margin), LOOSE_TOLERANCE_GR
+    return make
+
+
+LEARNT_PID_CONTROLLERS["lpid_coarse_fast"] = _coarse_pid(False)
+LEARNT_PID_CONTROLLERS["lpid_coarse_fw_fast"] = _coarse_pid(True)
+
+
 CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
                "guarded_pid": make_guarded_pid, "guarded_pid_creep": make_guarded_pid_creep,

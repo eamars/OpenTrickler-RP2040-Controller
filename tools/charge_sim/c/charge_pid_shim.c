@@ -13,7 +13,7 @@ typedef struct {
 } shim_pid_t;
 
 
-// settings: the 16 floats of charge_pid_settings_t in order; constants: the 10 floats then most_tops
+// settings: the 16 floats of charge_pid_settings_t in order; constants: the 13 floats then most_tops
 void *shim_pid_new(const double *settings, const double *constants) {
     shim_pid_t *p = calloc(1, sizeof(*p));
     float *s = (float *) &p->s;
@@ -21,10 +21,10 @@ void *shim_pid_new(const double *settings, const double *constants) {
         s[i] = (float) settings[i];
     }
     float *k = (float *) &p->k;
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 13; i++) {
         k[i] = (float) constants[i];
     }
-    p->k.most_tops = (uint8_t) constants[10];
+    p->k.most_tops = (uint8_t) constants[13];
     return p;
 }
 
@@ -40,9 +40,9 @@ void shim_pid_start(void *handle, double target_gr, uint32_t now_ms) {
 }
 
 
-void shim_pid_step(void *handle, uint32_t now_ms, double fine_turns) {
+void shim_pid_step(void *handle, uint32_t now_ms, double coarse_turns, double fine_turns) {
     shim_pid_t *p = handle;
-    charge_pid_count(&p->c, (float) fine_turns);
+    charge_pid_count(&p->c, (float) coarse_turns, (float) fine_turns);
     charge_pid_tick(&p->c, now_ms);
 }
 

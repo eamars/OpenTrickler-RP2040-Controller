@@ -21,6 +21,9 @@ void charge_pid_default_constants(charge_pid_constants_t *k) {
     k->digit_gr = 0.02f;
     k->floor_band_share = 0.0f;
     k->floor_least_rps = 0.02f;
+    k->coarse_gr_turn = 0.0f;
+    k->coarse_lag_s = 0.6f;
+    k->coarse_margin_share = 0.0f;
     k->most_tops = 8;
 }
 
@@ -56,29 +59,57 @@ void charge_pid_start(charge_pid_t *c, const charge_pid_settings_t *s, const cha
 }
 
 
-void charge_pid_count(charge_pid_t *c, float fine_turns) {
+void charge_pid_count(charge_pid_t *c, float coarse_turns, float fine_turns) {
     c->fine_turns = fine_turns;
+    // The step count has no direction: steps since the coarse tube was last asked forwards pour (its slowing after a
+    // stop among them), those since it was last asked backwards are the back-off's
+    if (c->coarse_rps > 0.0f) {
+        c->coarse_forwards = true;
+    }
+    else if (c->coarse_rps < 0.0f) {
+        c->coarse_forwards = false;
+    }
+    if (c->coarse_forwards) {
+        c->coarse_forward += coarse_turns - c->coarse_counted;
+    }
+    c->coarse_counted = coarse_turns;
 }
 
 
-float charge_pid_window_turns(const charge_pid_t *c) {
-    uint16_t steps = (uint16_t) lroundf(c->k.lag_s / CHARGE_PID_WINDOW_STEP_S);
+static float window_sum(const float *window, uint16_t head, uint16_t held, float lag_s) {
+    uint16_t steps = (uint16_t) lroundf(lag_s / CHARGE_PID_WINDOW_STEP_S);
     if (steps < 1) {
         steps = 1;
     }
-    if (steps > c->window_steps) {
-        steps = c->window_steps;
+    if (steps > held) {
+        steps = held;
     }
-    float turns = c->fine_turns - c->window_base_turns;
+    float turns = 0.0f;
     for (uint16_t i = 1; i <= steps; i++) {
-        turns += c->window[(c->window_head + CHARGE_PID_WINDOW_STEPS - i) % CHARGE_PID_WINDOW_STEPS];
+        turns += window[(head + CHARGE_PID_WINDOW_STEPS - i) % CHARGE_PID_WINDOW_STEPS];
     }
     return turns;
 }
 
 
+float charge_pid_window_turns(const charge_pid_t *c) {
+    return window_sum(c->window, c->window_head, c->window_steps, c->k.lag_s) + (c->fine_turns - c->window_base_turns);
+}
+
+
+// The coarse tube's powder in the air by the forecast, no margin; 0 when it is left out
+static float coarse_unseen(const charge_pid_t *c) {
+    if (!(c->k.coarse_gr_turn > 0.0f)) {
+        return 0.0f;
+    }
+    float turns = window_sum(c->coarse_window, c->window_head, c->window_steps, c->k.coarse_lag_s) +
+                  (c->coarse_forward - c->coarse_window_base);
+    return c->k.coarse_gr_turn * turns;
+}
+
+
 static float unseen(const charge_pid_t *c) {
-    return c->learning->gr_turn * charge_pid_window_turns(c);
+    return c->learning->gr_turn * charge_pid_window_turns(c) + coarse_unseen(c) * (1.0f + c->k.coarse_margin_share);
 }
 
 
@@ -99,6 +130,8 @@ void charge_pid_tick(charge_pid_t *c, uint32_t now_ms) {
     }
     while (now_s >= c->window_at_s + CHARGE_PID_WINDOW_STEP_S) {
         c->window[c->window_head] = c->fine_turns - c->window_base_turns;
+        c->coarse_window[c->window_head] = c->coarse_forward - c->coarse_window_base;
+        c->coarse_window_base = c->coarse_forward;
         c->window_head = (uint16_t) ((c->window_head + 1) % CHARGE_PID_WINDOW_STEPS);
         if (c->window_steps < CHARGE_PID_WINDOW_STEPS) {
             c->window_steps++;
@@ -203,6 +236,7 @@ static void stream(charge_pid_t *c, float now_s) {
             c->have_stop = true;
             c->stop_reading = c->reading;
             c->stop_window_turns = charge_pid_window_turns(c);
+            c->stop_coarse_unseen = coarse_unseen(c);
         }
         if (c->coarse_moves) {
             c->coarse_moves = false;
@@ -229,7 +263,12 @@ static void learn(charge_pid_t *c, float at_rest) {
     if (!c->have_stop || c->stop_window_turns < LEARN_LEAST_TURNS) {
         return;
     }
-    float seen = (at_rest - c->stop_reading) / c->stop_window_turns;
+    // The coarse tube's powder still in the air is not the fine tube's: taken off; and a throw whose doubt on it (its
+    // margin) is more than the band teaches nothing of the fine tube
+    if (c->k.coarse_margin_share * c->stop_coarse_unseen > c->s.band_gr) {
+        return;
+    }
+    float seen = (at_rest - c->stop_reading - c->stop_coarse_unseen) / c->stop_window_turns;
     seen = fminf(2.0f * l->gr_turn, fmaxf(0.5f * l->gr_turn, seen));
     l->gr_turn += share * (seen - l->gr_turn);
     l->learnt++;

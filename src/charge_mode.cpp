@@ -737,6 +737,8 @@ static bool charge_mode_pid_learnt_throw(void) {
     charge_pid_learning_t *learning = charge_pid_learning((uint8_t) profile_get_selected_idx());
     const float fine_steps_turn = motor_get_steps_per_turn(SELECT_FINE_TRICKLER_MOTOR);
     const uint32_t fine_base = motor_get_steps_made(SELECT_FINE_TRICKLER_MOTOR);
+    const float coarse_steps_turn = motor_get_steps_per_turn(SELECT_COARSE_TRICKLER_MOTOR);
+    const uint32_t coarse_base = motor_get_steps_made(SELECT_COARSE_TRICKLER_MOTOR);
 
     uint32_t start_ms = charge_mode_now_ms();
     const float gr_turn_at_start = learning->gr_turn > 0.0f ? learning->gr_turn : k->gr_turn_prior;
@@ -797,7 +799,9 @@ static bool charge_mode_pid_learnt_throw(void) {
 
         float fine_turns = (float) (uint32_t) (motor_get_steps_made(SELECT_FINE_TRICKLER_MOTOR) - fine_base) /
                            fine_steps_turn;
-        charge_pid_count(c, fine_turns);
+        float coarse_turns = (float) (uint32_t) (motor_get_steps_made(SELECT_COARSE_TRICKLER_MOTOR) - coarse_base) /
+                             coarse_steps_turn;
+        charge_pid_count(c, coarse_turns, fine_turns);
         charge_pid_tick(c, now_ms);
         if (have_reading) {
             charge_pid_reading(c, now_ms, weight);

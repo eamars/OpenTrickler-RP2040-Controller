@@ -22,6 +22,12 @@ NIGHT_CASES = (
     ("PID learnt, least speed learnt", "lpid_floor_fast", LOOSE_TOLERANCE_GR),
     ("PID learnt, least speed learnt, C", "lpid_floor_fw_fast", LOOSE_TOLERANCE_GR),
 )
+COARSE_CASES = (
+    ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
+    ("PID learnt, least speed learnt", "lpid_floor_fast", LOOSE_TOLERANCE_GR),
+    ("PID, coarse from the calibration", "lpid_coarse_fast", LOOSE_TOLERANCE_GR),
+    ("PID, coarse from the calibration, C", "lpid_coarse_fw_fast", LOOSE_TOLERANCE_GR),
+)
 CASES = (
     ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
     ("PID as today, owner's gains", "legacy_picow_loose", LOOSE_TOLERANCE_GR),
@@ -42,8 +48,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--night", action="store_true", help="the second experiment's cases (the learnt least speed)")
+    parser.add_argument("--coarse", action="store_true", help="the third's (the coarse tube from the calibration)")
     args = parser.parse_args()
-    cases = NIGHT_CASES if args.night else CASES
+    cases = COARSE_CASES if args.coarse else NIGHT_CASES if args.night else CASES
     lines = [f"{args.throws} throws a case in sessions of {mc.THROWS_PER_SESSION}, the measured scale; shares of the "
              f"true weight at each case's own band",
              f"{'rig':15s}{'gr':>4s}  {'controller':36s}{'good':>7s}{'over':>7s}{'under':>7s}{'mean':>8s}{'sd':>7s}"
