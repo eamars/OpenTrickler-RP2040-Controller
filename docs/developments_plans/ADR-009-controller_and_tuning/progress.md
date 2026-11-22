@@ -1456,3 +1456,24 @@ Gate 1's check with it on: lockstep 200 of 200 in all 8 sets, float and counted 
 - **Pass, the learning:** with it on, the figure in use by the series' end within 5% of the fine figure `verify_series.py` gives for that series' own throws, and below 0.715 (the rig pours less at the finish than calibrated).
 - **Pass, no harm:** with it on, the median no longer than with it off, and the overs no more than three throws above it.
 - **Expected:** the figure near 0.65 within about ten throws; the time a second shorter at most (the simulation, a calibration 15% high at 5 gr: 0.5 s with AR2209, 1.4 s with BM2); the accuracy as with it off.
+
+### 15:46 to 16:01: the fine-tube session, judged
+
+`recordings/*_series_fine5_{dry,learn_off,learn_on}_pico2w_ar2209` (the two of the first check good, the learning seen moving: 0.715 to 0.718 to 0.700). The cup had been emptied before; the two series poured 200 gr.
+
+| 5 gr, the fine tube alone, fast mode, 20 throws | Learning off | Learning on |
+|---|---|---|
+| good within 0.04 gr / over | 80% / 4 | 90% / 2 |
+| first rests over (the stream's stop) | 4 | 1 |
+| median, all throws / with no top-up | 12.0 / 10.5 s | 13.4 / 12.6 s |
+| the fine figure in use | 0.715 | 0.685 after the first throw, then 0.67 to 0.69 (0.685 at the end) |
+| the whole throw: its weight over its fine turns | 0.831 (sd 0.023) | 0.823 (sd 0.025) |
+
+**Against the passes:**
+- **the learning:** the figure falls below 0.715 and settles within a few throws, as designed. Within 5% of an independent figure for the same stretch: not judged, since `verify_series.py` reads its fine stretch from the coarse tube's quiet and these throws have no coarse tube; the controller's own reading of the stretch is all there is;
+- **no harm: fail on the time.** The median was 1.4 s longer with it on, 2.1 s for the throws with no top-up, where up to a second shorter was expected. The overs were fewer (2 against 4), within the noise of 20 throws.
+
+**What the session found, which the forecast and the learning both miss: one figure cannot hold the fine tube.** A whole throw of 5 gr, most of it at 1 rev/s, pours 0.83 gr a fine turn; the stretch from the tube's slowing to the first rest, 0.68. That is 20% apart, in the same throws. The forecast counts every turn's powder at one figure, so a figure right for the finish is wrong for the stream, and one between is wrong for both. Learnt down to the finish's 0.685, it counts the stream's powder short, and that cost time. Two readings fit, and these throws cannot tell them apart:
+- the tube pours less per turn as it slows;
+- some of a slowing stretch's powder is held at the lip past the rest and comes out at the next start (the dry-turning finding of this afternoon), which would read high on the whole throw and low on the finish.
+Either way the forecast needs the fine tube's grains a turn as a table by speed (as its lags are), or the finish and the stream apart, measured where each is used. That is a change of the forecast's model, for the owner to weigh; the session learning of one figure is not worth its time as it stands.
