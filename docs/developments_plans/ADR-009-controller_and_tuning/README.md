@@ -264,6 +264,7 @@ Each gate's pass, under "What we do". Together:
 ## Open, to be discussed
 
 - **A powder profile portable and shareable** (the owner, 2026-11-22: "any storage decision should be temporary, and later we will discuss how to make the per powder profile portable and sharable (noted although the powder profile is not 100% portable, but a good profile is a starting point when combined with auto learning feature"). Until it is discussed, every stored form gate 2 has made is temporary: the calibration's slot of each powder profile, the throws' first errors carried into it at a charge's end, the mode in the charge settings' filler. **Closes** when the owner and the agent have settled the stored and shared form, before gate 3's calibration job writes a calibration of its own.
+  - **Drafted** 2026-11-22, 19:45, with the owner's direction of that night (split by physics; the powder's part shared; the scale's and the printed parts' part on the unit, not configurable, backed up and restored; the glide kept beside a PID): [controller_design_draft.md](controller_design_draft.md). It covers one frame with two speed laws, the four records, each parameter's life cycle, the faults, tuning by hand with the auto-tuner, the timings, the servo gate (issue #135), the migration and the stored form, and ends with the owner's eight decisions. Not approved. How the controller works as built: [docs/charge_controller.md](../../charge_controller.md).
 
 ## Not in this ADR
 
