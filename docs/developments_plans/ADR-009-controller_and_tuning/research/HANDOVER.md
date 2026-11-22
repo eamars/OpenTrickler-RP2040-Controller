@@ -10,7 +10,7 @@ Written at the owner's request ("prepare to hand over to the next agent to build
 
 ### Read in this order
 
-1. **`../README.md`, "Sign-off: what ADR-009 delivers":** the objective, settled with the owner, every item with its proof. Read it before anything else; work that serves none of it is out of scope. Then the owner's direction of 2026-11-22 night (his words) and **"Proposed for approval: the remaining gates for the final firmware"**, the plan toward the sign-off. **The plan is not approved: put it to the owner first** (AGENTS.md: approval first; design gates before build gates).
+1. **`../README.md`, "Sign-off: what ADR-009 delivers":** the objective, **final** (the owner, 2026-11-22, 22:17), every item with its proof. Read it before anything else; work that serves none of it is out of scope. Then the owner's direction of 2026-11-22 night (his words) and **"Proposed for approval: the remaining gates for the final firmware"**, the plan toward the sign-off. **The plan is not approved: put it to the owner first** (AGENTS.md: approval first; design gates before build gates).
 2. **`../controller_design_draft.md`** (Draft): one frame with two speed laws, the profile split by physics, each parameter's life cycle, the faults, tuning by hand with the auto-tuner, the timings, the servo gate (issue #135), the migration, the stored form, and the owner's eight decisions. Gate D is the owner settling them.
 3. **`pid_learning_2026-11-22.md`:** the night's six experiments, each with its passes written first, its rig ABBA and its verdict.
 4. The section "Where it stood, 2026-11-22, 18:00" below: gate 2 as built, what the day before established.

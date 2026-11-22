@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built. On 2026-11-22 night the PID law was built into the staged controller's frame and thrown against the glide, at the owner's question. A revision of the remaining gates for the final firmware is proposed under "Proposed for approval" below; it is not approved.
+Status: **Open** 2026-11-21. Its sign-off, what it delivers, is final since 2026-11-22, 22:17 ("Sign-off: what ADR-009 delivers"); the remaining gates toward it are proposed, not approved. Earlier: 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built. On 2026-11-22 night the PID law was built into the staged controller's frame and thrown against the glide, at the owner's question. A revision of the remaining gates for the final firmware is proposed under "Proposed for approval" below; it is not approved.
 
 ## What we want
 
@@ -357,7 +357,7 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
 
 ## Sign-off: what ADR-009 delivers
 
-Settled with the owner 2026-11-22, about 22:00 (his hard gates and answers, under "Owner's direction"). This list replaces "How the unit shows it works" as it was approved on 2026-11-21: its items are folded in below. **ADR-009 closes when every item is shown,** each by the proof named with it, on the units named. An agent who builds toward it reads this list first. A piece of work that serves none of it is out of scope; raise it with the owner, do not build it.
+**Final** (the owner, 2026-11-22, 22:17 NZDT: "Final"). Settled with the owner 2026-11-22, about 22:00 (his hard gates and answers, under "Owner's direction"). It changes only on the owner's word. This list replaces "How the unit shows it works" as it was approved on 2026-11-21: its items are folded in below. **ADR-009 closes when every item is shown,** each by the proof named with it, on the units named. An agent who builds toward it reads this list first. A piece of work that serves none of it is out of scope; raise it with the owner, do not build it.
 
 **The final controller SHALL:**
 
