@@ -94,16 +94,16 @@ The same on every unit, never stored, changed live only by the console's `ccon` 
 | C4 | `coarse_top_rps` | 2.0 rev/s | `ccon` | nothing | the glide; the envelope; the offer's coarse max | the ladder's top; no reason found | **Remove,** as C3 with A2 |
 | C5 | `coarse_floor_rps` | 0.3 rev/s | `ccon` | nothing | the glide; the envelope; the offer's coarse min | one bench observation: "pours in lumps below it" (2026-11-20) | **Remove.** The floor is A2's least speed. The calibration measures a stop there, and its spread is in the forecast's coarse margin |
 | C6 | `dribble_digits_s` | 8 digits/s | `ccon` | nothing | the jog finish's dribble only | the bench: the slowest even flow, AR2209 | **Remove** with the jog finish. The bench trial of 11-21 judged it (jog 56% against glide 68%), and one controller has one finish |
-| C7 | `coarse_spreads` | 3 | `ccon` | nothing | the forecast's margin for the coarse powder still unseen (D21) | `staged.py`; no study found | **Rule** if the research below shows it is insensitive; it is a confidence of three spreads, a trade of time against overs |
-| C8 | `creep_band_share` | 1.0 | `ccon` | nothing | the creep: the powder in the air at the stop as a share of the band | `staged.py`: half was tried, 1.5 to 2 s slower and no more good throws (progress.md, 2026-11-21) | **Rule**, with that evidence |
-| C9 | `creep_most_s` | 6 s | `ccon` | nothing | the creep is never so slow that its stretch takes longer than this | `staged.py`; no study found | **Rule** if insensitive; otherwise a trade for the owner |
-| C10 | `learn_share` | 0.15 | `ccon` | nothing | the stop's learning: the share of each first error taken in | the simulation; a mean-based learning tried and rejected on the rig (progress.md, 11-22) | **Rule**, with that evidence: the auto-tuner's own rate |
+| C7 | `coarse_spreads` | 3 | `ccon` | nothing | the forecast's margin for the coarse powder still unseen (D21) | `staged.py`; no study found | **Rule**, a trade of time (study, group 3). For the owner: made from the user's over budget instead |
+| C8 | `creep_band_share` | 1.0 | `ccon` | nothing | the creep: the powder in the air at the stop as a share of the band | `staged.py`: half was tried, 1.5 to 2 s slower and no more good throws (progress.md, 2026-11-21) | **Rule**: no effect beyond chance at half or twice (study, group 2), and the 11-21 trial's evidence |
+| C9 | `creep_most_s` | 6 s | `ccon` | nothing | the creep is never so slow that its stretch takes longer than this | `staged.py`; no study found | **Rule**: lowered, it costs overs on late scales (study, group 4) |
+| C10 | `learn_share` | 0.15 | `ccon` | nothing | the stop's learning: the share of each first error taken in | the simulation; a mean-based learning tried and rejected on the rig (progress.md, 11-22) | **Rule**: no effect beyond chance at half or twice (study, group 2); the auto-tuner's own rate |
 | C11 | `learn_most_digits` | 2 | `ccon` | nothing | the most a throw teaches | `staged.py` | **Safety** of the learning: a bound |
 | C12 | `learn_dead_digits` | 0.25 | `ccon` | nothing | the least a throw teaches | `staged.py` | **Rule** (below a quarter digit is the reading's own rounding) |
 | C13 | `learn_fine_prior` | 3 (on) | `ccon`; set to 0 by hand in the night series | nothing | the fine figure's learning: how many throws the calibration's figure counts for | 11-22 day; judged untrustworthy (finding 7) | **For the owner:** off until gate 3 measures the fine tube's lag at speed; then on, a rule with that evidence. Its switch is the auto-tuner's switch, not a constant |
 | C14 | `learn_fine_most` | 0.25 (±25%) | `ccon` | nothing | the fine figure's bound | 11-22 | **Safety** of the learning: a bound |
 | C15 | `learn_fine_split` | 1 (on) | `ccon` | nothing | one fine figure, or a stream's and a finish's | 11-22: no measurable gain on the rig (16:37) | **Remove** the switch. Whether the split stays is decided with C13, from gate 3's measurement |
-| C16 | `still_least_s` | 0.4 s | `ccon` | nothing | at rest: no new high for this long, or two intervals if longer (D15) | `research/proposals_2026-11-21.md` | **Measured:** the scale's own quiet time (B6) and interval give it. The 0.4 s goes |
+| C16 | `still_least_s` | 0.4 s | `ccon` | nothing | at rest: no new high for this long, or two intervals if longer (D15) | `research/proposals_2026-11-21.md` | **Rule**: no effect beyond chance at half or twice (study, group 2) |
 | C17 | `most_moves` | 8 | `ccon` | nothing | tries a throw gets after its first rest | `staged.py` | **Safety:** a bound on a throw |
 | C18 | `throw_most_s` | 120 s | `ccon` | nothing | a throw past it ends "limit" | `staged.py` | **Safety** |
 | C19 | `fine_most_turns` | 15 turns | `ccon` | nothing | a throw past it ends "limit" | `staged.py` | **Safety.** It is in turns, so it means a different weight on another tube: research whether it should be in grains, from B3 |
@@ -117,21 +117,21 @@ None is a constant anyone can see or set; each is a number written into a formul
 
 | # | Rule (where) | Literal | Origin | Proposed |
 |---|---|---|---|---|
-| D1 | The slowest fine stop's lag is taken as at least 0.3 s (`:124`) | 0.3 s | none found | research: what a lag under 0.3 s would do; derive it from the interval if it guards the scale's resolution |
-| D2 | The creep is never under half the slowest stop's speed (`:126`) | 0.5 | none found: keeps the creep near what was measured | **Rule** ("never far outside what was measured"), with the study |
-| D3 | The creep is never above the third fine stop's speed (`:125`, index 2) | the third stop | none found | **Rule** in words ("within the measured ladder") once the ladder is the user's range (B6); the index goes |
+| D1 | The slowest fine stop's lag is taken as at least 0.3 s (`:124`) | 0.3 s | none found | **Remove**: no effect at half or twice in 40 cases (study, group 1) |
+| D2 | The creep is never under half the slowest stop's speed (`:126`) | 0.5 | none found: keeps the creep near what was measured | **Rule**, a trade of time (study, group 3) |
+| D3 | The creep is never above the third fine stop's speed (`:125`, index 2) | the third stop | none found | **Rule** in words, "within the measured ladder"; the index goes: no effect at the stop before or after (study, group 1) |
 | D4 | The aim: a digit under the target, or half the band if more (`:129`) | 1 digit, ½ band | `proposals_2026-11-21.md`, section 2 | **Rule** |
 | D5 | The jog's stop room: 2.5 spreads and a digit (`:134`) | 2.5 | jog only | **Remove** with the jog (C6) |
-| D6 | The glide room: the stop room plus twice the spread of a stop from four times the creep (`:141`) | 2, 4 | `proposals_2026-11-21.md`: the creep then lasts about 3 s | **Rule** if insensitive |
-| D7 | The glide time: 0.6 × the longest lag of the middle stops, between 0.4 and 2.0 s (`:148`, `:151`) | 0.6, 0.4, 2.0, from the third stop | `proposals_2026-11-21.md`, "between set limits"; no study of the limits found | 0.6: **Rule** if insensitive. The limits: research; drop them if they never bind on the records |
-| D8 | The coarse glide time: 0.6 × the coarse lag at its floor, between 0.3 and 1.5 s (`:152`) | 0.6, 0.3, 1.5 | as D7 | as D7 |
-| D9 | The coarse room: 3 spreads of a coarse stop from its floor + the glide room + 0.2 gr (`:153`) | 3, 0.2 gr | `proposals_2026-11-21.md` | 3: as C7. **0.2 gr is in grains, a fixed weight on any scale:** research; express it in digits or from a measurement |
-| D10 | The rest: the slowest quiet time of stops within twice the creep + 0.3 s (`:157`, `:161`) | 2, 0.3 s | `proposals_2026-11-21.md` | research: the 0.3 s may be an interval or two (B2) |
+| D6 | The glide room: the stop room plus twice the spread of a stop from four times the creep (`:141`) | 2, 4 | `proposals_2026-11-21.md`: the creep then lasts about 3 s | **Rule**: at half it costs overs, at twice time (study, groups 3 and 4) |
+| D7 | The glide time: 0.6 × the longest lag of the middle stops, between 0.4 and 2.0 s (`:148`, `:151`) | 0.6, 0.4, 2.0, from the third stop | `proposals_2026-11-21.md`, "between set limits"; no study of the limits found | 0.6: **Rule** (study, group 4: at half, overs up to +11 points). 0.4 s: **Remove** (group 1). 2.0 s: **Remove**: it acts only on the slowest scale, where doubling it changed nothing and halving it cost overs |
+| D8 | The coarse glide time: 0.6 × the coarse lag at its floor, between 0.3 and 1.5 s (`:152`) | 0.6, 0.3, 1.5 | as D7 | 0.6: as D7. 0.3 s: **Remove** (group 1). 1.5 s: **Remove**: it never acts, and halving it cost overs |
+| D9 | The coarse room: 3 spreads of a coarse stop from its floor + the glide room + 0.2 gr (`:153`) | 3, 0.2 gr | `proposals_2026-11-21.md` | 3: **Rule**, a trade of time (study, group 3); for the owner, as C7. 0.2 gr: a trade of time too (group 3), and **in digits**, not grains (a gram scale reads it as 0.2 g) |
+| D10 | The rest: the slowest quiet time of stops within twice the creep + 0.3 s (`:157`, `:161`) | 2, 0.3 s | `proposals_2026-11-21.md` | **Rule**: no effect beyond chance at half or twice, either number (study, group 2) |
 | D11 | The jog's aim: two SDs of the rehearsals and a digit (`:192`) | 2 | jog only | **Remove** with the jog |
-| D12 | The coarse tube runs only if the target is more than the coarse room and half a coarse turn (`:226`, `:659`) | ½ turn | none found | **Rule** if insensitive |
+| D12 | The coarse tube runs only if the target is more than the coarse room and half a coarse turn (`:226`, `:659`) | ½ turn | none found | **Rule**: at half no effect, at twice up to 15 s slower (study, group 3) |
 | D13 | The fine learning's window opens after the coarse tube's quiet time + 0.3 s (`:518`) | 0.3 s | none found | with C13 |
 | D14 | A rise is half a digit (`:610`) | ½ digit | the digit grid | **Rule** |
-| D15 | At rest: no new high for C16, or two intervals if longer (`:647`) | 2 intervals | `proposals_2026-11-21.md` | **Rule** (with C16 measured) |
+| D15 | At rest: no new high for C16, or two intervals if longer (`:647`) | 2 intervals | `proposals_2026-11-21.md` | **Rule**: no effect beyond chance at half or twice (study, group 2) |
 | D16 | The band's edge is a quarter digit past the band (`:32`; also `charge_pid_learnt.c:8`) | ¼ digit | a float fault mended on 11-22 (10.02 over a 60 gr cup) | **Rule** (numerical tolerance), one definition, not two |
 | D17 | The fine learning ignores a stretch under 0.2 turns, a stream under 0.5 (`:33`, `:34`) | 0.2, 0.5 turn | `staged.py` | with C13 |
 | D18 | Two times within 0.1 ms are the same time (`:37`) | 1e-4 s | lockstep with the Python reference | **Not control** |
@@ -202,6 +202,51 @@ The proposals above come from the code, its comments and the record. What remain
   - **The noise:** two SDs of the difference between two independent runs of 800, 2 × √(2p(1 − p)/800), from the baseline's share p. The baseline is run on a second seed as well, to show it.
   - **One amendment before the run:** a 200-throw timing check showed the baseline's median moving 1.5 s between two seeds. So where the baseline's two seeds differ by more than 0.5 s in median, that case's median bar is their difference.
   - **The literals named first:** in `staged.py`, as module constants. The firmware's lockstep check passes on both laws, so the refactor changed nothing.
+  - **Run 2026-11-22, 23:24, to 2026-11-23, 01:58** (`tools/charge_sim/fit/study_20261122/numbers.txt`; 920 cases of 800 throws).
+  - **By the pass's letter, four numbers are Rules:** C12, D1, D3 and D7's 0.4 s. The other 19 "move" somewhere.
+  - **The pass was too strict to tell chance from a real effect, and that is my error.** Each number is judged in 40 cases on three measures, about 120 tests a number, each at two SDs. Chance alone moves about one test in twenty, so several "moves" a number were to be expected with no effect at all. The run shows it:
+    - more margin sometimes gave more overs (D6 at twice: +5.0 points on one case);
+    - the baseline's own second seed moved its median up to 2.8 s on the slowest scale.
+
+    The letter's verdict stands as written. Below, the same results read by how often and how consistently a number moved.
+  - **Each value tried, in 20 cases (both powders, five scales, both bands)**: the cases where good, over and median moved past their bars, and the mean moves.
+
+    | Row | Number | Tried | Good moved | Over moved | Median moved | Mean: good, over, median | Group |
+    |---|---|---|---|---|---|---|---|
+    | C12 | `LEARN_DEAD_DIGITS` | 0.125, 0.5 | 0, 0 | 0, 0 | 0, 0 | 0, 0, 0 | 1 |
+    | D1 | `SLOWEST_LAG_LEAST_S` | 0.15, 0.6 | 0, 0 | 0, 0 | 0, 0 | 0, 0, 0 | 1 |
+    | D3 | `CREEP_TOP_STOP` | 1, 3 | 0, 0 | 0, 0 | 0, 0 | 0, 0, 0 | 1 |
+    | D7 | `GLIDE_LEAST_S` | 0.2, 0.8 | 0, 1 | 0, 1 | 0, 0 | 0, 0, 0 | 1 |
+    | D8 | `COARSE_GLIDE_LEAST_S` | 0.15, 0.6 | 0, 1 | 0, 1 | 0, 2 | 0, 0, 0 | 1 |
+    | C10 | `LEARN_SHARE` | 0.075, 0.3 | 0, 1 | 1, 1 | 2, 1 | −0.3, +0.5, +0.2 s at most | 2 |
+    | C11 | `LEARN_MOST_DIGITS` | 1, 4 | 0, 0 | 0, 0 | 2, 2 | −0.4, +0.3, +0.2 s at most | 2 |
+    | C16 | `STILL_LEAST_S` | 0.2, 0.8 | 0, 0 | 0, 0 | 0, 1 | 0, +0.1, +0.1 s | 2 |
+    | D10 | `REST_FLOOR_TIMES` | 1, 4 | 0, 0 | 0, 0 | 1, 1 | ±0.2, ±0.2 s | 2 |
+    | D15 | `STILL_INTERVALS` | 1, 4 | 0, 1 | 0, 1 | 1, 1 | ±0.2, +0.3 s | 2 |
+    | D6 | `GLIDE_FLOW_TIMES` | 2, 8 | 1, 1 | 1, 1 | 2, 0 | ±0.5, 0 | 2 |
+    | C8 | `CREEP_BAND_SHARE` | 0.5, 2 | 3, 2 | 3, 2 | 1, 6 | +0.4 over, −0.3 s at twice | 2 |
+    | C7 | `COARSE_SPREADS` | 1.5, 6 | 3, 1 | 2, 1 | 8, 9 | −0.3 s at half; +1.4 s at twice (up to +4.4) | 3 |
+    | D9 | `COARSE_ROOM_SPREADS` | 1.5, 6 | 1, 0 | 1, 0 | 8, 16 | −0.4 s at half; +1.0 s at twice | 3 |
+    | D9 | `COARSE_ROOM_EXTRA_GR` | 0.1, 0.4 | 1, 1 | 1, 1 | 2, 11 | +0.5 s at twice | 3 |
+    | D2 | `CREEP_LEAST_SHARE` | 0.25, 1 | 1, 1 | 1, 2 | 0, 8 | −0.3 s at twice | 3 |
+    | D6 | `GLIDE_SPREADS` | 1, 4 | 3, 0 | 3, 1 | 3, 9 | +1.0 over at half (up to +8.1) | 3, 4 |
+    | D12 | `COARSE_LEAST_TURNS` | 0.25, 1 | 0, 0 | 0, 0 | 0, 6 | +3.3 s at twice (up to +14.8) | 3 |
+    | D7 | `GLIDE_LAG_SHARE` | 0.3, 1.2 | 5, 1 | 5, 1 | 18, 10 | at half: −1.7, +2.0, −0.5 s (over up to +11.4) | 4 |
+    | C9 | `CREEP_MOST_S` | 3, 12 | 4, 0 | 4, 0 | 7, 1 | at half: +0.8 over (up to +5.9), −0.6 s | 4 |
+    | D7 | `GLIDE_MOST_S` | 1, 4 | 3, 0 | 4, 0 | 0, 0 | at half: +0.9 over (up to +5.6, the slowest scale) | 4 |
+    | D8 | `COARSE_GLIDE_MOST_S` | 0.75, 3 | 1, 0 | 1, 0 | 4, 0 | at half: over up to +7.1 (the slowest scale) | 4 |
+    | D10 | `REST_EXTRA_S` | 0.15, 0.6 | 0, 3 | 2, 2 | 0, 3 | ±0.3 over, +0.3 s at twice | 2 |
+
+  - **The groups:**
+    1. **No effect over a fourfold range.** A guard that does nothing is a number nobody needs: **Remove** D1 and D8's 0.3 s. D3's index becomes the words "within the measured ladder". D7's 0.4 s goes as well. C12 stays as a **Rule** (a quarter digit is the reading's own rounding).
+    2. **Moves no more often than chance, with no consistent direction:** **Rule**, with this study as its evidence.
+    3. **A trade of time, with accuracy within the noise on average:** the margins (C7, D9 both, D6's spreads), D2's creep floor, D12's half turn. Each sets how much room is left for the unknown, so how fast a throw goes. The simulation scatters less at the stop than the rig (`research/HANDOVER.md`), so "no cost in accuracy" is not shown for a unit.
+       - **Proposed:** each kept as a **Rule** at its present value, named as the trade it is.
+       - **For the owner:** whether the spread multipliers (C7, D9, D6) are instead made from the user's over budget, as a confidence on a measured spread (3 spreads leaves about one throw in 740 beyond it, if the spread is normal). That ties three numbers to a setting the user already has: the tolerance, and the budget of one over in fifteen.
+       - None is moved to a value that tested quicker: that would be tuning against the simulation's rigs.
+    4. **Lowered, it costs overs, on the slower scales above all:** D7's share and its 2.0 s top, C9, D8's 1.5 s top, D6's spreads at half. The present values sit on the safe side.
+       - **Proposed: Rule,** with this evidence: lowering any of them costs overs on a late scale.
+       - The tops (D7's 2.0 s, D8's 1.5 s) changed nothing when doubled, and the clamp check shows the 1.5 s never acts. **Proposed:** remove both, so a slow scale gets the glide time its lag asks for.
 - **The limits, checked 2026-11-22, 23:05** (D7, D8): 0.6 × the lag against each limit, on the three distinct calibrations in the recordings, and on the simulation's calibrations of both records on the five scales (three seeds each):
   - **D7's 2.0 s acts** on the slowest stand-in scale with AR2209 (2.12 to 2.30 s, so held at 2.0); nowhere else. Its 0.4 s never acts: the least was 0.53 s, on the bench.
   - **D8's 0.3 s comes within 0.02 s of acting on the bench** (0.320 to 0.359 s); its 1.5 s never acts (the most was 1.07 s).
