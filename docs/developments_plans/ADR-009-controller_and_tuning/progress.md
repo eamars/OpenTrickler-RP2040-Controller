@@ -1411,3 +1411,31 @@ Not built: the mode on the screen and in the portal's form (the screens are gate
 | fast, ±0.04 | 91% / 8% / 10.0 s | 90% / 10% / 10.6 s |
 
 **What the rig is expected to show against it,** from series D and E: accurate about as the simulation or better (D was 80% good, 20% over, at 11.7 s, where the simulation said 72%); fast worse than the simulation (E was 80% good, 20% over, at 9.2 s, where it said 91%), since the rig's stops scatter more than the simulation's (sd 0.046 against 0.028 gr) and a wider band leaves more to that scatter. At 20 gr the coarse tube pours more and the time grows by about a second. The comparison is judged figure by figure: good, over, median time, the coarse tube's share, and the forecast against the rest (`verify_series.py`).
+
+### 14:50 to 15:18: the session, the two modes at 10 and 20 gr, against the simulation
+
+The owner emptied the cup between the series ("Cup emptied, go"). `recordings/*_series_mvp_{accurate10,fast10,accurate20,fast20}_pico2w_ar2209`, 20 throws each, plus the two of the first check (`mvp_fast10_dry`: 2 good, 7.2 s). The simulation (AR2209's record, its own calibration, 150 throws each) counted the same way.
+
+| Mode, target | Rig: good / over / median | Simulation: good / over / median | Forecast written first |
+|---|---|---|---|
+| accurate, 10 gr | 70% / 30% / 12.2 s | 73% / 27% / 13.3 s | 72% / 26% / 12.5 s |
+| fast, 10 gr | 90% / 10% / 8.2 s | 89% / 11% / 13.2 s | 91% / 8% / 10.0 s |
+| accurate, 20 gr | 55% / 45% / 13.8 s | 71% / 25% / 11.4 s | 76% / 22% / 12.9 s |
+| fast, 20 gr | 100% / 0% / 12.5 s | 90% / 10% / 11.1 s | 90% / 10% / 10.6 s |
+
+**Where it came from, rig against simulation:**
+
+| | First rests over | Overs after top-ups | Throws topped up | Median, no top-up / topped up |
+|---|---|---|---|---|
+| accurate 10, rig / simulation | 10% / 11% | 20% / 16% | 45% / 39% | 10.7 / 20.4 s; 10.3 / 17.0 s |
+| fast 10 | 5% / 5% | 5% / 6% | 20% / 16% | 7.9 / 16.7 s; 11.2 / 16.2 s |
+| accurate 20 | 15% / 11% | 30% / 15% | 40% / 39% | 11.3 / 21.1 s; 10.2 / 16.3 s |
+| fast 20 | 0% / 4% | 0% / 6% | 35% / 18% | 8.7 / 20.6 s; 11.0 / 14.4 s |
+
+What it says:
+- **The simulation predicts the rig in three of the four.** Accurate at 10 gr, and fast at 10 and 20 gr, are within the noise of 20 throws (one standard error is about 10 points). Accurate at 20 gr is worse on the rig: its top-ups put twice the simulation's overs in (30% against 15%), so 45% over where 25% was forecast. Twenty throws put that at about two standard errors.
+- **The over budget of one in 15:** fast held it or came close at both targets on the rig (2 of 20 over, then 0 of 20). Accurate did not (6 and 9 of 20).
+- **The time:** fast is 8.2 and 12.5 s, about the owner's 10 s. Accurate is 12.2 and 13.8 s, under its 20 s: it does not spend the time it is allowed. A throw with no top-up takes 8 to 11 s on the rig; one with a top-up 17 to 21 s. The top-ups decide both the time and, in accurate, most of the overs. They took longer on the rig than in the simulation (17 to 21 s against 14 to 17 s): the calibration's move waits (4.4 s for the smallest) are the rig's.
+- **The forecast and the calibration still hold** (`verify_series.py` on each series): a rest from the creep lies −0.005 to +0.012 gr from the forecast on average; the coarse tube's grains a turn within 4% of the calibration's, the fine tube's within 0 to 12%.
+- **After the verdict:** in 11 throws of 80 the settled weight differed from the rest by a digit (late kernels or the scale's flicker). Fast at 20 gr's two "settled over" are such: +0.04 at rest, +0.06 settled.
+- **The step pulses:** no late feed on either motor over the 82 throws (`motor`: 0 and 0), the creep at 0.029 and 0.058 rev/s.
