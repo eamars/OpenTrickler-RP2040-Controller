@@ -2,9 +2,82 @@
 
 Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made the research, the simulation and the first bench session. For the agent who goes on. Read this first; it says what is known, what I think it means, and what to do next, in order.
 
-ADR-009 is a **Draft, not approved**. Everything here is research for its design. Nothing is merged or pushed.
+ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the newest section below). The sections below the newest are the research that led to it, kept as they were written.
 
-## Where it stands, 2026-11-21, 17:29: read this first
+## Where it stands, 2026-11-22, 18:00: read this first
+
+Written at the owner's request ("record what we learned in to the handover note, for the next agent to actually build the system based on our hands on experiment today") by the session that built gate 2 on the unit and threw it all day on the rig. ADR-009 is **Open** (approved 2026-11-21 evening, gates 0 to 2 to build first). Everything below is on the branch `adr009_controller`, local commits up to `b23b214` and later, **not pushed**. `../progress.md` holds every figure with its recording; `talk_2026-11-22.md` holds the day's design talk with the owner and the simulation runs made to answer it, **a record, not a reference**: nothing in it is a decision.
+
+**Which controller ran on the rig today:** every rig throw was the new staged controller, in the firmware (`src/charge_control.c`), glide finish. The legacy PID loop ran only in the simulation's comparisons and once in `charge_cycle` on the simulated scale.
+
+### What is built (gate 2 and the day's MVPs)
+
+- **The controller** in the firmware's job task every millisecond, beside the PID loop (`settings/charge controller`, staged by default). Gate 1's check (`check_firmware_controller.py`) proves it against `staged.py` throw for throw; run it after any change to either. It has passed at 20 gr and at 5 gr with everything below on.
+- **Two mends found on the rig:**
+  - the band's edge is a quarter digit (a reading less a large base was off the digit grid in float);
+  - the step feed rounds a segment up (it ran late at about 1,000 steps a second, the 0.02 gr band's creep; `motor`'s `fine_underruns` 0 at every check since the mend, each flash starting it afresh, over the day's 260 throws after it).
+- **The simulated scale** pours each tube's own grains a turn every 2 ms, reads on a digit, never snaps to the target, lifts the cup when the charge asks, and has its own calibration, so `charge_cycle` runs the staged controller.
+- **The modes, an MVP:** `settings/charge mode`, `accurate` (±0.02) or `fast` (±0.04), a byte in the charge settings' filler (0x1A). Not on the screens or the portal yet.
+- **The fine tube's figure learnt over a session,** as one figure or split into a stream's and a finish's (`ccon learn_fine_prior` 3, `learn_fine_split` 1, both on by default). **Not to be trusted yet** (below).
+- **The stop's learning carried into the calibration:** at a charge's end its throws' first errors, translated to the calibration's own stop, go into the profile's slot (the newest 16; at most 3 digits at once). The next charge places its stop from them. **A temporary form:** the README's "Open, to be discussed" keeps every stored form of gate 2 temporary until the profiles' portable, shareable form is settled with the owner.
+- **The proofs on the Pico 2 W:**
+  - pass: `pulses`, `menu_tour --compare`, `charge_cycle` (both loops);
+  - `bench/robust_staged.py`: every case passes but one. A cup lifted mid-throw is poured on at full speed, by both loops. **The owner made that a condition of the ADR's sign-off, not the current focus** (README, "How the unit shows it works").
+- **Not built of gate 2:** the API's recordings (`/api/v1/recordings`). Not begun: gate 3 (the calibration as a job on the unit), gates 4 to 7.
+
+### What the day established (each in `../progress.md` under its time)
+
+1. **The algorithm holds.** Where the fine tube stops from its creep, the throw rests −0.006 to +0.012 gr from the forecast on average, its scatter the powder's own (sd 0.036 to 0.045 gr). Verify any change by the same reading: `bench/verify_series.py` on a series' rows.
+2. **A wrong calibration costs time, not accuracy**, because the closed loop puts the weight right. In the simulation and on the rig, lags 0.055 s long cost about 6 s a throw (series B 18 s; with them mended, D 11.7 s).
+3. **The calibration must be measured the way the firmware throws:**
+   - **lags in the firmware's own time:** a PC adds 0.055 s;
+   - **each tube's grains a turn where it is used.** The coarse tube poured 3 to 9% more a turn in throws than in runs from rest. The fine tube pours 0.83 gr a turn over a whole 5 gr throw and 0.68 at its finish: one figure cannot hold both;
+   - **the fine tube's lag at its top speed of 1 rev/s:** never measured (the stops reach 0.5 rev/s), and the learning of the fine figures reads through it, which is why they run to their limits;
+   - **the stop's scatter from throws, not short streams from rest:** throws scatter by 0.046 gr where the calibration measured 0.028, and its tail (6% of stops land 4 digits or more above their aim) is what an over budget lives in;
+   - **its rehearsals as a throw's last stretch:** the PC's rehearsals at 0.5 rev/s placed the firmware's stop late.
+4. **Overs come from two places:** the stream's stop scatter, and small top-ups that release a clump. **A dry turn owes its powder:** after three or more nudges that showed nothing, the next release is a clump three times as often, and what comes out is what the dry turns owed (the 11-20 and 11-21 nudge recordings, both powders). The forecast forgets owed powder once its lag has passed. Counting it before a top-up takes overs away where top-ups are many (simulation; not built).
+5. **The top-ups decide the time:** 8 to 12 s for a throw without one, 17 to 24 s with one. That is the lever for speed, not the waits.
+6. **Accurate mode adds nothing with a clumpy powder:** fast-mode throws judged at ±0.02 were within it as often as accurate's (57% against 62%) with half the overs. The owner's direction: optimise the fast mode; budget one over in 15 for both modes; "don't over build if the root cause is clump". A BM2 series would say whether accurate ever pays.
+7. **The rig drifts, and that is what learning is for.** Two series an hour apart with nothing changed differed by a second; at the same calibration and stop, first rests moved 1.5 digits in twelve minutes while the powder's grains a turn did not change. The owner (2026-11-22): "I'd expect the rig will drift, so that's the real shrine of the continuous learning works. I don't know exactly why, but this is what I observed during a long session on the bench before, perhaps the distribution of small powder from the kernel acting like lubrication that could drift the friction from continuous session." His observation and his guess at the cause; not measured.
+8. **So never judge a change by medians across series.** Judge within a series: the first ten throws against the last ten, the figures' movement, a control run after.
+9. **Learning, from a fresh calibration, pays:** 65% good and 14.0 s with every learning off, against 80% and 12.1 s on (the last ten 9 good, 1 over). Most of it is the stop's learning (15% of each first error), mending a stop the rehearsals had placed late. On a calibration already mended from the rig's own throws, learning showed nothing: the owner pointed out that bias.
+10. **The carry-over works:** each charge carried its first errors into the slot, and the next charge's stop moved by them. The slot after one session held the stop the drifted rig needed next; a fresh calibration in the same place started 1.5 digits off and paid for it with 4 overs in its first ten.
+11. **PID against staged** (`pid_and_staged_2026-11-22.md`): the PID loop is fast because it never waits, and over because it cannot see the powder in the air. Fed the forecast it stops being over and ends short, since it has no finish. What it offers the new controller is its form (plain gains, a floor, a top) and its going on without waiting. The firmware's PID derivative is per millisecond, so the field's Kd values do almost nothing.
+
+### What to build next (for the owner to approve as the plan; nothing here is approved)
+
+1. **The calibration as a job on the unit** (gate 3), measuring in the firmware's own time and in a throw's shape:
+   - each tube's lags at every speed a throw uses, the fine tube's 1 rev/s among them;
+   - each tube's grains a turn for its stream and for its finish;
+   - the stop's scatter, with enough throw-shaped rehearsals to see a tail (40 or more);
+   - the small moves' releases, with their dry runs.
+   `bench/verify_series.py` on its own throws is its check. Settle its stored form with the owner first (README, "Open, to be discussed").
+2. **The learning, kept as built:** the stop's within a session and carried across sessions. The fine figures' learning only after item 1 gives it the lags it reads through, and checked then by the same within-series test.
+3. **The fast mode as the one to optimise.** Its time is in the top-ups; whether the owed-powder count belongs in it is a question for the simulation first.
+4. **Gate 2's rest:** the API's recordings. Then gates 4 to 7 as the README has them, the Pico W's proofs (gate 7), the cup-lifted safety before sign-off.
+
+### Defaults on the unit as left
+
+- `controller=staged`, `mode=accurate` (stored), `learn_share=0.15`, `learn_fine_prior=3`, `learn_fine_split=1`, the carry on.
+- The constants (`ccon`) are live, never stored: a restart puts the defaults back.
+- Profile 0's slot holds the fresh calibration of 16:46 (its lags 0.055 s earlier) with the 17:46 session's first errors carried in.
+
+### Tools and traps
+
+- `bench/series.py`: `--mode`, `--lag-shift`, `--coarse-gr-turn`, `--fine-gr-turn` and `--keep-calibration`; it sets `ccon` and the mode live and puts the stored charge settings back at the end. `bench/trial.py --throws 0` makes a calibration and its rehearsals with no PC throws. `bench/robust_staged.py` puts faults in. `carry_stop.py` and `bench/learning_loop.py` are the day's simulation studies.
+- **The simulation:**
+  - its fine tube pours the same at every speed (`rigs.get_rig("<record>+fine_by_speed")` is an assumed variant, not a record);
+  - its tube cannot be trusted above 0.5 rev/s, where the rig ran 1.0;
+  - it scatters less at the stop than the rig;
+  - so it ranks changes and predicts times well, and is kind to accuracy at the finish.
+- **One console session at a time.** Never put `&` inside a background command: the task ends at once and the series runs on unseen.
+- Inline heredocs in this shell collapse backslashes and break on apostrophes: write a script file, or use the editor.
+- `build/app.elf` must be the image on the unit for the console to work; rebuild only to flash.
+- A series stops when the cup would pass 600 gr; the owner empties the cup when asked, and sometimes before.
+
+**The bench as left (17:53):** the Pico 2 W on the probe, idle, both motors off, no console open. It runs the build of `a1c6ae4` (the carry-over); later commits are documents and tools only. The cup holds about 300 gr; the hopper's level was not read (some 3,000 gr of AR2209 were thrown today, the cup emptied between).
+
+## Where it stands, 2026-11-21, 17:29: the day before
 
 **Both proposals have thrown on the real unit, with AR2209, and the trial is judged.** `../progress.md`, "the two proposals on the unit" (the three short runs, what they found, what was mended) and "the full trial with AR2209, judged". `proposals_2026-11-21.md` now opens with what the bench did to it. In short:
 
