@@ -1544,3 +1544,23 @@ The owner, on the sessions before: "My only concern is your result is biased, be
 **What it comes to:**
 - **The owner's point stands.** From a calibration that knows nothing of the rig's throws, the learning is worth having. Most of what it bought here is the stop's learning, which mended a stop the tool's own rehearsals had placed late.
 - **The fine figures' learning is not to be trusted as it reads now:** one hit its limit, the other ran past the throws' own figure. It needs the fine tube's lags at the speeds a throw uses, a calibration's job (gate 3), before its figures mean anything.
+
+## 2026-11-22, 17:27 to 17:33: the stop's learning carried into the powder profile's calibration, on the unit; its passes
+
+From the talk (`research/talk_2026-11-22.md`): the simulation (`carry_stop.py`) had a stop placed two digits late mended for every later session. The owner: "Yes build. And any storage decision should be temporary, and later we will discuss how to make the per powder profile portable and sharable". That is written into the README as an open item with its closing condition ("Open, to be discussed").
+
+**Built, a temporary form:**
+- each staged throw that came to rest as it should (a first rest, no return to the stream, no limit) keeps its first error translated to the calibration's own stop room;
+- at the charge's end, with five or more, they are added to the profile's calibration slot's first errors (the newest 16 kept), the slot written once (`charge_calibration_carry`), and the next charge places its stop from them as from any rehearsal;
+- nothing is written for the simulated scale, nor when the stop would move more than 3 digits at once; the charge's log says what was carried;
+- no stored layout changes: the slot's own list of first errors;
+- `series.py --keep-calibration` throws from what the slot holds instead of writing it afresh.
+
+**The test,** from the fresh calibration of 16:46 (its lags 0.055 s earlier), 5 gr, the fine tube alone, fast mode, the stop learnt within a charge (15%), the fine figures not learnt (`learn_fine_prior=0`), 20 throws each:
+1. the fresh calibration written, then thrown; its throws carried at the end;
+2. thrown from what the slot then holds;
+3. the fresh calibration written again and thrown: the control, starting as the first did.
+
+**Passes:**
+- **it carries:** the second session's first ten throws have no more overs than the first session's last ten, plus one, and fewer than the third's first ten;
+- **the slot holds it:** the second session's stop placed from a median moved by what the first carried (the log's line), within 3 digits.

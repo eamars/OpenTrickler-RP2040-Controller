@@ -113,6 +113,12 @@ static float charge_staged_weight = NAN;    // its weight at rest, from the thro
 static volatile uint16_t charge_series_asked = 0;
 static uint16_t charge_series_left = 0;     // this charge's throws still to pour, in a series; 0: no series
 static float charge_base = 0.0f;            // the weight a throw starts from: 0, but in a series
+// The charge's throws' first errors, each at the calibration's own stop room, carried into the powder profile's
+// calibration at the charge's end (ADR-009, 2026-11-22): from throws that came to rest as they should
+#define CHARGE_CARRY_THROWS_MAX 32
+#define CHARGE_CARRY_LEAST_THROWS 5
+static float charge_carry_errors[CHARGE_CARRY_THROWS_MAX];
+static uint8_t charge_carry_count = 0;
 
 /*
     The last staged throw's rows, a reading each, for the bench (`ccrec`). 16 bytes a row; at 21 readings a second
@@ -554,6 +560,7 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     // The constants as they are now: a `ccon` between throws applies from this one
     cc->k = *charge_calibration_constants();
     cc->moves_by_caller = true;
+    const float room_at_start = cc->stop_room_gr;      // where this throw stops, before it learns
     uint32_t start_ms = charge_mode_now_ms();
     charge_control_start(cc, target, start_ms);
     charge_record_rows = 0;
@@ -654,6 +661,12 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     }
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+
+    // Its first error, at the calibration's own stop room, for the carry at the charge's end
+    if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
+        charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
+        charge_carry_errors[charge_carry_count++] = cc->first_error_gr + room_at_start - cc->cal.stop_room_gr;
+    }
 
     charge_staged_verdict = true;
     charge_staged_weight = cc->rest_weight;
@@ -1128,6 +1141,7 @@ uint8_t charge_mode_menu(void) {
     charge_series_left = charge_series_asked;
     charge_series_asked = 0;
     charge_base = 0.0f;
+    charge_carry_count = 0;
     charge_staged = charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED;
     if (charge_staged) {
         // The controller and its calibration for this charge, from the heap, given back as the charge ends: the Pico
@@ -1207,6 +1221,19 @@ uint8_t charge_mode_menu(void) {
     charge_mode_throw_ended(EVENT_REASON_STOPPED, 0, NULL);
     charge_mode_log_stopped(charge_end_by, EVENT_REASON_STOPPED);
     charge_staged_verdict = false;
+    if (charge_staged && charge_carry_count >= CHARGE_CARRY_LEAST_THROWS) {
+        float before = NAN, after = NAN;
+        uint8_t profile = (uint8_t) profile_get_selected_idx();
+        if (charge_calibration_carry(profile, charge_carry_errors, charge_carry_count, &before, &after)) {
+            printf("Charge: carried %u first errors into profile %u's calibration, its stop placed from a median of "
+                   "%.4f, was %.4f\n", charge_carry_count, profile, after, before);
+        }
+        else {
+            printf("Charge: %u first errors not carried (from %.4f to %.4f, or no calibration stored)\n",
+                   charge_carry_count, before, after);
+        }
+    }
+    charge_carry_count = 0;
     charge_mode_staged_free();
     activity_job_end();
 

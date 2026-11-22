@@ -101,6 +101,9 @@ def main() -> int:
                         help="the charge's mode, set live and never stored: the staged controller's rules made for "
                              "its band (0.02 or 0.04 gr) and the glide, whatever --finish and --band say; the throws "
                              "are judged at that band")
+    parser.add_argument("--keep-calibration", action="store_true",
+                        help="throw from the calibration the profile holds (with what earlier charges carried into "
+                             "it), and write none: --calibration then only names it in the record")
     parser.add_argument("--coarse-gr-turn", type=float, help="in place of the calibration's: a figure the throws gave "
                         "(verify_series.py)")
     parser.add_argument("--fine-gr-turn", type=float, help="in place of the calibration's, as --coarse-gr-turn")
@@ -140,12 +143,15 @@ def main() -> int:
             print(f"the unit is not at its menu: {now}")
             return 1
         record["firmware"] = now.get("ver")
-        for line in calibration_commands(cal, errors, args.finish, args.band):
+        # The calibration written, or the one stored kept, as the last charge left it (its carried first errors)
+        lines = ["ccal load"] if args.keep_calibration else calibration_commands(cal, errors, args.finish, args.band)
+        for line in lines:
             reply = session.send(line)
             if reply is None or reply.startswith("@err"):
                 print(f"{line}: {reply}")
                 return 1
         record["ccal"] = list(session.console.data_lines)
+        record["calibration_kept"] = bool(args.keep_calibration)
         for line in record["ccal"]:
             if line.startswith("@cal rules"):
                 print(line)

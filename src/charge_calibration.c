@@ -133,6 +133,60 @@ static bool charge_calibration_simulated_scale(void) {
 }
 
 
+static float charge_calibration_median(const float *values, uint8_t count) {
+    float sorted[CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
+    for (uint8_t i = 0; i < count; i++) {
+        float value = values[i];
+        uint8_t j = i;
+        while (j > 0 && sorted[j - 1] > value) {
+            sorted[j] = sorted[j - 1];
+            j--;
+        }
+        sorted[j] = value;
+    }
+    return (count % 2) ? sorted[count / 2] : (sorted[count / 2 - 1] + sorted[count / 2]) / 2.0f;
+}
+
+
+static charge_calibration_record_t charge_calibration_carried;     // the slot read and written by a carry
+
+
+bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after) {
+    charge_calibration_record_t *record = &charge_calibration_carried;
+    if (charge_calibration_simulated_scale() || profile >= MAX_PROFILE_CNT || count == 0) {
+        return false;
+    }
+    uint16_t addr = charge_calibration_addr(profile);
+    if (!config_read_stored(addr, record, sizeof(*record)) || !record->valid || record->first_error_count == 0 ||
+        charge_calibration_lacks(record) != NULL) {
+        return false;
+    }
+    *before = charge_calibration_median(record->first_errors, record->first_error_count);
+    // the stored ones, then the throws', the newest kept
+    float merged[2 * CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
+    uint8_t total = 0;
+    for (uint8_t i = 0; i < record->first_error_count; i++) {
+        merged[total++] = record->first_errors[i];
+    }
+    uint8_t from = count > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? (uint8_t) (count - CHARGE_CALIBRATION_FIRST_ERRORS_MAX) : 0;
+    for (uint8_t i = from; i < count; i++) {
+        merged[total++] = errors[i];
+    }
+    uint8_t keep = total > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? CHARGE_CALIBRATION_FIRST_ERRORS_MAX : total;
+    const float *newest = &merged[total - keep];
+    *after = charge_calibration_median(newest, keep);
+    if (fabsf(*after - *before) > CHARGE_CARRY_MOST_DIGITS * record->measured.digit_gr) {
+        return false;
+    }
+    for (uint8_t i = 0; i < keep; i++) {
+        record->first_errors[i] = newest[i];
+    }
+    record->first_error_count = keep;
+    record->legacy_rev = 0;
+    return save_config(addr, record, sizeof(*record));
+}
+
+
 bool charge_calibration_held(uint8_t profile) {
     if (charge_calibration_simulated_scale()) {
         return profile < MAX_PROFILE_CNT;

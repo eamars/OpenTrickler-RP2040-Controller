@@ -261,6 +261,10 @@ Each gate's pass, under "What we do". Together:
 - `charge_cycle`, `pulses`, `menu_tour`, `reach`, `api_check` and `settings_roundtrip` pass, on the Pico 2 W and the Pico W (gates 2, 5 and 7).
 - **Safety, a condition of sign-off, not of any one gate** (the owner, 2026-11-22: "The safety must be a sign off condition, but not the current focus"): a cup lifted during a throw stops both tubes until it is back. Found on the unit on 2026-11-22: with the cup lifted for 2 s in the coarse stream, both loops kept turning at full speed and poured about 48 gr onto the bare pan (`tools/charge_sim/bench/robust_staged.py`, case `cup_lifted`; progress.md, 13:46). It holds for every loop the ADR leaves to users (gate 6 decides whether the PID loop is one). Shown by `robust_staged.py` passing every case, `cup_lifted` among them, on the Pico 2 W and the Pico W, before the ADR is closed.
 
+## Open, to be discussed
+
+- **A powder profile portable and shareable** (the owner, 2026-11-22: "any storage decision should be temporary, and later we will discuss how to make the per powder profile portable and sharable (noted although the powder profile is not 100% portable, but a good profile is a starting point when combined with auto learning feature"). Until it is discussed, every stored form gate 2 has made is temporary: the calibration's slot of each powder profile, the throws' first errors carried into it at a charge's end, the mode in the charge settings' filler. **Closes** when the owner and the agent have settled the stored and shared form, before gate 3's calibration job writes a calibration of its own.
+
 ## Not in this ADR
 
 - Ladder loading and other new modes.
