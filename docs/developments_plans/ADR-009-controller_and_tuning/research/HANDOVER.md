@@ -4,7 +4,22 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the newest section below). The sections below the newest are the research that led to it, kept as they were written.
 
-## Where it stands, 2026-11-22, 21:45: read this first (for the agent who builds the final firmware)
+## Where it stands, 2026-11-22, 22:46: read this first
+
+**ADR-009 is not ready to build.** Gate N comes first: every number the charge uses gets its life cycle (default, who modifies, who calibrates, who uses) and an approved proposal.
+
+**Read in this order:**
+1. `../README.md`, "Where ADR-009 stands": what is settled, so it is not asked again. That covers which algorithm, the auto-tuner writing the profile, its switch, and the approved gates now held behind gate N. Then the sign-off.
+2. `../numbers.md`: the inventory, its findings, the proposals and the research still to run. That research is the next work.
+
+**What this file is now:**
+- Everything below this section is history, written as the work went, not instructions.
+- Its "next" lists and "what to build next" are superseded by the README, and so are its accurate/fast modes, its `ccon` defaults and its hand settings (`fine_top_rps=1.0`, `--lag-shift`).
+- Its findings and its traps still hold.
+
+**The bench as left:** as in the section below (21:30). Nothing was flashed or thrown since. The bench rules apply: ask the owner before any contact.
+
+## Where it stood, 2026-11-22, 21:45 (history: superseded by the section above)
 
 Written at the owner's request ("prepare to hand over to the next agent to build the final firmware function") by the session that ran the night's PID experiments. ADR-009 is **Open**. Branch `adr009_controller`, local commits to the one that carries this section, **not pushed** (the owner pushes, or asks for a push, per AGENTS.md).
 

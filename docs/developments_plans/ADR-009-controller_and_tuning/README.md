@@ -1,6 +1,42 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** 2026-11-21. Its sign-off, what it delivers, is final since 2026-11-22, 22:17 ("Sign-off: what ADR-009 delivers"); the remaining gates toward it are proposed, not approved. Earlier: 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built. On 2026-11-22 night the PID law was built into the staged controller's frame and thrown against the glide, at the owner's question. A revision of the remaining gates for the final firmware is proposed under "Proposed for approval" below; it is not approved.
+Status: **Open** 2026-11-21. **Not ready to build** (2026-11-22, 22:46): gate N, the cleanup of every number the charge uses, comes before any other gate (below, "Where ADR-009 stands"). The sign-off, what ADR-009 delivers, is final since 2026-11-22, 22:17. Earlier: 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built. On 2026-11-22 night the PID law was built into the staged controller's frame and thrown against the glide, at the owner's question. A revision of the remaining gates for the final firmware is proposed under "Proposed for approval" below; it is not approved.
+
+## Where ADR-009 stands (read this first; it wins over every older section below)
+
+Written 2026-11-22, 22:46, by the agent who took over after the sign-off. It is the agent's understanding of what was settled, not a quote. The sections after it are the record of how ADR-009 got here: where one of them says otherwise, this section and the sign-off are right.
+
+**Settled. Do not ask the owner again:**
+- **What ADR-009 delivers:** the sign-off below, final.
+- **Which algorithm:** the PID law pours every throw, inside the glide's frame. The night's experiments of 2026-11-22 decided it (`research/pid_learning_2026-11-22.md`, the fourth to sixth experiments). In that design:
+  - the user's PID values are its starting point;
+  - the frame's predictor runs beside it, and its speed envelope steps in where the PID would run faster than the tube can still be stopped from;
+  - the glide's good parts are the frame: the forecast with lags by flow, the stop at the creep, one settled reading for the verdict, the top-ups, the bounded learning, the carried stop, the reverse with its spill counted.
+
+  The glide's own stream law is not the output. It is kept at most as a shadow in the recordings. No new algorithm is designed in ADR-009.
+- **The auto-tuner writes the powder profile while it is on.** It writes the PID values it derives from the measured numbers (sign-off item 4); the calibration writes them on the user's yes.
+- **The auto-tuner's switch is one for the unit,** under Settings (advanced), on by default. What "off" keeps is the register's first row (recommended there: it freezes, nothing more learnt or carried).
+- **The proposed gates** (below, "Proposed for approval") were approved on 2026-11-22 with two changes:
+  - gate S's pass is set at the rig's own run-to-run spread, measured from the recorded series, not at one throw in 20 and 1 s;
+  - gate F is built as steps, each with its own pass, the safety checks first.
+
+  They are now held behind gate N.
+
+**Gate N, the cleanup: every number's life cycle** (before any build):
+- **What and why:** every number the charge uses, the existing settings included, gets its default, who modifies it, who calibrates it and who uses it, with its origin and a proposal. The inventory found numbers that are hand-written, a limit of the simulation copied into the calibration, and user settings the staged loops ignore. Until each has its life cycle, building on them carries them into the product.
+- **The work:** [numbers.md](numbers.md). It holds the inventory, the findings, a proposal for each row by its life-cycle class, and the research still to run on each.
+- **Closes when:**
+  - every number the code uses has its row (checked against the code);
+  - each row's research is run and written into it;
+  - each proposal is approved by the owner, and the parameter register's rows are made from the approved ones.
+- **Then** gate 2's rest and the held gates follow, in their order.
+
+**Older sections that are superseded, in part:**
+- "Four answers for the build" (2026-11-21): the jog as a second setting, and "the agent tunes the frame's constants on the unit". Superseded by the sign-off (one controller; no tuning during development).
+- "What we do", gate 2: two loops behind a setting, and a powder with no calibration refused. Superseded by the sign-off (one controller; a powder never calibrated throws from the user's PID values).
+- "Decisions proposed by the research (2026-11-19)", D3: a profile of measurements in place of gains. Superseded by sign-off item 4: the user's PID values stay.
+- `controller_design_draft.md`: its `auto` law per powder, a user pinning a law, the law and band in a profile extension, and "learning never overwrites the seed". Superseded by the above.
+- `research/HANDOVER.md`: every section below its top one is history, not instructions.
 
 ## What we want
 
@@ -263,6 +299,12 @@ The controller is the research's frame with proposal 2's finish by default (`res
 
 ## Proposed for approval: the remaining gates for the final firmware (2026-11-22, 21:45)
 
+**Approved 2026-11-22 with two changes, then held behind gate N** ("Where ADR-009 stands", above). The two changes:
+- gate S's pass is the rig's own run-to-run spread, not one throw in 20 and 1 s;
+- gate F is built as steps with a pass each, the safety checks first.
+
+The gates' text below is as proposed.
+
 **What the night established** (every figure in `research/pid_learning_2026-11-22.md` and `progress.md`; the recordings in `tools/charge_sim/recordings/`, the 29 series of 2026-11-22 night):
 - **The frame gives the accuracy, the speed law gives the time.** The frame is the forecast, a stop at a least speed set from it, one settled reading, the top-ups and the learning. Today's PID settings in that frame (`ccon speed_law=1`) threw within what 20 throws resolve of the glide's accuracy, and quicker.
 - **Without the frame's forecast from the calibration,** one learnt figure overstates the fine tube's powder at speed (the A&D lags longer at a low flow), and the PID is slow.
@@ -320,7 +362,7 @@ The controller is the research's frame with proposal 2's finish by default (`res
      - and the offer made from it, thrown once against the glide, meeting the night's bars.
 7. **Gates 4 and 5, the screens and the web:**
    - designed (mocks for the owner), then built;
-   - adding the law per powder, "set" and "in use", the offer, keeping and forgetting what was learnt, a new lot, the backup and restore.
+   - adding "set" and "in use", the offer, keeping and forgetting what was learnt, a new lot, the backup and restore.
 8. **Gate 6, the migration shown:** an update from 2.0.3 on both units, every setting and profile kept and working in the one controller (sign-off items 3 and 10), and today's loop's code removed once the results bar (item 11) is met against it.
 9. **Gate 7, the Pico W, a second powder, and the facility's proof.** On a unit it was not built on (the Pico W at .168, the owner's own trickler with its own tubes), from nothing:
    - calibrate, take the offer, throw both laws, with no hand settings;
@@ -464,7 +506,7 @@ Every parameter or setting the work adds, keeps with a new meaning, moves or rem
 
 | Parameter | Where it is stored | Who sets it | The powder's or this unit's | Default, bounds | Why | Its life cycle | Approved |
 |---|---|---|---|---|---|---|---|
-| The auto-tuner's switch | To be decided at gate D: a setting of the unit, or of each powder | The user, on demand; an agent on the user's yes | To be decided at gate D | On | The owner: "so user can disable it on demand" | Recommended (for gate D): off freezes the auto-tuner, nothing more learnt or carried, the numbers in use kept; going back to the calibration's own numbers is a separate "forget what was learnt" | The switch and its default on: the owner, 2026-11-22. Where it sits and what off keeps: not yet |
+| The auto-tuner's switch | A setting of the unit, under Settings (advanced): one switch, not one a powder | The user, on demand; an agent on the user's yes | This unit's | On | The owner: "so user can disable it on demand" | Recommended (for gate D): off freezes the auto-tuner, nothing more learnt or carried, the numbers in use kept; going back to the calibration's own numbers is a separate "forget what was learnt" | The switch and its default on: the owner, 2026-11-22. One for the unit: the owner, 2026-11-22. What off keeps: not yet |
 
 ## Open, to be discussed
 

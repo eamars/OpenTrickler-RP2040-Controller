@@ -8,6 +8,12 @@ Status: **Draft** 2026-11-22, 19:45 NZDT. Not approved, and nothing here is buil
 - **The existing settings are not legacy:** their function is kept.
 - **A user's AI agent may change a unit's calibration and learnt data directly,** on the user's yes, through the API. Never during development.
 
+**Superseded further, 2026-11-22, 22:46** (the README's "Where ADR-009 stands"):
+- **The PID law pours;** the glide's parts are the frame around it. Every mention below of `auto`, of a law per powder or of a law a user pins is withdrawn: section "The design", the profile record's "its law", section 1's fallback, section 6's migration, and decision 4.
+- **The auto-tuner writes the profile's PID values while it is on.** Decision 3's "learning never overwrites the seed" is withdrawn.
+- **The band is the user's fine stop threshold,** not a profile's accurate or fast.
+- **The frame's numbers are gate N's** ([numbers.md](numbers.md)); this draft's mentions of `ccon` and `cpid` constants are not their life cycle.
+
 ## What we want (the owner, 2026-11-22 night)
 
 - "Use legacy PID parameter that people already uses, so they don't need to re-tune everything."
