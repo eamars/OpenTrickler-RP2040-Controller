@@ -4,7 +4,78 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the newest section below). The sections below the newest are the research that led to it, kept as they were written.
 
-## 2026-11-22, 18:41: the legacy PID with learning, thrown against the glide
+## Where it stands, 2026-11-22, 21:45: read this first (for the agent who builds the final firmware)
+
+Written at the owner's request ("prepare to hand over to the next agent to build the final firmware function") by the session that ran the night's PID experiments. ADR-009 is **Open**. Branch `adr009_controller`, local commits to the one that carries this section, **not pushed** (the owner pushes, or asks for a push, per AGENTS.md).
+
+### Read in this order
+
+1. **`../README.md`:** the owner's direction of 2026-11-22 night (in his words), then **"Proposed for approval: the remaining gates for the final firmware"**. That is the plan. **It is not approved: put it to the owner first** (AGENTS.md: approval first; design gates before build gates).
+2. **`../controller_design_draft.md`** (Draft): one frame with two speed laws, the profile split by physics, each parameter's life cycle, the faults, tuning by hand with the auto-tuner, the timings, the servo gate (issue #135), the migration, the stored form, and the owner's eight decisions. Gate D is the owner settling them.
+3. **`docs/charge_controller.md`:** how the controller works as built, with two real throws, the faults, where every number lives, and the loop between the simulation and the unit. AGENTS.md: a change to the controller updates it in the same commit.
+4. **`pid_learning_2026-11-22.md`:** the night's six experiments, each with its passes written first, its rig ABBA and its verdict.
+5. The section "Where it stood, 2026-11-22, 18:00" below: gate 2 as built, what the day before established.
+
+### The principle (the owner, 2026-11-22 night)
+
+"I want you to make sure you are building the facility, not sliding into the tuning against this particular unit. Any data captured today should be used for future calibration."
+
+Read here as:
+- **No number the controller uses is set from this rig's throws.** Each is a rule of the frame or the unit's own calibration.
+- **The rig checks the facility; a second unit proves it.** Do not run A/B series on the rig to pick a constant.
+- **Constants of this unit now in the code,** to move out in gate F:
+  - `charge_pid_learnt.c`'s `lag_s` 0.9 and `rest_s` 2.5 (the A&D's);
+  - `gr_turn_prior` 2.0 (raised after this rig's dry throws);
+  - `floor_least_rps` 0.02 and `coarse_quiet_s` 1.0;
+  - `ccon fine_top_rps=1.0`, set by hand for every glide series since 11-21 (the default is 0.5);
+  - the offer's fine rule (0.6 / (grains a turn × glide time)), chosen on this rig's two simulation records only.
+
+### What is built on the branch (all experimental until the gates fold or remove it)
+
+- **The staged controller with a second speed law,** `ccon speed_law=1` (`charge_control.c`, `staged.py`'s `PidLaw`):
+  - today's PID loop on the frame's forecast, the profile's gains;
+  - the frame's speed envelope `ccon pid_envelope=1` (on by default);
+  - checked throw for throw by `check_firmware_controller.py --pid`.
+- **Each law's own carried stop:** the PID law's list in a record at EEPROM 21 K. Its first carry into an empty list is taken whole.
+- **The carry translates first errors to the rules' own stop room** (`charge_calibration_base_stop_room`). This mends a fault in the 17:27 build that made the stop jump between sessions. Both lists (the calibration slot's and the 21 K record's) still hold errors translated the old way until 16 newer ones replace them.
+- **The auto-tuner's offer:** `ctune`, `ctune accept` (`charge_calibration_offer`, `staged.pid_offer`). The screen and the web wait for gates 4 and 5.
+- **`controller=pid_learnt`** (`charge_pid_learnt.c`, `cpid`): the PID on a learnt forecast with no calibration. Its predictor is the "learnt source" gate F folds into the frame; the controller itself goes.
+- **Tools:**
+  - `series.py --controller pid_learnt --gains --profile-set --charge-set`;
+  - `bench/abba_look.py`, `bench/phase_times.py`;
+  - `pid_learning_study.py`, `bad_gains_study.py`, `offer_study.py`, `firmware_pid.py`;
+  - `keep.py` now keeps series folders.
+
+### The data (for gate S and gate 3)
+
+- **`tools/charge_sim/recordings/`:** 53 series of the unit's own controller (11-21 and 11-22), each throw's line and rows. The 29 of 11-22 night are listed by block, with their gains, in the recordings' README.
+- **What the simulation must learn from them (gate S):**
+  - the A&D's lag grows at a low flow (the rig's learnt figure 1.2 to 2.1 gr a window-turn, the simulation's 0.75);
+  - the stop's spread grows as the approach shortens (the glide 0.035, the offer 0.058 gr).
+- **What the calibration job must measure on every unit (gate 3):**
+  - the lag at every flow down to the creep;
+  - the stop's spread against the approach time;
+  - the reverse's spill (0.83 gr of AR2209 a back-off on this rig).
+
+### The bench as left (21:30)
+
+- **The unit:** the Pico 2 W on the probe, running `2.0.3-176-dirty` at 827e4a0 (the carry mend in). `build/app.elf` matches it.
+- **Its settings:** `controller=staged`, mode accurate (stored); `ccon` and `cpid` at their defaults; profile 0's gains as stored (the bench unit's own: fine kp 2, coarse kp 0.025).
+- **Its stored stops:** the calibration slot of profile 0 holds the glide's carried stop. The 21 K record holds the PID law's list for profile 0, from the offer's last charge.
+- **The cup:** the scale reads about 400 gr over its last zero. Tonight about 2 kg of AR2209 were thrown, and **the scale's zero no longer tells what is in the cup**. Ask the owner before every run, as tonight.
+
+### Traps met tonight
+
+- **`rc_run.py flash` refuses an image whose metadata version is not the build's:** after a commit, build with `build_pico_2w.ps1` (which configures), not `cmake --build` alone.
+- **A flash restarts the unit,** and live settings (`ctune accept`, `setting ...` unsaved, `ccon`, `cpid`) are gone.
+- **`series.py` sometimes ends `VERDICT FAIL no reply to "ccrec"`** after its last throw. The rows are all kept; it is the runner's count, not the unit.
+- **A line printed while `ccrec` streams its rows can be lost** (the RTT buffer). "Configuration write successfully" shows a carry was stored.
+- **`abba_look.py` groups by controller:** two laws of `staged` must be given in separate calls.
+- **Inline heredocs in this shell break on apostrophes:** write a script file.
+- **After a bench session, run `bench/keep.py --logs logs/adr009`:** `logs/` is not tracked.
+
+## 2026-11-22, 18:41 to 21:30: the night's experiments, as written during them
+
 
 The owner asked whether today's PID loop, with the glide's learning, can do as well or better. This session built it with no calibration: the PID on a forecast it learns from its own throws. It threw that against the glide on the rig in ABBA blocks of 10 at 10 gr. **The glide won:**
 - settled good 18 of 20 against the PID's 14;
@@ -52,7 +123,7 @@ Not yet written into the ADR: the README's "Open, to be discussed" is where it g
 
 Everything is in `pid_learning_2026-11-22.md`; the figures are in `../progress.md` (18:09 to 18:41, and 18:50 to 19:23). The code stays on the branch as an experiment: `controller=pid_learnt`, `src/charge_pid_learnt.c`, `cpid`. Whether it is kept, as a fallback for an uncalibrated powder, is the owner's to decide. The section below (18:00) is unchanged and still the plan's starting point. The bench was left at `controller=staged`, running the build of this work (`2.0.3-169-dirty` at ac27847).
 
-## Where it stands, 2026-11-22, 18:00: read this first
+## Where it stood, 2026-11-22, 18:00
 
 Written at the owner's request ("record what we learned in to the handover note, for the next agent to actually build the system based on our hands on experiment today") by the session that built gate 2 on the unit and threw it all day on the rig. ADR-009 is **Open** (approved 2026-11-21 evening, gates 0 to 2 to build first). Everything below is on the branch `adr009_controller`, local commits up to `b23b214` and later, **not pushed**. `../progress.md` holds every figure with its recording; `talk_2026-11-22.md` holds the day's design talk with the owner and the simulation runs made to answer it, **a record, not a reference**: nothing in it is a decision.
 

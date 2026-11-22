@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built.
+Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built. On 2026-11-22 night the PID law was built into the staged controller's frame and thrown against the glide, at the owner's question. A revision of the remaining gates for the final firmware is proposed under "Proposed for approval" below; it is not approved.
 
 ## What we want
 
@@ -30,6 +30,18 @@ Status: **Open** 2026-11-21: the plan under "What we do" approved by the owner (
   - **Today's loop:** replaced by the new controller, "and I will want to run a side-by-side comparison later". Read here as: the two PID loops go; a gate throws today's firmware and the new one on the same rig, powder and target, and what is kept for users is decided with its figures.
   - **Both loops, the new one the default** (the owner, the same evening, revising the answer above): "Perhaps in the mean time I may going to run two types of charge control in parallel, so perhaps for now, run the new algorithm in parallel with the legacy PID system ... just redirect the default charge controller to the new one (without needing to 'delete' the old code". Read here as: one setting chooses the charge's controller, the new one by default; today's PID loop stays as it is, neither deleted nor mended (it is the code this ADR replaces); gate 6's side by side is the two on one firmware, and what is kept for users is still decided there.
   - **Hands on:** the agent tunes the frame's constants on the unit (the margins' multipliers, the creep's share of the band, the rest and watch times), each change committed with its recorded throws and replayed in the simulation; a new mechanism goes to the owner first.
+- **The legacy PID with the glide's learning** (the owner, 2026-11-22 evening, to the agent): "If the agent can pickup the existing legacy PID system, and integrate with the continuous learning algorithm adopted in glide algorithm, and achieve the same, or maybe better performance?" Answered by experiment the same night (`research/pid_learning_2026-11-22.md`).
+- **Three initiatives** (the owner, 2026-11-22 night):
+  - "Use legacy PID parameter that people already uses, so they don't need to re-tune everything."
+  - "Build the autonomous predictor, auto PID tuner (calibration) and learning into the hybrid PID controller."
+  - "Make the parameter (at least the initial parameter) portable, and let the learning to autonomous overwrite the user's default parameter."
+- **Split by physics; the glide kept** (the owner, the same night, after the agent's answer):
+  - "I agree that we should split by physics, and share the powder specific profile, and leave the scale, printed part related property to the OpenTrickler, and that part is not sharable so I can live with keeping the device specific parameter none configurable (i.e., not through the interface, but we should allow the user to backup and restore)."
+  - "And I don't want to throwaway the glide controller. We can always run two controllers in parallel, especially the predictor, and other non PID related, like reverse control and other advanced feature."
+  - The design drafted from it: `controller_design_draft.md` (Draft, not approved).
+- **Bad gains** (the owner, the same night): "own carried stop, also, consider what if the PID value is bad to begin with."
+- **The facility, not this unit** (the owner, the same night): "I want you to make sure you are building the facility, not sliding into the tuning against this particular unit. Any data captured today should be used for future calibration." The agent agreed, and named where it had slid (below, "Proposed for approval").
+- **The controller's document** (the owner, the same night): a live document of how the charge controller works, "consumed by human and AI agents": `docs/charge_controller.md`, which a change to the controller updates in the same commit (AGENTS.md).
 - PRs are not merged as they stand. Two of them are about tuning (#113, #101). Since 2026-11-15 nothing is kept of them ahead of this ADR's design ("Handed on by ADR-002").
 
 ## Why here
@@ -231,6 +243,79 @@ The controller is the research's frame with proposal 2's finish by default (`res
 **Gate 7: the Pico W, and a second powder.** The Pico W, since the motors' change and the millisecond's work in the job task are timing and memory: gate 2's checks and a charge set on it. BM2, when the owner loads it, its forecast written first: a calibration and 25 throws a band.
 
 **Not in these gates, kept as ideas:** the calibration choosing the finish from its own moves and stops; the move chosen as the best play of the powder's odds (`bench/best_finish.py`); a shorter calibration that keeps the scale's lag from one powder to the next (section 3.2: within four points); the trimming of grains a turn from the throws.
+
+## Proposed for approval: the remaining gates for the final firmware (2026-11-22, 21:45)
+
+**What the night established** (every figure in `research/pid_learning_2026-11-22.md` and `progress.md`; the recordings in `tools/charge_sim/recordings/`, the 29 series of 2026-11-22 night):
+- **The frame gives the accuracy, the speed law gives the time.** The frame is the forecast, a stop at a least speed set from it, one settled reading, the top-ups and the learning. Today's PID settings in that frame (`ccon speed_law=1`) threw within what 20 throws resolve of the glide's accuracy, and quicker.
+- **Without the frame's forecast from the calibration,** one learnt figure overstates the fine tube's powder at speed (the A&D lags longer at a low flow), and the PID is slow.
+- **Bad gains are guarded by the frame's speed envelope** (`ccon pid_envelope`). The bench unit's own stored gains, which put 10 throws of 12 over in today's loop, threw 15 of 20 good against the glide's 16.
+- **Each law carries its own stop** (the PID law's list at EEPROM 21 K, a temporary form).
+- **The auto-tuner's offer** (`ctune`) is 2 to 3 s quicker than the glide and costs overs. Its fine gain is a trade of time against overs, which this rig alone must not decide.
+- **A fault in the carry since the 17:27 build:** first errors were translated to the placed stop room, not the rules' own, so the stop jumped between sessions. Mended and flashed at 21:26.
+
+**The principle for what follows** (the owner): build the facility, not a tune of this unit.
+- No number the controller uses is set from this rig's throws: each is a rule of the frame, or a unit's own calibration.
+- The rig checks the facility; a second unit proves it.
+- Where tonight's work slid (the agent's own reading):
+  - **Constants of this unit in `charge_pid_learnt.c`:** a lag of 0.9 s and a rest of 2.5 s (the A&D's), a cautious start of 2.0 (raised after this rig's dry throws), a least speed of 0.02 rev/s and a coarse quiet of 1 s.
+  - **`fine_top_rps=1.0`,** set by hand on the rig for every glide series since 11-21.
+  - **The offer's fine rule,** chosen on this rig's two records only.
+  - **The proposal to throw a slower offer on the rig,** a constant tried until the overs pass: withdrawn.
+
+**The gates proposed,** in order. Each ends in a pass written before it is run. Gates 0 to 2 stand as built; gate 2 keeps its last piece.
+1. **Gate 2's rest:** the API's recordings (`/api/v1/recordings`), as planned.
+2. **Gate D, the design settled** (a design gate, before any build below):
+   - The owner decides `controller_design_draft.md`'s eight questions: one frame with two speed laws; the four records; learning never overwriting the seed; `auto` per powder; issue #135; the backup; the shared powder figures; the order.
+   - **Closes** the README's "Open, to be discussed" item.
+3. **Gate S, the simulation from the night's data.** From the recordings (`tools/charge_sim/recordings/`, the series of 11-21 and 11-22), model the two blind spots the rig found:
+   - the scale's lag growing at a low flow (the rig's learnt figure 1.2 to 2.1 gr a turn of the window, the simulation's 0.75);
+   - the stop's spread growing as the approach shortens (the glide 0.035, the offer 0.058 gr).
+   - **Pass:** the simulation reproduces the night's ABBA results (each run's good and overs within a throw of 20 a side, its medians within 1 s), so the offer's trade can be judged there and not on a unit.
+4. **Gate R, the records and the migration** (the draft's sections 6 and 7), before anything writes into them:
+   - the powder profile's extension and the device record;
+   - the powder-on-unit record, today's calibration slots grown, with the PID law's carried stops moved in from 21 K;
+   - backup and restore of all of it through the API, the calibrations included (the console's `ccal` only, today);
+   - a factory reset offering a backup first.
+   - **Pass:**
+     - an update from 2.0.3 keeps every profile and setting;
+     - backup, factory reset and restore give the calibrations back;
+     - a device record restored onto the other unit is kept "to check".
+5. **Gate F, the frame made one.** One controller (`charge_control.c`) with:
+   - **two predictor sources:** the calibration's, and the learnt figure of `charge_pid_learnt.c`, folded in for a powder not yet calibrated;
+   - the two speed laws, the envelope, each law's carried stop;
+   - the gate's waits and the preload in the forecast (issue #135), and the reverse's spill in the forecast;
+   - the cup-lifted and no-powder checks.
+   - **The constants above** go to the device record or the calibration: the scale's lag and rest from the device record, the frame's tops from the calibration's measured range.
+   - `controller=pid_learnt` goes; today's `pid` loop stays until gate 6.
+   - **Pass:**
+     - the throw-for-throw check for both laws and both sources;
+     - `robust_staged.py` with every case, `cup_lifted` and a new `no_powder` among them;
+     - one ABBA on the rig for each law against the glide, meeting the night's bars.
+6. **Gate 3, the calibration job,** writing the device record and the powder-on-unit record, as planned, and measuring as well:
+   - each tube's lag at every flow, down to the creep;
+   - the stop's spread against the approach time, with 40 or more throw-shaped rehearsals;
+   - the reverse's spill.
+   - **The PID law's offer is made from those:** its trade of time against overs chosen by the user's band and over budget, never a constant picked on this rig.
+   - **Pass:**
+     - as planned (its numbers against the trial's; 25 throws a band meeting gate 2's bar; `verify_series.py` on its throws);
+     - and the offer made from it, thrown once against the glide, meeting the night's bars.
+7. **Gates 4 and 5, the screens and the web:**
+   - designed (mocks for the owner), then built;
+   - adding the law per powder, "set" and "in use", the offer, keeping and forgetting what was learnt, a new lot, the backup and restore.
+8. **Gate 6, what to keep:** today's `pid` loop and its settings, with the evidence gathered (the night's ABBAs, and the shadow law in the recordings if built).
+9. **Gate 7, the Pico W, a second powder, and the facility's proof.** On a unit it was not built on (the Pico W at .168, the owner's own trickler with its own tubes), from nothing:
+   - calibrate, take the offer, throw both laws, with no hand settings;
+   - **pass:** gate 2's bar on that unit.
+   - BM2 when the owner loads it.
+- **Sign-off,** as before: the cup lifted and no powder flowing met on both units.
+
+**Built tonight and to be folded or removed by these gates** (each experimental, each in `docs/charge_controller.md`):
+- `controller=pid_learnt` and `charge_pid_learnt.c`;
+- `ccon speed_law`, `pid_envelope`;
+- the 21 K record;
+- `ctune`;
+- `series.py --controller pid_learnt --gains --profile-set --charge-set`.
 
 ## A gate: the servo gate tuned by eye (the owner, 2026-11-19)
 

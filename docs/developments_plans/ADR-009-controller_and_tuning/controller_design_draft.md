@@ -299,6 +299,8 @@ stateDiagram-v2
 
 ## How this would change the plan
 
+**Superseded 2026-11-22, 21:45** by the README's "Proposed for approval: the remaining gates for the final firmware". That is the one plan to approve. What follows is kept as the record of the night's order and its results.
+
 Proposed, for the owner to approve. Gates 0 to 2 stand as built.
 1. **The test first, the owner's option 1** (a closing condition of its own: its verdict written into `research/pid_learning_2026-11-22.md`).
    - The PID law with its coarse kp and coarse stop made from the calibration, and the coarse tube's powder in the forecast; the simulation, then ABBA on the rig against the glide.
@@ -335,6 +337,6 @@ With the agent's recommendation first:
 5. **#135:** is the reading above right? If so: each gate wait its own travel plus a settle, no option; the preload counted in the forecast; the precharge as a weight in the frame.
 6. **The backup:** one file of everything, a device record restored onto another unit kept "to check" (recommended).
 7. **The shared powder figures** relative to the standard tube design (recommended), or the PID seed only.
-8. **Options 1 and 2 are run and closed,** and so are each law's own carried stop and the guard against bad gains (2026-11-22, 20:53). Recommended next, for the owner to choose:
+8. **The order of the work:** the README's "Proposed for approval" (2026-11-22, 21:45). Options 1 and 2 are run and closed, and so are each law's own carried stop, the guard against bad gains and the offer. The recommendation as it stood at 20:53, kept:
    - the auto-tuner's gains offered against the profile's ("set" and "in use"), which is what is left of a bad seed: its time;
    - then section 6's records, before gate 3.

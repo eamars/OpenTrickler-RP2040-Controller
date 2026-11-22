@@ -56,3 +56,31 @@ A bench session writes into `<repo>/logs/adr009`, which git does not track. Afte
 - The second unit (the Pico W's build), fresh AR2209 and AR2208: not yet recorded.
 - Throws of the firmware's loop with BM2: not recorded; AR2209 has 29.
 - The scale with a known weight on its pan: not recorded.
+
+## The series of the unit's own controller (2026-11-21 and 22)
+
+A folder named `<stamp>_series_<name>_<session>` holds one `series.json` from `bench/series.py`:
+- the series' settings: target, mode, `ccon`, controller, gains asked;
+- each throw's line, as the unit printed it (result, rest, first error, moves, streams, elapsed, the turns, `law=`);
+- its rows: ms, reading, forecast, coarse and fine rev/s asked;
+- its settled weight.
+
+Read them with:
+- `bench/verify_series.py`: the calibration against the throws;
+- `bench/abba_look.py`: good, over, spread, top-ups, the fine tube's speed at its stop;
+- `bench/phase_times.py`: bulk, approach, rest;
+- `bench/forecast_replay.py`.
+
+**2026-11-22 night, the PID experiments** (session `pico2w_ar2209_gate2`, AR2209 at 10 gr, fast ±0.04 gr; ADR-009 `research/pid_learning_2026-11-22.md` holds every result). The PID gains are not all in `series.json`; by block:
+
+| Folders (`*_series_<name>`) | Controller | The PID's gains |
+|---|---|---|
+| `pid_dry`, `abba_p1`, `abba_p2` | `pid_learnt`, least speed 0.1 | the owner's .168 AR2209 profile (`settings_picow_168_20261122`, profile 1), written live by `--gains` |
+| `night_p1`, `night_p2` | `pid_learnt`, `cpid floor_band_share=1` | the same |
+| `coarse_p1`, `coarse_p2` | `pid_learnt`, the coarse tube in the forecast (`cpid coarse_gr_turn=10.194 coarse_lag_s=0.51 coarse_margin_share=0.164`) | the .168 fine gains; coarse kp 0.306, 0.3 to 2 rev/s (`--profile-set`); the coarse stop 1.43 gr and the back-off off (`--charge-set`) |
+| `frame_p1`, `frame_p2` | `staged`, `ccon speed_law=1` (no envelope then) | the .168 fine gains; the coarse tube's as `coarse_p*` |
+| `ownstop_p1`, `ownstop_p2` | `staged`, `speed_law=1`, the envelope | the bench unit's own stored profile 0: fine kp 2, kd 10, 0.1 to 3 rev/s; coarse kp 0.025, kd 0.25, 0.1 to 5 rev/s |
+| `offer_p1`, `offer_p2`, `offer2_p1`, `offer2_p2` | `staged`, `speed_law=1`, the envelope | the auto-tuner's offer, taken by `ctune accept` before the block: fine kp 1.40201, 0.0291 to 1 rev/s; coarse kp 0.306316, 0.3 to 2 rev/s; no I, no D |
+
+- Every `*_g1` and `*_g2` is the glide as the day threw it: `fine_top_rps=1.0 learn_fine_prior=0`, the profile's calibration with what earlier charges carried.
+- The carry translated first errors to the placed stop room until 21:26 (a fault, mended then). Every series of the 22nd before it carried that way.

@@ -72,3 +72,57 @@ Trials are counted without the turn that preconditions the tube.
 | `20261121_152433_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 |  | 0 |  |  |
 | `20261121_160810_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 |  | 0 |  |  |
 | `20261121_162403_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 |  | 0 |  |  |
+| `20261121_214454_series_dry2_pico2w_ar2209_gate2` | AR2209 | series (staged) | | 2 | 10.0 gr |  |
+| `20261121_214545_series_glide002_a_pico2w_ar2209` | AR2209 | series (staged) | | 25 | 10.0 gr |  |
+| `20261121_215642_series_glide002_b_top1_pico2w_ar2209` | AR2209 | series (staged) | | 25 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_115010_series_glide002_c_dry_pico2w_ar2209` | AR2209 | series (staged) | | 2 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_115105_series_glide002_c_lagshift_pico2w_ar2209` | AR2209 | series (staged) | | 25 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_121240_series_glide002_d_dry_pico2w_ar2209` | AR2209 | series (staged) | | 2 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_121340_series_glide002_d_yields_pico2w_ar2209` | AR2209 | series (staged) | | 25 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_122624_series_glide004_e_dry_pico2w_ar2209` | AR2209 | series (staged) | | 2 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_122716_series_glide004_e_pico2w_ar2209` | AR2209 | series (staged) | | 25 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_145001_series_mvp_fast10_dry_pico2w_ar2209` | AR2209 | series (staged) | | 2 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_145047_series_mvp_accurate10_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_145720_series_mvp_fast10_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 10.0 gr | fine_top_rps=1.0 |
+| `20261122_150305_series_mvp_accurate20_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 20.0 gr | fine_top_rps=1.0 |
+| `20261122_151219_series_mvp_fast20_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 20.0 gr | fine_top_rps=1.0 |
+| `20261122_154558_series_fine5_dry_pico2w_ar2209` | AR2209 | series (staged) | | 2 | 5.0 gr | fine_top_rps=1.0 |
+| `20261122_154649_series_fine5_learn_off_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_155323_series_fine5_learn_on_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_fine_prior=3 |
+| `20261122_162339_series_fine5_split_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_fine_prior=3 learn_fine_split=1 |
+| `20261122_163000_series_fine5_off2_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_164634_trial_pico2w_ar2209` | AR2209 | trial_pico2w_ar2209 | coarse, fine | 98 | 0.0245679, 0.0491358, 0.0982717, 0.196543, 0.2, 0.3, 0.393087, 0.5, 1, 2 rev/s |  |
+| `20261122_170508_series_fresh5_learn_off_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_share=0 learn_fine_prior=0 |
+| `20261122_171113_series_fresh5_learn_on_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_share=0.15 learn_fine_prior=3 learn_fine_split=1 |
+| `20261122_173413_series_carry5_s1_fresh_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_share=0.15 learn_fine_prior=0 |
+| `20261122_174023_series_carry5_s2_carried_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_share=0.15 learn_fine_prior=0 |
+| `20261122_174616_series_carry5_s3_fresh_pico2w_ar2209` | AR2209 | series (staged) | | 20 | 5.0 gr | fine_top_rps=1.0 learn_share=0.15 learn_fine_prior=0 |
+| `20261122_182521_series_pid_dry_pico2w_ar2209` | AR2209 | series (pid_learnt) | | 2 | 10.0 gr |  |
+| `20261122_182641_series_abba_g1_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_182929_series_abba_p1_pico2w_ar2209` | AR2209 | series (pid_learnt) | | 10 | 10.0 gr |  |
+| `20261122_183254_series_abba_p2_pico2w_ar2209` | AR2209 | series (pid_learnt) | | 10 | 10.0 gr |  |
+| `20261122_183611_series_abba_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_191001_series_night_g1_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_191245_series_night_p1_pico2w_ar2209` | AR2209 | series (pid_learnt) | | 10 | 10.0 gr |  |
+| `20261122_191617_series_night_p2_pico2w_ar2209` | AR2209 | series (pid_learnt) | | 10 | 10.0 gr |  |
+| `20261122_192001_series_night_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_195132_series_coarse_g1_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_195425_series_coarse_p1_pico2w_ar2209` | AR2209 | series (pid_learnt) | | 10 | 10.0 gr |  |
+| `20261122_195812_series_coarse_p2_pico2w_ar2209` | AR2209 | series (pid_learnt) | | 10 | 10.0 gr |  |
+| `20261122_200144_series_coarse_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_201350_series_frame_g1_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 |
+| `20261122_201657_series_frame_p1_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_201944_series_frame_p2_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_202219_series_frame_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
+| `20261122_204138_series_ownstop_g1_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
+| `20261122_204412_series_ownstop_p1_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_204710_series_ownstop_p2_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_205005_series_ownstop_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
+| `20261122_210154_series_offer_g1_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
+| `20261122_210438_series_offer_p1_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_210711_series_offer_p2_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_210945_series_offer_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
+| `20261122_211409_series_offer2_g1_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
+| `20261122_211644_series_offer2_p1_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_211904_series_offer2_p2_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
+| `20261122_212225_series_offer2_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
