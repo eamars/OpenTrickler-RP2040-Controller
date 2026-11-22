@@ -13,7 +13,7 @@ The owner asked whether today's PID loop, with the glide's learning, can do as w
 
 The cause: without a calibration the PID stops at its least speed (0.1 rev/s here) where the glide's calibration sets 0.058.
 
-**A second run (19:10 to 19:22):** the PID's least speed was set from its learnt figure, the glide's rule with no calibration. **It matched the glide's accuracy** (16 of 20 settled good against 15, 4 overs against 5) **and was 4.5 s slower** (15.5 against 11.0 s). So the predictor and the finish give the accuracy, and the calibration's lag at every speed gives the time.
+**A second run (19:10 to 19:22):** the PID's least speed was set from its learnt figure, the glide's rule with no calibration. **It matched the glide's accuracy** (16 of 20 settled good against 15, 4 overs against 5) **and was 4.5 s slower** (15.5 against 11.0 s). So the predictor and the finish give the accuracy. **Corrected at 19:40:** the 4.5 s is all in the bulk, from the coarse tube's settings (the owner's coarse kp 0.05 and 5 gr stop). The approach and the rest took the same time as the glide's (`bench/phase_times.py`). So "the lag at every speed gives the time" is not shown; the next test is a coarse tube set from the calibration.
 
 The owner, after the first run, settled a direction:
 - split the profile by physics;

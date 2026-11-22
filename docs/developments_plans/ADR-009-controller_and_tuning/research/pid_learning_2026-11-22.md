@@ -7,6 +7,8 @@ ADR-009, gate 2, 2026-11-22 evening. Not a plan: an experiment the owner asked f
 - **On the rig it is worse,** in ABBA blocks of 10 at 10 gr: settled good 14 of 20 against the glide's 18, 5 overs against 2, 13.7 s against 10.9 s. It fails all three passes written before the run.
 - **The cause:** without a calibration, the PID stops its fine tube at its least speed, 0.1 rev/s on this unit. The glide's calibration sets 0.058 from the scale's lag. The faster stop scatters 1.6 times as widely, which doubles the top-ups, and each top-up at that speed can release an over.
 - **What the learning buys:** today's PID goes from about 20% good to 70 to 75% with no calibration. That makes it a fallback for a powder not yet calibrated, not a replacement for the glide.
+- **Then, in a second run,** the PID's least speed was learnt the glide's way. It matched the glide's accuracy and was 4.5 s slower ("The second experiment").
+- **A correction (19:40), from the rows by phase** (`bench/phase_times.py`): the whole 4.5 s is in the bulk, before the reading comes within 0.7 gr of the target. That is the coarse tube's settings: the owner's coarse kp of 0.05 and the 5 gr coarse stop, tuned on a lagging reading on another rig. The approach to the stop and the rest take the same time as the glide's. The first run's reading, "the gain is the price" and "the calibration's lag at every speed buys time", is not shown by these throws.
 
 ## The question
 
@@ -198,11 +200,20 @@ Recordings: `logs/adr009/20261122_191001_series_night_g1`, `_191245_series_night
 
 **What it says:**
 1. **For accuracy, one learnt figure and one lag are enough.** With its least speed set from what it learnt, the PID with no calibration is as accurate as the glide on this rig and powder. So for accuracy, the lag table and the stop tables of the calibration are not needed.
-2. **The calibration's lag at every speed buys time.**
-   - The PID's P approach to a slow least speed is long, as predicted (3 to 4 s; it was 4.5).
-   - The learnt figure and the least speed also pull on each other. As the least speed fell, the figure rose (1.18 to 1.39 over P2), because the A&D holds a small change back longer at a lower flow. The higher figure set the least speed lower still (0.043, then 0.032), and P2 took 2 s longer than P1.
-   - One lag cannot hold a scale whose lag changes with the flow. The glide's table can, and with its aim-short stream that is what lets it come in fast.
+2. **The time is lost in the bulk, by the coarse tube's settings.** Corrected at 19:40: the first reading of this section said the P approach and the lag by speed cost the time; the rows by phase say otherwise (`bench/phase_times.py`, medians):
+
+   | | Bulk, to within 0.7 gr of the target | Approach, to the fine tube's stop | Rest and top-ups |
+   |---|---|---|---|
+   | Glide, 20 | 3.20 s | 4.60 s | 2.58 s |
+   | PID, least speed learnt, 20 | 7.77 s | 4.47 s | 2.54 s |
+   | (first run) glide / PID, least 0.1 | 3.03 / 6.78 s | 4.66 / 3.60 s | 2.58 / 2.54 s |
+
+   - The glide runs its coarse tube at 2 rev/s until its forecast is 1.44 gr short.
+   - The owner's coarse kp of 0.05 holds the coarse tube at 0.1 to 0.25 rev/s, and it stops 5 gr short (the coarse stop threshold). The fine tube at 2 rev/s pours most of the throw.
+   - Both settings were right for a PID on a lagging reading on his own rig.
+   - The learnt figure and the least speed do pull on each other. As the least speed fell, the figure rose (1.18 to 1.39 over P2), because the A&D holds a small change back longer at a lower flow. That cost about 1 s: P2's approach took 5.14 s against P1's 4.22 s.
 3. **For the design:**
    - The accuracy comes from the predictor and the finish: the forecast, the stop's speed set from it, one settled reading, the learning.
-   - The time comes from the speed law and the lag by speed.
-   - So the PID's numbers can seed a charge with no calibration and be as accurate, and the device's calibration makes it fast.
+   - On these throws the time comes from the coarse tube's gain and its stop, not the finish.
+   - The next test is the owner's option 1: the coarse tube's PID settings made from the calibration. That means a coarse kp from its grains a turn and glide time, and a coarse stop from its room, with the coarse tube's own powder in the forecast. If that closes the 4.5 s, a PID-shaped controller with an auto-tuner matches the glide on this rig.
+   - The pull between the figure and the least speed needs a bound or a figure by speed (about 1 s here).

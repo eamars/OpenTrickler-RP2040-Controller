@@ -1621,4 +1621,9 @@ The first run's cause, mended the glide's way with no calibration: the fine tube
   - the calibration's lag at every speed buys time;
   - the figure and the least speed pull on each other (the figure 1.18 to 1.39, the least speed 0.043 to 0.032, the time 14.4 to 16.5 s), since the A&D lags longer at lower flows.
 - **Found:** the calibration slots are written and read only by the console (`ccal`), not in the API's settings copy, so a backup of the unit today misses them.
+- **Corrected at 19:40, from the rows by phase** (`bench/phase_times.py`; medians, glide against PID):
+  - the bulk, to within 0.7 gr: 3.20 against 7.77 s;
+  - the approach to the fine stop: 4.60 against 4.47 s;
+  - the rest and top-ups: 2.58 against 2.54 s.
+  - So the 4.5 s is the coarse tube's settings (the owner's coarse kp 0.05, the 5 gr coarse stop), not the finish or the lag by speed. The reading above, "the calibration's lag at every speed buys time", is withdrawn. The figure and least speed's pull cost about 1 s of approach in P2.
 - The bench left at `controller=staged`, the constants at their defaults (`cpid defaults`), the profile's gains as stored.
