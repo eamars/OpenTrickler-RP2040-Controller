@@ -323,8 +323,44 @@ def set_rules(cal: Calibration, finish: str, band_gr: float) -> None:
     cal.rest_s = max(stop.quiet_s for stop in fine if stop.speed <= 2.0 * cal.floor_rps or stop is fine[0]) + 0.3
 
 
+@dataclass(frozen=True)
+class PidLaw:
+    """The PID speed law in the frame (ADR-009, the owner's option 2, 2026-11-22 night; an experiment).
+
+    Each tube's speed is today's PID loop on the frame's forecast, the profile's gains: the coarse tube's error is the
+    room above the coarse room (the frame switches it off there), the fine tube's the room itself. The P term every
+    tick; the I and D terms as today's loop takes them, on each reading (the integral a sum of errors, the derivative
+    a change per millisecond). The fine tube's least speed is the frame's floor, not the profile's: the stop's speed is
+    the frame's (the night's second run). Everything else is the frame's: the stop, the rest, the small moves, the
+    learning.
+    """
+
+    coarse_kp: float
+    coarse_ki: float
+    coarse_kd: float
+    coarse_min_rps: float
+    coarse_max_rps: float
+    fine_kp: float
+    fine_ki: float
+    fine_kd: float
+    fine_max_rps: float
+
+
+def pid_law_from(cal: Calibration, fine_kp: float = 0.8, fine_ki: float = 0.0, fine_kd: float = 15.0,
+                 fine_max_rps: float = 2.0) -> PidLaw:
+    """The PID law of option 2: the coarse tube's numbers made from the calibration (kp from its grains a turn and
+    glide time, between the frame's coarse floor and top, as option 1 had them), the fine tube's the profile's (by
+    default the owner's Pico W AR2209 gains)."""
+    return PidLaw(coarse_kp=1.0 / (cal.coarse_gr_turn * cal.coarse_glide_s), coarse_ki=0.0, coarse_kd=0.0,
+                  coarse_min_rps=COARSE_FLOOR_RPS, coarse_max_rps=COARSE_TOP_RPS, fine_kp=fine_kp, fine_ki=fine_ki,
+                  fine_kd=fine_kd, fine_max_rps=fine_max_rps)
+
+
 class Staged:
-    """The controller. The harness reads coarse_rps, fine_rps and done after each call."""
+    """The controller. The harness reads coarse_rps, fine_rps and done after each call.
+
+    pid: None for the glide's speed law; a PidLaw for the PID law in the same frame.
+    """
 
     def __init__(self, cal: Calibration, acceleration_rps2: float, rehearsal: bool = False):
         self.cal = dataclasses.replace(cal)     # its own copy: the learnt fine figure goes into it
@@ -342,6 +378,7 @@ class Staged:
         self.fine_lags = lag_table(cal.fine_stops, cal.fine_gr_turn)
         self.stop_room = cal.stop_room_gr
         self.name = cal.finish
+        self.pid = None
         # per throw: (the error at the rest after its last stream, moves made, times it went back to the stream)
         self.log = []
 
@@ -381,6 +418,31 @@ class Staged:
         self.window_shown_turns = 0.0
         self.window_turned = 0.0        # the fine tube's turns when it opened, and its powder still unseen then
         self.window_unseen_gr = 0.0
+        self.pid_integral = {"coarse": 0.0, "fine": 0.0}
+        self.pid_last_error = {"coarse": 0.0, "fine": 0.0}
+        self.pid_term = {"coarse": 0.0, "fine": 0.0}      # the I and D terms, as of the last reading
+        self.pid_last_s = now_ms / 1000.0
+        self.pid_first = True
+
+    def _room(self) -> float:
+        """The room the stream is poured against: the target less the forecast, and less three spreads of the coarse
+        tube's powder still unseen (kept clear by both tubes)."""
+        return self.target - self._forecast() - COARSE_SPREADS * self.cal.coarse_share * self.coarse_unseen
+
+    def _pid_reading(self, now: float) -> None:
+        """The PID law's I and D terms on a reading, as today's loop takes them."""
+        pid = self.pid
+        room = self._room()
+        errors = {"coarse": room - self.cal.coarse_room_gr, "fine": room}
+        elapsed_ms = (now - self.pid_last_s) * 1000.0
+        for tube, ki, kd in (("coarse", pid.coarse_ki, pid.coarse_kd), ("fine", pid.fine_ki, pid.fine_kd)):
+            self.pid_integral[tube] += errors[tube]
+            derivative = 0.0 if self.pid_first or elapsed_ms <= 0.0 else \
+                (errors[tube] - self.pid_last_error[tube]) / elapsed_ms
+            self.pid_term[tube] = ki * self.pid_integral[tube] + kd * derivative
+            self.pid_last_error[tube] = errors[tube]
+        self.pid_last_s = now
+        self.pid_first = False
 
     def _parcel(self, now: float) -> None:
         """Count what each tube turned out since the last parcel: it will show after the lag of its present flow.
@@ -456,13 +518,17 @@ class Staged:
         # The coarse tube's powder still unseen is known only by its turns, and a turn's powder varies: three times
         # that spread of it is kept clear by both tubes. A small charge is all unseen when the coarse tube stops,
         # and its margin is the wider for it; in a large one the reading has caught up and little is added
-        room = self.target - self._forecast() - COARSE_SPREADS * cal.coarse_share * self.coarse_unseen
+        room = self._room()
+        pid = self.pid
         if self.coarse_on:
             if room <= cal.coarse_room_gr:
                 self.coarse_on = False
                 self.coarse_rps = 0.0
                 if self.coarse_off_at is None:
                     self.coarse_off_at = now
+            elif pid is not None:
+                asked = pid.coarse_kp * (room - cal.coarse_room_gr) + self.pid_term["coarse"]
+                self.coarse_rps = min(pid.coarse_max_rps, max(pid.coarse_min_rps, asked))
             else:
                 asked = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
                 self.coarse_rps = min(COARSE_TOP_RPS, max(COARSE_FLOOR_RPS, asked))
@@ -473,6 +539,10 @@ class Staged:
             self.phase = "rest"
             self.stopped_at = now
             self.wait = cal.rest_s
+            return
+        if pid is not None:
+            asked = pid.fine_kp * room + self.pid_term["fine"]
+            self.fine_rps = min(pid.fine_max_rps, max(cal.floor_rps, asked))
             return
         asked = (room - cal.glide_room_gr) / (cal.fine_gr_turn * cal.glide_s)
         self.fine_rps = min(FINE_TOP_RPS, max(cal.floor_rps, asked))
@@ -491,6 +561,8 @@ class Staged:
             self.unseen = sum(parcel[1] for parcel in self.parcels)
             self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse")
         self._open_window(now, weight)
+        if self.pid is not None and self.phase == "feed":
+            self._pid_reading(now)
         if self.phase != "rest":
             return
         still = max(0.4, 2.0 * cal.interval_s)

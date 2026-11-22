@@ -62,7 +62,8 @@ def _types(real) -> tuple:
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
             "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split", "still_least_s")]
                     + [("most_moves", ctypes.c_uint8)]
-                    + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_most_gr")])
+                    + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_most_gr")]
+                    + [("speed_law", ctypes.c_uint8)])
 
     return Stop, Move, Calibration, Constants
 
@@ -129,6 +130,7 @@ class Library:
                                      ctypes.POINTER(ctypes.c_double)]
         lib.shim_parcels.restype = ctypes.c_uint16
         lib.shim_set_fine_learning.argtypes = [ctypes.c_void_p] + [ctypes.c_double] * 6
+        lib.shim_set_pid.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
         self.lib = lib
 
     def default_constants(self):
@@ -187,6 +189,8 @@ class FirmwareStaged:
         self._c = ctypes.create_string_buffer(self._lib.shim_sizeof_controller())
         self._cal = to_c(cal, double)
         self._k = lib.default_constants()
+        self._acceleration = acceleration_rps2
+        self._rehearsal = rehearsal
         self._lib.charge_control_init(self._c, ctypes.byref(self._cal), ctypes.byref(self._k), acceleration_rps2,
                                       rehearsal)
         self._out = (ctypes.c_double * OUTPUTS)()
@@ -195,6 +199,18 @@ class FirmwareStaged:
         self.rehearsal = rehearsal
         self.log = []
         self._logged = False
+        self._read()
+
+    def set_pid(self, law) -> None:
+        """The PID speed law (`staged.PidLaw`) in place of the glide's: the controller made again with
+        speed_law 1 and the law's gains. Before any learnt state is carried in."""
+        self._k.speed_law = 1
+        self._lib.charge_control_init(self._c, ctypes.byref(self._cal), ctypes.byref(self._k), self._acceleration,
+                                      self._rehearsal)
+        gains = [law.coarse_kp, law.coarse_ki, law.coarse_kd, law.coarse_min_rps, law.coarse_max_rps, law.fine_kp,
+                 law.fine_ki, law.fine_kd, law.fine_max_rps]
+        self._lib.shim_set_pid(self._c, (ctypes.c_double * 9)(*gains))
+        self.name += " PID law"
         self._read()
 
     def set_fine_learning(self, n: int, total: float, current: float, stream_n: int = 0, stream_total: float = 0.0,

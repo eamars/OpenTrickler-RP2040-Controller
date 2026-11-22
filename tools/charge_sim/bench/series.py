@@ -136,7 +136,7 @@ def main() -> int:
     if pid and args.gains is None:
         parser.error("--gains is needed for pid_learnt")
     gains = {}
-    if pid:
+    if args.gains is not None:
         copy = json.loads(args.gains.read_text())["resources"][f"/api/v1/powder_profiles/{args.gains_profile}"]
         gains = {name: value for name, value in copy.items() if name != "name" and name != "saved"}
         for pair in args.profile_set.split():
@@ -176,20 +176,22 @@ def main() -> int:
             return 1
         record["firmware"] = now.get("ver")
         # The calibration written, or the one stored kept, as the last charge left it (its carried first errors)
+        # The profile's PID settings from a copy, for pid_learnt or the staged frame's PID law (ccon speed_law=1).
+        # A tube a line: the console takes no longer one
+        profile_lines = [f"setting powder_profiles/{args.profile} " + " ".join(
+            f"{name}={value:g}" for name, value in gains.items() if name.startswith(tube))
+            for tube in ("coarse", "fine")] if gains else []
         if pid:
-            # A tube a line: the console takes no longer one
-            lines = [f"setting powder_profiles/{args.profile} " + " ".join(
-                f"{name}={value:g}" for name, value in gains.items() if name.startswith(tube))
-                for tube in ("coarse", "fine")]
+            lines = list(profile_lines)
             if args.cpid_reset:
                 lines.append("cpid reset")
             if args.cpid:
                 lines.append(f"cpid {args.cpid}")
             lines.append("cpid")
         elif args.keep_calibration:
-            lines = ["ccal load"]
+            lines = ["ccal load"] + profile_lines
         else:
-            lines = calibration_commands(cal, errors, args.finish, args.band)
+            lines = calibration_commands(cal, errors, args.finish, args.band) + profile_lines
         for line in lines:
             reply = session.send(line)
             if reply is None or reply.startswith("@err"):
@@ -258,8 +260,9 @@ def main() -> int:
         for tube in ("coarse", "fine"):
             session.send(f"motor {tube} 0")
         session.send("setting settings/charge revert")     # the mode and the controller back as stored
-        if pid:
+        if gains:
             session.send(f"setting powder_profiles/{args.profile} revert")
+        if pid:
             session.send("cpid")
             record["cpid_after"] = list(session.console.data_lines)
         # Each throw's settled weight: the next one's base less its own

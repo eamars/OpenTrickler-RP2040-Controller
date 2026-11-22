@@ -296,3 +296,80 @@ Recordings: `logs/adr009/20261122_195132_series_coarse_g1`, `_195425_series_coar
   - With the calibration's coarse settings it is slow because the one learnt figure overstates the fine tube's powder at speed.
   - The next test is the owner's option 2 proper: the PID law on the glide's own predictor (the calibration's figures and lags by flow, as `charge_control.c` keeps them in parcels), the learning trimming them.
 - **A reverse spills, measured:** 0.83 gr of AR2209 a back-off. Keeping today's back-off in the frame means counting that in the forecast; until then it is off where the coarse tube stops close.
+
+## The fourth experiment: the PID law on the glide's own predictor (the owner's option 2, 2026-11-22 night)
+
+**Why:** the third run's PID was as accurate as the glide and slow, because one learnt figure overstated the fine tube's powder in the air at speed. The glide's predictor holds each tube's figure and its lags by flow from the calibration, in parcels.
+
+**What it is:** the first piece of the draft's "one frame, two speed laws". The staged controller with the PID law in place of the glide's stream (`staged.PidLaw`, `charge_control.c` with `ccon speed_law=1`).
+- **Each tube's speed is today's PID loop on the frame's forecast:**
+  - the coarse tube's error is the room above the coarse room;
+  - the fine tube's is the room itself;
+  - P every millisecond, I and D on each reading as today's loop takes them.
+- **The gains are the powder profile's:**
+  - the coarse tube's set from the calibration, as in the third run (kp 0.306, 0.3 to 2 rev/s);
+  - the fine tube's the owner's (kp 0.8, ki 0, kd 15, top 2 rev/s).
+- **The frame's:**
+  - the fine tube's least speed (the floor, 0.058 rev/s), the coarse tube's switch-off at the coarse room;
+  - the stop, the rest, the small moves;
+  - the stop learnt within a charge.
+- **Not carried into the calibration's slot** from PID-law throws, so the glide's blocks are not fed by them.
+- **The throw-for-throw check** (`check_firmware_controller.py --pid`): the C against `staged.py` with the PID law, 100 of 100 in lockstep on every set; the glide's own check unchanged and passing.
+
+**The simulation** (`pid_learning_study.py --frame`, `fit/study_20261122/pid_learning_frame.txt`, 300 throws a case, judged at 0.04 gr):
+
+| | AR2209 10 gr: good / over / median | AR2209 5 gr | BM2 10 gr | BM2 5 gr |
+|---|---|---|---|---|
+| Glide (its fine top 0.5 here) | 89% / 11% / 10.1 s | 91% / 9% / 18.6 s | 97% / 3% / 9.1 s | 99% / 1% / 8.7 s |
+| PID, coarse from the calibration (the third run) | 83% / 17% / 10.0 s | 78% / 22% / 8.3 s | 97% / 3% / 9.5 s | 97% / 3% / 10.6 s |
+| **PID law in the frame** | **88% / 11% / 10.5 s** | **90% / 9% / 10.9 s** | **98% / 2% / 12.1 s** | **98% / 2% / 11.8 s** |
+| The same, the unit's C | 85% / 15% / 10.4 s | 90% / 10% / 10.9 s | 98% / 2% / 12.2 s | 99% / 1% / 12.2 s |
+
+- **Accuracy:** the PID law in the frame is the glide's on both powders.
+- **Time:** the same with AR2209 at 10 gr. 8 s faster at 5 gr, where the owner's fine top of 2 rev/s beats the simulation glide's 0.5 (the rig's glide runs 1.0). 3 s slower with BM2, whose lower figure (0.55 gr a turn) makes a fine kp of 0.8 slow; the calibration's kp for it would be about 3.
+
+**The passes, written before the rig** (glide 10, PID law 10, PID law 10, glide 10; 10 gr; fast; the glide as in the earlier runs, `fine_top_rps=1.0`; the PID law with `speed_law=1`, the owner's fine gains, the coarse tube's from the calibration):
+- **The mechanism:** the PID law's bulk (to within 0.7 gr) has a median at most 1 s longer than the glide's.
+- **Against the glide, the same bars:** settled good at most 2 throws fewer, overs at most 1 more, median at most 2.5 s longer.
+- **Expected:** all pass; accuracy and time within the noise of the glide's.
+
+**The rig, 20:13 to 20:25** (build 2.0.3-174-dirty at 8bee56e; the PID law with `ccon speed_law=1`, every throw's line says `law=pid`):
+
+| Block | Settled good / over | Median | First rest: mean, sd | Bulk / approach / rest |
+|---|---|---|---|---|
+| G1, glide | 9 / 1 | 11.5 s | −0.016, 0.045 | |
+| P1, PID law in the frame | 8 / 2 | 10.4 s | −0.018, 0.047 | |
+| P2, the same | 9 / 1 | 10.6 s | −0.010, 0.041 | |
+| G2, glide | 10 / 0 | 11.4 s | −0.002, 0.036 | |
+| **Glide, 20** | **19 / 1** | **11.4 s** | −0.009, 0.040 | 2.9 / 5.2 / 2.6 s |
+| **PID law in the frame, 20** | **17 / 3** | **10.5 s** | −0.014, 0.043 | 3.9 / 3.4 / 2.6 s |
+
+Recordings: `logs/adr009/20261122_201350_series_frame_g1`, `_201657_series_frame_p1`, `_201944_series_frame_p2`, `_202219_series_frame_g2`. P1 ended `VERDICT FAIL` on the runner's missed `ccrec` reply; its rows are all kept. The owner confirmed room in the cup first.
+
+**Against the passes:**
+- **settled good: passed,** 17 against 19 (the bar: at most 2 fewer);
+- **time: passed, and quicker,** 10.5 against 11.4 s;
+- **overs: failed,** 3 against 1 (the bar: at most 1 more);
+- **the mechanism: failed on its letter by 0.02 s,** the bulk 1.02 s longer (the bar: 1 s). The approach is 1.8 s shorter, so the throw is quicker.
+
+**Where the overs came from:**
+- Two of the three are each PID block's first throw (P1 and P2 both +0.08).
+- Both blocks started from the same stop, the one the glide's throws had carried into the slot. The PID law's throws carry nothing, by this experiment's rule, so neither block started from what the other had learnt.
+- From there the stop's learning brought them in: the next nine first rests of each block lie between −0.08 and +0.02.
+- The third over (+0.14) came after two small moves: a clump, the frame's top-up, which the glide has too.
+- **So the stop belongs to the law:** a law approaching faster comes to its stop differently, and each law needs its own stop carried.
+
+**What the four runs say together** (all at 10 gr, AR2209, ±0.04 gr, ABBA, 20 throws a side):
+
+| PID variant | Settled good: PID / glide | Overs | Median: PID / glide |
+|---|---|---|---|
+| Learnt forecast, no calibration, least speed 0.1 | 14 / 18 | 5 / 2 | 13.7 / 10.9 s |
+| The same, its least speed learnt | 16 / 15 | 4 / 5 | 15.5 / 11.0 s |
+| Coarse tube from the calibration (option 1) | 19 / 16 | 1 / 4 | 14.8 / 11.2 s |
+| **The PID law on the glide's predictor (option 2)** | **17 / 19** | **3 / 1** | **10.5 / 11.4 s** |
+
+**The verdict on the owner's question:**
+- **Yes:** the legacy PID law, run in the glide's frame (its predictor, its least speed, its stop and rest, its learning), does as well as the glide on this rig within what 20 throws resolve, and is a second quicker.
+- **What it takes from the calibration:** the coarse tube's gains and the predictor. With no calibration, the frame gives it the glide's accuracy and costs 4 s.
+- **The fine gains stay the user's,** and here they made it quicker. With BM2 the simulation says a fine kp of 0.8 is 3 s slow, and the calibration's kp would mend it. That is the auto-tuner's offer of the draft, "set" against "in use".
+- **For the design:** the draft's "one frame, two speed laws" is now built in its first form and checked throw for throw against its reference. Each law needs its own carried stop.

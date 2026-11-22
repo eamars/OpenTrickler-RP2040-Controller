@@ -21,6 +21,11 @@ The cause: without a calibration the PID stops at its least speed (0.1 rev/s her
 - **The cause:** the coarse tube stops about 2.5 gr early. The fine tube's powder at 2 rev/s is forecast with the creep's learnt figure (1.48 to 2.06), and the A&D lags longer at a low flow. The simulation's scale does not, and missed it.
 - **Next, proposed:** the PID law on the glide's own predictor (lags by flow), with a scale in the simulation that lags longer at a low flow.
 
+**A fourth run (20:13 to 20:25), the owner's option 2:** the PID law in the staged frame (`ccon speed_law=1`, `charge_control.c`, checked throw for throw), the owner's fine gains, the coarse tube's from the calibration.
+- **Within what 20 throws resolve, it does as well as the glide:** 17 of 20 settled good against 19, 3 overs against 1, and 10.5 s against 11.4 s, quicker.
+- Two of its overs were each block's first throw, from the glide's carried stop: each law needs its own carried stop.
+- **Options 1 and 2 are closed;** the next steps are the owner's choice (`../controller_design_draft.md`, decision 8).
+
 The owner's design questions are drafted in `../controller_design_draft.md`, and the live description is `docs/charge_controller.md` (AGENTS.md: kept true in the same commit as any change to the controller).
 
 The owner, after the first run, settled a direction:

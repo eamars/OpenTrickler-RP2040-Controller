@@ -57,6 +57,20 @@ void shim_set_fine_learning(charge_control_t *c, double n, double sum, double cu
     c->fine_gr_stream = (charge_control_real_t) stream;
 }
 
+// The PID law's gains (ADR-009, option 2): coarse kp, ki, kd, min, max; fine kp, ki, kd, max
+void shim_set_pid(charge_control_t *c, const double *g) {
+    c->pid.coarse_kp = (charge_control_real_t) g[0];
+    c->pid.coarse_ki = (charge_control_real_t) g[1];
+    c->pid.coarse_kd = (charge_control_real_t) g[2];
+    c->pid.coarse_min_rps = (charge_control_real_t) g[3];
+    c->pid.coarse_max_rps = (charge_control_real_t) g[4];
+    c->pid.fine_kp = (charge_control_real_t) g[5];
+    c->pid.fine_ki = (charge_control_real_t) g[6];
+    c->pid.fine_kd = (charge_control_real_t) g[7];
+    c->pid.fine_max_rps = (charge_control_real_t) g[8];
+}
+
+
 // A tube's parcels on their way (0 coarse, 1 fine), for a test: their count, and each one's due time and grains
 uint16_t shim_parcels(const charge_control_t *c, int tube, double *due_s, double *grains) {
     for (uint16_t i = 0; i < c->parcel_count[tube]; i++) {

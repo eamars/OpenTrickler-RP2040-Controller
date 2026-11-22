@@ -58,6 +58,7 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->throw_most_s = REAL(120.0);
     k->fine_most_turns = REAL(15.0);
     k->over_most_gr = REAL(3.0);
+    k->speed_law = 0;
 }
 
 
@@ -255,6 +256,13 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     c->window_shown_turns = REAL(0.0);
     c->window_turned = REAL(0.0);
     c->window_unseen_gr = REAL(0.0);
+    for (int tube = COARSE; tube <= FINE; tube++) {
+        c->pid_integral[tube] = REAL(0.0);
+        c->pid_last_error[tube] = REAL(0.0);
+        c->pid_term[tube] = REAL(0.0);
+    }
+    c->pid_last_s = REAL(0.0);
+    c->pid_first = true;
 }
 
 
@@ -349,13 +357,39 @@ void charge_control_moved(charge_control_t *c, uint32_t now_ms) {
 }
 
 
+// The room the stream is poured against. The coarse tube's powder still unseen is known only by its turns, and a
+// turn's powder varies: three times that spread of it is kept clear by both tubes
+static real_t room_now(const charge_control_t *c) {
+    return c->target_gr - (c->reading + c->unseen_gr) - c->k.coarse_spreads * c->cal.coarse_share * c->coarse_unseen_gr;
+}
+
+
+// The PID law's I and D terms on a reading, as today's loop takes them
+static void pid_reading(charge_control_t *c, real_t now_s) {
+    const charge_control_pid_t *pid = &c->pid;
+    real_t room = room_now(c);
+    const real_t errors[2] = {room - c->cal.coarse_room_gr, room};
+    const real_t ki[2] = {pid->coarse_ki, pid->fine_ki};
+    const real_t kd[2] = {pid->coarse_kd, pid->fine_kd};
+    real_t elapsed_ms = (now_s - c->pid_last_s) * REAL(1000.0);
+    for (int tube = COARSE; tube <= FINE; tube++) {
+        c->pid_integral[tube] += errors[tube];
+        real_t derivative = (c->pid_first || elapsed_ms <= REAL(0.0)) ? REAL(0.0) :
+                            (errors[tube] - c->pid_last_error[tube]) / elapsed_ms;
+        c->pid_term[tube] = ki[tube] * c->pid_integral[tube] + kd[tube] * derivative;
+        c->pid_last_error[tube] = errors[tube];
+    }
+    c->pid_last_s = now_s;
+    c->pid_first = false;
+}
+
+
 static void feed(charge_control_t *c, real_t now_s) {
     const charge_control_calibration_t *cal = &c->cal;
     const charge_control_constants_t *k = &c->k;
+    const charge_control_pid_t *pid = k->speed_law ? &c->pid : NULL;
 
-    // The coarse tube's powder still unseen is known only by its turns, and a turn's powder varies: three times
-    // that spread of it is kept clear by both tubes
-    real_t room = c->target_gr - (c->reading + c->unseen_gr) - k->coarse_spreads * cal->coarse_share * c->coarse_unseen_gr;
+    real_t room = room_now(c);
     if (c->coarse_on) {
         if (room <= cal->coarse_room_gr) {
             c->coarse_on = false;
@@ -363,6 +397,10 @@ static void feed(charge_control_t *c, real_t now_s) {
             if (c->coarse_off_s < REAL(0.0)) {
                 c->coarse_off_s = now_s;
             }
+        }
+        else if (pid != NULL) {
+            real_t asked = pid->coarse_kp * (room - cal->coarse_room_gr) + c->pid_term[COARSE];
+            c->coarse_rps = min_f(pid->coarse_max_rps, max_f(pid->coarse_min_rps, asked));
         }
         else {
             real_t asked = (room - cal->coarse_room_gr) / (cal->coarse_gr_turn * cal->coarse_glide_s);
@@ -377,6 +415,11 @@ static void feed(charge_control_t *c, real_t now_s) {
         c->phase = CHARGE_CONTROL_PHASE_REST;
         c->stopped_at_s = now_s;
         c->wait_s = cal->rest_s;
+        return;
+    }
+    if (pid != NULL) {
+        real_t asked = pid->fine_kp * room + c->pid_term[FINE];
+        c->fine_rps = min_f(pid->fine_max_rps, max_f(cal->floor_rps, asked));
         return;
     }
     real_t asked = (room - cal->glide_room_gr) / (cal->fine_gr_turn * cal->glide_s);
@@ -579,6 +622,9 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
         return;
     }
     open_window(c, now_s, weight);
+    if (k->speed_law && c->phase == CHARGE_CONTROL_PHASE_FEED) {
+        pid_reading(c, now_s);
+    }
     if (c->phase != CHARGE_CONTROL_PHASE_REST) {
         return;
     }

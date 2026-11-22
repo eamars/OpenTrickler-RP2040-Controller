@@ -28,6 +28,12 @@ COARSE_CASES = (
     ("PID, coarse from the calibration", "lpid_coarse_fast", LOOSE_TOLERANCE_GR),
     ("PID, coarse from the calibration, C", "lpid_coarse_fw_fast", LOOSE_TOLERANCE_GR),
 )
+FRAME_CASES = (
+    ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
+    ("PID, coarse from calibration (opt 1)", "lpid_coarse_fast", LOOSE_TOLERANCE_GR),
+    ("PID law in the frame (option 2)", "frame_pid_fast", LOOSE_TOLERANCE_GR),
+    ("PID law in the frame, the unit's C", "frame_pid_fw_fast", LOOSE_TOLERANCE_GR),
+)
 CASES = (
     ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
     ("PID as today, owner's gains", "legacy_picow_loose", LOOSE_TOLERANCE_GR),
@@ -49,8 +55,9 @@ def main() -> None:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--night", action="store_true", help="the second experiment's cases (the learnt least speed)")
     parser.add_argument("--coarse", action="store_true", help="the third's (the coarse tube from the calibration)")
+    parser.add_argument("--frame", action="store_true", help="the fourth's (the PID law in the staged frame)")
     args = parser.parse_args()
-    cases = COARSE_CASES if args.coarse else NIGHT_CASES if args.night else CASES
+    cases = FRAME_CASES if args.frame else COARSE_CASES if args.coarse else NIGHT_CASES if args.night else CASES
     lines = [f"{args.throws} throws a case in sessions of {mc.THROWS_PER_SESSION}, the measured scale; shares of the "
              f"true weight at each case's own band",
              f"{'rig':15s}{'gr':>4s}  {'controller':36s}{'good':>7s}{'over':>7s}{'under':>7s}{'mean':>8s}{'sd':>7s}"

@@ -564,6 +564,23 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
 
     // The constants as they are now: a `ccon` between throws applies from this one
     cc->k = *charge_calibration_constants();
+    // The PID law (ccon speed_law 1; ADR-009, option 2): the powder profile's gains, its speeds within the motors'
+    // limits as today's loop takes them; the fine tube's least speed stays the frame's floor
+    if (cc->k.speed_law) {
+        const profile_t *profile = profile_get_selected();
+        cc->pid.coarse_kp = profile->coarse_kp;
+        cc->pid.coarse_ki = profile->coarse_ki;
+        cc->pid.coarse_kd = profile->coarse_kd;
+        cc->pid.coarse_min_rps = fmaxf(get_motor_min_speed(SELECT_COARSE_TRICKLER_MOTOR),
+                                       profile->coarse_min_flow_speed_rps);
+        cc->pid.coarse_max_rps = fminf((float) get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR),
+                                       profile->coarse_max_flow_speed_rps);
+        cc->pid.fine_kp = profile->fine_kp;
+        cc->pid.fine_ki = profile->fine_ki;
+        cc->pid.fine_kd = profile->fine_kd;
+        cc->pid.fine_max_rps = fminf((float) get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR),
+                                     profile->fine_max_flow_speed_rps);
+    }
     cc->moves_by_caller = true;
     const float room_at_start = cc->stop_room_gr;      // where this throw stops, before it learns
     uint32_t start_ms = charge_mode_now_ms();
@@ -667,8 +684,9 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
-    // Its first error, at the calibration's own stop room, for the carry at the charge's end
-    if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
+    // Its first error, at the calibration's own stop room, for the carry at the charge's end: the glide's throws
+    // only, so the PID law's stops never move the glide's
+    if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT && !cc->k.speed_law &&
         charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
         charge_carry_errors[charge_carry_count++] = cc->first_error_gr + room_at_start - cc->cal.stop_room_gr;
     }
@@ -679,11 +697,11 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
     printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=%u elapsed=%.2f "
            "coarse_turns=%.4f fine_turns=%.4f stop_room=%.4f fine_gr=%.4f fine_stream=%.4f learnt=%u base=%.3f "
-           "rows=%u\n",
+           "rows=%u law=%s\n",
            charge_throw_number, charge_control_result_string((charge_control_result_t) cc->result), cc->rest_weight,
            target, cc->have_first_error ? cc->first_error_gr : NAN, cc->moves, cc->streams, elapsed_s,
            cc->turned[0], cc->turned[1], cc->stop_room_gr, cc->cal.fine_gr_turn, cc->fine_gr_stream, cc->fine_learn_n,
-           charge_base, charge_record_rows);
+           charge_base, charge_record_rows, cc->k.speed_law ? "pid" : "glide");
     return true;
 }
 

@@ -73,6 +73,7 @@ flowchart LR
 
 - **The frame** is what the night showed to give the accuracy, and what the owner named to keep: the predictor, the stop, the rest and verdict, the top-ups, the learning, the gate and precharge, the reverse (today's back-off), and the safety checks. Both laws use all of it.
 - **The reverse's spill is counted.** The rig's coarse tube spills 0.83 gr of AR2209 a reverse (measured 2026-11-21), so a back-off goes into the forecast as a parcel of the calibration's spill, due after the coarse lag. Until it is, the back-off is off wherever the coarse tube stops close.
+- **Built in its first form** (2026-11-22, 20:05; `charge_control.c`, `ccon speed_law`): the PID law in the staged frame, checked throw for throw against `staged.py`. On the rig it matched the glide within what 20 throws resolve (17 settled good against 19, 3 overs against 1, 10.5 s against 11.4 s; `research/pid_learning_2026-11-22.md`, "The fourth experiment").
 - **A speed law** turns the forecast into the two tubes' speeds:
   - the **PID law** is today's loop on the forecast, the profile's gains and speeds;
   - the **glide law** is the staged controller's stream, from the calibration.
@@ -301,6 +302,13 @@ Proposed, for the owner to approve. Gates 0 to 2 stand as built.
      - time failed (14.8 against 11.2 s), the bulk 6.2 s.
      - The cause is the predictor at speed (section "What we know"). Closed.
    - **Then option 2 proper** (a closing condition: its verdict in the same file): the PID law on the glide's own predictor, the calibration's figures and lags by flow in parcels as `charge_control.c` keeps them, the learning trimming the creep's figure; the simulation first, with a scale that lags longer at a low flow as the A&D does (its record lacks that), then ABBA on the rig. Pass: the same bars. Expected: the bulk near the glide's, the accuracy kept.
+     - **Run 2026-11-22, 20:13 to 20:25:**
+       - good and time passed (17 settled good against 19; 10.5 s against 11.4, quicker);
+       - overs failed by one throw (3 against 1);
+       - the bulk was 0.02 s past its bar.
+       - Two of its overs were each block's first throw, started from the glide's carried stop: **each law needs its own carried stop.**
+       - The scale that lags longer at a low flow was not needed. This predictor reads its lags by flow from the calibration, so only a one-figure predictor is exposed to that scale.
+       - Closed.
 2. **The records and the migration** (sections 6 and 7) before gate 3, since the calibration job writes into them.
 3. **Gate 3, the calibration job,** writing the device record and the powder-on-unit record, offering the PID law's numbers as a seed.
 4. **The frame's missing parts:**
@@ -320,4 +328,7 @@ With the agent's recommendation first:
 5. **#135:** is the reading above right? If so: each gate wait its own travel plus a settle, no option; the preload counted in the forecast; the precharge as a weight in the frame.
 6. **The backup:** one file of everything, a device record restored onto another unit kept "to check" (recommended).
 7. **The shared powder figures** relative to the standard tube design (recommended), or the PID seed only.
-8. **Run option 2 proper next** (the PID law on the glide's predictor; item 1's last point in the plan above), before more design (recommended). Option 1 is run and closed.
+8. **Options 1 and 2 are run and closed.** The PID law in the glide's frame does as well as the glide on this rig. Recommended next, for the owner to choose:
+   - each law's own carried stop;
+   - the auto-tuner's fine kp offered against the profile's (BM2's case);
+   - then section 6's records, before gate 3.

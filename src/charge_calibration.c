@@ -453,6 +453,7 @@ static const charge_constant_t charge_constants_table[] = {
     CHARGE_CONSTANT(still_least_s),
     {"most_moves", offsetof(charge_control_constants_t, most_moves), true},
     CHARGE_CONSTANT(throw_most_s), CHARGE_CONSTANT(fine_most_turns), CHARGE_CONSTANT(over_most_gr),
+    {"speed_law", offsetof(charge_control_constants_t, speed_law), true},
 };
 
 #define CHARGE_CONSTANTS_COUNT (sizeof(charge_constants_table) / sizeof(charge_constants_table[0]))

@@ -175,7 +175,7 @@ def good_share(results: list) -> float:
 
 
 def run_set(job: tuple) -> dict:
-    record, finish, band, tolerance, throws = job
+    record, finish, band, tolerance, throws, pid = job
     rig = rigs.get_rig(record)
     measured = staged.measure(rig, SEED)
     expected = staged.for_finish(measured, finish, band)
@@ -183,14 +183,25 @@ def run_set(job: tuple) -> dict:
     rules_off = [(name, in_c[name], getattr(expected, name)) for name in firmware_controller.RULES
                  if abs(in_c[name] - getattr(expected, name)) > RULES_SHARE * max(1e-3, abs(getattr(expected, name)))]
     cal = staged.calibrate(rig, SEED, finish, band)
+    law = staged.pid_law_from(cal) if pid else None
+
+    def made_reference():
+        controller = staged.Staged(cal, rig.acceleration_rps2)
+        controller.pid = law
+        return controller
+
+    def made_port(port):
+        if law is not None:
+            port.set_pid(law)
+        return port
 
     # Lockstep, a throw at a time
-    reference = staged.Staged(cal, rig.acceleration_rps2)
+    reference = made_reference()
     session = Session(rig, SEED + 1)
     differences = []
     for i in range(throws):
-        port = firmware_controller.FirmwareStaged(dataclasses.replace(cal, stop_room_gr=reference.stop_room),
-                                                  rig.acceleration_rps2, double=True)
+        port = made_port(firmware_controller.FirmwareStaged(dataclasses.replace(cal, stop_room_gr=reference.stop_room),
+                                                            rig.acceleration_rps2, double=True))
         # and from its learnt fine figure (2026-11-22)
         port.set_fine_learning(reference.fine_learn_n, reference.fine_learn_sum, reference.cal.fine_gr_turn,
                                reference.stream_learn_n, reference.stream_learn_sum, reference.fine_gr_stream)
@@ -202,13 +213,13 @@ def run_set(job: tuple) -> dict:
 
     # The figures, each thrown apart
     apart = {}
-    for name, controller in (("reference", staged.Staged(cal, rig.acceleration_rps2)),
-                             ("port", firmware_controller.FirmwareStaged(cal, rig.acceleration_rps2))):
+    for name, controller in (("reference", made_reference()),
+                             ("port", made_port(firmware_controller.FirmwareStaged(cal, rig.acceleration_rps2)))):
         session_apart = Session(rig, SEED + 2)
         results = [session_apart.throw(controller, TARGET_GR, tolerance) for _ in range(throws)]
         apart[name] = (good_share(results), sorted(r.elapsed_s for r in results)[throws // 2])
     session_counted = Session(rig, SEED + 2)
-    counted = Counted(firmware_controller.FirmwareStaged(cal, rig.acceleration_rps2), session_counted)
+    counted = Counted(made_port(firmware_controller.FirmwareStaged(cal, rig.acceleration_rps2)), session_counted)
     results = [session_counted.throw(counted, TARGET_GR, tolerance) for _ in range(throws)]
     apart["counted"] = (good_share(results), sorted(r.elapsed_s for r in results)[throws // 2])
     return {"record": record, "finish": finish, "band": band, "throws": throws, "differences": differences,
@@ -219,11 +230,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--throws", type=int, default=200)
     parser.add_argument("--logic-only", action="store_true", help="judge the rules and the lockstep only")
+    parser.add_argument("--pid", action="store_true", help="the PID speed law in the frame (option 2, "
+                        "staged.pid_law_from), in place of the glide's")
     args = parser.parse_args()
 
     firmware_controller.build()
     firmware_controller.build(double=True)
-    jobs = [(record, finish, band, tolerance, args.throws) for record in RECORDS for finish in FINISHES
+    jobs = [(record, finish, band, tolerance, args.throws, args.pid) for record in RECORDS for finish in FINISHES
             for band, tolerance in BANDS]
     started = time.time()
     results = Workers().map(run_set, jobs)

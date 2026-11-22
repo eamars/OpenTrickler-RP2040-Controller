@@ -138,7 +138,24 @@ typedef struct {
     charge_control_real_t throw_most_s;
     charge_control_real_t fine_most_turns;
     charge_control_real_t over_most_gr;             // a reading this far over the target stops everything
+    // The speed law (ADR-009, the owner's option 2, 2026-11-22 night; an experiment): 0 the glide's; 1 the PID law,
+    // today's PID loop on the frame's forecast with the gains in charge_control_t's pid, everything else the frame's
+    uint8_t speed_law;
 } charge_control_constants_t;
+
+// The PID law's gains: the powder profile's, the speeds within the motors' limits. The fine tube's least speed is the
+// frame's floor, not the profile's
+typedef struct {
+    charge_control_real_t coarse_kp;
+    charge_control_real_t coarse_ki;
+    charge_control_real_t coarse_kd;
+    charge_control_real_t coarse_min_rps;
+    charge_control_real_t coarse_max_rps;
+    charge_control_real_t fine_kp;
+    charge_control_real_t fine_ki;
+    charge_control_real_t fine_kd;
+    charge_control_real_t fine_max_rps;
+} charge_control_pid_t;
 
 typedef struct {
     charge_control_real_t due_s;            // when it will show, since the start
@@ -207,6 +224,14 @@ typedef struct {
     charge_control_real_t window_shown_turns;       // the fine tube's turns whose powder had shown at its start
     charge_control_real_t window_turned;            // the fine tube's turns at its start, and its powder unseen then
     charge_control_real_t window_unseen_gr;
+    // The PID law (k.speed_law 1): its gains, set by the caller after init, and its I and D terms, taken on each
+    // reading as today's loop takes them (the integral a sum of errors, the derivative a change per millisecond)
+    charge_control_pid_t pid;
+    charge_control_real_t pid_integral[2];
+    charge_control_real_t pid_last_error[2];
+    charge_control_real_t pid_term[2];
+    charge_control_real_t pid_last_s;
+    bool pid_first;
 } charge_control_t;
 
 void charge_control_default_constants(charge_control_constants_t *k);

@@ -91,6 +91,17 @@ A port of `tools/charge_sim/staged.py`, kept in its order so the two read side b
 | 6.24 | 9.96 | 9.99 | 0 | 0 | stopped: the forecast is at the stop room |
 | 8.82 | 9.98 | 9.98 | 0 | 0 | the verdict after the rest: good, −0.02 |
 
+**Its second speed law** (`ccon speed_law=1`; an experiment of 2026-11-22, `research/pid_learning_2026-11-22.md`):
+- **What changes:** today's PID loop pours the stream in place of the glide's law, on the same forecast:
+  - the coarse tube's error is the room above the coarse room;
+  - the fine tube's error is the room itself;
+  - P every millisecond, I and D on each reading as today's loop takes them;
+  - the gains are the powder profile's, its speeds within the motors' limits.
+- **What stays the frame's:** the fine tube's least speed (the floor), the coarse tube's switch-off at the coarse room, the stop, the rest, the small moves and the stop's learning.
+- **No carry:** its throws carry nothing into the calibration's slot.
+- **On the rig** (the owner's fine gains, the coarse tube's from the calibration: kp 0.306, 0.3 to 2 rev/s): 17 of 20 settled good, 3 over, 10.5 s, against the glide's 19, 1, 11.4 s.
+- `check_firmware_controller.py --pid` checks it throw for throw against `staged.py`.
+
 **What it learns:**
 - **The stop.** At each throw's first rest, 15% of its first error against the aim moves the stop room (nothing under a quarter digit, at most 2 digits a throw).
 - **The fine tube's figures** (`learn_fine_prior`, `learn_fine_split`, both on by default). Not to be trusted yet: they read through the fine tube's lag at 1 rev/s, which was never measured (`research/HANDOVER.md`).
@@ -225,7 +236,7 @@ The bench rules in `AGENTS.md` hold throughout, the owner's word that the bench 
 | `state` | the charge's state, the weight, the version, the drivers |
 | `setting settings/charge` | the controller, the mode, the thresholds |
 | `ccal load` | the profile's calibration and the rules made from it (`@cal rules ...`) |
-| `ccon`, `cpid` | the staged controller's and `pid_learnt`'s constants (and its learnt figure) |
+| `ccon`, `cpid` | the staged controller's constants (`speed_law` among them) and `pid_learnt`'s (and its learnt figure) |
 | `charge <gr> series <n>` | n throws into one cup; a `Charge: throw ...` line each |
 | `ccrec` | the last throw's rows: ms, reading, forecast, coarse and fine rev/s |
 

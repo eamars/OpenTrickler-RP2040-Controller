@@ -1645,3 +1645,22 @@ The first run's cause, mended the glide's way with no calibration: the fine tube
 - **The cause:** the fine tube's powder in the air at 2 rev/s forecast with a figure learnt at the creep (1.48, then 2.06), where the A&D lags longer, so the coarse tube stopped about 2.5 gr early. The simulation's scale does not lag longer at a low flow and missed it.
 - **Next:** the PID law on the glide's own predictor (option 2).
 - The bench left at `controller=staged`, the profile, the charge settings and `cpid` as stored or default.
+
+## 2026-11-22, 20:05 to 20:25: the PID law on the glide's own predictor (the owner's option 2)
+
+`research/pid_learning_2026-11-22.md`, "The fourth experiment".
+- **Built: the staged controller with a second speed law** (`staged.PidLaw`, `charge_control.c`, `ccon speed_law=1`):
+  - today's PID loop on the frame's forecast, the profile's gains, P every millisecond, I and D on each reading as today's loop takes them;
+  - the fine tube's least speed, the coarse switch-off, the stop, the rest, the moves and the learning the frame's;
+  - PID-law throws carry nothing into the calibration's slot.
+  - `check_firmware_controller.py --pid` passes (100 of 100 in lockstep on every set); the glide's check unchanged and passing.
+- **Simulation:**
+  - AR2209 10 gr: 88%, 10.5 s against the glide's 89%, 10.1 s;
+  - 5 gr: 90%, 10.9 s against 91%, 18.6 s;
+  - BM2 10 gr: 98%, 12.1 s against 97%, 9.1 s (the owner's fine kp 0.8 slow for a powder of 0.55 gr a turn).
+- **Rig** (20:13 to 20:25, ABBA at 10 gr, fast; the owner's fine gains, the coarse tube's from the calibration):
+  - the PID law 17 of 20 settled good, 3 over, 10.5 s; the glide 19, 1 over, 11.4 s.
+  - Good and time pass (the PID law quicker); overs fail by one throw (3 against 1, bar 2); the bulk is 0.02 s past its bar and won back in the approach.
+  - Two of the three overs are each PID block's first throw (+0.08), both started from the glide's carried stop.
+- **The verdict:** the PID law in the glide's frame does as well as the glide within what 20 throws resolve, and is quicker. Each law needs its own carried stop.
+- The bench left at `controller=staged`, `ccon` at its defaults, the profile and the charge settings as stored.

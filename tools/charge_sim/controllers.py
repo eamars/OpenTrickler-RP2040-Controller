@@ -286,3 +286,24 @@ CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
 CONTROLLERS.update(SESSION_CONTROLLERS)
 CONTROLLERS.update(FINE_FORM_CONTROLLERS)
 CONTROLLERS.update(LEARNT_PID_CONTROLLERS)
+
+
+# The fourth experiment (2026-11-22 night, the owner's option 2): the PID law in the staged frame, on the glide's own
+# predictor (the calibration's figures and lags by flow), the stop, the rest, the small moves and the learning the
+# frame's; the coarse tube's PID numbers made from the calibration, the fine tube's the owner's (staged.pid_law_from)
+def _frame_pid(firmware):
+    def make(rig, seed=0):
+        cal = staged.calibrate(rig, seed, "glide", 0.04)
+        if firmware:
+            from firmware_controller import FirmwareStaged
+            controller = FirmwareStaged(cal, rig.acceleration_rps2)
+            controller.set_pid(staged.pid_law_from(cal))
+        else:
+            controller = staged.Staged(cal, rig.acceleration_rps2)
+            controller.pid = staged.pid_law_from(cal)
+        return controller, LOOSE_TOLERANCE_GR
+    return make
+
+
+CONTROLLERS["frame_pid_fast"] = _frame_pid(False)
+CONTROLLERS["frame_pid_fw_fast"] = _frame_pid(True)
