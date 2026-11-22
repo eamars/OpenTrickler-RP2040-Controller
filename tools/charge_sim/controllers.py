@@ -150,7 +150,18 @@ def make_guarded_pid_forecast(rig, seed: int = 0) -> tuple:
     return GuardedPid(AR2209_PICOW_168, guarded_cal(rig, seed), rig.acceleration_rps2, on_forecast=True),         VERDICT_TOLERANCE_GR
 
 
-CONTROLLERS = {"guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
+def make_mode_fast(rig, seed: int = 0) -> tuple:
+    """The talk of 2026-11-22: the fast mode, judged at its band of 0.04 gr."""
+    return staged.make_mode(rig, seed, "fast"), LOOSE_TOLERANCE_GR
+
+
+def make_mode_accurate(rig, seed: int = 0) -> tuple:
+    """The talk of 2026-11-22: the accurate mode, judged at its band of 0.02 gr."""
+    return staged.make_mode(rig, seed, "accurate"), VERDICT_TOLERANCE_GR
+
+
+CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
+               "guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
                "guarded_pid": make_guarded_pid, "guarded_pid_creep": make_guarded_pid_creep,
                "forecast_pid_picow": make_forecast_pid_picow, "legacy_picow": make_legacy_picow, "legacy_picow_loose": make_legacy_picow_loose,
                "glide_coarse_low": make_glide_coarse_low, "glide_fine_high": make_glide_fine_high,

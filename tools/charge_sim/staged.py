@@ -607,3 +607,84 @@ class StagedQuickRest(Staged):
 
 def make_quick_rest(rig, seed: int, finish: str, band_gr: float) -> Staged:
     return StagedQuickRest(calibrate(rig, seed, finish, band_gr), rig.acceleration_rps2)
+
+
+# Two modes, talked over on 2026-11-22, tried in the simulation; not a plan (research/talk_2026-11-22.md):
+# (band, over budget, the time a throw aims at, judged as soon as the forecast holds nothing)
+MODES = {"fast": (0.04, 1.0 / 15.0, 10.0, True), "accurate": (0.02, 1.0 / 30.0, 20.0, False)}
+MODE_REHEARSALS = 40
+MODE_CAP_TIMES = 2.0            # a throw past twice its mode's time ends short
+
+
+def tail(values: list, share: float) -> float:
+    """The value only `share` of the values lie above, straight between two of them; the largest past the last."""
+    ordered = sorted(values)
+    position = (1.0 - share) * (len(ordered) - 1)
+    low = int(position)
+    if low >= len(ordered) - 1:
+        return ordered[-1]
+    return ordered[low] + (ordered[low + 1] - ordered[low]) * (position - low)
+
+
+def calibrate_mode(rig, seed: int, mode: str) -> Calibration:
+    """The calibration for a mode: the glide's, its rehearsals 40, its stop aimed from their tail."""
+    band, budget, _, _ = MODES[mode]
+    cal = measure(rig, seed)
+    set_rules(cal, "glide", band)
+    controller = Staged(cal, rig.acceleration_rps2, rehearsal=True)
+    session = Session(rig, seed + 1)
+    for _ in range(MODE_REHEARSALS):
+        result = session.throw(controller, REHEARSAL_GR, band + cal.digit_gr / 2.0)
+        cal.seconds += result.elapsed_s + 1.0
+        cal.poured_gr += result.true_gr
+    cal.first_errors = [entry[0] for entry in controller.log]
+    median = statistics.median(cal.first_errors)
+    # A rest is over from the band and half a digit; the stream's stop may give half the budget's overs
+    over_edge = band + cal.digit_gr / 2.0
+    above = tail([error - median for error in cal.first_errors], budget / 2.0)
+    aim = min(-cal.digit_gr / 2.0, over_edge - above)
+    shift = median - aim            # the stop moves so that the median first rest lies at the aim
+    cal.aim_gr = aim
+    cal.stop_room_gr += shift
+    cal.glide_room_gr += shift
+    cal.coarse_room_gr += shift
+    return cal
+
+
+class ModeStaged(Staged):
+    """The staged controller in a mode: its waits, its top-ups and its time cap as the mode says."""
+
+    def __init__(self, cal: Calibration, acceleration_rps2: float, mode: str):
+        super().__init__(cal, acceleration_rps2)
+        self.mode = mode
+        self.band, self.budget, self.aim_s, self.quick = MODES[mode]
+        self.name = mode
+
+    def start(self, target_gr: float, now_ms: float) -> None:
+        super().start(target_gr, now_ms)
+        self.t0 = now_ms / 1000.0
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        now = now_ms / 1000.0
+        if self.quick and self.phase == "rest" and self.stopped_at is not None:
+            unseen = sum(parcel[1] for parcel in self.parcels if parcel[0] > now + TIE_S)
+            if unseen < self.cal.digit_gr / 2.0:
+                self.wait = min(self.wait, max(0.0, now - self.stopped_at))
+        if now - self.t0 > MODE_CAP_TIMES * self.aim_s:
+            self.moves = max(self.moves, MOST_MOVES)        # no tries left: the next rest ends the throw
+        super().on_reading(now_ms, weight)
+
+    def _move_for(self, short_gr: float) -> Move:
+        if self.quick:
+            return super()._move_for(short_gr)
+        # accurate: the largest move whose 90% release fits under what is left and the band; else the smallest
+        cal = self.cal
+        chosen = cal.moves[0]
+        for move in cal.moves[1:]:
+            if move.most_gr <= short_gr + cal.band_gr:
+                chosen = move
+        return chosen
+
+
+def make_mode(rig, seed: int, mode: str) -> ModeStaged:
+    return ModeStaged(calibrate_mode(rig, seed, mode), rig.acceleration_rps2, mode)
