@@ -1,0 +1,26 @@
+12 runs a case of 4 sessions of 25 throws, glide at 0.04 gr; overs at the true weight. Session 1's last ten against sessions 2 to 4' first ten
+rig               gr  placed  carried   s1 first10 over  s1 last10 over  s2-4 first10 over  s2-4 all over  s2-4 good  s2-4 median
+pico2w_ar2209      5      -2       no             20.8%           14.2%              19.4%          15.2%      84.6%        17.4 s
+pico2w_ar2209      5      -2      yes             20.8%           14.2%              12.2%          11.1%      88.4%        19.1 s
+pico2w_ar2209      5      +0       no             15.8%            6.7%              12.5%          12.8%      86.4%        19.2 s
+pico2w_ar2209      5      +0      yes             15.8%            6.7%              11.1%          12.1%      87.6%        19.3 s
+pico2w_ar2209      5      +2       no             10.0%            5.0%              11.1%          11.7%      87.4%        20.4 s
+pico2w_ar2209      5      +2      yes             10.0%            5.0%              10.3%          10.3%      89.2%        19.1 s
+pico2w_ar2209     10      -2       no             18.3%           16.7%              22.2%          16.3%      83.7%         9.1 s
+pico2w_ar2209     10      -2      yes             18.3%           16.7%              10.3%          11.0%      88.7%        10.2 s
+pico2w_ar2209     10      +0       no             14.2%           11.7%              10.8%          12.7%      86.9%        10.1 s
+pico2w_ar2209     10      +0      yes             14.2%           11.7%              11.9%          10.7%      88.6%        10.4 s
+pico2w_ar2209     10      +2       no              6.7%           11.7%              10.0%          12.0%      87.2%        11.9 s
+pico2w_ar2209     10      +2      yes              6.7%           11.7%              13.1%          10.7%      88.9%        10.3 s
+pico2w_bm2         5      -2       no              7.5%            4.2%               7.5%           4.3%      95.7%         8.0 s
+pico2w_bm2         5      -2      yes              7.5%            4.2%               2.8%           2.3%      97.7%        10.4 s
+pico2w_bm2         5      +0       no              0.8%            3.3%               1.4%           1.9%      98.1%         9.7 s
+pico2w_bm2         5      +0      yes              0.8%            3.3%               1.9%           2.6%      97.4%        10.5 s
+pico2w_bm2         5      +2       no              2.5%            0.8%               1.4%           1.7%      98.3%        11.8 s
+pico2w_bm2         5      +2      yes              2.5%            0.8%               2.8%           2.2%      97.8%        10.1 s
+pico2w_bm2        10      -2       no              5.8%            1.7%               5.3%           2.9%      97.1%         8.0 s
+pico2w_bm2        10      -2      yes              5.8%            1.7%               2.5%           2.1%      97.9%        10.3 s
+pico2w_bm2        10      +0       no              1.7%            1.7%               1.7%           1.7%      98.3%         9.8 s
+pico2w_bm2        10      +0      yes              1.7%            1.7%               3.6%           2.3%      97.7%        10.5 s
+pico2w_bm2        10      +2       no              1.7%            3.3%               1.4%           2.1%      97.9%        12.0 s
+pico2w_bm2        10      +2      yes              1.7%            3.3%               1.9%           1.6%      98.4%        10.0 s
