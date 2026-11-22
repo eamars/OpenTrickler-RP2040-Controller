@@ -15,6 +15,7 @@ Written 2026-11-22, 22:46, by the agent who took over after the sign-off. It is 
 
   The glide's own stream law is not the output. It is kept at most as a shadow in the recordings. No new algorithm is designed in ADR-009.
 - **The auto-tuner writes the powder profile while it is on.** It writes the PID values it derives from the measured numbers (sign-off item 4); the calibration writes them on the user's yes.
+- **After an update, the profiles are kept but not trusted** (2026-11-23): the user's PID values stay as the starting point, the user is told the old tuning will likely no longer hold and is prompted to calibrate. A charge before a calibration is allowed and has no results bar (sign-off items 4 and 10, reworded). How far it falls short is in `numbers.md` (G1, G2).
 - **The auto-tuner's switch is one for the unit,** under Settings (advanced), on by default. What "off" keeps is the register's first row (recommended there: it freezes, nothing more learnt or carried).
 - **The proposed gates** (below, "Proposed for approval") were approved on 2026-11-22 with two changes:
   - gate S's pass is set at the rig's own run-to-run spread, measured from the recorded series, not at one throw in 20 and 1 s;
@@ -416,7 +417,7 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
 4. **Keep the user's PID values where they are, and correct them two ways:**
    - **the calibration,** one routine on the user's word, which measures the unit and derives every number in one go (the PID values, the stop, the hidden ones), stored on the user's yes;
    - **the auto-tuner,** which corrects throw by throw the measured numbers the throws show (the stop, the grains a turn, the lag). The PID values are derived from those by the calibration's own rule, never learnt as free numbers.
-   - A powder never calibrated runs from the user's PID values, guarded by the controller's frame (the forecast, the speed envelope, the settled verdict), from its first charge.
+   - A powder never calibrated runs from the user's PID values, guarded by the controller's frame (the forecast, the speed envelope, the settled verdict). They are its starting point, not a promise of its results: no bar is set for a charge before a calibration (the owner, 2026-11-23; item 10).
    - **The auto-tuner has a switch the user can turn off on demand, and it is on by default** (the owner). It is a setting of the register (its first row). Where it sits, once for the unit or for each powder, is decided at gate D, and so is what "off" keeps.
    - *Shown by:*
      - a powder with no calibration throwing on the unit;
@@ -445,11 +446,12 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
    - *Shown by:* `robust_staged.py` with every case, `cup_lifted` and `no_powder` among them, on the Pico 2 W and the Pico W; `pulses`.
 9. **Lose no feature a user has:** the servo gate (its waits by its own travel, issue #135), the precharge (counted in the forecast), the back-off (its spill counted), the LEDs and the verdict, series of charges, the API's throw and its events.
    - *Shown by:* each on the unit; the gate's on the day one is fitted, with a servo on its connector before.
-10. **Migrate transparently:**
-    - an update from 2.0.3 keeps every profile and setting;
-    - the first charge after it works with no calibration;
+10. **Migrate without losing anything, and say what changed** (reworded at the owner's word, 2026-11-23: the profiles are kept, not trusted):
+    - an update from 2.0.3 keeps every profile and setting; the user's PID values stay as the starting point;
+    - the user is told that the tuning made for the old controller will likely no longer hold, and is prompted to calibrate;
+    - a charge before a calibration is allowed, with no bar set for its results;
     - the calibration is offered, never forced.
-    - *Shown by:* the update on both units from 2.0.3, the settings compared before and after (`rc_run.py settings --compare`), and a charge thrown at once.
+    - *Shown by:* the update on both units from 2.0.3, the settings compared before and after (`rc_run.py settings --compare`); the notice and the prompt seen on the screen and the web (their mocks approved at gates 4 and 5); a charge thrown before a calibration ending safely.
 11. **Meet the results bar,** at the user's tolerance, on two units and two powders:
     - no worse than today's loop with the user's own settings on the same unit;
     - within the owner's over budget of one in fifteen where the powder allows it;
