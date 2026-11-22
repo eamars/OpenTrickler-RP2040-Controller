@@ -1492,3 +1492,24 @@ The owner: "Yes, simulation first then on the bench."
 - **Pass, the mechanism:** with the split, the glide of the throws with no top-up at most 2.6 s (the learning off's), and the stream's figure learnt within 5% of the whole throw's own grains over turns.
 - **Pass, the time:** the median with the split no longer than the learning off's in the same session.
 - **Expected:** the stream's figure near 0.82, the finish's near 0.68; the glide 2 s or less; the median about a second under the learning off's; the accuracy as before.
+
+### 16:23 to 16:37: the split on the rig, and the learning off again: judged
+
+`recordings/*_series_fine5_{split,off2}_pico2w_ar2209`, the two run back to back after the flash; the cup at 410 gr after them.
+
+| 5 gr, the fine tube alone, fast, 20 throws (in time order) | Good / over | Median | No top-up | Glide | Figures at the end: finish / stream | The whole throw's grains over turns |
+|---|---|---|---|---|---|---|
+| learning off, 15:46 | 16 / 4 | 12.0 s | 10.5 s | 2.6 s | 0.715 / (one) | 0.831 |
+| one figure learnt, 15:53 | 18 / 2 | 13.4 s | 12.6 s | 4.4 s | 0.685 / (one) | 0.823 |
+| split learnt, 16:23 | 17 / 3 | 12.1 s | 12.0 s | 3.9 s | 0.567 / 0.894 | 0.822 |
+| learning off, 16:30 | 15 / 5 | 12.9 s | 11.9 s | 3.6 s | 0.715 / 0.715 | 0.832 |
+
+**Against the passes:**
+- **The mechanism: fail.** The split's glide was 3.9 s, not at most 2.6. Its stream figure was learnt at 0.894, up against its limit (+25%), where the whole throw gives 0.822 (+9%), and its finish figure at 0.567. The stream's stretch is read through the lag at the fine tube's top speed of 1 rev/s, which the calibration never measured (its fine stops reach 0.5 rev/s; the table holds 0.5's lag beyond it). Too long a lag counts too few turns as shown and reads the stream's figure high, and the finish's, which takes the stream's unseen powder off, low. A calibration's lags at the speeds a throw uses is one more for gate 3.
+- **The time: passes on its letter** (12.1 against 12.9 s), and says nothing. **The two series with the learning off differ by as much as anything tried:** the glide 2.6 and 3.6 s, the median 12.0 and 12.9 s, an hour apart, with nothing changed. So the 1.8 s I put on the learning of one figure at 15:59 was at least half the session's own drift. The figures of the four series lie within that spread: none is a winner, on time or on accuracy (75 to 90% good in 20 throws).
+
+**What it comes to:**
+- At this rig's scatter and 20 throws a series, learning the fine tube's grains a turn, one figure or two, buys nothing measurable.
+- The difference it could make (under a second, in the simulation) is smaller than one series' drift from the next.
+- The time is in the top-ups (a throw with none, 10.5 to 12.6 s; with one, 17 to 24 s), and the overs are the stream's stop and the clumps, as before.
+- The learning stays in the code, on by default since 15:45 (`learn_fine_prior`, `learn_fine_split`). Whether to switch it off is the owner's.
