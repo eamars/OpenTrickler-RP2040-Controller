@@ -379,6 +379,11 @@ class Staged:
         self.stop_room = cal.stop_room_gr
         self.name = cal.finish
         self.pid = None
+        # The PID law's guard against gains bad to begin with (2026-11-22 night): each tube never faster than the
+        # frame's top (the fastest speed whose lag the calibration knows) nor than the frame can stop it from (the
+        # fine tube: its floor plus the room above the stop over its grains a turn and glide time; the coarse tube:
+        # the glide's coarse law), and the I term counting only while its tube is not held at a limit
+        self.pid_envelope = True
         # per throw: (the error at the rest after its last stream, moves made, times it went back to the stream)
         self.log = []
 
@@ -421,6 +426,7 @@ class Staged:
         self.pid_integral = {"coarse": 0.0, "fine": 0.0}
         self.pid_last_error = {"coarse": 0.0, "fine": 0.0}
         self.pid_term = {"coarse": 0.0, "fine": 0.0}      # the I and D terms, as of the last reading
+        self.pid_held = {"coarse": False, "fine": False}  # its last speed was held at a limit (the envelope's too)
         self.pid_last_s = now_ms / 1000.0
         self.pid_first = True
 
@@ -436,7 +442,8 @@ class Staged:
         errors = {"coarse": room - self.cal.coarse_room_gr, "fine": room}
         elapsed_ms = (now - self.pid_last_s) * 1000.0
         for tube, ki, kd in (("coarse", pid.coarse_ki, pid.coarse_kd), ("fine", pid.fine_ki, pid.fine_kd)):
-            self.pid_integral[tube] += errors[tube]
+            if not (self.pid_envelope and self.pid_held[tube]):
+                self.pid_integral[tube] += errors[tube]
             derivative = 0.0 if self.pid_first or elapsed_ms <= 0.0 else \
                 (errors[tube] - self.pid_last_error[tube]) / elapsed_ms
             self.pid_term[tube] = ki * self.pid_integral[tube] + kd * derivative
@@ -528,7 +535,11 @@ class Staged:
                     self.coarse_off_at = now
             elif pid is not None:
                 asked = pid.coarse_kp * (room - cal.coarse_room_gr) + self.pid_term["coarse"]
-                self.coarse_rps = min(pid.coarse_max_rps, max(pid.coarse_min_rps, asked))
+                top = pid.coarse_max_rps
+                if self.pid_envelope:
+                    top = min(top, COARSE_TOP_RPS, COARSE_FLOOR_RPS + (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s))
+                self.coarse_rps = min(top, max(pid.coarse_min_rps, asked))
+                self.pid_held["coarse"] = not (pid.coarse_min_rps < asked < top)
             else:
                 asked = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
                 self.coarse_rps = min(COARSE_TOP_RPS, max(COARSE_FLOOR_RPS, asked))
@@ -542,7 +553,11 @@ class Staged:
             return
         if pid is not None:
             asked = pid.fine_kp * room + self.pid_term["fine"]
-            self.fine_rps = min(pid.fine_max_rps, max(cal.floor_rps, asked))
+            top = pid.fine_max_rps
+            if self.pid_envelope:
+                top = min(top, FINE_TOP_RPS, cal.floor_rps + max(0.0, room - self.stop_room) / (cal.fine_gr_turn * cal.glide_s))
+            self.fine_rps = min(top, max(cal.floor_rps, asked))
+            self.pid_held["fine"] = not (cal.floor_rps < asked < top)
             return
         asked = (room - cal.glide_room_gr) / (cal.fine_gr_turn * cal.glide_s)
         self.fine_rps = min(FINE_TOP_RPS, max(cal.floor_rps, asked))

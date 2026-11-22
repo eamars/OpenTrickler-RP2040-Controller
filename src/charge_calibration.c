@@ -187,6 +187,82 @@ bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t coun
 }
 
 
+_Static_assert(CHARGE_CALIBRATION_PROFILES == MAX_PROFILE_CNT, "a law's list for each powder profile");
+_Static_assert(sizeof(charge_calibration_law_stops_t) + sizeof(uint32_t) <= CHARGE_CALIBRATION_SLOT_SIZE,
+               "the laws' stops and their CRC fit their slot");
+
+static charge_calibration_law_stops_t charge_calibration_law_stops;     // read and written by a charge's start and end
+
+
+// The PID law's lists as stored; empty lists when none are, or they fail their CRC
+static void charge_calibration_law_stops_read(void) {
+    if (!config_read_stored(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_law_stops,
+                            sizeof(charge_calibration_law_stops))) {
+        memset(&charge_calibration_law_stops, 0, sizeof(charge_calibration_law_stops));
+    }
+}
+
+
+bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out) {
+    if (law == 0 || charge_calibration_simulated_scale()) {
+        return charge_calibration_get(profile, band_gr, out);
+    }
+    if (!charge_calibration_held(profile)) {
+        return false;
+    }
+    charge_calibration_law_stops_read();
+    uint8_t count = charge_calibration_law_stops.counts[profile];
+    if (count > 0 && count <= CHARGE_CALIBRATION_FIRST_ERRORS_MAX) {
+        // The calibration as measured, its stop placed from the law's own list
+        memcpy(charge_calibration_read.first_errors, charge_calibration_law_stops.first_errors[profile],
+               count * sizeof(float));
+        charge_calibration_read.first_error_count = count;
+    }
+    charge_calibration_make(&charge_calibration_read, band_gr, out);
+    return true;
+}
+
+
+bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
+                                  float *after) {
+    if (law == 0) {
+        return charge_calibration_carry(profile, errors, count, before, after);
+    }
+    if (charge_calibration_simulated_scale() || profile >= MAX_PROFILE_CNT || count == 0 ||
+        !charge_calibration_held(profile) || charge_calibration_read.first_error_count == 0) {
+        return false;
+    }
+    charge_calibration_law_stops_read();
+    charge_calibration_law_stops_t *stops = &charge_calibration_law_stops;
+    uint8_t held = stops->counts[profile] <= CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? stops->counts[profile] : 0;
+    // Its own list, or the glide's when it has none: where this charge's stop was placed from
+    const float *from = held > 0 ? stops->first_errors[profile] : charge_calibration_read.first_errors;
+    uint8_t from_count = held > 0 ? held : charge_calibration_read.first_error_count;
+    *before = charge_calibration_median(from, from_count);
+    float merged[2 * CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
+    uint8_t total = 0;
+    for (uint8_t i = 0; i < held; i++) {
+        merged[total++] = stops->first_errors[profile][i];
+    }
+    uint8_t first = count > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? (uint8_t) (count - CHARGE_CALIBRATION_FIRST_ERRORS_MAX) : 0;
+    for (uint8_t i = first; i < count; i++) {
+        merged[total++] = errors[i];
+    }
+    uint8_t keep = total > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? CHARGE_CALIBRATION_FIRST_ERRORS_MAX : total;
+    const float *newest = &merged[total - keep];
+    *after = charge_calibration_median(newest, keep);
+    if (fabsf(*after - *before) > CHARGE_CARRY_MOST_DIGITS * charge_calibration_read.measured.digit_gr) {
+        return false;
+    }
+    for (uint8_t i = 0; i < keep; i++) {
+        stops->first_errors[profile][i] = newest[i];
+    }
+    stops->counts[profile] = keep;
+    stops->legacy_rev = 0;
+    return save_config(EEPROM_CHARGE_LAW_STOPS_ADDR, stops, sizeof(*stops));
+}
+
+
 bool charge_calibration_held(uint8_t profile) {
     if (charge_calibration_simulated_scale()) {
         return profile < MAX_PROFILE_CNT;
@@ -454,6 +530,7 @@ static const charge_constant_t charge_constants_table[] = {
     {"most_moves", offsetof(charge_control_constants_t, most_moves), true},
     CHARGE_CONSTANT(throw_most_s), CHARGE_CONSTANT(fine_most_turns), CHARGE_CONSTANT(over_most_gr),
     {"speed_law", offsetof(charge_control_constants_t, speed_law), true},
+    {"pid_envelope", offsetof(charge_control_constants_t, pid_envelope), true},
 };
 
 #define CHARGE_CONSTANTS_COUNT (sizeof(charge_constants_table) / sizeof(charge_constants_table[0]))

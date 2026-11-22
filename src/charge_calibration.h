@@ -51,6 +51,27 @@ bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calib
 #define CHARGE_CARRY_MOST_DIGITS 3.0f
 bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after);
 
+/*
+    Each speed law's own carried stop (ADR-009, 2026-11-22 night; a temporary form, as the carry above). The glide's
+    first errors are the calibration's own (above); the PID law's are kept apart, a list a profile in one record of
+    their own (EEPROM_CHARGE_LAW_STOPS_ADDR), so no stored record changes. A law whose list is empty places its stop
+    from the glide's. Its carry is the glide's: the newest CHARGE_CALIBRATION_FIRST_ERRORS_MAX, at most
+    CHARGE_CARRY_MOST_DIGITS at once, never for the simulated scale.
+*/
+#define CHARGE_CALIBRATION_PROFILES 8
+typedef struct {
+    uint16_t legacy_rev;            // load_config's old revision check: 0 once stored
+    uint8_t counts[CHARGE_CALIBRATION_PROFILES];
+    float first_errors[CHARGE_CALIBRATION_PROFILES][CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
+} charge_calibration_law_stops_t;
+
+// The calibration for a throw of a speed law (0 the glide's, 1 the PID law), its stop placed from that law's list
+bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out);
+// A charge's first errors carried into its law's list; as charge_calibration_carry, and `own` false when the law's
+// list was empty and its stop came from the glide's
+bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
+                                  float *after);
+
 // Whether it holds one a throw may use, for a start's refusal
 bool charge_calibration_held(uint8_t profile);
 

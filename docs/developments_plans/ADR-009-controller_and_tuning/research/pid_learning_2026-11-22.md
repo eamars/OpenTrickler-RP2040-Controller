@@ -373,3 +373,81 @@ Recordings: `logs/adr009/20261122_201350_series_frame_g1`, `_201657_series_frame
 - **What it takes from the calibration:** the coarse tube's gains and the predictor. With no calibration, the frame gives it the glide's accuracy and costs 4 s.
 - **The fine gains stay the user's,** and here they made it quicker. With BM2 the simulation says a fine kp of 0.8 is 3 s slow, and the calibration's kp would mend it. That is the auto-tuner's offer of the draft, "set" against "in use".
 - **For the design:** the draft's "one frame, two speed laws" is now built in its first form and checked throw for throw against its reference. Each law needs its own carried stop.
+
+## The fifth experiment: each law's own carried stop, and gains bad to begin with (2026-11-22 night)
+
+The owner, after the fourth: "own carried stop, also, consider what if the PID value is bad to begin with."
+
+**Each law's own carried stop:**
+- The PID law's first errors are carried into a list of their own (`charge_calibration_law_stops_t`, a record of its own at 21 K, one list a profile; no stored record changes).
+- A PID-law charge places its stop from that list, or from the glide's while it is empty, and carries its own throws into it at its end, by the glide's rules: at least 5 throws, the newest 16, at most 3 digits at once, never the simulated scale.
+- The glide's list is the calibration's, as before. Each law's throws carry into its own list only.
+
+**Gains bad to begin with, in the simulation** (`bad_gains_study.py`; the PID law in the frame, AR2209 and BM2 at 10 gr, 300 throws a case):
+- **Without a guard** (`fit/study_20261122/bad_gains.txt`):
+  - the bench unit's stored gains 66% good (BM2 87%);
+  - aggressive gains (fine kp 10, coarse kp 2, tops of 5 rev/s) 35% (87%);
+  - an integral that winds up 39% (61%);
+  - sluggish gains (fine kp 0.1) 82%, 25 s (98%, 33 s);
+  - the glide 89% (97%).
+  - Gains too fast, or an integral wound up, bring the fine tube to its stop fast, or run the tubes beyond any speed whose lag the calibration knows.
+- **The guard, the frame's speed envelope** (`ccon pid_envelope`, on by default), whatever the gains:
+  - each tube never faster than the frame's own top (`coarse_top_rps`, `fine_top_rps`: the speeds whose lags the calibration measured);
+  - nor than the frame can stop it from: the fine tube its floor plus the room above the stop over its grains a turn and glide time, the coarse tube the glide's coarse law;
+  - the I term counts only while its tube is not held at a limit.
+  - Tried against aiming the envelope at the stop plus a band or at the glide room, each with and without the cap (`envelope_variants`, the session's scratch): the cap is what mends it, and aiming at the stop keeps the good gains quickest.
+- **With it** (`fit/study_20261122/bad_gains_envelope.txt`, AR2209 / BM2):
+
+  | Gains | Good | Median |
+  |---|---|---|
+  | The owner's | 90% / 98% | 9.4 / 11.4 s |
+  | The bench unit's stored | 85% / 98% | 10.8 / 13.2 s |
+  | Aggressive | 88% / 99% | 10.6 / 8.4 s |
+  | Wind-up | 90% / 99% | 11.1 / 8.2 s |
+  | Sluggish | 86% / 99% | 24.5 / 33.8 s |
+  | The glide | 89% / 97% | 10.1 / 9.1 s |
+
+  Bad gains now cost a few points at most. Gains too slow cost only time; their remedy is the calibration's gains offered in their place, not a guard.
+- `check_firmware_controller.py --pid` with the envelope: 100 of 100 in lockstep on every set; the glide's check unchanged.
+
+**The rig test, its passes written before it** (glide 10, PID law 10, PID law 10, glide 10; 10 gr; fast; the glide as before; the PID law with the bench unit's own stored profile, unchanged: fine kp 2, kd 10, top 3; coarse kp 0.025, kd 0.25, 0.1 to 5 rev/s, the gains that put 10 throws of 12 over in today's loop on 11-20):
+- **Own stop, the mechanism:**
+  - P1's charge ends with its carry into the PID law's list ("PID law's stop");
+  - P2 starts from that list (its stop room at the start is not the glide's at that moment);
+  - P2's first throw is not over.
+- **Bad gains against the glide, the same bars:** settled good at most 2 throws fewer, overs at most 1 more, median at most 2.5 s longer.
+- **Expected, from the simulation:** all pass, the PID law about 1 s slower with these gains.
+
+**The rig, 20:41 to 20:53** (build 2.0.3-175-dirty at f029abc; recordings `logs/adr009/20261122_204138_series_ownstop_g1`, `_204412_series_ownstop_p1`, `_204710_series_ownstop_p2`, `_205005_series_ownstop_g2`; the owner confirmed room in the cup first):
+
+| Block | Settled good / over | Median | First rest: mean, sd | Topped up |
+|---|---|---|---|---|
+| G1, glide | 9 / 1 | 10.2 s | | 0 |
+| P1, PID law, bad gains, from the glide's stop | 8 / 2 | 12.1 s | −0.052, 0.058 | 6 |
+| P2, the same, from its own carried stop | 7 / 3 | 12.0 s | −0.012, 0.054 | 4 |
+| G2, glide | 7 / 3 | 11.1 s | | 5 |
+| **Glide, 20** | **16 / 4** | **10.7 s** (bulk / approach / rest 3.1 / 4.5 / 2.6 s) | −0.004, 0.055 | 5 |
+| **PID law, the bench unit's own gains, 20** | **15 / 5** | **12.1 s** (5.9 / 1.7 / 3.9 s) | −0.032, 0.058 | 10 |
+
+**Against the passes:**
+- **Own stop, the mechanism: passed.**
+  - P1's charge ended "carried 8 first errors into profile 0's PID law's stop, placed from a median of −0.0385, was 0.0150", the glide's.
+  - P2 started from it (stop room 0.0015, where the glide's G2 started at 0.055).
+  - P2's first throw rested at +0.000.
+  - The first rests' mean moved from −0.052 (P1, on the glide's stop) to −0.012 (P2, on its own).
+- **Bad gains against the glide: passed all three bars:**
+  - settled good 15 against 16;
+  - overs 5 against 4;
+  - the median 1.4 s longer (bar 2.5 s), as the simulation expected (about 1 s).
+- **Where the time went:**
+  - The bulk: 5.9 s against 3.1, from the stored coarse kp of 0.025, a slow seed.
+  - Top-ups: 10 throws against 5, mostly in P1 before its own stop was carried.
+- **Where the overs came from:** four of the five came after small moves (clumps of a top-up, the frame's, as the glide's G2 had too).
+
+**The verdict:**
+- **Each law's own carried stop works:** the PID law's next charge started where its own throws put it.
+- **Gains bad to begin with are guarded by the frame:**
+  - today's loop with these same gains put 10 throws of 12 over on this rig (2026-11-20);
+  - in the frame with the envelope they are within a throw of the glide's accuracy;
+  - they cost only the time their slow coarse gain costs.
+- **What is left to a person or the auto-tuner is time, not safety:** gains too slow are slow. That is the draft's "offer the calibration's gains", not a guard.

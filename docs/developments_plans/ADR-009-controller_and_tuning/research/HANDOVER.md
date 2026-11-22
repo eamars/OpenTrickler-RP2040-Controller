@@ -26,6 +26,13 @@ The cause: without a calibration the PID stops at its least speed (0.1 rev/s her
 - Two of its overs were each block's first throw, from the glide's carried stop: each law needs its own carried stop.
 - **Options 1 and 2 are closed;** the next steps are the owner's choice (`../controller_design_draft.md`, decision 8).
 
+**A fifth run (20:41 to 20:53): each law's own carried stop, and gains bad to begin with.**
+- The PID law now carries its stop into a list of its own (EEPROM 21 K) and starts the next charge from it: passed on the rig.
+- The frame's speed envelope (`ccon pid_envelope`) guards any gains:
+  - the bench unit's own stored gains, which put 10 throws of 12 over in today's loop, threw 15 of 20 good, 5 over, 12.1 s, against the glide's 16, 4, 10.7 s;
+  - all bars pass.
+- Gains too slow stay slow; their remedy is the calibration's gains offered.
+
 The owner's design questions are drafted in `../controller_design_draft.md`, and the live description is `docs/charge_controller.md` (AGENTS.md: kept true in the same commit as any change to the controller).
 
 The owner, after the first run, settled a direction:

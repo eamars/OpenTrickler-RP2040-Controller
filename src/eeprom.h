@@ -21,6 +21,7 @@
 #define EEPROM_SERVO_GATE_CONFIG_BASE_ADDR     10 * 1024       // 10k
 #define EEPROM_UPDATE_CONFIG_BASE_ADDR         11 * 1024       // 11k: the update's channel and source (ADR-010)
 #define EEPROM_UPDATE_NOTE_BASE_ADDR           12 * 1024       // 12k: the trial's note and how the last update ended (ADR-008)
+#define EEPROM_CHARGE_LAW_STOPS_ADDR           21 * 1024       // 21k: the PID law's own carried stops, a profile's each (ADR-009)
 #define EEPROM_CHARGE_CALIBRATION_BASE_ADDR    13 * 1024       // 13k to 20k: each powder profile's calibration, a slot
                                                                // each, for the staged controller (ADR-009)
 

@@ -154,6 +154,7 @@ sequenceDiagram
 | Far over (a clump, a wrong profile) | A reading 3 gr over the target (built) | All stops; the verdict "over" | Built |
 | Too long | 120 s, or 15 fine turns (built) | All stops; "limit" | Built |
 | **Learning that runs away** (the figure and the least speed pulling each other, a drifting stop) | A bound reached | Held at the bound; the screen shows "learning at its limit"; a charge ending at a bound stores nothing | A simulation case: a scale whose lag grows at low flow |
+| **PID gains bad to begin with** (too fast, an integral that winds up, a large derivative) | — | The frame's speed envelope (built 2026-11-22: `ccon pid_envelope`): each tube never above the frame's measured top, nor above the speed it can be stopped from; anti-windup. Gains too slow only cost time, and the calibration's are offered | `bad_gains_study.py`: 35 to 66% good without, 85 to 90% with; rig, the bench unit's own gains: 15 of 20 good against the glide's 16 |
 | **A wrong powder for its profile** | The first throws' figure more than 40% from the stored one | The charge's learning is not stored; the screen asks "is this the powder for this profile?" | Simulation: another record's powder |
 | A record fails its CRC | `load_config` | That part falls back (section 1); said on the screen | A corrupted slot by the console |
 | A device record from another unit | Its unit id | Kept as "to check" | A restore onto the other unit |
@@ -177,6 +178,7 @@ sequenceDiagram
   - "learning on or off" for that powder (an expert's switch).
 
   The device record is not tuned by hand: the calibration job and its short check make it.
+- **A seed that is bad does not spoil a throw:** the frame's envelope bounds every speed the gains ask for (section 2), so a poor seed costs time, not accuracy. That is why the PID law can take any user's numbers as they are.
 - **The auto-tuner** comes in two parts:
   - **The calibration job** (gate 3) measures the device record, then the powder on this unit. From those it makes the PID law's numbers, the same way it makes the glide's:
     - fine kp = 1 / (fine grains a turn × glide time);
@@ -267,9 +269,10 @@ stateDiagram-v2
 - **The EEPROM map,** 1 KB slots:
   - 9 K: today's eight profiles, untouched;
   - 13 to 20 K: each profile's powder-on-unit record (today's calibration slots, grown to hold the learnt figures, their counts and the lot);
-  - 21 K: the eight profiles' extensions;
-  - 22 K: the device record;
-  - 23 to 31 K: free.
+  - 21 K: since 2026-11-22 the PID law's carried stops, a list a profile (temporary, as gate 2's other stores); they move into the powder-on-unit records when those are built;
+  - 22 K: the eight profiles' extensions;
+  - 23 K: the device record;
+  - 24 to 31 K: free.
 - **Each record** has a version, its CRC (`load_config`), and a size checked before and after any change (AGENTS.md).
 - **Each setting is described once** (`settings.h`):
   - the extension's fields go into the powder profile's table, so the API, the export, the schema, the portal and the console's `setting` follow;
@@ -328,7 +331,6 @@ With the agent's recommendation first:
 5. **#135:** is the reading above right? If so: each gate wait its own travel plus a settle, no option; the preload counted in the forecast; the precharge as a weight in the frame.
 6. **The backup:** one file of everything, a device record restored onto another unit kept "to check" (recommended).
 7. **The shared powder figures** relative to the standard tube design (recommended), or the PID seed only.
-8. **Options 1 and 2 are run and closed.** The PID law in the glide's frame does as well as the glide on this rig. Recommended next, for the owner to choose:
-   - each law's own carried stop;
-   - the auto-tuner's fine kp offered against the profile's (BM2's case);
+8. **Options 1 and 2 are run and closed,** and so are each law's own carried stop and the guard against bad gains (2026-11-22, 20:53). Recommended next, for the owner to choose:
+   - the auto-tuner's gains offered against the profile's ("set" and "in use"), which is what is left of a bad seed: its time;
    - then section 6's records, before gate 3.

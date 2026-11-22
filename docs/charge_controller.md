@@ -98,7 +98,12 @@ A port of `tools/charge_sim/staged.py`, kept in its order so the two read side b
   - P every millisecond, I and D on each reading as today's loop takes them;
   - the gains are the powder profile's, its speeds within the motors' limits.
 - **What stays the frame's:** the fine tube's least speed (the floor), the coarse tube's switch-off at the coarse room, the stop, the rest, the small moves and the stop's learning.
-- **No carry:** its throws carry nothing into the calibration's slot.
+- **Its own carried stop:** its throws carry into a list of their own (EEPROM 21 K, one a profile), never the glide's. A PID-law charge places its stop from that list, or from the glide's while it is empty.
+- **The envelope** (`ccon pid_envelope`, on by default), so gains bad to begin with cannot spoil the stop:
+  - each tube never faster than the frame's top (`coarse_top_rps`, `fine_top_rps`, the speeds whose lags the calibration knows);
+  - nor than the frame can stop it from: the fine tube its floor plus the room above the stop over its grains a turn × glide time, the coarse tube the glide's coarse law;
+  - the I term counts only while its tube is not held at a limit.
+  - On the rig with the bench unit's own stored gains (fine kp 2, top 3; coarse kp 0.025): 15 of 20 good, 5 over, 12.1 s, against the glide's 16, 4, 10.7 s. Gains too slow stay slow.
 - **On the rig** (the owner's fine gains, the coarse tube's from the calibration: kp 0.306, 0.3 to 2 rev/s): 17 of 20 settled good, 3 over, 10.5 s, against the glide's 19, 1, 11.4 s.
 - `check_firmware_controller.py --pid` checks it throw for throw against `staged.py`.
 
@@ -175,7 +180,8 @@ With its coarse tube set from the calibration (2026-11-22, 19:51 to 20:04; 20 th
 | Charge settings: thresholds, back-off, precharge, `controller`, `mode` | EEPROM 5 K | screen, web, API | each charge or throw (`applies`) |
 | Motor settings: least and top speeds, the gearing | EEPROM 4 K | screen, web, API | the motors' task |
 | Servo gate: ends, speeds | EEPROM 10 K | screen, web, API | each move |
-| A profile's calibration (measured, rehearsals' and carried first errors, finish, band) | EEPROM 13 to 20 K, a slot a profile | the console only (`ccal`), and the carry | each charge's start |
+| A profile's calibration (measured, rehearsals' and the glide's carried first errors, finish, band) | EEPROM 13 to 20 K, a slot a profile | the console only (`ccal`), and the glide's carry | each charge's start |
+| The PID law's carried first errors, a list a profile | EEPROM 21 K, one record | the PID law's carry | each PID-law charge's start |
 | The staged controller's constants | RAM (`ccon`), defaults in `charge_control.c` | the console, never stored | each throw's start |
 | `pid_learnt`'s constants and learnt figure | RAM (`cpid`) | the console, the learning | each throw |
 

@@ -141,6 +141,11 @@ typedef struct {
     // The speed law (ADR-009, the owner's option 2, 2026-11-22 night; an experiment): 0 the glide's; 1 the PID law,
     // today's PID loop on the frame's forecast with the gains in charge_control_t's pid, everything else the frame's
     uint8_t speed_law;
+    // The PID law's guard against gains bad to begin with (1, the default): each tube never faster than the frame's
+    // top (coarse_top_rps, fine_top_rps: the fastest speeds whose lags the calibration knows) nor than the frame can
+    // stop it from (the fine tube: its floor plus the room above the stop over its grains a turn and glide time; the
+    // coarse tube: the glide's coarse law), and the I term counting only while its tube is not held at a limit
+    uint8_t pid_envelope;
 } charge_control_constants_t;
 
 // The PID law's gains: the powder profile's, the speeds within the motors' limits. The fine tube's least speed is the
@@ -232,6 +237,7 @@ typedef struct {
     charge_control_real_t pid_term[2];
     charge_control_real_t pid_last_s;
     bool pid_first;
+    bool pid_held[2];               // its last speed was held at a limit, the envelope's among them
 } charge_control_t;
 
 void charge_control_default_constants(charge_control_constants_t *k);

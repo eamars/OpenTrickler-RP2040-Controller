@@ -1664,3 +1664,19 @@ The first run's cause, mended the glide's way with no calibration: the fine tube
   - Two of the three overs are each PID block's first throw (+0.08), both started from the glide's carried stop.
 - **The verdict:** the PID law in the glide's frame does as well as the glide within what 20 throws resolve, and is quicker. Each law needs its own carried stop.
 - The bench left at `controller=staged`, `ccon` at its defaults, the profile and the charge settings as stored.
+
+## 2026-11-22, 20:27 to 20:53: each law's own carried stop, and gains bad to begin with
+
+`research/pid_learning_2026-11-22.md`, "The fifth experiment".
+- **Built:**
+  - **the PID law's carried stop in a list of its own** (`charge_calibration_law_stops_t`, EEPROM 21 K, a list a profile; no stored record changes). A charge of either law places its stop from its law's list (the PID law from the glide's while its own is empty) and carries its own throws into it.
+  - **The frame's speed envelope for the PID law** (`ccon pid_envelope`, on by default):
+    - each tube never above the frame's top, the speeds whose lags the calibration measured;
+    - nor above the speed the frame can stop it from (the fine tube its floor plus the room above the stop over grains a turn × glide time; the coarse tube the glide's coarse law);
+    - anti-windup on the I term.
+  - `check_firmware_controller.py --pid` passes (100 of 100 on every set), the glide's unchanged. The cautious defaults: `pid_envelope=1`, `speed_law=0`.
+- **Simulation (`bad_gains_study.py`):** without the envelope, bad gains put AR2209 at 35 to 66% good; with it at 85 to 90% (the glide 89%). Only gains too slow stay slow (24.5 s).
+- **Rig** (20:41 to 20:53, ABBA at 10 gr, fast; the PID law on the bench unit's own stored gains, fine kp 2, top 3, coarse kp 0.025):
+  - the PID law 15 of 20 settled good, 5 over, 12.1 s; the glide 16, 4, 10.7 s. All three bars pass.
+  - Own stop: P1 carried into the PID list (median −0.0385, the glide's 0.0150); P2 started from it (stop room 0.0015) and its first throw rested at +0.000.
+- The bench left at `controller=staged`, `ccon` at its defaults. The PID law's list for profile 0 holds P2's carried first errors (median 0.0000).

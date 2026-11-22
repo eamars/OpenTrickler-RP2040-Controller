@@ -123,6 +123,7 @@ static float charge_base = 0.0f;            // the weight a throw starts from: 0
 #define CHARGE_CARRY_LEAST_THROWS 5
 static float charge_carry_errors[CHARGE_CARRY_THROWS_MAX];
 static uint8_t charge_carry_count = 0;
+static uint8_t charge_law = 0;              // the charge's speed law (ccon speed_law at its start): its stop its own
 
 /*
     The last staged throw's rows, a reading each, for the bench (`ccrec`). 16 bytes a row; at 21 readings a second
@@ -684,10 +685,10 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
-    // Its first error, at the calibration's own stop room, for the carry at the charge's end: the glide's throws
-    // only, so the PID law's stops never move the glide's
-    if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT && !cc->k.speed_law &&
-        charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
+    // Its first error, at the calibration's own stop room, for the carry at the charge's end into its law's own list:
+    // the throws of the charge's law only, so one law's stops never move the other's
+    if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
+        (cc->k.speed_law ? 1 : 0) == charge_law && charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
         charge_carry_errors[charge_carry_count++] = cc->first_error_gr + room_at_start - cc->cal.stop_room_gr;
     }
 
@@ -1326,6 +1327,7 @@ uint8_t charge_mode_menu(void) {
     charge_base = 0.0f;
     charge_carry_count = 0;
     charge_staged = charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED;
+    charge_law = charge_calibration_constants()->speed_law ? 1 : 0;
     charge_pid_learnt = charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_PID_LEARNT;
     if (charge_pid_learnt) {
         charge_pid = (charge_pid_t *) pvPortMalloc(sizeof(charge_pid_t));
@@ -1347,7 +1349,8 @@ uint8_t charge_mode_menu(void) {
         float band_gr = charge_mode_config.eeprom_charge_mode_data.trickle_mode == CHARGE_TRICKLE_FAST ?
                         CHARGE_TRICKLE_FAST_BAND_GR : CHARGE_TRICKLE_ACCURATE_BAND_GR;
         const char *refused = charge_staged_block == NULL ? "No memory" :
-            !charge_calibration_get((uint8_t) profile_get_selected_idx(), band_gr, &charge_staged_block->cal) ?
+            !charge_calibration_get_law((uint8_t) profile_get_selected_idx(), band_gr, charge_law,
+                                        &charge_staged_block->cal) ?
             "Not calibrated" : NULL;
         if (refused != NULL) {
             // Refused at the start already (charge_mode_request_start) when not calibrated; here only if the slot
@@ -1359,9 +1362,9 @@ uint8_t charge_mode_menu(void) {
         }
         charge_controller = &charge_staged_block->controller;
         charge_control_init(charge_controller, &charge_staged_block->cal, charge_calibration_constants(), 0.0f, false);
-        printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f\n", profile_get_selected_idx(),
+        printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f, law %s\n", profile_get_selected_idx(),
                charge_controller->cal.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide",
-               charge_controller->cal.band_gr, charge_controller->cal.stop_room_gr);
+               charge_controller->cal.band_gr, charge_controller->cal.stop_room_gr, charge_law ? "pid" : "glide");
     }
 
     // Enable motor on entering the charge mode
@@ -1420,9 +1423,10 @@ uint8_t charge_mode_menu(void) {
     if (charge_staged && charge_carry_count >= CHARGE_CARRY_LEAST_THROWS) {
         float before = NAN, after = NAN;
         uint8_t profile = (uint8_t) profile_get_selected_idx();
-        if (charge_calibration_carry(profile, charge_carry_errors, charge_carry_count, &before, &after)) {
-            printf("Charge: carried %u first errors into profile %u's calibration, its stop placed from a median of "
-                   "%.4f, was %.4f\n", charge_carry_count, profile, after, before);
+        if (charge_calibration_carry_law(profile, charge_law, charge_carry_errors, charge_carry_count, &before,
+                                         &after)) {
+            printf("Charge: carried %u first errors into profile %u's %s stop, placed from a median of %.4f, was "
+                   "%.4f\n", charge_carry_count, profile, charge_law ? "PID law's" : "calibration's", after, before);
         }
         else {
             printf("Charge: %u first errors not carried (from %.4f to %.4f, or no calibration stored)\n",
