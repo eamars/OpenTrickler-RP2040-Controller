@@ -1564,3 +1564,25 @@ From the talk (`research/talk_2026-11-22.md`): the simulation (`carry_stop.py`) 
 **Passes:**
 - **it carries:** the second session's first ten throws have no more overs than the first session's last ten, plus one, and fewer than the third's first ten;
 - **the slot holds it:** the second session's stop placed from a median moved by what the first carried (the log's line), within 3 digits.
+
+### 17:34 to 17:52: the three sessions, judged
+
+`recordings/*_series_carry5_{s1_fresh,s2_carried,s3_fresh}_pico2w_ar2209`.
+
+| 5 gr, fast, the stop learnt within a charge, 20 throws | First ten: good / over / first rests' median | Last ten | All | Stop room, first throw to last |
+|---|---|---|---|---|
+| s1, the fresh calibration (17:34) | 9 / 1 / −0.020 | 8 / 2 / −0.020 | 85%, 3 over, 13.9 s | 0.030 to 0.033 |
+| s2, from what s1 carried (17:40) | 9 / 1 / +0.010 | 9 / 1 / +0.020 | 90%, 2 over, 13.5 s | 0.023 to 0.059 |
+| s3, the fresh calibration again (17:46) | 6 / 4 / +0.010 | 7 / 3 / −0.020 | 65%, 7 over, 14.2 s | 0.030 to 0.069 |
+
+The carries, from the charges' own lines: s1 carried 18 first errors (the stop's median from −0.010 to −0.017 gr), s2 19 (−0.017 to +0.029), s3 17 (from its fresh −0.010 to +0.022).
+
+**Against the passes: both met on their letter.** s2's first ten had 1 over, against s1's last ten's 2 and s3's first ten's 4; the slot held what s1 carried, and s2's stop was placed from it (0.023 gr of room).
+
+**What they say, more than the letter:**
+- **The rig drifted between the sessions.** s1 and s3 started from the same calibration and the same stop twelve minutes apart, and s3's first rests lay 1.5 digits higher. The powder's grains over fine turns did not move (0.815 to 0.831 in every series this evening); where a throw comes to rest after the fine tube's stop did.
+- **The carry follows such a drift, a session behind.**
+  - s1's throws told the slot to stop a little later, and s2 began there, just as the drift went the other way. s2's own learning met it within the session (its room to 0.059) at a cost of 1 over in its first ten.
+  - What s2 carried put the next stop at about 0.069 gr of room, which is the stop s3 had to learn for itself by its twentieth throw, with 4 overs in its first ten.
+  - So the slot after s2 held the stop the rig then needed; the fresh calibration (s3, the control) did not.
+- **Not shown, and not to be claimed:** that a carried session beats a fresh one by a figure. The drift is as large as the effect, and three sessions are one of each.
