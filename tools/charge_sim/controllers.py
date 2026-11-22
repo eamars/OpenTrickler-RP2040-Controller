@@ -160,6 +160,21 @@ def make_mode_accurate(rig, seed: int = 0) -> tuple:
     return staged.make_mode(rig, seed, "accurate"), VERDICT_TOLERANCE_GR
 
 
+# The talk of 2026-11-22: the fine tube's grains a turn learnt over a session, and the powder owed by top-ups.
+# "_wrong": the calibration's fine figure 15% high, as the trial's was at the finish
+def _session(band, tol, learn, owed, factor=1.0):
+    return lambda rig, seed=0: (staged.make_session(rig, seed, band, learn, owed, factor), tol)
+
+
+SESSION_CONTROLLERS = {}
+for _band, _tol, _b in ((0.04, LOOSE_TOLERANCE_GR, "fast"), (0.02, VERDICT_TOLERANCE_GR, "acc")):
+    for _factor, _f in ((1.0, ""), (1.15, "_wrong")):
+        SESSION_CONTROLLERS[f"{_b}{_f}"] = _session(_band, _tol, False, False, _factor)
+        SESSION_CONTROLLERS[f"{_b}{_f}_learn"] = _session(_band, _tol, True, False, _factor)
+        SESSION_CONTROLLERS[f"{_b}{_f}_owed"] = _session(_band, _tol, False, True, _factor)
+        SESSION_CONTROLLERS[f"{_b}{_f}_both"] = _session(_band, _tol, True, True, _factor)
+
+
 CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
                "guarded_pid": make_guarded_pid, "guarded_pid_creep": make_guarded_pid_creep,
@@ -170,3 +185,4 @@ CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "legacy": make_legacy, "legacy_kp08": make_legacy_kp08, "legacy_slow_finish": make_legacy_slow_finish,
                "flow_dose": make_flow_dose, "flow_dose_commit": make_flow_dose_commit,
                "flow_dose_sequential": make_flow_dose_sequential, "flow_dose_split": make_flow_dose_split}
+CONTROLLERS.update(SESSION_CONTROLLERS)

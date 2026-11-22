@@ -688,3 +688,87 @@ class ModeStaged(Staged):
 
 def make_mode(rig, seed: int, mode: str) -> ModeStaged:
     return ModeStaged(calibrate_mode(rig, seed, mode), rig.acceleration_rps2, mode)
+
+
+class StagedSession(Staged):
+    """Two ideas talked over on 2026-11-22, tried in the simulation; not a plan (research/talk_2026-11-22.md).
+
+    - learn_fine: the fine tube's grains a turn learnt over the session. Each throw is read where only the fine tube's
+      powder is arriving (from the coarse tube's quiet after its stop to the first rest, its turns taken a lag
+      earlier), and the figure used is the mean of those readings against the calibration's own, which counts for
+      LEARN_FINE_PRIOR throws; never more than LEARN_FINE_MOST from the calibration's. A mean and not a step: a
+      throw whose powder is held at the lip and one that dumps it average out.
+    - owed: before a top-up, the powder its earlier top-ups turned out and the scale has not shown is counted as on
+      its way (a run of nudges that showed nothing is followed by what they owed, bench 2026-11-20 and 21). If it
+      covers what is short, the throw waits for it instead of turning again.
+    """
+
+    LEARN_FINE_PRIOR = 3.0
+    LEARN_FINE_MOST = 0.25
+
+    def __init__(self, cal: Calibration, acceleration_rps2: float, learn_fine: bool = False, owed: bool = False):
+        super().__init__(cal, acceleration_rps2)
+        self.learn_fine, self.owe = learn_fine, owed
+        self.fine_gr_measured = cal.fine_gr_turn
+        self.fine_seen = []          # each throw's fine grains a turn
+        self.cal = dataclasses.replace(cal)     # its own copy: the learnt figure goes into it
+
+    def start(self, target_gr: float, now_ms: float) -> None:
+        super().start(target_gr, now_ms)
+        self.history = []            # (time, reading, fine turns, coarse on)
+        self.coarse_off_at = None
+        self.first_rest_reading = None
+        self.topup_turns = 0.0
+
+    def on_tick(self, now_ms: float) -> None:
+        was_on = self.coarse_on
+        super().on_tick(now_ms)
+        if was_on and not self.coarse_on and self.coarse_off_at is None:
+            self.coarse_off_at = now_ms / 1000.0
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        now = now_ms / 1000.0
+        self.history.append((now, weight, self.turned["fine"]))
+        had_first = self.first_error is not None
+        super().on_reading(now_ms, weight)
+        if not had_first and self.first_error is not None:
+            self.first_rest_reading = self.target + self.first_error
+            if self.learn_fine:
+                self._learn_fine(now)
+
+    def _learn_fine(self, now: float) -> None:
+        cal = self.cal
+        if self.coarse_off_at is None:
+            return
+        quiet = cal.coarse_stops[0].quiet_s + 0.3
+        start = next(((t, w, f) for t, w, f in self.history if t >= self.coarse_off_at + quiet), None)
+        if start is None:
+            return
+        lag = table(self.fine_lags, cal.floor_rps)
+        turns_then = next((f for t, w, f in reversed(self.history) if t <= start[0] - lag), 0.0)
+        turns = self.turned["fine"] - turns_then
+        gained = self.first_rest_reading - start[1]
+        if turns < 0.2 or gained <= 0.0:
+            return
+        self.fine_seen.append(gained / turns)
+        mean = (self.LEARN_FINE_PRIOR * self.fine_gr_measured + sum(self.fine_seen)) / (self.LEARN_FINE_PRIOR + len(self.fine_seen))
+        most = self.LEARN_FINE_MOST * self.fine_gr_measured
+        cal.fine_gr_turn = min(self.fine_gr_measured + most, max(self.fine_gr_measured - most, mean))
+
+    def _move_for(self, short_gr: float) -> Move:
+        cal = self.cal
+        if self.owe and self.first_rest_reading is not None:
+            shown = self.lowest - self.first_rest_reading
+            owed = max(0.0, self.topup_turns * cal.fine_gr_turn - shown)
+            if short_gr - owed <= cal.band_gr:
+                # what it owes covers what is short: wait for it, as long as the slowest move is watched
+                return Move(0.0, 0.0, 0.0, max(move.wait_s for move in cal.moves))
+            short_gr -= owed
+        move = super()._move_for(short_gr)
+        self.topup_turns += move.turns
+        return move
+
+
+def make_session(rig, seed: int, band_gr: float, learn_fine: bool, owed: bool, fine_factor: float = 1.0) -> Staged:
+    return StagedSession(calibrate(rig, seed, "glide", band_gr, gr_turn_factors=(1.0, fine_factor)),
+                         rig.acceleration_rps2, learn_fine, owed)
