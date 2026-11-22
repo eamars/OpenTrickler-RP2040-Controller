@@ -226,7 +226,19 @@ The proposals above come from the code, its comments and the record. What remain
 
       So lag and rest are properties of the scale. **G1 is Measured:** the calibration measures them on each unit, its scale part with a fixed weight (the owner's three-part calibration, 2026-11-20) or with its first stops.
     - **G2, the prior,** moves with them: ×2 cut the first three's overs on the slow scale (AR2209 42% to 22%, BM2 21.6% to 4%) and cost about a second on the measured one. It makes up for a wrong lag. It cannot be judged apart from G1: it is studied again once G1 is measured, as a Rule for the cautious start.
-    - **Even on its own scale** the fallback over-poured AR2209 at 0.02: 31.8% of all throws, and 23% of the first three. The rig of 11-22 at 0.04 saw no over from a fresh start (`research/pid_learning_2026-11-22.md`); the simulation's 0.04 gives 9.6%. Sign-off item 10 (the first charge after an update works with no calibration) rests on this fallback, so its accuracy is part of gate F's pass.
+    - **How far the fallback is from a calibrated unit,** 10 gr, AR2209. The calibrated controller is the numbers study's baseline (the PID law in the frame, the same gains). Each cell is good / over / median:
+
+      | Scale, band | Calibrated (simulation) | Not calibrated (simulation) |
+      |---|---|---|
+      | measured (the A&D), 0.04 | 88.6% / 10.9% / 9.6 s | 85.2% / 14.8% / 11.8 s |
+      | measured, 0.02 | 74.2% / 24.1% / 10.8 s | 67.8% / 31.8% / 12.1 s |
+      | holds, 0.04 | 83.5% / 16.0% / 20.5 s | 58.7% / 41.3% / 11.5 s |
+      | holds, 0.02 | 66.4% / 30.6% / 22.1 s | 36.2% / 63.7% / 11.6 s |
+      | slow, 0.02 | 65.2% / 31.4% / 20.6 s | 31.7% / 68.2% / 12.6 s |
+
+      - **On the rig** (the A&D, 0.04, 20 throws a side, 2026-11-22): the calibrated glide threw 18 good, 2 over, 10.9 s; the fallback 14, 5, 13.7 s. With its least speed learnt it threw 16, 4, 15.5 s against the glide's 15, 5, 11.0 s.
+      - **Today's loop** on the same rig puts about 85% of AR2209's throws over (README, "To settle before approval").
+      - **Read:** on the scale its numbers came from, the fallback is a few points and about 2 s from a calibrated unit. On a scale later than the A&D it is twice as often over, quickly: it does not wait for a scale it does not know is late.
 - **The fixed weights in grains** (D9's 0.2 gr, C19's turns, C20, E13), checked in the code 2026-11-22, 23:10:
   - The firmware reads a weight as a bare number in the scale's own unit. Only the A&D's frame carries the unit (`scale_get_unit`, `scale.c:128`), and the charge reads it nowhere.
   - So on a scale set to grams every literal written in grains is read as grams:
