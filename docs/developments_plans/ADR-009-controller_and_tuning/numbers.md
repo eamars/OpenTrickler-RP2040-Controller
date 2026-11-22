@@ -195,6 +195,13 @@ The proposals above come from the code, its comments and the record. What remain
 - **The sensitivity of every Rule candidate** (C7, C9, C12, D1, D2, D6 to D10, D12): each at half and at twice its value, in the simulation, on every record in `tools/charge_sim/records/` and the scales of `scales_like.py`, against the glide's yield and median.
   - **Pass for a Rule:** the yield moves by less than the simulation's own noise of 800 throws, and the median by less than half a second.
   - A literal that fails becomes Measured, or a trade for the owner, with its figures.
+- **The study as run** (`tools/charge_sim/numbers_study.py`, written 2026-11-22, 23:00, before its run):
+  - **The controller** is the one ADR-009 delivers: the PID law in the frame, the envelope on, the owner's fine gains with the coarse tube's from the calibration (option 2's form). It is calibrated afresh with each number changed, so the calibration's rules see the change too.
+  - **The cases:** both records, the five scales of `scales_like.py`, both bands (0.02 and 0.04 gr), 10 gr, 800 throws a case.
+  - **The numbers:** C7 to C12, C16, D1 to D3, D6 to D10, D12, D15. Each is tried at half and twice its value; D3, an index, at the stop before and the stop after.
+  - **The noise:** two SDs of the difference between two independent runs of 800, 2 × √(2p(1 − p)/800), from the baseline's share p. The baseline is run on a second seed as well, to show it.
+  - **One amendment before the run:** a 200-throw timing check showed the baseline's median moving 1.5 s between two seeds. So where the baseline's two seeds differ by more than 0.5 s in median, that case's median bar is their difference.
+  - **The literals named first:** in `staged.py`, as module constants. The firmware's lockstep check passes on both laws, so the refactor changed nothing.
 - **The limits that may never bind** (D7, D8): read from the 53 recorded series whether the clamp ever acted.
 - **The fallback before any calibration** (G1, G2): what errs short on every recorded scale and powder.
 - **The fixed weights in grains** (D9's 0.2 gr, C19's turns, C20, E13): their meaning on a scale set to grams.

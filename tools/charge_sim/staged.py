@@ -63,6 +63,25 @@ CREEP_BAND_SHARE = 1.0
 # just under the band and was called good (the jog finish, BM2: 86% good against 94%)
 REST_ON = "lowest"
 CREEP_MOST_S = 6.0              # the creep is never so slow that its stretch takes longer than this on average
+# The rules' own numbers (set_rules and the throw), named for ADR-009's gate N (numbers.md, section D); the firmware's
+# port (src/charge_control.c) still writes them as literals
+SLOWEST_LAG_LEAST_S = 0.3       # D1: the slowest fine stop's lag taken as at least this
+CREEP_LEAST_SHARE = 0.5         # D2: the creep never under this share of the slowest stop's speed
+CREEP_TOP_STOP = 2              # D3: nor above the speed of this fine stop (from 0)
+GLIDE_SPREADS = 2.0             # D6: the glide room is the stop room and this many spreads of a stop from
+GLIDE_FLOW_TIMES = 4.0          # D6: this many times the creep's flow
+GLIDE_LAG_SHARE = 0.6           # D7, D8: a glide time is this share of its lag
+GLIDE_LEAST_S = 0.4             # D7: the fine glide time's limits
+GLIDE_MOST_S = 2.0
+COARSE_GLIDE_LEAST_S = 0.3      # D8: the coarse glide time's limits
+COARSE_GLIDE_MOST_S = 1.5
+COARSE_ROOM_SPREADS = 3.0       # D9: the coarse room is this many spreads of a coarse stop from its floor,
+COARSE_ROOM_EXTRA_GR = 0.2      # D9: the glide room and this
+REST_FLOOR_TIMES = 2.0          # D10: the rest is the slowest quiet time of the stops within this many times the creep
+REST_EXTRA_S = 0.3              # D10: and this
+COARSE_LEAST_TURNS = 0.5        # D12: the coarse tube runs only for more than its room and this share of a turn
+STILL_LEAST_S = 0.4             # C16, D15: at rest, no new high for this long,
+STILL_INTERVALS = 2.0           # D15: or this many reading intervals if longer
 LEARN_SHARE = 0.15              # of a throw's first error at rest, into where the fine tube stops
 LEARN_MOST_DIGITS = 2.0         # no throw teaches more than this
 LEARN_DEAD_DIGITS = 0.25        # nor less
@@ -297,9 +316,9 @@ def set_rules(cal: Calibration, finish: str, band_gr: float) -> None:
     quiet = [(stop.speed, stop.quiet_s) for stop in fine]
     if finish == "glide":
         # The creep: the flow at which the powder still on its way is about the band, at the lag measured there
-        slowest_lag = max(lags[0][1], 0.3)
-        cal.floor_rps = min(max(CREEP_BAND_SHARE * band_gr / slowest_lag / cal.fine_gr_turn, 0.5 * fine[0].speed),
-                            fine[2].speed)
+        slowest_lag = max(lags[0][1], SLOWEST_LAG_LEAST_S)
+        cal.floor_rps = min(max(CREEP_BAND_SHARE * band_gr / slowest_lag / cal.fine_gr_turn,
+                                CREEP_LEAST_SHARE * fine[0].speed), fine[CREEP_TOP_STOP].speed)
         # The first reading at rest is meant to lie a digit under the target (half the band, if that is more): a
         # throw that rests short is topped up, one that rests over is lost. Aimed at the target itself the trial
         # gave 5 points fewer good throws and half as many overs again (progress.md, 2026-11-21)
@@ -310,17 +329,19 @@ def set_rules(cal: Calibration, finish: str, band_gr: float) -> None:
         cal.stop_room_gr = 2.5 * table(spread, cal.floor_rps) + cal.digit_gr
         cal.aim_gr = -cal.stop_room_gr
     # The floor is reached with twice the spread of a stop from four times its flow still to go
-    cal.glide_room_gr = cal.stop_room_gr + (2.0 * table(spread, 4.0 * cal.floor_rps) if finish == "glide" else 0.0)
+    cal.glide_room_gr = cal.stop_room_gr + (GLIDE_SPREADS * table(spread, GLIDE_FLOW_TIMES * cal.floor_rps)
+                                            if finish == "glide" else 0.0)
     if finish == "glide":
         # On a scale so late that such a creep would take too long, the creep is quicker and more is left to the moves
         stretch = cal.glide_room_gr - cal.stop_room_gr
         cal.floor_rps = max(cal.floor_rps, stretch / CREEP_MOST_S / cal.fine_gr_turn)
-    cal.glide_s = min(2.0, max(0.4, 0.6 * max(lag for _, lag in lags[2:])))
+    cal.glide_s = min(GLIDE_MOST_S, max(GLIDE_LEAST_S, GLIDE_LAG_SHARE * max(lag for _, lag in lags[2:])))
     coarse_lag = lag_table(coarse, cal.coarse_gr_turn)
-    cal.coarse_glide_s = min(1.5, max(0.3, 0.6 * coarse_lag[0][1]))
-    cal.coarse_room_gr = 3.0 * coarse[0].spread_gr + cal.glide_room_gr + 0.2
+    cal.coarse_glide_s = min(COARSE_GLIDE_MOST_S, max(COARSE_GLIDE_LEAST_S, GLIDE_LAG_SHARE * coarse_lag[0][1]))
+    cal.coarse_room_gr = COARSE_ROOM_SPREADS * coarse[0].spread_gr + cal.glide_room_gr + COARSE_ROOM_EXTRA_GR
     # The wait before the first judgement: the slowest the reading came to rest after a stop from near the floor
-    cal.rest_s = max(stop.quiet_s for stop in fine if stop.speed <= 2.0 * cal.floor_rps or stop is fine[0]) + 0.3
+    cal.rest_s = max(stop.quiet_s for stop in fine
+                     if stop.speed <= REST_FLOOR_TIMES * cal.floor_rps or stop is fine[0]) + REST_EXTRA_S
 
 
 @dataclass(frozen=True)
@@ -407,7 +428,7 @@ class Staged:
         self.fine_rps = 0.0
         self.phase = "feed"
         # a charge too small for the coarse tube's margin is the fine tube's alone
-        self.coarse_on = target_gr > cal.coarse_room_gr + 0.5 * cal.coarse_gr_turn
+        self.coarse_on = target_gr > cal.coarse_room_gr + COARSE_LEAST_TURNS * cal.coarse_gr_turn
         self.turned = {"coarse": 0.0, "fine": 0.0}      # as the unit counts its steps
         self.speed = {"coarse": 0.0, "fine": 0.0}       # the motors' own ramped speeds
         self.counted = False            # the harness gives the unit's own count of the turns (`count`)
@@ -592,7 +613,7 @@ class Staged:
             self._pid_reading(now)
         if self.phase != "rest":
             return
-        still = max(0.4, 2.0 * cal.interval_s)
+        still = max(STILL_LEAST_S, STILL_INTERVALS * cal.interval_s)
         if now < self.stopped_at + self.wait - TIE_S or now < self.last_rise + still - TIE_S:
             return
         weight = self.highest if REST_ON == "highest" else self.lowest
@@ -609,7 +630,7 @@ class Staged:
             # times, poured nothing and ended 11 digits short.
             self.streams += 1
             self.phase = "feed"
-            self.coarse_on = short > cal.coarse_room_gr + 0.5 * cal.coarse_gr_turn
+            self.coarse_on = short > cal.coarse_room_gr + COARSE_LEAST_TURNS * cal.coarse_gr_turn
             self.stopped_at = None
             return
         if self.first_error is None:
