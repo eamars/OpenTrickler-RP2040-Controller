@@ -1477,3 +1477,18 @@ Gate 1's check with it on: lockstep 200 of 200 in all 8 sets, float and counted 
 - the tube pours less per turn as it slows;
 - some of a slowing stretch's powder is held at the lip past the rest and comes out at the next start (the dry-turning finding of this afternoon), which would read high on the whole throw and low on the finish.
 Either way the forecast needs the fine tube's grains a turn as a table by speed (as its lags are), or the finish and the stream apart, measured where each is used. That is a change of the forecast's model, for the owner to weigh; the session learning of one figure is not worth its time as it stands.
+
+## 2026-11-22, 16:02 to 16:23: the fine tube's figure split in two, stream and finish; its forecast
+
+The owner: "Yes, simulation first then on the bench."
+
+**Where the learning lost its time,** read from the two 5 gr series' rows (the throws with no top-up): the stream and the rest after the stop took the same time with the learning off and on; **the glide, from the fine tube's slowing to its stop, took 2.6 s off and 4.4 s on.** When the tube starts to slow, about a second of the stream's powder is in the air, poured at 0.83 gr a turn; counted at 0.685, the forecast held some 0.12 gr too little, and the tube crept on at its floor waiting for the scale to show what was already falling. At 0.715 the stream is undercounted too, less.
+
+**Built** (`staged.py` and `charge_control.c` alike, `ccon learn_fine_split`, 1 by default): the forecast counts a fine turn made before the stretch opens at the **stream's** figure and one after it at the **finish's**. The stream's is learnt from what showed before the stretch, in throws of the fine tube alone. The finish's is learnt from the stretch, with the stream's powder still unseen at its start taken off. Each is a session's mean against the calibration's figure, as before. Gate 1's check with it: lockstep 200 of 200 in all 8 sets (20 gr), and 60 of 60 at 5 gr, where the stream's figure is learnt: **pass**. The throw line gives `fine_stream`.
+
+**The simulation** (`fit/study_20261122/fine_split_*gr.txt`; its tube made to pour by speed as the rig suggested, 0.68 gr a turn at 0.1 rev/s and below, 0.83 at 1 rev/s, the line between assumed): the split and one learnt figure both save 0.7 to 1.1 s over a fixed figure, accuracy the same. It does not show the rig's longer glide, since its fine tube tops out at 0.5 rev/s, where the stream's and the finish's figures lie close. So it shows the split does no harm, not that it helps.
+
+**The rig, its passes written first:** 5 gr, the fine tube alone, fast mode, series D's calibration, `fine_top_rps=1.0`, 20 throws with the split, then 20 with the learning off again as a check on drift since 15:46.
+- **Pass, the mechanism:** with the split, the glide of the throws with no top-up at most 2.6 s (the learning off's), and the stream's figure learnt within 5% of the whole throw's own grains over turns.
+- **Pass, the time:** the median with the split no longer than the learning off's in the same session.
+- **Expected:** the stream's figure near 0.82, the finish's near 0.68; the glide 2 s or less; the median about a second under the learning off's; the accuracy as before.

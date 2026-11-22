@@ -395,7 +395,7 @@ static const charge_constant_t charge_constants_table[] = {
     CHARGE_CONSTANT(coarse_top_rps), CHARGE_CONSTANT(coarse_floor_rps), CHARGE_CONSTANT(dribble_digits_s),
     CHARGE_CONSTANT(coarse_spreads), CHARGE_CONSTANT(creep_band_share), CHARGE_CONSTANT(creep_most_s),
     CHARGE_CONSTANT(learn_share), CHARGE_CONSTANT(learn_most_digits), CHARGE_CONSTANT(learn_dead_digits), CHARGE_CONSTANT(learn_fine_prior),
-    CHARGE_CONSTANT(learn_fine_most),
+    CHARGE_CONSTANT(learn_fine_most), CHARGE_CONSTANT(learn_fine_split),
     CHARGE_CONSTANT(still_least_s),
     {"most_moves", offsetof(charge_control_constants_t, most_moves), true},
     CHARGE_CONSTANT(throw_most_s), CHARGE_CONSTANT(fine_most_turns), CHARGE_CONSTANT(over_most_gr),

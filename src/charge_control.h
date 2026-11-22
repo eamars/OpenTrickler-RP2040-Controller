@@ -129,6 +129,9 @@ typedef struct {
     // learn_fine_most of it
     charge_control_real_t learn_fine_prior;
     charge_control_real_t learn_fine_most;
+    // 1: the forecast counts a fine turn made before the stretch at the stream's figure, one after it at the
+    // finish's, each learnt; 0: one figure for every turn (a 5 gr throw poured 0.83 gr a fine turn, its finish 0.68)
+    charge_control_real_t learn_fine_split;
     charge_control_real_t still_least_s;            // at rest: no new high for this long, or two reading intervals if longer
     uint8_t most_moves;             // tries a throw is given after its first rest
     // Limits of the firmware's own, not the research's: a throw that passes one ends with CHARGE_CONTROL_RESULT_LIMIT
@@ -155,6 +158,9 @@ typedef struct {
     charge_control_real_t fine_gr_measured;
     charge_control_real_t fine_learn_sum;
     uint16_t fine_learn_n;
+    charge_control_real_t fine_gr_stream;           // the split's stream figure; its finish's is cal.fine_gr_turn
+    charge_control_real_t stream_learn_sum;
+    uint16_t stream_learn_n;
 
     // Out, read after every call
     charge_control_real_t coarse_rps;
@@ -199,6 +205,8 @@ typedef struct {
     bool window_open;
     charge_control_real_t window_reading;
     charge_control_real_t window_shown_turns;       // the fine tube's turns whose powder had shown at its start
+    charge_control_real_t window_turned;            // the fine tube's turns at its start, and its powder unseen then
+    charge_control_real_t window_unseen_gr;
 } charge_control_t;
 
 void charge_control_default_constants(charge_control_constants_t *k);

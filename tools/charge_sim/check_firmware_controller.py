@@ -192,7 +192,8 @@ def run_set(job: tuple) -> dict:
         port = firmware_controller.FirmwareStaged(dataclasses.replace(cal, stop_room_gr=reference.stop_room),
                                                   rig.acceleration_rps2, double=True)
         # and from its learnt fine figure (2026-11-22)
-        port.set_fine_learning(reference.fine_learn_n, reference.fine_learn_sum, reference.cal.fine_gr_turn)
+        port.set_fine_learning(reference.fine_learn_n, reference.fine_learn_sum, reference.cal.fine_gr_turn,
+                               reference.stream_learn_n, reference.stream_learn_sum, reference.fine_gr_stream)
         twin = Lockstep(reference, port)
         session.throw(twin, TARGET_GR, tolerance)
         difference = twin.difference()

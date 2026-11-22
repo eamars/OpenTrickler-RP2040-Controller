@@ -175,6 +175,20 @@ for _band, _tol, _b in ((0.04, LOOSE_TOLERANCE_GR, "fast"), (0.02, VERDICT_TOLER
         SESSION_CONTROLLERS[f"{_b}{_f}_both"] = _session(_band, _tol, True, True, _factor)
 
 
+# The talk of 2026-11-22: the fine tube's figure one (learnt or not) or split in two, at the fast mode's band
+def _fine_form(form, learn):
+    def make(rig, seed=0):
+        controller = staged.make(rig, seed, "glide", 0.04)
+        controller.fine_form = form
+        controller.learn_fine_prior = staged.LEARN_FINE_PRIOR if learn else 0.0
+        return controller, LOOSE_TOLERANCE_GR
+    return make
+
+
+FINE_FORM_CONTROLLERS = {"fast_one_fixed": _fine_form("one", False), "fast_one_learnt": _fine_form("one", True),
+                         "fast_split_learnt": _fine_form("split", True)}
+
+
 CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
                "guarded_pid": make_guarded_pid, "guarded_pid_creep": make_guarded_pid_creep,
@@ -186,3 +200,4 @@ CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "flow_dose": make_flow_dose, "flow_dose_commit": make_flow_dose_commit,
                "flow_dose_sequential": make_flow_dose_sequential, "flow_dose_split": make_flow_dose_split}
 CONTROLLERS.update(SESSION_CONTROLLERS)
+CONTROLLERS.update(FINE_FORM_CONTROLLERS)

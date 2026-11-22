@@ -39,9 +39,29 @@ def load_record(name: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# Variants named after a record with "+": an assumption put on its rig to see what a controller makes of it, never a
+# record of its own (a record is only what was measured)
+# fine_by_speed (2026-11-22): the fine tube pours by speed as the rig's 5 gr throws suggested, 0.68 gr a turn at the
+# finish (taken here at 0.1 rev/s and below) and 0.83 at 1 rev/s, AR2209 on the Pico 2 W; scaled to the record's own
+# figure for another powder. Only the two ends are measured; the line between them is assumed
+FINE_BY_SPEED = ((0.1, 0.68 / 0.7652), (1.0, 0.83 / 0.7652))
+
+
+def _fine_by_speed(rig: Rig) -> Rig:
+    import dataclasses
+    base = rig.fine.gr_per_turn[0][1]
+    return dataclasses.replace(rig, fine=dataclasses.replace(
+        rig.fine, gr_per_turn=tuple((speed, share * base) for speed, share in FINE_BY_SPEED)))
+
+
+VARIANTS = {"fine_by_speed": _fine_by_speed}
+
+
 def get_rig(name: str) -> Rig:
-    """A rig by its record's name or path."""
-    return rig_from_record(load_record(name))
+    """A rig by its record's name or path, with a variant after a "+" (VARIANTS)."""
+    name, _, variant = name.partition("+")
+    rig = rig_from_record(load_record(name))
+    return VARIANTS[variant](rig) if variant else rig
 
 
 def names() -> list:

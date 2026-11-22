@@ -31,6 +31,7 @@ typedef charge_control_real_t real_t;
 // millionth (10.02 over a cup of 60 gr: 0.0200043): the band's edge is a quarter digit past the band
 #define BAND_EDGE_DIGITS REAL(0.25)
 #define LEARN_FINE_LEAST_TURNS REAL(0.2)    // a stretch shorter than this teaches nothing (staged.py's)
+#define LEARN_FINE_LEAST_STREAM_TURNS REAL(0.5)
 // Two times this close are the same time: a tie on the millisecond's grid falls the same way in real_t as in the
 // reference's double (staged.py's TIE_S)
 #define TIE_S REAL(1e-4)
@@ -51,6 +52,7 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->learn_dead_digits = REAL(0.25);
     k->learn_fine_prior = REAL(3.0);
     k->learn_fine_most = REAL(0.25);
+    k->learn_fine_split = REAL(1.0);
     k->still_least_s = REAL(0.4);
     k->most_moves = 8;
     k->throw_most_s = REAL(120.0);
@@ -204,6 +206,7 @@ void charge_control_init(charge_control_t *c, const charge_control_calibration_t
     c->stop_room_gr = cal->stop_room_gr;
     c->move_turns = -REAL(1.0);
     c->fine_gr_measured = cal->fine_gr_turn;
+    c->fine_gr_stream = cal->fine_gr_turn;
 }
 
 
@@ -250,6 +253,8 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     c->window_open = false;
     c->window_reading = REAL(0.0);
     c->window_shown_turns = REAL(0.0);
+    c->window_turned = REAL(0.0);
+    c->window_unseen_gr = REAL(0.0);
 }
 
 
@@ -306,6 +311,10 @@ static void make_parcel(charge_control_t *c, real_t now_s) {
             real_t lag = tube == COARSE
                 ? stop_table(cal->coarse_stops, cal->coarse_stop_count, STOP_LAG, gr_turn, c->speed[tube])
                 : stop_table(cal->fine_stops, cal->fine_stop_count, STOP_LAG, gr_turn, c->speed[tube]);
+            // The split: a fine turn before the stretch counts at the stream's figure (ADR-009, 2026-11-22)
+            if (tube == FINE && c->k.learn_fine_split > REAL(0.0) && !c->window_open) {
+                gr_turn = c->fine_gr_stream;
+            }
             real_t grains = gr_turn * turned;
             add_parcel(c, tube, turned_out_at + lag, grains);
             c->unseen_gr += grains;
@@ -453,6 +462,41 @@ static void open_window(charge_control_t *c, real_t now_s, real_t weight) {
     c->window_open = true;
     c->window_reading = weight;
     c->window_shown_turns = c->turned[FINE] - fine_unseen_turns(c);
+    c->window_turned = c->turned[FINE];
+    real_t grains = REAL(0.0);
+    for (uint16_t i = 0; i < c->parcel_count[FINE]; i++) {
+        grains += c->parcels[FINE][i].grains;
+    }
+    c->window_unseen_gr = grains;
+}
+
+
+static real_t learnt_clamp(const charge_control_t *c, real_t g) {
+    real_t most = c->k.learn_fine_most * c->fine_gr_measured;
+    return min_f(c->fine_gr_measured + most, max_f(c->fine_gr_measured - most, g));
+}
+
+
+// The split: the stream's figure from what showed before the stretch (the fine tube alone), the finish's from the
+// stretch, the stream's powder still unseen at its start taken off
+static void learn_fine_split(charge_control_t *c, real_t at_rest) {
+    const charge_control_constants_t *k = &c->k;
+    real_t prior = k->learn_fine_prior;
+    if (!c->coarse_ran && c->window_shown_turns >= LEARN_FINE_LEAST_STREAM_TURNS && c->window_reading > REAL(0.0)) {
+        c->stream_learn_n++;
+        c->stream_learn_sum += c->window_reading / c->window_shown_turns;
+        c->fine_gr_stream = learnt_clamp(c, (prior * c->fine_gr_measured + c->stream_learn_sum) /
+                                            (prior + (real_t) c->stream_learn_n));
+    }
+    real_t turns = c->turned[FINE] - fine_unseen_turns(c) - c->window_turned;
+    real_t gained = at_rest - c->window_reading - c->window_unseen_gr;
+    if (turns < LEARN_FINE_LEAST_TURNS || gained <= REAL(0.0)) {
+        return;
+    }
+    c->fine_learn_n++;
+    c->fine_learn_sum += gained / turns;
+    c->cal.fine_gr_turn = learnt_clamp(c, (prior * c->fine_gr_measured + c->fine_learn_sum) /
+                                          (prior + (real_t) c->fine_learn_n));
 }
 
 
@@ -460,6 +504,10 @@ static void open_window(charge_control_t *c, real_t now_s, real_t weight) {
 static void learn_fine(charge_control_t *c, real_t at_rest) {
     const charge_control_constants_t *k = &c->k;
     if (!c->window_open || !(k->learn_fine_prior > REAL(0.0))) {
+        return;
+    }
+    if (k->learn_fine_split > REAL(0.0)) {
+        learn_fine_split(c, at_rest);
         return;
     }
     real_t turns = c->turned[FINE] - fine_unseen_turns(c) - c->window_shown_turns;

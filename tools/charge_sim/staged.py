@@ -74,6 +74,12 @@ LEARN_DEAD_DIGITS = 0.25        # nor less
 LEARN_FINE_PRIOR = 3.0
 LEARN_FINE_MOST = 0.25
 LEARN_FINE_LEAST_TURNS = 0.2
+# The fine tube's figure in the forecast (2026-11-22): "one" figure for every turn, or "split": a turn before the
+# stretch opens (the tube at its top speed, or the coarse tube still arriving) at the stream's figure, a turn after it
+# at the finish's, each learnt over the session. A whole throw of 5 gr on the rig poured 0.83 gr a fine turn and its
+# finish 0.68: one figure cannot hold both
+LEARN_FINE_FORM = "split"
+LEARN_FINE_LEAST_STREAM_TURNS = 0.5
 # Two times this close are the same time. The simulation's times and a record's numbers lie on a millisecond's grid, so
 # a parcel falls due on a reading's very millisecond often, and which way such a tie falls must not hang on the last
 # bit of a float: the firmware's port (src/charge_control.c), in single precision, breaks it the same way (ADR-009)
@@ -326,6 +332,10 @@ class Staged:
         self.fine_gr_measured = cal.fine_gr_turn
         self.fine_learn_n = 0
         self.fine_learn_sum = 0.0
+        self.fine_form = LEARN_FINE_FORM
+        self.fine_gr_stream = cal.fine_gr_turn       # the split form's two figures, each learnt like the one
+        self.stream_learn_n = 0
+        self.stream_learn_sum = 0.0
         self.acceleration = acceleration_rps2
         self.rehearsal = rehearsal      # end at the first reading at rest: the calibration's own throws
         self.coarse_lags = lag_table(cal.coarse_stops, cal.coarse_gr_turn)
@@ -369,6 +379,8 @@ class Staged:
         self.coarse_off_at = None
         self.window_reading = None      # the fine tube's stretch for its learning: the reading, and the turns shown
         self.window_shown_turns = 0.0
+        self.window_turned = 0.0        # the fine tube's turns when it opened, and its powder still unseen then
+        self.window_unseen_gr = 0.0
 
     def _parcel(self, now: float) -> None:
         """Count what each tube turned out since the last parcel: it will show after the lag of its present flow.
@@ -382,6 +394,8 @@ class Staged:
             turned = self.turned[tube] - self.marked[tube]
             self.marked[tube] = self.turned[tube]
             if turned > 0.0:
+                if tube == "fine" and self.fine_form == "split":
+                    gr_turn = cal.fine_gr_turn if self.window_reading is not None else self.fine_gr_stream
                 grains = gr_turn * turned
                 self.parcels.append([turned_out_at + table(lags, self.speed[tube]), grains, tube])
                 self.unseen += grains
@@ -532,10 +546,15 @@ class Staged:
             return
         self.window_reading = weight
         self.window_shown_turns = self.turned["fine"] - self._fine_unseen_turns()
+        self.window_turned = self.turned["fine"]
+        self.window_unseen_gr = sum(parcel[1] for parcel in self.parcels if parcel[2] == "fine")
 
     def _learn_fine(self, at_rest: float) -> None:
         """The stretch's powder over its turns, into the session's mean."""
         if self.window_reading is None or self.learn_fine_prior <= 0.0:
+            return
+        if self.fine_form == "split":
+            self._learn_fine_split(at_rest)
             return
         turns = self.turned["fine"] - self._fine_unseen_turns() - self.window_shown_turns
         gained = at_rest - self.window_reading
@@ -547,6 +566,26 @@ class Staged:
                 / (self.learn_fine_prior + self.fine_learn_n))
         most = LEARN_FINE_MOST * self.fine_gr_measured
         self.cal.fine_gr_turn = min(self.fine_gr_measured + most, max(self.fine_gr_measured - most, mean))
+
+    def _learn_fine_split(self, at_rest: float) -> None:
+        """The split form: the stream's figure from what showed before the stretch (the fine tube alone), the
+        finish's from the stretch, the stream's powder still unseen at its start taken off."""
+        cal = self.cal
+        prior, most = self.learn_fine_prior, LEARN_FINE_MOST * self.fine_gr_measured
+        clamp = lambda g: min(self.fine_gr_measured + most, max(self.fine_gr_measured - most, g))
+        if not self.coarse_ran and self.window_shown_turns >= LEARN_FINE_LEAST_STREAM_TURNS and self.window_reading > 0.0:
+            self.stream_learn_n += 1
+            self.stream_learn_sum += self.window_reading / self.window_shown_turns
+            self.fine_gr_stream = clamp((prior * self.fine_gr_measured + self.stream_learn_sum)
+                                        / (prior + self.stream_learn_n))
+        unseen_turns_now = sum(parcel[1] for parcel in self.parcels if parcel[2] == "fine") / cal.fine_gr_turn
+        turns = self.turned["fine"] - unseen_turns_now - self.window_turned
+        gained = at_rest - self.window_reading - self.window_unseen_gr
+        if turns < LEARN_FINE_LEAST_TURNS or gained <= 0.0:
+            return
+        self.fine_learn_n += 1
+        self.fine_learn_sum += gained / turns
+        cal.fine_gr_turn = clamp((prior * self.fine_gr_measured + self.fine_learn_sum) / (prior + self.fine_learn_n))
 
     def _move_for(self, short_gr: float) -> Move:
         """The largest move that on average takes the weight no more than half way to the band's top."""

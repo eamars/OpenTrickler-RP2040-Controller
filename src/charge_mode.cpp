@@ -659,11 +659,12 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     charge_staged_weight = cc->rest_weight;
     float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
     printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=%u elapsed=%.2f "
-           "coarse_turns=%.4f fine_turns=%.4f stop_room=%.4f fine_gr=%.4f learnt=%u base=%.3f rows=%u\n",
+           "coarse_turns=%.4f fine_turns=%.4f stop_room=%.4f fine_gr=%.4f fine_stream=%.4f learnt=%u base=%.3f "
+           "rows=%u\n",
            charge_throw_number, charge_control_result_string((charge_control_result_t) cc->result), cc->rest_weight,
            target, cc->have_first_error ? cc->first_error_gr : NAN, cc->moves, cc->streams, elapsed_s,
-           cc->turned[0], cc->turned[1], cc->stop_room_gr, cc->cal.fine_gr_turn, cc->fine_learn_n, charge_base,
-           charge_record_rows);
+           cc->turned[0], cc->turned[1], cc->stop_room_gr, cc->cal.fine_gr_turn, cc->fine_gr_stream, cc->fine_learn_n,
+           charge_base, charge_record_rows);
     return true;
 }
 

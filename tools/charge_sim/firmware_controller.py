@@ -60,7 +60,7 @@ def _types(real) -> tuple:
         _fields_ = ([(name, real) for name in (
             "move_rps", "parcel_s", "fine_top_rps", "coarse_top_rps", "coarse_floor_rps", "dribble_digits_s",
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
-            "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "still_least_s")]
+            "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split", "still_least_s")]
                     + [("most_moves", ctypes.c_uint8)]
                     + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_most_gr")])
 
@@ -128,7 +128,7 @@ class Library:
         lib.shim_parcels.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_double),
                                      ctypes.POINTER(ctypes.c_double)]
         lib.shim_parcels.restype = ctypes.c_uint16
-        lib.shim_set_fine_learning.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_double]
+        lib.shim_set_fine_learning.argtypes = [ctypes.c_void_p] + [ctypes.c_double] * 6
         self.lib = lib
 
     def default_constants(self):
@@ -197,9 +197,11 @@ class FirmwareStaged:
         self._logged = False
         self._read()
 
-    def set_fine_learning(self, n: int, total: float, current: float) -> None:
+    def set_fine_learning(self, n: int, total: float, current: float, stream_n: int = 0, stream_total: float = 0.0,
+                          stream: float = None) -> None:
         """The fine tube's learnt state carried from another controller (the check's lockstep)."""
-        self._lib.shim_set_fine_learning(self._c, float(n), total, current)
+        self._lib.shim_set_fine_learning(self._c, float(n), total, current, float(stream_n), stream_total,
+                                         current if stream is None else stream)
 
     def _read(self) -> None:
         self._lib.shim_outputs(self._c, self._out)
