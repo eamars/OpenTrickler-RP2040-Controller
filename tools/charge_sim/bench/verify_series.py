@@ -73,12 +73,14 @@ def main() -> None:
         settle = coarse_off + cal.coarse_stops[0].quiet_s + 0.3
         j = min(range(len(rows)), key=lambda i: abs(rows[i][0] / 1000.0 - settle))
         t1 = rows[j][0] / 1000.0
-        i1 = min(len(flow) - 1, int((t1 - table(fine_lags, flow[int(t1 / STEP_S)][4])) / STEP_S))
-        fine_shown = flow[i1][2] * cal.fine_gr_turn
+        # the fine turns whose powder has shown by t1: each turned out a lag before at its own speed (2026-11-22:
+        # one lag for all of them, taken at t1's speed, put the turns of a tube still slowing among those shown)
+        shown_turns = max((f for t, c, f, sc, sf in flow[::10] if t + table(fine_lags, sf) <= t1), default=0.0)
+        fine_shown = shown_turns * cal.fine_gr_turn
         coarse_yield.append((rows[j][1] - fine_shown) / throw["coarse_turns"])
         if throw["moves"] == 0 and throw["streams"] == 0:
             fine_rest = throw["target"] + throw["first"] - rows[j][1]
-            fine_turns = flow[-1][2] - flow[i1][2]
+            fine_turns = flow[-1][2] - shown_turns
             if fine_turns > 0.2:
                 fine_yield.append(fine_rest / fine_turns)
     print("THE CALIBRATION, AS THE THROWS SEE IT")

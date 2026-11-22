@@ -66,6 +66,14 @@ CREEP_MOST_S = 6.0              # the creep is never so slow that its stretch ta
 LEARN_SHARE = 0.15              # of a throw's first error at rest, into where the fine tube stops
 LEARN_MOST_DIGITS = 2.0         # no throw teaches more than this
 LEARN_DEAD_DIGITS = 0.25        # nor less
+# The fine tube's grains a turn learnt over a session (2026-11-22): each throw's powder from the fine tube's slowing
+# (once the coarse tube is quiet, if it ran) to the first rest, over the turns whose powder showed in that stretch; the
+# figure used is their mean against the calibration's own, which counts for LEARN_FINE_PRIOR throws (0: no learning),
+# never further than LEARN_FINE_MOST from it. A mean, so a throw whose powder is held at the lip and the one after it
+# that dumps it cancel; the stretch from the slowing on, so it is the finish's figure, not the stream's at full speed
+LEARN_FINE_PRIOR = 3.0
+LEARN_FINE_MOST = 0.25
+LEARN_FINE_LEAST_TURNS = 0.2
 # Two times this close are the same time. The simulation's times and a record's numbers lie on a millisecond's grid, so
 # a parcel falls due on a reading's very millisecond often, and which way such a tie falls must not hang on the last
 # bit of a float: the firmware's port (src/charge_control.c), in single precision, breaks it the same way (ADR-009)
@@ -313,7 +321,11 @@ class Staged:
     """The controller. The harness reads coarse_rps, fine_rps and done after each call."""
 
     def __init__(self, cal: Calibration, acceleration_rps2: float, rehearsal: bool = False):
-        self.cal = cal
+        self.cal = dataclasses.replace(cal)     # its own copy: the learnt fine figure goes into it
+        self.learn_fine_prior = LEARN_FINE_PRIOR
+        self.fine_gr_measured = cal.fine_gr_turn
+        self.fine_learn_n = 0
+        self.fine_learn_sum = 0.0
         self.acceleration = acceleration_rps2
         self.rehearsal = rehearsal      # end at the first reading at rest: the calibration's own throws
         self.coarse_lags = lag_table(cal.coarse_stops, cal.coarse_gr_turn)
@@ -353,6 +365,10 @@ class Staged:
         self.moves = 0
         self.streams = 0                # times a rest far short sent the throw back to the stream
         self.first_error = None
+        self.coarse_ran = self.coarse_on
+        self.coarse_off_at = None
+        self.window_reading = None      # the fine tube's stretch for its learning: the reading, and the turns shown
+        self.window_shown_turns = 0.0
 
     def _parcel(self, now: float) -> None:
         """Count what each tube turned out since the last parcel: it will show after the lag of its present flow.
@@ -431,6 +447,8 @@ class Staged:
             if room <= cal.coarse_room_gr:
                 self.coarse_on = False
                 self.coarse_rps = 0.0
+                if self.coarse_off_at is None:
+                    self.coarse_off_at = now
             else:
                 asked = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
                 self.coarse_rps = min(COARSE_TOP_RPS, max(COARSE_FLOOR_RPS, asked))
@@ -458,6 +476,7 @@ class Staged:
             self.parcels = [parcel for parcel in self.parcels if parcel[0] > now + TIE_S]
             self.unseen = sum(parcel[1] for parcel in self.parcels)
             self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse")
+        self._open_window(now, weight)
         if self.phase != "rest":
             return
         still = max(0.4, 2.0 * cal.interval_s)
@@ -483,6 +502,7 @@ class Staged:
         if self.first_error is None:
             self.first_error = weight - self.target
             self._learn()
+            self._learn_fine(weight)
         # a rest lies on the scale's digits; a quarter digit past the band is its edge, so that a reading less a large
         # base, a digit's float off it, falls the right way (the firmware's real_t: 10.02 over 60 gr is 0.0200043)
         if self.rehearsal or short <= cal.band_gr + BAND_EDGE_DIGITS * cal.digit_gr or not tries_left:
@@ -496,6 +516,37 @@ class Staged:
         self.move_turns = move.turns
         self.move_until = now + move.turns / MOVE_RPS
         self.wait = move.wait_s
+
+    def _fine_unseen_turns(self) -> float:
+        return sum(parcel[1] for parcel in self.parcels if parcel[2] == "fine") / self.cal.fine_gr_turn
+
+    def _open_window(self, now: float, weight: float) -> None:
+        """The fine tube's stretch begins at the first reading at which it is slowing, the coarse tube quiet."""
+        cal = self.cal
+        if self.window_reading is not None or self.rehearsal or self.learn_fine_prior <= 0.0 or self.phase != "feed":
+            return
+        if not (0.0 < self.fine_rps < FINE_TOP_RPS):
+            return
+        if self.coarse_ran and (self.coarse_off_at is None
+                                or now < self.coarse_off_at + cal.coarse_stops[0].quiet_s + 0.3 - TIE_S):
+            return
+        self.window_reading = weight
+        self.window_shown_turns = self.turned["fine"] - self._fine_unseen_turns()
+
+    def _learn_fine(self, at_rest: float) -> None:
+        """The stretch's powder over its turns, into the session's mean."""
+        if self.window_reading is None or self.learn_fine_prior <= 0.0:
+            return
+        turns = self.turned["fine"] - self._fine_unseen_turns() - self.window_shown_turns
+        gained = at_rest - self.window_reading
+        if turns < LEARN_FINE_LEAST_TURNS or gained <= 0.0:
+            return
+        self.fine_learn_n += 1
+        self.fine_learn_sum += gained / turns
+        mean = ((self.learn_fine_prior * self.fine_gr_measured + self.fine_learn_sum)
+                / (self.learn_fine_prior + self.fine_learn_n))
+        most = LEARN_FINE_MOST * self.fine_gr_measured
+        self.cal.fine_gr_turn = min(self.fine_gr_measured + most, max(self.fine_gr_measured - most, mean))
 
     def _move_for(self, short_gr: float) -> Move:
         """The largest move that on average takes the weight no more than half way to the band's top."""
@@ -693,67 +744,29 @@ def make_mode(rig, seed: int, mode: str) -> ModeStaged:
 class StagedSession(Staged):
     """Two ideas talked over on 2026-11-22, tried in the simulation; not a plan (research/talk_2026-11-22.md).
 
-    - learn_fine: the fine tube's grains a turn learnt over the session. Each throw is read where only the fine tube's
-      powder is arriving (from the coarse tube's quiet after its stop to the first rest, its turns taken a lag
-      earlier), and the figure used is the mean of those readings against the calibration's own, which counts for
-      LEARN_FINE_PRIOR throws; never more than LEARN_FINE_MOST from the calibration's. A mean and not a step: a
-      throw whose powder is held at the lip and one that dumps it average out.
+    - learn_fine: the base controller's learning of the fine tube's grains a turn (LEARN_FINE_PRIOR), on or off. Its
+      first form in the talk read the stretch from the coarse tube's quiet; the base controller's reads it from the
+      fine tube's slowing, so that a throw of the fine tube alone teaches the finish's figure.
     - owed: before a top-up, the powder its earlier top-ups turned out and the scale has not shown is counted as on
       its way (a run of nudges that showed nothing is followed by what they owed, bench 2026-11-20 and 21). If it
       covers what is short, the throw waits for it instead of turning again.
     """
 
-    LEARN_FINE_PRIOR = 3.0
-    LEARN_FINE_MOST = 0.25
-
     def __init__(self, cal: Calibration, acceleration_rps2: float, learn_fine: bool = False, owed: bool = False):
         super().__init__(cal, acceleration_rps2)
-        self.learn_fine, self.owe = learn_fine, owed
-        self.fine_gr_measured = cal.fine_gr_turn
-        self.fine_seen = []          # each throw's fine grains a turn
-        self.cal = dataclasses.replace(cal)     # its own copy: the learnt figure goes into it
+        self.owe = owed
+        self.learn_fine_prior = LEARN_FINE_PRIOR if learn_fine else 0.0     # the base controller's learning
 
     def start(self, target_gr: float, now_ms: float) -> None:
         super().start(target_gr, now_ms)
-        self.history = []            # (time, reading, fine turns, coarse on)
-        self.coarse_off_at = None
         self.first_rest_reading = None
         self.topup_turns = 0.0
 
-    def on_tick(self, now_ms: float) -> None:
-        was_on = self.coarse_on
-        super().on_tick(now_ms)
-        if was_on and not self.coarse_on and self.coarse_off_at is None:
-            self.coarse_off_at = now_ms / 1000.0
-
     def on_reading(self, now_ms: float, weight: float) -> None:
-        now = now_ms / 1000.0
-        self.history.append((now, weight, self.turned["fine"]))
         had_first = self.first_error is not None
         super().on_reading(now_ms, weight)
         if not had_first and self.first_error is not None:
             self.first_rest_reading = self.target + self.first_error
-            if self.learn_fine:
-                self._learn_fine(now)
-
-    def _learn_fine(self, now: float) -> None:
-        cal = self.cal
-        if self.coarse_off_at is None:
-            return
-        quiet = cal.coarse_stops[0].quiet_s + 0.3
-        start = next(((t, w, f) for t, w, f in self.history if t >= self.coarse_off_at + quiet), None)
-        if start is None:
-            return
-        lag = table(self.fine_lags, cal.floor_rps)
-        turns_then = next((f for t, w, f in reversed(self.history) if t <= start[0] - lag), 0.0)
-        turns = self.turned["fine"] - turns_then
-        gained = self.first_rest_reading - start[1]
-        if turns < 0.2 or gained <= 0.0:
-            return
-        self.fine_seen.append(gained / turns)
-        mean = (self.LEARN_FINE_PRIOR * self.fine_gr_measured + sum(self.fine_seen)) / (self.LEARN_FINE_PRIOR + len(self.fine_seen))
-        most = self.LEARN_FINE_MOST * self.fine_gr_measured
-        cal.fine_gr_turn = min(self.fine_gr_measured + most, max(self.fine_gr_measured - most, mean))
 
     def _move_for(self, short_gr: float) -> Move:
         cal = self.cal
