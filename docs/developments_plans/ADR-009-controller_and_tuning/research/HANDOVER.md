@@ -4,6 +4,17 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the newest section below). The sections below the newest are the research that led to it, kept as they were written.
 
+## 2026-11-22, 18:41: the legacy PID with learning, thrown against the glide
+
+The owner asked whether today's PID loop, with the glide's learning, can do as well or better. This session built it with no calibration: the PID on a forecast it learns from its own throws. It threw that against the glide on the rig in ABBA blocks of 10 at 10 gr. **The glide won:**
+- settled good 18 of 20 against the PID's 14;
+- 2 overs against 5;
+- 10.9 s against 13.7 s.
+
+The cause: without a calibration the PID stops at its least speed (0.1 rev/s here) where the glide's calibration sets 0.058.
+
+Everything is in `pid_learning_2026-11-22.md`; the figures are in `../progress.md` (18:09 to 18:41). The code stays on the branch as an experiment: `controller=pid_learnt`, `src/charge_pid_learnt.c`, `cpid`. Whether it is kept, as a fallback for an uncalibrated powder, is the owner's to decide. The section below (18:00) is unchanged and still the plan's starting point. The bench was left at `controller=staged`, running the build of this work (`2.0.3-169-dirty` at ac27847).
+
 ## Where it stands, 2026-11-22, 18:00: read this first
 
 Written at the owner's request ("record what we learned in to the handover note, for the next agent to actually build the system based on our hands on experiment today") by the session that built gate 2 on the unit and threw it all day on the rig. ADR-009 is **Open** (approved 2026-11-21 evening, gates 0 to 2 to build first). Everything below is on the branch `adr009_controller`, local commits up to `b23b214` and later, **not pushed**. `../progress.md` holds every figure with its recording; `talk_2026-11-22.md` holds the day's design talk with the owner and the simulation runs made to answer it, **a record, not a reference**: nothing in it is a decision.

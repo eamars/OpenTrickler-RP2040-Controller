@@ -189,6 +189,36 @@ FINE_FORM_CONTROLLERS = {"fast_one_fixed": _fine_form("one", False), "fast_one_l
                          "fast_split_learnt": _fine_form("split", True)}
 
 
+# The owner's question of 2026-11-22 evening: the legacy PID with the glide's learning, no calibration
+# (research/pid_learning_2026-11-22.md). Profiles: "picow" the owner's hand-tuned gains, "bench" the bench unit's
+# stored ones; "_floor" the profile's least fine speed lowered to the glide's creep on this rig (0.03 rev/s)
+def _learnt_pid(profile, band, tol, on_forecast, **kw):
+    def make(rig, seed=0):
+        return LearntPid(profile, rig.scale.digit_gr, rig.scale.report_s, band, on_forecast=on_forecast,
+                         acceleration_rps2=rig.acceleration_rps2, **kw), tol
+    return make
+
+
+import dataclasses as _dc
+from legacy_pid import LearntPid
+LEARNT_PID_CONTROLLERS = {}
+for _pname, _prof in (("picow", AR2209_PICOW_168), ("bench", AR2209_PICO2W)):
+    for _fl, _p in (("", _prof), ("_floor", _dc.replace(_prof, fine_min_rps=0.03))):
+        for _band, _tol, _b in ((0.04, LOOSE_TOLERANCE_GR, "fast"), (0.02, VERDICT_TOLERANCE_GR, "acc")):
+            LEARNT_PID_CONTROLLERS[f"lpid_read_{_pname}{_fl}_{_b}"] = _learnt_pid(_p, _band, _tol, False)
+            LEARNT_PID_CONTROLLERS[f"lpid_fc_{_pname}{_fl}_{_b}"] = _learnt_pid(_p, _band, _tol, True)
+
+
+def make_lpid_firmware(rig, seed: int = 0) -> tuple:
+    """The same as lpid_fc_picow_fast, the unit's own C (src/charge_pid_learnt.c)."""
+    from firmware_pid import FirmwarePid
+    return FirmwarePid(AR2209_PICOW_168, rig.scale.digit_gr, rig.scale.report_s, 0.04,
+                       acceleration_rps2=rig.acceleration_rps2), LOOSE_TOLERANCE_GR
+
+
+LEARNT_PID_CONTROLLERS["lpid_fw_picow_fast"] = make_lpid_firmware
+
+
 CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
                "guarded_pid": make_guarded_pid, "guarded_pid_creep": make_guarded_pid_creep,
@@ -201,3 +231,4 @@ CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "flow_dose_sequential": make_flow_dose_sequential, "flow_dose_split": make_flow_dose_split}
 CONTROLLERS.update(SESSION_CONTROLLERS)
 CONTROLLERS.update(FINE_FORM_CONTROLLERS)
+CONTROLLERS.update(LEARNT_PID_CONTROLLERS)

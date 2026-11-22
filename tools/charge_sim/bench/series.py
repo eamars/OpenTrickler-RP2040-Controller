@@ -20,6 +20,12 @@ Usage, with the repository's venv:
         --errors-from ../recordings/20261121_162403_trial_pico2w_ar2209/throws_glide_0.02.json \\
         --finish glide --band 0.02 --target 10 --throws 25
     python series.py --repo ... --name dry --throws 2 ...          two throws first, to see it runs
+
+The PID with learning (ADR-009, the experiment of 2026-11-22 evening, research/pid_learning_2026-11-22.md):
+`--controller pid_learnt --gains <settings copy>` writes no calibration; the powder profile's PID settings are set
+live from a unit's settings copy (the owner's Pico W's: logs/adr009/picow_168_20261122/settings.json, its profile 1),
+and the profile and the charge settings are put back as stored at the end. `--cpid` sets its constants; its learnt
+figure is kept from charge to charge while the unit runs (`--cpid-reset` starts it afresh).
 """
 
 import argparse
@@ -83,7 +89,14 @@ def main() -> int:
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--board", default="pico2_w")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--calibration", type=Path, required=True,
+    parser.add_argument("--controller", choices=("staged", "pid_learnt"), default="staged")
+    parser.add_argument("--gains", type=Path, help="pid_learnt: a unit's settings copy whose powder profile's PID "
+                        "settings are thrown with (live, never stored)")
+    parser.add_argument("--gains-profile", type=int, default=1, help="the profile of that copy (the owner's AR2209: 1)")
+    parser.add_argument("--profile", type=int, default=0, help="the bench unit's profile in use, to set and revert")
+    parser.add_argument("--cpid", default="", help="pid_learnt: its constants, `name=value ...` (never stored)")
+    parser.add_argument("--cpid-reset", action="store_true", help="pid_learnt: its learnt figure back to its prior")
+    parser.add_argument("--calibration", type=Path,
                         help="a calibration in staged.to_json's shape, or a throw set with one under `calibration`")
     parser.add_argument("--errors-from", type=Path,
                         help="a throw set whose calibration holds the rehearsals' first errors (else the calibration's)")
@@ -111,15 +124,26 @@ def main() -> int:
     if args.mode:
         args.finish, args.band = "glide", {"accurate": 0.02, "fast": 0.04}[args.mode]
 
-    kept = json.loads(args.calibration.read_text())
-    cal = staged.from_json(kept.get("calibration", kept))
-    if args.lag_shift:
+    pid = args.controller == "pid_learnt"
+    if pid and not args.mode:
+        args.mode, args.finish, args.band = "fast", "glide", 0.04
+    if not pid and args.calibration is None:
+        parser.error("--calibration is needed for the staged controller")
+    if pid and args.gains is None:
+        parser.error("--gains is needed for pid_learnt")
+    gains = {}
+    if pid:
+        copy = json.loads(args.gains.read_text())["resources"][f"/api/v1/powder_profiles/{args.gains_profile}"]
+        gains = {name: value for name, value in copy.items() if name != "name" and name != "saved"}
+    kept = json.loads(args.calibration.read_text()) if args.calibration else {"calibration": None}
+    cal = staged.from_json(kept.get("calibration", kept)) if not pid else None
+    if cal is not None and args.lag_shift:
         staged.shift_lags(cal, args.lag_shift)
-    if args.coarse_gr_turn:
+    if cal is not None and args.coarse_gr_turn:
         cal.coarse_gr_turn = args.coarse_gr_turn
-    if args.fine_gr_turn:
+    if cal is not None and args.fine_gr_turn:
         cal.fine_gr_turn = args.fine_gr_turn
-    errors = cal.first_errors
+    errors = cal.first_errors if cal is not None else []
     if args.errors_from:
         errors = json.loads(args.errors_from.read_text())["calibration"]["first_errors"]
     if args.errors:
@@ -134,8 +158,9 @@ def main() -> int:
     folder.mkdir(parents=True)
     record = {"name": args.name, "started": stamp, "target_gr": args.target, "finish": args.finish,
               "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "ccon_asked": args.ccon,
-              "lag_shift_s": args.lag_shift, "mode": args.mode,
-              "coarse_gr_turn": cal.coarse_gr_turn, "fine_gr_turn": cal.fine_gr_turn, "throws": []}
+              "lag_shift_s": args.lag_shift, "mode": args.mode, "controller": args.controller, "gains": gains,
+              "coarse_gr_turn": cal.coarse_gr_turn if cal else None, "fine_gr_turn": cal.fine_gr_turn if cal else None,
+              "throws": []}
     started_charge = False
     try:
         now = state(session)
@@ -144,7 +169,20 @@ def main() -> int:
             return 1
         record["firmware"] = now.get("ver")
         # The calibration written, or the one stored kept, as the last charge left it (its carried first errors)
-        lines = ["ccal load"] if args.keep_calibration else calibration_commands(cal, errors, args.finish, args.band)
+        if pid:
+            # A tube a line: the console takes no longer one
+            lines = [f"setting powder_profiles/{args.profile} " + " ".join(
+                f"{name}={value:g}" for name, value in gains.items() if name.startswith(tube))
+                for tube in ("coarse", "fine")]
+            if args.cpid_reset:
+                lines.append("cpid reset")
+            if args.cpid:
+                lines.append(f"cpid {args.cpid}")
+            lines.append("cpid")
+        elif args.keep_calibration:
+            lines = ["ccal load"]
+        else:
+            lines = calibration_commands(cal, errors, args.finish, args.band)
         for line in lines:
             reply = session.send(line)
             if reply is None or reply.startswith("@err"):
@@ -159,7 +197,7 @@ def main() -> int:
             session.send(f"ccon {args.ccon}")
         session.send("ccon")
         record["ccon"] = list(session.console.data_lines)
-        session.send("setting settings/charge controller=staged")
+        session.send(f"setting settings/charge controller={args.controller}")
         if args.mode:
             session.send(f"setting settings/charge mode={args.mode}")
         session.console.charge_events.clear()
@@ -207,6 +245,10 @@ def main() -> int:
         for tube in ("coarse", "fine"):
             session.send(f"motor {tube} 0")
         session.send("setting settings/charge revert")     # the mode and the controller back as stored
+        if pid:
+            session.send(f"setting powder_profiles/{args.profile} revert")
+            session.send("cpid")
+            record["cpid_after"] = list(session.console.data_lines)
         # Each throw's settled weight: the next one's base less its own
         throws = record["throws"]
         for i, entry in enumerate(throws):

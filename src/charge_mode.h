@@ -25,6 +25,9 @@ typedef enum {
 typedef enum {
     CHARGE_CONTROLLER_STAGED = 0,
     CHARGE_CONTROLLER_PID = 1,
+    // Today's PID loop on a forecast it learns from its throws, no calibration: an experiment of ADR-009
+    // (2026-11-22 evening, research/pid_learning_2026-11-22.md), not a plan
+    CHARGE_CONTROLLER_PID_LEARNT = 2,
 } charge_controller_t;
 
 // The staged controller's pace (ADR-009, the MVP of 2026-11-22): the band it pours to, its glide made for it

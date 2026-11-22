@@ -240,3 +240,191 @@ class GuardedPid(ForecastPid):
             self.phase, self.fine_rps = "creep", self.creep_rps
             return
         self.done = True
+
+
+class LearntPid(LegacyPid):
+    """Today's PID loop with the glide's continuous learning put in, and no calibration (ADR-009, 2026-11-22 evening).
+
+    The owner's question: can the legacy PID system, with the learning the glide has, do as well or better? Not a
+    plan: a design tried in the simulation, then on the rig (research/pid_learning_2026-11-22.md).
+
+    What stays of today's loop: the profile's gains, its least and top speeds, the coarse tube's stop short of the
+    target by the coarse stop threshold and its back-off. What is added, each a number of the scale's make or learnt
+    from the throws, none measured by a calibration:
+    - on_forecast: the fine PID acts on the reading plus the fine tube's powder still in the air, its turns over the
+      last lag_s at a figure learnt from the throws (a Smith predictor). False: on the reading, as today.
+    - the stop: the fine tube stops when the forecast is within the stop room of the target (the reading, when not
+      on_forecast). On the forecast the room is the glide's aim, a digit short (half the band, if more).
+    - a rest: one settled reading, rest_s after the stop and no rise for still_s, as the glide's verdict.
+    - a top-up: short by more than the band (and a quarter digit), the stream again: today's loop turns the fine
+      tube at its least speed or more, stopped as before (on the reading, at the profile's own fine stop threshold,
+      since the learnt room is the stream's from full speed); then a rest again; at most most_tops.
+    - the learning, at each throw's first rest, a mean of the throws so far with the newest weighing at least
+      LEARN_SHARE (a fresh powder learnt in a throw or two, then followed as it drifts):
+      on_forecast: the figure, from what landed after the stop over the turns the window held then;
+      not on_forecast: the stop room, by the first error against the aim, as the glide learns its stop.
+    The figure starts cautious (gr_turn_prior high: the forecast holds too much, the throw stops short, the top-up
+    mends it) or from what a session before carried.
+    """
+
+    name = "learnt_pid"
+    LEARN_SHARE = 0.15
+    WINDOW_STEP_S = 0.01
+
+    def __init__(self, profile: Profile, digit_gr: float, interval_s: float, band_gr: float = 0.04,
+                 on_forecast: bool = True, lag_s: float = 0.9, gr_turn_prior: float = 1.0, rest_s: float = 2.5,
+                 acceleration_rps2: float = 50.0, most_tops: int = 8, coarse_quiet_s: float = 1.0):
+        # Today's loop inside, its own fine stop taken out: the stop is the room's
+        super().__init__(dataclasses.replace(profile, fine_stop_threshold=-1e9))
+        self.digit = digit_gr
+        self.interval_s = interval_s
+        self.band = band_gr
+        self.on_forecast = on_forecast
+        self.lag_s = lag_s
+        self.gr_turn = gr_turn_prior
+        self.rest_s = rest_s
+        self.acceleration = acceleration_rps2
+        self.most_tops = most_tops
+        self.coarse_quiet_s = coarse_quiet_s
+        self.threshold = profile.fine_stop_threshold
+        self.aim = -max(digit_gr, band_gr / 2.0)
+        self.stop_room = -self.aim if on_forecast else profile.fine_stop_threshold
+        self.learnt = 0             # throws the learning has taken in
+        self.still_s = max(0.4, 2.0 * interval_s)
+
+    def start(self, target_gr: float, now_ms: float) -> None:
+        super().start(target_gr, now_ms)
+        self.phase = "stream"
+        self.fine_speed = 0.0       # the fine tube's speed through the motor's ramp
+        self.window = []            # fine turns a WINDOW_STEP_S, newest last
+        self.window_s = now_ms / 1000.0
+        self.window_turns = 0.0
+        self.last_tick_s = now_ms / 1000.0
+        self.coarse_off_s = None
+        self.stop_s = None
+        self.stop_reading = None
+        self.stop_window_turns = None
+        self.first_error = None
+        self.tops = 0
+        self.highest = None
+        self.lowest = 0.0
+        self.last_rise_s = 0.0
+        self.reading = 0.0
+
+    def window_held(self) -> float:
+        """The fine tube's turns over the last lag_s."""
+        steps = max(1, round(self.lag_s / self.WINDOW_STEP_S))
+        return sum(self.window[-steps:]) + self.window_turns
+
+    def unseen(self) -> float:
+        """The fine tube's powder in the air: its turns over the last lag_s at the learnt figure."""
+        return self.gr_turn * self.window_held()
+
+    def room(self) -> float:
+        """How far short of the target the fine tube stops."""
+        if self.on_forecast or self.tops == 0:
+            return self.stop_room
+        return min(self.stop_room, self.threshold)
+
+    def forecast(self) -> float:
+        return self.reading + (self.unseen() if self.on_forecast else 0.0)
+
+    def on_tick(self, now_ms: float) -> None:
+        now = now_ms / 1000.0
+        dt = now - self.last_tick_s
+        self.last_tick_s = now
+        change = self.acceleration * dt
+        v = self.fine_speed
+        v = min(self.fine_rps, v + change) if v < self.fine_rps else max(self.fine_rps, v - change)
+        self.fine_speed = v
+        if v > 0.0:
+            self.window_turns += v * dt
+        while now >= self.window_s + self.WINDOW_STEP_S:
+            self.window.append(self.window_turns)
+            self.window_turns = 0.0
+            self.window_s += self.WINDOW_STEP_S
+            if len(self.window) > 400:
+                del self.window[:100]
+        if self.backoff_until_ms is not None and now_ms >= self.backoff_until_ms:
+            self.coarse_rps = 0.0       # the back-off ends on time, not on the next reading
+            self.backoff_until_ms = None
+        if self.coarse_off_s is None and not self.coarse_moves and self.backoff_until_ms is None:
+            self.coarse_off_s = now
+
+    def _stop(self, now: float) -> None:
+        self.fine_rps = 0.0
+        if self.backoff_until_ms is None:
+            self.coarse_rps = 0.0
+        self.phase = "rest"
+        self.stop_s = now
+        self.highest = None
+
+    def on_reading(self, now_ms: float, weight: float) -> None:
+        now = now_ms / 1000.0
+        self.reading = weight
+        if self.highest is None or weight >= self.highest + self.digit / 2.0:
+            self.highest = weight
+            self.lowest = weight
+            self.last_rise_s = now
+        self.lowest = min(self.lowest, weight)
+        if self.backoff_until_ms is not None and now_ms >= self.backoff_until_ms:
+            self.coarse_rps = 0.0
+            self.backoff_until_ms = None
+        if weight > self.target + 3.0:
+            self.coarse_rps = self.fine_rps = 0.0
+            self.done = True
+            return
+        if self.phase == "stream":
+            self._stream(now_ms, now)
+        elif self.phase == "rest":
+            self._rest(now)
+
+    def _stream(self, now_ms: float, now: float) -> None:
+        forecast = self.forecast()
+        if forecast >= self.target - self.room():
+            if self.first_error is None and self.stop_reading is None:
+                # What lands after the fine tube stops, the pause's stop or the stop's, is what the window held
+                self.stop_reading = self.reading
+                self.stop_window_turns = self.window_held()
+            if self.coarse_moves:
+                self.coarse_moves = False
+                self.coarse_rps = 0.0
+                self._backoff(now_ms)
+                self.coarse_off_s = None
+            if self.coarse_off_s is not None and now >= self.coarse_off_s + self.coarse_quiet_s:
+                self._stop(now)
+            else:
+                self.fine_rps = 0.0     # a pause, not the stop: the coarse tube's powder is still landing
+            return
+        # Today's loop, on the forecast (or the reading); its own fine stop is the room's, taken above
+        LegacyPid.on_reading(self, now_ms, forecast)
+        self.done = False
+
+    def _rest(self, now: float) -> None:
+        if now < self.stop_s + self.rest_s or now < self.last_rise_s + self.still_s:
+            return
+        at_rest = self.lowest
+        error = at_rest - self.target
+        if self.first_error is None:
+            self.first_error = error
+            self._learn(at_rest)
+        band_edge = self.band + 0.25 * self.digit
+        if -error > band_edge and self.tops < self.most_tops:
+            # The top-up is the stream again: today's loop gives at least its least speed, stopped as before
+            self.tops += 1
+            self.phase = "stream"
+            return
+        self.done = True
+
+    def _learn(self, at_rest: float) -> None:
+        share = max(self.LEARN_SHARE, 1.0 / (self.learnt + 1))
+        if self.on_forecast:
+            turns = self.stop_window_turns
+            if turns is None or turns < 0.01:
+                return
+            seen = (at_rest - self.stop_reading) / turns
+            seen = min(2.0 * self.gr_turn, max(0.5 * self.gr_turn, seen))
+            self.gr_turn += share * (seen - self.gr_turn)
+        else:
+            self.stop_room = max(0.0, self.stop_room + share * (self.first_error - self.aim))
+        self.learnt += 1

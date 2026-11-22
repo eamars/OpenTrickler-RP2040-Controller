@@ -1,0 +1,34 @@
+300 throws a case in sessions of 25, the measured scale; shares of the true weight at each case's own band
+rig              gr  controller                             good   over  under    mean     sd  median    95%
+pico2w_ar2209    10  glide, fast (0.04)                    89.0%  11.0%   0.0%  +0.004  0.036   10.1s  17.0s
+pico2w_ar2209    10  PID as today, owner's gains           22.3%  77.7%   0.0%  +0.112  0.116    6.2s   7.5s
+pico2w_ar2209    10  PID on reading + learnt stop          53.7%  46.3%   0.0%  +0.076  0.126    8.1s  12.5s
+pico2w_ar2209    10  PID on learnt forecast                85.3%  14.3%   0.3%  +0.015  0.053   12.4s  17.8s
+pico2w_ar2209    10  PID on learnt forecast, floor 0.03    86.7%  13.3%   0.0%  +0.010  0.050   12.7s  18.2s
+pico2w_ar2209    10  PID on learnt forecast, bench gains   41.7%  58.3%   0.0%  +0.137  0.187    8.6s  12.8s
+pico2w_ar2209    10  glide, accurate (0.02)                76.0%  21.7%   2.3%  +0.013  0.043   12.3s  27.7s
+pico2w_ar2209    10  PID on learnt forecast, 0.02          68.3%  31.3%   0.3%  +0.022  0.066   12.6s  23.2s
+pico2w_ar2209     5  glide, fast (0.04)                    91.3%   8.7%   0.0%  +0.003  0.041   18.6s  24.9s
+pico2w_ar2209     5  PID as today, owner's gains           24.7%  75.3%   0.0%  +0.114  0.147    5.7s   6.8s
+pico2w_ar2209     5  PID on reading + learnt stop          54.3%  45.7%   0.0%  +0.073  0.132    7.6s  12.1s
+pico2w_ar2209     5  PID on learnt forecast                81.3%  18.7%   0.0%  +0.018  0.053   11.0s  15.7s
+pico2w_ar2209     5  PID on learnt forecast, floor 0.03    87.7%  12.3%   0.0%  +0.020  0.114   12.1s  18.2s
+pico2w_ar2209     5  PID on learnt forecast, bench gains   42.0%  58.0%   0.0%  +0.100  0.154    7.0s  10.8s
+pico2w_ar2209     5  glide, accurate (0.02)                74.3%  24.7%   1.0%  +0.015  0.039   20.4s  34.1s
+pico2w_ar2209     5  PID on learnt forecast, 0.02          65.7%  33.3%   1.0%  +0.021  0.040   11.2s  22.7s
+pico2w_bm2       10  glide, fast (0.04)                    97.3%   2.7%   0.0%  -0.007  0.029    9.1s  12.8s
+pico2w_bm2       10  PID as today, owner's gains           83.7%  16.3%   0.0%  +0.035  0.092    9.3s  10.6s
+pico2w_bm2       10  PID on reading + learnt stop          90.3%   9.7%   0.0%  +0.007  0.049   11.1s  15.2s
+pico2w_bm2       10  PID on learnt forecast                97.3%   2.7%   0.0%  +0.002  0.033   15.4s  18.8s
+pico2w_bm2       10  PID on learnt forecast, floor 0.03    97.7%   2.3%   0.0%  -0.003  0.029   17.6s  22.4s
+pico2w_bm2       10  PID on learnt forecast, bench gains   70.7%  29.3%   0.0%  +0.044  0.100    8.3s  15.1s
+pico2w_bm2       10  glide, accurate (0.02)                89.0%  11.0%   0.0%  +0.003  0.023   12.1s  19.5s
+pico2w_bm2       10  PID on learnt forecast, 0.02          86.3%  13.3%   0.3%  +0.004  0.022   15.5s  23.3s
+pico2w_bm2        5  glide, fast (0.04)                    98.7%   1.3%   0.0%  -0.009  0.022    8.7s  12.0s
+pico2w_bm2        5  PID as today, owner's gains           83.3%  16.7%   0.0%  +0.033  0.075    7.8s   9.1s
+pico2w_bm2        5  PID on reading + learnt stop          91.0%   9.0%   0.0%  +0.007  0.075    9.6s  13.7s
+pico2w_bm2        5  PID on learnt forecast                96.7%   3.3%   0.0%  +0.004  0.039   13.6s  16.2s
+pico2w_bm2        5  PID on learnt forecast, floor 0.03    98.0%   2.0%   0.0%  -0.004  0.024   16.2s  20.7s
+pico2w_bm2        5  PID on learnt forecast, bench gains   73.3%  26.7%   0.0%  +0.039  0.096    6.9s  12.0s
+pico2w_bm2        5  glide, accurate (0.02)                91.7%   8.3%   0.0%  +0.002  0.022   11.8s  17.8s
+pico2w_bm2        5  PID on learnt forecast, 0.02          86.0%  14.0%   0.0%  +0.005  0.025   13.8s  21.0s

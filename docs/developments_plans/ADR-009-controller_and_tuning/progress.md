@@ -1586,3 +1586,23 @@ The carries, from the charges' own lines: s1 carried 18 first errors (the stop's
   - What s2 carried put the next stop at about 0.069 gr of room, which is the stop s3 had to learn for itself by its twentieth throw, with 4 overs in its first ten.
   - So the slot after s2 held the stop the rig then needed; the fresh calibration (s3, the control) did not.
 - **Not shown, and not to be claimed:** that a carried session beats a fresh one by a figure. The drift is as large as the effect, and three sessions are one of each.
+
+## 2026-11-22, 18:09 to 18:41: the legacy PID with learning, against the glide (the owner's question; an experiment)
+
+The owner asked whether the legacy PID system, with the glide's continuous learning, can do as well or better. The proposal, the simulation, the passes written before the rig, the throws and the verdict are in `research/pid_learning_2026-11-22.md`. In short:
+- **The design:** today's PID loop (the profile's gains and limits, the coarse stop threshold, the back-off), with no calibration. The fine PID acts on a forecast: the reading and its turns over the last 0.9 s at one figure, learnt at each first rest. It stops a digit short of the target by that forecast, judges one settled reading, and tops up by running the stream again.
+- **Built:**
+  - `src/charge_pid_learnt.c` (pure C, loaded by the simulation: `tools/charge_sim/firmware_pid.py`; the C and its Python reference `legacy_pid.LearntPid` agree within the noise);
+  - `controller=pid_learnt`, a third choice in the same filler byte (no stored layout changes);
+  - `cpid` on the console;
+  - `series.py --controller pid_learnt --gains <settings copy>`.
+- **Simulation (18:13):** AR2209 at 10 gr, 0.04 gr, the owner's gains: 85% good, 12.4 s, against the glide's 89%, 10.1 s. A higher gain trades accuracy for time; the P term aimed short of the stop does not help.
+- **Rig (18:25 to 18:39, Pico 2 W, A&D, AR2209, 10 gr, fast):**
+  - in ABBA blocks of 10, the glide 19 of 20 good at rest (18 settled), 1 over, 10.9 s;
+  - the PID with learning 15 (14 settled), 5 over, 13.7 s;
+  - **worse on all three passes.**
+- **The cause:** its fine tube stops at 0.100 rev/s (the profile's 0.08 raised to the motor's least speed), the glide's at 0.058. The first rests spread by 0.073 gr against 0.045, so it topped up 9 throws against 4, and 2 of its 5 overs came from a top-up.
+- **A prediction that failed:** the cautious start of 1.0 gr a turn was not cautious on the rig (the learnt figure was 1.3 to 1.5 in the dry throws); the blocks ran from 2.0.
+- **Proofs after the flash** (build of ac27847 and this work, `2.0.3-169-dirty`):
+  - `flash`, `menu_tour --compare tests/menu_baseline/pico2_w`, `charge_cycle` with `staged`, and `charge_cycle` with `pid_learnt`: each `VERDICT PASS`;
+  - the bench left at `controller=staged`, the profile's gains as stored.

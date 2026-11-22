@@ -518,3 +518,119 @@ void charge_constants_console(const char *args, char *reply, size_t reply_size, 
     }
     snprintf(reply, reply_size, "@ok ccon");
 }
+
+
+// The PID with learning (an experiment, ADR-009, 2026-11-22 evening): its constants and the figure it learnt
+static charge_pid_constants_t charge_pid_k;
+static bool charge_pid_k_set = false;
+static charge_pid_learning_t charge_pid_learnt_figure;
+static int16_t charge_pid_learnt_profile = -1;
+
+
+const charge_pid_constants_t *charge_pid_constants(void) {
+    if (!charge_pid_k_set) {
+        charge_pid_default_constants(&charge_pid_k);
+        charge_pid_k_set = true;
+    }
+    return &charge_pid_k;
+}
+
+
+charge_pid_learning_t *charge_pid_learning(uint8_t profile) {
+    if (charge_pid_learnt_profile != (int16_t) profile) {
+        charge_pid_learnt_profile = (int16_t) profile;
+        charge_pid_learnt_figure.gr_turn = 0.0f;       // the prior, at the throw's start
+        charge_pid_learnt_figure.learnt = 0;
+    }
+    return &charge_pid_learnt_figure;
+}
+
+
+#define CHARGE_PID_CONSTANT(member) {#member, offsetof(charge_pid_constants_t, member), false}
+
+static const charge_constant_t charge_pid_table[] = {
+    CHARGE_PID_CONSTANT(lag_s), CHARGE_PID_CONSTANT(rest_s), CHARGE_PID_CONSTANT(gr_turn_prior),
+    CHARGE_PID_CONSTANT(learn_share), CHARGE_PID_CONSTANT(coarse_quiet_s), CHARGE_PID_CONSTANT(throw_most_s),
+    CHARGE_PID_CONSTANT(over_most_gr), CHARGE_PID_CONSTANT(digit_gr),
+    {"most_tops", offsetof(charge_pid_constants_t, most_tops), true},
+};
+
+#define CHARGE_PID_TABLE_COUNT (sizeof(charge_pid_table) / sizeof(charge_pid_table[0]))
+
+
+/*
+    `cpid`: the constants and the learnt figure, a line each; `cpid <name>=<value> ...` sets them for the throws from
+    the next on, until a restart (`gr_turn=<x>` sets the figure, counted as one throw taught); `cpid reset` puts the
+    figure back to its prior; `cpid defaults` the constants. Never stored
+*/
+void charge_pid_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                        void *write_ctx) {
+    charge_pid_constants_t *k = (charge_pid_constants_t *) charge_pid_constants();
+    charge_pid_learning_t *l = charge_pid_learning((uint8_t) profile_get_selected_idx());
+    char line[96];
+
+    if (strcmp(args, "defaults") == 0) {
+        charge_pid_default_constants(k);
+    }
+    else if (strcmp(args, "reset") == 0) {
+        l->gr_turn = 0.0f;
+        l->learnt = 0;
+    }
+    else {
+        // Every pair checked before any is written
+        charge_pid_constants_t next = *k;
+        float figure = NAN;
+        const char *at = args;
+        while (*at != '\0') {
+            while (*at == ' ') {
+                at++;
+            }
+            if (*at == '\0') {
+                break;
+            }
+            size_t name_len = strcspn(at, "=");
+            const charge_constant_t *found = NULL;
+            for (size_t i = 0; i < CHARGE_PID_TABLE_COUNT; i++) {
+                if (strlen(charge_pid_table[i].name) == name_len && strncmp(charge_pid_table[i].name, at, name_len) == 0) {
+                    found = &charge_pid_table[i];
+                }
+            }
+            bool is_figure = name_len == 7 && strncmp(at, "gr_turn", 7) == 0;
+            char *end;
+            float value = at[name_len] == '=' ? strtof(at + name_len + 1, &end) : NAN;
+            if ((found == NULL && !is_figure) || !isfinite(value) || value < 0.0f || (*end != ' ' && *end != '\0')) {
+                snprintf(reply, reply_size, "@err usage: cpid [defaults | reset | <name>=<value> ...]");
+                return;
+            }
+            if (is_figure) {
+                figure = value;
+            }
+            else if (found->is_count) {
+                *((uint8_t *) &next + found->offset) = (uint8_t) value;
+            }
+            else {
+                *(float *) ((uint8_t *) &next + found->offset) = value;
+            }
+            at = end;
+        }
+        *k = next;
+        if (isfinite(figure)) {
+            l->gr_turn = figure;
+            l->learnt = figure > 0.0f ? 1 : 0;
+        }
+    }
+    for (size_t i = 0; i < CHARGE_PID_TABLE_COUNT; i++) {
+        const charge_constant_t *c = &charge_pid_table[i];
+        if (c->is_count) {
+            snprintf(line, sizeof(line), "@cpid %s=%u", c->name, *((const uint8_t *) k + c->offset));
+        }
+        else {
+            snprintf(line, sizeof(line), "@cpid %s=%g", c->name, *(const float *) ((const uint8_t *) k + c->offset));
+        }
+        write(line, write_ctx);
+    }
+    snprintf(line, sizeof(line), "@cpid gr_turn=%g learnt=%u profile=%d", l->gr_turn, l->learnt,
+             charge_pid_learnt_profile);
+    write(line, write_ctx);
+    snprintf(reply, reply_size, "@ok cpid");
+}

@@ -1,0 +1,148 @@
+# The legacy PID with the glide's learning: a proposal, the simulation, and the side by side on the rig
+
+ADR-009, gate 2, 2026-11-22 evening. Not a plan: an experiment the owner asked for, built as the least that runs it. Every figure says where it was measured.
+
+**The verdict, in short.**
+- **In the simulation,** with no calibration at all, the owner's own PID gains on a forecast learnt from the throws came within 4 points of the glide (AR2209 at 10 gr: 85% against 89% good within 0.04 gr), 2.3 s slower.
+- **On the rig it is worse,** in ABBA blocks of 10 at 10 gr: settled good 14 of 20 against the glide's 18, 5 overs against 2, 13.7 s against 10.9 s. It fails all three passes written before the run.
+- **The cause:** without a calibration, the PID stops its fine tube at its least speed, 0.1 rev/s on this unit. The glide's calibration sets 0.058 from the scale's lag. The faster stop scatters 1.6 times as widely, which doubles the top-ups, and each top-up at that speed can release an over.
+- **What the learning buys:** today's PID goes from about 20% good to 70 to 75% with no calibration. That makes it a fallback for a powder not yet calibrated, not a replacement for the glide.
+
+## The question
+
+The owner, to the session before: can an agent pick up the existing legacy PID system, add the continuous learning the glide uses, and do as well, or maybe better? He asked this session to study the notes, propose a PID-based system with learning, design a side by side against the glide, and throw it on the rig.
+
+What the notes already said (`pid_and_staged_2026-11-22.md`, `talk_2026-11-22.md`):
+- The PID loop is fast because it never waits, and over because it acts on a reading half a second or more behind the cup.
+- Fed the calibration's forecast, it is no longer over, but it ends short, since it has no finish.
+- The "guarded PID" (the PID stream on the reading, the forecast stopping it, a top-up at the least speed) got 41% good at 0.02 gr with AR2209, against the glide's 72%.
+
+All three used the calibration, or no learning at all. **What was never tried: a PID that needs no calibration, whose forecast is learnt from its own throws.** That is the one thing a PID-based system could offer that the glide cannot: no 13-minute calibration of 170 gr per powder. So the proposal is that.
+
+## The proposal: PID with a learnt forecast (`controller=pid_learnt`)
+
+**What stays of today's PID loop:**
+- the profile's gains (kp, ki, kd for each tube), its least and top speeds;
+- the coarse tube stopping short of the target by the coarse stop threshold, then its back-off;
+- the fine tube running from the start, its speed set by its PID.
+
+**What is added.** Each piece is a number of the scale's make, or learnt from the throws. None is measured by a calibration.
+
+1. **The forecast** (a Smith predictor, the textbook mend for a loop with a dead time). The fine PID acts on the reading plus the fine tube's powder still in the air. That powder is its turns over the last 0.9 s (the A&D's lag at the fine tube's flows, measured on 11-21: 0.82 to 1.02 s), counted from its own steps, times **one learnt figure**, the grains a turn as that window sees them.
+2. **The stop.** The fine tube stops when the forecast is a digit short of the target (the glide's own aim; half the band, if that is more). Today's fine stop threshold is not used. While the coarse tube's powder may still be landing (within 1 s of its stop), the fine tube pauses at the stop instead of stopping.
+3. **One settled reading.** 2.5 s after the stop (the glide's rest on this rig), and no rise for 0.4 s. This is the verdict, as the glide's is.
+4. **The top-up is the PID again.** Short by more than the band, the stream resumes: the PID gives the fine tube at least its least speed, stopped by the same forecast; then a rest again. Nothing new: the owner's own idea of 11-22 ("continue to top up at minimum speed, with prediction until reaching +stop threshold").
+5. **The learning.** At each throw's first rest, the figure is learnt from what landed after the fine tube stopped, over the turns the window held then. It is a mean of the throws so far, with the newest weighing at least 15% (the glide's share). A fresh powder is learnt in a throw or two, then followed as it drifts.
+   - The figure starts on purpose high. The forecast then holds too much powder, so the first throw stops short and the top-up mends it, and a fresh powder never starts over.
+     - The firmware's default is 1.0 gr a turn, set from the simulation.
+     - On the rig 1.0 was not high enough, and the blocks ran from 2.0 (Results). If the idea is kept, the default becomes 2.0.
+   - The figure is kept across charges, for as long as the unit runs. It is not stored, and it starts again if the powder profile changes.
+
+**What it does not need:** a calibration, a moves table, a lag table, a stop table. Its numbers are the profile's PID settings, the scale's lag and rest (one figure each, per make of scale), the band, and the figure it learns.
+
+## The simulation (`tools/charge_sim/pid_learning_study.py`, `fit/study_20261122/pid_learning.txt`)
+
+300 throws a case, in sessions of 25. Each session starts the PID's learning afresh, so the learning-in is in the figures. Judged at the true weight, at the fast band (0.04 gr). The owner's gains are his Pico W's AR2209 profile (fine kp 0.8, least 0.08 rev/s, top 2; coarse kp 0.05). The simulation is kind at the finish (`pid_and_staged_2026-11-22.md`).
+
+| | AR2209 10 gr: good / over / median | AR2209 5 gr | BM2 10 gr | BM2 5 gr |
+|---|---|---|---|---|
+| Glide, fast, calibrated | 89% / 11% / 10.1 s | 91% / 9% / 18.6 s | 97% / 3% / 9.1 s | 99% / 1% / 8.7 s |
+| PID as today, owner's gains | 22% / 78% / 6.2 s | 25% / 75% / 5.7 s | 84% / 16% / 9.3 s | 83% / 17% / 7.8 s |
+| PID on the reading, its stop learnt (the literal port) | 54% / 46% / 8.1 s | 54% / 46% / 7.6 s | 90% / 10% / 11.1 s | 91% / 9% / 9.6 s |
+| **PID on the learnt forecast, owner's gains** | **85% / 14% / 12.4 s** | **81% / 19% / 11.0 s** | **97% / 3% / 15.4 s** | **97% / 3% / 13.6 s** |
+| The same, the bench unit's stored gains (fine kp 2, top 5) | 42% / 58% / 8.6 s | 42% / 58% / 7.0 s | 71% / 29% / 8.3 s | 73% / 27% / 6.9 s |
+
+**What it says:**
+- **Accuracy without a calibration: nearly.** With AR2209, 85% good against the glide's 89% at 10 gr, and 81% against 91% at 5 gr. With BM2, the same as the glide.
+- **The literal port fails.** Today's loop with the glide's stop learning on the reading halves the overs and no more. The learning takes away the PID's average over, not its scatter, because the flow at its stop changes from throw to throw. The previous session argued this; the run agrees.
+- **The forecast is what works**, and learnt from the throws it is good enough.
+- **The gain is the price.** At the owner's gains it is 2.3 s slower than the glide at 10 gr (5 to 6 s with BM2, whose figure is lower). At 5 gr it is 7.6 s faster than the glide, whose fine tube is held to 0.5 rev/s where the PID's runs at 2.
+
+**What was tried and dropped:**
+- **A higher gain** buys time and costs accuracy, whatever else is done (AR2209 10 gr: kp 0.8 85% / 12.4 s; 1.2 74% / 10.9 s; 1.6 70% / 10.0 s).
+- **The P term aimed short of the stop**, by what one lag at the least speed pours, so that any gain reaches its least speed a lag before the stop: no better (80% / 12.5 s at kp 0.8, 73% / 10.5 s at 1.6).
+
+**Why the gain costs accuracy (the root cause).** One figure over a fixed window is right only at the slow speed where it is learnt. At 2 rev/s the powder in the air is not that figure times the turns. So a PID without a calibration must come into its stop slowly, and its gain is the price. **What the calibration buys the glide is the lag at every speed**, so it can come in fast and know what is in the air. That is gate 3's to measure, in the firmware's own time. A PID could have it too, from the same calibration, but then it is the glide with other names (`pid_and_staged_2026-11-22.md`, section 3).
+
+## The side by side on the rig
+
+**The rig:** the Pico 2 W, the A&D FX-300i, the air-exposed AR2209, as thrown all day. 10 gr, the fast band (±0.04 gr), each throw also judged at ±0.02.
+
+**Each as a user would run it:**
+- the glide as left: fast mode, the profile's calibration with what the day's charges carried into it, its learning on (`series.py --mode fast --keep-calibration`);
+- the PID with learning from a fresh start (its figure at 1.0), with the owner's Pico W gains written into the profile for the session (live, never stored, the stored ones put back at the end).
+
+**The order, ABBA in blocks of 10:** glide 10, PID 10, PID 10, glide 10. The rig drifts (a second between two series an hour apart, `HANDOVER.md` item 7), and ABBA cancels a steady drift. The PID's two blocks follow on, so its second block is its learnt state. Each block is one charge, a series in the same cup.
+
+**Judged alike:** each throw by its weight at rest (the controller's verdict) and by its settled weight (the next throw's base less its own); time from the throw's start to its rest. Both controllers end the same way, at a settled reading, so their times compare.
+
+**The passes, written before the run** (for 20 throws each; a difference of one throw is 5 points):
+- **The same as the glide:** settled good within 0.04 gr at most 2 throws fewer than the glide's (10 points), overs at most 1 throw more, median time at most 2.5 s longer (the simulation's 2.3 s and some).
+- **Better:** as many good or more, no more overs, and quicker.
+- **Worse:** otherwise, with the cause named from the rows.
+- **Expected, from the simulation:** "the same", slower by about 2 s. The PID's first throw of its first block should stop short and be topped up. A fresh powder starts short, never over.
+
+**What 20 throws can and cannot tell:** a gap of 20 points shows; one of 5 does not. The verdict is for this powder, rig and band, not for BM2.
+
+## The firmware (built for this experiment)
+
+- `controller=pid_learnt`, a third choice of `settings/charge controller`, in the same filler byte (no stored layout changes).
+- `src/charge_pid_learnt.c`: the controller, the simulation's `LearntPid` in C, run every millisecond from the unit's step count.
+- Console:
+  - `cpid` lists its figure and constants;
+  - `cpid gr_turn=<x> lag_s=<x> rest_s=<x> ...` sets them live, never stored;
+  - `cpid reset` puts the figure back to its prior.
+- Each throw prints a `Charge: throw ...` line in the staged controller's form, and its rows go to `ccrec`, so `series.py` throws it (`--controller pid_learnt`).
+
+## Results: the rig, 18:25 to 18:39
+
+**Before the blocks, two dry throws** (18:25, `logs/adr009/20261122_182521_series_pid_dry`): it runs, 12.0 and 13.2 s, both within 0.04 gr. **One prediction failed there.**
+- The learnt figure came out at 1.3 to 1.5 gr a turn, above the cautious start of 1.0, so the first throw was not short (+0.040). The rig's A&D holds a small change back longer than the simulation's scale, so a turn's powder takes longer to show at the stop's low flow than 0.9 s.
+- So the PID's blocks started from 2.0 (`cpid gr_turn_prior=2`, live), to keep the intent that a fresh powder starts short, never over. P1's first throw then stopped 0.18 gr short and was topped up.
+
+**The blocks.** 10 gr, judged at ±0.04 gr. The glide as it threw best at 10 gr today (`fine_top_rps=1.0`, its fine-figure learning off, the stop's learning and carry on). The PID with the owner's Pico W gains. `bench/abba_look.py` sums them from each series' rows:
+
+| Block | Rest good / over | Settled good / over | Median | First rest: mean, sd | Topped up | Fine tube at its stop |
+|---|---|---|---|---|---|---|
+| G1, glide | 9 / 1 | 8 / 2 | 11.2 s | −0.032, 0.045 | 3 | 0.058 rev/s |
+| P1, PID from fresh | 9 / 1 | 8 / 1 | 14.3 s | −0.040, 0.085 | 5 | 0.100 rev/s |
+| P2, PID learnt | 6 / 4 | 6 / 4 | 13.5 s | −0.028, 0.062 | 4 | 0.100 rev/s |
+| G2, glide | 10 / 0 | 10 / 0 | 10.7 s | −0.014, 0.044 | 1 | 0.058 rev/s |
+| **Glide, 20** | **19 / 1** | **18 / 2** | **10.9 s** | −0.023, 0.045 | 4 | 0.058 |
+| **PID with learning, 20** | **15 / 5** | **14 / 5** | **13.7 s** | −0.034, 0.073 | 9 | 0.100 |
+
+Recordings: `logs/adr009/20261122_182641_series_abba_g1`, `_182929_series_abba_p1`, `_183254_series_abba_p2`, `_183611_series_abba_g2`. P2's run ended `VERDICT FAIL`: the runner missed one `ccrec` reply after its last throw. All ten throws' rows are in the recording, and the log has no assert, panic or halt.
+
+**Against the passes:**
+- settled good: 14 against 18. The bar was at most 2 fewer; it is 4 fewer. **Fail.**
+- overs: 5 against 2. The bar was at most 1 more. **Fail.**
+- time: 13.7 against 10.9 s. The bar was at most 2.5 s longer; it is 2.8 s. **Fail.**
+- **Verdict: worse.** The legacy PID with learning does not do as well as the glide on this rig, in accuracy or in time.
+
+**Why, from the rows:**
+1. **The PID stops its fine tube at 0.100 rev/s; the glide stops at 0.058.**
+   - The owner's profile asks 0.08 rev/s. Today's loop raises it to the motor's own least speed, 0.1 on this unit (`get_motor_min_speed`).
+   - The glide's least speed comes from its calibration: the band over the scale's lag.
+   - The powder in the air at the stop scales with that speed, and so does its scatter: the first rests spread by 0.073 gr against 0.045.
+2. **The wider spread costs time and overs.**
+   - Aimed a digit short, more first rests are short beyond the band: 9 throws of 20 topped up against 4, at 4 to 5 s each.
+   - The top-up is the stream again at the same 0.1 rev/s, so it ends with the same spread: 2 of the 5 overs came from a top-up after a short first rest.
+3. **The simulation was kind,** as known: it ran the fine tube's least speed at the profile's 0.08 and scattered less at the stop. It gave 85% against the glide's 89%; the rig gives 70% against 90%.
+
+**What the learning did achieve:**
+- With no calibration at all, today's loop went from 22% good at 0.04 gr on this rig (the simulation with the owner's gains; 10 of 12 throws over on the rig on 11-20) to 70 to 75%.
+- A fresh powder started short and was topped up, not over (from the prior of 2.0).
+- The figure settled within a session (2.0, 1.0, then 0.9 to 1.0 by throw 5).
+- So a PID with a learnt forecast is a working fallback for a powder not yet calibrated. **It is no replacement for the glide.**
+
+**What this does not settle:**
+- **Whether a lower least speed would close the gap.**
+  - The simulation at 0.03 rev/s gave 87% against 85%, at 0.3 s more (AR2209, 10 gr).
+  - On the rig the PID's spread is mostly the stop's speed, so it would narrow the gap in accuracy and widen it in time.
+  - A slower stop buys accuracy with time, which the glide already does by its calibration.
+  - The motor's least speed is a setting of the motors (Settings › Motors), not the PID's.
+- **BM2**, where the simulation had the two equal in accuracy.
+
+**Found on the way, not mended** (the experiment's code stays only if the owner keeps the idea):
+- **A charge on the simulated scale teaches the PID's figure.** `charge_cycle` with `pid_learnt` moved it from 0.82 to 0.76. The glide's carry refuses the simulated scale; this does not.
+- **The learnt figure is in RAM only,** lost at a restart.

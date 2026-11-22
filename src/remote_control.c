@@ -766,6 +766,14 @@ static bool remote_control_ccon(const char *args, char *reply, size_t reply_size
 }
 
 
+// `cpid [name=value ...|defaults|reset]`: the PID with learning's constants and figure, live, never stored (ADR-009)
+static bool remote_control_cpid(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                void *write_ctx) {
+    charge_pid_console(args, reply, reply_size, write, write_ctx);
+    return strncmp(reply, "@ok", 3) == 0;
+}
+
+
 // `ccrec`: the last staged throw's rows, `@r <ms> <reading> <forecast> <coarse rev/s> <fine rev/s>` (ADR-009)
 static bool remote_control_ccrec(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
@@ -860,6 +868,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"charge", remote_control_charge},
     {"ccal", remote_control_ccal},
     {"ccon", remote_control_ccon},
+    {"cpid", remote_control_cpid},
     {"ccrec", remote_control_ccrec},
     {"setting", remote_control_setting},
     {"update", remote_control_update},
