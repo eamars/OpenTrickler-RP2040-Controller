@@ -54,8 +54,9 @@ class FirmwarePid:
     name = "firmware_pid"
 
     def __init__(self, profile: Profile, digit_gr: float, interval_s: float, band_gr: float = 0.04,
-                 lag_s: float = 0.9, gr_turn_prior: float = 1.0, rest_s: float = 2.5,
-                 acceleration_rps2: float = 50.0, most_tops: int = 8, coarse_quiet_s: float = 1.0):
+                 lag_s: float = 0.9, gr_turn_prior: float = 2.0, rest_s: float = 2.5,
+                 acceleration_rps2: float = 50.0, most_tops: int = 8, coarse_quiet_s: float = 1.0,
+                 floor_band_share: float = 0.0, floor_least_rps: float = 0.02):
         self.lib = library()
         backoff_turns = profile.backoff_turns if profile.backoff_enable else 0.0
         settings = [profile.coarse_kp, profile.coarse_ki, profile.coarse_kd, profile.coarse_min_rps,
@@ -63,8 +64,8 @@ class FirmwarePid:
                     profile.fine_max_rps, profile.coarse_stop_threshold, backoff_turns, profile.backoff_speed_rps,
                     digit_gr, interval_s, band_gr]
         constants = [lag_s, rest_s, gr_turn_prior, LearntPid.LEARN_SHARE, coarse_quiet_s, 1e9, 3.0, digit_gr,
-                     most_tops]
-        self.handle = self.lib.shim_pid_new((ctypes.c_double * 16)(*settings), (ctypes.c_double * 9)(*constants))
+                     floor_band_share, floor_least_rps, most_tops]
+        self.handle = self.lib.shim_pid_new((ctypes.c_double * 16)(*settings), (ctypes.c_double * 11)(*constants))
         self.acceleration = acceleration_rps2
         self.out = (ctypes.c_double * 8)()
         self._read()

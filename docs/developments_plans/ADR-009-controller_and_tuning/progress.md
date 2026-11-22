@@ -1606,3 +1606,19 @@ The owner asked whether the legacy PID system, with the glide's continuous learn
 - **Proofs after the flash** (build of ac27847 and this work, `2.0.3-169-dirty`):
   - `flash`, `menu_tour --compare tests/menu_baseline/pico2_w`, `charge_cycle` with `staged`, and `charge_cycle` with `pid_learnt`: each `VERDICT PASS`;
   - the bench left at `controller=staged`, the profile's gains as stored.
+
+## 2026-11-22, 18:50 to 19:23: the PID with learning, its least speed learnt, against the glide
+
+The first run's cause, mended the glide's way with no calibration: the fine tube's least speed is set where the powder in the air (the learnt figure × the lag × the speed) is the band (`cpid floor_band_share=1`; off by default). The cautious start's default is now 2.0. `research/pid_learning_2026-11-22.md`, "The second experiment".
+- **Simulation** (`pid_learning_study.py --night`): no change in accuracy, 0.4 to 0.9 s slower; the simulation's stops scatter too little to judge it. The unit's C agrees with its Python.
+- **Rig** (19:10 to 19:22, ABBA blocks of 10 at 10 gr, fast):
+  - the glide: 15 of 20 settled good, 5 over, 11.0 s;
+  - the PID with its least speed learnt: 16 good, 4 over, 15.5 s.
+  - The mechanism passes (fine tube at its stop 0.036 rev/s, first rests' spread 0.048 gr), accuracy passes, time fails (+4.5 s against a bar of 2.5 s).
+  - The rig was rougher than at 18:26 for both (the glide's spread 0.059 against 0.045).
+- **Read:**
+  - for accuracy one learnt figure and one lag are enough;
+  - the calibration's lag at every speed buys time;
+  - the figure and the least speed pull on each other (the figure 1.18 to 1.39, the least speed 0.043 to 0.032, the time 14.4 to 16.5 s), since the A&D lags longer at lower flows.
+- **Found:** the calibration slots are written and read only by the console (`ccal`), not in the API's settings copy, so a backup of the unit today misses them.
+- The bench left at `controller=staged`, the constants at their defaults (`cpid defaults`), the profile's gains as stored.

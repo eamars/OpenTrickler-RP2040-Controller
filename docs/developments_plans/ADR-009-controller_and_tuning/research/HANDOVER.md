@@ -13,7 +13,17 @@ The owner asked whether today's PID loop, with the glide's learning, can do as w
 
 The cause: without a calibration the PID stops at its least speed (0.1 rev/s here) where the glide's calibration sets 0.058.
 
-Everything is in `pid_learning_2026-11-22.md`; the figures are in `../progress.md` (18:09 to 18:41). The code stays on the branch as an experiment: `controller=pid_learnt`, `src/charge_pid_learnt.c`, `cpid`. Whether it is kept, as a fallback for an uncalibrated powder, is the owner's to decide. The section below (18:00) is unchanged and still the plan's starting point. The bench was left at `controller=staged`, running the build of this work (`2.0.3-169-dirty` at ac27847).
+**A second run (19:10 to 19:22):** the PID's least speed was set from its learnt figure, the glide's rule with no calibration. **It matched the glide's accuracy** (16 of 20 settled good against 15, 4 overs against 5) **and was 4.5 s slower** (15.5 against 11.0 s). So the predictor and the finish give the accuracy, and the calibration's lag at every speed gives the time.
+
+The owner, after the first run, settled a direction:
+- split the profile by physics;
+- share the powder's part;
+- keep the scale's and the printed parts' part on the unit, not configurable from its pages, but backed up and restored;
+- keep the glide, with the predictor and the other non-PID parts (the reverse, the advanced ones) running beside a PID.
+
+Not yet written into the ADR: the README's "Open, to be discussed" is where it goes, with the owner.
+
+Everything is in `pid_learning_2026-11-22.md`; the figures are in `../progress.md` (18:09 to 18:41, and 18:50 to 19:23). The code stays on the branch as an experiment: `controller=pid_learnt`, `src/charge_pid_learnt.c`, `cpid`. Whether it is kept, as a fallback for an uncalibrated powder, is the owner's to decide. The section below (18:00) is unchanged and still the plan's starting point. The bench was left at `controller=staged`, running the build of this work (`2.0.3-169-dirty` at ac27847).
 
 ## Where it stands, 2026-11-22, 18:00: read this first
 

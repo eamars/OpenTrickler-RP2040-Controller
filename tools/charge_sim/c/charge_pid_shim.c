@@ -13,7 +13,7 @@ typedef struct {
 } shim_pid_t;
 
 
-// settings: the 16 floats of charge_pid_settings_t in order; constants: the 8 floats then most_tops
+// settings: the 16 floats of charge_pid_settings_t in order; constants: the 10 floats then most_tops
 void *shim_pid_new(const double *settings, const double *constants) {
     shim_pid_t *p = calloc(1, sizeof(*p));
     float *s = (float *) &p->s;
@@ -21,10 +21,10 @@ void *shim_pid_new(const double *settings, const double *constants) {
         s[i] = (float) settings[i];
     }
     float *k = (float *) &p->k;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
         k[i] = (float) constants[i];
     }
-    p->k.most_tops = (uint8_t) constants[8];
+    p->k.most_tops = (uint8_t) constants[10];
     return p;
 }
 

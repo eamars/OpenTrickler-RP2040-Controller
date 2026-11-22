@@ -15,6 +15,13 @@ from controllers import LOOSE_TOLERANCE_GR, VERDICT_TOLERANCE_GR
 from workers import Workers
 
 # (label, controller, tolerance)
+NIGHT_CASES = (
+    ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
+    ("PID learnt, least 0.1 (the rig's)", "lpid_rig_fast", LOOSE_TOLERANCE_GR),
+    ("PID learnt, least 0.1, the unit's C", "lpid_rig_fw_fast", LOOSE_TOLERANCE_GR),
+    ("PID learnt, least speed learnt", "lpid_floor_fast", LOOSE_TOLERANCE_GR),
+    ("PID learnt, least speed learnt, C", "lpid_floor_fw_fast", LOOSE_TOLERANCE_GR),
+)
 CASES = (
     ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
     ("PID as today, owner's gains", "legacy_picow_loose", LOOSE_TOLERANCE_GR),
@@ -34,7 +41,9 @@ def main() -> None:
     parser.add_argument("--rigs", default="pico2w_ar2209,pico2w_bm2")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--night", action="store_true", help="the second experiment's cases (the learnt least speed)")
     args = parser.parse_args()
+    cases = NIGHT_CASES if args.night else CASES
     lines = [f"{args.throws} throws a case in sessions of {mc.THROWS_PER_SESSION}, the measured scale; shares of the "
              f"true weight at each case's own band",
              f"{'rig':15s}{'gr':>4s}  {'controller':36s}{'good':>7s}{'over':>7s}{'under':>7s}{'mean':>8s}{'sd':>7s}"
@@ -45,7 +54,7 @@ def main() -> None:
         for rig_name in args.rigs.split(","):
             rig = rigs.get_rig(rig_name)
             for target in (float(t) for t in args.targets.split(",")):
-                for label, name, tolerance in CASES:
+                for label, name, tolerance in cases:
                     results = mc.run_many(rig, name, target, args.throws, args.seed, pool)
                     s = mc.summarise(results, tolerance)
                     lines.append(f"{rig_name:15s}{target:4.0f}  {label:36s}{s['good_true'] * 100:6.1f}%"

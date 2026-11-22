@@ -264,7 +264,11 @@ class LearntPid(LegacyPid):
       on_forecast: the figure, from what landed after the stop over the turns the window held then;
       not on_forecast: the stop room, by the first error against the aim, as the glide learns its stop.
     The figure starts cautious (gr_turn_prior high: the forecast holds too much, the throw stops short, the top-up
-    mends it) or from what a session before carried.
+    mends it) or from what a session before carried. 2.0 since the rig of 2026-11-22, where 1.0 was not cautious.
+    - floor_band_share (the second experiment, 2026-11-22 night): the fine tube's least speed from the learnt figure,
+      the glide's rule without its calibration: the speed at which the powder in the air (figure x lag_s x speed) is
+      that share of the band; never above the profile's least speed (with the motor's), never below
+      floor_least_rps. 0: the profile's, as today.
     """
 
     name = "learnt_pid"
@@ -272,8 +276,9 @@ class LearntPid(LegacyPid):
     WINDOW_STEP_S = 0.01
 
     def __init__(self, profile: Profile, digit_gr: float, interval_s: float, band_gr: float = 0.04,
-                 on_forecast: bool = True, lag_s: float = 0.9, gr_turn_prior: float = 1.0, rest_s: float = 2.5,
-                 acceleration_rps2: float = 50.0, most_tops: int = 8, coarse_quiet_s: float = 1.0):
+                 on_forecast: bool = True, lag_s: float = 0.9, gr_turn_prior: float = 2.0, rest_s: float = 2.5,
+                 acceleration_rps2: float = 50.0, most_tops: int = 8, coarse_quiet_s: float = 1.0,
+                 floor_band_share: float = 0.0, floor_least_rps: float = 0.02):
         # Today's loop inside, its own fine stop taken out: the stop is the room's
         super().__init__(dataclasses.replace(profile, fine_stop_threshold=-1e9))
         self.digit = digit_gr
@@ -287,6 +292,9 @@ class LearntPid(LegacyPid):
         self.most_tops = most_tops
         self.coarse_quiet_s = coarse_quiet_s
         self.threshold = profile.fine_stop_threshold
+        self.floor_band_share = floor_band_share
+        self.floor_least_rps = floor_least_rps
+        self.profile_least_rps = profile.fine_min_rps
         self.aim = -max(digit_gr, band_gr / 2.0)
         self.stop_room = -self.aim if on_forecast else profile.fine_stop_threshold
         self.learnt = 0             # throws the learning has taken in
@@ -319,6 +327,13 @@ class LearntPid(LegacyPid):
     def unseen(self) -> float:
         """The fine tube's powder in the air: its turns over the last lag_s at the learnt figure."""
         return self.gr_turn * self.window_held()
+
+    def least_rps(self) -> float:
+        """The fine tube's least speed: the profile's, or the one at which the band's share is in the air."""
+        if not (self.floor_band_share > 0.0 and self.on_forecast and self.gr_turn > 0.0):
+            return self.profile_least_rps
+        learnt = self.floor_band_share * self.band / (self.gr_turn * self.lag_s)
+        return min(self.profile_least_rps, max(self.floor_least_rps, learnt))
 
     def room(self) -> float:
         """How far short of the target the fine tube stops."""
@@ -397,6 +412,9 @@ class LearntPid(LegacyPid):
                 self.fine_rps = 0.0     # a pause, not the stop: the coarse tube's powder is still landing
             return
         # Today's loop, on the forecast (or the reading); its own fine stop is the room's, taken above
+        floor = self.least_rps()
+        if floor != self.profile.fine_min_rps:
+            self.profile = dataclasses.replace(self.profile, fine_min_rps=floor)
         LegacyPid.on_reading(self, now_ms, forecast)
         self.done = False
 

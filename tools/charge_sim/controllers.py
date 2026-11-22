@@ -219,6 +219,28 @@ def make_lpid_firmware(rig, seed: int = 0) -> tuple:
 LEARNT_PID_CONTROLLERS["lpid_fw_picow_fast"] = make_lpid_firmware
 
 
+# The second experiment (2026-11-22 night): the owner's gains as the rig ran them, the fine tube's least speed raised
+# to the unit's motor's 0.1 rev/s; then the same with that least speed from the learnt figure (floor_band_share 1).
+# "_fw": the unit's own C
+AR2209_PICOW_168_RIG = _dc.replace(AR2209_PICOW_168, fine_min_rps=0.1)
+
+
+def _rig_pid(share, firmware):
+    def make(rig, seed=0):
+        if firmware:
+            from firmware_pid import FirmwarePid as made
+        else:
+            made = LearntPid
+        return made(AR2209_PICOW_168_RIG, rig.scale.digit_gr, rig.scale.report_s, 0.04,
+                    acceleration_rps2=rig.acceleration_rps2, floor_band_share=share), LOOSE_TOLERANCE_GR
+    return make
+
+
+for _share, _s in ((0.0, "rig"), (1.0, "floor")):
+    LEARNT_PID_CONTROLLERS[f"lpid_{_s}_fast"] = _rig_pid(_share, False)
+    LEARNT_PID_CONTROLLERS[f"lpid_{_s}_fw_fast"] = _rig_pid(_share, True)
+
+
 CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "guarded_pid_forecast": make_guarded_pid_forecast, "glide_quick_rest": make_glide_quick_rest, "glide_loose_quick_rest": make_glide_loose_quick_rest,
                "guarded_pid": make_guarded_pid, "guarded_pid_creep": make_guarded_pid_creep,

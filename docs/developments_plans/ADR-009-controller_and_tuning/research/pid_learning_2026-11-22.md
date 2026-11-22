@@ -146,3 +146,63 @@ Recordings: `logs/adr009/20261122_182641_series_abba_g1`, `_182929_series_abba_p
 **Found on the way, not mended** (the experiment's code stays only if the owner keeps the idea):
 - **A charge on the simulated scale teaches the PID's figure.** `charge_cycle` with `pid_learnt` moved it from 0.82 to 0.76. The glide's carry refuses the simulated scale; this does not.
 - **The learnt figure is in RAM only,** lost at a restart.
+
+## The second experiment: the least speed learnt (2026-11-22 night)
+
+**Why:** the first rig run named the cause. The PID stopped its fine tube at 0.1 rev/s (the motor's least speed), the glide at 0.058, and the first rests spread 1.6 times as widely. The learnt figure already holds what the glide's calibration uses to set its least speed: the powder in the air at a speed is the figure × the lag × that speed. So the PID's least speed is set the glide's way, with no calibration: **the speed at which the powder in the air is the band** (`cpid floor_band_share=1`). It never goes above the profile's least speed (with the motor's), and never below 0.02 rev/s. On the rig's figure of about 0.9 that is about 0.05 rev/s. The cautious start's default is now 2.0, as the first run threw it.
+
+**What it tests:** whether one learnt figure and one lag can stand in for the calibration's lag table at the stop. If they can, a PID-shaped controller needs a far smaller calibration. If not, the lag at every speed is what the calibration buys.
+
+**The simulation** (`pid_learning_study.py --night`, `fit/study_20261122/pid_learning_floor.txt`, 300 throws a case, judged at 0.04 gr):
+
+| | AR2209 10 gr: good / over / median | AR2209 5 gr | BM2 10 gr | BM2 5 gr |
+|---|---|---|---|---|
+| Glide, fast | 89% / 11% / 10.1 s | 91% / 9% / 18.6 s | 97% / 3% / 9.1 s | 99% / 1% / 8.7 s |
+| PID learnt, least 0.1 (as the rig ran) | 85% / 15% / 11.9 s | 86% / 14% / 10.7 s | 97% / 3% / 15.5 s | 95% / 5% / 13.6 s |
+| PID learnt, least speed learnt | 85% / 15% / 12.3 s | 86% / 14% / 11.6 s | 95% / 5% / 15.5 s | 96% / 4% / 13.7 s |
+
+- The unit's own C gives the same within the noise (in the same file).
+- **The simulation cannot judge this one:** its stops scatter less than the rig's, so the speed of the stop hardly moves its accuracy. It says the change does no harm and costs 0.4 to 0.9 s. The rig judges the accuracy.
+
+**The passes, written before the rig** (the same blocks as the first run: glide 10, PID 10 from a fresh start, PID 10 learnt, glide 10; 10 gr; fast):
+- **The mechanism:**
+  - the PID's fine tube stops at 0.06 rev/s or slower (the median of its throws);
+  - its first rests spread by 0.055 gr or less (the first run: 0.073; the glide: 0.045).
+- **Against the glide, the bars of the first run:** settled good at most 2 throws fewer, overs at most 1 more, median at most 2.5 s longer.
+- **Expected:**
+  - the mechanism passes;
+  - accuracy comes close to the glide's (16 to 18 settled good of 20);
+  - the time fails, 3 to 4 s longer, because the P approach to a slower floor is longer and the glide's aim-short offset is what removes that.
+
+**The rig, 19:10 to 19:22** (build 2.0.3-170-dirty at 50d7511; the same blocks; `bench/abba_look.py`):
+
+| Block | Settled good / over | Median | First rest: mean, sd | Topped up | Fine tube at its stop |
+|---|---|---|---|---|---|
+| G1, glide | 9 / 1 | 11.2 s | +0.002, 0.052 | 2 | 0.058 rev/s |
+| P1, PID from fresh, least speed learnt | 9 / 1 | 14.4 s | −0.012, 0.041 | 2 | 0.043 |
+| P2, the same, learnt | 7 / 3 | 16.5 s | −0.012, 0.056 | 4 | 0.032 |
+| G2, glide | 6 / 4 | 11.0 s | +0.014, 0.068 | 2 | 0.058 |
+| **Glide, 20** | **15 / 5** | **11.0 s** | +0.008, 0.059 | 4 | 0.058 |
+| **PID, least speed learnt, 20** | **16 / 4** | **15.5 s** | −0.012, 0.048 | 6 | 0.036 |
+
+Recordings: `logs/adr009/20261122_191001_series_night_g1`, `_191245_series_night_p1`, `_191617_series_night_p2`, `_192001_series_night_g2`. P2 ended `VERDICT FAIL` on the runner's missed `ccrec` reply again; all its rows are in the recording.
+
+**Against the passes:**
+- **the mechanism: passed.**
+  - The fine tube stops at 0.036 rev/s, against the first run's 0.100.
+  - The first rests spread by 0.048 gr (bar 0.055), where the first run's spread by 0.073.
+- **settled good: passed,** 16 against the glide's 15.
+- **overs: passed,** 4 against 5.
+- **time: failed,** 15.5 against 11.0 s, 4.5 s longer (bar 2.5 s).
+- **The rig was rougher tonight for both.** The glide's spread was 0.059 against 0.045 in the first run, and its last block had 4 overs, two of them clumps of +0.10 and +0.12. The ABBA order shares that out between the two; the figures compare within this run, not with the first.
+
+**What it says:**
+1. **For accuracy, one learnt figure and one lag are enough.** With its least speed set from what it learnt, the PID with no calibration is as accurate as the glide on this rig and powder. So for accuracy, the lag table and the stop tables of the calibration are not needed.
+2. **The calibration's lag at every speed buys time.**
+   - The PID's P approach to a slow least speed is long, as predicted (3 to 4 s; it was 4.5).
+   - The learnt figure and the least speed also pull on each other. As the least speed fell, the figure rose (1.18 to 1.39 over P2), because the A&D holds a small change back longer at a lower flow. The higher figure set the least speed lower still (0.043, then 0.032), and P2 took 2 s longer than P1.
+   - One lag cannot hold a scale whose lag changes with the flow. The glide's table can, and with its aim-short stream that is what lets it come in fast.
+3. **For the design:**
+   - The accuracy comes from the predictor and the finish: the forecast, the stop's speed set from it, one settled reading, the learning.
+   - The time comes from the speed law and the lag by speed.
+   - So the PID's numbers can seed a charge with no calibration and be as accurate, and the device's calibration makes it fast.

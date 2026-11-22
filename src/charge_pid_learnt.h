@@ -58,6 +58,11 @@ typedef struct {
     float throw_most_s;
     float over_most_gr;
     float digit_gr;                 // the scale's digit (the A&D: 0.02 gr); no driver reports it yet
+    // The fine tube's least speed from the learnt figure (the second experiment, 2026-11-22 night): the speed at
+    // which the powder in the air is this share of the band, never above the profile's least speed, never below
+    // floor_least_rps. 0: the profile's, as today's loop
+    float floor_band_share;
+    float floor_least_rps;
     uint8_t most_tops;
 } charge_pid_constants_t;
 
@@ -136,6 +141,8 @@ void charge_pid_tick(charge_pid_t *c, uint32_t now_ms);
 void charge_pid_reading(charge_pid_t *c, uint32_t now_ms, float weight);
 // The fine tube's turns over the last lag_s
 float charge_pid_window_turns(const charge_pid_t *c);
+// The fine tube's least speed as the next pass of the loop takes it
+float charge_pid_least_rps(const charge_pid_t *c);
 
 #ifdef __cplusplus
 }

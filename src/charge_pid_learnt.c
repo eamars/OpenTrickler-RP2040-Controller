@@ -13,12 +13,14 @@
 void charge_pid_default_constants(charge_pid_constants_t *k) {
     k->lag_s = 0.9f;
     k->rest_s = 2.5f;
-    k->gr_turn_prior = 1.0f;
+    k->gr_turn_prior = 2.0f;           // 1.0 was not cautious on the rig (2026-11-22)
     k->learn_share = 0.15f;
     k->coarse_quiet_s = 1.0f;
     k->throw_most_s = 120.0f;
     k->over_most_gr = 3.0f;
     k->digit_gr = 0.02f;
+    k->floor_band_share = 0.0f;
+    k->floor_least_rps = 0.02f;
     k->most_tops = 8;
 }
 
@@ -133,6 +135,16 @@ static void backoff(charge_pid_t *c, float now_s) {
 }
 
 
+float charge_pid_least_rps(const charge_pid_t *c) {
+    float gr_turn = c->learning->gr_turn;
+    if (!(c->k.floor_band_share > 0.0f && gr_turn > 0.0f && c->k.lag_s > 0.0f)) {
+        return c->s.fine_min_rps;
+    }
+    float learnt = c->k.floor_band_share * c->s.band_gr / (gr_turn * c->k.lag_s);
+    return fminf(c->s.fine_min_rps, fmaxf(c->k.floor_least_rps, learnt));
+}
+
+
 // The change of the error per millisecond, as today's loop takes it; 0 on the first reading
 static float derivative(const charge_pid_t *c, float error, float last_error, float elapsed_ms) {
     if (c->first_sample || elapsed_ms <= 0.0f) {
@@ -157,7 +169,7 @@ static void legacy_pass(charge_pid_t *c, float now_s, float weight) {
     c->fine_integral += fine_error;
     float speed = s->fine_kp * fine_error + s->fine_ki * c->fine_integral +
                   s->fine_kd * derivative(c, fine_error, c->fine_last_error, elapsed_ms);
-    c->fine_rps = fmaxf(s->fine_min_rps, fminf(speed, s->fine_max_rps));
+    c->fine_rps = fmaxf(charge_pid_least_rps(c), fminf(speed, s->fine_max_rps));
     if (c->coarse_moves && c->backoff_until_s < 0.0f) {
         c->coarse_integral += coarse_error;
         speed = s->coarse_kp * coarse_error + s->coarse_ki * c->coarse_integral +
