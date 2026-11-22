@@ -211,6 +211,22 @@ The proposals above come from the code, its comments and the record. What remain
   - **The numbers tried:** its lag 0.9 s, rest 2.5 s and prior 2.0 gr a turn, each as built, at half and at twice.
   - **The cases:** both records, the five scales, both bands, 10 gr, 3,200 throws a case in sessions of 25 from a fresh figure.
   - **The pass:** the numbers hold on any scale when, as built, on every stand-in scale the first three throws of a session are over no more often than on the measured scale, within two SDs of the difference. Where they are over more often, the numbers are this scale's and must be measured on each unit (a check of the scale without powder, or the calibration).
+  - **Run 2026-11-22, 23:26, to 2026-11-23, 00:10** (`fit/study_20261122/fallback.txt`). **Fail: G1's numbers are the A&D's.** The first three throws' overs against the measured scale's:
+
+    | Scale | AR2209, 0.02 | AR2209, 0.04 | BM2, 0.02 | BM2, 0.04 |
+    |---|---|---|---|---|
+    | late_small | +4.2 (ok) | +1.8 (ok) | +3.9 (more, noise 3.5) | +0.5 (ok) |
+    | holds | +29.9 | +18.0 | +15.1 | +2.3 (more, noise 2.1) |
+    | slow | +41.1 | +32.8 | +31.5 | +19.5 |
+    | slower | +59.1 | +60.9 | +56.8 | +49.5 |
+
+    - **What mends it is the scale's own numbers.** On the slow scale (twice as late), a lag and a rest matched to it cut the overs:
+      - BM2 at 0.04: lag ×2 took the first three's overs from 21.6% to 2%; rest ×2 took the whole session's from 33.6% to 15.6%.
+      - AR2209 at 0.04: lag ×2 took the first three's overs from 42% to 34%; rest ×2 took the session's from 49.5% to 36.8%.
+
+      So lag and rest are properties of the scale. **G1 is Measured:** the calibration measures them on each unit, its scale part with a fixed weight (the owner's three-part calibration, 2026-11-20) or with its first stops.
+    - **G2, the prior,** moves with them: ×2 cut the first three's overs on the slow scale (AR2209 42% to 22%, BM2 21.6% to 4%) and cost about a second on the measured one. It makes up for a wrong lag. It cannot be judged apart from G1: it is studied again once G1 is measured, as a Rule for the cautious start.
+    - **Even on its own scale** the fallback over-poured AR2209 at 0.02: 31.8% of all throws, and 23% of the first three. The rig of 11-22 at 0.04 saw no over from a fresh start (`research/pid_learning_2026-11-22.md`); the simulation's 0.04 gives 9.6%. Sign-off item 10 (the first charge after an update works with no calibration) rests on this fallback, so its accuracy is part of gate F's pass.
 - **The fixed weights in grains** (D9's 0.2 gr, C19's turns, C20, E13), checked in the code 2026-11-22, 23:10:
   - The firmware reads a weight as a bare number in the scale's own unit. Only the A&D's frame carries the unit (`scale_get_unit`, `scale.c:128`), and the charge reads it nowhere.
   - So on a scale set to grams every literal written in grains is read as grams:
