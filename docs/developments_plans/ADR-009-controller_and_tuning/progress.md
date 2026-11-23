@@ -2603,3 +2603,28 @@ Not a pass: the pass of 23:51 failed by its letter, and the manager accepted for
 - **F.2's pass is its mechanism,** which passed (23:36). This run's figures are the baseline F.3 to F.5 are read against.
 
 **A condition for F.5, written now:** if F.5's ABBA misses its bars and the calibration's stop is the cause, the ABBA moves to after gate 3's calibration. Neither the ABBA nor its bars are changed.
+
+## 2026-11-24, 00:14: F.2's re-run at the shipped limits: the baseline, and the finding
+
+On the Pico 2 W, image at `267bfc9`; the limits the shipped defaults (coarse 0.1 to 5, fine 0.08 to 5); the cup emptied by the owner before.
+
+**The trial of 23:56** (`logs/adr009/20261123_235643_trial_pico2w_ar2209_f2a/`; started with form (a) loaded, before (c) came):
+- 8.4 min, 252 gr; coarse 10.49 and fine 0.880 gr a turn; the coarse stops at 0.1, 0.707 and 5.0, the fine at 0.08, 0.091, 0.182, 0.363, 0.727 and 5.0 rev/s; the coarse share 13.9%;
+- **its rehearsals at the floor (form (a)):** first rests 0, 0, +1, +3, −3, −3, −2, −3, −2, −2 digits. No far-short tail, on the unit. Kept as gate 3's evidence; not used.
+
+**The same measurements rehearsed again with the day's form** (00:10, `logs/adr009/20261124_001016_trial_pico2w_ar2209_f2c/`):
+- first rests −22, −16, +1, +8, −2, −19, −4, −19, +3, −19 digits;
+- **the far-short tail again, worse:** their median, −10, placed the stop 8 digits late, a stop room of −0.16.
+- The two forms, on one calibration minutes apart, are gate 3's clearest evidence: the rehearsal at the stream law's top is what places the stop late on this unit at a high fine top.
+
+**F.2's 10 × 10 gr** (00:12, `logs/adr009/20261124_001219_series_pico2w_ar2209_f2c/`, no `ccon`):
+- the start said: band 0.020; coarse 0.100 to 5.000, fine 0.080 to 5.000 rev/s; the creep 0.040 held up to 0.080;
+- every row of its recordings (1,772) inside the limits: coarse 0.1 to 2.03, fine 0.08 to 5.0;
+- **0 good, 10 over** (+0.04 to +0.28 gr), median 8.2 s. The carry refused: a move over its 3-digit bound.
+- **The prediction** (about 8 good in 10) **missed, by the known risk written beside it:** a stop placed late, here by 8 digits, from the day's rehearsal form at a fine top of 5. Said, not mended now. Gate 3 designs the rehearsal's size and speed together, and F.5's condition holds: if its ABBA misses by the calibration's stop, the ABBA moves after gate 3's calibration.
+
+**F.2's pass is its mechanism** (23:36), met again here: inside the limits, the band from the setting, the creep held and said.
+
+**This run's figures are the baseline F.3 to F.5 are read against.** With this calibration every throw comes from a stop about 8 digits late, so F.3 to F.5's rig figures are read for their mechanism, not their good share.
+
+The cup's ledger: the trial 0.00 to 261.92 (most 330), the rehearsals 261.92 to 270.08 (most 30), the series 270.08 to 371.34 (most 140).
