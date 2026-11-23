@@ -42,5 +42,16 @@
   "powder_note": "the same air-exposed AR2209 as the sessions before",
   "scale": "A&D FX-300i in grains, response FAST",
   "notes": "docs/developments_plans/ADR-009-controller_and_tuning/progress.md, 'gate 2 built, and its first throws on the rig' (series A and B, 2026-11-21) and 'the cause is the calibration's lags' (series C, 2026-11-22). Folders of bench/series.py: series.json alone"
+ },
+ {
+  "name": "pico2w_ar2209_1122",
+  "from": "20261122_110000",
+  "to": "20261122_175959",
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same air-exposed AR2209 as the sessions before, two days on",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009's gate S (progress.md, 2026-11-23): the rig as it was on the day before the night's ABBA runs, from its recordings before 18:00 only, so the night (18:26 to 21:22) is judged on a record made without it. Its stops are the trial of 16:46's calibration (98 creep stops, 8 fine and 3 coarse speeds). It recorded no watched nudges: they are the session pico2w_ar2209's, taken, as is the scale's record"
  }
 ]

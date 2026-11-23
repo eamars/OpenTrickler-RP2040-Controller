@@ -1,0 +1,17 @@
+pico2w_ar2209_1122, 400 throws a controller, sessions of 25, 10 gr at 0.04 gr, the fine top 1.0 rev/s; the simulation's figures counted for 20 throws
+arm               rig good/over/median   sim good/over/median  verdict
+abba/glide            18 /  2 /  10.9 s     11.3 /  8.5 /   9.9 s  missed: good, over, median
+abba/other            14 /  5 /  13.7 s     10.4 /  9.4 /  13.6 s  missed: over
+night/glide           15 /  5 /  11.0 s     11.3 /  8.5 /   9.9 s  missed: median
+night/other           16 /  4 /  15.5 s     10.9 /  9.1 /  13.5 s  missed: good, over, median
+coarse/glide          16 /  4 /  11.2 s     11.3 /  8.5 /   9.9 s  missed: good, over, median
+coarse/other          19 /  1 /  14.8 s     11.1 /  8.8 /  11.4 s  missed: good, over, median
+frame/glide           19 /  1 /  11.4 s     11.3 /  8.5 /   9.9 s  missed: good, over, median
+frame/other           17 /  3 /  10.5 s      9.8 /  9.9 /   9.4 s  missed: good, over, median
+ownstop/glide         16 /  4 /  10.7 s     11.3 /  8.5 /   9.9 s  missed: good, over, median
+ownstop/other         15 /  5 /  12.1 s      7.2 / 12.5 /  10.5 s  missed: good, over, median
+offer/glide           15 /  4 /  10.9 s     11.3 /  8.5 /   9.9 s  missed: over, median
+offer/other           14 /  6 /   9.3 s      7.1 / 12.4 /   8.4 s  missed: good, over, median
+offer2/glide          19 /  1 /  11.2 s     11.3 /  8.5 /   9.9 s  missed: good, over, median
+offer2/other          15 /  5 /   8.2 s      7.1 / 12.4 /   8.4 s  missed: good, over
+0 of 14 arms reproduced

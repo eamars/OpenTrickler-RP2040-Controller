@@ -1982,3 +1982,24 @@ The day's one other pair of like runs agrees: s1 and s3 of 17:34 and 17:46, one 
 - **"The stop's spread growing as the approach shortens":** not in the day's series. The glide threw approaches as short as the offer's. Its first rests spread by 0.042 to 0.059 gr at approaches of 4.0 to 4.3 s (`glide002_d`, `mvp_accurate10`, `mvp_fast10`, `mvp_fast20`), and by 0.037 to 0.057 gr at 6.6 to 9.8 s. Fine-only throws at 5 gr spread 0.047 to 0.071. The night's offer, 0.055 to 0.058 at about 4 s, is within the day's range.
 
 **So the model to make is the rig of the night, from its own day's recordings, not a lag curve or a spread curve.** Next: a record built by `build_rig.py` from 11-22's recordings before 18:00: the trial of 16:46, its 98 creep stops at 8 fine and 3 coarse speeds with their turns. What no recording of that day gives (the flow maps, the watched nudges) is taken from the record of 11-20 and named as taken. Then the night is replayed on it against the same bar.
+
+## 2026-11-23, 20:48: gate S, the record chosen on the day's series alone
+
+**The manager, on the finding of 20:35:** rebuild the record from 11-22's recordings before 18:00; model neither curve, since the recordings do not show them; judge the glide arms and the PID law's in the frame; for `pid_learnt`'s arms (gone at F.4), say so and go on; look at the coarse arm's early stop; stop and report if an arm the plan needs stays out, and never iterate on the model against the arms it is judged on.
+
+**Two things were built:**
+- **A record of the rig of 11-22,** `records/pico2w_ar2209_1122.json`, by `build_rig.py` from the session `pico2w_ar2209_1122` (`recordings/sessions.json`: 11:00 to 17:59 on 11-22). Its stops are the 98 creep stops of the trial of 16:46.
+  - **Taken from 2026-11-20, not measured that day:** the scale, whole (`--scale-from pico2w_ar2209`), and the watched nudges (`20261120_220430_nudgewatch`). The manifest says so (`fit/pico2w_ar2209_1122.manifest.json`).
+  - **Its flow maps are the day's own,** from its stops: `bench/measure.py` now also takes a stop of 0.4 turns or more for a map, beside one of 2 s, since a trial's coarse stops turn a whole turn in a second. The two earlier sessions' figures come out byte for byte as before.
+  - It fits 49 of its 59 figures.
+- **A replay of each bench series as the unit ran it** (`replay.py`, `replay_study.py`): on the calibration the unit held, rebuilt from the unit's own echo (`ccal`), and on the constants it echoed (`ccon`).
+  - The rules rebuilt here are the unit's own for all 46 series, checked against its echoed rules.
+  - The frame's two PID blocks of 20:13 kept no echo: they ran on the slot as g1 left it, which is g2's echo (a PID-law throw then carried nothing into the slot).
+  - **The earlier replay compared the rig's throws, each on a calibration the PC made, with the simulation's own calibration of its own rig.** That is two differences at once, and the time miss of 20:35 was mostly the second.
+
+**The day's series replayed on each record** (16 series, 11:51 to 17:46; the model's source; the same bar; `fit/study_20261123/day_replay.txt`):
+- **the record of 11-20: 8 of 16 reproduced.** Good and overs are within the bar on 15 of 16; the misses are medians, 0.8 to 2.8 s off.
+- **the record of 11-22: 1 of 16.** It puts 9 to 13 overs in 20 on every series. The trial's 4 stops a speed were too few to solve the fine tube's bursts from: its stops at 0.5 and 1 rev/s land 6 and 4 times as widely as measured (`fit_report.py`).
+- **The rig misses its own bar too:** `glide004_e` and `mvp_fast10` ran on one calibration and the same constants, and the rig gave 9.2 and 8.2 s.
+
+**So the model is the record of 11-20 with the unit's own calibration.** The record of 11-22 is kept, named as not chosen, and not used. The night is judged on this once.
