@@ -44,8 +44,8 @@ def job(args: tuple) -> list:
     if stages:
         # L (gate 3): the forecast in the stages its calibration fits, the verdict waiting for its powder
         import l_study
-        cal, model = l_study.calibrated_stages(rig, seed, band)
-        controller = l_study.StagedStages(cal, rig.acceleration_rps2, model)
+        cal, tables = l_study.calibrated_by_flow(rig, seed, band)
+        controller = l_study.StagedByFlow(cal, rig.acceleration_rps2, tables)
     else:
         cal = staged.calibrate(rig, seed, "glide", band)
         controller = staged.Staged(cal, rig.acceleration_rps2)

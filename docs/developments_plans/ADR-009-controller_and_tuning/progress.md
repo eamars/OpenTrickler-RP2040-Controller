@@ -3278,3 +3278,25 @@ Checked against the skill:
 - **(c) Leave L** and take the lean to the owner as the known limit.
 
 *My recommendation:* (a) for the forecast, since it is what the plan asked and the failure is the simplification, with the verdict's wait read from it. Studied with this same harness (its three ends unchanged) before anything reaches the C.
+
+## 2026-11-24, 03:03: L, form (a), the one attempt (the manager's yes); its arms before it runs
+
+**Form (a), in the reference only:**
+- **Stages by flow:** each stop keeps its own fit (`lag_stages.fit_run`: a dead time, one stage, a second where its fit takes one). A parcel takes the model of its speed, each parameter read between the stops by speed as the lag table is. Both tubes.
+- **The learnt source** takes the scale's fits by flow, from a calibration on that scale, read at a parcel's flow (its speed times the tube's figure once born).
+- **The verdict** waits until the forecast's powder still to show is under C24's noise, by each parcel's own model.
+
+**The arms, the same harness and the same three ends, unchanged** (`l_study.py`, `e9_check.py --stages`; 40 fresh sessions, the first three throws at 10 gr; e9 6 × 20 a scale):
+- a calibrated unit by its lag table;
+- a calibrated unit in stages by flow;
+- the learnt source with the scale's one measured lag;
+- the learnt source in stages by flow.
+
+**The ends:**
+1. The learnt source in stages on `slower` within the bar of a calibrated unit there.
+2. A calibrated unit in stages no worse than by its lag table, on every stand-in.
+3. The verdict's one-way class changes within its second no more than that scale's settled noise, on `measured`, `late_small`, `holds` and `slow`.
+
+**One attempt:** if it fails, L is written for the owner, and the verdict's lean stays the known limit.
+
+**B3's row:** the 11-22 finding (one fine figure fits neither the stream nor the finish) was not borne out as a benefit in this study, so B3 is not ported.
