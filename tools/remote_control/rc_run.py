@@ -167,6 +167,7 @@ SOAK_QUIET_S = 10.0         # after the browsers stop, the server's idle connect
 SOAK_LOAD_ROWS = 600         # a throw's samples: 600 rows ...
 SOAK_LOAD_COLUMNS = 16       # ... of 16 numbers, pulled back to back
 SOAK_LOAD_FAST_S = 0.25      # and a client asking for the charge four times a second
+SOAK_RECORDINGS_S = 1.0         # soak --load: the recordings' list read, each new throw's samples pulled whole
 # api_check (ADR-003, gate 4): what may move between two reads of the same path with nothing done between them
 API_CHECK_VOLATILE = {"uptime_s", "now_ms", "rssi", "weight", "bad_frames", "usual_interval_ms"}
 API_CHECK_STATE_S = 15.0        # a state looked for after an action
@@ -2795,6 +2796,20 @@ class Session:
             reply = json.loads(http_get(host, f"api/v1/debug/load?rows={SOAK_LOAD_ROWS}&columns={SOAK_LOAD_COLUMNS}"))
             return len(reply["rows"]) == SOAK_LOAD_ROWS and len(reply["rows"][-1]) == SOAK_LOAD_COLUMNS
 
+        pulled = set()
+
+        def read_recordings():
+            # A tuner's client (ADR-009, gate 2's rest): each throw's samples pulled whole as it completes
+            listed = json.loads(http_get(host, "api/v1/recordings"))["recordings"]
+            for entry in listed:
+                if entry["id"] in pulled or not entry["complete"] or not entry["samples_kept"]:
+                    continue
+                samples = json.loads(http_get(host, f"api/v1/recordings/{entry['id']}/samples"))
+                pulled.add(entry["id"])
+                if len(samples["rows"]) != entry["rows"] or not samples["complete"]:
+                    return False
+            return True
+
         upload_data = os.urandom(SOAK_UPLOAD_BYTES)
         upload_crc = zlib.crc32(upload_data)
 
@@ -2818,6 +2833,7 @@ class Session:
         if load:
             pollers.append(WebPoller("tuning load", 0.0, [("", read_load)], self.log))
             pollers.append(WebPoller("fast client", SOAK_LOAD_FAST_S, [("", read_state)], self.log))
+            pollers.append(WebPoller("recordings", SOAK_RECORDINGS_S, [("", read_recordings)], self.log))
         if upload:
             pollers.append(WebPoller("upload 700 KB", 0.0, [("", read_upload)], self.log))
 
@@ -2864,6 +2880,8 @@ class Session:
         quiet_end = self.stats()
 
         self.log.write("rc", f"soak: {cycles} charges in {time.monotonic() - started:.0f} s")
+        if load:
+            self.log.write("rc", f"soak: {len(pulled)} recordings' samples pulled whole")
         good = sum(poller.good for poller in pollers)
         missed = sum(poller.missed for poller in pollers)
         kinds = collections.Counter()
