@@ -125,6 +125,10 @@ set_source_files_properties("${PICO_SDK_PATH}/lib/mbedtls/library/sha256.c" PROP
 file(GLOB MBEDTLS_SOURCES ${PICO_SDK_PATH}/lib/mbedtls/library/*.c)
 list(FILTER MBEDTLS_SOURCES EXCLUDE REGEX "/sha256\\.c$")
 set_source_files_properties(${MBEDTLS_SOURCES} PROPERTIES COMPILE_OPTIONS "-Os")
+# Our own API's JSON writers at -Os in every build, as the owner decided in ADR-009's gate 2 (2026-11-23): code that
+# writes replies, not timing, and the Pico W's image had 1,088 B of its slot left. The rest of our code stays at -O0
+set_source_files_properties(${SRC_DIRECTORY}/recording.c ${SRC_DIRECTORY}/api_v1_commands.c
+                            ${SRC_DIRECTORY}/settings.c PROPERTIES COMPILE_OPTIONS "-Os")
 
 # The roots the unit trusts, as one PEM text (https_client.c): GitHub's two (src/github_roots.pem). A test build
 # (-DHTTPS_TEST_CA=ON) trusts the local OTA server's test roots in their place (tools/ota_server.py --make-certs),
