@@ -2445,3 +2445,51 @@ On the Pico 2 W, image 2.0.3-237 at `71d48c1`, the cup emptied by the owner befo
   - and, newly listed, gate 3's calibration on a failing scale, and gate 4's drawings of the ends that are not verdicts.
 - Safety is not deferred (motor bounds, the cup's budget).
 - `rc_run.py`'s `--cup-capacity` is the cup capacity step's, not built now.
+
+## 2026-11-23, 23:46: F.2's overs, their cause found at the desk (the manager's question; no rig run)
+
+**1. The overs themselves** (`series.json`'s rows):
+- each throw's error in digits: +2, +7, −1, +3, +3, +4, +1, −1, +4, +4;
+- at each fine stop the forecast stood at 10.011 to 10.051, the fine tube at its 0.1 floor;
+- the stop room began at **−0.034**: the fine tube stopped only once the forecast was that far over the target;
+- the charge's own learning moved the stop room to +0.008 over the 10 throws.
+
+**2. The carried list:**
+- the series' `ccal clear` reset it and wrote this trial's 10 rehearsals (−0.38 to +0.04 gr); the old glide list of the night was not carried in;
+- the charge's end carried nothing ("10 first errors not carried (from -0.0800 to 0.0010 ...)": a move over the carry's 3-digit bound), so the stored list is still the rehearsals'.
+
+**The placement:**
+- the rehearsals' first rests, in digits: −19, −8, +1, +1, +2, −17, −7, −7, −1, +1. Their median is −4 (−0.08 gr) against the aim's −1, so the stop moved 0.06 gr (3 digits) later;
+- the series rested about 3 digits over, as a stop 3 digits late predicts.
+
+**3. The simulation's prediction** (run at 23:40, before the comparison: this trial's recordings built into `records/pico2w_ar2209_f2.json` by `build_rig.py`; the owner's limits; calibrate, rehearse, 10 × 10 gr; 5 seeds):
+- **29 good, 19 over, 2 short in 50.** Mostly good, so the simulation does not give the unit's 3 and 7;
+- its rehearsals rest −1 to −4 digits at their median, never the unit's far-short tail;
+- the same record split by limit, 6 seeds of 10:
+
+  | fine range (rev/s) | good / 60 | over |
+  |---|---|---|
+  | 0.01 to 0.5 (the night's) | 50 | 10 |
+  | 0.1 to 0.5 (the creep held only) | 45 | 14 |
+  | 0.01 to 3 (the new top only) | 39 | 21 |
+  | 0.1 to 3 (the owner's) | 36 | 22 |
+
+  So the owner's limits cost overs in the simulation too, the new fine top more than the held creep. That is a finding for F.5's ABBA and the owner.
+- **The trial's own PC twin** (`trial.py`'s made-up unit, the PC's command timing, the owner's limits, 3 seeds): its rehearsals rest −3 to +2 digits. No far-short tail either.
+
+**The cause of the unit's tail, from its own log** (`logs/adr009/f2_trial.txt`):
+- the five far-short rehearsals (−19, −8, −17, −7, −7) are exactly those whose fine tube was stopped from 0.5 to 0.7 rev/s. The five near zero had glided to the 0.1 floor first;
+- **rehearsal 0, read from its console:**
+  - the fine tube started cold at 2.03 rev/s, and the reading stayed at its base for 0.7 s;
+  - the forecast counted each turn at the calibration's 0.822 gr, so it slowed the tube and stopped it from 0.53 rev/s at the first reading, 0.32 gr;
+  - only 0.30 gr more came: 0.62 gr for about 1.2 turns, some 37% under the figure.
+- **A 1 gr rehearsal at the user's new fine top is shorter than the scale's lag.** About half of them stop before the reading has shown that a tube started cold pours less than its figure; they rest far short.
+- **The firmware's throws** have the fine tube flowing since their start, gliding to the floor after the coarse tube's bulk. They show no such shortfall, so the stop placed by those rehearsals is late for them.
+- The simulation's tube does not model the shortfall of a cold start at 2 rev/s (`fine.settle_s` solved at 0), so neither it nor the PC twin reproduces the tail.
+- **Shown:** the split by the stop's speed. **Not shown:** that the start's shortfall is the whole of the 0.42 gr. It is the reading the log gives, and the size of the misses fits it.
+
+**Not a fault in the firmware or the controller's C:** the throws rest where a stop 3 digits late puts them.
+- **The fault is the PC trial's rehearsal form** at the user's tops: a fixed 1 gr from a cold tube (F6, `REHEARSAL_GR`), where the plan's gate 3 has "each a throw's last stretch" (B8, F5) and "a rehearsal the size of the coarse room" (F6).
+- Before the night, the frame's fine top of 0.5 rev/s made a 1 gr rehearsal last over 2 s, and the reading caught up before the stop.
+
+**Finding for gate 3's measurement** (the manager): the coarse tube's grains a turn varied 16% run to run at this calibration (5.5% at gate 2's), its runs at 1 rev/s, with stops measured up to 5.
