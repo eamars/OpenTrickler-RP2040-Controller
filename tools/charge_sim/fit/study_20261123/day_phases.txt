@@ -1,0 +1,18 @@
+pico2w_ar2209: medians of bulk / approach / rest, the rig's against the replay's (200 throws a series); the replay less the rig
+  glide002_c_lagshift          rig  1.74 /  6.10 /  7.32   sim  2.39 /  4.50 /  2.81   difference +0.65 / -1.60 / -4.51
+  glide002_d_yields            rig  2.22 /  2.86 /  2.78   sim  2.49 /  2.51 /  2.82   difference +0.27 / -0.35 / +0.03
+  glide004_e                   rig  2.12 /  3.86 /  2.78   sim  2.59 /  2.89 /  2.81   difference +0.47 / -0.97 / +0.02
+  mvp_accurate10               rig  2.05 /  3.16 /  4.01   sim  2.49 /  2.51 /  2.82   difference +0.44 / -0.65 / -1.19
+  mvp_fast10                   rig  2.05 /  3.16 /  2.77   sim  2.59 /  2.89 /  2.81   difference +0.54 / -0.27 / +0.03
+  mvp_accurate20               rig  2.36 /  5.64 /  2.82   sim  2.96 /  2.29 /  3.41   difference +0.60 / -3.35 / +0.59
+  mvp_fast20                   rig  2.55 /  3.28 /  2.78   sim  2.99 /  3.33 /  2.81   difference +0.44 / +0.05 / +0.02
+  fine5_learn_off              rig  6.05 /  1.49 /  2.80   sim  6.33 /  3.25 /  2.81   difference +0.28 / +1.76 / +0.00
+  fine5_learn_on               rig  5.78 /  3.77 /  2.78   sim  6.32 /  2.16 /  2.80   difference +0.55 / -1.61 / +0.02
+  fine5_split                  rig  5.87 /  2.55 /  2.78   sim  6.32 /  2.16 /  2.80   difference +0.46 / -0.39 / +0.02
+  fine5_off2                   rig  5.78 /  2.94 /  2.78   sim  6.33 /  3.25 /  2.81   difference +0.55 / +0.31 / +0.02
+  fresh5_learn_off             rig  6.07 /  4.12 /  2.62   sim  6.48 /  4.38 /  2.59   difference +0.41 / +0.26 / -0.03
+  fresh5_learn_on              rig  5.69 /  3.66 /  2.58   sim  6.36 /  2.39 /  2.59   difference +0.68 / -1.27 / +0.00
+  carry5_s1_fresh              rig  5.80 /  4.64 /  2.60   sim  6.46 /  3.90 /  2.58   difference +0.67 / -0.74 / -0.03
+  carry5_s2_carried            rig  5.85 /  4.67 /  2.58   sim  6.45 /  4.07 /  2.57   difference +0.61 / -0.60 / -0.01
+  carry5_s3_fresh              rig  6.20 /  3.54 /  2.58   sim  6.46 /  3.90 /  2.58   difference +0.27 / +0.36 / -0.01
+  median difference over the series: bulk +0.51 s / approach -0.50 s / rest +0.01 s

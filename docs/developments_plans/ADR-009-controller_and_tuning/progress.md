@@ -2035,3 +2035,22 @@ The day's one other pair of like runs agrees: s1 and s3 of 17:34 and 17:46, one 
 **Stopped here, at the manager's rule:** an arm the plan needs is still missed. The model is not iterated against the arms it is judged on, and the offer's trade is not judged on a simulation that has not passed.
 - **Not hidden:** before the replay was built, the night was run once on the record of 11-22 with the simulation's own calibration (`night_1122.txt`, 0 of 14). The record was chosen on the day's series alone, as written at 20:48.
 - **Not done:** the offer's trade.
+
+## 2026-11-23, 20:54: gate S's one round: the phases of the day's series, and the mend written before the night is replayed
+
+**The manager's decision:**
+- Keep the bar. The verdict as it stands: on the record of 11-20, gate S's time bar is not met on six arms the plan needs, by 0.7 to 0.9 s; good and overs are within the bar on all 14.
+- One round only: the day's series broken into phases, the model mended only where a phase is off there and only from those recordings, the mend written before the night is replayed, and the night judged once more against the same bar.
+- Then the offer's trade, whatever the round gives.
+
+**The phases** (`phase_study.py`, 200 throws a series on the record of 11-20, each on its unit's own calibration; `fit/study_20261123/day_phases.txt`; medians, the replay less the rig):
+- **the bulk** (to within 0.7 gr of the target): **slower in the simulation on all 16 series,** by 0.27 to 0.68 s, median +0.51 s. That holds at 10 and 20 gr, where both tubes pour, and at 5 gr, where the fine tube pours alone;
+- **the approach** (to the fine tube's first stop): both ways, −3.35 to +1.76 s, median −0.50 s;
+- **the rest and top-ups:** the same, median +0.01 s.
+
+**The mend, from the day's recordings only:** the bulk is the tubes pouring at speed, and both tubes pour faster on 11-22 than the record of 11-20 says.
+- **Measured that day** (the session `pico2w_ar2209_1122`'s maps, from the trial of 16:46's stops, `fit/pico2w_ar2209_1122.json`): the coarse tube 10.27 gr a turn at every speed it was stopped from (0.3 to 2 rev/s), and the fine tube 0.781.
+- **The record of 11-20 says:** the coarse tube 10.15 gr a turn at 0.1 rev/s down to 9.00 at 1 and 8.01 at 3; the fine tube 0.765.
+- **So `records/pico2w_ar2209_night.json` is the record of 11-20 with both tubes' grains a turn the day's,** named in its sources as measured from that session's maps. Nothing else changes: the scale, the bursts, the lates and the settling stay 11-20's.
+- **What it should do:** the bulk about 0.5 s quicker, the approach and rest as they were, and the night's glide and PID-law medians shorter by about as much. That is a prediction, not a bar: the bar is 20:32's.
+- **Its check before the night:** the day's replay on it (`replay_study.py --day`). Then the night once (`--night`), and no second mend.
