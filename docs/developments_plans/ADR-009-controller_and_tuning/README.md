@@ -66,7 +66,7 @@ Written 2026-11-23, 17:48, by the agent who reviewed gate N for the owner. It re
 
 One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 2026-11-22 with what gate N found. **What is new in it is marked (new)**, and was approved with the register on 2026-11-23. Each gate ends in a pass or a fail. Where a pass leaves a figure open, the agent writes it into `progress.md` before the run, with the clock's time. One PR when the ADR closes, unless the owner picks a gate to merge by itself.
 
-**Done:** gate 0 (the research on main), gate 1 (the controller in C, checked against its reference in CI), gate 2 but for its recordings (the controller in the charge, thrown on the Pico 2 W; `progress.md`), gate N (the documents, N.2 and N.3; N.2 proven on the Pico 2 W, 2026-11-23).
+**Done:** gate 0 (the research on main), gate 1 (the controller in C, checked against its reference in CI), gate 2 (the controller in the charge, thrown on the Pico 2 W; its recordings through the API since 2026-11-23; `progress.md`), gate N (the documents, N.2 and N.3; N.2 proven on the Pico 2 W, 2026-11-23).
 
 **The guideline for every gate:** ADR-009 builds a general-purpose powder trickling controller, tuned on each user's own device.
 - **The bench unit is one user's unit.** What is measured on it (its scale, its tubes, its powders, its throws) shows what a calibration must measure, and checks that a mechanism works. It is never a rule, a default or a constant in the firmware.
