@@ -1826,3 +1826,14 @@ At the desk; no unit contacted.
 **What this leaves:**
 - **104 B of RAM and 13 KB of flash on the Pico W.** Gate 2's rest's recordings cannot be static RAM there. Where their budget comes from (the FreeRTOS heap during a charge, as the staged block is) is that gate's to measure (`stats`, `net`, `soak --load`).
 - **Two more records of 420 B each are still static:** the console's `ccal` record and a throw's read, which the API's start check also uses. Both change at gate R and gate 3, so they are left.
+
+## 2026-11-23, 19:19: N.2's proof on the Pico 2 W; its checklist
+
+The owner, in this session: the bench is ready, the hopper empty, the cup empty or near. The Pico 2 W is on the probe at 192.168.2.166 (FA0C3B5E), running 827e4a0's image; its settings copied before the flash (`rc_run.py settings --save logs/adr009/n2_proof/settings_before`, `VERDICT PASS`).
+
+1. **Which numbers does this step add, move or change?** None. It flashes 999806e: N.2's macros and the fine learning off (row 15), and the Pico W's shared buffer.
+2. **Does any value come from the bench unit?** No. Nothing is set by hand; `charge_cycle` runs on the simulated scale with its own calibration.
+3. **Does each fixed number pass the test?** Not touched by this step (`numbers.md`, "The rows against the test").
+4. **Is a new parameter needed?** No.
+5. **Does the pass on the rig check a mechanism, against a prediction written first?** The prediction: nothing a user or a throw sees changes. `flash` reports 999806e's version; `menu_tour --compare tests/menu_baseline/pico2_w` passes against the baseline as it is (saved complete on 2026-11-19, ADR-008, and passed against on 2026-11-22; saving it again first would compare the unit with itself); `charge_cycle` ends a cycle at the target, as on 2026-11-22 (30.000 for 30); `pulses` passes with the fault images built at the tip (`build_2w_fault1`, `build_2w_fault2`). No series is thrown.
+6. **What here is still shown on the bench unit only?** Everything of this proof; the Pico W's at gate 7.
