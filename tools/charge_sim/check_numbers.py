@@ -54,7 +54,7 @@ ALLOWED = {
         "0.5": (1, "H: its fine speeds"),
         "0.7": (1, "H: its moves, in digits"),
         "2.5": (1, "H: its moves, in digits"),
-        "2": (14, "H: half an interval, half a digit, two intervals, a coarse speed; a median's middle; twice the first "
+        "2": (13, "H: half an interval, half a digit, two intervals, a coarse speed; a median's middle; twice the first "
                   "errors kept (a merge's room); the console's `ccal` fields by their place"),
         "6": (7, "H: a move of 6 digits; the console's `ccal` fields, six to a line"),
         # The console's commands and the stored record
@@ -62,15 +62,14 @@ ALLOWED = {
         "4": (14, "the console's commands, by their words' lengths and their fields' places"),
         "5": (14, "the console's commands, by their words' lengths and their fields' places"),
         "7": (8, "the console's commands, by their words' lengths"),
-        "10": (1, "a number read in base 10"),
+        "10": (2, "a number read in base 10"),
+        "8": (2, "the console's `ccal corrupt`: its word's length"),
         "96": (2, "a console line's length"),
         "160": (1, "a console line's length"),
         "200": (1, "a console line's length"),
-        "1024": (1, "an EEPROM slot's size"),
     },
     "charge_calibration.h": {
         "16": (1, "CHARGE_CALIBRATION_FIRST_ERRORS_MAX: the first errors a record keeps, a size (B11)"),
-        "8": (1, "CHARGE_CALIBRATION_PROFILES: the powder profiles"),
     },
     "charge_mode.cpp": {
         # The user's settings as a new unit has them (section A): settings, not the controller's numbers

@@ -358,6 +358,11 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
                       "the staged controller needs the powder's calibration: calibrate it, or choose the PID "
                       "controller (settings/charge controller)", NULL);
             return;
+        case CHARGE_START_CALIBRATION_DAMAGED:
+            api_error(reply, 409, "not_calibrated", "powder_profile",
+                      "the powder's calibration is damaged (its stored record fails its check), and is not used: "
+                      "calibrate it again, or choose the PID controller (settings/charge controller)", NULL);
+            return;
         default:
             api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
             return;

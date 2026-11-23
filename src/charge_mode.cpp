@@ -26,6 +26,7 @@
 #include "jobs.h"
 #include "charge_control.h"
 #include "charge_calibration.h"
+#include "charge_records.h"
 #include "charge_pid_learnt.h"
 #include "recording.h"
 
@@ -1552,8 +1553,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     // The staged controller takes every number from the powder's calibration: none, no start (ADR-009)
     if (charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED) {
         uint8_t profile = powder_profile >= 0 ? (uint8_t) powder_profile : (uint8_t) profile_get_selected_idx();
-        if (!charge_calibration_held(profile)) {
-            return CHARGE_START_NOT_CALIBRATED;
+        int state = charge_calibration_state(profile);
+        if (state != CHARGE_RECORD_OK) {
+            return state == CHARGE_RECORD_DAMAGED ? CHARGE_START_CALIBRATION_DAMAGED : CHARGE_START_NOT_CALIBRATED;
         }
     }
     // The menu takes a start under the activity lock, so the target and the profile are in before it can

@@ -603,6 +603,11 @@ bool http_server_reply_woke_ready(const http_server_reply_t *reply) {
 }
 
 
+void http_server_reply_retry_after(http_server_reply_t *reply, uint8_t seconds) {
+    reply->slot->retry_after_s = seconds;
+}
+
+
 void *http_server_reply_context(http_server_reply_t *reply, size_t size) {
     if (size > sizeof(reply->slot->context)) {
         return NULL;

@@ -5,6 +5,7 @@
 
 #include "activity.h"
 #include "charge_calibration.h"
+#include "charge_records.h"
 #include "charge_mode.h"
 #include "common.h"
 #include "eeprom.h"
@@ -14,15 +15,11 @@
 // The charge's settings, for the band the offer is made for (as the other modules that read them)
 extern charge_mode_config_t charge_mode_config;
 
-#define CHARGE_CALIBRATION_SLOT_SIZE 1024
-
 static charge_control_constants_t charge_constants;
 static bool charge_constants_set = false;
 
 // The console's calibration being written, before `ccal save`
 static charge_calibration_record_t charge_calibration_staged;
-// A throw's read of its slot: the job task's alone
-static charge_calibration_record_t charge_calibration_read;
 // The stop room the rules made before the first errors placed the stop: the room the rehearsals were thrown at
 static float charge_calibration_base_room_gr = 0.0f;
 
@@ -31,8 +28,6 @@ float charge_calibration_base_stop_room(void) {
     return charge_calibration_base_room_gr;
 }
 
-_Static_assert(sizeof(charge_calibration_record_t) + sizeof(uint32_t) <= CHARGE_CALIBRATION_SLOT_SIZE,
-               "a calibration and its CRC fit their slot");
 
 
 const charge_control_constants_t *charge_calibration_constants(void) {
@@ -41,11 +36,6 @@ const charge_control_constants_t *charge_calibration_constants(void) {
         charge_constants_set = true;
     }
     return &charge_constants;
-}
-
-
-static uint16_t charge_calibration_addr(uint8_t profile) {
-    return (uint16_t) (EEPROM_CHARGE_CALIBRATION_BASE_ADDR + profile * CHARGE_CALIBRATION_SLOT_SIZE);
 }
 
 
@@ -58,7 +48,8 @@ static void charge_calibration_make(const charge_calibration_record_t *record, f
         finish = CHARGE_CONTROL_FINISH_GLIDE;       // the modes are the glide's (ADR-009, 2026-11-22)
     }
     else {
-        band_gr = record->measured.band_gr;
+        // The console's own record, shown with its `ccal finish`; a stored record keeps no band (B9)
+        band_gr = record->measured.band_gr > 0.0f ? record->measured.band_gr : CHARGE_TRICKLE_ACCURATE_BAND_GR;
     }
     charge_control_set_rules(out, finish, band_gr, charge_calibration_constants());
     charge_calibration_base_room_gr = out->stop_room_gr;
@@ -91,9 +82,6 @@ static const char *charge_calibration_lacks(const charge_calibration_record_t *r
             (i > 0 && cal->coarse_stops[i].speed_rps <= cal->coarse_stops[i - 1].speed_rps)) {
             return "coarse stops: each faster than the last";
         }
-    }
-    if (cal->finish > CHARGE_CONTROL_FINISH_JOG || !(cal->band_gr > 0.0f)) {
-        return "finish: glide or jog, and a band";
     }
     return NULL;
 }
@@ -162,151 +150,108 @@ static float charge_calibration_median(const float *values, uint8_t count) {
 
 
 /*
-    The two records a charge reads and writes whole within one call: the slot a glide's carry rewrites, and the PID
-    law's lists (read at a charge's start, rewritten at its end and by `ctune accept` between charges). Each use reads
-    its record afresh and none holds it across calls, so they share one buffer (ADR-009, the Pico W's RAM)
+    The carry (ADR-009, gate R: one list, and the law that learnt it). A charge under the law that learnt the list
+    merges its throws' first errors into it, the newest kept, at most CHARGE_CARRY_MOST_DIGITS at once. A charge under
+    the other law placed its stop from a list not its own: its first carry is taken whole, the list then its own (the
+    night of 2026-11-22: a law's stop lay 3.25 digits from the other's, and a capped first carry kept it on the other's)
 */
-static union {
-    charge_calibration_record_t carried;
-    charge_calibration_law_stops_t law_stops;
-} charge_calibration_scratch;
-
-
-bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after) {
-    charge_calibration_record_t *record = &charge_calibration_scratch.carried;
+bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
+                                  float *after) {
     if (charge_calibration_simulated_scale() || profile >= MAX_PROFILE_CNT || count == 0) {
         return false;
     }
-    uint16_t addr = charge_calibration_addr(profile);
-    if (!config_read_stored(addr, record, sizeof(*record)) || !record->valid || record->first_error_count == 0 ||
-        charge_calibration_lacks(record) != NULL) {
+    charge_calibration_record_t *record = pvPortMalloc(sizeof(*record));
+    uint8_t learnt_by = 0;
+    if (record == NULL) {
         return false;
     }
-    *before = charge_calibration_median(record->first_errors, record->first_error_count);
-    // the stored ones, then the throws', the newest kept
-    float merged[2 * CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
-    uint8_t total = 0;
-    for (uint8_t i = 0; i < record->first_error_count; i++) {
-        merged[total++] = record->first_errors[i];
+    bool ok = charge_records_load(profile, record, &learnt_by) == CHARGE_RECORD_OK &&
+              charge_calibration_lacks(record) == NULL && record->first_error_count > 0;
+    if (ok) {
+        bool own = learnt_by == law;
+        *before = charge_calibration_median(record->first_errors, record->first_error_count);
+        float merged[2 * CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
+        uint8_t total = 0;
+        for (uint8_t i = 0; own && i < record->first_error_count; i++) {
+            merged[total++] = record->first_errors[i];
+        }
+        uint8_t from = count > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ?
+                       (uint8_t) (count - CHARGE_CALIBRATION_FIRST_ERRORS_MAX) : 0;
+        for (uint8_t i = from; i < count; i++) {
+            merged[total++] = errors[i];
+        }
+        uint8_t keep = total > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? CHARGE_CALIBRATION_FIRST_ERRORS_MAX : total;
+        const float *newest = &merged[total - keep];
+        *after = charge_calibration_median(newest, keep);
+        ok = !own || fabsf(*after - *before) <= CHARGE_CARRY_MOST_DIGITS * record->measured.digit_gr;
+        if (ok) {
+            for (uint8_t i = 0; i < keep; i++) {
+                record->first_errors[i] = newest[i];
+            }
+            record->first_error_count = keep;
+            ok = charge_records_save(profile, record, law);
+        }
     }
-    uint8_t from = count > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? (uint8_t) (count - CHARGE_CALIBRATION_FIRST_ERRORS_MAX) : 0;
-    for (uint8_t i = from; i < count; i++) {
-        merged[total++] = errors[i];
-    }
-    uint8_t keep = total > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? CHARGE_CALIBRATION_FIRST_ERRORS_MAX : total;
-    const float *newest = &merged[total - keep];
-    *after = charge_calibration_median(newest, keep);
-    if (fabsf(*after - *before) > CHARGE_CARRY_MOST_DIGITS * record->measured.digit_gr) {
-        return false;
-    }
-    for (uint8_t i = 0; i < keep; i++) {
-        record->first_errors[i] = newest[i];
-    }
-    record->first_error_count = keep;
-    record->legacy_rev = 0;
-    return save_config(addr, record, sizeof(*record));
+    vPortFree(record);
+    return ok;
 }
 
 
-_Static_assert(CHARGE_CALIBRATION_PROFILES == MAX_PROFILE_CNT, "a law's list for each powder profile");
-_Static_assert(sizeof(charge_calibration_law_stops_t) + sizeof(uint32_t) <= CHARGE_CALIBRATION_SLOT_SIZE,
-               "the laws' stops and their CRC fit their slot");
-
-
-// The PID law's lists as stored; empty lists when none are, or they fail their CRC
-static void charge_calibration_law_stops_read(void) {
-    if (!config_read_stored(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_scratch.law_stops,
-                            sizeof(charge_calibration_scratch.law_stops))) {
-        memset(&charge_calibration_scratch.law_stops, 0, sizeof(charge_calibration_scratch.law_stops));
-    }
+bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after) {
+    return charge_calibration_carry_law(profile, 0, errors, count, before, after);
 }
 
 
-bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out) {
-    if (law == 0 || charge_calibration_simulated_scale()) {
-        return charge_calibration_get(profile, band_gr, out);
+int charge_calibration_state(uint8_t profile) {
+    if (charge_calibration_simulated_scale()) {
+        return profile < MAX_PROFILE_CNT ? CHARGE_RECORD_OK : CHARGE_RECORD_NONE;
     }
-    if (!charge_calibration_held(profile)) {
-        return false;
+    charge_calibration_record_t *record = pvPortMalloc(sizeof(*record));
+    if (record == NULL) {
+        return CHARGE_RECORD_DAMAGED;
     }
-    charge_calibration_law_stops_read();
-    uint8_t count = charge_calibration_scratch.law_stops.counts[profile];
-    if (count > 0 && count <= CHARGE_CALIBRATION_FIRST_ERRORS_MAX) {
-        // The calibration as measured, its stop placed from the law's own list
-        memcpy(charge_calibration_read.first_errors, charge_calibration_scratch.law_stops.first_errors[profile],
-               count * sizeof(float));
-        charge_calibration_read.first_error_count = count;
+    charge_record_state_t state = charge_records_load(profile, record, NULL);
+    if (state == CHARGE_RECORD_OK && charge_calibration_lacks(record) != NULL) {
+        state = CHARGE_RECORD_NONE;    // incomplete: a powder not yet calibrated
     }
-    charge_calibration_make(&charge_calibration_read, band_gr, out);
-    return true;
-}
-
-
-bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
-                                  float *after) {
-    if (law == 0) {
-        return charge_calibration_carry(profile, errors, count, before, after);
-    }
-    if (charge_calibration_simulated_scale() || profile >= MAX_PROFILE_CNT || count == 0 ||
-        !charge_calibration_held(profile) || charge_calibration_read.first_error_count == 0) {
-        return false;
-    }
-    charge_calibration_law_stops_read();
-    charge_calibration_law_stops_t *stops = &charge_calibration_scratch.law_stops;
-    uint8_t held = stops->counts[profile] <= CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? stops->counts[profile] : 0;
-    // Its own list, or the glide's when it has none: where this charge's stop was placed from
-    const float *from = held > 0 ? stops->first_errors[profile] : charge_calibration_read.first_errors;
-    uint8_t from_count = held > 0 ? held : charge_calibration_read.first_error_count;
-    *before = charge_calibration_median(from, from_count);
-    float merged[2 * CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
-    uint8_t total = 0;
-    for (uint8_t i = 0; i < held; i++) {
-        merged[total++] = stops->first_errors[profile][i];
-    }
-    uint8_t first = count > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? (uint8_t) (count - CHARGE_CALIBRATION_FIRST_ERRORS_MAX) : 0;
-    for (uint8_t i = first; i < count; i++) {
-        merged[total++] = errors[i];
-    }
-    uint8_t keep = total > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? CHARGE_CALIBRATION_FIRST_ERRORS_MAX : total;
-    const float *newest = &merged[total - keep];
-    *after = charge_calibration_median(newest, keep);
-    // The cap guards a list the law has against one session's drift. A law's first carry is its first knowledge of
-    // its own stop, and the glide's it was placed from is not its own: taken whole (2026-11-22 night: the offer's gains
-    // rested 3.25 digits from the glide's stop, and a capped first carry left the next charge on the glide's)
-    if (held > 0 && fabsf(*after - *before) > CHARGE_CARRY_MOST_DIGITS * charge_calibration_read.measured.digit_gr) {
-        return false;
-    }
-    for (uint8_t i = 0; i < keep; i++) {
-        stops->first_errors[profile][i] = newest[i];
-    }
-    stops->counts[profile] = keep;
-    stops->legacy_rev = 0;
-    return save_config(EEPROM_CHARGE_LAW_STOPS_ADDR, stops, sizeof(*stops));
+    vPortFree(record);
+    return state;
 }
 
 
 bool charge_calibration_held(uint8_t profile) {
-    if (charge_calibration_simulated_scale()) {
-        return profile < MAX_PROFILE_CNT;
-    }
-    return profile < MAX_PROFILE_CNT &&
-           config_read_stored(charge_calibration_addr(profile), &charge_calibration_read,
-                              sizeof(charge_calibration_read)) &&
-           charge_calibration_read.valid && charge_calibration_lacks(&charge_calibration_read) == NULL;
+    return charge_calibration_state(profile) == CHARGE_RECORD_OK;
 }
 
 
+// The powder's record read into a working copy from the heap, its rules made, and the copy given back
 bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calibration_t *out) {
-    if (charge_calibration_simulated_scale() && profile < MAX_PROFILE_CNT) {
-        charge_calibration_simulated(&charge_calibration_read);
-        charge_calibration_make(&charge_calibration_read, band_gr, out);
-        return true;
-    }
-    if (!charge_calibration_held(profile)) {
+    if (profile >= MAX_PROFILE_CNT) {
         return false;
     }
-    charge_calibration_make(&charge_calibration_read, band_gr, out);
-    return true;
+    charge_calibration_record_t *record = pvPortMalloc(sizeof(*record));
+    if (record == NULL) {
+        return false;
+    }
+    bool ok = true;
+    if (charge_calibration_simulated_scale()) {
+        charge_calibration_simulated(record);
+    }
+    else {
+        ok = charge_records_load(profile, record, NULL) == CHARGE_RECORD_OK && charge_calibration_lacks(record) == NULL;
+    }
+    if (ok) {
+        charge_calibration_make(record, band_gr, out);
+    }
+    vPortFree(record);
+    return ok;
+}
+
+
+// One list for both laws: a charge of either places its stop from it (its carry says whose it is)
+bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out) {
+    (void) law;
+    return charge_calibration_get(profile, band_gr, out);
 }
 
 
@@ -504,11 +449,11 @@ void charge_calibration_console(const char *args, char *reply, size_t reply_size
                      MAX_PROFILE_CNT - 1);
             return;
         }
-        uint16_t addr = charge_calibration_addr((uint8_t) profile);
         if (load) {
-            if (!config_read_stored(addr, record, sizeof(*record)) || !record->valid) {
+            charge_record_state_t state = charge_records_load((uint8_t) profile, record, NULL);
+            if (state != CHARGE_RECORD_OK) {
                 memset(record, 0, sizeof(*record));
-                snprintf(reply, reply_size, "@err profile %ld holds no calibration", profile);
+                snprintf(reply, reply_size, "@err profile %ld: %s", profile, charge_records_state_words(state));
                 return;
             }
             charge_calibration_show(record, write, write_ctx);
@@ -522,15 +467,27 @@ void charge_calibration_console(const char *args, char *reply, size_t reply_size
         }
         record->legacy_rev = 0;
         record->valid = 1;
-        if (!save_config(addr, record, sizeof(*record))) {
-            snprintf(reply, reply_size, "@err the slot did not write");
+        // Its first errors are rehearsals: the glide's (a law's first carry then takes them whole)
+        if (!charge_records_save((uint8_t) profile, record, 0)) {
+            snprintf(reply, reply_size, "@err the record did not write");
             return;
         }
         charge_calibration_show(record, write, write_ctx);
         snprintf(reply, reply_size, "@ok ccal save %ld", profile);
         return;
     }
-    snprintf(reply, reply_size, "@err usage: ccal [clear|head|stop|move|errors|finish|save <p>|load <p>]");
+    if (strncmp(args, "corrupt ", 8) == 0) {
+        // A byte of a stored record flipped: the proof that a damaged record is not used (gate R). Never in the API
+        long profile = strtol(args + 8, NULL, 10);
+        if (profile < 0 || profile >= MAX_PROFILE_CNT || !charge_records_corrupt((uint8_t) profile)) {
+            snprintf(reply, reply_size, "@err usage: ccal corrupt <profile 0..%d>", MAX_PROFILE_CNT - 1);
+            return;
+        }
+        snprintf(reply, reply_size, "@ok ccal corrupt %ld: %s", profile,
+                 charge_records_state_words(charge_calibration_state((uint8_t) profile)));
+        return;
+    }
+    snprintf(reply, reply_size, "@err usage: ccal [clear|head|stop|move|errors|finish|save <p>|load <p>|corrupt <p>]");
 }
 
 
@@ -810,14 +767,14 @@ void charge_tune_console(const char *args, char *reply, size_t reply_size, remot
                                       p->fine_min_flow_speed_rps, p->fine_max_flow_speed_rps};
     activity_unlock();
     if (accept) {
-        // A stop learnt with the old gains says nothing of the new: the PID law starts again from the glide's
-        charge_calibration_law_stops_read();
-        if (charge_calibration_scratch.law_stops.counts[profile] != 0) {
-            charge_calibration_scratch.law_stops.counts[profile] = 0;
-            charge_calibration_scratch.law_stops.legacy_rev = 0;
-            save_config(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_scratch.law_stops,
-                        sizeof(charge_calibration_scratch.law_stops));
+        // A stop learnt with the old gains says nothing of the new: the list marked the glide's, so the PID law's next
+        // carry is taken whole (one list, gate R)
+        charge_calibration_record_t *record = pvPortMalloc(sizeof(*record));
+        uint8_t learnt_by = 0;
+        if (record != NULL && charge_records_load(profile, record, &learnt_by) == CHARGE_RECORD_OK && learnt_by != 0) {
+            charge_records_save(profile, record, 0);
         }
+        vPortFree(record);
     }
     charge_tune_line("set", &set, write, write_ctx);
     charge_tune_line("offer", &offer, write, write_ctx);

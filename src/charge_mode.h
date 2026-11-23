@@ -124,6 +124,7 @@ typedef enum {
     CHARGE_START_DRIVER_FAULT,
     CHARGE_START_NO_TARGET,
     CHARGE_START_NOT_CALIBRATED,    // the staged controller, and the powder profile holds no calibration (ADR-009)
+    CHARGE_START_CALIBRATION_DAMAGED,   // the same, its record stored but failing its check: refused as none, said so
 } charge_start_result_t;
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
 

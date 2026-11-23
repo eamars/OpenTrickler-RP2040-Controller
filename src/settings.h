@@ -20,7 +20,10 @@ typedef enum {
     SETTING_STRING,     // char[size], with its ending
     SETTING_COLOUR,     // an rgbw_u32_t: "#rrggbb", its white kept as it is
     SETTING_CHOICE,     // one of `choices`, held in an integer of `size` bytes (an enum)
+    SETTING_LIST,       // a list of rows, each of `list`'s fields (ADR-009, gate R): one level, written whole
 } setting_type_t;
+
+typedef struct setting_list setting_list_t;
 
 typedef struct {
     int32_t held;           // as the struct holds it
@@ -61,7 +64,23 @@ typedef struct {
     float edit_step;            // what a detent (or an arrow) moves a number by; 0: its step, else none offered
     const char *on_label;       // a boolean's value in words ("Reversed"); NULL: On
     const char *off_label;      // NULL: Off
+    const setting_list_t *list; // a LIST's rows; NULL for any other type
 } setting_field_t;
+
+/*
+ * A list of rows (ADR-009, gate R; api_v1.md, "Settings"): at its field's offset the row count in one byte, then up to
+ * rows_max rows of `stride` bytes from rows_offset, each row's fields lying in it as a struct's do. The field's size
+ * covers the count and every row. In JSON an array of flat objects. A write replaces the whole list, each row given
+ * every one of its fields, and is refused whole when a row or the count is out of its bounds.
+ */
+struct setting_list {
+    const setting_field_t *fields;
+    uint8_t field_count;
+    uint8_t rows_min;
+    uint8_t rows_max;
+    uint8_t rows_offset;
+    uint16_t stride;
+};
 
 // Where a field lies: SETTING_AT(eeprom_charge_mode_data_t, fine_stop_threshold)
 #define SETTING_AT(type, member) .offset = offsetof(type, member), .size = sizeof(((type *) 0)->member)
@@ -93,12 +112,17 @@ typedef struct {
     void (*apply)(const void *before, int32_t id);
     // A refusal of its own, under the activity lock (the profile in use, during a throw): NULL when none, else why
     const char *(*refuse)(int32_t id);
+    // Another unit's own data, on the struct as it would be (ADR-009, gate R): NULL when it is this unit's, else
+    // why. A write refused so answers 409 not_this_unit, before anything is written. NULL for a resource of none
+    const char *(*foreign)(const void *proposed, int32_t id);
+    // From one id's part to the next in the EEPROM, when its parts are not packed one after another: 0 for size
+    uint16_t stride;
     bool (*save)(void);
     bool (*is_saved)(void);
 } settings_resource_t;
 
-#define SETTINGS_RESOURCES_MAX 12
-#define SETTINGS_STRUCT_MAX 256
+#define SETTINGS_RESOURCES_MAX 14
+#define SETTINGS_STRUCT_MAX 512     // a write's copies of it are taken from the heap (ADR-009, gate R)
 
 #ifdef __cplusplus
 extern "C" {

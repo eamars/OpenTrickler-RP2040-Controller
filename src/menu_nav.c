@@ -897,6 +897,9 @@ static void act_ack_charge(const menu_row_t *row) {
     else if (result == CHARGE_START_NOT_CALIBRATED) {
         push_message("Not calibrated", "Calibrate the powder,", "or choose PID");
     }
+    else if (result == CHARGE_START_CALIBRATION_DAMAGED) {
+        push_message("Bad calibration", "Calibrate again,", "or choose PID");
+    }
     else if (result != CHARGE_START_OK) {
         push_message("Busy", "A job runs", NULL);
     }

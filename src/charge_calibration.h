@@ -38,40 +38,26 @@ typedef struct {
 // The constants a throw starts with: the research's by default, set by `ccon` until a restart
 const charge_control_constants_t *charge_calibration_constants(void);
 
+// Whether a powder profile holds a calibration a throw may use: CHARGE_RECORD_OK (charge_records.h's states, as an
+// int so this header needs not that one): none, an incomplete one, or one that fails its check is not used
+int charge_calibration_state(uint8_t profile);
 // The calibration of a powder profile with its rules made, for a throw. False when the profile has none
 // With band_gr above 0, its rules are made for that band and the glide, whatever band the calibration was written for
 bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calibration_t *out);
 /*
-    The throws' first errors carried into a profile's calibration at a charge's end (ADR-009, 2026-11-22; a temporary
-    form, until the profiles' stored and shared form is settled: README, "Open, to be discussed"). Each is a throw's
-    first error at rest translated to the calibration's own stop room; they are added to its first errors, the newest
-    CHARGE_CALIBRATION_FIRST_ERRORS_MAX kept, and the stop is placed from them at the next charge's start. Nothing is
-    written when the stop they place would move more than CHARGE_CARRY_MOST_DIGITS at once, nor for the simulated scale.
+    The throws' first errors carried into a powder's record at a charge's end (ADR-009; gate R: one list, and the law
+    that learnt it, charge_records.h). Each is a throw's first error at rest translated to the calibration's own stop
+    room. A charge under the law that learnt the list adds them to it, the newest CHARGE_CALIBRATION_FIRST_ERRORS_MAX
+    kept, and nothing is written when the stop they place would move more than CHARGE_CARRY_MOST_DIGITS at once. A
+    charge under the other law takes its first carry whole: the list was not its own. Never for the simulated scale.
     True when written; `before` and `after` take the median first error the stop was and will be placed from.
 */
-bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after);
-
-/*
-    Each speed law's own carried stop (ADR-009, 2026-11-22 night; a temporary form, as the carry above). The glide's
-    first errors are the calibration's own (above); the PID law's are kept apart, a list a profile in one record of
-    their own (EEPROM_CHARGE_LAW_STOPS_ADDR), so no stored record changes. A law whose list is empty places its stop
-    from the glide's. Its carry is the glide's: the newest CHARGE_CALIBRATION_FIRST_ERRORS_MAX, at most
-    CHARGE_CARRY_MOST_DIGITS at once, never for the simulated scale; but its first carry, into an empty list, is taken
-    whole, since the glide's stop it was placed from is not its own.
-*/
-#define CHARGE_CALIBRATION_PROFILES 8
-typedef struct {
-    uint16_t legacy_rev;            // load_config's old revision check: 0 once stored
-    uint8_t counts[CHARGE_CALIBRATION_PROFILES];
-    float first_errors[CHARGE_CALIBRATION_PROFILES][CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
-} charge_calibration_law_stops_t;
-
-// The calibration for a throw of a speed law (0 the glide's, 1 the PID law), its stop placed from that law's list
-bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out);
-// A charge's first errors carried into its law's list; as charge_calibration_carry, and `own` false when the law's
-// list was empty and its stop came from the glide's
 bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
                                   float *after);
+// The glide's carry (law 0)
+bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after);
+// The calibration for a throw of either law: one list, the stop placed from it
+bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out);
 
 /*
     The auto-tuner's offer (ADR-009, 2026-11-22 night): the PID law's gains made from a profile's calibration, its rules

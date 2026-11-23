@@ -738,6 +738,11 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
             snprintf(reply, reply_size, "@err the powder profile holds no calibration: ccal, or setting "
                      "settings/charge controller=pid");
             return false;
+        case CHARGE_START_CALIBRATION_DAMAGED:
+            charge_mode_set_series(0);
+            snprintf(reply, reply_size, "@err the powder profile's calibration is damaged, and not used: ccal save "
+                     "it again, or setting settings/charge controller=pid");
+            return false;
         case CHARGE_START_DRIVER_FAULT:
             charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err a motor driver is not OK: %s", motors_get_fault());

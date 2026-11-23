@@ -145,6 +145,8 @@ bool http_server_reply_woke_ready(const http_server_reply_t *reply);
 // size is more than HTTP_SERVER_CONTEXT_MAX
 #define HTTP_SERVER_CONTEXT_MAX 32
 void *http_server_reply_context(http_server_reply_t *reply, size_t size);
+// A Retry-After of so many seconds in the reply's head: a 503 for want of memory (ADR-009, gate R)
+void http_server_reply_retry_after(http_server_reply_t *reply, uint8_t seconds);
 
 // A query's value by its name, decoded ('+' a space), into out. False when the name is not there
 bool http_server_query_value(const char *query, const char *name, char *out, size_t len);

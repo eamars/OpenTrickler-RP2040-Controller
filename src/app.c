@@ -18,6 +18,7 @@
 #include "app.h"
 #include "events.h"
 #include "recording.h"
+#include "charge_records.h"
 #include "motors.h"
 #include "eeprom.h"
 #include "scale.h"
@@ -81,6 +82,8 @@ int main()
 
     // Initialize profile data
     profile_data_init();
+    // This unit's records of its scale and powders, after the profiles (ADR-009, gate R)
+    charge_records_init();
 
     // Initialize the servo
     servo_gate_init();

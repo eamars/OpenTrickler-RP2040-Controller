@@ -30,7 +30,8 @@ bool http_json_fits(size_t room, size_t len);
 
 /*
  * JSON read (ADR-003, gate 3): a flat object, as every write of the API is. Its members' values are strings,
- * numbers, true, false or null; nothing nested. The members point into the text: nothing is copied or decoded until
+ * numbers, true, false or null; and, since ADR-009's gate R, a list of rows, each a flat object (one level only: a
+ * calibration's stops). The members point into the text: nothing is copied or decoded until
  * a value is asked for.
  */
 typedef enum {
@@ -38,6 +39,7 @@ typedef enum {
     HTTP_JSON_NUMBER,
     HTTP_JSON_BOOLEAN,
     HTTP_JSON_NULL,
+    HTTP_JSON_ARRAY,        // a list of flat objects, its text whole from [ to ]: read its rows with http_json_array_next
 } http_json_kind_t;
 
 typedef struct {
@@ -55,6 +57,8 @@ typedef struct {
  */
 bool http_json_parse_object(const char *text, size_t len, http_json_member_t *members, size_t max, size_t *count,
                             const char **why);
+// A list's next row: its object's text, for http_json_parse_object. `at` starts at 0. False after the last
+bool http_json_array_next(const http_json_member_t *array, size_t *at, const char **object, size_t *object_len);
 // Whether the text is one number by JSON's grammar, and nothing else (the console's values)
 bool http_json_is_number(const char *text, size_t len);
 // Whether a member's name is this one (a name with an escape is no name of ours)

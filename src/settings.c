@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <FreeRTOS.h>
+
 #include "activity.h"
 #include "api_v1.h"
 #include "eeprom.h"
@@ -21,6 +23,19 @@
 #define SETTINGS_LOCK_WAIT_MS 100       // a write waits this long for one under way, or for a job's start
 #define SETTINGS_FIELDS_MAX 64
 #define SETTINGS_TEXT_MAX 72            // the longest string a field holds (the Wi-Fi key, 64), and its ending
+#define SETTINGS_ROW_FIELDS_MAX 8       // a list's row's fields, at most
+#define SETTINGS_RETRY_S 2              // a write refused for want of memory: try again after this long
+
+/*
+ * A write's copies of a struct are taken from the heap for the request, never from the stack: a powder's record is
+ * 400 B, and the server's task has little stack to spare (ADR-009, gate R). None to be had: 503, nothing written.
+ * `setting nomem on` (the console, never stored) makes every such allocation fail, for the proof
+ */
+static bool settings_fail_alloc = false;
+
+static void *settings_alloc(size_t size) {
+    return settings_fail_alloc ? NULL : pvPortMalloc(size);
+}
 
 static const settings_resource_t *resources[SETTINGS_RESOURCES_MAX];
 static size_t resource_count = 0;
@@ -234,10 +249,40 @@ static void write_choice_value(const setting_choice_t *choice, char *out, size_t
 }
 
 
+static void write_value(const setting_field_t *field, const uint8_t *base, char *out, size_t room, size_t *len);
+
+// A list's row as a flat object
+static void write_row(const setting_list_t *list, const uint8_t *row, char *out, size_t room, size_t *len) {
+    for (uint8_t idx = 0; idx < list->field_count; idx += 1) {
+        http_json_raw(out, room, len, idx ? "," : "{");
+        http_json_string(out, room, len, list->fields[idx].name);
+        http_json_raw(out, room, len, ":");
+        write_value(&list->fields[idx], row, out, room, len);
+    }
+    http_json_raw(out, room, len, "}");
+}
+
+
+static uint8_t list_rows(const setting_field_t *field, const uint8_t *base) {
+    uint8_t count = base[field->offset];
+    return count <= field->list->rows_max ? count : field->list->rows_max;
+}
+
+
 // A field's value, as the struct at base holds it, in JSON
 static void write_value(const setting_field_t *field, const uint8_t *base, char *out, size_t room, size_t *len) {
     const uint8_t *at = base + field->offset;
     switch (field->type) {
+        case SETTING_LIST: {
+            const setting_list_t *list = field->list;
+            http_json_raw(out, room, len, "[");
+            for (uint8_t row = 0; row < list_rows(field, base); row += 1) {
+                http_json_raw(out, room, len, row ? "," : "");
+                write_row(list, at + list->rows_offset + (size_t) row * list->stride, out, room, len);
+            }
+            http_json_raw(out, room, len, "]");
+            break;
+        }
         case SETTING_NUMBER:
             if (field->held_as_integer) {
                 http_json_integer(out, room, len, (long) held_uint(at, field->size));
@@ -289,7 +334,8 @@ static void write_value(const setting_field_t *field, const uint8_t *base, char 
 
 // Where a resource's part lies in the EEPROM: one of several ({id}) after the others
 static uint16_t part_addr(const settings_resource_t *resource, int32_t id) {
-    return (uint16_t) (resource->addr + (id > 0 ? (size_t) id * resource->size : 0));
+    size_t stride = resource->stride ? resource->stride : resource->size;
+    return (uint16_t) (resource->addr + (id > 0 ? (size_t) id * stride : 0));
 }
 
 
@@ -302,30 +348,37 @@ static bool part_saved(const settings_resource_t *resource, int32_t id) {
     if (resource->is_saved()) {
         return true;
     }
-    uint8_t stored[SETTINGS_STRUCT_MAX];
-    if (resource->size > sizeof(stored) || !eeprom_read(part_addr(resource, id), stored, resource->size)) {
-        return false;
-    }
-    return memcmp(stored, resource->live(id), resource->size) == 0;
+    uint8_t *stored = settings_alloc(resource->size);
+    bool same = stored != NULL && eeprom_read(part_addr(resource, id), stored, resource->size) &&
+                memcmp(stored, resource->live(id), resource->size) == 0;
+    vPortFree(stored);
+    return same;
 }
 
 
-// A resource as its GET gives it: saved, then each field a reply may carry
-static void write_resource(const settings_resource_t *resource, int32_t id, char *out, size_t room, size_t *len) {
-    const uint8_t *base = resource->live(id);
-    http_json_raw(out, room, len, "{\"saved\":");
-    http_json_bool(out, room, len, part_saved(resource, id));
-    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
-        const setting_field_t *field = &resource->fields[idx];
-        if (field->access == SETTING_WRITE_ONLY) {
-            continue;
+/*
+ * A resource as its GET gives it, an item at a time (ADR-009, gate R: a powder's record is larger than a reply): item
+ * 0 its head and `saved`, then one item a field a reply may carry, then its end. False after the last
+ */
+static bool write_resource_item(const settings_resource_t *resource, int32_t id, uint8_t item, char *out, size_t room,
+                                size_t *len) {
+    if (item == 0) {
+        http_json_raw(out, room, len, "{\"saved\":");
+        http_json_bool(out, room, len, part_saved(resource, id));
+        return true;
+    }
+    if (item <= resource->field_count) {
+        const setting_field_t *field = &resource->fields[item - 1];
+        if (field->access != SETTING_WRITE_ONLY) {
+            http_json_raw(out, room, len, ",");
+            http_json_string(out, room, len, field->name);
+            http_json_raw(out, room, len, ":");
+            write_value(field, resource->live(id), out, room, len);
         }
-        http_json_raw(out, room, len, ",");
-        http_json_string(out, room, len, field->name);
-        http_json_raw(out, room, len, ":");
-        write_value(field, base, out, room, len);
+        return true;
     }
     http_json_raw(out, room, len, "}");
+    return false;
 }
 
 
@@ -493,12 +546,89 @@ static bool number_in_limits(const setting_field_t *field, double value, outcome
 }
 
 
+static bool read_value(const setting_field_t *field, const http_json_member_t *member, bool console, uint8_t *base,
+                       outcome_t *outcome);
+
+/*
+ * A list written whole: an array of flat objects, each row given every one of its fields, each checked as a field is,
+ * the count within its bounds; false with the outcome set, and the struct at base then not to be used
+ */
+static bool read_list(const setting_field_t *field, const http_json_member_t *member, bool console, uint8_t *base,
+                      outcome_t *outcome) {
+    const setting_list_t *list = field->list;
+    if (console || member->kind != HTTP_JSON_ARRAY) {
+        fail(outcome, 400, "wrong_type", field, "%s is a list of rows, written whole by the API", field->name);
+        return false;
+    }
+    uint8_t *at = base + field->offset;
+    memset(at, 0, field->size);
+    uint8_t rows = 0;
+    size_t pos = 0;
+    const char *object;
+    size_t object_len;
+    while (http_json_array_next(member, &pos, &object, &object_len)) {
+        if (rows >= list->rows_max) {
+            fail(outcome, 400, "out_of_range", field, "%s holds at most %u rows", field->name, list->rows_max);
+            return false;
+        }
+        http_json_member_t cells[SETTINGS_ROW_FIELDS_MAX];
+        size_t count;
+        const char *why;
+        if (!http_json_parse_object(object, object_len, cells, SETTINGS_ROW_FIELDS_MAX, &count, &why)) {
+            fail(outcome, 400, "bad_json", field, "%s, row %u: %s", field->name, rows, why);
+            return false;
+        }
+        uint8_t *row = at + list->rows_offset + (size_t) rows * list->stride;
+        bool given[SETTINGS_ROW_FIELDS_MAX] = {false};
+        for (size_t cell = 0; cell < count; cell += 1) {
+            int idx = -1;
+            for (uint8_t f = 0; f < list->field_count && idx < 0; f += 1) {
+                if (http_json_name_is(&cells[cell], list->fields[f].name)) {
+                    idx = f;
+                }
+            }
+            if (idx < 0) {
+                fail(outcome, 400, "unknown_field", field, "%s, row %u: a field that is none of a row's", field->name,
+                     rows);
+                return false;
+            }
+            if (!read_value(&list->fields[idx], &cells[cell], false, row, outcome)) {
+                return false;
+            }
+            given[idx] = true;
+        }
+        for (uint8_t f = 0; f < list->field_count; f += 1) {
+            if (!given[f]) {
+                fail(outcome, 400, "out_of_range", field, "%s, row %u lacks %s: a row is given whole", field->name,
+                     rows, list->fields[f].name);
+                return false;
+            }
+        }
+        rows += 1;
+    }
+    if (rows < list->rows_min) {
+        fail(outcome, 400, "out_of_range", field, "%s holds at least %u rows", field->name, list->rows_min);
+        return false;
+    }
+    at[0] = rows;
+    return true;
+}
+
+
 // A member's value into the struct at base, checked against its field; false with the outcome set
 static bool read_value(const setting_field_t *field, const http_json_member_t *member, bool console, uint8_t *base,
                        outcome_t *outcome) {
     uint8_t *at = base + field->offset;
     http_json_kind_t kind = member_kind(member, console);
     char text[SETTINGS_TEXT_MAX];
+
+    if (field->type == SETTING_LIST) {
+        return read_list(field, member, console, base, outcome);
+    }
+    if (kind == HTTP_JSON_ARRAY) {
+        fail(outcome, 400, "wrong_type", field, "%s is not a list", field->name);
+        return false;
+    }
 
     if (kind == HTTP_JSON_NULL) {
         if (!field->nullable) {
@@ -510,6 +640,8 @@ static bool read_value(const setting_field_t *field, const http_json_member_t *m
     }
 
     switch (field->type) {
+        case SETTING_LIST:
+            return false;   // read by read_list, above
         case SETTING_NUMBER:
         case SETTING_INTEGER: {
             double value;
@@ -644,8 +776,13 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
         return;
     }
 
-    uint8_t proposed[SETTINGS_STRUCT_MAX];
-    uint8_t before[SETTINGS_STRUCT_MAX];
+    uint8_t *proposed = settings_alloc(2 * resource->size);
+    uint8_t *before = proposed + resource->size;
+    if (proposed == NULL) {
+        fail(outcome, 503, "busy", NULL, "no memory for the write: try again");
+        activity_unlock();
+        return;
+    }
     uint8_t *live = resource->live(id);
     memcpy(proposed, live, resource->size);
     memcpy(before, live, resource->size);
@@ -708,6 +845,13 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
             goto done;
         }
     }
+    if (resource->foreign != NULL) {
+        const char *why = resource->foreign(proposed, id);
+        if (why != NULL) {
+            fail(outcome, 409, "not_this_unit", NULL, "%s", why);
+            goto done;
+        }
+    }
 
     for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
         if (given[idx]) {
@@ -723,6 +867,7 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
     }
 
 done:
+    vPortFree(proposed);
     activity_unlock();
 }
 
@@ -736,6 +881,9 @@ static bool field_is_number(const setting_field_t *field) {
 
 
 static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) {
+    if (outcome->status == 503) {
+        http_server_reply_retry_after(reply, SETTINGS_RETRY_S);
+    }
     size_t room;
     char *out = http_server_reply_buffer(reply, &room);
     size_t len = 0;
@@ -785,16 +933,39 @@ static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) 
 }
 
 
-static void reply_resource(http_server_reply_t *reply, const settings_resource_t *resource, int32_t id) {
-    size_t room;
-    char *out = http_server_reply_buffer(reply, &room);
-    size_t len = 0;
-    write_resource(resource, id, out, room, &len);
-    if (!http_json_fits(room, len)) {
-        http_server_reply_error(reply, 500, "failed", "the reply did not fit");
-        return;
+typedef struct {
+    const settings_resource_t *resource;
+    int16_t id;
+    uint8_t item;
+} resource_context_t;
+
+
+// As many of a resource's items as fit a chunk; one that does not begins the next
+static bool resource_more(void *ctx, char *buf, size_t room, size_t *len) {
+    resource_context_t *context = ctx;
+    *len = 0;
+    while (true) {
+        size_t mark = *len;
+        bool more = write_resource_item(context->resource, context->id, context->item, buf, room, len);
+        if (!http_json_fits(room, *len) && mark > 0) {
+            *len = mark;
+            buf[mark] = '\0';
+            return true;
+        }
+        context->item += 1;
+        if (!more) {
+            return false;
+        }
     }
-    http_server_reply_send(reply, 200, "application/json", len);
+}
+
+
+static void reply_resource(http_server_reply_t *reply, const settings_resource_t *resource, int32_t id) {
+    resource_context_t *context = http_server_reply_context(reply, sizeof(resource_context_t));
+    context->resource = resource;
+    context->id = (int16_t) id;
+    context->item = 0;
+    http_server_reply_stream(reply, 200, "application/json", resource_more, context);
 }
 
 
@@ -910,7 +1081,13 @@ static void revert(const char *revert_path, activity_by_t by, outcome_t *outcome
         fail(outcome, 409, "busy", NULL, "the settings are being written");
         return;
     }
-    uint8_t stored[SETTINGS_STRUCT_MAX];
+    uint8_t *stored = settings_alloc(2 * SETTINGS_STRUCT_MAX);
+    uint8_t *before = stored + SETTINGS_STRUCT_MAX;
+    if (stored == NULL) {
+        fail(outcome, 503, "busy", NULL, "no memory for the revert: try again");
+        activity_unlock();
+        return;
+    }
     for (int pass = 0; pass < 2; pass += 1) {
         for (size_t idx = 0; idx < resource_count; idx += 1) {
             const settings_resource_t *resource = resources[idx];
@@ -946,7 +1123,6 @@ static void revert(const char *revert_path, activity_by_t by, outcome_t *outcome
                     }
                     continue;
                 }
-                uint8_t before[SETTINGS_STRUCT_MAX];
                 uint8_t *live = resource->live(id);
                 memcpy(before, live, resource->size);
                 memcpy(live, stored, resource->size);
@@ -960,6 +1136,7 @@ static void revert(const char *revert_path, activity_by_t by, outcome_t *outcome
         }
     }
 done:
+    vPortFree(stored);
     activity_unlock();
 }
 
@@ -1016,6 +1193,7 @@ typedef struct {
     uint8_t phase;      // 0 its head, 1 the resources, 2 its end
     uint8_t resource;
     int16_t id;
+    uint8_t item;       // the resource's next item (write_resource_item)
 } export_context_t;
 
 
@@ -1073,17 +1251,24 @@ static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len)
             const settings_resource_t *resource = resources[export->resource];
             int32_t id = resource_has_ids(resource) ? export->id : -1;
             size_t mark = *len;
-            char path[64];
-            resource_path(resource, id, path, sizeof(path));
-            if (export->resource > 0 || export->id > 0) {
-                http_json_raw(buf, room, len, ",");
+            if (export->item == 0) {
+                char path[64];
+                resource_path(resource, id, path, sizeof(path));
+                if (export->resource > 0 || export->id > 0) {
+                    http_json_raw(buf, room, len, ",");
+                }
+                http_json_string(buf, room, len, path);
+                http_json_raw(buf, room, len, ":");
             }
-            http_json_string(buf, room, len, path);
-            http_json_raw(buf, room, len, ":");
-            write_resource(resource, id, buf, room, len);
+            bool more = write_resource_item(resource, id, export->item, buf, room, len);
             if (!stream_item_fits(buf, room, len, mark)) {
                 return true;    // the next chunk begins with it
             }
+            export->item += 1;
+            if (more) {
+                continue;
+            }
+            export->item = 0;
             if (resource_has_ids(resource) && export->id + 1 < resource->id_count) {
                 export->id += 1;
             }
@@ -1122,6 +1307,8 @@ static const char *type_name(const setting_field_t *field) {
             return "string";
         case SETTING_COLOUR:
             return "colour";
+        case SETTING_LIST:
+            return "list";
         case SETTING_CHOICE:
         default:
             return "choice";
@@ -1228,6 +1415,27 @@ static void write_field_schema(const settings_resource_t *resource, const settin
         }
         http_json_raw(out, room, len, "]");
     }
+    if (field->type == SETTING_LIST) {
+        // A row described once: each field's name, type, unit, bounds and line
+        const setting_list_t *list = field->list;
+        http_json_raw(out, room, len, ",\"rows_min\":");
+        http_json_integer(out, room, len, list->rows_min);
+        http_json_raw(out, room, len, ",\"rows_max\":");
+        http_json_integer(out, room, len, list->rows_max);
+        http_json_raw(out, room, len, ",\"row\":[");
+        for (uint8_t idx = 0; idx < list->field_count; idx += 1) {
+            const setting_field_t *cell = &list->fields[idx];
+            http_json_raw(out, room, len, idx ? ",{\"name\":" : "{\"name\":");
+            http_json_string(out, room, len, cell->name);
+            write_optional_string(out, room, len, "type", type_name(cell));
+            write_optional_string(out, room, len, "unit", cell->unit);
+            write_optional_float(out, room, len, "min", cell->min);
+            write_optional_float(out, room, len, "max", cell->max);
+            write_optional_string(out, room, len, "about", cell->about);
+            http_json_raw(out, room, len, "}");
+        }
+        http_json_raw(out, room, len, "]");
+    }
     if (field->nullable) {
         http_json_raw(out, room, len, ",\"nullable\":true");
     }
@@ -1244,7 +1452,7 @@ static const char *const settings_error_codes[] = {
     "read_only", "confirm_missing", "not_found", "method_not_allowed", "busy", "not_running", "no_target",
     "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
     "wrong_media_type", "failed", "not_an_image", "wrong_chip", "wrong_board", "not_an_update", "not_newer",
-    "wrong_slot", "hash_mismatch", "not_ready", "no_network", "not_on_hotspot", "gone",
+    "wrong_slot", "hash_mismatch", "not_ready", "no_network", "not_on_hotspot", "gone", "not_this_unit", "not_calibrated",
 };
 
 
@@ -1476,6 +1684,19 @@ static void console_fields(const settings_resource_t *resource, int32_t id, sett
             continue;
         }
         char line[160];
+        if (field->type == SETTING_LIST) {
+            // A line for the list, then one a row
+            uint8_t rows = list_rows(field, base);
+            snprintf(line, sizeof(line), "@setting %s=%u rows", field->name, rows);
+            write(line, ctx);
+            for (uint8_t row = 0; row < rows; row += 1) {
+                size_t len = (size_t) snprintf(line, sizeof(line), "@setting %s.%u=", field->name, row);
+                write_row(field->list, base + field->offset + field->list->rows_offset +
+                          (size_t) row * field->list->stride, line, sizeof(line), &len);
+                write(line, ctx);
+            }
+            continue;
+        }
         size_t len = (size_t) snprintf(line, sizeof(line), "@setting %s=", field->name);
         write_value(field, base, line, sizeof(line), &len);
         write(line, ctx);
@@ -1508,7 +1729,7 @@ bool settings_read_text(const char *path, const char *name, char *out, size_t ro
     int32_t id;
     const settings_resource_t *resource = screen_resource(path, &id);
     const setting_field_t *field = settings_field(path, name);
-    if (resource == NULL || field == NULL || room == 0) {
+    if (resource == NULL || field == NULL || room == 0 || field->type == SETTING_LIST) {
         return false;
     }
     size_t len = 0;
@@ -1624,6 +1845,12 @@ void settings_in_effect(const char *path) {
 
 void settings_console(const char *args, char *reply, size_t reply_size, settings_line_fn write, void *ctx) {
     args = skip_spaces(args);
+    if (strncmp(args, "nomem ", 6) == 0) {
+        // Every write's copies refused, as when the heap has none: the 503's proof (ADR-009, gate R). Never stored
+        settings_fail_alloc = strcmp(skip_spaces(args + 6), "on") == 0;
+        snprintf(reply, reply_size, "@ok setting nomem=%u", settings_fail_alloc);
+        return;
+    }
     if (*args == '\0') {
         for (size_t idx = 0; idx < resource_count; idx += 1) {
             char line[96];

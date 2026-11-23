@@ -357,6 +357,89 @@ static bool json_read_word(json_reader_t *reader, const char *word, const char *
 }
 
 
+// A scalar value at the reader (a string, a number, true, false, null), passed over
+static bool json_skip_scalar(json_reader_t *reader) {
+    const char *start;
+    size_t len;
+    json_skip_space(reader);
+    char c = reader->pos < reader->len ? reader->text[reader->pos] : '\0';
+    if (c == '"') {
+        return json_read_string(reader, &start, &len);
+    }
+    if (c == 't' || c == 'f' || c == 'n') {
+        return json_read_word(reader, c == 't' ? "true" : c == 'f' ? "false" : "null", &start, &len);
+    }
+    return json_read_number(reader, &start, &len);
+}
+
+
+// A flat object at the reader, passed over: its members' values scalars, nothing nested
+static bool json_skip_flat_object(json_reader_t *reader) {
+    const char *start;
+    size_t len;
+    if (!json_take(reader, '{')) {
+        return false;
+    }
+    if (json_take(reader, '}')) {
+        return true;
+    }
+    while (true) {
+        if (!json_read_string(reader, &start, &len) || !json_take(reader, ':') || !json_skip_scalar(reader)) {
+            return false;
+        }
+        if (json_take(reader, '}')) {
+            return true;
+        }
+        if (!json_take(reader, ',')) {
+            return false;
+        }
+    }
+}
+
+
+// An array of flat objects at the reader (ADR-009, gate R: one level, and no deeper), passed over
+static bool json_skip_object_array(json_reader_t *reader) {
+    if (!json_take(reader, '[')) {
+        return false;
+    }
+    if (json_take(reader, ']')) {
+        return true;
+    }
+    while (true) {
+        if (!json_skip_flat_object(reader)) {
+            return false;
+        }
+        if (json_take(reader, ']')) {
+            return true;
+        }
+        if (!json_take(reader, ',')) {
+            return false;
+        }
+    }
+}
+
+
+bool http_json_array_next(const http_json_member_t *array, size_t *at, const char **object, size_t *object_len) {
+    json_reader_t reader = {.text = array->value, .len = array->value_len, .pos = *at};
+    if (array->kind != HTTP_JSON_ARRAY) {
+        return false;
+    }
+    if (reader.pos == 0 && !json_take(&reader, '[')) {
+        return false;
+    }
+    json_take(&reader, ',');
+    json_skip_space(&reader);
+    size_t start = reader.pos;
+    if (!json_skip_flat_object(&reader)) {
+        return false;       // the array's end: it was checked whole when it was read
+    }
+    *object = array->value + start;
+    *object_len = reader.pos - start;
+    *at = reader.pos;
+    return true;
+}
+
+
 bool http_json_parse_object(const char *text, size_t len, http_json_member_t *members, size_t max, size_t *count,
                             const char **why) {
     json_reader_t reader = {.text = text, .len = len, .pos = 0};
@@ -390,8 +473,20 @@ bool http_json_parse_object(const char *text, size_t len, http_json_member_t *me
                 member->kind = HTTP_JSON_NULL;
                 ok = json_read_word(&reader, "null", &member->value, &member->value_len);
             }
-            else if (c == '{' || c == '[') {
-                *why = "a field is an object or a list: the API's writes are flat";
+            else if (c == '[') {
+                // A list of rows, each a flat object (ADR-009, gate R): one level, and no deeper
+                member->kind = HTTP_JSON_ARRAY;
+                size_t start = reader.pos;
+                ok = json_skip_object_array(&reader);
+                member->value = text + start;
+                member->value_len = reader.pos - start;
+                if (!ok) {
+                    *why = "a list's rows are flat objects, nothing nested";
+                    return false;
+                }
+            }
+            else if (c == '{') {
+                *why = "a field is an object: the API's writes are flat, but for a list of flat rows";
                 return false;
             }
             else {
