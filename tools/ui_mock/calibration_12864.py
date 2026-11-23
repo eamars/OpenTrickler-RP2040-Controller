@@ -109,8 +109,11 @@ def screens():
     add(p, "After the update: the notice")
 
     # A throw's new ends (not a verdict)
+    # each limit by its own cause: a screen never names a cause that did not happen (C18 the throw's time, C19 the fine
+    # tube's turns, C20 a reading far over)
     for status, line in (("Cup lifted", "Stopped: both tubes"), ("No powder", "Check the hopper"),
-                         ("Limit", "Took too long")):
+                         ("Took too long", "Over 2 minutes: stopped"), ("Too many turns", "Fine tube: stopped"),
+                         ("Far over", "Stopped: both tubes")):
         p = Panel(); m.title(p, status)
         m.figure(p, "12.40", "gr"); m.context(p, line, bold=True)
         m.softkeys(p, "Stop", "Change")

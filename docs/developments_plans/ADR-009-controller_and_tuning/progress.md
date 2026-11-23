@@ -3174,3 +3174,9 @@ Checked against the skill:
 
 **Found by the check and mended: D1's removal could divide by zero.** The creep is the band's flow at the slowest stop's lag. A stop whose powder showed at once measures a lag of 0, which D1's 0.3 s floor had covered. In the C that made the creep infinite and so the fastest stop's speed, silently; in the reference it raised.
 - **Mended in both:** the creep is taken at the slowest stop that measured a lag above zero; with none, its least share of the slowest speed (D2, a bound already there).
+
+**The 12864 sheet mended** (the manager's review, 02:3x relayed):
+- **A limit names its own cause:** "Took too long" (C18, the throw's time), "Too many turns" (C19, the fine tube's turns), "Far over" (C20, a reading far over). Each is a job screen with the weight and a line; none says a cause that did not happen. The firmware's result is one word, "limit", for all three today; the reason each screen needs is gate 5's to carry (a throw's `ended` reason).
+- **Notes for the owner, beside the sheet:**
+  - "Cup holds 200 gr" and "Empty the cup" draw sign-off item 17, the cup's capacity, which is last before the Pico W: drawn now, not built.
+  - "This unit" shows one lag; with L the scale's lag is a dead time and one or two stages, fitted for each stop. At gate 5 the row becomes "Dead time" and "Settles", the stages' sum, with each stop's own on the web.
