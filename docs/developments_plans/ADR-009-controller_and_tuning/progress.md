@@ -3068,3 +3068,38 @@ On the Pico 2 W, image at `80f4bc6` and the series' cup count mended (below), fl
 - **A1:** 10 throws at 10 gr: settled good 4, over 6, median 8.5 s. **No verdict on the bars without the B arms.** The calibration is the F.2 trial's, whose stop F.2 found placed late; the stop room rose from 0.0085 to 0.0385 within the charge as the learning moved it.
 - **The PID law's first carry was taken whole:** the record's list was the glide's (the rehearsals'); after A1 it is A1's six first errors alone, law `pid`, its stop from their median −0.0010 (was −0.0315).
 - **The cup:** 182.5 gr after A1 (the ledger).
+
+## 2026-11-24, 02:25: gate 3 begun at the desk; its checklist, the job's form, and two proposals before any change (sent to the manager)
+
+**The night's rules** (the manager, relayed after 02:22, for the owner asleep): gate 3 at the desk, its unit runs owed; a new mechanism proposed, not built.
+
+**The checklist:**
+1. **Numbers:** gate 3 measures what the frame's rows name: B3, B6, B7, B8, F1, F2, F5, F6, A11's spill; C1 measured. No number is added to the controller by the job's code. The proposals below would add one model (L).
+2. **A value from the bench unit:** none.
+3. **The test:** the stand-in scales, as F.4.
+4. **A new parameter:** none.
+5. **Mechanisms, against predictions written first:** the job's port is checked step for step against `staged.measure_on` (below); the proposals carry their own passes.
+6. **Shown on the bench unit only:** owed for the morning (the cup).
+
+**The job's form** (approved in the plan, built tonight at the desk):
+- **The calibration's arithmetic in C** (`charge_calibration_job.c`, no RTOS, no motor, no scale): the steps of `staged.measure_on` in their order, as a state machine that asks its caller for one "turn and watch" at a time (a tube, a speed, a run, a watch, a stop or a back-off) and is given that run's readings back. From them it makes each run's figures (`run_stop`, `behind`) and each speed's stop (`stops_at`); then the rules (`charge_control_set_rules`) and the rehearsals' first errors place the stop (`charge_control_place_stop`).
+- **Checked at the desk run for run** against the reference: the same runs given to both, from the simulation's bench and from the kept trials (`runs.json`, `KeptBench`): the measured calibration equal to a part in ten thousand.
+- **On the unit, a job in `jobs.c`** like a cleanup: it turns the tubes for each asked run, feeds the readings back, is bounded in time and in powder (the user's declared cup), can be stopped, and writes the powder's record and the unit's record on the user's yes. Each run is a recording. Its cup step is a safety step, kept.
+- **Started:** from the console first (`ccal run <profile>`), the API's action and the screens after gates 4 and 5.
+
+**Proposal L, the scale's lag in stages** (the owner's requirement; the method "brought to the manager before building"):
+- **The model:** what a stop's powder shows follows a dead time `d` and then one first-order stage `τ` (a second, slower stage `τ2` with its share when the first leaves a residual over a digit). It is fitted by least squares to each stop's rise after the stop, normalised to its end; each stop keeps its own (d, τ), by flow, as the lag table does.
+- **In the forecast:** a parcel shows nothing before `d` and the share `1 − e^(−(t−d)/τ)` after it; the powder unseen is each parcel's unshown share. A parcel leaves the forecast once under a hundredth of it is unshown. The learnt source takes the unit record's (d, τ).
+- **Its cost:** each parcel keeps the time it was turned out (the 2 KB a charge on the Pico W that C25 declined; the Pico 2 W has it; the Pico W is gate 7's).
+- **Its pass, written first:**
+  - on `slower`, `gng` and `strain` the fitted model reproduces each stop's arrivals within a digit (RMS);
+  - the learnt source given the fitted model on `slower` is within the bar of a calibrated unit's overs there (it was 15 points over with the lag as one number);
+  - a calibrated unit with the model is no worse than with the lag table on every stand-in.
+- **The alternative:** keep the lag table and add only the dead time. That is simpler, but it does not fit a scale that holds small changes (`holds`, the owner's account of his G&G).
+
+**Proposal R, the rehearsal's form** (F5 decided its size and count, "a throw's last stretch, the coarse room's size, 40 or more"; what remains is its start):
+- **The finding it must mend** (F.2): at the shipped fine top of 5 rev/s a short rehearsal from a cold tube streams for less than the scale's lag, rests far short, and places the stop late, so a calibrated unit went 0 good of 10.
+- **Recommended:** each rehearsal is a throw of the fine tube alone through the controller's own law (the PID law and its envelope), from rest, its target the coarse room. Its size is never under the fine tube's flow at its top times twice its longest lag, so it reaches its approach before the stop as a real throw does. 40 of them, the stop placed from their median as now.
+- **Its pass, on the unit at the shipped defaults:** the stop placed within a digit of where 10 of the calibration's own throws then rest; and the calibration's 25 throws meet gate 2's bar.
+- **Its cost:** about 40 × 1.3 to 5 gr, within the job's 200 gr only at the lower end. The cup capacity's step (sign-off item 17) decides whether that is a figure a cup.
+- **The alternative:** rehearsals at the floor (F.2's form (a)): no far-short tail on the unit, but it failed its pass at F.2 by the time it costs at a slow creep.
