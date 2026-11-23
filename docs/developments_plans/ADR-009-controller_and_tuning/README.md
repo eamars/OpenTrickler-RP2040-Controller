@@ -127,9 +127,9 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 
 ### Found while building: the Pico W's flash is nearly full
 
-- **What:** after gate 2's rest the Pico W's image is 1,039,296 B of its 1,040,384 B slot: **1,088 B spare** (13 KB before it). The recording is 10.3 KB of our own code at `-O0`. Every later gate adds code (F's checks, gate 3's job, gates 4 and 5's screens), so the next one will not link on the Pico W.
+- **What:** after gate 2's rest the Pico W's image is 1,039,296 B of its 1,040,384 B slot: **1,088 B spare** (13 KB before it). The recording is 10.3 KB of our own code at `-O0`. Every later gate but S adds code (R's records and their API, F's checks, gate 3's job, gates 4 and 5's screens), so gate R will not link on the Pico W.
 - **The order on record** (AGENTS.md, "Size"): third-party code at `-Os` (done in ADR-010), then ADR-005's optimised build, and only then cuts. Our own code at `-Os` would go against "our own code stays at `-O0`, for debugging".
-- **Closes** when the owner has chosen the remedy and the Pico W links with room for gate F. That is the owner's decision, and it is needed before gate F begins.
+- **Closes** when the owner has chosen the remedy and the Pico W links with room for gate R. That is the owner's decision, and it is needed before gate R begins (gate S is the simulation's, and adds no firmware).
 
 ### Gate 2's rest: every throw's recording through the API
 

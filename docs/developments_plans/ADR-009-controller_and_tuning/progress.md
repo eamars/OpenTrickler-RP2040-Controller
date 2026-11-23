@@ -1903,5 +1903,5 @@ The image of 92df058 (2.0.3-209) on the Pico 2 W at 192.168.2.166; the tools at 
 
 **Pass: gate 2's rest, met on the Pico 2 W.**
 - **Not shown:** the Pico W on a unit; a thinned throw on a unit (the simulated throws had 40 to 64 rows, so none thinned); the glide's shadow under the PID law on a unit (only the glide poured today; under the PID law the shadow is checked at the desk, 200 throws a set in lockstep).
-- **Found and written into the README's "Found while building":** on the Pico W a charge and an update poll cannot both have the heap (gate 7 closes it); the Pico W's flash has 1,088 B spare, which is the owner's to decide before gate F.
+- **Found and written into the README's "Found while building":** on the Pico W a charge and an update poll cannot both have the heap (gate 7 closes it); the Pico W's flash has 1,088 B spare, which is the owner's to decide before gate R.
 - **Left as found:** the simulated scale cannot pour a console series.
