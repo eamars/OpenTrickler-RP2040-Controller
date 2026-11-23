@@ -2493,3 +2493,33 @@ On the Pico 2 W, image 2.0.3-237 at `71d48c1`, the cup emptied by the owner befo
 - Before the night, the frame's fine top of 0.5 rev/s made a 1 gr rehearsal last over 2 s, and the reading caught up before the stop.
 
 **Finding for gate 3's measurement** (the manager): the coarse tube's grains a turn varied 16% run to run at this calibration (5.5% at gate 2's), its runs at 1 rev/s, with stops measured up to 5.
+
+## 2026-11-23, 23:48: F.2, a rehearsal as a throw's last stretch (the manager's decision A), its form and pass first
+
+**The form** (F5, F6's approved item, built early, in the reference's calibration procedure that gate 3 ports, and in the C's rehearsal mode beside it):
+- a rehearsal's fine tube runs at its floor from the start until a reading shows powder arriving: above the base by more than the scale's noise (C24's one definition: the zero's margin and 2 digits);
+- only then does its stream law act, so the stretch to the stop is entered with the tube flowing, as a throw's last stretch is;
+- the lead-in's powder is the rehearsal's own: the throw's base is taken before it, and its target is unchanged (1 gr);
+- a tube that never shows powder is no powder's (C25).
+
+**Its pass, in the simulation** (6 seeds each, the trial's record `pico2w_ar2209_f2` within the owner's limits, then the night's record within the simulation's user):
+- the good share of 10 × 10 gr series within its seed spread of the rehearsals as they were;
+- the stop room the rehearsals place within its seed spread.
+- The simulation has no cold start, so it should see no difference. If it does: stop, and tell the manager.
+
+**Its prediction on the unit** (the stops unchanged, rehearsed again, about 15 gr; then F.2's 10 × 10 gr again, about 110 gr; the cup at 343.94 gr):
+- the far-short tail of the first rests gone: none below −5 digits;
+- the stop room placed near the series' learnt end, +0.008 (within 2 digits of it);
+- overs fewer than 7 of 10.
+- The pass is the tail gone and the room placed as predicted. The over count is a figure: with the owner's fine top of 3 the simulation still expects about a third over.
+
+## 2026-11-23, 23:58: F.2, the lead-in fails its pass in the simulation; stopped and asked
+
+The form of 23:48 (the fine tube at its floor until a reading shows powder arriving, then the stream law) was built in the reference and the C, uncommitted, and studied before any unit run (6 seeds, the rehearsals as they were against the lead-in, then 10 × 10 gr):
+- **the night's record, the simulation's user:** stop room +0.020 → +0.022, good 44 → 42 of 60. No difference.
+- **the trial's record, the owner's limits:** stop room +0.015 → −0.005 on average, its spread doubled (sd 0.020 → 0.040), one seed at −0.07, outside the old range. Good 36 → 41, within its spread.
+- **What moved:** the rehearsals rest shorter with the lead-in (seed 55: −11 to +2 digits, against −6 to +6; seed 22 gains −11 and −8). All of them stopped from the 0.1 floor, so it is not the unit's stop-from-speed tail. The lead-in itself shifts them, the switch from the floor to about 2 rev/s once powder shows being the likely way (not shown).
+- **By its pass the form fails:** stopped, nothing run on the unit, and the manager asked. The options sent:
+  - (a) a rehearsal capped at the speed a throw's fine tube has at its stop, the floor, so the reading catches a cold start long before the stop;
+  - (b) F6's coarse room's size;
+  - (c) leaving the form for gate 3.
