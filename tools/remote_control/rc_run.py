@@ -1632,6 +1632,10 @@ class Session:
             self.fail(f"reach: the simulated throw did not end with Change in {REACH_THROW_S:.0f} s: "
                       f"{state['title']} {state['right']}")
         else:
+            # The simulated scale lifts its own cup 3 s after the verdict, and the next throw closes Change: the pan
+            # held at the throw's weight keeps the screen between throws for the sweeps, as a person's cup left on
+            # does (the verdict's second went at ADR-009's gate F.5, and the window with it)
+            self.send("sim weight 30")
             self.sweep("a charge, between throws")
             state = self.press_and_read("ccw", 4)
             for _ in range(4):
@@ -1648,6 +1652,7 @@ class Session:
         # Back from Change may have stopped the charge already, when the next throw had begun and closed the page:
         # the stop is not judged, and the simulated scale's switch below waits for the charge to have ended
         self.console.command("charge stop")
+        self.console.command("sim weight off")
         # The simulated scale is switched off once the charge has ended: refused while it runs
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline:

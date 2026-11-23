@@ -1,5 +1,13 @@
 # ADR-009: progress
 
+## For the owner in the morning (kept current through the night of 2026-11-24)
+
+Each item with the implementing agent's recommendation. Nothing here blocked the night's work: each was worked around.
+
+1. **F.5's ABBA is owed.** The night's cup room (550 gr less the cup at 02:22, 82 gr) could not hold its four arms by their most pour (4 × 140 gr). Only its first arm (A, the controller) was thrown. *Recommendation:* empty the cup, then run `logs/adr009/f5/abba.sh` whole (it restores nothing by hand: put the calibration file back from `calibration.json.held` in `logs/adr009/20261123_235643_trial_pico2w_ar2209_f2a/`).
+2. **The A18 migration on a unit:** a stored `controller` byte of 1 read as the controller and written as 0 is shown by the code only. The bench unit's bytes were already 0. *Recommendation:* show it on the Pico W at gate 7, whose stored settings are older.
+
+
 The ADR is a Draft, not approved. What is recorded here is research the owner asked for ahead of its design.
 
 ## 2026-11-19: research, no unit
@@ -3027,3 +3035,36 @@ On the Pico 2 W, image at `80f4bc6` and the series' cup count mended (below), fl
   - **if it misses them and the calibration's stop is the cause** (F.2's late stop), the ABBA moves to after gate 3, the bars unchanged;
   - **the PID law's first carry is taken whole:** the record's list is the rehearsals', the glide's, so the first PID-law charge's carry replaces it rather than being bounded against it;
   - **the cup:** the ABBA pours about 400 gr, so it needs an empty cup, asked for before it.
+
+## 2026-11-24, 02:24: gate F.5 built and its small proofs pass on the Pico 2 W; its ABBA owed (the night's cup)
+
+**Built** (`844be0f`):
+- one controller, the PID law: the charge sets it, the envelope always on;
+- `controller` and `mode` out of the table, so out of the API, the schema, the export, the console's `setting` and the web; their bytes zeroed at the load;
+- the auto-tuner's switch `auto_tune` in (on by default, the filler's third byte, held as "off"; a row on the screen's Charge page);
+- the jog, D1, D3's index, D7's and D8's limits, C16's 0.4 s, D9's 0.2 gr and D10's 0.3 s out, in the reference and the C together;
+- E9's second out for the frame (today's loop keeps it);
+- `ccon` lists only;
+- `charge <gr> [series <n>] glide|legacy`, for one charge, never stored, carrying and learning nothing;
+- `series.py --pour` in place of `--ccon`, and its `--mode` now sets the tolerance live;
+- `api_v1.md`'s verdict timing and refusal texts.
+
+**The simulation:**
+- the throw-for-throw check passes (every set's lockstep 40 of 40, the jog's sets gone);
+- F.1's cases pass; F.3's pass; F.4's as before (`keeps_short`'s accepted judgement unchanged, its lockstep 315 of 315);
+- **F.2's `tolerance` case** compared each verdict with the reading taken a second after the throw ended, the old verdict's time. It now judges on the controller's settled weight, as E9's removal makes the verdict.
+- **Found, a line for the failure modes:** in 3 of its 20 throws the reading a second later was a digit or more higher. The settled verdict came before the last powder landed. N.3's study judged true weights and saw no more overs, so this is the shown weight against the true one.
+
+**On the Pico 2 W** (image `844be0f`; settings copied before the flash, `logs/adr009/f5/settings_before`):
+- `charge_cycle` PASS: the PID law, good at 29.98;
+- `menu_tour` differed on `settings/charge` alone (the Auto-tune row, "On ›"); that page saved into the baseline, then PASS;
+- `api_check` PASS; `settings_roundtrip` PASS;
+- `reach` PASS after a harness mend. The simulated scale lifts its own cup 3 s after the verdict; with E9's second gone, `reach`'s two sweeps between throws outlasted that window and the next throw closed Change. `reach` now holds the simulated pan at the throw's weight while it sweeps (`sim weight 30`), as a person's cup left on does. A person has as long as they like;
+- `ccal` gives its new lines; `ccon` lists and refuses a write; `setting settings/charge` gives `auto_tune="on"` and no `controller` or `mode`;
+- **the auto-tuner off:** 5 throws at 10 gr on profile 0. The stop room stayed 0.0085 through all five while the first errors ran +0.06 to +0.12, and nothing was carried. The setting was then put back.
+- **Not shown:** a stored `controller` byte of 1 migrating. This unit's bytes were already 0 (for the owner's morning list).
+
+**The ABBA, owed:** at the night's rules (02:22) the room was 550 − 82 gr; the four arms' most pour, 4 × 140 gr, did not fit. Arm A1 (the controller) had begun and was let finish; the other three were stopped at the desk before they reached the unit (their calibration file held aside).
+- **A1:** 10 throws at 10 gr: settled good 4, over 6, median 8.5 s. **No verdict on the bars without the B arms.** The calibration is the F.2 trial's, whose stop F.2 found placed late; the stop room rose from 0.0085 to 0.0385 within the charge as the learning moved it.
+- **The PID law's first carry was taken whole:** the record's list was the glide's (the rehearsals'); after A1 it is A1's six first errors alone, law `pid`, its stop from their median −0.0010 (was −0.0315).
+- **The cup:** 182.5 gr after A1 (the ledger).

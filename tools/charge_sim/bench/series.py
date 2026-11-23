@@ -3,7 +3,7 @@
 The firmware runs the controller (src/charge_control.c) every millisecond; the PC only sets it up and listens:
 1. the calibration is written into the chosen powder profile's slot with `ccal` (from a kept trial's calibration,
    `staged.to_json`'s shape, or a throw set's `calibration`), for the finish and band asked;
-2. the charge's controller is set to the staged one, live and not stored (`setting settings/charge controller=staged`);
+2. the one controller pours (since ADR-009's gate F.5), or for a comparison the console's word (`--pour`);
 3. `charge <target> series <n>`: n throws into the same cup, each from the weight the cup rests at, no cup lifted;
 4. each throw's line (`Charge: throw ...`) is read as it comes, and its rows (`ccrec <its recording>`); with
    --host, its recording through the API too, as GET /api/v1/recordings/{id} and its samples give it (ADR-009,
@@ -106,6 +106,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--board", default="pico2_w")
+    parser.add_argument("--elf", type=Path, help="the image the unit runs, for its console (rc_run's --elf)")
     parser.add_argument("--host", help="the unit's address: each throw's recording read through the API too")
     parser.add_argument("--name", required=True)
     parser.add_argument("--controller", choices=("staged",), default="staged")
@@ -175,7 +176,7 @@ def main() -> int:
     sys.path.insert(0, str(args.repo / "tools" / "remote_control"))
     import argparse as _argparse
     import rc_run   # the checkout's own runner
-    session = rc_run.Session(_argparse.Namespace(board=args.board, elf=None), f"adr009_series_{args.name}")
+    session = rc_run.Session(_argparse.Namespace(board=args.board, elf=args.elf), f"adr009_series_{args.name}")
     # The real cup, before anything turns (the owner, 2026-11-23: the hopper stays filled)
     most = args.most_pour if args.most_pour is not None else args.throws * (args.target + 3.0) + 10.0
     go, cup_before = session.cup_before(f"series {args.name}", most, None)
@@ -219,9 +220,10 @@ def main() -> int:
                 print(line)
         session.send("ccon")      # it lists only since gate F.5: the constants the series ran with
         record["ccon"] = list(session.console.data_lines)
-        session.send(f"setting settings/charge controller={args.controller}")
         if args.mode:
-            session.send(f"setting settings/charge mode={args.mode}")
+            # the mode went at ADR-009's gate F.5: its band is the user's tolerance less half a digit, set live
+            tolerance = {"accurate": 0.03, "fast": 0.05}[args.mode]
+            session.send(f"setting settings/charge fine_stop_threshold={tolerance:g}")
         if args.charge_set:
             reply = session.send(f"setting settings/charge {args.charge_set}")
             if reply is None or reply.startswith("@err"):
@@ -276,7 +278,7 @@ def main() -> int:
             session.send("charge stop")
         for tube in ("coarse", "fine"):
             session.send(f"motor {tube} 0")
-        session.send("setting settings/charge revert")     # the mode and the controller back as stored
+        session.send("setting settings/charge revert")     # the tolerance and the rest back as stored
         if gains:
             session.send(f"setting powder_profiles/{args.profile} revert")
         # Each throw's settled weight: the next one's base less its own
