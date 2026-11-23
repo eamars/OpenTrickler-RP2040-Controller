@@ -64,5 +64,16 @@
   "powder_note": "the same AR2209 as the sessions before, a day on; the hopper filled",
   "scale": "A&D FX-300i in grains, response FAST",
   "notes": "ADR-009's gate F.2 (progress.md, 2026-11-23): the bench unit calibrated afresh by the PC trial within its user's own limits (coarse 0.1 to 5, fine 0.1 to 3 rev/s), its ladder reaching the user's tops for the first time: coarse stops at 0.1, 0.707 and 5 rev/s, fine at 0.1 to 3. The fine least of 0.1 holds the creep up, so its throws do not compare with the night's; and at the shipped default limits (coarse 0.1 to 5, fine 0.08 to 5): the trial of 23:56 (its rehearsals at the floor, form (a), reverted after) and its measurements rehearsed again at 00:10 with the form of the day, then its series; and gate F.3's runs from 00:38 (the back-off's spill measured at 0.25 turn and 1 rev/s from the coarse floor, then a 3-throw series with it forecast, and charge cycles with the gate and the precharge on)"
+ },
+ {
+  "name": "pico2w_ar2209_f5",
+  "from": "20261124_010000",
+  "to": "20261124_035959",
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same AR2209 as the sessions before; the hopper filled",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009's gates F.4 and F.5 (progress.md, 2026-11-24): F.4's series on profile 0 (calibrated, by mistake) and on profile 1 (no calibration: the learnt source, lag 2 s and rest 6 s assumed); F.5's arm A1 of its ABBA (the controller, the PID law, on profile 0's F.2 calibration kept), the other three arms owed"
  }
 ]
