@@ -59,7 +59,11 @@ LOG_DIR = REPO / "logs" / "rc"
 # cup past this, reads it again after, and writes both into the ledger
 CUP_MOST_GR = 600.0
 CUP_LEDGER = REPO / "logs" / "adr009" / "cup_ledger.csv"
-CUP_EMPTIED_GR = 20.0           # a reading this far below the ledger's last: the cup was emptied between runs
+# A reading this far below the ledger's last is a drop between runs. It is never taken as the cup emptied on its own:
+# a zero of the scale with powder in the cup reads the same (2026-11-24, 02:13). Without the owner's word
+# (--cup-emptied) the drop is carried: the cup is counted as the reading and every drop carried since the owner's last
+# word, and the ledger says so (`offset=` in its note)
+CUP_EMPTIED_GR = 20.0
 # The most grains a turn either tube may give: a run's most pour is its motors' bounded turns at this (the bench's
 # coarse tube poured 9.5 a turn, 2026-11-23)
 CUP_GR_A_TURN_MOST = 12.0
@@ -1645,6 +1649,15 @@ class Session:
             if state["softkey"] != "right" or state["right"] != "Change":
                 self.fail(f"reach: Change not reached between throws: {state['softkey']} {state['right']}")
             else:
+                # Read again just before the click: a click meant for Change that lands on the next throw's Zero
+                # zeroes the scale (2026-11-24, 02:13: on the simulated one, harmless; on the real one, with powder in
+                # the cup, the cup's count is lost). The click only on Change, the simulated scale on
+                state = self.screen_now()
+                if state["title"] != "Lift the cup" or state["right"] != "Change" or state["softkey"] != "right":
+                    self.fail(f"reach: the screen moved on before Change's click: {state['title']} {state['right']}")
+                    self.console.command("charge stop")
+                    self.console.command("sim weight off")
+                    return
                 self.press_and_read("enc")
                 self.sweep("a charge, its Change")
                 self.send("press rst 1")
@@ -4155,14 +4168,14 @@ class Session:
                     weight = float(match.group(1))
                 except ValueError:
                     weight = float("nan")
-                if math.isfinite(weight) and weight >= CUP_MOST_GR:
+                if math.isfinite(weight) and weight + getattr(self, "cup_counted_offset", 0.0) >= CUP_MOST_GR:
                     self.console.command("motor coarse 0")
                     self.console.command("motor fine 0")
                     self.fail(f"cup: {weight:.2f} gr reached while a motor turned: both stopped")
                     return
             time.sleep(max(0.0, min(0.5, until - time.monotonic())))
 
-    def cup_before(self, command, most, unchecked):
+    def cup_before(self, command, most, unchecked, emptied=None):
         """
         The cup read before a run that can turn a motor.
 
@@ -4170,6 +4183,7 @@ class Session:
             command: the run, as the ledger names it.
             most: the most the run pours, in grains.
             unchecked: the reason given with --no-cup-check, or None.
+            emptied: the owner's words that the cup was emptied (--cup-emptied), or None.
 
         Returns:
             (may the run go, the reading before or None).
@@ -4183,11 +4197,24 @@ class Session:
                       "<reason> to run it all the same)")
             return False, None
         last = self.cup_last()
-        if last is not None and weight < last - CUP_EMPTIED_GR:
-            self.cup_ledger("(between runs)", last, weight, 0.0, "emptied")
-        self.log.write("rc", f"cup: {weight:.2f} gr before {command}, its most pour {most:.0f} gr")
-        if weight + most > CUP_MOST_GR:
-            self.fail(f"cup: {weight:.2f} + {most:.0f} > {CUP_MOST_GR:.0f}, empty the cup")
+        offset = self.cup_offset()
+        if emptied:
+            # the owner's word: the count starts again from the reading
+            self.cup_ledger("(between runs)", last, weight, 0.0, f"emptied: the owner's word: {emptied}; offset=0")
+            offset = 0.0
+        elif last is not None and weight < last - CUP_EMPTIED_GR:
+            offset += last - weight
+            self.cup_ledger("(between runs)", last, weight, 0.0,
+                            f"a drop of {last - weight:.2f} with no owner's word: carried, not taken as emptied; "
+                            f"offset={offset:.2f}")
+            self.log.write("rc", f"cup: WARNING the reading dropped {last - weight:.2f} gr between runs, with no owner's "
+                                 f"word that the cup was emptied: counted as {weight + offset:.2f} gr (--cup-emptied "
+                                 "<the owner's words> once the owner has emptied it)")
+        counted = weight + offset
+        self.cup_counted_offset = offset
+        self.log.write("rc", f"cup: {weight:.2f} gr before {command} (counted {counted:.2f}), its most pour {most:.0f} gr")
+        if counted + most > CUP_MOST_GR:
+            self.fail(f"cup: counted {counted:.2f} + {most:.0f} > {CUP_MOST_GR:.0f}, empty the cup")
             self.cup_ledger(command, weight, None, most, "refused")
             return False, weight
         return True, weight
@@ -4204,6 +4231,17 @@ class Session:
                 note += ": MORE THAN STATED"
                 self.fail(f"cup: the run poured {poured:.1f} gr, more than its stated most {most:.0f}")
         self.cup_ledger(command, before, weight, most, note)
+
+    @staticmethod
+    def cup_offset():
+        """The drops carried since the owner's last word, from the ledger's latest `offset=`; 0 with none."""
+        if not CUP_LEDGER.exists():
+            return 0.0
+        for line in reversed(CUP_LEDGER.read_text(encoding="utf-8").splitlines()[1:]):
+            match = re.search(r"offset=([-\d.]+)", line)
+            if match:
+                return float(match.group(1))
+        return 0.0
 
     @staticmethod
     def cup_last():
@@ -4264,6 +4302,9 @@ def main():
     parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
     parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
     parser.add_argument("--most-pour", type=float, help="the most this run may pour, in grains (default: the run's own)")
+    parser.add_argument("--cup-emptied", metavar="WORDS",
+                        help="the owner's words that the cup was emptied, quoted: the cup's count starts again from the "
+                             "reading. Without them a drop between runs is carried, never taken as emptied")
     parser.add_argument("--no-cup-check", metavar="REASON",
                         help="run with no reading of the real scale, for this reason (written into the ledger)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -4380,7 +4421,7 @@ def main():
         if most is None:
             run_command(session, args)
         else:
-            go, before = session.cup_before(cup_name(args), most, args.no_cup_check)
+            go, before = session.cup_before(cup_name(args), most, args.no_cup_check, args.cup_emptied)
             if go:
                 try:
                     run_command(session, args)
