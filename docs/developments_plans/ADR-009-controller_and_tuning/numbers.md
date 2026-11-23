@@ -53,9 +53,9 @@ Every Rule, Safety and default was read again against the test above. **Nine fai
 | G1 | The lag (0.9 s) and the rest (2.5 s) of a unit never calibrated: the bench's A&D's, kept as "the default" | A general assumption on the slow side, so an unknown scale errs short. Its value is found on every stand-in scale (F.4), never taken from the A&D |
 | G2 | The starting figure, 2.0 gr a turn: raised from 1.0 "after this rig's dry throws", and a weight in grains | Not a number from a rig. The figure starts from what the throw itself shows, the weight risen for the turns made; until it has shown, the frame forecasts nothing, as today's loop does. If F.4's study finds that is not enough, a start value is a new parameter and goes to the owner |
 | C20 | The far-over stop written as "150 digits": 3 gr turned into digits with the A&D's digit | In the user's own terms: 100 times the tolerance (3 at the default 0.03), in the scale's unit whatever that is |
-| D9 | The coarse room's extra 0.2 gr, written as "10 digits" the same way | Tried at nothing (N.3). Without effect it goes; with one, it is made from a spread the unit measured |
-| C16 | Stillness for at least 0.4 s, chosen on the bench's scale | Tried at nothing (N.3). Without effect it goes, and the two reading intervals of D15 stand alone |
-| D10 | The rest's extra 0.3 s (and D13's 0.3 s, with C13) | Tried at nothing (N.3). Without effect it goes; with one, it is counted in reading intervals |
+| D9 | The coarse room's extra 0.2 gr, written as "10 digits" the same way | Tried at nothing (N.3): without effect, and half a second quicker. It goes (F.5) |
+| C16 | Stillness for at least 0.4 s, chosen on the bench's scale | Tried at nothing (N.3): without effect. It goes, and the two reading intervals of D15 stand alone (F.5) |
+| D10 | The rest's extra 0.3 s (and D13's 0.3 s, with C13) | Tried at nothing (N.3): no more overs without it, alone or with the other two. It goes with them (F.5). D13's waits for C13 at gate 3 |
 | C1 | A small move at 0.2 rev/s, "as the bench's watched nudges were". The calibration measures its moves at that same 0.2, so "measured" only repeated it | The calibration makes its moves at a speed from the unit's own measured ladder; the top-ups use that speed (3) |
 | F5 | The rehearsals' 1 gr | Goes with the mend already decided: a rehearsal is a throw's last stretch, its size the coarse room's |
 | F6 | The prime at 1 rev/s | A speed inside the user's own range (A2, A5, A13, A14) |
@@ -168,7 +168,7 @@ The same on every unit, never stored, changed live only by the console's `ccon` 
 | C13 | `learn_fine_prior` (`CHARGE_RULE_LEARN_FINE_PRIOR`) | 3 (on) | `ccon`; set to 0 by hand in the night series | nothing | the fine figure's learning: how many throws the calibration's figure counts for | 11-22 day; judged untrustworthy (finding 7) | **Off in the build until gate 3 has measured the fine tube's lag across the user's range.** Gate 3's study, its pass written first, then says whether it is part of the auto-tuner. Its switch is the auto-tuner's, never a constant ("Decided in the review", 2) (N.2 for the default, 3) |
 | C14 | `learn_fine_most` (`CHARGE_RULE_LEARN_FINE_MOST`) | 0.25 (±25%) | `ccon` | nothing | the fine figure's bound | 11-22 | **Safety** of the learning: a bound |
 | C15 | `learn_fine_split` (`CHARGE_RULE_LEARN_FINE_SPLIT`) | 1 (on) | `ccon` | nothing | one fine figure, or a stream's and a finish's | 11-22: no measurable gain on the rig (16:37) | **Remove** the switch. One figure or two is decided with C13, by the same study (3) |
-| C16 | `still_least_s` (`CHARGE_RULE_STILL_LEAST_S`) | 0.4 s | `ccon` | nothing | at rest: no new high for this long, or two intervals if longer (D15) | `research/proposals_2026-11-21.md` | A time chosen on the bench's scale: it fails the test. Tried at nothing (N.3): without effect it goes, and D15's two intervals stand alone. At half and twice it had no effect beyond chance (study, group 2) |
+| C16 | `still_least_s` (`CHARGE_RULE_STILL_LEAST_S`) | 0.4 s | `ccon` | nothing | at rest: no new high for this long, or two intervals if longer (D15) | `research/proposals_2026-11-21.md` | A time chosen on the bench's scale: it fails the test. **Remove** (F.5): at nothing it was without effect (N.3), and D15's two intervals stand alone. At half and twice it had no effect beyond chance (study, group 2) |
 | C17 | `most_moves` (`CHARGE_RULE_MOST_MOVES`) | 8 | `ccon` | nothing | tries a throw gets after its first rest | `staged.py` | **Safety:** a bound on a throw |
 | C18 | `throw_most_s` (`CHARGE_RULE_THROW_MOST_S`) | 120 s | `ccon` | nothing | a throw past it ends "limit" | `staged.py` | **Safety** |
 | C19 | `fine_most_turns` (`CHARGE_RULE_FINE_MOST_TURNS`) | 15 turns | `ccon` | nothing | a throw past it ends "limit" | `staged.py` | **Safety.** In turns it means another weight on another tube, and a tube that pours little a turn would end a true throw. Its form is decided with the no-powder check, which asks the same question ("Decided in the review", 6) (F.1) |
@@ -191,8 +191,8 @@ None is a constant anyone can see or set; each is a number written into a formul
 | D6 | The glide room: the stop room plus twice the spread of a stop from four times the creep (`:141`) (`CHARGE_RULE_GLIDE_SPREADS`, `CHARGE_RULE_GLIDE_FLOW_TIMES`) | 2, 4 | `proposals_2026-11-21.md`: the creep then lasts about 3 s | **Rule**: at half it costs overs, at twice time (study, groups 3 and 4) |
 | D7 | The glide time: 0.6 × the longest lag of the fine stops from the third to the fastest, between 0.4 and 2.0 s (`:148`, `:151`) (`CHARGE_RULE_CREEP_TOP_STOP`, `CHARGE_RULE_GLIDE_LAG_SHARE`, `CHARGE_RULE_GLIDE_LEAST_S`, `CHARGE_RULE_GLIDE_MOST_S`) | 0.6, 0.4, 2.0, from the third stop | `proposals_2026-11-21.md`, "between set limits"; no study of the limits found | 0.6: **Rule** (study, group 4: at half, overs up to +11 points). 0.4 s: **Remove** (group 1). 2.0 s: **Remove**: it acts only on the slowest scale, where doubling it changed nothing and halving it cost overs (F.5) |
 | D8 | The coarse glide time: 0.6 × the coarse lag at its floor, between 0.3 and 1.5 s (`:152`) (`CHARGE_RULE_GLIDE_LAG_SHARE`, `CHARGE_RULE_COARSE_GLIDE_LEAST_S`, `CHARGE_RULE_COARSE_GLIDE_MOST_S`) | 0.6, 0.3, 1.5 | as D7 | 0.6: as D7. 0.3 s: **Remove** (group 1). 1.5 s: **Remove**: it never acts, and halving it cost overs (F.5) |
-| D9 | The coarse room: 3 spreads of a coarse stop from its floor + the glide room + 0.2 gr (`:153`) (`CHARGE_RULE_COARSE_ROOM_SPREADS`, `CHARGE_RULE_COARSE_ROOM_EXTRA_GR`) | 3, 0.2 gr | `proposals_2026-11-21.md` | 3: **Rule**, a trade of time (study, group 3). 0.2 gr: a weight chosen on the bench's scale, so it fails the test (a gram scale reads it as 3 gr). Tried at nothing (N.3): without effect it goes; with one, it is made from a spread the unit measured (N.3, F.1) |
-| D10 | The rest: the slowest quiet time of stops within twice the creep + 0.3 s (`:157`, `:161`) (`CHARGE_RULE_REST_FLOOR_TIMES`, `CHARGE_RULE_REST_EXTRA_S`) | 2, 0.3 s | `proposals_2026-11-21.md` | The 2: **Rule**. The 0.3 s: a time chosen on the bench's scale; tried at nothing (N.3): without effect it goes, with one it is counted in reading intervals. At half and twice neither had an effect beyond chance (study, group 2) |
+| D9 | The coarse room: 3 spreads of a coarse stop from its floor + the glide room + 0.2 gr (`:153`) (`CHARGE_RULE_COARSE_ROOM_SPREADS`, `CHARGE_RULE_COARSE_ROOM_EXTRA_GR`) | 3, 0.2 gr | `proposals_2026-11-21.md` | 3: **Rule**, a trade of time (study, group 3). 0.2 gr: a weight chosen on the bench's scale, so it fails the test (a gram scale reads it as 3 gr). **Remove** (F.5): at nothing it was without effect on good and over, and half a second quicker (N.3) |
+| D10 | The rest: the slowest quiet time of stops within twice the creep + 0.3 s (`:157`, `:161`) (`CHARGE_RULE_REST_FLOOR_TIMES`, `CHARGE_RULE_REST_EXTRA_S`) | 2, 0.3 s | `proposals_2026-11-21.md` | The 2: **Rule**. The 0.3 s: a time chosen on the bench's scale. **Remove** (F.5): at nothing there were no more overs, alone or with C16's and D9's (N.3). At half and twice neither had an effect beyond chance (study, group 2) |
 | D11 | The jog's aim: two SDs of the rehearsals and a digit (`:192`) (`CHARGE_RULE_JOG_AIM_SDS`) | 2 | jog only | **Remove** with the jog (F.5) |
 | D12 | The coarse tube runs only if the target is more than the coarse room and half a coarse turn (`:226`, `:659`) (`CHARGE_RULE_COARSE_LEAST_TURNS`) | ½ turn | none found | **Rule**: at half no effect, at twice up to 15 s slower (study, group 3) |
 | D13 | The fine learning's window opens after the coarse tube's quiet time + 0.3 s (`:518`) (`CHARGE_RULE_FINE_WINDOW_EXTRA_S`) | 0.3 s | none found | with C13 (3) |
@@ -325,6 +325,27 @@ Three fixed numbers are times or weights chosen on the bench's scale, and fail t
   - **All three together** are judged the same way. If each alone is without effect and the three together are not, they do not go together, and that is said.
   - The baseline's second seed is tallied by the same bars, to show what chance does in this run.
 - **What it cannot show:** the simulation's stops scatter less than the rig's. A number that goes here goes from the code at F.5 with the other limits that do nothing, and is then shown on the unit by that step's proofs.
+
+**Run 2026-11-23, 18:07 to 18:29** (`tools/charge_sim/fit/study_20261123/nothing.txt`; 120 cases of 800 throws). Of the 20 cases, those in which each measure moved past its bar, and the mean move:
+
+| Set to nothing | Good moved | Over moved | Median moved | Mean: good, over, median |
+|---|---|---|---|---|
+| (the baseline's second seed, for what chance does) | 1 | 1 | 4 | +0.21, −0.21 points, −0.20 s |
+| C16, the stillness's 0.4 s | 1 | 1 | 0 | +0.13, −0.08 points, −0.03 s |
+| D9, the coarse room's 0.2 gr | 0 | 0 | 8 | +0.11, +0.01 points, −0.55 s |
+| D10, the rest's 0.3 s | 1 | 1 | 2 | +0.73, −0.56 points, −0.31 s |
+| All three | 0 | 0 | 15 | +0.09, −0.01 points, −0.88 s |
+
+**The verdict, by the pass as written:**
+- **C16's 0.4 s: without effect.** It goes; the two reading intervals of D15 stand alone. It bought no time either.
+- **D9's 0.2 gr: without effect** on good and over in every case. It goes, and a throw is about half a second quicker.
+- **All three together: without effect** on good and over in every case, and 0.9 s quicker a throw in the mean (quicker past its bar in 15 cases of 20, slower in none).
+- **D10's 0.3 s, alone: "with an effect" by the letter,** and the pass did not foresee which. Its cases pass (1 of 20 each), but the mean moves are over half a point: 0.73 point more good and 0.56 fewer over without it. That is a move toward better, not a cost.
+  - **The pass's fault, mine:** it set half a point for a mean without saying what that mean's own noise is (about 0.4 point over 20 cases of 800), and it gave no meaning to a move toward fewer overs.
+  - **Read:** nothing here says the 0.3 s earns its place. Without it there were no more overs, and with all three gone the mean moves are +0.09 and −0.01 point, which says the lone 0.7 was chance.
+  - **So it goes with the other two,** by the pass's own rule for the three together. Nothing is made from reading intervals in its place.
+
+**What follows:** the three macros (`CHARGE_RULE_STILL_LEAST_S`, `CHARGE_RULE_COARSE_ROOM_EXTRA_GR`, `CHARGE_RULE_REST_EXTRA_S`) and their terms go from the reference and the firmware at F.5, with the other limits that do nothing, and are shown on the unit by that step's proofs. Until then the code is as it was: this step changed no throw.
 
 ## The research behind the rows
 

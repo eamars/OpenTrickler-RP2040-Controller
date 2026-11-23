@@ -1766,3 +1766,12 @@ At the desk; no unit contacted. Commits d8d0910 to fa206f0, local.
 - **The check** (`tools/charge_sim/check_numbers.py`, fa206f0), in CI: fails on a number planted in `charge_control.c` (exit 1), on a macro planted in the header with no row (exit 1), passes without them (exit 0). `numbers.md` names each macro in its row.
 - **Both boards build: not met for the Pico W, for a cause older than this step.** The Pico 2 W builds (990,472 B flash after the series' mend). The Pico W compiles and does not link: `.heap` is not within RAM, 262,460 B of 262,144, 316 B over. It is so at 57c0a2d, before any change of this step, and `src/` had not changed since 8b155df: the night of 2026-11-22 added RAM (the charge files' `.bss`: `charge_calibration.c` 1,938 B, `charge_mode.cpp` 316 B) and the Pico W was last linked on 2026-11-21, 21:51. CI's release build makes the Pico W's images, so this branch would fail CI as it stands. Not mended here: which RAM goes is a choice (the PID law's carried stops for eight profiles are about 520 B and move into the powder's record at gate R; `pid_learnt` goes at F.4).
 - **Built into folders of their own** (`build_n2_2w`, `build_n2_w`), so `build/app.elf` still matches the image on the bench's unit.
+
+## 2026-11-23, 18:07 to 18:29: gate N.3, the bench's three leftovers tried at nothing
+
+In the simulation; no unit contacted. The pass was committed before the run (85c23c4).
+- **The run:** `numbers_study.py --nothing`, both records, five scales, both bands, 800 throws a case, 120 cases; `tools/charge_sim/fit/study_20261123/nothing.txt`. The controller as N.2 left it (the fine figure's learning off).
+- **The stillness's 0.4 s (C16) and the coarse room's 0.2 gr (D9): without effect** on good and over (moved in 1 and 0 cases of 20, where the baseline's own second seed moved 1). D9 at nothing is half a second quicker.
+- **The rest's 0.3 s (D10): "with an effect" by the pass's letter,** toward better: 0.73 point more good and 0.56 fewer over in the mean. The pass was at fault: it set half a point for a mean whose own noise is about 0.4, and gave no meaning to fewer overs. With all three at nothing the mean moves are +0.09 and −0.01 point.
+- **All three together: without effect** on good and over in every case, 0.9 s quicker a throw in the mean.
+- **So all three go,** from the reference and the firmware at F.5, shown on the unit there. No throw changed in this step.

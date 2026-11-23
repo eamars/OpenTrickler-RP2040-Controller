@@ -105,7 +105,7 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
   - the fine figure's learning is off by default (C13), in the reference and the firmware together;
   - mended in passing, each its own commit: the bench's series cleared when a start is refused (finding 12); the zero's comment (E6).
   - **Pass:** the throw-for-throw check passes on both laws (the fine learning's default changed in both); both boards build; the CI check fails on a number planted without a row and passes without it.
-- **N.3, the bench's leftovers tried at nothing (new).** Three fixed numbers are times or weights chosen on the bench's scale, and fail the test for a fixed number: the stillness's 0.4 s (C16), the rest's extra 0.3 s (D10), the coarse room's extra 0.2 gr (D9).
+- **N.3, the bench's leftovers tried at nothing (new).** **Run 2026-11-23** (`numbers.md`, "N.3"): none of the three earns its place, and all three go at F.5; with them gone a throw is 0.9 s quicker in the simulation, with as many good and as many over. Three fixed numbers are times or weights chosen on the bench's scale, and fail the test for a fixed number: the stillness's 0.4 s (C16), the rest's extra 0.3 s (D10), the coarse room's extra 0.2 gr (D9).
   - In the simulation, each is set to nothing, on both records, every stand-in scale and both tolerances, with `numbers_study.py`.
   - **Its pass, written before the run and read as the sensitivity study was** (how often and how consistently a case moves, against two seeds of the baseline): a number without effect is removed. One with an effect is made from what the unit measures (reading intervals, a measured spread). None is kept as the bench's value.
 
@@ -166,7 +166,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
 - **F.1, safety first.**
   - **The cup:** lifted mid-throw stops both tubes at once; its return is judged within the zero's mean margin; its removal loses the fixed 10 (E7, E8, E19, E20).
   - **No powder flowing** (an empty hopper, a jammed tube, a gate that did not open): the forecast holds powder that has not shown for longer than its lag; both tubes stop, the throw ends "no powder", nothing is learnt from it. The 15 fine turns (C19) get their form with it.
-  - **No weight in grains, and none of the bench's:** the far-over stop is 100 times the user's tolerance (C20); the coarse room's extra is what N.3 left of it (D9).
+  - **No weight in grains, and none of the bench's:** the far-over stop is 100 times the user's tolerance (C20). The coarse room's extra goes at F.5 (D9; N.3).
   - **The safety bounds are out of reach** of the calibration, the learning and the API.
   - **Pass:** `robust_staged.py` with every case, among them `cup_lifted`, `no_powder`, a cup lighter than 10 of the scale's unit, a scale set to grams, a scale drifting a digit in a throw (no false stop), a tube pouring a third of the bench's grains a turn (no false limit). Then `charge_cycle`, `pulses` and `menu_tour --compare` on the unit.
 - **F.2, the user's settings in the frame.**
@@ -195,7 +195,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - **Pass:** the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no fault); the slowest stand-in scale's lag kept whole; on the unit, a powder with no calibration thrown, and `charge_cycle`.
 - **F.5, one controller to the user.**
   - **Out of the API and the screens:** `controller` and `mode` (A18). The envelope is always on (C22).
-  - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
+  - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the bench's three leftovers that N.3 found without effect (C16's 0.4 s, D9's 0.2 gr, D10's 0.3 s); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
   - **On the console only, never stored, for the comparisons the gates ask:** today's loop, and the glide's pour.
   - **In:** the auto-tuner's switch, a setting of the unit (the register's row 1).
   - **Pass:** the API's index and schema, `menu_tour` and the web's pages carry no such choice; `api_check`, `settings_roundtrip`, `reach` pass; one ABBA on the rig, the controller against the glide's pour, meets the night's bars (settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer).
