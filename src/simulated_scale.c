@@ -31,6 +31,8 @@ static volatile TickType_t simulated_scale_quiet_until = 0;     // sim quiet: no
 static volatile bool simulated_scale_quiet = false;
 static volatile bool simulated_scale_weight_forced = false;     // sim weight: this is published, whatever the powder does
 static volatile float simulated_scale_forced_weight = 0.0f;
+static volatile float simulated_scale_flow_share = 1.0f;         // sim flow: the share of the powder that lands
+static volatile float simulated_scale_offset = 0.0f;             // sim offset: added to every reading published
 
 
 bool simulated_scale_set_rate(float per_second) {
@@ -50,6 +52,20 @@ float simulated_scale_get_rate(void) {
 void simulated_scale_force_weight(bool forced, float weight) {
     simulated_scale_forced_weight = weight;
     simulated_scale_weight_forced = forced;
+}
+
+
+bool simulated_scale_set_flow(float share) {
+    if (!(share >= 0.0f && share <= 1.0f)) {
+        return false;
+    }
+    simulated_scale_flow_share = share;
+    return true;
+}
+
+
+void simulated_scale_set_offset(float weight) {
+    simulated_scale_offset = weight;
 }
 
 
@@ -91,7 +107,7 @@ void simulated_scale_read_loop_task(void *p) {
         vTaskDelay(pdMS_TO_TICKS(step_ms));
         const uint32_t interval_ms = simulated_scale_interval_ms;
         float flow_now = get_current_trickler_flow_rate();
-        poured += flow_now * (float) step_ms / 1000.0f;
+        poured += flow_now * simulated_scale_flow_share * (float) step_ms / 1000.0f;
         since_reading_ms += step_ms;
         if (since_reading_ms < interval_ms) {
             continue;
@@ -119,7 +135,7 @@ void simulated_scale_read_loop_task(void *p) {
                 }
                 // Powder landing jiggles the pan; a pan with nothing landing on it reads steady (ADR-013's pause
                 // waits for that)
-                else if (flow_rate > flow_threshold) {
+                else if (flow_rate * simulated_scale_flow_share > flow_threshold) {     // only what lands
                     simulated_scale_weight += ((float) (rand() % 101) - 50.0f) / 1000.0f;
                 }
             }
@@ -162,7 +178,8 @@ void simulated_scale_read_loop_task(void *p) {
             if (!simulated_scale_quiet) {
                 // Publish measurement. sim bad: a frame that did not parse, published as the drivers do today
                 float published = simulated_scale_weight_forced ? simulated_scale_forced_weight :
-                                  roundf(simulated_scale_weight / SIMULATED_SCALE_DIGIT_GR) * SIMULATED_SCALE_DIGIT_GR;
+                                  roundf((simulated_scale_weight + simulated_scale_offset) / SIMULATED_SCALE_DIGIT_GR) *
+                                  SIMULATED_SCALE_DIGIT_GR;
                 if (simulated_scale_bad_pending) {
                     simulated_scale_bad_pending = false;
                     published = nanf("");

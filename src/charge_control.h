@@ -137,7 +137,7 @@ typedef struct {
     // Limits of the firmware's own, not the research's: a throw that passes one ends with CHARGE_CONTROL_RESULT_LIMIT
     charge_control_real_t throw_most_s;
     charge_control_real_t fine_most_turns;
-    charge_control_real_t over_most_gr;             // a reading this far over the target stops everything
+    charge_control_real_t over_tolerances;          // a reading this many tolerances over the target stops everything
     // The speed law (ADR-009, the owner's option 2, 2026-11-22 night; an experiment): 0 the glide's; 1 the PID law,
     // today's PID loop on the frame's forecast with the gains in charge_control_t's pid, everything else the frame's
     uint8_t speed_law;

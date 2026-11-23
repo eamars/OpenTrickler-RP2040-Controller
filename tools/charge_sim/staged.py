@@ -107,6 +107,11 @@ LEARN_FINE_LEAST_STREAM_TURNS = 0.5
 # bit of a float: the firmware's port (src/charge_control.c), in single precision, breaks it the same way (ADR-009)
 TIE_S = 1e-4
 BAND_EDGE_DIGITS = 0.25        # a rest within the band and this much of a digit is in it
+# The throw's limits (ADR-009, gate F.1: the reference keeps them as the firmware does, src/charge_rules.h): a throw
+# past one ends "limit", both tubes stopped
+THROW_MOST_S = 120.0           # C18: a throw takes no longer
+FINE_MOST_TURNS = 15.0         # C19: the fine tube turns no more in a throw (its form is F.1's)
+OVER_TOLERANCES = 100.0        # C20: a reading this many tolerances over the target stops everything
 
 
 @dataclass(frozen=True)
@@ -427,6 +432,8 @@ class Staged:
         cal = self.cal
         self.target = target_gr
         self.done = False
+        self.result = "none"            # good, over, short, limit once done
+        self.started_at = now_ms / 1000.0
         self.coarse_rps = 0.0
         self.fine_rps = 0.0
         self.glide_rps = {"coarse": 0.0, "fine": 0.0}  # the glide's stream law's asked speeds, in shadow
@@ -552,6 +559,9 @@ class Staged:
             if now >= self.next_mark - TIE_S:
                 self._parcel(now)
                 self.next_mark += PARCEL_S
+        if now - self.started_at > THROW_MOST_S or self.turned["fine"] > FINE_MOST_TURNS:
+            self._stop_all("limit", self.reading)
+            return
         if self.phase == "feed":
             self._feed(now)
         elif self.phase == "move" and now >= self.move_until - TIE_S:
@@ -623,6 +633,10 @@ class Staged:
             self.parcels = [parcel for parcel in self.parcels if parcel[0] > now + TIE_S]
             self.unseen = sum(parcel[1] for parcel in self.parcels)
             self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse")
+        # far over, in the user's terms: the tolerance is the band and half a digit (A7's conversion)
+        if weight > self.target + OVER_TOLERANCES * (cal.band_gr + cal.digit_gr / 2.0):
+            self._stop_all("limit", weight)
+            return
         self._open_window(now, weight)
         if self.pid is not None and self.phase == "feed":
             self._pid_reading(now)
@@ -657,6 +671,8 @@ class Staged:
         if self.rehearsal or short <= cal.band_gr + BAND_EDGE_DIGITS * cal.digit_gr or not tries_left:
             self.log.append((self.first_error, self.moves, self.streams))
             self.done = True
+            edge = cal.band_gr + BAND_EDGE_DIGITS * cal.digit_gr
+            self.result = "over" if weight - self.target > edge else "short" if short > edge else "good"
             return
         move = self._move_for(short)
         self.moves += 1
@@ -665,6 +681,16 @@ class Staged:
         self.move_turns = move.turns
         self.move_until = now + move.turns / MOVE_RPS
         self.wait = move.wait_s
+
+    def _stop_all(self, result: str, weight: float) -> None:
+        """Both tubes stopped at once and the throw ended, by a limit or a fault: nothing is learnt from it."""
+        self.coarse_rps = 0.0
+        self.fine_rps = 0.0
+        self.move_turns = None
+        self.coarse_on = False
+        self.done = True
+        self.result = result
+        self.rest_weight = weight
 
     def _fine_unseen_turns(self) -> float:
         return sum(parcel[1] for parcel in self.parcels if parcel[2] == "fine") / self.cal.fine_gr_turn

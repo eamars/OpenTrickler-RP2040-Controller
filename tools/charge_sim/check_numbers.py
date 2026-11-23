@@ -33,7 +33,7 @@ NUMBER = re.compile(r"(?<![A-Za-z_0-9.])(0[xX][0-9a-fA-F]+|\d+\.?\d*(?:[eE][-+]?
 ALLOWED = {
     "charge_control.c": {
         "1000": (2, "milliseconds in a second"),
-        "2": (10, "two tubes (arrays of 2); a median's middle; the middle of a parcel's stretch (numbers.md D24)"),
+        "2": (11, "two tubes (arrays of 2); a median's middle; the middle of a parcel's stretch (numbers.md D24); half a digit, the band's edge from the tolerance (A7's conversion)"),
         "32": (2, "the most first errors place_stop takes: a size (B11)"),
     },
     "charge_control.h": {

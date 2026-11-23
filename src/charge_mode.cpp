@@ -1229,9 +1229,6 @@ void charge_mode_wait_for_cup_return() {
 
     snprintf(title_string, sizeof(title_string), "Return Cup");
 
-
-    FloatRingBuffer data_buffer(5);
-
     while (true) {
         TickType_t last_sample_tick = xTaskGetTickCount();
 
@@ -1252,7 +1249,9 @@ void charge_mode_wait_for_cup_return() {
             continue;
         }
 
-        if (current_weight >= 0) {
+        // Back within the zero's mean margin: a cup returned a hair light is back (E8, ADR-009 gate F.1); the zero
+        // that follows judges it
+        if (current_weight >= -charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
             break;
         }
 

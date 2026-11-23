@@ -133,6 +133,11 @@ void simulated_scale_send_bad(void);
 // A weight published in place of the simulated powder's, until it is switched off (ADR-012); never stored
 void simulated_scale_force_weight(bool forced, float weight);
 void simulated_scale_go_quiet(uint32_t ms);
+// The share of what the tubes turn out that reaches the cup: 1 as built, 0 for an empty hopper or a jammed tube, a
+// third for a tube that pours a third of its figure (ADR-009, gate F.1); never stored
+bool simulated_scale_set_flow(float share);
+// A weight added to every reading published: a scale's drift, or a push on the pan (ADR-009, gate F.1); never stored
+void simulated_scale_set_offset(float weight);
 
 /**
  * @brief Print one frame as "@sf <ms> <value> <bytes>" when the tap is on: the time since boot in ms, the value

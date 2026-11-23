@@ -145,6 +145,9 @@ class Lockstep:
             (t_ref, state_ref, turns_ref), (t_port, state_port, turns_port) = ref[i], port[i]
             if state_ref != state_port or abs(t_ref - t_port) > EVENT_MS or                     (turns_ref is not None and abs(turns_ref - turns_port) > 1e-4):
                 return f"event {i}: reference {state_ref} at {t_ref / 1000:.3f} s, port {state_port} at {t_port / 1000:.3f} s"
+        # how the throw ended, in its word (ADR-009, gate F.1: the limits and the faults are the reference's too)
+        if self.reference.done and self.port.done and self.reference.result != self.port.result:
+            return f"result: reference {self.reference.result}, port {self.port.result}"
         if self.speed_off is not None:
             t_s, tube, a, b = self.speed_off
             return f"{tube} speed at {t_s:.3f} s: reference {a:.5f}, port {b:.5f}"

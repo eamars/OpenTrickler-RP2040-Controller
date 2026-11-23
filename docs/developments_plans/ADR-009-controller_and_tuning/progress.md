@@ -2155,3 +2155,43 @@ On the Pico 2 W at the bench, its image 2.0.3-229 (`742d9df`), the runs written 
 6. **Shown on the bench unit only:** all of it, on the Pico 2 W; the Pico W at gate 7.
 
 The cup: 28.94 gr before the soak, 251.02 gr after.
+
+## 2026-11-23, 21:58: gate F.1 begun; its checklist, its cases and its forms, before any change
+
+**The checklist:**
+1. **Numbers this step adds, moves or changes:**
+   - C20, the far-over stop: 100 times the user's tolerance (A7), in the scale's unit, as the register says. It replaces the 3 gr.
+   - E7, the cup's removal: its fixed 10 goes, for the cup test below.
+   - E8, the cup's return: within the zero's mean margin (A9), not ≥ 0.
+   - C19, the 15 fine turns: a multiple of the turns the forecast says the throw needs.
+   - New fixed numbers of the method, each with its row: the cup test's digits, the no-powder check's form, C19's multiple (below).
+   - E20's unused buffer of 5 goes.
+2. **A value from the bench unit:** none. Each form is in the user's settings (A7, A9), the scale's digit, the forecast's own lags and turns.
+3. **Each fixed number passes the test:** below, each with its reason. None is a weight, a speed or a time.
+4. **A new parameter:** none.
+5. **The pass checks a mechanism, against a prediction written first:** the cases below, in the simulation (the reference and the firmware's C in lockstep), then `robust_staged.py` on the unit with the same cases, `charge_cycle`, `pulses`, `menu_tour --compare`. The unit's runs wait for the cup (251 gr at 21:50).
+6. **Shown on the bench unit only:** the unit's runs are on the Pico 2 W; the Pico W at gate 7.
+
+**The forms proposed** (sent to the manager at 21:58 before building, being an algorithm's detail):
+- **The cup test, one for three places** (mid-throw, removal after the verdict; the return its mirror): a reading below the throw's base (0 after the zero, a series' base in a series) by more than the zero's mean margin and 2 digits.
+  - Why 2 digits: a reading at rest flickers by one digit about its mean, and the case "a scale drifting a digit in a throw" allows one more. The zero's mean margin is the user's, and is how far the zero itself may lie from 0.
+  - Mid-throw it stops both tubes at once. The throw ends "cup", nothing is learnt, and the charge waits for the cup's return as after a removal.
+  - The removal after the verdict is the same test on the mean of E19's readings.
+  - The return: a reading ≥ −(the zero's mean margin).
+- **No powder:** while a tube turns in the feed, the forecast's powder due since the reading's last rise is kept, with when the first of it came due.
+  - The throw ends "no powder" when that powder has waited longer than its own lag past its due (twice its lag since it was turned out) and is more than 10 digits. Both tubes stop and nothing is learnt.
+  - Why 10 digits (reasoned, for the cases to show or refute): a rise is the reading's next digit. A tube pouring a third of what the forecast says shows its next digit by the time 3 to 4.5 digits of its forecast powder are due; 10 leaves twice that. The band is no bound here: at the default tolerance with a digit of 0.02 it is one digit. A jammed tube has 10 digits due within a fraction of a second on the coarse stream, and within seconds on the creep.
+  - At a rest or a move the check is off: no tube turns, and the tail's forecast may be long.
+- **C19:** a throw ends "limit" past 4 times the fine turns its target needs at the fine figure in use (the target over the fine grains a turn), with the moves' turns on top.
+  - Why 4: the case "a tube pouring a third of the figure" needs 3 times, so 4 leaves it a third of a throw spare.
+  - The no-powder check catches a tube that pours nothing long before C19. C19 stays as the motor's last bound.
+
+**The cases, and their pass, in the simulation first** (`tools/charge_sim/safety_cases.py`, new: the reference and the C in lockstep, each case on the rig of record):
+- `none`: every throw ends good, over or short as the controller's own figures say, none "cup", "no powder" or "limit".
+- `cup_lifted`: the cup lifted at mid-coarse and at the creep. Both tubes are asked to stop on the first reading below; the throw ends "cup".
+- `light_cup`: the same with a cup of 5 of the scale's unit (under E7's old 10). Caught the same way.
+- `grams`: the rig's scale reading grams (target, digit and tolerance in grams): `none` and `cup_lifted` as above, the far-over stop at 100 tolerances in grams.
+- `drift`: the reading drifting down a digit over a throw: no throw ends "cup".
+- `no_powder`: the hopper empty from the start, and a tube jammed mid-coarse. The throw ends "no powder", both tubes stopped, within twice the longest lag in use plus a reading interval of the powder's due.
+- `third`: the fine tube pouring a third of the calibration's grains a turn. No throw ends "limit" or "no powder"; it may be slow or short.
+- `far_over`: a reading of 100 tolerances over the target. The throw ends "limit" at once.

@@ -440,6 +440,8 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
             return false;
         }
         scale_simulation_stop();
+        simulated_scale_set_flow(1.0f);
+        simulated_scale_set_offset(0.0f);
     }
     // The simulated scale's faults (ADR-013): bad, quiet <ms>, rate <per second>; never stored
     else if (strcmp(args, "bad") == 0 || strncmp(args, "quiet ", 6) == 0) {
@@ -483,8 +485,23 @@ static bool remote_control_sim(const char *args, char *reply, size_t reply_size,
             simulated_scale_force_weight(true, weight);
         }
     }
+    // ADR-009, gate F.1: the share of the powder that lands (0: none comes), and a weight added to every reading
+    else if (strncmp(args, "flow ", 5) == 0 || strncmp(args, "offset ", 7) == 0) {
+        bool flow = args[0] == 'f';
+        const char *value = args + (flow ? 5 : 7);
+        char *end;
+        float number = strtof(value, &end);
+        if (end == value || *end != '\0' || !isfinite(number) || (flow && !simulated_scale_set_flow(number))) {
+            snprintf(reply, reply_size, flow ? "@err usage: sim flow <share, 0 to 1>" : "@err usage: sim offset <a number>");
+            return false;
+        }
+        if (!flow) {
+            simulated_scale_set_offset(number);
+        }
+    }
     else if (*args != '\0') {
-        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>|weight <a number|off>]");
+        snprintf(reply, reply_size, "@err usage: sim [on|off|bad|quiet <ms>|rate <per second>|weight <a number|off>|"
+                 "flow <share>|offset <a number>]");
         return false;
     }
 

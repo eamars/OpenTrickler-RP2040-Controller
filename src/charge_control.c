@@ -58,7 +58,7 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->most_moves = CHARGE_RULE_MOST_MOVES;
     k->throw_most_s = REAL(CHARGE_RULE_THROW_MOST_S);
     k->fine_most_turns = REAL(CHARGE_RULE_FINE_MOST_TURNS);
-    k->over_most_gr = REAL(CHARGE_RULE_OVER_MOST_GR);
+    k->over_tolerances = REAL(CHARGE_RULE_OVER_TOLERANCES);
     k->speed_law = CHARGE_RULE_SPEED_LAW;
     k->pid_envelope = CHARGE_RULE_PID_ENVELOPE;
 }
@@ -652,7 +652,8 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
             c->parcel_count[tube] = kept;
         }
     }
-    if (weight > c->target_gr + k->over_most_gr) {
+    // Far over, in the user's terms: the tolerance is the band and half a digit (A7's conversion)
+    if (weight > c->target_gr + k->over_tolerances * (cal->band_gr + cal->digit_gr / REAL(2.0))) {
         stop_all(c, CHARGE_CONTROL_RESULT_LIMIT, weight);
         return;
     }

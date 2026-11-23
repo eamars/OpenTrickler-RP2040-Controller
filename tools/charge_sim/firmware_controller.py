@@ -62,7 +62,7 @@ def _types(real) -> tuple:
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
             "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split", "still_least_s")]
                     + [("most_moves", ctypes.c_uint8)]
-                    + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_most_gr")]
+                    + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_tolerances")]
                     + [("speed_law", ctypes.c_uint8), ("pid_envelope", ctypes.c_uint8)])
 
     return Stop, Move, Calibration, Constants

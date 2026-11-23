@@ -46,7 +46,10 @@
 #define CHARGE_RULE_MOST_MOVES 8                // C17: tries a throw gets after its first rest (a bound)
 #define CHARGE_RULE_THROW_MOST_S 120.0          // C18, s: a throw past it ends "limit" (a bound)
 #define CHARGE_RULE_FINE_MOST_TURNS 15.0        // C19, turns: a throw past it ends "limit" (a bound; its form is F.1's)
-#define CHARGE_RULE_OVER_MOST_GR 3.0            // C20, the scale's unit: a reading this far over stops all. F.1: by the tolerance
+#define CHARGE_RULE_OVER_TOLERANCES 100.0      // C20, tolerances: a reading this many of the user's tolerance over the
+                                                //   target stops all (3 at the default 0.03), in the scale's unit
+#define CHARGE_RULE_OVER_MOST_GR 3.0            // C20's old form, the scale's unit: only the PID-learnt experiment's
+                                                //   (charge_pid_learnt.c), which goes at F.4
 #define CHARGE_RULE_SPEED_LAW 0                 // C21: 0 the glide pours, 1 the PID law. A choice that goes at F.5
 #define CHARGE_RULE_PID_ENVELOPE 1              // C22: the frame's guard on the PID law. Always on from F.5
 
