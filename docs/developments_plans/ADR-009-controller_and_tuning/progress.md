@@ -3237,7 +3237,7 @@ Checked against the skill:
   - The scale's rounding alone is 0.29 digits RMS.
 - **For the manager's judgement:** whether the pass is judged where the forecast decides the stop (the stops within four times the creep, say), and what bar. I go on with the forecast in stages in the reference meanwhile, since its own pass (the learnt source on `slower`, a calibrated unit no worse) is the one that shows whether the model serves.
 
-## 2026-11-24, 02:58: the manager's answers written in; D1's zero-lag case; B3's study
+## 2026-11-24, 02:54: the manager's answers written in; D1's zero-lag case; B3's study
 
 - **The manager's answers, written where they belong:**
   - the cup: the owner's times, beside item 0 of the morning list, for a quick judgement, not as a conclusion;
