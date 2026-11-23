@@ -224,6 +224,8 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     c->result = CHARGE_CONTROL_RESULT_NONE;
     c->coarse_rps = REAL(0.0);
     c->fine_rps = REAL(0.0);
+    c->glide_rps[COARSE] = REAL(0.0);
+    c->glide_rps[FINE] = REAL(0.0);
     c->phase = CHARGE_CONTROL_PHASE_FEED;
     // A charge too small for the coarse tube's margin is the fine tube's alone
     c->coarse_on = target_gr > cal->coarse_room_gr + REAL(CHARGE_RULE_COARSE_LEAST_TURNS) * cal->coarse_gr_turn;
@@ -397,6 +399,8 @@ static void feed(charge_control_t *c, real_t now_s) {
     const charge_control_pid_t *pid = k->speed_law ? &c->pid : NULL;
 
     real_t room = room_now(c);
+    c->glide_rps[COARSE] = REAL(0.0);
+    c->glide_rps[FINE] = REAL(0.0);
     if (c->coarse_on) {
         if (room <= cal->coarse_room_gr) {
             c->coarse_on = false;
@@ -405,19 +409,22 @@ static void feed(charge_control_t *c, real_t now_s) {
                 c->coarse_off_s = now_s;
             }
         }
-        else if (pid != NULL) {
-            real_t asked = pid->coarse_kp * (room - cal->coarse_room_gr) + c->pid_term[COARSE];
-            real_t top = pid->coarse_max_rps;
-            if (k->pid_envelope) {
-                top = min_f(min_f(top, k->coarse_top_rps), k->coarse_floor_rps + (room - cal->coarse_room_gr) /
-                                                                                 (cal->coarse_gr_turn * cal->coarse_glide_s));
-            }
-            c->coarse_rps = min_f(top, max_f(pid->coarse_min_rps, asked));
-            c->pid_held[COARSE] = !(pid->coarse_min_rps < asked && asked < top);
-        }
         else {
-            real_t asked = (room - cal->coarse_room_gr) / (cal->coarse_gr_turn * cal->coarse_glide_s);
-            c->coarse_rps = min_f(k->coarse_top_rps, max_f(k->coarse_floor_rps, asked));
+            real_t glide = (room - cal->coarse_room_gr) / (cal->coarse_gr_turn * cal->coarse_glide_s);
+            c->glide_rps[COARSE] = min_f(k->coarse_top_rps, max_f(k->coarse_floor_rps, glide));
+            if (pid != NULL) {
+                real_t asked = pid->coarse_kp * (room - cal->coarse_room_gr) + c->pid_term[COARSE];
+                real_t top = pid->coarse_max_rps;
+                if (k->pid_envelope) {
+                    top = min_f(min_f(top, k->coarse_top_rps), k->coarse_floor_rps + (room - cal->coarse_room_gr) /
+                                                                                     (cal->coarse_gr_turn * cal->coarse_glide_s));
+                }
+                c->coarse_rps = min_f(top, max_f(pid->coarse_min_rps, asked));
+                c->pid_held[COARSE] = !(pid->coarse_min_rps < asked && asked < top);
+            }
+            else {
+                c->coarse_rps = c->glide_rps[COARSE];
+            }
         }
     }
     if (!c->coarse_on && room <= c->stop_room_gr) {
@@ -430,6 +437,8 @@ static void feed(charge_control_t *c, real_t now_s) {
         c->wait_s = cal->rest_s;
         return;
     }
+    real_t glide = (room - cal->glide_room_gr) / (cal->fine_gr_turn * cal->glide_s);
+    c->glide_rps[FINE] = min_f(k->fine_top_rps, max_f(cal->floor_rps, glide));
     if (pid != NULL) {
         real_t asked = pid->fine_kp * room + c->pid_term[FINE];
         real_t top = pid->fine_max_rps;
@@ -441,8 +450,15 @@ static void feed(charge_control_t *c, real_t now_s) {
         c->pid_held[FINE] = !(cal->floor_rps < asked && asked < top);
         return;
     }
-    real_t asked = (room - cal->glide_room_gr) / (cal->fine_gr_turn * cal->glide_s);
-    c->fine_rps = min_f(k->fine_top_rps, max_f(cal->floor_rps, asked));
+    c->fine_rps = c->glide_rps[FINE];
+}
+
+
+real_t charge_control_glide_rps(const charge_control_t *c, int tube) {
+    if (c->phase == CHARGE_CONTROL_PHASE_FEED) {
+        return c->glide_rps[tube == COARSE ? COARSE : FINE];
+    }
+    return tube == COARSE ? c->coarse_rps : c->fine_rps;
 }
 
 

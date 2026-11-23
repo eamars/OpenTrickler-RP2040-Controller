@@ -17,6 +17,7 @@
 #include "activity.h"
 #include "app.h"
 #include "events.h"
+#include "recording.h"
 #include "motors.h"
 #include "eeprom.h"
 #include "scale.h"
@@ -51,6 +52,7 @@ int main()
     // begins with this start (gate 4): before any task
     activity_init();
     events_init();
+    recording_init();
 
     // The image slots (ADR-004): on a trial, the watchdog is armed now, before the slow parts of the start-up
     update_init();

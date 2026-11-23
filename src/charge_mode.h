@@ -135,9 +135,6 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
  */
 void charge_mode_set_series(uint16_t throws);
 
-// The console's `ccrec`: the last staged throw's rows (ADR-009)
-void charge_mode_record_console(char *reply, size_t reply_size, void (*write)(const char *line, void *ctx),
-                                void *write_ctx);
 
 // The charge as GET /api/v1/charge gives it
 typedef struct {
@@ -151,6 +148,7 @@ typedef struct {
     event_result_t last_result;
     event_reason_t last_reason;
     float last_weight;
+    uint16_t last_recording;        // the last throw's recording, 0 when it has none (ADR-009)
 } charge_status_t;
 void charge_mode_get_status(charge_status_t *status);
 

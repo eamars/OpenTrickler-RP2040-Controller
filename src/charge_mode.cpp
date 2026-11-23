@@ -27,6 +27,7 @@
 #include "charge_control.h"
 #include "charge_calibration.h"
 #include "charge_pid_learnt.h"
+#include "recording.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -124,26 +125,9 @@ static uint8_t charge_carry_count = 0;
 static uint8_t charge_law = 0;              // the charge's speed law (ccon speed_law at its start): its stop its own
 static float charge_base_room = 0.0f;       // the calibration's stop room before its stop was placed, this charge
 
-/*
-    The last staged throw's rows, a reading each, for the bench (`ccrec`). 16 bytes a row; at 21 readings a second
-    the A&D fills it in 38 s. The Pico W has no room for it (its RAM was within 5 KB of full): its recordings are
-    decided with the API's, in a RAM budget of their own (ADR-009, gate 7)
-*/
-#if PICO_RP2350
-#define CHARGE_RECORD_ROWS 800
-#else
-#define CHARGE_RECORD_ROWS 1
-#endif
-typedef struct {
-    uint32_t t_ms;
-    float reading;
-    float forecast;         // the reading and what is on its way
-    uint16_t coarse_mrps;   // the speeds asked, thousandths of a rev/s
-    uint16_t fine_mrps;
-} charge_record_row_t;
-static charge_record_row_t charge_record[CHARGE_RECORD_ROWS];
-static uint16_t charge_record_rows = 0;
-static uint16_t charge_record_throw = 0;
+// The throw's recording (ADR-009, gate 2's rest; recording.h): its id, 0 when it has none; and the last throw's
+static uint16_t charge_throw_recording = 0;
+static uint16_t charge_last_recording = 0;
 
 
 void charge_mode_set_series(uint16_t throws) {
@@ -178,8 +162,12 @@ static void charge_mode_throw_ended(event_reason_t reason, uint8_t motor, const 
     charge_last_result = EVENT_RESULT_NONE;
     charge_last_reason = reason;
     charge_last_weight = scale_get_current_measurement();
+    recording_throw_end(EVENT_RESULT_NONE, reason, charge_last_weight, NAN);
+    charge_last_recording = charge_throw_recording;
+    charge_throw_recording = 0;
     event_t ended = {.source = EVENT_SOURCE_THROW, .kind = EVENT_ENDED, .reason = (uint8_t) reason,
-                     .throw_number = charge_throw_number, .number = motor, .text = fault};
+                     .throw_number = charge_throw_number, .number = motor, .text = fault,
+                     .recording = charge_last_recording};
     events_add(&ended);
     activity_throw_end();
 }
@@ -408,6 +396,7 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
     event_t paused = {.source = EVENT_SOURCE_THROW, .kind = EVENT_PAUSED, .throw_number = charge_throw_number,
                       .number = pause_count};
     events_add(&paused);
+    recording_mark(RECORDING_MARK_PAUSED, (float) pause_count);
 
     FloatRingBuffer steady_buffer(CHARGE_STEADY_READINGS);
     bool readings_back = false;
@@ -436,6 +425,7 @@ static charge_pause_result_t charge_mode_pause(uint8_t pause_count, uint32_t los
                 event_t resumed = {.source = EVENT_SOURCE_THROW, .kind = EVENT_RESUMED,
                                    .throw_number = charge_throw_number, .value = *settled_weight};
                 events_add(&resumed);
+                recording_mark(RECORDING_MARK_RESUMED, *settled_weight);
                 return CHARGE_PAUSE_RESUMED;
             }
         }
@@ -514,20 +504,6 @@ static uint32_t charge_mode_now_ms(void) {
 }
 
 
-static void charge_mode_record(uint32_t t_ms, float reading, float forecast, float coarse_rps, float fine_rps) {
-    if (charge_record_rows >= CHARGE_RECORD_ROWS) {
-        return;
-    }
-    charge_record_row_t *row = &charge_record[charge_record_rows++];
-    row->t_ms = t_ms;
-    row->reading = reading;
-    row->forecast = forecast;
-    // A back-off is a negative speed: its row shows 0
-    row->coarse_mrps = (uint16_t) lroundf(fminf(fmaxf(coarse_rps, 0.0f), 65.0f) * 1000.0f);
-    row->fine_mrps = (uint16_t) lroundf(fminf(fmaxf(fine_rps, 0.0f), 65.0f) * 1000.0f);
-}
-
-
 /*
     One throw by the staged controller (ADR-009), from its zero to its rest: every millisecond each tube's turns by the
     steps counted on its pin, the controller's tick, each reading as it comes, and the speeds it asks for; a small move
@@ -577,8 +553,9 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     const float room_at_start = cc->stop_room_gr;      // where this throw stops, before it learns
     uint32_t start_ms = charge_mode_now_ms();
     charge_control_start(cc, target, start_ms);
-    charge_record_rows = 0;
-    charge_record_throw = charge_throw_number;
+    recording_pour_begin(start_ms);
+    bool coarse_was_on = cc->coarse_on;
+    uint8_t phase_was = cc->phase;
 
     float coarse_sent = -1.0f;
     float fine_sent = -1.0f;
@@ -646,8 +623,21 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
         charge_control_tick(cc, now_ms);
         if (have_reading) {
             charge_control_reading(cc, now_ms, weight);
-            charge_mode_record(now_ms - start_ms, weight, cc->reading + cc->unseen_gr, cc->coarse_rps, cc->fine_rps);
+            recording_row(now_ms - start_ms, weight, cc->coarse_rps, cc->fine_rps, cc->reading + cc->unseen_gr,
+                          charge_control_glide_rps(cc, 0), charge_control_glide_rps(cc, 1));
         }
+        // The throw's marks, as the controller's own state changes
+        if (coarse_was_on && !cc->coarse_on) {
+            recording_mark(RECORDING_MARK_COARSE_STOP, cc->reading);
+        }
+        if (cc->phase != phase_was && cc->phase == CHARGE_CONTROL_PHASE_REST) {
+            recording_mark(RECORDING_MARK_FINE_STOP, cc->reading);
+        }
+        else if (cc->phase != phase_was && cc->phase == CHARGE_CONTROL_PHASE_MOVE) {
+            recording_mark(RECORDING_MARK_MOVE, cc->move_turns);
+        }
+        coarse_was_on = cc->coarse_on;
+        phase_was = cc->phase;
 
         // A small move, made to its count from a stop; the fine tube's speed otherwise
         if (moving) {
@@ -692,11 +682,15 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
     printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=%u elapsed=%.2f "
            "coarse_turns=%.4f fine_turns=%.4f stop_room=%.4f fine_gr=%.4f fine_stream=%.4f learnt=%u base=%.3f "
-           "rows=%u law=%s\n",
+           "law=%s recording=%u\n",
            charge_throw_number, charge_control_result_string((charge_control_result_t) cc->result), cc->rest_weight,
            target, cc->have_first_error ? cc->first_error_gr : NAN, cc->moves, cc->streams, elapsed_s,
            cc->turned[0], cc->turned[1], cc->stop_room_gr, cc->cal.fine_gr_turn, cc->fine_gr_stream, cc->fine_learn_n,
-           charge_base, charge_record_rows, cc->k.speed_law ? "pid" : "glide");
+           charge_base, cc->k.speed_law ? "pid" : "glide", charge_throw_recording);
+    const recording_controller_t figures = {cc->have_first_error ? (float) cc->first_error_gr : NAN, cc->moves,
+                                            cc->streams, (float) cc->turned[0], (float) cc->turned[1],
+                                            (float) cc->stop_room_gr};
+    recording_throw_controller(&figures);
     return true;
 }
 
@@ -756,8 +750,6 @@ static bool charge_mode_pid_learnt_throw(void) {
     uint32_t start_ms = charge_mode_now_ms();
     const float gr_turn_at_start = learning->gr_turn > 0.0f ? learning->gr_turn : k->gr_turn_prior;
     charge_pid_start(c, &s, k, learning, target, start_ms);
-    charge_record_rows = 0;
-    charge_record_throw = charge_throw_number;
 
     float coarse_sent = NAN;
     float fine_sent = NAN;
@@ -818,7 +810,6 @@ static bool charge_mode_pid_learnt_throw(void) {
         charge_pid_tick(c, now_ms);
         if (have_reading) {
             charge_pid_reading(c, now_ms, weight);
-            charge_mode_record(now_ms - start_ms, weight, c->reading + c->unseen_gr, c->coarse_rps, c->fine_rps);
         }
         // NAN after a pause: sent again whatever it is
         if (!(c->fine_rps == fine_sent)) {
@@ -841,25 +832,12 @@ static bool charge_mode_pid_learnt_throw(void) {
     float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
     // In the staged controller's form, so the bench's series reads it: moves are the top-ups, streams none
     printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=0 elapsed=%.2f "
-           "fine_turns=%.4f gr_turn=%.4f gr_turn_before=%.4f learnt=%u controller=pid_learnt base=%.3f rows=%u\n",
+           "fine_turns=%.4f gr_turn=%.4f gr_turn_before=%.4f learnt=%u controller=pid_learnt base=%.3f\n",
            charge_throw_number, charge_control_result_string((charge_control_result_t) c->result), c->rest_weight,
            target, c->have_first_error ? c->first_error_gr : NAN, c->tops, elapsed_s, c->fine_turns,
-           learning->gr_turn, gr_turn_at_start, learning->learnt, charge_base, charge_record_rows);
+           learning->gr_turn, gr_turn_at_start, learning->learnt, charge_base);
     return true;
 }
-
-void charge_mode_record_console(char *reply, size_t reply_size, void (*write)(const char *line, void *ctx),
-                                void *write_ctx) {
-    char line[80];
-    for (uint16_t i = 0; i < charge_record_rows; i++) {
-        const charge_record_row_t *row = &charge_record[i];
-        snprintf(line, sizeof(line), "@r %lu %.3f %.4f %.3f %.3f", (unsigned long) row->t_ms, row->reading,
-                 row->forecast, row->coarse_mrps / 1000.0f, row->fine_mrps / 1000.0f);
-        write(line, write_ctx);
-    }
-    snprintf(reply, reply_size, "@ok ccrec throw=%u rows=%u", charge_record_throw, charge_record_rows);
-}
-
 
 void charge_mode_wait_for_complete() {
 
@@ -1181,9 +1159,12 @@ void charge_mode_wait_for_cup_removal() {
     charge_last_result = result;
     charge_last_reason = EVENT_REASON_FINISHED;
     charge_last_weight = current_measurement;
+    recording_throw_end(result, EVENT_REASON_FINISHED, current_measurement, last_charge_elapsed_seconds);
+    charge_last_recording = charge_throw_recording;
+    charge_throw_recording = 0;
     event_t finished = {.source = EVENT_SOURCE_THROW, .kind = EVENT_FINISHED, .throw_number = charge_throw_number,
                         .result = (uint8_t) result, .value = current_measurement,
-                        .value2 = last_charge_elapsed_seconds};
+                        .value2 = last_charge_elapsed_seconds, .recording = charge_last_recording};
     events_add(&finished);
     activity_throw_end();
 
@@ -1356,6 +1337,8 @@ uint8_t charge_mode_menu(void) {
         }
         charge_base_room = charge_calibration_base_stop_room();
         charge_controller = &charge_staged_block->controller;
+        // After the charge's own block: what the heap cannot give is not recorded, and the charge goes on
+        recording_charge_begin();
         charge_control_init(charge_controller, &charge_staged_block->cal, charge_calibration_constants(), 0.0f, false);
         printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f, law %s\n", profile_get_selected_idx(),
                charge_controller->cal.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide",
@@ -1377,10 +1360,15 @@ uint8_t charge_mode_menu(void) {
                 activity_throw_begin();
                 charge_throw_number += 1;
                 charge_paused = false;
+                charge_throw_recording = !charge_staged ? 0 :
+                    recording_throw_begin(charge_throw_number, charge_mode_config.target_charge_weight,
+                                          charge_calibration_constants()->speed_law ? 1 : 0,
+                                          scale_get_running_driver() == SCALE_DRIVER_SIMULATED);
                 event_t throw_started = {.source = EVENT_SOURCE_THROW, .kind = EVENT_STARTED,
                                          .throw_number = charge_throw_number,
                                          .number = (uint8_t) profile_get_selected_idx(),
-                                         .value = charge_mode_config.target_charge_weight};
+                                         .value = charge_mode_config.target_charge_weight,
+                                         .recording = charge_throw_recording};
                 events_add(&throw_started);
                 charge_mode_wait_for_zero();
                 break;
@@ -1429,6 +1417,9 @@ uint8_t charge_mode_menu(void) {
         }
     }
     charge_carry_count = 0;
+    if (charge_staged) {
+        recording_charge_end();
+    }
     charge_mode_staged_free();
     if (charge_pid != NULL) {
         vPortFree(charge_pid);
@@ -1615,6 +1606,7 @@ void charge_mode_get_status(charge_status_t * status) {
     status->last_result = charge_last_result;
     status->last_reason = charge_last_reason;
     status->last_weight = charge_last_weight;
+    status->last_recording = charge_last_recording;
 }
 
 

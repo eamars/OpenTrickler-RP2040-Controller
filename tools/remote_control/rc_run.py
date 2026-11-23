@@ -98,6 +98,7 @@ STEP_RUNNING_FRACTION = 0.1     # a pin high in more than this share of the samp
 STEP_STUCK_FRACTION = 0.9       # this share, is pulsing
 
 CHARGE_POLL_S = 0.25
+RECORDINGS_THROW_S = 60.0          # recordings_check: the longest a simulated throw and its verdict take
 CHARGE_STATE_NAMES = {0: "exit", 1: "waiting for zero", 2: "charging", 3: "waiting for cup removal",
                       4: "waiting for cup return"}
 CHARGE_CYCLE_ORDER = [1, 2, 3, 4, 1]    # a charge, the cup off and back (by the simulated scale), the next charge
@@ -1919,6 +1920,39 @@ class Session:
             self.fail(f"api_check: an HTTPS fetch left {low} bytes of the heap, under {need} "
                       f"(the reserve and {API_CHECK_TLS_ROOM} over it); {refused} blocks refused")
 
+    def api_check_recording(self, unit, throw_started):
+        """
+        The recording of api_check's own throw, stopped during its zero or its pour (ADR-009, gate 2's rest): named
+        by its events and the charge's last, complete, its reason the stop's. A throw of a controller that records
+        none has a recording of null, and nothing more is judged.
+        """
+        if throw_started is None:
+            return
+        rec_id = throw_started.get("recording")
+        last = unit.read("charge")["last"]
+        if rec_id is None:
+            self.log.write("rc", "api_check: the throw has no recording (not the charge controller's)")
+            if last.get("recording") is not None:
+                self.fail(f"api_check: the charge's last names recording {last['recording']}, its throw none")
+            return
+        if last.get("recording") != rec_id:
+            self.fail(f"api_check: the charge's last names recording {last.get('recording')}, not {rec_id}")
+        entry = unit.read(f"recordings/{rec_id}")
+        problems = []
+        if entry["id"] != rec_id or entry["throw"] != throw_started["throw"]:
+            problems.append(f"id {entry['id']}, throw {entry['throw']}")
+        if not entry["complete"] or entry["summary"]["reason"] != "stopped":
+            problems.append(f"complete {entry['complete']}, reason {entry['summary']['reason']}")
+        if entry["samples_kept"]:
+            samples = unit.read(f"recordings/{rec_id}/samples")
+            if len(samples["rows"]) != entry["rows"] or not samples["complete"]:
+                problems.append(f"samples: {len(samples['rows'])} rows of {entry['rows']}, complete "
+                                f"{samples['complete']}")
+        self.log.write("rc", f"api_check: recording {rec_id}: {entry['rows']} rows, samples_kept "
+                             f"{entry['samples_kept']}, settings {'taken' if entry['settings'] else 'null'}")
+        for problem in problems:
+            self.fail(f"api_check: recording {rec_id}: {problem}")
+
     def api_check(self, host, target):
         """
         The close's proof of API v1 (ADR-003, gate 4), by the client that works from the unit's own description
@@ -2079,6 +2113,7 @@ class Session:
         expect("POST", "scale/zero", {}, 200 if "zero" in scale["actions"] else 501)
         expect("POST", "charge/start", {}, 202)
         wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"])
+        throw_started = wait_event("throw", "started")
         wait_state("charge", ("zeroing", "charging"))
         expect("POST", "charge/start", {}, 409, "busy")
         expect("POST", "purge/start", {}, 409, "busy")
@@ -2088,6 +2123,7 @@ class Session:
         expect("POST", "charge/stop", {}, 202)
         wait_event("charge", "stopped", by="api", reason="stopped")
         wait_state("charge", ("idle",))
+        self.api_check_recording(unit, throw_started)
         expect("POST", "purge/start", {}, 202)
         wait_event("purge", "started", by="api")
         wait_state("purge", ("running",))
@@ -2283,6 +2319,21 @@ class Session:
             return [problem for event in reply["events"] for problem in unit.event_problems(event)]
         if name == "display/frame":
             return [] if isinstance(reply, bytes) and len(reply) == frame_bytes else ["not the display's frame"]
+        # The recordings (ADR-009, gate 2's rest; api_v1.md, "Recordings")
+        entry_fields = {"boot", "id", "kind", "job", "throw", "tag", "started_at_ms", "duration_ms", "rows",
+                        "complete", "truncated", "samples_kept", "summary"}
+        if name == "recordings":
+            ids = [entry["id"] for entry in reply["recordings"]]
+            return ([f"recording {entry.get('id')} lacks {sorted(entry_fields - set(entry))}"
+                     for entry in reply["recordings"] if entry_fields - set(entry)] +
+                    ([] if ids == sorted(ids, reverse=True) else [f"not newest first: {ids}"]))
+        if re.fullmatch(r"recordings/\d+", name):
+            missing = (entry_fields | {"settings", "marks"}) - set(reply)
+            return [f"lacks {sorted(missing)}"] if missing else []
+        if re.fullmatch(r"recordings/\d+/samples", name):
+            widths = {len(row) for row in reply["rows"]}
+            return [] if widths <= {len(reply["columns"])} else [f"rows of {sorted(widths)} for "
+                                                                   f"{len(reply['columns'])} columns"]
         return []
 
     def stream_check(self, host):
@@ -2953,6 +3004,147 @@ class Session:
         else:
             self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
         self.send("sim off")
+
+    def recordings_wait(self, unit, rec_id, timeout_s):
+        """The recording read once it is complete; None, failed, when it is not by timeout_s."""
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            status, entry = unit.request("GET", f"recordings/{rec_id}")
+            if status == 200 and entry.get("complete"):
+                return entry
+            time.sleep(CHARGE_POLL_S)
+        self.fail(f"recordings_check: recording {rec_id} not complete within {timeout_s:.0f} s")
+        return None
+
+    def recordings_compare(self, unit, rec_id, line):
+        """
+        One throw's recording through the API against the console's: its rows against `ccrec <id>`, row for row to
+        the console's digits, and its summary against the throw's own line. Returns the rows compared.
+        """
+        entry = self.recordings_wait(unit, rec_id, RECORDINGS_THROW_S)
+        if entry is None:
+            return 0
+        problems = []
+        figures = dict(re.findall(r"(\w+)=(\S+)", line))
+        summary = entry["summary"]
+        for name in ("moves", "streams"):
+            if summary.get(name) != int(figures[name]):
+                problems.append(f"summary {name} {summary.get(name)}, the line's {figures[name]}")
+        if figures["first"] != "nan" and abs(summary["first"] - float(figures["first"])) > 0.0005 + 1e-6:
+            problems.append(f"summary first {summary['first']}, the line's {figures['first']}")
+        if not entry["samples_kept"]:
+            self.fail(f"recordings_check: recording {rec_id}: its samples are not kept")
+            return 0
+        samples = unit.read(f"recordings/{rec_id}/samples")
+        self.console.data_lines = []
+        reply = self.send(f"ccrec {rec_id}")
+        console_rows = [[float(x) for x in data.split()[1:]] for data in self.console.data_lines
+                        if data.startswith("@r ")]
+        api_rows = samples["rows"]
+        if reply is None or len(api_rows) != len(console_rows) or len(api_rows) != entry["rows"]:
+            problems.append(f"rows: {len(api_rows)} through the API, {len(console_rows)} by ccrec, {entry['rows']} "
+                            "in its entry")
+        columns = samples["columns"]
+        # The console's columns and its digits: the API's six significant digits are within half its last digit
+        pairs = (("t_ms", 0, 0.0), ("weight", 1, 0.0005), ("ctl_forecast", 2, 0.00005), ("coarse_rps", 3, 0.0005),
+                 ("fine_rps", 4, 0.0005))
+        for number, (api_row, console_row) in enumerate(zip(api_rows, console_rows)):
+            for name, at, half in pairs:
+                value = api_row[columns.index(name)]
+                if abs(value - console_row[at]) > half + abs(value) * 5e-6 + 1e-9:
+                    problems.append(f"row {number} {name}: {value} through the API, {console_row[at]} by ccrec")
+                    break
+            if len(problems) > 5:
+                break
+        self.log.write("rc", f"recordings_check: recording {rec_id}: {len(api_rows)} rows, thinned "
+                             f"{entry.get('thinned')}, {entry['summary']['result']}, {len(entry['marks'] or [])} "
+                             f"marks, settings {'taken' if entry['settings'] else 'null'}: "
+                             f"{'the same' if not problems else 'differ'}")
+        for problem in problems:
+            self.fail(f"recordings_check: recording {rec_id}: {problem}")
+        return len(api_rows)
+
+    def recordings_check(self, host, target, throws):
+        """
+        Every throw's recording read through the API is the console's (ADR-009, gate 2's rest), with the simulated
+        scale: a series of `throws` in one charge, each throw's rows through GET /api/v1/recordings/{id}/samples
+        against `ccrec <id>` row for row, its summary against its line. Then a charge whose samples cannot be had
+        (`ccrec nosamples on`, as when the Pico W's heap has not their bytes): it throws to its verdict all the same,
+        its recording says samples_kept false, and its samples' path answers 410. The hopper is taken to be empty.
+        """
+        unit = unit_api.Unit(host)
+        if unit.read("charge")["state"] != "idle":
+            self.fail("recordings_check: the unit is not idle at the menu")
+            return
+        if self.send("sim on") is None or self.failures:
+            return
+        heap_before = self.console.command("stats")
+        heap_during = None
+        try:
+            # The series
+            self.console.charge_events.clear()
+            reply = self.send(f"charge {target:g} series {throws}")
+            if reply is None or not reply.startswith("@ok"):
+                return
+            seen, compared, started = 0, 0, time.monotonic()
+            while seen < throws and time.monotonic() - started < throws * RECORDINGS_THROW_S:
+                lines = [line for _, line in self.console.charge_events if line.startswith("Charge: throw ")]
+                for line in lines[seen:]:
+                    rec = re.search(r"recording=(\d+)", line)
+                    if rec is None or rec.group(1) == "0":
+                        self.fail(f"recordings_check: a throw with no recording: {line}")
+                    else:
+                        compared += self.recordings_compare(unit, int(rec.group(1)), line)
+                    seen += 1
+                if any("Charge: ended" in line for _, line in self.console.charge_events):
+                    self.fail("recordings_check: the series ended on a fault")
+                    break
+                time.sleep(CHARGE_POLL_S)
+            self.log.write("rc", f"recordings_check: {seen} of {throws} throws, {compared} rows compared")
+            if seen < throws:
+                self.fail(f"recordings_check: {seen} of {throws} throws seen")
+            heap_during = self.console.command("stats")
+            self.send("charge stop")
+            self.recordings_idle(unit)
+
+            # A charge whose samples cannot be had
+            self.console.charge_events.clear()
+            if self.send("ccrec nosamples on") is None:
+                return
+            reply = self.send(f"charge {target:g}")
+            if reply is None or not reply.startswith("@ok"):
+                return
+            line, started = None, time.monotonic()
+            while line is None and time.monotonic() - started < RECORDINGS_THROW_S:
+                lines = [text for _, text in self.console.charge_events if text.startswith("Charge: throw ")]
+                line = lines[0] if lines else None
+                time.sleep(CHARGE_POLL_S)
+            if line is None:
+                self.fail("recordings_check: with no samples, the charge threw nothing")
+            else:
+                rec_id = int(re.search(r"recording=(\d+)", line).group(1))
+                entry = self.recordings_wait(unit, rec_id, RECORDINGS_THROW_S) if rec_id else None
+                status, _ = unit.request("GET", f"recordings/{rec_id}/samples")
+                self.log.write("rc", f"recordings_check: with no samples, the charge threw to "
+                                     f"{entry['summary']['result'] if entry else '?'}; recording {rec_id} "
+                                     f"samples_kept {entry['samples_kept'] if entry else '?'}, its samples {status}")
+                if entry is None or entry["samples_kept"] or status != 410:
+                    self.fail(f"recordings_check: with no samples: recording {rec_id}, samples_kept "
+                              f"{entry['samples_kept'] if entry else None}, its samples answered {status}, not 410")
+            self.send("charge stop")
+            self.recordings_idle(unit)
+        finally:
+            self.send("ccrec nosamples off")
+            self.send("sim off")
+        heap_after = self.console.command("stats")
+        for name, reply in (("before", heap_before), ("during the series", heap_during), ("after", heap_after)):
+            self.log.write("rc", f"recordings_check: the heap {name}: {reply}")
+
+    def recordings_idle(self, unit):
+        """Wait for the charge to be idle after a stop."""
+        deadline = time.monotonic() + RECORDINGS_THROW_S
+        while time.monotonic() < deadline and unit.read("charge")["state"] != "idle":
+            time.sleep(CHARGE_POLL_S)
 
     def charge_fault(self, fault, host, target, at_weight, quiet_ms, rate, purge_speed, expect, watch_s,
                      repeat=1, want=None, want_none=False):
@@ -3815,6 +4007,11 @@ def main():
     cycle_parser.add_argument("--target", type=float, default=30.0)
     cycle_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
     cycle_parser.add_argument("--timeout", type=float, default=120.0)
+    recordings_parser = sub.add_parser("recordings_check", help="each throw's recording through the API against the "
+                                       "console's, and a charge with no samples (ADR-009, gate 2's rest)")
+    recordings_parser.add_argument("--host", required=True, help="the unit's address")
+    recordings_parser.add_argument("--target", type=float, default=30.0)
+    recordings_parser.add_argument("--throws", type=int, default=5)
     pulses_parser = sub.add_parser("pulses", help="do the step pulses stop on a reset, an assert, a hard fault?")
     pulses_parser.add_argument("--assert-elf", default=str(REPO / "build_w_fault1" / "app.elf"))
     pulses_parser.add_argument("--hardfault-elf", default=str(REPO / "build_w_fault2" / "app.elf"))
@@ -3935,6 +4132,8 @@ def run_command(session, args):
         session.menu_tour(args.save, args.compare)
     elif args.command == "charge_cycle":
         session.charge_cycle(args.target, args.threshold, args.timeout)
+    elif args.command == "recordings_check":
+        session.recordings_check(args.host, args.target, args.throws)
     elif args.command == "pulses":
         session.pulses(args.assert_elf, args.hardfault_elf)
     elif args.command == "update":

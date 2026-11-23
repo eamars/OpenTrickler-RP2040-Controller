@@ -129,9 +129,11 @@ class Lockstep:
         self._note("port", port)
         if self.speed_off is None and self.last["reference"] == self.last["port"]:
             for tube in ("coarse", "fine"):
-                a, b = getattr(ref, tube + "_rps"), getattr(port, tube + "_rps")
-                if abs(a - b) > self.tolerance[tube]:
-                    self.speed_off = (self.now_ms / 1000.0, tube, a, b)
+                # The speed asked, and the glide's in shadow, as a throw's recording takes it
+                for what, a, b in ((tube, getattr(ref, tube + "_rps"), getattr(port, tube + "_rps")),
+                                   (tube + " glide", ref.glide_speed(tube), port.glide_speed(tube))):
+                    if abs(a - b) > self.tolerance[tube]:
+                        self.speed_off = (self.now_ms / 1000.0, what, a, b)
 
     def difference(self):
         """None when the two agree, else what differed first, in words."""

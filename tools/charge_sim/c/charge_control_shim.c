@@ -22,7 +22,8 @@ size_t shim_sizeof_constants(void) {
 
 // The controller's outputs and state, as doubles whatever its precision, in this order: coarse_rps, fine_rps,
 // move_turns, done, result, phase, rest_weight, stop_room_gr, have_first_error, first_error_gr, moves, streams;
-// then for a test: unseen_gr, coarse_unseen_gr, reading, the turns and the speeds (coarse, fine)
+// then for a test: unseen_gr, coarse_unseen_gr, reading, the turns and the speeds (coarse, fine); then the glide's
+// asked speeds in shadow (coarse, fine), as a recording takes them
 void shim_outputs(const charge_control_t *c, double *out) {
     out[0] = c->coarse_rps;
     out[1] = c->fine_rps;
@@ -43,6 +44,8 @@ void shim_outputs(const charge_control_t *c, double *out) {
     out[16] = c->turned[1];
     out[17] = c->speed[0];
     out[18] = c->speed[1];
+    out[19] = charge_control_glide_rps(c, 0);
+    out[20] = charge_control_glide_rps(c, 1);
 }
 
 // The fine tube's learning carried from another controller (the check's lockstep: a throw starts from the

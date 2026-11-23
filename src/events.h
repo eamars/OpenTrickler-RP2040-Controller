@@ -91,7 +91,10 @@ typedef struct {
     float value2;           // a throw's seconds
     const char *text;       // a driver's fault ("short"), the firmware's version, a setting's path: a string that
                             // never changes
-    uint32_t version;       // an update's image, its block version: kept as a number, so the event never changes
+    union {
+        uint32_t version;   // an update's image, its block version: kept as a number, so the event never changes
+        uint32_t recording; // a throw's recording (ADR-009): its id, 0 when the throw has none
+    };
 } event_t;
 
 #ifdef __cplusplus

@@ -329,6 +329,42 @@ static void write_resource(const settings_resource_t *resource, int32_t id, char
 }
 
 
+size_t settings_copy_live(const char *path, void *out, size_t room) {
+    int32_t id;
+    const settings_resource_t *resource = resource_for_path(path, &id);
+    if (resource == NULL || resource->size > room) {
+        return 0;
+    }
+    memcpy(out, resource->live(id), resource->size);
+    return resource->size;
+}
+
+
+void settings_write_copy(const char *path, const void *copy, char *out, size_t room, size_t *len) {
+    int32_t id;
+    const settings_resource_t *resource = resource_for_path(path, &id);
+    if (resource == NULL) {
+        http_json_raw(out, room, len, "null");
+        return;
+    }
+    const uint8_t *base = copy;
+    http_json_raw(out, room, len, "{");
+    bool first = true;
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        const setting_field_t *field = &resource->fields[idx];
+        if (field->access == SETTING_WRITE_ONLY) {
+            continue;
+        }
+        http_json_raw(out, room, len, first ? "" : ",");
+        http_json_string(out, room, len, field->name);
+        http_json_raw(out, room, len, ":");
+        write_value(field, base, out, room, len);
+        first = false;
+    }
+    http_json_raw(out, room, len, "}");
+}
+
+
 // --- A write
 
 typedef struct {
@@ -1208,7 +1244,7 @@ static const char *const settings_error_codes[] = {
     "read_only", "confirm_missing", "not_found", "method_not_allowed", "busy", "not_running", "no_target",
     "weight_off_zero", "driver_fault", "gate_disabled", "not_supported", "wrong_host", "too_large",
     "wrong_media_type", "failed", "not_an_image", "wrong_chip", "wrong_board", "not_an_update", "not_newer",
-    "wrong_slot", "hash_mismatch", "not_ready", "no_network", "not_on_hotspot",
+    "wrong_slot", "hash_mismatch", "not_ready", "no_network", "not_on_hotspot", "gone",
 };
 
 

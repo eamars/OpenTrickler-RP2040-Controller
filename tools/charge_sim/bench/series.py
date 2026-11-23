@@ -5,7 +5,9 @@ The firmware runs the controller (src/charge_control.c) every millisecond; the P
    `staged.to_json`'s shape, or a throw set's `calibration`), for the finish and band asked;
 2. the charge's controller is set to the staged one, live and not stored (`setting settings/charge controller=staged`);
 3. `charge <target> series <n>`: n throws into the same cup, each from the weight the cup rests at, no cup lifted;
-4. each throw's line (`Charge: throw ...`) is read as it comes, and its rows (`ccrec`) before the next begins.
+4. each throw's line (`Charge: throw ...`) is read as it comes, and its rows (`ccrec <its recording>`); with
+   --host, its recording through the API too, as GET /api/v1/recordings/{id} and its samples give it (ADR-009,
+   gate 2's rest), kept beside the rows as `recording`.
 
 A throw's settled weight is the next one's base less its own (what fell late is in it); the last throw's, the cup
 read once more after the series. Kept in <repo>/logs/adr009/<time>_series_<name>/series.json.
@@ -44,6 +46,7 @@ import staged       # noqa: E402  (../staged.py)
 
 THROW_MOST_S = 150.0
 POLL_S = 1.0
+RECORDING_WAIT_S = 30.0     # a throw's recording complete by then: its verdict comes at its rest
 SETTLE_S = 5.0
 THROW_LINE = re.compile(r"Charge: throw (.*)")
 
@@ -84,10 +87,27 @@ def state(session) -> dict:
     return fields(reply)
 
 
+def read_recording(repo: Path, host: str, recording: int) -> dict:
+    """A throw's recording through the API once it is complete: its entry (summary, settings, marks) and samples."""
+    sys.path.insert(0, str(repo / "tools" / "remote_control"))
+    import unit_api
+    unit = unit_api.Unit(host)
+    deadline = time.monotonic() + RECORDING_WAIT_S
+    entry = None
+    while time.monotonic() < deadline:
+        status, entry = unit.request("GET", f"recordings/{recording}")
+        if status == 200 and entry.get("complete"):
+            break
+        time.sleep(POLL_S)
+    samples = unit.read(f"recordings/{recording}/samples") if entry and entry.get("samples_kept") else None
+    return {"entry": entry, "samples": samples}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--board", default="pico2_w")
+    parser.add_argument("--host", help="the unit's address: each throw's recording read through the API too")
     parser.add_argument("--name", required=True)
     parser.add_argument("--controller", choices=("staged", "pid_learnt"), default="staged")
     parser.add_argument("--gains", type=Path, help="pid_learnt: a unit's settings copy whose powder profile's PID "
@@ -230,9 +250,12 @@ def main() -> int:
             throws = [match.group(1) for match in throws if match]
             for text in throws[seen:]:
                 entry = fields(text)
-                session.send("ccrec")
+                recording = int(entry.get("recording", 0) or 0)
+                session.send(f"ccrec {recording}" if recording else "ccrec")
                 entry["rows"] = [[float(x) for x in line.split()[1:]] for line in session.console.data_lines
                                  if line.startswith("@r ")]
+                if args.host and recording:
+                    entry["recording"] = read_recording(args.repo, args.host, recording)
                 record["throws"].append(entry)
                 error = entry["rest"] - args.target
                 print(f"throw {len(record['throws'])}: {entry['result']} rest {entry['rest']:.3f} "

@@ -227,6 +227,13 @@ static void write_charge(char *out, size_t room, size_t *len) {
     http_json_string(out, room, len, events_reason_name(charge.last_reason));
     http_json_raw(out, room, len, ",\"weight\":");
     http_json_number(out, room, len, charge.last_weight, 6);
+    http_json_raw(out, room, len, ",\"recording\":");
+    if (charge.last_recording != 0) {
+        http_json_integer(out, room, len, charge.last_recording);
+    }
+    else {
+        http_json_raw(out, room, len, "null");
+    }
     http_json_raw(out, room, len, "},\"event_seq\":");
     http_json_integer(out, room, len, (long) events_latest_seq());
     http_json_raw(out, room, len, "}");
@@ -1900,15 +1907,16 @@ static const char *const api_v1_schema_events[] = {
     "\"about\":\"by: button, api, console\"}",
     "{\"source\":\"charge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"by: button, api, "
     "console, or unit when it ended itself; reason: stopped, fault\"}",
-    "{\"source\":\"throw\",\"kind\":\"started\",\"carries\":[\"throw\",\"target\",\"powder_profile\"],"
-    "\"about\":\"throw: its number, from 1 at each start of the unit\"}",
+    "{\"source\":\"throw\",\"kind\":\"started\",\"carries\":[\"throw\",\"recording\",\"target\",\"powder_profile\"],"
+    "\"about\":\"throw: its number, from 1 at each start of the unit; recording: its id, null for a throw that has "
+    "none (only the charge controller's throws are recorded)\"}",
     "{\"source\":\"throw\",\"kind\":\"paused\",\"carries\":[\"throw\",\"pause\"],\"about\":\"no reading for 3 of the "
     "scale's intervals; pause: its number in the throw\"}",
     "{\"source\":\"throw\",\"kind\":\"resumed\",\"carries\":[\"throw\",\"weight\"],\"about\":\"weight: the settled "
     "weight it went on from\"}",
-    "{\"source\":\"throw\",\"kind\":\"finished\",\"carries\":[\"throw\",\"result\",\"weight\",\"elapsed_s\"],"
+    "{\"source\":\"throw\",\"kind\":\"finished\",\"carries\":[\"throw\",\"recording\",\"result\",\"weight\",\"elapsed_s\"],"
     "\"about\":\"the verdict; result: good, under, over\"}",
-    "{\"source\":\"throw\",\"kind\":\"ended\",\"carries\":[\"throw\",\"reason\",\"motor\",\"fault\"],\"about\":\"a "
+    "{\"source\":\"throw\",\"kind\":\"ended\",\"carries\":[\"throw\",\"recording\",\"reason\",\"motor\",\"fault\"],\"about\":\"a "
     "throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and "
     "fault only with driver_fault\"}",
     "{\"source\":\"purge\",\"kind\":\"started\",\"carries\":[\"by\"]}",

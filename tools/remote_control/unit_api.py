@@ -250,10 +250,31 @@ class Unit:
                 continue
             resource = self.resource(entry["path"])
             if "{id}" in entry["path"]:
-                found.extend(entry["path"].replace("{id}", str(id_)) for id_ in resource["ids"])
+                found.extend(entry["path"].replace("{id}", str(id_)) for id_ in self.ids(entry["path"], resource))
             else:
                 found.append(entry["path"])
         return found
+
+    def ids(self, path, resource=None):
+        """
+        The ids a path's {id} takes now: a settings resource's from the schema; a recording's from the list the unit
+        keeps, and for its samples only those whose samples are kept (ADR-009).
+
+        Args:
+            path: the path with {id}.
+            resource: its settings resource from the schema, if it is one.
+
+        Returns:
+            The ids.
+        """
+        if resource is not None:
+            return resource["ids"]
+        if full_path(path).startswith(full_path("recordings/{id}")):
+            recordings = self.read("recordings")["recordings"]
+            if path.endswith("/samples"):
+                return [entry["id"] for entry in recordings if entry["samples_kept"]]
+            return [entry["id"] for entry in recordings]
+        return []
 
     def resource(self, path):
         """

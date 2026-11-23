@@ -37,7 +37,7 @@ ALLOWED = {
         "32": (2, "the most first errors place_stop takes: a size (B11)"),
     },
     "charge_control.h": {
-        "2": (9, "two tubes: arrays of 2"),
+        "2": (10, "two tubes: arrays of 2"),
         "256": (1, "CHARGE_CONTROL_PARCELS_MAX: a size, with its condition (C23)"),
         "3": (1, "CHARGE_CONTROL_MOVES: a size (B11)"),
         "4": (1, "CHARGE_CONTROL_COARSE_STOPS_MAX: a size (B11)"),
@@ -79,18 +79,14 @@ ALLOWED = {
         "0.02": (2, "A8's and A9's defaults, the zero's margins"),
         "0.25": (1, "A11's default, the back-off's turns"),
         "2": (2, "A12's default, the precharge's speed; an event's bit"),
-        "1000": (15, "milliseconds in a second; A12's default, the precharge's time; a target's three decimals; a row's "
-                     "speed in thousandths"),
+        "1000": (11, "milliseconds in a second; A12's default, the precharge's time; a target's three decimals"),
         "100": (1, "a target's two decimals"),
         "10": (3, "a target's decimal digits"),
         "4": (1, "the last of a target's five digits"),
         "99999": (1, "A19: the most a target's five digits show"),
         "0.001": (1, "A19: a target on its digits' grid"),
-        "65": (2, "E23: a row's speed as it is packed (not control)"),
-        "800": (1, "E15: CHARGE_RECORD_ROWS, a throw's rows kept (not control)"),
         "50": (1, "E21: a fault's acknowledgement looked for (not control)"),
         "30": (1, "the title's length"),
-        "80": (1, "a console line's length"),
     },
     "charge_mode.h": {
         "2": (2, "an enum's value"),

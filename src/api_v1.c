@@ -29,6 +29,7 @@
 #include "servo_gate.h"
 #include "settings.h"
 #include "version.h"
+#include "recording.h"
 
 #include "pico/rand.h"
 #include "pico/time.h"
@@ -358,6 +359,15 @@ static const api_v1_resource_t api_v1_resources[] = {
      "the client's Last-Event-ID or ?after=N, nothing missed), then the state (the job, the charge with its weight, "
      "the purge), then each event with its id, and the state again as it changes and after 15 s quiet. At most "
      "3 at once: 503 then, with Retry-After"},
+    {"/api/v1/recordings", "[\"GET\"]",
+     "the throws recorded, newest first, each with its summary: only the charge controller's throws, so a throw of "
+     "another controller has none (its events' recording is null). The unit keeps the newest throws' summaries and "
+     "the samples of the throw being made and of the last complete one; a Pico W keeps them for its charge only"},
+    {"/api/v1/recordings/{id}", "[\"GET\"]",
+     "one recording: its summary, the settings in force at its throw, and its marks"},
+    {"/api/v1/recordings/{id}/samples", "[\"GET\"]",
+     "its rows after row N (?after=N, -1 for all): its columns, the rows, next, complete; 410 gone when its samples "
+     "are not kept"},
     {"/api/v1/scale", "[\"GET\"]", "the scale: its weight and unit, the driver that runs, its rhythm"},
     {"/api/v1/scale/zero", "[\"POST\"]", "asks the scale to zero, where it may: see the guide"},
 #if FEATURE_SERVO_GATE
@@ -636,6 +646,7 @@ bool api_v1_init(void) {
     settings_add_routes();
     // The commands, the event log and the unit's reads (gate 4)
     ok = ok && api_v1_commands_init();
+    ok = ok && recording_api_init();
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display", api_v1_get_display);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/display/frame", api_v1_get_display_frame);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug", api_v1_get_debug);

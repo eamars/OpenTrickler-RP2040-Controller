@@ -187,6 +187,8 @@ typedef struct {
     // Out, read after every call
     charge_control_real_t coarse_rps;
     charge_control_real_t fine_rps;
+    charge_control_real_t glide_rps[2];             // coarse, fine: the glide's stream law's asked speeds, in shadow
+                                                    // under the PID law (read by charge_control_glide_rps)
     charge_control_real_t move_turns;               // a small move asked for, in turns; below zero when none is
     bool done;
     uint8_t result;                 // charge_control_result_t
@@ -259,6 +261,13 @@ void charge_control_tick(charge_control_t *c, uint32_t now_ms);
 void charge_control_reading(charge_control_t *c, uint32_t now_ms, charge_control_real_t weight);
 // The caller made the small move asked for itself, to its step count: the move is over
 void charge_control_moved(charge_control_t *c, uint32_t now_ms);
+
+/*
+    What the glide's stream law asks of a tube now (0 coarse, 1 fine), for a throw's recording: while the stream pours,
+    the glide's speed whichever law pours (under the glide, the speed asked); at a rest or a move, the speed asked, the
+    same under both laws
+*/
+charge_control_real_t charge_control_glide_rps(const charge_control_t *c, int tube);
 
 // A result in a word, for the console, the event log and a recording: good, over, short, limit; none when not done
 const char *charge_control_result_string(charge_control_result_t result);

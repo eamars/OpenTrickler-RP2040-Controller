@@ -32,7 +32,7 @@ PHASES = ("feed", "rest", "move")
 COARSE_STOPS_MAX = 4
 FINE_STOPS_MAX = 8
 MOVES = 3
-OUTPUTS = 19
+OUTPUTS = 21
 RULES = ("floor_rps", "stop_room_gr", "aim_gr", "glide_room_gr", "glide_s", "coarse_room_gr", "coarse_glide_s",
          "rest_s")
 
@@ -247,9 +247,14 @@ class FirmwareStaged:
         self.reading = out[14]
         self.turned = {"coarse": out[15], "fine": out[16]}
         self.speed = {"coarse": out[17], "fine": out[18]}
+        self.glide = {"coarse": out[19], "fine": out[20]}
         if self.done and not self._logged:
             self.log.append((self.first_error, self.moves, self.streams))
             self._logged = True
+
+    def glide_speed(self, tube: str) -> float:
+        """What the glide's stream law asks of a tube now (charge_control_glide_rps)."""
+        return self.glide[tube]
 
     def parcels(self, tube: str) -> list:
         """(due, grains) of a tube's powder on its way: for a test."""

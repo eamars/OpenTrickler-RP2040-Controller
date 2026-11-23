@@ -165,6 +165,16 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
         case EVENT_SOURCE_THROW:
             write_member(out, room, len, "throw");
             http_json_integer(out, room, len, event->throw_number);
+            if (event->kind == EVENT_STARTED || event->kind == EVENT_FINISHED || event->kind == EVENT_ENDED) {
+                // Only the charge controller's throws are recorded (ADR-009): another's is null
+                write_member(out, room, len, "recording");
+                if (event->recording != 0) {
+                    http_json_integer(out, room, len, (long) event->recording);
+                }
+                else {
+                    http_json_raw(out, room, len, "null");
+                }
+            }
             if (event->kind == EVENT_STARTED) {
                 write_member(out, room, len, "target");
                 http_json_float(out, room, len, event->value);

@@ -429,6 +429,7 @@ class Staged:
         self.done = False
         self.coarse_rps = 0.0
         self.fine_rps = 0.0
+        self.glide_rps = {"coarse": 0.0, "fine": 0.0}  # the glide's stream law's asked speeds, in shadow
         self.phase = "feed"
         # a charge too small for the coarse tube's margin is the fine tube's alone
         self.coarse_on = target_gr > cal.coarse_room_gr + COARSE_LEAST_TURNS * cal.coarse_gr_turn
@@ -563,22 +564,25 @@ class Staged:
         # and its margin is the wider for it; in a large one the reading has caught up and little is added
         room = self._room()
         pid = self.pid
+        self.glide_rps = {"coarse": 0.0, "fine": 0.0}
         if self.coarse_on:
             if room <= cal.coarse_room_gr:
                 self.coarse_on = False
                 self.coarse_rps = 0.0
                 if self.coarse_off_at is None:
                     self.coarse_off_at = now
-            elif pid is not None:
-                asked = pid.coarse_kp * (room - cal.coarse_room_gr) + self.pid_term["coarse"]
-                top = pid.coarse_max_rps
-                if self.pid_envelope:
-                    top = min(top, COARSE_TOP_RPS, COARSE_FLOOR_RPS + (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s))
-                self.coarse_rps = min(top, max(pid.coarse_min_rps, asked))
-                self.pid_held["coarse"] = not (pid.coarse_min_rps < asked < top)
             else:
-                asked = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
-                self.coarse_rps = min(COARSE_TOP_RPS, max(COARSE_FLOOR_RPS, asked))
+                glide = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
+                self.glide_rps["coarse"] = min(COARSE_TOP_RPS, max(COARSE_FLOOR_RPS, glide))
+                if pid is not None:
+                    asked = pid.coarse_kp * (room - cal.coarse_room_gr) + self.pid_term["coarse"]
+                    top = pid.coarse_max_rps
+                    if self.pid_envelope:
+                        top = min(top, COARSE_TOP_RPS, COARSE_FLOOR_RPS + (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s))
+                    self.coarse_rps = min(top, max(pid.coarse_min_rps, asked))
+                    self.pid_held["coarse"] = not (pid.coarse_min_rps < asked < top)
+                else:
+                    self.coarse_rps = self.glide_rps["coarse"]
         if not self.coarse_on and room <= self.stop_room:
             self.fine_rps = 0.0
             if self.coarse_unseen >= cal.digit_gr:
@@ -587,6 +591,8 @@ class Staged:
             self.stopped_at = now
             self.wait = cal.rest_s
             return
+        glide = (room - cal.glide_room_gr) / (cal.fine_gr_turn * cal.glide_s)
+        self.glide_rps["fine"] = min(FINE_TOP_RPS, max(cal.floor_rps, glide))
         if pid is not None:
             asked = pid.fine_kp * room + self.pid_term["fine"]
             top = pid.fine_max_rps
@@ -595,8 +601,14 @@ class Staged:
             self.fine_rps = min(top, max(cal.floor_rps, asked))
             self.pid_held["fine"] = not (cal.floor_rps < asked < top)
             return
-        asked = (room - cal.glide_room_gr) / (cal.fine_gr_turn * cal.glide_s)
-        self.fine_rps = min(FINE_TOP_RPS, max(cal.floor_rps, asked))
+        self.fine_rps = self.glide_rps["fine"]
+
+    def glide_speed(self, tube: str) -> float:
+        """What the glide's stream law asks of a tube now, for a recording: in the stream its speed whichever law
+        pours; at a rest or a move the speed asked, the same under both laws (charge_control_glide_rps)."""
+        if self.phase == "feed":
+            return self.glide_rps[tube]
+        return self.coarse_rps if tube == "coarse" else self.fine_rps
 
     def on_reading(self, now_ms: float, weight: float) -> None:
         now = now_ms / 1000.0

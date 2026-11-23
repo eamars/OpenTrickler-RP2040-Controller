@@ -113,6 +113,12 @@ void settings_add_routes(void);
 // Each registered table in turn, for the index (api_v1.c): NULL past the last
 const settings_resource_t *settings_resource_at(size_t idx);
 
+// A resource's struct as it is now, copied whole, for a recording's snapshot (ADR-009): its size, or 0 when the path
+// names no resource or the struct is larger than room. The path as the API's, with its id ("/api/v1/powder_profiles/3")
+size_t settings_copy_live(const char *path, void *out, size_t room);
+// The fields of such a copy as the resource's GET writes them, but `saved`; null when the path names no resource
+void settings_write_copy(const char *path, const void *copy, char *out, size_t room, size_t *len);
+
 // A setting that applies at the next start differs from what this start read (gate 4: `restart_pending`)
 bool settings_restart_pending(void);
 

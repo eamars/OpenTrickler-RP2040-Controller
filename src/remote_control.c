@@ -21,6 +21,7 @@
 #include "remote_control.h"
 #include "charge_mode.h"
 #include "charge_calibration.h"
+#include "recording.h"
 #include "scale.h"
 #include "profile.h"
 #include "eeprom.h"
@@ -785,11 +786,11 @@ static bool remote_control_ctune(const char *args, char *reply, size_t reply_siz
 }
 
 
-// `ccrec`: the last staged throw's rows, `@r <ms> <reading> <forecast> <coarse rev/s> <fine rev/s>` (ADR-009)
+// `ccrec`: the last recorded throw's rows, `@r <ms> <reading> <forecast> <coarse rev/s> <fine rev/s>`, as its
+// recording holds them; `ccrec nosamples on|off` (ADR-009; recording.h)
 static bool remote_control_ccrec(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
-    (void) args;
-    charge_mode_record_console(reply, reply_size, write, write_ctx);
+    recording_console(args, reply, reply_size, write, write_ctx);
     return true;
 }
 
