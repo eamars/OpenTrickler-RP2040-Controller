@@ -189,11 +189,21 @@ class RealUnit:
         selected = self.selected_profile()
         p = fields(f"powder_profiles/{selected}")
         coarse, fine = fields("settings/motors/coarse"), fields("settings/motors/fine")
+        charge = fields("settings/charge")
+        backoff_on = charge.get("coarse_stop_backoff_enable", "false").strip('"') == "true"
+        backoff_turns = float(charge.get("coarse_stop_backoff_turns", "0")) if backoff_on else 0.0
+        backoff_rps = abs(float(charge.get("coarse_stop_backoff_speed_rps", "0")))
+        coarse_least = max(float(p["coarse_min_speed_rps"]), float(coarse["min_speed_rps"]))
         limits = staged.Limits(
-            coarse_least=max(float(p["coarse_min_speed_rps"]), float(coarse["min_speed_rps"])),
+            coarse_least=coarse_least,
             coarse_most=min(float(p["coarse_max_speed_rps"]), float(coarse["max_speed_rps"])),
             fine_least=max(float(p["fine_min_speed_rps"]), float(fine["min_speed_rps"])),
-            fine_most=min(float(p["fine_max_speed_rps"]), float(fine["max_speed_rps"])))
+            fine_most=min(float(p["fine_max_speed_rps"]), float(fine["max_speed_rps"])),
+            # the back-off and the coarse stop threshold, as the charge takes them (ADR-009, gate F.3): a back-off
+            # speed of 0 is the coarse least
+            backoff_turns=backoff_turns,
+            backoff_rps=(backoff_rps if backoff_rps > 0.0 else coarse_least) if backoff_on else 0.0,
+            coarse_threshold_gr=float(charge.get("coarse_stop_threshold", "5")))
         return limits
 
     def selected_profile(self) -> int:
@@ -602,6 +612,59 @@ def compare(summary: dict, expected: dict, say=print) -> None:
                 f"(middle {row['middle']:.2f})   {'inside' if inside else 'OUTSIDE'}")
 
 
+def measure_backoff_only(args) -> int:
+    """The back-off's spill measured against a kept calibration, and written alone into the unit's stored record
+    (ADR-009, gate F.3; gate 3's step built early): three stops from the coarse floor with the unit's own back-off,
+    then a PATCH of the four fields to the selected profile's `powder_records/<id>` and its save. Every other field
+    of the record is compared before and after."""
+    sys.path.insert(0, str(args.repo / "tools" / "remote_control"))
+    import unit_api
+    if args.host is None or args.calibration is None or args.most_pour is None:
+        print("--measure-backoff needs --host, --calibration (the kept one: its watch) and --most-pour")
+        return 1
+    cal = staged.from_json(json.loads(args.calibration.read_text(encoding="utf-8")))
+    unit = RealUnit(args.repo, f"backoff_{args.name or 'unit'}", args.board, args.digit, args.interval,
+                    args.acceleration, args.most_pour)
+    code = 1
+    try:
+        limits = unit.limits
+        if not (limits.backoff_turns > 0.0 and limits.backoff_rps > 0.0):
+            print("the unit's back-off is off: nothing to measure")
+            return 1
+        profile = unit.selected_profile()
+        api = unit_api.Unit(args.host)
+        path = f"/api/v1/settings/powder_records/{profile}"
+        _, before = api.request("GET", path)
+        print(f"the back-off: {limits.backoff_turns:g} turns at {limits.backoff_rps:g} rev/s, from the coarse floor "
+              f"{limits.coarse_least:g} rev/s; profile {profile}", flush=True)
+        unit.ready()
+        unit.stop()
+        staged.measure_backoff(UnitBench(unit), cal, limits, unit.digit)
+        print(f"   arrived after: {cal.backoff_unseen_gr:.4f} (spread {cal.backoff_spread_gr:.4f}); a held stop there: "
+              f"{cal.coarse_stops[0].unseen_gr:.4f}", flush=True)
+        written = {"unit_id": before["unit_id"], "backoff_unseen_gr": round(cal.backoff_unseen_gr, 6),
+                   "backoff_spread_gr": round(cal.backoff_spread_gr, 6), "backoff_turns": cal.backoff_turns,
+                   "backoff_rps": cal.backoff_rps}
+        status, reply = api.request("PATCH", path, written)
+        print(f"   PATCH {path}: {status}", flush=True)
+        status_save, _ = api.request("POST", "/api/v1/settings/powder_records/save", {})
+        print(f"   save: {status_save}", flush=True)
+        _, after = api.request("GET", path)
+        changed = sorted(k for k in before if k != "saved" and before[k] != after.get(k))
+        others = [k for k in changed if not k.startswith("backoff_")]
+        print(f"   changed: {changed}; any other field changed: {others or 'none'}", flush=True)
+        (unit.folder / "backoff.json").write_text(json.dumps({"before": before, "after": after, "written": written},
+                                                             indent=1), encoding="utf-8")
+        code = 0 if status == 200 and status_save == 200 and not others else 1
+    finally:
+        try:
+            unit.stop()
+        except Exception as error:
+            print(f"BOTH MOTORS MAY STILL BE TURNING ({error}): send `motor coarse 0` and `motor fine 0` now", flush=True)
+        unit.close()
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", type=Path, help="the checkout whose rc_run.py and build match the unit's firmware")
@@ -620,6 +683,10 @@ def main() -> int:
     parser.add_argument("--digit", type=float, default=0.02, help="the scale's digit, in grains")
     parser.add_argument("--interval", type=float, default=0.048, help="the scale's usual time between readings, s")
     parser.add_argument("--acceleration", type=float, default=50.0, help="the motors' stored acceleration, rev/s2")
+    parser.add_argument("--measure-backoff", action="store_true",
+                        help="only the back-off's spill, against --calibration, written into the unit's stored record "
+                             "through the API (--host): ADR-009, gate F.3")
+    parser.add_argument("--host", help="the unit's address, for --measure-backoff's write")
     parser.add_argument("--sets", help="the sets to rehearse and throw, comma-separated (glide_0.02,...): all when none")
     parser.add_argument("--most-pour", type=float, help="a unit's trial: the most it pours into the real cup, in "
                         "grains, checked against 600 gr before anything turns (rc_run's cup check)")
@@ -634,6 +701,9 @@ def main() -> int:
             print(f"  {name:10s} " + "; ".join(f"{figure} {row['low']:.2f} to {row['high']:.2f}"
                                                for figure, row in figures.items() if figure != "throws"))
         return 0
+
+    if args.measure_backoff:
+        return measure_backoff_only(args)
 
     if args.made_up:
         unit = MadeUpUnit(rigs.get_rig(args.made_up), args.seed)
