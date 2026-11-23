@@ -1727,3 +1727,11 @@ Documents only: nothing built, no unit contacted.
 - **The four decisions and three research items the page had left for the owner** decided from the record (`numbers.md`, "Decided in the review"): the coarse stop threshold kept beside the measured room; the fine figure's learning off until gate 3; the series' 600 gr the bench's; the spread multipliers rules; the starting figure, the 15 fine turns and the cup tests each tied to a gate with its cases.
 - **The README:** one build plan gathered from the approved gates, each number's gate named; the parameter register drafted, 18 rows, none approved; the three older plans moved word for word to `history.md`.
 - **Waiting:** the owner's approval of the register. Then N.2 at the desk.
+
+## 2026-11-23, to 17:48: every fixed number and default held to one test; a guideline and a checklist before each gate
+
+Documents only: nothing built, no unit contacted.
+- **The test** (`numbers.md`, the classes): a number is an existing setting, a new parameter the owner approved (a general default, measured by the calibration, then changeable by the user and the user's agent), or a fixed number of the method in the unit's own terms with a general reason, held on a unit it was not developed on.
+- **Nine numbers failed it,** each the bench unit's own value or a conversion made with its scale's digit (`numbers.md`, "The rows against the test"). Three were this afternoon's own decisions: the A&D's lag and rest kept as the default of a unit never calibrated, the starting figure kept at 2.0 gr a turn, and two weights written as counts of the A&D's digits.
+- **In the plan:** the guideline and a six-point checklist answered here before each gate; N.3, the bench's three leftover times and weights tried at nothing in the simulation; F.4's defaults found on every stand-in scale; gate 3's moves, prime and rehearsals in the unit's own terms; gate 7 as the proof of each fixed number.
+- **In the register:** row 9 names every new parameter and its life; row 10 the method's fixed numbers and why they are not settings; rows 4, 11 and 16 reworded.

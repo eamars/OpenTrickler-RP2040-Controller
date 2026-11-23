@@ -4,13 +4,13 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the newest section below). The sections below the newest are the research that led to it, kept as they were written.
 
-## Where it stands, 2026-11-23, 17:32: read this first
+## Where it stands, 2026-11-23, 17:48: read this first
 
 **For the agent who builds.** The documents are ready; one thing is waited for, the owner's approval of the parameter register. Check its "Approved" column before anything is built: a row still "Waiting" is not built.
 
 **Read in this order:**
 1. `../README.md`, "Where ADR-009 stands": what is settled, so it is not asked again, and what "ready" means.
-2. `../README.md`, "What we do: the build plan": the one plan, gate by gate, each with its pass. **The first build step is N.2,** at the desk: no unit is needed for it.
+2. `../README.md`, "What we do: the build plan": the one plan, gate by gate, each with its pass. It opens with a guideline and a checklist: **answer the checklist in `../progress.md` before each gate's first change.** The bench unit is one user's unit; nothing measured on it becomes a rule, a default or a constant. **The first build steps are N.2 and N.3,** at the desk: no unit is needed for them.
 3. `../README.md`, the sign-off and the parameter register.
 4. `../numbers.md`: every number the charge uses, its life cycle, and the gate that makes it so. A number you add gets its row in the same commit.
 

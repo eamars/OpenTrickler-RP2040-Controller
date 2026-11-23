@@ -1,6 +1,6 @@
 # ADR-009: every number the charge uses, and its life cycle
 
-Status: **Every row decided; waiting for the owner's approval** (2026-11-23, 17:32 NZDT). This page is gate N of the README. The rows were checked against the code on 2026-11-23 (below, "The audit"). Each row's life cycle is decided from the record, and none is left as a question. What changes a parameter or a setting is gathered into the README's parameter register, which the owner approves (sign-off item 2). No gate after N is built until then.
+Status: **Every row decided; waiting for the owner's approval** (2026-11-23, 17:48 NZDT). This page is gate N of the README. The rows were checked against the code on 2026-11-23 (below, "The audit"), and each fixed number and default against the test for a general-purpose controller the same evening ("The rows against the test"). Each row's life cycle is decided from the record, and none is left as a question. What changes a parameter or a setting is gathered into the README's parameter register, which the owner approves (sign-off item 2). No gate after N is built until then.
 
 **What is listed:** every number the charge reads, from the zero to the verdict, in any loop on the branch `adr009_controller`. It also lists every number the calibration uses to measure. A number is listed whether it is a user's setting, a measurement, a constant or a literal inside a rule. Only identities (0 and 1 as nothing and all) and loop counters are left out. Where a number appears in several places, each place is named.
 
@@ -12,24 +12,57 @@ Status: **Every row decided; waiting for the owner's approval** (2026-11-23, 17:
 - **Origin:** where its value came from, with the evidence found. "None found" means no measurement or study backs it.
 - **Decided:** its life cycle in the final controller, by the classes below, and in brackets the gate of the README's build plan that makes it so.
 
+**What the controller is for,** and the test every row is held to: it is a general-purpose powder trickling controller, tuned on each user's own device. So a number is one of three things:
+- **an existing setting,** kept as it is, or written by the calibration and the auto-tuner;
+- **a new parameter,** only with the owner's approval and its justification in the register. Its default is a general assumption, the calibration measures it on the unit, and afterwards the user and the user's agent can change it;
+- **a fixed number of the method,** which must pass the test below.
+
+What was measured on the bench unit (its scale, its tubes, its powders) shows what a calibration must measure. It is never a rule, a default or a constant in the firmware.
+
 **The life-cycle classes:**
 
 | Class | Default | Who modifies | Who calibrates | Stored |
 |---|---|---|---|---|
-| **User** | today's default | the user (screen, web, API); the user's agent on the user's yes | only where the row says: the calibration on the user's yes, the auto-tuner while it is on | its record as today, in the backup |
-| **Measured** | none is taken as true: before a calibration the row's fallback is used | nobody by hand; the user's agent on the user's yes, checked against its bounds | the calibration measures it; the auto-tuner corrects it while on, within its bound | the unit's own records (gate R), in the backup, never in the powder profile |
-| **Rule** | the value in the code | nobody: changed only by an ADR, with its evidence | nothing | not stored; in the parameter register and the design overview with its reason |
+| **User** (an existing setting) | today's default | the user (screen, web, API); the user's agent on the user's yes | only where the row says: the calibration on the user's yes, the auto-tuner while it is on | its record as today, in the backup |
+| **Measured** (a new parameter) | a general assumption written in its row, on the side that errs short; never a value from the bench | the user, under Settings (advanced); the user's agent on the user's yes; each write checked against its bounds | the calibration measures it; the auto-tuner corrects it while on, within its bound | the unit's own records (gate R), in the backup, never in the powder profile |
+| **Rule** (a fixed number of the method) | the value in the code | nobody: changed only by an ADR, with its reason | nothing | not stored; in the parameter register and the design overview with its reason |
 | **Safety** | as Rule | as Rule, and never reachable by the calibration, the learning or an agent | nothing | as Rule |
 | **Remove** | | | | debug switches, experiments and duplicates; gone by the gate named |
 | **Not control** | | | | a counting step, a buffer, a clock, a test-only or bench-only value: listed so the list is complete |
 
+**The test for a fixed number** (Rule or Safety). It passes only if all three hold:
+1. **It is in the unit's own terms:** a count, a share of something the unit measured or of a setting the user has, or a number of the scale's digits or reading intervals. A weight in grains, a speed in rev/s or a time in seconds that another scale, tube or powder would change does not pass.
+2. **Its reason is a general argument,** written in its row. "It worked on the bench" is not one. A study on the simulation's stand-in scales supports a reason; it does not replace it, because the stand-ins are made from the bench's own records.
+3. **It holds on a unit it was not developed on** (gate 7). A fixed number that needs another value there is not a rule: it becomes Measured. It is never tuned to the second unit.
+
+A time in seconds passes only as a bound on what a person waits for, or a limit a fault is judged by, the same on any unit (120 s for a throw, a second without a reading).
+
 **How each class lives in the firmware** (the rule for every gate after N):
 - **User:** the settings tables (`settings.h`), as today. Read at a charge's start.
-- **Measured:** the unit's records. Each field is described once with its bounds, as a setting is, so the API, the schema and the backup follow. Read at a charge's start, never during a throw. Written between charges only: by the calibration on the user's yes, by the auto-tuner at a charge's end.
+- **Measured:** the unit's records. Each field is described once with its bounds, as a setting is, so the API, the schema and the backup follow. Read at a charge's start, never during a throw. Written between charges only: by the calibration on the user's yes, by the auto-tuner at a charge's end, and by the user or the user's agent through the same checked write.
 - **Rule and Safety:** named constants in one header, each with its row here and its reason in a line. No number is written inside a formula. Nothing writes them on a unit: the console's `ccon` lists them, and its writes go at gate F.5. The PC's twin sets them for a study.
 - **A number without a row fails CI** (gate N.2).
 
-A row is a Rule only when the research shows it: the simulation's results are insensitive to it across the recorded rigs, or it is a trade whose present value is on the safe side, or it follows from physics or a safety argument written in its row. Otherwise it is Measured.
+## The rows against the test (2026-11-23, evening)
+
+Every Rule, Safety and default was read again against the test above. **Nine fail it.** Each was a value taken from the bench unit, or a conversion made with its scale's digit. Three of them were in this page's own decisions of the same afternoon.
+
+| Row | What failed | What it becomes |
+|---|---|---|
+| G1 | The lag (0.9 s) and the rest (2.5 s) of a unit never calibrated: the bench's A&D's, kept as "the default" | A general assumption on the slow side, so an unknown scale errs short. Its value is found on every stand-in scale (F.4), never taken from the A&D |
+| G2 | The starting figure, 2.0 gr a turn: raised from 1.0 "after this rig's dry throws", and a weight in grains | Not a number from a rig. The figure starts from what the throw itself shows, the weight risen for the turns made; until it has shown, the frame forecasts nothing, as today's loop does. If F.4's study finds that is not enough, a start value is a new parameter and goes to the owner |
+| C20 | The far-over stop written as "150 digits": 3 gr turned into digits with the A&D's digit | In the user's own terms: 100 times the tolerance (3 at the default 0.03), in the scale's unit whatever that is |
+| D9 | The coarse room's extra 0.2 gr, written as "10 digits" the same way | Tried at nothing (N.3). Without effect it goes; with one, it is made from a spread the unit measured |
+| C16 | Stillness for at least 0.4 s, chosen on the bench's scale | Tried at nothing (N.3). Without effect it goes, and the two reading intervals of D15 stand alone |
+| D10 | The rest's extra 0.3 s (and D13's 0.3 s, with C13) | Tried at nothing (N.3). Without effect it goes; with one, it is counted in reading intervals |
+| C1 | A small move at 0.2 rev/s, "as the bench's watched nudges were". The calibration measures its moves at that same 0.2, so "measured" only repeated it | The calibration makes its moves at a speed from the unit's own measured ladder; the top-ups use that speed (3) |
+| F5 | The rehearsals' 1 gr | Goes with the mend already decided: a rehearsal is a throw's last stretch, its size the coarse room's |
+| F6 | The prime at 1 rev/s | A speed inside the user's own range (A2, A5, A13, A14) |
+
+**What passes, and why it is not a list of settings:**
+- **The shares and counts of the method** (3 spreads, 0.6 of a lag, 15% of an error, a digit, two intervals): each multiplies something the unit measured. The measurement is the unit's; the share is how the calibration turns it into the controller's number. They are fixed, approved as one row of the register, and held to point 3 of the test.
+- **The safety bounds:** fixed, and out of reach of the calibration, the learning and an agent by sign-off item 8.
+- **The numbers the rules make** (B10): shown wherever this unit's data is read, with what they are made from. A user or an agent changes the measurements, and the made numbers follow. They are not set by themselves: an agent setting a glide time against the lag it is made from would leave a unit that contradicts itself.
 
 ## The audit: the rows against the code (2026-11-23)
 
@@ -109,7 +142,7 @@ Measured today by the PC (`bench/trial.py` through the console) and written by `
 | B7 | Small moves (3 sizes): turns, mean, most, wait | none | `ccal` | the PC tool (F3) | the top-ups read the turns, the mean and the wait (`charge_control.c:489`). No loop reads the most; it is stored and shown only | measured | **Measured.** The most is **Not control**: a measurement the calibration's verdict may cite (3) |
 | B8 | First errors: the rehearsals', then carried from charges (newest 16) | none | `ccal`; the carry at a charge's end | the rehearsals (F5); the carry (E12) | where the stop is placed (`charge_control_place_stop`) | measured; rehearsals spread twice as widely as real throws' stops (progress.md, 11-22) | **Measured,** rehearsed as a throw's last stretch (3); the carry is the auto-tuner, while on |
 | B9 | The band and the finish stored with it | 0.02 gr, glide | `ccal` | nothing | rules made for that band (re-made for another band at a charge's start) | chosen by the PC tool's run | **Remove** from the record: the band is A7's, the finish is the glide's alone (C6) (R) |
-| B10 | Made by the rules, not stored: creep, stop room, aim, glide room, glide time, coarse room, coarse glide time, rest | made at each charge's start | nobody | made from B with C and D | the throw | rules | stay made by rule; each rule's literals are section D |
+| B10 | Made by the rules, not stored: creep, stop room, aim, glide room, glide time, coarse room, coarse glide time, rest | made at each charge's start | nobody | made from B with C and D | the throw | rules | stay made by rule at a charge's start, from the measurements and the user's tolerance; each rule's literals are section D. They are shown where this unit's data is read; what a user or an agent changes is the measurements they are made from (4) |
 | B11 | The record's sizes: 4 coarse stops, 8 fine stops, 3 moves, 16 first errors kept (`charge_control.h:41`); `charge_control_place_stop` takes at most 32 | | nobody | nothing | the record's layout | the build | **Not control.** A ladder cut by the user's range (F1, F2) stays within them; the unreached 32 becomes the kept 16 (R) |
 | B12 | What a record must hold before a throw may use it: at least 1 coarse stop and 3 fine, exactly 3 moves; the digit, the interval, both grains a turn and the band above 0; speeds rising (`charge_calibration.c:74`) | | nobody | nothing | every charge's start | the build (fail early) | **Rule.** The band's part goes with B9 (R) |
 
@@ -119,14 +152,14 @@ The same on every unit, never stored, changed live only by the console's `ccon` 
 
 | # | Number | Default | Who modifies | Who calibrates | Who uses | Origin | Decided |
 |---|---|---|---|---|---|---|---|
-| C1 | `move_rps`, a small move's speed | 0.2 rev/s | `ccon` | nothing | the top-ups' small moves | `staged.py`: "as the bench's watched nudges were" | **Measured:** the speed the calibration made its moves at (B7), read from the record, so the moves are made as they were measured (3) |
+| C1 | `move_rps`, a small move's speed | 0.2 rev/s | `ccon` | nothing | the top-ups' small moves | `staged.py`: "as the bench's watched nudges were" | **Measured:** the speed the calibration made its moves at (B7), read from the record, so the moves are made as they were measured. The calibration does not take the bench's 0.2 either: it makes its moves at a speed from the unit's own measured ladder (3) |
 | C2 | `parcel_s` | 0.01 s | `ccon` | nothing | the forecast's counting step | `staged.py` | **Not control** (a counting step), with C23 |
 | C3 | `fine_top_rps` | 0.5 rev/s (1.0 by hand in every night series) | `ccon`; `series.py` | nothing | the glide's top; the PID law's envelope; the fine learning's window; the jog's floor cap (`:133`); the offer's fine max (`charge_calibration.c:750`) | the simulation's tube (finding 1) | **Remove.** The top is the lowest of A5, A13 and the fastest fine speed the calibration measured (F.2) |
 | C4 | `coarse_top_rps` | 2.0 rev/s | `ccon` | nothing | the glide; the envelope; the offer's coarse max | the ladder's top; no reason found | **Remove,** as C3 with A2 (F.2) |
 | C5 | `coarse_floor_rps` | 0.3 rev/s | `ccon` | nothing | the glide; the envelope; the offer's coarse min | one bench observation: "pours in lumps below it" (2026-11-20) | **Remove.** The floor is the higher of A2's and A14's least speeds. The calibration measures a stop there, and its spread is in the forecast's coarse margin (F.2) |
 | C6 | `dribble_digits_s` | 8 digits/s | `ccon` | nothing | the jog finish's dribble only | the bench: the slowest even flow, AR2209 | **Remove** with the jog finish. The bench trial of 11-21 judged it (jog 56% against glide 68%), and one controller has one finish (F.5) |
 | C7 | `coarse_spreads` | 3 | `ccon` | nothing | the forecast's margin for the coarse powder still unseen (D21) | `staged.py`; no study found | **Rule**, a trade of time at its present value (study, group 3; "Decided in the review", 4) |
-| C8 | `creep_band_share` | 1.0 | `ccon` | nothing | the creep: the powder in the air at the stop as a share of the band | `staged.py`: half was tried, 1.5 to 2 s slower and no more good throws (progress.md, 2026-11-21) | **Rule**: no effect beyond chance at half or twice (study, group 2), and the 11-21 trial's evidence |
+| C8 | `creep_band_share` | 1.0 | `ccon` | nothing | the creep: the powder in the air at the stop as a share of the band | `staged.py`: half was tried, 1.5 to 2 s slower and no more good throws (progress.md, 2026-11-21) | **Rule.** Its reason: the powder still in the air at the stop is no more than the band, so a stop's own tail cannot carry it out of the band. Support: no effect beyond chance at half or twice (study, group 2) |
 | C9 | `creep_most_s` | 6 s | `ccon` | nothing | the creep is never so slow that its stretch takes longer than this | `staged.py`; no study found | **Rule**: lowered, it costs overs on late scales (study, group 4) |
 | C10 | `learn_share` | 0.15 | `ccon` | nothing | the stop's learning: the share of each first error taken in | the simulation; a mean-based learning tried and rejected on the rig (progress.md, 11-22) | **Rule**: no effect beyond chance at half or twice (study, group 2); the auto-tuner's own rate |
 | C11 | `learn_most_digits` | 2 | `ccon` | nothing | the most a throw teaches | `staged.py` | **Safety** of the learning: a bound |
@@ -134,11 +167,11 @@ The same on every unit, never stored, changed live only by the console's `ccon` 
 | C13 | `learn_fine_prior` | 3 (on) | `ccon`; set to 0 by hand in the night series | nothing | the fine figure's learning: how many throws the calibration's figure counts for | 11-22 day; judged untrustworthy (finding 7) | **Off in the build until gate 3 has measured the fine tube's lag across the user's range.** Gate 3's study, its pass written first, then says whether it is part of the auto-tuner. Its switch is the auto-tuner's, never a constant ("Decided in the review", 2) (N.2 for the default, 3) |
 | C14 | `learn_fine_most` | 0.25 (±25%) | `ccon` | nothing | the fine figure's bound | 11-22 | **Safety** of the learning: a bound |
 | C15 | `learn_fine_split` | 1 (on) | `ccon` | nothing | one fine figure, or a stream's and a finish's | 11-22: no measurable gain on the rig (16:37) | **Remove** the switch. One figure or two is decided with C13, by the same study (3) |
-| C16 | `still_least_s` | 0.4 s | `ccon` | nothing | at rest: no new high for this long, or two intervals if longer (D15) | `research/proposals_2026-11-21.md` | **Rule**: no effect beyond chance at half or twice (study, group 2) |
+| C16 | `still_least_s` | 0.4 s | `ccon` | nothing | at rest: no new high for this long, or two intervals if longer (D15) | `research/proposals_2026-11-21.md` | A time chosen on the bench's scale: it fails the test. Tried at nothing (N.3): without effect it goes, and D15's two intervals stand alone. At half and twice it had no effect beyond chance (study, group 2) |
 | C17 | `most_moves` | 8 | `ccon` | nothing | tries a throw gets after its first rest | `staged.py` | **Safety:** a bound on a throw |
 | C18 | `throw_most_s` | 120 s | `ccon` | nothing | a throw past it ends "limit" | `staged.py` | **Safety** |
 | C19 | `fine_most_turns` | 15 turns | `ccon` | nothing | a throw past it ends "limit" | `staged.py` | **Safety.** In turns it means another weight on another tube, and a tube that pours little a turn would end a true throw. Its form is decided with the no-powder check, which asks the same question ("Decided in the review", 6) (F.1) |
-| C20 | `over_most_gr` | 3 gr | `ccon` | nothing | a reading this far over stops everything | `staged.py` | **Safety,** in digits: 150 (3 gr on the A&D). A gram scale reads 3 as 46 gr (F.1) |
+| C20 | `over_most_gr` | 3 gr | `ccon` | nothing | a reading this far over stops everything | `staged.py` | **Safety,** in the user's own terms: 100 times the tolerance (A7), which is 3 at the default 0.03 and in the scale's unit whatever that is. Not grains (a gram scale reads 3 as 46 gr), and not a count of digits (a digit is the A&D's 0.02 gr only on an A&D) (F.1) |
 | C21 | `speed_law` | 0 (glide) | `ccon` | nothing | which law pours | the night's experiment | **Remove** as a choice: the PID law pours (README). The glide's law stays in the code, checked throw for throw in CI, and runs in shadow in the recordings. Its pour stays on the console only, never stored, for the comparisons gates F, 3 and 7 ask (F.5) |
 | C22 | `pid_envelope` | 1 (on) | `ccon` | nothing | the guard on the PID law | the night's experiment | **Remove** the switch; the envelope is always on (F.5) |
 | C23 | `CHARGE_CONTROL_PARCELS_MAX` (`charge_control.h:48`) | 256 parcels a tube, 2.56 s at C2 | nobody | nothing | the powder on its way, glide and PID law; past it the parcels merge and the throw stops earlier | the build (finding 13) | **Not control,** on one condition: the window covers the longest lag in the record, and a lag beyond it is said, never cut silently. The slowest stand-in scale is its case (F.4) |
@@ -157,8 +190,8 @@ None is a constant anyone can see or set; each is a number written into a formul
 | D6 | The glide room: the stop room plus twice the spread of a stop from four times the creep (`:141`) | 2, 4 | `proposals_2026-11-21.md`: the creep then lasts about 3 s | **Rule**: at half it costs overs, at twice time (study, groups 3 and 4) |
 | D7 | The glide time: 0.6 × the longest lag of the fine stops from the third to the fastest, between 0.4 and 2.0 s (`:148`, `:151`) | 0.6, 0.4, 2.0, from the third stop | `proposals_2026-11-21.md`, "between set limits"; no study of the limits found | 0.6: **Rule** (study, group 4: at half, overs up to +11 points). 0.4 s: **Remove** (group 1). 2.0 s: **Remove**: it acts only on the slowest scale, where doubling it changed nothing and halving it cost overs (F.5) |
 | D8 | The coarse glide time: 0.6 × the coarse lag at its floor, between 0.3 and 1.5 s (`:152`) | 0.6, 0.3, 1.5 | as D7 | 0.6: as D7. 0.3 s: **Remove** (group 1). 1.5 s: **Remove**: it never acts, and halving it cost overs (F.5) |
-| D9 | The coarse room: 3 spreads of a coarse stop from its floor + the glide room + 0.2 gr (`:153`) | 3, 0.2 gr | `proposals_2026-11-21.md` | 3: **Rule**, a trade of time (study, group 3). 0.2 gr: **Rule**, a trade of time too, written as 10 digits (0.2 gr on the A&D): a gram scale reads 0.2 as 3 gr (F.1) |
-| D10 | The rest: the slowest quiet time of stops within twice the creep + 0.3 s (`:157`, `:161`) | 2, 0.3 s | `proposals_2026-11-21.md` | **Rule**: no effect beyond chance at half or twice, either number (study, group 2) |
+| D9 | The coarse room: 3 spreads of a coarse stop from its floor + the glide room + 0.2 gr (`:153`) | 3, 0.2 gr | `proposals_2026-11-21.md` | 3: **Rule**, a trade of time (study, group 3). 0.2 gr: a weight chosen on the bench's scale, so it fails the test (a gram scale reads it as 3 gr). Tried at nothing (N.3): without effect it goes; with one, it is made from a spread the unit measured (N.3, F.1) |
+| D10 | The rest: the slowest quiet time of stops within twice the creep + 0.3 s (`:157`, `:161`) | 2, 0.3 s | `proposals_2026-11-21.md` | The 2: **Rule**. The 0.3 s: a time chosen on the bench's scale; tried at nothing (N.3): without effect it goes, with one it is counted in reading intervals. At half and twice neither had an effect beyond chance (study, group 2) |
 | D11 | The jog's aim: two SDs of the rehearsals and a digit (`:192`) | 2 | jog only | **Remove** with the jog (F.5) |
 | D12 | The coarse tube runs only if the target is more than the coarse room and half a coarse turn (`:226`, `:659`) | ½ turn | none found | **Rule**: at half no effect, at twice up to 15 s slower (study, group 3) |
 | D13 | The fine learning's window opens after the coarse tube's quiet time + 0.3 s (`:518`) | 0.3 s | none found | with C13 (3) |
@@ -212,9 +245,9 @@ None is a constant anyone can see or set; each is a number written into a formul
 | F1 | The fine stops' flows, counts, run lengths (`FINE_RATES_DIGITS_S`) | 1, 2, 4, 8, 16, 32 digits a second; 8, 8, 4, 4, 4, 4 stops; 5 to 3 s | the research's design, in digits so the ladder follows the scale | **Rule** for the form. The ladder is cut by the user's range (A5, A13, A14) instead of F7, and reaches the user's fine max (F.2 in the reference and the PC's trial, 3 in the job) |
 | F2 | The coarse stops (`COARSE_STOPS`) | 0.3, 1.0, 2.0 rev/s; 3, 2, 2 stops | the bench's coarse runs | **Rule** for the form; the speeds from A2, A13 and A14 instead of fixed (F.2, 3) |
 | F3 | The small moves (`MOVES_DIGITS`) | 0.7, 2.5, 6 digits; 24, 12, 8 moves | the research's design | **Rule** |
-| F4 | The probes: 4 moves watched 15 s; then every watch 1.5 × the slowest + 1 s, at least 3 s | 4, 15, 1.5, 1, 3 | the research's design | **Rule** |
-| F5 | The rehearsals (`REHEARSALS`, `REHEARSAL_GR`) | 10 of 1 gr | the research's design; spread twice the throws' (progress.md, 11-22) | **Rule,** mended: 40 or more, each a throw's last stretch (3) |
-| F6 | The prime: 1 coarse turn, 3 fine turns at 1 rev/s, until two runs pour the same | 1, 3 turns, 1 rev/s | the research's design | **Rule**; "the same" is written as a tolerance in digits with the job (3) |
+| F4 | The probes: 4 moves watched 15 s; then every watch 1.5 × the slowest + 1 s, at least 3 s | 4, 15, 1.5, 1, 3 | the research's design | **Rule.** The 15 s is a general assumption, longer than the slowest response reported of a supported scale (about 5 s); after the probes every watch is made from what this unit's scale showed |
+| F5 | The rehearsals (`REHEARSALS`, `REHEARSAL_GR`) | 10 of 1 gr | the research's design; spread twice the throws' (progress.md, 11-22) | **Rule,** mended: 40 or more, each a throw's last stretch. The 1 gr goes with it: a rehearsal's size is the coarse room's (3) |
+| F6 | The prime: 1 coarse turn, 3 fine turns at 1 rev/s, until two runs pour the same | 1, 3 turns, 1 rev/s | the research's design | **Rule** for the turns; the speed is one inside the user's own range, not a fixed 1 rev/s; "the same" is written as a tolerance in digits with the job (3) |
 | F7 | The ladder's ends (`FINE_TOP_RPS`, `COARSE_TOP_RPS`, `COARSE_FLOOR_RPS`) | 0.5, 2.0, 0.3 rev/s | the simulation's tube (finding 1) | **Remove** (A2, A5, A13, A14) (F.2) |
 | F8 | The PC's lag shift (`--lag-shift`) | −0.055 s | a hand correction for the PC tool's timing (finding 4) | **Remove** with the PC tool: the job runs on the unit. Until then it is the PC tool's own correction, declared with every record it makes (3) |
 | F9 | The PC trial's watch after a verdict (`WATCH_AFTER_S`) | 4 s | the PC trial | **Not control** (a PC tool's) |
@@ -223,8 +256,8 @@ None is a constant anyone can see or set; each is a number written into a formul
 
 | # | Number | Value | Origin | Decided |
 |---|---|---|---|---|
-| G1 | `lag_s`, `rest_s` | 0.9 s, 2.5 s | the A&D's, by hand | **Measured** (B6), kept in the unit's record once any powder is calibrated on it, so a new powder on that unit starts from its own scale's numbers. On a unit never calibrated the A&D's stay as the default: no bar is set for a charge before a calibration (sign-off item 10), and the fallback study says how far off it is (F.4, 3) |
-| G2 | `gr_turn_prior` | 2.0 | raised from 1.0 after this rig's dry throws | **Rule,** the learnt figure's start, at its present value. Gate 3 studies it again with the lag and the rest measured, its pass written first: the first three throws of a fresh powder no more often over than a calibrated unit's ("Decided in the review", 5) (3) |
+| G1 | `lag_s`, `rest_s` | 0.9 s, 2.5 s | the A&D's, by hand | **Measured** (B6), kept in the unit's record once any powder is calibrated on it, so a new powder on that unit starts from its own scale's numbers. On a unit never calibrated the default is a general assumption on the slow side, so an unknown scale errs short; its value is found on every stand-in scale, never taken from the A&D. No bar is set for a charge before a calibration (sign-off item 10); the fallback study says how far off the A&D's numbers were on other scales (F.4) |
+| G2 | `gr_turn_prior` | 2.0 | raised from 1.0 after this rig's dry throws (`charge_pid_learnt.c:16`) | **Remove** as a number: it is the bench's, and a weight in grains. The figure starts from what the throw itself shows, the weight risen for the turns made, and until then the frame forecasts nothing, as today's loop does. If the study finds that is not enough, a start value is a new parameter for the owner ("Decided in the review", 5) (F.4) |
 | G3 | `floor_least_rps`, `coarse_quiet_s`, `coarse_lag_s` | 0.02 rev/s, 1.0 s, 0.6 s | guesses | **Remove** with pid_learnt; A14 and B6 cover them (F.4) |
 | G4 | `digit_gr` | 0.02 | the A&D's | **Measured** (B1) (F.4) |
 | G5 | `learn_share`, `throw_most_s`, `over_most_gr`, `most_tops`, `BAND_EDGE_DIGITS` | 0.15, 120 s, 3 gr, 8, 0.25 | copies of C and D | **Remove** the copies; one definition each (F.4) |
@@ -261,7 +294,10 @@ The page of 2026-11-22 ended with four decisions "for the owner" and three items
    - **A confidence made from a budget would be false precision.** It needs the spread to be normal. The rig's overs are clumps, and its stops spread 0.046 gr where the calibration measured 0.028 (progress.md, 11-22).
    - **It would add a setting nobody asked for.** One over in fifteen is ADR-009's bar (sign-off item 11), not a user's setting. What a user trades speed against accuracy with is the tolerance (A7).
    - The one place the budget enters is the offer's fine factor (D19), from each unit's own measured trade.
-5. **The starting figure (G2) is a Rule at 2.0, studied again in gate 3.** The fallback study showed it only makes up for a lag that is wrong. So it cannot be judged before the lag and the rest are measured. Nothing waits for it: no bar is set for a charge before a calibration.
+5. **The starting figure (G2) is not kept as a number** (corrected the same evening, "The rows against the test": the afternoon's decision had kept the bench's 2.0 as a rule).
+   - The fallback study showed it only makes up for a lag that is wrong, and its value was set after the bench's own dry throws.
+   - The figure starts from what the throw itself shows. F.4's study on every stand-in scale, its pass written first, says whether that is enough.
+   - Nothing waits for it: no bar is set for a charge before a calibration.
 6. **The 15 fine turns (C19) are decided with the no-powder check, in gate F's first step.**
    - Both answer one question: the tube turns and the powder does not come.
    - The no-powder check is weight-true: the forecast holds powder that has not shown for longer than its lag.
@@ -376,7 +412,7 @@ The research run for gate N on 2026-11-22 and 2026-11-23, kept as it was written
     - E13's cup limit is 600 g;
     - E14's bands are 0.02 and 0.04 g, about 0.3 and 0.6 gr.
   - The user's thresholds (A6 to A9) are in the scale's unit by design, so they hold.
-  - **Decided:** no literal is a weight in grains. A margin or a limit of the frame is a count of the scale's digits (B1), which is in the scale's own unit whatever that is: D9's 0.2 gr is 10 digits, C20's 3 gr is 150. The bands go with the debug mode (E14); the tolerance is the user's (A7). E13 is the bench's.
+  - **Decided:** no literal is a weight in grains, and none is the bench's weight turned into digits with the A&D's digit. A weight the frame holds is in the unit's own terms: a multiple of the user's tolerance (C20), or made from a spread the unit measured (D9, if N.3 finds it is needed at all). The bands go with the debug mode (E14); the tolerance is the user's (A7). E13 is the bench's.
 - **What the auto-tuner writes into the profile** (A1, A3, A4): the PID values and the creep, while it is on. What "off" keeps is the register's first row.
 - **One trade measured on each unit, not a rule:** the offer's fine factor (D19), by gate 3.
 
