@@ -14,6 +14,8 @@ import math
 import statistics
 import sys
 
+import numpy as np
+
 import f4_cases
 import staged
 
@@ -85,6 +87,56 @@ def fit(trial: dict, digit: float) -> dict:
     return out
 
 
+def _g(x, d, tau):
+    """The integral of one stage's step response from 0 to x: 0 before d, then (x - d) - tau (1 - e^-(x-d)/tau)."""
+    late = np.maximum(x - d, 0.0)
+    return late - tau * (1.0 - np.exp(-late / tau))
+
+
+def fit_run(trial: dict, digit: float) -> dict:
+    """One stop's stages from its whole run: the reading while the tube turns and after, as the powder turned out
+    evenly over the run (the run's gain over its time) through a dead time and one stage, or two when one leaves a
+    residual over a digit. The shown weight at t from the stop (below zero while it turns) is
+    flow (G(t + run) - G(max(t, 0))), G a stage's step response integrated."""
+    run_s = trial["run_s"]
+    rows = trial["during"] + trial["after"]
+    t = np.array([row[0] for row in rows])
+    w = np.array([row[1] for row in rows])
+    before = w[0]
+    tail = [row[1] for row in trial["after"] if row[0] >= trial["after"][-1][0] - 0.6]
+    end = statistics.median(tail)
+    flow = (end - before) / run_s if run_s > 0 else 0.0
+    shown = w - before
+    if flow <= 0.0:
+        return {"d": 0.0, "tau": 0.0, "share2": 0.0, "tau2": 0.0, "rms": 0.0, "flow": flow}
+    tau_grid = np.array(taus())
+    d_grid = np.arange(0.0, D_MOST_S, 0.02)
+    hi, lo = t + run_s, np.maximum(t, 0.0)
+    best = (math.inf, 0.0, 0.0)
+    for d in d_grid:
+        # every tau at once: rows of taus, columns of readings
+        pred = flow * (_g(hi[None, :], d, tau_grid[:, None]) - _g(lo[None, :], d, tau_grid[:, None]))
+        rms = np.sqrt(np.mean((pred - shown[None, :]) ** 2, axis=1))
+        i = int(np.argmin(rms))
+        if rms[i] < best[0]:
+            best = (float(rms[i]), float(d), float(tau_grid[i]))
+    rms, d, tau = best
+    out = {"d": d, "tau": tau, "share2": 0.0, "tau2": 0.0, "rms": rms, "flow": flow}
+    if rms <= digit:
+        return out
+    # a second, slower stage: its share and time, the first stage's time searched again, the dead time kept
+    for share2 in (0.1, 0.2, 0.3, 0.4, 0.5, 0.6):
+        g1 = _g(hi[None, :], d, tau_grid[:, None]) - _g(lo[None, :], d, tau_grid[:, None])
+        for tau2 in tau_grid:
+            g2 = _g(hi, d, tau2) - _g(lo, d, tau2)
+            pred = flow * ((1.0 - share2) * g1 + share2 * g2[None, :])
+            r = np.sqrt(np.mean((pred - shown[None, :]) ** 2, axis=1))
+            i = int(np.argmin(r))
+            if r[i] < out["rms"] and tau_grid[i] < tau2:
+                out.update(rms=float(r[i]), tau=float(tau_grid[i]), share2=share2, tau2=float(tau2))
+    return out
+
+
 class Recorded:
     def __init__(self, bench):
         self.bench, self.runs = bench, []
@@ -105,7 +157,7 @@ def main() -> int:
         digit = rig.scale.digit_gr
         bench = Recorded(staged.TwinBench(rig, 7))
         staged.measure_on(bench, digit, rig.scale.report_s, staged.Limits(0.1, 5.0, 0.08, 5.0))
-        fits = [(run["tube"], run["speed_asked_rps"], fit(run, digit)) for run in bench.runs
+        fits = [(run["tube"], run["speed_asked_rps"], fit_run(run, digit)) for run in bench.runs
                 if run["stop"] == "held" and run["run_s"] >= 1.0]
         rms = [f["rms"] / digit for _, _, f in fits]
         two = sum(1 for _, _, f in fits if f["share2"] > 0)

@@ -3223,3 +3223,11 @@ Checked against the skill:
 **L, the first fit** (`lag_stages.py`): a dead time and one stage, a second when the first leaves over a digit, fitted to each stop's rise after the stop, the flow being the run's gain over its time.
 - **Its pass fails on every stand-in:** the median stop is within 1 to 2 digits RMS, but some are tens to hundreds of digits off.
 - **The fault is the fit's, not the model's:** it takes the flow as steady from the run's start, and a short or fast run never reaches it. **Next:** fit the whole run, during and after, as the turned-out powder (the run's flow over its time) through the stages, in closed form.
+
+**L's fit, the whole run** (`lag_stages.fit_run`; after 02:48): the reading while the tube turns and after, as the powder turned out evenly over the run through a dead time and its stages, in closed form.
+- **The pass as written ("each stop within a digit RMS") fails** on every stand-in: medians 1.3 to 1.6 digits; the worst 15 to 113.
+- **By where it matters:**
+  - the fine stops in the creep's range (0.08 to 0.4 rev/s), which place the stop, fit within 1 to 2 digits RMS on every scale (one stop of gng's at 0.08, 11);
+  - the misses are the high flows: the fine top of 5 rev/s (7 to 14 digits) and the coarse stops, about 5% of each run's powder, where the simulated tube pours in bursts.
+  - The scale's rounding alone is 0.29 digits RMS.
+- **For the manager's judgement:** whether the pass is judged where the forecast decides the stop (the stops within four times the creep, say), and what bar. I go on with the forecast in stages in the reference meanwhile, since its own pass (the learnt source on `slower`, a calibrated unit no worse) is the one that shows whether the model serves.
