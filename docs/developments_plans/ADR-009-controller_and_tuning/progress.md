@@ -3129,3 +3129,29 @@ On the Pico 2 W, image at `80f4bc6` and the series' cup count mended (below), fl
 - **The job on the unit** (its activity in `jobs.c`, the cup step, its screen while it runs, its bounds and stop): what it shows while it runs, and the cup step, are gate 4's to draw first (design gates before build gates). It goes on the owner's morning list with gate 4's mocks.
 - **F6's prime speed inside the user's range, C1's moves at a speed from the measured ladder, and B3's "grains a turn as a throw uses them"** are decided rows that change the reference and the C together. They are built in the next step, the check above holding them in step.
 - **Proposals L and R** wait for the manager.
+
+## 2026-11-24, 02:33: gate 4, the screen's mocks drawn for the owner (nothing built)
+
+`docs/developments_plans/ADR-009-controller_and_tuning/mockups/calibration_12864.png` (`tools/ui_mock/calibration_12864.py`, the grid and faces of `menu_12864.py`). Eighteen screens:
+- **The calibration:**
+  - a powder's page with its calibration as a row (Not yet / its date);
+  - the calibration's page: the cup it holds, set in its row (sign-off item 17), how long it takes, Start;
+  - the cup step, kept;
+  - the job measuring and rehearsing, its share done and its step in words;
+  - the cup near full, paused until emptied;
+  - its verdict, read before Keep (expected share within the tolerance, a throw's time, what holds it back);
+  - the offer of the profile's PID values, Accept at the end;
+  - a stop that stored nothing.
+- **Settings, Advanced:** the auto-tuner's switch (as built at F.5), this unit's data (read here, changed on the web), forget what was learnt for a powder (a dialog that opens on Cancel).
+- **After an update** (sign-off item 10): the notice and its offer to calibrate, Later or Calibrate.
+- **A throw's new ends:** cup lifted, no powder, limit; each a job screen with the weight and a line, as a verdict is.
+
+Checked against the skill:
+- one family in three sizes;
+- the grid;
+- softkeys left Back and right the action;
+- a destroying dialog opening on Cancel;
+- Keep and Accept at the end of what must be read;
+- no text over another, and every text inside its width.
+
+**Not drawn yet:** the web's pages (the calibration's progress and verdict, this unit's data with its export, import, backup and restore, a throw's recording, an agent's change and the user's yes), the servo gate tuned by eye, and a factory reset's offer of a backup. They come next, by the skill `web-ui-design`.
