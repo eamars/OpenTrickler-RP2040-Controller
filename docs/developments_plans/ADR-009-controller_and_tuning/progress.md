@@ -5,14 +5,17 @@
 Each item with the implementing agent's recommendation. Nothing here blocked the night's work: each was worked around.
 0. **THE CUP: check it by eye before any run.** Two drops in the ledger were taken as "emptied" by the tool with no owner's word on my record: 01:30:23 (193.12 to 0.00) and 02:13:39 (209.60 to −0.04, 22 s between two `reach` runs, no restart). If neither was you emptying it, the cup holds about **585 gr** (the A&D reads 182.52); if both were, 182.52. The tool now carries every drop until your word (`offset=402.76` in `logs/adr009/cup_ledger.csv`), so it refuses any run over about 15 gr until then.
    - **The cause is not on the unit's record.** No console command reached the unit in those 22 s; it was not restarted; the run before ended reading 209.60 after its last action. The firmware zeroes the A&D only on `POST /api/v1/scale/zero`, the Scale page's Zero row or a job's Zero softkey, and the runs pressed none of them on the real scale. So it was either someone at the scale (an emptied cup put back reads about 0) or a zero from outside the console (the web's Zero, the scale's own key).
-   - *Recommendation:* look at the cup. If it was emptied at those times, say so, and the next run takes `--cup-emptied "<your words>"`; otherwise empty it, then the same.
+   - **Not a conclusion, for a quick judgement** (the manager, relayed after 02:50): you were awake at both times (you answered F.4's lag question at about 01:30 and said goodnight shortly before 02:13), so both drops may be you emptying the cup unasked, which reads about 0 when the empty cup goes back. No "emptied" of yours was relayed after about 00:30.
+   - *Recommendation:* look at the cup. For each drop you confirm, say so, and the next run takes `--cup-emptied "<your words>"`; otherwise empty it, then the same.
    - **Found while looking:** the `reach` run that failed at 02:13 had clicked for Change after the next throw's Zeroing screen had replaced it, so it pressed Zero. That was on the simulated scale, so harmless. On the real scale it would zero the A&D with powder in the cup. `reach` now reads the screen again just before that click and refuses it unless Change is there; its hold on the simulated pan keeps the window open.
 1. **F.5's ABBA is owed.** The night's cup room (550 gr less the cup at 02:22, 82 gr) could not hold its four arms by their most pour (4 × 140 gr). Only its first arm (A, the controller) was thrown. *Recommendation:* empty the cup, then run `logs/adr009/f5/abba.sh` whole (it restores nothing by hand: put the calibration file back from `calibration.json.held` in `logs/adr009/20261123_235643_trial_pico2w_ar2209_f2a/`).
 2. **Gate 3's job on the unit waits for gate 4's mocks:** its screen while it runs and its cup step are drawn first. Its arithmetic is built and checked at the desk (02:31). *Recommendation:* approve the calibration's mocks first among gate 4's, so the job can be built and its unit runs made (about 250 gr, an empty cup).
-3. **Gate 3's proposals L (the lag in stages) and R (the rehearsal's start)**, and the forms of F6, C1 and B3, are with the manager (02:25 and after); nothing of them is built.
+3. **Gate 3 at the desk, for your information:** L (the scale's lag as a dead time and stages, fitted for each stop: "polyfit?" answered so) approved by the manager and in its study in the simulation; F6 (each tube primed at the geometric mean of its range) and C1 (moves at the creep) built in the reference and the C; B3 (the grains a turn by speed) in its study.
 4. **The A18 migration on a unit:** a stored `controller` byte of 1 read as the controller and written as 0 is shown by the code only. The bench unit's bytes were already 0. *Recommendation:* show it on the Pico W at gate 7, whose stored settings are older.
 5. **Gate 4's screens for approval:** `mockups/calibration_12864.png` (02:33): the calibration, Settings › Advanced, the notice after an update, a throw's new ends. *Recommendation:* approve or mark the calibration's first, so gate 3's job can be built to them; the web's mocks follow.
-6. **R, the rehearsal's count, for your choice** (02:48): in the simulation R costs 158 gr (10) or 631 gr (40) of rehearsals a calibration, against today's 9.5 gr, and does no better; but the simulation cannot show the cold start R is for. *Recommendation:* keep today's form for now; measure the cold start at gate 3's first unit run; size R from that, not from the lag.
+6. **R, the rehearsal's count, for your choice** (02:48): in the simulation R costs 158 gr (10) or 631 gr (40) of rehearsals a calibration, against today's 9.5 gr, and does no better there; but the simulation sees neither the cold start R is for nor F.2's finding on the unit, where today's form placed the stop 8 digits late at the 5 rev/s fine top (0 of 10 good) and the floor form placed it right. *Recommendation:* at gate 3's first unit run, measure the cold start, and throw today's 10 × 1 gr form against the floor form on the same calibration (a few grams each); size R from that. `REHEARSALS` stays 10 until then.
+7. **At the shipped defaults every form in the simulation is about 39% over** (136 to 149 of 350, tolerance 0.03, 10 gr): it bears on the fine top you ship, and it is the figure F.5's ABBA tests on the rig. Each verdict there carries the known lean below (item 8).
+8. **The verdict's lean** (E9's check, 02:39): on the A&D's records a verdict of "good" is over a second later more often than a settled reading's noise moves it (good to over 41 of 57 changes). Its root is the late powder the forecast does not model; L's slower stage does, and the verdict will wait until the forecast's unshown powder is under the noise (gate 3). Until then it is the known limit of every figure that uses a verdict.
 
 ## 2026-11-19: research, no unit
 
@@ -2818,6 +2821,8 @@ On the Pico 2 W, image at `606dd53` and the mend below; the cup emptied by the o
 5. **Predictions written first:** the cases of 00:20 and 00:22. One mend found by them (the spill's timing), and one by the unit (the pending precharge's life cycle).
 6. **Shown on the bench unit only:** all of it, on the Pico 2 W; the servo is owed.
 
+**F.3's record corrected (2026-11-24, after 02:47; the manager):** `backoff_measured` passed at 10 throws a seed by chance. At 30 throws a seed (`f3_cases.py --throws 30`) the measured back-off costs overs: good 82, over 37 of 120, against good 86, over 27 with it off. The back-off's own spill spread is a cost the user's feature carries; gate 3's spill measurement is where it is looked at.
+
 ## 2026-11-24, 00:46: gate F.4 begun; its design proposed before any change (sent to the manager)
 
 **A precharge held across a restart** (the manager's question): answered under the sign-off's item 8 (`8d1cf09`). After a restart the first throw zeroes with the gate closed; the held precharge falls unforecast when the gate opens, and that throw can go over by up to its size. Older than this frame; no one-line mend; with item 9.
@@ -3231,3 +3236,22 @@ Checked against the skill:
   - the misses are the high flows: the fine top of 5 rev/s (7 to 14 digits) and the coarse stops, about 5% of each run's powder, where the simulated tube pours in bursts.
   - The scale's rounding alone is 0.29 digits RMS.
 - **For the manager's judgement:** whether the pass is judged where the forecast decides the stop (the stops within four times the creep, say), and what bar. I go on with the forecast in stages in the reference meanwhile, since its own pass (the learnt source on `slower`, a calibrated unit no worse) is the one that shows whether the model serves.
+
+## 2026-11-24, 02:58: the manager's answers written in; D1's zero-lag case; B3's study
+
+- **The manager's answers, written where they belong:**
+  - the cup: the owner's times, beside item 0 of the morning list, for a quick judgement, not as a conclusion;
+  - R: today's form against the floor form on the unit, item 6;
+  - the shipped defaults' 39% over, item 7;
+  - the verdict's lean, item 8;
+  - F.3's corrected record (in its 00:44 entry);
+  - zeroes leaving no event, on the failure modes.
+- **L's fit is a diagnostic, not a pass** (the manager): L is judged on its ends.
+  - **The ends:** the learnt source on `slower` within the bar; a calibrated unit no worse; the verdict's one-way class changes on the A&D's records no more than their noise.
+  - **Joined to L (the manager, on E9):** the verdict waits until the forecast's unshown powder is under C24's noise, by L's model; `e9_check.py` is run again with L, per scale.
+  - **The fit's high-flow misses** (the fine top, the coarse stops) do not matter where nothing is decided; if L's ends fail, the fit's figures by flow say where to look.
+- **D1's mend held by a case:** `limits_cases.py`'s `zero_lag` gives the slowest fine stop a measured lag of 0. The creep is 0.0278 rev/s in the reference and the C alike, within the ladder (0.027 to 0.5). PASS.
+- **B3's study** (`b3_study.py`, `logs/adr009/g3_b3_study.txt`; its pass, written in its head, "by speed no worse on every scale", 2 a session):
+  - **PASS by its letter:** every stand-in and the record whose fine tube pours by speed are within the bar.
+  - **It shows no benefit:** pooled, by speed good 665, over 268 against one figure's 677, 264. On `fine_by_speed`, the record made to show the 11-22 finding, by speed is the worse (80, 36 against 90, 29).
+  - *My recommendation:* not to port B3 into the C and the stored record (a layout change) on this evidence. Keep it in the reference, off, until the unit's own runs show a figure that varies with speed where the stop is decided.

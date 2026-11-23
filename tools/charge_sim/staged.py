@@ -159,6 +159,7 @@ class Stop:
     spread_gr: float
     quiet_s: float
     lag_s: float = None             # how long its powder took from turned out to shown; None in a calibration kept before it
+    gr_turn: float = None           # its runs' powder over their turns (B3, gate 3); None in a calibration kept before it
 
 
 @dataclass(frozen=True)
@@ -291,8 +292,10 @@ def stops_at(bench, tube: str, speed: float, count: int, run_s: float, watch_s: 
     rises = [run["rise"] for run in runs]
     poured = sum(run["gain"] for run in runs)
     lag = max(0.0, sum(run["behind"] for run in runs) / poured) if poured >= digit else None
+    turns = sum(run["turns"] for run in runs)
+    gr_turn = poured / turns if poured >= digit and turns > 0.0 else None
     return Stop(speed, statistics.fmean(rises), statistics.stdev(rises), percentile([run["quiet"] for run in runs], 0.9),
-                lag)
+                lag, gr_turn)
 
 
 def measure_backoff(bench, cal: Calibration, limits: Limits, digit: float) -> None:
@@ -415,6 +418,16 @@ def from_json(kept: dict) -> Calibration:
     for name, kind in (("coarse_stops", Stop), ("fine_stops", Stop), ("moves", Move)):
         kept[name] = [kind(**row) for row in kept[name]]
     return Calibration(**kept)
+
+
+# B3 (gate 3, the manager's yes): the forecast reads each tube's grains a turn by speed, from its stops' own; a stop
+# with none measured gives the tube's one figure. False: the one figure for every speed (for the comparison)
+FIGURE_BY_SPEED = __import__("os").environ.get("ADR009_FIGURE_BY_SPEED", "0") == "1"   # on once the C reads it too
+
+
+def figure_table(stops: list, gr_turn: float) -> list:
+    """(speed, grains a turn): each stop's own figure, the tube's one where a stop has none."""
+    return [(stop.speed, stop.gr_turn if stop.gr_turn is not None and stop.gr_turn > 0.0 else gr_turn) for stop in stops]
 
 
 def lag_table(stops: list, gr_turn: float) -> list:
@@ -721,6 +734,12 @@ class Staged:
                     continue
                 if tube == "fine" and self.fine_form == "split" and not cal.learnt:
                     gr_turn = cal.fine_gr_turn if self.window_reading is not None else self.fine_gr_stream
+                if FIGURE_BY_SPEED and not cal.learnt:
+                    # the stops' own figures by speed, scaled by what learning has made of the tube's one (B3)
+                    measured = self.fine_gr_measured if tube == "fine" else cal.coarse_gr_turn
+                    stops = cal.fine_stops if tube == "fine" else cal.coarse_stops
+                    if measured > 0.0:
+                        gr_turn *= table(figure_table(stops, measured), self.speed[tube]) / measured
                 grains = gr_turn * turned
                 self.parcels.append([turned_out_at + table(lags, self.speed[tube]), grains, tube])
                 self.unseen += grains

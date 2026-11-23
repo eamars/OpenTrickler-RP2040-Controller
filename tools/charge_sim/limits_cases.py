@@ -127,6 +127,18 @@ def main() -> int:
                 want = "good" if abs(rest - TARGET_GR) <= edge + 1e-9 else ("over" if rest > TARGET_GR else "short")
                 if result != want and abs(abs(rest - TARGET_GR) - edge) > 1e-6:
                     failures.append(f"tolerance: a rest at {rest:.3f} judged {result}, by the band {want}")
+    # zero_lag (F.5, D1's floor gone): the slowest fine stop measured a lag of 0 (its powder showed at once). The creep
+    # is taken at the slowest stop with a lag above zero; it stays finite and within the ladder, the C's as the reference's
+    zero = dataclasses.replace(measured, fine_stops=[dataclasses.replace(measured.fine_stops[0], lag_s=0.0)]
+                               + list(measured.fine_stops[1:]))
+    expected = staged.for_finish(zero, "glide", TOLERANCE_GR - digit / 2.0)
+    in_c = firmware_controller.rules_in_c(zero, "glide", TOLERANCE_GR - digit / 2.0)
+    off = [(rule, in_c[rule], getattr(expected, rule)) for rule in firmware_controller.RULES
+           if abs(in_c[rule] - getattr(expected, rule)) > 1e-4 * max(1e-3, abs(getattr(expected, rule)))]
+    print(f"zero_lag: creep {expected.creep_rps:.4f} rev/s (C {in_c['creep_rps']:.4f}), the ladder "
+          f"{zero.fine_stops[0].speed:.3f} to {zero.fine_stops[-1].speed:.3f}")
+    if off or not (0.0 < in_c["creep_rps"] <= zero.fine_stops[-1].speed + 1e-9):
+        failures.append(f"zero_lag: the creep not finite and within the ladder, or the C differs: {off}")
     # No limits given: the C's defaults (none) give no top, so nothing pours (a charge's start refuses it first)
     k = firmware_controller.library(True).default_constants(staged.Limits(0.0, 0.0, 0.0, 0.0))
     cal_c = firmware_controller.to_c(measured, True)
