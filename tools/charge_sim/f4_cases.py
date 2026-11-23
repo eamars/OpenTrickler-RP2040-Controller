@@ -47,6 +47,15 @@ LAGS = (0.5, 1.0, 1.5, 2.0, 3.0, 4.0)
 RESTS = (2.0, 3.0, 4.0, 6.0, 8.0)
 ESTIMATES = {"gng": scale_models.GNG_JJB, "strain": scale_models.SLOW_STRAIN_GAUGE}
 TIMEOUT_S = 130.0               # past C18's 120 s: a throw the controller does not end shows as a timeout
+# The user's limits a case throws with: the simulation's stand-in user (`staged.sim_limits()`: coarse 0.3 to 2, fine
+# 0.01 to 0.5 rev/s, the plant's modelled range), or the firmware's default powder profile's (src/profile.c: coarse
+# 0.1 to 5, fine 0.08 to 2; the motors' 5 rev/s), the user a unit never calibrated has. Set in each worker
+LIMITS = {"sim": None, "profile": (0.1, 5.0, 0.08, 2.0)}
+
+
+def use_limits(name: str) -> None:
+    if LIMITS[name] is not None:
+        staged.COARSE_FLOOR_RPS, staged.COARSE_TOP_RPS, staged.FINE_LEAST_RPS, staged.FINE_TOP_RPS = LIMITS[name]
 
 
 def names() -> list:
@@ -106,7 +115,8 @@ def learnt(rig, lag: float, rest: float, digit: float = None) -> Watched:
 
 def session_job(job: tuple) -> list:
     """One session from no figure (or a calibrated unit's): each throw's end, true error, time, and what was watched."""
-    name, kind, lag, rest, target, seed, count, flow = job
+    name, kind, lag, rest, target, seed, count, flow = job[:8]
+    use_limits(job[8] if len(job) > 8 else "sim")
     rig = stand_in(name)
     if kind == "calibrated":
         band = TOLERANCE_GR - rig.scale.digit_gr / 2.0
@@ -166,7 +176,8 @@ class LearntLockstep(check_firmware_controller.Lockstep):
 def lockstep_job(job: tuple) -> list:
     """One session from no figure, the reference driving and the firmware's C in double beside it, one controller each
     for the whole session as a charge has: each throw's difference (None when none) and both figures after it."""
-    name, lag, rest, target, seed, count = job
+    name, lag, rest, target, seed, count = job[:6]
+    use_limits(job[6] if len(job) > 6 else "sim")
     rig = stand_in(name)
     digit = rig.scale.digit_gr
     limits = staged.sim_limits()
@@ -190,22 +201,23 @@ def over_share(sessions: list) -> tuple:
     return sum(t["error"] >= TOLERANCE_GR for t in first) / len(first), len(first)
 
 
-def cases(pool, sessions: int, lag: float, rest: float) -> list:
+def cases(pool, sessions: int, lag: float, rest: float, limits: str = "sim") -> list:
     failures = []
+    use_limits(limits)
     # the learnt source's rules, the C's against the reference's
     for name in names():
         rig = stand_in(name)
         digit = rig.scale.digit_gr
         band = TOLERANCE_GR - digit / 2.0
-        for limits in (staged.sim_limits(), dataclasses.replace(staged.sim_limits(), backoff_turns=0.25, backoff_rps=1.0)):
-            expected = staged.learnt_calibration(digit, rig.scale.report_s, band, lag, rest, limits)
-            in_c = firmware_controller.learnt_in_c(digit, rig.scale.report_s, band, lag, rest, limits=limits)
+        for user in (staged.sim_limits(), dataclasses.replace(staged.sim_limits(), backoff_turns=0.25, backoff_rps=1.0)):
+            expected = staged.learnt_calibration(digit, rig.scale.report_s, band, lag, rest, user)
+            in_c = firmware_controller.learnt_in_c(digit, rig.scale.report_s, band, lag, rest, limits=user)
             off = [rule for rule in firmware_controller.RULES
                    if abs(in_c[rule] - getattr(expected, rule)) > 1e-4 * max(1e-3, abs(getattr(expected, rule)))]
             if off or in_c["learnt"] != 1 or in_c["move_count"] != 0 or in_c["coarse_gr_turn"] != 0.0:
                 failures.append(f"learnt rules {name}: the C differs in {off or 'its head'}")
     # the throw-for-throw check of the learnt source (the calibrated one's is check_firmware_controller.py's)
-    jobs = [(name, lag, rest, target, seed, 5) for name in names() for target in (2.0, 10.0, 30.0)
+    jobs = [(name, lag, rest, target, seed, 5, limits) for name in names() for target in (2.0, 10.0, 30.0)
             for seed in range(sessions)]
     differing = 0
     total = 0
@@ -219,7 +231,7 @@ def cases(pool, sessions: int, lag: float, rest: float) -> list:
     print(f"lockstep: {total - differing} of {total} throws with no difference", flush=True)
     if differing > total * (1.0 - check_firmware_controller.LOCKSTEP_SHARE):
         failures.append(f"lockstep: {differing} of {total} throws differ")
-    jobs = [(name, kind, lag, rest, target, seed, 5, 1.0) for name in names()
+    jobs = [(name, kind, lag, rest, target, seed, 5, 1.0, limits) for name in names()
             for kind in ("learnt", "learnt_tolerance") for target in TARGETS for seed in range(sessions)]
     results = pool.map(session_job, jobs)
     by = collections.defaultdict(list)
@@ -266,7 +278,7 @@ def cases(pool, sessions: int, lag: float, rest: float) -> list:
     print("no_powder_before_figure: done", flush=True)
 
     # keeps short: the powder falls to a third once the figures are made
-    jobs = [(name, "learnt", lag, rest, 10.0, seed, 4, 1.0 / 3.0) for name in names() for seed in range(sessions)]
+    jobs = [(name, "learnt", lag, rest, 10.0, seed, 4, 1.0 / 3.0, limits) for name in names() for seed in range(sessions)]
     results = pool.map(session_job, jobs)
     for job, throws in zip(jobs, results):
         for t in throws[1:]:
@@ -282,9 +294,12 @@ def main() -> int:
     parser.add_argument("--sessions", type=int, default=3)
     parser.add_argument("--lag", type=float, default=staged.ASSUMED_LAG_S)
     parser.add_argument("--rest", type=float, default=staged.ASSUMED_REST_S)
+    parser.add_argument("--limits", choices=tuple(LIMITS), default="profile",
+                        help="the user's limits: the default powder profile's (a unit never calibrated) or the "
+                             "simulation's stand-in user's")
     args = parser.parse_args()
     with Workers() as pool:
-        failures = cases(pool, args.sessions, args.lag, args.rest)
+        failures = cases(pool, args.sessions, args.lag, args.rest, args.limits)
     for failure in failures:
         print("FAIL", failure)
     print("VERDICT PASS" if not failures else f"VERDICT FAIL {len(failures)}")

@@ -538,6 +538,10 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     cc->k = *charge_calibration_constants();
     cc->k.zero_margin_gr = charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
     charge_calibration_limits((uint8_t) profile_get_selected_idx(), &cc->k);
+    // The learnt source pours by the PID law on the profile's gains (gate F.4, point 3)
+    if (cc->cal.learnt) {
+        cc->k.speed_law = 1;
+    }
     // The PID law (ccon speed_law 1; ADR-009, option 2): the powder profile's gains, its speeds within the motors'
     // limits as today's loop takes them; the fine tube's least speed stays the frame's floor
     if (cc->k.speed_law) {
@@ -702,7 +706,7 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
 
     // Its first error, at the calibration's own stop room, for the carry at the charge's end into its law's own list:
     // the throws of the charge's law only, so one law's stops never move the other's
-    if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
+    if (!cc->cal.learnt && cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
         (cc->k.speed_law ? 1 : 0) == charge_law && charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
         // Translated to the rules' own stop room, where the rehearsals were thrown and from which the next charge
         // places its stop. Not the placed one: a session resting on its aim then moved the next one's stop by the
@@ -1209,10 +1213,19 @@ uint8_t charge_mode_menu(void) {
         // The user's tolerance (A7): the calibration's rules are made for its band at each charge's start, within
         // the user's limits (ADR-009, gate F.2)
         float tolerance_gr = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
-        const char *refused = charge_staged_block == NULL ? "No memory" :
-            !charge_calibration_get_law((uint8_t) profile_get_selected_idx(), tolerance_gr, charge_law,
-                                        &charge_staged_block->cal) ?
-            "Not calibrated" : NULL;
+        uint8_t profile = (uint8_t) profile_get_selected_idx();
+        const char *refused = charge_staged_block == NULL ? "No memory" : NULL;
+        if (refused == NULL && !charge_calibration_get_law(profile, tolerance_gr, charge_law, &charge_staged_block->cal)) {
+            if (charge_calibration_state(profile) == CHARGE_RECORD_NONE) {
+                // A powder never calibrated: the learnt source (gate F.4), said with what it starts from
+                char about[128];
+                charge_calibration_learnt(profile, tolerance_gr, &charge_staged_block->cal, about, sizeof(about));
+                printf("Charge: profile %u has no calibration: the learnt source, %s\n", profile, about);
+            }
+            else {
+                refused = "Not calibrated";
+            }
+        }
         if (refused != NULL) {
             // Refused at the start already (charge_mode_request_start) when not calibrated; here only if the slot
             // changed since
@@ -1451,12 +1464,13 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     if (isnan(target) ? charge_mode_get_target() <= 0.0f : !charge_mode_target_fits(target)) {
         return CHARGE_START_NO_TARGET;
     }
-    // The staged controller takes every number from the powder's calibration: none, no start (ADR-009)
+    // The staged controller takes its numbers from the powder's calibration, or for a powder never calibrated from
+    // its learnt source (gate F.4). A damaged record is not used, and the start is refused (ADR-009)
     if (charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED) {
         uint8_t profile = powder_profile >= 0 ? (uint8_t) powder_profile : (uint8_t) profile_get_selected_idx();
         int state = charge_calibration_state(profile);
-        if (state != CHARGE_RECORD_OK) {
-            return state == CHARGE_RECORD_DAMAGED ? CHARGE_START_CALIBRATION_DAMAGED : CHARGE_START_NOT_CALIBRATED;
+        if (state == CHARGE_RECORD_DAMAGED) {
+            return CHARGE_START_CALIBRATION_DAMAGED;
         }
         // The user's settings the frame cannot pour with, refused in words (ADR-009, gate F.2)
         int check = charge_calibration_check_start(profile, charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,

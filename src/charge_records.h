@@ -57,6 +57,9 @@ bool charge_records_save(uint8_t profile, const charge_calibration_record_t *rec
 bool charge_records_corrupt(uint8_t profile);
 // In words, for a charge refused for it
 const char *charge_records_state_words(charge_record_state_t state);
+// The unit record's scale part, for a powder never calibrated (ADR-009, gate F.4): its digit (0 when the record holds
+// none) and its lag and rest (below zero until a calibration measures them)
+void charge_records_unit_scale(float *digit_gr, float *lag_s, float *rest_s);
 
 #ifdef __cplusplus
 }

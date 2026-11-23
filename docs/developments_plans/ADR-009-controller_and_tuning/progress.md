@@ -2900,3 +2900,48 @@ It does not say how they make the frame's numbers, and "a new mechanism goes to 
 1. **(Recommended) The learnt source only on a unit whose record holds its scale's lag and rest** (gate 3 measures them with the first calibration of any powder). A unit never calibrated refuses a charge as it does today, and says so; the first calibration is the way in. Then no assumed lag or rest exists (G1 goes as a number), and the learnt source serves its common case, a new powder on a calibrated unit. **What it does not mend:** `slower` with its measured lag is still 15 points over; the learnt source would be offered there with that cost said, or the method changed (option 3).
 2. **Keep an assumed pair, lag 2 s and rest 6 s,** the grid's nearest: within the bar on six stand-ins, 26 points over on `slower`, and a first throw near 40 to 50 s. A unit never calibrated pours, at that cost. It contradicts the pass as written.
 3. **Another way to the figure,** for the owner to approve before it is built: for one, the figure from the rise's rate over a stretch at the least speed, which needs no lag; it has its own error (the scale's filter at the stretch's start) and would need its own study.
+
+## 2026-11-24, 01:21: F.4, the owner's decision: option 2, the assumed pair; the new pass, before any change
+
+**The owner's decision** (relayed by the manager): a unit never calibrated assumes lag 2 s and rest 6 s: "2s/6s seems matching with the A&D spec. Just remember the other scale may not work like A&D, so the calibration MUST be able to perform the polyfit? to accommodate multi-stage lag from a different scale."
+- **The pair** is the owner's, its reason the A&D's spec; held at gate 7 (no stand-in is another make's own record).
+- **Its cost,** kept in the rows: on `slower` about 26 points more often over than a calibrated unit there; a fresh powder's first throws of about 40 to 50 s.
+- **Once any powder is calibrated,** the unit's record's measured lag and rest replace the pair (register row 16).
+- **The owner's requirement, for gate 3 and the sign-off:** the calibration models a lag of several stages, not one number, so a scale that does not behave as the A&D's is fitted. "polyfit?" is a question: gate 3 chooses the method from the recordings and the stand-ins and brings it to the manager before building. Its pass is written there. The finding stays: a lag the frame knows as one number cannot serve `slower`.
+
+**F.4's pass, now sign-off item 10's: a charge before a calibration ends safely** (in the simulation, the reference and the C in lockstep, `f4_cases.py --lag 2 --rest 6`):
+- `uncalibrated`: on every stand-in scale, 3 sessions of 5 throws each at 2, 6, 10 and 30 gr from no figure, with the scale's digit and with the tolerance taken as the digit: every throw ends good, over or short. None ends "limit", "no powder" or "cup", and none times out. Each tube stays inside the user's limits.
+- `c19_before_figure`: no throw ends "limit" before its fine figure exists.
+- `coarse_before_figure`: the coarse tube never pours past its share (the target less A6's room) by A6's room or more while it has no figure.
+- `no_powder_before_figure`: an empty hopper ends "no powder" on every stand-in.
+- `keeps_short`: powder that falls to a third after the figures are made ends short or good, within C18.
+- **The throw-for-throw check:** at least 99 in 100 of the learnt source's throws with no difference; the calibrated source's `check_firmware_controller.py` as before.
+- **What is not judged:** the overs. They are the owner's accepted cost.
+
+**Built with it:**
+- **The digit (B1):** the unit record's when it holds one; else the smallest step between two readings the scale has shown since the start; else the tolerance.
+- **The charge:** a powder with no record (state "none") is thrown by the learnt source. A damaged record is still refused, and said. The learnt source throws by the PID law on the profile's gains, as point 3 says. Nothing is carried into a record from such a charge.
+
+**On the unit, the prediction, written before the run** (the Pico 2 W, the real A&D, a profile with no record, 3 throws at 10 gr in one cup, the cup budgeted):
+- every throw ends at rest (good, over or short), none "limit", "no powder" or a fault;
+- the charge's start says it is the learnt source, with its digit, interval, lag and rest;
+- the first throw is slow, 30 to 90 s; the coarse figure is born within its first 3 s of coarse turning;
+- then `charge_cycle` (simulated scale) passes as before.
+
+## 2026-11-24, 01:26: F.4 built at 2 s and 6 s; its cases at the desk
+
+**Built:**
+- **The pair:** `CHARGE_RULE_ASSUMED_LAG_S` 2 s and `CHARGE_RULE_ASSUMED_REST_S` 6 s, in both sources. Their rows (G1) name the owner's decision, its reason and its cost.
+- **The digit (B1):** `scale_get_smallest_step()`, the smallest step between two published readings since the running driver started, seen afresh when the driver changes (the simulated scale switched on or off).
+- **The charge:** a profile whose record is "none" is thrown by the learnt source (`charge_calibration_learnt`). The charge's start says what it starts from: its digit and where it came from, its interval, its lag and rest, assumed or the unit's record's. A damaged record is still refused. The learnt source pours by the PID law on the profile's gains, and nothing is carried into a record from it. The start's check refuses a tolerance under its digit and a tube with no speed, as for a calibrated powder.
+- **The gate 3 requirement** is written in the README (gate 3's steps, sign-off item 12), with its pass, as the manager gave it.
+
+**The cases** (`f4_cases.py --sessions 3`; `logs/adr009/f4/cases_2_6_profile.txt`):
+- **The user's limits matter, and I judged at the default powder profile's** (coarse 0.1 to 5, fine 0.08 to 2 rev/s), the user a unit never calibrated has. **A judgement, not the pass's letter**, which named no limits. At the simulation's stand-in user's (fine 0.01 to 0.5 rev/s, the plant's modelled range; `cases_2_6.txt`), some 30 gr throws end at C18's 120 s: the fine tube, slow at its least while its figure is born and capped at 0.5 rev/s, pours most of the throw. On `slower` the coarse tube then pours 5.51 gr past its share before its figure, against A6's 5.
+- `uncalibrated`, at the profile's limits: on all seven stand-ins, at 2, 6, 10 and 30 gr, with the scale's digit and with the tolerance as the digit, **every throw ends good, over or short**; none times out, none ends "limit", "no powder" or "cup"; each tube inside the user's limits. Pass.
+- `c19_before_figure`: no throw ends "limit" with no fine figure. Pass.
+- `coarse_before_figure`: the most past its share with no figure is 1.85 gr (`slow`), against A6's 5. Pass.
+- `no_powder_before_figure`: an empty hopper ends "no powder" on every stand-in, at 2 and 10 gr. Pass.
+- **The throw-for-throw check:** the learnt rules equal on every stand-in, with the back-off on and off; 315 of 315 throws with no difference. Pass.
+- `keeps_short` **fails its letter** (short or good): the powder at a third once the figures are made, 63 throws: good 44, short 10, "no powder" 4, "limit" 2 (C19, at 26 s), over 3. **Every one stops both tubes,** so condition 2's question is answered: such a throw is ended by the eight tries, by C19 once a figure exists, or by C25. The 4 "no powder" are false: a figure three times too high, with a powder pouring a third, shows a ninth of what is forecast. C25 then ends a throw that pours, safely. This is gate 3's to mend with the measured lag, and the failure modes' to list.
+- **Unchanged:** `check_firmware_controller.py --throws 40 --logic-only`, `safety_cases.py`, `limits_cases.py` and `f3_cases.py` pass. `check_numbers.py` passes. The Pico 2 W image builds.

@@ -329,6 +329,13 @@ bool charge_records_corrupt(uint8_t profile) {
 }
 
 
+void charge_records_unit_scale(float *digit_gr, float *lag_s, float *rest_s) {
+    *digit_gr = charge_unit_record.held && charge_unit_record.digit_gr > 0.0f ? charge_unit_record.digit_gr : 0.0f;
+    *lag_s = charge_unit_record.held ? charge_unit_record.scale_lag_s : CHARGE_RECORD_NOT_MEASURED;
+    *rest_s = charge_unit_record.held ? charge_unit_record.scale_rest_s : CHARGE_RECORD_NOT_MEASURED;
+}
+
+
 const char *charge_records_state_words(charge_record_state_t state) {
     return state == CHARGE_RECORD_DAMAGED ? "Calibration damaged: calibrate again" :
            state == CHARGE_RECORD_NONE ? "Not calibrated" : "Calibrated";

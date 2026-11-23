@@ -75,13 +75,49 @@ void charge_calibration_limits(uint8_t profile, charge_control_constants_t *k) {
 }
 
 
+void charge_calibration_learnt(uint8_t profile, float tolerance_gr, charge_control_calibration_t *out, char *about,
+                               size_t about_size) {
+    float digit_gr, lag_s, rest_s;
+    charge_records_unit_scale(&digit_gr, &lag_s, &rest_s);
+    const char *digit_from = "the unit's record";
+    if (!(digit_gr > 0.0f)) {
+        digit_gr = scale_get_smallest_step();
+        digit_from = "the smallest step seen";
+    }
+    if (!(digit_gr > 0.0f)) {
+        digit_gr = tolerance_gr;
+        digit_from = "the tolerance: no step seen yet";
+    }
+    uint32_t interval_ms = scale_get_usual_interval_ms();
+    float interval_s = (float) (interval_ms > 0 ? interval_ms : CHARGE_USUAL_INTERVAL_UNKNOWN_MS) / 1000.0f;
+    bool measured = lag_s >= 0.0f && rest_s >= 0.0f;
+    if (!measured) {
+        lag_s = (float) CHARGE_RULE_ASSUMED_LAG_S;
+        rest_s = (float) CHARGE_RULE_ASSUMED_REST_S;
+    }
+    charge_control_constants_t k = *charge_calibration_constants();
+    charge_calibration_limits(profile, &k);
+    charge_control_learnt_calibration(out, digit_gr, interval_s, charge_calibration_band(tolerance_gr, digit_gr), lag_s,
+                                      rest_s, &k);
+    if (about != NULL) {
+        snprintf(about, about_size, "digit %.4f (%s), interval %.3f s, lag %.2f s and rest %.2f s (%s)", digit_gr,
+                 digit_from, interval_s, lag_s, rest_s, measured ? "the unit's record" : "assumed");
+    }
+}
+
+
 int charge_calibration_check_start(uint8_t profile, float tolerance_gr, float target_gr) {
     charge_control_calibration_t *cal = pvPortMalloc(sizeof(*cal));
     if (cal == NULL) {
         return -1;
     }
     int result = -1;
-    if (charge_calibration_get(profile, tolerance_gr, cal)) {
+    bool have = charge_calibration_get(profile, tolerance_gr, cal);
+    if (!have && charge_calibration_state(profile) == CHARGE_RECORD_NONE) {
+        charge_calibration_learnt(profile, tolerance_gr, cal, NULL, 0);     // a powder never calibrated (F.4)
+        have = true;
+    }
+    if (have) {
         bool coarse_needed = target_gr > cal->coarse_room_gr + (float) CHARGE_RULE_COARSE_LEAST_TURNS * cal->coarse_gr_turn;
         result = tolerance_gr < cal->digit_gr ? 1 :
                  !(cal->fine_top_rps > 0.0f) || (coarse_needed && !(cal->coarse_top_rps > 0.0f)) ? 2 : 0;

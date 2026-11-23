@@ -87,6 +87,13 @@ void scale_publish_measurement(float weight);
 uint32_t scale_get_bad_frames(void);
 
 /**
+ * @brief The smallest step between two published readings since the running driver started, in the scale's unit; 0
+ * until one is seen. A scale's readings lie on its digit, so this is its digit once it has shown one step of it
+ * (ADR-009, B1): what a charge with no calibration takes the digit to be.
+ */
+float scale_get_smallest_step(void);
+
+/**
  * @brief The scale's usual time between readings, in ms: the median of its last 16 published readings' intervals,
  * so each scale's own rhythm (ADR-013). 0 until SCALE_RHYTHM_MIN_INTERVALS are known; a charge waits for ten steady
  * readings before it pours, so by then it is known.

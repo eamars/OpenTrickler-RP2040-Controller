@@ -45,6 +45,7 @@ ALLOWED = {
         "8": (1, "CHARGE_CONTROL_FINE_STOPS_MAX: a size (B11)"),
     },
     "charge_calibration.c": {
+        "1000": (1, "F.4: milliseconds in a second (the learnt source's interval)"),
         # The simulated scale's own calibration, used only with `sim on` (section H)
         "0.01": (1, "H: the simulated scale's coarse share"),
         "0.025": (1, "H: its fine speeds"),
@@ -73,6 +74,7 @@ ALLOWED = {
         "16": (1, "CHARGE_CALIBRATION_FIRST_ERRORS_MAX: the first errors a record keeps, a size (B11)"),
     },
     "charge_mode.cpp": {
+        "128": (1, "F.4: a line of text's room (the learnt source's start, said)"),
         # The user's settings as a new unit has them (section A): settings, not the controller's numbers
         "5": (2, "A6's default, the coarse stop threshold; the target's five digits; a buffer never used (E20, goes at F.1)"),
         "0.03": (1, "A7's default, the fine stop threshold"),

@@ -103,6 +103,15 @@ float charge_calibration_base_stop_room(void);
 // Whether it holds one a throw may use, for a start's refusal
 bool charge_calibration_held(uint8_t profile);
 
+/*
+    The learnt source (ADR-009, gate F.4) for a powder profile with no calibration, its rules made within the user's
+    limits: the scale's digit the unit record's, else the smallest step the scale has shown (B1), else the tolerance;
+    its interval the scale's live rhythm (B2); its lag and rest the unit record's when measured, else the assumed
+    (G1). How each was had is said in `about` (one line)
+*/
+void charge_calibration_learnt(uint8_t profile, float tolerance_gr, charge_control_calibration_t *out, char *about,
+                               size_t about_size);
+
 // The console's `ccal ...` and `ccon ...`
 void charge_calibration_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                 void *write_ctx);

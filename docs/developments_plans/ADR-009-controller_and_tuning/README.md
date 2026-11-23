@@ -236,11 +236,12 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
     - the figure starts from what the throw itself shows, the weight risen for the turns made; until then the frame forecasts nothing, as today's loop does. The 2.0 gr a turn goes;
     - the scale's lag and rest are assumed on the slow side, so an unknown scale errs short. Their values are found in the simulation on every stand-in scale, the pass written first: on none are a fresh powder's first three throws over more often than a calibrated unit's. The A&D's 0.9 s and 2.5 s go.
     - If no such values exist, or the figure's start is not enough, that is a finding for the owner, not a number to tune.
+    - **Found and decided (2026-11-24):** no pair of the study's grid holds on every stand-in, and the slowest (`slower`) fails even with its own measured lag, because the throw's figure carries the lag's error (progress.md, 01:17). **The owner chose lag 2 s and rest 6 s,** the A&D's spec (G1), at a known cost: on `slower` about 26 points more often over than a calibrated unit, and first throws of about 40 to 50 s. The unit's record's measured lag and rest replace them once any powder is calibrated (register row 16).
   - **One interval:** the scale's rhythm measured live (B2).
   - **The forecast's window** covers the longest lag in the record (C23). A lag beyond it, said and never cut silently, is a failure mode (below).
   - **The simulated scale teaches nothing.**
   - **C19 before a figure exists** (handed on by F.1, the manager, 2026-11-23): C19's bound is 0 turns with no figure, so as built at F.1 an uncalibrated throw would end "limit" at its first fine turn. Its form is decided here, with the learnt figure in hand: no powder covers a tube that shows nothing, and C19 applies once a figure exists.
-  - **Pass:** the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no fault); **an uncalibrated throw is not ended "limit" by C19 before a figure exists** (its case, in the simulation and on the unit); on the unit, a powder with no calibration thrown, and `charge_cycle`. (The slowest stand-in scale's lag kept whole is the failure modes'.)
+  - **Pass** (since the owner's decision of 2026-11-24, sign-off item 10's: a charge before a calibration ends safely; the overs are the accepted cost): the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no false no-powder, no fault); **an uncalibrated throw is not ended "limit" by C19 before a figure exists** (its case, in the simulation and on the unit); on the unit, a powder with no calibration thrown, and `charge_cycle`. (The slowest stand-in scale's lag kept whole is the failure modes'.)
 - **F.5, one controller to the user.**
   - **Out of the API and the screens:** `controller` and `mode` (A18). The envelope is always on (C22).
   - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the bench's three leftovers that N.3 found without effect (C16's 0.4 s, D9's 0.2 gr, D10's 0.3 s); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
@@ -256,6 +257,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
 - **A job like a cleanup** (`jobs.c`), started from the powder's profile, the cup step before it (a safety step, kept). It pours into the cup the user declares (api_v1.md, "The cup"), is bounded in time and in powder, and can be stopped. Each of its runs is a recording.
 - **Its steps** are the research's (`research/proposals_2026-11-21.md`, section 3.2), prime to rehearsals, in the firmware's own time, with what the rig showed must be measured as well:
   - each tube's lag at every flow of the user's range, down to the creep (B6, F1, F2);
+  - **the scale's lag as several stages, not one number** (the owner's requirement, 2026-11-24: "the calibration MUST be able to perform the polyfit? to accommodate multi-stage lag from a different scale"), so a scale that does not behave as the A&D's is fitted. The method is not decided ("polyfit?" is a question): gate 3 chooses it from the recordings and the stand-in scales and brings it to the manager before building; for one, a dead time and one or two first-order stages fitted by least squares to the rise after each stop (the simulation's scale already splits its delay, 0.41 s and 0.10 s). **Its pass:** on `slower` and the estimated makes (`gng`, `strain`) the fitted model reproduces their stops' arrivals, and with it a calibrated unit on `slower` comes within the bar its single measured lag missed (F.4's finding: 15 points over with the lag as one number);
   - the grains a turn as a throw uses them (B3);
   - the stop's spread against the approach time, with 40 or more rehearsals, each a throw's last stretch (B8, F5);
   - the back-off's spill at the user's turns and speed (A11);
@@ -306,6 +308,7 @@ Each gate's cases beyond its main path, built and proven together once the workf
 
 - **Gate R:** the event `setting` `dropped`, from a real-scale charge that writes a powder's record while that powder holds a staged write (owed since gate R).
 - **F.4:** a lag beyond the forecast's window, said and never cut silently; the slowest stand-in scale's lag kept whole (C23).
+- **F.4:** the learnt source's powder that falls to a third once its figures are made (`f4_cases.py`'s `keeps_short`): 4 of 63 throws end in a false "no powder", the figure being too high; a safe end, mended by gate 3's measured lag or listed here with its words to the user.
 - **Gate 3:** a calibration whose scale goes bad or missing mid-way (the A&D at the coarse tube's top, for one) stops and says so; a calibration stopped by the person, its part kept or dropped as gate 3 decides.
 - **Gate 5:** an agent's write outside its bounds refused; an agent's write reverted.
 - **The simulation's blind spot, a tube started cold:** the bench unit's PC-trial rehearsal 0 (2026-11-23) started at 2.03 rev/s, showed nothing for 0.7 s and poured about 37% under its figure; the simulation's tube does not model it (`fine.settle_s` solved at 0).
@@ -602,7 +605,7 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
     - the user is told that the tuning made for the old controller will likely no longer hold, and is prompted to calibrate;
     - a charge before a calibration is allowed, with no bar set for its results;
     - the calibration is offered, never forced.
-    - *Shown by:* the update on both units from 2.0.3, the settings compared before and after (`rc_run.py settings --compare`); the notice and the prompt seen on the screen and the web (their mocks approved at gates 4 and 5); a charge thrown before a calibration ending safely.
+    - *Shown by:* the update on both units from 2.0.3, the settings compared before and after (`rc_run.py settings --compare`); the notice and the prompt seen on the screen and the web (their mocks approved at gates 4 and 5); a charge thrown before a calibration ending safely (F.4: every throw at rest, none ended by a limit, a false no-powder or a fault, on every stand-in scale and on the unit).
 11. **Meet the results bar,** at the user's tolerance, on two units and two powders:
     - no worse than today's loop with the user's own settings on the same unit;
     - within the owner's over budget of one in fifteen where the powder allows it;
@@ -613,7 +616,8 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
     - bounded in powder and time, stoppable;
     - its verdict in words;
     - stored on the user's yes, run again whenever wanted;
-    - measuring what the controller needs, generically: each tube's lag at every flow down to the creep, the grains a turn at each speed, the stop's spread against the approach time, the reverse's spill.
+    - measuring what the controller needs, generically: each tube's lag at every flow down to the creep, the grains a turn at each speed, the stop's spread against the approach time, the reverse's spill;
+    - **modelling the scale's lag as several stages, not one number,** so a scale that does not behave as the A&D's is fitted (the owner's requirement, 2026-11-24; gate 3).
     - *Shown by:* gate 3's pass, and the yardstick reached.
 13. **Learn within bounds, stably.**
     - A session resting on its aim leaves the next one's stop where it was (the carry's fault of 2026-11-22).

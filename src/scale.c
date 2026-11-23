@@ -50,8 +50,15 @@ const eeprom_scale_data_t default_scale_persistent_config = {
 static scale_driver_t scale_running_driver = SCALE_DRIVER_AND_FXI;
 
 
+static volatile float scale_smallest_step = 0.0f;     // see scale_get_smallest_step(); 0 until a step is seen
+static volatile bool scale_has_read = false;
+
+
 static void scale_use_driver(scale_driver_t scale_driver) {
     scale_running_driver = scale_driver;
+    // Another driver is another scale: its digit is seen afresh
+    scale_smallest_step = 0.0f;
+    scale_has_read = false;
 
     switch (scale_driver) {
         case SCALE_DRIVER_AND_FXI:
@@ -535,7 +542,7 @@ static volatile uint32_t scale_bad_frames = 0;
 static volatile uint32_t scale_rhythm_ms[SCALE_RHYTHM_INTERVALS];
 static volatile uint32_t scale_rhythm_count = 0;        // intervals kept since the start; the next goes at count % N
 static volatile TickType_t scale_last_reading_tick = 0;
-static volatile bool scale_has_read = false;
+static volatile float scale_last_weight = 0.0f;
 
 
 void scale_publish_measurement(float weight) {
@@ -548,14 +555,25 @@ void scale_publish_measurement(float weight) {
     if (scale_has_read) {
         scale_rhythm_ms[scale_rhythm_count % SCALE_RHYTHM_INTERVALS] = (now - scale_last_reading_tick) * portTICK_PERIOD_MS;
         scale_rhythm_count += 1;
+        // The digit (ADR-009, B1): the smallest step between two readings seen
+        float step = fabsf(weight - scale_last_weight);
+        if (step > 0.0f && (scale_smallest_step == 0.0f || step < scale_smallest_step)) {
+            scale_smallest_step = step;
+        }
     }
     scale_last_reading_tick = now;
+    scale_last_weight = weight;
     scale_has_read = true;
 
     scale_config.current_scale_measurement = weight;
     if (scale_config.scale_measurement_ready) {
         xSemaphoreGive(scale_config.scale_measurement_ready);
     }
+}
+
+
+float scale_get_smallest_step(void) {
+    return scale_smallest_step;
 }
 
 

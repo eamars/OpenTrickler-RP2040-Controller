@@ -144,10 +144,11 @@ NO_FIGURE_TURNS = 1.0
 LEARNT_LEAST_TURNS = 0.01
 LEARNT_THROW_LEAST = 0.5
 LEARNT_THROW_MOST = 2.0
-# The scale's lag and rest a unit never calibrated assumes, one lag for every speed (F.4's study; held at gate 7: no
-# stand-in scale models another make from its own record)
-ASSUMED_LAG_S = 1.0
-ASSUMED_REST_S = 4.0
+# The scale's lag and rest a unit never calibrated assumes, one lag for every speed: the owner's (2026-11-24, after
+# F.4's study found no pair that holds on every stand-in), the A&D's spec; held at gate 7. Its cost: on `slower`
+# about 26 points more often over than a calibrated unit, and first throws of about 40 to 50 s
+ASSUMED_LAG_S = 2.0
+ASSUMED_REST_S = 6.0
 
 
 @dataclass(frozen=True)

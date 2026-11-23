@@ -135,10 +135,10 @@
 #define CHARGE_LEGACY_READING_WAIT_MS 200       // E18, ms: today's loop waits this long for a reading. Goes with it (gate 6)
 
 // --- The learnt source: a powder never calibrated (section G; ADR-009, gate F.4) -----------------------------------
-#define CHARGE_RULE_ASSUMED_LAG_S 1.0           // G1, s: the scale's lag a unit never calibrated would assume, for every
-                                                //   speed. F.4's study found no value that holds on every stand-in scale:
-                                                //   the owner's finding. Unused by the charge until the owner decides
-#define CHARGE_RULE_ASSUMED_REST_S 4.0          // G1, s: and its rest, the wait from the fine stop to the verdict
+#define CHARGE_RULE_ASSUMED_LAG_S 2.0           // G1, s: the scale's lag a unit never calibrated assumes, for every speed,
+                                                //   until its record holds a measured one: the owner's, the A&D's spec
+                                                //   (F.4's study found no value that holds on every stand-in). Gate 7
+#define CHARGE_RULE_ASSUMED_REST_S 6.0          // G1, s: and its rest, the wait from the fine stop to the verdict
 #define CHARGE_RULE_FIGURE_LEAST_TURNS 0.2      // G2, turns: a tube's figure is born once this many of its turns should
                                                 //   have shown by the lag and the reading has risen past the noise
                                                 //   (D17's least stretch)

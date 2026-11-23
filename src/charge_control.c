@@ -653,7 +653,8 @@ void charge_control_tick(charge_control_t *c, uint32_t now_ms) {
     // C19: a multiple of the turns the target needs at the figure in use, and the moves'; with no figure, none (F.1).
     // The learnt source's before its figure is born: no bound, no powder covers a tube that shows nothing (C26, F.4)
     bool fine_bounded = c->cal.fine_gr_turn > REAL(0.0) || !c->cal.learnt;
-    real_t fine_most = fine_bounded ? k->fine_most_times * c->target_gr / c->cal.fine_gr_turn + c->moved_turns : REAL(0.0);
+    real_t fine_most = c->cal.fine_gr_turn > REAL(0.0) ?
+                       k->fine_most_times * c->target_gr / c->cal.fine_gr_turn + c->moved_turns : REAL(0.0);
     if (c->backoff_until_s >= REAL(0.0) && now_s >= c->backoff_until_s - TIE_S) {
         c->backoff_until_s = -REAL(1.0);
         c->coarse_rps = REAL(0.0);
