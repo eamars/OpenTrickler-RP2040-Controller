@@ -738,9 +738,12 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
                      "settings/charge controller=pid");
             return false;
         case CHARGE_START_DRIVER_FAULT:
+            charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err a motor driver is not OK: %s", motors_get_fault());
             return false;
         default:
+            // A start refused leaves no series behind: the next charge, from any side, is a charge as any other
+            charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err charge mode is already running or asked");
             return false;
     }
