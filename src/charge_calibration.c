@@ -9,6 +9,7 @@
 #include "charge_mode.h"
 #include "common.h"
 #include "eeprom.h"
+#include "motors.h"
 #include "profile.h"
 #include "scale.h"
 
@@ -39,19 +40,66 @@ const charge_control_constants_t *charge_calibration_constants(void) {
 }
 
 
-// The rules made from a record's measured part, its finish and band, then its stop placed by its rehearsals
-static void charge_calibration_make(const charge_calibration_record_t *record, float band_gr,
+float charge_calibration_band(float tolerance_gr, float digit_gr) {
+    return tolerance_gr - digit_gr / 2.0f;
+}
+
+
+void charge_calibration_limits(uint8_t profile, charge_control_constants_t *k) {
+    const profile_t *p = profile_at(profile);
+    float coarse_least = get_motor_min_speed(SELECT_COARSE_TRICKLER_MOTOR);
+    float coarse_most = (float) get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR);
+    float fine_least = get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR);
+    float fine_most = (float) get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR);
+    if (p != NULL) {
+        coarse_least = fmaxf(coarse_least, p->coarse_min_flow_speed_rps);
+        coarse_most = fminf(coarse_most, p->coarse_max_flow_speed_rps);
+        fine_least = fmaxf(fine_least, p->fine_min_flow_speed_rps);
+        fine_most = fminf(fine_most, p->fine_max_flow_speed_rps);
+    }
+    k->coarse_least_rps = coarse_least;
+    k->coarse_most_rps = coarse_most;
+    k->fine_least_rps = fine_least;
+    k->fine_most_rps = fine_most;
+}
+
+
+int charge_calibration_check_start(uint8_t profile, float tolerance_gr, float target_gr) {
+    charge_control_calibration_t *cal = pvPortMalloc(sizeof(*cal));
+    if (cal == NULL) {
+        return -1;
+    }
+    int result = -1;
+    if (charge_calibration_get(profile, tolerance_gr, cal)) {
+        bool coarse_needed = target_gr > cal->coarse_room_gr + (float) CHARGE_RULE_COARSE_LEAST_TURNS * cal->coarse_gr_turn;
+        result = tolerance_gr < cal->digit_gr ? 1 :
+                 !(cal->fine_top_rps > 0.0f) || (coarse_needed && !(cal->coarse_top_rps > 0.0f)) ? 2 : 0;
+    }
+    vPortFree(cal);
+    return result;
+}
+
+
+// The rules made from a record's measured part, its finish and the band the user's tolerance gives, within the
+// user's limits, then its stop placed by its rehearsals
+static void charge_calibration_make(uint8_t profile, const charge_calibration_record_t *record, float tolerance_gr,
                                     charge_control_calibration_t *out) {
     *out = record->measured;
     charge_control_finish_t finish = (charge_control_finish_t) record->measured.finish;
-    if (band_gr > 0.0f) {
+    float band_gr;
+    if (tolerance_gr > 0.0f) {
         finish = CHARGE_CONTROL_FINISH_GLIDE;       // the modes are the glide's (ADR-009, 2026-11-22)
+        band_gr = charge_calibration_band(tolerance_gr, record->measured.digit_gr);
     }
     else {
-        // The console's own record, shown with its `ccal finish`; a stored record keeps no band (B9)
-        band_gr = record->measured.band_gr > 0.0f ? record->measured.band_gr : CHARGE_TRICKLE_ACCURATE_BAND_GR;
+        // The console's own record, shown with its `ccal finish`; a stored record keeps no band (B9): the user's
+        band_gr = record->measured.band_gr > 0.0f ? record->measured.band_gr :
+                  charge_calibration_band(charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
+                                          record->measured.digit_gr);
     }
-    charge_control_set_rules(out, finish, band_gr, charge_calibration_constants());
+    charge_control_constants_t k = *charge_calibration_constants();
+    charge_calibration_limits(profile, &k);
+    charge_control_set_rules(out, finish, band_gr, &k);
     charge_calibration_base_room_gr = out->stop_room_gr;
     if (record->first_error_count > 0) {
         charge_control_place_stop(out, record->first_errors, record->first_error_count);
@@ -124,7 +172,8 @@ static void charge_calibration_simulated(charge_calibration_record_t *record) {
     cal->watch_s = 1.0f;
     cal->coarse_share = 0.01f;
     cal->finish = CHARGE_CONTROL_FINISH_GLIDE;
-    cal->band_gr = CHARGE_TRICKLE_ACCURATE_BAND_GR;
+    cal->band_gr = charge_calibration_band(charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
+                                           cal->digit_gr);
     record->valid = 1;
 }
 
@@ -225,7 +274,7 @@ bool charge_calibration_held(uint8_t profile) {
 
 
 // The powder's record read into a working copy from the heap, its rules made, and the copy given back
-bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calibration_t *out) {
+bool charge_calibration_get(uint8_t profile, float tolerance_gr, charge_control_calibration_t *out) {
     if (profile >= MAX_PROFILE_CNT) {
         return false;
     }
@@ -241,7 +290,7 @@ bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calib
         ok = charge_records_load(profile, record, NULL) == CHARGE_RECORD_OK && charge_calibration_lacks(record) == NULL;
     }
     if (ok) {
-        charge_calibration_make(record, band_gr, out);
+        charge_calibration_make(profile, record, tolerance_gr, out);
     }
     vPortFree(record);
     return ok;
@@ -249,9 +298,9 @@ bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calib
 
 
 // One list for both laws: a charge of either places its stop from it (its carry says whose it is)
-bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out) {
+bool charge_calibration_get_law(uint8_t profile, float tolerance_gr, uint8_t law, charge_control_calibration_t *out) {
     (void) law;
-    return charge_calibration_get(profile, band_gr, out);
+    return charge_calibration_get(profile, tolerance_gr, out);
 }
 
 
@@ -318,7 +367,7 @@ static void charge_calibration_show(const charge_calibration_record_t *record, r
         return;
     }
     charge_control_calibration_t made;
-    charge_calibration_make(record, 0.0f, &made);
+    charge_calibration_make((uint8_t) profile_get_selected_idx(), record, 0.0f, &made);
     snprintf(line, sizeof(line), "@cal rules finish=%s band=%g floor=%g stop_room=%g aim=%g glide_room=%g glide=%g",
              made.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide", made.band_gr, made.floor_rps,
              made.stop_room_gr, made.aim_gr, made.glide_room_gr, made.glide_s);
@@ -353,7 +402,7 @@ void charge_calibration_console(const char *args, char *reply, size_t reply_size
     }
     if (strcmp(args, "clear") == 0) {
         memset(record, 0, sizeof(*record));
-        record->measured.band_gr = CHARGE_TRICKLE_ACCURATE_BAND_GR;
+        record->measured.band_gr = 0.0f;        // the user's tolerance's, until `ccal finish` gives one
         snprintf(reply, reply_size, "@ok ccal clear");
         return;
     }
@@ -500,8 +549,7 @@ typedef struct {
 #define CHARGE_CONSTANT(member) {#member, offsetof(charge_control_constants_t, member), false}
 
 static const charge_constant_t charge_constants_table[] = {
-    CHARGE_CONSTANT(move_rps), CHARGE_CONSTANT(parcel_s), CHARGE_CONSTANT(fine_top_rps),
-    CHARGE_CONSTANT(coarse_top_rps), CHARGE_CONSTANT(coarse_floor_rps), CHARGE_CONSTANT(dribble_digits_s),
+    CHARGE_CONSTANT(move_rps), CHARGE_CONSTANT(parcel_s), CHARGE_CONSTANT(dribble_digits_s),
     CHARGE_CONSTANT(coarse_spreads), CHARGE_CONSTANT(creep_band_share), CHARGE_CONSTANT(creep_most_s),
     CHARGE_CONSTANT(learn_share), CHARGE_CONSTANT(learn_most_digits), CHARGE_CONSTANT(learn_dead_digits), CHARGE_CONSTANT(learn_fine_prior),
     CHARGE_CONSTANT(learn_fine_most), CHARGE_CONSTANT(learn_fine_split),
@@ -695,22 +743,21 @@ void charge_pid_console(const char *args, char *reply, size_t reply_size, remote
 }
 
 
-bool charge_calibration_offer(uint8_t profile, float band_gr, charge_calibration_offer_t *out) {
+bool charge_calibration_offer(uint8_t profile, float tolerance_gr, charge_calibration_offer_t *out) {
     charge_control_calibration_t cal;
-    if (!charge_calibration_get(profile, band_gr, &cal)) {
+    if (!charge_calibration_get(profile, tolerance_gr, &cal)) {
         return false;
     }
-    const charge_control_constants_t *k = charge_calibration_constants();
     out->coarse_kp = (float) CHARGE_RULE_OFFER_COARSE_FACTOR / (cal.coarse_gr_turn * cal.coarse_glide_s);
     out->coarse_ki = 0.0f;
     out->coarse_kd = 0.0f;
-    out->coarse_min_rps = k->coarse_floor_rps;
-    out->coarse_max_rps = k->coarse_top_rps;
+    out->coarse_min_rps = cal.coarse_floor_rps;
+    out->coarse_max_rps = cal.coarse_top_rps;
     out->fine_kp = (float) CHARGE_RULE_OFFER_FINE_FACTOR / (cal.fine_gr_turn * cal.glide_s);
     out->fine_ki = 0.0f;
     out->fine_kd = 0.0f;
     out->fine_min_rps = cal.floor_rps;
-    out->fine_max_rps = k->fine_top_rps;
+    out->fine_max_rps = cal.fine_top_rps;
     return true;
 }
 
@@ -731,10 +778,8 @@ static void charge_tune_line(const char *which, const charge_calibration_offer_t
 void charge_tune_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                          void *write_ctx) {
     uint8_t profile = (uint8_t) profile_get_selected_idx();
-    float band_gr = charge_mode_config.eeprom_charge_mode_data.trickle_mode == CHARGE_TRICKLE_FAST ?
-                    CHARGE_TRICKLE_FAST_BAND_GR : CHARGE_TRICKLE_ACCURATE_BAND_GR;
     charge_calibration_offer_t offer;
-    if (!charge_calibration_offer(profile, band_gr, &offer)) {
+    if (!charge_calibration_offer(profile, charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold, &offer)) {
         snprintf(reply, reply_size, "@err no calibration for profile %u: nothing to offer", profile);
         return;
     }

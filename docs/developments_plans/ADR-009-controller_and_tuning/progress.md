@@ -2334,3 +2334,66 @@ The manager approved the three forms of 21:58 (its message read between 21:58 an
 6. **Shown on the bench unit only:** all of it, on the Pico 2 W. The Pico W is gate 7's, and its size shapes no gate (the owner).
 
 **Owed:** gate R's `setting dropped` event, at F.5 or gate 3 (the README names it in both).
+
+## 2026-11-23, 23:09: gate F.2 begun; its checklist, its forms, and what it does to the bench unit, before any change
+
+**The checklist:**
+1. **Numbers this step adds, moves or changes:**
+   - C3, C4, C5 (`fine_top_rps` 0.5, `coarse_top_rps` 2.0, `coarse_floor_rps` 0.3) and F7 (the ladder's ends) go;
+   - E14 (the mode's bands 0.02 and 0.04) goes: the band is A7 less half a digit in every law;
+   - A2, A4, A5, A13, A14 become the frame's limits;
+   - F1 and F2 keep their form, the ladder cut by the user's range;
+   - A20 gains two checks at a charge's start.
+   - No number is added but the coarse ladder's middle, which is a form: the geometric mean of its ends.
+2. **A value from the bench unit:** none. The limits are each user's settings.
+   - The simulation's rigs need a user of their own: `staged.SIM_LIMITS`, coarse 0.3 to 2.0 and fine 0.01 to 0.5 rev/s. That is the range the simulated plant models: above 0.5 rev/s its fine tube pours in gaps the bench never showed (`staged.py`, FINE_TOP_RPS's note).
+   - It is the simulation's stand-in user, never a firmware default, and with it the simulation throws as before. 0.01 is A14's default for the fine motor.
+3. **Each fixed number passes the test:** the coarse ladder's middle, geometric, because a lag changes by flow over a span of tens (the fine ladder doubles its flow each stop). No other.
+4. **A new parameter:** none. Every limit is an existing setting.
+5. **The pass checks a mechanism, against a prediction written first:**
+   - **in the simulation:** the throw-for-throw check, both laws; and cases with other users' limits, each a prediction:
+     - `user_max`: a fine max of 0.3 rev/s, below the fastest measured: no fine speed above 0.3 in any throw;
+     - `user_least`: a fine least of 0.1 rev/s, above the creep: no fine speed under 0.1 while it streams, and the creep said held;
+     - `coarse_limits`: a coarse range of 0.5 to 1.5: none outside it;
+     - `tolerance`: a tolerance of 0.05: the band is 0.04 and the verdict judged on it.
+   - **on the unit:** the bench unit calibrated afresh by the PC trial (its ladder in the unit's own limits), then a short series with no `ccon` set, whose recordings show each tube inside the user's limits and the band from the setting; the two start checks refused in their words.
+6. **Shown on the bench unit only:** all of it, on the Pico 2 W.
+
+**The forms:**
+- **Each tube's limits,** given to the controller by the charge from the settings:
+  - the least is the higher of the profile's and the motor's least;
+  - the most is the lower of the profile's and the motor's most;
+  - the frame's top is the lower of that and the fastest speed the calibration measured;
+  - the coarse floor is the coarse least;
+  - the fine floor is the higher of the creep (the rules') and the fine least. When the least holds the creep up, the charge's start says so on the console and in its recording's settings. The screens are gate 4's.
+- **The ladder** (`staged.measure_on`, the reference's and the PC trial's):
+  - each fine stop's speed is its flow in digits a second, cut into the fine range. A stop at the fine most is added when the ladder ends below it.
+  - The coarse stops are at the coarse least, the geometric mean, and the coarse most, 3, 2 and 2 runs as now.
+- **The band:** the fine stop threshold (A7) less half a digit, in the staged loops, the PID law, the calibration's console and the offer. The mode (A18) no longer changes it; it leaves the API at F.5.
+- **The two checks at a charge's start,** refused in words as an uncalibrated start is:
+  - a tolerance under a digit;
+  - a top speed of 0 for a tube the throw needs: the fine always, the coarse when the throw is above its room.
+
+**What F.2 does to the bench unit's throws** (read from its settings at 23:05 by GET):
+- profile 0's fine least is 0.1 rev/s and both motors' least is 0.1. So the fine tube may never creep below 0.1 rev/s, four times the 0.0246 its night series crept at: the glide ignored the motor's least (finding 5).
+- Its fine most is 3 rev/s and its coarse most 5, where the frame stopped at 0.5 and 2.0. The calibration's ladder reaches them, and the stream goes faster.
+- These are the user's own settings. They are not changed by hand (the rules): whether the owner's limits are what this unit's motors need is the owner's to say. Asked of the manager before the unit runs.
+
+**The pour budget,** from the trial's own plan under the new ladder:
+- the calibration's open-loop part about 280 gr at most (the coarse stops at 5 rev/s: 2 runs of 1.2 s, about 120 gr; the prime about 60, the coarse runs about 20, the fine stops up to 3 rev/s about 30);
+- the rehearsals about 10;
+- a short series of 10 throws at 10 gr about 110;
+- **about 400 gr in all, from an emptied cup.** The cup holds 214.30 gr now.
+
+## 2026-11-23, 23:20: gate F.2, the owner's answers, before the unit's runs
+
+- **The limits, the owner:** "Keep as stored". Profile 0 keeps fine 0.1 to 3 and coarse 0.1 to 5 rev/s; both motors least 0.1 and max 5.
+- **So F.2's series will not compare with the night's,** and is not judged against it:
+  - the fine tube creeps at 0.1 rev/s, about four times the night's 0.0246 (the user's least holds the creep up, and the charge says so);
+  - the calibration reaches fine 3 and coarse 5 rev/s, where the night's stopped at 0.5 and 2.0, so the stream runs faster and the stops are measured at flows the rig has not been calibrated at before;
+  - F.2's pass on the unit is the limits and the band, not the figures. F.5's ABBA measures the cost.
+- **The cup, the owner:** "Emptied now". The hopper is still filled. The budget of 23:09 (about 400 gr) fits, and each run checks itself.
+- **At the new tops** (the manager):
+  - each of the trial's motor runs is bounded by the unit: a pouring speed for 10 turns' time, 3 to 30 s, a hold 60 s (`trial.py`);
+  - if the A&D's frames go bad or missing at the coarse tube's 5 rev/s, the calibration stops and says so (`trial.py` stops on a reading that is no number). It is a finding, not a figure to tune around.
+- **The desk's part** (`limits_cases.py`, 23:15): `user_max`, `user_least`, `coarse_limits`, `tolerance` and no limits given, each PASS, the C's rules the reference's, no lockstep difference. The 200-throw check and F.1's safety cases are run again before the unit.

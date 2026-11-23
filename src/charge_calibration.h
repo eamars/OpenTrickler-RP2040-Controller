@@ -41,9 +41,20 @@ const charge_control_constants_t *charge_calibration_constants(void);
 // Whether a powder profile holds a calibration a throw may use: CHARGE_RECORD_OK (charge_records.h's states, as an
 // int so this header needs not that one): none, an incomplete one, or one that fails its check is not used
 int charge_calibration_state(uint8_t profile);
-// The calibration of a powder profile with its rules made, for a throw. False when the profile has none
-// With band_gr above 0, its rules are made for that band and the glide, whatever band the calibration was written for
-bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calibration_t *out);
+// The calibration of a powder profile with its rules made, for a throw. False when the profile has none. With
+// tolerance_gr above 0 (the user's fine stop threshold, A7), its rules are made for the glide and the band that
+// tolerance gives (less half the scale's digit), whatever band the calibration was written for. Each tube's range
+// is the user's: the profile's and the motor's limits (ADR-009, gate F.2)
+bool charge_calibration_get(uint8_t profile, float tolerance_gr, charge_control_calibration_t *out);
+// The user's limits for a profile's tubes, into a copy of the constants: the higher of the profile's and the motor's
+// least, the lower of their most (ADR-009, gate F.2)
+void charge_calibration_limits(uint8_t profile, charge_control_constants_t *k);
+// The band a tolerance gives on a scale of this digit: the tolerance less half a digit (A7's conversion)
+float charge_calibration_band(float tolerance_gr, float digit_gr);
+// The two checks at a charge's start (ADR-009, gate F.2, A20): 0 when the settings can pour this target, 1 for a
+// tolerance under the scale's digit, 2 for a top speed of 0 for a tube the throw needs (the fine always, the coarse
+// when the target is above its room). Made on a copy from the heap: -1 when there is none, or no calibration
+int charge_calibration_check_start(uint8_t profile, float tolerance_gr, float target_gr);
 /*
     The throws' first errors carried into a powder's record at a charge's end (ADR-009; gate R: one list, and the law
     that learnt it, charge_records.h). Each is a throw's first error at rest translated to the calibration's own stop
@@ -57,7 +68,7 @@ bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *err
 // The glide's carry (law 0)
 bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after);
 // The calibration for a throw of either law: one list, the stop placed from it
-bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, charge_control_calibration_t *out);
+bool charge_calibration_get_law(uint8_t profile, float tolerance_gr, uint8_t law, charge_control_calibration_t *out);
 
 /*
     The auto-tuner's offer (ADR-009, 2026-11-22 night): the PID law's gains made from a profile's calibration, its rules
@@ -79,7 +90,7 @@ typedef struct {
     float fine_max_rps;
 } charge_calibration_offer_t;
 
-bool charge_calibration_offer(uint8_t profile, float band_gr, charge_calibration_offer_t *out);
+bool charge_calibration_offer(uint8_t profile, float tolerance_gr, charge_calibration_offer_t *out);
 
 // The console's `ctune`: the selected profile's PID settings and the offer; `ctune accept` writes the offer into the
 // profile, live (stored by `setting powder_profiles/<n> save`), and forgets the PID law's carried stop for it

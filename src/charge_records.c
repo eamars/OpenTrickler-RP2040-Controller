@@ -80,7 +80,26 @@ typedef struct {
 
 _Static_assert(sizeof(charge_powder_record_t) + sizeof(uint32_t) <= CHARGE_RECORD_SLOT_SIZE, "a record fits its slot");
 _Static_assert(sizeof(charge_powder_record_t) <= SETTINGS_STRUCT_MAX, "a record is a settings resource");
-_Static_assert(sizeof(charge_calibration_record_t) == 420, "the v1 record's size, as stored before gate R");
+/*
+    The v1 record as stored before gate R, 420 B: the working copy's head, the controller's calibration as it was
+    then, the first errors. Gate F.2 appended four rules to the controller's calibration (its ranges), so a v1 slot
+    is read in its own size and its first errors moved past them (charge_records_v1_to_working)
+*/
+#define CHARGE_RECORD_V1_SIZE 420
+#define CHARGE_RECORD_F2_RULES (sizeof(charge_control_calibration_t) - offsetof(charge_control_calibration_t, fine_top_rps))
+#define CHARGE_RECORD_V1_MEASURED (sizeof(charge_control_calibration_t) - CHARGE_RECORD_F2_RULES)
+_Static_assert(offsetof(charge_calibration_record_t, measured) + CHARGE_RECORD_V1_MEASURED +
+               sizeof(((charge_calibration_record_t *) 0)->first_errors) == CHARGE_RECORD_V1_SIZE,
+               "the v1 record's layout, as stored before gate R");
+
+
+// A v1 slot's bytes into a working copy: the new rules left 0, set at a charge's start as every rule is
+static void charge_records_v1_to_working(const uint8_t *v1, charge_calibration_record_t *w) {
+    size_t head = offsetof(charge_calibration_record_t, measured);
+    memset(w, 0, sizeof(*w));
+    memcpy(w, v1, head + CHARGE_RECORD_V1_MEASURED);
+    memcpy(w->first_errors, v1 + head + CHARGE_RECORD_V1_MEASURED, sizeof(w->first_errors));
+}
 
 static charge_unit_record_t charge_unit_record;
 static charge_powder_record_t *charge_records_cache = NULL;    // the API's copy of one powder's record, from the heap
@@ -306,15 +325,20 @@ void charge_records_init(void) {
     }
     charge_powder_record_t *r = pvPortMalloc(sizeof(*r));
     charge_calibration_record_t *v1 = pvPortMalloc(sizeof(*v1));
+    uint8_t *v1_bytes = pvPortMalloc(CHARGE_RECORD_V1_SIZE);
     uint8_t migrated = 0;
-    if (r != NULL && v1 != NULL) {
+    if (r != NULL && v1 != NULL && v1_bytes != NULL) {
         for (uint8_t profile = 0; profile < CHARGE_RECORD_PROFILES; profile++) {
             uint16_t addr = charge_records_addr(profile);
             if (charge_records_read(profile, r) != CHARGE_RECORD_DAMAGED) {
                 continue;
             }
-            if (!config_read_stored(addr, v1, sizeof(*v1)) || !v1->valid) {
+            if (!config_read_stored(addr, v1_bytes, CHARGE_RECORD_V1_SIZE)) {
                 continue;   // damaged, and no v1 either: left as it is, and a charge says so
+            }
+            charge_records_v1_to_working(v1_bytes, v1);
+            if (!v1->valid) {
+                continue;
             }
             // The scale's part from the first valid one; another that disagrees is said, never averaged
             if (!charge_unit_record.held) {
@@ -337,6 +361,7 @@ void charge_records_init(void) {
         }
     }
     vPortFree(v1);
+    vPortFree(v1_bytes);
     vPortFree(r);
     // The PID law's old lists (21 K): their slot zeroed, read by nothing again
     if (!charge_records_blank(CHARGE_RECORD_LAW_STOPS_OLD_ADDR)) {

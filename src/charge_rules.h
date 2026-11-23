@@ -27,9 +27,6 @@
 // --- The frame's constants (numbers.md, section C): the defaults of charge_control_default_constants ---------------
 #define CHARGE_RULE_MOVE_RPS 0.2                // C1, rev/s: a small move's speed. The bench's; measured from gate 3
 #define CHARGE_RULE_PARCEL_S 0.01               // C2, s: the powder turned out is counted in parcels this long
-#define CHARGE_RULE_FINE_TOP_RPS 0.5            // C3, rev/s: the fine tube's top. The simulation's; the user's from F.2
-#define CHARGE_RULE_COARSE_TOP_RPS 2.0          // C4, rev/s: the coarse tube's top. As C3
-#define CHARGE_RULE_COARSE_FLOOR_RPS 0.3        // C5, rev/s: the coarse tube's least. The bench's; the user's from F.2
 #define CHARGE_RULE_DRIBBLE_DIGITS_S 8.0        // C6, digits/s: the jog finish's dribble. Goes with the jog (F.5)
 #define CHARGE_RULE_COARSE_SPREADS 3.0          // C7: spreads of the coarse powder unseen that both tubes keep clear of
 #define CHARGE_RULE_CREEP_BAND_SHARE 1.0        // C8: the creep's powder still in the air, as a share of the band
@@ -134,8 +131,6 @@
 #define CHARGE_CARRY_LEAST_THROWS 5             // E12: a charge carries nothing from fewer throws at rest (a bound)
 #define CHARGE_CARRY_MOST_DIGITS 3.0f           // E12, digits: a carry never moves the stop more than this at once (a bound)
 #define CHARGE_SERIES_CUP_MOST 600.0f           // E13, the scale's unit: the bench's series ends when its cup would hold this
-#define CHARGE_TRICKLE_ACCURATE_BAND_GR 0.02f   // E14: the debug mode's bands. Go at F.2: the band is the user's tolerance
-#define CHARGE_TRICKLE_FAST_BAND_GR 0.04f
 #define CHARGE_DRIVER_CHECK_MS 100              // E17, ms: a motor driver's fault is looked for this often in a throw
 #define CHARGE_LEGACY_READING_WAIT_MS 200       // E18, ms: today's loop waits this long for a reading. Goes with it (gate 6)
 

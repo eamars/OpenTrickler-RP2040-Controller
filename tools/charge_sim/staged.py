@@ -26,6 +26,7 @@ a real unit's through its console (`bench/trial.py`): `measure_on()` and `rehear
 """
 
 import dataclasses
+import math
 import statistics
 from dataclasses import dataclass, field
 
@@ -40,9 +41,16 @@ PARCEL_S = 0.01                 # the powder turned out is counted in parcels of
 FINE_TOP_RPS = 0.5
 COARSE_TOP_RPS = 2.0
 COARSE_FLOOR_RPS = 0.3          # the coarse tube pours in lumps below it (bench, 2026-11-20)
+# Since ADR-009's gate F.2 the three above are no longer the frame's: each tube runs within its user's limits (the
+# profile's and the motor's) and never faster than the fastest speed measured. They are the simulation's stand-in
+# user, the range its plant models, never a firmware default; FINE_LEAST_RPS is A14's default for the fine motor.
+# The studies that set them stand in for a user so (sim_limits() reads them at each call)
+FINE_LEAST_RPS = 0.01
 # The fine tube's stops are measured at these flows, in digits a second: the scale's lag is taken at each
 FINE_RATES_DIGITS_S = ((1.0, 8, 5.0), (2.0, 8, 5.0), (4.0, 4, 3.5), (8.0, 4, 3.0), (16.0, 4, 3.0), (32.0, 4, 3.0))
-COARSE_STOPS = ((COARSE_FLOOR_RPS, 3, 1.5), (1.0, 2, 1.5), (COARSE_TOP_RPS, 2, 1.2))
+# The coarse stops (F2): at the coarse least, the geometric mean of its ends and the coarse most, so many runs of so
+# long each. Geometric, as a lag changes by flow over a span of tens (the fine ladder doubles its flow each stop)
+COARSE_STOP_FORM = ((3, 1.5), (2, 1.5), (2, 1.2))
 # Small moves, by the digits one is meant to release on average, and how many are made
 MOVES_DIGITS = ((0.7, 24), (2.5, 12), (6.0, 8))
 # How long a stop or a move is watched is the scale's to say: a few small moves are watched this long first, and
@@ -146,6 +154,22 @@ class Move:
     wait_s: float
 
 
+@dataclass(frozen=True)
+class Limits:
+    """A user's limits for each tube (ADR-009, gate F.2): the least is the higher of the profile's and the motor's
+    least, the most the lower of their most."""
+
+    coarse_least: float
+    coarse_most: float
+    fine_least: float
+    fine_most: float
+
+
+def sim_limits() -> Limits:
+    """The simulation's stand-in user, read at each call so a study's settings hold."""
+    return Limits(COARSE_FLOOR_RPS, COARSE_TOP_RPS, FINE_LEAST_RPS, FINE_TOP_RPS)
+
+
 @dataclass
 class Calibration:
     """What the calibration measured, and the numbers the controller takes from it by rule."""
@@ -170,6 +194,11 @@ class Calibration:
     coarse_room_gr: float = 1.0
     coarse_glide_s: float = 0.4
     rest_s: float = 2.0             # the wait after the fine tube's stop before the reading is judged
+    # each tube's range, by rule from the user's limits and what was measured (ADR-009, gate F.2)
+    fine_top_rps: float = 0.0       # the lower of the fine most and the fastest fine stop measured
+    coarse_top_rps: float = 0.0     # the lower of the coarse most and the fastest coarse stop measured
+    coarse_floor_rps: float = 0.0   # the coarse least
+    creep_rps: float = 0.0          # the creep by the rules, before the fine least held it up
     seconds: float = 0.0            # how long the calibration took, and the powder it poured
     poured_gr: float = 0.0
     first_errors: list = field(default_factory=list)
@@ -240,7 +269,7 @@ def table(points: list, x: float) -> float:
     return points[-1][1]
 
 
-def measure_on(bench, digit: float, interval_s: float) -> Calibration:
+def measure_on(bench, digit: float, interval_s: float, limits: Limits = None) -> Calibration:
     """The calibration's open-loop part: prime, each tube's powder a turn, its stops by flow, and the small moves.
 
     Args:
@@ -249,7 +278,9 @@ def measure_on(bench, digit: float, interval_s: float) -> Calibration:
             `cup.landed_gr` the powder in the cup.
         digit: the scale's digit, in grains.
         interval_s: the usual time between two readings.
+        limits: the user's limits for each tube (the simulation's stand-in user when none): the ladder is cut by them.
     """
+    limits = limits or sim_limits()
     for tube, turns in (("coarse", 1.0), ("fine", 3.0)):    # prime until two runs pour the same, not by a count
         last = None
         for _ in range(5):
@@ -265,17 +296,20 @@ def measure_on(bench, digit: float, interval_s: float) -> Calibration:
     coarse_gr = sum(run["gain"] for run in coarse_runs) / sum(run["turns"] for run in coarse_runs)
     fine_gr = sum(run["gain"] for run in fine_runs) / sum(run["turns"] for run in fine_runs)
 
+    # each stop's flow in digits a second, cut into the user's fine range; one at the fine most if it ends below
     fine_stops = []
     for rate, count, run_s in FINE_RATES_DIGITS_S:
-        speed = min(FINE_TOP_RPS, rate * digit / fine_gr)
+        speed = min(limits.fine_most, max(limits.fine_least, rate * digit / fine_gr))
         if not fine_stops or speed > fine_stops[-1].speed:
             fine_stops.append(stops_at(bench, "fine", speed, count, run_s, watch_s, digit))
-    if fine_stops[-1].speed < FINE_TOP_RPS:
-        fine_stops.append(stops_at(bench, "fine", FINE_TOP_RPS, 4, 3.0, watch_s, digit))
+    if fine_stops[-1].speed < limits.fine_most:
+        fine_stops.append(stops_at(bench, "fine", limits.fine_most, 4, 3.0, watch_s, digit))
     # the coarse tube's powder a turn, run by run: its spread is how far a count of its turns can be off
     coarse_yields = [run["gain"] / run["turns"] for run in coarse_runs]
+    least, most = limits.coarse_least, limits.coarse_most
+    coarse_speeds = (least, math.sqrt(least * most), most)
     coarse_stops = [stops_at(bench, "coarse", speed, count, run_s, watch_s, digit, coarse_yields)
-                    for speed, count, run_s in COARSE_STOPS]
+                    for speed, (count, run_s) in zip(coarse_speeds, COARSE_STOP_FORM)]
 
     moves = []
     for digits, count in MOVES_DIGITS:
@@ -302,10 +336,11 @@ def measure(rig, seed: int) -> Calibration:
     return measure_on(TwinBench(rig, seed), rig.scale.digit_gr, rig.scale.report_s)
 
 
-def for_finish(measured: Calibration, finish: str, band_gr: float) -> Calibration:
-    """A calibration for one finish and band from what was measured once: its own copy, with the rules set."""
+def for_finish(measured: Calibration, finish: str, band_gr: float, limits: Limits = None) -> Calibration:
+    """A calibration for one finish and band from what was measured once: its own copy, with the rules set within
+    the user's limits (the simulation's stand-in user when none)."""
     cal = dataclasses.replace(measured, first_errors=[])
-    set_rules(cal, finish, band_gr)
+    set_rules(cal, finish, band_gr, limits)
     return cal
 
 
@@ -326,10 +361,16 @@ def lag_table(stops: list, gr_turn: float) -> list:
             for stop in stops]
 
 
-def set_rules(cal: Calibration, finish: str, band_gr: float) -> None:
-    """The controller's numbers from the measured ones. Nothing here is fitted to a powder, a tube or a scale."""
+def set_rules(cal: Calibration, finish: str, band_gr: float, limits: Limits = None) -> None:
+    """The controller's numbers from the measured ones, within the user's limits (the simulation's stand-in user when
+    none). Nothing here is fitted to a powder, a tube or a scale."""
+    limits = limits or sim_limits()
     cal.finish, cal.band_gr = finish, band_gr
     fine, coarse = cal.fine_stops, cal.coarse_stops
+    # each tube's range: the user's limits, and never faster than the fastest speed the calibration measured
+    cal.fine_top_rps = min(limits.fine_most, fine[-1].speed)
+    cal.coarse_top_rps = min(limits.coarse_most, coarse[-1].speed)
+    cal.coarse_floor_rps = limits.coarse_least
     lags = lag_table(fine, cal.fine_gr_turn)
     spread = [(stop.speed, stop.spread_gr) for stop in fine]
     quiet = [(stop.speed, stop.quiet_s) for stop in fine]
@@ -337,14 +378,19 @@ def set_rules(cal: Calibration, finish: str, band_gr: float) -> None:
         # The creep: the flow at which the powder still on its way is about the band, at the lag measured there
         slowest_lag = max(lags[0][1], SLOWEST_LAG_LEAST_S)
         cal.floor_rps = min(max(CREEP_BAND_SHARE * band_gr / slowest_lag / cal.fine_gr_turn,
-                                CREEP_LEAST_SHARE * fine[0].speed), fine[CREEP_TOP_STOP].speed)
+                                CREEP_LEAST_SHARE * fine[0].speed), fine[min(CREEP_TOP_STOP, len(fine) - 1)].speed)
+        # never under the user's fine least: a least above the creep holds it up, and the charge says so
+        cal.creep_rps = cal.floor_rps
+        cal.floor_rps = max(cal.floor_rps, limits.fine_least)
         # The first reading at rest is meant to lie a digit under the target (half the band, if that is more): a
         # throw that rests short is topped up, one that rests over is lost. Aimed at the target itself the trial
         # gave 5 points fewer good throws and half as many overs again (progress.md, 2026-11-21)
         cal.aim_gr = -max(cal.digit_gr, band_gr / 2.0)
         cal.stop_room_gr = -cal.aim_gr
     else:
-        cal.floor_rps = min(FINE_TOP_RPS, DRIBBLE_DIGITS_S * cal.digit_gr / cal.fine_gr_turn)
+        cal.floor_rps = min(cal.fine_top_rps, DRIBBLE_DIGITS_S * cal.digit_gr / cal.fine_gr_turn)
+        cal.creep_rps = cal.floor_rps
+        cal.floor_rps = max(cal.floor_rps, limits.fine_least)
         cal.stop_room_gr = 2.5 * table(spread, cal.floor_rps) + cal.digit_gr
         cal.aim_gr = -cal.stop_room_gr
     # The floor is reached with twice the spread of a stop from four times its flow still to go
@@ -404,8 +450,9 @@ def pid_offer(cal: Calibration) -> PidLaw:
     whatever the profile says. No I or D: they added nothing on the rig. Chosen in `offer_study.py`
     (fit/study_20261122/offer.txt) over the glide's own gain (7 points worse with AR2209 at 5 gr) and half of it."""
     return PidLaw(coarse_kp=1.0 / (cal.coarse_gr_turn * cal.coarse_glide_s), coarse_ki=0.0, coarse_kd=0.0,
-                  coarse_min_rps=COARSE_FLOOR_RPS, coarse_max_rps=COARSE_TOP_RPS,
-                  fine_kp=0.6 / (cal.fine_gr_turn * cal.glide_s), fine_ki=0.0, fine_kd=0.0, fine_max_rps=FINE_TOP_RPS)
+                  coarse_min_rps=cal.coarse_floor_rps, coarse_max_rps=cal.coarse_top_rps,
+                  fine_kp=0.6 / (cal.fine_gr_turn * cal.glide_s), fine_ki=0.0, fine_kd=0.0,
+                  fine_max_rps=cal.fine_top_rps)
 
 
 class Staged:
@@ -604,12 +651,12 @@ class Staged:
                     self.coarse_off_at = now
             else:
                 glide = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
-                self.glide_rps["coarse"] = min(COARSE_TOP_RPS, max(COARSE_FLOOR_RPS, glide))
+                self.glide_rps["coarse"] = min(cal.coarse_top_rps, max(cal.coarse_floor_rps, glide))
                 if pid is not None:
                     asked = pid.coarse_kp * (room - cal.coarse_room_gr) + self.pid_term["coarse"]
                     top = pid.coarse_max_rps
                     if self.pid_envelope:
-                        top = min(top, COARSE_TOP_RPS, COARSE_FLOOR_RPS + (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s))
+                        top = min(top, cal.coarse_top_rps, cal.coarse_floor_rps + (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s))
                     self.coarse_rps = min(top, max(pid.coarse_min_rps, asked))
                     self.pid_held["coarse"] = not (pid.coarse_min_rps < asked < top)
                 else:
@@ -623,12 +670,12 @@ class Staged:
             self.wait = cal.rest_s
             return
         glide = (room - cal.glide_room_gr) / (cal.fine_gr_turn * cal.glide_s)
-        self.glide_rps["fine"] = min(FINE_TOP_RPS, max(cal.floor_rps, glide))
+        self.glide_rps["fine"] = min(cal.fine_top_rps, max(cal.floor_rps, glide))
         if pid is not None:
             asked = pid.fine_kp * room + self.pid_term["fine"]
             top = pid.fine_max_rps
             if self.pid_envelope:
-                top = min(top, FINE_TOP_RPS, cal.floor_rps + max(0.0, room - self.stop_room) / (cal.fine_gr_turn * cal.glide_s))
+                top = min(top, cal.fine_top_rps, cal.floor_rps + max(0.0, room - self.stop_room) / (cal.fine_gr_turn * cal.glide_s))
             self.fine_rps = min(top, max(cal.floor_rps, asked))
             self.pid_held["fine"] = not (cal.floor_rps < asked < top)
             return
@@ -749,7 +796,7 @@ class Staged:
         cal = self.cal
         if self.window_reading is not None or self.rehearsal or self.learn_fine_prior <= 0.0 or self.phase != "feed":
             return
-        if not (0.0 < self.fine_rps < FINE_TOP_RPS):
+        if not (0.0 < self.fine_rps < self.cal.fine_top_rps):
             return
         if self.coarse_ran and (self.coarse_off_at is None
                                 or now < self.coarse_off_at + cal.coarse_stops[0].quiet_s + 0.3 - TIE_S):

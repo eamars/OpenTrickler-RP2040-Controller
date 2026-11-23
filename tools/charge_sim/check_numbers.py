@@ -54,7 +54,7 @@ ALLOWED = {
         "0.5": (1, "H: its fine speeds"),
         "0.7": (1, "H: its moves, in digits"),
         "2.5": (1, "H: its moves, in digits"),
-        "2": (13, "H: half an interval, half a digit, two intervals, a coarse speed; a median's middle; twice the first "
+        "2": (15, "F.2: half a digit, the band from the tolerance (A7's conversion); the start check's code 2. H: half an interval, half a digit, two intervals, a coarse speed; a median's middle; twice the first "
                   "errors kept (a merge's room); the console's `ccal` fields by their place"),
         "6": (7, "H: a move of 6 digits; the console's `ccal` fields, six to a line"),
         # The console's commands and the stored record
@@ -77,7 +77,7 @@ ALLOWED = {
         "0.03": (1, "A7's default, the fine stop threshold"),
         "0.02": (2, "A8's and A9's defaults, the zero's margins"),
         "0.25": (1, "A11's default, the back-off's turns"),
-        "2": (2, "A12's default, the precharge's speed; an event's bit"),
+        "2": (3, "A12's default, the precharge's speed; an event's bit; the start check's code 2 (a top speed of 0)"),
         "1000": (11, "milliseconds in a second; A12's default, the precharge's time; a target's three decimals"),
         "100": (1, "a target's two decimals"),
         "10": (3, "a target's decimal digits"),

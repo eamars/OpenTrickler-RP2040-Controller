@@ -751,8 +751,7 @@ static bool charge_mode_pid_learnt_throw(void) {
         .backoff_rps = fabsf(data->coarse_stop_backoff_speed_rps),
         .digit_gr = k->digit_gr,
         .interval_s = (float) usual_interval_ms / 1000.0f,
-        .band_gr = data->trickle_mode == CHARGE_TRICKLE_FAST ? CHARGE_TRICKLE_FAST_BAND_GR :
-                   CHARGE_TRICKLE_ACCURATE_BAND_GR,
+        .band_gr = charge_calibration_band(data->fine_stop_threshold, k->digit_gr),     // A7 (ADR-009, F.2)
     };
     charge_pid_learning_t *learning = charge_pid_learning((uint8_t) profile_get_selected_idx());
     const float fine_steps_turn = motor_get_steps_per_turn(SELECT_FINE_TRICKLER_MOTOR);
@@ -1332,11 +1331,11 @@ uint8_t charge_mode_menu(void) {
         // The controller and its calibration for this charge, from the heap, given back as the charge ends: the Pico
         // W has no RAM to keep them for a charge that may never come
         charge_staged_block = (charge_staged_block_t *) pvPortMalloc(sizeof(charge_staged_block_t));
-        // The mode's band: the calibration's rules are made for it at each charge's start (ADR-009, 2026-11-22)
-        float band_gr = charge_mode_config.eeprom_charge_mode_data.trickle_mode == CHARGE_TRICKLE_FAST ?
-                        CHARGE_TRICKLE_FAST_BAND_GR : CHARGE_TRICKLE_ACCURATE_BAND_GR;
+        // The user's tolerance (A7): the calibration's rules are made for its band at each charge's start, within
+        // the user's limits (ADR-009, gate F.2)
+        float tolerance_gr = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
         const char *refused = charge_staged_block == NULL ? "No memory" :
-            !charge_calibration_get_law((uint8_t) profile_get_selected_idx(), band_gr, charge_law,
+            !charge_calibration_get_law((uint8_t) profile_get_selected_idx(), tolerance_gr, charge_law,
                                         &charge_staged_block->cal) ?
             "Not calibrated" : NULL;
         if (refused != NULL) {
@@ -1357,6 +1356,14 @@ uint8_t charge_mode_menu(void) {
         printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f, law %s\n", profile_get_selected_idx(),
                charge_controller->cal.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide",
                charge_controller->cal.band_gr, charge_controller->cal.stop_room_gr, charge_law ? "pid" : "glide");
+        const charge_control_calibration_t *cal = &charge_controller->cal;
+        printf("Charge: coarse %.3f to %.3f rev/s, fine %.3f to %.3f rev/s (the user's limits and the fastest "
+               "measured)\n", cal->coarse_floor_rps, cal->coarse_top_rps, cal->floor_rps, cal->fine_top_rps);
+        if (cal->floor_rps > cal->creep_rps) {
+            // A least above the creep holds it up, and is said (ADR-009, gate F.2; the screens are gate 4's)
+            printf("Charge: the creep %.4f rev/s is held up to the fine least, %.4f rev/s\n", cal->creep_rps,
+                   cal->floor_rps);
+        }
     }
 
     // Enable motor on entering the charge mode
@@ -1569,6 +1576,15 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
         int state = charge_calibration_state(profile);
         if (state != CHARGE_RECORD_OK) {
             return state == CHARGE_RECORD_DAMAGED ? CHARGE_START_CALIBRATION_DAMAGED : CHARGE_START_NOT_CALIBRATED;
+        }
+        // The user's settings the frame cannot pour with, refused in words (ADR-009, gate F.2)
+        int check = charge_calibration_check_start(profile, charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
+                                                   isnan(target) ? charge_mode_get_target() : target);
+        if (check == 1) {
+            return CHARGE_START_TOLERANCE_UNDER_DIGIT;
+        }
+        if (check == 2) {
+            return CHARGE_START_NO_SPEED;
         }
     }
     // The menu takes a start under the activity lock, so the target and the profile are in before it can

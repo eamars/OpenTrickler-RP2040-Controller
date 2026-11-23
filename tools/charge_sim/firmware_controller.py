@@ -34,7 +34,7 @@ FINE_STOPS_MAX = 8
 MOVES = 3
 OUTPUTS = 21
 RULES = ("floor_rps", "stop_room_gr", "aim_gr", "glide_room_gr", "glide_s", "coarse_room_gr", "coarse_glide_s",
-         "rest_s")
+         "rest_s", "fine_top_rps", "coarse_top_rps", "coarse_floor_rps", "creep_rps")
 
 
 def _types(real) -> tuple:
@@ -54,11 +54,13 @@ def _types(real) -> tuple:
                        ("moves", Move * MOVES)]
                     + [(name, real) for name in ("watch_s", "coarse_share", "band_gr", "floor_rps", "stop_room_gr",
                                                  "aim_gr", "glide_room_gr", "glide_s", "coarse_room_gr",
-                                                 "coarse_glide_s", "rest_s")])
+                                                 "coarse_glide_s", "rest_s", "fine_top_rps", "coarse_top_rps",
+                                                 "coarse_floor_rps", "creep_rps")])
 
     class Constants(ctypes.Structure):
         _fields_ = ([(name, real) for name in (
-            "move_rps", "parcel_s", "fine_top_rps", "coarse_top_rps", "coarse_floor_rps", "dribble_digits_s",
+            "move_rps", "parcel_s", "coarse_least_rps", "coarse_most_rps", "fine_least_rps", "fine_most_rps",
+            "dribble_digits_s",
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
             "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split", "still_least_s")]
                     + [("most_moves", ctypes.c_uint8)]
@@ -133,9 +135,14 @@ class Library:
         lib.shim_set_pid.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
         self.lib = lib
 
-    def default_constants(self):
+    def default_constants(self, limits=None):
+        """The firmware's constants, with each tube's limits a user's (ADR-009, gate F.2): the simulation's stand-in
+        user (`staged.sim_limits()`) unless others are given, as the charge gives the unit's from its settings."""
         k = self.Constants()
         self.lib.charge_control_default_constants(ctypes.byref(k))
+        limits = limits or staged.sim_limits()
+        k.coarse_least_rps, k.coarse_most_rps = limits.coarse_least, limits.coarse_most
+        k.fine_least_rps, k.fine_most_rps = limits.fine_least, limits.fine_most
         return k
 
 
@@ -159,7 +166,9 @@ def to_c(cal: staged.Calibration, double: bool = False):
                           finish=FINISHES[cal.finish], watch_s=cal.watch_s, coarse_share=cal.coarse_share,
                           band_gr=cal.band_gr, floor_rps=cal.floor_rps, stop_room_gr=cal.stop_room_gr,
                           aim_gr=cal.aim_gr, glide_room_gr=cal.glide_room_gr, glide_s=cal.glide_s,
-                          coarse_room_gr=cal.coarse_room_gr, coarse_glide_s=cal.coarse_glide_s, rest_s=cal.rest_s)
+                          coarse_room_gr=cal.coarse_room_gr, coarse_glide_s=cal.coarse_glide_s, rest_s=cal.rest_s,
+                          fine_top_rps=cal.fine_top_rps, coarse_top_rps=cal.coarse_top_rps,
+                          coarse_floor_rps=cal.coarse_floor_rps, creep_rps=cal.creep_rps)
     for i, stop in enumerate(cal.coarse_stops):
         out.coarse_stops[i] = lib.Stop(stop.speed, stop.unseen_gr, stop.spread_gr, stop.quiet_s,
                                        -1.0 if stop.lag_s is None else stop.lag_s)
@@ -171,10 +180,10 @@ def to_c(cal: staged.Calibration, double: bool = False):
     return out
 
 
-def rules_in_c(measured: staged.Calibration, finish: str, band_gr: float, double: bool = False) -> dict:
+def rules_in_c(measured: staged.Calibration, finish: str, band_gr: float, double: bool = False, limits=None) -> dict:
     """The rules the firmware makes from a measured calibration, by name, as `staged.set_rules` names them."""
     cal = to_c(measured, double)
-    k = library(double).default_constants()
+    k = library(double).default_constants(limits)
     library(double).lib.charge_control_set_rules(ctypes.byref(cal), FINISHES[finish], band_gr, ctypes.byref(k))
     return {name: getattr(cal, name) for name in RULES}
 

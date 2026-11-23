@@ -46,6 +46,12 @@ SETS = (("jog", 0.02), ("glide", 0.02), ("jog", 0.04), ("glide", 0.04))
 # never does, so a held tube is asked for a speed too slow to pour (in a minute: a thousandth of a coarse turn,
 # six thousandths of a fine one)
 HOLD_RPS = {"coarse": 0.00002, "fine": 0.0001}
+# Each motor run bounded by the unit (ADR-009, gate F.2, the manager: the first runs at the user's tops, fine 3
+# and coarse 5 rev/s): the longest run here is 5 s, the longest watch 15 s
+RUN_BOUND_TURNS = 10.0
+RUN_BOUND_LEAST_S = 3.0
+RUN_BOUND_MOST_S = 30.0
+HOLD_BOUND_S = 60.0
 # The firmware's step pulses take a new speed only once the steps already handed to the PIO are made: two segments
 # at the old rate (`step_pulses.c`), and at a hold's rate a segment is one step of a third of a second or more. So
 # a tube started from a hold is switched off first, which stops the pulses at once, and then started: as every
@@ -84,6 +90,7 @@ class MadeUpUnit:
         self.rng = random.Random(seed + 17)
         self.digit, self.interval_s, self.acceleration = rig.scale.digit_gr, rig.scale.report_s, rig.acceleration_rps2
         self.cup_limit_gr = math.inf    # a made-up cup is never full: a forecast is not stopped to empty it
+        self.limits = staged.sim_limits()   # the simulation's stand-in user (ADR-009, gate F.2)
         self.runs = []
         self.asked = {"coarse": 0.0, "fine": 0.0}       # the speed each tube's pulses are made at now
         self.pending = {}                               # tube: (when its new speed is taken, the speed)
@@ -156,14 +163,50 @@ class MadeUpUnit:
 class RealUnit:
     """A unit on the debug probe, through `record.py`'s session."""
 
-    def __init__(self, repo: Path, name: str, board: str, digit: float, interval_s: float, acceleration: float):
+    def __init__(self, repo: Path, name: str, board: str, digit: float, interval_s: float, acceleration: float,
+                 most_pour: float):
         import record   # beside this file; it finds the checkout's own rc_run.py once the repository is known
         self.record = record
+        record.CUP_MOST_POUR = most_pour    # the real cup checked before anything turns, and after (rc_run)
         self.bench = record.Bench(repo, f"trial_{name}", board, tap=False)
         self.digit, self.interval_s, self.acceleration = digit, interval_s, acceleration
+        self.limits = self.read_limits()
         self.cup_limit_gr = CUP_LIMIT_GR
         self.runs = self.bench.runs
         self.folder = self.bench.folder
+
+    def read_limits(self):
+        """The user's limits for each tube, as the charge takes them (ADR-009, gate F.2): the higher of the selected
+        profile's and the motor's least, the lower of their most, read from the unit's own settings."""
+        def fields(path):
+            self._send(f"setting {path}")
+            out = {}
+            for line in self.bench.session.console.data_lines:
+                if line.startswith("@setting ") and "=" in line:
+                    name, value = line[len("@setting "):].split("=", 1)
+                    out[name] = value
+            return out
+        selected = self.selected_profile()
+        p = fields(f"powder_profiles/{selected}")
+        coarse, fine = fields("settings/motors/coarse"), fields("settings/motors/fine")
+        limits = staged.Limits(
+            coarse_least=max(float(p["coarse_min_speed_rps"]), float(coarse["min_speed_rps"])),
+            coarse_most=min(float(p["coarse_max_speed_rps"]), float(coarse["max_speed_rps"])),
+            fine_least=max(float(p["fine_min_speed_rps"]), float(fine["min_speed_rps"])),
+            fine_most=min(float(p["fine_max_speed_rps"]), float(fine["max_speed_rps"])))
+        return limits
+
+    def selected_profile(self) -> int:
+        """The powder profile in use, by its index (the API's /api/v1/powder_profiles' selected one, read from the
+        console's `state` line as its name, matched against each profile's)."""
+        state = self._send("state")
+        name = state.split('profile="', 1)[1].split('"', 1)[0]
+        for idx in range(8):
+            self._send(f"setting powder_profiles/{idx}")
+            for line in self.bench.session.console.data_lines:
+                if line == f"@setting name={name}" or line == f'@setting name="{name}"':
+                    return idx
+        raise UnitTrouble(f"no powder profile is named {name}")
 
     def _send(self, line: str) -> str:
         reply = self.bench.session.send(line)
@@ -183,7 +226,18 @@ class RealUnit:
         return weight
 
     def set_speed(self, tube: str, rps: float) -> None:
-        self._send(f"motor {tube} {rps:.5f}")
+        """A speed, bounded by the unit itself (ADR-009, gate F.1's motor bound): a pouring speed stops after
+        RUN_BOUND_TURNS turns' time, RUN_BOUND_LEAST_S to RUN_BOUND_MOST_S, longer than any run here; a hold after
+        HOLD_BOUND_S, longer than any watch. Each speed asked starts its bound again"""
+        speed = abs(rps)
+        if speed == 0.0:
+            self._send(f"motor {tube} 0")
+            return
+        if speed <= HOLD_RPS[tube]:
+            bound = HOLD_BOUND_S
+        else:
+            bound = min(RUN_BOUND_MOST_S, max(RUN_BOUND_LEAST_S, RUN_BOUND_TURNS / speed))
+        self._send(f"motor {tube} {rps:.5f} {bound:.1f}")
 
     def turned(self, tube: str) -> float:
         return self.turns()[tube]
@@ -430,7 +484,7 @@ def cup_room(unit, needed_gr: float, what: str) -> None:
                           f"and go on with --resume")
 
 
-def run_trial(unit, folder: Path, target_gr: float, throws_a_set: int, say=print) -> dict:
+def run_trial(unit, folder: Path, target_gr: float, throws_a_set: int, say=print, sets=None) -> dict:
     """
     The whole trial on a unit, kept in a folder as it goes, so that it can go on after a stop.
 
@@ -454,19 +508,21 @@ def run_trial(unit, folder: Path, target_gr: float, throws_a_set: int, say=print
     else:
         cup_room(unit, MEASURE_ROOM_GR, "the calibration")
         say("the calibration's measurements: prime, the probe, grains a turn, the stops by flow, the small moves")
-        measured = staged.measure_on(UnitBench(unit), unit.digit, unit.interval_s)
+        say(f"the user's limits: coarse {unit.limits.coarse_least:g} to {unit.limits.coarse_most:g}, fine "
+            f"{unit.limits.fine_least:g} to {unit.limits.fine_most:g} rev/s")
+        measured = staged.measure_on(UnitBench(unit), unit.digit, unit.interval_s, unit.limits)
         measured_file.write_text(json.dumps(staged.to_json(measured), indent=1), encoding="utf-8")
         say(f"   {measured.seconds / 60.0:.1f} min, {measured.poured_gr:.0f} gr; coarse {measured.coarse_gr_turn:.2f} and fine "
             f"{measured.fine_gr_turn:.3f} gr a turn; every watch {measured.watch_s:.1f} s")
     session = UnitSession(unit)
     summary = {}
-    for finish, band in SETS:
+    for finish, band in [s for s in SETS if sets is None or f"{s[0]}_{s[1]:g}" in sets]:
         name = f"{finish}_{band:g}"
         set_file = folder / f"throws_{name}.json"
         kept = json.loads(set_file.read_text(encoding="utf-8")) if set_file.exists() else None
         if kept is None:
             cup_room(unit, staged.REHEARSALS * staged.REHEARSAL_GR + 5.0, f"the rehearsals of {name}")
-            cal = staged.for_finish(measured, finish, band)
+            cal = staged.for_finish(measured, finish, band, unit.limits)
             staged.rehearse(cal, session, unit.acceleration)
             kept = {"finish": finish, "band_gr": band, "target_gr": target_gr, "calibration": staged.to_json(cal),
                     "stop_room_gr": cal.stop_room_gr, "throws": []}
@@ -556,6 +612,9 @@ def main() -> int:
     parser.add_argument("--digit", type=float, default=0.02, help="the scale's digit, in grains")
     parser.add_argument("--interval", type=float, default=0.048, help="the scale's usual time between readings, s")
     parser.add_argument("--acceleration", type=float, default=50.0, help="the motors' stored acceleration, rev/s2")
+    parser.add_argument("--sets", help="the sets to rehearse and throw, comma-separated (glide_0.02,...): all when none")
+    parser.add_argument("--most-pour", type=float, help="a unit's trial: the most it pours into the real cup, in "
+                        "grains, checked against 600 gr before anything turns (rc_run's cup check)")
     parser.add_argument("--out", type=Path, default=HERE.parent / "fit", help="where forecasts and made-up trials go")
     args = parser.parse_args()
 
@@ -576,7 +635,9 @@ def main() -> int:
         if args.repo is None or (args.name is None and args.resume is None):
             parser.error("a unit's trial needs --repo, and --name or --resume")
         name = args.name or args.resume.name.split("_trial_", 1)[1]
-        unit = RealUnit(args.repo, name, args.board, args.digit, args.interval, args.acceleration)
+        if args.most_pour is None:
+            parser.error("a unit's trial needs --most-pour: the most it pours into the real cup")
+        unit = RealUnit(args.repo, name, args.board, args.digit, args.interval, args.acceleration, args.most_pour)
         folder = args.resume or unit.folder
     if args.calibration:
         folder.mkdir(parents=True, exist_ok=True)
@@ -589,7 +650,8 @@ def main() -> int:
     print(f"{stamp} the trial of {name}: {args.throws} throws a set at {args.target:g} gr, kept in {folder}", flush=True)
     summary = None
     try:
-        summary = run_trial(unit, folder, args.target, args.throws, say=lambda line: print(line, flush=True))
+        summary = run_trial(unit, folder, args.target, args.throws, say=lambda line: print(line, flush=True),
+                            sets=args.sets.split(",") if args.sets else None)
     except UnitTrouble as trouble:
         print(f"STOPPED: {trouble}", flush=True)
     except KeyboardInterrupt:

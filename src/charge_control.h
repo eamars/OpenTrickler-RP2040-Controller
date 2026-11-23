@@ -110,15 +110,23 @@ typedef struct {
     charge_control_real_t coarse_room_gr;
     charge_control_real_t coarse_glide_s;
     charge_control_real_t rest_s;                   // the wait after the fine tube's stop before the reading is judged
+    // Each tube's range (ADR-009, gate F.2): the user's limits (the constants') against what was measured
+    charge_control_real_t fine_top_rps;             // the lower of the fine most and the fastest fine stop measured
+    charge_control_real_t coarse_top_rps;           // the lower of the coarse most and the fastest coarse stop measured
+    charge_control_real_t coarse_floor_rps;         // the coarse least
+    charge_control_real_t creep_rps;                // the creep by the rules, before the fine least held it up
 } charge_control_calibration_t;
 
 // The frame's constants: the research's values by default (charge_control_default_constants), tuned on the bench
 typedef struct {
     charge_control_real_t move_rps;                 // a small move is made at this speed
     charge_control_real_t parcel_s;                 // the powder turned out is counted in parcels of this long
-    charge_control_real_t fine_top_rps;
-    charge_control_real_t coarse_top_rps;
-    charge_control_real_t coarse_floor_rps;         // the coarse tube pours in lumps below it
+    // The user's limits for each tube (ADR-009, gate F.2), given by the caller from the settings: the least is the
+    // higher of the profile's and the motor's least, the most the lower of their most (A2, A4, A5, A13, A14)
+    charge_control_real_t coarse_least_rps;
+    charge_control_real_t coarse_most_rps;
+    charge_control_real_t fine_least_rps;
+    charge_control_real_t fine_most_rps;
     charge_control_real_t dribble_digits_s;         // the jog finish's dribble
     charge_control_real_t coarse_spreads;           // of the coarse tube's spread a turn, kept clear of its powder still unseen
     charge_control_real_t creep_band_share;         // the creep's powder still on its way, as a share of the band
@@ -146,7 +154,7 @@ typedef struct {
     // today's PID loop on the frame's forecast with the gains in charge_control_t's pid, everything else the frame's
     uint8_t speed_law;
     // The PID law's guard against gains bad to begin with (1, the default): each tube never faster than the frame's
-    // top (coarse_top_rps, fine_top_rps: the fastest speeds whose lags the calibration knows) nor than the frame can
+    // top (the calibration's coarse_top_rps, fine_top_rps: within the user's limits, the fastest measured) nor than the frame can
     // stop it from (the fine tube: its floor plus the room above the stop over its grains a turn and glide time; the
     // coarse tube: the glide's coarse law), and the I term counting only while its tube is not held at a limit
     uint8_t pid_envelope;

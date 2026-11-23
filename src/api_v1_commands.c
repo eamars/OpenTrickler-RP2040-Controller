@@ -358,6 +358,16 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
                       "the staged controller needs the powder's calibration: calibrate it, or choose the PID "
                       "controller (settings/charge controller)", NULL);
             return;
+        case CHARGE_START_TOLERANCE_UNDER_DIGIT:
+            api_error(reply, 409, "settings_unusable", "fine_stop_threshold",
+                      "the fine stop threshold is under the scale's digit, which no throw can meet: raise it "
+                      "(settings/charge fine_stop_threshold)", NULL);
+            return;
+        case CHARGE_START_NO_SPEED:
+            api_error(reply, 409, "settings_unusable", "powder_profile",
+                      "a tube this throw needs has a top speed of 0, the powder profile's or the motor's: raise it "
+                      "(powder_profiles, settings/motors)", NULL);
+            return;
         case CHARGE_START_CALIBRATION_DAMAGED:
             api_error(reply, 409, "not_calibrated", "powder_profile",
                       "the powder's calibration is damaged (its stored record fails its check), and is not used: "

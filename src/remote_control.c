@@ -799,6 +799,16 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
             snprintf(reply, reply_size, "@err the powder profile holds no calibration: ccal, or setting "
                      "settings/charge controller=pid");
             return false;
+        case CHARGE_START_TOLERANCE_UNDER_DIGIT:
+            charge_mode_set_series(0);
+            snprintf(reply, reply_size, "@err the fine stop threshold is under the scale's digit: setting "
+                     "settings/charge fine_stop_threshold=<a digit or more>");
+            return false;
+        case CHARGE_START_NO_SPEED:
+            charge_mode_set_series(0);
+            snprintf(reply, reply_size, "@err a tube the throw needs has a top speed of 0, the profile's or the "
+                     "motor's");
+            return false;
         case CHARGE_START_CALIBRATION_DAMAGED:
             charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err the powder profile's calibration is damaged, and not used: ccal save "

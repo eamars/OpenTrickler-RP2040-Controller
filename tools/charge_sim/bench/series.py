@@ -131,6 +131,8 @@ def main() -> int:
     parser.add_argument("--target", type=float, default=10.0)
     parser.add_argument("--throws", type=int, default=25)
     parser.add_argument("--ccon", default="", help="constants for this series: `name=value ...` (never stored)")
+    parser.add_argument("--most-pour", type=float, help="the most the series pours into the real cup, in grains "
+                        "(default: its throws at their target and the far-over stop's 3 gr each, and 10)")
     parser.add_argument("--lag-shift", type=float, default=0.0,
                         help="seconds added to every stop's lag before it is written: -0.055 for a calibration made by "
                              "the PC through the console, whose lags ran that far behind the firmware's (2026-11-22)")
@@ -180,6 +182,12 @@ def main() -> int:
     import argparse as _argparse
     import rc_run   # the checkout's own runner
     session = rc_run.Session(_argparse.Namespace(board=args.board, elf=None), f"adr009_series_{args.name}")
+    # The real cup, before anything turns (the owner, 2026-11-23: the hopper stays filled)
+    most = args.most_pour if args.most_pour is not None else args.throws * (args.target + 3.0) + 10.0
+    go, cup_before = session.cup_before(f"series {args.name}", most, None)
+    if not go:
+        print(f"refused: the cup ({cup_before}) and the series' most pour ({most:.0f} gr)")
+        return session.finish()
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     folder = args.repo / "logs" / "adr009" / f"{stamp}_series_{args.name}"
     folder.mkdir(parents=True)
@@ -294,6 +302,7 @@ def main() -> int:
             following = throws[i + 1]["base"] if i + 1 < len(throws) else record.get("cup_after_gr")
             entry["settled"] = (following - entry["base"]) if isinstance(following, float) else None
         (folder / "series.json").write_text(json.dumps(record, indent=1))
+        session.cup_after(f"series {args.name}", cup_before, most)
         exit_code = session.finish()
 
     throws = record["throws"]
