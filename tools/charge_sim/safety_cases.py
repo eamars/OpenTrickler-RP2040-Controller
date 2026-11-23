@@ -8,7 +8,9 @@ reference (`staged.Staged`) driving the rig and the firmware's controller, built
 - none: every throw ends good, over or short, none "cup", "no_powder" or "limit";
 - cup_lifted: the cup lifted (the pan reads the cup's weight under zero) at mid-coarse, and at the creep: the throw
   ends "cup" on the first reading below the cup test's line, both tubes asked to stop by it;
-- light_cup: the same with a cup of 5 of the scale's unit;
+- light_cup: the same with the lightest real pan, 5 g (77 gr), in grains;
+- light_cup_limit: a cup of 5 gr (0.32 g), lighter than any pan: the cup test's limit shown, not judged. A lift is
+  caught when the cup outweighs what pours onto the bare pan within the scale's lag (README, F.1);
 - grams: the rig's scale reading grams (target, digit, tolerance and the cup in grams): `none`, `cup_lifted`, a cup
   of 5 g (`light_cup`: the cup E7's fixed 10 missed on a gram scale) and `far_over`;
 - drift: the reading drifting down a digit over the first 15 s of a throw: no throw ends "cup";
@@ -43,11 +45,12 @@ RECORD = "pico2w_ar2209_night"
 SEED = 4242
 TARGET_GR = 20.0
 CUP_GR = 150.0                  # robust_staged.py's cup, in grains
-LIGHT_CUP = 5.0                 # a cup lighter than E7's old 10, in the scale's unit
+GRAINS_A_GRAM = 15.4323584
+LIGHT_CUP_G = 5.0               # the lightest real pan, in grams (E7's old 10 missed it on a gram scale)
+LIMIT_CUP_GR = 5.0              # a cup lighter than any pan, in grains: the cup test's limit
 LIFT_S = 2.0
 ZERO_MARGIN = 0.02              # A9, the zero's mean margin: the user's, at its default
-GRAINS_A_GRAM = 15.4323584
-CASES = ("none", "cup_lifted", "light_cup", "grams", "drift", "no_powder", "no_powder_drift", "no_figure", "coarse_jam",
+CASES = ("none", "cup_lifted", "light_cup", "light_cup_limit", "grams", "drift", "no_powder", "no_powder_drift", "no_figure", "coarse_jam",
          "third", "far_over")
 
 
@@ -244,7 +247,9 @@ def main() -> int:
         run("cup_lifted coarse", lambda: Fault("cup_lifted", when="coarse"), ("cup",))
         run("cup_lifted creep", lambda: Fault("cup_lifted", when="creep"), ("cup",))
     if "light_cup" in cases:
-        run("light_cup", lambda: Fault("light_cup", cup=LIGHT_CUP), ("cup",))
+        run("light_cup", lambda: Fault("light_cup", cup=LIGHT_CUP_G * GRAINS_A_GRAM), ("cup",))
+    if "light_cup_limit" in cases:
+        run("light_cup_limit", lambda: Fault("light_cup", cup=LIMIT_CUP_GR), ())
     if "drift" in cases:
         run("drift", lambda: Fault("drift", digit=digit), (), refuse=("cup",))
     if "no_powder" in cases:
@@ -276,7 +281,7 @@ def main() -> int:
                 tol=g_tol)
             run("grams cup_lifted", lambda: Fault("cup_lifted", unit=GRAINS_A_GRAM, cup=CUP_GR / GRAINS_A_GRAM),
                 ("cup",), cal_=g_cal, target=g_target, tol=g_tol)
-            run("grams light_cup", lambda: Fault("light_cup", unit=GRAINS_A_GRAM, cup=LIGHT_CUP), ("cup",), cal_=g_cal,
+            run("grams light_cup", lambda: Fault("light_cup", unit=GRAINS_A_GRAM, cup=LIGHT_CUP_G), ("cup",), cal_=g_cal,
                 target=g_target, tol=g_tol)
             run("grams far_over", lambda: Fault("far_over", unit=GRAINS_A_GRAM, digit=g_digit, tolerance=g_tol,
                                                 target=g_target),

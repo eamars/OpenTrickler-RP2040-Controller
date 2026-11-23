@@ -60,6 +60,13 @@ LOG_DIR = REPO / "logs" / "rc"
 CUP_MOST_GR = 600.0
 CUP_LEDGER = REPO / "logs" / "adr009" / "cup_ledger.csv"
 CUP_EMPTIED_GR = 20.0           # a reading this far below the ledger's last: the cup was emptied between runs
+# The most grains a turn either tube may give: a run's most pour is its motors' bounded turns at this (the bench's
+# coarse tube poured 9.5 a turn, 2026-11-23)
+CUP_GR_A_TURN_MOST = 12.0
+# A motor turned from the console stops by itself after its seconds (the unit's bound, ADR-009, gate F.1); pulses'
+# cases each give theirs: (a) the ramp and the reset, (b) and (c) the test build's fault 10 s after its start and a margin
+PULSES_RUN_S = {"reset": 3.0, "assert": 14.0, "hard fault": 14.0}
+MOTOR_RUN_DEFAULT_S = 15.0      # the unit's bound for a `motor` line given no seconds
 
 # reset: the writes that make the watchdog reset the whole chip, as watchdog_reboot() does: scratch 4 cleared
 # (a normal boot), every power domain but the oscillators selected, then the trigger. openocd's own `reset run`
@@ -3470,8 +3477,9 @@ class Session:
                 time.sleep(5.0)
 
         def motors_turning():
-            self.send(f"motor coarse {SCALE_FRAMES_COARSE_RPS:g}")
-            self.send(f"motor fine {SCALE_FRAMES_FINE_RPS:g}")
+            bound = min(motors_s + 5.0, 120.0)      # the unit stops them by itself after this
+            self.send(f"motor coarse {SCALE_FRAMES_COARSE_RPS:g} {bound:g}")
+            self.send(f"motor fine {SCALE_FRAMES_FINE_RPS:g} {bound:g}")
             time.sleep(motors_s)
             self.send("motor coarse 0")
             self.send("motor fine 0")
@@ -3534,12 +3542,14 @@ class Session:
 
         def start_coarse(case):
             # Just after a flash the menu may not have drawn its first screen, and a motor is refused until it has
-            # ("a mode is running"); the test builds fault 10 s after their start, so it is waited for a little
+            # ("a mode is running"); the test builds fault 10 s after their start, so it is waited for a little. The
+            # run is bounded by the unit itself: it stops after its seconds whatever happens here
+            line = f"motor coarse 1 {PULSES_RUN_S[case]:g}"
             deadline = time.monotonic() + PULSES_MENU_WAIT_S
-            reply = self.console.command("motor coarse 1")
+            reply = self.console.command(line)
             while reply is not None and "a mode is running" in reply and time.monotonic() < deadline:
                 time.sleep(0.2)
-                reply = self.console.command("motor coarse 1")
+                reply = self.console.command(line)
             if reply is None or not reply.startswith("@ok"):
                 self.fail(f'{case}: "motor coarse 1": {reply}')
                 return False
@@ -3567,7 +3577,7 @@ class Session:
             self.flash(elf)
             if len(self.failures) > before:
                 self.console.command("motor coarse 0")
-                self.log.write("rc", f"pulses: {elf} did not flash; its case is skipped")
+                self.fail(f"pulses: {Path(elf).name} did not flash: its case is not run")
                 return False
             return True
 
@@ -3576,7 +3586,7 @@ class Session:
         flashed = time.monotonic()
         self.console.expect_fault = True
         if assert_flashed and start_coarse("assert"):
-            time.sleep(max(0.0, flashed + 13 - time.monotonic()))
+            self.cup_watch(flashed + 13)
             stopped = not pulsing()
             self.log.write("rc", f"(b) assert: pulses {'stopped' if stopped else 'RUNNING'}")
             if not stopped:
@@ -3587,7 +3597,7 @@ class Session:
         hardfault_flashed = flashed_ok(hardfault_elf)
         flashed = time.monotonic()
         if hardfault_flashed and start_coarse("hard fault"):
-            time.sleep(max(0.0, flashed + 13 - time.monotonic()))
+            self.cup_watch(flashed + 13)
             stopped = not pulsing()
             self.log.write("rc", f"(c) hard fault: pulses {'stopped' if stopped else 'RUNNING'}")
             if not stopped:
@@ -4121,6 +4131,26 @@ class Session:
             return None
         return weight if math.isfinite(weight) else None
 
+    def cup_watch(self, until):
+        """
+        Wait until the monotonic time `until`, the real scale read twice a second: at 600 gr both motors stop and the
+        run fails. A console gone silent (a test build's fault) is waited out.
+        """
+        while time.monotonic() < until:
+            state = self.console.command("state", timeout=1.0, recover=False) or ""
+            match = re.search(r" weight=(\S+)", state)
+            if match is not None and " sim=0" in state:
+                try:
+                    weight = float(match.group(1))
+                except ValueError:
+                    weight = float("nan")
+                if math.isfinite(weight) and weight >= CUP_MOST_GR:
+                    self.console.command("motor coarse 0")
+                    self.console.command("motor fine 0")
+                    self.fail(f"cup: {weight:.2f} gr reached while a motor turned: both stopped")
+                    return
+            time.sleep(max(0.0, min(0.5, until - time.monotonic())))
+
     def cup_before(self, command, most, unchecked):
         """
         The cup read before a run that can turn a motor.
@@ -4155,7 +4185,14 @@ class Session:
         """The cup read after the run, into the ledger."""
         weight = self.cup_reading()
         self.log.write("rc", f"cup: {weight} gr after {command}")
-        self.cup_ledger(command, before, weight, most, "")
+        note = ""
+        if weight is not None and before is not None:
+            poured = weight - before
+            note = f"poured {poured:.1f} of most {most:.0f}"
+            if poured > most:
+                note += ": MORE THAN STATED"
+                self.fail(f"cup: the run poured {poured:.1f} gr, more than its stated most {most:.0f}")
+        self.cup_ledger(command, before, weight, most, note)
 
     @staticmethod
     def cup_last():
@@ -4193,6 +4230,9 @@ class Session:
         """
         for core in self.openocd.halted_cores(self.elf):
             self.fail(f"core not running: {core}")
+        # Nothing this session turned is left turning, however it ended (refused while a mode runs: the mode's own)
+        for tube in ("coarse", "fine"):
+            self.console.command(f"motor {tube} 0", timeout=1.0, recover=False)
         if self.link_drops:
             self.log.write("rc", f"the probe's link dropped {self.link_drops} times and RTT was started again; "
                                  "reported, not judged")
@@ -4360,9 +4400,8 @@ def cup_most(args):
     if command == "recordings_check":
         return (2 * args.throws + 1) * args.target
     if command == "pulses":
-        # The coarse tube at 1 rev/s in each of its three cases, up to 13 s in two: 30 turns when a fault does not
-        # stop it, at 12 gr a turn (the bench's tube poured 9.5: 286 gr, 2026-11-23)
-        return 30 * 12.0
+        # The coarse tube at 1 rev/s in each case, bounded by the unit (PULSES_RUN_S): 31 turns at most
+        return sum(PULSES_RUN_S.values()) * 1.0 * CUP_GR_A_TURN_MOST
     if command == "api_check":
         return args.target + 40.0       # a charge started and stopped, and a purge
     if command == "settings_roundtrip":
@@ -4374,7 +4413,7 @@ def cup_most(args):
     if command == "reach":
         return 40.0                     # a simulated charge's screens while it zeroes and between throws
     if command == "scale_frames":
-        return 10.0 * args.motors
+        return (SCALE_FRAMES_COARSE_RPS + SCALE_FRAMES_FINE_RPS) * min(args.motors + 5.0, 120.0) * CUP_GR_A_TURN_MOST
     if command == "send":
         lines = [line for line in args.lines if SEND_POURS.match(line)]
         if not lines:
@@ -4382,7 +4421,13 @@ def cup_most(args):
         most = 0.0
         for line in lines:
             words = line.split()
-            most += float(words[1]) + 10.0 if words[0] == "charge" else 100.0
+            if words[0] == "charge":
+                most += float(words[1]) + 10.0
+            elif words[0] == "motor" and len(words) >= 3:
+                seconds = float(words[3]) if len(words) > 3 else MOTOR_RUN_DEFAULT_S
+                most += abs(float(words[2])) * seconds * CUP_GR_A_TURN_MOST
+            else:
+                most += 100.0           # a purge or a cleanup: its own time
         return most
     return None
 

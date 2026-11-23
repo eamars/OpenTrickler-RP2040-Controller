@@ -16,7 +16,7 @@ case by its pass, written here before the first run:
 - cup_lifted: the cup lifted for 2 s during the coarse stream (the reading 150 gr under the empty cup) and put back:
   no tube turns while the cup is off (a person who lifts the cup mid-throw must not have powder poured on the pan).
   Since ADR-009's gate F.1: the charge ends "Cup lifted", that reason alone, both tubes still;
-- light_cup: the same with a cup of 5 gr (the reading 5 under the empty cup): the same end;
+- light_cup: the same with the lightest real pan, 5 g (the reading 77 gr under the empty cup): the same end;
 - cup_lifted_quiet: the scale silent and the cup lifted at once, during the coarse stream: the charge ends "Scale: no
   reading" alone, both tubes still;
 - drift: the reading a digit lower from mid-coarse on (`sim offset`): a throw, no "Cup lifted";
@@ -112,7 +112,7 @@ class Case:
         elif self.name == "cup_lifted":
             send("sim weight -150")
         elif self.name == "light_cup":
-            send("sim weight -5")
+            send("sim weight -77")
         elif self.name == "cup_lifted_quiet":
             send("sim quiet 5000")
             send("sim weight -150")

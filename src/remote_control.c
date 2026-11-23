@@ -12,6 +12,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
+#include <timers.h>
 
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
@@ -551,6 +552,27 @@ static bool remote_control_knob(const char *args, char *reply, size_t reply_size
 
 // `motor <coarse|fine> <rev/s>`: enable the driver and turn the trickler; 0 stops it and disables the driver.
 // `motor`: the steps made so far
+/*
+    A motor turned from the console stops by itself (ADR-009, gate F.1): nothing a test starts turns a motor without
+    a bound, whatever happens on the PC (a fault that never comes, a refused flash, a tool that raised: 286 gr into the
+    cup on 2026-11-23). Its seconds are given with the speed, or the default; the run is stopped at its end unless a
+    mode has taken the motors since
+*/
+#define RC_MOTOR_RUN_DEFAULT_S 15.0f
+#define RC_MOTOR_RUN_MOST_S 120.0f
+static TimerHandle_t rc_motor_timers[2];
+
+
+static void rc_motor_run_over(TimerHandle_t timer) {
+    motor_select_t motor = (motor_select_t) (uintptr_t) pvTimerGetTimerID(timer);
+    if (menu_get_current_form_id() >= 0) {
+        motor_enable(motor, false);     // also commands speed 0
+        printf("Motor: %s stopped, its console run's time up\n",
+               motor == SELECT_COARSE_TRICKLER_MOTOR ? "coarse" : "fine");
+    }
+}
+
+
 static bool remote_control_motor(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                  void *write_ctx) {
     // Alone: the steps counted on each STEP pin, those fed to the PIO, the feeds that came late, and the rate the
@@ -580,17 +602,27 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
         selected_motor = SELECT_FINE_TRICKLER_MOTOR;
     }
     else {
-        snprintf(reply, reply_size, "@err usage: motor | motor <coarse|fine> <rev/s>");
+        snprintf(reply, reply_size, "@err usage: motor | motor <coarse|fine> <rev/s> [<seconds>]");
         return false;
     }
 
     char *end;
     float speed = strtof(args + name_len, &end);
-    if (end == args + name_len || *end != '\0' || !isfinite(speed) ||
+    if (end == args + name_len || (*end != '\0' && *end != ' ') || !isfinite(speed) ||
         fabsf(speed) > get_motor_max_speed(selected_motor)) {
         snprintf(reply, reply_size, "@err speed: a number of rev/s within the motor's maximum, %u",
                  (unsigned) get_motor_max_speed(selected_motor));
         return false;
+    }
+    float seconds = RC_MOTOR_RUN_DEFAULT_S;
+    if (*end == ' ') {
+        const char *text = end + 1;
+        seconds = strtof(text, &end);
+        if (end == text || *end != '\0' || !(seconds > 0.0f && seconds <= RC_MOTOR_RUN_MOST_S)) {
+            snprintf(reply, reply_size, "@err seconds: the run's bound, above 0 and at most %.0f",
+                     (double) RC_MOTOR_RUN_MOST_S);
+            return false;
+        }
     }
 
     // The modes drive the motors themselves
@@ -599,15 +631,27 @@ static bool remote_control_motor(const char *args, char *reply, size_t reply_siz
         return false;
     }
 
+    TimerHandle_t *timer = &rc_motor_timers[selected_motor == SELECT_COARSE_TRICKLER_MOTOR ? 0 : 1];
     if (speed == 0.0f) {
+        if (*timer != NULL) {
+            xTimerStop(*timer, 0);
+        }
         motor_enable(selected_motor, false);    // also commands speed 0
+        snprintf(reply, reply_size, "@ok motor");
+        return true;
     }
-    else {
-        motor_enable(selected_motor, true);
-        motor_set_speed(selected_motor, speed);
+    TickType_t ticks = pdMS_TO_TICKS((uint32_t) (seconds * 1000.0f));
+    if (*timer == NULL) {
+        *timer = xTimerCreate("RC motor", ticks, pdFALSE, (void *) (uintptr_t) selected_motor, rc_motor_run_over);
     }
+    if (*timer == NULL || xTimerChangePeriod(*timer, ticks, 0) != pdPASS) {
+        snprintf(reply, reply_size, "@err no timer for the run's bound: not started");
+        return false;
+    }
+    motor_enable(selected_motor, true);
+    motor_set_speed(selected_motor, speed);
 
-    snprintf(reply, reply_size, "@ok motor");
+    snprintf(reply, reply_size, "@ok motor stops_in_s=%.1f", (double) seconds);
     return true;
 }
 
