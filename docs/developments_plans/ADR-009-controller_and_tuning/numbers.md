@@ -310,6 +310,22 @@ The page of 2026-11-22 ended with four decisions "for the owner" and three items
    - **The removal after the verdict (E7)** loses its fixed 10.
    - **Their cases, written before the build:** `cup_lifted`, a cup lighter than 10 of the scale's unit, a scale set to grams, a scale that drifts a digit during a throw (no false stop).
 
+## N.3: the bench's leftovers tried at nothing
+
+Three fixed numbers are times or weights chosen on the bench's scale, and fail the test for a fixed number: the stillness's 0.4 s (C16), the coarse room's extra 0.2 gr (D9), the rest's extra 0.3 s (D10). Each is tried at nothing in the simulation.
+
+**The study and its pass, written 2026-11-23, 18:09, before its run** (`tools/charge_sim/numbers_study.py --nothing`):
+- **The controller** is the sensitivity study's: the PID law in the frame, the envelope on, calibrated afresh with the number changed. Since N.2 the fine figure's learning is off in it, so its baseline is not the study of 2026-11-22's.
+- **The cases:** both records, the five scales of `scales_like.py`, both bands, 10 gr, 800 throws a case: 20 cases. The baseline on two seeds.
+- **Tried:** each of the three at 0, and all three at 0 together, since all three would go together.
+- **The bars,** the sensitivity study's: a share moves when it differs from the baseline's by two SDs of the difference between two runs of 800 or more; the median when it differs by 0.5 s or by the two seeds' own difference, whichever is more.
+- **Read by how often and how far, not case by case** (the sensitivity study's lesson: at two SDs chance alone moves about one case in twenty on each measure):
+  - **Without effect:** the over share moves in at most 2 of the 20 cases, the good share likewise, and the mean of each one's move over the 20 cases is under half a point. The number then goes, whatever the median does: less waiting and less room can only make a throw quicker.
+  - **With an effect:** anything else. The number is then made from what the unit measures (reading intervals for a time, a measured spread for a weight). It is not kept at the bench's value.
+  - **All three together** are judged the same way. If each alone is without effect and the three together are not, they do not go together, and that is said.
+  - The baseline's second seed is tallied by the same bars, to show what chance does in this run.
+- **What it cannot show:** the simulation's stops scatter less than the rig's. A number that goes here goes from the code at F.5 with the other limits that do nothing, and is then shown on the unit by that step's proofs.
+
 ## The research behind the rows
 
 The research run for gate N on 2026-11-22 and 2026-11-23, kept as it was written, each study with its pass before its run. Where it says "proposed" or leaves a choice, the rows above and "Decided in the review" are the outcome.

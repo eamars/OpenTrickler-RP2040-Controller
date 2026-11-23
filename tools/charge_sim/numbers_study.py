@@ -12,6 +12,13 @@ independent runs of 800 throws, 2 x sqrt(2 p (1 - p) / 800), p the baseline's sh
 second seed, to show it.
 
     python numbers_study.py [--throws 800] [--rigs ...] [--scales ...] [--only NAME,...] [--out fit/...]
+
+Gate N.3 (`--nothing`): the three fixed numbers that are times or weights chosen on the bench's scale, each set to
+nothing, and all three together. Its pass is in numbers.md, "N.3". Each run ends with a tally: for every value
+tried, in how many cases the good share, the over share and the median moved past their bars, and the mean moves;
+the baseline's second seed is tallied the same way, to show what chance alone does.
+
+    python numbers_study.py --nothing --out fit/study_20261123/nothing.txt
 """
 
 import argparse
@@ -36,6 +43,10 @@ NUMBERS = [
     ("D9", "COARSE_ROOM_EXTRA_GR", None), ("D10", "REST_FLOOR_TIMES", None), ("D10", "REST_EXTRA_S", None),
     ("D12", "COARSE_LEAST_TURNS", None), ("D15", "STILL_INTERVALS", None),
 ]
+# Gate N.3: the bench's leftovers at nothing, each alone and all three together
+ALL_THREE = "ALL_THREE"
+NOTHING = [("C16", "STILL_LEAST_S", (0.0,)), ("D9", "COARSE_ROOM_EXTRA_GR", (0.0,)), ("D10", "REST_EXTRA_S", (0.0,)),
+           ("N.3", ALL_THREE, (0.0,))]
 BASELINE = {name: getattr(staged, name) for _, name, _ in NUMBERS}
 BANDS = ((0.02, controllers.VERDICT_TOLERANCE_GR), (0.04, controllers.LOOSE_TOLERANCE_GR))
 TARGET_GR = 10.0
@@ -53,7 +64,10 @@ def _make(name, value, band, tolerance):
     def make(rig, seed=0):
         for constant, baseline in BASELINE.items():      # a worker runs many cases: each sets every number afresh
             setattr(staged, constant, baseline)
-        if name is not None:
+        if name == ALL_THREE:
+            for _, constant, _ in NOTHING[:-1]:
+                setattr(staged, constant, value)
+        elif name is not None:
             setattr(staged, name, value)
         cal = staged.calibrate(rig, seed, "glide", band)
         controller = staged.Staged(cal, rig.acceleration_rps2)
@@ -68,7 +82,7 @@ def case_name(name, value, band) -> str:
 
 for _band, _tol in BANDS:
     controllers.CONTROLLERS[case_name(None, None, _band)] = _make(None, None, _band, _tol)
-    for _row, _name, _given in NUMBERS:
+    for _row, _name, _given in NUMBERS + NOTHING:
         for _value in values(_name, _given):
             controllers.CONTROLLERS[case_name(_name, _value, _band)] = _make(_name, _value, _band, _tol)
 
@@ -84,14 +98,26 @@ def main() -> None:
     parser.add_argument("--rigs", default="pico2w_ar2209,pico2w_bm2")
     parser.add_argument("--scales", default=",".join(scales_like.SCALES))
     parser.add_argument("--only", default="", help="constants to study, by name (all when empty)")
+    parser.add_argument("--nothing", action="store_true", help="gate N.3: the bench's leftovers at nothing")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     only = set(filter(None, args.only.split(",")))
-    studied = [n for n in NUMBERS if not only or n[1] in only]
+    studied = [n for n in (NOTHING if args.nothing else NUMBERS) if not only or n[1] in only]
     lines = [f"{args.throws} throws a case at {TARGET_GR:.0f} gr; the PID law in the frame (option 2), envelope on; "
              f"pass: good and over within 2 SD of two runs' difference, median within {MEDIAN_BAR_S} s"]
     verdicts = {name: True for _, name, _ in studied}
     worst = {name: "" for _, name, _ in studied}
+    tally = {}      # (name, value): [cases, good moved, over moved, median moved, sum good, sum over, sum median]
+
+    def count(key, d_good, d_over, d_med, n_good, n_over, median_bar):
+        t = tally.setdefault(key, [0, 0, 0, 0, 0.0, 0.0, 0.0])
+        t[0] += 1
+        t[1] += abs(d_good) >= n_good and d_good != 0.0     # a bar of nothing (a share of 0 or 100%) is not passed by no move
+        t[2] += abs(d_over) >= n_over and d_over != 0.0
+        t[3] += abs(d_med) >= median_bar
+        t[4] += d_good
+        t[5] += d_over
+        t[6] += d_med
     with Workers() as pool:
         for rig_name in args.rigs.split(","):
             for scale in args.scales.split(","):
@@ -122,11 +148,16 @@ def main() -> None:
                                  f"{again[1] * 100:.1f}% {again[2]:.1f} s; noise good {n_good * 100:.1f} over "
                                  f"{n_over * 100:.1f} points, median bar {median_bar:.1f} s")
                     print(lines[-1], flush=True)
+                    # The second seed against the first, by the first's own bars (its median bar never under their
+                    # difference, so its median is judged against the fixed bar): what chance alone moves
+                    count(("second seed", 0.0), again[0] - base[0], again[1] - base[1], again[2] - base[2], n_good,
+                          n_over, MEDIAN_BAR_S)
                     for row, name, given in studied:
                         for value in values(name, given):
                             got = run(name, value)
                             d_good, d_over, d_med = got[0] - base[0], got[1] - base[1], got[2] - base[2]
                             ok = abs(d_good) < n_good and abs(d_over) < n_over and abs(d_med) < median_bar
+                            count((name, value), d_good, d_over, d_med, n_good, n_over, median_bar)
                             if not ok:
                                 verdicts[name] = False
                                 worst[name] += (f" [{rig_name} {scale} {band} at {value:g}: good {d_good * 100:+.1f} "
@@ -137,6 +168,12 @@ def main() -> None:
     lines.append("VERDICTS")
     for row, name, _ in studied:
         lines.append(f"{row:4s}{name:22s}{'Rule: insensitive' if verdicts[name] else 'sensitive:' + worst[name]}")
+        print(lines[-1], flush=True)
+    lines.append("TALLY: cases; in how many good, over and the median moved past their bars; the mean moves")
+    for (name, value), t in tally.items():
+        lines.append(f"{name:22s}{value:8.3g}  cases {t[0]:2d}  good {t[1]:2d}  over {t[2]:2d}  median {t[3]:2d}  "
+                     f"mean good {t[4] / t[0] * 100:+5.2f}  over {t[5] / t[0] * 100:+5.2f} points  "
+                     f"median {t[6] / t[0]:+5.2f} s")
         print(lines[-1], flush=True)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
