@@ -2628,3 +2628,15 @@ On the Pico 2 W, image at `267bfc9`; the limits the shipped defaults (coarse 0.1
 **This run's figures are the baseline F.3 to F.5 are read against.** With this calibration every throw comes from a stop about 8 digits late, so F.3 to F.5's rig figures are read for their mechanism, not their good share.
 
 The cup's ledger: the trial 0.00 to 261.92 (most 330), the rehearsals 261.92 to 270.08 (most 30), the series 270.08 to 371.34 (most 140).
+
+## 2026-11-24, 00:15: F.2, (d): the confirming series' prediction, before it
+
+**The manager's decision (d):** F.3 to F.5 use the 23:56 trial's own calibration, its rehearsals at the floor. It is the unit's calibration, made by the PC trial (the calibration until gate 3), not a hand setting; gate 3 still designs the form for every creep.
+
+**The finding, written so it cannot be lost:** with the shipped defaults (fine top 5), the day's rehearsal form places the stop about 8 digits late on this unit (0 good of 10). It is gate 3's first item and the first of the README's "Must hold before any release", each with both sets of rests and the two series as evidence.
+
+**The confirming series** (that trial's set written with `series.py --errors-from` its `throws_glide_0.02.json`, then 10 × 10 gr, no `ccon`; the cup at 371.34 gr, its most 140):
+- **the prediction,** from the simulation at the shipped limits with rehearsals at the floor (23:54's "(a)" row): about 48 of 60 good, overs about 11 of 60, so about 8 good and 2 over in 10;
+- **the stop room placed** from those rehearsals: their median, −2 digits, against the aim's −1, so 0.00 gr;
+- **its pass:** the stop room placed within the floor rehearsals' range (−3 to +3 digits), and overs well under the last series' 10 of 10.
+- **If it still goes mostly over with the stop placed right,** that is a different cause: stop and report it, not on to F.3.

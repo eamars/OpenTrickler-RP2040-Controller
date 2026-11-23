@@ -264,6 +264,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
 - **It writes** the powder's record and the unit's record, and ends with its verdict in words: the share of throws expected in the tolerance, the seconds a throw, and what holds it back (a least speed above the creep, clumps).
 - **The offer:** the PID values made from those (D19). The fine factor comes from this unit's measured trade of approach time against spread, the user's tolerance and the over budget of one in fifteen. Written to the profile on the user's yes.
 - **One study, its pass written first, on the job's own measurements:** the fine figure's learning, part of the auto-tuner or not, with one figure or two (C13, C15).
+- **First: the stop placed late at the shipped defaults** (handed on by F.2, the manager, 2026-11-24): with the shipped defaults (fine top 5 rev/s), the day's rehearsal form places the stop about 8 digits late on the bench unit, and its throws go over: 0 good of 10 (2026-11-24, `progress.md` 00:14). Every user on the defaults would calibrate so until gate 3's form is built. The evidence: one calibration rehearsed two ways minutes apart, at the floor 0, 0, +1, +3, −3, −3, −2, −3, −2, −2 digits, at the stream law's top −22, −16, +1, +8, −2, −19, −4, −19, +3, −19; the two series, 3 good of 10 at the old limits and 0 of 10 at the shipped ones. Gate 3's calibration must place the stop right at a fine top of 5, its pass showing it on the unit.
 - **The rehearsal's form, its size and speed together** (handed on by F.2, 2026-11-23): at a high fine top a 1 gr rehearsal from a cold tube is shorter than the scale's lag, and about half rested far short on the bench unit (to −19 digits, the stop placed 3 digits late); the simulation's rehearsals at the top rest short too (to −10 digits). A rehearsal at the floor removed that in the simulation but costs 1 gr over the creep's flow (minutes at a slow creep; C18 ends it below about 0.01 rev/s). Designed here with the spread against approach time (B8, F5, F6).
 - The PC's trial tool and its lag shift go (F8).
 - **Pass, on the rig:**
@@ -330,6 +331,11 @@ The owner, 2026-11-23: "BTW one more note to gate the ADR-009: not everyone has 
 - **The Pico W's memory and timing:** the recordings' rows, the millisecond's work in the job task, `soak`.
 - **BM2,** when the owner loads it, its forecast written first: a calibration and 25 throws at each tolerance.
 - **The proofs on both units** (sign-off item 14), and the safety cases on both (item 8).
+
+### Must hold before any release
+
+Each item here is checked before any firmware leaves the bench, a pre-release included; none is closed by a document alone.
+- **The stop placed right at the shipped defaults** (gate 3's first item): with the shipped defaults (fine top 5 rev/s), the day's rehearsal form places the stop about 8 digits late on the bench unit, and its throws go over: 0 good of 10 (2026-11-24, `progress.md` 00:14). Every user on the defaults would calibrate so until gate 3's form is built. The evidence: one calibration rehearsed two ways minutes apart, at the floor 0, 0, +1, +3, −3, −3, −2, −3, −2, −2 digits, at the stream law's top −22, −16, +1, +8, −2, −19, −4, −19, +3, −19; the two series, 3 good of 10 at the old limits and 0 of 10 at the shipped ones. Closed when a calibration at the shipped defaults, by gate 3's job, places the stop within its rehearsals' spread and a series' overs are within gate 2's bar.
 
 ### The close
 
