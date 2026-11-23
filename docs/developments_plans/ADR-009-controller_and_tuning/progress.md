@@ -2650,8 +2650,45 @@ The 23:56 trial's set written (`series.py --errors-from`, its floor rehearsals: 
 - every row (2,249) inside the limits: coarse 0.1 to 1.993, fine 0.08 to 5.0;
 - the charge's end carried its 8 first errors into the stored stop: "placed from a median of -0.0315, was -0.0400".
 
-**Against its pass:** the stop room placed within the floor rehearsals' range, **met**; overs well under the last series' 10 of 10 (4), **met**. The prediction, about 8 good and 2 over, is within the simulation's spread of a seed (7 to 9 good in 10 at these limits). **Passed.**
+**Against its pass:** the stop room placed within the floor rehearsals' range, **met**; overs well under the last series' 10 of 10 (4), **met**. The prediction was about 8 good and 2 over. **Corrected (the manager, 00:20):** 6 good is just below the simulation's seed spread (7 to 9 good in 10 at these limits), not within it, and 4 over is above it. The figures are slightly worse than the simulation predicts, consistent with the rig's top-up overs (throw 7). The pass as written (the stop room, overs well under 10) is met. **Passed.**
 
 **This is the baseline F.3 to F.5 are read against:** profile 0's calibration of 23:56 with its floor rehearsals, and the stop as the carry has now placed it. The finding (00:15) stands for gate 3 and before any release.
 
 The cup's ledger: 371.34 to 471.62 gr (most 140). The next run that pours needs the cup emptied first: the tools will say so.
+
+## 2026-11-24, 00:20: gate F.3 begun; its checklist and forms, before any change (sent to the manager)
+
+**The checklist:**
+1. **Numbers:**
+   - A10 (the gate at the coarse stop), A11 (the back-off), A12 (the precharge) and A17 (the gate's ends and speeds) take their place in the frame;
+   - E10's 500 ms after a close stays a Rule;
+   - E10's 20 ms goes with today's loop at gate 6, not here.
+   - No number is added.
+2. **A value from the bench unit:** none.
+3. **The test:** nothing new.
+4. **A new parameter:** none.
+5. **Mechanisms, against predictions written first:** the cases below.
+6. **Shown on the bench unit only:** all of it. The servo seen moving is owed (no servo fitted), beside sign-off item 9's fitted gate.
+
+**The forms:**
+- **The gate (A10, A17, E10):**
+  - at a throw's start the gate opens and its travel is waited (the move's share of its range over A17's opening speed); the tubes start only then;
+  - at the coarse stop the gate goes to A10's ratio when A10 is on; the rest is not judged before that move's travel ends;
+  - at the throw's end the gate closes, waited by its travel and 500 ms more (E10). Only then comes the precharge.
+- **The back-off (A11):**
+  - at the coarse stop the frame turns the coarse tube back A11's turns at A11's speed;
+  - its spill is counted in the forecast as the calibration measured it at these turns and speed;
+  - **the PC trial measures no spill today,** so with the back-off on (the bench unit's default, 0.25 turn at 1 rev/s) the coarse tube stops by the coarse stop threshold (A6, 5 gr), not the measured coarse room, as A11's approved rule says, and the charge's start says so;
+  - **gate 3 must add the measurement:** stops at the coarse floor with the user's back-off, as `record.py`'s "backoff" stop already makes them;
+  - **the effect on the bench unit's throws:** the coarse tube stops 5 gr short, where it stopped at about 1.3, and the fine tube pours the rest, at up to 5 rev/s. Every F.3 series is slower than F.2's baseline for it.
+- **The precharge (A12):**
+  - after the gate's close and its 500 ms, the coarse tube turns A12's time at A12's speed into the closed gate (only with a gate fitted, as today);
+  - its powder (its turns at the coarse grains a turn) is counted in the next throw's forecast: due when the gate opens, at the coarse lag of its speed.
+
+**The cases, in the simulation first** (a gate added to the plant: a store between the tubes and the cup, its travel a time; powder that reaches it closed is held, and falls when it opens):
+- `gate_travel`: no tube turns before the gate's opening travel has passed, in any throw;
+- `precharge`: a series with the precharge on; the first error of each throw after a precharge no worse than without it (the good share within the seed spread of a series without);
+- `backoff_unmeasured`: with the back-off on and no spill measured, the coarse tube stops at the coarse stop threshold's room, and the start says so;
+- `gate_at_coarse_stop`: with A10 on, the rest is not judged before the move's travel ends.
+
+**On the unit:** `charge_cycle` with each feature on: the gate (its setting on, no servo fitted: the waits shown by the console's times), the precharge, the back-off. The servo seen moving is owed.
