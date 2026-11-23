@@ -1,0 +1,177 @@
+"""Proposal L's study (ADR-009, gate 3; the manager's yes, 2026-11-24): the forecast in stages, in the reference.
+
+`StagedStages` is the controller with its parcels shown along the scale's stages: nothing before the dead time `d`,
+then the share (1 - s2) e^(-(t-d)/tau) + s2 e^(-(t-d)/tau2) still to come; a parcel leaves the forecast once under a
+hundredth of it is to come. Every sum of the forecast weighs a parcel by its share still to come.
+
+The study, its pass written first (progress.md, 2026-11-24, 02:25 and 02:50): on every stand-in, the learnt source given
+the scale's stages as a calibration on that scale fits them (the median of its fine stops' fits within four times
+the creep, `lag_stages.fit_run`), against the same given the scale's one measured lag (F.4: on `slower` 15 points over
+a calibrated unit): the first three throws of 40 fresh sessions at 10 gr, over as often as a calibrated unit there,
+within the noise (two SDs of the difference of two shares).
+
+    python l_study.py [--sessions 40]
+"""
+
+import argparse
+import math
+import statistics
+import sys
+
+import f4_cases
+import lag_stages
+import staged
+from throw import Session
+from workers import Workers
+
+SHOWN_LEAST = 0.01
+CREEP_TIMES = 4.0
+TARGET_GR = 10.0
+
+
+class StagedStages(staged.Staged):
+    """The controller, its parcels shown along the stages (d, tau, s2, tau2) rather than whole at their lag."""
+
+    def __init__(self, cal, acceleration_rps2, stages):
+        super().__init__(cal, acceleration_rps2)
+        self.stages = stages
+        d, tau, s2, tau2 = stages
+        self.mean_lag = d + (1.0 - s2) * tau + s2 * tau2
+
+    def _unshown(self, age: float) -> float:
+        d, tau, s2, tau2 = self.stages
+        if age < d:
+            return 1.0
+        late = age - d
+        out = (1.0 - s2) * math.exp(-late / tau) if tau > 0 else 0.0
+        if s2 > 0 and tau2 > 0:
+            out += s2 * math.exp(-late / tau2)
+        return out
+
+    def _stamp(self, now: float) -> None:
+        """A parcel made since the last stamp gets its making time and its share still to come."""
+        for parcel in self.parcels:
+            if len(parcel) == 3:
+                parcel.extend([parcel[0] - self.mean_lag, 1.0])
+
+    def _parcel(self, now: float) -> None:
+        super()._parcel(now)
+        self._stamp(now)
+
+    def precharge(self, grains, speed_rps, now_ms):
+        super().precharge(grains, speed_rps, now_ms)
+        self._stamp(now_ms / 1000.0)
+
+    def _left(self, parcel) -> float:
+        return parcel[1] * parcel[4] if len(parcel) == 5 else parcel[1]
+
+    def _take_due(self, now: float) -> tuple:
+        self._stamp(now)
+        due_gr, first_due = 0.0, None
+        turning = {"coarse": self.coarse_rps > 0.0, "fine": self.fine_rps > 0.0}
+        figured = {"coarse": self._figured("coarse"), "fine": self._figured("fine")}
+        kept = []
+        for parcel in self.parcels:
+            share = self._unshown(now - parcel[3])
+            if share < SHOWN_LEAST:
+                share = 0.0
+            shown = parcel[1] * (parcel[4] - share)
+            parcel[4] = share
+            if shown > 0.0:
+                if not figured[parcel[2]]:
+                    if self.count_mark[parcel[2]] is not None:
+                        self.shown_turns[parcel[2]] += shown
+                elif turning[parcel[2]]:
+                    due_gr += shown
+                    due_at = parcel[3] + self.stages[0]
+                    first_due = due_at if first_due is None else min(first_due, due_at)
+            if share > 0.0:
+                kept.append(parcel)
+        self.parcels = kept
+        self._sum_unseen()
+        return due_gr, first_due
+
+    def _sum_unseen(self) -> None:
+        figured = {"coarse": self._figured("coarse"), "fine": self._figured("fine")}
+        self.unseen = sum(self._left(p) for p in self.parcels if figured[p[2]])
+        self.coarse_unseen = sum(self._left(p) for p in self.parcels if p[2] == "coarse" and figured["coarse"])
+
+    def _fine_unseen_turns(self) -> float:
+        return sum(self._left(p) for p in self.parcels if p[2] == "fine") / self.cal.fine_gr_turn
+
+
+def scale_stages(rig, seed: int) -> tuple:
+    """The scale's stages and its one lag and rest, as a calibration on it measures them: the median of the fits of
+    its fine stops within CREEP_TIMES of its creep; the lag the fine stops' longest, the rest the calibration's."""
+    digit = rig.scale.digit_gr
+    band = f4_cases.TOLERANCE_GR - digit / 2.0
+    bench = lag_stages.Recorded(staged.TwinBench(rig, seed + 50))
+    measured = staged.for_finish(staged.measure_on(bench, digit, rig.scale.report_s), "glide", band)
+    creep = measured.creep_rps
+    fits = [lag_stages.fit_run(run, digit) for run in bench.runs
+            if run["stop"] == "held" and run["tube"] == "fine" and run["run_s"] >= 1.0
+            and run["speed_asked_rps"] <= CREEP_TIMES * max(creep, 1e-6) + 1e-9]
+    stages = (statistics.median(f["d"] for f in fits), statistics.median(f["tau"] for f in fits),
+              statistics.median(f["share2"] for f in fits), statistics.median(f["tau2"] for f in fits))
+    lag = max(l for _, l in staged.lag_table(measured.fine_stops, measured.fine_gr_turn))
+    return stages, lag, measured.rest_s
+
+
+def job(args: tuple) -> list:
+    name, kind, seed, count = args
+    rig = f4_cases.stand_in(name)
+    digit = rig.scale.digit_gr
+    band = f4_cases.TOLERANCE_GR - digit / 2.0
+    limits = staged.sim_limits()
+    if kind == "calibrated":
+        controller = staged.Staged(staged.calibrate(rig, seed, "glide", band), rig.acceleration_rps2)
+        controller.pid = staged.profile_pid(limits)
+    else:
+        stages, lag, rest = scale_stages(rig, seed)
+        if kind == "stages":
+            mean = stages[0] + (1 - stages[2]) * stages[1] + stages[2] * stages[3]
+            cal = staged.learnt_calibration(digit, rig.scale.report_s, band, mean, rest, limits)
+            controller = StagedStages(cal, rig.acceleration_rps2, stages)
+        else:
+            cal = staged.learnt_calibration(digit, rig.scale.report_s, band, lag, rest, limits)
+            controller = staged.Staged(cal, rig.acceleration_rps2)
+        controller.pid = staged.profile_pid(limits)
+    session = Session(rig, seed + 100)
+    out = []
+    for _ in range(count):
+        r = session.throw(controller, TARGET_GR, f4_cases.TOLERANCE_GR, timeout_s=130.0)
+        out.append({"over": r.true_error >= f4_cases.TOLERANCE_GR, "result": controller.result if controller.done else "timeout",
+                    "elapsed": r.elapsed_s})
+    return out
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--sessions", type=int, default=40)
+    args = parser.parse_args()
+    kinds = ("calibrated", "one_lag", "stages")
+    jobs = [(name, kind, seed, 3) for name in f4_cases.names() for kind in kinds for seed in range(args.sessions)]
+    with Workers() as pool:
+        results = pool.map(job, jobs)
+    failing = []
+    for name in f4_cases.names():
+        shares = {}
+        for kind in kinds:
+            throws = [t for j, r in zip(jobs, results) if j[0] == name and j[1] == kind for t in r]
+            shares[kind] = (sum(t["over"] for t in throws) / len(throws), len(throws),
+                            sum(t["result"] not in ("good", "over", "short") for t in throws),
+                            statistics.median(t["elapsed"] for t in throws))
+        base, n = shares["calibrated"][0], shares["calibrated"][1]
+        p = max(base, 1.0 / n)
+        bar = 2.0 * math.sqrt(2.0 * p * (1.0 - p) / n)
+        words = "; ".join(f"{k} over {100 * s[0]:.0f}%{f' ({s[2]} ends)' if s[2] else ''} {s[3]:.0f} s" for k, s in shares.items())
+        verdict = "ok" if shares["stages"][0] - base <= bar and shares["stages"][2] == 0 else "FAIL"
+        if verdict == "FAIL":
+            failing.append(name)
+        print(f"{name:10s} {words}; bar {100 * bar:.0f}: stages {verdict}", flush=True)
+    print("VERDICT PASS" if not failing else f"VERDICT FAIL on {failing}")
+    return 0 if not failing else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

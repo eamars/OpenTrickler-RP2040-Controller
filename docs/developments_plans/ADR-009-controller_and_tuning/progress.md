@@ -11,8 +11,8 @@ Each item with the implementing agent's recommendation. Nothing here blocked the
 2. **Gate 3's job on the unit waits for gate 4's mocks:** its screen while it runs and its cup step are drawn first. Its arithmetic is built and checked at the desk (02:31). *Recommendation:* approve the calibration's mocks first among gate 4's, so the job can be built and its unit runs made (about 250 gr, an empty cup).
 3. **Gate 3's proposals L (the lag in stages) and R (the rehearsal's start)**, and the forms of F6, C1 and B3, are with the manager (02:25 and after); nothing of them is built.
 4. **The A18 migration on a unit:** a stored `controller` byte of 1 read as the controller and written as 0 is shown by the code only. The bench unit's bytes were already 0. *Recommendation:* show it on the Pico W at gate 7, whose stored settings are older.
-6. **R, the rehearsal's count, for your choice** (02:48): in the simulation R costs 158 gr (10) or 631 gr (40) of rehearsals a calibration, against today's 9.5 gr, and does no better; but the simulation cannot show the cold start R is for. *Recommendation:* keep today's form for now; measure the cold start at gate 3's first unit run; size R from that, not from the lag.
 5. **Gate 4's screens for approval:** `mockups/calibration_12864.png` (02:33): the calibration, Settings › Advanced, the notice after an update, a throw's new ends. *Recommendation:* approve or mark the calibration's first, so gate 3's job can be built to them; the web's mocks follow.
+6. **R, the rehearsal's count, for your choice** (02:48): in the simulation R costs 158 gr (10) or 631 gr (40) of rehearsals a calibration, against today's 9.5 gr, and does no better; but the simulation cannot show the cold start R is for. *Recommendation:* keep today's form for now; measure the cold start at gate 3's first unit run; size R from that, not from the lag.
 
 ## 2026-11-19: research, no unit
 

@@ -876,21 +876,7 @@ class Staged:
         self.reading = weight
         # what came due with this reading from a tube still turning, and the earliest of it: a stopped tube's powder
         # still due is its figure's error, not a tube that pours nothing (the coarse tube's varies by its share)
-        due_gr, first_due = 0.0, None
-        turning = {"coarse": self.coarse_rps > 0.0, "fine": self.fine_rps > 0.0}
-        figured = {"coarse": self._figured("coarse"), "fine": self._figured("fine")}
-        if self.parcels:                # what was due to show by now is in this reading
-            for parcel in self.parcels:
-                if parcel[0] <= now + TIE_S:
-                    if not figured[parcel[2]]:
-                        # an unfigured tube's turns (the learnt source): counted as shown once its count has begun
-                        if self.count_mark[parcel[2]] is not None:
-                            self.shown_turns[parcel[2]] += parcel[1]
-                    elif turning[parcel[2]]:
-                        due_gr += parcel[1]
-                        first_due = parcel[0] if first_due is None else min(first_due, parcel[0])
-            self.parcels = [parcel for parcel in self.parcels if parcel[0] > now + TIE_S]
-            self._sum_unseen()
+        due_gr, first_due = self._take_due(now)
         noise = self.zero_margin + NOISE_DIGITS * cal.digit_gr
         # the cup lifted: a reading below the throw's base by more than the scale's noise. Both tubes stop at once
         if weight < -noise:
@@ -970,6 +956,26 @@ class Staged:
         self.moved_turns += move.turns
         self.move_until = now + move.turns / cal.floor_rps
         self.wait = move.wait_s
+
+    def _take_due(self, now: float) -> tuple:
+        """What was due to show by now is in this reading: the parcels due leave the forecast. Returns the powder that
+        came due from a tube still turning, and the earliest of it (the no-powder test's)."""
+        due_gr, first_due = 0.0, None
+        turning = {"coarse": self.coarse_rps > 0.0, "fine": self.fine_rps > 0.0}
+        figured = {"coarse": self._figured("coarse"), "fine": self._figured("fine")}
+        if self.parcels:
+            for parcel in self.parcels:
+                if parcel[0] <= now + TIE_S:
+                    if not figured[parcel[2]]:
+                        # an unfigured tube's turns (the learnt source): counted as shown once its count has begun
+                        if self.count_mark[parcel[2]] is not None:
+                            self.shown_turns[parcel[2]] += parcel[1]
+                    elif turning[parcel[2]]:
+                        due_gr += parcel[1]
+                        first_due = parcel[0] if first_due is None else min(first_due, parcel[0])
+            self.parcels = [parcel for parcel in self.parcels if parcel[0] > now + TIE_S]
+            self._sum_unseen()
+        return due_gr, first_due
 
     def _sum_unseen(self) -> None:
         """The forecast's powder on its way: the parcels of each tube with a figure (an unfigured tube's are turns)."""
