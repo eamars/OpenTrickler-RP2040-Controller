@@ -179,7 +179,7 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
   - the powder profiles' record at 9 K stays as it is;
   - **the unit's record,** a new slot: the scale's digit, and its lag and rest as last measured on this unit;
   - **a record for each powder on this unit,** today's calibration slots at 13 to 20 K, grown: the calibration as measured, what the auto-tuner learnt, the carried stops. One law pours, so one list of stops: the 21 K record moves in and its slot is freed;
-  - out of the record: the band and the finish (B9). The debug byte of the charge settings (A18) is read as nothing and written as zero.
+  - out of the record: the band and the finish (B9). The debug byte of the charge settings (A18) is read as nothing and written as zero at F.5, not here (the manager, 2026-11-23).
 - **Each measured field is described once, with its bounds,** as a setting is (`settings.h`). The API reads the records (a read changes nothing), the schema lists them, the backup holds them.
 - **The life cycle the code keeps:**
   - a record is read at a charge's start, checked by its CRC and version, and never read during a throw;
@@ -273,6 +273,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - a throw's new end reasons, and a throw's recording drawn on the web;
   - an agent's change to this unit's data, and the user's yes to it (new: sign-off item 7's place in the plan);
   - the servo gate tuned by eye (new: its design gate, "A gate: the servo gate tuned by eye" below, is taken with this one).
+  - **a factory reset's offer of a backup first** (gate R, 2026-11-23): whether the API's reset requires a `backup` field, and how the screen and the web offer it, drawn here and built in gate 5, every client of the action together. Gate R makes the backup complete (it holds every record) and names it in the action's usage.
 - **Gate 5, the build:** every setting on both the screen and the web. The agent's writes: each checked against its bounds, backed up first, logged as the agent's, revertable, stored on the user's yes.
 - **Pass:** the mocks approved by the owner; the menu's baselines saved again; `menu_tour`, `reach`, `api_check` (the agent's actions among them: a write outside its bounds refused, a write reverted, the event log naming the agent) and `settings_roundtrip` pass.
 
@@ -307,7 +308,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - the charge settings' filler holds `controller` and `mode` (no size change);
   - a calibration slot for each powder profile at 13 to 20 K (new slots; no existing record changed);
   - the PID law's carried stops at 21 K (a new slot).
-- **Gate R's,** declared here with their sizes when they are made: the unit's record (a new slot); the powder's record grown; the 21 K slot freed; the filler's bytes read as nothing and written as zero.
+- **Gate R's,** declared here with their sizes when they are made: the unit's record (a new slot); the powder's record grown; the 21 K slot freed. The filler's byte (A18) is read as nothing and written as zero at F.5, with `controller` and `mode` leaving the API.
 - No existing record changes its size, so no unit's settings reset at the update.
 
 ## What we want
