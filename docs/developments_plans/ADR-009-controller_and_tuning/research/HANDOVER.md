@@ -4,20 +4,28 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the newest section below). The sections below the newest are the research that led to it, kept as they were written.
 
-## Where it stands, 2026-11-22, 22:46: read this first
+## Where it stands, 2026-11-23, 17:32: read this first
 
-**ADR-009 is not ready to build.** Gate N comes first: every number the charge uses gets its life cycle (default, who modifies, who calibrates, who uses) and an approved proposal.
+**For the agent who builds.** The documents are ready; one thing is waited for, the owner's approval of the parameter register. Check its "Approved" column before anything is built: a row still "Waiting" is not built.
 
 **Read in this order:**
-1. `../README.md`, "Where ADR-009 stands": what is settled, so it is not asked again. That covers which algorithm, the auto-tuner writing the profile, its switch, and the approved gates now held behind gate N. Then the sign-off.
-2. `../numbers.md`: the inventory, its findings, the proposals and the research still to run. That research is the next work.
+1. `../README.md`, "Where ADR-009 stands": what is settled, so it is not asked again, and what "ready" means.
+2. `../README.md`, "What we do: the build plan": the one plan, gate by gate, each with its pass. **The first build step is N.2,** at the desk: no unit is needed for it.
+3. `../README.md`, the sign-off and the parameter register.
+4. `../numbers.md`: every number the charge uses, its life cycle, and the gate that makes it so. A number you add gets its row in the same commit.
 
 **What this file is now:**
 - Everything below this section is history, written as the work went, not instructions.
 - Its "next" lists and "what to build next" are superseded by the README, and so are its accurate/fast modes, its `ccon` defaults and its hand settings (`fine_top_rps=1.0`, `--lag-shift`).
-- Its findings and its traps still hold.
+- Its findings and its traps at the bench still hold ("Traps met tonight", below).
 
-**The bench as left:** as in the section below (21:30). Nothing was flashed or thrown since. The bench rules apply: ask the owner before any contact.
+**The code as left:** branch `adr009_controller`, local commits, not pushed. Nothing under `src/` changed since 8b155df (2026-11-22, 21:27); the simulation's reference gained names for its rules' numbers on 2026-11-22 night (`staged.py`, the check against the firmware passing). The experiments are still in: `controller=pid_learnt`, `ccon speed_law`, `pid_envelope`, `ctune`, the 21 K record. The plan says at which gate each is folded or goes.
+
+**The bench as left:** as in the section below (21:30). Nothing was flashed or thrown since. The bench rules apply: ask the owner before any contact. The cup read about 400 gr over its last zero.
+
+## Where it stood, 2026-11-22, 22:46 (history)
+
+ADR-009 was marked not ready to build: gate N, every number's life cycle, came first. Its inventory and its two studies are in `../numbers.md`; the review of 2026-11-23 checked it against the code and decided what it had left open.
 
 ## Where it stood, 2026-11-22, 21:45 (history: superseded by the section above)
 

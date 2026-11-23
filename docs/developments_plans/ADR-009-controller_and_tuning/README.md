@@ -1,10 +1,22 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** 2026-11-21. **Not ready to build** (2026-11-22, 22:46): gate N, the cleanup of every number the charge uses, comes before any other gate (below, "Where ADR-009 stands"). The sign-off, what ADR-009 delivers, is final since 2026-11-22, 22:17. Earlier: 2026-11-21: the plan under "What we do" approved by the owner ("Approved. You can start with gate 0, 1, and 2."). Drafted 2026-11-13. Research made for it from 2026-11-19 to 2026-11-21 is in `research/` and `progress.md`. The plan to build the controller and its calibration is under "What we do" (written 2026-11-21, 20:58, with the owner's four answers), approved the same evening; gate 0 done, gates 1 and 2 being built. On 2026-11-22 night the PID law was built into the staged controller's frame and thrown against the glide, at the owner's question. A revision of the remaining gates for the final firmware is proposed under "Proposed for approval" below; it is not approved.
+Status: **Open** since 2026-11-21. **Ready for the owner's approval of the parameter register; nothing more is built before it** (2026-11-23, 17:32). The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0 and 1 are done; gate 2 is built and thrown but for its recordings. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
 
-## Where ADR-009 stands (read this first; it wins over every older section below)
+## Where ADR-009 stands (read this first; it wins over every other page and section)
 
-Written 2026-11-22, 22:46, by the agent who took over after the sign-off. It is the agent's understanding of what was settled, not a quote. The sections after it are the record of how ADR-009 got here: where one of them says otherwise, this section and the sign-off are right.
+Written 2026-11-23, 17:32, by the agent who reviewed gate N for the owner. It replaces the section of 2026-11-22, 22:46. It is the agent's understanding of what is settled, not a quote.
+
+**The state:**
+- **The documents are ready for the agent who builds.** There is one plan (the next section). Every number the charge uses has its life cycle, checked against the code ([numbers.md](numbers.md)). The parameter register is drafted, each row with its recommendation.
+- **One thing is waited for: the owner's approval of the register** (sign-off item 2). It closes gate N's documents and gate D together.
+- **Then the first build step is N.2** of the plan, at the desk.
+
+**What "ready for the agent who builds" means,** the test these pages were written against:
+1. **One plan.** One section says what is built, in what order, and how each gate is judged. No other page gives an instruction that differs from it.
+2. **Every number has its life cycle:** its default, who modifies it, who calibrates it, who uses it, and the gate that makes it so.
+3. **No question in the plan is left for the owner.** Each is settled from the record, or is a row of the register with a recommendation, or is tied to a gate with its pass and a value in force until then. None stops a gate from starting.
+4. **Each gate has its pass before its run,** and names the unit that shows it.
+5. **It is not a promise of values.** A rule's value is proven where the sign-off says: on a unit it was not developed on (gate 7).
 
 **Settled. Do not ask the owner again:**
 - **What ADR-009 delivers:** the sign-off below, final.
@@ -13,31 +25,204 @@ Written 2026-11-22, 22:46, by the agent who took over after the sign-off. It is 
   - the frame's predictor runs beside it, and its speed envelope steps in where the PID would run faster than the tube can still be stopped from;
   - the glide's good parts are the frame: the forecast with lags by flow, the stop at the creep, one settled reading for the verdict, the top-ups, the bounded learning, the carried stop, the reverse with its spill counted.
 
-  The glide's own stream law is not the output. It is kept at most as a shadow in the recordings. No new algorithm is designed in ADR-009.
+  The glide's own stream law is not the output. It stays in the controller's code, checked throw for throw in CI, and runs in shadow in a throw's recording. No new algorithm is designed in ADR-009.
 - **The auto-tuner writes the powder profile while it is on.** It writes the PID values it derives from the measured numbers (sign-off item 4); the calibration writes them on the user's yes.
-- **After an update, the profiles are kept but not trusted** (2026-11-23): the user's PID values stay as the starting point, the user is told the old tuning will likely no longer hold and is prompted to calibrate. A charge before a calibration is allowed and has no results bar (sign-off items 4 and 10, reworded). How far it falls short is in `numbers.md` (G1, G2).
-- **The auto-tuner's switch is one for the unit,** under Settings (advanced), on by default. What "off" keeps is the register's first row (recommended there: it freezes, nothing more learnt or carried).
-- **The proposed gates** (below, "Proposed for approval") were approved on 2026-11-22 with two changes:
-  - gate S's pass is set at the rig's own run-to-run spread, measured from the recorded series, not at one throw in 20 and 1 s;
-  - gate F is built as steps, each with its own pass, the safety checks first.
+- **After an update, the profiles are kept but not trusted** (2026-11-23): the user's PID values stay as the starting point, the user is told the old tuning will likely no longer hold and is prompted to calibrate. A charge before a calibration is allowed and has no results bar (sign-off items 4 and 10). How far it falls short is in `numbers.md` (the fallback study).
+- **The auto-tuner's switch is one for the unit,** under Settings (advanced), on by default.
+- **The gates and their order:** approved 2026-11-21 (gates 0 to 2) and 2026-11-22 (the rest), with two changes: gate S's pass is the rig's own run-to-run spread, and gate F is built in steps, the safety checks first. The build plan below is those gates, gathered.
+- **No tuning of the bench unit:** a number is a rule of the controller or the unit's own calibration (sign-off item 6).
 
-  They are now held behind gate N.
+**Decided from the record in the review of 2026-11-23** (the page of 2026-11-22 had left them as questions; the evidence for each is in `numbers.md`, "Decided in the review"):
+- **The fine figure's learning is off** until gate 3 has measured the fine tube's lag across the user's speed range. Gate 3's study then says whether it is part of the auto-tuner.
+- **The spread multipliers stay rules** at their present values. They are not made from an over budget.
+- **The series' 600 gr is the bench's.** A series is started from the console only.
+- **The starting figure stays 2.0,** studied again in gate 3 once the lag and the rest are measured.
+- **The 15 fine turns and the cup tests** are decided in gate F's first step, by cases written before the build.
+- **Of the design draft's eight decisions:**
+  - 1, 3, 4 and 8 are settled by the sign-off and the lines above;
+  - 2 and 7 are the register's row 9, the stored form;
+  - 5 is its row 8, issue #135;
+  - 6 is decided by sign-off item 5: another unit's own data is never applied to this one, so the draft's "kept to check" goes.
 
-**Gate N, the cleanup: every number's life cycle** (before any build):
-- **What and why:** every number the charge uses, the existing settings included, gets its default, who modifies it, who calibrates it and who uses it, with its origin and a proposal. The inventory found numbers that are hand-written, a limit of the simulation copied into the calibration, and user settings the staged loops ignore. Until each has its life cycle, building on them carries them into the product.
-- **The work:** [numbers.md](numbers.md). It holds the inventory, the findings, a proposal for each row by its life-cycle class, and the research still to run on each.
-- **Closes when:**
-  - every number the code uses has its row (checked against the code);
-  - each row's research is run and written into it;
-  - each proposal is approved by the owner, and the parameter register's rows are made from the approved ones.
-- **Then** gate 2's rest and the held gates follow, in their order.
+**What the review found that the page of 2026-11-22 had not** (`numbers.md`, "The audit"):
+- **The inventory had not been checked against the code.** Checked, it missed 34 entries, about 75 numbers, and 14 rows described the code wrongly. All are in now.
+- **A second of waiting before every verdict,** in the new loops too.
+- **The Pico W keeps no throw's rows** (1 row against the Pico 2 W's 800).
+- **The bench's series can leak into a user's next charge** after a refused start.
+- **Two forecasts cut a long lag short without saying so** (2.56 s and 1.28 s).
+- **The settings take values the frame cannot use:** a tolerance of 0, a profile with every speed 0 (profiles 4 to 7 as shipped).
 
-**Older sections that are superseded, in part:**
-- "Four answers for the build" (2026-11-21): the jog as a second setting, and "the agent tunes the frame's constants on the unit". Superseded by the sign-off (one controller; no tuning during development).
-- "What we do", gate 2: two loops behind a setting, and a powder with no calibration refused. Superseded by the sign-off (one controller; a powder never calibrated throws from the user's PID values).
-- "Decisions proposed by the research (2026-11-19)", D3: a profile of measurements in place of gains. Superseded by sign-off item 4: the user's PID values stay.
-- `controller_design_draft.md`: its `auto` law per powder, a user pinning a law, the law and band in a profile extension, and "learning never overwrites the seed". Superseded by the above.
-- `research/HANDOVER.md`: every section below its top one is history, not instructions.
+**For the owner's word:** the register's rows, below. Those marked ★ change what a setting a user has does today.
+
+**Pages that are records, not instructions:**
+- [history.md](history.md): the plans of 2026-11-19, 2026-11-21 and 2026-11-22 night, word for word.
+- [controller_design_draft.md](controller_design_draft.md): the draft of 2026-11-22. What survives of it is in the build plan and the register.
+- `research/HANDOVER.md`: everything below its top section. Its findings and its traps at the bench still hold.
+- Under "Owner's direction" below, "Four answers for the build" (2026-11-21): the jog as a second setting, two loops behind a setting and a tune by hand are superseded by the sign-off.
+
+## What we do: the build plan (2026-11-23)
+
+One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 2026-11-22 with what gate N found. **What is new in it is marked (new)** and waits for the owner's word together with the register. Each gate ends in a pass or a fail. Where a pass leaves a figure open, the agent writes it into `progress.md` before the run, with the clock's time. One PR when the ADR closes, unless the owner picks a gate to merge by itself.
+
+**Done:** gate 0 (the research on main), gate 1 (the controller in C, checked against its reference in CI), gate 2 but for its recordings (the controller in the charge, thrown on the Pico 2 W; `progress.md`).
+
+**Rules for every gate:**
+- **The bench:** ask the owner before any contact, in every session. After a session run `tools/charge_sim/bench/keep.py --logs logs/adr009`.
+- **Nothing on a unit is set by hand** but by running the calibration itself (sign-off item 6). A value found by hand goes into the yardstick, never into the code.
+- **A new mechanism goes to the owner first.** The plan builds what the experiments chose; it designs no algorithm.
+- **A number added has its row** in `numbers.md` in the same commit, in its class (N.2's check holds it).
+- **Simulation first:** a change to the controller is made in the reference (`staged.py`) and the firmware together, and the throw-for-throw check passes before a unit is flashed.
+- **Today's loop is not mended:** it is the code this ADR replaces.
+- **Every stored layout change is declared** below ("Stored layout changes"), with its sizes before and after.
+
+### Gate N: every number's life cycle
+
+- **N.1, the documents:** `numbers.md` and the register. **Closes** on the owner's approval of the register.
+  - **Gate D,** the design gate of the plan of 2026-11-22, closes with it (new): what the sign-off left open in the design draft is the register's rows 1, 2, 8 and 9.
+- **N.2, the numbers made visible in the code (new).** At the desk, changing nothing a throw does:
+  - every Rule and Safety number of `numbers.md` (sections C, D, E, G) becomes a named constant in one header, named as the reference names it, each with its row and its reason in a line. No number stays inside a formula;
+  - duplicates become one definition (D16, the copies in G5 and G8);
+  - a check in CI lists the numbers in the controller's files and fails on one `numbers.md` does not name; each row gains its constant's name;
+  - the fine figure's learning is off by default (C13), in the reference and the firmware together;
+  - mended in passing, each its own commit: the bench's series cleared when a start is refused (finding 12); the zero's comment (E6).
+  - **Pass:** the throw-for-throw check passes on both laws (the fine learning's default changed in both); both boards build; the CI check fails on a number planted without a row and passes without it.
+
+### Gate 2's rest: every throw's recording through the API
+
+- `/api/v1/recordings` as api_v1.md reserves it: a summary, the marks, the samples. The newest throws' summaries and the last throw's samples are kept in a fixed RAM budget.
+- **The rows** carry the controller's own columns (`ctl_`): the forecast, each tube's speed, and the glide law's asked speeds in shadow (new: the plans before said "at most a shadow"; this is where it is built). A speed a profile allows is recorded true (E23).
+- **The Pico W** keeps 1 row today (finding 11). Its budget is found by measurement; a throw longer than its rows is thinned, not dropped.
+- The PC's tools read a throw through the API; the console's `ccrec` stays for the bench.
+- **Pass:** a series' throws read through the API are row for row the console's; `api_check` passes with the recordings in the index; `soak --load` with a recording's real size shows no late step feed and no failed allocation; the RAM a recording takes is written in `progress.md`. The Pico W's figures are gate 7's.
+
+### Gate S: the simulation from the night's data
+
+- From the recordings (`tools/charge_sim/recordings/`, the series of 11-21 and 11-22), model the two blind spots the rig found:
+  - the scale's lag growing at a low flow (the rig's learnt figure 1.2 to 2.1 gr a turn of the window, the simulation's 0.75);
+  - the stop's spread growing as the approach shortens (the glide 0.035 gr, the offer 0.058 gr).
+- **Pass:** the simulation reproduces the night's ABBA results, each run's good, overs and median within the spread that like runs on the rig showed among themselves. That spread is taken from the recorded series and written in `progress.md` before the run (two glide runs alike differed by 3 good throws in 20). Then the offer's trade is judged in the simulation, not on a unit.
+
+### Gate R: the records, and nothing lost
+
+- **The stored form** (the register's row 9):
+  - the powder profiles' record at 9 K stays as it is;
+  - **the unit's record,** a new slot: the scale's digit, and its lag and rest as last measured on this unit;
+  - **a record for each powder on this unit,** today's calibration slots at 13 to 20 K, grown: the calibration as measured, what the auto-tuner learnt, the carried stops. One law pours, so one list of stops: the 21 K record moves in and its slot is freed;
+  - out of the record: the band and the finish (B9). The debug byte of the charge settings (A18) is read as nothing and written as zero.
+- **Each measured field is described once, with its bounds,** as a setting is (`settings.h`). The API reads the records (a read changes nothing), the schema lists them, the backup holds them.
+- **The life cycle the code keeps:**
+  - a record is read at a charge's start, checked by its CRC and version, and never read during a throw;
+  - a record that fails its check is not used, and the screen says so;
+  - a record is written between charges only: by the calibration on the user's yes, or by the auto-tuner at a charge's end, and then only when at least 5 throws came to rest, the scale was real, and the change is within its bound.
+- **Backup and restore** of everything through the API. A factory reset offers a backup first. A restore never applies another unit's own data (the unit's id).
+- **Pass:**
+  - an update from 2.0.3 keeps every profile and setting (`rc_run.py settings --compare`);
+  - backup, factory reset and restore give every calibration back;
+  - another unit's backup imported leaves this unit's own data as it was (new: sign-off item 5 decides it, where the plan of 2026-11-22 said "kept to check");
+  - a slot corrupted from the console is not used, and is said;
+  - each record's size checked before and after; `settings_roundtrip` and `api_check` pass.
+
+### Gate F: the frame made one
+
+Five steps (new: the steps were approved, their list is this plan's). Each is made in the reference and the firmware together and ends in its own pass: the throw-for-throw check and `robust_staged.py` at the desk, then the proofs on the unit on the probe.
+
+- **F.1, safety first.**
+  - **The cup:** lifted mid-throw stops both tubes at once; its return is judged within the zero's mean margin; its removal loses the fixed 10 (E7, E8, E19, E20).
+  - **No powder flowing** (an empty hopper, a jammed tube, a gate that did not open): the forecast holds powder that has not shown for longer than its lag; both tubes stop, the throw ends "no powder", nothing is learnt from it. The 15 fine turns (C19) get their form with it.
+  - **No weight in grains:** the far-over stop and the coarse room's extra are counts of the scale's digits (C20, D9).
+  - **The safety bounds are out of reach** of the calibration, the learning and the API.
+  - **Pass:** `robust_staged.py` with every case, among them `cup_lifted`, `no_powder`, a cup lighter than 10 of the scale's unit, a scale set to grams, a scale drifting a digit in a throw (no false stop), a tube pouring a third of the bench's grains a turn (no false limit). Then `charge_cycle`, `pulses` and `menu_tour --compare` on the unit.
+- **F.2, the user's settings in the frame.**
+  - **One tolerance:** the fine stop threshold is the band of every law (A7). The debug mode's bands go from the controller (E14).
+  - **The user's limits:** each tube runs between the higher of the profile's and the motor's least speed and the lowest of the profile's max, the motor's max and the fastest speed the calibration measured (A2, A4, A5, A13, A14). `fine_top_rps`, `coarse_top_rps` and `coarse_floor_rps` go (C3 to C5).
+  - **The calibration's ladder follows the same limits,** in the reference and the PC's trial tool (F1, F2, F7). The bench unit is calibrated afresh with it before this step's throws: until gate 3 the PC's trial is the calibration, and running it is not tuning.
+  - **The coarse stop threshold** is the coarse stop of a powder with no calibration (A6).
+  - **Two checks at a charge's start,** refused in words: a tolerance under a digit, and a profile whose top speed is 0 for a tube the throw needs (A20).
+  - **Pass:** the throw-for-throw check; in the simulation, a user's max below the fastest measured speed is kept, and a least above the creep holds it and is said; on the unit, with no `ccon` set, a short series' recordings show each tube inside the user's limits and the tolerance taken from the setting. The rig's ABBA is F.5's.
+- **F.3, the features a user has.**
+  - **The back-off** made by the frame, its spill in the forecast as the calibration measured it at the user's turns and speed. With no spill measured as it is now set, the coarse tube stops by the threshold (A11).
+  - **The precharge** made once the gate has closed, its powder counted in the next throw's forecast (A12).
+  - **The gate** (issue #135): every move waited for by its own travel, and 500 ms more after a close; the tubes start when it is open; the move at the coarse stop waited the same way (A10, A17, E10).
+  - **Pass:** the simulation with a gate (a store with a travel time) and a precharge; `charge_cycle` with each feature on; a servo on the connector seen to move at each point. A gate fitted is sign-off item 9's.
+- **F.4, one predictor, two sources.**
+  - **Calibrated:** the powder's record, lags by flow.
+  - **Learnt:** `charge_pid_learnt.c`'s figure, folded into the frame for a powder with no calibration. Its scale numbers come from the unit's record when the unit has one, else the defaults (G1, G2, G4; the digit from the readings' smallest step, B1). The controller `pid_learnt`, its constants and its copies go (G3, G5, G6, G8, G10).
+  - **One interval:** the scale's rhythm measured live (B2).
+  - **The forecast's window** covers the longest lag in the record, and a lag beyond it is said, never cut silently (C23).
+  - **The simulated scale teaches nothing.**
+  - **Pass:** the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no fault); the slowest stand-in scale's lag kept whole; on the unit, a powder with no calibration thrown, and `charge_cycle`.
+- **F.5, one controller to the user.**
+  - **Out of the API and the screens:** `controller` and `mode` (A18). The envelope is always on (C22).
+  - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
+  - **On the console only, never stored, for the comparisons the gates ask:** today's loop, and the glide's pour.
+  - **In:** the auto-tuner's switch, a setting of the unit (the register's row 1).
+  - **Pass:** the API's index and schema, `menu_tour` and the web's pages carry no such choice; `api_check`, `settings_roundtrip`, `reach` pass; one ABBA on the rig, the controller against the glide's pour, meets the night's bars (settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer).
+
+### Gate 3: the calibration as a job on the unit
+
+- **A job like a cleanup** (`jobs.c`), started from the powder's profile, the cup step before it (a safety step, kept). It pours into the cup the user declares (api_v1.md, "The cup"), is bounded in time and in powder, and can be stopped. Each of its runs is a recording.
+- **Its steps** are the research's (`research/proposals_2026-11-21.md`, section 3.2), prime to rehearsals, in the firmware's own time, with what the rig showed must be measured as well:
+  - each tube's lag at every flow of the user's range, down to the creep (B6, F1, F2);
+  - the grains a turn as a throw uses them (B3);
+  - the stop's spread against the approach time, with 40 or more rehearsals, each a throw's last stretch (B8, F5);
+  - the back-off's spill at the user's turns and speed (A11);
+  - the small moves, made at the speed the top-ups then use (B7, C1).
+- **It writes** the powder's record and the unit's record, and ends with its verdict in words: the share of throws expected in the tolerance, the seconds a throw, and what holds it back (a least speed above the creep, clumps).
+- **The offer:** the PID values made from those (D19). The fine factor comes from this unit's measured trade of approach time against spread, the user's tolerance and the over budget of one in fifteen. Written to the profile on the user's yes.
+- **Two studies, each with its pass written first, on the job's own measurements:**
+  - the fine figure's learning: part of the auto-tuner or not, one figure or two (C13, C15);
+  - the starting figure for a powder with no calibration (G2).
+- The PC's trial tool and its lag shift go (F8).
+- **Pass, on the rig:**
+  - its numbers against the PC trial's: grains a turn within 3%, each lag within 0.1 s;
+  - on its own calibration, the offer taken: 25 throws at each tolerance meet gate 2's bar (within 0.02 gr at least 68% good with a median at most 13 s; within 0.04 gr at least 84% good);
+  - one ABBA against the glide's pour meets the night's bars;
+  - under 15 minutes and 200 gr;
+  - `verify_series.py` on its throws;
+  - the yardstick (below) reached with no hand settings;
+  - its recordings build a simulation record on the PC (`build_rig.py`).
+
+### Gates 4 and 5: the screens and the web, designed, then built
+
+- **Gate 4, mocks for the owner** (the skills `embedded-ui-design` and `web-ui-design`), before anything is built:
+  - the calibration: its row in a powder's profile, the cup step, its progress, its verdict, the offer and the yes;
+  - after an update: the notice that the old tuning will likely no longer hold, and the prompt to calibrate (sign-off item 10);
+  - Settings (advanced): the auto-tuner's switch; this unit's own data with its export, import, backup and restore; "forget what was learnt" for a powder (sign-off item 5);
+  - what is in use where a setting is not: the coarse room beside the coarse stop threshold, a least speed holding the creep;
+  - a throw's new end reasons, and a throw's recording drawn on the web;
+  - an agent's change to this unit's data, and the user's yes to it (new: sign-off item 7's place in the plan);
+  - the servo gate tuned by eye (new: its design gate, "A gate: the servo gate tuned by eye" below, is taken with this one).
+- **Gate 5, the build:** every setting on both the screen and the web. The agent's writes: each checked against its bounds, backed up first, logged as the agent's, revertable, stored on the user's yes.
+- **Pass:** the mocks approved by the owner; the menu's baselines saved again; `menu_tour`, `reach`, `api_check` (the agent's actions among them: a write outside its bounds refused, a write reverted, the event log naming the agent) and `settings_roundtrip` pass.
+
+### Gate 6: the migration shown, and today's loop gone
+
+- An update from 2.0.3 on both units: every setting and profile kept (`rc_run.py settings --compare`), the notice and the prompt seen, a charge thrown before a calibration ending safely.
+- **The results bar** (sign-off item 11), its ABBA series written first: the controller against today's loop with the user's own settings, on the same unit.
+- Then today's loop's code is removed, and its numbers with it (E18, the 20 ms of E10).
+
+### Gate 7: the Pico W, a second powder, and the facility's proof
+
+- **On the unit it was not built on** (the Pico W at .168, the owner's own trickler with its own tubes), from nothing: calibrate, take the offer, throw, with no hand settings. **Pass:** gate 2's bar on that unit.
+- **The Pico W's memory and timing:** the recordings' rows, the millisecond's work in the job task, `soak`.
+- **BM2,** when the owner loads it, its forecast written first: a calibration and 25 throws at each tolerance.
+- **The proofs on both units** (sign-off item 14), and the safety cases on both (item 8).
+
+### The close
+
+- The design overview, its outline approved by the owner first (sign-off item 16).
+- The register complete against the stored records and the settings' tables (item 2).
+- The two items of "To settle before approval": ADR-012's check, and PR #113's end.
+- The ADR closed (Built, in this README, its progress and the index) before its PR.
+
+### Stored layout changes (sign-off item 15)
+
+- **Made by gate 2,** each a temporary form until gate R:
+  - the charge settings' filler holds `controller` and `mode` (no size change);
+  - a calibration slot for each powder profile at 13 to 20 K (new slots; no existing record changed);
+  - the PID law's carried stops at 21 K (a new slot).
+- **Gate R's,** declared here with their sizes when they are made: the unit's record (a new slot); the powder's record grown; the 21 K slot freed; the filler's bytes read as nothing and written as zero.
+- No existing record changes its size, so no unit's settings reset at the update.
 
 ## What we want
 
@@ -60,8 +245,8 @@ Written 2026-11-22, 22:46, by the agent who took over after the sign-off. It is 
 - **The tolerance, and a looser one** (the owner, 2026-11-21, starting the design questions): "AR2209 throw is much harder than BM2 due to its kernel size. In most cases +/-0.02 gr is acceptable, and I'd accept +/- 0.04 gr for loads that doesn't need to be that accurate." And on the work: "don't over do, if you need any help, let me know, and also let me know if you lacks of any input." Read here as: a throw is good within 0.02 gr of its target (a digit of the A&D either way, which is the firmware's rule today: over or under from 0.03 gr), and a second, looser band of 0.04 gr is one a user may choose; every figure for a controller is given at both. A kernel of AR2209 is a whole digit and one of BM2 a little over half, so the same finish is judged harder on AR2209.
 - **No scale is characterised by hand; the calibration finds each one's lag** (the owner, 2026-11-21, on being shown what a finish by small moves costs on the bench's A&D): "There are more than 7 scale to be supported, so I'm not planning to evaluate each of them to account for individual measurement lag. Therefore the later calibration routine must account for that, and your simulation today should assume the inconsistent measurement lag subject to the weight change speed." Read here as: the firmware carries no table of scales' delays. A unit measures, with its own tubes and powder, how late its scale shows a flow at each rate of flow and how late a single small change, and the controller takes those from the calibration. The simulation treats a scale's lag as depending on how fast the weight changes, and a controller is tried on scales it was not designed on.
 - **Two proposals, for any build, powder and scale** (the owner, the same message): "Instead of letting me to review, I'd like you to make two proposals based on the knowledge and data to date, with confident ranking from high to med. Each proposal shall include the detailed procedure for both trickle control, as well as calibration routine. And remember, those proposals will be used on ANY opentrickler build/material/finish, and ANY powder, and ANY scale. therefore the proposal must be flexible and consider general use cases". They are in `research/proposals_2026-11-21.md`. Neither is approved.
-- **The controller and its calibration go into the firmware next, tuned hands on, on the bench's rig** (the owner, 2026-11-21, 17:29, after the bench trial of the two proposals with AR2209): "BM2 is low risk, so the next won't run the BM2 bench test. Instead, I'd expect the next agent to start to implement the controller and calibration in the firmware, and perform basic tune, against the calibration on the same rig based on proposal today. The next agent will be hands on, based on your research and simulation today." So no BM2 trial comes first, and for this stage a tune on the unit is his word, where the research's bench sessions only captured data. `research/HANDOVER.md` has what the trial found and where the next agent starts. The plan and its gates are under "What we do".
-- **Four answers for the build** (the owner, 2026-11-21, just before 20:58, to the implementing agent's questions):
+- **The controller and its calibration go into the firmware next, tuned hands on, on the bench's rig** (the owner, 2026-11-21, 17:29, after the bench trial of the two proposals with AR2209): "BM2 is low risk, so the next won't run the BM2 bench test. Instead, I'd expect the next agent to start to implement the controller and calibration in the firmware, and perform basic tune, against the calibration on the same rig based on proposal today. The next agent will be hands on, based on your research and simulation today." So no BM2 trial comes first, and for this stage a tune on the unit is his word, where the research's bench sessions only captured data. `research/HANDOVER.md` has what the trial found and where the next agent starts. The plan made from it is in `history.md` ("What we do", 2026-11-21); the plan in force is the build plan above.
+- **Four answers for the build** (the owner, 2026-11-21, just before 20:58, to the implementing agent's questions). Superseded in part by the sign-off: one controller with one finish, no choice of loop for a user, and no tune by hand on the unit:
   - **The finish:** glide and stop (proposal 2) is a unit's default; stop short and jog (proposal 1) is the other setting of the same two numbers.
   - **The PC twin:** a host C compiler is added, pinned in `toolchain.env`, so the simulation runs the firmware's own controller code on the PC and in CI.
   - **Today's loop:** replaced by the new controller, "and I will want to run a side-by-side comparison later". Read here as: the two PID loops go; a gate throws today's firmware and the new one on the same rig, powder and target, and what is kept for users is decided with its figures.
@@ -77,7 +262,7 @@ Written 2026-11-22, 22:46, by the agent who took over after the sign-off. It is 
   - "And I don't want to throwaway the glide controller. We can always run two controllers in parallel, especially the predictor, and other non PID related, like reverse control and other advanced feature."
   - The design drafted from it: `controller_design_draft.md` (Draft, not approved).
 - **Bad gains** (the owner, the same night): "own carried stop, also, consider what if the PID value is bad to begin with."
-- **The facility, not this unit** (the owner, the same night): "I want you to make sure you are building the facility, not sliding into the tuning against this particular unit. Any data captured today should be used for future calibration." The agent agreed, and named where it had slid (below, "Proposed for approval").
+- **The facility, not this unit** (the owner, the same night): "I want you to make sure you are building the facility, not sliding into the tuning against this particular unit. Any data captured today should be used for future calibration." The agent agreed, and named where it had slid (`history.md`, "Proposed for approval").
 - **The controller's document** (the owner, the same night): a live document of how the charge controller works, "consumed by human and AI agents". One was written that night (`docs/charge_controller.md`) and **deleted at the owner's word the same night**. It described the branch's debug switches as a user's choices and one unit's calibrated numbers as the controller's, and so misled. Not to be revived from git as it was.
 - **What ADR-009 must deliver** (the owner, 2026-11-22, about 22:00, his hard gates; the agent's comments and the owner's answers settled them into the sign-off list below). The final controller SHALL:
   1. "From user's perspective, one controller. You can run multiple controllers behind the sense in parallel, including the auto tuner and predictor, but NONE should be visible to the user."
@@ -208,176 +393,6 @@ It needs ADR-003's server for its endpoints and ADR-008's page for its chart. It
 
 **Automatic tuning,** designed here on its own, run through the same controller and judged by the same recordings. PR #113's tuner is then judged against that design ("Handed on by ADR-002").
 
-## Decisions proposed by the research (2026-11-19)
-
-**After the first bench session (2026-11-19, `progress.md`): D2 and D4 are open again.** This scale takes one to two seconds to show a kernel, so a finish that waits for it after every nudge does not fit a 7 to 15 s throw; and the owner's AR2209 clumps enough that clumps, not the controller, are the limit. `research/HANDOVER.md` has the findings, the interim conclusion and the next actions. D1, D3, D5, D6 and D7 stand.
-
-Proposed, for the owner to weigh; none is approved. They come from the research in `research/README.md`, whose simulation rests on an assumed powder model, and they stand or fall with the first bench session (`research/bench_guide.md`). The owner left the design to the agent on 2026-11-19 and gave the figures in `progress.md`.
-
-**D1. One demand, shared between the tubes; not two loops on one weight.**
-- **Why two PID loops on one reading are poor practice.** Two controllers with integral action on one measured value have no settled state: each takes the other's work for its own error, and they drift against each other. Today's loops avoid that only because Ki is kept at 0 and the two aim at different weights, which is a split of the range by hand. What remains wrong with it:
-  - each tube's gains were found with the other tube running, so they are tied together: a change to the fine tube's top speed moves where the coarse one stops;
-  - the coarse loop's D term reads the fine tube's flow as its own;
-  - nobody owns the whole flow, so "no more flow than the scale can show in time" cannot even be stated;
-  - a third actuator (the servo gate) has no place in it.
-- **The usual form** in process control is one controller and an allocation: split range for a coarse and a fine actuator, bulk and dribble in batch weighing.
-- **Proposed:** one law gives the flow the weight still to go can absorb, flow = 0.37 / (the scale's delay + its reading interval) x (weight to go - margin). An allocation turns it into two speeds through each tube's measured flow map: the coarse tube until its share falls under the least it delivers regularly, then stopped for good; the fine tube for the rest; then nudges.
-- **What the simulation says of it:** the three ways of sharing tried (both tubes from the start, the fine one waiting, one demand split) differ by less than the noise of 800 throws. So the gain is one invariant and gains that are not tied together, not seconds. Both tubes feed together early, as now: it costs nothing and is the quickest.
-
-**D2. The finish is nudges judged on settled readings.** No floor speed. A nudge is a small turn of the fine tube sized to release under one kernel on average; the judgement is on the mean of the readings in a pause, which is finer than a digit; the throw ends at the first settled weight no more than the tolerance under the target. The pause is the scale's, so a slow scale gets a slow, sound finish by itself.
-
-**D3. The scale and the powder are kept apart.** A scale's record holds its reading interval (measured already), its delay and its settle time. A powder's profile holds measurements, not gains: each tube's flow at six speeds, the highest speed worth using, the least regular speed, the kernel's mass, what a nudge releases, and the share of nudges that release three kernels or more. A profile then moves between scales, and a new scale needs no new powder tuning. The stored profile changes shape; ADR-014 migrates profiles in any case.
-
-**D4. Oscillation before a changed lip** (the owner, 2026-11-19: a fine lip is hard to print). If the nudge test says clumps are the limit, oscillation and a forward-and-back flick are tried as kinds of nudge, each judged by the share of releases of three kernels or more and by the reading's noise while it swings. It needs one test command in the motor task. It is not designed in until the bench shows it helps.
-
-**D5. The verdict is read when the scale has settled,** not one second after the stop, and a throw that hits its limit of nudges ends with a reason of its own.
-
-**D6. Automatic tuning in two modes, on one set of building blocks** (the owner's second goal, 2026-11-19: a community whose printed tubes differ).
-
-The blocks are jobs the firmware runs and bounds by itself, each recorded: a motor run (a tube, a speed, a time or a weight), a nudge series, a scale recording, a test throw, and the cup's account of what was poured (api_v1.md reserves all of them). A tuner hands out the next trial and takes its result; it never turns a motor itself. That is the seam both PRs arrived at.
-
-- **Mode 1, autonomous: the unit decides, by fixed rules on the trials' statistics.** One button, about two minutes, into the cup:
-  1. prime both tubes;
-  2. each tube at six speeds with a stop after each: the flow map, the scale's delay, the settle time;
-  3. thirty nudges: the kernel as the unit sees it, the yield, the nudge quality;
-  4. the rules: the highest useful speed is the first that gives 95% of the most; the least regular speed is the lowest whose flow repeats within 30%; the nudge is the turn that gives 0.4 of a kernel; the coarse margin is three times the largest fall after a stop;
-  5. **a verdict about the powder in words:** nudge quality under 3%, holds the tolerance; 3 to 10%, holds it slowly; over 10%, this powder in this tube will not, with what to try (the oscillating nudge if the build has it, or a wider band);
-  6. ten throws to prove it, then trimming in use: a share of each throw's first settled error into the margins, with a cap, a dead band, and nothing learned from a throw that was disturbed or topped up.
-- **Mode 2, assisted: an external agent decides, with the same trials.** It reads the unit's own description (`GET /api/v1` and its schema), starts trials, downloads their recordings, and writes the profile through the settings' paths, checked by the same tables as any write.
-  - **What an agent adds:** choosing the next most telling trial instead of a fixed list; seeing what the rules do not look for (a once-a-turn ripple from an eccentric tube, an inlet that bridges, a gear ratio left from another generation, a scale left at 5 readings a second); fitting the PC simulation (`tools/charge_sim`) to the unit's recordings and trying settings there before spending powder; saying in words what it found.
-  - **What it cannot do, by the firmware and not by its good will:** run a motor without a bound in time and weight, pour past the cup's account, write outside a field's limits, act during a user's charge. Every trial ends by itself.
-  - **The unit never needs it.** Mode 1 is the product; mode 2 is the same blocks under another decision-maker, and what it does is in the event log under its name.
-- **Simulated so far:** mode 1's steps 1 to 4 (`calibrate.py`), on three differently printed tubes and four scales: the candidate calibrated on each holds 11 to 16% over where today's loop with one fixed profile gives 20 to 100%. Steps 5 and 6 are designed, not simulated.
-
-**D7. The simulation is kept, and refitted from each bench session.** Its controller interface (`start`, `on_tick`, `on_reading`; two speeds and `done` out) is the module's. The module's PC tests run against it; a recorded real throw replayed against it is its own check.
-
-**Not weighed in D1 to D7: what it costs today's users to move** (the owner's direction of 2026-11-19, above). What these decisions would change for a unit in use, to be costed at "what to keep":
-- a powder profile of measurements in place of six gains and four speed limits (D3): every stored profile, and every gain a user tuned by hand, has no place in it;
-- the two stop thresholds and the floor speeds lose their meaning (D1, D2); a tolerance takes their place;
-- a calibration run before a powder's first throw (D6), where today a profile is typed in;
-- the verdict's moment and the throw's end reasons (D5), which the API and the event log give out today;
-- a throw that sounds and looks different: the tubes stop and nudge at the end where they now creep.
-
-Whether today's loop stays beside the new one, for how long, and whether old profiles are kept, converted or dropped is that step's to decide, not this research's.
-
-**The order proposed,** each gate ending in a pass or fail on a unit: (1) the bench session; (2) recordings and the open-loop jobs in the firmware; (3) the nudged finish alone; (4) the flow law and the calibration; (5) the G&G's driver read at once after its ask, and the same controller on it; (6) mode 1's trimming, then mode 2's paths; (7) oscillation, if the bench says clumps.
-
-## What we do (planned 2026-11-21, 20:58; approved the same evening)
-
-The controller is the research's frame with proposal 2's finish by default (`research/proposals_2026-11-21.md`, sections 2 and 4), ported from its reference, `tools/charge_sim/staged.py`, as it stood after the bench trial. Its calibration is the routine of the same file's section 3.2. Nothing is designed again here: what the bench found weak is mended where the gates below say, and nothing else is added. The gates are built in order, each ending in a pass or a fail written before it is run. The early gates go for speed: the controller is proven end to end on the rig (gates 1 to 3) before anything is polished (gates 4 to 6). One PR, when the ADR closes, unless the owner picks a gate to merge on its own.
-
-**Gate 0: the research onto main, and the branch.** The research branch (`adr009_research`: documents, `tools/charge_sim`, the recordings; nothing under `src/`) is merged into main as an ADR change, with one push. The build's branch starts from `origin/main`.
-
-**Gate 1: the controller in C, checked at the desk.**
-- `src/charge_control.c` and `.h`: `staged.py`'s controller and its rules (`Staged`, `set_rules`) in C. In: a start (the target, the time), each tube's turns since the start (the unit's own step count), a tick, each reading with its time. Out: each tube's speed, a small move as a number of turns, done, the verdict and its reason, and the marks a recording keeps (the coarse stop, the fine stop, each rest, each move, a return to the stream, the verdict). No FreeRTOS, no motor, no scale, no allocation: the powder on its way is a fixed array of parcels.
-- The calibration is one C struct, the measured numbers and those the rules make from them; the rules run on the unit, so a calibration is stored as measured.
-- **The PC twin** (the owner's answer): a host C compiler, its version written once in `toolchain.env` and fetched by both setup scripts, builds the module as a library that the simulation loads (`tools/charge_sim`, beside `staged.py`). It is a tool for the PC's checks only: the firmware's build and its compiler do not change. Read here as within the rule that keeps a dependency update out of a functional ADR, since no dependency of the firmware changes.
-- **Pass:** on both records (`pico2w_ar2209`, `pico2w_bm2`), both finishes and both bands, 200 throws each on the same seeds: the C controller's verdict is `staged.py`'s in at least 99 throws of 100, and every throw's weight at rest within a digit of it; the trial's kept calibration (`recordings/20261121_162403_trial_pico2w_ar2209`) read into the C rules gives `staged.py`'s numbers. CI runs it, in about a minute.
-
-**Gate 2: the controller in the charge, tuned on the rig.**
-- **The motors** gain two things: a move made as a count of steps by the motors' task (the PIO makes only the steps it is fed, so the count is exact), and each tube's turns since the throw began, from the steps counted on its pin, read every millisecond. A tube between moves stays enabled at a rate of zero, never at a creeping speed. A start from zero is measured once on the unit, step count against command, before a move's timing is trusted (the bench's 0.7 s late start came from a held creeping speed, `step_pulses.c`).
-- **The charge:** with the new controller, the job task runs it every millisecond, hands it each reading as it comes, and sets the two speeds. Kept from today, for both loops: the zero, the cup's removal and return, ADR-013's pause on a missing reading (in the new controller's step: no fresh reading for three of the scale's intervals, both tubes at zero), ADR-012's end on a driver's fault, the LEDs, the API's throw and its states.
-- **Two loops, one setting** (the owner, revising): the charge's settings gain `controller`, `staged` (the new, by default) or `pid` (today's loop, as it is: its two PID loops, stop thresholds, back-off and precharge, untouched and not mended). The charge's state machine calls one or the other for the stretch from zero to verdict; everything around it is shared. The new field is a change of charge mode's stored layout, said here; it is checked against the struct's filler (AGENTS.md) and the record's size before and after. Each throw's recording names its controller (api_v1.md's `controller`, `pid` today).
-- **A powder with no calibration is refused at the start under the new controller,** in words, with the two ways on: calibrate it, or choose the PID loop. The simulated scale gets a calibration of its own for `charge_cycle`, and stops holding its weight at the target within 0.1 gr, which would hide an over.
-- **The calibration's stored form,** a change of the stored layout said here: one EEPROM slot for each of the eight powder profiles' calibrations (13 to 20 K; 12 K is the highest in use, and the CAT24C256 holds 32 K), each the whole calibration of that powder on that scale, with its CRC. No existing record changes. In this gate the trial's calibration is written into it from the PC; gate 3's job writes it on the unit.
-- **Every throw recorded,** as api_v1.md reserves it (`/api/v1/recordings`: a summary, the marks, the samples): the newest throws' summaries and the last throw's samples in a fixed RAM budget, measured on the Pico W in gate 7. The PC's trial tool reads them into `tools/charge_sim/recordings/`, and a recorded throw is replayed in the simulation against the C controller.
-- **The tune, hands on** (the owner's answer): the frame's constants against the bar below, each change committed with its throws and replayed in the simulation. Two weak points of the trial are looked at here, as constants or by one mend each: the coarse tube's last powder at its floor (5 throws in 100 ended 6 to 26 digits short after it) and the slow start of a small charge (2 gr of a 10 gr charge left to the fine tube).
-- **Pass, on the rig** (Pico 2 W, A&D FX-300i, the air-exposed AR2209, 10 gr, 25 throws a set): within 0.02 gr at least 68% good with a median at most 13 s; within 0.04 gr at least 84% good; no throw short because of a fault. Every throw recorded and read back. `charge_cycle`, `pulses` and `menu_tour --compare` pass, and `motor` shows no late feed over the 50 throws.
-
-**Gate 3: the calibration as a job on the unit.**
-- A job like a cleanup (`jobs.c`), started from the powder's profile, with the cup step before it (a safety step, kept). It pours into the declared cup of api_v1.md and is bounded in time and in powder; each of its runs is a recording. Its steps are 3.2's, prime to rehearsals, with one mend: a rehearsal is a throw's last stretch, not a short stream from rest (its rehearsals spread twice as widely as real throws' stops). It ends with its verdict, the share of throws expected in the band and the seconds a throw, and stores the calibration on the user's yes.
-- **Pass, on the rig:** its numbers against the trial's (grains a turn within 3%, each lag within 0.1 s); 25 throws a band on its own calibration meet gate 2's bar; under 15 minutes and 200 gr. Its recordings build a simulation record on the PC (`build_rig.py`), so any user's unit can be made a record the same way.
-
-**Gate 4: the screens and the web, designed.** Mocks of both, by the skills `embedded-ui-design` and `web-ui-design`, for the owner to settle before anything is built: the calibration's row in a powder's profile, its progress and its verdict; the band and the finish as a profile's settings; a throw's new end reasons; a throw's recording drawn on the web; and what goes from both of today's screens.
-
-**Gate 5: the screens and the web, built.** Every setting on both (screen and web parity). The menu's baselines saved again; `menu_tour`, `reach`, `api_check` and `settings_roundtrip` pass.
-
-**Gate 6: side by side, and what to keep** (the owner's answer). The two loops on one firmware, chosen by the setting, on the same rig, powder and target: sets of 25 throws a band taken in turn (PID, new, PID, new), so a drift of the powder or the room falls on both. Then, with those figures, what is kept for users is decided with the owner: whether the PID loop stays as a choice, and the stored profiles' gains and speed limits, the two thresholds, the back-off and the precharge dropped, migrated or kept; the profile record's change, with ADR-014's, is said here.
-
-**Gate 7: the Pico W, and a second powder.** The Pico W, since the motors' change and the millisecond's work in the job task are timing and memory: gate 2's checks and a charge set on it. BM2, when the owner loads it, its forecast written first: a calibration and 25 throws a band.
-
-**Not in these gates, kept as ideas:** the calibration choosing the finish from its own moves and stops; the move chosen as the best play of the powder's odds (`bench/best_finish.py`); a shorter calibration that keeps the scale's lag from one powder to the next (section 3.2: within four points); the trimming of grains a turn from the throws.
-
-## Proposed for approval: the remaining gates for the final firmware (2026-11-22, 21:45)
-
-**Approved 2026-11-22 with two changes, then held behind gate N** ("Where ADR-009 stands", above). The two changes:
-- gate S's pass is the rig's own run-to-run spread, not one throw in 20 and 1 s;
-- gate F is built as steps with a pass each, the safety checks first.
-
-The gates' text below is as proposed.
-
-**What the night established** (every figure in `research/pid_learning_2026-11-22.md` and `progress.md`; the recordings in `tools/charge_sim/recordings/`, the 29 series of 2026-11-22 night):
-- **The frame gives the accuracy, the speed law gives the time.** The frame is the forecast, a stop at a least speed set from it, one settled reading, the top-ups and the learning. Today's PID settings in that frame (`ccon speed_law=1`) threw within what 20 throws resolve of the glide's accuracy, and quicker.
-- **Without the frame's forecast from the calibration,** one learnt figure overstates the fine tube's powder at speed (the A&D lags longer at a low flow), and the PID is slow.
-- **Bad gains are guarded by the frame's speed envelope** (`ccon pid_envelope`). The bench unit's own stored gains, which put 10 throws of 12 over in today's loop, threw 15 of 20 good against the glide's 16.
-- **Each law carries its own stop** (the PID law's list at EEPROM 21 K, a temporary form).
-- **The auto-tuner's offer** (`ctune`) is 2 to 3 s quicker than the glide and costs overs. Its fine gain is a trade of time against overs, which this rig alone must not decide.
-- **A fault in the carry since the 17:27 build:** first errors were translated to the placed stop room, not the rules' own, so the stop jumped between sessions. Mended and flashed at 21:26.
-
-**The principle for what follows** (the owner): build the facility, not a tune of this unit.
-- No number the controller uses is set from this rig's throws: each is a rule of the frame, or a unit's own calibration.
-- The rig checks the facility; a second unit proves it.
-- Where tonight's work slid (the agent's own reading):
-  - **Constants of this unit in `charge_pid_learnt.c`:** a lag of 0.9 s and a rest of 2.5 s (the A&D's), a cautious start of 2.0 (raised after this rig's dry throws), a least speed of 0.02 rev/s and a coarse quiet of 1 s.
-  - **`fine_top_rps=1.0`,** set by hand on the rig for every glide series since 11-21.
-  - **The offer's fine rule,** chosen on this rig's two records only.
-  - **The proposal to throw a slower offer on the rig,** a constant tried until the overs pass: withdrawn.
-
-**The gates proposed,** in order. Each ends in a pass written before it is run. Gates 0 to 2 stand as built; gate 2 keeps its last piece.
-1. **Gate 2's rest:** the API's recordings (`/api/v1/recordings`), as planned.
-2. **Gate D, the design settled** (a design gate, before any build below):
-   - The owner decides what the sign-off (below) leaves open in `controller_design_draft.md`. The sign-off already settles: one controller with no choice; the user's PID values staying where they are; the existing settings kept.
-   - The register's first entries are made and approved.
-   - **Closes** the README's "Open, to be discussed" item.
-3. **Gate S, the simulation from the night's data.** From the recordings (`tools/charge_sim/recordings/`, the series of 11-21 and 11-22), model the two blind spots the rig found:
-   - the scale's lag growing at a low flow (the rig's learnt figure 1.2 to 2.1 gr a turn of the window, the simulation's 0.75);
-   - the stop's spread growing as the approach shortens (the glide 0.035, the offer 0.058 gr).
-   - **Pass:** the simulation reproduces the night's ABBA results (each run's good and overs within a throw of 20 a side, its medians within 1 s), so the offer's trade can be judged there and not on a unit.
-4. **Gate R, the records and the migration** (the draft's sections 6 and 7), before anything writes into them:
-   - the powder profile's extension and the device record;
-   - the powder-on-unit record, today's calibration slots grown, with the PID law's carried stops moved in from 21 K;
-   - backup and restore of all of it through the API, the calibrations included (the console's `ccal` only, today);
-   - a factory reset offering a backup first.
-   - **Pass:**
-     - an update from 2.0.3 keeps every profile and setting;
-     - backup, factory reset and restore give the calibrations back;
-     - a device record restored onto the other unit is kept "to check".
-5. **Gate F, the frame made one.** One controller (`charge_control.c`) with:
-   - **two predictor sources:** the calibration's, and the learnt figure of `charge_pid_learnt.c`, folded in for a powder not yet calibrated;
-   - the two speed laws, the envelope, each law's carried stop;
-   - the gate's waits and the preload in the forecast (issue #135), and the reverse's spill in the forecast;
-   - the cup-lifted and no-powder checks.
-   - **The constants above** go to the device record or the calibration: the scale's lag and rest from the device record, the frame's tops from the calibration's measured range.
-   - Every debug choice goes from the user's reach (sign-off item 1): `controller`, the mode, `pid_learnt`, `speed_law`. The existing settings keep their function (item 3).
-   - **Pass:**
-     - the throw-for-throw check for both laws and both sources;
-     - `robust_staged.py` with every case, `cup_lifted` and a new `no_powder` among them;
-     - one ABBA on the rig for each law against the glide, meeting the night's bars.
-6. **Gate 3, the calibration job,** writing the device record and the powder-on-unit record, as planned, and measuring as well:
-   - each tube's lag at every flow, down to the creep;
-   - the stop's spread against the approach time, with 40 or more throw-shaped rehearsals;
-   - the reverse's spill.
-   - **The PID law's offer is made from those:** its trade of time against overs chosen by the user's band and over budget, never a constant picked on this rig.
-   - **Pass:**
-     - as planned (its numbers against the trial's; 25 throws a band meeting gate 2's bar; `verify_series.py` on its throws);
-     - and the offer made from it, thrown once against the glide, meeting the night's bars.
-7. **Gates 4 and 5, the screens and the web:**
-   - designed (mocks for the owner), then built;
-   - adding "set" and "in use", the offer, keeping and forgetting what was learnt, a new lot, the backup and restore.
-8. **Gate 6, the migration shown:** an update from 2.0.3 on both units, every setting and profile kept and working in the one controller (sign-off items 3 and 10), and today's loop's code removed once the results bar (item 11) is met against it.
-9. **Gate 7, the Pico W, a second powder, and the facility's proof.** On a unit it was not built on (the Pico W at .168, the owner's own trickler with its own tubes), from nothing:
-   - calibrate, take the offer, throw both laws, with no hand settings;
-   - **pass:** gate 2's bar on that unit.
-   - BM2 when the owner loads it.
-- **Sign-off,** as before: the cup lifted and no powder flowing met on both units.
-
-**Built tonight and to be folded or removed by these gates** (each experimental, for evaluation only):
-- `controller=pid_learnt` and `charge_pid_learnt.c`;
-- `ccon speed_law`, `pid_envelope`;
-- the 21 K record;
-- `ctune`;
-- `series.py --controller pid_learnt --gains --profile-set --charge-set`.
-
 ## A gate: the servo gate tuned by eye (the owner, 2026-11-19)
 
 The owner, during ADR-008's phone checks: "I want you to consider a servo gate tuning feature, perhaps offer that in initial commissioning as well as in the settings menu." Weighed the same day against ADR-008, the owner chose "A gate in ADR-009": ADR-008 was at its last checks, and the bench's unit has no gate fitted to prove it on. Here because this ADR holds how the charge uses the gate (it moves at the coarse stop, above), and tuning is the set-up half of the same part.
@@ -391,7 +406,7 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
 - The set-up's steps are a list on the unit (`setup.c`: code, wifi, scale, motors, ready, done), drawn by both screens, so a step after Motors can be added without changing the others.
 - The bench's unit has no gate fitted (AGENTS.md); a bare servo on its connector shows the pulse's ends turning, though not a shutter closing.
 
-**Proposed, not designed.** A design gate first, with mocks of both screens for the owner to settle (the skills `embedded-ui-design` and `web-ui-design`), then the build:
+**Proposed, not designed.** In the build plan its mocks are taken with gate 4 and its build with gate 5. A design gate first, with mocks of both screens for the owner to settle (the skills `embedded-ui-design` and `web-ui-design`), then the build:
 - a tuning flow per shutter: its end shown live while it is nudged, "Set closed" and "Set open", the two speeds tried, kept with one store at the end and nothing stored if left;
 - the set-up's step "Servo gate", offered only when the build carries the gate and Fitted is on, and skipped with one tap;
 - whether the ends stay numbers anywhere a person sees them, or only as the tuning's result.
@@ -504,16 +519,36 @@ Recorded at the owner's word ("this is a good indication of what the auto tuner 
 
 ### The parameter register
 
-Every parameter or setting the work adds, keeps with a new meaning, moves or removes, one line each. **Nothing in it is approved until the owner's approval and date are in its row** (item 2). The design draft's records (`controller_design_draft.md`, sections 6 and 7) are its first candidates. So are the existing settings' meanings in the one controller (item 3), and the night's experimental stores (the 21 K record, `ccon`'s constants).
+Every parameter or setting the work adds, keeps with a new meaning, moves or removes. **Nothing in it is approved until the owner's approval and date are in its row** (item 2). Drafted 2026-11-23 from `numbers.md`, whose rows hold each number's default, origin and evidence; the last column but one names them. A setting `numbers.md` marks "unchanged" has no row here.
 
-| Parameter | Where it is stored | Who sets it | The powder's or this unit's | Default, bounds | Why | Its life cycle | Approved |
-|---|---|---|---|---|---|---|---|
-| The auto-tuner's switch | A setting of the unit, under Settings (advanced): one switch, not one a powder | The user, on demand; an agent on the user's yes | This unit's | On | The owner: "so user can disable it on demand" | Recommended (for gate D): off freezes the auto-tuner, nothing more learnt or carried, the numbers in use kept; going back to the calibration's own numbers is a separate "forget what was learnt" | The switch and its default on: the owner, 2026-11-22. One for the unit: the owner, 2026-11-22. What off keeps: not yet |
+**★** marks a row that changes what a setting a user has does today.
+
+| # | Parameter or setting | What ADR-009 does with it: its life cycle | Stored; the powder's or this unit's | Why | `numbers.md` | Approved |
+|---|---|---|---|---|---|---|
+| 1 | **The auto-tuner's switch** (new) | The user turns it off on demand; an agent on the user's yes. On by default. **Off freezes:** nothing more is learnt, carried or written to the profile, and the numbers in use are kept. Going back to the calibration's own numbers is a separate action a powder, "forget what was learnt" | A setting of the unit, under Settings (advanced); this unit's | The owner: "so user can disable it on demand" | E12 | The switch, on by default, one for the unit: the owner, 2026-11-22. What off keeps: waiting |
+| 2 | **What the auto-tuner corrects** | The stop: learnt within a charge, carried between charges. The grains a turn: once gate 3 passes the fine figure's learning. From those, by the calibration's own rule, the profile's kp and creep, written at a charge's end. **The lag has no learner of its own:** its error at the stop is what the stop's learning corrects, and its value at speed is the calibration's to measure. A lag learner would be a new mechanism | The powder's record on the unit; the profile's kp and fine min speed | Sign-off item 4 names "the stop, the grains a turn, the lag". Nothing built corrects a lag throw by throw, and ADR-009 designs no new algorithm. This row is how the agent reads the item, for the owner to confirm | C10 to C15, E12, B3, B8 | Waiting |
+| 3 | ★ **Fine stop threshold** (kept) | The user's tolerance in the one controller, for the stop and the verdict: band = threshold − half a digit. The debug `mode` and its two bands go | As today; this unit's | One tolerance, set once, by the setting a user already has | A7, A18, E14, D20 | Waiting |
+| 4 | ★ **Coarse stop threshold** (kept) | The coarse stop of a powder with no calibration. A calibrated powder stops by its measured coarse room, shown beside the setting. **The other way costs:** the calibration writing the setting is wrong for the next powder (one number for the unit); the setting as a least room loses about 4.5 s a throw at its default | As today; this unit's. The room is made from the powder's record | The setting is one for the unit, the measured room one a powder. Handed on to ADR-014, which settles where the thresholds belong | A6, D9 | Waiting |
+| 5 | ★ **The profile's speeds; the motors' max and least speeds** (kept) | The limits of each tube in every law. The calibration measures within them, and no tube runs faster than the fastest speed measured. The fine min speed is the creep: the calibration writes it on yes, the auto-tuner while on, never under the motor's least. `fine_top_rps`, `coarse_top_rps` and `coarse_floor_rps` go | As today; the profile's, the motors' | Today the new loops ignore them, and three hand-set constants stand in their place, one of them a limit of the simulation | A2, A4, A5, A13, A14, C3 to C5, F7 | Waiting |
+| 6 | ★ **The profile's kp, each tube** (kept) | The PID law's gain. The calibration writes it on the user's yes, and sets ki and kd to 0 with it. The auto-tuner, while on, writes the kp it derives at a charge's end | As today; the powder profile | Sign-off item 4. The offer's fine factor is made from each unit's measured trade (gate 3), never a constant | A1, A3, D19 | Waiting |
+| 7 | **The profile's ki and kd** (kept, not mended) | As today's loop takes them: the I term adds each reading's error, the D term is per millisecond. The frame adds one thing: the I term stops counting while its tube is held at a limit. **Not mended in ADR-009:** a mend changes what every stored Ki and Kd does, and the calibration's own gains use neither | As today | Sign-off item 3 asks for an entry where a fix changes what a setting does. Here the recommendation is no fix: the users' numbers keep their meaning | A1, A3 | Waiting |
+| 8 | ★ **The back-off, the precharge, the gate at the coarse stop** (kept) | Made by the frame. The back-off's spill and the precharge's powder are counted in the forecast. The precharge stays a time at a speed. **Issue #135, with no option:** every gate move is waited for by its own travel, and 500 ms more after a close; the tubes start when the gate is open | As today; this unit's | Sign-off item 9. Today the new loops make none of them. The 500 ms is today's figure and the issue's, a rule until a gate is fitted and it is measured | A10 to A12, A17, E10, E11 | Waiting |
+| 9 | **The stored form** (new; closes "Open, to be discussed") | Three stores. **The powder profile** as it is today, untouched, shared as people share it today. **The unit's record** (new): the scale's digit, lag and rest as last measured. **A record for each powder on this unit** (the calibration slots, grown): the calibration as measured, what was learnt, the carried stops. Nothing else: no extension of the profile, no figures against a standard tube, no lot | The unit's two kinds of record under Settings (advanced), in the backup; another unit's never applied | Sign-off item 5. With the tolerance the user's and no law to choose, nothing is left for the draft's extension to hold. A profile shared is a starting point; the auto-tuner takes it from there | B1 to B12, G1, G4, G7 | Waiting |
+| 10 | **The frame's rules** (fixed) | Named constants, at the values in `numbers.md`, changed only by an ADR with its evidence. Removed as doing nothing: the 0.3 s least lag, and the glide times' four limits | Not stored | The sensitivity study: each is without effect beyond chance, or a trade of time at a value on the safe side | C7 to C10, C12, C16, D1 to D4, D6 to D10, D12, D14 to D16, D20, D22, D23, E6, E19, E20, F1 to F6, G2 | Waiting |
+| 11 | **The safety bounds** (fixed, out of reach) | Never reachable by the calibration, the learning or an agent. No bound is a weight in grains: the far-over stop is 150 digits, the coarse room's extra 10 digits | Not stored | Sign-off item 8. A gram scale reads 3 as 46 gr | C11, C14, C17 to C20, E1 to E5, E11, E12, E17, E24, G9 | Waiting |
+| 12 | ★ **Two checks at a charge's start** (new) | A charge is refused, in words, for a tolerance under a digit, and for a profile whose top speed is 0 for a tube the throw needs | None | Today such a profile creeps at the least speed, and a tolerance of 0 is taken. Fail early | A20, A21 | Waiting |
+| 13 | ★ **The cup's tests** (mended) | A cup lifted mid-throw stops both tubes. The cup's return is judged within the zero's mean margin, not at exactly zero. Its removal loses the fixed 10 | None | Sign-off item 8; the faults ADR-003 and ADR-012 handed on | E7, E8, E19, E20 | Waiting |
+| 14 | ★ **The verdict's moment** (changed) | Given at the frame's settled reading, not a second later. api_v1.md's "a second after" changes with it | None | The second is today's loop's way to a settled reading; the frame already has one | E9 | Waiting |
+| 15 | **The fine figure's learning** (off until gate 3) | Off in the build. Gate 3's study on its own measurements says whether it is part of the auto-tuner, and with one figure or two | The powder's record | It read through a lag nothing had measured | C13, C15, D13, D17 | Waiting |
+| 16 | **Before any calibration** | A unit never calibrated starts from the A&D's lag (0.9 s) and rest (2.5 s), 2.0 gr a turn, and the digit its own readings show. A unit calibrated for any powder uses its own scale's numbers for the next | The unit's record, once measured | No bar is set for a charge before a calibration (item 10). The fallback study says how far off it is | G1, G2, G4, B1 | Waiting |
+| 17 | **`controller`, `mode`** (removed) | Out of the API and the screens. Today's loop and the glide's pour stay on the console only, never stored, for the comparisons the gates ask; today's loop's code goes at gate 6 | The charge settings' filler, read as nothing | Sign-off item 1 | A18, C21, C22 | Waiting |
+| 18 | **The experiments** (removed) | The jog finish; the controller `pid_learnt` and its constants (its learnt figure is folded in, row 16); `ctune` (it becomes the calibration's offer on the screens); `ccon`'s writes; the PC's lag shift; the 21 K record | None | Built for evaluation only | C6, D5, D11, G3, G5 to G8, G10, F8 | Waiting |
 
 ## Open, to be discussed
 
 - **A powder profile portable and shareable** (the owner, 2026-11-22: "any storage decision should be temporary, and later we will discuss how to make the per powder profile portable and sharable (noted although the powder profile is not 100% portable, but a good profile is a starting point when combined with auto learning feature"). Until it is discussed, every stored form gate 2 has made is temporary: the calibration's slot of each powder profile, the throws' first errors carried into it at a charge's end, the mode in the charge settings' filler. **Closes** when the owner and the agent have settled the stored and shared form, before gate 3's calibration job writes a calibration of its own.
   - **Drafted** 2026-11-22, 19:45, with the owner's direction of that night (split by physics; the powder's part shared; the scale's and the printed parts' part on the unit, not configurable, backed up and restored; the glide kept beside a PID): [controller_design_draft.md](controller_design_draft.md). It covers one frame with two speed laws, the four records, each parameter's life cycle, the faults, tuning by hand with the auto-tuner, the timings, the servo gate (issue #135), the migration and the stored form, and ends with the owner's eight decisions. Not approved.
+  - **Proposed to close it** (2026-11-23): the register's row 9, the stored form. The powder profile stays as it is and is shared as it is today; what belongs to one unit is in two kinds of record of its own. The draft's extension of the profile, its figures against a standard tube and its lot are not built: nothing in the sign-off needs them. It closes on the owner's approval of that row.
 
 ## Not in this ADR
 
@@ -522,6 +557,6 @@ Every parameter or setting the work adds, keeps with a new meaning, moves or rem
 
 ## To settle before approval
 
-Settled since: what "better" is (the two bands, 2026-11-21), the order (ADR-008 closed first), the rig the proof is made on (the owner, 2026-11-21, 17:29). Left for the owner, with the plan under "What we do":
+Settled since: what "better" is (the two bands, 2026-11-21), the order (ADR-008 closed first), the rig the proof is made on (the owner, 2026-11-21, 17:29). Left for the owner, and taken at the close of the build plan:
 - **ADR-012's check against the firmware before it** ("Handed on by ADR-012"): proposed retired. The bench trial ran on ADR-012's motors, and today's loop puts 85% of AR2209's throws over on either firmware, so the comparison would say nothing of the motors; gate 6's side by side is against today's loop on the same firmware.
 - **PR #113** (ADR-002 left its end here): its tuner tunes the two PID loops, which stay only as the fallback until gate 6, so nothing of it is taken. Proposed: closed with thanks and a note naming what this ADR built, at the owner's word, when this ADR's PR is opened.

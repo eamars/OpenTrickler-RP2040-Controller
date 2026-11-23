@@ -1,5 +1,14 @@
 # ADR-009: one frame, two speed laws, a profile split by physics (a draft)
 
+**A record since 2026-11-23, not a plan: build nothing from this page.** The README's build plan and its parameter register are what is built. What survives of this draft, and where it is now:
+- **The frame and the PID law in it; the envelope against bad gains; each fault and what the unit does** (the design, section 2): the build plan's gate F.
+- **A record's life cycle** (section 1: read at a charge's start, written between charges, the rules for storing): gate R.
+- **The servo gate and issue #135** (section 5): the register's row 8. The precharge "as a weight" is withdrawn: the user's setting stays a time at a speed (sign-off item 3).
+- **The stored form** (sections 6 and 7): the register's row 9. Three stores, not four: the profile's extension, the figures against a standard tube and the lot are not built.
+- **"Set" and "in use" shown twice, "keep what was learnt"** (section 3): withdrawn with the seed that is never overwritten. The auto-tuner writes the profile; what is in use where a setting is not is gate 4's to draw.
+- **A device record from another unit kept "to check"** (sections 1 and 2): withdrawn. Another unit's own data is never applied (sign-off item 5).
+- **The eight decisions at the end:** each is settled or is a row of the register (README, "Where ADR-009 stands").
+
 Status: **Draft** 2026-11-22, 19:45 NZDT. Not approved, and nothing here is built beyond the experiments it cites. It answers the README's "Open, to be discussed" item (a powder profile portable and shareable). That item **closes** when the owner has settled the decisions at the end of this page, before gate 3's calibration job writes a calibration of its own.
 
 **Overridden in part, 2026-11-22, about 22:00,** by the README's "Sign-off: what ADR-009 delivers", which wins where the two differ:

@@ -1703,3 +1703,27 @@ The first run's cause, mended the glide's way with no calibration: the fine tube
   - P1 at 21:16 rested on its aim and P2's stop moved 0.022 gr later (three of its overs); the glide's placed rooms tonight jumped the same way.
   - **Mended** in the firmware (`charge_calibration_base_stop_room`) and in `carry_stop.py`, and flashed (21:26). The carry study re-run with the mend (`fit/study_20261122/carry_stop_base_room.txt`): AR2209 the same within the noise; BM2's 0.7 s cost of carrying with the stop placed right, which the first study counted a failure, falls to 0.2 s. The simulation's rehearsals placed the stop only a digit from the rules' own room, so the fault showed less there than on the rig.
 - The bench left at `controller=staged`, `ccon` at its defaults, profile 0's gains as stored (the offer reverted).
+
+## 2026-11-22, 22:47, to 2026-11-23, 02:02: gate N, every number's life cycle
+
+Written on 2026-11-23 from the commits (ddf5ec1 to eb60c8f): the session that did the work did not record it here. No unit was contacted.
+- **The inventory:** `numbers.md`, about 110 numbers in eight groups, each with its default, who modifies it, who calibrates it, who uses it, its origin and a proposal. ADR-009 marked not ready to build until each has its life cycle (ddf5ec1).
+- **The reference's literals named** (`staged.py`), so a study can vary each. The throw-for-throw check against the firmware passed on both laws.
+- **Two studies in the simulation,** each pass committed before its run (cabb74a, 3b1e52c); results in `tools/charge_sim/fit/study_20261122/`:
+  - **the sensitivity study** (`numbers_study.py`, 23 numbers at half and twice, 920 cases of 800 throws): by its pass's letter 4 numbers are rules; read by how often and how consistently each moved, 5 do nothing over a fourfold range, 8 move no more than chance, 6 trade time, 4 cost overs when lowered (`numbers.md`, "The research behind the rows");
+  - **the fallback study** (`fallback_study.py`): failed its pass. The lag of 0.9 s and the rest of 2.5 s a powder runs on before a calibration are the A&D's: on the slower stand-in scales the first three throws are over 15 to 61 points more often.
+- **Sign-off items 4 and 10 reworded at the owner's word** (c49a4ea): after an update the profiles are kept, not trusted; no bar for a charge before a calibration.
+
+## 2026-11-23, 17:14 to 17:32: gate N reviewed for the owner, and the plan gathered for the agent who builds
+
+Documents only: nothing built, no unit contacted.
+- **The inventory checked against the code** by a second agent, line by line, without the page's conclusions: about 215 numbers found, 34 entries (about 75 numbers) missing from `numbers.md`, 14 rows wrong in some attribute. All added or corrected (`numbers.md`, "The audit").
+- **Found by it:**
+  - a second of waiting before every verdict, in the staged loops too (`charge_mode.cpp:1135`);
+  - the Pico W keeps 1 row of a throw's recording against the Pico 2 W's 800;
+  - the console's series stays set after a refused start, and the next charge from any side takes it (read in the code, not tried);
+  - the frame's forecast holds 2.56 s of powder a tube and `pid_learnt`'s 1.28 s, a longer lag cut without a word;
+  - a tolerance of 0 and a profile with every speed 0 are accepted.
+- **The four decisions and three research items the page had left for the owner** decided from the record (`numbers.md`, "Decided in the review"): the coarse stop threshold kept beside the measured room; the fine figure's learning off until gate 3; the series' 600 gr the bench's; the spread multipliers rules; the starting figure, the 15 fine turns and the cup tests each tied to a gate with its cases.
+- **The README:** one build plan gathered from the approved gates, each number's gate named; the parameter register drafted, 18 rows, none approved; the three older plans moved word for word to `history.md`.
+- **Waiting:** the owner's approval of the register. Then N.2 at the desk.
