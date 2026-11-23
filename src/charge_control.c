@@ -469,7 +469,8 @@ static void feed(charge_control_t *c, real_t now_s) {
                 if (cal->backoff_gr != REAL(0.0)) {
                     real_t lag = stop_table(cal->coarse_stops, cal->coarse_stop_count, STOP_LAG, cal->coarse_gr_turn,
                                             cal->coarse_floor_rps);
-                    add_parcel(c, COARSE, now_s + lag, cal->backoff_gr);
+                    // Shaken off while it turns back: due once the turn back is over, and the lag
+                    add_parcel(c, COARSE, now_s + cal->backoff_s + lag, cal->backoff_gr);
                     c->unseen_gr += cal->backoff_gr;
                     c->coarse_unseen_gr += cal->backoff_gr;
                 }

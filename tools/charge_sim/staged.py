@@ -715,7 +715,8 @@ class Staged:
                     self.coarse_rps = -cal.backoff_speed_rps
                     if cal.backoff_gr != 0.0:
                         lag = table(self.coarse_lags, cal.coarse_floor_rps)
-                        self.parcels.append([now + lag, cal.backoff_gr, "coarse"])
+                        # shaken off while it turns back: due once the turn back is over, and the lag
+                        self.parcels.append([now + cal.backoff_s + lag, cal.backoff_gr, "coarse"])
                         self.unseen += cal.backoff_gr
                         self.coarse_unseen += cal.backoff_gr
                 if self.gate_coarse_s > 0.0:
