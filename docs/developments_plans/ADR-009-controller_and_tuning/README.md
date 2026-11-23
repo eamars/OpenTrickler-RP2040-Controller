@@ -68,6 +68,14 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 
 **Done:** gate 0 (the research on main), gate 1 (the controller in C, checked against its reference in CI), gate 2 (the controller in the charge, thrown on the Pico 2 W; its recordings through the API since 2026-11-23; `progress.md`), gate N (the documents, N.2 and N.3; N.2 proven on the Pico 2 W, 2026-11-23).
 
+**The order for the rest of ADR-009** (the owner, 2026-11-23, at gate F.2: "You don't need to build the feature right now. Leave it last before working on Pico W. Let the agent to work on the formal workflow first, then followed by the failure mode."):
+1. **The workflow first:** the main path, built and proven end to end on the Pico 2 W, through the gates below in their order: F.3 to F.5, gate 3 (the calibration job, with its cup step as planned), gates 4 and 5, gate 6.
+2. **Then the failure modes:** each gate's cases beyond its main path, and beyond F.1's safety, which is done and stays: faults, damaged or odd inputs, refusals, corner cases. They are one later phase, listed below ("Failure modes, after the workflow"), each with its gate of origin and its case. A case met while building a gate is added there, not built in the gate.
+3. **Then the cup's capacity** (sign-off item 17): the owner's requirement, the last step before the Pico W.
+4. **Then the Pico W:** its trimming, and gate 7.
+
+**Safety is not deferred:** a motor's bound, the cup's budget, and anything that keeps powder from pouring unbounded stays in the gate that needs it.
+
 **The guideline for every gate:** ADR-009 builds a general-purpose powder trickling controller, tuned on each user's own device.
 - **The bench unit is one user's unit.** What is measured on it (its scale, its tubes, its powders, its throws) shows what a calibration must measure, and checks that a mechanism works. It is never a rule, a default or a constant in the firmware.
 - **A number the controller uses is one of three things** (`numbers.md`, its classes and its test):
@@ -229,16 +237,15 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
     - the scale's lag and rest are assumed on the slow side, so an unknown scale errs short. Their values are found in the simulation on every stand-in scale, the pass written first: on none are a fresh powder's first three throws over more often than a calibrated unit's. The A&D's 0.9 s and 2.5 s go.
     - If no such values exist, or the figure's start is not enough, that is a finding for the owner, not a number to tune.
   - **One interval:** the scale's rhythm measured live (B2).
-  - **The forecast's window** covers the longest lag in the record, and a lag beyond it is said, never cut silently (C23).
+  - **The forecast's window** covers the longest lag in the record (C23). A lag beyond it, said and never cut silently, is a failure mode (below).
   - **The simulated scale teaches nothing.**
   - **C19 before a figure exists** (handed on by F.1, the manager, 2026-11-23): C19's bound is 0 turns with no figure, so as built at F.1 an uncalibrated throw would end "limit" at its first fine turn. Its form is decided here, with the learnt figure in hand: no powder covers a tube that shows nothing, and C19 applies once a figure exists.
-  - **Pass:** the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no fault); **an uncalibrated throw is not ended "limit" by C19 before a figure exists** (its case, in the simulation and on the unit); the slowest stand-in scale's lag kept whole; on the unit, a powder with no calibration thrown, and `charge_cycle`.
+  - **Pass:** the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no fault); **an uncalibrated throw is not ended "limit" by C19 before a figure exists** (its case, in the simulation and on the unit); on the unit, a powder with no calibration thrown, and `charge_cycle`. (The slowest stand-in scale's lag kept whole is the failure modes'.)
 - **F.5, one controller to the user.**
   - **Out of the API and the screens:** `controller` and `mode` (A18). The envelope is always on (C22).
   - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the bench's three leftovers that N.3 found without effect (C16's 0.4 s, D9's 0.2 gr, D10's 0.3 s); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
   - **On the console only, never stored, for the comparisons the gates ask:** today's loop, and the glide's pour.
   - **In:** the auto-tuner's switch, a setting of the unit (the register's row 1).
-  - **Owed from gate R, shown here or at gate 3, whichever first:** the event `setting` `dropped`, from a real-scale charge that writes a powder's record while that powder holds a staged write.
   - **Pass:** the API's index and schema, `menu_tour` and the web's pages carry no such choice; `api_check`, `settings_roundtrip`, `reach` pass; one ABBA on the rig, the controller against the glide's pour, meets the night's bars (settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer).
 
 ### Gate 3: the calibration as a job on the unit
@@ -257,12 +264,11 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
 - **The offer:** the PID values made from those (D19). The fine factor comes from this unit's measured trade of approach time against spread, the user's tolerance and the over budget of one in fifteen. Written to the profile on the user's yes.
 - **One study, its pass written first, on the job's own measurements:** the fine figure's learning, part of the auto-tuner or not, with one figure or two (C13, C15).
 - The PC's trial tool and its lag shift go (F8).
-- **Owed from gate R, unless F.5 showed it:** the event `setting` `dropped` (F.5's line).
 - **Pass, on the rig:**
   - its numbers against the PC trial's: grains a turn within 3%, each lag within 0.1 s;
   - on its own calibration, the offer taken: 25 throws at each tolerance meet gate 2's bar (within 0.02 gr at least 68% good with a median at most 13 s; within 0.04 gr at least 84% good);
   - one ABBA against the glide's pour meets the night's bars;
-  - under 15 minutes and 200 gr;
+  - under 15 minutes and 200 gr (at the user's tops the PC trial poured 243 gr, 2026-11-23: whether 200 gr holds or becomes a figure per cup is the cup capacity's step, sign-off item 17);
   - `verify_series.py` on its throws;
   - the yardstick (below) reached with no hand settings;
   - its recordings build a simulation record on the PC (`build_rig.py`).
@@ -281,7 +287,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - the servo gate tuned by eye (new: its design gate, "A gate: the servo gate tuned by eye" below, is taken with this one).
   - **a factory reset's offer of a backup first** (gate R, 2026-11-23): whether the API's reset requires a `backup` field, and how the screen and the web offer it, drawn here and built in gate 5, every client of the action together. Gate R makes the backup complete (it holds every record) and names it in the action's usage.
 - **Gate 5, the build:** every setting on both the screen and the web. The agent's writes: each checked against its bounds, backed up first, logged as the agent's, revertable, stored on the user's yes.
-- **Pass:** the mocks approved by the owner; the menu's baselines saved again; `menu_tour`, `reach`, `api_check` (the agent's actions among them: a write outside its bounds refused, a write reverted, the event log naming the agent) and `settings_roundtrip` pass.
+- **Pass:** the mocks approved by the owner; the menu's baselines saved again; `menu_tour`, `reach`, `api_check` (the agent's actions among them: a write, the event log naming the agent, the user's yes) and `settings_roundtrip` pass. (The agent's write outside its bounds refused, and a write reverted, are the failure modes'.)
 
 ### Gate 6: the migration shown, and today's loop gone
 
@@ -290,6 +296,27 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
 - An update from 2.0.3 on both units: every setting and profile kept (`rc_run.py settings --compare`), the notice and the prompt seen, a charge thrown before a calibration ending safely.
 - **The results bar** (sign-off item 11), its ABBA series written first: the controller against today's loop with the user's own settings, on the same unit.
 - Then today's loop's code is removed, and its numbers with it (E18, the 20 ms of E10).
+
+### Failure modes, after the workflow (the order's step 2)
+
+Each gate's cases beyond its main path, built and proven together once the workflow is proven end to end. F.1's safety is done and stays. Each with its gate of origin and its case; a case met while building a gate is added here.
+
+- **Gate R:** the event `setting` `dropped`, from a real-scale charge that writes a powder's record while that powder holds a staged write (owed since gate R).
+- **F.4:** a lag beyond the forecast's window, said and never cut silently; the slowest stand-in scale's lag kept whole (C23).
+- **Gate 3:** a calibration whose scale goes bad or missing mid-way (the A&D at the coarse tube's top, for one) stops and says so; a calibration stopped by the person, its part kept or dropped as gate 3 decides.
+- **Gate 5:** an agent's write outside its bounds refused; an agent's write reverted.
+- **Gate 4's mocks:** what the person sees for each end that is not a verdict (the cup lifted, no powder, a limit, a refused start).
+
+### The cup's capacity, declared at each calibration (the order's step 3; sign-off item 17)
+
+The owner, 2026-11-23: "BTW one more note to gate the ADR-009: not everyone has the cup that is able to hold 600gr. So the cup size must be specified at the time of calibration." Not built until the workflow and its failure modes are (the owner's order). Its scope, as the manager outlined it:
+- **It is no new mechanism:** api_v1.md already reserves "The cup" (`POST /api/v1/cup/ask {"capacity"}`, declared at the unit by a press, `poured` counted, 409 `cup_full`). It becomes a condition the calibration must meet.
+- **The calibration job never starts without a declared cup and its capacity,** given by the user at that calibration. Its pour is planned and bounded within that capacity, `poured` included.
+- **When a calibration needs more than the cup holds,** it says so before it starts: how much it will pour against the capacity. Then either it stops at the capacity and asks the person to empty the cup (a new cup declared by a press), or it is refused with the figure. The simpler of the two is chosen in this step, and why is written. It never pours past the capacity.
+- **The calibration's pass gains a case:** a small declared cup (100 gr, say) on the unit, the job stopping or asking before it would pass the capacity. Whether gate 3's 200 gr holds, or becomes a figure per cup, is said here.
+- **The mocks:** the capacity's entry in the calibration's cup step, on the 12864 and the web, and what the person sees when the cup fills.
+- **Its number:** the capacity is the job's input, given each time, as a target is. Whether the unit remembers the last one is a stored setting, a register row needing the owner's approval: offered at this step if it helps, never added unasked.
+- **The bench tools:** the 600 gr in `rc_run.py`'s cup check is the bench's cup capacity, and becomes `--cup-capacity` (600 by default), the same concept.
 
 ### Gate 7: the Pico W, a second powder, and the facility's proof
 
@@ -599,6 +626,10 @@ The owner, during ADR-008's phone checks: "I want you to consider a servo gate t
     - **The first attempt, deleted:** a "live document" of 2026-11-22 night held all of these and misled. Its lesson stands here: the overview describes the design, not a branch.
     - **Its outline is approved by the owner before it is written.** It changes only when the design changes, on the owner's word.
     - *Shown by:* the owner's approval of the outline, then of the overview.
+17. **Pour into the cup the user declares, never past its capacity** (the owner, 2026-11-23: "not everyone has the cup that is able to hold 600gr. So the cup size must be specified at the time of calibration"). Built last before the Pico W (the owner's order, in the build plan).
+    - The calibration job never starts without a declared cup and its capacity, given by the user at that calibration. Its pour is planned and bounded within the capacity, `poured` included.
+    - A calibration that needs more than the cup holds says so before it starts, with the figure. It stops at the capacity and asks for the cup emptied, or is refused, as its step decides. It never pours past the capacity.
+    - *Shown by:* a calibration on the unit with a small declared cup (100 gr, say), stopping or asking before it would pass the capacity; the mocks of the cup step approved by the owner.
 
 ### The yardstick: values found by hand on the bench unit
 

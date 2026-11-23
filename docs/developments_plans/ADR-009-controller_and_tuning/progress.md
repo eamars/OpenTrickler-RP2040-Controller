@@ -2433,3 +2433,15 @@ On the Pico 2 W, image 2.0.3-237 at `71d48c1`, the cup emptied by the owner befo
 6. **Shown on the bench unit only:** all of it, on the Pico 2 W.
 
 **Found, said:** with the owner's limits the bench unit's throws are over-heavy (7 of 10). That is the user's least of 0.1 rev/s holding the creep at four times its own, as the register's rule wants. F.5's ABBA measures the cost. Lowering the least is the owner's to choose, never a fix to make here.
+
+## 2026-11-23, 23:45: the owner's order for the rest, and the cup's capacity (documents only)
+
+- **The cup's capacity,** the owner: "BTW one more note to gate the ADR-009: not everyone has the cup that is able to hold 600gr. So the cup size must be specified at the time of calibration." Written as sign-off item 17, with its scope (the README's "The cup's capacity, declared at each calibration"). Not built.
+- **The order,** the owner: "You don't need to build the feature right now. Leave it last before working on Pico W. Let the agent to work on the formal workflow first, then followed by the failure mode." Written at the head of the build plan: the workflow (F.3 to F.5, gates 3 to 6), then the failure modes as one phase, then the cup's capacity, then the Pico W.
+- **Moved to the failure modes,** from the passes that named them:
+  - F.4's lag beyond the window (C23) and the slowest stand-in scale's lag;
+  - gate R's owed `setting dropped` event (from F.5 and gate 3);
+  - gate 5's refused and reverted agent writes;
+  - and, newly listed, gate 3's calibration on a failing scale, and gate 4's drawings of the ends that are not verdicts.
+- Safety is not deferred (motor bounds, the cup's budget).
+- `rc_run.py`'s `--cup-capacity` is the cup capacity step's, not built now.
