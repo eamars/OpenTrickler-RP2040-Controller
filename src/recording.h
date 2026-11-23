@@ -11,7 +11,7 @@
     no room to keep them between charges, when an update's poll needs nearly all the heap. A charge never waits on its
     recording: what the heap cannot give is not recorded, and the summary says so (samples_kept false).
 
-    Only the staged frame's throws are recorded; a throw of today's PID loop or of pid_learnt has none.
+    Only the staged frame's throws are recorded; a throw of today's PID loop has none.
 
     Written by the job task; read by the HTTP server's task and the console's, under the recording's own lock.
 */

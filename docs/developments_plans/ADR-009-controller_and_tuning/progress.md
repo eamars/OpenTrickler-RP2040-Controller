@@ -2841,3 +2841,62 @@ It does not say how they make the frame's numbers, and "a new mechanism goes to 
 - on the unit: a powder with no calibration thrown, and `charge_cycle`.
 
 **What it is not:** no change to a calibrated powder's path; no stored layout change; no new parameter (the assumed lag and rest are fixed numbers of the method, each with its row and its study as the reason).
+
+## 2026-11-24, 00:55: F.4, the manager's yes with its change; the checklist, the stand-in scales and the pass, before any change
+
+**The manager's change and conditions** (relayed after 00:46): until a tube's figure exists it runs at its least speed, and C19 does not apply to it; the stand-in scales named with their sources; the bound that ends a throw that keeps falling short shown.
+
+**The stand-in scales and where each comes from** (condition 1):
+- `measured`: the rig of record, `records/pico2w_ar2209_night.json`, the bench's A&D FX-300i with AR2209 on the Pico 2 W.
+- `late_small`, `holds`, `slow`, `slower` (`scales_like.py`): that record with its delays stretched. `holds` carries the owner's account of his G&G (four readings a second, each a quarter second old, a small change held 5 s), told, not measured.
+- `gng` and `strain` (`scale.py`'s `GNG_JJB` and `SLOW_STRAIN_GAUGE`, put on the record's tubes): another make's rhythm and filter, with their own digit (0.0154 gr). The file says of them: "Sets of estimates, made before any bench session and never measured".
+- **So no stand-in models another make from its own record or data sheet.** The assumed lag and rest found below are the stand-ins', which are the bench A&D's and two estimates. They are held at gate 7, as C25's are, and their rows say so.
+
+**The checklist:**
+1. **Numbers:** G1 to G10 go with `pid_learnt`. In: the assumed lag and rest (one row each, found by the study, held at gate 7); the turns that end an unfigured tube that shows nothing (C26, below). Nothing else.
+2. **A value from the bench unit:** none.
+3. **The test:** the stand-in scales above, two of them added to the studies' set.
+4. **A new parameter:** none.
+5. **Mechanisms, against predictions written first:** the cases below.
+6. **Shown on the bench unit only:** a powder with no calibration thrown, and `charge_cycle`.
+
+**The mechanism, within the approved points** (choices of mine marked):
+- **The learnt source** is a calibration made from no measurement: no figure, one stop for each tube carrying the assumed lag for every speed, no spread, no moves; its rules made by points 1 and 3 (the coarse room A6, the stop room a digit, the creep the fine least, the rest the assumed rest).
+- **The scale's part:** the digit and interval the unit record's when it holds them; else the digit is the smallest step between two readings the scale has shown since the start, and the interval its live rhythm. *Mine:* before the scale has shown any step, the digit is taken as the tolerance, the largest a charge may start with (A7's check), so the throw errs short.
+- **A figure is born in the throw** (point 2): until it exists, a tube's turns are counted but not forecast. Once at least 0.2 turn of it should have shown by the assumed lag (D17's least stretch) and the reading has risen past the noise, its figure is the rise over those turns, and its turns still on their way are forecast at it. *Mine:* in a throw that needs the coarse tube, the fine tube waits until the coarse figure is born, so the first rise is the coarse tube's alone; the fine figure is born on the rise after the coarse tube's powder has all shown.
+- **No powder before a figure** (F.1's item, held by the README): an unfigured tube that should have shown 1 turn (C26: five times the stretch that makes a figure; a tube pouring a third of its figure shows by 0.6 turn) with the reading not past the noise ends "no powder".
+- **What is learnt** (point 4): each figure, once born, counts as one throw's; at each first rest the fine figure is moved by `pid_learnt`'s rule (what landed after the fine stop over the turns then on their way, held to half and twice the figure, a stretch under 0.01 turn teaches nothing), kept for the charge in RAM.
+
+**Condition 2, a throw that keeps falling short:** with no moves, every rest short of the band goes back to the stream; each return counts against `most_moves` (8), and the throw ends "short" when they are spent. Before that the throw's time (C18, 120 s) and, once a figure exists, C19 bound it. The case `keeps_short` shows which ends it.
+
+**The pass** (each in the simulation, the reference and the C in lockstep, unless said):
+- `uncalibrated`: on every stand-in scale, 3 sessions of 5 throws each at 2, 10 and 30 gr from no figure, every throw ends good, over or short (no limit, cup or no powder), each tube inside the user's limits.
+- `study`: the assumed lag and rest are the shortest pair on a grid (lag 0.5 to 4 s, rest 2 to 8 s) at which on no stand-in scale a fresh powder's first three throws at 10 gr are over more often than a calibrated unit's on that scale, beyond the noise (two SDs of the difference of two shares, as `fallback_study.py` judges). If no pair passes, that is the owner's finding, not a number to tune.
+- `coarse_before_figure`: on every stand-in scale, the most the coarse tube poured before its figure was born, against A6's room (5 gr). Under it everywhere, it passes; past it anywhere is the owner's finding.
+- `c19_before_figure`: no uncalibrated throw ends "limit" by C19 before its fine figure exists (also on the unit).
+- `no_powder_before_figure`: an empty hopper (`sim flow 0`) on an uncalibrated powder ends "no powder", with nothing poured.
+- `keeps_short`: a throw whose powder falls to a third after its figure is born ends "short" or "good", by the bound shown, never past C18.
+- The throw-for-throw check of both sources (`check_firmware_controller.py` and the cases' own lockstep).
+- **On the unit:** a powder with no calibration thrown (3 throws at 10 gr, its cup budgeted), and `charge_cycle`.
+
+## 2026-11-24, 01:17: F.4's study: no assumed lag and rest pass; the method fails on the slowest stand-in even with its measured lag. The owner's finding; F.4 held
+
+**Built, at the desk** (local, not yet committed when this was written; the commit follows it):
+- **The learnt source,** in the reference (`staged.learnt_calibration`, `Staged`'s births and its learning) and in the C (`charge_control_learnt_calibration`, `births`, `learn_learnt`), as the 00:55 entry describes. **The C against the reference:** the rules equal on every stand-in; throw for throw, 72 of 72 sessions' throws with no difference (`f4_cases.lockstep_job`: one controller each for a whole session, the figures carried from throw to throw).
+- **`pid_learnt` gone:** `charge_pid_learnt.c/.h`, `cpid`, the controller's choice `pid_learnt` (a stored 2 is read as the staged controller), the C's PC copies (`firmware_pid.py`, `c/charge_pid_shim.c`, the `_fw` arms of `controllers.py`), `series.py`'s `--controller pid_learnt`. The Python model of the experiment (`legacy_pid.LearntPid`) is kept for the studies on record that use it.
+- **C19:** no bound for the learnt source until its fine figure is born (C26 covers a tube that shows nothing); a calibration with no figure keeps F.1's bound of no turn (F.1's `no_figure` case, which my first form broke, passes again).
+- **Found in passing and mended:** each throw set the controller's constants afresh (`cc->k = *charge_calibration_constants()`), which dropped what the charge's start had given it: the user's zero margin (F.1), each tube's limits, the back-off and the gate's move at the coarse stop (F.2, F.3). The rules were already made, so only the zero margin and the gate's hold were lost on the unit; both are now given at each throw.
+- **Not built:** the learnt source in the charge (a powder never calibrated is still refused), the scale's smallest step (B1). Held on the finding below.
+- **Unchanged:** `check_firmware_controller.py --throws 40 --logic-only` passes (every set's lockstep 40 of 40); `safety_cases.py`, `limits_cases.py`, `f3_cases.py` pass; the Pico 2 W image builds (`build_n2_2w`).
+
+**The study** (`f4_landscape.py`, `logs/adr009/f4/study_grid_10gr.txt`; 40 sessions a line, the first three throws of each from no figure, at 10 gr, tolerance 0.03): judged as written at 00:55, with one addition made before it was judged whole: a pair whose throws end otherwise than good, over or short fails, as the uncalibrated case asks. The first run judged the overs alone and "passed" lag 0.5 s, rest 4 s, where on `slow` 92 of 120 throws had ended "no powder": a lag shorter than the scale's makes F.1's no-powder test (C25) and C26 fire falsely.
+- **No pair of the grid (lag 0.5 to 4 s, rest 2 to 8 s) passes on every scale.** The nearest, lag 2 s and rest 6 s, passes on six of seven. On `slower` every pair is over more often than a calibrated unit there (34%), by 17 to 48 points against a bar of 12.
+- **The scale's own lag and rest do not mend it** (`scale_measured_10gr.txt`): given each scale's lag (its fine stops' longest) and rest as a calibration on that scale measures them, which gate 3's unit record would hold, `slower` is still over by 15 points (49% against 34%), and 5 of its 120 throws end "limit" at C18's 120 s. On `strain`, 1 throw of 120 ends "limit" by its time.
+- **The time:** a fresh powder's first throws take a median of 37 to 52 s at the measured lag, against a calibrated unit's 13 to 33 s on the same scale.
+
+**Why** (the broken invariant): a throw with no calibration cannot tell the scale's lag from the powder's figure, and the approved figure is the rise over the turns the assumed lag says have shown. Its error is the lag's error times the least speed over 0.2 turn: on the bench's record with a lag of 1 s the coarse figure was born at 15.3 gr a turn (it is 10.3); on `slower` with 3 s, at 25 to 35. A figure too high stops the coarse tube early and, through D12 (the coarse tube runs only for a target above A6's room and half a turn), keeps it off in every later throw below about 17 gr. The fine tube then pours the throw at its top, which is why the throws are long. The fine figure's learning (G9: what landed after the stop over the turns the lag says were on their way) carries the same error into the fine tube's figure. On the slowest stand-in this ends over even with the lag right, so it is the method, not the numbers alone.
+
+**So F.4's pass is not met, and by its own words this is the owner's finding, not a number to tune** (README, F.4; register row 16). The cases (`f4_cases.py`) and the unit's run are not run past it. Options for the owner, with the manager:
+1. **(Recommended) The learnt source only on a unit whose record holds its scale's lag and rest** (gate 3 measures them with the first calibration of any powder). A unit never calibrated refuses a charge as it does today, and says so; the first calibration is the way in. Then no assumed lag or rest exists (G1 goes as a number), and the learnt source serves its common case, a new powder on a calibrated unit. **What it does not mend:** `slower` with its measured lag is still 15 points over; the learnt source would be offered there with that cost said, or the method changed (option 3).
+2. **Keep an assumed pair, lag 2 s and rest 6 s,** the grid's nearest: within the bar on six stand-ins, 26 points over on `slower`, and a first throw near 40 to 50 s. A unit never calibrated pours, at that cost. It contradicts the pass as written.
+3. **Another way to the figure,** for the owner to approve before it is built: for one, the figure from the rise's rate over a stretch at the least speed, which needs no lag; it has its own error (the scale's filter at the stretch's start) and would need its own study.

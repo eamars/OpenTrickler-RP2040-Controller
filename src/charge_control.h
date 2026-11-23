@@ -127,6 +127,9 @@ typedef struct {
     charge_control_real_t backoff_s;
     charge_control_real_t backoff_gr;
     charge_control_real_t backoff_fallback;
+    // 1: the learnt source (gate F.4), made from no measurement for a powder never calibrated: each tube's figure 0
+    // until it is born in the throw, one stop for each tube carrying the scale's lag, no moves
+    uint8_t learnt;
 } charge_control_calibration_t;
 
 // The frame's constants: the research's values by default (charge_control_default_constants), tuned on the bench
@@ -280,6 +283,19 @@ typedef struct {
     charge_control_real_t pid_last_s;
     bool pid_first;
     bool pid_held[2];               // its last speed was held at a limit, the envelope's among them
+    // The learnt source (gate F.4): an unfigured tube's turns come due since its count began (its parcels hold
+    // turns until its figure is born), and the reading its count began at (the coarse tube's at the start, the fine
+    // tube's once the coarse tube's powder has all shown); the fine stop its learning reads; the throws its fine
+    // figure counts, its birth the first (kept from throw to throw)
+    charge_control_real_t shown_turns[2];
+    charge_control_real_t count_mark[2];
+    bool counting[2];
+    bool have_stop;
+    charge_control_real_t stop_reading;
+    charge_control_real_t stop_window_turns;
+    charge_control_real_t stop_coarse_unseen;
+    bool learnt_done;
+    uint16_t learnt_n;
 } charge_control_t;
 
 void charge_control_default_constants(charge_control_constants_t *k);
@@ -287,6 +303,17 @@ void charge_control_default_constants(charge_control_constants_t *k);
 // The controller's numbers from the measured ones, for one finish and band. Nothing here is fitted to a powder
 void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_finish_t finish, charge_control_real_t band_gr,
                               const charge_control_constants_t *k);
+
+/*
+    The learnt source (ADR-009, gate F.4): a calibration made from no measurement, for a powder never calibrated. No
+    figure (each is born in the throw), one stop for each tube carrying the scale's lag for every speed and its rest,
+    no spread, no small moves; its rules made within the user's limits in k: the coarse room the coarse stop threshold
+    (A6), the stop room a digit, the creep the fine least, the rest the scale's
+*/
+void charge_control_learnt_calibration(charge_control_calibration_t *cal, charge_control_real_t digit_gr,
+                                       charge_control_real_t interval_s, charge_control_real_t band_gr,
+                                       charge_control_real_t lag_s, charge_control_real_t rest_s,
+                                       const charge_control_constants_t *k);
 
 // The rehearsals' first errors at rest place the stop: the margins above it move with it
 void charge_control_place_stop(charge_control_calibration_t *cal, const charge_control_real_t *first_errors, uint16_t count);

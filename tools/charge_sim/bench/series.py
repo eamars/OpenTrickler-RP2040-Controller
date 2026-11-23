@@ -23,11 +23,10 @@ Usage, with the repository's venv:
         --finish glide --band 0.02 --target 10 --throws 25
     python series.py --repo ... --name dry --throws 2 ...          two throws first, to see it runs
 
-The PID with learning (ADR-009, the experiment of 2026-11-22 evening, research/pid_learning_2026-11-22.md):
-`--controller pid_learnt --gains <settings copy>` writes no calibration; the powder profile's PID settings are set
-live from a unit's settings copy (the owner's Pico W's: logs/adr009/picow_168_20261122/settings.json, its profile 1),
-and the profile and the charge settings are put back as stored at the end. `--cpid` sets its constants; its learnt
-figure is kept from charge to charge while the unit runs (`--cpid-reset` starts it afresh).
+`--gains <settings copy>` sets the powder profile's PID settings live from a unit's settings copy (the owner's Pico
+W's: logs/adr009/picow_168_20261122/settings.json, its profile 1), for the staged frame's PID law; the profile and
+the charge settings are put back as stored at the end. (`--controller pid_learnt`, the experiment of 2026-11-22
+evening, went with it at gate F.4.)
 """
 
 import argparse
@@ -109,17 +108,15 @@ def main() -> int:
     parser.add_argument("--board", default="pico2_w")
     parser.add_argument("--host", help="the unit's address: each throw's recording read through the API too")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--controller", choices=("staged", "pid_learnt"), default="staged")
-    parser.add_argument("--gains", type=Path, help="pid_learnt: a unit's settings copy whose powder profile's PID "
+    parser.add_argument("--controller", choices=("staged",), default="staged")
+    parser.add_argument("--gains", type=Path, help="a unit's settings copy whose powder profile's PID "
                         "settings are thrown with (live, never stored)")
     parser.add_argument("--gains-profile", type=int, default=1, help="the profile of that copy (the owner's AR2209: 1)")
     parser.add_argument("--profile", type=int, default=0, help="the bench unit's profile in use, to set and revert")
-    parser.add_argument("--cpid", default="", help="pid_learnt: its constants, `name=value ...` (never stored)")
-    parser.add_argument("--profile-set", default="", help="pid_learnt: profile fields over the copy's, `name=value ...` "
+    parser.add_argument("--profile-set", default="", help="profile fields over the copy's, `name=value ...` "
                         "(live, never stored), e.g. a coarse tube set from the calibration")
     parser.add_argument("--charge-set", default="", help="charge settings for the series, `name=value ...` (live, "
                         "never stored; put back at the end)")
-    parser.add_argument("--cpid-reset", action="store_true", help="pid_learnt: its learnt figure back to its prior")
     parser.add_argument("--calibration", type=Path,
                         help="a calibration in staged.to_json's shape, or a throw set with one under `calibration`")
     parser.add_argument("--errors-from", type=Path,
@@ -150,13 +147,8 @@ def main() -> int:
     if args.mode:
         args.finish, args.band = "glide", {"accurate": 0.02, "fast": 0.04}[args.mode]
 
-    pid = args.controller == "pid_learnt"
-    if pid and not args.mode:
-        args.mode, args.finish, args.band = "fast", "glide", 0.04
-    if not pid and args.calibration is None:
+    if args.calibration is None:
         parser.error("--calibration is needed for the staged controller")
-    if pid and args.gains is None:
-        parser.error("--gains is needed for pid_learnt")
     gains = {}
     if args.gains is not None:
         copy = json.loads(args.gains.read_text())["resources"][f"/api/v1/powder_profiles/{args.gains_profile}"]
@@ -165,7 +157,7 @@ def main() -> int:
             name, value = pair.split("=", 1)
             gains[name] = float(value)
     kept = json.loads(args.calibration.read_text()) if args.calibration else {"calibration": None}
-    cal = staged.from_json(kept.get("calibration", kept)) if not pid else None
+    cal = staged.from_json(kept.get("calibration", kept))
     if cal is not None and args.lag_shift:
         staged.shift_lags(cal, args.lag_shift)
     if cal is not None and args.coarse_gr_turn:
@@ -204,19 +196,12 @@ def main() -> int:
             return 1
         record["firmware"] = now.get("ver")
         # The calibration written, or the one stored kept, as the last charge left it (its carried first errors)
-        # The profile's PID settings from a copy, for pid_learnt or the staged frame's PID law (ccon speed_law=1).
+        # The profile's PID settings from a copy, for the staged frame's PID law (ccon speed_law=1).
         # A tube a line: the console takes no longer one
         profile_lines = [f"setting powder_profiles/{args.profile} " + " ".join(
             f"{name}={value:g}" for name, value in gains.items() if name.startswith(tube))
             for tube in ("coarse", "fine")] if gains else []
-        if pid:
-            lines = list(profile_lines)
-            if args.cpid_reset:
-                lines.append("cpid reset")
-            if args.cpid:
-                lines.append(f"cpid {args.cpid}")
-            lines.append("cpid")
-        elif args.keep_calibration:
+        if args.keep_calibration:
             lines = ["ccal load"] + profile_lines
         else:
             lines = calibration_commands(cal, errors, args.finish, args.band) + profile_lines
@@ -293,9 +278,6 @@ def main() -> int:
         session.send("setting settings/charge revert")     # the mode and the controller back as stored
         if gains:
             session.send(f"setting powder_profiles/{args.profile} revert")
-        if pid:
-            session.send("cpid")
-            record["cpid_after"] = list(session.console.data_lines)
         # Each throw's settled weight: the next one's base less its own
         throws = record["throws"]
         for i, entry in enumerate(throws):

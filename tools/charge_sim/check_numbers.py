@@ -25,7 +25,7 @@ REPO = Path(__file__).resolve().parents[2]
 HEADER = REPO / "src" / "charge_rules.h"
 NUMBERS = REPO / "docs" / "developments_plans" / "ADR-009-controller_and_tuning" / "numbers.md"
 FILES = ("charge_control.c", "charge_control.h", "charge_calibration.c", "charge_calibration.h", "charge_mode.cpp",
-         "charge_mode.h", "charge_pid_learnt.c", "charge_pid_learnt.h")
+         "charge_mode.h")
 FREE = ("0", "1")           # nothing and all, a flag, the first of a list
 NUMBER = re.compile(r"(?<![A-Za-z_0-9.])(0[xX][0-9a-fA-F]+|\d+\.?\d*(?:[eE][-+]?\d+)?)[fFuUlL]*(?![A-Za-z_0-9.])")
 
@@ -33,12 +33,12 @@ NUMBER = re.compile(r"(?<![A-Za-z_0-9.])(0[xX][0-9a-fA-F]+|\d+\.?\d*(?:[eE][-+]?
 ALLOWED = {
     "charge_control.c": {
         "1000": (2, "milliseconds in a second"),
-        "1e-06": (2, "F.3: the back-off measured as it is set, its turns and speed equal within a millionth (a float's tie)"),
+        "1e-06": (4, "F.3: the back-off measured as it is set, its turns and speed equal within a millionth (a float's tie); F.4: a sum of turns at a bound, the same"),
         "2": (11, "two tubes (arrays of 2); a median's middle; the middle of a parcel's stretch (numbers.md D24); half a digit, the band's edge from the tolerance (A7's conversion)"),
         "32": (2, "the most first errors place_stop takes: a size (B11)"),
     },
     "charge_control.h": {
-        "2": (10, "two tubes: arrays of 2"),
+        "2": (13, "two tubes: arrays of 2"),
         "256": (1, "CHARGE_CONTROL_PARCELS_MAX: a size, with its condition (C23)"),
         "3": (1, "CHARGE_CONTROL_MOVES: a size (B11)"),
         "4": (1, "CHARGE_CONTROL_COARSE_STOPS_MAX: a size (B11)"),
@@ -62,10 +62,10 @@ ALLOWED = {
         "3": (3, "the console's `ccal` fields by their place"),
         "4": (14, "the console's commands, by their words' lengths and their fields' places"),
         "5": (14, "the console's commands, by their words' lengths and their fields' places"),
-        "7": (8, "the console's commands, by their words' lengths"),
+        "7": (6, "the console's commands, by their words' lengths"),
         "10": (2, "a number read in base 10"),
         "8": (2, "the console's `ccal corrupt`: its word's length"),
-        "96": (2, "a console line's length"),
+        "96": (1, "a console line's length"),
         "160": (1, "a console line's length"),
         "200": (1, "a console line's length"),
     },
@@ -79,7 +79,7 @@ ALLOWED = {
         "0.02": (2, "A8's and A9's defaults, the zero's margins"),
         "0.25": (1, "A11's default, the back-off's turns"),
         "2": (3, "A12's default, the precharge's speed; an event's bit; the start check's code 2 (a top speed of 0)"),
-        "1000": (11, "milliseconds in a second; A12's default, the precharge's time; a target's three decimals"),
+        "1000": (8, "milliseconds in a second; A12's default, the precharge's time; a target's three decimals"),
         "100": (1, "a target's two decimals"),
         "10": (3, "a target's decimal digits"),
         "4": (1, "the last of a target's five digits"),
@@ -89,18 +89,10 @@ ALLOWED = {
         "30": (1, "the title's length"),
     },
     "charge_mode.h": {
-        "2": (2, "an enum's value"),
+        "2": (1, "an enum's value"),
         "3": (1, "an enum's value"),
         "4": (1, "an enum's value"),
         "8": (2, "the stored record's revision; a weight's text length"),
-    },
-    "charge_pid_learnt.c": {
-        "1000": (3, "milliseconds in a second"),
-        "0.001": (1, "a back-off shorter than a millisecond is none"),
-    },
-    "charge_pid_learnt.h": {
-        "128": (1, "CHARGE_PID_WINDOW_STEPS: a size (G10)"),
-        "0.01": (1, "CHARGE_PID_WINDOW_STEP_S: its counting step (G10)"),
     },
 }
 

@@ -58,7 +58,8 @@ def _types(real) -> tuple:
                                                  "coarse_glide_s", "rest_s", "fine_top_rps", "coarse_top_rps",
                                                  "coarse_floor_rps", "creep_rps", "backoff_unseen_gr",
                                                  "backoff_spread_gr", "backoff_turns", "backoff_rps",
-                                                 "backoff_speed_rps", "backoff_s", "backoff_gr", "backoff_fallback")])
+                                                 "backoff_speed_rps", "backoff_s", "backoff_gr", "backoff_fallback")]
+                    + [("learnt", ctypes.c_uint8)])
 
     class Constants(ctypes.Structure):
         _fields_ = ([(name, real) for name in (
@@ -122,6 +123,7 @@ class Library:
                 raise RuntimeError(f"firmware_controller's {name} does not match charge_control.h")
         cal_p, k_p = ctypes.POINTER(self.Calibration), ctypes.POINTER(self.Constants)
         lib.charge_control_set_rules.argtypes = [cal_p, ctypes.c_int, real, k_p]
+        lib.charge_control_learnt_calibration.argtypes = [cal_p, real, real, real, real, real, k_p]
         lib.charge_control_place_stop.argtypes = [cal_p, ctypes.POINTER(real), ctypes.c_uint16]
         lib.charge_control_init.argtypes = [ctypes.c_void_p, cal_p, k_p, real, ctypes.c_bool]
         lib.charge_control_start.argtypes = [ctypes.c_void_p, real, ctypes.c_uint32]
@@ -164,7 +166,8 @@ def library(double: bool = False) -> Library:
 def to_c(cal: staged.Calibration, double: bool = False):
     """A `staged.Calibration` as the firmware holds one, rules and all."""
     lib = library(double)
-    if len(cal.coarse_stops) > COARSE_STOPS_MAX or len(cal.fine_stops) > FINE_STOPS_MAX or len(cal.moves) != MOVES:
+    if (len(cal.coarse_stops) > COARSE_STOPS_MAX or len(cal.fine_stops) > FINE_STOPS_MAX
+            or len(cal.moves) not in ((0, MOVES) if cal.learnt else (MOVES,))):
         raise ValueError("the calibration has more stops or moves than the firmware holds")
     out = lib.Calibration(digit_gr=cal.digit_gr, interval_s=cal.interval_s, coarse_gr_turn=cal.coarse_gr_turn,
                           fine_gr_turn=cal.fine_gr_turn, coarse_stop_count=len(cal.coarse_stops),
@@ -178,7 +181,7 @@ def to_c(cal: staged.Calibration, double: bool = False):
                           backoff_unseen_gr=cal.backoff_unseen_gr, backoff_spread_gr=cal.backoff_spread_gr,
                           backoff_turns=cal.backoff_turns, backoff_rps=cal.backoff_rps,
                           backoff_speed_rps=cal.backoff_speed_rps, backoff_s=cal.backoff_s, backoff_gr=cal.backoff_gr,
-                          backoff_fallback=cal.backoff_fallback)
+                          backoff_fallback=cal.backoff_fallback, learnt=1 if cal.learnt else 0)
     for i, stop in enumerate(cal.coarse_stops):
         out.coarse_stops[i] = lib.Stop(stop.speed, stop.unseen_gr, stop.spread_gr, stop.quiet_s,
                                        -1.0 if stop.lag_s is None else stop.lag_s)
@@ -196,6 +199,21 @@ def rules_in_c(measured: staged.Calibration, finish: str, band_gr: float, double
     k = library(double).default_constants(limits)
     library(double).lib.charge_control_set_rules(ctypes.byref(cal), FINISHES[finish], band_gr, ctypes.byref(k))
     return {name: getattr(cal, name) for name in RULES}
+
+
+def learnt_in_c(digit_gr: float, interval_s: float, band_gr: float, lag_s: float, rest_s: float, double: bool = False,
+                limits=None) -> dict:
+    """The learnt source's calibration as the firmware makes it (charge_control_learnt_calibration, ADR-009 gate F.4):
+    its rules by name as `staged.set_rules` names them, and its stops' lag and quiet."""
+    lib = library(double)
+    cal = lib.Calibration()
+    k = lib.default_constants(limits)
+    lib.lib.charge_control_learnt_calibration(ctypes.byref(cal), digit_gr, interval_s, band_gr, lag_s, rest_s,
+                                              ctypes.byref(k))
+    out = {name: getattr(cal, name) for name in RULES}
+    out.update(learnt=cal.learnt, move_count=cal.move_count, coarse_lag=cal.coarse_stops[0].lag_s,
+               fine_lag=cal.fine_stops[0].lag_s, coarse_gr_turn=cal.coarse_gr_turn, fine_gr_turn=cal.fine_gr_turn)
+    return out
 
 
 class FirmwareStaged:

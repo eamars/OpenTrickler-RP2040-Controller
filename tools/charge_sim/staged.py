@@ -132,6 +132,22 @@ ZERO_MARGIN = 0.02             # A9 at its default: the harness gives the user's
 # simulation an ordinary throw had at most 6.6 of them due before a rise, a tube pouring a third of its figure in
 # clumps 19 (progress.md, 2026-11-23, F.1): half as many again
 NO_POWDER_RISES = 30.0
+# The learnt source (ADR-009, gate F.4): a powder with no calibration. A tube's figure is born in the throw once this
+# many of its turns should have shown by the assumed lag (D17's least stretch) and the reading has risen past the
+# noise; an unfigured tube that should have shown NO_FIGURE_TURNS with the reading not past the noise pours nothing
+# (C26: five times the stretch that makes a figure; a tube pouring a third of its figure shows by 0.6 turn)
+FIGURE_LEAST_TURNS = LEARN_FINE_LEAST_TURNS
+NO_FIGURE_TURNS = 1.0
+# The fine figure learnt at each first rest by `pid_learnt`'s rule (G9): what landed after the fine stop over the
+# turns then on their way, held to between these shares of the figure; a stop with fewer turns on their way teaches
+# nothing
+LEARNT_LEAST_TURNS = 0.01
+LEARNT_THROW_LEAST = 0.5
+LEARNT_THROW_MOST = 2.0
+# The scale's lag and rest a unit never calibrated assumes, one lag for every speed (F.4's study; held at gate 7: no
+# stand-in scale models another make from its own record)
+ASSUMED_LAG_S = 1.0
+ASSUMED_REST_S = 4.0
 
 
 @dataclass(frozen=True)
@@ -221,6 +237,7 @@ class Calibration:
     seconds: float = 0.0            # how long the calibration took, and the powder it poured
     poured_gr: float = 0.0
     first_errors: list = field(default_factory=list)
+    learnt: bool = False            # the learnt source (F.4): made from no measurement, its figures born in the throw
 
 
 def percentile(values: list, share: float) -> float:
@@ -461,6 +478,48 @@ def set_rules(cal: Calibration, finish: str, band_gr: float, limits: Limits = No
                      if stop.speed <= REST_FLOOR_TIMES * cal.floor_rps or stop is fine[0]) + REST_EXTRA_S
 
 
+def learnt_calibration(digit_gr: float, interval_s: float, band_gr: float, lag_s: float = None, rest_s: float = None,
+                       limits: Limits = None) -> Calibration:
+    """The learnt source (ADR-009, gate F.4): a calibration made from no measurement, for a powder never calibrated.
+
+    No figure (each is born in the throw), one stop for each tube carrying the scale's lag for every speed (the unit
+    record's when measured, else the assumed), no spread, no small moves. Its rules: the coarse room is the coarse stop
+    threshold (A6), the stop room a digit (the glide's aim), the creep the user's fine least, the rest the scale's.
+    """
+    limits = limits or sim_limits()
+    lag_s = ASSUMED_LAG_S if lag_s is None else lag_s
+    rest_s = ASSUMED_REST_S if rest_s is None else rest_s
+    cal = Calibration(digit_gr=digit_gr, interval_s=interval_s, coarse_gr_turn=0.0, fine_gr_turn=0.0,
+                      coarse_stops=[Stop(limits.coarse_least, 0.0, 0.0, rest_s, lag_s)],
+                      fine_stops=[Stop(limits.fine_least, 0.0, 0.0, rest_s, lag_s)], moves=[], learnt=True)
+    set_learnt_rules(cal, band_gr, limits)
+    return cal
+
+
+def set_learnt_rules(cal: Calibration, band_gr: float, limits: Limits = None) -> None:
+    """The learnt source's rules (F.4, point 3), within the user's limits: nothing measured but the scale's lag and
+    rest, so no measured speed bounds a tube, no spread widens a margin, and no move is made."""
+    limits = limits or sim_limits()
+    cal.finish, cal.band_gr = "glide", band_gr
+    cal.fine_top_rps = limits.fine_most
+    cal.coarse_top_rps = limits.coarse_most
+    cal.coarse_floor_rps = limits.coarse_least
+    cal.floor_rps = cal.creep_rps = limits.fine_least
+    cal.aim_gr = -max(cal.digit_gr, band_gr / 2.0)
+    cal.stop_room_gr = -cal.aim_gr
+    cal.glide_room_gr = cal.stop_room_gr
+    lag = cal.fine_stops[0].lag_s
+    cal.glide_s = min(GLIDE_MOST_S, max(GLIDE_LEAST_S, GLIDE_LAG_SHARE * lag))
+    cal.coarse_glide_s = min(COARSE_GLIDE_MOST_S, max(COARSE_GLIDE_LEAST_S, GLIDE_LAG_SHARE * cal.coarse_stops[0].lag_s))
+    cal.coarse_room_gr = limits.coarse_threshold_gr
+    cal.backoff_speed_rps = cal.backoff_s = cal.backoff_gr = cal.backoff_fallback = 0.0
+    if limits.backoff_turns > 0.0 and limits.backoff_rps > 0.0:
+        cal.backoff_speed_rps = limits.backoff_rps
+        cal.backoff_s = limits.backoff_turns / limits.backoff_rps
+        cal.backoff_fallback = 1.0      # no spill measured: the coarse room is A6's, as it is anyway
+    cal.rest_s = cal.fine_stops[0].quiet_s
+
+
 @dataclass(frozen=True)
 class PidLaw:
     """The PID speed law in the frame (ADR-009, the owner's option 2, 2026-11-22 night; an experiment).
@@ -492,6 +551,16 @@ def pid_law_from(cal: Calibration, fine_kp: float = 0.8, fine_ki: float = 0.0, f
     return PidLaw(coarse_kp=1.0 / (cal.coarse_gr_turn * cal.coarse_glide_s), coarse_ki=0.0, coarse_kd=0.0,
                   coarse_min_rps=COARSE_FLOOR_RPS, coarse_max_rps=COARSE_TOP_RPS, fine_kp=fine_kp, fine_ki=fine_ki,
                   fine_kd=fine_kd, fine_max_rps=fine_max_rps)
+
+
+def profile_pid(limits: Limits = None, coarse_kp: float = 0.05, coarse_kd: float = 0.3, fine_kp: float = 0.8,
+                fine_kd: float = 15.0) -> PidLaw:
+    """The PID law on a powder profile's own gains, within the user's limits: the learnt source's speed law (F.4).
+    By default the firmware's default AR2209 profile (`src/profile.c`, profile 1)."""
+    limits = limits or sim_limits()
+    return PidLaw(coarse_kp=coarse_kp, coarse_ki=0.0, coarse_kd=coarse_kd, coarse_min_rps=limits.coarse_least,
+                  coarse_max_rps=limits.coarse_most, fine_kp=fine_kp, fine_ki=0.0, fine_kd=fine_kd,
+                  fine_max_rps=limits.fine_most)
 
 
 def pid_offer(cal: Calibration) -> PidLaw:
@@ -539,6 +608,7 @@ class Staged:
         self.gate_coarse_s = 0.0        # the gate's travel for its move at the coarse stop (A10, A17): the caller's
         # per throw: (the error at the rest after its last stream, moves made, times it went back to the stream)
         self.log = []
+        self.learnt_n = 0               # the learnt source: the throws its fine figure counts, its birth the first
 
     def start(self, target_gr: float, now_ms: float) -> None:
         cal = self.cal
@@ -594,6 +664,18 @@ class Staged:
         self.pid_held = {"coarse": False, "fine": False}  # its last speed was held at a limit (the envelope's too)
         self.pid_last_s = now_ms / 1000.0
         self.pid_first = True
+        # The learnt source (F.4): an unfigured tube's turns due since its count began, and the reading it began at
+        # (the coarse tube's at the start; the fine tube's once the coarse tube's powder has all shown); the fine
+        # stop that its learning reads (the reading, the turns then on their way, the coarse tube's powder unseen)
+        self.shown_turns = {"coarse": 0.0, "fine": 0.0}
+        self.count_mark = {"coarse": 0.0, "fine": None}
+        self.coarse_birth = None        # (s since the start, the reading, the forecast) when the coarse figure was born
+        self.have_stop = False
+        self.stop_reading = self.stop_window_turns = self.stop_coarse_unseen = 0.0
+        self.learnt_done = False
+
+    def _figured(self, tube: str) -> bool:
+        return (self.cal.coarse_gr_turn if tube == "coarse" else self.cal.fine_gr_turn) > 0.0
 
     def _room(self) -> float:
         """The room the stream is poured against: the target less the forecast, and less three spreads of the coarse
@@ -630,7 +712,11 @@ class Staged:
             if tube == "coarse" and self.backoff_until is not None:
                 continue        # turned back at its stop, a tube pours nothing (F.3)
             if turned > 0.0:
-                if tube == "fine" and self.fine_form == "split":
+                if gr_turn <= 0.0:
+                    # no figure yet (the learnt source): its turns, forecast once its figure is born
+                    self.parcels.append([turned_out_at + table(lags, self.speed[tube]), turned, tube])
+                    continue
+                if tube == "fine" and self.fine_form == "split" and not cal.learnt:
                     gr_turn = cal.fine_gr_turn if self.window_reading is not None else self.fine_gr_stream
                 grains = gr_turn * turned
                 self.parcels.append([turned_out_at + table(lags, self.speed[tube]), grains, tube])
@@ -685,8 +771,10 @@ class Staged:
         if self.backoff_until is not None and now >= self.backoff_until - TIE_S:
             self.backoff_until = None
             self.coarse_rps = 0.0
+        # with no figure the bound is no turn (F.1); the learnt source's, before its figure is born, none: no powder
+        # covers a tube that shows nothing (C26, F.4)
         fine_most = (FINE_MOST_TIMES * self.target / self.cal.fine_gr_turn + self.moved_turns
-                     if self.cal.fine_gr_turn > 0.0 else 0.0)
+                     if self.cal.fine_gr_turn > 0.0 else math.inf if self.cal.learnt else 0.0)
         if now - self.started_at > THROW_MOST_S or self.turned["fine"] > fine_most:
             self._stop_all("limit", self.reading)
             return
@@ -721,6 +809,9 @@ class Staged:
                         self.coarse_unseen += cal.backoff_gr
                 if self.gate_coarse_s > 0.0:
                     self.hold_until = now + self.gate_coarse_s
+            elif not self._figured("coarse"):
+                # no figure yet (the learnt source): its least speed until one is born (F.4)
+                self.coarse_rps = self.glide_rps["coarse"] = cal.coarse_floor_rps
             else:
                 glide = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
                 self.glide_rps["coarse"] = min(cal.coarse_top_rps, max(cal.coarse_floor_rps, glide))
@@ -737,9 +828,20 @@ class Staged:
             self.fine_rps = 0.0
             if self.coarse_unseen >= cal.digit_gr:
                 return      # a pause, not its stop: the fine tube's stop is taken on its own powder alone
+            if cal.learnt and not self.have_stop and self._figured("fine"):
+                # the learnt source's fine stop, for its learning at the rest: the turns on their way now
+                self.have_stop = True
+                self.stop_reading = self.reading
+                self.stop_window_turns = self._fine_unseen_turns()
+                self.stop_coarse_unseen = self.coarse_unseen
             self.phase = "rest"
             self.stopped_at = now
             self.wait = cal.rest_s
+            return
+        if not self._figured("fine"):
+            # no figure yet (the learnt source): its least speed, after the coarse tube's figure where it runs (F.4)
+            waits = self.coarse_on and not self._figured("coarse")
+            self.fine_rps = self.glide_rps["fine"] = 0.0 if waits else cal.floor_rps
             return
         glide = (room - cal.glide_room_gr) / (cal.fine_gr_turn * cal.glide_s)
         self.glide_rps["fine"] = min(cal.fine_top_rps, max(cal.floor_rps, glide))
@@ -773,14 +875,19 @@ class Staged:
         # still due is its figure's error, not a tube that pours nothing (the coarse tube's varies by its share)
         due_gr, first_due = 0.0, None
         turning = {"coarse": self.coarse_rps > 0.0, "fine": self.fine_rps > 0.0}
+        figured = {"coarse": self._figured("coarse"), "fine": self._figured("fine")}
         if self.parcels:                # what was due to show by now is in this reading
             for parcel in self.parcels:
-                if parcel[0] <= now + TIE_S and turning[parcel[2]]:
-                    due_gr += parcel[1]
-                    first_due = parcel[0] if first_due is None else min(first_due, parcel[0])
+                if parcel[0] <= now + TIE_S:
+                    if not figured[parcel[2]]:
+                        # an unfigured tube's turns (the learnt source): counted as shown once its count has begun
+                        if self.count_mark[parcel[2]] is not None:
+                            self.shown_turns[parcel[2]] += parcel[1]
+                    elif turning[parcel[2]]:
+                        due_gr += parcel[1]
+                        first_due = parcel[0] if first_due is None else min(first_due, parcel[0])
             self.parcels = [parcel for parcel in self.parcels if parcel[0] > now + TIE_S]
-            self.unseen = sum(parcel[1] for parcel in self.parcels)
-            self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse")
+            self._sum_unseen()
         noise = self.zero_margin + NOISE_DIGITS * cal.digit_gr
         # the cup lifted: a reading below the throw's base by more than the scale's noise. Both tubes stop at once
         if weight < -noise:
@@ -789,6 +896,8 @@ class Staged:
         # far over, in the user's terms: the tolerance is the band and half a digit (A7's conversion)
         if weight > self.target + OVER_TOLERANCES * (cal.band_gr + cal.digit_gr / 2.0):
             self._stop_all("limit", weight)
+            return
+        if cal.learnt and self._births(now, weight, noise):
             return
         # no powder: the forecast's powder due and not shown, while a tube turns in the stream
         if self.phase != "feed" or weight > self.powder_mark + noise:
@@ -817,7 +926,13 @@ class Staged:
         weight = self.highest if REST_ON == "highest" else self.lowest
         short = self.target - weight
         tries_left = self.moves + self.streams < MOST_MOVES
-        if not self.rehearsal and tries_left and short - self.stop_room > cal.moves[-1].mean_gr:
+        if cal.learnt and not self.learnt_done:
+            self.learnt_done = True     # the learnt source learns at the first rest, whatever follows it (G9)
+            self._learn_learnt(weight)
+        edge = cal.band_gr + BAND_EDGE_DIGITS * cal.digit_gr
+        # with no small moves (the learnt source) every rest short of the band goes back to the stream
+        back = short - self.stop_room > cal.moves[-1].mean_gr if cal.moves else short > edge
+        if not self.rehearsal and tries_left and back:
             # Short by more than the stream's own stop margin and the largest small move together: the stream
             # would pour more from this rest than that move gives, so back to the stream, by the same law.
             # Whatever made the forecast stop the tubes early (it counted a fast coarse stream twice on the
@@ -851,6 +966,56 @@ class Staged:
         self.moved_turns += move.turns
         self.move_until = now + move.turns / MOVE_RPS
         self.wait = move.wait_s
+
+    def _sum_unseen(self) -> None:
+        """The forecast's powder on its way: the parcels of each tube with a figure (an unfigured tube's are turns)."""
+        figured = {"coarse": self._figured("coarse"), "fine": self._figured("fine")}
+        self.unseen = sum(parcel[1] for parcel in self.parcels if figured[parcel[2]])
+        self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse" and figured["coarse"])
+
+    def _births(self, now: float, weight: float, noise: float) -> bool:
+        """The learnt source's figures (F.4): each tube's born from the rise over its turns shown, once enough have
+        shown; one that showed nothing for NO_FIGURE_TURNS pours nothing. The fine tube's count begins once the coarse
+        tube's powder has all shown. True when the throw ended."""
+        cal = self.cal
+        if (self.count_mark["fine"] is None and not self._figured("fine") and not self.coarse_on
+                and self.backoff_until is None and not any(parcel[2] == "coarse" for parcel in self.parcels)):
+            self.count_mark["fine"] = weight
+        for tube in ("coarse", "fine"):
+            if self._figured(tube) or self.count_mark[tube] is None:
+                continue
+            rise = weight - self.count_mark[tube]
+            if self.shown_turns[tube] >= FIGURE_LEAST_TURNS - 1e-6 and rise > noise:
+                figure = rise / self.shown_turns[tube]
+                for parcel in self.parcels:
+                    if parcel[2] == tube:
+                        parcel[1] *= figure     # its turns on their way, forecast at the figure
+                if tube == "coarse":
+                    cal.coarse_gr_turn = figure
+                    self._sum_unseen()
+                    self.coarse_birth = (now - self.started_at, weight, weight + self.unseen)
+                else:
+                    cal.fine_gr_turn = self.fine_gr_measured = self.fine_gr_stream = figure
+                    self.learnt_n = 1
+                    self._sum_unseen()
+            elif self.shown_turns[tube] >= NO_FIGURE_TURNS - 1e-6:
+                self._stop_all("no_powder", weight)
+                return True
+        return False
+
+    def _learn_learnt(self, at_rest: float) -> None:
+        """The learnt source's fine figure at a throw's first rest, by `pid_learnt`'s rule (G9): what landed after the
+        fine stop over the turns then on their way, held to half and twice the figure, into the throws' running mean."""
+        cal = self.cal
+        if not self.have_stop or self.stop_window_turns < LEARNT_LEAST_TURNS or cal.fine_gr_turn <= 0.0:
+            return
+        figure = cal.fine_gr_turn
+        seen = (at_rest - self.stop_reading - self.stop_coarse_unseen) / self.stop_window_turns
+        seen = min(LEARNT_THROW_MOST * figure, max(LEARNT_THROW_LEAST * figure, seen))
+        share = max(LEARN_SHARE, 1.0 / (self.learnt_n + 1))
+        cal.fine_gr_turn = figure + share * (seen - figure)
+        self.fine_gr_measured = self.fine_gr_stream = cal.fine_gr_turn
+        self.learnt_n += 1
 
     def precharge(self, grains: float, speed_rps: float, now_ms: float) -> None:
         """The precharge's powder held by the closed gate (A12, F.3), given after start(): it falls when the gate

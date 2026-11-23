@@ -18,15 +18,12 @@ from workers import Workers
 NIGHT_CASES = (
     ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
     ("PID learnt, least 0.1 (the rig's)", "lpid_rig_fast", LOOSE_TOLERANCE_GR),
-    ("PID learnt, least 0.1, the unit's C", "lpid_rig_fw_fast", LOOSE_TOLERANCE_GR),
     ("PID learnt, least speed learnt", "lpid_floor_fast", LOOSE_TOLERANCE_GR),
-    ("PID learnt, least speed learnt, C", "lpid_floor_fw_fast", LOOSE_TOLERANCE_GR),
 )
 COARSE_CASES = (
     ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),
     ("PID learnt, least speed learnt", "lpid_floor_fast", LOOSE_TOLERANCE_GR),
     ("PID, coarse from the calibration", "lpid_coarse_fast", LOOSE_TOLERANCE_GR),
-    ("PID, coarse from the calibration, C", "lpid_coarse_fw_fast", LOOSE_TOLERANCE_GR),
 )
 FRAME_CASES = (
     ("glide, fast (0.04)", "glide_loose", LOOSE_TOLERANCE_GR),

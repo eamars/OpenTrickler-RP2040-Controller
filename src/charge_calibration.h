@@ -17,7 +17,6 @@
 #include <stdint.h>
 
 #include "charge_control.h"
-#include "charge_pid_learnt.h"
 #include "charge_rules.h"
 #include "remote_control.h"
 
@@ -104,19 +103,11 @@ float charge_calibration_base_stop_room(void);
 // Whether it holds one a throw may use, for a start's refusal
 bool charge_calibration_held(uint8_t profile);
 
-// The PID with learning's constants (an experiment, ADR-009, 2026-11-22 evening): its defaults, set by `cpid` until a
-// restart
-const charge_pid_constants_t *charge_pid_constants(void);
-// Its learnt figure for a powder profile: kept while the unit runs, started afresh when another profile is thrown
-charge_pid_learning_t *charge_pid_learning(uint8_t profile);
-
-// The console's `ccal ...`, `ccon ...` and `cpid ...`
+// The console's `ccal ...` and `ccon ...`
 void charge_calibration_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                 void *write_ctx);
 void charge_constants_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                               void *write_ctx);
-void charge_pid_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
-                        void *write_ctx);
 
 #ifdef __cplusplus
 }

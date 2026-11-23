@@ -56,8 +56,6 @@
                                                 //   the charge gives the controller the user's own
 #define CHARGE_RULE_OVER_TOLERANCES 100.0      // C20, tolerances: a reading this many of the user's tolerance over the
                                                 //   target stops all (3 at the default 0.03), in the scale's unit
-#define CHARGE_RULE_OVER_MOST_GR 3.0            // C20's old form, the scale's unit: only the PID-learnt experiment's
-                                                //   (charge_pid_learnt.c), which goes at F.4
 #define CHARGE_RULE_SPEED_LAW 0                 // C21: 0 the glide pours, 1 the PID law. A choice that goes at F.5
 #define CHARGE_RULE_PID_ENVELOPE 1              // C22: the frame's guard on the PID law. Always on from F.5
 
@@ -136,16 +134,18 @@
 #define CHARGE_DRIVER_CHECK_MS 100              // E17, ms: a motor driver's fault is looked for this often in a throw
 #define CHARGE_LEGACY_READING_WAIT_MS 200       // E18, ms: today's loop waits this long for a reading. Goes with it (gate 6)
 
-// --- The experiment of a PID on a learnt forecast (section G): folded into the frame or gone at F.4 ----------------
-#define CHARGE_PID_RULE_LAG_S 0.9               // G1, s: the fine tube's powder shows this long after its turn. The bench's
-#define CHARGE_PID_RULE_REST_S 2.5              // G1, s: the least wait from a stop to its verdict. The bench's
-#define CHARGE_PID_RULE_GR_TURN_PRIOR 2.0       // G2, the scale's unit a turn: the figure a fresh powder starts from. The bench's
-#define CHARGE_PID_RULE_COARSE_QUIET_S 1.0      // G3, s: the coarse tube's powder has landed this long after its stop
-#define CHARGE_PID_RULE_FLOOR_LEAST_RPS 0.02    // G3, rev/s: the learnt least speed never under this
-#define CHARGE_PID_RULE_COARSE_LAG_S 0.6        // G3, s: the coarse tube's lag, when its powder is forecast
-#define CHARGE_PID_RULE_DIGIT_GR 0.02           // G4, the scale's unit: the scale's digit. The bench's
-#define CHARGE_PID_RULE_LEARN_LEAST_TURNS 0.01  // G9, turns: a stop whose window held fewer teaches nothing
-#define CHARGE_PID_RULE_LEARN_THROW_LEAST 0.5   // G9: a throw's figure is held between this share of the learnt one
-#define CHARGE_PID_RULE_LEARN_THROW_MOST 2.0    // G9: and this
+// --- The learnt source: a powder never calibrated (section G; ADR-009, gate F.4) -----------------------------------
+#define CHARGE_RULE_ASSUMED_LAG_S 1.0           // G1, s: the scale's lag a unit never calibrated would assume, for every
+                                                //   speed. F.4's study found no value that holds on every stand-in scale:
+                                                //   the owner's finding. Unused by the charge until the owner decides
+#define CHARGE_RULE_ASSUMED_REST_S 4.0          // G1, s: and its rest, the wait from the fine stop to the verdict
+#define CHARGE_RULE_FIGURE_LEAST_TURNS 0.2      // G2, turns: a tube's figure is born once this many of its turns should
+                                                //   have shown by the lag and the reading has risen past the noise
+                                                //   (D17's least stretch)
+#define CHARGE_RULE_NO_FIGURE_TURNS 1.0         // C26, turns: an unfigured tube that should have shown this many with
+                                                //   the reading not past the noise pours nothing: no powder
+#define CHARGE_RULE_LEARNT_LEAST_TURNS 0.01     // G9, turns: a fine stop with fewer turns on their way teaches nothing
+#define CHARGE_RULE_LEARNT_THROW_LEAST 0.5      // G9: what a throw shows is held between this share of the figure
+#define CHARGE_RULE_LEARNT_THROW_MOST 2.0       // G9: and this
 
 #endif  // CHARGE_RULES_H_

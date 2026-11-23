@@ -201,6 +201,43 @@ void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_
 }
 
 
+void charge_control_learnt_calibration(charge_control_calibration_t *cal, real_t digit_gr, real_t interval_s,
+                                       real_t band_gr, real_t lag_s, real_t rest_s, const charge_control_constants_t *k) {
+    memset(cal, 0, sizeof(*cal));
+    cal->digit_gr = digit_gr;
+    cal->interval_s = interval_s;
+    cal->coarse_stop_count = 1;
+    cal->fine_stop_count = 1;
+    cal->coarse_stops[0] = (charge_control_stop_t) {k->coarse_least_rps, REAL(0.0), REAL(0.0), rest_s, lag_s};
+    cal->fine_stops[0] = (charge_control_stop_t) {k->fine_least_rps, REAL(0.0), REAL(0.0), rest_s, lag_s};
+    cal->backoff_unseen_gr = -REAL(1.0);
+    cal->backoff_spread_gr = -REAL(1.0);
+    cal->learnt = 1;
+    // Its rules (point 3): nothing measured but the scale's lag and rest, so no measured speed bounds a tube, no
+    // spread widens a margin, and no move is made
+    cal->finish = (uint8_t) CHARGE_CONTROL_FINISH_GLIDE;
+    cal->band_gr = band_gr;
+    cal->fine_top_rps = k->fine_most_rps;
+    cal->coarse_top_rps = k->coarse_most_rps;
+    cal->coarse_floor_rps = k->coarse_least_rps;
+    cal->floor_rps = cal->creep_rps = k->fine_least_rps;
+    cal->aim_gr = -max_f(digit_gr, band_gr * REAL(CHARGE_RULE_AIM_BAND_SHARE));
+    cal->stop_room_gr = -cal->aim_gr;
+    cal->glide_room_gr = cal->stop_room_gr;
+    cal->glide_s = min_f(REAL(CHARGE_RULE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_GLIDE_LEAST_S),
+                                                              REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * lag_s));
+    cal->coarse_glide_s = min_f(REAL(CHARGE_RULE_COARSE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_COARSE_GLIDE_LEAST_S),
+                                                                            REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * lag_s));
+    cal->coarse_room_gr = k->coarse_threshold_gr;
+    if (k->user_backoff_turns > REAL(0.0) && k->user_backoff_rps > REAL(0.0)) {
+        cal->backoff_speed_rps = k->user_backoff_rps;
+        cal->backoff_s = k->user_backoff_turns / k->user_backoff_rps;
+        cal->backoff_fallback = REAL(1.0);      // no spill measured: the coarse room is A6's, as it is anyway
+    }
+    cal->rest_s = rest_s;
+}
+
+
 static int compare_float(const void *a, const void *b) {
     real_t x = *(const real_t *) a;
     real_t y = *(const real_t *) b;
@@ -319,6 +356,20 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     }
     c->pid_last_s = REAL(0.0);
     c->pid_first = true;
+    for (int tube = COARSE; tube <= FINE; tube++) {
+        c->shown_turns[tube] = REAL(0.0);
+        c->count_mark[tube] = REAL(0.0);
+    }
+    c->counting[COARSE] = true;     // the coarse tube's count from the start's reading, the base
+    c->counting[FINE] = false;
+    c->have_stop = false;
+    c->stop_reading = c->stop_window_turns = c->stop_coarse_unseen = REAL(0.0);
+    c->learnt_done = false;
+}
+
+
+static bool figured(const charge_control_t *c, int tube) {
+    return (tube == COARSE ? c->cal.coarse_gr_turn : c->cal.fine_gr_turn) > REAL(0.0);
 }
 
 
@@ -380,8 +431,13 @@ static void make_parcel(charge_control_t *c, real_t now_s) {
             real_t lag = tube == COARSE
                 ? stop_table(cal->coarse_stops, cal->coarse_stop_count, STOP_LAG, gr_turn, c->speed[tube])
                 : stop_table(cal->fine_stops, cal->fine_stop_count, STOP_LAG, gr_turn, c->speed[tube]);
+            if (!(gr_turn > REAL(0.0))) {
+                // No figure yet (the learnt source): its turns, forecast once its figure is born (gate F.4)
+                add_parcel(c, tube, turned_out_at + lag, turned);
+                continue;
+            }
             // The split: a fine turn before the stretch counts at the stream's figure (ADR-009, 2026-11-22)
-            if (tube == FINE && c->k.learn_fine_split > REAL(0.0) && !c->window_open) {
+            if (tube == FINE && c->k.learn_fine_split > REAL(0.0) && !c->window_open && !cal->learnt) {
                 gr_turn = c->fine_gr_stream;
             }
             real_t grains = gr_turn * turned;
@@ -415,6 +471,16 @@ void charge_control_moved(charge_control_t *c, uint32_t now_ms) {
     if (c->phase == CHARGE_CONTROL_PHASE_MOVE) {
         end_move(c, since_start_s(c, now_ms));
     }
+}
+
+
+// The fine tube's turns whose powder has not shown yet: its parcels on their way
+static real_t fine_unseen_turns(const charge_control_t *c) {
+    real_t grains = REAL(0.0);
+    for (uint16_t i = 0; i < c->parcel_count[FINE]; i++) {
+        grains += c->parcels[FINE][i].grains;
+    }
+    return grains / c->cal.fine_gr_turn;
 }
 
 
@@ -479,6 +545,10 @@ static void feed(charge_control_t *c, real_t now_s) {
                 c->hold_until_s = now_s + k->gate_coarse_s;
             }
         }
+        else if (!figured(c, COARSE)) {
+            // No figure yet (the learnt source): its least speed until one is born (gate F.4)
+            c->coarse_rps = c->glide_rps[COARSE] = cal->coarse_floor_rps;
+        }
         else {
             real_t glide = (room - cal->coarse_room_gr) / (cal->coarse_gr_turn * cal->coarse_glide_s);
             c->glide_rps[COARSE] = min_f(cal->coarse_top_rps, max_f(cal->coarse_floor_rps, glide));
@@ -502,9 +572,22 @@ static void feed(charge_control_t *c, real_t now_s) {
         if (c->coarse_unseen_gr >= REAL(CHARGE_RULE_PAUSE_COARSE_DIGITS) * cal->digit_gr) {
             return;     // a pause, not its stop: the fine tube's stop is taken on its own powder alone
         }
+        if (cal->learnt && !c->have_stop && figured(c, FINE)) {
+            // The learnt source's fine stop, for its learning at the rest: the turns on their way now
+            c->have_stop = true;
+            c->stop_reading = c->reading;
+            c->stop_window_turns = fine_unseen_turns(c);
+            c->stop_coarse_unseen = c->coarse_unseen_gr;
+        }
         c->phase = CHARGE_CONTROL_PHASE_REST;
         c->stopped_at_s = now_s;
         c->wait_s = cal->rest_s;
+        return;
+    }
+    if (!figured(c, FINE)) {
+        // No figure yet (the learnt source): its least speed, after the coarse tube's figure where it runs (F.4)
+        bool waits = c->coarse_on && !figured(c, COARSE);
+        c->fine_rps = c->glide_rps[FINE] = waits ? REAL(0.0) : cal->floor_rps;
         return;
     }
     real_t glide = (room - cal->glide_room_gr) / (cal->fine_gr_turn * cal->glide_s);
@@ -567,14 +650,15 @@ void charge_control_tick(charge_control_t *c, uint32_t now_ms) {
         make_parcel(c, now_s);
         c->marks++;
     }
-    // C19: a multiple of the turns the target needs at the figure in use, and the moves'; with no figure, none
-    real_t fine_most = c->cal.fine_gr_turn > REAL(0.0) ?
-                       k->fine_most_times * c->target_gr / c->cal.fine_gr_turn + c->moved_turns : REAL(0.0);
+    // C19: a multiple of the turns the target needs at the figure in use, and the moves'; with no figure, none (F.1).
+    // The learnt source's before its figure is born: no bound, no powder covers a tube that shows nothing (C26, F.4)
+    bool fine_bounded = c->cal.fine_gr_turn > REAL(0.0) || !c->cal.learnt;
+    real_t fine_most = fine_bounded ? k->fine_most_times * c->target_gr / c->cal.fine_gr_turn + c->moved_turns : REAL(0.0);
     if (c->backoff_until_s >= REAL(0.0) && now_s >= c->backoff_until_s - TIE_S) {
         c->backoff_until_s = -REAL(1.0);
         c->coarse_rps = REAL(0.0);
     }
-    if (now_s > k->throw_most_s || c->turned[FINE] > fine_most) {
+    if (now_s > k->throw_most_s || (fine_bounded && c->turned[FINE] > fine_most)) {
         stop_all(c, CHARGE_CONTROL_RESULT_LIMIT, c->reading);
         return;
     }
@@ -601,15 +685,6 @@ static const charge_control_move_t *move_for(const charge_control_t *c, real_t s
 }
 
 
-// A share of the first error at rest moves where the fine tube stops: capped, and nothing from a small one
-// The fine tube's turns whose powder has not shown yet: its parcels on their way
-static real_t fine_unseen_turns(const charge_control_t *c) {
-    real_t grains = REAL(0.0);
-    for (uint16_t i = 0; i < c->parcel_count[FINE]; i++) {
-        grains += c->parcels[FINE][i].grains;
-    }
-    return grains / c->cal.fine_gr_turn;
-}
 
 
 // The fine tube's stretch begins at the first reading at which it is slowing, the coarse tube quiet if it ran
@@ -706,6 +781,66 @@ static void learn(charge_control_t *c) {
 }
 
 
+/*
+    The learnt source's figures (gate F.4): each tube's born from the rise over its turns shown, once enough have shown;
+    one that showed nothing for CHARGE_RULE_NO_FIGURE_TURNS pours nothing. The fine tube's count begins once the coarse
+    tube's powder has all shown. True when the throw ended
+*/
+static bool births(charge_control_t *c, real_t weight, real_t noise) {
+    charge_control_calibration_t *cal = &c->cal;
+    if (!c->counting[FINE] && !figured(c, FINE) && !c->coarse_on && c->backoff_until_s < REAL(0.0) &&
+        c->parcel_count[COARSE] == 0) {
+        c->counting[FINE] = true;
+        c->count_mark[FINE] = weight;
+    }
+    for (int tube = COARSE; tube <= FINE; tube++) {
+        if (figured(c, tube) || !c->counting[tube]) {
+            continue;
+        }
+        real_t rise = weight - c->count_mark[tube];
+        if (c->shown_turns[tube] >= REAL(CHARGE_RULE_FIGURE_LEAST_TURNS) - REAL(1e-6) && rise > noise) {
+            real_t figure = rise / c->shown_turns[tube];
+            for (uint16_t i = 0; i < c->parcel_count[tube]; i++) {
+                c->parcels[tube][i].grains *= figure;       // its turns on their way, forecast at the figure
+                c->unseen_gr += c->parcels[tube][i].grains;
+                if (tube == COARSE) {
+                    c->coarse_unseen_gr += c->parcels[tube][i].grains;
+                }
+            }
+            if (tube == COARSE) {
+                cal->coarse_gr_turn = figure;
+            }
+            else {
+                cal->fine_gr_turn = c->fine_gr_measured = c->fine_gr_stream = figure;
+                c->learnt_n = 1;
+            }
+        }
+        else if (c->shown_turns[tube] >= REAL(CHARGE_RULE_NO_FIGURE_TURNS) - REAL(1e-6)) {
+            stop_all(c, CHARGE_CONTROL_RESULT_NO_POWDER, weight);
+            return true;
+        }
+    }
+    return false;
+}
+
+
+// The learnt source's fine figure at a throw's first rest, by the rule of the experiment it replaces (G9): what
+// landed after the fine stop over the turns then on their way, held to half and twice the figure, into the throws'
+// running mean
+static void learn_learnt(charge_control_t *c, real_t at_rest) {
+    if (!c->have_stop || c->stop_window_turns < REAL(CHARGE_RULE_LEARNT_LEAST_TURNS) || !(c->cal.fine_gr_turn > REAL(0.0))) {
+        return;
+    }
+    real_t figure = c->cal.fine_gr_turn;
+    real_t seen = (at_rest - c->stop_reading - c->stop_coarse_unseen) / c->stop_window_turns;
+    seen = min_f(REAL(CHARGE_RULE_LEARNT_THROW_MOST) * figure, max_f(REAL(CHARGE_RULE_LEARNT_THROW_LEAST) * figure, seen));
+    real_t share = max_f(c->k.learn_share, REAL(1.0) / (real_t) (c->learnt_n + 1));
+    c->cal.fine_gr_turn = figure + share * (seen - figure);
+    c->fine_gr_measured = c->fine_gr_stream = c->cal.fine_gr_turn;
+    c->learnt_n++;
+}
+
+
 void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight) {
     const charge_control_calibration_t *cal = &c->cal;
     const charge_control_constants_t *k = &c->k;
@@ -730,12 +865,21 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
         c->coarse_unseen_gr = REAL(0.0);
         for (int tube = COARSE; tube <= FINE; tube++) {
             uint16_t kept = 0;
+            bool has_figure = figured(c, tube);
             for (uint16_t i = 0; i < c->parcel_count[tube]; i++) {
                 if (c->parcels[tube][i].due_s > now_s + TIE_S) {
                     c->parcels[tube][kept++] = c->parcels[tube][i];
-                    c->unseen_gr += c->parcels[tube][i].grains;
-                    if (tube == COARSE) {
-                        c->coarse_unseen_gr += c->parcels[tube][i].grains;
+                    if (has_figure) {
+                        c->unseen_gr += c->parcels[tube][i].grains;
+                        if (tube == COARSE) {
+                            c->coarse_unseen_gr += c->parcels[tube][i].grains;
+                        }
+                    }
+                }
+                // An unfigured tube's turns (the learnt source): counted as shown once its count has begun
+                else if (!has_figure) {
+                    if (c->counting[tube]) {
+                        c->shown_turns[tube] += c->parcels[tube][i].grains;
                     }
                 }
                 // A stopped tube's powder still due is its figure's error, not a tube that pours nothing
@@ -758,6 +902,9 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     // Far over, in the user's terms: the tolerance is the band and half a digit (A7's conversion)
     if (weight > c->target_gr + k->over_tolerances * (cal->band_gr + cal->digit_gr / REAL(2.0))) {
         stop_all(c, CHARGE_CONTROL_RESULT_LIMIT, weight);
+        return;
+    }
+    if (cal->learnt && births(c, weight, noise)) {
         return;
     }
     // No powder: the forecast's powder due and not shown, while a tube turns in the stream
@@ -795,7 +942,15 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     real_t at_rest = c->lowest;
     real_t short_gr = c->target_gr - at_rest;
     bool tries_left = c->moves + c->streams < k->most_moves;
-    if (!c->rehearsal && tries_left && short_gr - c->stop_room_gr > cal->moves[cal->move_count - 1].mean_gr) {
+    if (cal->learnt && !c->learnt_done) {
+        c->learnt_done = true;      // the learnt source learns at the first rest, whatever follows it (G9)
+        learn_learnt(c, at_rest);
+    }
+    real_t band_edge = cal->band_gr + BAND_EDGE_DIGITS * cal->digit_gr;
+    // With no small moves (the learnt source) every rest short of the band goes back to the stream
+    bool back = cal->move_count > 0 ? short_gr - c->stop_room_gr > cal->moves[cal->move_count - 1].mean_gr
+                                    : short_gr > band_edge;
+    if (!c->rehearsal && tries_left && back) {
         // Short by more than the stream's own stop margin and the largest small move together: back to the
         // stream, by the same law. Nothing is learnt from such a rest
         c->streams++;
@@ -810,7 +965,6 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
         learn(c);
         learn_fine(c, at_rest);
     }
-    real_t band_edge = cal->band_gr + BAND_EDGE_DIGITS * cal->digit_gr;
     if (c->rehearsal || short_gr <= band_edge || !tries_left) {
         charge_control_result_t result = CHARGE_CONTROL_RESULT_GOOD;
         if (at_rest - c->target_gr > band_edge) {

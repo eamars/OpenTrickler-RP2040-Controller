@@ -22,8 +22,6 @@ static const setting_choice_t decimal_places_choices[] = {
 static const setting_choice_t controller_choices[] = {
     {.held = CHARGE_CONTROLLER_STAGED, .text = "staged", .label = "Staged (calibrated)", .short_label = "Staged"},
     {.held = CHARGE_CONTROLLER_PID, .text = "pid", .label = "PID (the profile's gains)", .short_label = "PID"},
-    {.held = CHARGE_CONTROLLER_PID_LEARNT, .text = "pid_learnt", .label = "PID, learning (no calibration)",
-     .short_label = "PID learn"},
 };
 
 
