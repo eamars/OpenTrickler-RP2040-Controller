@@ -97,6 +97,8 @@ const char *events_reason_name(event_reason_t reason) {
         case EVENT_REASON_WRONG_PASSWORD: return "wrong_password";
         case EVENT_REASON_TIMEOUT: return "timeout";
         case EVENT_REASON_FAILED: return "failed";
+        case EVENT_REASON_CUP_LIFTED: return "cup_lifted";
+        case EVENT_REASON_NO_POWDER: return "no_powder";
         case EVENT_REASON_NONE:
         default: return "none";
     }

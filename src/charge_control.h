@@ -64,6 +64,8 @@ typedef enum {
     CHARGE_CONTROL_RESULT_OVER,         // at rest above the band
     CHARGE_CONTROL_RESULT_SHORT,        // at rest below the band with no tries left
     CHARGE_CONTROL_RESULT_LIMIT,        // ended by a limit: too long, too many fine turns, far over
+    CHARGE_CONTROL_RESULT_CUP,          // a reading below the base: the cup lifted (ADR-009, gate F.1)
+    CHARGE_CONTROL_RESULT_NO_POWDER,    // the powder forecast did not show: an empty hopper, a jammed tube
 } charge_control_result_t;
 
 // A tube's stops from one speed: what still arrived after them (mean, spread) and when the reading was still
@@ -136,7 +138,9 @@ typedef struct {
     uint8_t most_moves;             // tries a throw is given after its first rest
     // Limits of the firmware's own, not the research's: a throw that passes one ends with CHARGE_CONTROL_RESULT_LIMIT
     charge_control_real_t throw_most_s;
-    charge_control_real_t fine_most_turns;
+    charge_control_real_t fine_most_times;          // C19: of the fine turns the target needs at its figure
+    charge_control_real_t zero_margin_gr;           // the user's zero mean margin (A9): the scale's noise is it and
+                                                    // two digits (the cup test, no powder)
     charge_control_real_t over_tolerances;          // a reading this many tolerances over the target stops everything
     // The speed law (ADR-009, the owner's option 2, 2026-11-22 night; an experiment): 0 the glide's; 1 the PID law,
     // today's PID loop on the frame's forecast with the gains in charge_control_t's pid, everything else the frame's
@@ -221,6 +225,13 @@ typedef struct {
     charge_control_real_t move_until_s;
     uint8_t moves;
     uint8_t streams;                // times a rest far short sent the throw back to the stream
+    charge_control_real_t moved_turns;              // the small moves' turns asked for: C19 adds them to its bound
+    // No powder: the reading at the last rise counted, the forecast powder due since, and when the first of it was
+    // due (below zero: none); and the longest lag the calibration measured
+    charge_control_real_t powder_mark;
+    charge_control_real_t due_since_mark_gr;
+    charge_control_real_t first_due_s;
+    charge_control_real_t longest_lag_s;
     bool have_first_error;
     charge_control_real_t first_error_gr;
     // The fine tube's stretch, its learning's: from its slowing, the coarse tube quiet if it ran, to the first rest

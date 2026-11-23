@@ -57,7 +57,8 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->still_least_s = REAL(CHARGE_RULE_STILL_LEAST_S);
     k->most_moves = CHARGE_RULE_MOST_MOVES;
     k->throw_most_s = REAL(CHARGE_RULE_THROW_MOST_S);
-    k->fine_most_turns = REAL(CHARGE_RULE_FINE_MOST_TURNS);
+    k->fine_most_times = REAL(CHARGE_RULE_FINE_MOST_TIMES);
+    k->zero_margin_gr = REAL(CHARGE_RULE_ZERO_MARGIN_DEFAULT);
     k->over_tolerances = REAL(CHARGE_RULE_OVER_TOLERANCES);
     k->speed_law = CHARGE_RULE_SPEED_LAW;
     k->pid_envelope = CHARGE_RULE_PID_ENVELOPE;
@@ -252,6 +253,17 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     c->move_turns = -REAL(1.0);
     c->moves = 0;
     c->streams = 0;
+    c->moved_turns = REAL(0.0);
+    c->powder_mark = REAL(0.0);
+    c->due_since_mark_gr = REAL(0.0);
+    c->first_due_s = -REAL(1.0);
+    c->longest_lag_s = REAL(0.0);
+    for (uint8_t i = 0; i < cal->coarse_stop_count; i++) {
+        c->longest_lag_s = max_f(c->longest_lag_s, stop_lag_s(&cal->coarse_stops[i], cal->coarse_gr_turn));
+    }
+    for (uint8_t i = 0; i < cal->fine_stop_count; i++) {
+        c->longest_lag_s = max_f(c->longest_lag_s, stop_lag_s(&cal->fine_stops[i], cal->fine_gr_turn));
+    }
     c->have_first_error = false;
     c->first_error_gr = REAL(0.0);
     c->rest_weight = REAL(0.0);
@@ -486,7 +498,10 @@ void charge_control_tick(charge_control_t *c, uint32_t now_ms) {
         make_parcel(c, now_s);
         c->marks++;
     }
-    if (now_s > k->throw_most_s || c->turned[FINE] > k->fine_most_turns) {
+    // C19: a multiple of the turns the target needs at the figure in use, and the moves'; with no figure, none
+    real_t fine_most = c->cal.fine_gr_turn > REAL(0.0) ?
+                       k->fine_most_times * c->target_gr / c->cal.fine_gr_turn + c->moved_turns : REAL(0.0);
+    if (now_s > k->throw_most_s || c->turned[FINE] > fine_most) {
         stop_all(c, CHARGE_CONTROL_RESULT_LIMIT, c->reading);
         return;
     }
@@ -634,6 +649,8 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     c->lowest = min_f(c->lowest, weight);
     c->reading = weight;
     c->have_reading = true;
+    real_t due_gr = REAL(0.0);          // what came due with this reading, and the earliest of it
+    real_t first_due_s = -REAL(1.0);
     if (c->parcel_count[COARSE] || c->parcel_count[FINE]) {
         // What was due to show by now is in this reading
         c->unseen_gr = REAL(0.0);
@@ -648,13 +665,44 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
                         c->coarse_unseen_gr += c->parcels[tube][i].grains;
                     }
                 }
+                // A stopped tube's powder still due is its figure's error, not a tube that pours nothing
+                else if ((tube == COARSE ? c->coarse_rps : c->fine_rps) > REAL(0.0)) {
+                    due_gr += c->parcels[tube][i].grains;
+                    if (first_due_s < REAL(0.0) || c->parcels[tube][i].due_s < first_due_s) {
+                        first_due_s = c->parcels[tube][i].due_s;
+                    }
+                }
             }
             c->parcel_count[tube] = kept;
         }
     }
+    real_t noise = k->zero_margin_gr + REAL(CHARGE_RULE_NOISE_DIGITS) * cal->digit_gr;
+    // The cup lifted: a reading below the throw's base by more than the scale's noise. Both tubes stop at once
+    if (weight < -noise) {
+        stop_all(c, CHARGE_CONTROL_RESULT_CUP, weight);
+        return;
+    }
     // Far over, in the user's terms: the tolerance is the band and half a digit (A7's conversion)
     if (weight > c->target_gr + k->over_tolerances * (cal->band_gr + cal->digit_gr / REAL(2.0))) {
         stop_all(c, CHARGE_CONTROL_RESULT_LIMIT, weight);
+        return;
+    }
+    // No powder: the forecast's powder due and not shown, while a tube turns in the stream
+    if (c->phase != CHARGE_CONTROL_PHASE_FEED || weight > c->powder_mark + noise) {
+        c->powder_mark = weight;
+        c->due_since_mark_gr = REAL(0.0);
+        c->first_due_s = -REAL(1.0);
+    }
+    else if (due_gr > REAL(0.0)) {
+        c->due_since_mark_gr += due_gr;
+        if (c->first_due_s < REAL(0.0)) {
+            c->first_due_s = first_due_s;
+        }
+    }
+    if (c->phase == CHARGE_CONTROL_PHASE_FEED && (c->coarse_rps > REAL(0.0) || c->fine_rps > REAL(0.0)) &&
+        c->due_since_mark_gr > REAL(CHARGE_RULE_NO_POWDER_RISES) * noise && c->first_due_s >= REAL(0.0) &&
+        now_s - c->first_due_s > c->longest_lag_s + TIE_S) {
+        stop_all(c, CHARGE_CONTROL_RESULT_NO_POWDER, weight);
         return;
     }
     open_window(c, now_s, weight);
@@ -703,6 +751,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     c->phase = CHARGE_CONTROL_PHASE_MOVE;
     c->fine_rps = k->move_rps;
     c->move_turns = move->turns;
+    c->moved_turns += move->turns;
     c->move_until_s = now_s + move->turns / k->move_rps;
     c->wait_s = move->wait_s;
 }
@@ -714,6 +763,8 @@ const char *charge_control_result_string(charge_control_result_t result) {
         case CHARGE_CONTROL_RESULT_OVER: return "over";
         case CHARGE_CONTROL_RESULT_SHORT: return "short";
         case CHARGE_CONTROL_RESULT_LIMIT: return "limit";
+        case CHARGE_CONTROL_RESULT_CUP: return "cup";
+        case CHARGE_CONTROL_RESULT_NO_POWDER: return "no_powder";
         default: return "none";
     }
 }

@@ -67,6 +67,9 @@ typedef enum {
     EVENT_REASON_WRONG_PASSWORD,
     EVENT_REASON_TIMEOUT,
     EVENT_REASON_FAILED,
+    // Why a throw of the staged controller ended its charge (ADR-009, gate F.1)
+    EVENT_REASON_CUP_LIFTED,    // a reading below the base by more than the scale's noise
+    EVENT_REASON_NO_POWDER,     // the powder the tubes turned out did not show
 } event_reason_t;
 
 // A throw's verdict (api_v1.md's `result`)

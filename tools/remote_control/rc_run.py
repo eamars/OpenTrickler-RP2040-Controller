@@ -54,6 +54,12 @@ OPENOCD_DIR = PICO_SDK_ROOT / "openocd" / VERSIONS["OPENOCD"]
 # setup_toolchain.ps1's folder for the compiler: 15_2_Rel1 for Arm's 15.2.rel1, as the VS Code extension names it
 TOOLCHAIN_BIN = PICO_SDK_ROOT / "toolchain" / VERSIONS["ARM_GCC"].replace(".", "_").replace("rel", "Rel") / "bin"
 LOG_DIR = REPO / "logs" / "rc"
+# The cup (the owner, 2026-11-23): the hopper stays filled, and a simulated charge, a purge and the pulses pour real
+# powder. Every command that can turn a motor reads the real scale first, refuses a run whose most pour would take the
+# cup past this, reads it again after, and writes both into the ledger
+CUP_MOST_GR = 600.0
+CUP_LEDGER = REPO / "logs" / "adr009" / "cup_ledger.csv"
+CUP_EMPTIED_GR = 20.0           # a reading this far below the ledger's last: the cup was emptied between runs
 
 # reset: the writes that make the watchdog reset the whole chip, as watchdog_reboot() does: scratch 4 cleared
 # (a normal boot), every power domain but the oscillators selected, then the trigger. openocd's own `reset run`
@@ -3554,11 +3560,22 @@ class Session:
                 self.fail("(a) the step pulses ran on after a reset through the probe")
             self.wait_for_console()
 
+        # A case whose test image did not flash is skipped: the image running would never fault, and the coarse tube
+        # would pour until the next flash (2026-11-23: 286 gr into the cup from two stale test images)
+        def flashed_ok(elf):
+            before = len(self.failures)
+            self.flash(elf)
+            if len(self.failures) > before:
+                self.console.command("motor coarse 0")
+                self.log.write("rc", f"pulses: {elf} did not flash; its case is skipped")
+                return False
+            return True
+
         # (b) a failed assert enters the USB loader
-        self.flash(assert_elf)
+        assert_flashed = flashed_ok(assert_elf)
         flashed = time.monotonic()
         self.console.expect_fault = True
-        if start_coarse("assert"):
+        if assert_flashed and start_coarse("assert"):
             time.sleep(max(0.0, flashed + 13 - time.monotonic()))
             stopped = not pulsing()
             self.log.write("rc", f"(b) assert: pulses {'stopped' if stopped else 'RUNNING'}")
@@ -3567,9 +3584,9 @@ class Session:
         self.console.expect_fault = False
 
         # (c) a hard fault: its handler stops the motors before the core halts
-        self.flash(hardfault_elf)
+        hardfault_flashed = flashed_ok(hardfault_elf)
         flashed = time.monotonic()
-        if start_coarse("hard fault"):
+        if hardfault_flashed and start_coarse("hard fault"):
             time.sleep(max(0.0, flashed + 13 - time.monotonic()))
             stopped = not pulsing()
             self.log.write("rc", f"(c) hard fault: pulses {'stopped' if stopped else 'RUNNING'}")
@@ -4076,6 +4093,97 @@ class Session:
         else:
             self.update_state(self.elf, CONSOLE_TIMEOUT_S)
 
+    def cup_reading(self):
+        """
+        The real scale's reading, the simulated one switched off for it (never while a charge runs).
+
+        Returns:
+            The weight, or None when the scale gives no number (nan, inf, no reply).
+        """
+        state = self.console.command("state") or ""
+        # a charge a run left going (charge_cycle ends at the next one's start) is stopped first: the run is over
+        for _ in range(20):
+            if " charge=0" in state or " charge=" not in state:
+                break
+            self.console.command("charge stop")
+            time.sleep(0.5)
+            state = self.console.command("state") or ""
+        if " sim=1" in state and " charge=0" in state:
+            self.console.command("sim off")
+            time.sleep(1.0)
+            state = self.console.command("state") or ""
+        match = re.search(r" weight=(\S+)", state)
+        if match is None or " sim=1" in state:
+            return None
+        try:
+            weight = float(match.group(1))
+        except ValueError:
+            return None
+        return weight if math.isfinite(weight) else None
+
+    def cup_before(self, command, most, unchecked):
+        """
+        The cup read before a run that can turn a motor.
+
+        Args:
+            command: the run, as the ledger names it.
+            most: the most the run pours, in grains.
+            unchecked: the reason given with --no-cup-check, or None.
+
+        Returns:
+            (may the run go, the reading before or None).
+        """
+        weight = self.cup_reading()
+        if weight is None:
+            if unchecked:
+                self.cup_ledger(command, None, None, most, f"no reading; unchecked: {unchecked}")
+                return True, None
+            self.fail("cup: the real scale gives no reading; a run that turns a motor is refused (--no-cup-check "
+                      "<reason> to run it all the same)")
+            return False, None
+        last = self.cup_last()
+        if last is not None and weight < last - CUP_EMPTIED_GR:
+            self.cup_ledger("(between runs)", last, weight, 0.0, "emptied")
+        self.log.write("rc", f"cup: {weight:.2f} gr before {command}, its most pour {most:.0f} gr")
+        if weight + most > CUP_MOST_GR:
+            self.fail(f"cup: {weight:.2f} + {most:.0f} > {CUP_MOST_GR:.0f}, empty the cup")
+            self.cup_ledger(command, weight, None, most, "refused")
+            return False, weight
+        return True, weight
+
+    def cup_after(self, command, before, most):
+        """The cup read after the run, into the ledger."""
+        weight = self.cup_reading()
+        self.log.write("rc", f"cup: {weight} gr after {command}")
+        self.cup_ledger(command, before, weight, most, "")
+
+    @staticmethod
+    def cup_last():
+        """The ledger's last reading, or None."""
+        if not CUP_LEDGER.exists():
+            return None
+        for line in reversed(CUP_LEDGER.read_text(encoding="utf-8").splitlines()[1:]):
+            fields = line.split(",")
+            for value in (fields[3], fields[2]):
+                try:
+                    return float(value)
+                except ValueError:
+                    continue
+        return None
+
+    @staticmethod
+    def cup_ledger(command, before, after, most, note):
+        """One line of the ledger: the clock's time, the run, the reading before and after, its most, a note."""
+        CUP_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        new = not CUP_LEDGER.exists()
+        with CUP_LEDGER.open("a", encoding="utf-8") as ledger:
+            if new:
+                ledger.write("time,command,before_gr,after_gr,most_gr,note\n")
+            text = lambda value: "" if value is None else f"{value:.2f}"
+            ledger.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')},{command.replace(',', ';')},"
+                         f"{text(before)},"
+                         f"{text(after)},{most:.0f},{note.replace(',', ';')}\n")
+
     def finish(self):
         """
         Check the cores, stop openocd, print the verdict.
@@ -4104,6 +4212,9 @@ def main():
     parser = argparse.ArgumentParser(description="Drive a unit through a debug probe (ADR-001).")
     parser.add_argument("--board", choices=sorted(BOARDS), default="pico_w")
     parser.add_argument("--elf", help="the ELF on the unit (default: the board's build)")
+    parser.add_argument("--most-pour", type=float, help="the most this run may pour, in grains (default: the run's own)")
+    parser.add_argument("--no-cup-check", metavar="REASON",
+                        help="run with no reading of the real scale, for this reason (written into the ledger)")
     sub = parser.add_subparsers(dest="command", required=True)
     send_parser = sub.add_parser("send", help="send command lines, one after another; `pause <seconds>` waits")
     send_parser.add_argument("lines", nargs="+")
@@ -4214,13 +4325,73 @@ def main():
 
     session = Session(args, args.command)
     try:
-        run_command(session, args)
+        most = args.most_pour if args.most_pour is not None else cup_most(args)
+        if most is None:
+            run_command(session, args)
+        else:
+            go, before = session.cup_before(cup_name(args), most, args.no_cup_check)
+            if go:
+                try:
+                    run_command(session, args)
+                finally:
+                    session.cup_after(cup_name(args), before, most)
     except Exception:
         # A run that raises fails with its traceback in the log, and still stops its openocd, which would otherwise
         # hold the probe and the Tcl port for the next session (ADR-004)
         session.log.write("rc", traceback.format_exc().rstrip())
         session.fail(f"rc_run raised: {traceback.format_exc().strip().splitlines()[-1]}")
     sys.exit(session.finish())
+
+
+# A send's lines that turn a motor
+SEND_POURS = re.compile(r"^(charge \d|charge [.\d]|motor (coarse|fine) [^0]|cleanup|purge)")
+
+
+def cup_most(args):
+    """
+    The most a run pours by its own figures, in grains; None for a run that turns no motor.
+
+    Each is from the run's own arguments, with room for its rest and its end: a charge's target and the start of the
+    next, the pulses' 12 s at 1 rev/s on both tubes, a purge's turns.
+    """
+    command = args.command
+    if command == "charge_cycle":
+        return 2.0 * args.target + 10.0
+    if command == "recordings_check":
+        return (2 * args.throws + 1) * args.target
+    if command == "pulses":
+        # The coarse tube at 1 rev/s in each of its three cases, up to 13 s in two: 30 turns when a fault does not
+        # stop it, at 12 gr a turn (the bench's tube poured 9.5: 286 gr, 2026-11-23)
+        return 30 * 12.0
+    if command == "api_check":
+        return args.target + 40.0       # a charge started and stopped, and a purge
+    if command == "settings_roundtrip":
+        return args.target + 10.0       # a throw, for the write refused during it
+    if command == "soak":
+        return math.ceil(args.seconds / 12.0) * args.target
+    if command == "charge_fault":
+        return args.repeat * args.target + 40.0
+    if command == "reach":
+        return 40.0                     # a simulated charge's screens while it zeroes and between throws
+    if command == "scale_frames":
+        return 10.0 * args.motors
+    if command == "send":
+        lines = [line for line in args.lines if SEND_POURS.match(line)]
+        if not lines:
+            return None
+        most = 0.0
+        for line in lines:
+            words = line.split()
+            most += float(words[1]) + 10.0 if words[0] == "charge" else 100.0
+        return most
+    return None
+
+
+def cup_name(args):
+    """The run as the ledger names it."""
+    if args.command == "send":
+        return "send " + "; ".join(args.lines)
+    return args.command
 
 
 def run_command(session, args):

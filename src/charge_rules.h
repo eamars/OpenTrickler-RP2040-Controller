@@ -45,7 +45,18 @@
 #define CHARGE_RULE_STILL_LEAST_S 0.4           // C16, s: at rest, no new high for this long. The bench's; without effect at 0 (N.3): goes at F.5
 #define CHARGE_RULE_MOST_MOVES 8                // C17: tries a throw gets after its first rest (a bound)
 #define CHARGE_RULE_THROW_MOST_S 120.0          // C18, s: a throw past it ends "limit" (a bound)
-#define CHARGE_RULE_FINE_MOST_TURNS 15.0        // C19, turns: a throw past it ends "limit" (a bound; its form is F.1's)
+#define CHARGE_RULE_FINE_MOST_TIMES 4.0         // C19, times: a throw whose fine tube turns more than this many times its
+                                                //   target over its grains a turn, and its moves' turns, ends "limit"
+                                                //   (a tube pouring a third of its figure needs 3); no figure, no turn
+#define CHARGE_RULE_NOISE_DIGITS 2.0            // C24, digits: the scale's noise is the zero's mean margin (A9) and this
+                                                //   many digits (a reading's flicker, a drift of a digit in a throw):
+                                                //   a reading below the base by more is the cup lifted; a rise by more
+                                                //   is powder shown
+#define CHARGE_RULE_NO_POWDER_RISES 30.0        // C25, noises: while a tube turns in the stream, more forecast powder
+                                                //   due than this many of the noise since the last rise, the first
+                                                //   waiting longer than the longest lag, ends the throw "no powder"
+#define CHARGE_RULE_ZERO_MARGIN_DEFAULT 0.02     // A9's default, the scale's unit: the user's zero mean margin, until
+                                                //   the charge gives the controller the user's own
 #define CHARGE_RULE_OVER_TOLERANCES 100.0      // C20, tolerances: a reading this many of the user's tolerance over the
                                                 //   target stops all (3 at the default 0.03), in the scale's unit
 #define CHARGE_RULE_OVER_MOST_GR 3.0            // C20's old form, the scale's unit: only the PID-learnt experiment's

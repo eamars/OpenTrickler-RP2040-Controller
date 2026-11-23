@@ -92,6 +92,8 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 - **Simulation first:** a change to the controller is made in the reference (`staged.py`) and the firmware together, and the throw-for-throw check passes before a unit is flashed.
 - **Today's loop is not mended:** it is the code this ADR replaces.
 - **Every stored layout change is declared** below ("Stored layout changes"), with its sizes before and after.
+- **The Pico 2 W is the target; the Pico W's size shapes no gate** (the owner, 2026-11-23, at gate F.1: "I want you to stay razer focus on the firmware implementation, that's why I picked pico2w as the first target. Then later once the control firmware is proven working then I'd consider triming and optimization for pico w."). Each gate's pass is the Pico 2 W's proofs. If the Pico W stops linking, one line under "Found while building" with the figure, and the work goes on: no trimming, re-optimising or redesign for it. Its trimming comes after the controller is proven, before gate 7, at the owner's word.
+- **Every bench command that can turn a motor checks the cup itself** (the owner, 2026-11-23, at gate F.1: the hopper stays filled, and a check must not depend on anyone remembering it): `rc_run.py` reads the real scale before, refuses a run whose most pour would take the cup past 600 gr, reads it again after, and writes both into `logs/adr009/cup_ledger.csv`.
 
 ### Gate N: every number's life cycle
 
@@ -234,6 +236,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the bench's three leftovers that N.3 found without effect (C16's 0.4 s, D9's 0.2 gr, D10's 0.3 s); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
   - **On the console only, never stored, for the comparisons the gates ask:** today's loop, and the glide's pour.
   - **In:** the auto-tuner's switch, a setting of the unit (the register's row 1).
+  - **Owed from gate R, shown here or at gate 3, whichever first:** the event `setting` `dropped`, from a real-scale charge that writes a powder's record while that powder holds a staged write.
   - **Pass:** the API's index and schema, `menu_tour` and the web's pages carry no such choice; `api_check`, `settings_roundtrip`, `reach` pass; one ABBA on the rig, the controller against the glide's pour, meets the night's bars (settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer).
 
 ### Gate 3: the calibration as a job on the unit
@@ -252,6 +255,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
 - **The offer:** the PID values made from those (D19). The fine factor comes from this unit's measured trade of approach time against spread, the user's tolerance and the over budget of one in fifteen. Written to the profile on the user's yes.
 - **One study, its pass written first, on the job's own measurements:** the fine figure's learning, part of the auto-tuner or not, with one figure or two (C13, C15).
 - The PC's trial tool and its lag shift go (F8).
+- **Owed from gate R, unless F.5 showed it:** the event `setting` `dropped` (F.5's line).
 - **Pass, on the rig:**
   - its numbers against the PC trial's: grains a turn within 3%, each lag within 0.1 s;
   - on its own calibration, the offer taken: 25 throws at each tolerance meet gate 2's bar (within 0.02 gr at least 68% good with a median at most 13 s; within 0.04 gr at least 84% good);

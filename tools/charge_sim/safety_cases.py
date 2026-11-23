@@ -9,10 +9,15 @@ reference (`staged.Staged`) driving the rig and the firmware's controller, built
 - cup_lifted: the cup lifted (the pan reads the cup's weight under zero) at mid-coarse, and at the creep: the throw
   ends "cup" on the first reading below the cup test's line, both tubes asked to stop by it;
 - light_cup: the same with a cup of 5 of the scale's unit;
-- grams: the rig's scale reading grams (target, digit, tolerance and the cup in grams): `none` and `cup_lifted`;
+- grams: the rig's scale reading grams (target, digit, tolerance and the cup in grams): `none`, `cup_lifted`, a cup
+  of 5 g (`light_cup`: the cup E7's fixed 10 missed on a gram scale) and `far_over`;
 - drift: the reading drifting down a digit over the first 15 s of a throw: no throw ends "cup";
 - no_powder: the hopper empty from the start, and the fine tube jammed at the creep: the throw ends "no_powder", both
   tubes stopped; the time from the fault to the stop is printed;
+- no_powder_drift: the hopper empty from the start on a scale drifting down a digit: the throw ends "no_powder";
+- no_figure: a calibration whose fine figure is 0 after its rules, on the firmware's C alone (the reference divides by
+  the figure, and Python's division by zero raises where the C's float gives infinity): the throw ends "limit" at
+  the first fine turn;
 - coarse_jam: the coarse tube jammed mid-coarse, the fine tube pouring: said as found (no pass was written for it);
 - third: the fine tube pouring a third of the calibration's grains a turn: no throw ends "limit" or "no_powder";
 - far_over: the pan pushed to 100 tolerances and a digit over the target mid-coarse: the throw ends "limit" at once.
@@ -42,7 +47,8 @@ LIGHT_CUP = 5.0                 # a cup lighter than E7's old 10, in the scale's
 LIFT_S = 2.0
 ZERO_MARGIN = 0.02              # A9, the zero's mean margin: the user's, at its default
 GRAINS_A_GRAM = 15.4323584
-CASES = ("none", "cup_lifted", "light_cup", "grams", "drift", "no_powder", "coarse_jam", "third", "far_over")
+CASES = ("none", "cup_lifted", "light_cup", "grams", "drift", "no_powder", "no_powder_drift", "no_figure", "coarse_jam",
+         "third", "far_over")
 
 
 class GramScaleState:
@@ -61,8 +67,11 @@ class Fault:
     """What the harness does to a throw: the pan's load, and which tube's powder never lands."""
 
     def __init__(self, name: str, unit: float = 1.0, digit: float = 0.02, tolerance: float = 0.03,
-                 cup: float = CUP_GR, when: str = "coarse"):
+                 cup: float = CUP_GR, when: str = "coarse", drift: bool = False, target: float = TARGET_GR):
         self.name, self.unit, self.digit, self.tolerance, self.cup, self.when = name, unit, digit, tolerance, cup, when
+        self.drift = drift or name == "drift"
+        self.target = target
+        self.landed_at_lift = None  # a lifted cup takes its powder with it: only what lands on the bare pan shows
         self.at = None              # when the fault was put in, in seconds
         self.stopped_at = None      # when the controller first asked both tubes to stop after it
 
@@ -81,11 +90,15 @@ class Fault:
             return pan_gr
         since = now - self.at
         if self.name in ("cup_lifted", "light_cup") and since < LIFT_S:
-            return pan_gr - self.cup * self.unit
-        if self.name == "drift":
-            return pan_gr - self.digit * self.unit * min(1.0, since / 15.0)
+            if self.landed_at_lift is None:
+                self.landed_at_lift = pan_gr
+            return pan_gr - self.landed_at_lift - self.cup * self.unit
+        if self.name in ("cup_lifted", "light_cup") and self.landed_at_lift is not None:
+            return pan_gr               # put back, with what landed on the pan meanwhile
+        if self.drift:
+            pan_gr -= self.digit * self.unit * min(1.0, since / 15.0)
         if self.name == "far_over":
-            return pan_gr + (100.0 * self.tolerance + self.digit) * self.unit
+            return max(pan_gr, (self.target + 100.0 * self.tolerance + self.digit) * self.unit)
         return pan_gr
 
     def lands(self, tube: str) -> bool:
@@ -145,6 +158,32 @@ def calibrated(rig, digit: float, band: float):
     return cal
 
 
+class Alone:
+    """The firmware's controller alone, with the lockstep's interface: for a case the reference cannot throw."""
+
+    def __init__(self, port):
+        self.reference = self.port = port
+
+    def __getattr__(self, name):
+        return getattr(self.port, name)
+
+    def difference(self):
+        return None
+
+
+def throws_alone(cal, rig, fault_of, count: int, target: float, tolerance: float, zero_margin: float):
+    session = FaultSession(rig, SEED + 3)
+    out = []
+    for _ in range(count):
+        port = firmware_controller.FirmwareStaged(cal, rig.acceleration_rps2, double=True)
+        port.set_zero_margin(zero_margin)
+        alone = Alone(port)
+        fault = fault_of()
+        result = session.throw_with(alone, target, tolerance, fault)
+        out.append((result, fault, None, port.result))
+    return out
+
+
 def throws(cal, rig, fault_of, count: int, target: float, tolerance: float, zero_margin: float):
     """Each throw in lockstep with its own fault. Returns [(result, fault, difference)]."""
     reference = staged.Staged(cal, rig.acceleration_rps2)
@@ -193,9 +232,10 @@ def main() -> int:
     failures = []
 
     def run(name, fault_of, want, refuse=(), rig_=rig, cal_=cal, target=TARGET_GR, tol=tolerance, count=None,
-            margin=ZERO_MARGIN):
+            margin=ZERO_MARGIN, alone=False):
         print(f"{name}:")
-        failures.extend(judge(name, throws(cal_, rig_, fault_of, count or args.throws, target, tol, margin),
+        thrower = throws_alone if alone else throws
+        failures.extend(judge(name, thrower(cal_, rig_, fault_of, count or args.throws, target, tol, margin),
                               want, refuse))
 
     if "none" in cases:
@@ -210,6 +250,11 @@ def main() -> int:
     if "no_powder" in cases:
         run("no_powder empty", lambda: Fault("no_powder", when="start"), ("no_powder",))
         run("no_powder creep", lambda: Fault("no_powder", when="creep"), ("no_powder",))
+    if "no_powder_drift" in cases:
+        run("no_powder_drift", lambda: Fault("no_powder", when="start", digit=digit, drift=True), ("no_powder",))
+    if "no_figure" in cases:
+        run("no_figure", lambda: Fault("none"), ("limit",), cal_=dataclasses.replace(cal, fine_gr_turn=0.0), alone=True,
+            count=2)
     if "coarse_jam" in cases:
         run("coarse_jam", lambda: Fault("coarse_jam", when="coarse"), ())
     if "third" in cases:
@@ -231,7 +276,10 @@ def main() -> int:
                 tol=g_tol)
             run("grams cup_lifted", lambda: Fault("cup_lifted", unit=GRAINS_A_GRAM, cup=CUP_GR / GRAINS_A_GRAM),
                 ("cup",), cal_=g_cal, target=g_target, tol=g_tol)
-            run("grams far_over", lambda: Fault("far_over", unit=GRAINS_A_GRAM, digit=g_digit, tolerance=g_tol),
+            run("grams light_cup", lambda: Fault("light_cup", unit=GRAINS_A_GRAM, cup=LIGHT_CUP), ("cup",), cal_=g_cal,
+                target=g_target, tol=g_tol)
+            run("grams far_over", lambda: Fault("far_over", unit=GRAINS_A_GRAM, digit=g_digit, tolerance=g_tol,
+                                                target=g_target),
                 ("limit",), cal_=g_cal, target=g_target, tol=g_tol)
         finally:
             throw.ScaleState, bench_twin.ScaleState = original

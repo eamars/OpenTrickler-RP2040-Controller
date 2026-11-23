@@ -73,7 +73,7 @@ ALLOWED = {
     },
     "charge_mode.cpp": {
         # The user's settings as a new unit has them (section A): settings, not the controller's numbers
-        "5": (3, "A6's default, the coarse stop threshold; the target's five digits; a buffer never used (E20, goes at F.1)"),
+        "5": (2, "A6's default, the coarse stop threshold; the target's five digits; a buffer never used (E20, goes at F.1)"),
         "0.03": (1, "A7's default, the fine stop threshold"),
         "0.02": (2, "A8's and A9's defaults, the zero's margins"),
         "0.25": (1, "A11's default, the back-off's turns"),

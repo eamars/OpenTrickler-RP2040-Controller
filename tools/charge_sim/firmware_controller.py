@@ -27,7 +27,7 @@ HEADERS = [REPO / "src" / "charge_control.h", REPO / "src" / "charge_rules.h"]
 BUILD = REPO / "build_host"
 
 FINISHES = {"glide": 0, "jog": 1}
-RESULTS = {0: "none", 1: "good", 2: "over", 3: "short", 4: "limit"}
+RESULTS = {0: "none", 1: "good", 2: "over", 3: "short", 4: "limit", 5: "cup", 6: "no_powder"}
 PHASES = ("feed", "rest", "move")
 COARSE_STOPS_MAX = 4
 FINE_STOPS_MAX = 8
@@ -62,7 +62,7 @@ def _types(real) -> tuple:
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
             "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split", "still_least_s")]
                     + [("most_moves", ctypes.c_uint8)]
-                    + [(name, real) for name in ("throw_most_s", "fine_most_turns", "over_tolerances")]
+                    + [(name, real) for name in ("throw_most_s", "fine_most_times", "zero_margin_gr", "over_tolerances")]
                     + [("speed_law", ctypes.c_uint8), ("pid_envelope", ctypes.c_uint8)])
 
     return Stop, Move, Calibration, Constants
@@ -222,6 +222,14 @@ class FirmwareStaged:
                                       self._rehearsal)
         self._read()
 
+    def set_zero_margin(self, margin: float) -> None:
+        """The user's zero mean margin (A9), as the charge gives it: the controller made again with it. Before the
+        law is set and before any learnt state is carried in."""
+        self._k.zero_margin_gr = margin
+        self._lib.charge_control_init(self._c, ctypes.byref(self._cal), ctypes.byref(self._k), self._acceleration,
+                                      self._rehearsal)
+        self._read()
+
     def set_fine_learning(self, n: int, total: float, current: float, stream_n: int = 0, stream_total: float = 0.0,
                           stream: float = None) -> None:
         """The fine tube's learnt state carried from another controller (the check's lockstep)."""
@@ -248,7 +256,8 @@ class FirmwareStaged:
         self.turned = {"coarse": out[15], "fine": out[16]}
         self.speed = {"coarse": out[17], "fine": out[18]}
         self.glide = {"coarse": out[19], "fine": out[20]}
-        if self.done and not self._logged:
+        # a throw that came to rest, as the reference logs it: not one ended by a limit or a fault (gate F.1)
+        if self.done and not self._logged and self.result in ("good", "over", "short"):
             self.log.append((self.first_error, self.moves, self.streams))
             self._logged = True
 

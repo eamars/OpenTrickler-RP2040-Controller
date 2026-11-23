@@ -110,8 +110,19 @@ BAND_EDGE_DIGITS = 0.25        # a rest within the band and this much of a digit
 # The throw's limits (ADR-009, gate F.1: the reference keeps them as the firmware does, src/charge_rules.h): a throw
 # past one ends "limit", both tubes stopped
 THROW_MOST_S = 120.0           # C18: a throw takes no longer
-FINE_MOST_TURNS = 15.0         # C19: the fine tube turns no more in a throw (its form is F.1's)
+# C19: the fine tube turns no more in a throw than this many times its target over its grains a turn, and its small
+# moves' turns: a tube pouring a third of its figure needs three. With no figure the bound is no turn at all
+FINE_MOST_TIMES = 4.0
 OVER_TOLERANCES = 100.0        # C20: a reading this many tolerances over the target stops everything
+# The scale's noise, one for both tests below (C24): the zero's mean margin (A9, the user's) and this many digits,
+# one for a reading's flicker about its mean, one for a drift of a digit in a throw
+NOISE_DIGITS = 2.0
+ZERO_MARGIN = 0.02             # A9 at its default: the harness gives the user's (`zero_margin`)
+# No powder (C25): while a tube turns in the stream, more than this many of the noise of forecast powder due since the
+# reading last rose by more than the noise, the first of it waiting longer than the longest lag measured. In the
+# simulation an ordinary throw had at most 6.6 of them due before a rise, a tube pouring a third of its figure in
+# clumps 19 (progress.md, 2026-11-23, F.1): half as many again
+NO_POWDER_RISES = 30.0
 
 
 @dataclass(frozen=True)
@@ -425,6 +436,7 @@ class Staged:
         # fine tube: its floor plus the room above the stop over its grains a turn and glide time; the coarse tube:
         # the glide's coarse law), and the I term counting only while its tube is not held at a limit
         self.pid_envelope = True
+        self.zero_margin = ZERO_MARGIN
         # per throw: (the error at the rest after its last stream, moves made, times it went back to the stream)
         self.log = []
 
@@ -432,8 +444,15 @@ class Staged:
         cal = self.cal
         self.target = target_gr
         self.done = False
-        self.result = "none"            # good, over, short, limit once done
+        self.result = "none"            # good, over, short, limit, cup, no_powder once done
         self.started_at = now_ms / 1000.0
+        self.moved_turns = 0.0          # the small moves' turns asked for, which C19 adds to its bound
+        # No powder: the reading at the last rise counted, the forecast powder due since, and when the first of it was due
+        self.powder_mark = 0.0
+        self.due_since_mark = 0.0
+        self.first_due = None
+        self.longest_lag = max(lag for _, lag in lag_table(cal.coarse_stops, cal.coarse_gr_turn)
+                               + lag_table(cal.fine_stops, cal.fine_gr_turn))
         self.coarse_rps = 0.0
         self.fine_rps = 0.0
         self.glide_rps = {"coarse": 0.0, "fine": 0.0}  # the glide's stream law's asked speeds, in shadow
@@ -559,7 +578,9 @@ class Staged:
             if now >= self.next_mark - TIE_S:
                 self._parcel(now)
                 self.next_mark += PARCEL_S
-        if now - self.started_at > THROW_MOST_S or self.turned["fine"] > FINE_MOST_TURNS:
+        fine_most = (FINE_MOST_TIMES * self.target / self.cal.fine_gr_turn + self.moved_turns
+                     if self.cal.fine_gr_turn > 0.0 else 0.0)
+        if now - self.started_at > THROW_MOST_S or self.turned["fine"] > fine_most:
             self._stop_all("limit", self.reading)
             return
         if self.phase == "feed":
@@ -629,13 +650,40 @@ class Staged:
             self.last_rise = now
         self.lowest = min(self.lowest, weight)
         self.reading = weight
+        # what came due with this reading from a tube still turning, and the earliest of it: a stopped tube's powder
+        # still due is its figure's error, not a tube that pours nothing (the coarse tube's varies by its share)
+        due_gr, first_due = 0.0, None
+        turning = {"coarse": self.coarse_rps > 0.0, "fine": self.fine_rps > 0.0}
         if self.parcels:                # what was due to show by now is in this reading
+            for parcel in self.parcels:
+                if parcel[0] <= now + TIE_S and turning[parcel[2]]:
+                    due_gr += parcel[1]
+                    first_due = parcel[0] if first_due is None else min(first_due, parcel[0])
             self.parcels = [parcel for parcel in self.parcels if parcel[0] > now + TIE_S]
             self.unseen = sum(parcel[1] for parcel in self.parcels)
             self.coarse_unseen = sum(parcel[1] for parcel in self.parcels if parcel[2] == "coarse")
+        noise = self.zero_margin + NOISE_DIGITS * cal.digit_gr
+        # the cup lifted: a reading below the throw's base by more than the scale's noise. Both tubes stop at once
+        if weight < -noise:
+            self._stop_all("cup", weight)
+            return
         # far over, in the user's terms: the tolerance is the band and half a digit (A7's conversion)
         if weight > self.target + OVER_TOLERANCES * (cal.band_gr + cal.digit_gr / 2.0):
             self._stop_all("limit", weight)
+            return
+        # no powder: the forecast's powder due and not shown, while a tube turns in the stream
+        if self.phase != "feed" or weight > self.powder_mark + noise:
+            self.powder_mark = weight
+            self.due_since_mark = 0.0
+            self.first_due = None
+        elif due_gr > 0.0:
+            self.due_since_mark += due_gr
+            if self.first_due is None:
+                self.first_due = first_due
+        if (self.phase == "feed" and (self.coarse_rps > 0.0 or self.fine_rps > 0.0)
+                and self.due_since_mark > NO_POWDER_RISES * noise and self.first_due is not None
+                and now - self.first_due > self.longest_lag + TIE_S):
+            self._stop_all("no_powder", weight)
             return
         self._open_window(now, weight)
         if self.pid is not None and self.phase == "feed":
@@ -679,6 +727,7 @@ class Staged:
         self.phase = "move"
         self.fine_rps = MOVE_RPS
         self.move_turns = move.turns
+        self.moved_turns += move.turns
         self.move_until = now + move.turns / MOVE_RPS
         self.wait = move.wait_s
 

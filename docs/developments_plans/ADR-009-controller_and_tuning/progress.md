@@ -2203,7 +2203,7 @@ The cup: 28.94 gr before the soak, 251.02 gr after.
 - **The same cause on the reads** (found in the code, not shown on the unit): the records' one cached copy moved to whichever powder was read last, and the server makes its replies' chunks in turn. So two GETs of different powders, or the export beside a GET, could each send a reply half of one powder and half of another.
 - **The broken invariant:** the records were the one settings resource written through, outside the settings' live-and-save life, and their one shared struct was read in place.
 
-**The mend (approved by the manager, 22:05):**
+**The mend (approved by the manager, its message read between 21:58 and 22:15 by the clock):**
 - **A powder's record is staged until its save,** as every setting is stored at its save. The staged copy:
   - is made by the first PATCH, and ended by its save or its revert, or lost on a restart;
   - shows in its GET with `saved: false`;
@@ -2240,3 +2240,65 @@ The cup: 28.94 gr before the soak, 251.02 gr after.
 **The Pico W:** flash 6,192 B spare (7,952 before the mend, 9,152 at gate R's pass); RAM 812 B spare (976 before).
 
 The cup: 0 gr before `api_check`, 30.32 gr after.
+
+## 2026-11-23, 22:22: gate F.1's forms approved; the manager's holes closed, before the build
+
+The manager approved the three forms of 21:58 (its message read between 21:58 and 22:15 by the clock), with two holes to close and one question. Each closed here before any code of the forms:
+
+1. **No powder on a drifting scale.** A rise of one digit, from flicker or drift, would have reset "since the reading's last rise", so a dead tube on a drifting scale might never trip.
+   - **Closed:** one definition of the scale's noise serves both tests: the zero's mean margin (A9) and 2 digits (C24). The cup test is a reading below the base by more than it. No powder counts a rise only when a reading is above the last one counted by more than it.
+   - **What that changes in the form:** a rise is now several digits (3 at the defaults with the A&D's digit), so the amount is in rises, not digits. No powder needs more than 6 rises of forecast powder due since the last rise counted (C25), and the first of it waited longer than the longest lag the calibration measured.
+     - Why 6, reasoned, for the cases to show or refute: a tube pouring a third of its forecast shows its next rise by the time 3 to 4.5 rises are due (a rise and a reading's digit); 6 leaves a margin.
+     - "Its own lag" becomes the longest lag: a parcel keeps no record of when it was turned out, and keeping one would cost 2 KB of the Pico W's heap in every charge. The longest lag only waits longer.
+   - **The case added:** `no_powder` with `drift` together. It must end "no_powder".
+2. **C19 with no fine figure.**
+   - **Today the staged controller never runs without one:** the calibration's check refuses a record whose fine grains a turn is not above 0 (`charge_calibration.c`'s validity), and a powder with no calibration pours by the PID-learnt experiment, which has no C19. Every law of the frame divides by the figure, not only C19.
+   - **Closed in the code all the same:** C19's bound is 4 times the target over the figure only when the figure is above 0. With none it is 0 turns, so the first fine turn ends "limit". No division by an unset figure.
+   - **F.4 brings a powder with no calibration into the frame,** and with it the stretch where the forecast has no figure. There no powder sees nothing either (the forecast holds nothing), and C18's 120 s is the only bound. F.4's plan must bound that stretch. Handed on to F.4 in its pass.
+   - **The case:** `no_figure` (the reference and the C in lockstep): a calibration whose fine figure is set to 0 after its rules. The throw ends "limit" at the first fine turn.
+3. **The cup lifted, and the scale silent with it** (ADR-013's missing scale).
+   - The charge's loop pauses both tubes after the scale's pause time and ends "Scale: no reading" when it stays silent. The controller ends "cup" on the first reading below the line. Whichever comes first ends the throw; the other is never reached.
+   - **A change from the form of 21:58:** a throw ended "cup" or "no_powder" ends the charge as a scale fault does: both tubes stopped, the screen saying why ("Cup lifted", "No powder"), the event's reason `cup_lifted` or `no_powder`, held until a press. It does not wait for the cup's return as after a removal. The cup in the person's hand holds a part charge, and a hopper that gives nothing would give nothing again; one reason, said, and the person decides.
+   - **The case on the unit:** `cup_lifted_quiet`, the scale silenced and the cup lifted at once mid-coarse. It ends "Scale: no reading" alone, both tubes still. `cup_lifted` ends "Cup lifted" alone.
+
+## 2026-11-23, 22:36: gate R closed as passed; one thing owed
+
+- The manager accepted the mend (`8431db7`) and closed gate R as passed.
+- **Owed, from gate R:** the event `setting` `dropped` shown on a unit. It needs a charge on the real scale that writes a powder's record while that powder holds a staged write, which the simulated scale's charge never does. **Shown at the first real-scale charge that writes a record:** F.5's ABBA or gate 3, whichever comes first. Each of those gates' checklists names it until it is shown.
+- **The Pico W** (the owner, 2026-11-23, written into the README's rules): its size shapes no gate. Its trimming comes after the controller is proven, before gate 7.
+
+## 2026-11-23, 22:45: gate F.1 built; its desk pass, its unit runs, and the cup past 600 gr
+
+**Built, in the reference (`staged.py`) and the firmware's C together:**
+- **The cup test (C24):** a reading below the throw's base by more than the scale's noise (the zero's mean margin and 2 digits) stops both tubes at once. The throw ends "cup", and the charge ends "Cup lifted" (event reason `cup_lifted`), held until a press. The charge gives the controller the user's margin (`k.zero_margin_gr`).
+- **No powder (C25):** the forecast's powder due from a tube still turning, since the last rise larger than the noise, more than 30 noises, the first of it waiting longer than the longest lag measured. The throw ends "no_powder", the charge "No powder" (reason `no_powder`), and nothing is learnt.
+- **C19:** 4 times the target over the fine figure, and the moves' turns; with no figure, 0 turns.
+- **C20:** 100 tolerances (earlier today). **E8:** the return within the zero's mean margin (earlier today).
+- The reference has the firmware's limits and a result word. The lockstep compares results, and the port logs a throw only when it came to rest.
+- **The simulated scale:** `sim flow <share>` and `sim offset <weight>` (the console), reset by `sim off`. Its jiggle follows only the powder that lands.
+
+**Found in the simulation, mended before the unit** (the prediction of 22:22 refuted twice):
+- **A false "no powder" in an ordinary throw** (1 in 40, AR2209, the glide at 0.04): once the coarse tube stops, its forecast's error comes due (its grains a turn vary by its share, about 1 gr in 20). A stopped tube's powder is now not counted.
+- **6 noises was too few:** measured, an ordinary throw had at most 6.6 noises due before a rise, a tube pouring a third of its figure in clumps up to 19. Now 30 (numbers.md, C25, with the counts). Its cost is time at the creep: a tube jammed there is found after about 30 noises of its forecast flow, up to about half a minute, while it pours nothing.
+
+**The desk's pass:**
+- `check_firmware_controller.py`: lockstep 200/200 on all 8 sets, the figures within their bounds, `VERDICT PASS` (`logs/adr009/f1_check_full.txt`).
+- `safety_cases.py --throws 10` (`logs/adr009/f1_safety_3.txt`), no lockstep difference in any case:
+  - `none`, `cup_lifted` (mid-coarse and the creep), `drift`, `no_powder` (empty: stopped 2.3 s after the fault; jammed at the creep: about 5 s), `no_powder_drift`, `no_figure`, `coarse_jam` (good, slow, as said), `third` (no "limit", no "no_powder"), `far_over`, and in grams `none`, `cup_lifted`, `light_cup` (a 5 g cup: 10 of 10) and `far_over`: each as written;
+  - **`light_cup` in grains (a 5 gr cup): 7 of 10 "cup", 3 "limit".** Physics, not code: lifted mid-coarse, the tube pours about 20 gr/s onto the bare pan. The scale shows the lift about 0.45 s late, so about 9 gr has landed, and the reading never falls below the base. The throw then ended "limit" by the far-over stop when the cup came back. A test on the weight cannot see a cup lighter than what pours within the scale's lag. A 5 gr cup (0.3 g) is lighter than any cup in use; the gram case, the one E7's 10 missed, passes.
+
+**On the Pico 2 W** (image 2.0.3-232 at `8431db7` and this gate's changes), `robust_staged.py`:
+- **F.1's cases:** `none`, `cup_lifted`, `light_cup` (5 gr, the simulated scale's reading forced), `cup_lifted_quiet` ("Scale: no reading" alone), `drift`, `no_powder`, `no_powder_drift`, `third` (short after 8 moves, neither "limit" nor "No powder"), `far_over` (ended "limit" 0.45 s after the push). Each PASS.
+  - Two of the harness's own faults were found on the way and mended: the cleanup reset the simulated scale before a charge held on its fault screen had left, and the judge took both tubes as turning from the sample at the end's own line, mid-ramp.
+  - A reading a digit low from before a start never passes the zero; on the unit, `no_powder_drift`'s drift goes in once the throw has begun.
+- **Gate 2's cases again,** on this controller: `bad`, `quiet_coarse`, `quiet_fine`, `quiet_move`, `lost`, `stop`, `driver`. Each PASS.
+- `charge_cycle` PASS; `menu_tour --compare tests/menu_baseline/pico2_w` PASS.
+- **`pulses`: FAIL, and the cup past 600 gr** (648.66 gr after it, 362.24 before):
+  - its two test images were stale (their version block from an older configure), and their flash was refused;
+  - `pulses` went on with those cases all the same, and the coarse tube ran at 1 rev/s with nothing to stop it: about 30 turns, 286 gr;
+  - the cup check (built at the manager's word today) let it start, because I set its most at 150 gr from "12 s at 1 rev/s" without reading `pulses`, which runs that three times and longer when no fault comes. My mistake.
+  - **Mended:** a case whose image did not flash is skipped and its motor stopped; the most pour is 30 turns at 12 gr, 360 gr; the test images are rebuilt. Both motors read stopped. **`pulses` runs again after the owner empties the cup.**
+
+**The cup check** (the owner's ask through the manager, 22:36): every `rc_run.py` command that can turn a motor, and `robust_staged.py`, reads the real scale first, refuses past 600 gr, reads it after, and writes `logs/adr009/cup_ledger.csv`. Shown refusing `--most-pour 9999` before anything turned. The after-reading of a run that leaves a charge going stops that charge first.
+
+**The Pico W:** flash 4,744 B spare, RAM 808 B; it shapes no gate (the owner).

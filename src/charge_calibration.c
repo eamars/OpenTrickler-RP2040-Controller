@@ -507,7 +507,7 @@ static const charge_constant_t charge_constants_table[] = {
     CHARGE_CONSTANT(learn_fine_most), CHARGE_CONSTANT(learn_fine_split),
     CHARGE_CONSTANT(still_least_s),
     {"most_moves", offsetof(charge_control_constants_t, most_moves), true},
-    CHARGE_CONSTANT(throw_most_s), CHARGE_CONSTANT(fine_most_turns), CHARGE_CONSTANT(over_tolerances),
+    CHARGE_CONSTANT(throw_most_s), CHARGE_CONSTANT(fine_most_times), CHARGE_CONSTANT(over_tolerances), CHARGE_CONSTANT(zero_margin_gr),
     {"speed_law", offsetof(charge_control_constants_t, speed_law), true},
     {"pid_envelope", offsetof(charge_control_constants_t, pid_envelope), true},
 };

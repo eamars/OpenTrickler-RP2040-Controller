@@ -667,6 +667,18 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
+    // The cup lifted, or no powder: the charge ends on it, as on a scale's fault, and nothing is learnt (ADR-009, gate
+    // F.1). One reason: a scale gone silent first ends it in the loop above, before the controller sees a reading
+    if (cc->result == CHARGE_CONTROL_RESULT_CUP || cc->result == CHARGE_CONTROL_RESULT_NO_POWDER) {
+        bool cup = cc->result == CHARGE_CONTROL_RESULT_CUP;
+        printf("Charge: throw n=%u result=%s reading=%.3f target=%.3f coarse_turns=%.4f fine_turns=%.4f\n",
+               charge_throw_number, charge_control_result_string((charge_control_result_t) cc->result),
+               cc->rest_weight, target, cc->turned[0], cc->turned[1]);
+        charge_mode_scale_fault(cup ? "Cup lifted" : "No powder", cup ? EVENT_REASON_CUP_LIFTED : EVENT_REASON_NO_POWDER,
+                                0, NULL);
+        return false;
+    }
+
     // Its first error, at the calibration's own stop room, for the carry at the charge's end into its law's own list:
     // the throws of the charge's law only, so one law's stops never move the other's
     if (cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
@@ -1340,6 +1352,8 @@ uint8_t charge_mode_menu(void) {
         // After the charge's own block: what the heap cannot give is not recorded, and the charge goes on
         recording_charge_begin();
         charge_control_init(charge_controller, &charge_staged_block->cal, charge_calibration_constants(), 0.0f, false);
+        // The scale's noise is the user's zero margin and two digits: the cup test and no powder (ADR-009, gate F.1)
+        charge_controller->k.zero_margin_gr = charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
         printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f, law %s\n", profile_get_selected_idx(),
                charge_controller->cal.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide",
                charge_controller->cal.band_gr, charge_controller->cal.stop_room_gr, charge_law ? "pid" : "glide");
