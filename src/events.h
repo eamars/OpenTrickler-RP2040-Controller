@@ -43,6 +43,7 @@ typedef enum {
     EVENT_JOINING,              // the set-up's join began
     EVENT_JOINED,
     EVENT_NOT_JOINED,
+    EVENT_DROPPED,              // a write not yet stored, dropped: a job's own write of it took its place (ADR-009, gate R)
 } event_kind_t;
 
 // Why a job stopped or a throw ended (api_v1.md's `reason`)

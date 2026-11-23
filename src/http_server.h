@@ -145,6 +145,10 @@ bool http_server_reply_woke_ready(const http_server_reply_t *reply);
 // size is more than HTTP_SERVER_CONTEXT_MAX
 #define HTTP_SERVER_CONTEXT_MAX 32
 void *http_server_reply_context(http_server_reply_t *reply, size_t size);
+// Called once with the request's context when the slot is done with the reply, sent whole or not (the connection
+// gone, a stall): what a streamed reply took for itself is given back there (ADR-009, gate R: a record read from a
+// copy of its own)
+void http_server_reply_release(http_server_reply_t *reply, void (*release)(void *ctx));
 // A Retry-After of so many seconds in the reply's head: a 503 for want of memory (ADR-009, gate R)
 void http_server_reply_retry_after(http_server_reply_t *reply, uint8_t seconds);
 

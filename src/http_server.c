@@ -148,8 +148,9 @@ typedef struct {
     uint32_t park_deadline_ms;
     http_server_handler_t park_resume;
 
-    // A handler's state for a streamed or parked reply
+    // A handler's state for a streamed or parked reply, and what gives back what it took (http_server_reply_release)
     uint32_t context[HTTP_SERVER_CONTEXT_MAX / sizeof(uint32_t)];
+    void (*release)(void *ctx);
 } slot_t;
 
 struct http_server_reply {
@@ -171,6 +172,7 @@ struct http_server_reply {
     http_server_ready_t live_ready;
     char location[48];
     char allow[48];
+    void (*release)(void *ctx);
 };
 
 typedef struct {
@@ -364,7 +366,18 @@ static void copy_value(char *dst, size_t room, const char *value) {
 }
 
 
+// The reply's handler gives back what it took for it, once, however the reply ended
+static void slot_release(slot_t *slot) {
+    void (*release)(void *ctx) = slot->release;
+    slot->release = NULL;
+    if (release != NULL) {
+        release(slot->context);
+    }
+}
+
+
 static void slot_reset_request(slot_t *slot) {
+    slot_release(slot);
     slot->state = SLOT_REQUEST;
     slot->phase = PHASE_LINE;
     slot->buf_len = 0;
@@ -413,6 +426,7 @@ static void slot_reset_request(slot_t *slot) {
 
 
 static void slot_close(slot_t *slot, bool abort) {
+    slot_release(slot);
     if (slot->upload_open) {
         // An upload cut off: its handler lets go of what it began. Every way a slot ends comes here
         slot->upload_open = false;
@@ -608,6 +622,11 @@ void http_server_reply_retry_after(http_server_reply_t *reply, uint8_t seconds) 
 }
 
 
+void http_server_reply_release(http_server_reply_t *reply, void (*release)(void *ctx)) {
+    reply->release = release;
+}
+
+
 void *http_server_reply_context(http_server_reply_t *reply, size_t size) {
     if (size > sizeof(reply->slot->context)) {
         return NULL;
@@ -710,6 +729,7 @@ static int parked_count(void) {
 // Turn a handler's reply into the slot's head and body, and start sending
 static void slot_take_reply(slot_t *slot, http_server_reply_t *reply) {
     const http_server_request_t *request = &slot->request;
+    slot->release = reply->release;
     slot->body_suppressed = request->method == HTTP_SERVER_HEAD;
 
     if (!reply->done) {

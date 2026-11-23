@@ -2195,3 +2195,48 @@ The cup: 28.94 gr before the soak, 251.02 gr after.
 - `no_powder`: the hopper empty from the start, and a tube jammed mid-coarse. The throw ends "no powder", both tubes stopped, within twice the longest lag in use plus a reading interval of the powder's due.
 - `third`: the fine tube pouring a third of the calibration's grains a turn. No throw ends "limit" or "no powder"; it may be slow or short.
 - `far_over`: a reading of 100 tolerances over the target. The throw ends "limit" at once.
+
+## 2026-11-23, 22:19: gate R's mend, a record written in parts: staged until its save
+
+**Found at the manager's question (21:54, on the Pico 2 W):**
+- **A record written in parts could be stored half one thing and half another.** A powder's record comes in several PATCH bodies of 1 KB at most, and each was stored as it came (write-through). A later part refused left the earlier ones stored. Shown: part 1 (coarse grains a turn 10.194 → 11.194) gave 200, part 2 (a fine stop at 99 rev/s) gave 400, and `ccal load 0`, what a charge reads, held 11.194 with the old stops. A charge reads only the stored, CRC-checked record, so the charge was safe from the API's copy but not from the stored mix.
+- **The same cause on the reads** (found in the code, not shown on the unit): the records' one cached copy moved to whichever powder was read last, and the server makes its replies' chunks in turn. So two GETs of different powders, or the export beside a GET, could each send a reply half of one powder and half of another.
+- **The broken invariant:** the records were the one settings resource written through, outside the settings' live-and-save life, and their one shared struct was read in place.
+
+**The mend (approved by the manager, 22:05):**
+- **A powder's record is staged until its save,** as every setting is stored at its save. The staged copy:
+  - is made by the first PATCH, and ended by its save or its revert, or lost on a restart;
+  - shows in its GET with `saved: false`;
+  - is one powder at a time: another powder's PATCH is refused 409, naming the one held, its save and its revert.
+- **A charge reads only the stored record,** as before.
+- **Jobs and staged edits:**
+  - a record's write, and now its save, is refused while a job runs;
+  - a job's own write of a powder (a charge's carried stops) drops that powder's staged copy and says so: the event `setting` `dropped`, with its path, and a console line.
+- **Every read takes a copy of its own** at its start: a GET, the export, the console, a recording's snapshot (`settings_resource_t.read`, a hook of the settings tables). The copy is the staged one for its own powder, else what is stored. A stream gives its copy back however it ends, through a release hook of the server (`http_server_reply_release`). With no memory for a copy, a GET is answered 503 with `Retry-After`.
+- **A revert** touches only the ids whose struct differs from what is stored (for the records: the staged one alone).
+- **The restore** (`rc_run.py settings --restore`) saves each resource as soon as it is written whole. A resource with a refused part is reverted and never saved.
+- `api_v1.md` says so in one line, with the event's row.
+- The unit's record (32 B, always one body) stays written through.
+
+**Shown on the Pico 2 W (image 2.0.3-231 at `fe67ead` and this commit's changes):**
+- **the parts run again:**
+  - part 1 gave 200 with `saved: false`;
+  - part 2 was refused 400;
+  - `ccal load 0` read coarse_gr_turn=10.1940 (stored unchanged) while the console's `setting` read the held 11.194 with `saved=false`;
+  - another powder's PATCH was refused 409 with the save and revert paths named;
+  - the revert gave back 10.194 with `saved: true`;
+- **two reads of different powders at once,** 30 each, with 5 exports beside them: every reply whole (0 torn);
+- **a restore with one part failed** (a copy with powder 0's coarse grains a turn 12.345 in its first part and a stop at 99 rev/s in its second; the charge's coarse stop threshold 6):
+  - powder 0 was reverted, its stored record unchanged (10.194, `ccal load 0` the same);
+  - the charge's threshold was saved at 6;
+  - the restore said FAIL, naming the record;
+  - the original copy restored after: `settings --compare` PASS;
+- **`settings_roundtrip`:** PASS, 26 resources, 246 fields unchanged, 247 refused;
+- **`api_check`:** PASS;
+- **`stats tasks`:** the HTTP server's stack 3,464 B never touched, with the outcome's message grown to 160 B to hold both paths.
+
+**Not shown:** the `dropped` event on the unit (a charge that writes a powder's record while that powder is staged; the simulated scale's charge writes none); the torn read on the old image (found in the code only).
+
+**The Pico W:** flash 6,192 B spare (7,952 before the mend, 9,152 at gate R's pass); RAM 812 B spare (976 before).
+
+The cup: 0 gr before `api_check`, 30.32 gr after.

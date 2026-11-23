@@ -344,15 +344,38 @@ static uint16_t part_addr(const settings_resource_t *resource, int32_t id) {
  * The record as stored says so at once; otherwise this part against what the EEPROM holds of it, read only then,
  * so a value written back as stored is stored again. The EEPROM is the truth: no copy of it is kept to drift
  */
-static bool part_saved(const settings_resource_t *resource, int32_t id) {
+static bool part_saved(const settings_resource_t *resource, int32_t id, const uint8_t *base) {
     if (resource->is_saved()) {
         return true;
     }
     uint8_t *stored = settings_alloc(resource->size);
     bool same = stored != NULL && eeprom_read(part_addr(resource, id), stored, resource->size) &&
-                memcmp(stored, resource->live(id), resource->size) == 0;
+                memcmp(stored, base, resource->size) == 0;
     vPortFree(stored);
     return same;
+}
+
+
+/*
+ * What a read reads: the struct in RAM, or for a resource with `read` a copy of its own from the heap, given back by
+ * read_end. NULL when the heap has none
+ */
+static const uint8_t *read_begin(const settings_resource_t *resource, int32_t id) {
+    if (resource->read == NULL) {
+        return resource->live(id);
+    }
+    uint8_t *copy = settings_alloc(resource->size);
+    if (copy != NULL) {
+        resource->read(id, false, copy);
+    }
+    return copy;
+}
+
+
+static void read_end(const settings_resource_t *resource, const uint8_t *base) {
+    if (resource->read != NULL) {
+        vPortFree((void *) base);
+    }
 }
 
 
@@ -360,11 +383,11 @@ static bool part_saved(const settings_resource_t *resource, int32_t id) {
  * A resource as its GET gives it, an item at a time (ADR-009, gate R: a powder's record is larger than a reply): item
  * 0 its head and `saved`, then one item a field a reply may carry, then its end. False after the last
  */
-static bool write_resource_item(const settings_resource_t *resource, int32_t id, uint8_t item, char *out, size_t room,
-                                size_t *len) {
+static bool write_resource_item(const settings_resource_t *resource, int32_t id, const uint8_t *base, uint8_t item,
+                                char *out, size_t room, size_t *len) {
     if (item == 0) {
         http_json_raw(out, room, len, "{\"saved\":");
-        http_json_bool(out, room, len, part_saved(resource, id));
+        http_json_bool(out, room, len, part_saved(resource, id, base));
         return true;
     }
     if (item <= resource->field_count) {
@@ -373,7 +396,7 @@ static bool write_resource_item(const settings_resource_t *resource, int32_t id,
             http_json_raw(out, room, len, ",");
             http_json_string(out, room, len, field->name);
             http_json_raw(out, room, len, ":");
-            write_value(field, resource->live(id), out, room, len);
+            write_value(field, base, out, room, len);
         }
         return true;
     }
@@ -388,7 +411,12 @@ size_t settings_copy_live(const char *path, void *out, size_t room) {
     if (resource == NULL || resource->size > room) {
         return 0;
     }
-    memcpy(out, resource->live(id), resource->size);
+    if (resource->read != NULL) {
+        resource->read(id, false, out);
+    }
+    else {
+        memcpy(out, resource->live(id), resource->size);
+    }
     return resource->size;
 }
 
@@ -425,7 +453,7 @@ typedef struct {
     const char *code;
     const setting_field_t *field;
     char field_name[40];        // the request's, for a field that is none of the resource's
-    char message[112];
+    char message[160];          // a record held names its save and its revert (ADR-009, gate R)
 } outcome_t;
 
 
@@ -783,6 +811,14 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
         activity_unlock();
         return;
     }
+    // A refusal of the resource's own first: for a record, another powder's write while one is staged (gate R)
+    if (resource->refuse != NULL) {
+        const char *why = resource->refuse(id);
+        if (why != NULL) {
+            fail(outcome, 409, "busy", NULL, "%s", why);
+            goto done;
+        }
+    }
     uint8_t *live = resource->live(id);
     memcpy(proposed, live, resource->size);
     memcpy(before, live, resource->size);
@@ -845,13 +881,6 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
     if (resource->refused_while == SETTINGS_REFUSED_A_JOB_RUNS && activity_job_runs()) {
         fail(outcome, 409, "busy", NULL, "%s is refused while a job runs", resource->path);
         goto done;
-    }
-    if (resource->refuse != NULL) {
-        const char *why = resource->refuse(id);
-        if (why != NULL) {
-            fail(outcome, 409, "busy", NULL, "%s", why);
-            goto done;
-        }
     }
     if (resource->foreign != NULL) {
         const char *why = resource->foreign(proposed, id);
@@ -943,9 +972,16 @@ static void reply_outcome(http_server_reply_t *reply, const outcome_t *outcome) 
 
 typedef struct {
     const settings_resource_t *resource;
+    const uint8_t *base;        // what it reads: the struct, or its own copy (read_begin)
     int16_t id;
     uint8_t item;
 } resource_context_t;
+
+
+static void resource_release(void *ctx) {
+    resource_context_t *context = ctx;
+    read_end(context->resource, context->base);
+}
 
 
 // As many of a resource's items as fit a chunk; one that does not begins the next
@@ -954,7 +990,8 @@ static bool resource_more(void *ctx, char *buf, size_t room, size_t *len) {
     *len = 0;
     while (true) {
         size_t mark = *len;
-        bool more = write_resource_item(context->resource, context->id, context->item, buf, room, len);
+        bool more = write_resource_item(context->resource, context->id, context->base, context->item, buf, room,
+                                        len);
         if (!http_json_fits(room, *len) && mark > 0) {
             *len = mark;
             buf[mark] = '\0';
@@ -969,10 +1006,18 @@ static bool resource_more(void *ctx, char *buf, size_t room, size_t *len) {
 
 
 static void reply_resource(http_server_reply_t *reply, const settings_resource_t *resource, int32_t id) {
+    const uint8_t *base = read_begin(resource, id);
+    if (base == NULL) {
+        http_server_reply_retry_after(reply, SETTINGS_RETRY_S);
+        http_server_reply_error(reply, 503, "busy", "no memory for the read: try again");
+        return;
+    }
     resource_context_t *context = http_server_reply_context(reply, sizeof(resource_context_t));
     context->resource = resource;
+    context->base = base;
     context->id = (int16_t) id;
     context->item = 0;
+    http_server_reply_release(reply, resource_release);
     http_server_reply_stream(reply, 200, "application/json", resource_more, context);
 }
 
@@ -1038,12 +1083,27 @@ static void reply_saved(http_server_reply_t *reply) {
 }
 
 
+// A save is a write: refused while a job runs for a resource whose writes are (ADR-009, gate R: a charge's own write
+// of a powder's record at its end would land over it). NULL when it may go
+static const char *save_refused(const settings_resource_t *resource) {
+    if (resource->refused_while == SETTINGS_REFUSED_A_JOB_RUNS && !resource->is_saved() && activity_job_runs()) {
+        return "a save is refused while a job runs: the job may write it itself";
+    }
+    return NULL;
+}
+
+
 static void settings_save_handler(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!empty_body(request, reply)) {
         return;
     }
     for (size_t idx = 0; idx < resource_count; idx += 1) {
         if (strcmp(resources[idx]->save_path, request->path) == 0) {
+            const char *why = save_refused(resources[idx]);
+            if (why != NULL) {
+                http_server_reply_error(reply, 409, "busy", why);
+                return;
+            }
             if (!store(resources[idx], ACTIVITY_BY_API)) {
                 http_server_reply_error(reply, 500, "failed", "the EEPROM did not take it");
                 return;
@@ -1059,6 +1119,13 @@ static void settings_save_handler(const http_server_request_t *request, http_ser
 static void settings_save_all_handler(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!empty_body(request, reply)) {
         return;
+    }
+    for (size_t idx = 0; idx < resource_count; idx += 1) {
+        const char *why = save_refused(resources[idx]);
+        if (why != NULL) {
+            http_server_reply_error(reply, 409, "busy", why);
+            return;
+        }
     }
     for (size_t idx = 0; idx < resource_count; idx += 1) {
         // Resources stored as one block share their save: once each
@@ -1113,9 +1180,24 @@ static void revert(const char *revert_path, activity_by_t by, outcome_t *outcome
             int32_t first = resource_has_ids(resource) ? 0 : -1;
             int32_t last = resource_has_ids(resource) ? resource->id_count - 1 : -1;
             for (int32_t id = first; id <= last; id += 1) {
-                if (!eeprom_read(part_addr(resource, id), stored, resource->size)) {
+                // What is stored; for a resource with read, as a read gives it (a record's blank slot reads empty)
+                if (resource->read != NULL) {
+                    resource->read(id, true, stored);
+                }
+                else if (!eeprom_read(part_addr(resource, id), stored, resource->size)) {
                     fail(outcome, 500, "failed", NULL, "the EEPROM could not be read");
                     goto done;
+                }
+                // An id whose struct is what is stored is not touched, nor asked anything (ADR-009, gate R: of the
+                // records, only the one staged differs, and the others are not loaded into their shared struct)
+                if (resource->read != NULL) {
+                    resource->read(id, false, before);
+                }
+                else {
+                    memcpy(before, resource->live(id), resource->size);
+                }
+                if (memcmp(before, stored, resource->size) == 0) {
+                    continue;
                 }
                 if (pass == 0) {
                     const char *why = resource->refuse != NULL ? resource->refuse(id) : NULL;
@@ -1202,7 +1284,17 @@ typedef struct {
     uint8_t resource;
     int16_t id;
     uint8_t item;       // the resource's next item (write_resource_item)
+    const uint8_t *base;        // the resource's id being written: its struct or its own copy (read_begin)
 } export_context_t;
+
+
+static void export_release(void *ctx) {
+    export_context_t *export = ctx;
+    if (export->base != NULL && export->phase == 1 && export->resource < resource_count) {
+        read_end(resources[export->resource], export->base);
+    }
+    export->base = NULL;
+}
 
 
 // Write an item at the end of buf; false, and buf as it was, when it does not fit
@@ -1267,8 +1359,17 @@ static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len)
                 }
                 http_json_string(buf, room, len, path);
                 http_json_raw(buf, room, len, ":");
+                if (export->base == NULL) {
+                    export->base = read_begin(resource, id);
+                }
+                if (export->base == NULL) {
+                    // No memory for its copy now: the chunk so far goes, and this resource is tried again next
+                    *len = mark;
+                    buf[mark] = '\0';
+                    return true;
+                }
             }
-            bool more = write_resource_item(resource, id, export->item, buf, room, len);
+            bool more = write_resource_item(resource, id, export->base, export->item, buf, room, len);
             if (!stream_item_fits(buf, room, len, mark)) {
                 return true;    // the next chunk begins with it
             }
@@ -1276,6 +1377,8 @@ static bool settings_export_more(void *ctx, char *buf, size_t room, size_t *len)
             if (more) {
                 continue;
             }
+            read_end(resource, export->base);
+            export->base = NULL;
             export->item = 0;
             if (resource_has_ids(resource) && export->id + 1 < resource->id_count) {
                 export->id += 1;
@@ -1297,6 +1400,7 @@ static void settings_export_handler(const http_server_request_t *request, http_s
     (void) request;
     export_context_t *export = http_server_reply_context(reply, sizeof(export_context_t));
     memset(export, 0, sizeof(*export));
+    http_server_reply_release(reply, export_release);
     http_server_reply_stream(reply, 200, "application/json", settings_export_more, export);
 }
 
@@ -1688,7 +1792,11 @@ static size_t word_length(const char *text) {
 
 
 static void console_fields(const settings_resource_t *resource, int32_t id, settings_line_fn write, void *ctx) {
-    const uint8_t *base = resource->live(id);
+    const uint8_t *base = read_begin(resource, id);
+    if (base == NULL) {
+        write("@err no memory for the read: try again", ctx);
+        return;
+    }
     for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
         const setting_field_t *field = &resource->fields[idx];
         if (field->access == SETTING_WRITE_ONLY) {
@@ -1712,6 +1820,7 @@ static void console_fields(const settings_resource_t *resource, int32_t id, sett
         write_value(field, base, line, sizeof(line), &len);
         write(line, ctx);
     }
+    read_end(resource, base);
 }
 
 
@@ -1745,7 +1854,12 @@ bool settings_read_text(const char *path, const char *name, char *out, size_t ro
     }
     size_t len = 0;
     out[0] = '\0';
-    write_value(field, resource->live(id), out, room, &len);
+    const uint8_t *base = read_begin(resource, id);
+    if (base == NULL) {
+        return false;
+    }
+    write_value(field, base, out, room, &len);
+    read_end(resource, base);
     // A choice or a string as JSON writes it: its quotes go
     if (len >= 2 && out[0] == '"' && out[len - 1] == '"') {
         memmove(out, out + 1, len - 2);
@@ -1928,6 +2042,10 @@ void settings_console(const char *args, char *reply, size_t reply_size, settings
     }
 
     console_fields(resource, id, write, ctx);
+    const uint8_t *base = read_begin(resource, id);
     snprintf(reply, reply_size, "@ok setting %s saved=%s", path + strlen(SETTINGS_API_PREFIX),
-             part_saved(resource, id) ? "true" : "false");
+             base == NULL ? "unknown" : part_saved(resource, id, base) ? "true" : "false");
+    if (base != NULL) {
+        read_end(resource, base);
+    }
 }

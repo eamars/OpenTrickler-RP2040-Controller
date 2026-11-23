@@ -10,8 +10,10 @@
 
 #include <FreeRTOS.h>
 
+#include "activity.h"
 #include "common.h"
 #include "eeprom.h"
+#include "events.h"
 #include "settings.h"
 #include "unit_id.h"
 
@@ -83,6 +85,29 @@ _Static_assert(sizeof(charge_calibration_record_t) == 420, "the v1 record's size
 static charge_unit_record_t charge_unit_record;
 static charge_powder_record_t *charge_records_cache = NULL;    // the API's copy of one powder's record, from the heap
 static int8_t charge_records_cache_id = -1;
+// The cache holds a write not yet stored (staged): a write takes effect at its save, as every setting is stored at
+// its save, and a charge reads only what is stored. Lost on a restart, as every live setting is
+static bool charge_records_staged = false;
+#define RECORDS_POWDER_PATH "/api/v1/settings/powder_records/{id}"
+#define RECORDS_POWDER_SAVE "/api/v1/settings/powder_records/save"
+#define RECORDS_POWDER_REVERT "/api/v1/settings/powder_records/revert"
+
+
+// A powder's record written by the unit itself (a charge's end, the calibration, the console): the API's copy of it
+// is read again. A write of the API's staged for it is dropped, and said: the unit's own write is the newer
+static void charge_records_forget(uint8_t profile) {
+    if (charge_records_cache_id != (int8_t) profile) {
+        return;
+    }
+    if (charge_records_staged) {
+        charge_records_staged = false;
+        printf("Records: powder_records/%u's write not saved is dropped: the unit wrote the record itself\n", profile);
+        event_t event = {.source = EVENT_SOURCE_SETTING, .kind = EVENT_DROPPED, .by = ACTIVITY_BY_UNIT,
+                         .text = RECORDS_POWDER_PATH, .number = profile};
+        events_add(&event);
+    }
+    charge_records_cache_id = -1;
+}
 
 
 static uint16_t charge_records_addr(uint8_t profile) {
@@ -247,9 +272,7 @@ bool charge_records_save(uint8_t profile, const charge_calibration_record_t *rec
         charge_unit_record.interval_s = record->measured.interval_s;
         ok = charge_records_write_unit();
     }
-    if (charge_records_cache_id == (int8_t) profile) {
-        charge_records_cache_id = -1;
-    }
+    charge_records_forget(profile);
     return ok;
 }
 
@@ -261,9 +284,7 @@ bool charge_records_corrupt(uint8_t profile) {
         return false;
     }
     byte ^= 0x5a;
-    if (charge_records_cache_id == (int8_t) profile) {
-        charge_records_cache_id = -1;
-    }
+    charge_records_forget(profile);
     return eeprom_write(addr, &byte, 1);
 }
 
@@ -338,7 +359,8 @@ void charge_records_init(void) {
 }
 
 
-// --- The API: two settings resources, each written through to the EEPROM at once
+// --- The API: two settings resources. A powder's record is stored at its save; the unit's, small enough for one
+// write, at once
 
 #define RECORD_LIST_ROWS(type) .rows_offset = offsetof(type, rows), .stride = sizeof(((type *) 0)->rows[0])
 #define ROW_NUMBER(field_name, struct_type, member, unit_text, low, high, text) \
@@ -429,15 +451,47 @@ static const setting_field_t unit_fields[] = {
 };
 
 
+// What is stored of a powder, as a read gives it: none stored, or one that fails its check, reads empty
+static void powder_stored(int32_t id, charge_powder_record_t *out) {
+    if (charge_records_read((uint8_t) id, out) != CHARGE_RECORD_OK) {
+        memset(out, 0, sizeof(*out));
+        charge_records_this_unit(out->unit_id);
+    }
+}
+
+
+// For a write alone (the settings' reads take a copy: powder_read). Another powder's write is refused while one is
+// staged (powder_refuse), so the copy moves to another powder only from a revert's, which drops it
 static void *powder_live(int32_t id) {
     if (charge_records_cache_id != (int8_t) id) {
-        if (charge_records_read((uint8_t) id, charge_records_cache) != CHARGE_RECORD_OK) {
-            memset(charge_records_cache, 0, sizeof(*charge_records_cache));
-            charge_records_this_unit(charge_records_cache->unit_id);
-        }
+        powder_stored(id, charge_records_cache);
         charge_records_cache_id = (int8_t) id;
+        charge_records_staged = false;
     }
     return charge_records_cache;
+}
+
+
+// A read's copy: the write staged for this powder, or what is stored
+static void powder_read(int32_t id, bool stored, void *out) {
+    if (!stored && charge_records_staged && charge_records_cache_id == (int8_t) id) {
+        memcpy(out, charge_records_cache, sizeof(*charge_records_cache));
+    }
+    else {
+        powder_stored(id, out);
+    }
+}
+
+
+// One powder's write staged at a time: a write of another names it, and how to clear it
+static const char *powder_refuse(int32_t id) {
+    static char why[160];
+    if (!charge_records_staged || charge_records_cache_id == (int8_t) id) {
+        return NULL;
+    }
+    snprintf(why, sizeof(why), "powder_records/%d has a write not saved: save it (POST %s) or revert it (POST %s) "
+             "first", charge_records_cache_id, RECORDS_POWDER_SAVE, RECORDS_POWDER_REVERT);
+    return why;
 }
 
 
@@ -481,10 +535,34 @@ static const char *powder_check(const void *proposed, int32_t id, const char **f
 }
 
 
-// Written through: what the API wrote is what is stored, and a charge reads it at its start
+// Staged until its save: what differs from what is stored (a write back of what is stored stages nothing)
 static void powder_apply(const void *before, int32_t id) {
     (void) before;
-    charge_records_write((uint8_t) id, charge_records_cache);
+    charge_powder_record_t *stored = pvPortMalloc(sizeof(*stored));
+    if (stored == NULL) {
+        charge_records_staged = true;
+        return;
+    }
+    powder_stored(id, stored);
+    charge_records_staged = memcmp(stored, charge_records_cache, sizeof(*stored)) != 0;
+    vPortFree(stored);
+}
+
+
+static bool powder_is_saved(void) {
+    return !charge_records_staged;
+}
+
+
+static bool powder_save(void) {
+    if (!charge_records_staged || charge_records_cache_id < 0) {
+        return true;
+    }
+    if (!charge_records_write((uint8_t) charge_records_cache_id, charge_records_cache)) {
+        return false;
+    }
+    charge_records_staged = false;
+    return true;
 }
 
 
@@ -502,7 +580,7 @@ static void unit_apply(const void *before, int32_t id) {
 
 
 static bool records_saved(void) {
-    return true;        // every write is stored as it is made
+    return true;        // the unit's record: every write is stored as it is made
 }
 
 
@@ -512,24 +590,27 @@ static bool records_save(void) {
 
 
 static const settings_resource_t powder_settings = {
-    .path = "/api/v1/settings/powder_records/{id}",
-    .save_path = "/api/v1/settings/powder_records/save",
-    .revert_path = "/api/v1/settings/powder_records/revert",
+    .path = RECORDS_POWDER_PATH,
+    .save_path = RECORDS_POWDER_SAVE,
+    .revert_path = RECORDS_POWDER_REVERT,
     .addr = EEPROM_CHARGE_CALIBRATION_BASE_ADDR,
     .stride = CHARGE_RECORD_SLOT_SIZE,
     .label = "This unit's powders",
     .about = "What this unit measured of each powder profile's powder: this unit's own, kept apart from the profile. "
-             "A write is stored at once, and refused while a job runs or when it names another unit",
+             "A write takes effect when it is saved: a charge reads only what is stored. One powder's write is held "
+             "at a time, until its save or its revert. Refused while a job runs or when it names another unit",
     SETTING_FIELDS(powder_fields),
     .refused_while = SETTINGS_REFUSED_A_JOB_RUNS,
     .size = sizeof(charge_powder_record_t),
     .id_count = CHARGE_RECORD_PROFILES,
     .live = powder_live,
+    .read = powder_read,
     .check = powder_check,
     .apply = powder_apply,
+    .refuse = powder_refuse,
     .foreign = powder_foreign,
-    .save = records_save,
-    .is_saved = records_saved,
+    .save = powder_save,
+    .is_saved = powder_is_saved,
 };
 
 static const settings_resource_t unit_settings = {

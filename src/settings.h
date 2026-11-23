@@ -118,6 +118,11 @@ typedef struct {
     const char *(*foreign)(const void *proposed, int32_t id);
     // From one id's part to the next in the EEPROM, when its parts are not packed one after another: 0 for size
     uint16_t stride;
+    // For a resource whose ids share one struct in RAM (ADR-009, gate R: a powder's record): a copy of what a read
+    // of this id gives, into out (size bytes); with stored, of what is stored, as a read gives it (a revert's). Every
+    // read (a GET, the export, the console, a recording) then reads a copy of its own, taken at its start, and
+    // live() is for writes alone. NULL for a struct of each id's own
+    void (*read)(int32_t id, bool stored, void *out);
     bool (*save)(void);
     bool (*is_saved)(void);
 } settings_resource_t;

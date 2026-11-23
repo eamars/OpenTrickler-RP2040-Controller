@@ -1827,7 +1827,6 @@ class Session:
         """
         copy = json.loads((Path(restore_dir) / "settings.json").read_text(encoding="utf-8"))
         unit = unit_api.Unit(host)
-        saves = []
         refused_records = []
         for path, values in copy["resources"].items():
             resource = unit.resource(path)
@@ -1839,6 +1838,7 @@ class Session:
             # In as many PATCHes as the unit's body limit needs, each list whole, each naming what is required (a
             # record's unit: ADR-009, gate R)
             required = [field["name"] for field in resource["fields"] if field.get("required")]
+            failed = None
             for part in unit_api.bodies(body, always=required):
                 status, reply = unit.request("PATCH", path, part)
                 code = reply.get("error", {}).get("code") if isinstance(reply, dict) else None
@@ -1849,14 +1849,20 @@ class Session:
                     break
                 self.log.write("rc", f"settings: {path} written back, {len(part)} fields: {status}")
                 if status != 200:
-                    self.fail(f"settings: {path}: {status} {json.dumps(reply)}")
-            if resource["save"] not in saves:
-                saves.append(resource["save"])
-        for save in saves:
-            status, reply = unit.request("POST", save, {})
-            self.log.write("rc", f"settings: {save}: {status}")
+                    failed = f"settings: {path}: {status} {json.dumps(reply)}"
+                    break
+            # Each resource stored as soon as it is written whole, before the next: a powder's record is held until
+            # its save, one at a time (ADR-009, gate R). One with a part refused is put back as stored, never saved
+            # half written
+            if failed is not None:
+                self.fail(failed)
+                status, reply = unit.request("POST", resource["revert"], {})
+                self.log.write("rc", f"settings: {path} not saved, reverted: {status}")
+                continue
+            status, reply = unit.request("POST", resource["save"], {})
+            self.log.write("rc", f"settings: {resource['save']}: {status}")
             if status != 200:
-                self.fail(f"settings: {save}: {status} {json.dumps(reply)}")
+                self.fail(f"settings: {resource['save']}: {status} {json.dumps(reply)}")
         if refused_records:
             self.log.write("rc", f"settings: {len(refused_records)} records refused as another unit's own: "
                                  f"{', '.join(refused_records)}")
