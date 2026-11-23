@@ -63,7 +63,7 @@ def _types(real) -> tuple:
 
     class Constants(ctypes.Structure):
         _fields_ = ([(name, real) for name in (
-            "move_rps", "parcel_s", "coarse_least_rps", "coarse_most_rps", "fine_least_rps", "fine_most_rps",
+            "parcel_s", "coarse_least_rps", "coarse_most_rps", "fine_least_rps", "fine_most_rps",
             "user_backoff_turns", "user_backoff_rps", "coarse_threshold_gr", "gate_coarse_s",
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
             "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split")]

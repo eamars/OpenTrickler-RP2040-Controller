@@ -95,7 +95,8 @@ ALLOWED = {
         "2": (8, "half a digit; a median's middle; the trapezoid's half"),
     },
     "charge_calibration_job.h": {
-        "1024": (1, "CHARGE_CAL_JOB_READINGS_MAX: a size"),
+        "1536": (1, "CHARGE_CAL_JOB_READINGS_MAX: a size"),
+        "512": (1, "CHARGE_CAL_JOB_TURNING_MAX: a size"),
         "24": (1, "CHARGE_CAL_JOB_RUNS_MAX: a size (F3's most moves of one size)"),
     },
     "charge_mode.h": {

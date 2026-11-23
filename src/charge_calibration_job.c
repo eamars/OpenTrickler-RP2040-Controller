@@ -171,6 +171,13 @@ static bool next_fine_stop(charge_cal_job_t *job) {
 }
 
 
+// A tube's prime speed: the geometric mean of its user range (F6, gate 3)
+static real_t prime_rps(const charge_cal_job_t *job, uint8_t tube) {
+    return tube == COARSE ? SQRT_R(job->k.coarse_least_rps * job->k.coarse_most_rps)
+                          : SQRT_R(job->k.fine_least_rps * job->k.fine_most_rps);
+}
+
+
 static real_t coarse_speed(const charge_cal_job_t *job, uint8_t index) {
     real_t least = job->k.coarse_least_rps;
     real_t most = job->k.coarse_most_rps;
@@ -185,9 +192,10 @@ bool charge_cal_job_next(charge_cal_job_t *job, charge_cal_run_t *run) {
             case PHASE_PRIME: {
                 // Until two runs pour the same, not by a count: a coarse turn, then three fine turns, at the prime's speed
                 if (job->run < CHARGE_CAL_PRIME_TRIES) {
+                    // At the geometric mean of the tube's user range (F6, gate 3)
                     real_t turns = job->tube == COARSE ? REAL(CHARGE_CAL_PRIME_COARSE_TURNS) : REAL(CHARGE_CAL_PRIME_FINE_TURNS);
-                    ask(job, job->tube, REAL(CHARGE_CAL_PRIME_RPS), turns / REAL(CHARGE_CAL_PRIME_RPS),
-                        REAL(CHARGE_CAL_PRIME_WATCH_S));
+                    real_t speed = prime_rps(job, job->tube);
+                    ask(job, job->tube, speed, turns / speed, REAL(CHARGE_CAL_PRIME_WATCH_S));
                     *run = job->asked;
                     return true;
                 }
@@ -199,8 +207,9 @@ bool charge_cal_job_next(charge_cal_job_t *job, charge_cal_run_t *run) {
                     continue;
                 }
                 job->phase = PHASE_PROBES;
-                begin_entry(job, REAL(CHARGE_RULE_MOVE_RPS), CHARGE_CAL_PROBE_MOVES,
-                            REAL(CHARGE_CAL_PROBE_TURNS) / REAL(CHARGE_RULE_MOVE_RPS));
+                // At the fine prime's speed: no ladder is measured yet
+                begin_entry(job, prime_rps(job, FINE), CHARGE_CAL_PROBE_MOVES,
+                            REAL(CHARGE_CAL_PROBE_TURNS) / prime_rps(job, FINE));
                 continue;
             }
             case PHASE_PROBES:
@@ -275,8 +284,9 @@ bool charge_cal_job_next(charge_cal_job_t *job, charge_cal_run_t *run) {
                 }
                 job->phase = PHASE_MOVES;
                 job->index = 0;
-                begin_entry(job, REAL(CHARGE_RULE_MOVE_RPS), move_counts[0],
-                            move_digits[0] * job->digit_gr / cal->fine_gr_turn / REAL(CHARGE_RULE_MOVE_RPS));
+                // The small moves at the ladder's slowest stop, beside the creep a throw makes them at (C1, gate 3)
+                begin_entry(job, cal->fine_stops[0].speed_rps, move_counts[0],
+                            move_digits[0] * job->digit_gr / cal->fine_gr_turn / cal->fine_stops[0].speed_rps);
                 continue;
             case PHASE_MOVES: {
                 if (entry_next(job, FINE, cal->watch_s)) {
@@ -301,8 +311,8 @@ bool charge_cal_job_next(charge_cal_job_t *job, charge_cal_run_t *run) {
                 cal->moves[cal->move_count++] = (charge_control_move_t) {
                     mean_of(turned, job->count), mean_gain, percentile_of(gains, job->count, REAL(CHARGE_CAL_SPREAD_SHARE)), wait};
                 if (++job->index < MOVE_SIZES) {
-                    begin_entry(job, REAL(CHARGE_RULE_MOVE_RPS), move_counts[job->index],
-                                move_digits[job->index] * job->digit_gr / cal->fine_gr_turn / REAL(CHARGE_RULE_MOVE_RPS));
+                    begin_entry(job, cal->fine_stops[0].speed_rps, move_counts[job->index],
+                                move_digits[job->index] * job->digit_gr / cal->fine_gr_turn / cal->fine_stops[0].speed_rps);
                     continue;
                 }
                 // The coarse tube's powder a turn, run by run: its spread is how far a count of its turns can be off
@@ -352,6 +362,13 @@ bool charge_cal_job_next(charge_cal_job_t *job, charge_cal_run_t *run) {
 
 
 void charge_cal_job_reading(charge_cal_job_t *job, real_t t_s, real_t weight) {
+    if (t_s <= REAL(0.0) && job->reading_count >= CHARGE_CAL_JOB_TURNING_MAX) {
+        // A long turn: the newest reading takes the last one's place, so the stop's reading is kept and the watch
+        // keeps its room. Only a prime's runs turn so long, and of them only the first and last and the watch are read
+        job->times[job->reading_count - 1] = t_s;
+        job->weights[job->reading_count - 1] = weight;
+        return;
+    }
     if (job->reading_count < CHARGE_CAL_JOB_READINGS_MAX) {
         job->times[job->reading_count] = t_s;
         job->weights[job->reading_count] = weight;

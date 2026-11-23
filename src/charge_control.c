@@ -37,7 +37,6 @@ typedef charge_control_real_t real_t;
 
 
 void charge_control_default_constants(charge_control_constants_t *k) {
-    k->move_rps = REAL(CHARGE_RULE_MOVE_RPS);
     k->parcel_s = REAL(CHARGE_RULE_PARCEL_S);
     // The user's limits: none until the caller gives them (a top of 0 is refused at a charge's start)
     k->coarse_least_rps = REAL(0.0);
@@ -64,6 +63,11 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->over_tolerances = REAL(CHARGE_RULE_OVER_TOLERANCES);
     k->speed_law = 0;       // the glide's, the PC's check's; the charge gives the PID law (gate F.5)
     k->learning = 1;
+}
+
+
+real_t charge_control_move_rps(const charge_control_t *c) {
+    return c->cal.floor_rps;
 }
 
 
@@ -950,10 +954,10 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     const charge_control_move_t *move = move_for(c, short_gr);
     c->moves++;
     c->phase = CHARGE_CONTROL_PHASE_MOVE;
-    c->fine_rps = k->move_rps;
+    c->fine_rps = charge_control_move_rps(c);       // a small move at the creep (C1, gate 3)
     c->move_turns = move->turns;
     c->moved_turns += move->turns;
-    c->move_until_s = now_s + move->turns / k->move_rps;
+    c->move_until_s = now_s + move->turns / charge_control_move_rps(c);
     c->wait_s = move->wait_s;
 }
 

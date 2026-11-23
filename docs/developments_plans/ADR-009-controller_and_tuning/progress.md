@@ -3180,3 +3180,26 @@ Checked against the skill:
 - **Notes for the owner, beside the sheet:**
   - "Cup holds 200 gr" and "Empty the cup" draw sign-off item 17, the cup's capacity, which is last before the Pico W: drawn now, not built.
   - "This unit" shows one lag; with L the scale's lag is a dead time and one or two stages, fitted for each stop. At gate 5 the row becomes "Dead time" and "Settles", the stages' sum, with each stop's own on the web.
+
+## 2026-11-24, 02:44: gate 3 at the desk: F6 and C1 built; R in the reference; R's study, its figures for the owner written first
+
+**F6 and C1, built at the desk** (the manager's yes), in the reference and the C together:
+- **F6:** each tube primes at the geometric mean of its user's range; the probes run at the fine tube's prime speed. "The same" stays a share of the larger run. Its row says why.
+- **C1:** a throw's small move is made at the creep (`charge_control_move_rps`, the calibration's floor); the calibration measures its moves at its ladder's slowest stop. `CHARGE_RULE_MOVE_RPS` and `CHARGE_CAL_PRIME_RPS` are gone.
+- **The job's reading buffer mended:** at the stand-in's fine least of 0.01 rev/s, F6's fine prime turns for 42 s (1,928 of the simulated bench's readings). Past 512 readings while it turns, the newest takes the last one's place; the watch keeps its 1,024. A prime run needs only its first reading, its last and its watch.
+- `check_calibration_job.py`: the 21 simulated sets the same. The kept trials no longer replay: they primed at 1 rev/s, the old form. Their check of the arithmetic stood at 02:31.
+
+**R in the reference** (`staged.rehearse(..., form="throw", count, law)`, `rehearsal_gr`): a fine-only throw through the controller's own law, from rest. Its target is the coarse room, never under the fine tube's flow at its top for `REHEARSAL_LAG_TIMES` (2) of its longest lag. Today's form stays the default until the owner's choice.
+
+**R's study, its figures for the owner** (`tools/charge_sim/r_study.py`), written before it runs:
+- **What it throws:**
+  - the shipped defaults, coarse 0.1 to 5 and fine 0.08 to 5 rev/s, the tolerance 0.03;
+  - every stand-in, 2 seeds;
+  - the controller's PID law on the AR2209 profile's gains;
+  - three forms: today's (10 rehearsals of 1 gr, the glide's law), R with 40, R with 10.
+- **What it reports, for each:**
+  - the rehearsals' grains and minutes;
+  - where the stop is placed (the median first error of the throws after, against the aim);
+  - 25 throws at 10 gr: good and over within the tolerance;
+  - the first 5 of them alone, before the charge's own learning has moved the stop.
+- **What it decides:** nothing. The count is the owner's, weighed against gate 3's 200 gr and item 17. My recommendation goes with the figures.

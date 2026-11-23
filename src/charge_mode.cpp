@@ -689,7 +689,7 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
             }
         }
         else if (cc->phase == CHARGE_CONTROL_PHASE_MOVE && cc->move_turns >= 0.0f) {
-            if (motor_move_turns(SELECT_FINE_TRICKLER_MOTOR, cc->move_turns, cc->k.move_rps)) {
+            if (motor_move_turns(SELECT_FINE_TRICKLER_MOTOR, cc->move_turns, charge_control_move_rps(cc))) {
                 moving = true;
             }
         }

@@ -133,7 +133,6 @@ typedef struct {
 
 // The frame's constants: the research's values by default (charge_control_default_constants), tuned on the bench
 typedef struct {
-    charge_control_real_t move_rps;                 // a small move is made at this speed
     charge_control_real_t parcel_s;                 // the powder turned out is counted in parcels of this long
     // The user's limits for each tube (ADR-009, gate F.2), given by the caller from the settings: the least is the
     // higher of the profile's and the motor's least, the most the lower of their most (A2, A4, A5, A13, A14)
@@ -298,6 +297,9 @@ typedef struct {
 } charge_control_t;
 
 void charge_control_default_constants(charge_control_constants_t *k);
+
+// A small move's speed: the creep, the calibration's floor (C1, gate 3)
+charge_control_real_t charge_control_move_rps(const charge_control_t *c);
 
 // The controller's numbers from the measured ones, for one finish and band. Nothing here is fitted to a powder
 void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_finish_t finish, charge_control_real_t band_gr,

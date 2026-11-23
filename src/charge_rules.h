@@ -25,7 +25,6 @@
 */
 
 // --- The frame's constants (numbers.md, section C): the defaults of charge_control_default_constants ---------------
-#define CHARGE_RULE_MOVE_RPS 0.2                // C1, rev/s: a small move's speed. The bench's; measured from gate 3
 #define CHARGE_RULE_PARCEL_S 0.01               // C2, s: the powder turned out is counted in parcels this long
 #define CHARGE_RULE_COARSE_SPREADS 3.0          // C7: spreads of the coarse powder unseen that both tubes keep clear of
 #define CHARGE_RULE_CREEP_BAND_SHARE 1.0        // C8: the creep's powder still in the air, as a share of the band
@@ -90,7 +89,6 @@
 // --- The calibration's form: its measurements' steps (section F; charge_calibration_job.c, gate 3) ---------------
 #define CHARGE_CAL_PRIME_COARSE_TURNS 1.0       // F6, turns: the prime's coarse run
 #define CHARGE_CAL_PRIME_FINE_TURNS 3.0         // F6, turns: and its fine run
-#define CHARGE_CAL_PRIME_RPS 1.0                // F6, rev/s: the prime's speed. The bench's; inside the user's range at gate 3
 #define CHARGE_CAL_PRIME_WATCH_S 3.0            // F6, s: each prime run watched this long
 #define CHARGE_CAL_PRIME_TRIES 5                // F6: the prime ends when two runs pour the same, after this many at most
 #define CHARGE_CAL_PRIME_SAME_SHARE 0.1         // F6: two runs pour the same within this share of the larger

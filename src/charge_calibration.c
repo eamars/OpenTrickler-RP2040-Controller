@@ -603,7 +603,7 @@ typedef struct {
 #define CHARGE_CONSTANT(member) {#member, offsetof(charge_control_constants_t, member), false}
 
 static const charge_constant_t charge_constants_table[] = {
-    CHARGE_CONSTANT(move_rps), CHARGE_CONSTANT(parcel_s),
+    CHARGE_CONSTANT(parcel_s),
     CHARGE_CONSTANT(coarse_spreads), CHARGE_CONSTANT(creep_band_share), CHARGE_CONSTANT(creep_most_s),
     CHARGE_CONSTANT(learn_share), CHARGE_CONSTANT(learn_most_digits), CHARGE_CONSTANT(learn_dead_digits), CHARGE_CONSTANT(learn_fine_prior),
     CHARGE_CONSTANT(learn_fine_most), CHARGE_CONSTANT(learn_fine_split),

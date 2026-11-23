@@ -34,7 +34,6 @@ from dataclasses import dataclass, field
 from bench_twin import TwinBench
 from throw import Session
 
-MOVE_RPS = 0.2                  # a small move is made at this speed, as the bench's watched nudges were
 PARCEL_S = 0.01                 # the powder turned out is counted in parcels of this long
 # The fine tube's top speed in this trial. The bench turned it to 1 rev/s with both powders (and to 5 with
 # AR2209), but above 0.5 rev/s the simulated tube pours in gaps and dumps the bench never showed (no rise for up to
@@ -62,6 +61,11 @@ PROBE_WATCH_S = 15.0
 LEAST_WATCH_S = 3.0
 REHEARSALS = 10
 REHEARSAL_GR = 1.0
+# The rehearsal's form R (gate 3, the manager's yes, 2026-11-24): a throw of the fine tube alone through the controller's
+# own law, from rest, its target the coarse room but never under the fine tube's flow at its top for this many of its
+# longest lag, so it reaches its approach before the stop as a throw does (F.2: a short one from a cold tube rested far
+# short at a fine top of 5 rev/s). Its count is the owner's choice (the study, progress.md)
+REHEARSAL_LAG_TIMES = 2.0
 MOST_MOVES = 8                  # tries a throw is given after its first rest: small moves, and returns to the stream
 COARSE_SPREADS = 3.0            # of the coarse tube's spread a turn, kept clear of its powder still unseen
 # The creep's powder still on its way, as a share of the band. Half of it was tried: 1.5 to 2 s slower a throw and
@@ -328,15 +332,21 @@ def measure_on(bench, digit: float, interval_s: float, limits: Limits = None) ->
         limits: the user's limits for each tube (the simulation's stand-in user when none): the ladder is cut by them.
     """
     limits = limits or sim_limits()
-    for tube, turns in (("coarse", 1.0), ("fine", 3.0)):    # prime until two runs pour the same, not by a count
+    # each tube primed at the geometric mean of its user's range (F6, gate 3), until two runs pour the same, not by a
+    # count; "the same" a share of the larger run, in the unit's own terms for either tube
+    prime = {"coarse": math.sqrt(limits.coarse_least * limits.coarse_most),
+             "fine": math.sqrt(limits.fine_least * limits.fine_most)}
+    for tube, turns in (("coarse", 1.0), ("fine", 3.0)):
         last = None
         for _ in range(5):
-            gain = run_stop(bench, tube, 1.0, turns, 3.0, digit)["gain"]
+            gain = run_stop(bench, tube, prime[tube], turns / prime[tube], 3.0, digit)["gain"]
             if last is not None and abs(gain - last) <= 0.1 * max(gain, last):
                 break
             last = gain
-    # how long this scale takes to show a small move: every watch below follows from it
-    probes = [run_stop(bench, "fine", MOVE_RPS, 0.1 / MOVE_RPS, PROBE_WATCH_S, digit) for _ in range(PROBE_MOVES)]
+    # how long this scale takes to show a small move: every watch below follows from it (at the fine prime's speed:
+    # no ladder is measured yet)
+    probes = [run_stop(bench, "fine", prime["fine"], 0.1 / prime["fine"], PROBE_WATCH_S, digit)
+              for _ in range(PROBE_MOVES)]
     watch_s = max(LEAST_WATCH_S, 1.5 * max(run["quiet"] for run in probes) + 1.0)
     coarse_runs = [run_stop(bench, "coarse", 1.0, 0.75, watch_s, digit) for _ in range(3)]
     fine_runs = [run_stop(bench, "fine", 1.0, 1.5, watch_s, digit) for _ in range(3)]
@@ -358,12 +368,14 @@ def measure_on(bench, digit: float, interval_s: float, limits: Limits = None) ->
     coarse_stops = [stops_at(bench, "coarse", speed, count, run_s, watch_s, digit, coarse_yields)
                     for speed, (count, run_s) in zip(coarse_speeds, COARSE_STOP_FORM)]
 
+    # the small moves at the ladder's slowest stop, beside the creep a throw makes them at (C1, gate 3)
+    move_rps = fine_stops[0].speed
     moves = []
     for digits, count in MOVES_DIGITS:
         turns = digits * digit / fine_gr
         gains, shown, turned = [], [], []
         for _ in range(count):
-            run = run_stop(bench, "fine", MOVE_RPS, turns / MOVE_RPS, watch_s, digit)
+            run = run_stop(bench, "fine", move_rps, turns / move_rps, watch_s, digit)
             gains.append(run["gain"])
             turned.append(run["turns"])
             if run["gain"] >= digit / 2.0:
@@ -953,10 +965,10 @@ class Staged:
         move = self._move_for(short)
         self.moves += 1
         self.phase = "move"
-        self.fine_rps = MOVE_RPS
+        self.fine_rps = cal.floor_rps      # a small move at the creep (C1, gate 3)
         self.move_turns = move.turns
         self.moved_turns += move.turns
-        self.move_until = now + move.turns / MOVE_RPS
+        self.move_until = now + move.turns / cal.floor_rps
         self.wait = move.wait_s
 
     def _sum_unseen(self) -> None:
@@ -1145,18 +1157,33 @@ def calibrate(rig, seed: int, finish: str, band_gr: float, lag_rig=None, lag_shi
     return cal
 
 
-def rehearse(cal: Calibration, session, acceleration_rps2: float) -> None:
-    """The rehearsals: throws of a grain with the fine tube alone, each ended at its first rest, that place the stop.
+def rehearsal_gr(cal: Calibration) -> float:
+    """Form R's size: the coarse room, never under the fine tube's flow at its top for REHEARSAL_LAG_TIMES of its longest
+    lag."""
+    longest = max(lag for _, lag in lag_table(cal.fine_stops, cal.fine_gr_turn))
+    return max(cal.coarse_room_gr, cal.fine_top_rps * cal.fine_gr_turn * REHEARSAL_LAG_TIMES * longest)
+
+
+def rehearse(cal: Calibration, session, acceleration_rps2: float, form: str = "gram", count: int = None,
+             law=None) -> None:
+    """The rehearsals: throws with the fine tube alone, each ended at its first rest, that place the stop.
 
     Args:
         cal: the calibration with its rules set (`for_finish`); its stop is moved here.
         session: throws on the bench: `throw(controller, target, tolerance)` gives a result with `elapsed_s` and
             `true_gr` (`throw.Session`, or a unit's in `bench/trial.py`).
         acceleration_rps2: the motors' ramp, for the controller's own count of the turns.
+        form: "gram", REHEARSAL_GR each by the glide's law (the research's); "throw", form R (`rehearsal_gr`) by
+            `law`, the controller's own (a PidLaw; the glide's when None).
+        count: how many (REHEARSALS when None).
     """
     controller = Staged(cal, acceleration_rps2, rehearsal=True)
-    for _ in range(REHEARSALS):
-        result = session.throw(controller, REHEARSAL_GR, cal.band_gr + cal.digit_gr / 2.0)
+    target = REHEARSAL_GR
+    if form == "throw":
+        controller.pid = law
+        target = rehearsal_gr(cal)
+    for _ in range(REHEARSALS if count is None else count):
+        result = session.throw(controller, target, cal.band_gr + cal.digit_gr / 2.0)
         cal.seconds += result.elapsed_s + 1.0
         cal.poured_gr += result.true_gr
     cal.first_errors = [entry[0] for entry in controller.log]

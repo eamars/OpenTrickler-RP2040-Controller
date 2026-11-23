@@ -438,7 +438,7 @@ class UnitSession:
                 if controller.move_turns is not None:       # a small move: made to its turn, nothing read meanwhile
                     if RELEASE_FIRST and held["fine"]:
                         unit.set_speed("fine", 0.0)
-                    unit.move("fine", staged.MOVE_RPS, controller.move_turns)
+                    unit.move("fine", controller.cal.floor_rps, controller.move_turns)
                     controller.moved((unit.clock() - started) * 1000.0)
                     sent["fine"], held["fine"] = 0.0, True
                     continue

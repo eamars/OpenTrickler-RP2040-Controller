@@ -23,7 +23,9 @@
 extern "C" {
 #endif
 
-#define CHARGE_CAL_JOB_READINGS_MAX 1024        // a run's readings kept: 50 s at 20 a second (a size)
+#define CHARGE_CAL_JOB_READINGS_MAX 1536        // a run's readings kept (a size): its watch's all, up to 1,024
+#define CHARGE_CAL_JOB_TURNING_MAX 512          // while it turns, this many; past them the newest takes the last's place (a
+                                                // long prime's: only its first, its last and its watch are read)
 #define CHARGE_CAL_JOB_RUNS_MAX 24              // the most runs of one speed's stops or one move's size (a size)
 
 typedef struct {
