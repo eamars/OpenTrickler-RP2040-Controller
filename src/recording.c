@@ -149,6 +149,7 @@ static SemaphoreHandle_t recording_lock;
 static recording_summaries_t *recording_sums = NULL;        // NULL: nothing is recorded
 static recording_samples_t *recording_samples = NULL;       // NULL: no samples
 static bool recording_no_samples = false;                   // the console's: samples taken as not had
+static bool recording_charge_samples = false;               // this charge's throws have samples
 static uint16_t recording_open = 0;                         // the entry being made
 static int8_t recording_open_slot = -1;
 static uint16_t recording_last_complete = 0;                // whose samples the next pour does not write over
@@ -200,8 +201,9 @@ void recording_init(void) {
 
 void recording_charge_begin(void) {
 #if PICO_RP2350
+    // Kept across charges: a charge without samples has none of its own, and those kept before stay readable
     recording_take();
-    recording_samples = recording_no_samples ? NULL : &recording_samples_kept;
+    recording_charge_samples = !recording_no_samples;
     recording_give();
 #else
     // The summaries first: small, and the samples are worth nothing without them
@@ -217,6 +219,7 @@ void recording_charge_begin(void) {
     recording_take();
     recording_sums = sums;
     recording_samples = samples;
+    recording_charge_samples = samples != NULL;
     recording_last_complete = 0;
     recording_give();
 #endif
@@ -224,7 +227,7 @@ void recording_charge_begin(void) {
         printf("Recording: none for this charge: the heap has not %u bytes (%u free)\n",
                (unsigned) sizeof(recording_summaries_t), (unsigned) xPortGetFreeHeapSize());
     }
-    else if (recording_samples == NULL) {
+    else if (!recording_charge_samples) {
         printf("Recording: no samples for this charge (samples_kept false): %s\n",
                recording_no_samples ? "ccrec nosamples is on" : "the heap has not the samples' bytes");
     }
@@ -238,6 +241,7 @@ void recording_charge_end(void) {
     recording_samples_t *samples = recording_samples;
     recording_sums = NULL;
     recording_samples = NULL;
+    recording_charge_samples = false;
     recording_open = 0;
     recording_open_slot = -1;
     recording_give();
@@ -367,7 +371,7 @@ void recording_pour_begin(uint32_t now_ms) {
         entry->started_at_ms = now_ms;
         recording_pour_ms = now_ms;
         recording_poured = true;
-        if (recording_samples != NULL) {
+        if (recording_samples != NULL && recording_charge_samples) {
             // Not over the last complete throw's: a client reads it while this one pours
             uint8_t s = recording_samples->slot[0].owner == recording_last_complete && recording_last_complete != 0;
             recording_slot_t *slot = &recording_samples->slot[s];

@@ -3067,8 +3067,10 @@ class Session:
     def recordings_check(self, host, target, throws):
         """
         Every throw's recording read through the API is the console's (ADR-009, gate 2's rest), with the simulated
-        scale: a series of `throws` in one charge, each throw's rows through GET /api/v1/recordings/{id}/samples
-        against `ccrec <id>` row for row, its summary against its line. Then a charge whose samples cannot be had
+        scale: `throws` throws of one charge, the cup lifted and put back between them by the simulated scale, as a
+        user's charge goes on, each throw's rows through GET /api/v1/recordings/{id}/samples against `ccrec <id>` row
+        for row, its summary against its line. Not a console series: the simulated scale lifts its cup at every
+        verdict, which a series, pouring into the same cup, never asks for. Then a charge whose samples cannot be had
         (`ccrec nosamples on`, as when the Pico W's heap has not their bytes): it throws to its verdict all the same,
         its recording says samples_kept false, and its samples' path answers 410. The hopper is taken to be empty.
         """
@@ -3081,12 +3083,12 @@ class Session:
         heap_before = self.console.command("stats")
         heap_during = None
         try:
-            # The series
+            # The throws of one charge
             self.console.charge_events.clear()
-            reply = self.send(f"charge {target:g} series {throws}")
+            reply = self.send(f"charge {target:g}")
             if reply is None or not reply.startswith("@ok"):
                 return
-            seen, compared, started = 0, 0, time.monotonic()
+            seen, compared, started, last_id = 0, 0, time.monotonic(), None
             while seen < throws and time.monotonic() - started < throws * RECORDINGS_THROW_S:
                 lines = [line for _, line in self.console.charge_events if line.startswith("Charge: throw ")]
                 for line in lines[seen:]:
@@ -3095,6 +3097,7 @@ class Session:
                         self.fail(f"recordings_check: a throw with no recording: {line}")
                     else:
                         compared += self.recordings_compare(unit, int(rec.group(1)), line)
+                        last_id = int(rec.group(1))
                     seen += 1
                 if any("Charge: ended" in line for _, line in self.console.charge_events):
                     self.fail("recordings_check: the series ended on a fault")
@@ -3104,8 +3107,7 @@ class Session:
             if seen < throws:
                 self.fail(f"recordings_check: {seen} of {throws} throws seen")
             heap_during = self.console.command("stats")
-            self.send("charge stop")
-            self.recordings_idle(unit)
+            self.recordings_stop(unit)
 
             # A charge whose samples cannot be had
             self.console.charge_events.clear()
@@ -3131,8 +3133,13 @@ class Session:
                 if entry is None or entry["samples_kept"] or status != 410:
                     self.fail(f"recordings_check: with no samples: recording {rec_id}, samples_kept "
                               f"{entry['samples_kept'] if entry else None}, its samples answered {status}, not 410")
-            self.send("charge stop")
-            self.recordings_idle(unit)
+            self.recordings_stop(unit)
+            # The Pico 2 W keeps them across charges: the first charge's last throw has its samples still
+            if unit.index["board"] == "pico2_w" and last_id is not None:
+                kept = unit.read(f"recordings/{last_id}")["samples_kept"]
+                self.log.write("rc", f"recordings_check: after it, recording {last_id}'s samples kept: {kept}")
+                if not kept:
+                    self.fail(f"recordings_check: recording {last_id}'s samples went with a later charge's")
         finally:
             self.send("ccrec nosamples off")
             self.send("sim off")
@@ -3140,8 +3147,10 @@ class Session:
         for name, reply in (("before", heap_before), ("during the series", heap_during), ("after", heap_after)):
             self.log.write("rc", f"recordings_check: the heap {name}: {reply}")
 
-    def recordings_idle(self, unit):
-        """Wait for the charge to be idle after a stop."""
+    def recordings_stop(self, unit):
+        """The charge stopped, when it runs, and waited for until it is idle."""
+        if unit.read("charge")["state"] != "idle":
+            self.send("charge stop")
         deadline = time.monotonic() + RECORDINGS_THROW_S
         while time.monotonic() < deadline and unit.read("charge")["state"] != "idle":
             time.sleep(CHARGE_POLL_S)
