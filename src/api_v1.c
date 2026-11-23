@@ -378,7 +378,8 @@ static const api_v1_resource_t api_v1_resources[] = {
      "the firmware, the board, the uptime, what the unit is doing, a restart pending, whether it is set up"},
     {"/api/v1/system/restart", "[\"POST\"]", "restarts the unit, once the reply is out"},
     {"/api/v1/system/factory_reset", "[\"POST\"]",
-     "erases the stored settings and restarts: the unit comes back as its own access point"},
+     "erases the stored settings and this unit's records, and restarts: the unit comes back as its own access point. "
+     "Back up first: GET /api/v1/settings holds them all"},
     {"/api/v1/network", "[\"GET\"]",
      "the network the unit is on: its mode, name, address, host name, signal; the station's last join and its end"},
     {"/api/v1/wifi/networks", "[\"GET\"]", "the networks the last scan heard, strongest first, and whether one runs"},

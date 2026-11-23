@@ -1793,8 +1793,10 @@ static const char *const api_v1_schema_actions[] = {
     "\"about\":\"restarts the unit once the reply is out (202)\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/system/factory_reset\",\"fields\":[{\"name\":\"confirm\",\"type\":\"choice\","
     "\"choices\":[{\"value\":\"factory_reset\",\"label\":\"Factory reset\"}],\"required\":true}],\"refused_while\":\"a_job_runs\","
-    "\"about\":\"erases the stored settings and restarts (202): the unit then leaves the network and comes back as "
-    "its own access point, with a new id and host name. 400 confirm_missing without the confirmation\",\"example\":{\"confirm\":\"factory_reset\"}}",
+    "\"about\":\"erases the stored settings, the powder profiles and this unit's records, and restarts (202): the "
+    "unit then leaves the network and comes back as its own access point, its id and host name the same (they are the chip's). Back up first: "
+    "GET /api/v1/settings holds every setting, every profile and this unit's records, and a restore writes them back. "
+    "400 confirm_missing without the confirmation\",\"example\":{\"confirm\":\"factory_reset\"}}",
 };
 
 // --- An action's usage (ADR-008, gate 2): a GET of an action's path gives its description from the schema, with an

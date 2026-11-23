@@ -115,7 +115,50 @@ def value_problem(field, value):
     if kind == "choice":
         values = [choice["value"] for choice in field["choices"]]
         return None if value in values else f"not_a_choice: {name} is one of {values}"
+    if kind == "list":
+        # A list of flat rows (ADR-009, gate R): written whole, each row given every one of its fields
+        if not isinstance(value, list) or not all(isinstance(row, dict) for row in value):
+            return f"wrong_type: {name} is a list of rows"
+        if not field.get("rows_min", 0) <= len(value) <= field["rows_max"]:
+            return f"out_of_range: {name} holds {field.get('rows_min', 0)} to {field['rows_max']} rows"
+        cells = {cell["name"]: cell for cell in field["row"]}
+        for number, row in enumerate(value):
+            if set(row) != set(cells):
+                return f"out_of_range: {name}, row {number}: a row is given whole, its fields {sorted(cells)}"
+            for cell_name, cell_value in row.items():
+                problem = value_problem(cells[cell_name], cell_value)
+                if problem is not None:
+                    return f"{problem} ({name}, row {number})"
+        return None
     return f"wrong_type: {name} is of a type this client does not know ({kind})"
+
+
+BODY_MOST = 1000    # a PATCH's body, under the unit's 1,024 bytes (HTTP_SERVER_BODY_MAX)
+
+
+def bodies(values, most=BODY_MOST):
+    """
+    A resource's fields split into PATCH bodies the unit takes: each within `most` bytes as JSON, a field never split,
+    so a list goes whole in one (ADR-009, gate R: a powder's record is larger than one body).
+
+    Args:
+        values: the fields to write, a dict.
+        most: the most bytes a body may take.
+
+    Returns:
+        The bodies, dicts, in the fields' order; one alone when they fit together.
+    """
+    out, current = [], {}
+    for name, value in values.items():
+        trial = dict(current, **{name: value})
+        if current and len(json.dumps(trial)) > most:     # as the clients send it, json.dumps's own spacing
+            out.append(current)
+            current = {name: value}
+        else:
+            current = trial
+    if current or not out:
+        out.append(current)
+    return out
 
 
 def fields_problems(fields, values, writing):

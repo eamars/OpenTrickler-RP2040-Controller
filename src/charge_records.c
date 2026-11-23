@@ -383,7 +383,7 @@ static const setting_field_t powder_fields[] = {
     {.name = "unit_id", .label = "Unit", .type = SETTING_STRING, POWDER_FIELD(unit_id), .applies = "at_charge_start",
      .about = "The unit it was measured on: a write naming another is refused, 409 not_this_unit"},
     {.name = "held", .label = "Calibrated", .type = SETTING_BOOLEAN, POWDER_FIELD(held), .applies = "at_charge_start",
-     .about = "A calibration is held: a write of the record makes it so"},
+     .about = "A calibration is held, and a charge may use it once it holds what a throw needs"},
     {.name = "coarse_gr_turn", .label = "Coarse grains a turn", .type = SETTING_NUMBER, POWDER_FIELD(coarse_gr_turn),
      .unit = "gr", .min = 0.0f, .max = 200.0f, .applies = "at_charge_start", .about = "The coarse tube's powder a turn"},
     {.name = "fine_gr_turn", .label = "Fine grains a turn", .type = SETTING_NUMBER, POWDER_FIELD(fine_gr_turn),
@@ -482,7 +482,6 @@ static const char *powder_check(const void *proposed, int32_t id, const char **f
 // Written through: what the API wrote is what is stored, and a charge reads it at its start
 static void powder_apply(const void *before, int32_t id) {
     (void) before;
-    charge_records_cache->held = 1;
     charge_records_write((uint8_t) id, charge_records_cache);
 }
 
@@ -496,7 +495,6 @@ static void *unit_live(int32_t id) {
 static void unit_apply(const void *before, int32_t id) {
     (void) before;
     (void) id;
-    charge_unit_record.held = 1;
     charge_records_write_unit();
 }
 

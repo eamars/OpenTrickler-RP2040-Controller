@@ -1774,6 +1774,7 @@ class Session:
         copy = json.loads((Path(restore_dir) / "settings.json").read_text(encoding="utf-8"))
         unit = unit_api.Unit(host)
         saves = []
+        refused_records = []
         for path, values in copy["resources"].items():
             resource = unit.resource(path)
             if resource is None:
@@ -1781,10 +1782,18 @@ class Session:
                 continue
             writable = {field["name"] for field in resource["fields"] if field.get("access", "read_write") == "read_write"}
             body = {name: value for name, value in values.items() if name in writable}
-            status, reply = unit.request("PATCH", path, body)
-            self.log.write("rc", f"settings: {path} written back, {len(body)} fields: {status}")
-            if status != 200:
-                self.fail(f"settings: {path}: {status} {json.dumps(reply)}")
+            # In as many PATCHes as the unit's body limit needs, each list whole (ADR-009, gate R)
+            for part in unit_api.bodies(body):
+                status, reply = unit.request("PATCH", path, part)
+                code = reply.get("error", {}).get("code") if isinstance(reply, dict) else None
+                if status == 409 and code == "not_this_unit":
+                    # Another unit's own data: refused by the unit, and named; the shared parts go on
+                    refused_records.append(path)
+                    self.log.write("rc", f"settings: {path} refused: another unit's own data (not_this_unit)")
+                    break
+                self.log.write("rc", f"settings: {path} written back, {len(part)} fields: {status}")
+                if status != 200:
+                    self.fail(f"settings: {path}: {status} {json.dumps(reply)}")
             if resource["save"] not in saves:
                 saves.append(resource["save"])
         for save in saves:
@@ -1792,6 +1801,10 @@ class Session:
             self.log.write("rc", f"settings: {save}: {status}")
             if status != 200:
                 self.fail(f"settings: {save}: {status} {json.dumps(reply)}")
+        if refused_records:
+            self.log.write("rc", f"settings: {len(refused_records)} records refused as another unit's own: "
+                                 f"{', '.join(refused_records)}")
+        return refused_records
 
     def settings_roundtrip(self, host, target):
         """
@@ -1832,6 +1845,10 @@ class Session:
                 return "yes", "not true or false"
             if kind == "colour":
                 return "red", "not #rrggbb"
+            if kind == "list":
+                # One row more than it holds, each of its fields at its least
+                row = {cell["name"]: cell.get("min", 0) for cell in field["row"]}
+                return [dict(row) for _ in range(field["rows_max"] + 1)], "more rows than it holds"
             return None
 
         status, schema = call("GET", "/api/v1/schema")
@@ -1845,7 +1862,10 @@ class Session:
             fields = fields_of[re.sub(r"/\d+$", "/{id}", path)]
             writable = {f["name"] for f in fields if f.get("access") == "read_write"}
             body = {name: value for name, value in before.items() if name in writable}
-            status, reply = call("PATCH", path, body)
+            for part in unit_api.bodies(body):
+                status, reply = call("PATCH", path, part)
+                if status != 200:
+                    break
             status_again, again = call("GET", path)
             if status != 200 or again != before:
                 changed = {k: (before.get(k), again.get(k)) for k in set(before) | set(again)

@@ -308,7 +308,12 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - the charge settings' filler holds `controller` and `mode` (no size change);
   - a calibration slot for each powder profile at 13 to 20 K (new slots; no existing record changed);
   - the PID law's carried stops at 21 K (a new slot).
-- **Gate R's,** declared here with their sizes when they are made: the unit's record (a new slot); the powder's record grown; the 21 K slot freed. The filler's byte (A18) is read as nothing and written as zero at F.5, with `controller` and `mode` leaving the API.
+- **Gate R's (2026-11-23),** the sizes from `sizeof` in both boards' ELFs:
+  - **the unit's record,** a new slot at 22 K: `charge_unit_record_t`, 32 B and its CRC (the unit's id, the scale's digit and interval, its lag and rest);
+  - **a powder's record, version 2,** in each slot of 13 to 20 K: `charge_powder_record_t`, 404 B and its CRC, where the slot held the controller's own struct, `charge_calibration_record_t`, 420 B (v1). At the first start of the new image a v1 slot is read once and written as v2 (`charge_records_init`): its digit and interval go to the unit's record, from the first valid slot, a disagreeing one said on the console; its first errors become the one list, marked the glide's. A slot that is neither is left as it is, and a charge refuses it in words;
+  - **the 21 K slot freed:** the PID law's lists (`charge_calibration_law_stops_t`, 524 B) are written with zeros at that first start; nothing reads it after, and its address is gone from `eeprom.h`. Their lists are dropped (the night's bench data);
+  - **no existing record changes its size:** the charge's settings 64 B, the profiles 516 (each 64), a motor's 76, the scale's 6, the Wi-Fi's 108, the LEDs' 20, the display's 8, the motors' kept part 28, the servo gate's 28, the update's 132, the same in the image of c2e551d and in gate R's;
+  - the filler's byte (A18) is read as nothing and written as zero at F.5, with `controller` and `mode` leaving the API.
 - No existing record changes its size, so no unit's settings reset at the update.
 
 ## What we want

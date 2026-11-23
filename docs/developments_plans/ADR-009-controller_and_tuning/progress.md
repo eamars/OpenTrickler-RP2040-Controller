@@ -2095,3 +2095,31 @@ The glide's and the PID law's are −1.3 to +0.2 s, median −0.8 s: the simulat
 - **The 2.5 gr early coarse stop** is corrected where it was relied on: gate S's text and the README's finding, with pointers left in the history (this file's 19:51, `research/pid_learning_2026-11-22.md`, `research/HANDOVER.md`, `controller_design_draft.md`).
 
 **Gate S is done, its time bar not met.** Its known limit (the bias above) is the simulation's, named for every gate after it. The offer's trade is judged within the pairs: about 2 s saved; its over cost open until F.5's ABBA and gate 3, on the rig.
+
+## 2026-11-23, 21:25: gate R built at the desk; its checklist (late)
+
+**Written late:** the gate's first change (`bcadd8d`, the documents) came before this checklist; the design and its decisions were on record before any code (the agent's note of about 21:10, the manager's decisions on it, the owner's choice of nested lists).
+
+**The checklist:**
+1. **Which numbers does this gate add, move or change?** The records' bounds (`numbers.md`, B13: not control, wide on purpose) and their sizes (B11, unchanged: 4, 8, 3, 16). No number of the controller.
+2. **Does any value come from the bench unit?** No. The bounds are no unit's; a record holds what each unit measures.
+3. **Does each fixed number pass the test?** None is added.
+4. **Is a new parameter needed?** No: the records hold the register's row 9, approved.
+5. **Does the pass on the rig check a mechanism, against a prediction written first?** Its runs, as the manager set them and as written before them here:
+   - **the update from 2.0.3** by the probe, its settings and profiles kept (`rc_run.py settings --compare`);
+   - **the update from the gate-2 image** (2.0.3-216, with v1 slots and the 21 K lists), each calibration the same before and after (`ccal load` of each profile), the 21 K slot zeroed;
+   - **a backup, a factory reset, a restore:** every calibration back;
+   - **another unit's backup** (its `unit_id` edited): its records refused 409 `not_this_unit`, each named, the shared parts applied, this unit's own the same as before;
+   - **a slot corrupted by `ccal corrupt`:** the charge refused in its own words, as a missing calibration is;
+   - **a write with no memory** (`setting nomem on`): 503 with `Retry-After`, nothing written;
+   - **`settings_roundtrip`** (the records' lists written back unchanged, a list too long refused) and **`api_check`**;
+   - **`web_robust`, and `soak 300 --load`:** no failed allocation, the FreeRTOS heap the same quiet before and after, web misses within 6% and 4 in a row, no late step feed.
+   The prediction: each passes as built.
+6. **What is still shown on the bench unit only?** Everything on a unit: the Pico 2 W. The Pico W links (below), and its run is gate 7's.
+
+**At the desk** (`400edc0` and after):
+- **Sizes:** above, and in the README's "Stored layout changes".
+- **The Pico W:** RAM 261,164 of 262,144 B (980 spare, 96 before: the two static 420 B copies are gone, the charge's records read into working copies from the heap); flash 1,030,952 of 1,040,384 B (**9,432 spare, 21,608 before**).
+- **What gate R took of the flash:** the list kind about 2.6 KB (`http_json.c`'s array, about 760 B; `settings.c`, 1,885 B at `-Os`), well within the manager's third of the spare; the records' module 9.3 KB at `-O0` (two tables of 33 fields described, the conversions, the migration).
+- **What a write takes from the heap on the Pico W:** twice the resource's struct for a PATCH (808 B for a powder's record), the same for a revert at its largest (1,024 B), and a saved check's one copy; given back when the request ends. The records' API keeps one powder's record from the heap for good (404 B), taken at the start. A charge reads its record into a working copy from the heap (420 B) for its start and its end, and gives it back.
+- `check_numbers.py`, `check_firmware_controller.py --logic-only`: `VERDICT PASS`; both boards build.
