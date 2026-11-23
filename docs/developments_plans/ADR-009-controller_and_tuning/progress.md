@@ -3152,3 +3152,5 @@ Checked against the skill:
 - no text over another, and every text inside its width.
 
 **Not drawn yet:** the web's pages (the calibration's progress and verdict, this unit's data with its export, import, backup and restore, a throw's recording, an agent's change and the user's yes), the servo gate tuned by eye, and a factory reset's offer of a backup. They come next, by the skill `web-ui-design`.
+
+**Held, 02:35:** the web's mocks are the real pages on the stand-in, and their flow (the cup declared, the steps, the verdict before Keep, the offer) is the one the 12864 sheet shows. They wait for the owner's word on that sheet, so that pages are not built tonight to a flow the morning may change.
