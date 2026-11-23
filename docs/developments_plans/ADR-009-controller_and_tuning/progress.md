@@ -1,5 +1,43 @@
 # ADR-009: progress
 
+## The night of 2026-11-24, in short (written 03:15, for the owner)
+
+All of it is local on `adr009_controller`; nothing pushed. The details are in this file's entries from 00:46 on.
+
+**Built and passed:**
+- **F.4,** a powder never calibrated, thrown:
+  - the learnt source;
+  - your 2 s / 6 s;
+  - the digit from the scale's smallest step.
+
+  On the Pico 2 W three uncalibrated throws ended at rest.
+- **F.5,** one controller, the PID law:
+  - `controller` and `mode` out;
+  - `auto_tune` in;
+  - the jog, the clamps that never act, N.3's leftovers and E9's second gone;
+  - `ccon` lists only.
+
+  `charge_cycle`, `menu_tour` (the Charge page saved again), `api_check`, `settings_roundtrip` and `reach` pass on the Pico 2 W.
+- **Gate 3 at the desk:**
+  - the calibration's measurements in C, run for run the reference's on every stand-in;
+  - F6, each tube primed at its range's mid-point;
+  - C1, the small moves at the creep;
+  - the job's unit side waits for gate 4's screens.
+- **Gate 4:** the 12864's screens drawn (`mockups/calibration_12864.png`), for your look. The web's wait for them.
+- **The tools:** a cup's drop is never taken as emptied without your word; `reach` never clicks Zero by mistake.
+
+**Found and mended:**
+- each throw dropped the zero margin and the gate's hold (F.4);
+- removing D1 could divide by zero (F.5), now held by a case;
+- `ccal` named its working copy as a profile's (F.4).
+
+**Studied and not built** (yours to choose): L, the lag in stages (item 3); R, the rehearsal's count (item 6). B3 showed no benefit and is not ported.
+
+**Owed:**
+- F.5's ABBA on the rig (an empty cup);
+- gate 3's job on the unit, after the screens;
+- the A18 migration shown on a unit (gate 7).
+
 ## For the owner in the morning (kept current through the night of 2026-11-24)
 
 Each item with the implementing agent's recommendation. Nothing here blocked the night's work: each was worked around.
