@@ -55,8 +55,10 @@ class StagedStages(staged.Staged):
                 parcel.extend([parcel[0] - self.mean_lag, 1.0])
 
     def _parcel(self, now: float) -> None:
+        count = len(self.parcels)
         super()._parcel(now)
-        self._stamp(now)
+        for parcel in self.parcels[count:]:     # turned out over the stretch since the last: its middle
+            parcel.extend([now - staged.PARCEL_S / 2.0, 1.0])
 
     def precharge(self, grains, speed_rps, now_ms):
         super().precharge(grains, speed_rps, now_ms)
@@ -96,6 +98,12 @@ class StagedStages(staged.Staged):
         self.unseen = sum(self._left(p) for p in self.parcels if figured[p[2]])
         self.coarse_unseen = sum(self._left(p) for p in self.parcels if p[2] == "coarse" and figured["coarse"])
 
+    def _rest_ready(self, now: float, noise: float) -> bool:
+        """The verdict waits until the forecast's powder still to show is under the scale's noise (C24): by the stages,
+        the late powder is known, so a rest is not judged while it is still landing (the manager, on E9)."""
+        self._take_due(now)
+        return self.unseen < noise
+
     def _fine_unseen_turns(self) -> float:
         return sum(self._left(p) for p in self.parcels if p[2] == "fine") / self.cal.fine_gr_turn
 
@@ -117,6 +125,22 @@ def scale_stages(rig, seed: int) -> tuple:
     return stages, lag, measured.rest_s
 
 
+def calibrated_stages(rig, seed: int, band: float) -> tuple:
+    """A calibration on this rig, as staged.calibrate makes it, and the stages its own fine stops fit (the median of
+    those within CREEP_TIMES of its creep): (calibration, stages)."""
+    digit = rig.scale.digit_gr
+    bench = lag_stages.Recorded(staged.TwinBench(rig, seed))
+    cal = staged.measure_on(bench, digit, rig.scale.report_s)
+    staged.set_rules(cal, "glide", band)
+    staged.rehearse(cal, Session(rig, seed + 1), rig.acceleration_rps2)
+    fits = [lag_stages.fit_run(run, digit) for run in bench.runs
+            if run["stop"] == "held" and run["tube"] == "fine" and run["run_s"] >= 1.0
+            and run["speed_asked_rps"] <= CREEP_TIMES * max(cal.creep_rps, 1e-6) + 1e-9]
+    stages = (statistics.median(f["d"] for f in fits), statistics.median(f["tau"] for f in fits),
+              statistics.median(f["share2"] for f in fits), statistics.median(f["tau2"] for f in fits))
+    return cal, stages
+
+
 def job(args: tuple) -> list:
     name, kind, seed, count = args
     rig = f4_cases.stand_in(name)
@@ -125,6 +149,10 @@ def job(args: tuple) -> list:
     limits = staged.sim_limits()
     if kind == "calibrated":
         controller = staged.Staged(staged.calibrate(rig, seed, "glide", band), rig.acceleration_rps2)
+        controller.pid = staged.profile_pid(limits)
+    elif kind == "calibrated_stages":
+        cal, stages = calibrated_stages(rig, seed, band)
+        controller = StagedStages(cal, rig.acceleration_rps2, stages)
         controller.pid = staged.profile_pid(limits)
     else:
         stages, lag, rest = scale_stages(rig, seed)
@@ -149,7 +177,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--sessions", type=int, default=40)
     args = parser.parse_args()
-    kinds = ("calibrated", "one_lag", "stages")
+    kinds = ("calibrated", "calibrated_stages", "one_lag", "stages")
     jobs = [(name, kind, seed, 3) for name in f4_cases.names() for kind in kinds for seed in range(args.sessions)]
     with Workers() as pool:
         results = pool.map(job, jobs)
@@ -165,7 +193,9 @@ def main() -> int:
         p = max(base, 1.0 / n)
         bar = 2.0 * math.sqrt(2.0 * p * (1.0 - p) / n)
         words = "; ".join(f"{k} over {100 * s[0]:.0f}%{f' ({s[2]} ends)' if s[2] else ''} {s[3]:.0f} s" for k, s in shares.items())
-        verdict = "ok" if shares["stages"][0] - base <= bar and shares["stages"][2] == 0 else "FAIL"
+        # the learnt source with stages within the bar of a calibrated unit; a calibrated unit with stages no worse
+        verdict = "ok" if (shares["stages"][0] - base <= bar and shares["stages"][2] == 0
+                           and shares["calibrated_stages"][0] - base <= bar) else "FAIL"
         if verdict == "FAIL":
             failing.append(name)
         print(f"{name:10s} {words}; bar {100 * bar:.0f}: stages {verdict}", flush=True)

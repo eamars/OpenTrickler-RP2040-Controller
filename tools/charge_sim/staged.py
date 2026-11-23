@@ -931,6 +931,8 @@ class Staged:
             return
         if self.hold_until is not None and now < self.hold_until - TIE_S:
             return      # the gate's move at the coarse stop is not over
+        if not self._rest_ready(now, noise):
+            return      # a forecast in stages: its powder still to show is not under the noise (L, gate 3)
         weight = self.highest if REST_ON == "highest" else self.lowest
         short = self.target - weight
         tries_left = self.moves + self.streams < MOST_MOVES
@@ -975,6 +977,10 @@ class Staged:
         self.moved_turns += move.turns
         self.move_until = now + move.turns / cal.floor_rps
         self.wait = move.wait_s
+
+    def _rest_ready(self, now: float, noise: float) -> bool:
+        """Whether a rest may be judged now, beyond the waits above: always, for the forecast by lags."""
+        return True
 
     def _take_due(self, now: float) -> tuple:
         """What was due to show by now is in this reading: the parcels due leave the forecast. Returns the powder that
