@@ -1782,3 +1782,47 @@ In the simulation; no unit contacted. The pass was committed before the run (85c
 - **One more check at the desk, at the branch's tip** (the fine figure's learning off): `check_firmware_controller.py`, 200 throws a set, with and without `--pid`: `VERDICT PASS` on both, 200 of 200 in lockstep on every set.
 - **Written:** `research/HANDOVER.md`'s top section, for the implementing agent: the state, what to read, what the owner holds the work to, what to review first and what was not shown, where to start (the Pico W's RAM, then N.2's proof on a unit, then gate 2's rest), and what was learnt at the desk.
 - **Not done, and left to that agent:** the Pico W's link; every proof on a unit.
+
+## 2026-11-23, 19:07: the implementing agent begins; N.2 reviewed; the Pico W's RAM, its checklist
+
+At the desk; no unit contacted.
+
+**N.2 reviewed, and kept.** Read commit by commit (d8d0910, 7870481, ee2fab4, 8594169, fa206f0, ebb68ea):
+- the renaming is mechanical: each literal replaced by a macro of the same value; the five divisions by 2 that became multiplications by 0.5 are exact in IEEE arithmetic, so no throw can differ by them;
+- today's loop's numbers are named, not changed (its compiled code is the same), so "today's loop is not mended" holds;
+- the fine figure's learning off is the register's row 15, made in `staged.py` and the firmware together, with `--learn-fine` keeping the learning's port checked;
+- the series' mend clears the series on both refusals the console's start can meet; it is the console's own state, and touches no throw;
+- `check_numbers.py` passes at the branch's tip (rerun 19:05).
+
+Nothing in it is worth undoing, and reverting it would put back numbers hidden in formulas. What it still lacks is its proof on a unit, which is the next step after this one.
+
+**The checklist before the Pico W's RAM** ("Found while building"):
+1. **Which numbers does this step add, move or change?** None. It changes where two scratch records live in RAM.
+2. **Does any value come from the bench unit?** No.
+3. **Does each fixed number pass the test?** No fixed number is touched.
+4. **Is a new parameter needed?** No.
+5. **Does a pass on the rig check a mechanism?** No rig is used. The pass: the Pico W links; the Pico 2 W builds; the throw-for-throw check passes on both laws; the four charge files' compiled code differs only in the addresses of the shared buffer.
+6. **What here is still shown on the bench unit only?** Nothing new; the carry on a unit is N.2's proof's `charge_cycle` and gate F.5's ABBA.
+
+**What `tools/size_report.py` and the map say** (`build_n2_w/app.elf.map`, the tip 7c11a46): RAM 262,460 of 262,144 B. The charge's static RAM is `charge_calibration.c`'s 1,940 B, of which three copies of a calibration record at 420 B each (the console's `ccal` record, a throw's read, the carry's) and the PID law's carried stops at 524 B; `charge_mode.cpp` 328 B. The plan named two to give back:
+- **the PID law's carried stops** (524 B): the chosen law's own carry (sign-off, "the carried stop"; 2026-11-22, 20:27). Taken out now, the PID law would place its stop from the glide's again, the fault that night's experiment found. They move into the powder's record at gate R, not before;
+- **`pid_learnt`'s:** 64 B static (`charge_pid_k`, the learnt figure), too little, and its removal is F.4's.
+
+**What gives the RAM back instead:** the carry's record (420 B) and the PID law's lists (524 B) are scratch: each use reads its record whole from the EEPROM first and writes it back in the same call, and none holds it across calls (a charge's start, a charge's end, `ctune accept` between charges). The glide's carry and the PID law's never run in the same charge's end. One buffer for both gives back 420 B and changes nothing a throw or a record does. It is the rule the staged charge already keeps (its controller and calibration from the heap, "the Pico W has no RAM to keep them for a charge that may never come"), which the night's two records did not.
+
+## 2026-11-23, 19:11: the Pico W links again
+
+At the desk; no unit contacted.
+- **The change** (`charge_calibration.c`): the carry's record and the PID law's lists in one `static union`, `charge_calibration_scratch`. No stored record changes, so nothing is declared under "Stored layout changes".
+- **The Pico W links:** RAM 262,040 of 262,144 B (it was 262,460), flash 1,027,152 B of its slot's 1,040,384, unchanged. The Pico 2 W: RAM 308,332 B (308,752 before), flash 990,472 B, unchanged.
+- **The compiled code is the same:** `objdump -d` of `charge_calibration.c`, `charge_control.c`, `charge_mode.cpp`, `charge_pid_learnt.c` and `charge_mode_settings.c`, before against after, on both boards: no line differs. With `-r`, the five relocations of the two old symbols now name the one buffer.
+- **The throw-for-throw check:** `check_firmware_controller.py --throws 40`, with and without `--pid`: `VERDICT PASS`. `check_numbers.py`: `VERDICT PASS`.
+- **CI's release build at the desk:** `scripts/build_release.py` into `build_n2_release/`, the five builds and their files, exit 0 (`logs/n2_release_build.txt`).
+
+**The checklist again, before the pass:** 1 to 4 as at 19:07: no number added, moved or changed, nothing from the bench unit, no fixed number touched, no new parameter. 5: no rig was used; the pass is the link and the same code. 6: nothing new is shown on the bench unit only.
+
+**Pass: met at the desk.** Nothing is shown on a unit, and the code a unit runs is the same instruction for instruction.
+
+**What this leaves:**
+- **104 B of RAM and 13 KB of flash on the Pico W.** Gate 2's rest's recordings cannot be static RAM there. Where their budget comes from (the FreeRTOS heap during a charge, as the staged block is) is that gate's to measure (`stats`, `net`, `soak --load`).
+- **Two more records of 420 B each are still static:** the console's `ccal` record and a throw's read, which the API's start check also uses. Both change at gate R and gate 3, so they are left.

@@ -161,11 +161,19 @@ static float charge_calibration_median(const float *values, uint8_t count) {
 }
 
 
-static charge_calibration_record_t charge_calibration_carried;     // the slot read and written by a carry
+/*
+    The two records a charge reads and writes whole within one call: the slot a glide's carry rewrites, and the PID
+    law's lists (read at a charge's start, rewritten at its end and by `ctune accept` between charges). Each use reads
+    its record afresh and none holds it across calls, so they share one buffer (ADR-009, the Pico W's RAM)
+*/
+static union {
+    charge_calibration_record_t carried;
+    charge_calibration_law_stops_t law_stops;
+} charge_calibration_scratch;
 
 
 bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after) {
-    charge_calibration_record_t *record = &charge_calibration_carried;
+    charge_calibration_record_t *record = &charge_calibration_scratch.carried;
     if (charge_calibration_simulated_scale() || profile >= MAX_PROFILE_CNT || count == 0) {
         return false;
     }
@@ -204,14 +212,12 @@ _Static_assert(CHARGE_CALIBRATION_PROFILES == MAX_PROFILE_CNT, "a law's list for
 _Static_assert(sizeof(charge_calibration_law_stops_t) + sizeof(uint32_t) <= CHARGE_CALIBRATION_SLOT_SIZE,
                "the laws' stops and their CRC fit their slot");
 
-static charge_calibration_law_stops_t charge_calibration_law_stops;     // read and written by a charge's start and end
-
 
 // The PID law's lists as stored; empty lists when none are, or they fail their CRC
 static void charge_calibration_law_stops_read(void) {
-    if (!config_read_stored(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_law_stops,
-                            sizeof(charge_calibration_law_stops))) {
-        memset(&charge_calibration_law_stops, 0, sizeof(charge_calibration_law_stops));
+    if (!config_read_stored(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_scratch.law_stops,
+                            sizeof(charge_calibration_scratch.law_stops))) {
+        memset(&charge_calibration_scratch.law_stops, 0, sizeof(charge_calibration_scratch.law_stops));
     }
 }
 
@@ -224,10 +230,10 @@ bool charge_calibration_get_law(uint8_t profile, float band_gr, uint8_t law, cha
         return false;
     }
     charge_calibration_law_stops_read();
-    uint8_t count = charge_calibration_law_stops.counts[profile];
+    uint8_t count = charge_calibration_scratch.law_stops.counts[profile];
     if (count > 0 && count <= CHARGE_CALIBRATION_FIRST_ERRORS_MAX) {
         // The calibration as measured, its stop placed from the law's own list
-        memcpy(charge_calibration_read.first_errors, charge_calibration_law_stops.first_errors[profile],
+        memcpy(charge_calibration_read.first_errors, charge_calibration_scratch.law_stops.first_errors[profile],
                count * sizeof(float));
         charge_calibration_read.first_error_count = count;
     }
@@ -246,7 +252,7 @@ bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *err
         return false;
     }
     charge_calibration_law_stops_read();
-    charge_calibration_law_stops_t *stops = &charge_calibration_law_stops;
+    charge_calibration_law_stops_t *stops = &charge_calibration_scratch.law_stops;
     uint8_t held = stops->counts[profile] <= CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? stops->counts[profile] : 0;
     // Its own list, or the glide's when it has none: where this charge's stop was placed from
     const float *from = held > 0 ? stops->first_errors[profile] : charge_calibration_read.first_errors;
@@ -806,11 +812,11 @@ void charge_tune_console(const char *args, char *reply, size_t reply_size, remot
     if (accept) {
         // A stop learnt with the old gains says nothing of the new: the PID law starts again from the glide's
         charge_calibration_law_stops_read();
-        if (charge_calibration_law_stops.counts[profile] != 0) {
-            charge_calibration_law_stops.counts[profile] = 0;
-            charge_calibration_law_stops.legacy_rev = 0;
-            save_config(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_law_stops,
-                        sizeof(charge_calibration_law_stops));
+        if (charge_calibration_scratch.law_stops.counts[profile] != 0) {
+            charge_calibration_scratch.law_stops.counts[profile] = 0;
+            charge_calibration_scratch.law_stops.legacy_rev = 0;
+            save_config(EEPROM_CHARGE_LAW_STOPS_ADDR, &charge_calibration_scratch.law_stops,
+                        sizeof(charge_calibration_scratch.law_stops));
         }
     }
     charge_tune_line("set", &set, write, write_ctx);

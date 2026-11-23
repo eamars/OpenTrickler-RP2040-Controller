@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23 and are not yet tried on a unit. The next work is the Pico W's RAM ("Found while building" in the plan), then gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0 and 1 are done; gate 2 is built and thrown but for its recordings. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
+Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23 and are not yet tried on a unit. The Pico W links again (2026-11-23, "Found while building" in the plan). The next work is N.2's proof on a unit, when the owner says the bench is ready, then gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0 and 1 are done; gate 2 is built and thrown but for its recordings. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
 
 ## Where ADR-009 stands (read this first; it wins over every other page and section)
 
@@ -10,7 +10,7 @@ Written 2026-11-23, 17:48, by the agent who reviewed gate N for the owner. It re
 - **The documents are ready for the agent who builds.** There is one plan (the next section). Every number the charge uses has its life cycle, checked against the code ([numbers.md](numbers.md)). The parameter register is drafted, each row with its recommendation.
 - **The register is approved** (the owner, 2026-11-23, 17:54): every row as recommended, and with it what the build plan marks (new). That closes gate N's documents and gate D, and the item "Open, to be discussed".
 - **Gate N is done** (2026-11-23): N.2, every fixed number of the charge a macro in `src/charge_rules.h` with a check in CI, and N.3, the bench's three leftover times and weights found without effect. Both at the desk; neither tried on a unit yet.
-- **Next, for the implementing agent:** the Pico W's image links again (it is 316 bytes of RAM over), then gate 2's rest. `research/HANDOVER.md`, its top section, is where that agent starts.
+- **Next, for the implementing agent:** N.2's proof on a unit, then gate 2's rest. The Pico W links again since 2026-11-23, with 104 B of RAM spare. `research/HANDOVER.md`, its top section, is where that agent starts.
 
 **What "ready for the agent who builds" means,** the test these pages were written against:
 1. **One plan.** One section says what is built, in what order, and how each gate is judged. No other page gives an instruction that differs from it.
@@ -116,6 +116,7 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 - **Since when:** the night of 2026-11-22, whose experiments added static RAM. The Pico W was last linked on 2026-11-21. Found on 2026-11-23 by N.2's builds, at the commit before any of its changes.
 - **What it stops:** every proof on the Pico W, and CI, whose release build makes the Pico W's images.
 - **Closes** when the Pico W links again, before gate 2's rest is begun (its recordings need RAM there too). The RAM to give back is the experiments': the PID law's carried stops for eight profiles (about 520 bytes; they move into the powder's record at gate R) or `pid_learnt`'s (gone at F.4). Which goes first is decided with `tools/size_report.py`'s figures, not guessed.
+- **Closed 2026-11-23** (`progress.md`, 19:07): neither experiment went. The figures showed `pid_learnt` holds 64 B of static RAM, and the PID law's carried stops are the chosen law's own carry. What the night had added was two scratch records held static side by side (a glide carry's slot, 420 B, and the PID law's lists, 524 B), each read whole and written back within one call. They share one buffer now: 420 B back on both boards, the compiled code the same instruction for instruction. The Pico W's RAM is 262,040 of 262,144 B: **104 B spare, and its flash 13 KB:** on the Pico W, gate 2's rest's recordings cannot be static RAM.
 
 ### Gate 2's rest: every throw's recording through the API
 
