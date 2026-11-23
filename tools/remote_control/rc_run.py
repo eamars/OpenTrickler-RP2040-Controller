@@ -98,6 +98,9 @@ STEP_RUNNING_FRACTION = 0.1     # a pin high in more than this share of the samp
 STEP_STUCK_FRACTION = 0.9       # this share, is pulsing
 
 CHARGE_POLL_S = 0.25
+UF2_BLOCK = 512                    # flash_uf2: a UF2 block, its magic words, and the flag of a block not for flash
+UF2_MAGIC = (0x0A324655, 0x9E5D5157)
+UF2_NOT_MAIN_FLASH = 0x00000001
 RECORDINGS_THROW_S = 60.0          # recordings_check: the longest a simulated throw and its verdict take
 CHARGE_STATE_NAMES = {0: "exit", 1: "waiting for zero", 2: "charging", 3: "waiting for cup removal",
                       4: "waiting for cup return"}
@@ -1273,6 +1276,57 @@ class Session:
         finally:
             self.link_seen = len(self.openocd.output)   # RTT failing across a restart is not a dropped link
 
+    def flash_uf2(self, uf2):
+        """
+        A release's full install written through the probe as the USB drive takes it (ADR-009, gate R: the update from
+        2.0.3, whose release keeps no ELF here): the whole flash erased, then each run of the UF2's blocks that is not
+        erased flash written and verified at its own address, and the chip started. The console is not read: the
+        image's version is the API's to say (`GET /api/v1`).
+
+        Args:
+            uf2: the full install's .uf2.
+        """
+        layout = self.board.get("layout")
+        if layout is None:
+            self.fail("flash_uf2: this board's flash layout is not known")
+            return
+        data = Path(uf2).read_bytes()
+        pages = {}
+        for offset in range(0, len(data), UF2_BLOCK):
+            block = data[offset:offset + UF2_BLOCK]
+            magic0, magic1, flags, address, size = struct.unpack("<IIIII", block[:20])
+            if magic0 != UF2_MAGIC[0] or magic1 != UF2_MAGIC[1]:
+                self.fail(f"flash_uf2: {uf2} is not a UF2 (block at {offset})")
+                return
+            if not flags & UF2_NOT_MAIN_FLASH:
+                pages[address] = block[32:32 + size]
+        runs = []       # (address, bytes): contiguous pages that are not erased flash
+        for address in sorted(pages):
+            payload = pages[address]
+            if payload == b"\xff" * len(payload):
+                continue
+            if runs and runs[-1][0] + len(runs[-1][1]) == address:
+                runs[-1] = (runs[-1][0], runs[-1][1] + payload)
+            else:
+                runs.append((address, payload))
+        folder = LOG_DIR / "uf2" / Path(uf2).stem
+        folder.mkdir(parents=True, exist_ok=True)
+        writes = ["halt", f"flash erase_address 0x10000000 {layout['flash_bytes']:#x}"]
+        for number, (address, payload) in enumerate(runs):
+            part = folder / f"run{number}_{address:#x}.bin"
+            part.write_bytes(payload)
+            last = number == len(runs) - 1
+            writes.append(f"program {{{part.as_posix()}}} verify{' reset' if last else ''} {address:#x}")
+            self.log.write("rc", f"flash_uf2: {len(payload)} bytes at {address:#x}")
+        done_before = len(self.openocd.output)
+        for write in writes:
+            self.openocd.cmd(write)
+        said = self.openocd.output[done_before:]
+        verified = sum("Verified OK" in line for line in said)
+        self.log.write("rc", f"flash_uf2: {len(runs)} runs written; openocd said verified {verified} times")
+        if verified < len(runs):
+            self.fail(f"flash_uf2: openocd verified {verified} of {len(runs)} runs")
+
     def flash(self, elf=None):
         """
         Write an image through the probe, start it, and check the unit runs the build's version. On a board with a
@@ -1782,8 +1836,10 @@ class Session:
                 continue
             writable = {field["name"] for field in resource["fields"] if field.get("access", "read_write") == "read_write"}
             body = {name: value for name, value in values.items() if name in writable}
-            # In as many PATCHes as the unit's body limit needs, each list whole (ADR-009, gate R)
-            for part in unit_api.bodies(body):
+            # In as many PATCHes as the unit's body limit needs, each list whole, each naming what is required (a
+            # record's unit: ADR-009, gate R)
+            required = [field["name"] for field in resource["fields"] if field.get("required")]
+            for part in unit_api.bodies(body, always=required):
                 status, reply = unit.request("PATCH", path, part)
                 code = reply.get("error", {}).get("code") if isinstance(reply, dict) else None
                 if status == 409 and code == "not_this_unit":
@@ -1862,7 +1918,8 @@ class Session:
             fields = fields_of[re.sub(r"/\d+$", "/{id}", path)]
             writable = {f["name"] for f in fields if f.get("access") == "read_write"}
             body = {name: value for name, value in before.items() if name in writable}
-            for part in unit_api.bodies(body):
+            required = [f["name"] for f in fields if f.get("required")]
+            for part in unit_api.bodies(body, always=required):
                 status, reply = call("PATCH", path, part)
                 if status != 200:
                     break
@@ -1877,7 +1934,9 @@ class Session:
                 if bad is None:
                     continue
                 value, why = bad
-                status, reply = call("PATCH", path, {field["name"]: value})
+                # With what every write must carry, so the refusal is the field's own (a record's unit: gate R)
+                status, reply = call("PATCH", path, dict({name: before[name] for name in required if name in before},
+                                                         **{field["name"]: value}))
                 status_again, again = call("GET", path)
                 if status != 400 or again != before:
                     self.fail(f"settings_roundtrip: {path} {field['name']}={value!r} ({why}): {status}, "
@@ -4055,6 +4114,8 @@ def main():
     cycle_parser.add_argument("--target", type=float, default=30.0)
     cycle_parser.add_argument("--threshold", type=float, default=0.03, help="the unit's fine stop threshold")
     cycle_parser.add_argument("--timeout", type=float, default=120.0)
+    uf2_parser = sub.add_parser("flash_uf2", help="a release's full install written through the probe, as by USB")
+    uf2_parser.add_argument("uf2", help="the full install's .uf2")
     recordings_parser = sub.add_parser("recordings_check", help="each throw's recording through the API against the "
                                        "console's, and a charge with no samples (ADR-009, gate 2's rest)")
     recordings_parser.add_argument("--host", required=True, help="the unit's address")
@@ -4180,6 +4241,8 @@ def run_command(session, args):
         session.menu_tour(args.save, args.compare)
     elif args.command == "charge_cycle":
         session.charge_cycle(args.target, args.threshold, args.timeout)
+    elif args.command == "flash_uf2":
+        session.flash_uf2(args.uf2)
     elif args.command == "recordings_check":
         session.recordings_check(args.host, args.target, args.throws)
     elif args.command == "pulses":

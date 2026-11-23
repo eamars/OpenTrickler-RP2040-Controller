@@ -815,6 +815,14 @@ static void settings_patch(const settings_resource_t *resource, int32_t id, cons
         }
         given[field_idx] = true;
     }
+    // A field every write carries: a record written in parts names its unit in each (ADR-009, gate R)
+    for (uint8_t idx = 0; idx < resource->field_count; idx += 1) {
+        if (resource->fields[idx].required && !given[idx]) {
+            fail(outcome, 400, "bad_request", &resource->fields[idx], "%s is required: every write of %s carries it",
+                 resource->fields[idx].name, resource->path);
+            goto done;
+        }
+    }
 
     if (resource->check != NULL) {
         const char *field_name = NULL;
@@ -1438,6 +1446,9 @@ static void write_field_schema(const settings_resource_t *resource, const settin
     }
     if (field->nullable) {
         http_json_raw(out, room, len, ",\"nullable\":true");
+    }
+    if (field->required) {
+        http_json_raw(out, room, len, ",\"required\":true");
     }
     write_optional_string(out, room, len, "access", access_name(field->access));
     write_optional_string(out, room, len, "applies", field->applies);

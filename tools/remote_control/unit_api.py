@@ -136,7 +136,7 @@ def value_problem(field, value):
 BODY_MOST = 1000    # a PATCH's body, under the unit's 1,024 bytes (HTTP_SERVER_BODY_MAX)
 
 
-def bodies(values, most=BODY_MOST):
+def bodies(values, most=BODY_MOST, always=()):
     """
     A resource's fields split into PATCH bodies the unit takes: each within `most` bytes as JSON, a field never split,
     so a list goes whole in one (ADR-009, gate R: a powder's record is larger than one body).
@@ -144,19 +144,23 @@ def bodies(values, most=BODY_MOST):
     Args:
         values: the fields to write, a dict.
         most: the most bytes a body may take.
+        always: the names every body carries (a field the schema marks `required`: a record's unit).
 
     Returns:
         The bodies, dicts, in the fields' order; one alone when they fit together.
     """
-    out, current = [], {}
+    base = {name: values[name] for name in always if name in values}
+    out, current = [], dict(base)
     for name, value in values.items():
+        if name in base:
+            continue
         trial = dict(current, **{name: value})
-        if current and len(json.dumps(trial)) > most:     # as the clients send it, json.dumps's own spacing
+        if len(current) > len(base) and len(json.dumps(trial)) > most:    # as sent: json.dumps's own spacing
             out.append(current)
-            current = {name: value}
+            current = dict(base, **{name: value})
         else:
             current = trial
-    if current or not out:
+    if len(current) > len(base) or not out:
         out.append(current)
     return out
 

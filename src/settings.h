@@ -65,6 +65,7 @@ typedef struct {
     const char *on_label;       // a boolean's value in words ("Reversed"); NULL: On
     const char *off_label;      // NULL: Off
     const setting_list_t *list; // a LIST's rows; NULL for any other type
+    bool required;              // every write of its resource carries it, or is refused (a record's unit: ADR-009, gate R)
 } setting_field_t;
 
 /*

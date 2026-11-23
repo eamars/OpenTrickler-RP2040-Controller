@@ -381,7 +381,8 @@ static const setting_choice_t law_choices[] = {
 #define POWDER_FIELD(member) SETTING_AT(charge_powder_record_t, member)
 static const setting_field_t powder_fields[] = {
     {.name = "unit_id", .label = "Unit", .type = SETTING_STRING, POWDER_FIELD(unit_id), .applies = "at_charge_start",
-     .about = "The unit it was measured on: a write naming another is refused, 409 not_this_unit"},
+     .required = true,
+     .about = "The unit it was measured on: every write names it, and one naming another is refused, 409 not_this_unit"},
     {.name = "held", .label = "Calibrated", .type = SETTING_BOOLEAN, POWDER_FIELD(held), .applies = "at_charge_start",
      .about = "A calibration is held, and a charge may use it once it holds what a throw needs"},
     {.name = "coarse_gr_turn", .label = "Coarse grains a turn", .type = SETTING_NUMBER, POWDER_FIELD(coarse_gr_turn),
@@ -409,7 +410,8 @@ static const setting_field_t powder_fields[] = {
 #define UNIT_FIELD(member) SETTING_AT(charge_unit_record_t, member)
 static const setting_field_t unit_fields[] = {
     {.name = "unit_id", .label = "Unit", .type = SETTING_STRING, UNIT_FIELD(unit_id), .applies = "at_charge_start",
-     .about = "The unit it was measured on: a write naming another is refused, 409 not_this_unit"},
+     .required = true,
+     .about = "The unit it was measured on: every write names it, and one naming another is refused, 409 not_this_unit"},
     {.name = "held", .label = "Measured", .type = SETTING_BOOLEAN, UNIT_FIELD(held), .applies = "at_charge_start",
      .about = "The scale's part has been measured"},
     {.name = "digit_gr", .label = "Digit", .type = SETTING_NUMBER, UNIT_FIELD(digit_gr), .unit = "gr", .min = 0.0f,
