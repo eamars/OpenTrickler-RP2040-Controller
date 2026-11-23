@@ -18,7 +18,7 @@ import firmware_controller as fc
 from legacy_pid import LearntPid, Profile
 
 SOURCES = [fc.REPO / "src" / "charge_pid_learnt.c", fc.HERE / "c" / "charge_pid_shim.c"]
-HEADERS = [fc.REPO / "src" / "charge_pid_learnt.h", fc.REPO / "src" / "charge_control.h"]
+HEADERS = [fc.REPO / "src" / "charge_pid_learnt.h"] + fc.HEADERS
 LIBRARY = fc.BUILD / ("charge_pid_learnt.dll" if sys.platform == "win32" else "libcharge_pid_learnt.so")
 _lib = None
 

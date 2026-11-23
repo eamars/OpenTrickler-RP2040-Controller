@@ -119,8 +119,6 @@ static uint16_t charge_series_left = 0;     // this charge's throws still to pou
 static float charge_base = 0.0f;            // the weight a throw starts from: 0, but in a series
 // The charge's throws' first errors, each at the calibration's own stop room, carried into the powder profile's
 // calibration at the charge's end (ADR-009, 2026-11-22): from throws that came to rest as they should
-#define CHARGE_CARRY_THROWS_MAX 32
-#define CHARGE_CARRY_LEAST_THROWS 5
 static float charge_carry_errors[CHARGE_CARRY_THROWS_MAX];
 static uint8_t charge_carry_count = 0;
 static uint8_t charge_law = 0;              // the charge's speed law (ccon speed_law at its start): its stop its own
@@ -199,7 +197,6 @@ static void charge_mode_log_stopped(activity_by_t by, event_reason_t reason) {
 }
 
 // Coarse trickler end-of-trickle backoff
-#define COARSE_STOP_BACKOFF_MAX_MS 15000  // safety cap
 
 static bool coarse_backoff_in_progress = false;
 static TickType_t coarse_backoff_end_tick = 0;
@@ -279,7 +276,7 @@ void charge_mode_wait_for_zero() {
     );
     
     // Wait for 5 measurements and wait for stable
-    FloatRingBuffer data_buffer(10);
+    FloatRingBuffer data_buffer(CHARGE_ZERO_READINGS);
 
     // Update current status
     snprintf(title_string, sizeof(title_string), "Waiting for Zero");
@@ -299,11 +296,11 @@ void charge_mode_wait_for_zero() {
             }
             float current_measurement;
             static float last_measurement = 0.0f;
-            if (scale_block_wait_for_next_measurement(300, &current_measurement)) {
+            if (scale_block_wait_for_next_measurement(CHARGE_ZERO_SPACING_MS, &current_measurement)) {
                 data_buffer.enqueue(current_measurement);
                 last_measurement = current_measurement;
             }
-            if (data_buffer.getCounter() >= 10 &&
+            if (data_buffer.getCounter() >= CHARGE_ZERO_READINGS &&
                 data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin) {
                 // A reading, not the mean of ten: the throw is judged on the scale's own digits. The mean of a
                 // flickering rest lay between them and put throws off the grid (10.068 gr; one of 10.02 judged over)
@@ -316,7 +313,7 @@ void charge_mode_wait_for_zero() {
                 charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
                 return;
             }
-            vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
+            vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(CHARGE_ZERO_SPACING_MS));
         }
     }
 
@@ -341,7 +338,7 @@ void charge_mode_wait_for_zero() {
 
         // Perform measurement (max delay 300 seconds   )
         float current_measurement;
-        if (scale_block_wait_for_next_measurement(300, &current_measurement)){
+        if (scale_block_wait_for_next_measurement(CHARGE_ZERO_SPACING_MS, &current_measurement)){
             data_buffer.enqueue(current_measurement);
             if (readings_since_zero < UINT8_MAX) {
                 readings_since_zero += 1;
@@ -353,7 +350,7 @@ void charge_mode_wait_for_zero() {
         }
 
         // Generate stop condition
-        if (data_buffer.getCounter() >= 10 && readings_since_zero >= 10) {
+        if (data_buffer.getCounter() >= CHARGE_ZERO_READINGS && readings_since_zero >= CHARGE_ZERO_READINGS) {
             if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
                 abs(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin) {
                 // Into pouring under the lock the API's zero takes, and only with no zero asked since: a zero
@@ -373,19 +370,12 @@ void charge_mode_wait_for_zero() {
         }
 
         // Wait for minimum 300 ms (but can skip if previously wait already)
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(CHARGE_ZERO_SPACING_MS));
     }
 }
 
 // A missing reading during a charge (ADR-013), judged by the scale's own rhythm, so a slow scale is not a failed one
-#define CHARGE_STALE_INTERVALS 3                // no reading for this many usual intervals: the tricklers pause
-#define CHARGE_LOST_INTERVALS 10                // this many, and
-#define CHARGE_LOST_MIN_MS 1000                 // never under this: the scale is lost
-#define CHARGE_USUAL_INTERVAL_UNKNOWN_MS 250    // the rhythm not known yet: take a slow scale's, a G&G's
-#define CHARGE_PAUSES_BORNE 2                   // a third pause in one throw ends it
-#define CHARGE_STEADY_READINGS 10               // steady after a pause: the zero test less its zero
-#define CHARGE_STEADY_SPACING_MS 300
-#define CHARGE_STEADY_LIMIT_MS (2 * CHARGE_STEADY_READINGS * CHARGE_STEADY_SPACING_MS)  // not steady by then: unsteady
+// The pause's numbers (ADR-013) are in charge_rules.h: CHARGE_STALE_INTERVALS to CHARGE_STEADY_LIMIT_MS
 
 typedef enum {
     CHARGE_PAUSE_RESUMED = 0,
@@ -605,7 +595,7 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
             return false;
         }
         uint32_t now_ms = charge_mode_now_ms();
-        if (now_ms - fault_check_ms >= 100) {
+        if (now_ms - fault_check_ms >= CHARGE_DRIVER_CHECK_MS) {
             fault_check_ms = now_ms;
             if (charge_mode_end_on_motor_fault()) {
                 return false;
@@ -698,7 +688,7 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
 
     charge_staged_verdict = true;
     charge_staged_weight = cc->rest_weight;
-    charge_staged_threshold = cc->cal.band_gr + 0.5f * cc->cal.digit_gr;
+    charge_staged_threshold = cc->cal.band_gr + (float) CHARGE_RULE_VERDICT_DIGITS * cc->cal.digit_gr;
     float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
     printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=%u elapsed=%.2f "
            "coarse_turns=%.4f fine_turns=%.4f stop_room=%.4f fine_gr=%.4f fine_stream=%.4f learnt=%u base=%.3f "
@@ -783,7 +773,7 @@ static bool charge_mode_pid_learnt_throw(void) {
             return false;
         }
         uint32_t now_ms = charge_mode_now_ms();
-        if (now_ms - fault_check_ms >= 100) {
+        if (now_ms - fault_check_ms >= CHARGE_DRIVER_CHECK_MS) {
             fault_check_ms = now_ms;
             if (charge_mode_end_on_motor_fault()) {
                 return false;
@@ -847,7 +837,7 @@ static bool charge_mode_pid_learnt_throw(void) {
 
     charge_staged_verdict = true;
     charge_staged_weight = c->rest_weight;
-    charge_staged_threshold = s.band_gr + 0.5f * s.digit_gr;
+    charge_staged_threshold = s.band_gr + (float) CHARGE_RULE_VERDICT_DIGITS * s.digit_gr;
     float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
     // In the staged controller's form, so the bench's series reads it: moves are the top-ups, streams none
     printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=0 elapsed=%.2f "
@@ -979,8 +969,8 @@ void charge_mode_wait_for_complete() {
         bool resumed = false;
         uint32_t silent_ms = (xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS;
         uint32_t wait_ms = silent_ms < stale_ms ? stale_ms - silent_ms : 1;
-        if (wait_ms > 200) {
-            wait_ms = 200;
+        if (wait_ms > CHARGE_LEGACY_READING_WAIT_MS) {
+            wait_ms = CHARGE_LEGACY_READING_WAIT_MS;
         }
         if (scale_block_wait_for_next_measurement(wait_ms, &current_weight)) {
             last_reading_tick = xTaskGetTickCount();
@@ -1110,7 +1100,7 @@ void charge_mode_wait_for_complete() {
     if (charge_mode_config.eeprom_charge_mode_data.precharge_enable &&
     servo_gate_enabled()) {
         // Set a fixed delay between closing the gate and precharge to allow the gate to fully close
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(CHARGE_PRECHARGE_AFTER_GATE_MS));
 
         // Start the pre-charge
         motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps);
@@ -1119,7 +1109,7 @@ void charge_mode_wait_for_complete() {
         motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
     }
     else {
-        vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete  
+        vTaskDelay(pdMS_TO_TICKS(CHARGE_NO_PRECHARGE_WAIT_MS));  // Wait for other tasks to complete
     }
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
@@ -1129,10 +1119,10 @@ void charge_mode_wait_for_cup_removal() {
     // Update current status
     snprintf(title_string, sizeof(title_string), "Remove Cup");
 
-    FloatRingBuffer data_buffer(5);
+    FloatRingBuffer data_buffer(CHARGE_CUP_OFF_READINGS);
 
     // Post charge analysis (while waiting for removal of the cup)
-    vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for other tasks to complete
+    vTaskDelay(pdMS_TO_TICKS(CHARGE_VERDICT_WAIT_MS));  // Wait for other tasks to complete
 
     // Take current measurement: the PID loop's a second after its stop; the staged controller's at its rest, judged
     // by its band, half a digit beyond it (0.03 gr for 0.02 gr on the A&D, today's threshold) (ADR-009)
@@ -1219,22 +1209,22 @@ void charge_mode_wait_for_cup_removal() {
 
         // Perform measurement
         float current_weight;
-        if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
+        if (!scale_block_wait_for_next_measurement(CHARGE_CUP_OFF_WAIT_MS, &current_weight)) {
             // If no measurement within 200ms then poll the button and retry
             continue;
         }
         data_buffer.enqueue(current_weight);
 
         // Generate stop condition
-        if (data_buffer.getCounter() >= 5) {
+        if (data_buffer.getCounter() >= CHARGE_CUP_OFF_READINGS) {
             if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
-                data_buffer.getMean() + 10 < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin){
+                data_buffer.getMean() + CHARGE_CUP_OFF_BELOW < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin){
                 break;
             }
         }
 
         // Wait for next measurement
-        vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(300));
+        vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(CHARGE_CUP_OFF_SPACING_MS));
     }
 
     // Reset LED to default colour
@@ -1275,7 +1265,7 @@ void charge_mode_wait_for_cup_return() {
 
         // Perform measurement
         float current_weight;
-        if (!scale_block_wait_for_next_measurement(200, &current_weight)) {
+        if (!scale_block_wait_for_next_measurement(CHARGE_CUP_BACK_WAIT_MS, &current_weight)) {
             // If no measurement within 200ms then poll the button and retry
             continue;
         }
@@ -1285,7 +1275,7 @@ void charge_mode_wait_for_cup_return() {
         }
 
         // Wait for next measurement
-        vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(20));
+        vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(CHARGE_CUP_BACK_SPACING_MS));
     }
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "charge_control.h"
+#include "charge_rules.h"
 
 typedef charge_control_real_t real_t;
 // A constant in the controller's own precision, folded by the compiler: no double arithmetic on the unit
@@ -29,37 +30,37 @@ typedef charge_control_real_t real_t;
 #define FINE 1
 // A weight at rest lies on the scale's digits, and a reading less a large base is off them in real_t by more than a
 // millionth (10.02 over a cup of 60 gr: 0.0200043): the band's edge is a quarter digit past the band
-#define BAND_EDGE_DIGITS REAL(0.25)
-#define LEARN_FINE_LEAST_TURNS REAL(0.2)    // a stretch shorter than this teaches nothing (staged.py's)
-#define LEARN_FINE_LEAST_STREAM_TURNS REAL(0.5)
+#define BAND_EDGE_DIGITS REAL(CHARGE_RULE_BAND_EDGE_DIGITS)
+#define LEARN_FINE_LEAST_TURNS REAL(CHARGE_RULE_LEARN_FINE_LEAST_TURNS)    // a stretch shorter than this teaches nothing
+#define LEARN_FINE_LEAST_STREAM_TURNS REAL(CHARGE_RULE_LEARN_FINE_LEAST_STREAM_TURNS)
 // Two times this close are the same time: a tie on the millisecond's grid falls the same way in real_t as in the
 // reference's double (staged.py's TIE_S)
-#define TIE_S REAL(1e-4)
+#define TIE_S REAL(CHARGE_RULE_TIE_S)
 
 
 void charge_control_default_constants(charge_control_constants_t *k) {
-    k->move_rps = REAL(0.2);
-    k->parcel_s = REAL(0.01);
-    k->fine_top_rps = REAL(0.5);
-    k->coarse_top_rps = REAL(2.0);
-    k->coarse_floor_rps = REAL(0.3);
-    k->dribble_digits_s = REAL(8.0);
-    k->coarse_spreads = REAL(3.0);
-    k->creep_band_share = REAL(1.0);
-    k->creep_most_s = REAL(6.0);
-    k->learn_share = REAL(0.15);
-    k->learn_most_digits = REAL(2.0);
-    k->learn_dead_digits = REAL(0.25);
-    k->learn_fine_prior = REAL(3.0);
-    k->learn_fine_most = REAL(0.25);
-    k->learn_fine_split = REAL(1.0);
-    k->still_least_s = REAL(0.4);
-    k->most_moves = 8;
-    k->throw_most_s = REAL(120.0);
-    k->fine_most_turns = REAL(15.0);
-    k->over_most_gr = REAL(3.0);
-    k->speed_law = 0;
-    k->pid_envelope = 1;
+    k->move_rps = REAL(CHARGE_RULE_MOVE_RPS);
+    k->parcel_s = REAL(CHARGE_RULE_PARCEL_S);
+    k->fine_top_rps = REAL(CHARGE_RULE_FINE_TOP_RPS);
+    k->coarse_top_rps = REAL(CHARGE_RULE_COARSE_TOP_RPS);
+    k->coarse_floor_rps = REAL(CHARGE_RULE_COARSE_FLOOR_RPS);
+    k->dribble_digits_s = REAL(CHARGE_RULE_DRIBBLE_DIGITS_S);
+    k->coarse_spreads = REAL(CHARGE_RULE_COARSE_SPREADS);
+    k->creep_band_share = REAL(CHARGE_RULE_CREEP_BAND_SHARE);
+    k->creep_most_s = REAL(CHARGE_RULE_CREEP_MOST_S);
+    k->learn_share = REAL(CHARGE_RULE_LEARN_SHARE);
+    k->learn_most_digits = REAL(CHARGE_RULE_LEARN_MOST_DIGITS);
+    k->learn_dead_digits = REAL(CHARGE_RULE_LEARN_DEAD_DIGITS);
+    k->learn_fine_prior = REAL(CHARGE_RULE_LEARN_FINE_PRIOR);
+    k->learn_fine_most = REAL(CHARGE_RULE_LEARN_FINE_MOST);
+    k->learn_fine_split = REAL(CHARGE_RULE_LEARN_FINE_SPLIT);
+    k->still_least_s = REAL(CHARGE_RULE_STILL_LEAST_S);
+    k->most_moves = CHARGE_RULE_MOST_MOVES;
+    k->throw_most_s = REAL(CHARGE_RULE_THROW_MOST_S);
+    k->fine_most_turns = REAL(CHARGE_RULE_FINE_MOST_TURNS);
+    k->over_most_gr = REAL(CHARGE_RULE_OVER_MOST_GR);
+    k->speed_law = CHARGE_RULE_SPEED_LAW;
+    k->pid_envelope = CHARGE_RULE_PID_ENVELOPE;
 }
 
 
@@ -121,44 +122,46 @@ void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_
     cal->band_gr = band_gr;
     if (glide) {
         // The creep: the flow at which the powder still on its way is about the band, at the lag measured there
-        real_t slowest_lag = max_f(stop_lag_s(&fine[0], cal->fine_gr_turn), REAL(0.3));
+        real_t slowest_lag = max_f(stop_lag_s(&fine[0], cal->fine_gr_turn), REAL(CHARGE_RULE_SLOWEST_LAG_LEAST_S));
         cal->floor_rps = min_f(max_f(k->creep_band_share * band_gr / slowest_lag / cal->fine_gr_turn,
-                                     REAL(0.5) * fine[0].speed_rps),
-                               fine[fine_count > 2 ? 2 : fine_count - 1].speed_rps);
+                                     REAL(CHARGE_RULE_CREEP_LEAST_SHARE) * fine[0].speed_rps),
+                               fine[fine_count > CHARGE_RULE_CREEP_TOP_STOP ? CHARGE_RULE_CREEP_TOP_STOP : fine_count - 1].speed_rps);
         // The first reading at rest is meant to lie a digit under the target (half the band, if that is more)
-        cal->aim_gr = -max_f(cal->digit_gr, band_gr / REAL(2.0));
+        cal->aim_gr = -max_f(cal->digit_gr, band_gr * REAL(CHARGE_RULE_AIM_BAND_SHARE));
         cal->stop_room_gr = -cal->aim_gr;
     }
     else {
         cal->floor_rps = min_f(k->fine_top_rps, k->dribble_digits_s * cal->digit_gr / cal->fine_gr_turn);
-        cal->stop_room_gr = REAL(2.5) * stop_table(fine, fine_count, STOP_SPREAD, cal->fine_gr_turn, cal->floor_rps)
+        cal->stop_room_gr = REAL(CHARGE_RULE_JOG_STOP_SPREADS) * stop_table(fine, fine_count, STOP_SPREAD, cal->fine_gr_turn, cal->floor_rps)
                             + cal->digit_gr;
         cal->aim_gr = -cal->stop_room_gr;
     }
     // The floor is reached with twice the spread of a stop from four times its flow still to go
     cal->glide_room_gr = cal->stop_room_gr;
     if (glide) {
-        cal->glide_room_gr += REAL(2.0) * stop_table(fine, fine_count, STOP_SPREAD, cal->fine_gr_turn,
-                                                REAL(4.0) * cal->floor_rps);
+        cal->glide_room_gr += REAL(CHARGE_RULE_GLIDE_SPREADS) * stop_table(fine, fine_count, STOP_SPREAD, cal->fine_gr_turn,
+                                                REAL(CHARGE_RULE_GLIDE_FLOW_TIMES) * cal->floor_rps);
         // On a scale so late that such a creep would take too long, the creep is quicker
         real_t stretch = cal->glide_room_gr - cal->stop_room_gr;
         cal->floor_rps = max_f(cal->floor_rps, stretch / k->creep_most_s / cal->fine_gr_turn);
     }
     real_t longest_lag = REAL(0.0);
-    for (uint8_t i = (fine_count > 2 ? 2 : 0); i < fine_count; i++) {
+    for (uint8_t i = (fine_count > CHARGE_RULE_CREEP_TOP_STOP ? CHARGE_RULE_CREEP_TOP_STOP : 0); i < fine_count; i++) {
         longest_lag = max_f(longest_lag, stop_lag_s(&fine[i], cal->fine_gr_turn));
     }
-    cal->glide_s = min_f(REAL(2.0), max_f(REAL(0.4), REAL(0.6) * longest_lag));
-    cal->coarse_glide_s = min_f(REAL(1.5), max_f(REAL(0.3), REAL(0.6) * stop_lag_s(&cal->coarse_stops[0], cal->coarse_gr_turn)));
-    cal->coarse_room_gr = REAL(3.0) * cal->coarse_stops[0].spread_gr + cal->glide_room_gr + REAL(0.2);
+    cal->glide_s = min_f(REAL(CHARGE_RULE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_GLIDE_LEAST_S), REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * longest_lag));
+    cal->coarse_glide_s = min_f(REAL(CHARGE_RULE_COARSE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_COARSE_GLIDE_LEAST_S), REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * stop_lag_s(&cal->coarse_stops[0],
+                                                                              cal->coarse_gr_turn)));
+    cal->coarse_room_gr = REAL(CHARGE_RULE_COARSE_ROOM_SPREADS) * cal->coarse_stops[0].spread_gr + cal->glide_room_gr
+                          + REAL(CHARGE_RULE_COARSE_ROOM_EXTRA_GR);
     // The wait before the first judgement: the slowest the reading came to rest after a stop from near the floor
     real_t quiet = REAL(0.0);
     for (uint8_t i = 0; i < fine_count; i++) {
-        if (fine[i].speed_rps <= REAL(2.0) * cal->floor_rps || i == 0) {
+        if (fine[i].speed_rps <= REAL(CHARGE_RULE_REST_FLOOR_TIMES) * cal->floor_rps || i == 0) {
             quiet = max_f(quiet, fine[i].quiet_s);
         }
     }
-    cal->rest_s = quiet + REAL(0.3);
+    cal->rest_s = quiet + REAL(CHARGE_RULE_REST_EXTRA_S);
 }
 
 
@@ -189,7 +192,7 @@ void charge_control_place_stop(charge_control_calibration_t *cal, const real_t *
         for (uint16_t i = 0; i < count; i++) {
             sum += (first_errors[i] - mean) * (first_errors[i] - mean);
         }
-        cal->aim_gr = -(REAL(2.0) * SQRT_R(sum / (count - 1)) + cal->digit_gr);
+        cal->aim_gr = -(REAL(CHARGE_RULE_JOG_AIM_SDS) * SQRT_R(sum / (count - 1)) + cal->digit_gr);
     }
     real_t shift = median - cal->aim_gr;
     cal->stop_room_gr += shift;         // the margins above the stop move with it
@@ -223,7 +226,7 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     c->fine_rps = REAL(0.0);
     c->phase = CHARGE_CONTROL_PHASE_FEED;
     // A charge too small for the coarse tube's margin is the fine tube's alone
-    c->coarse_on = target_gr > cal->coarse_room_gr + REAL(0.5) * cal->coarse_gr_turn;
+    c->coarse_on = target_gr > cal->coarse_room_gr + REAL(CHARGE_RULE_COARSE_LEAST_TURNS) * cal->coarse_gr_turn;
     c->counted = false;
     for (int tube = COARSE; tube <= FINE; tube++) {
         c->turned[tube] = REAL(0.0);
@@ -419,7 +422,7 @@ static void feed(charge_control_t *c, real_t now_s) {
     }
     if (!c->coarse_on && room <= c->stop_room_gr) {
         c->fine_rps = REAL(0.0);
-        if (c->coarse_unseen_gr >= cal->digit_gr) {
+        if (c->coarse_unseen_gr >= REAL(CHARGE_RULE_PAUSE_COARSE_DIGITS) * cal->digit_gr) {
             return;     // a pause, not its stop: the fine tube's stop is taken on its own powder alone
         }
         c->phase = CHARGE_CONTROL_PHASE_REST;
@@ -486,7 +489,7 @@ static const charge_control_move_t *move_for(const charge_control_t *c, real_t s
     const charge_control_move_t *chosen = &cal->moves[0];
 
     for (uint8_t i = 1; i < cal->move_count; i++) {
-        if (cal->moves[i].mean_gr <= (short_gr + cal->band_gr) / REAL(2.0)) {
+        if (cal->moves[i].mean_gr <= (short_gr + cal->band_gr) * REAL(CHARGE_RULE_TOP_UP_SHARE)) {
             chosen = &cal->moves[i];
         }
     }
@@ -515,7 +518,7 @@ static void open_window(charge_control_t *c, real_t now_s, real_t weight) {
         return;
     }
     if (c->coarse_ran && (c->coarse_off_s < REAL(0.0) ||
-                          now_s < c->coarse_off_s + cal->coarse_stops[0].quiet_s + REAL(0.3) - TIE_S)) {
+                          now_s < c->coarse_off_s + cal->coarse_stops[0].quiet_s + REAL(CHARGE_RULE_FINE_WINDOW_EXTRA_S) - TIE_S)) {
         return;
     }
     c->window_open = true;
@@ -607,7 +610,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     if (c->done || !isfinite(weight)) {
         return;
     }
-    if (weight >= c->highest + cal->digit_gr / REAL(2.0)) {
+    if (weight >= c->highest + cal->digit_gr * REAL(CHARGE_RULE_RISE_DIGITS)) {
         c->highest = weight;
         c->lowest = weight;         // the lowest shown since that rise: a reading that flickers shows both
         c->last_rise_s = now_s;
@@ -644,7 +647,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     if (c->phase != CHARGE_CONTROL_PHASE_REST) {
         return;
     }
-    real_t still = max_f(k->still_least_s, REAL(2.0) * cal->interval_s);
+    real_t still = max_f(k->still_least_s, REAL(CHARGE_RULE_STILL_INTERVALS) * cal->interval_s);
     if (now_s < c->stopped_at_s + c->wait_s - TIE_S || now_s < c->last_rise_s + still - TIE_S) {
         return;
     }
@@ -656,7 +659,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
         // stream, by the same law. Nothing is learnt from such a rest
         c->streams++;
         c->phase = CHARGE_CONTROL_PHASE_FEED;
-        c->coarse_on = short_gr > cal->coarse_room_gr + REAL(0.5) * cal->coarse_gr_turn;
+        c->coarse_on = short_gr > cal->coarse_room_gr + REAL(CHARGE_RULE_COARSE_LEAST_TURNS) * cal->coarse_gr_turn;
         c->stopped_at_s = -REAL(1.0);
         return;
     }

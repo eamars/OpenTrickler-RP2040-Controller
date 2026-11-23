@@ -75,7 +75,7 @@ static const char *charge_calibration_lacks(const charge_calibration_record_t *r
         !(cal->fine_gr_turn > 0.0f)) {
         return "head: digit, interval and each tube's grains a turn";
     }
-    if (cal->coarse_stop_count < 1 || cal->fine_stop_count < 3) {
+    if (cal->coarse_stop_count < CHARGE_RULE_COARSE_STOPS_LEAST || cal->fine_stop_count < CHARGE_RULE_FINE_STOPS_LEAST) {
         return "stops: a coarse one at least, three fine";
     }
     if (cal->move_count != CHARGE_CONTROL_MOVES) {
@@ -136,7 +136,7 @@ static void charge_calibration_simulated(charge_calibration_record_t *record) {
     cal->watch_s = 1.0f;
     cal->coarse_share = 0.01f;
     cal->finish = CHARGE_CONTROL_FINISH_GLIDE;
-    cal->band_gr = 0.02f;
+    cal->band_gr = CHARGE_TRICKLE_ACCURATE_BAND_GR;
     record->valid = 1;
 }
 
@@ -402,7 +402,7 @@ void charge_calibration_console(const char *args, char *reply, size_t reply_size
     }
     if (strcmp(args, "clear") == 0) {
         memset(record, 0, sizeof(*record));
-        record->measured.band_gr = 0.02f;
+        record->measured.band_gr = CHARGE_TRICKLE_ACCURATE_BAND_GR;
         snprintf(reply, reply_size, "@ok ccal clear");
         return;
     }
@@ -738,12 +738,12 @@ bool charge_calibration_offer(uint8_t profile, float band_gr, charge_calibration
         return false;
     }
     const charge_control_constants_t *k = charge_calibration_constants();
-    out->coarse_kp = 1.0f / (cal.coarse_gr_turn * cal.coarse_glide_s);
+    out->coarse_kp = (float) CHARGE_RULE_OFFER_COARSE_FACTOR / (cal.coarse_gr_turn * cal.coarse_glide_s);
     out->coarse_ki = 0.0f;
     out->coarse_kd = 0.0f;
     out->coarse_min_rps = k->coarse_floor_rps;
     out->coarse_max_rps = k->coarse_top_rps;
-    out->fine_kp = 0.6f / (cal.fine_gr_turn * cal.glide_s);
+    out->fine_kp = (float) CHARGE_RULE_OFFER_FINE_FACTOR / (cal.fine_gr_turn * cal.glide_s);
     out->fine_ki = 0.0f;
     out->fine_kd = 0.0f;
     out->fine_min_rps = cal.floor_rps;

@@ -3,28 +3,27 @@
 
 #include "charge_control.h"
 #include "charge_pid_learnt.h"
+#include "charge_rules.h"
 
-// A rest within the band and this much of a digit is in it (the glide's band edge)
-#define BAND_EDGE_DIGITS 0.25f
-// A stop whose window held fewer turns teaches nothing
-#define LEARN_LEAST_TURNS 0.01f
+#define BAND_EDGE_DIGITS ((float) CHARGE_RULE_BAND_EDGE_DIGITS)
+#define LEARN_LEAST_TURNS ((float) CHARGE_PID_RULE_LEARN_LEAST_TURNS)
 
 
 void charge_pid_default_constants(charge_pid_constants_t *k) {
-    k->lag_s = 0.9f;
-    k->rest_s = 2.5f;
-    k->gr_turn_prior = 2.0f;           // 1.0 was not cautious on the rig (2026-11-22)
-    k->learn_share = 0.15f;
-    k->coarse_quiet_s = 1.0f;
-    k->throw_most_s = 120.0f;
-    k->over_most_gr = 3.0f;
-    k->digit_gr = 0.02f;
+    k->lag_s = (float) CHARGE_PID_RULE_LAG_S;
+    k->rest_s = (float) CHARGE_PID_RULE_REST_S;
+    k->gr_turn_prior = (float) CHARGE_PID_RULE_GR_TURN_PRIOR;
+    k->learn_share = (float) CHARGE_RULE_LEARN_SHARE;
+    k->coarse_quiet_s = (float) CHARGE_PID_RULE_COARSE_QUIET_S;
+    k->throw_most_s = (float) CHARGE_RULE_THROW_MOST_S;
+    k->over_most_gr = (float) CHARGE_RULE_OVER_MOST_GR;
+    k->digit_gr = (float) CHARGE_PID_RULE_DIGIT_GR;
     k->floor_band_share = 0.0f;
-    k->floor_least_rps = 0.02f;
+    k->floor_least_rps = (float) CHARGE_PID_RULE_FLOOR_LEAST_RPS;
     k->coarse_gr_turn = 0.0f;
-    k->coarse_lag_s = 0.6f;
+    k->coarse_lag_s = (float) CHARGE_PID_RULE_COARSE_LAG_S;
     k->coarse_margin_share = 0.0f;
-    k->most_tops = 8;
+    k->most_tops = CHARGE_RULE_MOST_MOVES;
 }
 
 
@@ -49,9 +48,9 @@ void charge_pid_start(charge_pid_t *c, const charge_pid_settings_t *s, const cha
     c->phase = CHARGE_PID_PHASE_STREAM;
     c->result = CHARGE_CONTROL_RESULT_NONE;
     // The glide's aim: a digit short, half the band if that is more
-    c->aim_gr = -fmaxf(s->digit_gr, s->band_gr / 2.0f);
+    c->aim_gr = -fmaxf(s->digit_gr, s->band_gr * (float) CHARGE_RULE_AIM_BAND_SHARE);
     c->stop_room_gr = -c->aim_gr;
-    c->still_s = fmaxf(0.4f, 2.0f * s->interval_s);
+    c->still_s = fmaxf((float) CHARGE_RULE_STILL_LEAST_S, (float) CHARGE_RULE_STILL_INTERVALS * s->interval_s);
     c->first_sample = true;
     c->coarse_moves = true;
     c->backoff_until_s = -1.0f;
@@ -159,7 +158,7 @@ static void backoff(charge_pid_t *c, float now_s) {
     if (s->backoff_turns <= 0.0f || speed <= 0.0f) {
         return;
     }
-    float time_s = fminf(15.0f, s->backoff_turns / speed);
+    float time_s = fminf(COARSE_STOP_BACKOFF_MAX_MS / 1000.0f, s->backoff_turns / speed);
     if (time_s < 0.001f) {
         return;
     }
@@ -269,7 +268,7 @@ static void learn(charge_pid_t *c, float at_rest) {
         return;
     }
     float seen = (at_rest - c->stop_reading - c->stop_coarse_unseen) / c->stop_window_turns;
-    seen = fminf(2.0f * l->gr_turn, fmaxf(0.5f * l->gr_turn, seen));
+    seen = fminf((float) CHARGE_PID_RULE_LEARN_THROW_MOST * l->gr_turn, fmaxf((float) CHARGE_PID_RULE_LEARN_THROW_LEAST * l->gr_turn, seen));
     l->gr_turn += share * (seen - l->gr_turn);
     l->learnt++;
 }
@@ -306,7 +305,7 @@ void charge_pid_reading(charge_pid_t *c, uint32_t now_ms, float weight) {
     }
     c->reading = weight;
     c->unseen_gr = unseen(c);
-    if (!c->have_highest || weight >= c->highest + c->s.digit_gr / 2.0f) {
+    if (!c->have_highest || weight >= c->highest + c->s.digit_gr * (float) CHARGE_RULE_RISE_DIGITS) {
         c->have_highest = true;
         c->highest = weight;
         c->lowest = weight;

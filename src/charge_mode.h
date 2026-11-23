@@ -5,6 +5,7 @@
 #include "activity.h"
 #include "common.h"
 #include "events.h"
+#include "charge_rules.h"
 #include "neopixel_led.h"
 
 
@@ -35,8 +36,6 @@ typedef enum {
     CHARGE_TRICKLE_ACCURATE = 0,    // within 0.02 gr
     CHARGE_TRICKLE_FAST = 1,        // within 0.04 gr
 } charge_trickle_mode_t;
-#define CHARGE_TRICKLE_ACCURATE_BAND_GR 0.02f
-#define CHARGE_TRICKLE_FAST_BAND_GR 0.04f
 
 typedef struct {
     uint16_t charge_mode_data_rev;
@@ -134,7 +133,6 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
  * ends after its last throw, or when the cup holds CHARGE_SERIES_CUP_MOST. 0: the next charge as any other. Taken by
  * the next start and never stored.
  */
-#define CHARGE_SERIES_CUP_MOST 600.0f
 void charge_mode_set_series(uint16_t throws);
 
 // The console's `ccrec`: the last staged throw's rows (ADR-009)

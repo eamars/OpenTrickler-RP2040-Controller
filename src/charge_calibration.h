@@ -18,6 +18,7 @@
 
 #include "charge_control.h"
 #include "charge_pid_learnt.h"
+#include "charge_rules.h"
 #include "remote_control.h"
 
 #ifdef __cplusplus
@@ -48,7 +49,6 @@ bool charge_calibration_get(uint8_t profile, float band_gr, charge_control_calib
     written when the stop they place would move more than CHARGE_CARRY_MOST_DIGITS at once, nor for the simulated scale.
     True when written; `before` and `after` take the median first error the stop was and will be placed from.
 */
-#define CHARGE_CARRY_MOST_DIGITS 3.0f
 bool charge_calibration_carry(uint8_t profile, const float *errors, uint8_t count, float *before, float *after);
 
 /*

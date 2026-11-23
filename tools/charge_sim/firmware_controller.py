@@ -23,7 +23,7 @@ import staged
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 SOURCES = [REPO / "src" / "charge_control.c", HERE / "c" / "charge_control_shim.c"]
-HEADER = REPO / "src" / "charge_control.h"
+HEADERS = [REPO / "src" / "charge_control.h", REPO / "src" / "charge_rules.h"]
 BUILD = REPO / "build_host"
 
 FINISHES = {"glide": 0, "jog": 1}
@@ -88,9 +88,9 @@ def _zig() -> str:
 
 
 def build(double: bool = False) -> Path:
-    """The library, built again when a source or the header is newer than it."""
+    """The library, built again when a source or a header is newer than it."""
     library_file = _library_path(double)
-    newest = max(path.stat().st_mtime for path in SOURCES + [HEADER])
+    newest = max(path.stat().st_mtime for path in SOURCES + HEADERS)
     if library_file.exists() and library_file.stat().st_mtime >= newest:
         return library_file
     BUILD.mkdir(exist_ok=True)
