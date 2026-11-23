@@ -2568,7 +2568,7 @@ The form of 23:48 (the fine tube at its floor until a reading shows powder arriv
 - the coarse motor: least 0.08, max 5, saved;
 - the fine motor: least 0.01, max 5, saved.
 
-## 2026-11-23, 23:58: F.2, form (a) accepted by the manager's judgement against a pass failed by its letter
+## 2026-11-23, 23:55: F.2, form (a) accepted by the manager's judgement against a pass failed by its letter
 
 Not a pass: the pass of 23:51 failed by its letter, and the manager accepted form (a) on judgement:
 - **What the pass assumed:** that the short bias was only the unit's cold start. The simulation refuted that: its rehearsals at the top rest short too, to −10 digits.
