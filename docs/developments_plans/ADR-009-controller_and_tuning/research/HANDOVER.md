@@ -6,7 +6,7 @@ ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the n
 
 ## Where it stands, 2026-11-23, 17:48: read this first
 
-**For the agent who builds.** The documents are ready; one thing is waited for, the owner's approval of the parameter register. Check its "Approved" column before anything is built: a row still "Waiting" is not built.
+**For the agent who builds.** The documents are ready and the parameter register is approved (the owner, 2026-11-23, 17:54): ADR-009 is ready to build. A parameter you would add, move or change beyond the register's rows is a new row, and waits for the owner's approval before it is built.
 
 **Read in this order:**
 1. `../README.md`, "Where ADR-009 stands": what is settled, so it is not asked again, and what "ready" means.

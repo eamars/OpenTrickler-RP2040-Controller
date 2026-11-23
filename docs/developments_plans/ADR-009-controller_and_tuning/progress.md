@@ -1735,3 +1735,10 @@ Documents only: nothing built, no unit contacted.
 - **Nine numbers failed it,** each the bench unit's own value or a conversion made with its scale's digit (`numbers.md`, "The rows against the test"). Three were this afternoon's own decisions: the A&D's lag and rest kept as the default of a unit never calibrated, the starting figure kept at 2.0 gr a turn, and two weights written as counts of the A&D's digits.
 - **In the plan:** the guideline and a six-point checklist answered here before each gate; N.3, the bench's three leftover times and weights tried at nothing in the simulation; F.4's defaults found on every stand-in scale; gate 3's moves, prime and rehearsals in the unit's own terms; gate 7 as the proof of each fixed number.
 - **In the register:** row 9 names every new parameter and its life; row 10 the method's fixed numbers and why they are not settings; rows 4, 11 and 16 reworded.
+
+## 2026-11-23, 17:54: the parameter register approved; ADR-009 ready to build
+
+- **The owner approved the register,** every row as recommended, and with it what the build plan marks (new). Earlier the same evening (17:52): the method's fixed numbers stay fixed, not parameters.
+- **Added at the owner's word:** every fixed number is a macro in one header, so a person who builds their own firmware changes a value in one place (N.2; the register's row 10).
+- **Closed with it:** gate N's documents (N.1), gate D, and the README's "Open, to be discussed".
+- **Next:** N.2 and N.3, at the desk. Nothing is built yet; no unit was contacted.

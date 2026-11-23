@@ -1,6 +1,6 @@
 # ADR-009: every number the charge uses, and its life cycle
 
-Status: **Every row decided; waiting for the owner's approval** (2026-11-23, 17:48 NZDT). This page is gate N of the README. The rows were checked against the code on 2026-11-23 (below, "The audit"), and each fixed number and default against the test for a general-purpose controller the same evening ("The rows against the test"). Each row's life cycle is decided from the record, and none is left as a question. What changes a parameter or a setting is gathered into the README's parameter register, which the owner approves (sign-off item 2). No gate after N is built until then.
+Status: **Every row decided, and the register approved by the owner** (2026-11-23, 17:54 NZDT). This page is gate N of the README. The rows were checked against the code on 2026-11-23 (below, "The audit"), and each fixed number and default against the test for a general-purpose controller the same evening ("The rows against the test"). Each row's life cycle is decided from the record, and none is left as a question. What changes a parameter or a setting is gathered into the README's parameter register, which the owner approved on 2026-11-23 (sign-off item 2).
 
 **What is listed:** every number the charge reads, from the zero to the verdict, in any loop on the branch `adr009_controller`. It also lists every number the calibration uses to measure. A number is listed whether it is a user's setting, a measurement, a constant or a literal inside a rule. Only identities (0 and 1 as nothing and all) and loop counters are left out. Where a number appears in several places, each place is named.
 
@@ -40,7 +40,7 @@ A time in seconds passes only as a bound on what a person waits for, or a limit 
 **How each class lives in the firmware** (the rule for every gate after N):
 - **User:** the settings tables (`settings.h`), as today. Read at a charge's start.
 - **Measured:** the unit's records. Each field is described once with its bounds, as a setting is, so the API, the schema and the backup follow. Read at a charge's start, never during a throw. Written between charges only: by the calibration on the user's yes, by the auto-tuner at a charge's end, and by the user or the user's agent through the same checked write.
-- **Rule and Safety:** named constants in one header, each with its row here and its reason in a line. No number is written inside a formula. Nothing writes them on a unit: the console's `ccon` lists them, and its writes go at gate F.5. The PC's twin sets them for a study.
+- **Rule and Safety:** macros in one header, each with its row here, its unit and its reason in a line. No number is written inside a formula, and no other file holds one, so a person who builds their own firmware changes a value in one place. Nothing writes them on a running unit: the console's `ccon` lists them, and its writes go at gate F.5. The PC's twin sets them for a study.
 - **A number without a row fails CI** (gate N.2).
 
 ## The rows against the test (2026-11-23, evening)
