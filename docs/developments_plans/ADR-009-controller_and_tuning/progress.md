@@ -10,7 +10,7 @@ Each item with the implementing agent's recommendation. Nothing here blocked the
    - **Found while looking:** the `reach` run that failed at 02:13 had clicked for Change after the next throw's Zeroing screen had replaced it, so it pressed Zero. That was on the simulated scale, so harmless. On the real scale it would zero the A&D with powder in the cup. `reach` now reads the screen again just before that click and refuses it unless Change is there; its hold on the simulated pan keeps the window open.
 1. **F.5's ABBA is owed.** The night's cup room (550 gr less the cup at 02:22, 82 gr) could not hold its four arms by their most pour (4 × 140 gr). Only its first arm (A, the controller) was thrown. *Recommendation:* empty the cup, then run `logs/adr009/f5/abba.sh` whole (it restores nothing by hand: put the calibration file back from `calibration.json.held` in `logs/adr009/20261123_235643_trial_pico2w_ar2209_f2a/`).
 2. **Gate 3's job on the unit waits for gate 4's mocks:** its screen while it runs and its cup step are drawn first. Its arithmetic is built and checked at the desk (02:31). *Recommendation:* approve the calibration's mocks first among gate 4's, so the job can be built and its unit runs made (about 250 gr, an empty cup).
-3. **Gate 3 at the desk, for your information:** L (the scale's lag as a dead time and stages, fitted for each stop: "polyfit?" answered so) approved by the manager and in its study in the simulation; F6 (each tube primed at the geometric mean of its range) and C1 (moves at the creep) built in the reference and the C; B3 (the grains a turn by speed) in its study.
+3. **L, the scale's lag in stages ("polyfit?" answered as a dead time and stages, fitted for each stop): your choice** (03:15). Its second form, each stop's own fit read by flow, cut a calibrated unit's overs on six of seven stand-ins and kept the uncalibrated powder within the bar on `slower`, at 1.5 to 2 times the throw's time; it failed one end, the verdict still leaning on `late_small`. *Recommendation:* take (a) as it stands into the C (with the record's layout change, 192 bytes), for fewer overs at a cost in time; nothing is built until you say. F6 (the prime at each tube's mid-range) and C1 (moves at the creep) are built; B3 (the figure by speed) showed no benefit and is not ported.
 4. **The A18 migration on a unit:** a stored `controller` byte of 1 read as the controller and written as 0 is shown by the code only. The bench unit's bytes were already 0. *Recommendation:* show it on the Pico W at gate 7, whose stored settings are older.
 5. **Gate 4's screens for approval:** `mockups/calibration_12864.png` (02:33): the calibration, Settings › Advanced, the notice after an update, a throw's new ends. *Recommendation:* approve or mark the calibration's first, so gate 3's job can be built to them; the web's mocks follow.
 6. **R, the rehearsal's count, for your choice** (02:48): in the simulation R costs 158 gr (10) or 631 gr (40) of rehearsals a calibration, against today's 9.5 gr, and does no better there; but the simulation sees neither the cold start R is for nor F.2's finding on the unit, where today's form placed the stop 8 digits late at the 5 rev/s fine top (0 of 10 good) and the floor form placed it right. *Recommendation:* at gate 3's first unit run, measure the cold start, and throw today's 10 × 1 gr form against the floor form on the same calibration (a few grams each); size R from that. `REHEARSALS` stays 10 until then.
@@ -3300,3 +3300,30 @@ Checked against the skill:
 **One attempt:** if it fails, L is written for the owner, and the verdict's lean stays the known limit.
 
 **B3's row:** the 11-22 finding (one fine figure fits neither the stream nor the finish) was not borne out as a benefit in this study, so B3 is not ported.
+
+## 2026-11-24, 03:15: L, form (a): it fails one end of three (the verdict on `late_small`); L written for the owner
+
+**Form (a)'s figures** (`logs/adr009/g3_l_study_a.txt`, `g3_e9_stages_a.txt`; the arms of 03:03):
+
+| Scale | Calibrated, lag table | Calibrated, stages by flow | Learnt, one lag | Learnt, stages by flow |
+|---|---|---|---|---|
+| measured | 28% over, 11 s | 20%, 19 s | 20%, 36 s | 32%, 39 s |
+| late_small | 29%, 14 s | 22%, 31 s | 24%, 40 s | 28%, 44 s |
+| holds | 18%, 30 s | 14%, 63 s | 28%, 46 s | 30% (1 not at rest), 59 s |
+| slow | 31%, 26 s | 21%, 41 s | 33%, 44 s | 42%, 51 s |
+| slower | 32%, 37 s | 24%, 64 s | 47% (4), 52 s | 38% (4), 66 s |
+| gng | 29%, 13 s | 39%, 24 s | 32%, 40 s | 28%, 43 s |
+| strain | 45%, 21 s | 29% (1), 47 s | 28%, 47 s | 30% (3), 58 s |
+
+**The ends:**
+1. **The learnt source in stages on `slower`:** 38% over against a calibrated unit's 32%, the bar 12: **met on its overs.** 4 of its 120 throws ended other than at rest, as many as with the one lag; the end's words did not ask, and my harness counted them against it.
+2. **A calibrated unit in stages no worse:** **met.** Fewer overs on six scales of seven (by 4 to 16 points), and on `gng` 10 points more, inside its bar. **Its cost is time:** throws take 1.5 to 2 times as long (the verdict waits for the forecast's powder).
+3. **The verdict's one-way changes on the A&D's records:** `measured` 1 against the noise's 2, `holds` 3 against 2, `slow` 2 against 0, all within the noise; **`late_small` 8 against 1, beyond it. Not met.** Pooled over every scale, 57 against 42, inside its bar; on `slower` 6 against 1 too.
+
+**So form (a) fails an end, and on the manager's one-attempt rule L is the owner's** (the record and the C unchanged; the verdict's lean stays the known limit, beside every figure that uses a verdict).
+
+**For the owner, what both forms point to:**
+- **The first form** (one model a scale, near the creep) failed all three ends: one model applied at every speed.
+- **Form (a)** (each stop's own fit, read by flow) cut a calibrated unit's overs on six of seven stand-ins and kept the learnt source within the bar on `slower`. Its verdict's wait cleared the lean on three of the A&D's four records, at about 1.5 to 2 times the throw's time. Where it still leans (`late_small`, a small change held 2.5 s), the fitted stages miss that hold: the scale shows nothing for a while, then the whole digit at once, which no smooth stage describes.
+- **What a person might choose:** (a) as it stands, for fewer overs at a cost in time; or (a) with the scale's hold modelled as its own dead time for a small change (a new mechanism, the owner's to approve); or leave L and keep the lean as the known limit.
+- *My recommendation:* (a) as it stands is worth the owner's look: fewer overs for time is the trade the owner has named before (an over is worse than a second). It goes to the C, under the lockstep, with the record's layout change (one fit a stop: d, tau, s2, tau2, 16 bytes a stop, 12 stops, 192 bytes in the powder's record) only on the owner's word.
