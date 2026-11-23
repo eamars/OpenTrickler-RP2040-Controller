@@ -2397,3 +2397,39 @@ The manager approved the three forms of 21:58 (its message read between 21:58 an
   - each of the trial's motor runs is bounded by the unit: a pouring speed for 10 turns' time, 3 to 30 s, a hold 60 s (`trial.py`);
   - if the A&D's frames go bad or missing at the coarse tube's 5 rev/s, the calibration stops and says so (`trial.py` stops on a reading that is no number). It is a finding, not a figure to tune around.
 - **The desk's part** (`limits_cases.py`, 23:15): `user_max`, `user_least`, `coarse_limits`, `tolerance` and no limits given, each PASS, the C's rules the reference's, no lockstep difference. The 200-throw check and F.1's safety cases are run again before the unit.
+
+## 2026-11-23, 23:36: gate F.2 passes on the Pico 2 W
+
+On the Pico 2 W, image 2.0.3-237 at `71d48c1`, the cup emptied by the owner before it.
+
+**The two checks at a charge's start**, each from a live, unsaved setting, reverted after:
+- a fine stop threshold of 0.01, under the 0.02 digit: `@err the fine stop threshold is under the scale's digit`;
+- profile 0's fine speeds 0 to 0 (a top of 0): `@err a tube the throw needs has a top speed of 0, the profile's or the motor's`;
+- the profile back at 0.1 to 3, saved.
+- The settings' own check refused a fine most of 0 alone (a least above the most), and that charge started and was stopped while it zeroed, pouring nothing.
+
+**The calibration, afresh, by the PC trial within the user's limits** (`trial.py --sets glide_0.02 --throws 0`, `logs/adr009/20261123_232157_trial_pico2w_ar2209_f2/`, kept as the session `pico2w_ar2209_f2`):
+- the limits read from the unit: coarse 0.1 to 5, fine 0.1 to 3 rev/s;
+- 7.9 min, 234 gr measured; coarse 10.62 and fine 0.822 gr a turn; every watch 3.0 s;
+- **the coarse stops at 0.1, 0.707 and 5.0 rev/s**, the first at the rig's top: 26.2 gr still arrived after a stop from 5 rev/s, its lag 0.61 s;
+- **the fine stops at 0.1, 0.195, 0.389, 0.779 and 3.0 rev/s**;
+- the coarse tube's grains a turn varied 16% from run to run (5.5% at gate 2's calibration), which widens its margin;
+- **the A&D's frames:** no reading that was not a number in the whole trial, at the coarse tube's 5 rev/s too;
+- rehearsed (10, the first rests −19 to +2 digits); the floor 0.100 rev/s.
+
+**The short series** (`series.py`, 10 throws of 10 gr, no `ccon` set, `logs/adr009/20261123_233151_series_pico2w_ar2209_f2/`):
+- the charge's start said: band 0.020 (the setting's 0.03 less half the digit); coarse 0.100 to 5.000, fine 0.100 to 3.000 rev/s; "the creep 0.0500 rev/s is held up to the fine least, 0.1000 rev/s";
+- **every row of its 10 recordings (1,399) inside the user's limits:** the coarse tube asked 0.1 to 2.728 rev/s, the fine 0.1 to 3.0, none outside;
+- its figures, not judged (23:20): 3 good of 10, 7 over (+0.04 to +0.14), median 6.7 s. That is the creep at 0.1 rev/s against the night's 0.025, as written before it.
+
+`menu_tour --compare` PASS. The cup's ledger: the trial 0.00 to 243.42 (most 320), the series to 343.94 (most 140).
+
+**The checklist again:**
+1. **Numbers:** C3, C4, C5, F7 and E14 gone; A2, A4, A5, A7, A13, A14, F1, F2 and A20 built, each row saying so. The coarse ladder's middle is a form (geometric).
+2. **A value from the bench unit:** none in the firmware. The simulation's stand-in user is the plant's range, not a default.
+3. **The test:** the geometric middle, a general reason; no other fixed number added.
+4. **A new parameter:** none.
+5. **Predictions written first** (23:09, 23:20): the desk's four cases and the unit's limits held. The series' figures were said beforehand not to compare.
+6. **Shown on the bench unit only:** all of it, on the Pico 2 W.
+
+**Found, said:** with the owner's limits the bench unit's throws are over-heavy (7 of 10). That is the user's least of 0.1 rev/s holding the creep at four times its own, as the register's rule wants. F.5's ABBA measures the cost. Lowering the least is the owner's to choose, never a fix to make here.

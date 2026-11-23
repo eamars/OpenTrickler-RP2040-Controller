@@ -126,3 +126,5 @@ Trials are counted without the turn that preconditions the tube.
 | `20261122_211644_series_offer2_p1_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
 | `20261122_211904_series_offer2_p2_pico2w_ar2209` | AR2209 | series (staged, PID law) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=1 |
 | `20261122_212225_series_offer2_g2_pico2w_ar2209` | AR2209 | series (staged) | | 10 | 10.0 gr | fine_top_rps=1.0 learn_fine_prior=0 speed_law=0 |
+| `20261123_232157_trial_pico2w_ar2209_f2` | AR2209 | trial_pico2w_ar2209_f2 | coarse, fine | 89 | 0.1, 0.194739, 0.2, 0.389478, 0.707107, 0.778956, 1, 3, 5 rev/s |  |
+| `20261123_233151_series_pico2w_ar2209_f2_pico2w_ar2209_f2` | AR2209 | series (staged) | | 10 | 10.0 gr |  |
