@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23; N.2 is proven on the Pico 2 W. The Pico W links again (2026-11-23, "Found while building" in the plan). N.2 was proven on the Pico 2 W the same evening (flash, `menu_tour --compare`, `charge_cycle`, `pulses`). The next work is gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0 and 1 are done; gate 2 is built and thrown but for its recordings. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
+Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23; N.2 is proven on the Pico 2 W. The Pico W links again (2026-11-23, "Found while building" in the plan). N.2 was proven on the Pico 2 W the same evening (flash, `menu_tour --compare`, `charge_cycle`, `pulses`). The next work is gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0, 1 and 2 are done, gate 2's recordings since 2026-11-23 on the Pico 2 W. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
 
 ## Where ADR-009 stands (read this first; it wins over every other page and section)
 
@@ -118,6 +118,19 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 - **Closes** when the Pico W links again, before gate 2's rest is begun (its recordings need RAM there too). The RAM to give back is the experiments': the PID law's carried stops for eight profiles (about 520 bytes; they move into the powder's record at gate R) or `pid_learnt`'s (gone at F.4). Which goes first is decided with `tools/size_report.py`'s figures, not guessed.
 - **Closed 2026-11-23** (`progress.md`, 19:07): neither experiment went. The figures showed `pid_learnt` holds 64 B of static RAM, and the PID law's carried stops are the chosen law's own carry. What the night had added was two scratch records held static side by side (a glide carry's slot, 420 B, and the PID law's lists, 524 B), each read whole and written back within one call. They share one buffer now: 420 B back on both boards, the compiled code the same instruction for instruction. The Pico W's RAM is 262,040 of 262,144 B: **104 B spare, and its flash 13 KB:** on the Pico W, gate 2's rest's recordings cannot be static RAM.
 
+### Found while building: on the Pico W a charge and an update poll cannot both have the heap
+
+- **What:** the FreeRTOS heap is about 50 KB free at rest. An HTTPS poll takes it down to a low mark of 5,096 B (ADR-010). A staged charge takes 5,136 B for its block (`sizeof`, 2026-11-23), and since gate 2's rest its recording about 9 KB more (1 KB of summaries, 8 KB of samples). A poll runs at each start and when asked, and "a charge can start while it runs" (`update_poll.c`). So when they overlap, one of them lacks the heap: the charge's block (the charge refused, "No memory"), the recording (taken as not had: `samples_kept` false, and the charge throws all the same), or mbedTLS (the poll fails).
+- **Measured:** the figures above, and on the Pico 2 W a charge's 6,312 B with the simulated scale's task. **Not measured:** a charge started during a poll on the Pico W. The Pico W was not on the probe in gate 2's rest.
+- **Not this ADR's to mend** (the poll is ADR-010's). Whatever happens, the recording's fallback keeps the charge safe.
+- **Closes** at gate 7's Pico W memory proof: a charge started during an HTTPS poll, both measured, and the outcome written here.
+
+### Found while building: the Pico W's flash is nearly full
+
+- **What:** after gate 2's rest the Pico W's image is 1,039,296 B of its 1,040,384 B slot: **1,088 B spare** (13 KB before it). The recording is 10.3 KB of our own code at `-O0`. Every later gate adds code (F's checks, gate 3's job, gates 4 and 5's screens), so the next one will not link on the Pico W.
+- **The order on record** (AGENTS.md, "Size"): third-party code at `-Os` (done in ADR-010), then ADR-005's optimised build, and only then cuts. Our own code at `-Os` would go against "our own code stays at `-O0`, for debugging".
+- **Closes** when the owner has chosen the remedy and the Pico W links with room for gate F. That is the owner's decision, and it is needed before gate F begins.
+
 ### Gate 2's rest: every throw's recording through the API
 
 **Before it:** the checklist above, answered in `progress.md`.
@@ -127,6 +140,7 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 - **The Pico W** keeps 1 row today (finding 11). Its budget is found by measurement; a throw longer than its rows is thinned, not dropped.
 - The PC's tools read a throw through the API; the console's `ccrec` stays for the bench.
 - **Pass:** a series' throws read through the API are row for row the console's; `api_check` passes with the recordings in the index; `soak --load` with a recording's real size shows no late step feed and no failed allocation; the RAM a recording takes is written in `progress.md`. The Pico W's figures are gate 7's.
+- **Passed on the Pico 2 W, 2026-11-23, 20:16** (`progress.md`): `recordings_check`, `api_check` and `soak 300 --load` each `VERDICT PASS`. The Pico W's recordings come from its heap for the charge, decided by the manager at 19:40; its run is gate 7's.
 
 ### Gate S: the simulation from the night's data
 

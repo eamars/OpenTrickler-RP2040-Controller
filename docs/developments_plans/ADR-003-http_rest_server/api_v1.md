@@ -413,6 +413,16 @@ Every throw is recorded (ADR-009: "every throw recorded"), and so is each motor 
 - **What is kept.** Summaries of the newest 32 *p*, with their snapshots, 6 to 8 KB; samples within a fixed budget of RAM, oldest dropped first (`samples_kept` false, and the samples' path answers 410). A recording is capped at a number of rows, so a stuck throw cannot take the budget. The Pico W's figures are ADR-005's and ADR-009's.
 - **A recording is named where its throw is:** `recording` in the events `throw started` and `throw finished` and in the charge's `last`, when ADR-009 builds recordings.
 - **Other forms by `?format=`,** JSON the default: a CSV by a link from a tuning page (a link cannot set a header, nor can most agents' fetch tools), a packed form only if a measured rate asks for it. By the figures above it does not.
+- **Built by ADR-009's gate 2 (2026-11-23),** the three paths above, with these choices:
+  - **Only the charge controller's throws are recorded.** A throw of today's PID loop has none: its events' `recording` is `null`, and so is the charge's `last.recording`.
+  - **A recording's `id` is its throw's number,** so `id` and `throw` are the same; both start again at a restart.
+  - **The columns:** v1's, then `ctl_forecast` (the reading and what is still on its way), `ctl_glide_coarse_rps` and `ctl_glide_fine_rps` (what the glide's stream law would ask, whichever law pours).
+  - **A recording longer than its rows is thinned, not cut:** every other row dropped, then one row every second reading. `thinned` counts the halvings, and `truncated` stays false. A samples reply in progress when its recording is thinned ends with `complete` false, and is read again from the start (`?after=-1`).
+  - **The summary** adds the controller's `first`, `moves`, `streams`, `coarse_turns`, `fine_turns` and `stop_room`.
+  - **`settings`** is shared: a snapshot is taken again only when one of its settings changed, and is `null` only for a recording whose snapshot could not be kept. `marks` is `null` once a recording's samples are not kept.
+  - **What is kept:** the newest summaries, and the samples of the throw being made and of the last complete one. On the Pico 2 W that is 32 summaries and 800 rows a throw, kept across charges. **The Pico W keeps them for its charge only:** 8 summaries and 121 rows a throw, from its heap, given back when the charge ends. Its RAM has no room for them between charges, when an update's poll needs nearly all of the heap. Read them within the charge.
+  - **A charge never waits for its recording.** When the heap cannot give the samples, the throws go on: `samples_kept` is false and the samples' path answers 410 `gone`.
+  - **Not built:** `?wait` on samples, and `?format`.
 
 ### The cup
 

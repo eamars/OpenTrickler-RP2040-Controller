@@ -2267,7 +2267,8 @@ class Session:
         if status != 405 or (reply or {}).get("error", {}).get("see") != "/api/v1/stop":
             self.fail(f"api_check: a method a path does not take: {status} {reply}, not 405 with see the path")
         status, routes = http_call(host, "GET", "/api/v1/debug/routes")
-        known = gets | set(unit.paths("POST")) | set(unit.paths("PATCH")) | set(unit.paths("PUT")) |             {action["path"] for action in schema["actions"]} | {r["path"] for r in schema["resources"]}
+        known = gets | set(unit.paths("POST")) | set(unit.paths("PATCH")) | set(unit.paths("PUT")) |             {action["path"] for action in schema["actions"]} | {r["path"] for r in schema["resources"]} | \
+            {entry["path"] for entry in index["resources"]}
         not_listed = [f"{method} {path}" for method, path in (routes or {}).get("routes", [])
                       if path not in known and path not in API_CHECK_UNLISTED and not path.startswith("/api/v1/debug")]
         self.log.write("rc", f"api_check: {len((routes or {}).get('routes', []))} routes, not listed: {not_listed}")
