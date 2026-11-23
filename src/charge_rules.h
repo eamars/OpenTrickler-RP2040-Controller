@@ -42,7 +42,7 @@
                                                 // the calibration's figure counts for (3 when it was thrown)
 #define CHARGE_RULE_LEARN_FINE_MOST 0.25        // C14: the learnt fine figure never further than this share off (a bound)
 #define CHARGE_RULE_LEARN_FINE_SPLIT 1.0        // C15: 1, a stream's fine figure and a finish's; 0, one. Decided at gate 3
-#define CHARGE_RULE_STILL_LEAST_S 0.4           // C16, s: at rest, no new high for this long. The bench's; tried at 0 (N.3)
+#define CHARGE_RULE_STILL_LEAST_S 0.4           // C16, s: at rest, no new high for this long. The bench's; without effect at 0 (N.3): goes at F.5
 #define CHARGE_RULE_MOST_MOVES 8                // C17: tries a throw gets after its first rest (a bound)
 #define CHARGE_RULE_THROW_MOST_S 120.0          // C18, s: a throw past it ends "limit" (a bound)
 #define CHARGE_RULE_FINE_MOST_TURNS 15.0        // C19, turns: a throw past it ends "limit" (a bound; its form is F.1's)
@@ -66,10 +66,10 @@
 #define CHARGE_RULE_COARSE_GLIDE_LEAST_S 0.3    // D8, s: the coarse glide time's limits. Both go at F.5
 #define CHARGE_RULE_COARSE_GLIDE_MOST_S 1.5
 #define CHARGE_RULE_COARSE_ROOM_SPREADS 3.0     // D9: the coarse room is this many spreads of a coarse stop from its floor,
-#define CHARGE_RULE_COARSE_ROOM_EXTRA_GR 0.2    // D9, the scale's unit: the glide room and this. The bench's; tried at 0 (N.3)
+#define CHARGE_RULE_COARSE_ROOM_EXTRA_GR 0.2    // D9, the scale's unit: the glide room and this. The bench's; without effect at 0 (N.3): goes at F.5
 #define CHARGE_RULE_REST_FLOOR_TIMES 2.0        // D10: the rest is the slowest quiet time of the stops within this many
                                                 // times the creep,
-#define CHARGE_RULE_REST_EXTRA_S 0.3            // D10, s: and this. The bench's; tried at 0 (N.3)
+#define CHARGE_RULE_REST_EXTRA_S 0.3            // D10, s: and this. The bench's; without effect at 0 (N.3): goes at F.5
 #define CHARGE_RULE_JOG_AIM_SDS 2.0             // D11: the jog's aim in SDs of its rehearsals. Goes with the jog (F.5)
 #define CHARGE_RULE_COARSE_LEAST_TURNS 0.5      // D12, turns: the coarse tube runs only for more than its room and this
 #define CHARGE_RULE_FINE_WINDOW_EXTRA_S 0.3     // D13, s: the fine learning's stretch opens this long after the coarse
