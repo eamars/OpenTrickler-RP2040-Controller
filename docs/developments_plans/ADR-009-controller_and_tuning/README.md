@@ -169,7 +169,7 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 - **Done 2026-11-23, its time bar not met** (`progress.md`, 20:32 to 20:58):
   - good and overs reproduced on all 14 of the night's arms;
   - the medians on 5. The simulation's rig (`records/pico2w_ar2209_night.json`: the record of 11-20, the day's grains a turn) is quicker than the night's rig by about a second (−1.3 to +0.2 s an arm), the rig's evening drift, which the day's recordings do not hold. That is the simulation's known limit;
-  - **the offer's trade,** judged within each ABBA pair: about 2 s a throw saved, no cost in good or overs; F.5's bars met in the simulation. F.5's ABBA on the rig is its proof.
+  - **the offer's trade,** judged within each ABBA pair: about 2 s a throw saved; F.5's bars met in the simulation. The simulation sees no over cost because its stop spread is flat with approach, which is what the day's recordings show; the rig's +2 and +4 overs are within its spread but not disproven, so the over cost stays open until F.5's ABBA and gate 3. F.5's ABBA on the rig is its proof.
 
 ### Gate R: the records, and nothing lost
 

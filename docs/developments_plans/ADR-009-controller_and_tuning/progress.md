@@ -2083,7 +2083,7 @@ The glide's and the PID law's are −1.3 to +0.2 s, median −0.8 s: the simulat
 | offer (21:01) | +0.1 | 0.0 | −1.9 s | −1 / +2 / −1.6 s |
 | offer2 (21:14) | +0.1 | −0.1 | −2.0 s | −4 / +4 / −3.0 s |
 
-- **In the simulation the offer saves about 2 s a throw at no cost in good or overs.** A difference of 0.1 throw in 20 is within its own error: about 0.25 throws in 20 on each, at 2,000 throws.
+- **In the simulation the offer saves about 2 s a throw, and costs no good or overs that it can see.** The simulation sees no over cost because its stop spread is flat with approach, which is what the day's recordings show; the rig's +2 and +4 overs are within its spread but not disproven, so the over cost stays open until F.5's ABBA and gate 3. A difference of 0.1 throw in 20 is within its own error: about 0.25 throws in 20 on each, at 2,000 throws.
 - **Against F.5's bars** (the controller against the glide's pour: settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer), the offer meets all three in the simulation.
 - **On the rig the offer's pairs gave 2 and 4 more overs.** That is within the rig's own run-to-run spread of 4 in 20 (20:32), so 20 throws a pair cannot tell it from none.
 - **The time saved** is the same in the simulation as on the rig within about 1 s: −1.9 and −2.0 against −1.6 and −3.0. The bias above is the same for both arms of a pair to within 0.3 s (offer) and 1.0 s (offer2).
@@ -2094,4 +2094,4 @@ The glide's and the PID law's are −1.3 to +0.2 s, median −0.8 s: the simulat
 - **`pico2w_ar2209_1122`,** built from the day's stops alone, is kept as built, with its result of 1 of 16, and is not used.
 - **The 2.5 gr early coarse stop** is corrected where it was relied on: gate S's text and the README's finding, with pointers left in the history (this file's 19:51, `research/pid_learning_2026-11-22.md`, `research/HANDOVER.md`, `controller_design_draft.md`).
 
-**Gate S is done, its time bar not met.** Its known limit (the bias above) is the simulation's, named for every gate after it. The offer's trade is judged within the pairs: it costs nothing the simulation can see, and F.5's ABBA on the rig is its proof.
+**Gate S is done, its time bar not met.** Its known limit (the bias above) is the simulation's, named for every gate after it. The offer's trade is judged within the pairs: about 2 s saved; its over cost open until F.5's ABBA and gate 3, on the rig.
