@@ -2567,3 +2567,19 @@ The form of 23:48 (the fine tube at its floor until a reading shows powder arriv
 - profile 0: coarse 0.1 to 5, fine 0.08 to 5, saved;
 - the coarse motor: least 0.08, max 5, saved;
 - the fine motor: least 0.01, max 5, saved.
+
+## 2026-11-23, 23:58: F.2, form (a) accepted by the manager's judgement against a pass failed by its letter
+
+Not a pass: the pass of 23:51 failed by its letter, and the manager accepted form (a) on judgement:
+- **What the pass assumed:** that the short bias was only the unit's cold start. The simulation refuted that: its rehearsals at the top rest short too, to −10 digits.
+- **What the form does:** it removes that bias. The stop moves about a digit earlier, the safe direction (a shorter rest is topped up; an over is lost).
+- **The outcomes:** equal or better on both records (good 48 = 48 and 44 → 47 of 60; over 11 = 11 and 16 → 13), no far-short rests.
+- **So:** the miss is the pass's wording, which tested a means (the stop room unchanged), not the end (outcomes not worse). **Every later pass is written on the end it serves.**
+
+**Its cost:** a rehearsal at the floor lasts 1 gr over the creep's flow: about 15 s at the bench unit's shipped floor of 0.08, about 90 s at a creep of 0.014. The simulation's rehearsals are bounded by C18 (120 s, as the controller bounds them) in place of its 90 s throw timeout. The throw-for-throw check then passes (40/40, all 8 sets). A creep under about 0.01 would end a rehearsal "limit" by C18: added to the failure modes' list.
+
+**The unit's predictions stand as written** (23:54). If the first two miss: stop, report, no adjusting.
+- no rehearsal first rest below −5 digits;
+- the stop room placed in +0.00 to +0.04;
+- fewer than 7 overs;
+- about 8 good in 10, a figure.

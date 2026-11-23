@@ -305,6 +305,8 @@ Each gate's cases beyond its main path, built and proven together once the workf
 - **F.4:** a lag beyond the forecast's window, said and never cut silently; the slowest stand-in scale's lag kept whole (C23).
 - **Gate 3:** a calibration whose scale goes bad or missing mid-way (the A&D at the coarse tube's top, for one) stops and says so; a calibration stopped by the person, its part kept or dropped as gate 3 decides.
 - **Gate 5:** an agent's write outside its bounds refused; an agent's write reverted.
+- **F.2's rehearsal at the floor:** a creep under about 0.01 rev/s makes a 1 gr rehearsal outlast C18's 120 s, and it ends "limit" (the rehearsal's size and speed together are gate 3's, with its spread-against-approach data).
+- **The simulation's blind spot, a tube started cold:** the bench unit's PC-trial rehearsal 0 (2026-11-23) started at 2.03 rev/s, showed nothing for 0.7 s and poured about 37% under its figure; the simulation's tube does not model it (`fine.settle_s` solved at 0).
 - **Gate 4's mocks:** what the person sees for each end that is not a verdict (the cup lifted, no powder, a limit, a refused start).
 
 ### The cup's capacity, declared at each calibration (the order's step 3; sign-off item 17)
