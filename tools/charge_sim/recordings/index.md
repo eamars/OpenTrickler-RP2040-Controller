@@ -132,3 +132,5 @@ Trials are counted without the turn that preconditions the tube.
 | `20261124_001016_trial_pico2w_ar2209_f2c` | AR2209 | trial_pico2w_ar2209_f2c |  | 0 |  |  |
 | `20261124_001219_series_pico2w_ar2209_f2c_pico2w_ar2209_f2` | AR2209 | series (staged) | | 10 | 10.0 gr |  |
 | `20261124_001557_series_pico2w_ar2209_f2d_pico2w_ar2209_f2` | AR2209 | series (staged) | | 10 | 10.0 gr |  |
+| `20261124_003820_trial_backoff_pico2w_ar2209_f3` | AR2209 | trial_backoff_pico2w_ar2209_f3 | coarse | 3 | 0.1 rev/s |  |
+| `20261124_003946_series_pico2w_ar2209_f3_pico2w_ar2209_f2` | AR2209 | series (staged) | | 3 | 10.0 gr |  |

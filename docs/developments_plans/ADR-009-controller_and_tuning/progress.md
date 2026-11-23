@@ -2756,3 +2756,52 @@ The throw-for-throw check: 40/40 on all 8 sets. `check_numbers.py` PASS.
 3. `menu_tour --compare`.
 
 The servo seen moving is owed.
+
+## 2026-11-24, 00:44: gate F.3 passes on the Pico 2 W
+
+On the Pico 2 W, image at `606dd53` and the mend below; the cup emptied by the owner before.
+
+**The flash:** a settings copy first (`logs/adr009/f3_before_flash`). At its first start: "Records: 8 calibrations moved to the records of version 3". `settings --compare` against the copy: only the 32 new fields differ (the four of each of the 8 records); every other setting and field is unchanged.
+
+**The back-off's spill measured** (`trial.py --measure-backoff`, against the kept calibration of 23:56; `logs/adr009/*_trial_backoff_pico2w_ar2209_f3/backoff.json`):
+- the unit's back-off: 0.25 turn at 1 rev/s, from the coarse floor of 0.1 rev/s;
+- arrived after a back-off stop: 1.280 gr (spread 0.503), against a held stop's 0.673 there: the forecast's effect +0.607;
+- PATCH 200, save 200; **the record's other fields compared before and after, field by field: none changed.**
+
+**`charge_cycle`** (the simulated scale's own calibration, no spill measured): "the back-off (0.250 turns at 1.000 rev/s) has no spill measured as it is set: the coarse tube stops by the coarse stop threshold, 5.000". The throw good. **PASS.**
+
+**The spill in use, on the real scale** (`series.py --keep-calibration`, 3 × 10 gr):
+- the start said "the back-off's spill forecast: 0.6067";
+- each throw's rows show the coarse tube asked for −1.0 rev/s for 0.18 to 0.2 s at its stop: the frame made the back-off;
+- 2 good, 1 over (+0.04), median 11.3 s (F.2's baseline 10.0 s). A figure, not judged.
+
+**The gate and the precharge on** (live, unsaved, reverted after; no servo fitted):
+- `charge_cycle`: the precharge 1.77 s after the throw's end (the close's travel 0.33 s, 500 ms, then 1 s): "precharge 2.000 turns, 20.001 held by the gate for the next throw". **PASS.**
+
+**Found and mended (the pending precharge's life cycle):** the precharge's count lived in RAM until the next throw, even with the gate turned off in between, so a gate that never opened would have had its 20 gr forecast. Now it is counted only while the gate is on at the next throw's start, else dropped and said. Shown in one boot:
+- cycle A with the gate on held 20.001 gr;
+- the gate off, cycle B said "the precharge's 20.001 not counted: the gate is no longer on".
+
+**The counted path stays the simulation's** (`f3_cases.py`'s `precharge`): the unit's simulated scale has no gate to hold the powder, so a counted precharge that never shows would rightly end no powder. On a real gate it shows as it falls.
+
+`menu_tour --compare` **PASS.**
+
+**F.3's pass:**
+- the simulation with a gate and a precharge (00:36);
+- `charge_cycle` with each feature on;
+- the spill measured and in use.
+- **Owed:** a servo on the connector seen to move at each point, beside sign-off item 9's fitted gate.
+
+**The cup's ledger:**
+- the measure 0.00 to 5.56 (most 15);
+- `charge_cycle` to 34.56 (most 70);
+- the series to 64.60 (most 49);
+- the gate cycles to 112.64, 161.76 and 193.12 (most 130, 80, 80).
+
+**The checklist again:**
+1. **Numbers:** A10, A11, A12, A17 in the frame; E10's waits built, and `CHARGE_PRECHARGE_STOP_MOST_MS` added (a bound, its row); `BACKOFF_STOPS` (3, the form's count, as the stops' counts are).
+2. **A value from the bench unit:** none in the firmware. The simulation's case uses the bench record's 0.83 gr spill as its plant, not as a number of the frame.
+3. **The test:** the 3 s bound has a general reason.
+4. **A new parameter:** none. The spill is a measured value of the record (register row 9).
+5. **Predictions written first:** the cases of 00:20 and 00:22. One mend found by them (the spill's timing), and one by the unit (the pending precharge's life cycle).
+6. **Shown on the bench unit only:** all of it, on the Pico 2 W; the servo is owed.

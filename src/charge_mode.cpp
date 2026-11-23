@@ -557,13 +557,17 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     const float room_at_start = cc->stop_room_gr;      // where this throw stops, before it learns
     uint32_t start_ms = charge_mode_now_ms();
     charge_control_start(cc, target, start_ms);
-    // The precharge the gate held falls as it has opened: counted in this throw's forecast (gate F.3)
-    if (charge_precharge_pending_gr > 0.0f) {
+    // The precharge the gate held falls as it has opened: counted in this throw's forecast (gate F.3). With the gate
+    // no longer on, nothing opened to let it fall: it is dropped from the count, and said
+    if (charge_precharge_pending_gr > 0.0f && servo_gate_enabled()) {
         charge_control_precharge(cc, charge_precharge_pending_gr,
                                  (float) charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps, start_ms);
         printf("Charge: the precharge's %.3f in this throw's forecast\n", charge_precharge_pending_gr);
-        charge_precharge_pending_gr = 0.0f;
     }
+    else if (charge_precharge_pending_gr > 0.0f) {
+        printf("Charge: the precharge's %.3f not counted: the gate is no longer on\n", charge_precharge_pending_gr);
+    }
+    charge_precharge_pending_gr = 0.0f;
     recording_pour_begin(start_ms);
     bool coarse_was_on = cc->coarse_on;
     uint8_t phase_was = cc->phase;
