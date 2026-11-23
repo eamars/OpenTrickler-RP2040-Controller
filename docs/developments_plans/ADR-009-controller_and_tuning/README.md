@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23 and are not yet tried on a unit. The Pico W links again (2026-11-23, "Found while building" in the plan). The next work is N.2's proof on a unit, when the owner says the bench is ready, then gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0 and 1 are done; gate 2 is built and thrown but for its recordings. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
+Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23; N.2 is proven on the Pico 2 W. The Pico W links again (2026-11-23, "Found while building" in the plan). N.2 was proven on the Pico 2 W the same evening (flash, `menu_tour --compare`, `charge_cycle`, `pulses`). The next work is gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0 and 1 are done; gate 2 is built and thrown but for its recordings. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
 
 ## Where ADR-009 stands (read this first; it wins over every other page and section)
 
@@ -9,8 +9,8 @@ Written 2026-11-23, 17:48, by the agent who reviewed gate N for the owner. It re
 **The state:**
 - **The documents are ready for the agent who builds.** There is one plan (the next section). Every number the charge uses has its life cycle, checked against the code ([numbers.md](numbers.md)). The parameter register is drafted, each row with its recommendation.
 - **The register is approved** (the owner, 2026-11-23, 17:54): every row as recommended, and with it what the build plan marks (new). That closes gate N's documents and gate D, and the item "Open, to be discussed".
-- **Gate N is done** (2026-11-23): N.2, every fixed number of the charge a macro in `src/charge_rules.h` with a check in CI, and N.3, the bench's three leftover times and weights found without effect. Both at the desk; neither tried on a unit yet.
-- **Next, for the implementing agent:** N.2's proof on a unit, then gate 2's rest. The Pico W links again since 2026-11-23, with 104 B of RAM spare. `research/HANDOVER.md`, its top section, is where that agent starts.
+- **Gate N is done** (2026-11-23): N.2, every fixed number of the charge a macro in `src/charge_rules.h` with a check in CI, and N.3, the bench's three leftover times and weights found without effect. N.2 proven on the Pico 2 W the same evening; N.3 is the simulation's, shown on a unit at F.5.
+- **Next, for the implementing agent:** gate 2's rest. N.2 is proven on the Pico 2 W (2026-11-23, 19:24). The Pico W links again since 2026-11-23, with 104 B of RAM spare. `research/HANDOVER.md`, its top section, is where that agent starts.
 
 **What "ready for the agent who builds" means,** the test these pages were written against:
 1. **One plan.** One section says what is built, in what order, and how each gate is judged. No other page gives an instruction that differs from it.
@@ -66,7 +66,7 @@ Written 2026-11-23, 17:48, by the agent who reviewed gate N for the owner. It re
 
 One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 2026-11-22 with what gate N found. **What is new in it is marked (new)**, and was approved with the register on 2026-11-23. Each gate ends in a pass or a fail. Where a pass leaves a figure open, the agent writes it into `progress.md` before the run, with the clock's time. One PR when the ADR closes, unless the owner picks a gate to merge by itself.
 
-**Done:** gate 0 (the research on main), gate 1 (the controller in C, checked against its reference in CI), gate 2 but for its recordings (the controller in the charge, thrown on the Pico 2 W; `progress.md`), gate N (the documents, N.2 and N.3; at the desk, not yet on a unit).
+**Done:** gate 0 (the research on main), gate 1 (the controller in C, checked against its reference in CI), gate 2 but for its recordings (the controller in the charge, thrown on the Pico 2 W; `progress.md`), gate N (the documents, N.2 and N.3; N.2 proven on the Pico 2 W, 2026-11-23).
 
 **The guideline for every gate:** ADR-009 builds a general-purpose powder trickling controller, tuned on each user's own device.
 - **The bench unit is one user's unit.** What is measured on it (its scale, its tubes, its powders, its throws) shows what a calibration must measure, and checks that a mechanism works. It is never a rule, a default or a constant in the firmware.
@@ -99,7 +99,7 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 
 - **N.1, the documents:** `numbers.md` and the register. **Closed 2026-11-23, 17:54,** on the owner's approval of the register.
   - **Gate D,** the design gate of the plan of 2026-11-22, closes with it (new): what the sign-off left open in the design draft is the register's rows 1, 2, 8 and 9.
-- **N.2, the numbers made visible in the code (new).** **Built 2026-11-23** (`progress.md`): `src/charge_rules.h`, `tools/charge_sim/check_numbers.py`. Its pass is met but for the Pico W's build, which does not link for a cause older than this step (below, "Found while building"). At the desk, changing nothing a throw does:
+- **N.2, the numbers made visible in the code (new).** **Built 2026-11-23** (`progress.md`): `src/charge_rules.h`, `tools/charge_sim/check_numbers.py`. Its pass is met, the Pico W's build since the shared buffer of 2026-11-23 (below, "Found while building"), and **proven on the Pico 2 W** (2026-11-23, 19:24: `flash`, `menu_tour --compare`, `charge_cycle`, `pulses`, each `VERDICT PASS`). At the desk, changing nothing a throw does:
   - **every fixed number in one place, to change and build.** Every Rule and Safety number of `numbers.md` (sections C, D, E, G) becomes a macro in one header, named as the reference names it, each with its row, its unit and its reason in a line. No number stays inside a formula, and no other file holds one. A person who builds their own firmware changes a value in that one file and builds: nothing else is hunted for. The header's first lines say so, and say that the safety bounds are in it too. AGENTS.md's build notes name the file;
   - duplicates become one definition (D16, the copies in G5 and G8);
   - a check in CI lists the numbers in the controller's files and fails on one `numbers.md` does not name; each row gains its constant's name;

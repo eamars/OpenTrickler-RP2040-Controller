@@ -1837,3 +1837,16 @@ The owner, in this session: the bench is ready, the hopper empty, the cup empty 
 4. **Is a new parameter needed?** No.
 5. **Does the pass on the rig check a mechanism, against a prediction written first?** The prediction: nothing a user or a throw sees changes. `flash` reports 999806e's version; `menu_tour --compare tests/menu_baseline/pico2_w` passes against the baseline as it is (saved complete on 2026-11-19, ADR-008, and passed against on 2026-11-22; saving it again first would compare the unit with itself); `charge_cycle` ends a cycle at the target, as on 2026-11-22 (30.000 for 30); `pulses` passes with the fault images built at the tip (`build_2w_fault1`, `build_2w_fault2`). No series is thrown.
 6. **What here is still shown on the bench unit only?** Everything of this proof; the Pico W's at gate 7.
+
+## 2026-11-23, 19:19 to 19:24: N.2's proof on the Pico 2 W, judged
+
+The image of 5580d1b (2.0.3-205; N.2 and the Pico W's shared buffer), on the Pico 2 W at 192.168.2.166. Hopper empty, cup empty or near (the owner). Logs in `logs/rc/`.
+- **`flash`: `VERDICT PASS`**, verified, the unit reporting 2.0.3-205 at 5580d1b (`20261123_191955_flash`). Its settings after it, against the copy before: `VERDICT PASS`, 17 resources the same, the firmware not judged.
+- **`menu_tour --compare tests/menu_baseline/pico2_w`: `VERDICT PASS`**, 14 pages as the baseline but the firmware page, not judged (`20261123_192023_menu_tour`). The baseline was compared as it stands, not saved again: it is the one saved whole on 2026-11-19 and passed on 2026-11-22. AGENTS.md's two lines asking for it to be saved again were left from before 2026-11-19, and are corrected.
+- **`charge_cycle`: `VERDICT PASS`**, 30.000 for a target of 30, the first rest −0.060, four moves, 5.68 s, glide (`20261123_192032_charge_cycle`). The prediction held: the throw of 2026-11-22, 13:45 (30.000, −0.06, four moves, 5.7 s).
+- **`pulses`: `VERDICT PASS`** on its second run (`20261123_192228_pulses`): a probe reset, an assert and a hard fault each stop the step pulses; the unit ends on the normal image. **The first run failed for my fault, not the firmware's:** the fault images were built at 999806e, a commit before the image flashed, so their metadata blocks (512.972) were not the build's (512.973), `rc_run.py` refused to flash them, and cases (b) and (c) ran on the normal image, which never faults (`20261123_192104_pulses`). Rebuilt at 5580d1b, they passed. Fault images are built at the commit flashed.
+- **`keep.py --logs logs/adr009`:** 121 recordings, none new (no throw was recorded on a real scale).
+
+**The checklist again, before the pass:** 1 to 4 as at 19:19. 5: the prediction was written before the flash and held. 6: all of this is the Pico 2 W's; the Pico W's proof is gate 7's.
+
+**Pass: N.2's proof on a unit, met.** Not shown on a unit: the series' mend after a refused start (read in the code; the console's refused start was not provoked), and the carry through the shared buffer (`charge_cycle` runs on the simulated scale, which carries nothing by design). Both are thrown with real throws in gate 2's rest's series and at F.5's ABBA.
