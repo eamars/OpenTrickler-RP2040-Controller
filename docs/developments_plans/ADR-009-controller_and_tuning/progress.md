@@ -1923,3 +1923,41 @@ The image of c2e551d (2.0.3-216):
 **The cup:** 276.12 gr before, 299.86 after `api_check`, 306.02 after `settings_roundtrip`, **336.70** after `recordings_check`; the budget was 406.
 
 **Not shown:** the Pico W on a unit, whose image now links with 21,608 B spare; its run is gate 7's.
+
+## 2026-11-23, 20:32: gate S begun; the rig's run-to-run spread, the bar; its checklist
+
+At the desk; nothing turns. The manager accepted gate 2's rest and the `-Os` change, and asked for gate S.
+
+**The night's runs, from their recordings** (`tools/charge_sim/bench/abba_figures.py`, into `fit/abba_night_20261122.json`): seven ABBA runs at 10 gr in the fast mode (0.04 gr), each arm 20 throws, judged at the settled weight. They agree with the figures written that night.
+
+| Run | Glide: good / over / median | Other arm | Other: good / over / median |
+|---|---|---|---|
+| abba (18:26) | 18 / 2 / 10.9 s | PID learnt, least 0.1 | 14 / 5 / 13.7 s |
+| night (19:10) | 15 / 5 / 11.0 s | PID learnt, its least speed learnt | 16 / 4 / 15.5 s |
+| coarse (19:51) | 16 / 4 / 11.2 s | PID learnt, coarse from the calibration | 19 / 1 / 14.8 s |
+| frame (20:13) | 19 / 1 / 11.4 s | the PID law in the frame, the owner's fine gains | 17 / 3 / 10.5 s |
+| ownstop (20:41) | 16 / 4 / 10.7 s | the PID law, the bench unit's stored gains | 15 / 5 / 12.1 s |
+| offer (21:01) | 15 / 4 / 10.9 s | the PID law, the offer | 14 / 6 / 9.3 s |
+| offer2 (21:14) | 19 / 1 / 11.2 s | the PID law, the offer | 15 / 5 / 8.2 s |
+
+**The rig's run-to-run spread, the bar.** The seven glide arms are like runs: one controller, one powder, one target, one mode, the same `ccon` (the fine top 1.0 rev/s, the fine learning off), the same evening. Among themselves they spread:
+- **good:** 15 to 19, 4 throws in 20;
+- **over:** 1 to 5, 4 in 20;
+- **median:** 10.7 to 11.4 s, 0.7 s.
+
+The day's one other pair of like runs agrees: s1 and s3 of 17:34 and 17:46, one calibration twelve minutes apart, 17 and 13 good in 20 (5 gr), 4 throws apart. So **an arm is reproduced when the simulation's figure, counted for 20 throws, lies within the rig's own ±4 good, ±4 over and ±0.7 s median.**
+
+**What the model is made from, and what it is judged on:**
+- **Judged on:** the 14 arms above, thrown 18:26 to 21:22.
+- **Made from:** the recordings before 18:00. That is the record's sessions of 11-19 to 11-21 as `build_rig.py` already uses them, the trial of 2026-11-22 16:46, and the series of 11-22 11:50 to 17:52.
+- **The overlap:** the glide arms give the bar's spread and are also judged. That overlap is in the bar, not the model: nothing of the night's recordings goes into the model.
+
+**The two blind spots, as the record names them, checked against the recordings before any model.** The trial of 16:46 measured the rig's fine stops at 0.025 to 0.5 rev/s with lags of 0.90, 0.63, 0.70, 0.90, 0.91 and 0.93 s. The calibration's own stop test does not show a lag growing at a low flow. The "1.2 to 2.1 gr a turn" was `pid_learnt`'s learnt figure: one number over a 0.9 s window, holding the lag, the stream's slowing before its stop and the first rest's spread together. So a lag curve is not modelled on that word. What the day's recordings show of each blind spot is measured first, then modelled, and then the night is run.
+
+**The checklist:**
+1. **Which numbers does this gate add, move or change?** None in the firmware. In the simulation, the rig's record gains what the day's recordings measure of the two blind spots, each named as measured or solved, as `build_rig.py` names its numbers.
+2. **Does any value come from the bench unit?** The record is the bench unit's rig by design: it is the simulation's stand-in for that unit, and nothing in it reaches the firmware. Nothing measured goes into the controller, its rules or its defaults.
+3. **Does each fixed number pass the test?** No fixed number of the charge is touched.
+4. **Is a new parameter needed?** No.
+5. **Does the pass check a mechanism against a prediction written first?** The bar above is written before any run. The simulation as it stands is run first. A model is changed only for an arm it misses, and only from the day's recordings, never fitted to an arm it is judged on. Then the offer's trade is judged in the simulation.
+6. **What is still shown on the bench unit only?** All of it: the rig is the bench unit's. A second unit's rig is gate 7's.
