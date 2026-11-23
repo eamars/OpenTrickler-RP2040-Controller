@@ -4428,7 +4428,9 @@ def cup_most(args):
         for line in lines:
             words = line.split()
             if words[0] == "charge":
-                most += float(words[1]) + 10.0
+                # `charge <gr> series <n>`: n throws into the one cup
+                throws = int(words[3]) if len(words) > 3 and words[2] == "series" else 1
+                most += throws * (float(words[1]) + 10.0)
             elif words[0] == "motor" and len(words) >= 3:
                 seconds = float(words[3]) if len(words) > 3 else MOTOR_RUN_DEFAULT_S
                 most += abs(float(words[2])) * seconds * CUP_GR_A_TURN_MOST

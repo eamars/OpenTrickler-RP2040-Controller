@@ -2945,3 +2945,28 @@ It does not say how they make the frame's numbers, and "a new mechanism goes to 
 - **The throw-for-throw check:** the learnt rules equal on every stand-in, with the back-off on and off; 315 of 315 throws with no difference. Pass.
 - `keeps_short` **fails its letter** (short or good): the powder at a third once the figures are made, 63 throws: good 44, short 10, "no powder" 4, "limit" 2 (C19, at 26 s), over 3. **Every one stops both tubes,** so condition 2's question is answered: such a throw is ended by the eight tries, by C19 once a figure exists, or by C25. The 4 "no powder" are false: a figure three times too high, with a powder pouring a third, shows a ninth of what is forecast. C25 then ends a throw that pours, safely. This is gate 3's to mend with the measured lag, and the failure modes' to list.
 - **Unchanged:** `check_firmware_controller.py --throws 40 --logic-only`, `safety_cases.py`, `limits_cases.py` and `f3_cases.py` pass. `check_numbers.py` passes. The Pico 2 W image builds.
+
+## 2026-11-24, 01:47: F.4 on the Pico 2 W: a powder never calibrated thrown, and `charge_cycle`
+
+On the Pico 2 W, image at `80f4bc6` and the series' cup count mended (below), flashed by the probe. The real A&D on it; the hopper filled, the cup read by the tools (60.5 gr after the series, 90.5 after `charge_cycle`; both in the ledger).
+- **First, a run on the wrong profile:** profile 0 (AR2208,gr), which `ccal` had shown as lacking its head. That was the console's working copy. Profile 0 holds F.3's record, so its series of 3 at 10 gr threw the calibrated source (over, over, good). It counts as the calibrated path's run, not F.4's. The run's `charge stop` was refused since the series had ended (my line, not a fault).
+- **The powder never calibrated:** profile 1 (AR2209,gr, `held=false`), chosen over the API (`PATCH /api/v1/charge`, put back to 0 after), `charge 10 series 3`:
+  - its start said: "the learnt source, digit 0.0200 (the unit's record), interval 0.040 s, lag 2.00 s and rest 6.00 s (assumed)", and the back-off's fallback to the coarse stop threshold;
+  - **every throw ended at rest:** over by 0.16, 0.16 and 0.04 gr, each once back to the stream; none "limit", "no powder" or a fault. **Pass** (sign-off item 10's: safe ends; the overs are the accepted cost);
+  - **the prediction on time was wrong:** 24.2, 17.4 and 17.4 s, not 30 to 90 s; the profile's own fine top (2 rev/s) and the A&D's quick rhythm;
+  - **the fine figure it learnt** is 0.30, then 0.26 and 0.26 gr a turn, against the calibration's 0.88 on the same rig: G9's rule (what landed after the stop over the turns the 2 s lag says were on their way) pulls it to what the stop shows, not to the powder's figure. This is the lag's error again, and gate 3's lag replaces the assumption.
+  - **the digit came from the unit's record** (a powder was calibrated on this unit), not from B1's smallest step. B1 was not reached on the unit: it is used only on a unit whose record holds no digit.
+- **`charge_cycle`:** VERDICT PASS (the simulated scale's own calibration; throw good at 30.02).
+- **Mended for the run:** `rc_run.py send` counted `charge <gr> series <n>` as one throw in its cup budget; it counts each throw now.
+- **`api_v1.md`:** `not_calibrated` is the damaged record's alone; a powder with no record is thrown.
+
+**F.4's pass, against its six points:**
+1. **Numbers:** G1 the owner's 2 s and 6 s; G2 the figure's least stretch; C26 no powder before a figure; G9 kept; G3 to G6, G8 and G10 gone. Each has its row and its macro.
+2. **A value from the bench unit:** none. The pair is the owner's, from the A&D's spec.
+3. **The test:** the stand-in scales, two estimated makes added.
+4. **A new parameter:** none.
+5. **Predictions written first:**
+   - the study's predictions were not met, and that is the owner's finding;
+   - the cases met theirs at the default profile's limits; `keeps_short` failed its letter, and its ends are all safe;
+   - on the unit: safe ends met, the time not.
+6. **Shown on the bench unit only:** the Pico 2 W. B1's own path (no digit in the record) was not reached on the unit.
