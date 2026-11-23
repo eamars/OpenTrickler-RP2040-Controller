@@ -11,10 +11,8 @@ typedef charge_control_real_t real_t;
 #define REAL(x) ((real_t) (x))
 #ifdef CHARGE_CONTROL_DOUBLE
 #define ABS_R fabs
-#define SQRT_R sqrt
 #else
 #define ABS_R fabsf
-#define SQRT_R sqrtf
 #endif
 
 /*
@@ -50,7 +48,6 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->user_backoff_rps = REAL(0.0);
     k->coarse_threshold_gr = REAL(0.0);
     k->gate_coarse_s = REAL(0.0);
-    k->dribble_digits_s = REAL(CHARGE_RULE_DRIBBLE_DIGITS_S);
     k->coarse_spreads = REAL(CHARGE_RULE_COARSE_SPREADS);
     k->creep_band_share = REAL(CHARGE_RULE_CREEP_BAND_SHARE);
     k->creep_most_s = REAL(CHARGE_RULE_CREEP_MOST_S);
@@ -60,14 +57,13 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->learn_fine_prior = REAL(CHARGE_RULE_LEARN_FINE_PRIOR);
     k->learn_fine_most = REAL(CHARGE_RULE_LEARN_FINE_MOST);
     k->learn_fine_split = REAL(CHARGE_RULE_LEARN_FINE_SPLIT);
-    k->still_least_s = REAL(CHARGE_RULE_STILL_LEAST_S);
     k->most_moves = CHARGE_RULE_MOST_MOVES;
     k->throw_most_s = REAL(CHARGE_RULE_THROW_MOST_S);
     k->fine_most_times = REAL(CHARGE_RULE_FINE_MOST_TIMES);
     k->zero_margin_gr = REAL(CHARGE_RULE_ZERO_MARGIN_DEFAULT);
     k->over_tolerances = REAL(CHARGE_RULE_OVER_TOLERANCES);
-    k->speed_law = CHARGE_RULE_SPEED_LAW;
-    k->pid_envelope = CHARGE_RULE_PID_ENVELOPE;
+    k->speed_law = 0;       // the glide's, the PC's check's; the charge gives the PID law (gate F.5)
+    k->learning = 1;
 }
 
 
@@ -123,53 +119,38 @@ void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_
                               const charge_control_constants_t *k) {
     const charge_control_stop_t *fine = cal->fine_stops;
     uint8_t fine_count = cal->fine_stop_count;
-    bool glide = finish == CHARGE_CONTROL_FINISH_GLIDE;
 
-    cal->finish = (uint8_t) finish;
+    cal->finish = (uint8_t) finish;     // the glide, the one finish since gate F.5
     cal->band_gr = band_gr;
     // Each tube's range: the user's limits, and never faster than the fastest speed the calibration measured
     cal->fine_top_rps = min_f(k->fine_most_rps, fine[fine_count - 1].speed_rps);
     cal->coarse_top_rps = min_f(k->coarse_most_rps, cal->coarse_stops[cal->coarse_stop_count - 1].speed_rps);
     cal->coarse_floor_rps = k->coarse_least_rps;
-    if (glide) {
-        // The creep: the flow at which the powder still on its way is about the band, at the lag measured there
-        real_t slowest_lag = max_f(stop_lag_s(&fine[0], cal->fine_gr_turn), REAL(CHARGE_RULE_SLOWEST_LAG_LEAST_S));
-        cal->floor_rps = min_f(max_f(k->creep_band_share * band_gr / slowest_lag / cal->fine_gr_turn,
-                                     REAL(CHARGE_RULE_CREEP_LEAST_SHARE) * fine[0].speed_rps),
-                               fine[fine_count > CHARGE_RULE_CREEP_TOP_STOP ? CHARGE_RULE_CREEP_TOP_STOP : fine_count - 1].speed_rps);
-        // Never under the user's fine least: a least above the creep holds it up, and the charge says so
-        cal->creep_rps = cal->floor_rps;
-        cal->floor_rps = max_f(cal->floor_rps, k->fine_least_rps);
-        // The first reading at rest is meant to lie a digit under the target (half the band, if that is more)
-        cal->aim_gr = -max_f(cal->digit_gr, band_gr * REAL(CHARGE_RULE_AIM_BAND_SHARE));
-        cal->stop_room_gr = -cal->aim_gr;
-    }
-    else {
-        cal->floor_rps = min_f(cal->fine_top_rps, k->dribble_digits_s * cal->digit_gr / cal->fine_gr_turn);
-        cal->creep_rps = cal->floor_rps;
-        cal->floor_rps = max_f(cal->floor_rps, k->fine_least_rps);
-        cal->stop_room_gr = REAL(CHARGE_RULE_JOG_STOP_SPREADS) * stop_table(fine, fine_count, STOP_SPREAD, cal->fine_gr_turn, cal->floor_rps)
-                            + cal->digit_gr;
-        cal->aim_gr = -cal->stop_room_gr;
-    }
+    // The creep: the flow at which the powder still on its way is about the band, at the lag measured there, within
+    // the measured ladder
+    cal->floor_rps = min_f(max_f(k->creep_band_share * band_gr / stop_lag_s(&fine[0], cal->fine_gr_turn) / cal->fine_gr_turn,
+                                 REAL(CHARGE_RULE_CREEP_LEAST_SHARE) * fine[0].speed_rps),
+                           fine[fine_count - 1].speed_rps);
+    // Never under the user's fine least: a least above the creep holds it up, and the charge says so
+    cal->creep_rps = cal->floor_rps;
+    cal->floor_rps = max_f(cal->floor_rps, k->fine_least_rps);
+    // The first reading at rest is meant to lie a digit under the target (half the band, if that is more)
+    cal->aim_gr = -max_f(cal->digit_gr, band_gr * REAL(CHARGE_RULE_AIM_BAND_SHARE));
+    cal->stop_room_gr = -cal->aim_gr;
     // The floor is reached with twice the spread of a stop from four times its flow still to go
-    cal->glide_room_gr = cal->stop_room_gr;
-    if (glide) {
-        cal->glide_room_gr += REAL(CHARGE_RULE_GLIDE_SPREADS) * stop_table(fine, fine_count, STOP_SPREAD, cal->fine_gr_turn,
-                                                REAL(CHARGE_RULE_GLIDE_FLOW_TIMES) * cal->floor_rps);
-        // On a scale so late that such a creep would take too long, the creep is quicker
-        real_t stretch = cal->glide_room_gr - cal->stop_room_gr;
-        cal->floor_rps = max_f(cal->floor_rps, stretch / k->creep_most_s / cal->fine_gr_turn);
-    }
+    cal->glide_room_gr = cal->stop_room_gr + REAL(CHARGE_RULE_GLIDE_SPREADS) *
+                         stop_table(fine, fine_count, STOP_SPREAD, cal->fine_gr_turn,
+                                    REAL(CHARGE_RULE_GLIDE_FLOW_TIMES) * cal->floor_rps);
+    // On a scale so late that such a creep would take too long, the creep is quicker
+    real_t stretch = cal->glide_room_gr - cal->stop_room_gr;
+    cal->floor_rps = max_f(cal->floor_rps, stretch / k->creep_most_s / cal->fine_gr_turn);
     real_t longest_lag = REAL(0.0);
-    for (uint8_t i = (fine_count > CHARGE_RULE_CREEP_TOP_STOP ? CHARGE_RULE_CREEP_TOP_STOP : 0); i < fine_count; i++) {
+    for (uint8_t i = (fine_count > CHARGE_RULE_GLIDE_FROM_STOP ? CHARGE_RULE_GLIDE_FROM_STOP : fine_count - 1); i < fine_count; i++) {
         longest_lag = max_f(longest_lag, stop_lag_s(&fine[i], cal->fine_gr_turn));
     }
-    cal->glide_s = min_f(REAL(CHARGE_RULE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_GLIDE_LEAST_S), REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * longest_lag));
-    cal->coarse_glide_s = min_f(REAL(CHARGE_RULE_COARSE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_COARSE_GLIDE_LEAST_S), REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * stop_lag_s(&cal->coarse_stops[0],
-                                                                              cal->coarse_gr_turn)));
-    cal->coarse_room_gr = REAL(CHARGE_RULE_COARSE_ROOM_SPREADS) * cal->coarse_stops[0].spread_gr + cal->glide_room_gr
-                          + REAL(CHARGE_RULE_COARSE_ROOM_EXTRA_GR);
+    cal->glide_s = REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * longest_lag;
+    cal->coarse_glide_s = REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * stop_lag_s(&cal->coarse_stops[0], cal->coarse_gr_turn);
+    cal->coarse_room_gr = REAL(CHARGE_RULE_COARSE_ROOM_SPREADS) * cal->coarse_stops[0].spread_gr + cal->glide_room_gr;
     // The back-off (A11): made at the coarse stop when it is on; its spill forecast only when measured as it is set,
     // else the coarse room is the coarse stop threshold (A6), and the charge says so
     cal->backoff_speed_rps = cal->backoff_s = cal->backoff_gr = cal->backoff_fallback = REAL(0.0);
@@ -182,8 +163,7 @@ void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_
         if (measured) {
             cal->backoff_gr = cal->backoff_unseen_gr - cal->coarse_stops[0].unseen_gr;
             cal->coarse_room_gr = REAL(CHARGE_RULE_COARSE_ROOM_SPREADS) *
-                                  max_f(cal->coarse_stops[0].spread_gr, cal->backoff_spread_gr) + cal->glide_room_gr +
-                                  REAL(CHARGE_RULE_COARSE_ROOM_EXTRA_GR);
+                                  max_f(cal->coarse_stops[0].spread_gr, cal->backoff_spread_gr) + cal->glide_room_gr;
         }
         else {
             cal->backoff_fallback = REAL(1.0);
@@ -197,7 +177,7 @@ void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_
             quiet = max_f(quiet, fine[i].quiet_s);
         }
     }
-    cal->rest_s = quiet + REAL(CHARGE_RULE_REST_EXTRA_S);
+    cal->rest_s = quiet;
 }
 
 
@@ -224,10 +204,8 @@ void charge_control_learnt_calibration(charge_control_calibration_t *cal, real_t
     cal->aim_gr = -max_f(digit_gr, band_gr * REAL(CHARGE_RULE_AIM_BAND_SHARE));
     cal->stop_room_gr = -cal->aim_gr;
     cal->glide_room_gr = cal->stop_room_gr;
-    cal->glide_s = min_f(REAL(CHARGE_RULE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_GLIDE_LEAST_S),
-                                                              REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * lag_s));
-    cal->coarse_glide_s = min_f(REAL(CHARGE_RULE_COARSE_GLIDE_MOST_S), max_f(REAL(CHARGE_RULE_COARSE_GLIDE_LEAST_S),
-                                                                            REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * lag_s));
+    cal->glide_s = REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * lag_s;
+    cal->coarse_glide_s = REAL(CHARGE_RULE_GLIDE_LAG_SHARE) * lag_s;
     cal->coarse_room_gr = k->coarse_threshold_gr;
     if (k->user_backoff_turns > REAL(0.0) && k->user_backoff_rps > REAL(0.0)) {
         cal->backoff_speed_rps = k->user_backoff_rps;
@@ -254,19 +232,6 @@ void charge_control_place_stop(charge_control_calibration_t *cal, const real_t *
     memcpy(sorted, first_errors, count * sizeof(real_t));
     qsort(sorted, count, sizeof(real_t), compare_float);
     real_t median = (count % 2) ? sorted[count / 2] : (sorted[count / 2 - 1] + sorted[count / 2]) / REAL(2.0);
-    if (cal->finish == CHARGE_CONTROL_FINISH_JOG && count > 1) {
-        // Short by twice the rehearsals' own spread and a digit: few first readings at rest are over
-        real_t mean = REAL(0.0);
-        for (uint16_t i = 0; i < count; i++) {
-            mean += first_errors[i];
-        }
-        mean /= count;
-        real_t sum = REAL(0.0);
-        for (uint16_t i = 0; i < count; i++) {
-            sum += (first_errors[i] - mean) * (first_errors[i] - mean);
-        }
-        cal->aim_gr = -(REAL(CHARGE_RULE_JOG_AIM_SDS) * SQRT_R(sum / (count - 1)) + cal->digit_gr);
-    }
     real_t shift = median - cal->aim_gr;
     cal->stop_room_gr += shift;         // the margins above the stop move with it
     cal->glide_room_gr += shift;
@@ -500,7 +465,7 @@ static void pid_reading(charge_control_t *c, real_t now_s) {
     const real_t kd[2] = {pid->coarse_kd, pid->fine_kd};
     real_t elapsed_ms = (now_s - c->pid_last_s) * REAL(1000.0);
     for (int tube = COARSE; tube <= FINE; tube++) {
-        if (!(c->k.pid_envelope && c->pid_held[tube])) {
+        if (!c->pid_held[tube]) {
             c->pid_integral[tube] += errors[tube];
         }
         real_t derivative = (c->pid_first || elapsed_ms <= REAL(0.0)) ? REAL(0.0) :
@@ -554,11 +519,8 @@ static void feed(charge_control_t *c, real_t now_s) {
             c->glide_rps[COARSE] = min_f(cal->coarse_top_rps, max_f(cal->coarse_floor_rps, glide));
             if (pid != NULL) {
                 real_t asked = pid->coarse_kp * (room - cal->coarse_room_gr) + c->pid_term[COARSE];
-                real_t top = pid->coarse_max_rps;
-                if (k->pid_envelope) {
-                    top = min_f(min_f(top, cal->coarse_top_rps), cal->coarse_floor_rps + (room - cal->coarse_room_gr) /
-                                                                                     (cal->coarse_gr_turn * cal->coarse_glide_s));
-                }
+                real_t top = min_f(min_f(pid->coarse_max_rps, cal->coarse_top_rps),
+                                   cal->coarse_floor_rps + (room - cal->coarse_room_gr) / (cal->coarse_gr_turn * cal->coarse_glide_s));
                 c->coarse_rps = min_f(top, max_f(pid->coarse_min_rps, asked));
                 c->pid_held[COARSE] = !(pid->coarse_min_rps < asked && asked < top);
             }
@@ -594,11 +556,8 @@ static void feed(charge_control_t *c, real_t now_s) {
     c->glide_rps[FINE] = min_f(cal->fine_top_rps, max_f(cal->floor_rps, glide));
     if (pid != NULL) {
         real_t asked = pid->fine_kp * room + c->pid_term[FINE];
-        real_t top = pid->fine_max_rps;
-        if (k->pid_envelope) {
-            top = min_f(min_f(top, cal->fine_top_rps), cal->floor_rps + max_f(REAL(0.0), room - c->stop_room_gr) /
-                                                                       (cal->fine_gr_turn * cal->glide_s));
-        }
+        real_t top = min_f(min_f(pid->fine_max_rps, cal->fine_top_rps),
+                           cal->floor_rps + max_f(REAL(0.0), room - c->stop_room_gr) / (cal->fine_gr_turn * cal->glide_s));
         c->fine_rps = min_f(top, max_f(cal->floor_rps, asked));
         c->pid_held[FINE] = !(cal->floor_rps < asked && asked < top);
         return;
@@ -933,7 +892,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     if (c->phase != CHARGE_CONTROL_PHASE_REST) {
         return;
     }
-    real_t still = max_f(k->still_least_s, REAL(CHARGE_RULE_STILL_INTERVALS) * cal->interval_s);
+    real_t still = REAL(CHARGE_RULE_STILL_INTERVALS) * cal->interval_s;
     if (now_s < c->stopped_at_s + c->wait_s - TIE_S || now_s < c->last_rise_s + still - TIE_S) {
         return;
     }
@@ -943,7 +902,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     real_t at_rest = c->lowest;
     real_t short_gr = c->target_gr - at_rest;
     bool tries_left = c->moves + c->streams < k->most_moves;
-    if (cal->learnt && !c->learnt_done) {
+    if (cal->learnt && !c->learnt_done && c->k.learning) {
         c->learnt_done = true;      // the learnt source learns at the first rest, whatever follows it (G9)
         learn_learnt(c, at_rest);
     }
@@ -963,8 +922,10 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     if (!c->have_first_error) {
         c->have_first_error = true;
         c->first_error_gr = at_rest - c->target_gr;
-        learn(c);
-        learn_fine(c, at_rest);
+        if (c->k.learning) {     // the auto-tuner off freezes what is learnt (the register's row 1)
+            learn(c);
+            learn_fine(c, at_rest);
+        }
     }
     if (c->rehearsal || short_gr <= band_edge || !tries_left) {
         charge_control_result_t result = CHARGE_CONTROL_RESULT_GOOD;

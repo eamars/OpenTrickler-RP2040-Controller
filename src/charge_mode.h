@@ -21,20 +21,13 @@ typedef enum {
     CHARGE_MODE_WAIT_FOR_CUP_RETURN = 4,
 } charge_mode_state_t;
 
-// The loop that pours a throw (ADR-009): the staged controller by default, today's PID loop beside it until what is
-// kept for users is decided (gate 6)
+// What pours the next charge (ADR-009, gate F.5): the controller, or for the console's comparisons alone, never
+// stored, the frame's glide law or today's PID loop
 typedef enum {
-    CHARGE_CONTROLLER_STAGED = 0,
-    CHARGE_CONTROLLER_PID = 1,
-    // 2 was the experiment of a PID on a learnt forecast (ADR-009, 2026-11-22 evening), gone at gate F.4: stored, it
-    // is read as the staged controller
-} charge_controller_t;
-
-// The staged controller's pace (ADR-009, the MVP of 2026-11-22): the band it pours to, its glide made for it
-typedef enum {
-    CHARGE_TRICKLE_ACCURATE = 0,    // within 0.02 gr
-    CHARGE_TRICKLE_FAST = 1,        // within 0.04 gr
-} charge_trickle_mode_t;
+    CHARGE_POUR_CONTROLLER = 0,
+    CHARGE_POUR_GLIDE = 1,
+    CHARGE_POUR_LEGACY = 2,
+} charge_pour_t;
 
 typedef struct {
     uint16_t charge_mode_data_rev;
@@ -47,11 +40,11 @@ typedef struct {
     float coarse_stop_gate_ratio; // 0.0=open, 1.0=close, -1.0=disabled (optional)
 
     bool coarse_stop_backoff_enable;
-    // Which loop pours a throw (ADR-009): charge_controller_t. In the filler after the bool above, so the record's
-    // size and CRC stay: a unit's stored 0 there is the staged controller
-    uint8_t controller;
-    // The staged controller's pace: charge_trickle_mode_t, in the same filler (a stored 0 is accurate, today's band)
-    uint8_t trickle_mode;
+    // The filler after the bool above (ADR-009, A18): its first two bytes held the loop and the pace until gate F.5,
+    // read as nothing and written as zero since; the third is the auto-tuner's switch, 0 on (the register's row 1).
+    // The record's size and CRC stay: every unit has held 0 in the third, a pad never written
+    uint8_t a18_unused[2];
+    uint8_t auto_tune_off;
     float coarse_stop_backoff_turns; // 0.125, 0.25, 0.5, 1.0
     float coarse_stop_backoff_speed_rps; // if <=0 uses min speed
 
@@ -136,6 +129,10 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
  * the next start and never stored.
  */
 void charge_mode_set_series(uint16_t throws);
+
+// For the console's comparisons (ADR-009, gate F.5): what pours the next charge, taken by its start and never stored;
+// a charge so poured carries nothing into a record and learns nothing
+void charge_mode_set_pour(charge_pour_t pour);
 
 
 // The charge as GET /api/v1/charge gives it

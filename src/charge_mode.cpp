@@ -136,6 +136,21 @@ void charge_mode_set_series(uint16_t throws) {
 }
 
 
+static volatile charge_pour_t charge_pour_asked = CHARGE_POUR_CONTROLLER;
+static charge_pour_t charge_pour = CHARGE_POUR_CONTROLLER;     // this charge's
+
+
+void charge_mode_set_pour(charge_pour_t pour) {
+    charge_pour_asked = pour;
+}
+
+
+// The auto-tuner learns and carries: on by the setting, and only in a charge the controller pours
+static bool charge_mode_learning(void) {
+    return charge_pour == CHARGE_POUR_CONTROLLER && charge_mode_config.eeprom_charge_mode_data.auto_tune_off == 0;
+}
+
+
 // A stop asked at the unit (the screen's Back, by button), by the API or by the console: each ends the charge (gate 4).
 // The charge reads no button: the screen turns a press into a command (ADR-010, gate 2)
 static bool charge_mode_stop_asked(void) {
@@ -538,10 +553,10 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     cc->k = *charge_calibration_constants();
     cc->k.zero_margin_gr = charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
     charge_calibration_limits((uint8_t) profile_get_selected_idx(), &cc->k);
-    // The learnt source pours by the PID law on the profile's gains (gate F.4, point 3)
-    if (cc->cal.learnt) {
-        cc->k.speed_law = 1;
-    }
+    // The PID law pours (gate F.5), the learnt source's too (gate F.4, point 3); the glide's only by the console's
+    // word, for a comparison. The auto-tuner learns only in the controller's charge, and only when it is on
+    cc->k.speed_law = charge_law || cc->cal.learnt ? 1 : 0;
+    cc->k.learning = charge_mode_learning() ? 1 : 0;
     // The PID law (ccon speed_law 1; ADR-009, option 2): the powder profile's gains, its speeds within the motors'
     // limits as today's loop takes them; the fine tube's least speed stays the frame's floor
     if (cc->k.speed_law) {
@@ -706,7 +721,8 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
 
     // Its first error, at the calibration's own stop room, for the carry at the charge's end into its law's own list:
     // the throws of the charge's law only, so one law's stops never move the other's
-    if (!cc->cal.learnt && cc->have_first_error && cc->streams == 0 && cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
+    if (charge_mode_learning() && !cc->cal.learnt && cc->have_first_error && cc->streams == 0 &&
+        cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
         (cc->k.speed_law ? 1 : 0) == charge_law && charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
         // Translated to the rules' own stop room, where the rehearsals were thrown and from which the next charge
         // places its stop. Not the placed one: a session resting on its aim then moved the next one's stop by the
@@ -1003,8 +1019,11 @@ void charge_mode_wait_for_cup_removal() {
 
     FloatRingBuffer data_buffer(CHARGE_CUP_OFF_READINGS);
 
-    // Post charge analysis (while waiting for removal of the cup)
-    vTaskDelay(pdMS_TO_TICKS(CHARGE_VERDICT_WAIT_MS));  // Wait for other tasks to complete
+    // Post charge analysis (while waiting for removal of the cup): today's loop reads its verdict a second after its
+    // stop; the frame's is its settled reading, given at once (ADR-009, gate F.5, E9)
+    if (!charge_staged_verdict) {
+        vTaskDelay(pdMS_TO_TICKS(CHARGE_VERDICT_WAIT_MS));
+    }
 
     // Take current measurement: the PID loop's a second after its stop; the staged controller's at its rest, judged
     // by its band, half a digit beyond it (0.03 gr for 0.02 gr on the A&D, today's threshold) (ADR-009)
@@ -1204,8 +1223,14 @@ uint8_t charge_mode_menu(void) {
     charge_series_asked = 0;
     charge_base = 0.0f;
     charge_carry_count = 0;
-    charge_staged = charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED;
-    charge_law = charge_calibration_constants()->speed_law ? 1 : 0;
+    charge_pour = charge_pour_asked;
+    charge_pour_asked = CHARGE_POUR_CONTROLLER;
+    charge_staged = charge_pour != CHARGE_POUR_LEGACY;
+    charge_law = charge_pour == CHARGE_POUR_GLIDE ? 0 : 1;
+    if (charge_pour != CHARGE_POUR_CONTROLLER) {
+        printf("Charge: poured by %s, for a comparison: nothing carried or learnt\n",
+               charge_pour == CHARGE_POUR_GLIDE ? "the glide's law" : "today's PID loop");
+    }
     if (charge_staged) {
         // The controller and its calibration for this charge, from the heap, given back as the charge ends: the Pico
         // W has no RAM to keep them for a charge that may never come
@@ -1252,7 +1277,7 @@ uint8_t charge_mode_menu(void) {
             printf("Charge: the back-off's spill forecast: %.4f\n", charge_controller->cal.backoff_gr);
         }
         printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f, law %s\n", profile_get_selected_idx(),
-               charge_controller->cal.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide",
+               "glide",
                charge_controller->cal.band_gr, charge_controller->cal.stop_room_gr, charge_law ? "pid" : "glide");
         const charge_control_calibration_t *cal = &charge_controller->cal;
         printf("Charge: coarse %.3f to %.3f rev/s, fine %.3f to %.3f rev/s (the user's limits and the fastest "
@@ -1281,7 +1306,7 @@ uint8_t charge_mode_menu(void) {
                 charge_paused = false;
                 charge_throw_recording = !charge_staged ? 0 :
                     recording_throw_begin(charge_throw_number, charge_mode_config.target_charge_weight,
-                                          charge_calibration_constants()->speed_law ? 1 : 0,
+                                          charge_law,
                                           scale_get_running_driver() == SCALE_DRIVER_SIMULATED);
                 event_t throw_started = {.source = EVENT_SOURCE_THROW, .kind = EVENT_STARTED,
                                          .throw_number = charge_throw_number,
@@ -1356,13 +1381,18 @@ bool charge_mode_config_init(void) {
         return is_ok;
     }
 
-    // The controller sits in a filler byte (ADR-009): anything but a known loop there is the staged controller, the
-    // experiment of a PID on a learnt forecast (2, gone at gate F.4) among them
-    if (charge_mode_config.eeprom_charge_mode_data.controller > CHARGE_CONTROLLER_PID) {
-        charge_mode_config.eeprom_charge_mode_data.controller = CHARGE_CONTROLLER_STAGED;
+    // The loop and the pace sat in the filler (ADR-009, A18): read as nothing, written as zero from now (gate F.5).
+    // The auto-tuner's switch, the filler's third byte, is on or off
+    if (charge_mode_config.eeprom_charge_mode_data.a18_unused[0] != 0 ||
+        charge_mode_config.eeprom_charge_mode_data.a18_unused[1] != 0) {
+        printf("Charge: the stored loop and pace (%u, %u) are no longer read: zeroed\n",
+               charge_mode_config.eeprom_charge_mode_data.a18_unused[0],
+               charge_mode_config.eeprom_charge_mode_data.a18_unused[1]);
+        charge_mode_config.eeprom_charge_mode_data.a18_unused[0] = 0;
+        charge_mode_config.eeprom_charge_mode_data.a18_unused[1] = 0;
     }
-    if (charge_mode_config.eeprom_charge_mode_data.trickle_mode > CHARGE_TRICKLE_FAST) {
-        charge_mode_config.eeprom_charge_mode_data.trickle_mode = CHARGE_TRICKLE_ACCURATE;
+    if (charge_mode_config.eeprom_charge_mode_data.auto_tune_off > 1) {
+        charge_mode_config.eeprom_charge_mode_data.auto_tune_off = 0;
     }
 
     // Register to eeprom save all
@@ -1465,8 +1495,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
         return CHARGE_START_NO_TARGET;
     }
     // The staged controller takes its numbers from the powder's calibration, or for a powder never calibrated from
-    // its learnt source (gate F.4). A damaged record is not used, and the start is refused (ADR-009)
-    if (charge_mode_config.eeprom_charge_mode_data.controller == CHARGE_CONTROLLER_STAGED) {
+    // its learnt source (gate F.4). A damaged record is not used, and the start is refused (ADR-009). Today's loop,
+    // the console's word alone, takes none
+    if (charge_pour_asked != CHARGE_POUR_LEGACY) {
         uint8_t profile = powder_profile >= 0 ? (uint8_t) powder_profile : (uint8_t) profile_get_selected_idx();
         int state = charge_calibration_state(profile);
         if (state == CHARGE_RECORD_DAMAGED) {

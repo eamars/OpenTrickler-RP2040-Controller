@@ -123,11 +123,13 @@ def main() -> int:
                         help="a throw set whose calibration holds the rehearsals' first errors (else the calibration's)")
     parser.add_argument("--errors", help="the rehearsals' first errors, comma separated, in place of the calibration's: "
                         "a series' own, each corrected to the rule's stop (first + stop_room - the rule's stop room)")
-    parser.add_argument("--finish", choices=("glide", "jog"), default="glide")
+    parser.add_argument("--finish", choices=("glide",), default="glide")
     parser.add_argument("--band", type=float, default=0.02)
     parser.add_argument("--target", type=float, default=10.0)
     parser.add_argument("--throws", type=int, default=25)
-    parser.add_argument("--ccon", default="", help="constants for this series: `name=value ...` (never stored)")
+    parser.add_argument("--pour", choices=("controller", "glide", "legacy"), default="controller",
+                        help="what pours the series: the controller, or for a comparison the frame's glide law or "
+                             "today's loop (the console's word, never stored; ADR-009, gate F.5)")
     parser.add_argument("--most-pour", type=float, help="the most the series pours into the real cup, in grains "
                         "(default: its throws at their target and the far-over stop's 3 gr each, and 10)")
     parser.add_argument("--lag-shift", type=float, default=0.0,
@@ -184,7 +186,7 @@ def main() -> int:
     folder = args.repo / "logs" / "adr009" / f"{stamp}_series_{args.name}"
     folder.mkdir(parents=True)
     record = {"name": args.name, "started": stamp, "target_gr": args.target, "finish": args.finish,
-              "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "ccon_asked": args.ccon,
+              "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "pour": args.pour,
               "lag_shift_s": args.lag_shift, "mode": args.mode, "controller": args.controller, "gains": gains,
               "coarse_gr_turn": cal.coarse_gr_turn if cal else None, "fine_gr_turn": cal.fine_gr_turn if cal else None,
               "throws": []}
@@ -196,7 +198,7 @@ def main() -> int:
             return 1
         record["firmware"] = now.get("ver")
         # The calibration written, or the one stored kept, as the last charge left it (its carried first errors)
-        # The profile's PID settings from a copy, for the staged frame's PID law (ccon speed_law=1).
+        # The profile's PID settings from a copy, for the PID law, the controller's.
         # A tube a line: the console takes no longer one
         profile_lines = [f"setting powder_profiles/{args.profile} " + " ".join(
             f"{name}={value:g}" for name, value in gains.items() if name.startswith(tube))
@@ -215,9 +217,7 @@ def main() -> int:
         for line in record["ccal"]:
             if line.startswith("@cal rules"):
                 print(line)
-        if args.ccon:
-            session.send(f"ccon {args.ccon}")
-        session.send("ccon")
+        session.send("ccon")      # it lists only since gate F.5: the constants the series ran with
         record["ccon"] = list(session.console.data_lines)
         session.send(f"setting settings/charge controller={args.controller}")
         if args.mode:
@@ -229,7 +229,8 @@ def main() -> int:
                 return 1
         record["charge_set"] = args.charge_set
         session.console.charge_events.clear()
-        reply = session.send(f"charge {args.target:g} series {args.throws}")
+        pour = "" if args.pour == "controller" else f" {args.pour}"
+        reply = session.send(f"charge {args.target:g} series {args.throws}{pour}")
         if reply is None or not reply.startswith("@ok"):
             print(f"not started: {reply}")
             return 1

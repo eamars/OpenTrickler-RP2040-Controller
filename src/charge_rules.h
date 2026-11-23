@@ -27,7 +27,6 @@
 // --- The frame's constants (numbers.md, section C): the defaults of charge_control_default_constants ---------------
 #define CHARGE_RULE_MOVE_RPS 0.2                // C1, rev/s: a small move's speed. The bench's; measured from gate 3
 #define CHARGE_RULE_PARCEL_S 0.01               // C2, s: the powder turned out is counted in parcels this long
-#define CHARGE_RULE_DRIBBLE_DIGITS_S 8.0        // C6, digits/s: the jog finish's dribble. Goes with the jog (F.5)
 #define CHARGE_RULE_COARSE_SPREADS 3.0          // C7: spreads of the coarse powder unseen that both tubes keep clear of
 #define CHARGE_RULE_CREEP_BAND_SHARE 1.0        // C8: the creep's powder still in the air, as a share of the band
 #define CHARGE_RULE_CREEP_MOST_S 6.0            // C9, s: the creep's stretch never takes longer than this
@@ -39,7 +38,6 @@
                                                 // the calibration's figure counts for (3 when it was thrown)
 #define CHARGE_RULE_LEARN_FINE_MOST 0.25        // C14: the learnt fine figure never further than this share off (a bound)
 #define CHARGE_RULE_LEARN_FINE_SPLIT 1.0        // C15: 1, a stream's fine figure and a finish's; 0, one. Decided at gate 3
-#define CHARGE_RULE_STILL_LEAST_S 0.4           // C16, s: at rest, no new high for this long. The bench's; without effect at 0 (N.3): goes at F.5
 #define CHARGE_RULE_MOST_MOVES 8                // C17: tries a throw gets after its first rest (a bound)
 #define CHARGE_RULE_THROW_MOST_S 120.0          // C18, s: a throw past it ends "limit" (a bound)
 #define CHARGE_RULE_FINE_MOST_TIMES 4.0         // C19, times: a throw whose fine tube turns more than this many times its
@@ -56,36 +54,26 @@
                                                 //   the charge gives the controller the user's own
 #define CHARGE_RULE_OVER_TOLERANCES 100.0      // C20, tolerances: a reading this many of the user's tolerance over the
                                                 //   target stops all (3 at the default 0.03), in the scale's unit
-#define CHARGE_RULE_SPEED_LAW 0                 // C21: 0 the glide pours, 1 the PID law. A choice that goes at F.5
-#define CHARGE_RULE_PID_ENVELOPE 1              // C22: the frame's guard on the PID law. Always on from F.5
 
 // --- The rules' own numbers (section D) ----------------------------------------------------------------------------
-#define CHARGE_RULE_SLOWEST_LAG_LEAST_S 0.3     // D1, s: the slowest fine stop's lag taken as at least this. Goes at F.5
-#define CHARGE_RULE_CREEP_LEAST_SHARE 0.5       // D2: the creep never under this share of the slowest stop's speed
-#define CHARGE_RULE_CREEP_TOP_STOP 2            // D3, D7: the creep never above this fine stop's speed (from 0); the glide
-                                                // time's lags are taken from this stop to the fastest
+#define CHARGE_RULE_CREEP_LEAST_SHARE 0.5       // D2: the creep never under this share of the slowest stop's speed, nor
+                                                // above the fastest (D3: within the measured ladder)
+#define CHARGE_RULE_GLIDE_FROM_STOP 2           // D7: the glide time's lags are taken from this fine stop (from 0) to the
+                                                // fastest
 #define CHARGE_RULE_AIM_BAND_SHARE 0.5          // D4: the first rest is aimed a digit under the target, or this share of
                                                 // the band if that is more
-#define CHARGE_RULE_JOG_STOP_SPREADS 2.5        // D5: the jog's stop room in spreads. Goes with the jog (F.5)
 #define CHARGE_RULE_GLIDE_SPREADS 2.0           // D6: the glide room is the stop room and this many spreads of a stop from
 #define CHARGE_RULE_GLIDE_FLOW_TIMES 4.0        // D6: this many times the creep's flow
 #define CHARGE_RULE_GLIDE_LAG_SHARE 0.6         // D7, D8: a glide time is this share of its lag
-#define CHARGE_RULE_GLIDE_LEAST_S 0.4           // D7, s: the fine glide time's limits. Both go at F.5
-#define CHARGE_RULE_GLIDE_MOST_S 2.0
-#define CHARGE_RULE_COARSE_GLIDE_LEAST_S 0.3    // D8, s: the coarse glide time's limits. Both go at F.5
-#define CHARGE_RULE_COARSE_GLIDE_MOST_S 1.5
 #define CHARGE_RULE_COARSE_ROOM_SPREADS 3.0     // D9: the coarse room is this many spreads of a coarse stop from its floor,
-#define CHARGE_RULE_COARSE_ROOM_EXTRA_GR 0.2    // D9, the scale's unit: the glide room and this. The bench's; without effect at 0 (N.3): goes at F.5
+                                                // and the glide room
 #define CHARGE_RULE_REST_FLOOR_TIMES 2.0        // D10: the rest is the slowest quiet time of the stops within this many
-                                                // times the creep,
-#define CHARGE_RULE_REST_EXTRA_S 0.3            // D10, s: and this. The bench's; without effect at 0 (N.3): goes at F.5
-#define CHARGE_RULE_JOG_AIM_SDS 2.0             // D11: the jog's aim in SDs of its rehearsals. Goes with the jog (F.5)
+                                                // times the creep
 #define CHARGE_RULE_COARSE_LEAST_TURNS 0.5      // D12, turns: the coarse tube runs only for more than its room and this
 #define CHARGE_RULE_FINE_WINDOW_EXTRA_S 0.3     // D13, s: the fine learning's stretch opens this long after the coarse
                                                 // tube's quiet time. The bench's; decided with C13 at gate 3
 #define CHARGE_RULE_RISE_DIGITS 0.5             // D14, digits: a reading this much above the highest is a rise
-#define CHARGE_RULE_STILL_INTERVALS 2.0         // D15, reading intervals: at rest, no new high for this many, if longer
-                                                // than C16
+#define CHARGE_RULE_STILL_INTERVALS 2.0         // D15, reading intervals: at rest, no new high for this many
 #define CHARGE_RULE_BAND_EDGE_DIGITS 0.25       // D16, digits: a rest within the band and this much is in it (a float's
                                                 // tolerance: 10.02 over a cup of 60 gr is 0.0200043)
 #define CHARGE_RULE_LEARN_FINE_LEAST_TURNS 0.2  // D17, turns: a stretch shorter than this teaches the fine figure nothing

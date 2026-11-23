@@ -46,7 +46,7 @@ from throw import Session
 from workers import Workers
 
 RECORDS = ("pico2w_ar2209", "pico2w_bm2")
-FINISHES = ("glide", "jog")
+FINISHES = ("glide",)                # the jog went at F.5
 BANDS = ((0.02, VERDICT_TOLERANCE_GR), (0.04, LOOSE_TOLERANCE_GR))
 TARGET_GR = 20.0
 SEED = 4242

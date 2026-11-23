@@ -48,8 +48,7 @@ typedef float charge_control_real_t;
 #define CHARGE_CONTROL_PARCELS_MAX 256
 
 typedef enum {
-    CHARGE_CONTROL_FINISH_GLIDE = 0,    // proposal 2: the fine tube creeps and stops a digit short (the default)
-    CHARGE_CONTROL_FINISH_JOG = 1,      // proposal 1: the fine tube stops from a dribble, short, and moves add the rest
+    CHARGE_CONTROL_FINISH_GLIDE = 0,    // the fine tube creeps and stops a digit short; the one finish since gate F.5
 } charge_control_finish_t;
 
 typedef enum {
@@ -149,7 +148,6 @@ typedef struct {
     charge_control_real_t user_backoff_rps;
     charge_control_real_t coarse_threshold_gr;
     charge_control_real_t gate_coarse_s;
-    charge_control_real_t dribble_digits_s;         // the jog finish's dribble
     charge_control_real_t coarse_spreads;           // of the coarse tube's spread a turn, kept clear of its powder still unseen
     charge_control_real_t creep_band_share;         // the creep's powder still on its way, as a share of the band
     charge_control_real_t creep_most_s;             // the creep's stretch takes no longer than this on average
@@ -164,7 +162,6 @@ typedef struct {
     // 1: the forecast counts a fine turn made before the stretch at the stream's figure, one after it at the
     // finish's, each learnt; 0: one figure for every turn (a 5 gr throw poured 0.83 gr a fine turn, its finish 0.68)
     charge_control_real_t learn_fine_split;
-    charge_control_real_t still_least_s;            // at rest: no new high for this long, or two reading intervals if longer
     uint8_t most_moves;             // tries a throw is given after its first rest
     // Limits of the firmware's own, not the research's: a throw that passes one ends with CHARGE_CONTROL_RESULT_LIMIT
     charge_control_real_t throw_most_s;
@@ -172,14 +169,16 @@ typedef struct {
     charge_control_real_t zero_margin_gr;           // the user's zero mean margin (A9): the scale's noise is it and
                                                     // two digits (the cup test, no powder)
     charge_control_real_t over_tolerances;          // a reading this many tolerances over the target stops everything
-    // The speed law (ADR-009, the owner's option 2, 2026-11-22 night; an experiment): 0 the glide's; 1 the PID law,
-    // today's PID loop on the frame's forecast with the gains in charge_control_t's pid, everything else the frame's
+    // The speed law: 1 the PID law, the controller's (gate F.5), today's PID loop on the frame's forecast with the
+    // gains in charge_control_t's pid, everything else the frame's; 0 the glide's, for the console's comparisons and
+    // the PC's check. The charge sets it. The PID law's guard is always on: each tube never faster than the frame's
+    // top (the calibration's coarse_top_rps, fine_top_rps: within the user's limits, the fastest measured) nor than the
+    // frame can stop it from (the fine tube: its floor plus the room above the stop over its grains a turn and glide
+    // time; the coarse tube: the glide's coarse law), and the I term counting only while its tube is not held at a limit
     uint8_t speed_law;
-    // The PID law's guard against gains bad to begin with (1, the default): each tube never faster than the frame's
-    // top (the calibration's coarse_top_rps, fine_top_rps: within the user's limits, the fastest measured) nor than the frame can
-    // stop it from (the fine tube: its floor plus the room above the stop over its grains a turn and glide time; the
-    // coarse tube: the glide's coarse law), and the I term counting only while its tube is not held at a limit
-    uint8_t pid_envelope;
+    // The auto-tuner (the register's row 1): 0 freezes it, nothing learnt within a charge (the stop, the learnt
+    // source's fine figure); 1, the default, learns. The charge sets it from the unit's setting
+    uint8_t learning;
 } charge_control_constants_t;
 
 // The PID law's gains: the powder profile's, the speeds within the motors' limits. The fine tube's least speed is the

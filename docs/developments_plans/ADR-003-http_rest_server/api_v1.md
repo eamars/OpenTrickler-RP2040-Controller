@@ -8,7 +8,7 @@ Each field below comes from today's stored structs, read in the code on 2026-11-
 
 ## Words
 
-- **The charge** is the job, from `charge/start` to its stop: charge mode, a loop of throws. **A throw** is one cup, numbered from 1 at each start of the unit. A throw lasts from the start of `zeroing` until its verdict is given, a second after the cup is due off. While it lasts, `in_throw` is true.
+- **The charge** is the job, from `charge/start` to its stop: charge mode, a loop of throws. **A throw** is one cup, numbered from 1 at each start of the unit. A throw lasts from the start of `zeroing` until its verdict is given: for the controller at once, at its settled reading (ADR-009, gate F.5); for today's loop, which only the console pours now, a second after. While it lasts, `in_throw` is true.
 - **A job** is long work: the charge and the purge now; tuning, an update, a motor's test run later. **The unit runs one job at a time.** `GET /api/v1/system` says which (`activity`).
 
 ## The rules

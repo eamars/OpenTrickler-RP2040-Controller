@@ -778,8 +778,19 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         }
         end = series_end;
     }
+    // `... glide` or `... legacy`: the frame's glide law or today's PID loop pours this one charge, for a comparison,
+    // never stored (ADR-009, gate F.5)
+    charge_pour_t pour = CHARGE_POUR_CONTROLLER;
+    if (strcmp(end, " glide") == 0) {
+        pour = CHARGE_POUR_GLIDE;
+        end += 6;
+    }
+    else if (strcmp(end, " legacy") == 0) {
+        pour = CHARGE_POUR_LEGACY;
+        end += 7;
+    }
     if (end == args || *end != '\0' || !isfinite(target) || target <= 0.0f || target > 1000.0f) {
-        snprintf(reply, reply_size, "@err usage: charge <0..1000> [series <n>] | charge stop");
+        snprintf(reply, reply_size, "@err usage: charge <0..1000> [series <n>] [glide|legacy] | charge stop");
         return false;
     }
     if (activity_get() != ACTIVITY_NONE || menu_get_current_form_id() < 0) {
@@ -791,13 +802,17 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         return false;
     }
     charge_mode_set_series((uint16_t) series);
-    switch (charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1)) {
+    charge_mode_set_pour(pour);
+    charge_start_result_t started = charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1);
+    if (started != CHARGE_START_OK) {
+        charge_mode_set_pour(CHARGE_POUR_CONTROLLER);
+    }
+    switch (started) {
         case CHARGE_START_OK:
             break;
         case CHARGE_START_NOT_CALIBRATED:
             charge_mode_set_series(0);
-            snprintf(reply, reply_size, "@err the powder profile holds no calibration: ccal, or setting "
-                     "settings/charge controller=pid");
+            snprintf(reply, reply_size, "@err the powder profile holds no calibration: ccal, or `charge <gr> legacy`");
             return false;
         case CHARGE_START_TOLERANCE_UNDER_DIGIT:
             charge_mode_set_series(0);
@@ -812,7 +827,7 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         case CHARGE_START_CALIBRATION_DAMAGED:
             charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err the powder profile's calibration is damaged, and not used: ccal save "
-                     "it again, or setting settings/charge controller=pid");
+                     "it again, or `charge <gr> legacy`");
             return false;
         case CHARGE_START_DRIVER_FAULT:
             charge_mode_set_series(0);

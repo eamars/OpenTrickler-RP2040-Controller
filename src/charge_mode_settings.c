@@ -19,29 +19,20 @@ static const setting_choice_t decimal_places_choices[] = {
 };
 
 
-static const setting_choice_t controller_choices[] = {
-    {.held = CHARGE_CONTROLLER_STAGED, .text = "staged", .label = "Staged (calibrated)", .short_label = "Staged"},
-    {.held = CHARGE_CONTROLLER_PID, .text = "pid", .label = "PID (the profile's gains)", .short_label = "PID"},
-};
-
-
-static const setting_choice_t trickle_mode_choices[] = {
-    {.held = CHARGE_TRICKLE_ACCURATE, .text = "accurate", .label = "Accurate (within 0.02 gr)", .short_label = "Accurate"},
-    {.held = CHARGE_TRICKLE_FAST, .text = "fast", .label = "Fast (within 0.04 gr)", .short_label = "Fast"},
+// The auto-tuner's switch (ADR-009, the register's row 1): held as "off", so a stored 0 is on
+static const setting_choice_t auto_tune_choices[] = {
+    {.held = 0, .text = "on", .label = "On", .short_label = "On"},
+    {.held = 1, .text = "off", .label = "Off (keep what it has)", .short_label = "Off"},
 };
 
 
 #define CHARGE_FIELD(member) SETTING_AT(eeprom_charge_mode_data_t, member)
 
 static const setting_field_t charge_fields[] = {
-    {.name = "controller", .label = "Controller", .group = "Control", .short_label = "Controller",
-     .about = "The loop that pours a throw: the staged controller, which takes every number from the powder's "
-              "calibration, or the PID loop, which takes the powder profile's gains and the thresholds below",
-     .type = SETTING_CHOICE, CHARGE_FIELD(controller), SETTING_CHOICES(controller_choices), .applies = "now"},
-    {.name = "mode", .label = "Mode", .group = "Control", .short_label = "Mode",
-     .about = "The staged controller's pace: accurate pours to within 0.02 gr, fast to within 0.04 gr and sooner. "
-              "Its numbers are made from the powder's calibration for that band at each charge's start",
-     .type = SETTING_CHOICE, CHARGE_FIELD(trickle_mode), SETTING_CHOICES(trickle_mode_choices), .applies = "next"},
+    {.name = "auto_tune", .label = "Auto-tune", .group = "Advanced", .short_label = "Auto-tune",
+     .about = "Learns from each throw where the fine tube stops, and carries it into the powder's calibration at "
+              "a charge's end. Off keeps what it has learnt and learns nothing more",
+     .type = SETTING_CHOICE, CHARGE_FIELD(auto_tune_off), SETTING_CHOICES(auto_tune_choices), .applies = "next"},
     {.name = "coarse_stop_threshold", .label = "Coarse stop threshold", .group = "Thresholds",
      .short_label = "Coarse stop", .edit_step = 0.1f,
      .about = "The coarse trickler stops this far below the target",

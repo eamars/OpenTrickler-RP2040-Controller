@@ -45,6 +45,7 @@ ALLOWED = {
         "8": (1, "CHARGE_CONTROL_FINE_STOPS_MAX: a size (B11)"),
     },
     "charge_calibration.c": {
+        "80": (1, "F.4: a console line's room (`ccal`'s stored states)"),
         "1000": (1, "F.4: milliseconds in a second (the learnt source's interval)"),
         # The simulated scale's own calibration, used only with `sim on` (section H)
         "0.01": (1, "H: the simulated scale's coarse share"),
@@ -61,7 +62,7 @@ ALLOWED = {
         "6": (7, "H: a move of 6 digits; the console's `ccal` fields, six to a line"),
         # The console's commands and the stored record
         "3": (3, "the console's `ccal` fields by their place"),
-        "4": (14, "the console's commands, by their words' lengths and their fields' places"),
+        "4": (12, "the console's commands, by their words' lengths and their fields' places"),
         "5": (14, "the console's commands, by their words' lengths and their fields' places"),
         "7": (6, "the console's commands, by their words' lengths"),
         "10": (2, "a number read in base 10"),
@@ -91,7 +92,7 @@ ALLOWED = {
         "30": (1, "the title's length"),
     },
     "charge_mode.h": {
-        "2": (1, "an enum's value"),
+        "2": (3, "an enum's value; the filler's two unused bytes (A18)"),
         "3": (1, "an enum's value"),
         "4": (1, "an enum's value"),
         "8": (2, "the stored record's revision; a weight's text length"),

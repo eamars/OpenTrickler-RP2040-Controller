@@ -41,7 +41,7 @@ import staged                       # noqa: E402  (../staged.py)
 from bench_twin import TwinBench    # noqa: E402
 from throw import Result            # noqa: E402
 
-SETS = (("jog", 0.02), ("glide", 0.02), ("jog", 0.04), ("glide", 0.04))
+SETS = (("glide", 0.02), ("glide", 0.04))     # the jog went at ADR-009's gate F.5
 # The console's stand-in for a tube stopped and held: `motor <tube> 0` switches the driver off, which a charge
 # never does, so a held tube is asked for a speed too slow to pour (in a minute: a thousandth of a coarse turn,
 # six thousandths of a fine one)

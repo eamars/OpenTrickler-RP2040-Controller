@@ -103,6 +103,8 @@ def main() -> None:
             law = record.get("controller") or "staged"
             if "speed_law=1" in (record.get("ccon_asked") or ""):
                 law += ", PID law"
+            if record.get("pour"):      # since ADR-009's gate F.5: the controller, or the console's glide or legacy
+                law = record["pour"]
             lines.append(f"| `{target.name}` | {session['powder']} | series ({law}) | | {len(record['throws'])} | "
                          f"{record.get('target_gr', '')} gr | {record.get('ccon_asked') or ''} |")
             continue

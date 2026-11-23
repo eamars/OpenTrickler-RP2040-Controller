@@ -26,7 +26,7 @@ SOURCES = [REPO / "src" / "charge_control.c", HERE / "c" / "charge_control_shim.
 HEADERS = [REPO / "src" / "charge_control.h", REPO / "src" / "charge_rules.h"]
 BUILD = REPO / "build_host"
 
-FINISHES = {"glide": 0, "jog": 1}
+FINISHES = {"glide": 0}             # the jog went at ADR-009's gate F.5
 RESULTS = {0: "none", 1: "good", 2: "over", 3: "short", 4: "limit", 5: "cup", 6: "no_powder"}
 PHASES = ("feed", "rest", "move")
 COARSE_STOPS_MAX = 4
@@ -64,12 +64,12 @@ def _types(real) -> tuple:
     class Constants(ctypes.Structure):
         _fields_ = ([(name, real) for name in (
             "move_rps", "parcel_s", "coarse_least_rps", "coarse_most_rps", "fine_least_rps", "fine_most_rps",
-            "user_backoff_turns", "user_backoff_rps", "coarse_threshold_gr", "gate_coarse_s", "dribble_digits_s",
+            "user_backoff_turns", "user_backoff_rps", "coarse_threshold_gr", "gate_coarse_s",
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
-            "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split", "still_least_s")]
+            "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split")]
                     + [("most_moves", ctypes.c_uint8)]
                     + [(name, real) for name in ("throw_most_s", "fine_most_times", "zero_margin_gr", "over_tolerances")]
-                    + [("speed_law", ctypes.c_uint8), ("pid_envelope", ctypes.c_uint8)])
+                    + [("speed_law", ctypes.c_uint8), ("learning", ctypes.c_uint8)])
 
     return Stop, Move, Calibration, Constants
 
@@ -241,8 +241,7 @@ class FirmwareStaged:
     def set_pid(self, law) -> None:
         """The PID speed law (`staged.PidLaw`) in place of the glide's: the controller made again with
         speed_law 1 and the law's gains. Before any learnt state is carried in."""
-        self._k.speed_law = 1
-        self._k.pid_envelope = 1 if getattr(law, "envelope", True) else 0
+        self._k.speed_law = 1             # the envelope always on (gate F.5)
         self._lib.charge_control_init(self._c, ctypes.byref(self._cal), ctypes.byref(self._k), self._acceleration,
                                       self._rehearsal)
         gains = [law.coarse_kp, law.coarse_ki, law.coarse_kd, law.coarse_min_rps, law.coarse_max_rps, law.fine_kp,

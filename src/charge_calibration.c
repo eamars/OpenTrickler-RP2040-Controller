@@ -132,10 +132,9 @@ int charge_calibration_check_start(uint8_t profile, float tolerance_gr, float ta
 static void charge_calibration_make(uint8_t profile, const charge_calibration_record_t *record, float tolerance_gr,
                                     charge_control_calibration_t *out) {
     *out = record->measured;
-    charge_control_finish_t finish = (charge_control_finish_t) record->measured.finish;
+    const charge_control_finish_t finish = CHARGE_CONTROL_FINISH_GLIDE;     // the one finish (ADR-009, gate F.5)
     float band_gr;
     if (tolerance_gr > 0.0f) {
-        finish = CHARGE_CONTROL_FINISH_GLIDE;       // the modes are the glide's (ADR-009, 2026-11-22)
         band_gr = charge_calibration_band(tolerance_gr, record->measured.digit_gr);
     }
     else {
@@ -416,7 +415,7 @@ static void charge_calibration_show(const charge_calibration_record_t *record, r
     charge_control_calibration_t made;
     charge_calibration_make((uint8_t) profile_get_selected_idx(), record, 0.0f, &made);
     snprintf(line, sizeof(line), "@cal rules finish=%s band=%g floor=%g stop_room=%g aim=%g glide_room=%g glide=%g",
-             made.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide", made.band_gr, made.floor_rps,
+             "glide", made.band_gr, made.floor_rps,
              made.stop_room_gr, made.aim_gr, made.glide_room_gr, made.glide_s);
     write(line, write_ctx);
     snprintf(line, sizeof(line), "@cal rules coarse_room=%g coarse_glide=%g rest=%g", made.coarse_room_gr,
@@ -432,7 +431,7 @@ static void charge_calibration_show(const charge_calibration_record_t *record, r
     `ccal stop <coarse|fine> <i> <speed rev/s> <unseen gr> <spread gr> <quiet s> <lag s, below 0 when none>`
     `ccal move <i> <turns> <mean gr> <most gr> <wait s>`
     `ccal errors <gr> ...`: the rehearsals' first errors, added to those given
-    `ccal finish <glide|jog> <band gr>`
+    `ccal finish glide <band gr>` (the one finish since gate F.5)
     `ccal save [<profile>]`, `ccal load [<profile>]`: the slot written, or read into the one being written; the
     profile chosen when none is given
 */
@@ -443,7 +442,16 @@ void charge_calibration_console(const char *args, char *reply, size_t reply_size
     float v[CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
 
     if (*args == '\0') {
+        // The console's own working copy, said as such, then what each profile stores: the copy alone was read as
+        // profile 0's state, and a series went to a calibrated profile thought empty (ADR-009, gate F.4)
+        write("@cal copy the console's working copy, not a profile's: `ccal load <profile>` reads one", write_ctx);
         charge_calibration_show(record, write, write_ctx);
+        char line[80];
+        for (uint8_t profile = 0; profile < MAX_PROFILE_CNT; profile++) {
+            snprintf(line, sizeof(line), "@cal stored profile=%u state=\"%s\"", profile,
+                     charge_records_state_words((charge_record_state_t) charge_calibration_state(profile)));
+            write(line, write_ctx);
+        }
         snprintf(reply, reply_size, "@ok ccal");
         return;
     }
@@ -520,13 +528,12 @@ void charge_calibration_console(const char *args, char *reply, size_t reply_size
     }
     if (strncmp(args, "finish ", 7) == 0) {
         const char *rest = args + 7;
-        bool jog = strncmp(rest, "jog ", 4) == 0;
         bool glide = strncmp(rest, "glide ", 6) == 0;
-        if ((!jog && !glide) || charge_calibration_numbers(rest + (jog ? 4 : 6), v, 1) != 1 || !(v[0] > 0.0f)) {
-            snprintf(reply, reply_size, "@err usage: ccal finish <glide|jog> <band>");
+        if (!glide || charge_calibration_numbers(rest + 6, v, 1) != 1 || !(v[0] > 0.0f)) {
+            snprintf(reply, reply_size, "@err usage: ccal finish glide <band> (the jog went at gate F.5)");
             return;
         }
-        m->finish = jog ? CHARGE_CONTROL_FINISH_JOG : CHARGE_CONTROL_FINISH_GLIDE;
+        m->finish = CHARGE_CONTROL_FINISH_GLIDE;
         m->band_gr = v[0];
         snprintf(reply, reply_size, "@ok ccal finish");
         return;
@@ -596,68 +603,30 @@ typedef struct {
 #define CHARGE_CONSTANT(member) {#member, offsetof(charge_control_constants_t, member), false}
 
 static const charge_constant_t charge_constants_table[] = {
-    CHARGE_CONSTANT(move_rps), CHARGE_CONSTANT(parcel_s), CHARGE_CONSTANT(dribble_digits_s),
+    CHARGE_CONSTANT(move_rps), CHARGE_CONSTANT(parcel_s),
     CHARGE_CONSTANT(coarse_spreads), CHARGE_CONSTANT(creep_band_share), CHARGE_CONSTANT(creep_most_s),
     CHARGE_CONSTANT(learn_share), CHARGE_CONSTANT(learn_most_digits), CHARGE_CONSTANT(learn_dead_digits), CHARGE_CONSTANT(learn_fine_prior),
     CHARGE_CONSTANT(learn_fine_most), CHARGE_CONSTANT(learn_fine_split),
-    CHARGE_CONSTANT(still_least_s),
     {"most_moves", offsetof(charge_control_constants_t, most_moves), true},
     CHARGE_CONSTANT(throw_most_s), CHARGE_CONSTANT(fine_most_times), CHARGE_CONSTANT(over_tolerances), CHARGE_CONSTANT(zero_margin_gr),
-    {"speed_law", offsetof(charge_control_constants_t, speed_law), true},
-    {"pid_envelope", offsetof(charge_control_constants_t, pid_envelope), true},
 };
 
 #define CHARGE_CONSTANTS_COUNT (sizeof(charge_constants_table) / sizeof(charge_constants_table[0]))
 
 
 /*
-    `ccon`: the frame's constants, a line each; `ccon <name>=<value> ...` sets them for the throws from the next
-    on, until a restart; `ccon defaults` puts the research's back. Never stored: a value the bench settles on is
-    made the default in charge_control.c
+    `ccon`: the frame's constants, a line each. It lists only (ADR-009, gate F.5): the constants are charge_rules.h's,
+    changed by a build, never live
 */
 void charge_constants_console(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                               void *write_ctx) {
-    charge_control_constants_t *k = (charge_control_constants_t *) charge_calibration_constants();
+    const charge_control_constants_t *k = charge_calibration_constants();
     char line[96];
 
-    if (strcmp(args, "defaults") == 0) {
-        charge_control_default_constants(k);
-        snprintf(reply, reply_size, "@ok ccon defaults");
+    if (*args != '\0') {
+        snprintf(reply, reply_size, "@err ccon lists only: the constants are src/charge_rules.h's, changed by a build");
         return;
     }
-    // Every pair checked before any is written
-    charge_control_constants_t next = *k;
-    const char *at = args;
-    while (*at != '\0') {
-        while (*at == ' ') {
-            at++;
-        }
-        if (*at == '\0') {
-            break;
-        }
-        size_t name_len = strcspn(at, "=");
-        const charge_constant_t *found = NULL;
-        for (size_t i = 0; i < CHARGE_CONSTANTS_COUNT; i++) {
-            if (strlen(charge_constants_table[i].name) == name_len &&
-                strncmp(charge_constants_table[i].name, at, name_len) == 0) {
-                found = &charge_constants_table[i];
-            }
-        }
-        char *end;
-        float value = at[name_len] == '=' ? strtof(at + name_len + 1, &end) : NAN;
-        if (found == NULL || !isfinite(value) || value < 0.0f || (*end != ' ' && *end != '\0')) {
-            snprintf(reply, reply_size, "@err usage: ccon [defaults | <name>=<value> ...]");
-            return;
-        }
-        if (found->is_count) {
-            *((uint8_t *) &next + found->offset) = (uint8_t) value;
-        }
-        else {
-            *(float *) ((uint8_t *) &next + found->offset) = value;
-        }
-        at = end;
-    }
-    *k = next;
     for (size_t i = 0; i < CHARGE_CONSTANTS_COUNT; i++) {
         const charge_constant_t *c = &charge_constants_table[i];
         if (c->is_count) {

@@ -43,10 +43,14 @@ NUMBERS = [
     ("D9", "COARSE_ROOM_EXTRA_GR", None), ("D10", "REST_FLOOR_TIMES", None), ("D10", "REST_EXTRA_S", None),
     ("D12", "COARSE_LEAST_TURNS", None), ("D15", "STILL_INTERVALS", None),
 ]
+# The rows that went at ADR-009's gate F.5 (C16, D1, D3's index, D7's and D8's limits, D9's and D10's extras) are no
+# longer in the reference: the study of record ran them (numbers.md); a run now skips them
+NUMBERS = [row for row in NUMBERS if hasattr(staged, row[1])]
 # Gate N.3: the bench's leftovers at nothing, each alone and all three together
 ALL_THREE = "ALL_THREE"
 NOTHING = [("C16", "STILL_LEAST_S", (0.0,)), ("D9", "COARSE_ROOM_EXTRA_GR", (0.0,)), ("D10", "REST_EXTRA_S", (0.0,)),
            ("N.3", ALL_THREE, (0.0,))]
+NOTHING = [] if not hasattr(staged, "STILL_LEAST_S") else NOTHING      # N.3's three went at F.5
 BASELINE = {name: getattr(staged, name) for _, name, _ in NUMBERS}
 BANDS = ((0.02, controllers.VERDICT_TOLERANCE_GR), (0.04, controllers.LOOSE_TOLERANCE_GR))
 TARGET_GR = 10.0

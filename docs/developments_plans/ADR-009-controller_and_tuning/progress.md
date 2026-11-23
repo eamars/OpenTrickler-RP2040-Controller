@@ -2970,3 +2970,60 @@ On the Pico 2 W, image at `80f4bc6` and the series' cup count mended (below), fl
    - the cases met theirs at the default profile's limits; `keeps_short` failed its letter, and its ends are all safe;
    - on the unit: safe ends met, the time not.
 6. **Shown on the bench unit only:** the Pico 2 W. B1's own path (no digit in the record) was not reached on the unit.
+
+## 2026-11-24, 01:51: F.4 accepted with both judgements; `ccal` mended; gate F.5 begun, its checklist and forms before any change
+
+**F.4 accepted** by the manager (80f4bc6, 553a3b8), both judgements with it. Written into the README:
+- **The failure modes:** the learnt source at narrow user limits, with its figures. **The slow-side assumption erred over on the A&D, 3 of 3,** with the throws as evidence; its cause is not shown. The fine figure learnt at 0.26 against 0.88 is a candidate, not a proof.
+- **Item 10's cost,** as found.
+- **Register row 16** corrected to what was seen: meant to err short, it went over on the A&D.
+
+**`ccal` mended** (few lines, `charge_calibration.c`): bare `ccal` now first says its copy is the console's working copy, not a profile's, then gives one `@cal stored profile=<n> state=...` line for each profile. The copy alone had been read as profile 0's state, and tonight's first series went to a calibrated profile thought empty. The tools that read `@cal` lines skip kinds they do not know (`replay.py`). Shown on the unit with F.5's flash.
+
+**F.5's checklist:**
+1. **Numbers:**
+   - gone: C6, D1, D5, D11; D7's and D8's limits; C16's 0.4 s, D9's 0.2 gr, D10's 0.3 s; E9 for the frame; C21 and C22 as choices; A18;
+   - D3 in words: the creep is within the measured ladder, its fastest stop. D7's "from the third stop" keeps its own macro;
+   - in: the auto-tuner's switch (register row 1).
+2. **A value from the bench unit:** none.
+3. **The test:** nothing new.
+4. **A new parameter:** the auto-tuner's switch, approved in the register (row 1, on by default, one for the unit).
+5. **Mechanisms, against predictions written first:** the forms below.
+6. **Shown on the bench unit only:** all of it, on the Pico 2 W.
+
+**The forms:**
+- **One controller:** the staged frame with the PID law on the profile's gains, the envelope always on. Calibrated or learnt alike.
+- **On the console only, never stored, for one charge:** `charge <gr> [series <n>] glide` (the frame, the glide's law) and `charge <gr> [series <n>] legacy` (today's PID loop). Such a charge carries nothing into a record and writes nothing; the next charge is the controller again.
+- **`controller` and `mode` out** of the settings' table, and so out of the API, the schema, the export, the console's `setting`, the screens and the web form, which are made from it.
+  - **Their two bytes** in the charge settings' filler (A18) are read as nothing and written as zero at the load. **No layout change:** the struct's size and the other fields stay. A unit's stored `controller=pid` becomes the controller.
+- **The auto-tuner's switch:** `auto_tune`, a bool, on by default, in the charge settings (Settings, group "Advanced"), one for the unit. It is held in the filler's fourth byte as "off" (0 = on).
+  - **That byte has been 0 on every unit:** the struct's default is a static object, its padding zero; loading and every write since copy the stored bytes or the fields, never a pad. ADR-009 put `controller` and `mode` in the first two of its three spare bytes and left this one.
+  - **Declared here as a use of the filler, not a layout change.**
+  - **Off freezes:** no stop learnt within a charge (C10's learning), no carry at its end (E12), no fine figure learnt (the learnt source's G9). The numbers in use are kept.
+- **Gone from the reference and the C together:**
+  - the jog finish (its rules, its aim, its dribble, `ccal finish jog`);
+  - D1's 0.3 s; D7's 0.4 and 2.0 s; D8's 0.3 and 1.5 s;
+  - D3's index;
+  - C16's 0.4 s (stillness is two intervals);
+  - D9's 0.2 gr; D10's 0.3 s.
+  The simulation's studies that threw the jog lose those arms.
+- **E9 for the frame:** its verdict is the settled reading, given at once; today's loop keeps its second. `api_v1.md`'s "a second after" changes with it.
+- **`ccon` lists only;** a write is refused with its reason. `series.py --ccon` goes; a comparison takes the charge's word (`glide`).
+
+**F.5's pass, written first:**
+- **The API's index and schema, the export, `menu_tour` and the web's pages** carry no `controller` or `mode`; `auto_tune` is in them.
+- **`api_check`, `settings_roundtrip` and `reach`** pass; `menu_tour` against the Pico 2 W's baseline differs only on the pages whose rows changed, then is saved again (`--save`) in the same commit, the pages named.
+- **The simulation:**
+  - the throw-for-throw check passes, the jog's sets gone;
+  - F.1's, F.2's, F.3's and F.4's cases pass as before (F.4's at the profile's limits).
+- **On the unit:**
+  - `charge_cycle` passes;
+  - with `auto_tune` off a charge's end carries nothing and its stop room stays as it began;
+  - a stored `controller` byte of 1 is read as the controller and written as 0;
+  - `ccal` shows its new lines.
+- **One ABBA on the rig, last:**
+  - the controller (the PID law) against the glide's pour (`charge ... glide`), 10 throws an arm in the order A B B A, 40 throws at 10 gr, profile 0;
+  - **the night's bars, per 20 throws:** settled good at most 2 fewer, overs at most 1 more, the median at most 2.5 s longer;
+  - **if it misses them and the calibration's stop is the cause** (F.2's late stop), the ABBA moves to after gate 3, the bars unchanged;
+  - **the PID law's first carry is taken whole:** the record's list is the rehearsals', the glide's, so the first PID-law charge's carry replaces it rather than being bounded against it;
+  - **the cup:** the ABBA pours about 400 gr, so it needs an empty cup, asked for before it.

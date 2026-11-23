@@ -63,16 +63,6 @@ def make_glide_loose(rig, seed: int = 0) -> tuple:
     return staged.make(rig, seed, "glide", 0.04), LOOSE_TOLERANCE_GR
 
 
-def make_jog(rig, seed: int = 0) -> tuple:
-    """Proposal 1 of 2026-11-21: the fine tube stops short from a dribble and small moves add the rest."""
-    return staged.make(rig, seed, "jog", 0.02), VERDICT_TOLERANCE_GR
-
-
-def make_jog_loose(rig, seed: int = 0) -> tuple:
-    """Proposal 1 for the looser band, 0.04 gr."""
-    return staged.make(rig, seed, "jog", 0.04), LOOSE_TOLERANCE_GR
-
-
 def other_powder(rig):
     """The bench's other powder on the same scale: the record a scale's part is borrowed from in a trial."""
     return rigs.get_rig("pico2w_ar2209" if "BM2" in rig.powder.name else "pico2w_bm2")
@@ -81,11 +71,6 @@ def other_powder(rig):
 def make_glide_borrowed(rig, seed: int = 0) -> tuple:
     """Proposal 2 with the scale's lag table measured with the bench's other powder."""
     return staged.make(rig, seed, "glide", 0.02, other_powder(rig)), VERDICT_TOLERANCE_GR
-
-
-def make_jog_borrowed(rig, seed: int = 0) -> tuple:
-    """Proposal 1 with the scale's lag table measured with the bench's other powder."""
-    return staged.make(rig, seed, "jog", 0.02, other_powder(rig)), VERDICT_TOLERANCE_GR
 
 
 def make_glide_pc_lags(rig, seed: int = 0) -> tuple:
@@ -259,7 +244,7 @@ CONTROLLERS = {"mode_fast": make_mode_fast, "mode_accurate": make_mode_accurate,
                "forecast_pid_picow": make_forecast_pid_picow, "legacy_picow": make_legacy_picow, "legacy_picow_loose": make_legacy_picow_loose,
                "glide_coarse_low": make_glide_coarse_low, "glide_fine_high": make_glide_fine_high,
                "glide_all_off": make_glide_all_off,
-               "glide_pc_lags": make_glide_pc_lags, "glide_borrowed": make_glide_borrowed, "jog_borrowed": make_jog_borrowed, "glide": make_glide, "glide_loose": make_glide_loose, "jog": make_jog, "jog_loose": make_jog_loose,
+               "glide_pc_lags": make_glide_pc_lags, "glide_borrowed": make_glide_borrowed, "glide": make_glide, "glide_loose": make_glide_loose,
                "legacy": make_legacy, "legacy_kp08": make_legacy_kp08, "legacy_slow_finish": make_legacy_slow_finish,
                "flow_dose": make_flow_dose, "flow_dose_commit": make_flow_dose_commit,
                "flow_dose_sequential": make_flow_dose_sequential, "flow_dose_split": make_flow_dose_split}

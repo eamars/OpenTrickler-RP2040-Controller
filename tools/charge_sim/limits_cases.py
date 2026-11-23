@@ -63,7 +63,9 @@ def throws(cal, rig, count):
                                                   rig.acceleration_rps2, double=True)
         twin = Watched(reference, port)
         result = session.throw(twin, TARGET_GR, cal.band_gr + cal.digit_gr / 2.0)
-        out.append((reference.result, result.reading, twin.difference(), twin.coarse, twin.fine))
+        # the verdict is the controller's settled reading, given at once (gate F.5, E9): the weight it judged; the
+        # reading a second later is kept beside it, to see what landed after the verdict
+        out.append((reference.result, reference.lowest, twin.difference(), twin.coarse, twin.fine, result.reading))
     return out
 
 
@@ -119,6 +121,8 @@ def main() -> int:
             if abs(cal.band_gr - 0.04) > 1e-9:
                 failures.append(f"tolerance: the band is {cal.band_gr}, not 0.04")
             edge = cal.band_gr + staged.BAND_EDGE_DIGITS * digit
+            later = sum(1 for row in rows if row[5] - row[1] >= digit - 1e-9)
+            print(f"tolerance: {later} of {len(rows)} throws read a digit or more higher a second after their verdict")
             for result, rest, *_ in rows:
                 want = "good" if abs(rest - TARGET_GR) <= edge + 1e-9 else ("over" if rest > TARGET_GR else "short")
                 if result != want and abs(abs(rest - TARGET_GR) - edge) > 1e-6:
