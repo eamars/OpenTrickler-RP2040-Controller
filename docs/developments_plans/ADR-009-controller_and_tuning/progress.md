@@ -1961,3 +1961,24 @@ The day's one other pair of like runs agrees: s1 and s3 of 17:34 and 17:46, one 
 4. **Is a new parameter needed?** No.
 5. **Does the pass check a mechanism against a prediction written first?** The bar above is written before any run. The simulation as it stands is run first. A model is changed only for an arm it misses, and only from the day's recordings, never fitted to an arm it is judged on. Then the offer's trade is judged in the simulation.
 6. **What is still shown on the bench unit only?** All of it: the rig is the bench unit's. A second unit's rig is gate 7's.
+
+## 2026-11-23, 20:35: gate S, the simulation as it stands, and the two blind spots against the day's recordings
+
+**The night replayed as the simulation stands** (`night_study.py`, 400 throws a controller, the night's settings; `fit/study_20261123/night_asis.txt`): **3 of 14 arms reproduced.** Good and overs are within the bar on every arm; the median is missed on eleven, always short. The glide is 9.4 s against the rig's 10.7 to 11.4; `pid_learnt`'s arms 2 to 4.6 s short, the coarse one most (the night's own finding: the rig's coarse tube stopped 2.5 gr early).
+
+**Why: the simulation's rig is the one of 2026-11-20, not of the night.** Its record was built from the session of 11-19 and 11-20. Its own calibration (seed 0), set beside the rig's of 2026-11-22, 16:46 (a model-source recording):
+
+| | The simulation's rig | The rig, 11-22 16:46 |
+|---|---|---|
+| grains a turn, coarse / fine | 8.97 / 0.751 | 10.19 / 0.814 |
+| a coarse stop's spread at 0.3 / 1 / 2 rev/s | 0.10 / 0.10 / 0.23 gr | 0.35 / 0.23 / 0.30 gr |
+| the coarse room | 0.60 gr | 1.40 gr |
+| the slowest fine stop's lag (0.025 rev/s) | 1.86 s | 0.90 s |
+| the creep (floor) | 0.029 rev/s | 0.055 rev/s |
+| the rest before the first verdict | 1.82 s | 2.60 s |
+
+**The two blind spots the plan names, against the model-source recordings:**
+- **"The scale's lag growing at a low flow":** not in the rig's calibration. Its fine stops lag 0.90, 0.63, 0.70, 0.90, 0.91 and 0.93 s from 0.025 to 0.5 rev/s. The simulation's slowest lags longer than the rig's, not shorter. The "1.2 to 2.1 gr a turn" was `pid_learnt`'s figure, one number over a fixed 0.9 s window, and not a lag.
+- **"The stop's spread growing as the approach shortens":** not in the day's series. The glide threw approaches as short as the offer's. Its first rests spread by 0.042 to 0.059 gr at approaches of 4.0 to 4.3 s (`glide002_d`, `mvp_accurate10`, `mvp_fast10`, `mvp_fast20`), and by 0.037 to 0.057 gr at 6.6 to 9.8 s. Fine-only throws at 5 gr spread 0.047 to 0.071. The night's offer, 0.055 to 0.058 at about 4 s, is within the day's range.
+
+**So the model to make is the rig of the night, from its own day's recordings, not a lag curve or a spread curve.** Next: a record built by `build_rig.py` from 11-22's recordings before 18:00: the trial of 16:46, its 98 creep stops at 8 fine and 3 coarse speeds with their turns. What no recording of that day gives (the flow maps, the watched nudges) is taken from the record of 11-20 and named as taken. Then the night is replayed on it against the same bar.
