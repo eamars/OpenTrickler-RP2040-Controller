@@ -4,24 +4,69 @@ Written 2026-11-20, 00:20 NZDT, at the owner's request, by the session that made
 
 ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the newest section below). The sections below the newest are the research that led to it, kept as they were written.
 
-## Where it stands, 2026-11-23, 17:48: read this first
+## Where it stands, 2026-11-23, 18:47: read this first
 
-**For the agent who builds.** The documents are ready and the parameter register is approved (the owner, 2026-11-23, 17:54): ADR-009 is ready to build. A parameter you would add, move or change beyond the register's rows is a new row, and waits for the owner's approval before it is built.
+**For the agent who implements ADR-009's firmware.** From here the firmware is yours. This section was written by the agent who reviewed and polished the plan for the owner. That agent was not the implementer, and the owner said so after it had built gate N's two desk steps. They are on the branch, shown at the desk only, and yours to review before you build on them ("Review first", below).
+
+**The state:**
+- **The plan is approved.** The owner approved the parameter register on 2026-11-23, every row, and with it the plan. Nothing waits on the owner.
+- **Gate N is done:** the documents, N.2 (the numbers in one header) and N.3 (three of the bench's numbers found without effect, in the simulation).
+- **One thing is broken:** the Pico W's image does not link. RAM is 316 bytes over. It is where you start.
+- **Nothing was flashed or thrown** since 2026-11-22, 21:30. No unit has run any of this.
 
 **Read in this order:**
 1. `../README.md`, "Where ADR-009 stands": what is settled, so it is not asked again, and what "ready" means.
-2. `../README.md`, "What we do: the build plan": the one plan, gate by gate, each with its pass. It opens with a guideline and a checklist: **answer the checklist in `../progress.md` before each gate's first change.** The bench unit is one user's unit; nothing measured on it becomes a rule, a default or a constant. **The first build steps are N.2 and N.3,** at the desk: no unit is needed for them.
-3. `../README.md`, the sign-off and the parameter register.
-4. `../numbers.md`: every number the charge uses, its life cycle, and the gate that makes it so. A number you add gets its row in the same commit.
+2. `../README.md`, "What we do: the build plan": the one plan, gate by gate, each with its pass. It opens with a guideline, a checklist and the rules for every gate.
+3. `../README.md`, the sign-off and the parameter register (18 rows, all approved).
+4. `../numbers.md`: every number the charge uses, its life cycle, the test a fixed number must pass, and the gate that makes each row so.
+5. `../progress.md`, its entries of 2026-11-23: what was done, with what was shown and what was not.
 
-**What this file is now:**
-- Everything below this section is history, written as the work went, not instructions.
-- Its "next" lists and "what to build next" are superseded by the README, and so are its accurate/fast modes, its `ccon` defaults and its hand settings (`fine_top_rps=1.0`, `--lag-shift`).
-- Its findings and its traps at the bench still hold ("Traps met tonight", below).
+**What the owner holds this work to** (in the plan as its guideline; said here because every agent before you slid on it):
+- **A general-purpose controller, tuned on each user's own device.** The bench unit is one user's unit. Nothing measured on it becomes a rule, a default or a constant in the firmware.
+- **A number is one of three things:** an existing setting (kept, or written by the calibration); a new parameter the owner approved (a general default, measured by the calibration, then changeable by the user and the user's agent); or a fixed number of the method, a macro in `src/charge_rules.h`, which passes `numbers.md`'s test.
+- **A parameter beyond the register's rows is a new row,** and waits for the owner's approval before it is built.
+- **Before each gate, answer the plan's checklist in `../progress.md`,** and again before you claim its pass.
+- **Decide from the record.** Read `progress.md`, `numbers.md` and the research before asking the owner a question; ask only what the record leaves open, with your recommendation.
 
-**The code as left:** branch `adr009_controller`, local commits, not pushed. N.2 is built (2026-11-23): every fixed number of the charge is a macro in `src/charge_rules.h`, and `tools/charge_sim/check_numbers.py` fails on one without a row. **The Pico W's image does not link** (RAM 316 bytes over, since the night of 2026-11-22): the README's "Found while building". Before N.2 nothing under `src/` had changed since 8b155df (2026-11-22, 21:27); the simulation's reference gained names for its rules' numbers on 2026-11-22 night (`staged.py`, the check against the firmware passing). The experiments are still in: `controller=pid_learnt`, `ccon speed_law`, `pid_envelope`, `ctune`, the 21 K record. The plan says at which gate each is folded or goes.
+**Review first: N.2, built by another agent and never run on a unit.**
+- **What it is** (commits d8d0910, 7870481, ee2fab4, 8594169, fa206f0, and ebb68ea, comments only):
+  - `src/charge_rules.h`: 92 macros, every fixed number of the charge, each with its row in `numbers.md`. The formulas in `charge_control.c`, `charge_calibration.c`, `charge_mode.cpp` and `charge_pid_learnt.c` name them. A person building their own firmware changes a value there and nowhere else (the owner's word);
+  - `tools/charge_sim/check_numbers.py`, in CI: fails on a number written into those files and on a macro with no row;
+  - the fine figure's learning off by default, in `staged.py` and the firmware;
+  - the console's series cleared when its start is refused; the zero's comments.
+- **What was shown, at the desk:**
+  - the renaming changes nothing: `check_firmware_controller.py --throws 40 --logic-only`, with and without `--pid`, gives the same output before and after; the compiled code of the four files is the same on both boards but for five divisions by 2 that are now multiplications by 0.5;
+  - with the learning off, 40 of 40 in lockstep on every set, both laws; with `--learn-fine`, the output of before;
+  - the desk's full check, 200 throws a set, at the branch's tip: `VERDICT PASS` on both laws, 200 of 200 in lockstep on all eight sets of each, the float build's and the counted build's figures within their bars (`logs/n2_full_check.txt`, not tracked);
+  - the Pico 2 W builds.
+- **What was not shown:**
+  - nothing on a unit: `rc_run.py flash`, `menu_tour --compare`, `charge_cycle` and `pulses` are not run for any of it. They are the first thing to run when the owner says the bench is ready;
+  - the series' mend is read in the code only;
+  - the Pico W does not link (below).
+- **If you would rather not keep it:** revert those commits and mark N.2 unbuilt in the README's plan. The pages do not depend on the code but for `numbers.md`'s macro names and `AGENTS.md`'s build note.
 
-**The bench as left:** as in the section below (21:30). Nothing was flashed or thrown since. The bench rules apply: ask the owner before any contact. The cup read about 400 gr over its last zero.
+**N.3, in the simulation** (`../numbers.md`, "N.3"): the stillness's 0.4 s, the coarse room's 0.2 gr and the rest's 0.3 s are without effect at nothing: as many good, as many over, about 0.9 s quicker a throw. They are still in the code. They go at F.5, in the reference and the firmware together, and are shown on a unit there. The simulation's stops scatter less than the rig's, so the unit has the last word.
+
+**Where you start:**
+1. **The Pico W's image links again** (`../README.md`, "Found while building"). RAM is 262,460 bytes of 262,144. It was so before N.2, since the night of 2026-11-22's experiments. CI's release build makes the Pico W's images, so the branch fails CI until it is mended. Find the RAM with `tools/size_report.py`, not by guess: the charge files' `.bss` is where that night added (`charge_calibration.c` 1,938 bytes, the PID law's carried stops for eight profiles among them).
+2. **N.2's proof on a unit,** when the owner says the bench is ready: flash, `menu_tour --compare`, `charge_cycle`, `pulses`.
+3. **Gate 2's rest,** the recordings through the API, and on in the plan's order.
+
+**At the desk, what you will want to know:**
+- **Build into a folder of your own** (`cmake -B build_n2_2w ...`, `build_n2_w`), not `build/`: `build/app.elf` must match the image on the bench's unit, or the console is not found until the next flash.
+- **`check_numbers.py`** fails the moment a number is written into the charge's files. Name it in `charge_rules.h` with its row in `numbers.md`, or add it to the check's `ALLOWED` with its reason. `--list` prints what each file holds.
+- **`check_firmware_controller.py`:** `--pid` for the PID law, `--learn-fine` for the fine figure's learning on. The PC's twin rebuilds when `charge_rules.h` changes.
+- **"Nothing changes" without a unit:** `arm-none-eabi-objdump -d` of each object before and after, compared. It is how N.2's renaming was shown.
+- **`numbers_study.py --nothing`** took about 20 minutes for 120 cases of 800 throws on this PC. Write a study's pass into `numbers.md` and commit it before the run. Give a mean its own noise in the pass, and say what a move toward better means: N.3's pass did neither.
+- **In this shell an inline heredoc breaks on an apostrophe and loses backslashes.** Write a script file.
+- **A job started with `&` inside a background command is dropped.** Run the command itself in the background.
+- **The working copy is CRLF.** A script that rewrites a file keeps the file's own line ends.
+
+**The code as left:** branch `adr009_controller`, local commits to the one that carries this section, not pushed (AGENTS.md: push only for the PR, or when the owner asks). The experiments are still in: `controller=pid_learnt`, `ccon speed_law`, `pid_envelope`, `ctune`, the 21 K record. The plan says at which gate each is folded or goes.
+
+**The bench as left:** as in the section "Where it stood, 2026-11-22, 21:45" below (21:30). The Pico 2 W is on the probe with the image of 827e4a0; `build/app.elf` matches it. The cup read about 400 gr over its last zero. The bench rules apply: ask the owner before any contact, in every session.
+
+**What this file is below this section:** history, written as the work went, not instructions. Its "next" lists are superseded by the README; its findings and its traps at the bench still hold ("Traps met tonight").
 
 ## Where it stood, 2026-11-22, 22:46 (history)
 

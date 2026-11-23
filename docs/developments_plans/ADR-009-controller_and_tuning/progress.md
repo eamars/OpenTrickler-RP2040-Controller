@@ -1775,3 +1775,10 @@ In the simulation; no unit contacted. The pass was committed before the run (85c
 - **The rest's 0.3 s (D10): "with an effect" by the pass's letter,** toward better: 0.73 point more good and 0.56 fewer over in the mean. The pass was at fault: it set half a point for a mean whose own noise is about 0.4, and gave no meaning to fewer overs. With all three at nothing the mean moves are +0.09 and −0.01 point.
 - **All three together: without effect** on good and over in every case, 0.9 s quicker a throw in the mean.
 - **So all three go,** from the reference and the firmware at F.5, shown on the unit there. No throw changed in this step.
+
+## 2026-11-23, 18:47: the handover to the implementing agent
+
+- **The owner's word:** implementing the firmware is not the plan's agent's job. N.2 and N.3 had been built by it at the desk; they stay on the branch, marked in the handover as another agent's work, shown at the desk only, for the implementing agent to review or revert.
+- **One more check at the desk, at the branch's tip** (the fine figure's learning off): `check_firmware_controller.py`, 200 throws a set, with and without `--pid`: `VERDICT PASS` on both, 200 of 200 in lockstep on every set.
+- **Written:** `research/HANDOVER.md`'s top section, for the implementing agent: the state, what to read, what the owner holds the work to, what to review first and what was not shown, where to start (the Pico W's RAM, then N.2's proof on a unit, then gate 2's rest), and what was learnt at the desk.
+- **Not done, and left to that agent:** the Pico W's link; every proof on a unit.
