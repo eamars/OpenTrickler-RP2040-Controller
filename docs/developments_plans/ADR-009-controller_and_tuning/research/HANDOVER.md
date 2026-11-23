@@ -19,7 +19,7 @@ ADR-009 was a Draft when this file began; it is **Open** since 2026-11-21 (the n
 - Its "next" lists and "what to build next" are superseded by the README, and so are its accurate/fast modes, its `ccon` defaults and its hand settings (`fine_top_rps=1.0`, `--lag-shift`).
 - Its findings and its traps at the bench still hold ("Traps met tonight", below).
 
-**The code as left:** branch `adr009_controller`, local commits, not pushed. Nothing under `src/` changed since 8b155df (2026-11-22, 21:27); the simulation's reference gained names for its rules' numbers on 2026-11-22 night (`staged.py`, the check against the firmware passing). The experiments are still in: `controller=pid_learnt`, `ccon speed_law`, `pid_envelope`, `ctune`, the 21 K record. The plan says at which gate each is folded or goes.
+**The code as left:** branch `adr009_controller`, local commits, not pushed. N.2 is built (2026-11-23): every fixed number of the charge is a macro in `src/charge_rules.h`, and `tools/charge_sim/check_numbers.py` fails on one without a row. **The Pico W's image does not link** (RAM 316 bytes over, since the night of 2026-11-22): the README's "Found while building". Before N.2 nothing under `src/` had changed since 8b155df (2026-11-22, 21:27); the simulation's reference gained names for its rules' numbers on 2026-11-22 night (`staged.py`, the check against the firmware passing). The experiments are still in: `controller=pid_learnt`, `ccon speed_law`, `pid_envelope`, `ctune`, the 21 K record. The plan says at which gate each is folded or goes.
 
 **The bench as left:** as in the section below (21:30). Nothing was flashed or thrown since. The bench rules apply: ask the owner before any contact. The cup read about 400 gr over its last zero.
 

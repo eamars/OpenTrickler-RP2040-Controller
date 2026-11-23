@@ -1742,3 +1742,27 @@ Documents only: nothing built, no unit contacted.
 - **Added at the owner's word:** every fixed number is a macro in one header, so a person who builds their own firmware changes a value in one place (N.2; the register's row 10).
 - **Closed with it:** gate N's documents (N.1), gate D, and the README's "Open, to be discussed".
 - **Next:** N.2 and N.3, at the desk. Nothing is built yet; no unit was contacted.
+
+## 2026-11-23, 17:56: gate N.2 and N.3 begun; the checklist before them
+
+At the desk; no unit is contacted in either step.
+1. **Which numbers do these steps add, move or change?** N.2 moves every Rule and Safety number of `numbers.md`'s sections C, D, E and G out of the formulas into one header, at the value it has; it adds none. One default changes, as the register's row 15 says: the fine figure's learning off (C13, 3 to 0). N.3 changes nothing in the firmware: it tries C16's 0.4 s, D10's 0.3 s and D9's 0.2 gr at nothing in the simulation.
+2. **Does any value come from the bench unit?** None is added. The values moved are those already in the code; the ones that are the bench's (`numbers.md`, "The rows against the test") keep their value in this step and are marked in the header with the gate that replaces them. N.3 is the first of those replacements.
+3. **Does each fixed number pass the test?** Not yet all: nine fail it, as listed in `numbers.md`. N.2 does not settle them, it makes each visible in one place.
+4. **Is a new parameter needed?** No.
+5. **Does a pass on the rig check a mechanism?** No rig is used. N.2's pass: the throw-for-throw check on both laws, both boards building, the CI check failing on a number planted without a row. N.3's pass is written into `numbers.md` before its run.
+6. **What is still shown on the bench unit only?** Everything the method's fixed numbers rest on: unchanged by these steps, and waiting for gate 7's unit.
+
+## 2026-11-23, to 18:09: gate N.2, the numbers in one header
+
+At the desk; no unit contacted. Commits d8d0910 to fa206f0, local.
+- **`src/charge_rules.h`:** 92 macros, every Rule and Safety number of `numbers.md`'s sections C, D, E and G and B12's two counts, each with its row, its unit and what it is for. The formulas in `charge_control.c`, `charge_calibration.c`, `charge_mode.cpp` and `charge_pid_learnt.c` name them. ADR-013's pause numbers, the carry's bounds, the bands and the series' cup moved in from the files that held them. Duplicates are one definition: the band's edge (D16), and `pid_learnt`'s copies of the learning share, the throw's limits, the aim, the stillness, a rise and the back-off's cap (G5, G8).
+- **Not moved, and why:** the scale's rhythm (`scale.h`, E24) and the drivers' polls (`motors.c`, E17, E25) are those modules' own; the header says where they are. Sizes, conversions, a user's defaults and the simulated scale's calibration stay where they are, listed with their reasons in the check.
+- **Shown to change nothing a throw does** (the renaming, d8d0910):
+  - `check_firmware_controller.py --throws 40 --logic-only`, with and without `--pid`: the output before and after is the same line for line, `VERDICT PASS`.
+  - The compiled code of the four files, before against after, on both boards (`objdump -d` of each object): `charge_mode.cpp` and `charge_calibration.c` the same instruction for instruction; in `charge_control.c` three divisions by 2 and in `charge_pid_learnt.c` two are now multiplications by 0.5 (half the band, half a digit, half the short and the band), and nothing else differs. The Pico 2 W image the same size (990,456 B flash, 308,752 B RAM).
+- **The fine figure's learning off by default** (C13; 7870481), in `staged.py` and the firmware. The check gains `--learn-fine`: with it both laws give the output they gave before; without it, 40 of 40 in lockstep on every set, `VERDICT PASS` on both laws.
+- **Mended in passing:** the console's series cleared when its start is refused (ee2fab4; read in the code, not tried on a unit); the zero's comments (8594169).
+- **The check** (`tools/charge_sim/check_numbers.py`, fa206f0), in CI: fails on a number planted in `charge_control.c` (exit 1), on a macro planted in the header with no row (exit 1), passes without them (exit 0). `numbers.md` names each macro in its row.
+- **Both boards build: not met for the Pico W, for a cause older than this step.** The Pico 2 W builds (990,472 B flash after the series' mend). The Pico W compiles and does not link: `.heap` is not within RAM, 262,460 B of 262,144, 316 B over. It is so at 57c0a2d, before any change of this step, and `src/` had not changed since 8b155df: the night of 2026-11-22 added RAM (the charge files' `.bss`: `charge_calibration.c` 1,938 B, `charge_mode.cpp` 316 B) and the Pico W was last linked on 2026-11-21, 21:51. CI's release build makes the Pico W's images, so this branch would fail CI as it stands. Not mended here: which RAM goes is a choice (the PID law's carried stops for eight profiles are about 520 B and move into the powder's record at gate R; `pid_learnt` goes at F.4).
+- **Built into folders of their own** (`build_n2_2w`, `build_n2_w`), so `build/app.elf` still matches the image on the bench's unit.

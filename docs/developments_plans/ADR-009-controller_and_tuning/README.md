@@ -98,7 +98,7 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 
 - **N.1, the documents:** `numbers.md` and the register. **Closed 2026-11-23, 17:54,** on the owner's approval of the register.
   - **Gate D,** the design gate of the plan of 2026-11-22, closes with it (new): what the sign-off left open in the design draft is the register's rows 1, 2, 8 and 9.
-- **N.2, the numbers made visible in the code (new).** At the desk, changing nothing a throw does:
+- **N.2, the numbers made visible in the code (new).** **Built 2026-11-23** (`progress.md`): `src/charge_rules.h`, `tools/charge_sim/check_numbers.py`. Its pass is met but for the Pico W's build, which does not link for a cause older than this step (below, "Found while building"). At the desk, changing nothing a throw does:
   - **every fixed number in one place, to change and build.** Every Rule and Safety number of `numbers.md` (sections C, D, E, G) becomes a macro in one header, named as the reference names it, each with its row, its unit and its reason in a line. No number stays inside a formula, and no other file holds one. A person who builds their own firmware changes a value in that one file and builds: nothing else is hunted for. The header's first lines say so, and say that the safety bounds are in it too. AGENTS.md's build notes name the file;
   - duplicates become one definition (D16, the copies in G5 and G8);
   - a check in CI lists the numbers in the controller's files and fails on one `numbers.md` does not name; each row gains its constant's name;
@@ -108,6 +108,13 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 - **N.3, the bench's leftovers tried at nothing (new).** Three fixed numbers are times or weights chosen on the bench's scale, and fail the test for a fixed number: the stillness's 0.4 s (C16), the rest's extra 0.3 s (D10), the coarse room's extra 0.2 gr (D9).
   - In the simulation, each is set to nothing, on both records, every stand-in scale and both tolerances, with `numbers_study.py`.
   - **Its pass, written before the run and read as the sensitivity study was** (how often and how consistently a case moves, against two seeds of the baseline): a number without effect is removed. One with an effect is made from what the unit measures (reading intervals, a measured spread). None is kept as the bench's value.
+
+### Found while building: the Pico W's image does not link
+
+- **What:** RAM is 316 bytes over on the Pico W (262,460 of 262,144; `.heap` is not within RAM). Its objects compile. The Pico 2 W builds.
+- **Since when:** the night of 2026-11-22, whose experiments added static RAM. The Pico W was last linked on 2026-11-21. Found on 2026-11-23 by N.2's builds, at the commit before any of its changes.
+- **What it stops:** every proof on the Pico W, and CI, whose release build makes the Pico W's images.
+- **Closes** when the Pico W links again, before gate 2's rest is begun (its recordings need RAM there too). The RAM to give back is the experiments': the PID law's carried stops for eight profiles (about 520 bytes; they move into the powder's record at gate R) or `pid_learnt`'s (gone at F.4). Which goes first is decided with `tools/size_report.py`'s figures, not guessed.
 
 ### Gate 2's rest: every throw's recording through the API
 
