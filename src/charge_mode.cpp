@@ -119,6 +119,9 @@ static charge_pid_t *charge_pid = NULL;     // while such a charge runs, from th
 static volatile uint16_t charge_series_asked = 0;
 static uint16_t charge_series_left = 0;     // this charge's throws still to pour, in a series; 0: no series
 static float charge_base = 0.0f;            // the weight a throw starts from: 0, but in a series
+// The precharge's powder held by the closed gate since the last throw, for the next throw's forecast (A12, ADR-009,
+// gate F.3); in RAM only, as the gate's own state is
+static float charge_precharge_pending_gr = 0.0f;
 // The charge's throws' first errors, each at the calibration's own stop room, carried into the powder profile's
 // calibration at the charge's end (ADR-009, 2026-11-22): from throws that came to rest as they should
 static float charge_carry_errors[CHARGE_CARRY_THROWS_MAX];
@@ -554,6 +557,13 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     const float room_at_start = cc->stop_room_gr;      // where this throw stops, before it learns
     uint32_t start_ms = charge_mode_now_ms();
     charge_control_start(cc, target, start_ms);
+    // The precharge the gate held falls as it has opened: counted in this throw's forecast (gate F.3)
+    if (charge_precharge_pending_gr > 0.0f) {
+        charge_control_precharge(cc, charge_precharge_pending_gr,
+                                 (float) charge_mode_config.eeprom_charge_mode_data.precharge_speed_rps, start_ms);
+        printf("Charge: the precharge's %.3f in this throw's forecast\n", charge_precharge_pending_gr);
+        charge_precharge_pending_gr = 0.0f;
+    }
     recording_pour_begin(start_ms);
     bool coarse_was_on = cc->coarse_on;
     uint8_t phase_was = cc->phase;
@@ -630,6 +640,11 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
         // The throw's marks, as the controller's own state changes
         if (coarse_was_on && !cc->coarse_on) {
             recording_mark(RECORDING_MARK_COARSE_STOP, cc->reading);
+            // The gate's move at the coarse stop (A10): the controller judges no rest before its travel ends (F.3)
+            float gate_ratio = charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio;
+            if (servo_gate_enabled() && gate_ratio >= 0.0f) {
+                servo_gate_set_ratio(gate_ratio, false);
+            }
         }
         if (cc->phase != phase_was && cc->phase == CHARGE_CONTROL_PHASE_REST) {
             recording_mark(RECORDING_MARK_FINE_STOP, cc->reading);
@@ -865,9 +880,10 @@ void charge_mode_wait_for_complete() {
         true
     );
 
-    // If the servo gate is used then it has to be opened
+    // If the servo gate is used then it has to be opened: for the staged controller waited by its travel, the tubes
+    // starting only once it is open (ADR-009, gate F.3, E10)
     if (servo_gate_enabled()) {
-        servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, false);
+        servo_gate_set_ratio(SERVO_GATE_RATIO_OPEN, charge_staged);
     }
     // Update current status
     char target_weight_string[WEIGHT_STRING_LEN];
@@ -886,7 +902,28 @@ void charge_mode_wait_for_complete() {
         last_charge_elapsed_seconds = (float)((xTaskGetTickCount() - charge_start_tick) * portTICK_PERIOD_MS) / 1000.0f;
         charge_timer_running = false;
         if (servo_gate_enabled()) {
+            // The close waited by its travel, and E10's settling after it; then the precharge into the closed gate,
+            // its powder counted by the unit's steps for the next throw's forecast (A12, gate F.3)
             servo_gate_set_ratio(SERVO_GATE_RATIO_CLOSED, true);
+            vTaskDelay(pdMS_TO_TICKS(CHARGE_PRECHARGE_AFTER_GATE_MS));
+            const eeprom_charge_mode_data_t *data = &charge_mode_config.eeprom_charge_mode_data;
+            if (data->precharge_enable && data->precharge_time_ms > 0 && data->precharge_speed_rps > 0) {
+                uint32_t steps_before = motor_get_steps_made(SELECT_COARSE_TRICKLER_MOTOR);
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, data->precharge_speed_rps);
+                vTaskDelay(pdMS_TO_TICKS(data->precharge_time_ms));
+                motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
+                // The ramp down, its steps counted too: waited until the tube has stopped, within a bound
+                TickType_t stop_by = xTaskGetTickCount() + pdMS_TO_TICKS(CHARGE_PRECHARGE_STOP_MOST_MS);
+                while (motor_get_velocity(SELECT_COARSE_TRICKLER_MOTOR) != 0.0f &&
+                       (int32_t) (xTaskGetTickCount() - stop_by) < 0) {
+                    vTaskDelay(pdMS_TO_TICKS(CHARGE_DRIVER_CHECK_MS));
+                }
+                float turns = (float) (uint32_t) (motor_get_steps_made(SELECT_COARSE_TRICKLER_MOTOR) - steps_before) /
+                              motor_get_steps_per_turn(SELECT_COARSE_TRICKLER_MOTOR);
+                charge_precharge_pending_gr += turns * charge_controller->cal.coarse_gr_turn;
+                printf("Charge: precharge %.3f turns, %.3f held by the gate for the next throw\n", turns,
+                       charge_precharge_pending_gr);
+            }
         }
         charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
         return;
@@ -1353,6 +1390,16 @@ uint8_t charge_mode_menu(void) {
         charge_control_init(charge_controller, &charge_staged_block->cal, charge_calibration_constants(), 0.0f, false);
         // The scale's noise is the user's zero margin and two digits: the cup test and no powder (ADR-009, gate F.1)
         charge_controller->k.zero_margin_gr = charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
+        // The user's settings the throw takes beyond the rules: the back-off, the gate's move (gate F.3)
+        charge_calibration_limits((uint8_t) profile_get_selected_idx(), &charge_controller->k);
+        if (charge_controller->cal.backoff_fallback > 0.0f) {
+            printf("Charge: the back-off (%.3f turns at %.3f rev/s) has no spill measured as it is set: the coarse tube "
+                   "stops by the coarse stop threshold, %.3f\n", charge_controller->k.user_backoff_turns,
+                   charge_controller->k.user_backoff_rps, charge_controller->k.coarse_threshold_gr);
+        }
+        else if (charge_controller->cal.backoff_s > 0.0f) {
+            printf("Charge: the back-off's spill forecast: %.4f\n", charge_controller->cal.backoff_gr);
+        }
         printf("Charge: staged, profile %u, %s at %.3f, stop room %.4f, law %s\n", profile_get_selected_idx(),
                charge_controller->cal.finish == CHARGE_CONTROL_FINISH_JOG ? "jog" : "glide",
                charge_controller->cal.band_gr, charge_controller->cal.stop_room_gr, charge_law ? "pid" : "glide");

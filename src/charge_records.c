@@ -65,7 +65,18 @@ typedef struct {
     fine_list_t fine_stops;
     move_list_t moves;
     error_list_t first_errors;      // the carried stops: the rehearsals', then the charges'
+    // Version 3 (gate F.3): the back-off's spill, what arrived after a stop from the coarse floor with the back-off,
+    // its spread, and the back-off it was measured at; -1 and 0 until measured
+    float backoff_unseen_gr;
+    float backoff_spread_gr;
+    float backoff_turns;
+    float backoff_rps;
 } charge_powder_record_t;
+
+// A version 2 slot, as stored before gate F.3: the v3 record's first part, read in its own size and written as v3
+#define CHARGE_RECORD_V2_SIZE 404
+_Static_assert(offsetof(charge_powder_record_t, backoff_unseen_gr) == CHARGE_RECORD_V2_SIZE,
+               "the v2 record's layout, as stored before gate F.3");
 
 typedef struct {
     uint16_t legacy_rev;
@@ -99,6 +110,8 @@ static void charge_records_v1_to_working(const uint8_t *v1, charge_calibration_r
     memset(w, 0, sizeof(*w));
     memcpy(w, v1, head + CHARGE_RECORD_V1_MEASURED);
     memcpy(w->first_errors, v1 + head + CHARGE_RECORD_V1_MEASURED, sizeof(w->first_errors));
+    w->measured.backoff_unseen_gr = CHARGE_RECORD_NOT_MEASURED;
+    w->measured.backoff_spread_gr = CHARGE_RECORD_NOT_MEASURED;
 }
 
 static charge_unit_record_t charge_unit_record;
@@ -157,7 +170,7 @@ static bool charge_records_blank(uint16_t addr) {
 
 static charge_record_state_t charge_records_read(uint8_t profile, charge_powder_record_t *out) {
     uint16_t addr = charge_records_addr(profile);
-    if (config_read_stored(addr, out, sizeof(*out)) && out->version == CHARGE_RECORD_VERSION) {
+    if (config_read_stored(addr, out, sizeof(*out)) && out->version == CHARGE_POWDER_RECORD_VERSION) {
         return out->held ? CHARGE_RECORD_OK : CHARGE_RECORD_NONE;
     }
     return charge_records_blank(addr) ? CHARGE_RECORD_NONE : CHARGE_RECORD_DAMAGED;
@@ -166,7 +179,7 @@ static charge_record_state_t charge_records_read(uint8_t profile, charge_powder_
 
 static bool charge_records_write(uint8_t profile, charge_powder_record_t *record) {
     record->legacy_rev = 0;
-    record->version = CHARGE_RECORD_VERSION;
+    record->version = CHARGE_POWDER_RECORD_VERSION;
     return save_config(charge_records_addr(profile), record, sizeof(*record));
 }
 
@@ -199,6 +212,10 @@ static void charge_records_to_working(const charge_powder_record_t *r, charge_ca
     m->fine_gr_turn = r->fine_gr_turn;
     m->coarse_share = r->coarse_share;
     m->watch_s = r->watch_s;
+    m->backoff_unseen_gr = r->backoff_unseen_gr;
+    m->backoff_spread_gr = r->backoff_spread_gr;
+    m->backoff_turns = r->backoff_turns;
+    m->backoff_rps = r->backoff_rps;
     m->finish = CHARGE_CONTROL_FINISH_GLIDE;
     m->coarse_stop_count = r->coarse_stops.count <= CHARGE_CONTROL_COARSE_STOPS_MAX ? r->coarse_stops.count : 0;
     for (uint8_t i = 0; i < m->coarse_stop_count; i++) {
@@ -230,6 +247,10 @@ static void charge_records_from_working(const charge_calibration_record_t *w, ui
     r->fine_gr_turn = m->fine_gr_turn;
     r->coarse_share = m->coarse_share;
     r->watch_s = m->watch_s;
+    r->backoff_unseen_gr = m->backoff_unseen_gr;
+    r->backoff_spread_gr = m->backoff_spread_gr;
+    r->backoff_turns = m->backoff_turns;
+    r->backoff_rps = m->backoff_rps;
     r->law = law;
     r->coarse_stops.count = m->coarse_stop_count <= CHARGE_RECORD_COARSE_STOPS ? m->coarse_stop_count : 0;
     for (uint8_t i = 0; i < r->coarse_stops.count; i++) {
@@ -333,6 +354,17 @@ void charge_records_init(void) {
             if (charge_records_read(profile, r) != CHARGE_RECORD_DAMAGED) {
                 continue;
             }
+            // A v2 slot (gate R's): the same record, the back-off's spill not measured (gate F.3)
+            if (config_read_stored(addr, r, CHARGE_RECORD_V2_SIZE) && r->version == 2) {
+                r->backoff_unseen_gr = CHARGE_RECORD_NOT_MEASURED;
+                r->backoff_spread_gr = CHARGE_RECORD_NOT_MEASURED;
+                r->backoff_turns = 0.0f;
+                r->backoff_rps = 0.0f;
+                if (charge_records_write(profile, r)) {
+                    migrated++;
+                }
+                continue;
+            }
             if (!config_read_stored(addr, v1_bytes, CHARGE_RECORD_V1_SIZE)) {
                 continue;   // damaged, and no v1 either: left as it is, and a charge says so
             }
@@ -373,7 +405,7 @@ void charge_records_init(void) {
         printf("Records: the PID law's old lists at 21 K %s\n", ok ? "zeroed" : "not zeroed: the EEPROM refused");
     }
     if (migrated) {
-        printf("Records: %u calibrations moved to the records of gate R\n", migrated);
+        printf("Records: %u calibrations moved to the records of version %u\n", migrated, CHARGE_POWDER_RECORD_VERSION);
     }
     // The API's copy of one powder's record, taken once while the heap is whole: without it the records are not
     // served, and a charge still reads them
@@ -452,6 +484,18 @@ static const setting_field_t powder_fields[] = {
      .applies = "at_charge_start", .about = "The fine tube's small moves, smallest first"},
     {.name = "first_errors", .label = "Carried stops", .type = SETTING_LIST, POWDER_FIELD(first_errors),
      .list = &error_list, .applies = "at_charge_start", .about = "The newest throws' first errors, oldest first"},
+    {.name = "backoff_unseen_gr", .label = "Back-off: arrived after", .type = SETTING_NUMBER,
+     POWDER_FIELD(backoff_unseen_gr), .unit = "gr", .min = -1.0f, .max = 100.0f, .applies = "at_charge_start",
+     .about = "What arrived after a stop from the coarse floor with the back-off: -1 until measured (gate F.3)"},
+    {.name = "backoff_spread_gr", .label = "Back-off: its spread", .type = SETTING_NUMBER,
+     POWDER_FIELD(backoff_spread_gr), .unit = "gr", .min = -1.0f, .max = 20.0f, .applies = "at_charge_start",
+     .about = "How far that varied from stop to stop: -1 until measured"},
+    {.name = "backoff_turns", .label = "Back-off: measured at turns", .type = SETTING_NUMBER,
+     POWDER_FIELD(backoff_turns), .unit = "turns", .min = 0.0f, .max = 2.0f, .applies = "at_charge_start",
+     .about = "The back-off's turns it was measured at: forecast only while the charge's back-off is so set"},
+    {.name = "backoff_rps", .label = "Back-off: measured at speed", .type = SETTING_NUMBER,
+     POWDER_FIELD(backoff_rps), .unit = "rev/s", .min = 0.0f, .max = 100.0f, .applies = "at_charge_start",
+     .about = "The back-off's speed it was measured at: forecast only while the charge's back-off is so set"},
 };
 
 #define UNIT_FIELD(member) SETTING_AT(charge_unit_record_t, member)

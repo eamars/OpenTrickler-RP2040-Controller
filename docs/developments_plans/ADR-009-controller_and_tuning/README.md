@@ -356,6 +356,7 @@ Each item here is checked before any firmware leaves the bench, a pre-release in
   - **the 21 K slot freed:** the PID law's lists (`charge_calibration_law_stops_t`, 524 B) are written with zeros at that first start; nothing reads it after, and its address is gone from `eeprom.h`. Their lists are dropped (the night's bench data);
   - **no existing record changes its size:** the charge's settings 64 B, the profiles 516 (each 64), a motor's 76, the scale's 6, the Wi-Fi's 108, the LEDs' 20, the display's 8, the motors' kept part 28, the servo gate's 28, the update's 132, the same in the image of c2e551d and in gate R's;
   - the filler's byte (A18) is read as nothing and written as zero at F.5, with `controller` and `mode` leaving the API.
+- **Gate F.3's (2026-11-24):** a powder's record, **version 3**, `charge_powder_record_t`, 404 → 420 B and its CRC: the back-off's spill appended (what arrived after a stop from the coarse floor with the back-off, its spread, and the back-off's turns and speed it was measured at; −1 and 0 until measured). The first 404 B are v2's, so a v2 slot is read in its own size at the first start and written as v3, the new fields not measured (`charge_records_init`). The unit's record keeps version 2 (its own version byte, `CHARGE_RECORD_VERSION`; the powder's is `CHARGE_POWDER_RECORD_VERSION`).
 - No existing record changes its size, so no unit's settings reset at the update.
 
 ## What we want

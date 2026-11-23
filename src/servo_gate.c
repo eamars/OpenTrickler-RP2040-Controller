@@ -98,6 +98,13 @@ void servo_gate_set_ratio(gate_ratio_t ratio, bool block_wait) {
     }
 }
 
+float servo_gate_travel_s(float from, float to) {
+    float delta = clamp01(to) - clamp01(from);
+    float speed = delta < 0.0f ? servo_gate.eeprom_servo_gate_config.shutter_open_speed_pct_s
+                               : servo_gate.eeprom_servo_gate_config.shutter_close_speed_pct_s;
+    return fabsf(delta) / (speed < 0.0001f ? 0.0001f : speed);
+}
+
 void servo_gate_control_task(void *p) {
     (void)p;
 

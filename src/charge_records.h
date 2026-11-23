@@ -22,6 +22,8 @@
 #include "charge_calibration.h"
 
 #define CHARGE_RECORD_VERSION 2
+// A powder's record: version 3 since ADR-009's gate F.3 (the back-off's spill appended); the unit's record stays 2
+#define CHARGE_POWDER_RECORD_VERSION 3
 #define CHARGE_RECORD_COARSE_STOPS 4
 #define CHARGE_RECORD_FINE_STOPS 8
 #define CHARGE_RECORD_MOVES 3

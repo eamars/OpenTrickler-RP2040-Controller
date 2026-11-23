@@ -12,6 +12,7 @@
 #include "motors.h"
 #include "profile.h"
 #include "scale.h"
+#include "servo_gate.h"
 
 // The charge's settings, for the band the offer is made for (as the other modules that read them)
 extern charge_mode_config_t charge_mode_config;
@@ -61,6 +62,16 @@ void charge_calibration_limits(uint8_t profile, charge_control_constants_t *k) {
     k->coarse_most_rps = coarse_most;
     k->fine_least_rps = fine_least;
     k->fine_most_rps = fine_most;
+    // The back-off at the coarse stop (A11), the coarse stop threshold (A6) and the gate's move there (A10, A17):
+    // the charge's settings, as the frame takes them (ADR-009, gate F.3). A back-off speed of 0 is the coarse least
+    const eeprom_charge_mode_data_t *data = &charge_mode_config.eeprom_charge_mode_data;
+    bool backoff = data->coarse_stop_backoff_enable && data->coarse_stop_backoff_turns > 0.0f;
+    float backoff_rps = fabsf(data->coarse_stop_backoff_speed_rps);
+    k->user_backoff_turns = backoff ? data->coarse_stop_backoff_turns : 0.0f;
+    k->user_backoff_rps = backoff ? (backoff_rps > 0.0f ? backoff_rps : coarse_least) : 0.0f;
+    k->coarse_threshold_gr = data->coarse_stop_threshold;
+    k->gate_coarse_s = servo_gate_enabled() && data->coarse_stop_gate_ratio >= 0.0f ?
+                       servo_gate_travel_s(SERVO_GATE_RATIO_OPEN, data->coarse_stop_gate_ratio) : 0.0f;
 }
 
 

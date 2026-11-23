@@ -125,6 +125,8 @@
 #define CHARGE_CUP_BACK_SPACING_MS 20           // E20, ms: looked for this often
 #define CHARGE_VERDICT_WAIT_MS 1000             // E9, ms: waited before the verdict is given. Goes for the frame at F.5
 #define CHARGE_PRECHARGE_AFTER_GATE_MS 500      // E10, ms: the precharge starts this long after the gate's close
+#define CHARGE_PRECHARGE_STOP_MOST_MS 3000      // E10, ms: after the precharge's stop its tube is waited for to stop,
+                                                //   before its steps are counted, at most this long (a bound)
 #define CHARGE_NO_PRECHARGE_WAIT_MS 20          // E10, ms: with no precharge. Goes with today's loop (gate 6)
 #define COARSE_STOP_BACKOFF_MAX_MS 15000        // E11, ms: the back-off's longest (a bound)
 #define CHARGE_CARRY_THROWS_MAX 32              // E12: a charge's first errors kept for the carry
