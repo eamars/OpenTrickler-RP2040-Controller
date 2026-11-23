@@ -128,8 +128,17 @@ void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_
     cal->coarse_floor_rps = k->coarse_least_rps;
     // The creep: the flow at which the powder still on its way is about the band, at the lag measured there, within
     // the measured ladder
-    cal->floor_rps = min_f(max_f(k->creep_band_share * band_gr / stop_lag_s(&fine[0], cal->fine_gr_turn) / cal->fine_gr_turn,
-                                 REAL(CHARGE_RULE_CREEP_LEAST_SHARE) * fine[0].speed_rps),
+    // The lag at the slowest stop that measured one above zero (D1's 0.3 s floor went at F.5: a zero lag, which a stop
+    // whose powder showed at once gives, divided by nothing); with none, the creep's least share of the slowest speed
+    real_t creep = REAL(0.0);
+    for (uint8_t i = 0; i < fine_count; i++) {
+        real_t lag = stop_lag_s(&fine[i], cal->fine_gr_turn);
+        if (lag > REAL(0.0)) {
+            creep = k->creep_band_share * band_gr / lag / cal->fine_gr_turn;
+            break;
+        }
+    }
+    cal->floor_rps = min_f(max_f(creep, REAL(CHARGE_RULE_CREEP_LEAST_SHARE) * fine[0].speed_rps),
                            fine[fine_count - 1].speed_rps);
     // Never under the user's fine least: a least above the creep holds it up, and the charge says so
     cal->creep_rps = cal->floor_rps;

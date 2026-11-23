@@ -3158,3 +3158,19 @@ Checked against the skill:
 **Not drawn yet:** the web's pages (the calibration's progress and verdict, this unit's data with its export, import, backup and restore, a throw's recording, an agent's change and the user's yes), the servo gate tuned by eye, and a factory reset's offer of a backup. They come next, by the skill `web-ui-design`.
 
 **Held, 02:35:** the web's mocks are the real pages on the stand-in, and their flow (the cup declared, the steps, the verdict before Keep, the offer) is the one the 12864 sheet shows. They wait for the owner's word on that sheet, so that pages are not built tonight to a flow the morning may change.
+
+## 2026-11-24, 02:39: E9's check: the verdict's class in its second; and D1's removal mended (a zero lag)
+
+**The cup** (the manager's URGENT note) is item 0 of the morning list. The tool carries every drop between runs until the owner's word (`--cup-emptied`), and `reach` clicks Change only while it is there (`7f654e1`).
+
+**E9's check** (`tools/charge_sim/e9_check.py`, `logs/adr009/f5/e9_check.txt`; the pass written in its head before the run):
+- **What it threw:** every stand-in scale, a calibrated unit each, the PID law on the AR2209 profile's gains, 6 sessions of 20 throws at 10 gr.
+- **What it compared:** each verdict's class against the reading a second later, and, as the noise, the readings one and two seconds after.
+- **Pooled, PASS as written:** 834 throws; the class changed in the verdict's second in 57 (6.8%), by noise alone in 47 (5.6%); the bar is 2.3 points.
+- **Not seen by the pooled figure, for the manager's judgement:**
+  - **The changes lean one way:** 41 of the 57 are good to over (powder landing after the verdict), where the noise moves both ways.
+  - **By scale,** the A&D's records change more than their noise: measured 3 against 1, late_small 6 against 3, holds 6 against 1 (beyond its own bar), slow 7 against 4. The estimated makes' noise (gng 18, strain 18) swamps them in the pool.
+  - *My recommendation:* keep E9's removal (the pass as written). Put the one-way change on the failure modes beside gate 3's lag in stages (L), whose model forecasts a held small change. Waiting a fixed second again would be the bench's number back.
+
+**Found by the check and mended: D1's removal could divide by zero.** The creep is the band's flow at the slowest stop's lag. A stop whose powder showed at once measures a lag of 0, which D1's 0.3 s floor had covered. In the C that made the creep infinite and so the fastest stop's speed, silently; in the reference it raised.
+- **Mended in both:** the creep is taken at the slowest stop that measured a lag above zero; with none, its least share of the slowest speed (D2, a bound already there).

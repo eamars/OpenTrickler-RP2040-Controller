@@ -427,8 +427,11 @@ def set_rules(cal: Calibration, finish: str, band_gr: float, limits: Limits = No
     spread = [(stop.speed, stop.spread_gr) for stop in fine]
     # The creep: the flow at which the powder still on its way is about the band, at the lag measured there, within
     # the measured ladder
-    cal.floor_rps = min(max(CREEP_BAND_SHARE * band_gr / lags[0][1] / cal.fine_gr_turn,
-                            CREEP_LEAST_SHARE * fine[0].speed), fine[-1].speed)
+    # the lag at the slowest stop that measured one above zero (D1's 0.3 s floor went at F.5: a zero lag, which a stop
+    # whose powder showed at once gives, divided by nothing); with none, the creep's least share of the slowest speed
+    shown_lags = [lag for _, lag in lags if lag > 0.0]
+    creep = CREEP_BAND_SHARE * band_gr / shown_lags[0] / cal.fine_gr_turn if shown_lags else 0.0
+    cal.floor_rps = min(max(creep, CREEP_LEAST_SHARE * fine[0].speed), fine[-1].speed)
     # never under the user's fine least: a least above the creep holds it up, and the charge says so
     cal.creep_rps = cal.floor_rps
     cal.floor_rps = max(cal.floor_rps, limits.fine_least)
