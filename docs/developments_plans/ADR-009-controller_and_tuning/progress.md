@@ -2062,7 +2062,7 @@ The day's one other pair of like runs agrees: s1 and s3 of 17:34 and 17:46, one 
 
 **The night, judged once more** (`night_replay_night_record.txt`, 400 throws an arm; at 2,000 throws an arm the same, `night_replay_2000.txt`): **5 of 14 reproduced again, now the other way.** Good and overs are within the bar on all 14; the glide's and the PID law's medians are now short.
 
-**The verdict of gate S, the bar kept:** the time bar is not met, on 9 of the 14 arms (7 of the 11 the plan needs). Good and overs are met on all 14.
+**The verdict of gate S, the bar kept:** the time bar is not met, on 9 of the 14 arms (6 of the 11 the plan needs). Good and overs are met on all 14.
 
 **Why the round cannot close it, from the recordings:** the rig was about 1 s slower at night than in the afternoon for the same controller. `mvp_fast10` and `glide004_e` threw the glide at 10 gr in the fast mode in 8.2 and 9.2 s; the night's glide arms took 10.7 to 11.4 s. The carry's sessions of 17:34 to 17:52 had already found the rig drifting within twelve minutes. A model made from the day reproduces the day, and no recording before 18:00 holds the evening's drift. No second mend was made.
 
@@ -2086,7 +2086,7 @@ The glide's and the PID law's are −1.3 to +0.2 s, median −0.8 s: the simulat
 - **In the simulation the offer saves about 2 s a throw at no cost in good or overs.** A difference of 0.1 throw in 20 is within its own error: about 0.25 throws in 20 on each, at 2,000 throws.
 - **Against F.5's bars** (the controller against the glide's pour: settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer), the offer meets all three in the simulation.
 - **On the rig the offer's pairs gave 2 and 4 more overs.** That is within the rig's own run-to-run spread of 4 in 20 (20:32), so 20 throws a pair cannot tell it from none.
-- **The time saved** is the same in the simulation as on the rig within about 1 s: −1.9 and −2.0 against −1.6 and −3.0. The bias above is the same for both arms of a pair to within 0.5 to 1.0 s.
+- **The time saved** is the same in the simulation as on the rig within about 1 s: −1.9 and −2.0 against −1.6 and −3.0. The bias above is the same for both arms of a pair to within 0.3 s (offer) and 1.0 s (offer2).
 - **Not shown by the simulation:** a wider stop for the offer than for the glide. The day's recordings show none, so none is modelled. Whether the rig's extra overs are real is F.5's ABBA to say, on the rig.
 
 **The records, as the manager asked:**
