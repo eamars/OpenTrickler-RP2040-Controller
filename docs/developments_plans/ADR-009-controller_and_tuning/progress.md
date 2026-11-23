@@ -3255,3 +3255,26 @@ Checked against the skill:
   - **PASS by its letter:** every stand-in and the record whose fine tube pours by speed are within the bar.
   - **It shows no benefit:** pooled, by speed good 665, over 268 against one figure's 677, 264. On `fine_by_speed`, the record made to show the 11-22 finding, by speed is the worse (80, 36 against 90, 29).
   - *My recommendation:* not to port B3 into the C and the stored record (a layout change) on this evidence. Keep it in the reference, off, until the unit's own runs show a figure that varies with speed where the stop is decided.
+
+## 2026-11-24, 03:03: L in its first form fails all three of its ends; stopped there for the manager
+
+**What was thrown** (`l_study.py`, `logs/adr009/g3_l_study.txt`; `e9_check.py --stages`, `logs/adr009/g3_e9_stages.txt`), the reference only:
+- **The forecast in stages** (`StagedStages`): one model a scale, the median of the fits of its fine stops within four times its creep. Each parcel shows nothing before the dead time, then decays by the stage or stages. The verdict waits until the forecast's powder still to show is under C24's noise.
+- **Four arms on every stand-in,** 40 fresh sessions, the first three throws at 10 gr: a calibrated unit by its lag table; a calibrated unit in stages; the learnt source with the scale's one measured lag (F.4's); the learnt source in stages.
+
+**Its ends, each failed:**
+1. **The learnt source in stages on `slower`:** 57% over, against a calibrated unit's 32% (bar 12) and the one lag's 47%. It is worse than the one lag; and some throws on `measured`, `holds` and `gng` ended other than at rest (4, 9, 23).
+2. **A calibrated unit in stages no worse:** worse on six scales of seven (42% to 82% over, against 18% to 45%); the same only on `slower` (32%).
+3. **The verdict's one-way changes no more than the noise, per scale:** beyond it on six of seven (`measured` 8 against 1, `late_small` 14 against 0 ...). Pooled 57 against 28.
+
+**What this form gets wrong** (from the figures, not yet shown):
+- **One model a scale, taken near the creep, is applied at every speed;** the lag table it replaces is by flow. On a calibrated unit that alone turns a forecast that was right at speed into one that is short there, which is where its overs come from.
+- **The model's tail is short:** the median second stage is none, so the late powder the verdict should wait for is not in it, and the verdict's lean stays.
+- **The learnt source's births and its no-powder test** read the decay as they read the lag. Some of its ends that are not at rest come from that.
+
+**So I stopped L here, at the desk, for the manager's direction,** rather than tune it. Options as I see them:
+- **(a) Stages by flow,** each stop's own fit read by speed as the lag table is, with the second stage kept wherever the stop's fit takes it. This is the form the plan described ("each stop keeps its own (d, τ), by flow"), which I simplified to one model for the learnt source's study; it needs the record to hold a fit a stop (a layout change).
+- **(b) Only the verdict's wait,** from the stops' own after-curves (how long until what is still to come is under the noise), keeping the lag table for the forecast. It is smaller, aimed at the lean alone.
+- **(c) Leave L** and take the lean to the owner as the known limit.
+
+*My recommendation:* (a) for the forecast, since it is what the plan asked and the failure is the simplification, with the verdict's wait read from it. Studied with this same harness (its three ends unchanged) before anything reaches the C.
