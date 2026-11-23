@@ -51,6 +51,7 @@ FINE_RATES_DIGITS_S = ((1.0, 8, 5.0), (2.0, 8, 5.0), (4.0, 4, 3.5), (8.0, 4, 3.0
 # The coarse stops (F2): at the coarse least, the geometric mean of its ends and the coarse most, so many runs of so
 # long each. Geometric, as a lag changes by flow over a span of tens (the fine ladder doubles its flow each stop)
 COARSE_STOP_FORM = ((3, 1.5), (2, 1.5), (2, 1.2))
+BACKOFF_STOPS = 3               # F.3: the back-off's spill, from three stops at the coarse floor
 # Small moves, by the digits one is meant to release on average, and how many are made
 MOVES_DIGITS = ((0.7, 24), (2.5, 12), (6.0, 8))
 # How long a stop or a move is watched is the scale's to say: a few small moves are watched this long first, and
@@ -156,13 +157,19 @@ class Move:
 
 @dataclass(frozen=True)
 class Limits:
-    """A user's limits for each tube (ADR-009, gate F.2): the least is the higher of the profile's and the motor's
-    least, the most the lower of their most."""
+    """A user's settings the frame takes (ADR-009, gates F.2 and F.3): each tube's limits (the least the higher of the
+    profile's and the motor's least, the most the lower of their most); the back-off at the coarse stop (A11: its
+    turns, 0 for off, and its speed); the coarse stop threshold (A6), the coarse room of a back-off whose spill was not
+    measured as it is set; and the gate's travel for its move at the coarse stop (A10, A17: 0 for none)."""
 
     coarse_least: float
     coarse_most: float
     fine_least: float
     fine_most: float
+    backoff_turns: float = 0.0
+    backoff_rps: float = 0.0
+    coarse_threshold_gr: float = 5.0
+    gate_coarse_s: float = 0.0
 
 
 def sim_limits() -> Limits:
@@ -199,6 +206,18 @@ class Calibration:
     coarse_top_rps: float = 0.0     # the lower of the coarse most and the fastest coarse stop measured
     coarse_floor_rps: float = 0.0   # the coarse least
     creep_rps: float = 0.0          # the creep by the rules, before the fine least held it up
+    # the back-off's spill (ADR-009, gate F.3): what arrived after a stop from the coarse floor with the back-off, its
+    # spread, and the back-off it was measured at (turns, speed); -1 and 0 until measured
+    backoff_unseen_gr: float = -1.0
+    backoff_spread_gr: float = -1.0
+    backoff_turns: float = 0.0
+    backoff_rps: float = 0.0
+    # by rule: the back-off at the coarse stop (its speed and time, 0 for none), its own effect on the forecast, and
+    # 1 when the coarse room is A6's because the spill was not measured as the back-off is set
+    backoff_speed_rps: float = 0.0
+    backoff_s: float = 0.0
+    backoff_gr: float = 0.0
+    backoff_fallback: float = 0.0
     seconds: float = 0.0            # how long the calibration took, and the powder it poured
     poured_gr: float = 0.0
     first_errors: list = field(default_factory=list)
@@ -257,6 +276,21 @@ def stops_at(bench, tube: str, speed: float, count: int, run_s: float, watch_s: 
     lag = max(0.0, sum(run["behind"] for run in runs) / poured) if poured >= digit else None
     return Stop(speed, statistics.fmean(rises), statistics.stdev(rises), percentile([run["quiet"] for run in runs], 0.9),
                 lag)
+
+
+def measure_backoff(bench, cal: Calibration, limits: Limits, digit: float) -> None:
+    """The back-off's spill (ADR-009, gate F.3; gate 3's step built early): BACKOFF_STOPS stops from the coarse floor
+    with the user's back-off, what arrived after them and its spread, kept with the back-off they were made at."""
+    runs = []
+    for _ in range(BACKOFF_STOPS):
+        trial = bench.creep_stop("coarse", limits.coarse_least, COARSE_STOP_FORM[0][1], cal.watch_s, "backoff",
+                                 backoff=(limits.backoff_turns, limits.backoff_rps))
+        bench.advance(0.3)
+        end = statistics.median(w for tt, w in trial["after"] if tt >= cal.watch_s - 0.6)
+        runs.append(end - trial["during"][-1][1])
+    cal.backoff_unseen_gr = statistics.fmean(runs)
+    cal.backoff_spread_gr = statistics.stdev(runs)
+    cal.backoff_turns, cal.backoff_rps = limits.backoff_turns, limits.backoff_rps
 
 
 def table(points: list, x: float) -> float:
@@ -325,10 +359,13 @@ def measure_on(bench, digit: float, interval_s: float, limits: Limits = None) ->
         # the move is the turn the tube really made, by the unit's own count where the bench gives it: a throw's
         # move is made to that
         moves.append(Move(statistics.fmean(turned), statistics.fmean(gains), percentile(gains, 0.9), wait))
-    return Calibration(digit_gr=digit, interval_s=interval_s, coarse_gr_turn=coarse_gr, fine_gr_turn=fine_gr,
-                       coarse_stops=coarse_stops, fine_stops=fine_stops, moves=moves, watch_s=watch_s,
-                       coarse_share=statistics.stdev(coarse_yields) / statistics.fmean(coarse_yields),
-                       seconds=bench.now, poured_gr=bench.cup.landed_gr)
+    cal = Calibration(digit_gr=digit, interval_s=interval_s, coarse_gr_turn=coarse_gr, fine_gr_turn=fine_gr,
+                      coarse_stops=coarse_stops, fine_stops=fine_stops, moves=moves, watch_s=watch_s,
+                      coarse_share=statistics.stdev(coarse_yields) / statistics.fmean(coarse_yields))
+    if limits.backoff_turns > 0.0 and limits.backoff_rps > 0.0:
+        measure_backoff(bench, cal, limits, digit)      # the user's back-off on: its spill measured as it is set
+    cal.seconds, cal.poured_gr = bench.now, bench.cup.landed_gr
+    return cal
 
 
 def measure(rig, seed: int) -> Calibration:
@@ -404,6 +441,21 @@ def set_rules(cal: Calibration, finish: str, band_gr: float, limits: Limits = No
     coarse_lag = lag_table(coarse, cal.coarse_gr_turn)
     cal.coarse_glide_s = min(COARSE_GLIDE_MOST_S, max(COARSE_GLIDE_LEAST_S, GLIDE_LAG_SHARE * coarse_lag[0][1]))
     cal.coarse_room_gr = COARSE_ROOM_SPREADS * coarse[0].spread_gr + cal.glide_room_gr + COARSE_ROOM_EXTRA_GR
+    # The back-off (A11): made at the coarse stop when it is on; its spill forecast only when measured as it is set,
+    # else the coarse room is the coarse stop threshold (A6), and the charge says so
+    cal.backoff_speed_rps = cal.backoff_s = cal.backoff_gr = cal.backoff_fallback = 0.0
+    if limits.backoff_turns > 0.0 and limits.backoff_rps > 0.0:
+        cal.backoff_speed_rps = limits.backoff_rps
+        cal.backoff_s = limits.backoff_turns / limits.backoff_rps
+        measured = (cal.backoff_unseen_gr >= 0.0 and abs(cal.backoff_turns - limits.backoff_turns) < 1e-6
+                    and abs(cal.backoff_rps - limits.backoff_rps) < 1e-6)
+        if measured:
+            cal.backoff_gr = cal.backoff_unseen_gr - coarse[0].unseen_gr
+            cal.coarse_room_gr = (COARSE_ROOM_SPREADS * max(coarse[0].spread_gr, cal.backoff_spread_gr)
+                                  + cal.glide_room_gr + COARSE_ROOM_EXTRA_GR)
+        else:
+            cal.backoff_fallback = 1.0
+            cal.coarse_room_gr = limits.coarse_threshold_gr
     # The wait before the first judgement: the slowest the reading came to rest after a stop from near the floor
     cal.rest_s = max(stop.quiet_s for stop in fine
                      if stop.speed <= REST_FLOOR_TIMES * cal.floor_rps or stop is fine[0]) + REST_EXTRA_S
@@ -484,6 +536,7 @@ class Staged:
         # the glide's coarse law), and the I term counting only while its tube is not held at a limit
         self.pid_envelope = True
         self.zero_margin = ZERO_MARGIN
+        self.gate_coarse_s = 0.0        # the gate's travel for its move at the coarse stop (A10, A17): the caller's
         # per throw: (the error at the rest after its last stream, moves made, times it went back to the stream)
         self.log = []
 
@@ -494,6 +547,8 @@ class Staged:
         self.result = "none"            # good, over, short, limit, cup, no_powder once done
         self.started_at = now_ms / 1000.0
         self.moved_turns = 0.0          # the small moves' turns asked for, which C19 adds to its bound
+        self.backoff_until = None       # while the coarse tube turns back at its stop (F.3)
+        self.hold_until = None          # the rest not judged before the gate's move at the coarse stop has ended
         # No powder: the reading at the last rise counted, the forecast powder due since, and when the first of it was due
         self.powder_mark = 0.0
         self.due_since_mark = 0.0
@@ -572,6 +627,8 @@ class Staged:
         for tube, gr_turn, lags in (("coarse", cal.coarse_gr_turn, self.coarse_lags), ("fine", cal.fine_gr_turn, self.fine_lags)):
             turned = self.turned[tube] - self.marked[tube]
             self.marked[tube] = self.turned[tube]
+            if tube == "coarse" and self.backoff_until is not None:
+                continue        # turned back at its stop, a tube pours nothing (F.3)
             if turned > 0.0:
                 if tube == "fine" and self.fine_form == "split":
                     gr_turn = cal.fine_gr_turn if self.window_reading is not None else self.fine_gr_stream
@@ -625,6 +682,9 @@ class Staged:
             if now >= self.next_mark - TIE_S:
                 self._parcel(now)
                 self.next_mark += PARCEL_S
+        if self.backoff_until is not None and now >= self.backoff_until - TIE_S:
+            self.backoff_until = None
+            self.coarse_rps = 0.0
         fine_most = (FINE_MOST_TIMES * self.target / self.cal.fine_gr_turn + self.moved_turns
                      if self.cal.fine_gr_turn > 0.0 else 0.0)
         if now - self.started_at > THROW_MOST_S or self.turned["fine"] > fine_most:
@@ -649,6 +709,17 @@ class Staged:
                 self.coarse_rps = 0.0
                 if self.coarse_off_at is None:
                     self.coarse_off_at = now
+                if cal.backoff_s > 0.0:
+                    # the back-off: turned back at its speed for its time; its own effect forecast when measured
+                    self.backoff_until = now + cal.backoff_s
+                    self.coarse_rps = -cal.backoff_speed_rps
+                    if cal.backoff_gr != 0.0:
+                        lag = table(self.coarse_lags, cal.coarse_floor_rps)
+                        self.parcels.append([now + lag, cal.backoff_gr, "coarse"])
+                        self.unseen += cal.backoff_gr
+                        self.coarse_unseen += cal.backoff_gr
+                if self.gate_coarse_s > 0.0:
+                    self.hold_until = now + self.gate_coarse_s
             else:
                 glide = (room - cal.coarse_room_gr) / (cal.coarse_gr_turn * cal.coarse_glide_s)
                 self.glide_rps["coarse"] = min(cal.coarse_top_rps, max(cal.coarse_floor_rps, glide))
@@ -740,6 +811,8 @@ class Staged:
         still = max(STILL_LEAST_S, STILL_INTERVALS * cal.interval_s)
         if now < self.stopped_at + self.wait - TIE_S or now < self.last_rise + still - TIE_S:
             return
+        if self.hold_until is not None and now < self.hold_until - TIE_S:
+            return      # the gate's move at the coarse stop is not over
         weight = self.highest if REST_ON == "highest" else self.lowest
         short = self.target - weight
         tries_left = self.moves + self.streams < MOST_MOVES
@@ -778,8 +851,17 @@ class Staged:
         self.move_until = now + move.turns / MOVE_RPS
         self.wait = move.wait_s
 
+    def precharge(self, grains: float, speed_rps: float, now_ms: float) -> None:
+        """The precharge's powder held by the closed gate (A12, F.3), given after start(): it falls when the gate
+        opens, and is forecast as one coarse parcel due at the coarse lag of the precharge's speed."""
+        if grains > 0.0:
+            self.parcels.append([now_ms / 1000.0 + table(self.coarse_lags, speed_rps), grains, "coarse"])
+            self.unseen += grains
+            self.coarse_unseen += grains
+
     def _stop_all(self, result: str, weight: float) -> None:
         """Both tubes stopped at once and the throw ended, by a limit or a fault: nothing is learnt from it."""
+        self.backoff_until = None
         self.coarse_rps = 0.0
         self.fine_rps = 0.0
         self.move_turns = None

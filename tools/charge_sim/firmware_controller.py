@@ -34,7 +34,8 @@ FINE_STOPS_MAX = 8
 MOVES = 3
 OUTPUTS = 21
 RULES = ("floor_rps", "stop_room_gr", "aim_gr", "glide_room_gr", "glide_s", "coarse_room_gr", "coarse_glide_s",
-         "rest_s", "fine_top_rps", "coarse_top_rps", "coarse_floor_rps", "creep_rps")
+         "rest_s", "fine_top_rps", "coarse_top_rps", "coarse_floor_rps", "creep_rps", "backoff_speed_rps", "backoff_s",
+         "backoff_gr", "backoff_fallback")
 
 
 def _types(real) -> tuple:
@@ -55,12 +56,14 @@ def _types(real) -> tuple:
                     + [(name, real) for name in ("watch_s", "coarse_share", "band_gr", "floor_rps", "stop_room_gr",
                                                  "aim_gr", "glide_room_gr", "glide_s", "coarse_room_gr",
                                                  "coarse_glide_s", "rest_s", "fine_top_rps", "coarse_top_rps",
-                                                 "coarse_floor_rps", "creep_rps")])
+                                                 "coarse_floor_rps", "creep_rps", "backoff_unseen_gr",
+                                                 "backoff_spread_gr", "backoff_turns", "backoff_rps",
+                                                 "backoff_speed_rps", "backoff_s", "backoff_gr", "backoff_fallback")])
 
     class Constants(ctypes.Structure):
         _fields_ = ([(name, real) for name in (
             "move_rps", "parcel_s", "coarse_least_rps", "coarse_most_rps", "fine_least_rps", "fine_most_rps",
-            "dribble_digits_s",
+            "user_backoff_turns", "user_backoff_rps", "coarse_threshold_gr", "gate_coarse_s", "dribble_digits_s",
             "coarse_spreads", "creep_band_share", "creep_most_s", "learn_share", "learn_most_digits",
             "learn_dead_digits", "learn_fine_prior", "learn_fine_most", "learn_fine_split", "still_least_s")]
                     + [("most_moves", ctypes.c_uint8)]
@@ -126,6 +129,7 @@ class Library:
         lib.charge_control_tick.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
         lib.charge_control_reading.argtypes = [ctypes.c_void_p, ctypes.c_uint32, real]
         lib.charge_control_moved.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        lib.charge_control_precharge.argtypes = [ctypes.c_void_p, real, real, ctypes.c_uint32]
         lib.charge_control_default_constants.argtypes = [k_p]
         lib.shim_outputs.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
         lib.shim_parcels.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_double),
@@ -143,6 +147,8 @@ class Library:
         limits = limits or staged.sim_limits()
         k.coarse_least_rps, k.coarse_most_rps = limits.coarse_least, limits.coarse_most
         k.fine_least_rps, k.fine_most_rps = limits.fine_least, limits.fine_most
+        k.user_backoff_turns, k.user_backoff_rps = limits.backoff_turns, limits.backoff_rps
+        k.coarse_threshold_gr, k.gate_coarse_s = limits.coarse_threshold_gr, limits.gate_coarse_s
         return k
 
 
@@ -168,7 +174,11 @@ def to_c(cal: staged.Calibration, double: bool = False):
                           aim_gr=cal.aim_gr, glide_room_gr=cal.glide_room_gr, glide_s=cal.glide_s,
                           coarse_room_gr=cal.coarse_room_gr, coarse_glide_s=cal.coarse_glide_s, rest_s=cal.rest_s,
                           fine_top_rps=cal.fine_top_rps, coarse_top_rps=cal.coarse_top_rps,
-                          coarse_floor_rps=cal.coarse_floor_rps, creep_rps=cal.creep_rps)
+                          coarse_floor_rps=cal.coarse_floor_rps, creep_rps=cal.creep_rps,
+                          backoff_unseen_gr=cal.backoff_unseen_gr, backoff_spread_gr=cal.backoff_spread_gr,
+                          backoff_turns=cal.backoff_turns, backoff_rps=cal.backoff_rps,
+                          backoff_speed_rps=cal.backoff_speed_rps, backoff_s=cal.backoff_s, backoff_gr=cal.backoff_gr,
+                          backoff_fallback=cal.backoff_fallback)
     for i, stop in enumerate(cal.coarse_stops):
         out.coarse_stops[i] = lib.Stop(stop.speed, stop.unseen_gr, stop.spread_gr, stop.quiet_s,
                                        -1.0 if stop.lag_s is None else stop.lag_s)
@@ -192,12 +202,12 @@ class FirmwareStaged:
     """`staged.Staged`'s interface on the firmware's controller."""
 
     def __init__(self, cal: staged.Calibration, acceleration_rps2: float, rehearsal: bool = False,
-                 double: bool = False):
+                 double: bool = False, limits=None):
         lib = library(double)
         self._lib = lib.lib
         self._c = ctypes.create_string_buffer(self._lib.shim_sizeof_controller())
         self._cal = to_c(cal, double)
-        self._k = lib.default_constants()
+        self._k = lib.default_constants(limits)
         self._acceleration = acceleration_rps2
         self._rehearsal = rehearsal
         self._lib.charge_control_init(self._c, ctypes.byref(self._cal), ctypes.byref(self._k), acceleration_rps2,
@@ -299,6 +309,10 @@ class FirmwareStaged:
 
     def on_reading(self, now_ms: float, weight: float) -> None:
         self._lib.charge_control_reading(self._c, self._ms(now_ms), weight)
+        self._read()
+
+    def precharge(self, grains: float, speed_rps: float, now_ms: float) -> None:
+        self._lib.charge_control_precharge(self._c, grains, speed_rps, self._ms(now_ms))
         self._read()
 
     def moved(self, now_ms: float) -> None:

@@ -46,6 +46,10 @@ void charge_control_default_constants(charge_control_constants_t *k) {
     k->coarse_most_rps = REAL(0.0);
     k->fine_least_rps = REAL(0.0);
     k->fine_most_rps = REAL(0.0);
+    k->user_backoff_turns = REAL(0.0);
+    k->user_backoff_rps = REAL(0.0);
+    k->coarse_threshold_gr = REAL(0.0);
+    k->gate_coarse_s = REAL(0.0);
     k->dribble_digits_s = REAL(CHARGE_RULE_DRIBBLE_DIGITS_S);
     k->coarse_spreads = REAL(CHARGE_RULE_COARSE_SPREADS);
     k->creep_band_share = REAL(CHARGE_RULE_CREEP_BAND_SHARE);
@@ -166,6 +170,26 @@ void charge_control_set_rules(charge_control_calibration_t *cal, charge_control_
                                                                               cal->coarse_gr_turn)));
     cal->coarse_room_gr = REAL(CHARGE_RULE_COARSE_ROOM_SPREADS) * cal->coarse_stops[0].spread_gr + cal->glide_room_gr
                           + REAL(CHARGE_RULE_COARSE_ROOM_EXTRA_GR);
+    // The back-off (A11): made at the coarse stop when it is on; its spill forecast only when measured as it is set,
+    // else the coarse room is the coarse stop threshold (A6), and the charge says so
+    cal->backoff_speed_rps = cal->backoff_s = cal->backoff_gr = cal->backoff_fallback = REAL(0.0);
+    if (k->user_backoff_turns > REAL(0.0) && k->user_backoff_rps > REAL(0.0)) {
+        cal->backoff_speed_rps = k->user_backoff_rps;
+        cal->backoff_s = k->user_backoff_turns / k->user_backoff_rps;
+        bool measured = cal->backoff_unseen_gr >= REAL(0.0) &&
+                        ABS_R(cal->backoff_turns - k->user_backoff_turns) < REAL(1e-6) &&
+                        ABS_R(cal->backoff_rps - k->user_backoff_rps) < REAL(1e-6);
+        if (measured) {
+            cal->backoff_gr = cal->backoff_unseen_gr - cal->coarse_stops[0].unseen_gr;
+            cal->coarse_room_gr = REAL(CHARGE_RULE_COARSE_ROOM_SPREADS) *
+                                  max_f(cal->coarse_stops[0].spread_gr, cal->backoff_spread_gr) + cal->glide_room_gr +
+                                  REAL(CHARGE_RULE_COARSE_ROOM_EXTRA_GR);
+        }
+        else {
+            cal->backoff_fallback = REAL(1.0);
+            cal->coarse_room_gr = k->coarse_threshold_gr;
+        }
+    }
     // The wait before the first judgement: the slowest the reading came to rest after a stop from near the floor
     real_t quiet = REAL(0.0);
     for (uint8_t i = 0; i < fine_count; i++) {
@@ -265,6 +289,8 @@ void charge_control_start(charge_control_t *c, real_t target_gr, uint32_t now_ms
     c->moves = 0;
     c->streams = 0;
     c->moved_turns = REAL(0.0);
+    c->backoff_until_s = -REAL(1.0);
+    c->hold_until_s = -REAL(1.0);
     c->powder_mark = REAL(0.0);
     c->due_since_mark_gr = REAL(0.0);
     c->first_due_s = -REAL(1.0);
@@ -302,6 +328,7 @@ static real_t since_start_s(const charge_control_t *c, uint32_t now_ms) {
 
 
 static void stop_all(charge_control_t *c, charge_control_result_t result, real_t weight) {
+    c->backoff_until_s = -REAL(1.0);
     c->coarse_rps = REAL(0.0);
     c->fine_rps = REAL(0.0);
     c->move_turns = -REAL(1.0);
@@ -343,6 +370,10 @@ static void make_parcel(charge_control_t *c, real_t now_s) {
         c->marked[tube] = c->turned[tube];
         if (c->counted && elapsed > REAL(0.0)) {
             c->speed[tube] = turned / elapsed;
+        }
+        // Turned back at its stop, a tube pours nothing: the unit's step count rises either way (gate F.3)
+        if (tube == COARSE && c->backoff_until_s >= REAL(0.0)) {
+            continue;
         }
         if (turned > REAL(0.0)) {
             real_t gr_turn = tube == COARSE ? cal->coarse_gr_turn : cal->fine_gr_turn;
@@ -431,6 +462,21 @@ static void feed(charge_control_t *c, real_t now_s) {
             if (c->coarse_off_s < REAL(0.0)) {
                 c->coarse_off_s = now_s;
             }
+            if (cal->backoff_s > REAL(0.0)) {
+                // The back-off: turned back at its speed for its time; its own effect forecast when measured
+                c->backoff_until_s = now_s + cal->backoff_s;
+                c->coarse_rps = -cal->backoff_speed_rps;
+                if (cal->backoff_gr != REAL(0.0)) {
+                    real_t lag = stop_table(cal->coarse_stops, cal->coarse_stop_count, STOP_LAG, cal->coarse_gr_turn,
+                                            cal->coarse_floor_rps);
+                    add_parcel(c, COARSE, now_s + lag, cal->backoff_gr);
+                    c->unseen_gr += cal->backoff_gr;
+                    c->coarse_unseen_gr += cal->backoff_gr;
+                }
+            }
+            if (k->gate_coarse_s > REAL(0.0)) {
+                c->hold_until_s = now_s + k->gate_coarse_s;
+            }
         }
         else {
             real_t glide = (room - cal->coarse_room_gr) / (cal->coarse_gr_turn * cal->coarse_glide_s);
@@ -477,6 +523,17 @@ static void feed(charge_control_t *c, real_t now_s) {
 }
 
 
+void charge_control_precharge(charge_control_t *c, real_t grains, real_t speed_rps, uint32_t now_ms) {
+    const charge_control_calibration_t *cal = &c->cal;
+    if (grains > REAL(0.0)) {
+        real_t lag = stop_table(cal->coarse_stops, cal->coarse_stop_count, STOP_LAG, cal->coarse_gr_turn, speed_rps);
+        add_parcel(c, COARSE, since_start_s(c, now_ms) + lag, grains);
+        c->unseen_gr += grains;
+        c->coarse_unseen_gr += grains;
+    }
+}
+
+
 real_t charge_control_glide_rps(const charge_control_t *c, int tube) {
     if (c->phase == CHARGE_CONTROL_PHASE_FEED) {
         return c->glide_rps[tube == COARSE ? COARSE : FINE];
@@ -512,6 +569,10 @@ void charge_control_tick(charge_control_t *c, uint32_t now_ms) {
     // C19: a multiple of the turns the target needs at the figure in use, and the moves'; with no figure, none
     real_t fine_most = c->cal.fine_gr_turn > REAL(0.0) ?
                        k->fine_most_times * c->target_gr / c->cal.fine_gr_turn + c->moved_turns : REAL(0.0);
+    if (c->backoff_until_s >= REAL(0.0) && now_s >= c->backoff_until_s - TIE_S) {
+        c->backoff_until_s = -REAL(1.0);
+        c->coarse_rps = REAL(0.0);
+    }
     if (now_s > k->throw_most_s || c->turned[FINE] > fine_most) {
         stop_all(c, CHARGE_CONTROL_RESULT_LIMIT, c->reading);
         return;
@@ -726,6 +787,9 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
     real_t still = max_f(k->still_least_s, REAL(CHARGE_RULE_STILL_INTERVALS) * cal->interval_s);
     if (now_s < c->stopped_at_s + c->wait_s - TIE_S || now_s < c->last_rise_s + still - TIE_S) {
         return;
+    }
+    if (c->hold_until_s >= REAL(0.0) && now_s < c->hold_until_s - TIE_S) {
+        return;     // the gate's move at the coarse stop is not over
     }
     real_t at_rest = c->lowest;
     real_t short_gr = c->target_gr - at_rest;

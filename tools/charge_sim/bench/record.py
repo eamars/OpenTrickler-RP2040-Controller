@@ -171,7 +171,8 @@ class Bench:
         self.runs.append(trial)
         return trial
 
-    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str) -> dict:
+    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str,
+                   backoff: tuple = (BACKOFF_TURNS, BACKOFF_RPS)) -> dict:
         """
         One trial of the creep-stop test: a tube at a steady speed, stopped, then still.
 
@@ -198,10 +199,11 @@ class Bench:
             during.append((time.monotonic(), self.weight()))
         stopped = time.monotonic()
         if stop == "backoff":
-            self.session.send(f"motor {tube} {-BACKOFF_RPS:g} {MOTOR_BOUND_S:g}")
+            turns, rps = backoff
+            self.session.send(f"motor {tube} {-rps:g} {MOTOR_BOUND_S:g}")
             reversed_at = time.monotonic()
             after = []
-            while time.monotonic() - reversed_at < BACKOFF_TURNS / BACKOFF_RPS:
+            while time.monotonic() - reversed_at < turns / rps:
                 after.append((time.monotonic(), self.weight()))
             self.session.send(f"motor {tube} {HOLD_RPS:g} {MOTOR_BOUND_S:g}")
         else:

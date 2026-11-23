@@ -2692,3 +2692,24 @@ The cup's ledger: 371.34 to 471.62 gr (most 140). The next run that pours needs 
 - `gate_at_coarse_stop`: with A10 on, the rest is not judged before the move's travel ends.
 
 **On the unit:** `charge_cycle` with each feature on: the gate (its setting on, no servo fitted: the waits shown by the console's times), the precharge, the back-off. The servo seen moving is owed.
+
+## 2026-11-24, 00:22: F.3, the spill step (the manager's yes): its form, before any change
+
+**The measurement** (the reference's `measure_on`, gate 3's step built early; the PC trial runs it):
+- three coarse stops at the coarse floor (the user's coarse least) with the user's back-off: the tube turned back A11's turns at A11's speed at the stop, then held, and watched as every stop is;
+- it measures what arrives after such a stop (its mean and its spread), as a held stop's `unseen_gr` and `spread_gr` are measured;
+- **it is stored with the back-off it was measured at** (its turns and its speed). A measure-only option of the trial (`--measure-backoff`) runs these three stops against a kept calibration and writes only those four fields into the stored record, through the record's staged-and-save path (a PATCH of `powder_records/<id>` and its save); the record's other fields are shown unchanged after it.
+
+**Its use in the frame** (the reference and the C together):
+- **the back-off made by the frame:** at the coarse stop the controller asks the coarse tube for −A11's speed for A11's turns' time, then 0. No coarse parcel is made while it turns back (the unit's step count rises either way).
+- **the forecast:** a back-off stop's mean arrival less a held stop's at the same speed (`coarse_stops[0].unseen_gr`) is the back-off's own effect. It is added as one coarse parcel at the stop, due at the coarse floor's lag. The coarse room keeps its 3 spreads, of the larger of the held stop's and the back-off stop's spread.
+- **the life cycle:** the measured spill counts only when the user's back-off is on with the turns and speed it was measured at.
+  - Otherwise, with the back-off on (none measured, or other settings), the coarse room is the coarse stop threshold (A6), and the charge's start says so.
+  - With the back-off off, the spill is not used and the coarse room is the measured one.
+- **The precharge (A12):** its powder, the precharge's turns as the unit counted them at the coarse grains a turn, is given to the next throw's controller as one coarse parcel due when the gate has opened, at the coarse lag of the precharge's speed.
+
+**The stored form:** the powder's record grows by four floats (16 B: the back-off's mean arrival and spread, its turns and speed): version 3, 404 → 420 B, its CRC on top. A v2 slot is read in its own size at the first start and written as v3 (the new fields "not measured", −1), as v1 was. Declared in the README's "Stored layout changes" with the sizes from `sizeof`. The four fields' bounds go in the records' table beside the others.
+
+**The cases, added to 00:20's:**
+- `backoff_changed`: a spill measured at 0.25 turn and 1 rev/s, a charge with 0.5 turn: the coarse room is A6's, and the start says so;
+- `backoff_measured`: with the spill measured as set, the forecast counts it, and the first errors are no worse than with the back-off off (the good share within the seed spread). The simulation's tube has a reverse spill (its record's `reverse_spill_gr`), set for this case to the bench record's 0.83 gr.

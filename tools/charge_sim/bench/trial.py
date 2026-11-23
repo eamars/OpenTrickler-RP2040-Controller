@@ -298,7 +298,8 @@ class UnitBench:
             raise UnitTrouble(f"the cup holds {self.last:.0f} gr: past its limit")
         return self.unit.clock(), self.last
 
-    def creep_stop(self, tube: str, speed_rps: float, run_s: float, watch_s: float, stop: str) -> dict:
+    def creep_stop(self, tube: str, speed_rps: float, run_s: float, watch_s: float, stop: str,
+                   backoff: tuple = (0.25, 1.0)) -> dict:
         unit = self.unit
         turned_before = unit.turned(tube)
         during = [self._weight()]       # the cup at rest, before the tube turns
@@ -314,6 +315,13 @@ class UnitBench:
         stopped = unit.clock()
         turned = unit.turned(tube) - turned_before
         after = []
+        if stop == "backoff":
+            # the charge's back-off (A11, F.3): the tube turned back its turns at its speed, then held
+            turns, rps = backoff
+            unit.set_speed(tube, -rps)
+            while unit.clock() - stopped < turns / rps:
+                after.append(self._weight())
+            unit.set_speed(tube, HOLD_RPS[tube])
         while unit.clock() - stopped < watch_s:
             after.append(self._weight())
         unit.set_speed(tube, 0.0)

@@ -115,6 +115,18 @@ typedef struct {
     charge_control_real_t coarse_top_rps;           // the lower of the coarse most and the fastest coarse stop measured
     charge_control_real_t coarse_floor_rps;         // the coarse least
     charge_control_real_t creep_rps;                // the creep by the rules, before the fine least held it up
+    // The back-off's spill (gate F.3): what arrived after a stop from the coarse floor with the back-off, its spread,
+    // and the back-off it was measured at (turns, speed); below zero and 0 until measured
+    charge_control_real_t backoff_unseen_gr;
+    charge_control_real_t backoff_spread_gr;
+    charge_control_real_t backoff_turns;
+    charge_control_real_t backoff_rps;
+    // By rule: the back-off at the coarse stop (its speed and time, 0 for none), its own effect on the forecast, and
+    // 1 when the coarse room is the coarse stop threshold's because the spill was not measured as the back-off is set
+    charge_control_real_t backoff_speed_rps;
+    charge_control_real_t backoff_s;
+    charge_control_real_t backoff_gr;
+    charge_control_real_t backoff_fallback;
 } charge_control_calibration_t;
 
 // The frame's constants: the research's values by default (charge_control_default_constants), tuned on the bench
@@ -127,6 +139,13 @@ typedef struct {
     charge_control_real_t coarse_most_rps;
     charge_control_real_t fine_least_rps;
     charge_control_real_t fine_most_rps;
+    // The user's back-off at the coarse stop (A11: its turns, 0 for off, and its speed), the coarse stop threshold
+    // (A6: the coarse room of a back-off whose spill was not measured as it is set), and the gate's travel for its
+    // move at the coarse stop (A10, A17: 0 for none), given by the caller (gate F.3)
+    charge_control_real_t user_backoff_turns;
+    charge_control_real_t user_backoff_rps;
+    charge_control_real_t coarse_threshold_gr;
+    charge_control_real_t gate_coarse_s;
     charge_control_real_t dribble_digits_s;         // the jog finish's dribble
     charge_control_real_t coarse_spreads;           // of the coarse tube's spread a turn, kept clear of its powder still unseen
     charge_control_real_t creep_band_share;         // the creep's powder still on its way, as a share of the band
@@ -243,6 +262,8 @@ typedef struct {
     bool have_first_error;
     charge_control_real_t first_error_gr;
     // The fine tube's stretch, its learning's: from its slowing, the coarse tube quiet if it ran, to the first rest
+    charge_control_real_t backoff_until_s;          // while the coarse tube turns back at its stop; below zero else
+    charge_control_real_t hold_until_s;             // the rest not judged before the gate's move ends; below zero else
     bool coarse_ran;
     charge_control_real_t coarse_off_s;             // below zero until the coarse tube stops at its margin
     bool window_open;
@@ -280,6 +301,10 @@ void charge_control_tick(charge_control_t *c, uint32_t now_ms);
 void charge_control_reading(charge_control_t *c, uint32_t now_ms, charge_control_real_t weight);
 // The caller made the small move asked for itself, to its step count: the move is over
 void charge_control_moved(charge_control_t *c, uint32_t now_ms);
+// The precharge's powder, held by the closed gate (A12, gate F.3), given after charge_control_start(): it falls when
+// the gate opens, forecast as one coarse parcel due at the coarse lag of the precharge's speed
+void charge_control_precharge(charge_control_t *c, charge_control_real_t grains, charge_control_real_t speed_rps,
+                              uint32_t now_ms);
 
 /*
     What the glide's stream law asks of a tube now (0 coarse, 1 fine), for a throw's recording: while the stream pours,
