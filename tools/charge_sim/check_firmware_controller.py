@@ -175,7 +175,7 @@ def good_share(results: list) -> float:
 
 
 def run_set(job: tuple) -> dict:
-    record, finish, band, tolerance, throws, pid = job
+    record, finish, band, tolerance, throws, pid, learn_fine = job
     rig = rigs.get_rig(record)
     measured = staged.measure(rig, SEED)
     expected = staged.for_finish(measured, finish, band)
@@ -187,10 +187,14 @@ def run_set(job: tuple) -> dict:
 
     def made_reference():
         controller = staged.Staged(cal, rig.acceleration_rps2)
+        if learn_fine:
+            controller.learn_fine_prior = staged.LEARN_FINE_PRIOR_ON
         controller.pid = law
         return controller
 
     def made_port(port):
+        if learn_fine:
+            port.set_fine_prior(staged.LEARN_FINE_PRIOR_ON)
         if law is not None:
             port.set_pid(law)
         return port
@@ -232,11 +236,13 @@ def main() -> int:
     parser.add_argument("--logic-only", action="store_true", help="judge the rules and the lockstep only")
     parser.add_argument("--pid", action="store_true", help="the PID speed law in the frame (option 2, "
                         "staged.pid_law_from), in place of the glide's")
+    parser.add_argument("--learn-fine", action="store_true", help="with the fine figure's learning on in both (it is "
+                        "off by default since ADR-009's gate N), so its port stays checked")
     args = parser.parse_args()
 
     firmware_controller.build()
     firmware_controller.build(double=True)
-    jobs = [(record, finish, band, tolerance, args.throws, args.pid) for record in RECORDS for finish in FINISHES
+    jobs = [(record, finish, band, tolerance, args.throws, args.pid, args.learn_fine) for record in RECORDS for finish in FINISHES
             for band, tolerance in BANDS]
     started = time.time()
     results = Workers().map(run_set, jobs)

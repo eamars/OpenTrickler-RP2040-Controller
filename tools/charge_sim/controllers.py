@@ -180,7 +180,7 @@ def _fine_form(form, learn):
     def make(rig, seed=0):
         controller = staged.make(rig, seed, "glide", 0.04)
         controller.fine_form = form
-        controller.learn_fine_prior = staged.LEARN_FINE_PRIOR if learn else 0.0
+        controller.learn_fine_prior = staged.LEARN_FINE_PRIOR_ON if learn else 0.0
         return controller, LOOSE_TOLERANCE_GR
     return make
 

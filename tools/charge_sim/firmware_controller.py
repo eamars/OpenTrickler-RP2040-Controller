@@ -214,6 +214,14 @@ class FirmwareStaged:
         self.name += " PID law"
         self._read()
 
+    def set_fine_prior(self, prior: float) -> None:
+        """The fine figure's learning on (`staged.LEARN_FINE_PRIOR_ON`) or off (0): the controller made again with
+        it. Before the law is set and before any learnt state is carried in."""
+        self._k.learn_fine_prior = prior
+        self._lib.charge_control_init(self._c, ctypes.byref(self._cal), ctypes.byref(self._k), self._acceleration,
+                                      self._rehearsal)
+        self._read()
+
     def set_fine_learning(self, n: int, total: float, current: float, stream_n: int = 0, stream_total: float = 0.0,
                           stream: float = None) -> None:
         """The fine tube's learnt state carried from another controller (the check's lockstep)."""

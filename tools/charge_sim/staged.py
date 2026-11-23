@@ -90,7 +90,10 @@ LEARN_DEAD_DIGITS = 0.25        # nor less
 # figure used is their mean against the calibration's own, which counts for LEARN_FINE_PRIOR throws (0: no learning),
 # never further than LEARN_FINE_MOST from it. A mean, so a throw whose powder is held at the lip and the one after it
 # that dumps it cancel; the stretch from the slowing on, so it is the finish's figure, not the stream's at full speed
-LEARN_FINE_PRIOR = 3.0
+# Off by default since ADR-009's gate N (numbers.md, C13): on, it read through a lag no calibration had measured.
+# Gate 3 decides it. LEARN_FINE_PRIOR_ON is the value it was thrown with, for a study or a check that turns it on
+LEARN_FINE_PRIOR = 0.0
+LEARN_FINE_PRIOR_ON = 3.0
 LEARN_FINE_MOST = 0.25
 LEARN_FINE_LEAST_TURNS = 0.2
 # The fine tube's figure in the forecast (2026-11-22): "one" figure for every turn, or "split": a turn before the
@@ -903,7 +906,7 @@ def make_mode(rig, seed: int, mode: str) -> ModeStaged:
 class StagedSession(Staged):
     """Two ideas talked over on 2026-11-22, tried in the simulation; not a plan (research/talk_2026-11-22.md).
 
-    - learn_fine: the base controller's learning of the fine tube's grains a turn (LEARN_FINE_PRIOR), on or off. Its
+    - learn_fine: the base controller's learning of the fine tube's grains a turn (LEARN_FINE_PRIOR_ON), on or off. Its
       first form in the talk read the stretch from the coarse tube's quiet; the base controller's reads it from the
       fine tube's slowing, so that a throw of the fine tube alone teaches the finish's figure.
     - owed: before a top-up, the powder its earlier top-ups turned out and the scale has not shown is counted as on
@@ -914,7 +917,7 @@ class StagedSession(Staged):
     def __init__(self, cal: Calibration, acceleration_rps2: float, learn_fine: bool = False, owed: bool = False):
         super().__init__(cal, acceleration_rps2)
         self.owe = owed
-        self.learn_fine_prior = LEARN_FINE_PRIOR if learn_fine else 0.0     # the base controller's learning
+        self.learn_fine_prior = LEARN_FINE_PRIOR_ON if learn_fine else 0.0  # the base controller's learning
 
     def start(self, target_gr: float, now_ms: float) -> None:
         super().start(target_gr, now_ms)

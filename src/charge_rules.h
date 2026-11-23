@@ -37,7 +37,9 @@
 #define CHARGE_RULE_LEARN_SHARE 0.15            // C10: the share of a throw's first error that moves the stop
 #define CHARGE_RULE_LEARN_MOST_DIGITS 2.0       // C11, digits: no throw teaches the stop more than this (a bound)
 #define CHARGE_RULE_LEARN_DEAD_DIGITS 0.25      // C12, digits: nor less: under it is the reading's own rounding
-#define CHARGE_RULE_LEARN_FINE_PRIOR 3.0        // C13, throws the calibration's fine figure counts for; 0: no learning
+#define CHARGE_RULE_LEARN_FINE_PRIOR 0.0        // C13: 0, the fine figure is not learnt: off until gate 3 has measured
+                                                // the fine tube's lag across the user's speeds. On, it is the throws
+                                                // the calibration's figure counts for (3 when it was thrown)
 #define CHARGE_RULE_LEARN_FINE_MOST 0.25        // C14: the learnt fine figure never further than this share off (a bound)
 #define CHARGE_RULE_LEARN_FINE_SPLIT 1.0        // C15: 1, a stream's fine figure and a finish's; 0, one. Decided at gate 3
 #define CHARGE_RULE_STILL_LEAST_S 0.4           // C16, s: at rest, no new high for this long. The bench's; tried at 0 (N.3)
