@@ -2123,3 +2123,35 @@ The glide's and the PID law's are −1.3 to +0.2 s, median −0.8 s: the simulat
 - **What gate R took of the flash:** the list kind about 2.6 KB (`http_json.c`'s array, about 760 B; `settings.c`, 1,885 B at `-Os`), well within the manager's third of the spare; the records' module 9.3 KB at `-O0` (two tables of 33 fields described, the conversions, the migration).
 - **What a write takes from the heap on the Pico W:** twice the resource's struct for a PATCH (808 B for a powder's record), the same for a revert at its largest (1,024 B), and a saved check's one copy; given back when the request ends. The records' API keeps one powder's record from the heap for good (404 B), taken at the start. A charge reads its record into a working copy from the heap (420 B) for its start and its end, and gives it back.
 - `check_numbers.py`, `check_firmware_controller.py --logic-only`: `VERDICT PASS`; both boards build.
+
+## 2026-11-23, 21:50: gate R's runs on the Pico 2 W; gate R passes
+
+On the Pico 2 W at the bench, its image 2.0.3-229 (`742d9df`), the runs written at 21:25, in the order run. Logs in `logs/adr009/gate_r/`.
+
+**The runs:**
+- **The update from the gate-2 image** (2.0.3-216, v1 slots and the 21 K lists), by the probe: at the first start profile 0's v1 slot was written as v2 (6 fine stops, 3 coarse, 16 carried, marked the glide's), the 21 K slot zeroed; `ccal load` of each profile gave the same lines before and after. Later starts read 21 K blank and say nothing of it. PASS.
+- **The update from 2.0.3** (`flash_uf2`, the full install as a user has it, then the new image): settings and profiles kept, `settings --compare` against the copy taken before PASS; the records as before.
+- **Another unit's backup** (its `unit_id` edited): 9 records refused 409 `not_this_unit`, each named by the restore; the shared parts applied; this unit's own the same as before. PASS, after the mend below.
+- **A slot corrupted** (`ccal corrupt 0`): a charge refused 409 `not_calibrated` with the damaged record's words, the console's own, the menu's "Bad calibration"; the charge stayed idle. The record restored from the backup.
+- **A write with no memory** (`setting nomem on`): 503 with `Retry-After: 2`, nothing written.
+- **A backup, a factory reset, a restore:** every resource equal to the backup, the 14 lines of the calibration the same. The owner rejoined the unit to the Wi-Fi between (its key is never in a copy).
+- **`settings_roundtrip`:** PASS, 26 resources, 246 fields written back unchanged, 247 out-of-bounds writes refused (each with the records' required `unit_id`).
+- **`api_check`:** PASS, 48 paths, 99 routes.
+- **`web_robust`:** PASS; lwIP's heap's most 11,808 B of 40,960, no failed allocation.
+- **`soak 300 --load --target 10`:** PASS. 21 charges in 323 s; 22 recordings pulled whole; 1 of 3,316 web reads missed (0.03%, a reset, longest run 1; limits 6% and 4); no failed allocation in lwIP's heap or a pool (its most 22,588 B); the FreeRTOS heap 86,488 B free quiet before and after (lowest 84,568); no late step feed. In its first second, right after `web_robust`, the event followers' and the recordings' first connections were reset 7 times and tried again (all 12 TCP slots then in TIME_WAIT); none missed an event, and the soak counts the one read it lost.
+
+**The prediction** (each passes as built) held but for one run, which found a fault:
+- **Found, and mended (`742d9df`):** a backup of another unit, restored in parts (a body is 1 KB at most), had its `unit_id` only in the last body of a powder's record: the first two bodies landed before the third was refused, and this unit's coarse grains a turn read 9.99. Now `unit_id` is a required field: every write to a record names its unit or is refused 400, and another unit's is refused 409 before anything is written. The client repeats the required fields in each body. The bench unit was restored from its own backup, and the run passed after.
+- **Corrected:** the factory reset's words said the unit would get a new id; its id and host name are the chip's and stay. They now say so, and name the backup.
+
+**Not shown:** the Pico W on a unit (it links: RAM 980 B spare, flash 9,152 B spare at `742d9df`; its run is gate 7's); a v1 record's band is no longer shown anywhere (B9, as planned: the band is gone with v1).
+
+**The checklist again:**
+1. **Numbers added, moved or changed:** B13, the records' bounds (not control); no number of the controller.
+2. **A value from the bench unit:** none.
+3. **Each fixed number passes the test:** none added.
+4. **A new parameter:** none.
+5. **The pass checks a mechanism against a prediction written first:** yes, the runs above as written at 21:25; one found a fault, mended and run again.
+6. **Shown on the bench unit only:** all of it, on the Pico 2 W; the Pico W at gate 7.
+
+The cup: 28.94 gr before the soak, 251.02 gr after.
