@@ -2640,3 +2640,18 @@ The cup's ledger: the trial 0.00 to 261.92 (most 330), the rehearsals 261.92 to 
 - **the stop room placed** from those rehearsals: their median, −2 digits, against the aim's −1, so 0.00 gr;
 - **its pass:** the stop room placed within the floor rehearsals' range (−3 to +3 digits), and overs well under the last series' 10 of 10.
 - **If it still goes mostly over with the stop placed right,** that is a different cause: stop and report it, not on to F.3.
+
+## 2026-11-24, 00:18: F.2, (d): the confirming series passes; the baseline for F.3 to F.5
+
+The 23:56 trial's set written (`series.py --errors-from`, its floor rehearsals: 0, 0, +1, +3, −3, −3, −2, −3, −2, −2 digits), then 10 × 10 gr, no `ccon` (`logs/adr009/20261124_001557_series_pico2w_ar2209_f2d/`):
+- the start said: stop room 0.0000 (placed from the rehearsals' median, as predicted), band 0.020, coarse 0.1 to 5, fine 0.08 to 5, the creep 0.04 held to 0.08;
+- **6 good, 4 over** (+0.04 to +0.08), none under; median 10.0 s; settled good 5 of 10;
+- throw 7 went over after its moves (its first rest −0.06, then +0.06);
+- every row (2,249) inside the limits: coarse 0.1 to 1.993, fine 0.08 to 5.0;
+- the charge's end carried its 8 first errors into the stored stop: "placed from a median of -0.0315, was -0.0400".
+
+**Against its pass:** the stop room placed within the floor rehearsals' range, **met**; overs well under the last series' 10 of 10 (4), **met**. The prediction, about 8 good and 2 over, is within the simulation's spread of a seed (7 to 9 good in 10 at these limits). **Passed.**
+
+**This is the baseline F.3 to F.5 are read against:** profile 0's calibration of 23:56 with its floor rehearsals, and the stop as the carry has now placed it. The finding (00:15) stands for gate 3 and before any release.
+
+The cup's ledger: 371.34 to 471.62 gr (most 140). The next run that pours needs the cup emptied first: the tools will say so.
