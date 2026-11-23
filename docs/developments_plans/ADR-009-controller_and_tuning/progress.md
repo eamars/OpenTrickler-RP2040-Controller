@@ -1875,7 +1875,7 @@ The image of 5580d1b (2.0.3-205; N.2 and the Pico W's shared buffer), on the Pic
 
 **From here, for every run that turns a motor:** the real scale read before it (`state`, the simulated scale off) and after it, the cup's total kept under 600 gr with the run's most pour counted first, and the owner asked first when it would not be. Nothing more turns until the owner has emptied the cup and said what is in the hopper.
 
-## 2026-11-23, 20:08: the runs that are left, and their pour, before they run
+## 2026-11-23, 20:07: the runs that are left, and their pour, before they run
 
 The owner, 20:05: the cup emptied, **the hopper filled**. The A&D reads 0.000 at 20:05. Every run below turns the tubes and pours real powder; the cup's total is kept under 600 gr.
 - **`api_check --host 192.168.2.166`:** its charge, stopped while it zeroes or pours (at most one throw at the unit's target of 30 gr), and its purge at 1 rev/s for 2 s. **At most 60 gr.** The scale read after it; that run's real pour checks the estimate (a simulated throw of 30 gr turned about 2.9 coarse and 1.6 fine turns, about 30 gr of this powder).
