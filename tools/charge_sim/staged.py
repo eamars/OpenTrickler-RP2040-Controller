@@ -670,16 +670,12 @@ class Staged:
             self.wait = cal.rest_s
             return
         glide = (room - cal.glide_room_gr) / (cal.fine_gr_turn * cal.glide_s)
-        # A rehearsal runs at the floor (ADR-009, gate F.2, as gate 3's "each a throw's last stretch", F5): a throw's
-        # fine tube comes to its stop from the floor, and a rehearsal there lasts many lags, so the reading has shown
-        # how the tube pours before the stop is taken
-        fine_top = cal.floor_rps if self.rehearsal else cal.fine_top_rps
-        self.glide_rps["fine"] = min(fine_top, max(cal.floor_rps, glide))
+        self.glide_rps["fine"] = min(cal.fine_top_rps, max(cal.floor_rps, glide))
         if pid is not None:
             asked = pid.fine_kp * room + self.pid_term["fine"]
             top = pid.fine_max_rps
             if self.pid_envelope:
-                top = min(top, fine_top, cal.floor_rps + max(0.0, room - self.stop_room) / (cal.fine_gr_turn * cal.glide_s))
+                top = min(top, cal.fine_top_rps, cal.floor_rps + max(0.0, room - self.stop_room) / (cal.fine_gr_turn * cal.glide_s))
             self.fine_rps = min(top, max(cal.floor_rps, asked))
             self.pid_held["fine"] = not (cal.floor_rps < asked < top)
             return
@@ -920,11 +916,8 @@ def rehearse(cal: Calibration, session, acceleration_rps2: float) -> None:
     """
     finish = cal.finish
     controller = Staged(cal, acceleration_rps2, rehearsal=True)
-    # At the floor a rehearsal lasts 1 gr over the creep's flow: at a slow creep longer than the simulation's usual
-    # throw timeout, so a simulated one is bounded as the controller bounds it, by C18 (ADR-009, gate F.2's form (a))
-    more = {"timeout_s": THROW_MOST_S + 1.0} if isinstance(session, Session) else {}
     for _ in range(REHEARSALS):
-        result = session.throw(controller, REHEARSAL_GR, cal.band_gr + cal.digit_gr / 2.0, **more)
+        result = session.throw(controller, REHEARSAL_GR, cal.band_gr + cal.digit_gr / 2.0)
         cal.seconds += result.elapsed_s + 1.0
         cal.poured_gr += result.true_gr
     cal.first_errors = [entry[0] for entry in controller.log]

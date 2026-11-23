@@ -461,16 +461,12 @@ static void feed(charge_control_t *c, real_t now_s) {
         return;
     }
     real_t glide = (room - cal->glide_room_gr) / (cal->fine_gr_turn * cal->glide_s);
-    // A rehearsal runs at the floor (gate F.2, as gate 3's "each a throw's last stretch", F5): a throw's fine tube
-    // comes to its stop from the floor, and a rehearsal there lasts many lags, so the reading has shown how the tube
-    // pours before the stop is taken
-    real_t fine_top = c->rehearsal ? cal->floor_rps : cal->fine_top_rps;
-    c->glide_rps[FINE] = min_f(fine_top, max_f(cal->floor_rps, glide));
+    c->glide_rps[FINE] = min_f(cal->fine_top_rps, max_f(cal->floor_rps, glide));
     if (pid != NULL) {
         real_t asked = pid->fine_kp * room + c->pid_term[FINE];
         real_t top = pid->fine_max_rps;
         if (k->pid_envelope) {
-            top = min_f(min_f(top, fine_top), cal->floor_rps + max_f(REAL(0.0), room - c->stop_room_gr) /
+            top = min_f(min_f(top, cal->fine_top_rps), cal->floor_rps + max_f(REAL(0.0), room - c->stop_room_gr) /
                                                                        (cal->fine_gr_turn * cal->glide_s));
         }
         c->fine_rps = min_f(top, max_f(cal->floor_rps, asked));

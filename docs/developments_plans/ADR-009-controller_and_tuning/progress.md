@@ -2583,3 +2583,23 @@ Not a pass: the pass of 23:51 failed by its letter, and the manager accepted for
 - the stop room placed in +0.00 to +0.04;
 - fewer than 7 overs;
 - about 8 good in 10, a figure.
+
+## 2026-11-23, 23:57: F.2, form (a) reverted (the manager's decision (c)); the re-run's prediction
+
+**Form (a), its record:**
+- **What it was:** a rehearsal's fine tube at the floor, never faster (`4e09794`).
+- **Its simulation** (23:54): the rehearsals' short tail gone; good 48 = 48 and 44 → 47 of 60.
+- **Why it went:**
+  - a rehearsal at the floor lasts 1 gr over the creep's flow, about 15 s at the bench unit's 0.08 floor and about 90 s at a creep of 0.014;
+  - below a creep of about 0.01, C18's 120 s ends it "limit".
+  - So a rehearsal's size and speed must be designed together. That is gate 3's work, with its spread-against-approach data, and the owner's order is the workflow first.
+- Reverted in the reference and the C as its own commit.
+- **On gate 3's list,** with the evidence: the unit's cold-start tail at a high fine top (F.2, 23:46), and the simulation's short bias for rehearsals at the top (23:54).
+- **The trial running when (c) came** (started 23:56, form (a) loaded) is left to finish: its measurements do not depend on the form. Its rehearsals at the floor are kept as the unit's own evidence for gate 3. The set is then rehearsed again with today's form on the same measurements (`trial.py --calibration`), not measured again: about 250 gr not poured twice.
+
+**F.2's re-run** (the shipped limits, today's rehearsal form, then 10 × 10 gr, no `ccon`):
+- **The prediction** (the simulation at these limits, 23:54's "at the top" row): about 48 of 60 good, 11 over, so about 8 good in 10.
+- **The known risk beside its figures:** a stop placed late by the cold-start tail at a fine top of 5. If the unit again shows a far-short tail and a late stop, that is the finding, said, not mended now.
+- **F.2's pass is its mechanism,** which passed (23:36). This run's figures are the baseline F.3 to F.5 are read against.
+
+**A condition for F.5, written now:** if F.5's ABBA misses its bars and the calibration's stop is the cause, the ABBA moves to after gate 3's calibration. Neither the ABBA nor its bars are changed.

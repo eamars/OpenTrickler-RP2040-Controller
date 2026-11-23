@@ -246,6 +246,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the bench's three leftovers that N.3 found without effect (C16's 0.4 s, D9's 0.2 gr, D10's 0.3 s); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
   - **On the console only, never stored, for the comparisons the gates ask:** today's loop, and the glide's pour.
   - **In:** the auto-tuner's switch, a setting of the unit (the register's row 1).
+  - **If the ABBA misses its bars and the calibration's stop is the cause** (F.2's late stop, 2026-11-23), the ABBA moves to after gate 3's calibration. Neither it nor its bars change.
   - **Pass:** the API's index and schema, `menu_tour` and the web's pages carry no such choice; `api_check`, `settings_roundtrip`, `reach` pass; one ABBA on the rig, the controller against the glide's pour, meets the night's bars (settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer).
 
 ### Gate 3: the calibration as a job on the unit
@@ -263,6 +264,7 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
 - **It writes** the powder's record and the unit's record, and ends with its verdict in words: the share of throws expected in the tolerance, the seconds a throw, and what holds it back (a least speed above the creep, clumps).
 - **The offer:** the PID values made from those (D19). The fine factor comes from this unit's measured trade of approach time against spread, the user's tolerance and the over budget of one in fifteen. Written to the profile on the user's yes.
 - **One study, its pass written first, on the job's own measurements:** the fine figure's learning, part of the auto-tuner or not, with one figure or two (C13, C15).
+- **The rehearsal's form, its size and speed together** (handed on by F.2, 2026-11-23): at a high fine top a 1 gr rehearsal from a cold tube is shorter than the scale's lag, and about half rested far short on the bench unit (to −19 digits, the stop placed 3 digits late); the simulation's rehearsals at the top rest short too (to −10 digits). A rehearsal at the floor removed that in the simulation but costs 1 gr over the creep's flow (minutes at a slow creep; C18 ends it below about 0.01 rev/s). Designed here with the spread against approach time (B8, F5, F6).
 - The PC's trial tool and its lag shift go (F8).
 - **Pass, on the rig:**
   - its numbers against the PC trial's: grains a turn within 3%, each lag within 0.1 s;
@@ -305,7 +307,6 @@ Each gate's cases beyond its main path, built and proven together once the workf
 - **F.4:** a lag beyond the forecast's window, said and never cut silently; the slowest stand-in scale's lag kept whole (C23).
 - **Gate 3:** a calibration whose scale goes bad or missing mid-way (the A&D at the coarse tube's top, for one) stops and says so; a calibration stopped by the person, its part kept or dropped as gate 3 decides.
 - **Gate 5:** an agent's write outside its bounds refused; an agent's write reverted.
-- **F.2's rehearsal at the floor:** a creep under about 0.01 rev/s makes a 1 gr rehearsal outlast C18's 120 s, and it ends "limit" (the rehearsal's size and speed together are gate 3's, with its spread-against-approach data).
 - **The simulation's blind spot, a tube started cold:** the bench unit's PC-trial rehearsal 0 (2026-11-23) started at 2.03 rev/s, showed nothing for 0.7 s and poured about 37% under its figure; the simulation's tube does not model it (`fine.settle_s` solved at 0).
 - **Gate 4's mocks:** what the person sees for each end that is not a verdict (the cup lifted, no powder, a limit, a refused start).
 
