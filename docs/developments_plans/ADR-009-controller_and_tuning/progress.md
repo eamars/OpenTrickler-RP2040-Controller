@@ -1906,8 +1906,20 @@ The image of 92df058 (2.0.3-209) on the Pico 2 W at 192.168.2.166; the tools at 
 - **Found and written into the README's "Found while building":** on the Pico W a charge and an update poll cannot both have the heap (gate 7 closes it); the Pico W's flash has 1,088 B spare, which is the owner's to decide before gate R.
 - **Left as found:** the simulated scale cannot pour a console series.
 
-## 2026-11-23, 20:22: the Pico W's flash: the API's JSON writers at -Os, at the owner's word
+## 2026-11-23, 20:20: the Pico W's flash: the API's JSON writers at -Os, at the owner's word
 
-**The owner, 20:20:** "-Os for API files", the agent's recommendation of 20:16 (`recording.c`, `api_v1_commands.c`, `settings.c`), over removing the experiments ahead of the plan's order. `CMakeLists.txt` sets them at `-Os` in every build, as LVGL and mbedTLS are; the rest of our code stays at `-O0`.
+**The owner, in this session:** "-Os for API files", the agent's recommendation of 20:16 (`recording.c`, `api_v1_commands.c`, `settings.c`), over removing the experiments ahead of the plan's order. `CMakeLists.txt` sets them at `-Os` in every build, as LVGL and mbedTLS are; the rest of our code stays at `-O0`.
 - **At the desk:** the Pico W's image 1,018,776 B of its 1,040,384 B slot, **21,608 B spare** (1,088 before); the three files 52.2 KB of code, from 70.4 KB. RAM unchanged (262,048 B).
 - **To prove on the Pico 2 W** (the code of the three changes, not what they do): `menu_tour --compare` (no motor); `api_check` (at most 60 gr), `settings_roundtrip` (at most 30 gr: a write refused during a throw) and `recordings_check --throws 2 --target 10` (at most 40 gr). The cup at 276.14 gr before them, **at most 406 gr after**; each pass as these tools judge it.
+
+### 20:21 to 20:23: shown on the Pico 2 W
+
+The image of c2e551d (2.0.3-216):
+- `menu_tour --compare tests/menu_baseline/pico2_w`: `VERDICT PASS`, 14 pages, but the two not judged (the scale's reading, the firmware);
+- `api_check`: `VERDICT PASS`, 37 paths read twice, 91 routes all listed;
+- `settings_roundtrip`: `VERDICT PASS`, 17 resources, 152 fields written back unchanged, 153 values outside their limits refused;
+- `recordings_check --throws 2 --target 10`: `VERDICT PASS`, 88 rows the same through the API and `ccrec`, the charge without samples throwing to "good".
+
+**The cup:** 276.12 gr before, 299.86 after `api_check`, 306.02 after `settings_roundtrip`, **336.70** after `recordings_check`; the budget was 406.
+
+**Not shown:** the Pico W on a unit, whose image now links with 21,608 B spare; its run is gate 7's.
