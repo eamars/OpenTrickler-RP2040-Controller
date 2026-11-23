@@ -2805,3 +2805,39 @@ On the Pico 2 W, image at `606dd53` and the mend below; the cup emptied by the o
 4. **A new parameter:** none. The spill is a measured value of the record (register row 9).
 5. **Predictions written first:** the cases of 00:20 and 00:22. One mend found by them (the spill's timing), and one by the unit (the pending precharge's life cycle).
 6. **Shown on the bench unit only:** all of it, on the Pico 2 W; the servo is owed.
+
+## 2026-11-24, 00:46: gate F.4 begun; its design proposed before any change (sent to the manager)
+
+**A precharge held across a restart** (the manager's question): answered under the sign-off's item 8 (`8d1cf09`). After a restart the first throw zeroes with the gate closed; the held precharge falls unforecast when the gate opens, and that throw can go over by up to its size. Older than this frame; no one-line mend; with item 9.
+
+**What F.4 must decide that the plan leaves open:** a powder with no calibration gives the frame none of what its rules are made from (the stops by speed, their lags and spreads, the small moves, the grains a turn). The plan names the sources:
+- the throw's own figure;
+- the unit's record when it has one;
+- a lag and a rest assumed on the slow side, found on every stand-in scale;
+- the live digit and interval.
+
+It does not say how they make the frame's numbers, and "a new mechanism goes to the owner first". So the design is proposed here, and nothing is built until it is approved.
+
+**The proposal: the learnt source, a calibration made from no measurement, then the frame as it is:**
+1. **The scale's part:** the digit is the smallest step between two readings seen (B1), the interval the scale's live rhythm (B2). The lag and the rest are the unit's record's once a calibration has measured them (gate 3). Until then they are one assumed lag for every speed and an assumed rest, on the slow side, their values found on every stand-in scale (the study below).
+2. **The figures:** each tube's grains a turn start from what the throw shows: the reading's rise over the turns made more than the lag before. Until a tube's figure exists, its powder is not forecast (as today's loop), and C19 does not apply to it (the trap of F.1). Once it exists, the parcels carry it, as calibrated parcels do.
+3. **The rules, from those alone** (no new number where an existing one serves):
+   - the coarse room is the coarse stop threshold (A6, its approved meaning for a powder with no calibration);
+   - the stop room is the glide's aim, a digit (D4);
+   - the creep is the user's fine least (A4, A14);
+   - the rest is the assumed rest;
+   - no small moves (no move was measured): a rest short by more than the band goes back to the stream, as pid_learnt's does;
+   - the speed law is the PID law (speed_law 1) on the profile's own gains, as pid_learnt's is, within the user's limits and the envelope.
+4. **What is learnt:** the fine figure at each throw's first rest, by pid_learnt's rule within its bounds (G9: a stretch under 0.01 turn teaches nothing; half to twice the figure). It is kept for the session in RAM, as pid_learnt's is, never stored until gate 3's calibration writes a record.
+5. **Gone:** the controller `pid_learnt`, its constants and copies (G3, G5, G6, G8, G10), its 1.28 s window (the frame's parcels serve, C23), the 2.0 gr a turn (G2) and the A&D's 0.9 s and 2.5 s (G1), replaced by the study's assumption.
+6. **The study, its pass written first,** on every stand-in scale (`scales_like.py`) with a fresh powder:
+   - the assumed lag and rest are the smallest values at which no scale's fresh powder's first three throws are over more often than a calibrated unit's;
+   - if no such values exist, or the throw's figure is not enough to start from, that is a finding for the owner, not a number to tune.
+
+**Its cases** (pass written with the build):
+- `uncalibrated` (every stand-in scale): each throw ends safely, no limit passed, no fault;
+- `c19_before_figure`: an uncalibrated throw is not ended "limit" by C19 before its figure exists;
+- the throw-for-throw check of both sources;
+- on the unit: a powder with no calibration thrown, and `charge_cycle`.
+
+**What it is not:** no change to a calibrated powder's path; no stored layout change; no new parameter (the assumed lag and rest are fixed numbers of the method, each with its row and its study as the reason).
