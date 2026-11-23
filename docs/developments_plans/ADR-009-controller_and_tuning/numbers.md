@@ -60,7 +60,7 @@ Every Rule, Safety and default was read again against the test above. **Nine fai
 | F6 | The prime at 1 rev/s | A speed inside the user's own range (A2, A5, A13, A14) |
 
 **What passes, and why it is not a list of settings:**
-- **The shares and counts of the method** (3 spreads, 0.6 of a lag, 15% of an error, a digit, two intervals): each multiplies something the unit measured. The measurement is the unit's; the share is how the calibration turns it into the controller's number. They are fixed, approved as one row of the register, and held to point 3 of the test.
+- **The shares and counts of the method** (3 spreads, 0.6 of a lag, 15% of an error, a digit, two intervals): each multiplies something the unit measured. The measurement is the unit's; the share is how the calibration turns it into the controller's number. They are fixed, not parameters (the register's row 10; the owner's approval of that, 2026-11-23), and held to point 3 of the test.
 - **The safety bounds:** fixed, and out of reach of the calibration, the learning and an agent by sign-off item 8.
 - **The numbers the rules make** (B10): shown wherever this unit's data is read, with what they are made from. A user or an agent changes the measurements, and the made numbers follow. They are not set by themselves: an agent setting a glide time against the lag it is made from would leave a unit that contradicts itself.
 
