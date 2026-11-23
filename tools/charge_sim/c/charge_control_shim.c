@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "charge_calibration_job.h"
 #include "charge_control.h"
 
 size_t shim_sizeof_controller(void) {
@@ -81,4 +82,14 @@ uint16_t shim_parcels(const charge_control_t *c, int tube, double *due_s, double
         grains[i] = c->parcels[tube][i].grains;
     }
     return c->parcel_count[tube];
+}
+
+
+// The calibration's measurements (gate 3): the job's size, and its measured calibration
+size_t shim_sizeof_cal_job(void) {
+    return sizeof(charge_cal_job_t);
+}
+
+charge_control_calibration_t *shim_cal_job_calibration(charge_cal_job_t *job) {
+    return &job->cal;
 }

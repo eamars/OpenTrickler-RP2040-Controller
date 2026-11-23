@@ -25,7 +25,7 @@ REPO = Path(__file__).resolve().parents[2]
 HEADER = REPO / "src" / "charge_rules.h"
 NUMBERS = REPO / "docs" / "developments_plans" / "ADR-009-controller_and_tuning" / "numbers.md"
 FILES = ("charge_control.c", "charge_control.h", "charge_calibration.c", "charge_calibration.h", "charge_mode.cpp",
-         "charge_mode.h")
+         "charge_mode.h", "charge_calibration_job.c", "charge_calibration_job.h")
 FREE = ("0", "1")           # nothing and all, a flag, the first of a list
 NUMBER = re.compile(r"(?<![A-Za-z_0-9.])(0[xX][0-9a-fA-F]+|\d+\.?\d*(?:[eE][-+]?\d+)?)[fFuUlL]*(?![A-Za-z_0-9.])")
 
@@ -90,6 +90,13 @@ ALLOWED = {
         "0.001": (1, "A19: a target on its digits' grid"),
         "50": (1, "E21: a fault's acknowledgement looked for (not control)"),
         "30": (1, "the title's length"),
+    },
+    "charge_calibration_job.c": {
+        "2": (8, "half a digit; a median's middle; the trapezoid's half"),
+    },
+    "charge_calibration_job.h": {
+        "1024": (1, "CHARGE_CAL_JOB_READINGS_MAX: a size"),
+        "24": (1, "CHARGE_CAL_JOB_RUNS_MAX: a size (F3's most moves of one size)"),
     },
     "charge_mode.h": {
         "2": (3, "an enum's value; the filler's two unused bytes (A18)"),

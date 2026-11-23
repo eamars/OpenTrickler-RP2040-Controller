@@ -22,8 +22,8 @@ import staged
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
-SOURCES = [REPO / "src" / "charge_control.c", HERE / "c" / "charge_control_shim.c"]
-HEADERS = [REPO / "src" / "charge_control.h", REPO / "src" / "charge_rules.h"]
+SOURCES = [REPO / "src" / "charge_control.c", REPO / "src" / "charge_calibration_job.c", HERE / "c" / "charge_control_shim.c"]
+HEADERS = [REPO / "src" / "charge_control.h", REPO / "src" / "charge_calibration_job.h", REPO / "src" / "charge_rules.h"]
 BUILD = REPO / "build_host"
 
 FINISHES = {"glide": 0}             # the jog went at ADR-009's gate F.5
@@ -139,6 +139,18 @@ class Library:
         lib.shim_parcels.restype = ctypes.c_uint16
         lib.shim_set_fine_learning.argtypes = [ctypes.c_void_p] + [ctypes.c_double] * 6
         lib.shim_set_pid.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
+        # The calibration's measurements (charge_calibration_job.c, gate 3)
+        self.Run = type("Run", (ctypes.Structure,), {"_fields_": [
+            ("tube", ctypes.c_uint8), ("speed_rps", real), ("run_s", real), ("watch_s", real), ("backoff", ctypes.c_bool),
+            ("backoff_turns", real), ("backoff_rps", real)]})
+        lib.shim_sizeof_cal_job.restype = ctypes.c_size_t
+        lib.charge_cal_job_begin.argtypes = [ctypes.c_void_p, real, real, k_p]
+        lib.charge_cal_job_next.argtypes = [ctypes.c_void_p, ctypes.POINTER(self.Run)]
+        lib.charge_cal_job_next.restype = ctypes.c_bool
+        lib.charge_cal_job_reading.argtypes = [ctypes.c_void_p, real, real]
+        lib.charge_cal_job_ran.argtypes = [ctypes.c_void_p, real, real]
+        lib.shim_cal_job_calibration.argtypes = [ctypes.c_void_p]
+        lib.shim_cal_job_calibration.restype = cal_p
         self.lib = lib
 
     def default_constants(self, limits=None):

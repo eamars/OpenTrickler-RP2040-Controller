@@ -87,6 +87,37 @@
 #define CHARGE_RULE_PAUSE_COARSE_DIGITS 1.0     // D23, digits: with this much coarse powder still unseen, the fine tube's
                                                 // stop is a pause
 
+// --- The calibration's form: its measurements' steps (section F; charge_calibration_job.c, gate 3) ---------------
+#define CHARGE_CAL_PRIME_COARSE_TURNS 1.0       // F6, turns: the prime's coarse run
+#define CHARGE_CAL_PRIME_FINE_TURNS 3.0         // F6, turns: and its fine run
+#define CHARGE_CAL_PRIME_RPS 1.0                // F6, rev/s: the prime's speed. The bench's; inside the user's range at gate 3
+#define CHARGE_CAL_PRIME_WATCH_S 3.0            // F6, s: each prime run watched this long
+#define CHARGE_CAL_PRIME_TRIES 5                // F6: the prime ends when two runs pour the same, after this many at most
+#define CHARGE_CAL_PRIME_SAME_SHARE 0.1         // F6: two runs pour the same within this share of the larger
+#define CHARGE_CAL_PROBE_MOVES 4                // F4: the probes, small moves of the fine tube watched long
+#define CHARGE_CAL_PROBE_TURNS 0.1              // F4, turns: each probe's move
+#define CHARGE_CAL_PROBE_WATCH_S 15.0           // F4, s: each probe watched this long
+#define CHARGE_CAL_WATCH_TIMES 1.5              // F4: every watch after is this many times the slowest probe to show,
+#define CHARGE_CAL_WATCH_EXTRA_S 1.0            // F4, s: and this,
+#define CHARGE_CAL_LEAST_WATCH_S 3.0            // F4, s: and never under this
+#define CHARGE_CAL_FIGURE_RPS 1.0               // B3, rev/s: the grains a turn's runs, from rest
+#define CHARGE_CAL_FIGURE_RUNS 3                // B3: of each tube
+#define CHARGE_CAL_COARSE_FIGURE_RUN_S 0.75     // B3, s: each coarse run
+#define CHARGE_CAL_FINE_FIGURE_RUN_S 1.5        // B3, s: each fine run
+#define CHARGE_CAL_FINE_RATES_DIGITS_S {1.0, 2.0, 4.0, 8.0, 16.0, 32.0}     // F1, digits/s: the fine ladder's flows
+#define CHARGE_CAL_FINE_COUNTS {8, 8, 4, 4, 4, 4}                           // F1: the stops at each
+#define CHARGE_CAL_FINE_RUN_S {5.0, 5.0, 3.5, 3.0, 3.0, 3.0}                // F1, s: each stop's run
+#define CHARGE_CAL_FINE_TOP_COUNT 4             // F1: stops at the fine most when the ladder ends below it,
+#define CHARGE_CAL_FINE_TOP_RUN_S 3.0           // F1, s: each this long
+#define CHARGE_CAL_COARSE_COUNTS {3, 2, 2}      // F2: the coarse stops at the least, the ends' geometric mean, the most
+#define CHARGE_CAL_COARSE_RUN_S {1.5, 1.5, 1.2} // F2, s: each stop's run
+#define CHARGE_CAL_MOVE_DIGITS {0.7, 2.5, 6.0}  // F3, digits: the small moves' sizes
+#define CHARGE_CAL_MOVE_COUNTS {24, 12, 8}      // F3: how many of each
+#define CHARGE_CAL_MOVE_WAIT_EXTRA_S 0.3        // F3, s: a move's wait is the slowest nine in ten to show, and this
+#define CHARGE_CAL_SPREAD_SHARE 0.9             // F3, F1: "nine in ten" (a stop's quiet time, a move's most and wait)
+#define CHARGE_CAL_END_WINDOW_S 0.6             // F4, s: a run's end is the median of its watch's last stretch this long
+#define CHARGE_CAL_BACKOFF_STOPS 3              // A11: the back-off's spill, from this many stops at the coarse floor
+
 // --- What a calibration must hold before a throw may use it (section B) --------------------------------------------
 #define CHARGE_RULE_COARSE_STOPS_LEAST 1        // B12: coarse stops
 #define CHARGE_RULE_FINE_STOPS_LEAST 3          // B12: fine stops

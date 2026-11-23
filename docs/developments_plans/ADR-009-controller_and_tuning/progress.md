@@ -3103,3 +3103,27 @@ On the Pico 2 W, image at `80f4bc6` and the series' cup count mended (below), fl
 - **Its pass, on the unit at the shipped defaults:** the stop placed within a digit of where 10 of the calibration's own throws then rest; and the calibration's 25 throws meet gate 2's bar.
 - **Its cost:** about 40 × 1.3 to 5 gr, within the job's 200 gr only at the lower end. The cup capacity's step (sign-off item 17) decides whether that is a figure a cup.
 - **The alternative:** rehearsals at the floor (F.2's form (a)): no far-short tail on the unit, but it failed its pass at F.2 by the time it costs at a slow creep.
+
+## 2026-11-24, 02:31: gate 3 at the desk: the calibration's measurements in C, run for run the reference's
+
+**Built:**
+- **`src/charge_calibration_job.c/.h`:** `staged.measure_on`'s steps in their order, as a state machine with no RTOS, motor, scale or allocation:
+  - the prime, the probes and their watch;
+  - each tube's grains a turn;
+  - the fine ladder and its top;
+  - the coarse stops at the user's least, the ends' geometric mean and the most;
+  - the small moves;
+  - the coarse share;
+  - the back-off's spill when the user's back-off is on.
+  
+  It asks its caller for one run at a time (`charge_cal_job_next`) and takes the run's readings and turns back (`charge_cal_job_reading`, `charge_cal_job_ran`). Its fixed numbers are `CHARGE_CAL_...` in `charge_rules.h`, each named in its row (F1 to F4, F6, B3, A11); `check_numbers.py` passes.
+- **`check_calibration_job.py`:** the reference measures on a bench whose runs are kept, and the C is given the same runs in order.
+  - **On every stand-in scale, at the simulation's stand-in user, the default profile's limits, and those with the back-off on:** 21 sets, every one the same to a part in ten thousand: the runs asked, every stop, move and figure.
+  - **On the unit's own readings:** the F.2 trials' kept runs (`20261123_232157_..._f2`, `20261123_235643_..._f2a`), measured again at their own limits, the same too.
+  - The older trials are of an earlier form (fixed coarse speeds), and `f2c` holds rehearsals only: not measured again, and said.
+- The Pico 2 W image builds with it.
+
+**Not built, and why:**
+- **The job on the unit** (its activity in `jobs.c`, the cup step, its screen while it runs, its bounds and stop): what it shows while it runs, and the cup step, are gate 4's to draw first (design gates before build gates). It goes on the owner's morning list with gate 4's mocks.
+- **F6's prime speed inside the user's range, C1's moves at a speed from the measured ladder, and B3's "grains a turn as a throw uses them"** are decided rows that change the reference and the C together. They are built in the next step, the check above holding them in step.
+- **Proposals L and R** wait for the manager.
