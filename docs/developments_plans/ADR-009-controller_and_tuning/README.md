@@ -143,6 +143,20 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 - **Pass:** a series' throws read through the API are row for row the console's; `api_check` passes with the recordings in the index; `soak --load` with a recording's real size shows no late step feed and no failed allocation; the RAM a recording takes is written in `progress.md`. The Pico W's figures are gate 7's.
 - **Passed on the Pico 2 W, 2026-11-23, 20:16** (`progress.md`): `recordings_check`, `api_check` and `soak 300 --load` each `VERDICT PASS`. The Pico W's recordings come from its heap for the charge, decided by the manager at 19:40; its run is gate 7's.
 
+### Found while building: the two blind spots gate S names are not in the recordings
+
+- **What the plan says:** gate S models two blind spots: the scale's lag growing at a low flow (the learnt figure 1.2 to 2.1 gr a turn against the simulation's 0.75), and the stop's spread growing as the approach shortens (the glide 0.035 gr, the offer 0.058).
+- **The model-source recordings** (2026-11-22 before 18:00) **show neither** (`progress.md`, 2026-11-23, 20:35 to 20:51):
+  - **No lag growing at a low flow.** The calibration of 16:46 measured the fine tube's lag at 0.90, 0.63, 0.70, 0.90, 0.91 and 0.93 s, from 0.025 to 0.5 rev/s.
+    - The "1.2 to 2.1 gr a turn" was `pid_learnt`'s learnt figure, not a lag.
+    - What arrives after a throw's fine stop is the same 0.080 gr whether the tube stopped from 0.028 rev/s (`pid_learnt`, 19:51) or from 0.058 (the glide). So it follows the stream before the stop, not the speed at it.
+    - `pid_learnt` divides it by the turns of its 0.9 s window at the creep, so its figure climbs from throw to throw (1.0 to 2.06 at 19:51). Its coarse tube then stops about 0.6 gr early against the simulation, not 2.5 gr.
+  - **No spread growing as the approach shortens.** The glide threw approaches as short as the offer's: its first rests spread by 0.042 to 0.059 gr at about 4 s (`glide002_d`, `mvp_*`), and by 0.037 to 0.057 gr at 6.6 to 9.8 s. The night's offer, 0.055 to 0.058, is inside the day's range.
+- **What the simulation did miss: the calibration, not the rig.** Its controllers calibrated their own rig, while every series on the rig ran on a calibration the PC had made (lags shifted, figures from the throws). Replayed on the unit's own calibration and constants (`replay.py`), the record of 11-20 reproduces the day's series' good and overs on 15 of 16.
+  - The record of 11-20 against the rig of 11-22: grains a turn 8.97 and 0.751 against 10.19 and 0.814; a coarse stop's spread a third of the rig's; the rest 1.82 against 2.60 s.
+  - A record rebuilt from 11-22's own stops fits worse, 1 of 16: the trial's 4 stops a speed are too few to solve the fine tube's bursts from.
+- **Neither curve is modelled.** A model of what the data contradicts would mislead every gate after it (the manager, 2026-11-23). Gate S's aim and bar are unchanged.
+
 ### Gate S: the simulation from the night's data
 
 **Before it:** the checklist above, answered in `progress.md`.

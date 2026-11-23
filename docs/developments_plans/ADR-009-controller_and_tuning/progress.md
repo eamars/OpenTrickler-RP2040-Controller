@@ -2003,3 +2003,35 @@ The day's one other pair of like runs agrees: s1 and s3 of 17:34 and 17:46, one 
 - **The rig misses its own bar too:** `glide004_e` and `mvp_fast10` ran on one calibration and the same constants, and the rig gave 9.2 and 8.2 s.
 
 **So the model is the record of 11-20 with the unit's own calibration.** The record of 11-22 is kept, named as not chosen, and not used. The night is judged on this once.
+
+## 2026-11-23, 20:51: gate S, the night judged once; stopped: three arms the plan needs miss the median's bar
+
+**The night on the record of 11-20, each arm on its unit's own calibration and constants** (`replay_study.py --night`, 400 throws an arm; `fit/study_20261123/night_replay.txt`):
+
+| Arm | The rig: good / over / median | The simulation | Verdict |
+|---|---|---|---|
+| abba, glide | 18 / 2 / 10.9 s | 15.3 / 4.7 / 11.8 s | median +0.9 s |
+| night, glide | 15 / 5 / 11.0 s | 15.6 / 4.4 / 11.2 s | reproduced |
+| coarse, glide | 16 / 4 / 11.2 s | 16.4 / 3.6 / 11.8 s | reproduced |
+| frame, glide | 19 / 1 / 11.4 s | 16.6 / 3.4 / 11.7 s | reproduced |
+| ownstop, glide | 16 / 4 / 10.7 s | 16.1 / 3.9 / 11.6 s | median +0.9 s |
+| offer, glide | 15 / 4 / 10.9 s | 17.1 / 2.9 / 11.8 s | median +0.9 s |
+| offer2, glide | 19 / 1 / 11.2 s | 15.9 / 4.1 / 11.5 s | reproduced |
+| frame, the PID law (the owner's fine gains) | 17 / 3 / 10.5 s | 16.1 / 3.9 / 10.6 s | reproduced |
+| ownstop, the PID law (the bench unit's stored gains) | 15 / 5 / 12.1 s | 14.3 / 5.7 / 12.8 s | median +0.7 s |
+| offer, the PID law (the offer) | 14 / 6 / 9.3 s | 16.7 / 3.3 / 10.0 s | median +0.7 s |
+| offer2, the PID law (the offer) | 15 / 5 / 8.2 s | 15.9 / 4.1 / 9.1 s | median +0.9 s |
+| abba, `pid_learnt` least 0.1 | 14 / 5 / 13.7 s | 16.9 / 3.0 / 11.8 s | median −1.9 s |
+| night, `pid_learnt` least speed learnt | 16 / 4 / 15.5 s | 17.0 / 3.0 / 12.4 s | median −3.1 s |
+| coarse, `pid_learnt` coarse from the calibration | 19 / 1 / 14.8 s | 16.6 / 3.3 / 9.9 s | median −4.9 s |
+
+**Against the bar of 20:32: 5 of 14 reproduced.**
+- **Good and overs are within the rig's own spread on all 14.**
+- **The medians:** the glide's are 0.3 to 0.9 s long, and the PID law's 0.1 to 0.9 s long (those past 0.7 s miss). `pid_learnt`'s are 1.9 to 4.9 s short.
+- **The arms the plan needs:** 4 of the glide's 7 reproduced, and 1 of the PID law's 4. Every miss among them is the median, by 0.7 to 0.9 s, the simulation slower than the rig.
+
+**The coarse arm's early stop, from the recordings:** it is not a lag growing at a low flow. On the rig 0.080 gr arrives after the fine tube's stop whether it stopped from 0.028 rev/s (`pid_learnt`) or from 0.058 (the glide). `pid_learnt` reads it through the turns of its 0.9 s window at the creep, so its figure climbs over the run (1.00 to 1.48, then 1.58 to 2.06), and with it its least speed falls. On the rig the coarse tube poured 5.5 to 5.8 gr of the 10, in the simulation 6.3: about 0.6 gr, not 2.5. In the simulation the glide's after-stop arrival is near the rig's (0.100 against 0.080 gr). `pid_learnt`'s figure settles there (4.0 to 1.21), so it stops from 0.055 rev/s, not 0.028, and is quicker. The miss is `pid_learnt`'s own learning, which goes at F.4; no mechanism is added to the simulation for it.
+
+**Stopped here, at the manager's rule:** an arm the plan needs is still missed. The model is not iterated against the arms it is judged on, and the offer's trade is not judged on a simulation that has not passed.
+- **Not hidden:** before the replay was built, the night was run once on the record of 11-22 with the simulation's own calibration (`night_1122.txt`, 0 of 14). The record was chosen on the day's series alone, as written at 20:48.
+- **Not done:** the offer's trade.
