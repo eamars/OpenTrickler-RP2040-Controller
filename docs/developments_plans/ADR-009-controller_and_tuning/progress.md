@@ -2713,3 +2713,46 @@ The cup's ledger: 371.34 to 471.62 gr (most 140). The next run that pours needs 
 **The cases, added to 00:20's:**
 - `backoff_changed`: a spill measured at 0.25 turn and 1 rev/s, a charge with 0.5 turn: the coarse room is A6's, and the start says so;
 - `backoff_measured`: with the spill measured as set, the forecast counts it, and the first errors are no worse than with the back-off off (the good share within the seed spread). The simulation's tube has a reverse spill (its record's `reverse_spill_gr`), set for this case to the bench record's 0.83 gr.
+
+## 2026-11-24, 00:36: F.3 built at the desk; its cases pass in the simulation
+
+**Built** (`8ef1092`, `5acb032`, `9de93f0`, `e81d367`), in the reference and the C together:
+- the back-off made by the frame at the coarse stop: the coarse tube asked for −A11's speed for A11's turns' time, no coarse parcel made meanwhile;
+- the spill forecast as one coarse parcel, a back-off stop's mean arrival less a held stop's, due once the turn back is over and the coarse floor's lag;
+- the coarse room from the larger of the two stops' spreads;
+- the fallback to A6 when the spill was not measured as the back-off is set, said at the charge's start;
+- the precharge given to the next throw's controller (`charge_control_precharge`);
+- the rest held for the gate's move at the coarse stop (`gate_coarse_s`, the gate's own travel).
+
+**In the charge:**
+- the gate opened and waited by its travel before the staged throw's tubes start;
+- its move to A10 at the coarse stop;
+- the close waited, E10's 500 ms, then the precharge into the closed gate, its turns counted by the unit's steps once its tube has stopped (at most 3 s, `CHARGE_PRECHARGE_STOP_MOST_MS`);
+- `servo_gate_travel_s` gives a move's time at the gate's own speeds.
+
+**The record, version 3:** 404 → 420 B, v2 migrated at the first start (the README's "Stored layout changes"); the four fields in the records' table with their bounds.
+
+**The measurement:**
+- `staged.measure_backoff`, three stops from the coarse floor with the user's back-off; `measure_on` runs it when the user's back-off is on;
+- the benches' `creep_stop` takes the back-off's turns and speed;
+- the trial's `--measure-backoff` writes the four fields alone through the API, and compares the record's other fields.
+
+**Found and mended in the simulation:** with the spill due at the stop plus the lag, the measured back-off cost overs (22 good, 18 over in 40, against 31 and 8 with it off). The spill is shaken off while the tube turns back, so it is due once the turn back is over, and the lag. After the mend: 28 and 12.
+
+**The cases** (`f3_cases.py --throws 10`, 4 seeds, the night's record, the coarse tube's reverse spill the bench's 0.83 gr; the reference and the C in lockstep, no difference in any case):
+- `backoff_unmeasured`: the coarse room 5.000 (C 5.000), fallback said. **PASS.**
+- `backoff_changed`: measured at 0.25 turn, set to 0.5: the same. **PASS.**
+- `backoff_measured`: 28 good and 12 over in 40, against 31 and 8 with the back-off off, within 2 a seed on both. **PASS.**
+  - A split (4 seeds, `Session`): off 30 and 10; on with the spill forecast 28 and 12; on with it not forecast 21 and 19. The forecast does its work.
+  - The back-off itself costs a little in this plant: its spill's spread, about 0.25 gr, is the fine stage's to absorb.
+- `precharge` (0.2 s at 2 rev/s, about 4 gr, into the gate, counted in the next throw): 30 good and 10 over, against 31 and 8 without. **PASS.**
+- `gate_at_coarse_stop` (the move taken as 15 s, longer than any rest, so the hold itself is shown): the first verdict 15.001 to 16.891 s after the coarse stop. **PASS.**
+
+The throw-for-throw check: 40/40 on all 8 sets. `check_numbers.py` PASS.
+
+**Waiting for the cup** (471.62 gr), then on the unit:
+1. `trial.py --measure-backoff` against the kept calibration (about 5 gr), the record's other fields shown unchanged;
+2. `charge_cycle` with the back-off on (its spill now measured), and with the gate and the precharge on (no servo fitted: the waits seen in the console's times);
+3. `menu_tour --compare`.
+
+The servo seen moving is owed.
