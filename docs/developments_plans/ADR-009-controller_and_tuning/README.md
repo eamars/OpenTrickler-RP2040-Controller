@@ -231,7 +231,8 @@ Five steps (new: the steps were approved, their list is this plan's). Each is ma
   - **One interval:** the scale's rhythm measured live (B2).
   - **The forecast's window** covers the longest lag in the record, and a lag beyond it is said, never cut silently (C23).
   - **The simulated scale teaches nothing.**
-  - **Pass:** the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no fault); the slowest stand-in scale's lag kept whole; on the unit, a powder with no calibration thrown, and `charge_cycle`.
+  - **C19 before a figure exists** (handed on by F.1, the manager, 2026-11-23): C19's bound is 0 turns with no figure, so as built at F.1 an uncalibrated throw would end "limit" at its first fine turn. Its form is decided here, with the learnt figure in hand: no powder covers a tube that shows nothing, and C19 applies once a figure exists.
+  - **Pass:** the throw-for-throw check for both sources; a powder with no calibration thrown in the simulation on every stand-in scale ends each throw safely (no limit passed, no fault); **an uncalibrated throw is not ended "limit" by C19 before a figure exists** (its case, in the simulation and on the unit); the slowest stand-in scale's lag kept whole; on the unit, a powder with no calibration thrown, and `charge_cycle`.
 - **F.5, one controller to the user.**
   - **Out of the API and the screens:** `controller` and `mode` (A18). The envelope is always on (C22).
   - **Gone:** the jog finish (C6, D5, D11); the clamps that never act (D1, D7's and D8's limits; D3 in words); the bench's three leftovers that N.3 found without effect (C16's 0.4 s, D9's 0.2 gr, D10's 0.3 s); the second of waiting before the verdict (E9); `ccon`'s writes (it lists).
