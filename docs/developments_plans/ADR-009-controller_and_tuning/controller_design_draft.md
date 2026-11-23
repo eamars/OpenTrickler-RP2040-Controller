@@ -51,6 +51,7 @@ Status: **Draft** 2026-11-22, 19:45 NZDT. Not approved, and nothing here is buil
   - **Accuracy:** the PID 19 of 20 settled good, 1 over, against the glide's 16 and 4.
   - **Time:** 14.8 s against 11.2 s, the bulk still 3 s longer.
   - **Why:** the coarse tube stopped about 2.5 gr early. The fine tube's powder in the air at 2 rev/s was forecast with the figure learnt at the creep, and the A&D lags longer at a low flow. So the lag at every speed does cost time, through the predictor.
+    - **Corrected 2026-11-23 (gate S):** the recordings show no lag growing at a low flow. The same 0.080 gr arrives after a stop from 0.028 rev/s as from 0.058; the climbing figure is `pid_learnt`'s window arithmetic; the coarse tube stopped about 0.6 gr early, not 2.5 (README, "Found while building: the two blind spots gate S names are not in the recordings").
 - **A learnt figure and a least speed set from it pull on each other** on a scale that lags longer at low flow (the A&D: the figure 1.18 to 1.39, the least speed 0.043 to 0.032 rev/s, about 1 s of approach). It needs a bound.
 - **PID gains do not carry from rig to rig:** the owner's .168 gains gave 10% good within 0.02 gr on this rig in the simulation, the bench unit's own 0% (`research/pid_and_staged_2026-11-22.md`).
 

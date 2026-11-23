@@ -118,6 +118,7 @@ Read here as:
 - **`tools/charge_sim/recordings/`:** 53 series of the unit's own controller (11-21 and 11-22), each throw's line and rows. The 29 of 11-22 night are listed by block, with their gains, in the recordings' README.
 - **What the simulation must learn from them (gate S):**
   - the A&D's lag grows at a low flow (the rig's learnt figure 1.2 to 2.1 gr a window-turn, the simulation's 0.75);
+    - **Corrected 2026-11-23 (gate S):** the recordings show no lag growing at a low flow. The same 0.080 gr arrives after a stop from 0.028 rev/s as from 0.058; the climbing figure is `pid_learnt`'s window arithmetic; the coarse tube stopped about 0.6 gr early, not 2.5 (README, "Found while building: the two blind spots gate S names are not in the recordings").
   - the stop's spread grows as the approach shortens (the glide 0.035, the offer 0.058 gr).
 - **What the calibration job must measure on every unit (gate 3):**
   - the lag at every flow down to the creep;
@@ -157,6 +158,7 @@ The cause: without a calibration the PID stops at its least speed (0.1 rev/s her
 - **Accuracy beat the glide:** 19 of 20 settled good, 1 over, against 16 and 4.
 - **Time failed:** 14.8 against 11.2 s.
 - **The cause:** the coarse tube stops about 2.5 gr early. The fine tube's powder at 2 rev/s is forecast with the creep's learnt figure (1.48 to 2.06), and the A&D lags longer at a low flow. The simulation's scale does not, and missed it.
+  - **Corrected 2026-11-23 (gate S):** the recordings show no lag growing at a low flow. The same 0.080 gr arrives after a stop from 0.028 rev/s as from 0.058; the climbing figure is `pid_learnt`'s window arithmetic; the coarse tube stopped about 0.6 gr early, not 2.5 (README, "Found while building: the two blind spots gate S names are not in the recordings").
 - **Next, proposed:** the PID law on the glide's own predictor (lags by flow), with a scale in the simulation that lags longer at a low flow.
 
 **A fourth run (20:13 to 20:25), the owner's option 2:** the PID law in the staged frame (`ccon speed_law=1`, `charge_control.c`, checked throw for throw), the owner's fine gains, the coarse tube's from the calibration.

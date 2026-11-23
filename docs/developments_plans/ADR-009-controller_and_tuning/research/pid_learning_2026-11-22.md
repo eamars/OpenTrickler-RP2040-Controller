@@ -283,6 +283,7 @@ Recordings: `logs/adr009/20261122_195132_series_coarse_g1`, `_195425_series_coar
 - **The coarse tube stopped early.** At 0.5 s the forecast stood at 8.3 gr, the coarse tube's stop at 8.57, and the coarse tube stopped at 0.74 s. What it had poured landed at about 6.8 gr.
 - **The forecast was high by the fine tube's powder in the air at speed.** The fine tube ran at 2 rev/s and was forecast with the figure learnt at its creep: 1.48 gr a turn of its window, so about 2.7 gr in the air, where about 1 gr was (0.8 gr a turn × about 0.6 s).
 - **The A&D lags longer at a low flow,** so a figure learnt at the creep overstates the powder in the air at speed. Over P2 it climbed further (1.48 to 2.06) and the least speed fell to 0.028 rev/s.
+  - **Corrected 2026-11-23 (gate S):** the recordings show no lag growing at a low flow. The same 0.080 gr arrives after a stop from 0.028 rev/s as from 0.058; the climbing figure is `pid_learnt`'s window arithmetic; the coarse tube stopped about 0.6 gr early, not 2.5 (README, "Found while building: the two blind spots gate S names are not in the recordings").
 - **The result is a forecast that errs high:**
   - every stop comes early and slow, which is why accuracy is the best of the night (first rests' spread 0.034 in P2) and the time the worst;
   - the fine tube then made up 2 to 3 gr at its P approach.

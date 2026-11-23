@@ -1,6 +1,6 @@
 # ADR-009: one controller, every throw recorded, automatic tuning on top
 
-Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23; N.2 is proven on the Pico 2 W. The Pico W links again (2026-11-23, "Found while building" in the plan). N.2 was proven on the Pico 2 W the same evening (flash, `menu_tour --compare`, `charge_cycle`, `pulses`). The next work is gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0, 1 and 2 are done, gate 2's recordings since 2026-11-23 on the Pico 2 W. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
+Status: **Open** since 2026-11-21. **Ready to build** (2026-11-23, 17:54): the owner approved the parameter register, which closes gate N's documents and gate D. Gate N is done: its two desk steps, N.2 and N.3, were built on 2026-11-23; N.2 is proven on the Pico 2 W. The Pico W links again (2026-11-23, "Found while building" in the plan). N.2 was proven on the Pico 2 W the same evening (flash, `menu_tour --compare`, `charge_cycle`, `pulses`). The next work is gate 2's rest. It is the implementing agent's: `research/HANDOVER.md`, its top section. The sign-off, what ADR-009 delivers, is final since 2026-11-22. The one plan is "What we do: the build plan" below. Gates 0, 1 and 2 are done, gate 2's recordings since 2026-11-23 on the Pico 2 W; gate S is done with its time bar not met, its bias the simulation's known limit. The plans this one was gathered from are kept in [history.md](history.md), a record. The research is in `research/` and `progress.md`. Drafted 2026-11-13.
 
 ## Where ADR-009 stands (read this first; it wins over every other page and section)
 
@@ -163,8 +163,13 @@ One plan, in order. It gathers the gates the owner approved on 2026-11-21 and 20
 
 - From the recordings (`tools/charge_sim/recordings/`, the series of 11-21 and 11-22), model the two blind spots the rig found:
   - the scale's lag growing at a low flow (the rig's learnt figure 1.2 to 2.1 gr a turn of the window, the simulation's 0.75);
+    - Checked 2026-11-23: neither blind spot is in the model-source recordings, and neither is modelled ("Found while building: the two blind spots gate S names are not in the recordings", above).
   - the stop's spread growing as the approach shortens (the glide 0.035 gr, the offer 0.058 gr).
 - **Pass:** the simulation reproduces the night's ABBA results, each run's good, overs and median within the spread that like runs on the rig showed among themselves. That spread is taken from the recorded series and written in `progress.md` before the run (two glide runs alike differed by 3 good throws in 20). Then the offer's trade is judged in the simulation, not on a unit.
+- **Done 2026-11-23, its time bar not met** (`progress.md`, 20:32 to 20:58):
+  - good and overs reproduced on all 14 of the night's arms;
+  - the medians on 5. The simulation's rig (`records/pico2w_ar2209_night.json`: the record of 11-20, the day's grains a turn) is quicker than the night's rig by about a second (−1.3 to +0.2 s an arm), the rig's evening drift, which the day's recordings do not hold. That is the simulation's known limit;
+  - **the offer's trade,** judged within each ABBA pair: about 2 s a throw saved, no cost in good or overs; F.5's bars met in the simulation. F.5's ABBA on the rig is its proof.
 
 ### Gate R: the records, and nothing lost
 

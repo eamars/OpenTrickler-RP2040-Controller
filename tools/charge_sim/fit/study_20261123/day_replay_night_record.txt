@@ -1,0 +1,19 @@
+--day: 400 throws a series, sessions of 25, judged at each series' band; counted for 20 throws
+pico2w_ar2209_night: series                          rig good/over/median  sim good/over/median  verdict
+              glide002_c_lagshift              11.2 /  8.0 /  13.7 s   13.1 /  6.3 /  12.2 s  missed: median
+              glide002_d_yields                16.0 /  4.0 /  11.7 s   12.8 /  6.9 /  11.3 s  reproduced
+              glide004_e                       16.0 /  4.0 /   9.2 s   15.4 /  4.4 /   8.7 s  reproduced
+              mvp_accurate10                   14.0 /  6.0 /  12.2 s   12.8 /  6.9 /  11.3 s  missed: median
+              mvp_fast10                       18.0 /  2.0 /   8.2 s   15.4 /  4.4 /   8.7 s  reproduced
+              mvp_accurate20                   11.0 /  9.0 /  13.8 s   12.8 /  6.7 /  10.9 s  missed: median
+              mvp_fast20                       18.0 /  2.0 /  12.5 s   15.4 /  4.3 /   8.7 s  missed: median
+              fine5_learn_off                  15.0 /  4.0 /  12.0 s   15.6 /  4.2 /  13.4 s  missed: median
+              fine5_learn_on                   18.0 /  2.0 /  13.4 s   14.4 /  5.4 /  12.4 s  missed: median
+              fine5_split                      17.0 /  3.0 /  12.1 s   14.4 /  5.4 /  12.4 s  reproduced
+              fine5_off2                       14.0 /  5.0 /  12.9 s   15.6 /  4.2 /  13.4 s  reproduced
+              fresh5_learn_off                 12.0 /  7.0 /  14.0 s   15.6 /  4.3 /  13.8 s  reproduced
+              fresh5_learn_on                  16.0 /  4.0 /  12.1 s   14.6 /  5.4 /  12.7 s  reproduced
+              carry5_s1_fresh                  17.0 /  3.0 /  13.9 s   16.6 /  3.4 /  13.9 s  reproduced
+              carry5_s2_carried                18.0 /  2.0 /  13.5 s   15.3 /  4.7 /  13.7 s  reproduced
+              carry5_s3_fresh                  13.0 /  7.0 /  14.2 s   16.6 /  3.4 /  13.9 s  reproduced
+pico2w_ar2209_night: 10 of 16 reproduced

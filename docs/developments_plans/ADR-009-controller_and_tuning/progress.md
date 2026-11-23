@@ -1643,6 +1643,7 @@ The first run's cause, mended the glide's way with no calibration: the fine tube
   - the PID 19 of 20 settled good, 1 over, 14.8 s; the glide 16 good, 4 over, 11.2 s.
   - Accuracy passes and beats the glide; the mechanism (bulk 6.2 against 3.2 s) and time (+3.6 s) fail.
 - **The cause:** the fine tube's powder in the air at 2 rev/s forecast with a figure learnt at the creep (1.48, then 2.06), where the A&D lags longer, so the coarse tube stopped about 2.5 gr early. The simulation's scale does not lag longer at a low flow and missed it.
+  - **Corrected 2026-11-23 (gate S):** the recordings show no lag growing at a low flow. The same 0.080 gr arrives after a stop from 0.028 rev/s as from 0.058; the climbing figure is `pid_learnt`'s window arithmetic; the coarse tube stopped about 0.6 gr early, not 2.5 (README, "Found while building: the two blind spots gate S names are not in the recordings").
 - **Next:** the PID law on the glide's own predictor (option 2).
 - The bench left at `controller=staged`, the profile, the charge settings and `cpid` as stored or default.
 
@@ -2054,3 +2055,43 @@ The day's one other pair of like runs agrees: s1 and s3 of 17:34 and 17:46, one 
 - **So `records/pico2w_ar2209_night.json` is the record of 11-20 with both tubes' grains a turn the day's,** named in its sources as measured from that session's maps. Nothing else changes: the scale, the bursts, the lates and the settling stay 11-20's.
 - **What it should do:** the bulk about 0.5 s quicker, the approach and rest as they were, and the night's glide and PID-law medians shorter by about as much. That is a prediction, not a bar: the bar is 20:32's.
 - **Its check before the night:** the day's replay on it (`replay_study.py --day`). Then the night once (`--night`), and no second mend.
+
+## 2026-11-23, 20:58: gate S's round, judged; the time bias as the simulation's known limit; the offer's trade
+
+**The day, on the mended record** (`records/pico2w_ar2209_night.json`, 20:54's mend; `fit/study_20261123/day_replay_night_record.txt`, `day_phases_night_record.txt`): 10 of the 16 series reproduced (8 before), good and overs within the bar on all 16; the bulk +0.13 s (+0.51 before), the approach −0.70 s, the rest +0.01 s. The mend did what it was written to do.
+
+**The night, judged once more** (`night_replay_night_record.txt`, 400 throws an arm; at 2,000 throws an arm the same, `night_replay_2000.txt`): **5 of 14 reproduced again, now the other way.** Good and overs are within the bar on all 14; the glide's and the PID law's medians are now short.
+
+**The verdict of gate S, the bar kept:** the time bar is not met, on 9 of the 14 arms (7 of the 11 the plan needs). Good and overs are met on all 14.
+
+**Why the round cannot close it, from the recordings:** the rig was about 1 s slower at night than in the afternoon for the same controller. `mvp_fast10` and `glide004_e` threw the glide at 10 gr in the fast mode in 8.2 and 9.2 s; the night's glide arms took 10.7 to 11.4 s. The carry's sessions of 17:34 to 17:52 had already found the rig drifting within twelve minutes. A model made from the day reproduces the day, and no recording before 18:00 holds the evening's drift. No second mend was made.
+
+**The simulation's known limit: its time bias per arm, the simulation less the rig** (2,000 throws an arm, the mended record):
+
+| | abba | night | coarse | frame | ownstop | offer | offer2 |
+|---|---|---|---|---|---|---|---|
+| glide | −0.6 s | −1.0 s | −0.8 s | −1.3 s | −0.4 s | −0.6 s | −1.1 s |
+| PID law in the frame | | | | −1.2 s | +0.2 s | −0.9 s | −0.1 s |
+| `pid_learnt` (goes at F.4) | −2.0 s | −2.8 s | −5.3 s | | | | |
+
+The glide's and the PID law's are −1.3 to +0.2 s, median −0.8 s: the simulation is quicker than the night's rig by about a second, for both laws alike. Its absolute times are not to be quoted for the rig. The absolute time verdict is the rig's: F.5's ABBA and gate 3's pass are thrown there.
+
+**The offer's trade, judged in the simulation within each ABBA pair** (2,000 throws an arm, per 20 throws, the offer less the glide; a drift common to both arms of a pair cancels):
+
+| Pair | Good | Over | Median | The rig, the same pair |
+|---|---|---|---|---|
+| offer (21:01) | +0.1 | 0.0 | −1.9 s | −1 / +2 / −1.6 s |
+| offer2 (21:14) | +0.1 | −0.1 | −2.0 s | −4 / +4 / −3.0 s |
+
+- **In the simulation the offer saves about 2 s a throw at no cost in good or overs.** A difference of 0.1 throw in 20 is within its own error: about 0.25 throws in 20 on each, at 2,000 throws.
+- **Against F.5's bars** (the controller against the glide's pour: settled good at most 2 fewer in 20, overs at most 1 more, the median at most 2.5 s longer), the offer meets all three in the simulation.
+- **On the rig the offer's pairs gave 2 and 4 more overs.** That is within the rig's own run-to-run spread of 4 in 20 (20:32), so 20 throws a pair cannot tell it from none.
+- **The time saved** is the same in the simulation as on the rig within about 1 s: −1.9 and −2.0 against −1.6 and −3.0. The bias above is the same for both arms of a pair to within 0.5 to 1.0 s.
+- **Not shown by the simulation:** a wider stop for the offer than for the glide. The day's recordings show none, so none is modelled. Whether the rig's extra overs are real is F.5's ABBA to say, on the rig.
+
+**The records, as the manager asked:**
+- **The simulation's rig is `pico2w_ar2209_night`:** the record of 11-20 with the day's grains a turn. The record of 11-20 is the base because it is the one built from enough stops to solve the tubes' bursts; the day's grains a turn because the day's bulk shows them.
+- **`pico2w_ar2209_1122`,** built from the day's stops alone, is kept as built, with its result of 1 of 16, and is not used.
+- **The 2.5 gr early coarse stop** is corrected where it was relied on: gate S's text and the README's finding, with pointers left in the history (this file's 19:51, `research/pid_learning_2026-11-22.md`, `research/HANDOVER.md`, `controller_design_draft.md`).
+
+**Gate S is done, its time bar not met.** Its known limit (the bias above) is the simulation's, named for every gate after it. The offer's trade is judged within the pairs: it costs nothing the simulation can see, and F.5's ABBA on the rig is its proof.
