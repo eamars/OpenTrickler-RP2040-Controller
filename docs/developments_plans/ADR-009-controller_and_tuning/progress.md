@@ -2513,7 +2513,7 @@ On the Pico 2 W, image 2.0.3-237 at `71d48c1`, the cup emptied by the owner befo
 - overs fewer than 7 of 10.
 - The pass is the tail gone and the room placed as predicted. The over count is a figure: with the owner's fine top of 3 the simulation still expects about a third over.
 
-## 2026-11-23, 23:58: F.2, the lead-in fails its pass in the simulation; stopped and asked
+## 2026-11-23, 23:50: F.2, the lead-in fails its pass in the simulation; stopped and asked
 
 The form of 23:48 (the fine tube at its floor until a reading shows powder arriving, then the stream law) was built in the reference and the C, uncommitted, and studied before any unit run (6 seeds, the rehearsals as they were against the lead-in, then 10 × 10 gr):
 - **the night's record, the simulation's user:** stop room +0.020 → +0.022, good 44 → 42 of 60. No difference.
@@ -2523,3 +2523,47 @@ The form of 23:48 (the fine tube at its floor until a reading shows powder arriv
   - (a) a rehearsal capped at the speed a throw's fine tube has at its stop, the floor, so the reading catches a cold start long before the stop;
   - (b) F6's coarse room's size;
   - (c) leaving the form for gate 3.
+
+## 2026-11-23, 23:51: F.2, form (a) (the manager's decision): a rehearsal at the floor; its pass first
+
+**The owner, on the bench unit's limits:** "My stored value should the old default, and you are free to overwrite any data on this unit. I have never used this unit before." The bench unit is given what a new user gets: the current shipped defaults, read from the code:
+- profile 0 (`profile.c`): coarse 0.1 to 5, fine 0.08 to 5 rev/s;
+- the motors (`motors.c`): coarse least 0.08, fine least 0.01, both max 5.
+- The limits are then coarse 0.1 to 5 and fine 0.08 to 5. Only those speed fields are written and saved, after a settings copy; no factory reset.
+
+**The form (a):** a rehearsal's fine tube runs at the floor the frame uses (the higher of the creep and the user's least), never faster: the stream law's top in a rehearsal is the floor.
+- **Why:** a throw's fine tube comes to its stop from the floor, and a 1 gr rehearsal at the floor lasts many lags, so the reading has shown how the tube pours before the stop is taken.
+- No new number. The lead-in of 23:48 is reverted, not kept beside it.
+- **What it places:** the stop of a law that comes to rest from the floor, the glide. The PID law's stop speed may differ; it is covered by its own carried stop (the law of gate R's list), and F.5 checks that the PID law's first carry is taken whole.
+
+**Its pass, in the simulation** (6 seeds; the rehearsals at the stream law's top as now, against (a); then 10 × 10 gr):
+- on the night's record, within the simulation's user: no difference beyond the seed spread, in the good share or the stop room;
+- on this rig's record (`pico2w_ar2209_f2`), within the shipped limits: the stop room within the old range, and no new far-short rests.
+- **If it fails:** stop. The form then waits for gate 3's spread-against-approach data (option c), and F.3 to F.5 run on a calibration with its late stop written beside every rig figure.
+- The simulation's prediction for the series at the shipped limits is the (a) row's good and over per 60.
+
+## 2026-11-23, 23:54: F.2, form (a) in the simulation; the shipped limits written
+
+**The simulation** (6 seeds each; the rehearsals at the stream law's top against (a); then 10 × 10 gr):
+
+| record, limits | rehearsals | each seed's lowest first rest (digits) | stop room placed, mean (sd) | good / 60 | over |
+|---|---|---|---|---|---|
+| `pico2w_ar2209_f2`, shipped (coarse 0.1 to 5, fine 0.08 to 5) | at the top | −9, −4, −10, −4, −6, −3 | +0.003 (0.010) | 48 | 11 |
+| the same | (a) at the floor | −5, −3, −4, −3, −5, −3 | +0.013 (0.023) | 48 | 11 |
+| `pico2w_ar2209_night`, the simulation's user | at the top | −7, −6, −4, −6, −4, −3 | +0.020 (0.017) | 44 | 16 |
+| the same | (a) at the floor | −3, −3, −3, −2, −2, −3 | +0.038 (0.013) | 47 | 13 |
+
+**Against the pass of 23:51, read as written:**
+- "no new far-short rests": met. (a) narrows the rehearsals' short tail on both records.
+- "on the night's record no difference beyond the seed spread": the good share is within it; **the stop room moved +0.018**, about one seed's spread. At the margin.
+- "on this rig's record the stop room within the old range" (−0.01 to +0.02): **one seed of six at +0.05, above it.** At the margin.
+
+**So by its letter the pass is failed at the margin, and asked of the manager.**
+- **What it shows:** the simulation has no cold start, but its rehearsals at the stream law's top rest short too (to −10 digits), and (a) removes that. The stop is placed about a digit earlier, with the good share equal or better.
+- **The pass's wording was wrong** in expecting no difference: it assumed the short bias was only the unit's cold start.
+- **The simulation's prediction for F.2's re-run at the shipped limits** is the (a) row: about 48 good and 11 over in 60 (8 good in 10).
+
+**The shipped limits, written** (23:52, after `settings --save logs/adr009/f2_before_defaults`, which holds what the unit had):
+- profile 0: coarse 0.1 to 5, fine 0.08 to 5, saved;
+- the coarse motor: least 0.08, max 5, saved;
+- the fine motor: least 0.01, max 5, saved.
