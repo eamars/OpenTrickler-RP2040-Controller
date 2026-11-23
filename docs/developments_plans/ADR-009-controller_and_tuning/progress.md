@@ -2302,3 +2302,35 @@ The manager approved the three forms of 21:58 (its message read between 21:58 an
 **The cup check** (the owner's ask through the manager, 22:36): every `rc_run.py` command that can turn a motor, and `robust_staged.py`, reads the real scale first, refuses past 600 gr, reads it after, and writes `logs/adr009/cup_ledger.csv`. Shown refusing `--most-pour 9999` before anything turned. The after-reading of a run that leaves a charge going stops that charge first.
 
 **The Pico W:** flash 4,744 B spare, RAM 808 B; it shapes no gate (the owner).
+
+## 2026-11-23, 23:05: gate F.1 passes on the Pico 2 W
+
+**Since 22:45, at the manager's word** (`9c1379d`):
+- **Every motor the console turns stops by itself** after its seconds (15 by default, 120 at most, a timer per motor; at its end the motor is stopped unless a mode has taken the motors). The root of 22:43's overrun: a motor turned with no bound when the fault it waited for never came.
+- **The bench tools' most pour is computed from those bounds** at 12 gr a turn: `pulses` 372 gr, its three cases 3, 14 and 14 s at 1 rev/s.
+- **Where the real scale is live** (`pulses`' waits), the tool reads it twice a second and stops both motors at 600 gr.
+- **A test image that did not flash** is a FAIL of its case, never a run of the motor.
+- **The ledger** gives each run's real pour against its stated most, and fails a run that poured more.
+- **`record.py`** (the PC's calibration trial) bounds each motor at 60 s and is given its most pour at the command line, with no default.
+- **`light_cup` re-cased** as the lightest real pan, 5 g (77 gr): 10 of 10 in the simulation, in grains and in grams. The 5 gr cup is `light_cup_limit`, the method's limit shown (7 of 10). The limit is written as a rule in the README's F.1 section.
+- C25's cost written beside it: time, not a hazard; nothing pours while it waits.
+
+**The last runs** (image 2.0.3-234 at `9c1379d`, the test images rebuilt at it):
+- the owner emptied the cup (the ledger: 648.66 → 0.00 between runs, "emptied");
+- **`pulses`:** PASS. The step pulses stopped on a probe reset, an assert and a hard fault. Poured 205.8 gr of its most 372.
+- **`robust_staged.py --cases light_cup`** (the 5 g pan): PASS, "Cup lifted" alone. Poured 8.5 gr of its most 20. Its own after-reading came 33 ms after `sim off`, before the real scale had sent (nan); read again at 214.30 gr. The tool now waits up to 3 s for the scale's number.
+
+**F.1's pass, as the plan sets it:**
+- `robust_staged.py` with every case: gate 2's 7, F.1's 9 (`none`, `cup_lifted`, `light_cup`, `cup_lifted_quiet`, `drift`, `no_powder`, `no_powder_drift`, `third`, `far_over`), each PASS on the unit. The scale set to grams, `no_figure` and the cup's limit are the simulation's (`safety_cases.py`), with no lockstep difference.
+- `charge_cycle`, `pulses`, `menu_tour --compare`: each PASS.
+- The throw-for-throw check: 200/200 on all 8 sets.
+
+**The checklist again:**
+1. **Numbers added, moved or changed:** C19 (4 times, no figure no turn), C20 (100 tolerances), C24 (2 digits of noise), C25 (30 noises), E7's 10 gone, E8 (within A9), E20's buffer gone, A9's default named; each with its row.
+2. **A value from the bench unit:** none in the firmware. C25's 30 is measured on the simulation's rigs of both powders, not the bench unit. The cup test's limit gives the bench rig's figure (about 9 gr) as an example of the rule, not as a constant.
+3. **Each fixed number passes the test:** each in the unit's own terms (digits, noises, tolerances, the figure's turns) with its reason in its row.
+4. **A new parameter:** none.
+5. **The pass checks a mechanism against a prediction written first:** the cases were written at 21:58 and 22:22. Their prediction was refuted twice in the simulation (C25's form and its 6) and once on the light cup, each said and mended before the unit.
+6. **Shown on the bench unit only:** all of it, on the Pico 2 W. The Pico W is gate 7's, and its size shapes no gate (the owner).
+
+**Owed:** gate R's `setting dropped` event, at F.5 or gate 3 (the README names it in both).

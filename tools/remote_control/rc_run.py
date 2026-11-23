@@ -4122,14 +4122,20 @@ class Session:
             self.console.command("sim off")
             time.sleep(1.0)
             state = self.console.command("state") or ""
-        match = re.search(r" weight=(\S+)", state)
-        if match is None or " sim=1" in state:
-            return None
-        try:
-            weight = float(match.group(1))
-        except ValueError:
-            return None
-        return weight if math.isfinite(weight) else None
+        # Just after the simulation's end the real scale may not have sent yet (nan): a few seconds for it
+        until = time.monotonic() + 3.0
+        while True:
+            match = re.search(r" weight=(\S+)", state)
+            if match is None or " sim=1" in state:
+                return None
+            try:
+                weight = float(match.group(1))
+            except ValueError:
+                weight = float("nan")
+            if math.isfinite(weight) or time.monotonic() >= until:
+                return weight if math.isfinite(weight) else None
+            time.sleep(0.3)
+            state = self.console.command("state") or ""
 
     def cup_watch(self, until):
         """
