@@ -307,7 +307,9 @@ int charge_calibration_state(uint8_t profile) {
     }
     charge_record_state_t state = charge_records_load(profile, record, NULL);
     if (state == CHARGE_RECORD_OK && charge_calibration_lacks(record) != NULL) {
-        state = CHARGE_RECORD_NONE;    // incomplete: a powder not yet calibrated
+        // Held and incomplete: a record that fails its check, not used and said (gate R), never thrown as a powder
+        // never calibrated
+        state = CHARGE_RECORD_DAMAGED;
     }
     vPortFree(record);
     return state;
