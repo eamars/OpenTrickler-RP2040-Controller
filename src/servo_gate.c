@@ -86,8 +86,19 @@ static void _servo_gate_set_current_state(float open_ratio) {
 }
 
 
+static volatile uint32_t servo_gate_opened = 0;
+
+
+uint32_t servo_gate_opens(void) {
+    return servo_gate_opened;
+}
+
+
 void servo_gate_set_ratio(gate_ratio_t ratio, bool block_wait) {
     float r = (ratio == SERVO_GATE_RATIO_DISABLED) ? SERVO_GATE_RATIO_DISABLED : clamp01(ratio);
+    if (r != SERVO_GATE_RATIO_DISABLED && r < SERVO_GATE_RATIO_CLOSED) {
+        servo_gate_opened++;    // asked before the move: whoever reads it next sees the gate may have opened
+    }
     
     xSemaphoreTake(servo_gate.move_ready_semphore, 0); 
     

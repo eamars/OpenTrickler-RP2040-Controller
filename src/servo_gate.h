@@ -84,6 +84,8 @@ float servo_gate_ratio(void);
 void servo_gate_set_ratio(float ratio, bool block_wait);
 // How long a move between two ratios takes at the gate's own speeds (A17): its travel (ADR-009, gate F.3)
 float servo_gate_travel_s(float from, float to);
+// The moves asked to anything short of closed since the start, by any side: what the gate held may have fallen
+uint32_t servo_gate_opens(void);
 #else
 static inline bool servo_gate_init(void) { return true; }
 static inline bool servo_gate_enabled(void) { return false; }
@@ -91,6 +93,7 @@ static inline gate_state_t servo_gate_state(void) { return GATE_DISABLED; }
 static inline float servo_gate_ratio(void) { return SERVO_GATE_RATIO_DISABLED; }
 static inline void servo_gate_set_ratio(float ratio, bool block_wait) { (void) ratio; (void) block_wait; }
 static inline float servo_gate_travel_s(float from, float to) { (void) from; (void) to; return 0.0f; }
+static inline uint32_t servo_gate_opens(void) { return 0; }
 #endif
 
 #ifdef __cplusplus

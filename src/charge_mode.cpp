@@ -119,6 +119,7 @@ static float charge_base = 0.0f;            // the weight a throw starts from: 0
 // The precharge's powder held by the closed gate since the last throw, for the next throw's forecast (A12, ADR-009,
 // gate F.3); in RAM only, as the gate's own state is
 static float charge_precharge_pending_gr = 0.0f;
+static uint32_t charge_precharge_opens = 0;     // the gate's opens when it was made: held only while none follows
 // The charge's throws' first errors, each at the calibration's own stop room, carried into the powder profile's
 // calibration at the charge's end (ADR-009, 2026-11-22): from throws that came to rest as they should
 static float charge_carry_errors[CHARGE_CARRY_THROWS_MAX];
@@ -760,6 +761,12 @@ void charge_mode_wait_for_complete() {
         true
     );
 
+    // The precharge's powder is the gate's only while the gate stayed closed since it was made: a purge, or a move
+    // from the servo gate's settings, let it fall elsewhere, and it is dropped from the count (A12, gate F.3)
+    if (charge_precharge_pending_gr > 0.0f && servo_gate_opens() != charge_precharge_opens) {
+        printf("Charge: the precharge's %.3f not counted: the gate opened since\n", charge_precharge_pending_gr);
+        charge_precharge_pending_gr = 0.0f;
+    }
     // If the servo gate is used then it has to be opened: for the staged controller waited by its travel, the tubes
     // starting only once it is open (ADR-009, gate F.3, E10)
     if (servo_gate_enabled()) {
@@ -801,6 +808,7 @@ void charge_mode_wait_for_complete() {
                 float turns = (float) (uint32_t) (motor_get_steps_made(SELECT_COARSE_TRICKLER_MOTOR) - steps_before) /
                               motor_get_steps_per_turn(SELECT_COARSE_TRICKLER_MOTOR);
                 charge_precharge_pending_gr += turns * charge_controller->cal.coarse_gr_turn;
+                charge_precharge_opens = servo_gate_opens();
                 printf("Charge: precharge %.3f turns, %.3f held by the gate for the next throw\n", turns,
                        charge_precharge_pending_gr);
             }
