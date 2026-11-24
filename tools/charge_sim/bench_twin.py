@@ -53,16 +53,19 @@ class TwinBench:
                 samples.append((self.now, self.reading))
         return samples
 
-    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str) -> dict:
-        """One creep-stop trial, as record.py's: a steady turn, a stop (or the charge's reverse turn first), a watch."""
+    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str,
+                   backoff: tuple = (0.25, 1.0)) -> dict:
+        """One creep-stop trial, as record.py's: a steady turn, a stop (or the charge's reverse turn first: `backoff`'s
+        turns at its speed), a watch."""
         state = self.tubes[tube]
         state.set_speed(speed_rps)
         during = self.advance(run_s)
         stopped = self.now
         after = []
         if stop == "backoff":
-            state.set_speed(-1.0)
-            after = self.advance(0.25)
+            turns, rps = backoff
+            state.set_speed(-rps)
+            after = self.advance(turns / rps)
         state.set_speed(0.0)
         after += self.advance(still_s - (self.now - stopped))
         return {"note": "creepstop", "tube": tube, "speed_asked_rps": speed_rps, "stop": stop,
