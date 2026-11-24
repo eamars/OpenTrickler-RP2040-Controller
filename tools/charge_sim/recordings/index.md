@@ -147,3 +147,6 @@ Trials are counted without the turn that preconditions the tube.
 | `20261124_224124_series_fast_abba_b2_pico2w_ar2209_review` | AR2209 | series (glide) | | 10 | 10.0 gr |  |
 | `20261124_224354_series_fast_abba_a2_pico2w_ar2209_review` | AR2209 | series (controller) | | 10 | 10.0 gr |  |
 | `20261124_225812_trial_stop_spread` | AR2209 | trial_stop_spread | fine | 81 | 0.05, 0.1, 0.2, 0.3, 0.5 rev/s |  |
+| `20261125_014338_trial_calibration_scale` | AR2209 | trial_calibration_scale | coarse, fine | 29 | 0.05, 0.1, 0.25, 0.5, 1 rev/s |  |
+| `20261125_014852_trial_calibration_fine` | AR2209 | trial_calibration_fine | fine | 26 | 0.01, 0.0346572, 0.120112, 0.223607, 0.416277, 1.4427, 5 rev/s |  |
+| `20261125_015308_trial_calibration_coarse` | AR2209 | trial_calibration_coarse | coarse | 26 | 0.08, 0.182922, 0.418256, 0.632456, 0.956352, 2.18672, 5 rev/s |  |
