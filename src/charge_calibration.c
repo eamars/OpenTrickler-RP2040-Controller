@@ -245,10 +245,11 @@ static float charge_calibration_median(const float *values, uint8_t count) {
 
 
 /*
-    The carry (ADR-009, gate R: one list, and the law that learnt it). A charge under the law that learnt the list
-    merges its throws' first errors into it, the newest kept, at most CHARGE_CARRY_MOST_DIGITS at once. A charge under
-    the other law placed its stop from a list not its own: its first carry is taken whole, the list then its own (the
-    night of 2026-11-22: a law's stop lay 3.25 digits from the other's, and a capped first carry kept it on the other's)
+    The carry (ADR-009, gate R: one list). Every carry merges the charge's first errors into the list, the newest kept,
+    and moves the stop at most CHARGE_CARRY_MOST_DIGITS at once, a first carry after a calibration too (sign-off item
+    13; the review of 2026-11-24). An empty list is filled from the stop as placed, a median of 0. Until gate 3 throws
+    the rehearsals by the law that pours, a stop that lies further from the rehearsals' than the bound walks there over
+    more than one charge (the night of 2026-11-22: 3.25 digits)
 */
 bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
                                   float *after) {
@@ -256,18 +257,17 @@ bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *err
         return false;
     }
     charge_calibration_record_t *record = pvPortMalloc(sizeof(*record));
-    uint8_t learnt_by = 0;
     if (record == NULL) {
         return false;
     }
-    bool ok = charge_records_load(profile, record, &learnt_by) == CHARGE_RECORD_OK &&
-              charge_calibration_lacks(record) == NULL && record->first_error_count > 0;
+    bool ok = charge_records_load(profile, record, NULL) == CHARGE_RECORD_OK &&
+              charge_calibration_lacks(record) == NULL;
     if (ok) {
-        bool own = learnt_by == law;
-        *before = charge_calibration_median(record->first_errors, record->first_error_count);
+        *before = record->first_error_count > 0 ?
+                  charge_calibration_median(record->first_errors, record->first_error_count) : 0.0f;
         float merged[2 * CHARGE_CALIBRATION_FIRST_ERRORS_MAX];
         uint8_t total = 0;
-        for (uint8_t i = 0; own && i < record->first_error_count; i++) {
+        for (uint8_t i = 0; i < record->first_error_count; i++) {
             merged[total++] = record->first_errors[i];
         }
         uint8_t from = count > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ?
@@ -278,7 +278,7 @@ bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *err
         uint8_t keep = total > CHARGE_CALIBRATION_FIRST_ERRORS_MAX ? CHARGE_CALIBRATION_FIRST_ERRORS_MAX : total;
         const float *newest = &merged[total - keep];
         *after = charge_calibration_median(newest, keep);
-        ok = !own || fabsf(*after - *before) <= CHARGE_CARRY_MOST_DIGITS * record->measured.digit_gr;
+        ok = fabsf(*after - *before) <= CHARGE_CARRY_MOST_DIGITS * record->measured.digit_gr;
         if (ok) {
             for (uint8_t i = 0; i < keep; i++) {
                 record->first_errors[i] = newest[i];
@@ -572,7 +572,7 @@ void charge_calibration_console(const char *args, char *reply, size_t reply_size
         }
         record->legacy_rev = 0;
         record->valid = 1;
-        // Its first errors are rehearsals: the glide's (a law's first carry then takes them whole)
+        // Its first errors are the rehearsals', which a charge's carry merges into, bounded
         if (!charge_records_save((uint8_t) profile, record, 0)) {
             snprintf(reply, reply_size, "@err the record did not write");
             return;
@@ -711,16 +711,6 @@ void charge_tune_console(const char *args, char *reply, size_t reply_size, remot
                                       p->coarse_max_flow_speed_rps, p->fine_kp, p->fine_ki, p->fine_kd,
                                       p->fine_min_flow_speed_rps, p->fine_max_flow_speed_rps};
     activity_unlock();
-    if (accept) {
-        // A stop learnt with the old gains says nothing of the new: the list marked the glide's, so the PID law's next
-        // carry is taken whole (one list, gate R)
-        charge_calibration_record_t *record = pvPortMalloc(sizeof(*record));
-        uint8_t learnt_by = 0;
-        if (record != NULL && charge_records_load(profile, record, &learnt_by) == CHARGE_RECORD_OK && learnt_by != 0) {
-            charge_records_save(profile, record, 0);
-        }
-        vPortFree(record);
-    }
     charge_tune_line("set", &set, write, write_ctx);
     charge_tune_line("offer", &offer, write, write_ctx);
     snprintf(reply, reply_size, accept ? "@ok ctune accepted into profile %u, live (save it to keep it)" :

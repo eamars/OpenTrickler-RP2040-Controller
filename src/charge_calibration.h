@@ -55,12 +55,13 @@ float charge_calibration_band(float tolerance_gr, float digit_gr);
 // when the target is above its room). Made on a copy from the heap: -1 when there is none, or no calibration
 int charge_calibration_check_start(uint8_t profile, float tolerance_gr, float target_gr);
 /*
-    The throws' first errors carried into a powder's record at a charge's end (ADR-009; gate R: one list, and the law
-    that learnt it, charge_records.h). Each is a throw's first error at rest translated to the calibration's own stop
-    room. A charge under the law that learnt the list adds them to it, the newest CHARGE_CALIBRATION_FIRST_ERRORS_MAX
-    kept, and nothing is written when the stop they place would move more than CHARGE_CARRY_MOST_DIGITS at once. A
-    charge under the other law takes its first carry whole: the list was not its own. Never for the simulated scale.
-    True when written; `before` and `after` take the median first error the stop was and will be placed from.
+    The throws' first errors carried into a powder's record at a charge's end (ADR-009; gate R: one list). Each is a
+    throw's first error at rest translated to the calibration's own stop room. Every carry adds them to the list, the
+    newest CHARGE_CALIBRATION_FIRST_ERRORS_MAX kept, and nothing is written when the stop they place would move more
+    than CHARGE_CARRY_MOST_DIGITS at once (sign-off item 13: no session moves a stored number past its bound). An empty
+    list is filled the same way, from the stop as placed (a median first error of 0). `law` is written into the record
+    as the law that poured the throws. Never for the simulated scale. True when written; `before` and `after` take the
+    median first error the stop was and will be placed from.
 */
 bool charge_calibration_carry_law(uint8_t profile, uint8_t law, const float *errors, uint8_t count, float *before,
                                   float *after);

@@ -3525,3 +3525,9 @@ The back-off's measured forecast costs about 10 overs in 120 at both commits. **
 - `f3_cases.py`: **VERDICT FAIL 1** (`backoff_measured`: good 26 against 34, over 13 against 4), the night's figure; above, why.
 - `f4_cases.py`: **VERDICT FAIL 9** (`keeps_short`), the night's figure.
 - **Not touched:** any unit. The tip has never been on one.
+
+## 2026-11-24, 21:33: job 2, the leftover mends (the reviewer's decisions of 21:31)
+
+The reviewer accepted job 1 and decided from the record: fix 1 stays (sign-off item 8 names a limit passed among the faults that stop both tubes; gate 4's list of ends to draw already holds "a limit", in its bullets and on the failure modes); the carry bounded, (b) with (c); item 12 (a) and (b) mended; the refusal for want of memory said as it is; the precharge through a restart unchanged (it is with sign-off item 9, the day a gate is fitted).
+
+**The carry, every one bounded** (sign-off item 13). `charge_calibration_carry_law` merges every charge's first errors into the list and refuses a move of the stop past E12's 3 digits, the first carry after a calibration included; the law test is gone. An empty list is filled from the stop as placed (a median of 0) under the same bound. `ctune`'s accept no longer marks the list another law's: with no law test it changed nothing. E12's row corrected (it described a rule the code did not have). The reference has no carry (`carry_stop.py` is the 11-22 study), so the mend is the C's alone; the throw-for-throw check does not throw it. **Gate 3 gains** the rehearsals thrown by the law that pours, beside R, so the first carry is small in practice and not only by its bound. **The cost, known:** until then, a stop lying more than 3 digits from the rehearsals' walks there over two charges or more. The Pico 2 W builds.
