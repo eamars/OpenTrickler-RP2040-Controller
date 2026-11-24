@@ -1,6 +1,6 @@
 # ADR-009: calibration and automatic tuning
 
-Status: **Draft** 2026-11-25. Step 1, the calibration, is drafted below; step 2, the tuning, is drafted after it.
+Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (01:20) and being built in the gates under "What we do". Step 2, the tuning, is drafted once step 1 is complete.
 
 The earlier README and progress are phased out and moved to [`legacy/`](legacy/).
 
@@ -60,7 +60,14 @@ Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the fi
 
    Shown by an update from today's release that keeps every setting.
 
-The method is developed from the PC on the bench, where the tools exist; for users it is a job on the unit, run from the screen and the web.
+### What we do
+
+The method is developed from the PC on the bench, where the tools exist; for users it is a job on the unit, run from the screen and the web. The gates, in order, each started once the one before it is done:
+1. **The method,** in the simulation and then from the PC on the bench (`tools/charge_sim`, `bench/record.py`): the cup, the scale and each tube's speeds, each part run alone. Its recordings are kept, and they fix the records' form (how many points the lag and the response time hold).
+2. **The records stored:** the loader's migration (above) and the fields appended to the charge and scale settings, each described once in its module's table, so the API, the console, the export and the backup follow. Shown by an update from today's release that keeps every setting, on both boards.
+3. **The calibration as a job on the unit,** started from the console and the API: each part alone, a failure said and not retried, the cup's pause. On the bench it records what gate 1's method recorded from the PC, within the spread each measured.
+4. **The screens and the web:** mock-ups for the owner first, then built.
+5. **Step 1's sign-off on a unit:** the list under "How the unit shows it works".
 
 ### How the unit shows it works
 
