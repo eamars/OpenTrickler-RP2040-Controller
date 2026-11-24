@@ -1930,8 +1930,10 @@ static const char *const api_v1_schema_events[] = {
     "{\"source\":\"throw\",\"kind\":\"finished\",\"carries\":[\"throw\",\"recording\",\"result\",\"weight\",\"elapsed_s\"],"
     "\"about\":\"the verdict; result: good, under, over\"}",
     "{\"source\":\"throw\",\"kind\":\"ended\",\"carries\":[\"throw\",\"recording\",\"reason\",\"motor\",\"fault\"],\"about\":\"a "
-    "throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; motor and "
-    "fault only with driver_fault\"}",
+    "throw cut short; reason: stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault, cup_lifted "
+    "(a reading below the base by more than the scale's noise), no_powder (the powder turned out did not show), limit "
+    "(a bound of the throw: its time, the fine tube's turns, a reading far over); motor and fault only with "
+    "driver_fault\"}",
     "{\"source\":\"purge\",\"kind\":\"started\",\"carries\":[\"by\"]}",
     "{\"source\":\"purge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"reason: stopped, time "
     "(its time ran out: by the unit), fault\"}",
