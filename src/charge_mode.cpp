@@ -221,7 +221,7 @@ void charge_mode_wait_for_zero() {
     uint32_t zero_count = scale_get_zero_count();
     uint8_t readings_since_zero = 0;
 
-    // Stop condition: 10 stable measurements in 200ms apart (2 seconds minimum)
+    // Stop condition: 10 stable measurements 300 ms apart (3 seconds at least)
     while (true) {
         TickType_t last_measurement_tick = xTaskGetTickCount();
 
@@ -235,7 +235,7 @@ void charge_mode_wait_for_zero() {
             return;
         }
 
-        // Perform measurement (max delay 300 seconds   )
+        // Perform measurement (waited for up to 300 ms)
         float current_measurement;
         if (scale_block_wait_for_next_measurement(300, &current_measurement)){
             data_buffer.enqueue(current_measurement);
