@@ -23,6 +23,7 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 - The cup comes first. The user gives its capacity by filling it with the knob; a pour that would pass it pauses the calibration.
 - No retries and no pass criteria inside the calibration: an acceptable result is good enough. Each run pours as little powder as its measurement allows.
 - A step that fails says what failed and retries nothing unless the user asks; its item keeps its default value.
+- Each part runs on its own: the cup, the scale and each powder are calibrated independently, and each item can be run alone. A part uses what the others have stored, or their defaults where they were never run.
 - The servo gate's tuning is not part of ADR-009.
 
 ## Step 1: the calibration
@@ -65,6 +66,7 @@ The method is developed from the PC on the bench, where the tools exist; for use
 
 No throw's result is judged.
 - A user runs the calibration on a unit from the 12864 and from the web, from nothing to its records, each of its steps shown, and can stop it.
+- Each part runs alone and in any order: a powder calibrated on a unit whose scale and cup were never calibrated runs on their defaults; a scale calibrated again leaves every powder's record as it was; each item can be run by itself.
 - No pour passes the cup's capacity: one that would pauses the calibration and asks for the cup to be emptied.
 - Every item of the table is recorded, kept across a restart, held in the backup, and given back by a restore; an update keeps every setting the user had.
 - The values it records are those its runs' recordings give, checked on the PC.
