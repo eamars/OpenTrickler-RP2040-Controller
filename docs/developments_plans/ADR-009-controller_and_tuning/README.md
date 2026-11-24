@@ -21,6 +21,8 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 - Step 1 is not judged by how throws turn out: no trickle performance is a condition of its sign-off. A charge with its settings only has to trickle.
 - The fine threshold is the user's expectation, the tolerance of a throw. The calibration never writes it.
 - The cup comes first. The user gives its capacity by filling it with the knob; a pour that would pass it pauses the calibration.
+- No retries and no pass criteria inside the calibration: an acceptable result is good enough. Each run pours as little powder as its measurement allows.
+- A step that fails says what failed and retries nothing unless the user asks; its item keeps its default value.
 - The servo gate's tuning is not part of ADR-009.
 
 ## Step 1: the calibration
@@ -35,6 +37,8 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 | 4 | The scale's lag | the scale settings, appended | How far the reading runs behind a steady flow, by flow rate. It may be one curve with item 3: a smaller change takes longer to register |
 | 5 | Each tube's least speed | the powder profile's own field | The slowest speed at which what lands after a stop is consistent |
 | 6 | Each tube's most speed | the powder profile's own field | The fastest speed at which what lands after a stop is consistent |
+
+**Consistent** (items 5 and 6): a speed's spread of what lands after its stops is within 3 times the smallest spread this calibration measured, on this unit's own scale. On the bench's A&D the spread was about 2.5 digits at every speed tried, so 3 times is about 7.5 digits (0.15 gr). A factor, not the A&D's grains: a slower scale is held to its own best.
 
 Items 5 and 6 belong to this powder on this unit's tubes and scale, not to the powder alone. The coarse and fine stop thresholds and the PID stay as the user has them; today's loop charges as it does now.
 
@@ -54,8 +58,6 @@ Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the fi
    - a record that matches at no size is taken as damaged and gets the defaults, as today. A wrong match is a chance of one in about four billion for each size tried.
 
    Shown by an update from today's release that keeps every setting.
-2. **"Consistent"** for items 5 and 6, in numbers: for example `bench/stop_spread.py`'s rule, the fastest speed whose spread is within 1.3 times the smallest.
-3. **How long a calibration may take.** The first build's took 8 to 13 minutes.
 
 The method is developed from the PC on the bench, where the tools exist; for users it is a job on the unit, run from the screen and the web.
 
@@ -66,6 +68,8 @@ No throw's result is judged.
 - No pour passes the cup's capacity: one that would pauses the calibration and asks for the cup to be emptied.
 - Every item of the table is recorded, kept across a restart, held in the backup, and given back by a restore; an update keeps every setting the user had.
 - The values it records are those its runs' recordings give, checked on the PC.
+- A step made to fail (no reading from the scale, a tube that pours nothing, the cup lifted mid-run) says what failed, retries nothing, and leaves its item at its default value.
+- Its time and the powder it poured are reported, not judged.
 - A charge then throws with them.
 
 ## Step 2: the tuning
