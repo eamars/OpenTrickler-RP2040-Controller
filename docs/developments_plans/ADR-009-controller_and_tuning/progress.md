@@ -3485,4 +3485,4 @@ The review's list of 20:53, item by item, each mend its own commit. No unit touc
   - an empty hopper: both primes pour 0, so each tube's grains a turn is 0, and every later run's speed or length divides by it (an infinite run);
   - no readings: the prime's "until two runs pour the same" never ends;
   - both need a decision on what ends the job and a bound on its runs, a number with its row;
-  - `tail[1536]` on the job's caller's stack (the job task's stack is sized from `stats tasks`, gate 3's to check).
+  - `tail[CHARGE_CAL_JOB_READINGS_MAX]`, 1,536 readings (6 KB in float), is a local array in `charge_calibration_job.c`, so it sits on the stack of whatever task calls the job (checked in the code); the job task's stack is sized from `stats tasks`, gate 3's to settle.
