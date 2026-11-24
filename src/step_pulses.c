@@ -179,12 +179,11 @@ static void step_pulses_feed_channel(step_pulses_channel_t *ch) {
     uint32_t high_count = period / 2 - STEPPER_HIGH_OVERHEAD_CYCLES;
     uint32_t low_count = period - period / 2 - STEPPER_LOW_OVERHEAD_CYCLES;
 
-    // As many steps as fill a segment, one at least
+    // As many steps as last a segment at least: this is fed every millisecond and one segment waits, so a segment
+    // shorter than two feeds leaves the pulses waiting on a late one. Rounded down, a segment at just under 1,000
+    // steps a second lasted 1.0 ms and the fine motor paused 16 times in 10 s (ADR-009, 2026-11-22)
     uint32_t segment_cycles = (uint32_t) (clock_hz * STEP_PULSES_SEGMENT_MS / 1000.0f);
-    uint32_t steps = segment_cycles / period;
-    if (steps == 0) {
-        steps = 1;
-    }
+    uint32_t steps = (segment_cycles + period - 1) / period;
 
     pio_sm_put(ch->pio, ch->sm, steps - 1);
     pio_sm_put(ch->pio, ch->sm, high_count);
