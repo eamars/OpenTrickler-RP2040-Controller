@@ -3128,17 +3128,28 @@ class Session:
             self.fail("no weight was read when the charge ended")
 
         self.send("charge stop")
+        self.charge_left("charge stop")
+        # The console's start with a series and a pour word, as an ABBA's comparison arm asks it (ADR-009, F.5): it
+        # was refused unseen from F.5 until the review of 2026-11-24. Started, then stopped at once
+        reply = self.send("charge 1 series 1 glide")
+        if reply is None or not reply.startswith("@ok"):
+            self.fail(f"`charge 1 series 1 glide` did not start: {reply}")
+        else:
+            self.send("charge stop")
+            self.charge_left("the series with a pour stopped")
+        self.send("sim off")
+
+    def charge_left(self, after):
+        """Out of charge mode with both motors at 0 within 5 s, or a failure."""
         deadline = time.monotonic() + 5
         state = None
         while time.monotonic() < deadline:
             state = self.state()
             if state is not None and state["charge"] == "0" and float(state["coarse"]) == 0 \
                     and float(state["fine"]) == 0:
-                break
+                return
             time.sleep(CHARGE_POLL_S)
-        else:
-            self.fail(f"after charge stop, not out of charge mode with both motors at 0: {state}")
-        self.send("sim off")
+        self.fail(f"after {after}, not out of charge mode with both motors at 0: {state}")
 
     def recordings_wait(self, unit, rec_id, timeout_s):
         """The recording read once it is complete; None, failed, when it is not by timeout_s."""
@@ -4448,7 +4459,7 @@ def cup_most(args):
     """
     command = args.command
     if command == "charge_cycle":
-        return 2.0 * args.target + 10.0
+        return 2.0 * args.target + 10.0 + 11.0     # and the series with a pour, started and stopped (1 gr)
     if command == "recordings_check":
         return (2 * args.throws + 1) * args.target
     if command == "pulses":
