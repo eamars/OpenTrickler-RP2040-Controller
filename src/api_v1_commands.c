@@ -343,7 +343,8 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
         !charge_fields(reply, members, count, &has_target, &target, &has_profile, &profile)) {
         return;
     }
-    switch (charge_mode_request_start(ACTIVITY_BY_API, has_target ? target : NAN, has_profile ? (int) profile : -1)) {
+    switch (charge_mode_request_start(ACTIVITY_BY_API, has_target ? target : NAN, has_profile ? (int) profile : -1, 0,
+                                      CHARGE_POUR_CONTROLLER)) {
         case CHARGE_START_OK:
             reply_charge(reply, 202);
             return;

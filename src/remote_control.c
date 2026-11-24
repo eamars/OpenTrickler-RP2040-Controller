@@ -801,37 +801,28 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
         snprintf(reply, reply_size, "@err %.3f is not a target the menu's digits can show", target);
         return false;
     }
-    charge_mode_set_series((uint16_t) series);
-    charge_mode_set_pour(pour);
-    charge_start_result_t started = charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1);
-    if (started != CHARGE_START_OK) {
-        charge_mode_set_pour(CHARGE_POUR_CONTROLLER);
-    }
+    // The series and the pour go with the request itself: a start refused leaves neither for the next charge
+    charge_start_result_t started = charge_mode_request_start(ACTIVITY_BY_CONSOLE, target, -1, (uint16_t) series,
+                                                              pour);
     switch (started) {
         case CHARGE_START_OK:
             break;
         case CHARGE_START_TOLERANCE_UNDER_DIGIT:
-            charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err the fine stop threshold is under the scale's digit: setting "
                      "settings/charge fine_stop_threshold=<a digit or more>");
             return false;
         case CHARGE_START_NO_SPEED:
-            charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err a tube the throw needs has a top speed of 0, the profile's or the "
                      "motor's");
             return false;
         case CHARGE_START_CALIBRATION_DAMAGED:
-            charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err the powder profile's calibration is damaged, and not used: ccal save "
                      "it again, or `charge <gr> legacy`");
             return false;
         case CHARGE_START_DRIVER_FAULT:
-            charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err a motor driver is not OK: %s", motors_get_fault());
             return false;
         default:
-            // A start refused leaves no series behind: the next charge, from any side, is a charge as any other
-            charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err charge mode is already running or asked");
             return false;
     }

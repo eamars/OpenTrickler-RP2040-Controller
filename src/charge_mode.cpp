@@ -92,7 +92,7 @@ static bool charge_stop_logged = false;     // the charge's stopped event is out
 /*
     The staged controller (ADR-009): one for the whole charge, so what it learns from a throw goes on to the next;
     its calibration is the powder profile's, read as the charge begins. A series for the bench pours its throws into
-    the same cup, each from the weight the cup rests at (charge_mode_set_series)
+    the same cup, each from the weight the cup rests at (charge_mode_request_start)
 */
 typedef struct {
     charge_control_t controller;
@@ -113,7 +113,7 @@ static bool charge_staged = false;          // this charge's throws are the stag
 static bool charge_staged_verdict = false;  // the last throw ended at its rest, judged by the controller
 static float charge_staged_weight = NAN;    // its weight at rest, from the throw's base
 static float charge_staged_threshold = NAN; // over or under from this far off the target, judged at rest
-static volatile uint16_t charge_series_asked = 0;
+static uint16_t charge_series_asked = 0;    // the start request's, written with it under the activity lock
 static uint16_t charge_series_left = 0;     // this charge's throws still to pour, in a series; 0: no series
 static float charge_base = 0.0f;            // the weight a throw starts from: 0, but in a series
 // The precharge's powder held by the closed gate since the last throw, for the next throw's forecast (A12, ADR-009,
@@ -131,18 +131,8 @@ static uint16_t charge_throw_recording = 0;
 static uint16_t charge_last_recording = 0;
 
 
-void charge_mode_set_series(uint16_t throws) {
-    charge_series_asked = throws;
-}
-
-
-static volatile charge_pour_t charge_pour_asked = CHARGE_POUR_CONTROLLER;
+static charge_pour_t charge_pour_asked = CHARGE_POUR_CONTROLLER;  // the start request's, as the series
 static charge_pour_t charge_pour = CHARGE_POUR_CONTROLLER;     // this charge's
-
-
-void charge_mode_set_pour(charge_pour_t pour) {
-    charge_pour_asked = pour;
-}
 
 
 // The auto-tuner learns and carries: on by the setting, and only in a charge the controller pours
@@ -1218,6 +1208,9 @@ uint8_t charge_mode_menu(void) {
     // begins, under the lock the API writes the target under (review D2)
     activity_lock();
     charge_mode_config.target_charge_weight = charge_mode_get_target();
+    // The series and the pour are the request's, written with it (charge_mode_request_start): taken as the job begins
+    charge_series_left = charge_series_asked;
+    charge_pour = charge_pour_asked;
     activity_job_begin(ACTIVITY_CHARGE);
     activity_unlock();
     charge_end_by = ACTIVITY_BY_BUTTON;
@@ -1228,12 +1221,8 @@ uint8_t charge_mode_menu(void) {
     events_add(&started);
 
     // The controller for the whole charge, and a series if one was asked (ADR-009)
-    charge_series_left = charge_series_asked;
-    charge_series_asked = 0;
     charge_base = 0.0f;
     charge_carry_count = 0;
-    charge_pour = charge_pour_asked;
-    charge_pour_asked = CHARGE_POUR_CONTROLLER;
     charge_staged = charge_pour != CHARGE_POUR_LEGACY;
     charge_law = charge_pour == CHARGE_POUR_GLIDE ? 0 : 1;
     if (charge_pour != CHARGE_POUR_CONTROLLER) {
@@ -1489,7 +1478,8 @@ void charge_mode_keep_target(decimal_places_t before) {
 }
 
 
-charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile) {
+charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile, uint16_t series,
+                                               charge_pour_t pour) {
     // A job, a start asked already, or a person at the unit in a mode or a view of the menu's: not taken over
     activity_t asked_before;
     if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
@@ -1506,7 +1496,7 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
     // The staged controller takes its numbers from the powder's calibration, or for a powder never calibrated from
     // its learnt source (gate F.4). A damaged record is not used, and the start is refused (ADR-009). Today's loop,
     // the console's word alone, takes none
-    if (charge_pour_asked != CHARGE_POUR_LEGACY) {
+    if (pour != CHARGE_POUR_LEGACY) {
         uint8_t profile = powder_profile >= 0 ? (uint8_t) powder_profile : (uint8_t) profile_get_selected_idx();
         int state = charge_calibration_state(profile);
         if (state == CHARGE_RECORD_DAMAGED) {
@@ -1532,6 +1522,8 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
         if (powder_profile >= 0) {
             profile_select((uint8_t) powder_profile);
         }
+        charge_series_asked = series;
+        charge_pour_asked = pour;
     }
     activity_unlock();
     if (!asked) {

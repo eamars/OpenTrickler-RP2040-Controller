@@ -887,7 +887,7 @@ static void act_cleanup_start(const menu_row_t *row) {
 // The cup acknowledged (D1): the start, as the API's. The menu's task takes it and the job's screen comes
 static void act_ack_charge(const menu_row_t *row) {
     (void) row;
-    charge_start_result_t result = charge_mode_request_start(ACTIVITY_BY_BUTTON, NAN, -1);
+    charge_start_result_t result = charge_mode_request_start(ACTIVITY_BY_BUTTON, NAN, -1, 0, CHARGE_POUR_CONTROLLER);
     if (result == CHARGE_START_DRIVER_FAULT) {
         push_message(motors_get_fault(), "Charge", "cannot start");
     }

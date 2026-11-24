@@ -109,29 +109,25 @@ void charge_mode_keep_target(decimal_places_t before);
  * refused. target (NAN: the one set) and powder_profile (-1: the one chosen) are written only once the start is
  * taken, so a start refused writes nothing; the caller has checked them. A stop is
  * activity_request_stop(ACTIVITY_CHARGE, by).
+ *
+ * series and pour belong to this start alone, never stored (ADR-009): written with the request, as every request
+ * writes them (0 and CHARGE_POUR_CONTROLLER for any but the console's), so a request refused, gone stale or stopped
+ * leaves nothing for the next charge. series: the charge is a series of that many throws into the same cup, with no
+ * cup lifted between them, for the bench; each throw starts from the weight the cup rests at and is judged from it;
+ * the series ends after its last throw, or when the cup holds CHARGE_SERIES_CUP_MOST. pour: what pours it, for the
+ * console's comparisons (gate F.5); a charge so poured carries nothing into a record and learns nothing.
  */
 typedef enum {
     CHARGE_START_OK = 0,
     CHARGE_START_BUSY,          // a job runs, a start is asked already, or a person has a mode or a view at the unit
     CHARGE_START_DRIVER_FAULT,
     CHARGE_START_NO_TARGET,
-    CHARGE_START_CALIBRATION_DAMAGED,   // the same, its record stored but failing its check: refused as none, said so
+    CHARGE_START_CALIBRATION_DAMAGED,   // the powder's record stored and failing its check: refused, said (ADR-009)
     CHARGE_START_TOLERANCE_UNDER_DIGIT, // the fine stop threshold under the scale's digit (ADR-009, gate F.2)
     CHARGE_START_NO_SPEED,      // a top speed of 0 for a tube the throw needs: the profile's or the motor's (F.2)
 } charge_start_result_t;
-charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
-
-/*
- * For the bench (ADR-009): the next charge is a series of `throws` into the same cup, with no cup lifted between
- * them. Each throw starts from the weight the cup rests at and is judged from it, as the PC's trial did; the series
- * ends after its last throw, or when the cup holds CHARGE_SERIES_CUP_MOST. 0: the next charge as any other. Taken by
- * the next start and never stored.
- */
-void charge_mode_set_series(uint16_t throws);
-
-// For the console's comparisons (ADR-009, gate F.5): what pours the next charge, taken by its start and never stored;
-// a charge so poured carries nothing into a record and learns nothing
-void charge_mode_set_pour(charge_pour_t pour);
+charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile, uint16_t series,
+                                               charge_pour_t pour);
 
 
 // The charge as GET /api/v1/charge gives it
