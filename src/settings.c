@@ -1093,19 +1093,46 @@ static const char *save_refused(const settings_resource_t *resource) {
 }
 
 
+/*
+ * A save, every side's (the API's, the console's, the menu's): its refusal and its store under the activity lock, so
+ * no job begins between the two (the review of 2026-11-24, item 12). 200, or 409 with why (busy, or refused while a job
+ * runs), or 500 when the EEPROM did not take it
+ */
+static int save_locked(const settings_resource_t *resource, activity_by_t by, const char **why) {
+    if (!activity_try_lock(SETTINGS_LOCK_WAIT_MS)) {
+        *why = "the settings are being written";
+        return 409;
+    }
+    int status = 200;
+    *why = save_refused(resource);
+    if (*why != NULL) {
+        status = 409;
+    }
+    else if (!store(resource, by)) {
+        *why = "the EEPROM did not take it";
+        status = 500;
+    }
+    activity_unlock();
+    return status;
+}
+
+
+// What a save's usage says it is refused while: a job, for a resource whose writes are; else never
+static const char *save_refused_name(const settings_resource_t *resource) {
+    return resource->refused_while == SETTINGS_REFUSED_A_JOB_RUNS ? "a_job_runs" : "never";
+}
+
+
 static void settings_save_handler(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!empty_body(request, reply)) {
         return;
     }
     for (size_t idx = 0; idx < resource_count; idx += 1) {
         if (strcmp(resources[idx]->save_path, request->path) == 0) {
-            const char *why = save_refused(resources[idx]);
-            if (why != NULL) {
-                http_server_reply_error(reply, 409, "busy", why);
-                return;
-            }
-            if (!store(resources[idx], ACTIVITY_BY_API)) {
-                http_server_reply_error(reply, 500, "failed", "the EEPROM did not take it");
+            const char *why = NULL;
+            int status = save_locked(resources[idx], ACTIVITY_BY_API, &why);
+            if (status != 200) {
+                http_server_reply_error(reply, status, status == 409 ? "busy" : "failed", why);
                 return;
             }
             reply_saved(reply);
@@ -1120,9 +1147,15 @@ static void settings_save_all_handler(const http_server_request_t *request, http
     if (!empty_body(request, reply)) {
         return;
     }
+    // Every refusal, then every store, under the activity lock: no job begins between them (item 12)
+    if (!activity_try_lock(SETTINGS_LOCK_WAIT_MS)) {
+        http_server_reply_error(reply, 409, "busy", "the settings are being written");
+        return;
+    }
     for (size_t idx = 0; idx < resource_count; idx += 1) {
         const char *why = save_refused(resources[idx]);
         if (why != NULL) {
+            activity_unlock();
             http_server_reply_error(reply, 409, "busy", why);
             return;
         }
@@ -1134,12 +1167,14 @@ static void settings_save_all_handler(const http_server_request_t *request, http
             done_before = done_before || resources[earlier]->save == resources[idx]->save;
         }
         if (!done_before && !store(resources[idx], ACTIVITY_BY_API)) {
+            activity_unlock();
             char message[96];
             snprintf(message, sizeof(message), "%s: the EEPROM did not take it", resources[idx]->save_path);
             http_server_reply_error(reply, 500, "failed", message);
             return;
         }
     }
+    activity_unlock();
     reply_saved(reply);
 }
 
@@ -1259,18 +1294,26 @@ bool settings_action_usage(const char *path, char *out, size_t room, size_t *len
         }
         http_json_raw(out, room, len, "{\"usage\":{\"method\":\"POST\",\"path\":");
         http_json_string(out, room, len, path);
-        http_json_raw(out, room, len, save ? ",\"fields\":[],\"refused_while\":\"never\",\"about\":\"stores what "
-                                             "was written to the settings stored here; answers {\\\"saved\\\": true}\"" :
-                                             ",\"fields\":[],\"about\":\"puts back what is stored here, undoing what was "
-                                             "written since; each resource that changed gives its setting changed event; "
-                                             "409 busy as a write to it is; answers {\\\"reverted\\\": true}\"");
+        if (save) {
+            http_json_raw(out, room, len, ",\"fields\":[],\"refused_while\":");
+            http_json_string(out, room, len, save_refused_name(resource));
+            http_json_raw(out, room, len, ",\"about\":\"stores what was written to the settings stored here; "
+                                          "answers {\\\"saved\\\": true}. 409 busy while a job runs and a write to it "
+                                          "is held, where its refused_while is a_job_runs: the job may write it itself\"");
+        }
+        else {
+            http_json_raw(out, room, len, ",\"fields\":[],\"about\":\"puts back what is stored here, undoing what "
+                                          "was written since; each resource that changed gives its setting changed "
+                                          "event; 409 busy as a write to it is; answers {\\\"reverted\\\": true}\"");
+        }
         http_json_raw(out, room, len, ",\"example\":{}},\"see\":\"/api/v1/schema\"}");
         return true;
     }
     if (all) {
         http_json_raw(out, room, len, "{\"usage\":{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\","
-                                      "\"fields\":[],\"refused_while\":\"never\",\"about\":\"stores every setting and "
-                                      "the powders\",\"example\":{}},\"see\":\"/api/v1/schema\"}");
+                                      "\"fields\":[],\"refused_while\":\"a_job_runs\",\"about\":\"stores every "
+                                      "setting and the powders; 409 busy while a job runs and a write is held to a "
+                                      "resource refused while one does\",\"example\":{}},\"see\":\"/api/v1/schema\"}");
         return true;
     }
     return false;
@@ -1665,8 +1708,9 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
             schema->field = 2;
             http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
             http_json_string(buf, room, len, resources[idx]->save_path);
-            http_json_raw(buf, room, len, ",\"fields\":[],\"refused_while\":\"never\","
-                                          "\"about\":\"stores what was written there\"},");
+            http_json_raw(buf, room, len, ",\"fields\":[],\"refused_while\":");
+            http_json_string(buf, room, len, save_refused_name(resources[idx]));
+            http_json_raw(buf, room, len, ",\"about\":\"stores what was written there\"},");
             http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":");
             http_json_string(buf, room, len, resources[idx]->revert_path);
             http_json_raw(buf, room, len, ",\"fields\":[],\"refused_while\":");
@@ -1688,7 +1732,7 @@ static bool settings_schema_more(void *ctx, char *buf, size_t room, size_t *len)
         size_t mark = *len;
         http_json_raw(buf, room, len, schema->field == 2 ? "," : "");
         http_json_raw(buf, room, len, "{\"method\":\"POST\",\"path\":\"/api/v1/settings/save\",\"fields\":[],"
-                                      "\"refused_while\":\"never\","
+                                      "\"refused_while\":\"a_job_runs\","
                                       "\"about\":\"stores every setting and the powder profiles\"}");
         if (!http_json_fits(room, *len) && mark > 0) {
             *len = mark;
@@ -1899,8 +1943,9 @@ const char *settings_store(const char *path) {
         snprintf(settings_why, sizeof(settings_why), "no such resource: %s", path);
         return settings_why;
     }
-    if (!resource->is_saved() && !store(resource, ACTIVITY_BY_BUTTON)) {     // the menu's
-        snprintf(settings_why, sizeof(settings_why), "the EEPROM did not take it");
+    const char *why = NULL;
+    if (!resource->is_saved() && save_locked(resource, ACTIVITY_BY_BUTTON, &why) != 200) {     // the menu's
+        snprintf(settings_why, sizeof(settings_why), "%s", why);
         return settings_why;
     }
     return NULL;
@@ -1935,8 +1980,9 @@ const char *settings_write_and_store_by(const char *path, const char *const name
         snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
         return settings_why;
     }
-    if (!resource->is_saved() && !store(resource, by)) {
-        snprintf(settings_why, sizeof(settings_why), "the EEPROM did not take it");
+    const char *why = NULL;
+    if (!resource->is_saved() && save_locked(resource, by, &why) != 200) {
+        snprintf(settings_why, sizeof(settings_why), "%s", why);
         return settings_why;
     }
     return NULL;
@@ -1999,8 +2045,10 @@ void settings_console(const char *args, char *reply, size_t reply_size, settings
     args = skip_spaces(args + path_len);
 
     if (strncmp(args, "save", 4) == 0 && (args[4] == '\0' || args[4] == ' ')) {
-        if (!store(resource, ACTIVITY_BY_CONSOLE)) {
-            snprintf(reply, reply_size, "@err failed the EEPROM did not take it");
+        const char *why = NULL;
+        int status = save_locked(resource, ACTIVITY_BY_CONSOLE, &why);
+        if (status != 200) {
+            snprintf(reply, reply_size, "@err %s %s", status == 409 ? "busy" : "failed", why);
             return;
         }
     }

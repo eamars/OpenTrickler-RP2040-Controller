@@ -3526,8 +3526,13 @@ The back-off's measured forecast costs about 10 overs in 120 at both commits. **
 - `f4_cases.py`: **VERDICT FAIL 9** (`keeps_short`), the night's figure.
 - **Not touched:** any unit. The tip has never been on one.
 
-## 2026-11-24, 21:33: job 2, the leftover mends (the reviewer's decisions of 21:31)
+## 2026-11-24, 21:32: job 2, the leftover mends (the reviewer's decisions of 21:31)
 
 The reviewer accepted job 1 and decided from the record: fix 1 stays (sign-off item 8 names a limit passed among the faults that stop both tubes; gate 4's list of ends to draw already holds "a limit", in its bullets and on the failure modes); the carry bounded, (b) with (c); item 12 (a) and (b) mended; the refusal for want of memory said as it is; the precharge through a restart unchanged (it is with sign-off item 9, the day a gate is fitted).
 
 **The carry, every one bounded** (sign-off item 13). `charge_calibration_carry_law` merges every charge's first errors into the list and refuses a move of the stop past E12's 3 digits, the first carry after a calibration included; the law test is gone. An empty list is filled from the stop as placed (a median of 0) under the same bound. `ctune`'s accept no longer marks the list another law's: with no law test it changed nothing. E12's row corrected (it described a rule the code did not have). The reference has no carry (`carry_stop.py` is the 11-22 study), so the mend is the C's alone; the throw-for-throw check does not throw it. **Gate 3 gains** the rehearsals thrown by the law that pours, beside R, so the first carry is small in practice and not only by its bound. **The cost, known:** until then, a stop lying more than 3 digits from the rehearsals' walks there over two charges or more. The Pico 2 W builds.
+
+**Item 12, the save** ((a) and (b), the reviewer's yes), and its class. Five paths stored a setting: the API's save and save-all, the console's `setting <path> save`, and two of the menu's (`settings_store`, `settings_write_and_store_by`). Only the API's two checked the job's refusal, and none held the activity lock.
+- **One locked save:** `save_locked` takes the activity lock, checks the refusal (a resource refused while a job runs, with a write held), and stores, then lets the lock go; every path calls it. The save-all holds the lock over every refusal and every store. A job cannot begin between the check and the store. The lock is recursive, and a caller that cannot have it within the settings' wait is answered 409 `busy`, as a PATCH is.
+- **The usage says what the API does:** a save's usage and its schema entry give `refused_while` `a_job_runs` for such a resource (the powder records), else `never`; the save-all `a_job_runs`. api_v1.md says the same.
+- The Pico 2 W builds. `unit_api.py` reads `refused_while` as a word and needs no change.
