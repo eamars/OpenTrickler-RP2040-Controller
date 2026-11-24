@@ -278,7 +278,7 @@ charge_record_state_t charge_records_load(uint8_t profile, charge_calibration_re
     }
     charge_powder_record_t *r = pvPortMalloc(sizeof(*r));
     if (r == NULL) {
-        return CHARGE_RECORD_DAMAGED;   // not read is not used; the console says why
+        return CHARGE_RECORD_NO_MEMORY;     // not read is not used, and said as what it is
     }
     charge_record_state_t state = charge_records_read(profile, r);
     if (state == CHARGE_RECORD_OK) {
@@ -338,6 +338,7 @@ void charge_records_unit_scale(float *digit_gr, float *lag_s, float *rest_s) {
 
 const char *charge_records_state_words(charge_record_state_t state) {
     return state == CHARGE_RECORD_DAMAGED ? "Calibration damaged: calibrate again" :
+           state == CHARGE_RECORD_NO_MEMORY ? "No memory to read the calibration: try again" :
            state == CHARGE_RECORD_NONE ? "Not calibrated" : "Calibrated";
 }
 

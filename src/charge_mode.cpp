@@ -1258,7 +1258,8 @@ uint8_t charge_mode_menu(void) {
                 printf("Charge: profile %u has no calibration: the learnt source, %s\n", profile, about);
             }
             else {
-                refused = "Bad calibration";     // its record stored, and failing its check (gate R)
+                // its record stored, and failing its check (gate R); or not read, for want of memory
+                refused = charge_calibration_state(profile) == CHARGE_RECORD_NO_MEMORY ? "No memory" : "Bad calibration";
             }
         }
         if (refused != NULL) {
@@ -1514,6 +1515,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
         if (state == CHARGE_RECORD_DAMAGED) {
             return CHARGE_START_CALIBRATION_DAMAGED;
         }
+        if (state == CHARGE_RECORD_NO_MEMORY) {
+            return CHARGE_START_NO_MEMORY;
+        }
         // The user's settings the frame cannot pour with, refused in words (ADR-009, gate F.2)
         int check = charge_calibration_check_start(profile, charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold,
                                                    isnan(target) ? charge_mode_get_target() : target);
@@ -1522,6 +1526,9 @@ charge_start_result_t charge_mode_request_start(activity_by_t by, float target, 
         }
         if (check == 2) {
             return CHARGE_START_NO_SPEED;
+        }
+        if (check < 0) {
+            return CHARGE_START_NO_MEMORY;  // no copy of the calibration to check the start on
         }
     }
     // The menu takes a start under the activity lock, so the target and the profile are in before it can

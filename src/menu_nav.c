@@ -900,6 +900,9 @@ static void act_ack_charge(const menu_row_t *row) {
     else if (result == CHARGE_START_TOLERANCE_UNDER_DIGIT) {
         push_message("Tolerance too fine", "Under the scale's", "digit: raise it");
     }
+    else if (result == CHARGE_START_NO_MEMORY) {
+        push_message("No memory", "Its calibration could", "not be read: try again");
+    }
     else if (result == CHARGE_START_NO_SPEED) {
         push_message("No speed", "A tube's top speed", "is 0: raise it");
     }

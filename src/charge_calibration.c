@@ -303,7 +303,7 @@ int charge_calibration_state(uint8_t profile) {
     }
     charge_calibration_record_t *record = pvPortMalloc(sizeof(*record));
     if (record == NULL) {
-        return CHARGE_RECORD_DAMAGED;
+        return CHARGE_RECORD_NO_MEMORY;
     }
     charge_record_state_t state = charge_records_load(profile, record, NULL);
     if (state == CHARGE_RECORD_OK && charge_calibration_lacks(record) != NULL) {

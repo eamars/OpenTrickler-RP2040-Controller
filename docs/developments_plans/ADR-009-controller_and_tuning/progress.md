@@ -3536,3 +3536,10 @@ The reviewer accepted job 1 and decided from the record: fix 1 stays (sign-off i
 - **One locked save:** `save_locked` takes the activity lock, checks the refusal (a resource refused while a job runs, with a write held), and stores, then lets the lock go; every path calls it. The save-all holds the lock over every refusal and every store. A job cannot begin between the check and the store. The lock is recursive, and a caller that cannot have it within the settings' wait is answered 409 `busy`, as a PATCH is.
 - **The usage says what the API does:** a save's usage and its schema entry give `refused_while` `a_job_runs` for such a resource (the powder records), else `never`; the save-all `a_job_runs`. api_v1.md says the same.
 - The Pico 2 W builds. `unit_api.py` reads `refused_while` as a word and needs no change.
+
+**A refusal for want of memory, said as it is** (the reviewer's yes). With no heap to read a powder's record, `charge_records_load` and `charge_calibration_state` said "damaged", so the start was refused as "Bad calibration / calibrate again". They now say `CHARGE_RECORD_NO_MEMORY`, and a start is refused `CHARGE_START_NO_MEMORY`, also when `charge_calibration_check_start` had no copy to check on (it let that start through before, to fail at the charge's own block).
+- the screen: "No memory / Its calibration could / not be read: try again" (99 px at most, `helvR08`); the charge's own refusal of its block says "No memory" as before;
+- the API: 503 `busy` with its `field` `powder_profile`, as the settings' own no-memory answer (api_v1.md);
+- the console: `@err no memory to read the powder profile's calibration: try again`;
+- the state's words: "No memory to read the calibration: try again".
+The Pico 2 W builds.

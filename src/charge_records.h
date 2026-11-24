@@ -34,6 +34,7 @@ typedef enum {
     CHARGE_RECORD_OK = 0,
     CHARGE_RECORD_NONE,         // nothing stored: a powder never calibrated
     CHARGE_RECORD_DAMAGED,      // something stored that fails its CRC or its version: not used, and said
+    CHARGE_RECORD_NO_MEMORY,    // not read: no heap for the copy. Not used, and said as it is (the review, 2026-11-24)
 } charge_record_state_t;
 
 #ifdef __cplusplus

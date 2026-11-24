@@ -819,6 +819,9 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
             snprintf(reply, reply_size, "@err the powder profile's calibration is damaged, and not used: ccal save "
                      "it again, or `charge <gr> legacy`");
             return false;
+        case CHARGE_START_NO_MEMORY:
+            snprintf(reply, reply_size, "@err no memory to read the powder profile's calibration: try again");
+            return false;
         case CHARGE_START_DRIVER_FAULT:
             snprintf(reply, reply_size, "@err a motor driver is not OK: %s", motors_get_fault());
             return false;

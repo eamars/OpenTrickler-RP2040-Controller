@@ -125,6 +125,7 @@ typedef enum {
     CHARGE_START_CALIBRATION_DAMAGED,   // the powder's record stored and failing its check: refused, said (ADR-009)
     CHARGE_START_TOLERANCE_UNDER_DIGIT, // the fine stop threshold under the scale's digit (ADR-009, gate F.2)
     CHARGE_START_NO_SPEED,      // a top speed of 0 for a tube the throw needs: the profile's or the motor's (F.2)
+    CHARGE_START_NO_MEMORY,     // no heap to read the powder's calibration and check the start: try again (ADR-009)
 } charge_start_result_t;
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile, uint16_t series,
                                                charge_pour_t pour);

@@ -364,6 +364,10 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
                       "a tube this throw needs has a top speed of 0, the powder profile's or the motor's: raise it "
                       "(powder_profiles, settings/motors)", NULL);
             return;
+        case CHARGE_START_NO_MEMORY:
+            api_error(reply, 503, "busy", "powder_profile",
+                      "no memory to read the powder's calibration and check the start: try again", NULL);
+            return;
         case CHARGE_START_CALIBRATION_DAMAGED:
             api_error(reply, 409, "not_calibrated", "powder_profile",
                       "the powder's calibration is damaged (its stored record fails its check), and is not used: "
