@@ -56,12 +56,15 @@ POUR_GR_A_TURN_MOST = 12.0      # a run's most pour for the cup's check, before 
 
 @dataclass
 class Cup:
-    """The cup's two numbers, and the powder poured since it was last emptied."""
+    """The cup's two numbers, the powder poured since it was last emptied, and what a full cup does: `on_full` is
+    called before a run that would pass the capacity (on the unit, the pause that asks for the cup to be emptied); with
+    none, the count of powder starts again, as when the cup has been emptied."""
 
     capacity_gr: float = DEFAULT_CUP_CAPACITY_GR
     weight_gr: float = 0.0
     emptied_at_gr: float = 0.0
     pauses: int = 0
+    on_full: object = None
 
 
 @dataclass
@@ -90,6 +93,8 @@ def cup_room(bench, cup: Cup, most_gr: float) -> None:
     emptied (on the unit, the user empties it; here the count starts again), then goes on."""
     if bench.cup.landed_gr - cup.emptied_at_gr + most_gr > cup.capacity_gr:
         cup.pauses += 1
+        if cup.on_full is not None:
+            cup.on_full(bench.cup.landed_gr - cup.emptied_at_gr, most_gr)
         cup.emptied_at_gr = bench.cup.landed_gr
 
 
