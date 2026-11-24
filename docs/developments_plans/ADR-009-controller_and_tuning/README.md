@@ -8,14 +8,16 @@ The earlier README and progress are phased out and moved to [`legacy/`](legacy/)
 
 ADR-009 is two steps, in this order:
 1. **The calibration:** the user runs it for the unit and for each powder. It measures the cup, the scale and the powder on this unit's tubes, keeps what it measured, and writes the charge settings that follow from it.
-2. **The tuning:** the PID of each tube, made from what step 1 keeps, then kept right throw by throw.
+2. **The tuning:** the predictor and the PID auto-tuner, made from what step 1 keeps.
 
-Step 2 depends on step 1: it takes step 1's records as its input, and has none without them. Step 1 is built and proven on a unit before step 2 is started. ADR-009 is these two steps and nothing more.
+Step 2 depends on step 1: it takes step 1's records as its input, and has none without them. It starts only once step 1 is fully complete: built and proven on a unit, nothing of it left open. ADR-009 is these two steps and nothing more.
 
 ## Owner's direction
 
 - The calibration records the cup, the scale, and each powder on this unit: the list below.
 - The PID is tuning, not calibration: step 1 neither measures nor writes it.
+- Step 2 is the predictor and the PID auto-tuner, and nothing runs beside them: no glide, no other algorithm in parallel.
+- Step 2 starts only once the calibration is fully complete.
 - The fine threshold is the user's expectation, the tolerance of a throw. The calibration never writes it.
 - The cup comes first: how the user gives its size is settled before the rest.
 - The servo gate's tuning is not part of ADR-009.
@@ -82,4 +84,8 @@ Each changes a stored layout: on every unit, a struct that changes size returns 
 
 ## Step 2: the tuning
 
-Drafted after step 1. Its input is step 1's records.
+- **The predictor:** what the reading will show once the powder still falling has landed, from step 1's records.
+- **The PID auto-tuner:** each tube's PID made from step 1's records, then kept right throw by throw.
+- **Nothing else:** no glide, and no other algorithm in parallel.
+
+Its input is step 1's records. It starts only once step 1 is fully complete; its details are drafted then.
