@@ -36,6 +36,7 @@ import re
 import statistics
 import sys
 import time
+import traceback
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -46,6 +47,8 @@ import staged       # noqa: E402  (../staged.py)
 THROW_MOST_S = 150.0
 POLL_S = 1.0
 RECORDING_WAIT_S = 30.0     # a throw's recording complete by then: its verdict comes at its rest
+READ_TRIES = 2              # a throw's read (its rows by the console, its recording through the API) tried this often
+API_TIMEOUT_S = 15.0        # a read through the API waited for this long: the unit's web answers late while it zeroes
 SETTLE_S = 5.0
 THROW_LINE = re.compile(r"Charge: throw (.*)")
 
@@ -86,11 +89,74 @@ def state(session) -> dict:
     return fields(reply)
 
 
+class Tee:
+    """What the tool prints, also into a file of the arm's folder: its output and any traceback are kept."""
+
+    def __init__(self, stream, file):
+        self.stream, self.file = stream, file
+
+    def write(self, text):
+        self.stream.write(text)
+        self.file.write(text)
+        self.file.flush()
+        return len(text)
+
+    def flush(self):
+        self.stream.flush()
+        self.file.flush()
+
+
+def read_throw(session, repo: Path, host: str, recording: int) -> dict:
+    """
+    A complete throw's reads, none of which ends the arm (the review of 2026-11-24: a missed reply ended two arms on
+    2026-11-22, and a late answer of the web a third tonight, which then stopped the next throw mid-pour).
+
+    Its rows by the console (`ccrec`), tried READ_TRIES times; its recording through the API, tried as often, each
+    waited for API_TIMEOUT_S. A read that fails is said and kept in `reads`; a console read that failed is not counted
+    against the session's verdict once the throw's rows are had another way.
+
+    Returns:
+        {"rows": the console's rows, or [] when not had, "recording": the API's entry and samples, or None,
+         "reads": what each read did}.
+    """
+    out = {"rows": [], "recording": None, "reads": []}
+    for attempt in range(READ_TRIES):
+        failures_before = len(session.failures)
+        reply = session.send(f"ccrec {recording}" if recording else "ccrec")
+        if reply is not None and reply.startswith("@ok"):
+            out["rows"] = [[float(x) for x in line.split()[1:]] for line in session.console.data_lines
+                           if line.startswith("@r ")]
+            out["reads"].append(f"ccrec: {len(out['rows'])} rows (try {attempt + 1})")
+            break
+        out["reads"].append(f"ccrec: no rows, {reply!r} (try {attempt + 1})")
+        console_failures = session.failures[failures_before:]
+        del session.failures[failures_before:]      # judged below, once the API has had its say
+    else:
+        console_failures = ["ccrec gave no rows"]
+    if host and recording:
+        for attempt in range(READ_TRIES):
+            try:
+                out["recording"] = read_recording(repo, host, recording)
+                out["reads"].append(f"api: recording {recording} read (try {attempt + 1})")
+                break
+            except Exception as error:      # noqa: BLE001  a read that failed is said, and the arm goes on
+                out["reads"].append(f"api: recording {recording} not read, {error!r} (try {attempt + 1})")
+                print(f"recording {recording}: not read ({error!r}), try {attempt + 1} of {READ_TRIES}", flush=True)
+    if not out["rows"]:
+        had = out["recording"] is not None and out["recording"].get("samples") is not None
+        if not had:
+            session.failures.extend(console_failures)   # neither way had its rows: the session says so
+        out["reads"].append("rows: " + ("the API's samples alone" if had else "NOT HAD"))
+        print(f"recording {recording}: the console's rows not had; "
+              f"{'the API has its samples' if had else 'neither has its rows'}", flush=True)
+    return out
+
+
 def read_recording(repo: Path, host: str, recording: int) -> dict:
     """A throw's recording through the API once it is complete: its entry (summary, settings, marks) and samples."""
     sys.path.insert(0, str(repo / "tools" / "remote_control"))
     import unit_api
-    unit = unit_api.Unit(host)
+    unit = unit_api.Unit(host, timeout_s=API_TIMEOUT_S)
     deadline = time.monotonic() + RECORDING_WAIT_S
     entry = None
     while time.monotonic() < deadline:
@@ -198,6 +264,8 @@ def main() -> int:
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     folder = args.repo / "logs" / "adr009" / f"{stamp}_series_{args.name}"
     folder.mkdir(parents=True)
+    log_file = (folder / "series.log").open("w", encoding="utf-8")
+    sys.stdout, sys.stderr = Tee(sys.stdout, log_file), Tee(sys.stderr, log_file)
     record = {"name": args.name, "started": stamp, "target_gr": args.target, "finish": args.finish,
               "band_gr": args.band, "calibration_file": str(args.calibration), "errors": errors, "pour": args.pour,
               "lag_shift_s": args.lag_shift, "mode": args.mode, "controller": args.controller, "gains": gains,
@@ -273,11 +341,11 @@ def main() -> int:
             for text in throws[seen:]:
                 entry = fields(text)
                 recording = int(entry.get("recording", 0) or 0)
-                session.send(f"ccrec {recording}" if recording else "ccrec")
-                entry["rows"] = [[float(x) for x in line.split()[1:]] for line in session.console.data_lines
-                                 if line.startswith("@r ")]
-                if args.host and recording:
-                    entry["recording"] = read_recording(args.repo, args.host, recording)
+                reads = read_throw(session, args.repo, args.host, recording)
+                entry["rows"] = reads["rows"]
+                entry["reads"] = reads["reads"]
+                if reads["recording"] is not None:
+                    entry["recording"] = reads["recording"]
                 record["throws"].append(entry)
                 error = entry["rest"] - args.target
                 print(f"throw {len(record['throws'])}: {entry['result']} rest {entry['rest']:.3f} "
@@ -299,6 +367,9 @@ def main() -> int:
         record["cup_after_gr"] = state(session).get("weight")
     except KeyboardInterrupt:
         print("stopped by hand")
+    except Exception:       # noqa: BLE001  the arm ends on it, the charge stopped below, and its traceback kept
+        print(traceback.format_exc(), file=sys.stderr, flush=True)
+        record["ended_by"] = traceback.format_exc().strip().splitlines()[-1]
     finally:
         if started_charge:
             session.send("charge stop")
