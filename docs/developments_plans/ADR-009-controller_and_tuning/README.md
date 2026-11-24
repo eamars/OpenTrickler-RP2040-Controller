@@ -48,10 +48,14 @@ Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the fi
 
 ### To settle before approval
 
-1. **Appending without a reset:** today's loader would reset the charge settings and the scale settings (the scale's make and baud rate with them) on the update that appends items 1 to 4. Proposed: `load_config` reads a record of the module's previous size, keeps its fields, gives the appended ones their defaults and stores it; shown by an update from today's release that keeps every setting.
-2. **The scale's digit:** taken from the decimal places, or not kept. On the A&D in grains the digit is 0.02 at two decimal places.
-3. **"Consistent"** for items 5 and 6, in numbers: for example `bench/stop_spread.py`'s rule, the fastest speed whose spread is within 1.3 times the smallest.
-4. **How long a calibration may take.** The first build's took 8 to 13 minutes.
+1. **Appending without a reset:** today's loader would reset the charge settings and the scale settings (the scale's make and baud rate with them) on the update that appends items 1 to 4. Proposed: a record whose CRC32 fails at the struct's size is tried at each shorter size, from one byte less down to one, until a CRC32 matches; that size is the previous version's. Its bytes are kept, the appended fields take their defaults, and it is written once the update is kept, as defaults are today. It holds when:
+   - fields are only appended at the end of a flat stored struct (never inside an array's element, such as one powder profile of eight);
+   - the struct grows by them: `sizeof` checked before and after, since a field that fits in the old struct's tail padding leaves the size as it was and reads that padding;
+   - a record that matches at no size is taken as damaged and gets the defaults, as today. A wrong match is a chance of one in about four billion for each size tried.
+
+   Shown by an update from today's release that keeps every setting.
+2. **"Consistent"** for items 5 and 6, in numbers: for example `bench/stop_spread.py`'s rule, the fastest speed whose spread is within 1.3 times the smallest.
+3. **How long a calibration may take.** The first build's took 8 to 13 minutes.
 
 The method is developed from the PC on the bench, where the tools exist; for users it is a job on the unit, run from the screen and the web.
 
