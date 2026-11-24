@@ -3493,3 +3493,35 @@ The review's list of 20:53, item by item, each mend its own commit. No unit touc
   - no readings: the prime's "until two runs pour the same" never ends;
   - both need a decision on what ends the job and a bound on its runs, a number with its row;
   - `tail[CHARGE_CAL_JOB_READINGS_MAX]`, 1,536 readings (6 KB in float), is a local array in `charge_calibration_job.c`, so it sits on the stack of whatever task calls the job (checked in the code); the job task's stack is sized from `stats tasks`, gate 3's to settle.
+
+**The documents made true** (21:22 to 21:27):
+- **The README's status line and "Where ADR-009 stands"** said the next work was gate 2's rest. A block of 2026-11-24, 21:22 now states the tip: what is built, that no series on the rig met a bar, the passes that do not hold as written, what waits on a decision, that the tip was never on a unit, and the review's order. The block of 2026-11-23 is kept for its settled items, its "next" marked superseded.
+- **The failure modes' F.4 entry** named 4 false "no powder" ends of `keeps_short`. At the tip `f4_cases.py` gives `VERDICT FAIL 9`, the review's figure: of 63 throws after the fall, 44 good, 10 short, 4 "no powder", 3 over (56 to 86 s), 2 "limit" (C19, 26 and 27 s). All are named now, with the case's letter, and that the safe ends were the manager's acceptance, not the owner's.
+- **L's account of 03:15** said form (a) failed one end of three. Its log, `logs/adr009/g3_l_study_a.txt`, ends `VERDICT FAIL on ['holds', 'slower', 'strain']`. By its harness, written before the run, end 1 failed (throws not at rest on `slower` and `strain`, over the bar on `holds`) and end 3 failed (`late_small`): two of three. Corrected under the 03:15 heading and in the morning list's item 3, the old account kept.
+- **Gate 3's job ends** (item 13) are on the failure modes.
+
+**The desk suites: which commit turned `f3_cases.py` from pass to fail** (desk copies by `git archive <commit> tools/charge_sim src toolchain.env`, run with the venv at the default 10 throws):
+
+| Commit | What it changed for f3 | `f3_cases.py` | `backoff_measured`: off / measured, good and over of 40 |
+|---|---|---|---|
+| 7df1bc8 | (the last pass named) | PASS | |
+| 0b3e303 | the calibration job's C (not thrown by f3) | PASS | |
+| f105bb2 | D1's zero lag, C and reference | PASS | 24, 16 / 22, 16 |
+| 95f9aae | F6 (the prime at each tube's range's mean), C1 (moves at the creep), C and reference | **FAIL 1** | 34, 4 / 26, 13 |
+| b8abcbb | L's study's hooks in the reference, off by default | FAIL 1, the same figures to the throw | 34, 4 / 26, 13 |
+
+**Real change or the suite's noise:** the same case at 30 throws a seed (120 a side):
+- at f105bb2, **FAIL**: back-off off good 83, over 37; measured good 69, over 48;
+- at 95f9aae, **FAIL**: off 86, 27; measured 82, 37.
+
+The back-off's measured forecast costs about 10 overs in 120 at both commits. **The flip at 10 throws is the suite's noise:** 40 throws a side and a bar of 2 a seed cannot resolve a cost of that size. 95f9aae is a real change of the simulated system (the arm with the back-off off from 37 overs to 27 at 30 throws), but it is not what the case's verdict turned on. Nothing was tuned. The README's F.3 failure mode says so. The figures of that entry (good 82, over 37 against 86, 27) are 95f9aae's to the throw, so they were run on its tree.
+
+**Job 1's suites at the tip** (each as it printed, 21:23 to 21:27; both boards built at the tip's code into `build_fix_2w` and `build_fix_w`, never `build/`):
+- **The Pico 2 W and the Pico W build.** The Pico W's image is 1,036,764 B of its 1,040,384 B slot (3,620 B spare, against the review's 3,984 at b8abcbb); `size_report.py` gives its RAM at link time as 253.0 KB of 256 KB.
+- `check_numbers.py`: **VERDICT PASS**.
+- `check_firmware_controller.py --throws 40 --logic-only`: **VERDICT PASS** (lockstep 40/40, every set); `--pid`: **VERDICT PASS**; `--learn-fine`: **VERDICT PASS**.
+- `check_calibration_job.py` (double and float, item 13's form): **VERDICT PASS**; kept trials judged 0 of 8.
+- `safety_cases.py`: **VERDICT PASS**. `limits_cases.py`: **VERDICT PASS**.
+- `f3_cases.py`: **VERDICT FAIL 1** (`backoff_measured`: good 26 against 34, over 13 against 4), the night's figure; above, why.
+- `f4_cases.py`: **VERDICT FAIL 9** (`keeps_short`), the night's figure.
+- **Not touched:** any unit. The tip has never been on one.
