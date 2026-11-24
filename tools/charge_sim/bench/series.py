@@ -146,12 +146,20 @@ def main() -> int:
     parser.add_argument("--coarse-gr-turn", type=float, help="in place of the calibration's: a figure the throws gave "
                         "(verify_series.py)")
     parser.add_argument("--fine-gr-turn", type=float, help="in place of the calibration's, as --coarse-gr-turn")
+    parser.add_argument("--uncalibrated", action="store_true",
+                        help="throw the profile as it is, a powder never calibrated (the learnt source, ADR-009 F.4): "
+                             "no calibration written or loaded; the records' states listed (`ccal`)")
+    parser.add_argument("--select-profile", type=int,
+                        help="choose this powder profile for the series over the API (--host), the one chosen "
+                             "before put back at the end")
     args = parser.parse_args()
     if args.mode:
         args.finish, args.band = "glide", {"accurate": 0.02, "fast": 0.04}[args.mode]
 
-    if args.calibration is None:
-        parser.error("--calibration is needed for the staged controller")
+    if args.calibration is None and not args.uncalibrated:
+        parser.error("--calibration is needed for the staged controller, or --uncalibrated")
+    if args.select_profile is not None and not args.host:
+        parser.error("--select-profile needs --host")
     gains = {}
     if args.gains is not None:
         copy = json.loads(args.gains.read_text())["resources"][f"/api/v1/powder_profiles/{args.gains_profile}"]
@@ -159,8 +167,9 @@ def main() -> int:
         for pair in args.profile_set.split():
             name, value = pair.split("=", 1)
             gains[name] = float(value)
-    kept = json.loads(args.calibration.read_text()) if args.calibration else {"calibration": None}
-    cal = staged.from_json(kept.get("calibration", kept))
+    kept = json.loads(args.calibration.read_text()) if args.calibration and not args.uncalibrated else \
+        {"calibration": None}
+    cal = staged.from_json(kept.get("calibration", kept)) if kept.get("calibration", kept) is not None else None
     if cal is not None and args.lag_shift:
         staged.shift_lags(cal, args.lag_shift)
     if cal is not None and args.coarse_gr_turn:
@@ -192,6 +201,7 @@ def main() -> int:
               "coarse_gr_turn": cal.coarse_gr_turn if cal else None, "fine_gr_turn": cal.fine_gr_turn if cal else None,
               "throws": []}
     started_charge = False
+    chosen_before = None
     try:
         now = state(session)
         if int(now.get("charge", -1)) != 0 or int(now.get("form", -1)) < 0:
@@ -204,7 +214,20 @@ def main() -> int:
         profile_lines = [f"setting powder_profiles/{args.profile} " + " ".join(
             f"{name}={value:g}" for name, value in gains.items() if name.startswith(tube))
             for tube in ("coarse", "fine")] if gains else []
-        if args.keep_calibration:
+        if args.select_profile is not None:
+            sys.path.insert(0, str(args.repo / "tools" / "remote_control"))
+            import unit_api
+            unit = unit_api.Unit(args.host)
+            status, charge = unit.request("GET", "charge")
+            chosen_before = charge.get("powder_profile") if status == 200 else None
+            status, reply = unit.request("PATCH", "charge", {"powder_profile": args.select_profile})
+            if status != 200:
+                print(f"the profile not chosen: {status} {reply}")
+                return 1
+            record["profile_chosen"] = args.select_profile
+        if args.uncalibrated:
+            lines = ["ccal"] + profile_lines
+        elif args.keep_calibration:
             lines = ["ccal load"] + profile_lines
         else:
             lines = calibration_commands(cal, errors, args.finish, args.band) + profile_lines
@@ -281,6 +304,10 @@ def main() -> int:
         session.send("setting settings/charge revert")     # the tolerance and the rest back as stored
         if gains:
             session.send(f"setting powder_profiles/{args.profile} revert")
+        if chosen_before is not None:
+            status, _ = unit_api.Unit(args.host).request("PATCH", "charge", {"powder_profile": chosen_before})
+            record["profile_put_back"] = chosen_before if status == 200 else f"not put back: {status}"
+            print(f"the profile chosen before, {chosen_before}: {record['profile_put_back']}")
         # Each throw's settled weight: the next one's base less its own
         throws = record["throws"]
         for i, entry in enumerate(throws):

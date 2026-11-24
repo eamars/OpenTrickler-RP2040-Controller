@@ -3623,3 +3623,22 @@ The settings in force (the 00:37 copy, and the start's own lines): tolerance 0.0
 2. **The fine top:** asked "Should the calibration find the fine top and write it to the profile, as it already writes the creep?", the owner chose "Calibration writes it (Recommended)". It changes the register's row 5. The calibration finds the fastest fine speed whose stop still lands within the tolerance and writes it to the profile's fine max on the user's yes. No new parameter. The method is designed at gate 3 and shown to the owner before it is built. Written into the register's row 5, numbers.md's A5 and C3, and gate 3's list; nothing of it is built.
 
 Also written (the reviewer, 21:44): the unit's step count with no direction, onto the failure modes with its simulated figure, 0.009 turn; nothing built.
+
+## 2026-11-24, 21:54: the bench, the proof of the tip on the Pico 2 W; the rig measurement's prediction before it
+
+**The proof** (the Pico 2 W on the probe, the real A&D; every command with `--board pico2_w --elf build_fix_2w\app.elf`):
+- settings copied before the flash (`logs/adr009/bench_20261124_2148_settings_before`): VERDICT PASS, 26 resources; profile 1 holds no record, its gains and limits as at 00:37;
+- `flash`: VERDICT PASS, the unit runs 2.0.3-312 at b1a6ddc (the tip's code; later commits are documents and host tools); `settings --compare` against the copy: VERDICT PASS, only the firmware differs;
+- `menu_tour --compare tests/menu_baseline/pico2_w`: **VERDICT PASS** (only the Firmware page, by its version);
+- `charge_cycle` (the first run that read the cup, `--cup-emptied "Ready, cup emptied now"`): **VERDICT PASS**, good at 30.02;
+- `api_check --host 192.168.2.166`: **VERDICT PASS** (the update poll fails "no connection", as it should: the unit's source is the local OTA server, not running);
+- `settings_roundtrip --host 192.168.2.166`: **VERDICT PASS**, 26 resources, 277 fields written back unchanged, 278 values outside their limits refused, the charge's and the motors' settings refused 409 during a throw.
+- The cup: 0.00 to 55.02 gr over the four.
+
+**The rig measurement** (the reviewer, after job 3): F.4's series again, profile 1 (no record) chosen over the API and put back to 0 after, `charge 10 series 3`, the settings as they are, every throw's recording read through the API and kept on disk before anything else runs. `series.py` gains `--uncalibrated` (no calibration written or loaded) and `--select-profile`. Most pour 49 gr; about 31 expected.
+
+**The prediction, from job 3's reproduction (arm A) and the night's series:**
+1. **As the night:** each throw rests short at its first fine stop and goes back to the stream (`streams=1`), and its verdict comes after that second stream; over in at least 2 of the 3.
+2. **The figure** in each throw's line falls throw by throw, after the first between 0.25 (the night: 0.30) and 0.55 (the simulation: 0.52), against the tube's 0.88.
+3. **The rows' word:** at the first fine stop the forecast (`ctl_forecast`) is at the target less the stop room, and the reading rests below it by several digits. What the forecast held there and did not come is the error that sends the throw back to the stream; the rows give its size, and whether it is the coarse tube's powder (the coarse stop near) or the fine's.
+4. **What would contradict job 3's cause:** a first rest within the band (no second stream), or a figure at or above 0.7 that still goes over.
