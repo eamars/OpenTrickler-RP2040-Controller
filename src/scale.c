@@ -21,6 +21,7 @@ extern scale_handle_t jm_science_scale_handle;
 extern scale_handle_t creedmoor_scale_handle;
 extern scale_handle_t radwag_ps_r2_scale_handle;
 extern scale_handle_t sartorius_scale_handle;
+extern scale_handle_t fa_en_scale_handle;
 
 scale_config_t scale_config;
 const eeprom_scale_data_t default_scale_persistent_config = {
@@ -79,6 +80,11 @@ void set_scale_driver(scale_driver_t scale_driver) {
         case SCALE_DRIVER_GENERIC_DRV:
         {
             scale_config.scale_handle = &generic_scale_drv_handle;
+            break;
+        }
+        case SCALE_DRIVER_FA_EN:
+        {
+            scale_config.scale_handle = &fa_en_scale_handle;
             break;
         }
         default:
@@ -156,6 +162,9 @@ const char * get_scale_driver_string() {
             break;
         case SCALE_DRIVER_SARTORIUS:
             scale_driver_string = "Sartorius";
+            break;
+        case SCALE_DRIVER_FA_EN:
+            scale_driver_string = "FA-E/EN";
             break;
         default:
             break;
