@@ -3411,3 +3411,14 @@ Written by the session that reviewed the night (7c11a46 to b8abcbb) at the owner
 - **A powder never calibrated:** recordings 4 to 6 read against their forecast at the desk; the 2 s and 6 s were chosen before the rig's 3 of 3.
 
 **The order from here:** the fixes above at the desk (1 to 9, 11, 12; 10 and 13 as said); the desk suites again; then, at the owner's word on the bench and the cup, the tip flashed and the usual proof; then the rig's answer on the controller (F.5's ABBA) before any screen is built.
+
+## 2026-11-24, 21:05: the review's fixes at the desk (the implementing agent, under the reviewer's instruction)
+
+The review's list of 20:53, item by item, each mend its own commit. No unit touched. Each item says what the code did, whether the finding is real, and what was done.
+
+**1. A throw ended "limit" was judged** (checked, real). The charge took every end but the cup and no powder as a verdict, on `rest_weight`, which `stop_all` sets for a limit to the reading at the moment the bound tripped: the tubes were stopped, the powder still in the air. A verdict of good or under could be false, and the event said `finished`.
+- **The invariant:** a verdict is given on a reading at rest only. The controller gives one only from its rest (good, over, short); a limit is not one.
+- **The mend:** a limit ends the charge as the cup lifted and no powder do (F.1's own form for its safety ends): both tubes stopped, the screen's title "Limit reached", the throw's `ended` event with the reason `limit`, held until a press, nothing carried. The controller, the reference and the suites are unchanged: they already counted a limit apart from a verdict.
+- **What a user sees change:** a limit's throw no longer shows a verdict, and the charge ends on it. A limit is one of C18 (120 s), C19 (the fine tube's turns) and C20 (100 tolerances over), the register's safety bounds. The three causes share the one word until gate 4's screens name each (`mockups/calibration_12864.png`).
+- **The other way, not taken:** the controller waits for the reading to rest after a limit, then the charge judges it. It keeps a verdict for a throw that hit a bound, but needs a wait with its own bound after C18's, a new mechanism.
+- `robust_staged.py`'s `far_over` judges the new end ("Limit reached", no verdict, the tubes still); api_v1.md names `limit`.

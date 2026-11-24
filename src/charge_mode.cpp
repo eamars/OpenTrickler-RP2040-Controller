@@ -707,14 +707,19 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
     motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
 
-    // The cup lifted, or no powder: the charge ends on it, as on a scale's fault, and nothing is learnt (ADR-009, gate
-    // F.1). One reason: a scale gone silent first ends it in the loop above, before the controller sees a reading
-    if (cc->result == CHARGE_CONTROL_RESULT_CUP || cc->result == CHARGE_CONTROL_RESULT_NO_POWDER) {
+    // The cup lifted, no powder, or a limit (the throw's time, the fine tube's turns, a reading far over): the charge
+    // ends on it, as on a scale's fault, and nothing is learnt (ADR-009, gate F.1). None is a verdict: only a throw
+    // that came to rest is judged, and a limit stops the tubes before the reading rests. One reason: a scale gone
+    // silent first ends it in the loop above, before the controller sees a reading
+    if (cc->result == CHARGE_CONTROL_RESULT_CUP || cc->result == CHARGE_CONTROL_RESULT_NO_POWDER ||
+        cc->result == CHARGE_CONTROL_RESULT_LIMIT) {
         bool cup = cc->result == CHARGE_CONTROL_RESULT_CUP;
+        bool limit = cc->result == CHARGE_CONTROL_RESULT_LIMIT;
         printf("Charge: throw n=%u result=%s reading=%.3f target=%.3f coarse_turns=%.4f fine_turns=%.4f\n",
                charge_throw_number, charge_control_result_string((charge_control_result_t) cc->result),
                cc->rest_weight, target, cc->turned[0], cc->turned[1]);
-        charge_mode_scale_fault(cup ? "Cup lifted" : "No powder", cup ? EVENT_REASON_CUP_LIFTED : EVENT_REASON_NO_POWDER,
+        charge_mode_scale_fault(cup ? "Cup lifted" : limit ? "Limit reached" : "No powder",
+                                cup ? EVENT_REASON_CUP_LIFTED : limit ? EVENT_REASON_LIMIT : EVENT_REASON_NO_POWDER,
                                 0, NULL);
         return false;
     }
@@ -722,7 +727,6 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
     // Its first error, at the calibration's own stop room, for the carry at the charge's end into its law's own list:
     // the throws of the charge's law only, so one law's stops never move the other's
     if (charge_mode_learning() && !cc->cal.learnt && cc->have_first_error && cc->streams == 0 &&
-        cc->result != CHARGE_CONTROL_RESULT_LIMIT &&
         (cc->k.speed_law ? 1 : 0) == charge_law && charge_carry_count < CHARGE_CARRY_THROWS_MAX) {
         // Translated to the rules' own stop room, where the rehearsals were thrown and from which the next charge
         // places its stop. Not the placed one: a session resting on its aim then moved the next one's stop by the

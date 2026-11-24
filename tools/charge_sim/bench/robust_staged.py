@@ -25,7 +25,7 @@ case by its pass, written here before the first run:
   zero): the same end;
 - third: a third of the powder from the start (`sim flow 0.333`): a throw, neither "limit" nor "No powder";
 - far_over: the reading at the target and 100 tolerances and a digit mid-coarse (`sim weight 23.04`): the throw ends
-  "limit".
+  "limit", and the charge ends "Limit reached": no verdict, the tubes still.
 
 The tubes do not need powder: the simulated scale makes its own. Run with the repository's venv:
     python robust_staged.py --repo C:/workspace/OpenTrickler-RP2040-Controller [--cases quiet_fine,lost] [--controller pid]
@@ -178,7 +178,7 @@ class Case:
         resumed = any("Charge: resumed" in line for line in events)
         ended = any("Charge: ended" in line for line in events)
         throw = any("Charge: throw" in line and "result=cup" not in line and "result=no_powder" not in line
-                    for line in events)
+                    and "result=limit" not in line for line in events)
         last = self.samples[-1][1] if self.samples else {}
         stopped = last.get("coarse", 0.0) == 0.0 and last.get("fine", 0.0) == 0.0
         if self.name == "none":
@@ -212,7 +212,8 @@ class Case:
         if self.name == "third":
             return throw and not ended and "result=limit" not in text, text
         if self.name == "far_over":
-            return throw and "result=limit" in text, text
+            ok = ended and ends == 1 and "result=limit" in text and "Limit reached" in text and not throw and stopped
+            return ok, text
         return False, "no such case"
 
 

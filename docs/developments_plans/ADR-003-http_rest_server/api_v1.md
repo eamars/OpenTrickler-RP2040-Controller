@@ -134,7 +134,7 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | throw | paused | `throw`, `pause`: its number in the throw (ADR-013: no reading for 3 of the scale's intervals) |
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
-| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; the staged controller's `cup_lifted`, a reading below the base by more than the scale's noise, and `no_powder`, the powder turned out not shown: ADR-009, gate F.1), and for a driver's fault its `motor` and `fault` |
+| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault; the staged controller's `cup_lifted`, a reading below the base by more than the scale's noise, `no_powder`, the powder turned out not shown: ADR-009, gate F.1; and `limit`, a bound of the throw reached (its time, the fine tube's turns, a reading far over), which is not a verdict: ADR-009), and for a driver's fault its `motor` and `fault` |
 | purge | started | `by` |
 | purge | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
 | motors | fault, cleared | `motor`, `fault` |
