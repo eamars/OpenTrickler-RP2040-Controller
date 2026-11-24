@@ -3872,3 +3872,23 @@ Written by the managing session, which does this research itself (not the implem
 - **The rule, written before the run:** the stop speed is the fastest whose spread is within 1.3 times the smallest measured. Twenty stops give a spread to about a sixth of itself, so a smaller difference is not told.
 - **Predicted:** the spread at 0.05 and 0.1 rev/s alike, 0.03 to 0.05 gr; at 0.2 within 1.3 of them or just beyond; at 0.3 wider (0.06 to 0.08).
 - **What it is not:** a number for the firmware. It is this unit's answer, for the question after it: whether one stop from that speed, with no nudge, beats today's finish and pure PID on spread and time. In a unit the calibration finds it from its own table of stops.
+
+## 2026-11-24, 23:09: question 1's first measurement: stops from rest; the flaw in its form, and the second measurement before it runs
+
+**The run** (22:58 to 23:07, `logs/adr009/20261124_225812_trial_stop_spread`; the cup 0.00 to 24.32 gr, emptied at the owner's word before it; 80 stops, VERDICT PASS):
+
+| Fine tube, rev/s | After the stop: mean, gr | Its spread, gr | Least to most, gr | The run's whole powder: mean and spread, gr |
+|---|---|---|---|---|
+| 0.05 | 0.048 | 0.055 | −0.02 to 0.18 | 0.151, 0.100 |
+| 0.1 | 0.078 | 0.058 | 0.00 to 0.18 | 0.193, 0.132 |
+| 0.2 | 0.107 | 0.082 | 0.00 to 0.26 | 0.317, 0.200 |
+| 0.3 | 0.128 | 0.103 | 0.00 to 0.36 | 0.468, 0.319 |
+
+- **By the rule written first:** the smallest spread 0.055 gr, the fastest speed within 1.3 of it 0.1 rev/s. The prediction held in its order (0.05 and 0.1 alike, 0.2 just beyond, 0.3 wider) and was low in its size (0.03 to 0.05 predicted).
+- **The flaw, found in the result:** each stop was a turn of 3 to 5 s from a tube at rest and released, and such a turn pours erratically. Its whole powder scatters by two thirds of itself (0.151 ± 0.100 gr at 0.05 rev/s; 0.468 ± 0.319 at 0.3, where the steady 0.88 gr a turn would give 0.79). At 0.3 rev/s 6 stops of 20 saw nothing arrive after the stop and 12 saw 0.16 gr or more. So this measured a start from rest, not a stop out of a flow, and a throw's stop is out of a flow: its fine tube has turned since the throw began.
+- **It is the calibration's own form.** `staged.run_stop` measures each stop from rest the same way, so the calibration's spreads and its powder unseen at a stop carry the same fault (ours, since the research). It is the fault F.2 met in the rehearsals, at the stops.
+- **What it does show:** powder asked from a tube at rest comes inconsistently, at every speed tried. That is the nudge's fault and the return to the stream's alike, and the reason the finish is one shot from a flow that never stopped.
+
+**The second measurement, a stop out of a running flow** (`stop_spread.py --lead 0.5,2`): the fine tube at 0.5 rev/s for 2 s, slowed without a stop to the measured speed, held there 2.5 s (two of the scale's lags and more, so the lead's powder has shown), then stopped and watched 3.5 s. 20 stops at each of 0.05, 0.1 and 0.2 rev/s, in turn. About 70 gr.
+- **The same rule:** the fastest speed whose spread is within 1.3 of the smallest.
+- **Predicted:** no stop with nothing after it at 0.1 and 0.2; the spread after the stop 0.03 to 0.045 gr at 0.05 and 0.1 (the throws' first rests at 0.08 rev/s spread by 0.038 to 0.047), under 0.065 at 0.2.

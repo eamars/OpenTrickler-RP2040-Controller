@@ -11,6 +11,11 @@ of them alike. With `--reverse` the tube is turned back at its stop, as the coar
 Usage, with the repository's venv, the unit on the probe:
     python stop_spread.py --repo <checkout> --elf build_fix_2w\\app.elf --speeds 0.05,0.1,0.2,0.3 --count 20
                           --most-pour 60 [--cup-emptied "<the owner's words>"] [--reverse <turns>,<rev/s>]
+                          [--lead <rev/s>,<seconds>]
+
+With `--lead` each stop comes out of a flow already running, as a throw's does: the tube turns at the lead's speed
+first, slows to the measured speed without stopping, holds it long enough for the scale to show the lead's
+powder, and stops. Without it each stop is a turn from rest, as the calibration's stops are.
 """
 
 import argparse
@@ -30,6 +35,7 @@ RUN_LEAST_S = 3.0           # a steady flow before the stop,
 RUN_LEAST_TURNS = 0.25      # and at least this much of a turn at a slow speed
 PRIME = (0.5, 4.0)          # a tube that stood still gives nothing at first: rev/s and seconds, not measured
 LAST_S = 0.6                # the reading at rest is the median of the watch's last stretch
+SLOW_S = 2.5                # with a lead: at the measured speed this long before the stop, two of the scale's lags and more
 RULE_SHARE = 1.3            # the stop speed: the fastest whose spread is within this share of the smallest
 
 
@@ -44,6 +50,35 @@ def one_stop(bench, speed: float, reverse) -> dict:
     end = statistics.median(w for t, w in made["after"] if t >= WATCH_S - LAST_S)
     return {"speed": speed, "turns": made["turns"], "gain": end - before, "at_stop": at_stop - before,
             "rise": end - at_stop}
+
+
+def flowing_stop(bench, speed: float, lead: tuple) -> dict:
+    """A stop out of a flow already running: the lead's speed, then the measured speed without a stop, then the stop."""
+    unit = bench.unit
+    before = bench._weight()[1]
+    turned_before = unit.turned("fine")
+    unit.set_speed("fine", lead[0])
+    started = unit.clock()
+    while unit.clock() - started < lead[1]:
+        bench._weight()
+    unit.set_speed("fine", speed)
+    slowed = unit.clock()
+    during = []
+    while unit.clock() - slowed < SLOW_S:
+        during.append(bench._weight())
+    unit.set_speed("fine", trial.HOLD_RPS["fine"])
+    stopped = unit.clock()
+    after = []
+    while unit.clock() - stopped < WATCH_S:
+        after.append(bench._weight())
+    unit.set_speed("fine", 0.0)
+    turns = unit.turned("fine") - turned_before
+    at_stop = during[-1][1]
+    end = statistics.median(w for t, w in after if t - stopped >= WATCH_S - LAST_S)
+    unit.runs.append({"note": "flowingstop", "tube": "fine", "speed_asked_rps": speed, "lead": list(lead),
+                      "turns": turns, "during": [(round(t - stopped, 3), w) for t, w in during],
+                      "after": [(round(t - stopped, 3), w) for t, w in after]})
+    return {"speed": speed, "turns": turns, "gain": end - before, "at_stop": at_stop - before, "rise": end - at_stop}
 
 
 def summed(stops: list) -> dict:
@@ -63,11 +98,13 @@ def main() -> int:
     parser.add_argument("--speeds", default="0.05,0.1,0.2,0.3", help="the fine tube's speeds, rev/s")
     parser.add_argument("--count", type=int, default=20, help="stops at each speed")
     parser.add_argument("--reverse", help="turned back at the stop: <turns>,<rev/s>")
+    parser.add_argument("--lead", help="each stop out of a running flow: <rev/s>,<seconds> at that speed first")
     parser.add_argument("--most-pour", type=float, required=True, help="the most this pours into the real cup, gr")
     parser.add_argument("--cup-emptied", help="the owner's words that the cup was emptied")
     args = parser.parse_args()
     speeds = [float(s) for s in args.speeds.split(",")]
     reverse = tuple(float(x) for x in args.reverse.split(",")) if args.reverse else None
+    lead = tuple(float(x) for x in args.lead.split(",")) if args.lead else None
 
     import record   # beside this file
     record.CUP_EMPTIED = args.cup_emptied
@@ -80,14 +117,14 @@ def main() -> int:
         bench.creep_stop("fine", PRIME[0], PRIME[1], WATCH_S, "held")   # the prime, not measured
         for round_no in range(args.count):
             for speed in speeds:
-                stop = one_stop(bench, speed, reverse)
+                stop = flowing_stop(bench, speed, lead) if lead else one_stop(bench, speed, reverse)
                 stops.append(stop)
                 print(f"round {round_no + 1:2d} {speed:5.3f} rev/s: at the stop {stop['at_stop']:+.3f}, after it "
                       f"{stop['rise']:+.3f}, {stop['gain'] / stop['turns']:.3f} gr a turn; the cup {bench.last:.2f}",
                       flush=True)
     finally:
         unit.stop()
-        out = {"reverse": reverse, "watch_s": WATCH_S, "stops": stops,
+        out = {"reverse": reverse, "lead": lead, "watch_s": WATCH_S, "stops": stops,
                "by_speed": {f"{v:g}": summed([s for s in stops if s["speed"] == v]) for v in speeds
                             if any(s["speed"] == v for s in stops)}}
         (unit.folder / "stop_spread.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
