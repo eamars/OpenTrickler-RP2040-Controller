@@ -3892,3 +3892,22 @@ Written by the managing session, which does this research itself (not the implem
 **The second measurement, a stop out of a running flow** (`stop_spread.py --lead 0.5,2`): the fine tube at 0.5 rev/s for 2 s, slowed without a stop to the measured speed, held there 2.5 s (two of the scale's lags and more, so the lead's powder has shown), then stopped and watched 3.5 s. 20 stops at each of 0.05, 0.1 and 0.2 rev/s, in turn. About 70 gr.
 - **The same rule:** the fastest speed whose spread is within 1.3 of the smallest.
 - **Predicted:** no stop with nothing after it at 0.1 and 0.2; the spread after the stop 0.03 to 0.045 gr at 0.05 and 0.1 (the throws' first rests at 0.08 rev/s spread by 0.038 to 0.047), under 0.065 at 0.2.
+
+## 2026-11-24, 23:12: the entry of 23:09 corrected: the hopper ran empty; the first measurement read on its first 12 rounds; the stop's spread follows the count of kernels unseen
+
+**The "flaw" of 23:09 was wrong, and so was its blame of the calibration's form.** The run's powder stopped coming: the cup rose about 1.6 gr a round through round 12, less in rounds 13 to 15, and nothing from round 16 on (`logs/adr009/stop_spread_1.txt`). The stops with nothing after them were an empty hopper, not a tube started from rest. The second measurement (23:10, `--lead 0.5,2`) poured nothing at all and was stopped after four stops; both motors stopped, the cup 24.34 gr. It waits for the hopper to be filled.
+
+**The first measurement on its first 12 rounds** (48 stops, powder flowing; each a turn from rest of 3 to 5 s, the tube stopped and held):
+
+| Fine tube, rev/s | Stops | After the stop: mean, gr | Its spread, gr | Least to most, gr | Grains a turn |
+|---|---|---|---|---|---|
+| 0.05 | 12 | 0.057 | 0.036 | 0.00 to 0.10 | 0.82 |
+| 0.1 | 12 | 0.107 | 0.042 | 0.04 to 0.18 | 0.90 |
+| 0.2 | 12 | 0.138 | 0.057 | 0.06 to 0.26 | 0.73 |
+| 0.3 | 12 | 0.168 | 0.057 | 0.02 to 0.22 | 0.74 |
+
+- **By the rule written first:** the smallest spread 0.036 gr; the fastest speed within 1.3 of it is 0.1 rev/s (0.042). The prediction of 22:57 held: 0.05 and 0.1 alike within 0.03 to 0.05; 0.2 beyond. With 12 stops a speed a spread is known to about a fifth of itself.
+- **The spread is the count of kernels still unseen at the stop.** A kernel is 0.02 gr; if the kernels unseen at a stop come independently, their spread is the square root of (0.02 gr × the powder unseen). That gives 0.034, 0.046, 0.053 and 0.058 gr for the four speeds, against 0.036, 0.042, 0.057 and 0.057 measured.
+- **The powder unseen at a stop has a part that does not shrink with speed.** From 0.05 to 0.3 rev/s it goes 0.057, 0.107, 0.138, 0.168 gr: about 0.045 gr and half a second of the flow. So below about 0.1 rev/s a slower stop narrows little (0.042 at 0.1, 0.036 at 0.05, and no lower than about 0.030 gr however slow), and the user's fine least speed of 0.08 rev/s sits at that knee.
+- **What follows for the finish:** one stop from the user's fine least speed scatters by about 0.04 gr on this tube with this powder. A narrower stop needs the fixed 0.045 gr made smaller, not the speed. The one thing not tried on the bench that aims at it: the fine tube turned back at its stop (`--reverse`).
+- **Not shown:** the same out of a running flow, as a throw's stop is (the second measurement), and with a reverse. Both wait for the hopper.
