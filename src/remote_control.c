@@ -810,10 +810,6 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
     switch (started) {
         case CHARGE_START_OK:
             break;
-        case CHARGE_START_NOT_CALIBRATED:
-            charge_mode_set_series(0);
-            snprintf(reply, reply_size, "@err the powder profile holds no calibration: ccal, or `charge <gr> legacy`");
-            return false;
         case CHARGE_START_TOLERANCE_UNDER_DIGIT:
             charge_mode_set_series(0);
             snprintf(reply, reply_size, "@err the fine stop threshold is under the scale's digit: setting "

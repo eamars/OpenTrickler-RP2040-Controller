@@ -353,10 +353,6 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
         case CHARGE_START_NO_TARGET:
             api_error(reply, 400, "no_target", "target", "no target is set: give one", NULL);
             return;
-        case CHARGE_START_NOT_CALIBRATED:
-            api_error(reply, 409, "not_calibrated", "powder_profile",
-                      "the controller needs the powder's calibration: calibrate it", NULL);
-            return;
         case CHARGE_START_TOLERANCE_UNDER_DIGIT:
             api_error(reply, 409, "settings_unusable", "fine_stop_threshold",
                       "the fine stop threshold is under the scale's digit, which no throw can meet: raise it "

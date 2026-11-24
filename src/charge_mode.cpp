@@ -1257,12 +1257,12 @@ uint8_t charge_mode_menu(void) {
                 printf("Charge: profile %u has no calibration: the learnt source, %s\n", profile, about);
             }
             else {
-                refused = "Not calibrated";
+                refused = "Bad calibration";     // its record stored, and failing its check (gate R)
             }
         }
         if (refused != NULL) {
-            // Refused at the start already (charge_mode_request_start) when not calibrated; here only if the slot
-            // changed since
+            // Refused at the start already (charge_mode_request_start) when damaged; here only if the slot changed
+            // since
             charge_mode_staged_free();
             charge_mode_scale_fault(refused, EVENT_REASON_REFUSED, 0, NULL);
             activity_job_end();

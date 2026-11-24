@@ -894,11 +894,8 @@ static void act_ack_charge(const menu_row_t *row) {
     else if (result == CHARGE_START_NO_TARGET) {
         push_message("No target", "Set a target first", NULL);
     }
-    else if (result == CHARGE_START_NOT_CALIBRATED) {
-        push_message("Not calibrated", "Calibrate the powder,", "or choose PID");
-    }
     else if (result == CHARGE_START_CALIBRATION_DAMAGED) {
-        push_message("Bad calibration", "Calibrate again,", "or choose PID");
+        push_message("Bad calibration", "Its record is damaged:", "calibrate again");
     }
     else if (result == CHARGE_START_TOLERANCE_UNDER_DIGIT) {
         push_message("Tolerance too fine", "Under the scale's", "digit: raise it");

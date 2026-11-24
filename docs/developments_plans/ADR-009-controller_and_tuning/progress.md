@@ -3427,3 +3427,7 @@ The review's list of 20:53, item by item, each mend its own commit. No unit touc
 - **Built as decided:** the cup is off when E19's readings are steady (the user's SD margin, as before) and their mean is below the throw's base by more than the scale's noise, the zero's mean margin and 2 digits (C24). The noise is one function, `charge_control_noise_gr`, which the controller's cup test and no-powder check now call too (no change in what they compute). `CHARGE_CUP_OFF_BELOW` is gone; E7's row says so.
 - Today's loop (the console's `legacy` alone) has no controller: its digit is the smallest step the scale has shown, 0 before any, the margin alone then.
 - `check_numbers.py`: PASS. The Pico 2 W builds.
+
+**3. The screen offered a choice that is gone** (checked, real). Two messages ended "or choose PID", the controller's choice that F.5 took out.
+- **"Not calibrated" could no longer be reached:** since F.4 a powder never calibrated is thrown by the learnt source, and `charge_mode_request_start` never returned `CHARGE_START_NOT_CALIBRATED`. Its path is removed: the result, the screen's message, the API's case and the console's.
+- **A damaged record** (stored, failing its check) is refused as before; its message now says what is true and what to do, "Bad calibration / Its record is damaged: / calibrate again" (102 px at `helvR08`, against the 100 px of the line it replaces; measured from `fonts/helvR08.bdf`). The charge's own refusal of a slot changed since the start says "Bad calibration" where it said "Not calibrated".
