@@ -440,3 +440,11 @@ body[data-page="setup"] { padding-left: 0; }
 .setup-address { font-size: 1.3rem; font-weight: 700; color: var(--ink); word-break: break-all; }
 /* A fact's name holds its line; its value gives way (rule: text holds its line) */
 .facts dt { white-space: nowrap; }
+
+/* ADR-009 step 1: the calibration's cards in Settings, its job's card first */
+.calibration { display: grid; gap: 12px; }
+.calibration-job .status { margin: 12px 0 4px; }
+.calibration-job .figure-line { margin: 4px 0; }
+.calibration-job .bar { width: 100%; }
+.calibration-job .bar i { background: var(--ink); }
+.calibration .pair { padding: 12px 0; }

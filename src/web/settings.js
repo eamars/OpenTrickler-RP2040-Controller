@@ -6,6 +6,7 @@
 
 // The parts in the order a person sets a unit up; each one resource, but the motors, two under one name
 const SETTINGS_PARTS = [
+    {key: "calibration", label: "Calibration", paths: [], api: "/api/v1/calibration"},  // ADR-009 step 1
     {key: "scale", label: "Scale", paths: ["/api/v1/settings/scale"]},                  // features: 46 47
     {key: "charge", label: "Charge", paths: ["/api/v1/settings/charge"]},               // features: 49
     // features: 55 56
@@ -25,11 +26,14 @@ const partShown = {};
 // What the unit carries, by its own report (the index's features: ADR-008, gate 2), read once: a part of a feature it
 // does not carry is not drawn (features: N9)
 let unitCarries = null;
+// The paths the unit's index lists: a part with an API of its own (the calibration) is drawn only where the unit has it
+let unitPaths = new Set();
 
 async function readCarries() {
     if (unitCarries === null) {
         const index = await api("GET", "/api/v1");
         unitCarries = index.ok ? Object.fromEntries((index.data.features || []).map((f) => [f.name, f.present])) : {};
+        unitPaths = new Set(index.ok ? (index.data.resources || []).map((r) => r.path) : []);
     }
     return unitCarries;
 }
@@ -38,7 +42,8 @@ async function drawSettingsList(resources, chosen) {
     const list = element("nav", {class: "list", "aria-label": "Settings"});
     for (const part of SETTINGS_PARTS) {
         const present = part.paths.filter((path) => resources[path]);
-        if (present.length === 0 || (part.feature && unitCarries && unitCarries[part.feature] === false)) {
+        const listed = part.api ? unitPaths.has(part.api) : present.length > 0;
+        if (!listed || (part.feature && unitCarries && unitCarries[part.feature] === false)) {
             continue;   // the unit does not carry it (ADR-005's report, gate 2): absent, not empty
         }
         const unsaved = present.some((path) => resources[path].saved === false);
@@ -118,6 +123,254 @@ function drawGateControl() {
     return card;
 }
 
+// ADR-009 step 1: the calibration, its three parts each run alone, as the 12864's Settings > Calibration
+// (tools/ui_mock/calibration_12864.py). Its API is the stand-in's provisional one until ADR-009's gate 3 makes the
+// unit's (tests/calibration_mock.py): the mock is for the owner to settle the pages on.
+const CALIBRATION = "/api/v1/calibration";
+const FILL_STEP = {fine: 0.1, coarse: 0.5};
+let calibrationTimer = null;
+let calibrationOwner = null;    // the view whose card the poll draws into: one at a time
+let calibrationPeriod = null;   // its poll's period, in ms
+
+function stopCalibrationPoll() {
+    if (calibrationTimer !== null) {
+        clearInterval(calibrationTimer);
+        calibrationTimer = null;
+    }
+    calibrationOwner = null;
+    calibrationPeriod = null;
+}
+
+function shown(value, digits, unit) {
+    return value === null || value === undefined ? "Not done" : `${value.toFixed(digits)} ${unit}`;
+}
+
+function speeds(range) {
+    return range ? `${range[0]} to ${range[1]} rev/s` : "Not done";
+}
+
+function line(label, value) {
+    return element("div", {class: "field inline"}, element("span", {}, label), element("output", {}, value));
+}
+
+// What changes within a step, as the unit says it: drawn into the step's card in place, never by rebuilding it
+function liveValues(job) {
+    const live = {};
+    if (["lift", "back", "fill"].includes(job.step)) {
+        live.figure = job.weight_gr.toFixed(2);
+    }
+    if (job.step === "back") {
+        live.note = `The cup weighs ${(-job.weight_gr).toFixed(2)} gr.`;
+    }
+    if (job.step === "fill") {
+        live.note = `${job.flow_gr_s.toFixed(2)} gr/s. Pour until the cup holds as much as you want it to.`;
+        live.fine = `${job.fine_rps.toFixed(1)} rev/s`;
+        live.coarse = `${job.coarse_rps.toFixed(1)} rev/s`;
+    }
+    if (job.step === "running") {
+        live.figure = String(job.progress);
+        live.note = job.line;
+        live.bar = `${job.progress}%`;
+    }
+    return live;
+}
+
+function drawCalibration() {
+    const box = element("div", {class: "calibration"});
+    const fill = {fine: 0, coarse: 0};  // the fill's speeds as asked, ahead of the unit's reply: two quick taps are two
+    let asking = 0;                     // the fill's writes not yet answered
+    let drawnKey = null;                // the step and the records the cards were built for
+    const send = async (method, path, body) => {
+        const reply = await api(method, path, body);
+        reply.ok ? draw(reply.data) : refusal(reply, "Not done");
+    };
+    const answer = (word) => send("POST", `${CALIBRATION}/answer`, {answer: word});
+    const stop = () => send("POST", `${CALIBRATION}/stop`, {});
+    const button = (text, kind, act) => element("button", {class: kind, type: "button", onclick: act}, text);
+    const cancel = () => button("Cancel", "ghost", stop);
+    const setFill = async (tube, delta) => {
+        fill[tube] = Math.round(Math.max(0, fill[tube] + delta) * 10) / 10;
+        asking += 1;
+        try {
+            await send("PATCH", `${CALIBRATION}/fill`, {[`${tube}_rps`]: fill[tube]});
+        } finally {
+            asking -= 1;
+        }
+    };
+
+    const jobCard = (cal) => {
+        const card = element("div", {class: "fields calibration-job", "aria-live": "polite"});
+        const head = (status) => card.append(element("div", {class: "status"}, element("span", {}, status)));
+        const figure = (unit) => card.append(
+            element("div", {class: "figure-line"}, element("span", {class: unit === "%" ? "figure short" : "figure",
+                                                                    "data-live": "figure"}),
+                    element("span", {class: "unit"}, unit)));
+        const note = (text) => card.append(element("p", {class: "field-help", "data-live": text ? null : "note"},
+                                                   text || ""));
+        const actions = (...buttons) => card.append(element("div", {class: "pair"}, ...buttons));
+        const named = {cup: "The cup", scale: "The scale", powder: cal.powder.name}[cal.job.part];
+        switch (cal.job.step) {
+        case "cup_on":
+            head("Put the empty cup on the scale");
+            note(`To catch the powder. ${named} next.`);
+            actions(cancel(), button("The cup is on", "action go", () => answer("next")));
+            break;
+        case "lift":
+            head("Lift the cup");
+            figure("gr");
+            note("Its weight is read.");
+            actions(cancel());
+            break;
+        case "back":
+            head("Put the cup back");
+            figure("gr");
+            note();
+            actions(cancel());
+            break;
+        case "fill":
+            head("Fill the cup");
+            figure("gr");
+            note();
+            for (const tube of ["fine", "coarse"]) {
+                card.append(element("div", {class: "field"},
+                                    element("label", {}, tube === "fine" ? "Fine tube" : "Coarse tube"),
+                                    element("div", {class: "stepper"},
+                                            element("button", {class: "key", type: "button", "aria-label": "Slower",
+                                                               onclick: () => setFill(tube, -FILL_STEP[tube])}, "−"),
+                                            element("output", {class: "gate-open", "data-live": tube}),
+                                            element("button", {class: "key", type: "button", "aria-label": "Faster",
+                                                               onclick: () => setFill(tube, FILL_STEP[tube])}, "+"))));
+            }
+            actions(cancel(), button("Full", "action go", () => answer("full")));
+            break;
+        case "keep":
+            head(`It holds ${cal.job.capacity_gr.toFixed(2)} gr`);
+            note("Keep it as the cup's capacity? No pour of a calibration passes it.");
+            actions(cancel(), button("Keep", "action go", () => answer("keep")));
+            break;
+        case "empty":
+            head("Empty the cup");
+            note("Then put it back on the scale.");
+            actions(element("span"), button("Done", "action go", () => answer("done")));
+            break;
+        case "running":
+            head("Calibrating");
+            figure("%");
+            card.append(element("div", {class: "bar"}, element("i", {"data-live": "bar"})));
+            note();
+            actions(button("Stop", "action halt", stop));
+            break;
+        case "paused":
+            head("Empty the cup");
+            note(`${cal.job.line}. Empty it, put it back, then go on.`);
+            actions(button("Stop", "action halt", stop), button("Go on", "action go", () => answer("go_on")));
+            break;
+        case "result": {
+            const result = cal.job.result;
+            head(`${named}: done`);
+            if (cal.job.part === "scale") {
+                card.append(line("Small change", `${result.small_change_s} s`), line("Fast flow", `${result.fast_flow_s} s`),
+                            line("Slow flow", `${result.slow_flow_s} s`));
+            } else {
+                card.append(line("Fine tube", speeds(result.fine)), line("Was", speeds(cal.job.was.fine)),
+                            line("Coarse tube", speeds(result.coarse)), line("Was", speeds(cal.job.was.coarse)));
+            }
+            card.append(line("Took", cal.job.took));
+            actions(button("Discard", "ghost", stop),
+                    button(cal.job.part === "scale" ? "Keep" : "Save", "action go",
+                           () => send("POST", `${CALIBRATION}/save`, {})));
+            break;
+        }
+        case "failed":
+            head(cal.job.line);
+            note(`${cal.job.note}.`);
+            actions(element("span"), button("OK", "action go", () => answer("done")));
+            break;
+        }
+        return card;
+    };
+
+    const cards = (cal) => {
+        const busy = cal.job !== null;
+        const start = (part, text) => element("button", {class: "ghost", type: "button", disabled: busy,
+                                                         onclick: () => send("POST", `${CALIBRATION}/start`, {part})},
+                                              text);
+        const powder = cal.powder.speeds || {};
+        return [
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
+                    line("Capacity", shown(cal.cup.capacity_gr, 2, "gr")),
+                    line("Weight", shown(cal.cup.weight_gr, 2, "gr")),
+                    element("div", {class: "field"}, start("cup", "Calibrate the cup"))),
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Scale"),
+                    line("Small change", cal.scale ? `${cal.scale.small_change_s} s` : "Not done"),
+                    line("Fast flow", cal.scale ? `${cal.scale.fast_flow_s} s` : "Not done"),
+                    line("Slow flow", cal.scale ? `${cal.scale.slow_flow_s} s` : "Not done"),
+                    element("div", {class: "field"}, start("scale", "Calibrate the scale"))),
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, cal.powder.name),
+                    line("Fine tube", speeds(powder.fine)), line("Coarse tube", speeds(powder.coarse)),
+                    element("div", {class: "field"}, start("powder", `Calibrate ${cal.powder.name}`))),
+        ];
+    };
+
+    const draw = (cal) => {
+        if (cal.job && cal.job.step === "fill" && asking === 0) {
+            fill.fine = cal.job.fine_rps;
+            fill.coarse = cal.job.coarse_rps;
+        }
+        // Built again only for a new step or new records; within a step its figures change in place, so a button is
+        // never replaced under a finger
+        const key = JSON.stringify({step: cal.job && [cal.job.part, cal.job.step, cal.job.capacity_gr || null],
+                                    cup: cal.cup, scale: cal.scale, powder: cal.powder});
+        if (key !== drawnKey) {
+            drawnKey = key;
+            box.replaceChildren(...(cal.job ? [jobCard(cal)] : []), ...cards(cal));
+            // A new step's question is never left above the screen, where the last step's taller card had it
+            if (cal.job && box.firstChild.getBoundingClientRect().top < 0) {
+                box.firstChild.scrollIntoView({block: "start"});
+            }
+        }
+        if (cal.job) {
+            for (const [name, value] of Object.entries(liveValues(cal.job))) {
+                const at = box.querySelector(`[data-live="${name}"]`);
+                if (at === null) {
+                    continue;
+                }
+                if (name === "bar") {
+                    at.style.width = value;
+                } else if (at.textContent !== value) {
+                    at.textContent = value;
+                }
+            }
+        }
+        // One view polls at a time: the one on the page takes the poll over from any drawn before it. It polls with no
+        // part running too, so a part started on the unit's screen or another browser is seen within 2 s
+        const period = cal.job !== null ? 500 : 2000;
+        if (box.isConnected && (calibrationOwner !== box || calibrationPeriod !== period)) {
+            stopCalibrationPoll();
+            calibrationOwner = box;
+            calibrationPeriod = period;
+            calibrationTimer = setInterval(refresh, period);
+        }
+    };
+    const refresh = async () => {
+        if (pageShown !== "settings" || (drawnKey !== null && !box.isConnected)) {
+            if (calibrationOwner === box || pageShown !== "settings") {
+                stopCalibrationPoll();
+            }
+            return;
+        }
+        const reply = await api("GET", CALIBRATION);
+        if (reply.ok) {
+            draw(reply.data);
+        } else {
+            drawnKey = null;
+            box.replaceChildren(element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
+        }
+    };
+    refresh();
+    return box;
+}
+
 async function drawSettingsPart(key, hooks) {
     const part = SETTINGS_PARTS.find((p) => p.key === key);
     const pane = element("section", {class: "detail"},
@@ -131,6 +384,9 @@ async function drawSettingsPart(key, hooks) {
     }
     if (part.titles) {
         pane.append(drawSwitch(part, forms));
+    }
+    if (key === "calibration") {
+        pane.append(drawCalibration());
     }
     if (key === "gate") {
         // The gate's actions with its resource (README, "Handed on by ADR-010"); its Fitted, below, changes them
@@ -187,5 +443,7 @@ PAGES.settings = {
             page.append(await drawSettingsPart(key, hooks));
         }
     },
-    leave() {},
+    leave() {
+        stopCalibrationPoll();
+    },
 };
