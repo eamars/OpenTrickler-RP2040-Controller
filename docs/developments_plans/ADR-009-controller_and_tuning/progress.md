@@ -3365,3 +3365,49 @@ Checked against the skill:
 - **Form (a)** (each stop's own fit, read by flow) cut a calibrated unit's overs on six of seven stand-ins and kept the learnt source within the bar on `slower`. Its verdict's wait cleared the lean on three of the A&D's four records, at about 1.5 to 2 times the throw's time. Where it still leans (`late_small`, a small change held 2.5 s), the fitted stages miss that hold: the scale shows nothing for a while, then the whole digit at once, which no smooth stage describes.
 - **What a person might choose:** (a) as it stands, for fewer overs at a cost in time; or (a) with the scale's hold modelled as its own dead time for a small change (a new mechanism, the owner's to approve); or leave L and keep the lean as the known limit.
 - *My recommendation:* (a) as it stands is worth the owner's look: fewer overs for time is the trade the owner has named before (an over is worse than a second). It goes to the C, under the lockstep, with the record's layout change (one fit a stop: d, tau, s2, tau2, 16 bytes a stop, 12 stops, 192 bytes in the powder's record) only on the owner's word.
+
+## 2026-11-24, 20:53: the night's work reviewed for the owner; the fixes that come first
+
+Written by the session that reviewed the night (7c11a46 to b8abcbb) at the owner's word, against the research and the plan. No unit was touched. The owner then asked for a session to make the fixes first and to finish ADR-009 under this session's instruction. **Checked** is what this session ran or read itself; **reported** is a reviewer's reading, to be confirmed in the code before it is mended.
+
+**What holds** (checked, at b8abcbb):
+- both boards build; the Pico W has 3,984 B of flash and 796 B of RAM left;
+- `check_numbers.py`, the throw-for-throw check (the glide's law, `--pid`, `--learn-fine`: 40 of 40 on every set), `check_calibration_job.py`, `safety_cases.py` and `limits_cases.py` pass;
+- the design is the research's: the PID law in the glide's frame, the envelope always on, the jog and `pid_learnt` gone, `controller` and `mode` out of the API.
+
+**No series on the rig has met a bar.** F.2 at the shipped limits 0 good of 10; F.2 with rehearsals at the floor 6 good, 4 over; F.5's arm A1 4 good, 6 over; a powder never calibrated 3 over of 3. The research's last series was 17 good of 20. F.2 to F.5 were passed on their mechanism. Gate 2's bar on the rig is still to be met, and nothing below is closed until it is.
+
+**Passes that do not hold as written** (checked):
+- **F.4:** `f4_cases.py` gives `VERDICT FAIL 9` at 553a3b8, the commit of its pass, and the same at the tip: `keeps_short` ends 4 "no powder", 3 over and 2 "limit". The README's failure modes name the 4 only.
+- **F.3:** `f3_cases.py` passes at c6c3f06 and 7df1bc8 and fails at the tip (`backoff_measured`: good 26 against 34, over 13 against 4). The same case with the same seeds gave 8, 16 and 4 overs of 40 with the back-off off at those three commits: at 40 throws the suite cannot carry a pass.
+- **L:** `logs/adr009/g3_l_study_a.txt` ends `VERDICT FAIL on ['holds', 'slower', 'strain']`. The entry of 03:15 says it fails one end of three.
+- **F.5:** the waits (N.3's three and E9's second) went without the rig's word, which the handover asked for; its ABBA is owed. `e9_check.py` on the A&D's records: 22 verdicts changed in their second against 9 by noise, 20 of them good to over.
+- **Gate S:** its time bar was not met. **F.3:** no servo was seen to move.
+- **The tip was never on a unit:** the last flash is 844be0f; `charge_control.c`, `charge_rules.h` and `charge_mode.cpp` changed after it.
+
+**Faults in the firmware, checked in the code:**
+1. A throw ended "limit" is given a good, under or over verdict on the reading at the moment the limit tripped (`charge_mode.cpp`, after the cup and no-powder ends; `charge_control.c`'s `rest_weight`). The invariant: a verdict is given on a settled reading only.
+2. The cup's removal still adds the fixed 10 (`CHARGE_CUP_OFF_BELOW`, `charge_mode.cpp`), which register row 13 and F.1 remove; `charge_rules.h` says "mended at F.1".
+3. The screen says "or choose PID" (`menu_nav.c`, two messages), a choice that is gone.
+4. `auto_tune_off` is held in the charge settings' filler and is not under the README's "Stored layout changes"; the entries of 01:51 and 02:24 name its byte differently.
+5. CI runs the throw-for-throw check for the glide's law and not with `--pid`, the law that pours.
+
+**Reported, to confirm in the code first:**
+6. A unit's record that fails its CRC is zeroed, and every calibrated powder is then thrown as never calibrated, with no word (`charge_records.c`, `charge_calibration_state`). Gate R: a record that fails its check is not used, and the screen says so.
+7. What pours the next charge (`glide`, `legacy`, a series) is set beside the start, before `motors_ready()`'s early return: a refused start leaves it for the user's next charge (`remote_control.c`, `charge_mode_menu`). The class of finding 12.
+8. Two tests of one verdict: the controller's at the band and a quarter digit, the LED's and the event's at the band and half a digit (`charge_control.c`, `charge_mode.cpp`).
+9. The schema's `throw ended` reasons lack `cup_lifted`, `no_powder` and `refused`, which `events.c` sends.
+10. The carry: a first carry under another law has no bound (`ok = !own || ...`, `charge_calibration.c`), and every calibration marks its list the glide's, so each first charge after a calibration moves the stored stop unbounded; a record with no first errors never carries. Against sign-off item 13 and E12. A decision, not a mend: brought to the owner with its options.
+11. The precharge's count is never dropped when a cleanup dumps its powder (`charge_precharge_pending_gr`).
+12. The settings' save: its usage says `"refused_while":"never"` though it answers 409; it is not under the activity lock; a PATCH's `live()` runs before the job's refusal and can leave a stale copy that a later save writes over a charge's carry (`settings.c`).
+13. For gate 3, before the job is called by anything: `charge_calibration_job.c` has no failure state (an empty hopper asks a run of infinite length; no readings asks the same run again), `tail[1536]` on the stack, and `check_calibration_job.py` compares neither the run's length nor the watch, and builds the double only.
+
+**The bench:** the cup passed 600 gr twice (667.78 at 20:02, 648.66 at 22:43), each time by `pulses` with stale fault images. The tool carries 402.76 gr until the owner's word on the two drops.
+
+**For the owner, each with this session's recommendation** (none is the manager's to decide):
+- **The fine top.** The yardstick has it at 1.0 rev/s by hand, as a value the calibration must reach; register row 5 gives the frame the user's most, 5, and the simulation puts about 39% over there. Recommended: the calibration finds the fine top and writes it to the profile on yes, as it writes the creep. A change to row 5.
+- **L:** not built as proposed. First fitted to the A&D's kept runs (`recordings/*_trial_*/runs.json`), and its verdict's wait judged apart from its forecast.
+- **The verdict's moment:** read on the rig in the next series, each verdict against the reading a second later, before row 14 is taken as shown.
+- **A powder never calibrated:** recordings 4 to 6 read against their forecast at the desk; the 2 s and 6 s were chosen before the rig's 3 of 3.
+
+**The order from here:** the fixes above at the desk (1 to 9, 11, 12; 10 and 13 as said); the desk suites again; then, at the owner's word on the bench and the cup, the tip flashed and the usual proof; then the rig's answer on the controller (F.5's ABBA) before any screen is built.
