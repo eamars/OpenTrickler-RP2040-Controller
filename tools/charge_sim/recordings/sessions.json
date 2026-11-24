@@ -24,12 +24,67 @@
  {
   "name": "pico2w_ar2209_trial",
   "from": "20261121_145000",
-  "to": "20261121_235959",
+  "to": "20261121_213959",
   "unit": "Pico 2 W, firmware 2.0.3-84, the same tubes",
   "powder": "AR2209",
   "kernel_gr": 0.021,
   "powder_note": "the same air-exposed AR2209 as the session of 2026-11-19 and 20",
   "scale": "A&D FX-300i in grains, response FAST",
   "notes": "docs/developments_plans/ADR-009-controller_and_tuning/progress.md, 'the two proposals on the unit' (14:52 to 16:22) and 'the full trial with AR2209, judged' (16:24 to 17:15). Folders of bench/trial.py: a calibration's turns (runs.json of 145252 alone), each set's rehearsals and throws. 145252 and 152433 are of the tool before its mends (their jog throws are void, their rows have no step count); 160810 is the short check of the mends; 162403 is the trial that is judged"
+ },
+ {
+  "name": "pico2w_ar2209_gate2",
+  "from": "20261121_214000",
+  "to": "20261122_235959",
+  "unit": "Pico 2 W, firmware 2.0.3-142-dirty (adr009_controller, gate 2): the staged controller in the firmware",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same air-exposed AR2209 as the sessions before",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "docs/developments_plans/ADR-009-controller_and_tuning/progress.md, 'gate 2 built, and its first throws on the rig' (series A and B, 2026-11-21) and 'the cause is the calibration's lags' (series C, 2026-11-22). Folders of bench/series.py: series.json alone"
+ },
+ {
+  "name": "pico2w_ar2209_1122",
+  "from": "20261122_110000",
+  "to": "20261122_175959",
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same air-exposed AR2209 as the sessions before, two days on",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009's gate S (progress.md, 2026-11-23): the rig as it was on the day before the night's ABBA runs, from its recordings before 18:00 only, so the night (18:26 to 21:22) is judged on a record made without it. Its stops are the trial of 16:46's calibration (98 creep stops, 8 fine and 3 coarse speeds). It recorded no watched nudges: they are the session pico2w_ar2209's, taken, as is the scale's record"
+ },
+ {
+  "name": "pico2w_ar2209_f2",
+  "from": "20261123_232000",
+  "to": "20261124_005959",
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same AR2209 as the sessions before, a day on; the hopper filled",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009's gate F.2 (progress.md, 2026-11-23): the bench unit calibrated afresh by the PC trial within its user's own limits (coarse 0.1 to 5, fine 0.1 to 3 rev/s), its ladder reaching the user's tops for the first time: coarse stops at 0.1, 0.707 and 5 rev/s, fine at 0.1 to 3. The fine least of 0.1 holds the creep up, so its throws do not compare with the night's; and at the shipped default limits (coarse 0.1 to 5, fine 0.08 to 5): the trial of 23:56 (its rehearsals at the floor, form (a), reverted after) and its measurements rehearsed again at 00:10 with the form of the day, then its series; and gate F.3's runs from 00:38 (the back-off's spill measured at 0.25 turn and 1 rev/s from the coarse floor, then a 3-throw series with it forecast, and charge cycles with the gate and the precharge on)"
+ },
+ {
+  "name": "pico2w_ar2209_f5",
+  "from": "20261124_010000",
+  "to": "20261124_035959",
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same AR2209 as the sessions before; the hopper filled",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009's gates F.4 and F.5 (progress.md, 2026-11-24): F.4's series on profile 0 (calibrated, by mistake) and on profile 1 (no calibration: the learnt source, lag 2 s and rest 6 s assumed); F.5's arm A1 of its ABBA (the controller, the PID law, on profile 0's F.2 calibration kept), the other three arms owed"
+ },
+ {
+  "name": "pico2w_ar2209_review",
+  "from": "20261124_214000",
+  "to": "20261124_235959",
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same AR2209 as the sessions before; the hopper filled",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009 after the night's review (progress.md, 2026-11-24, from 21:54): the tip's proof; F.4's series again on profile 1 (no calibration: the learnt source, lag 2 s and rest 6 s assumed), every recording kept; F.5's ABBA thrown whole on the image with the console's parser mended (2.0.3-318 at 1811ea6), each arm from one stored record (abba_record.py: profile 0's measured part with the 23:56 trial's floor rehearsals); an arm A1 at 21:59 on the image before the mend, not counted"
  }
 ]

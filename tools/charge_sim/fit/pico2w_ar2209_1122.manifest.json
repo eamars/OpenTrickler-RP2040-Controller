@@ -1,0 +1,34 @@
+{
+ "name": "pico2w_ar2209_1122",
+ "session": "pico2w_ar2209_1122",
+ "note": "No watched nudges were recorded on 2026-11-22: those of 2026-11-20 are taken (the same tubes and powder). The scale is the record pico2w_ar2209's, taken (build_rig.py --scale-from). No throws of today's loop and no speed plans this day: fit_report's checks of those are the 11-20 session's",
+ "recordings": {
+  "nudges": "20261120_220430_nudgewatch",
+  "stops": [
+   "20261122_164634_trial_pico2w_ar2209"
+  ]
+ },
+ "stated": {
+  "scale": {
+   "name": "A&D FX-300i, FAST",
+   "digit_gr": 0.02
+  },
+  "powder": {
+   "name": "AR2209, long in the air"
+  },
+  "coarse": {
+   "name": "large tube",
+   "rifling_starts": 5,
+   "drop_mm": 50.0
+  },
+  "fine": {
+   "name": "small low-flow tube",
+   "rifling_starts": 5,
+   "drop_mm": 50.0
+  },
+  "motors": {
+   "acceleration_rps2": 50.0,
+   "max_speed_rps": 5.0
+  }
+ }
+}

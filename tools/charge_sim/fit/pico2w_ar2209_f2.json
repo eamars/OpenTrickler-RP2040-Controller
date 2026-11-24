@@ -1,0 +1,425 @@
+{
+ "name": "pico2w_ar2209_f2",
+ "rig": {
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "powder_note": "the same AR2209 as the sessions before, a day on; the hopper filled",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "from": "20261123_232000",
+  "to": "20261123_235959"
+ },
+ "stated": {
+  "scale": {
+   "name": "A&D FX-300i, FAST",
+   "digit_gr": 0.02
+  },
+  "powder": {
+   "name": "AR2209, long in the air",
+   "kernel_gr": 0.021
+  },
+  "coarse": {
+   "name": "large tube",
+   "rifling_starts": 5,
+   "drop_mm": 50.0
+  },
+  "fine": {
+   "name": "small low-flow tube",
+   "rifling_starts": 5,
+   "drop_mm": 50.0
+  },
+  "motors": {
+   "acceleration_rps2": 50.0,
+   "max_speed_rps": 5.0
+  }
+ },
+ "maps": {
+  "coarse": {
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "gr_per_turn": 10.362372040586244,
+   "late_s_fast": 0.5567272727229546,
+   "runs": [
+    {
+     "speed_rps": 0.7071067811865476,
+     "gr_per_turn": 10.362372040586244,
+     "gr_per_s": 7.328543435719804,
+     "late_s": 0.5567272727229546
+    }
+   ]
+  },
+  "fine": {
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "gr_per_turn": 0.8099875173847211,
+   "late_s_fast": 0.6084880991298895,
+   "runs": [
+    {
+     "speed_rps": 0.1,
+     "gr_per_turn": 0.8001694316978477,
+     "gr_per_s": 0.0800915331807242,
+     "late_s": 0.9364285714291697
+    },
+    {
+     "speed_rps": 0.19473900097228966,
+     "gr_per_turn": 0.8064389714526858,
+     "gr_per_s": 0.157089706489892,
+     "late_s": 1.0185263157920128
+    },
+    {
+     "speed_rps": 0.3894780019445793,
+     "gr_per_turn": 0.8044504585776585,
+     "gr_per_s": 0.3142053911034743,
+     "late_s": 0.8433973684198519
+    },
+    {
+     "speed_rps": 0.7789560038891586,
+     "gr_per_turn": 0.8135360633167562,
+     "gr_per_s": 0.6340819022445116,
+     "late_s": 0.5992916666677891
+    },
+    {
+     "speed_rps": 1.0,
+     "gr_per_turn": 0.8674675507711306,
+     "gr_per_s": 0.8677568768292431,
+     "late_s": 0.6176845315919901
+    },
+    {
+     "speed_rps": 3.0,
+     "gr_per_turn": 0.8811219587362751,
+     "gr_per_s": 2.6360178600996713,
+     "late_s": 0.5026521329980301
+    }
+   ]
+  }
+ },
+ "creep": {
+  "coarse 0.1 held stop": {
+   "tube": "coarse",
+   "speed_rps": 0.1,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    1.5160000000032596,
+    1.5310000000172295
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 3,
+   "rate": null,
+   "start_1s": 33.333333333333336,
+   "start_2s": 67.6666666666667,
+   "most_1s": null,
+   "rise": 25.333333333333268,
+   "rise_sd": 13.912424503139716,
+   "rise_by": {
+    "0.4": 17.3333333333332,
+    "0.8": 23.99999999999996,
+    "1.2": 25.333333333333268,
+    "2.0": 25.333333333333268
+   },
+   "three_hold": 0.6666666666666666,
+   "rises": [
+    15,
+    16,
+    45
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": null,
+   "fano_2s": null,
+   "fano_4s": null
+  },
+  "coarse 0.707107 held stop": {
+   "tube": "coarse",
+   "speed_rps": 0.707107,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    1.5309999999590218,
+    1.5310000000172295
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 2,
+   "rate": null,
+   "start_1s": 168.4999999999999,
+   "start_2s": 357.0,
+   "most_1s": null,
+   "rise": 203.99999999999991,
+   "rise_sd": 13.000000000000256,
+   "rise_by": {
+    "0.4": 150.50000000000026,
+    "0.8": 205.00000000000006,
+    "1.2": 203.99999999999991,
+    "2.0": 203.99999999999991
+   },
+   "three_hold": 0.5,
+   "rises": [
+    191,
+    217
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": null,
+   "fano_2s": null,
+   "fano_4s": null
+  },
+  "fine 0.1 held stop": {
+   "tube": "fine",
+   "speed_rps": 0.1,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    5.01500000001397,
+    5.032000000006519
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 8,
+   "rate": 3.800665719760169,
+   "start_1s": 0.0,
+   "start_2s": 4.8750000000000515,
+   "most_1s": 8.999999999999986,
+   "rise": 3.7499999999998757,
+   "rise_sd": 0.9682458365517762,
+   "rise_by": {
+    "0.4": 1.7499999999999183,
+    "0.8": 3.4999999999999254,
+    "1.2": 3.6249999999999005,
+    "2.0": 3.7499999999998757
+   },
+   "three_hold": 0.875,
+   "rises": [
+    2,
+    3,
+    3,
+    4,
+    4,
+    4,
+    5,
+    5
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": 1.1423992673992023,
+   "fano_2s": 0.47727272727273384,
+   "fano_4s": null
+  },
+  "fine 0.194739 held stop": {
+   "tube": "fine",
+   "speed_rps": 0.194739,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    3.01500000001397,
+    3.0320000000065193
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 4,
+   "rate": 8.303469759681503,
+   "start_1s": 0.49999999999998934,
+   "start_2s": 7.2500000000000675,
+   "most_1s": 10.999999999999943,
+   "rise": 7.999999999999918,
+   "rise_sd": 2.9154759474227405,
+   "rise_by": {
+    "0.4": 4.000000000000092,
+    "0.8": 6.99999999999994,
+    "1.2": 7.999999999999918,
+    "2.0": 7.999999999999918
+   },
+   "three_hold": 0.75,
+   "rises": [
+    3,
+    9,
+    10,
+    10
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": null,
+   "fano_2s": null,
+   "fano_4s": null
+  },
+  "fine 0.389478 held stop": {
+   "tube": "fine",
+   "speed_rps": 0.389478,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    3.0160000000032596,
+    3.0310000000172295
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 4,
+   "rate": 15.148506533776114,
+   "start_1s": 1.2500000000000178,
+   "start_2s": 18.75,
+   "most_1s": 17.99999999999997,
+   "rise": 13.250000000000028,
+   "rise_sd": 2.5860201081970304,
+   "rise_by": {
+    "0.4": 5.499999999999972,
+    "0.8": 10.500000000000043,
+    "1.2": 13.24999999999994,
+    "2.0": 13.499999999999979
+   },
+   "three_hold": 0.5,
+   "rises": [
+    10,
+    12,
+    14,
+    17
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": null,
+   "fano_2s": null,
+   "fano_4s": null
+  },
+  "fine 0.778956 held stop": {
+   "tube": "fine",
+   "speed_rps": 0.778956,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    3.0160000000032596,
+    3.0320000000065193
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 4,
+   "rate": 35.51318439826657,
+   "start_1s": 8.750000000000124,
+   "start_2s": 40.500000000000114,
+   "most_1s": 39.99999999999986,
+   "rise": 18.999999999999773,
+   "rise_sd": 5.385164807134291,
+   "rise_by": {
+    "0.4": 8.750000000000036,
+    "0.8": 16.750000000000043,
+    "1.2": 18.749999999999822,
+    "2.0": 18.749999999999822
+   },
+   "three_hold": 0.5,
+   "rises": [
+    14,
+    16,
+    18,
+    28
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": null,
+   "fano_2s": null,
+   "fano_4s": null
+  },
+  "fine 1 held stop": {
+   "tube": "fine",
+   "speed_rps": 1.0,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    1.5160000000032596,
+    3.01500000001397
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 5,
+   "rate": 41.37931034425806,
+   "start_1s": 11.800000000000068,
+   "start_2s": 49.00000000000002,
+   "most_1s": 41.000000000000014,
+   "rise": 26.79999999999996,
+   "rise_sd": 7.573638491504668,
+   "rise_by": {
+    "0.4": 18.999999999999986,
+    "0.8": 25.0,
+    "1.2": 26.6,
+    "2.0": 26.79999999999996
+   },
+   "three_hold": 0.2,
+   "rises": [
+    15,
+    22,
+    28,
+    33,
+    36
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": null,
+   "fano_2s": null,
+   "fano_4s": null
+  },
+  "fine 3 held stop": {
+   "tube": "fine",
+   "speed_rps": 3.0,
+   "stop": "held",
+   "length": "stop",
+   "run_s": [
+    3.014999999955762,
+    3.0320000000065193
+   ],
+   "from": [
+    "20261123_232157_trial_pico2w_ar2209_f2"
+   ],
+   "stops": 4,
+   "rate": 134.10229156008845,
+   "start_1s": 63.24999999999985,
+   "start_2s": 194.99999999999974,
+   "most_1s": 144.00000000000048,
+   "rise": 66.25000000000014,
+   "rise_sd": 4.145780987944293,
+   "rise_by": {
+    "0.4": 51.99999999999978,
+    "0.8": 66.75000000000004,
+    "1.2": 66.75000000000004,
+    "2.0": 66.25000000000014
+   },
+   "three_hold": 0.25,
+   "rises": [
+    61,
+    64,
+    68,
+    72
+   ],
+   "fold_turn": null,
+   "fold_rifling": null,
+   "fano_1s": null,
+   "fano_2s": null,
+   "fano_4s": null
+  }
+ },
+ "nudges": {
+  "turn": 0.017163944128787877,
+  "still_s": 4.984,
+  "speed_rps": 0.2,
+  "from": [
+   "20261120_220430_nudgewatch"
+  ],
+  "nudges": 300,
+  "kernels": 0.6380952380952533,
+  "fano": 3.1477375029616637,
+  "nothing": 0.6866666666666666,
+  "one": 0.13333333333333333,
+  "two": 0.08,
+  "three_up": 0.1,
+  "first_single_s": 1.9604999999999744,
+  "single_late": 0.75,
+  "first_many_s": 0.9059999999997599
+ },
+ "ramps": {},
+ "throws": {}
+}
