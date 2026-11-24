@@ -3681,7 +3681,7 @@ Profile 1 chosen over the API and put back to 0 after; recordings 2 to 4 read wh
 
 **The cause, as far as shown now:** the learnt source's assumed lag of 2 s on a scale that shows the powder in about 0.5 to 1 s. The forecast holds powder that has already shown, each long stream stops 2 to 3 gr short, and G9 learns a fine figure half the tube's from those stops. The last short stream, forecast with that figure, goes over by 2 to 6 digits.
 
-## 2026-11-24, 21:59: F.5's ABBA, its form, prediction and bars, before the first arm
+## 2026-11-24, 21:58: F.5's ABBA, its form, prediction and bars, before the first arm
 
 **As its pass was written at 01:51, unchanged:** the controller (the PID law) against the glide's pour (`charge ... glide`), 10 throws an arm in the order A B B A, 40 throws at 10 gr, profile 0, on the 23:56 trial's calibration with its floor rehearsals. All four arms are thrown afresh on this image (2.0.3-312 at b1a6ddc); the night's lone arm A1 is not reused.
 
@@ -3698,3 +3698,9 @@ An A arm's end carries its first errors into the record, bounded since job 2; a 
 **The prediction:** from F.2's confirming series on this calibration (6 good, 4 over of 10) and A1 of the night (4 good, 6 over), each arm about 4 to 6 good and 3 to 6 over in 10, the controller and the glide's pour close; the overs bar (at most 1 more in 20) is the one at risk, a difference of 3 being within the noise of 20 throws at 40% over. I give it about an even chance to pass. **For information, not the pass:** gate 2's bar (within the tolerance at least 68% good, median at most 13 s), which no arm is expected to meet at these limits (39% over in the simulation at the shipped defaults); and each verdict against the next throw's base (register row 14), expected to hold within a digit for most throws, the night's E9 check leaning good to over.
 
 **The cup:** 86.16 gr before the first arm; each arm's most is 140 gr, about 100 expected, so the fourth arm starts near 386 counted, inside the 600.
+
+### 22:02: arm A1 thrown; arm B1 cannot start: the console refuses a series with a pour. Stopped for the reviewer
+
+- **A1, the controller** (`logs/adr009/20261124_215903_series_f5_abba2_a1/`): from the starting record (`abba_record.py`: the floor rehearsals, law glide, saved, nothing else changed; the rules `stop_room=0.00000`, `coarse_room=1.65242`). 8 good, 2 over (+0.06, +0.06), none under; median 8.3 s; settled good 8 of 10. The cup 86.16 to 186.30 gr (most 140, poured 100.1).
+- **B1, the glide's pour, did not start:** `charge 10 series 10 glide` is answered `@err usage: charge <gr> series <1..500>`. The console's series parser (`remote_control.c`) asked for the end of the line after the count, so no pour word could follow a series. It came in at F.5 with the pour words. The night's A1 used none, so no B arm has ever run, on this image or the last. Nothing turned; the record was written and stays the starting one.
+- **Mended at the desk, not flashed:** the series' count may be followed by a space and the pour, and what is left is refused by the check after it, as before. The Pico 2 W builds. To throw the ABBA on one image, the mended image must be flashed and all four arms thrown again, A1 included. That pours about 400 gr more onto the cup's 186: the fourth arm would start near 486 counted, and its most (140) would take it past 600, so the tool would refuse it. The cup needs emptying first: the owner's to do and say.

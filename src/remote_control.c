@@ -772,7 +772,8 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
     if (strncmp(end, " series ", 8) == 0) {
         char *series_end;
         series = strtol(end + 8, &series_end, 10);
-        if (series_end == end + 8 || *series_end != '\0' || series < 1 || series > 500) {
+        // A pour may follow (`charge 10 series 10 glide`): what is left is judged with it below
+        if (series_end == end + 8 || (*series_end != '\0' && *series_end != ' ') || series < 1 || series > 500) {
             snprintf(reply, reply_size, "@err usage: charge <gr> series <1..500>");
             return false;
         }
