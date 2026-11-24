@@ -8,10 +8,10 @@ Three parts, each run alone, each using what the others stored or their defaults
 - the cup: its capacity, given by the user, and its empty weight (the unit's screens; given here as numbers);
 - the scale: how long a small change takes to show and settle, by its size, and how far the reading runs behind a
   steady flow, by flow rate;
-- the speeds: each tube's least and most speed at which the scale registers the powder consistently. The least: the
-  slowest speed whose runs register alike (the spread of their powder, as a share of it), every run the same turns;
-  the most: the fastest from the least up whose stops land alike (the spread of what lands after them). Each within
-  CONSISTENT_TIMES the best speed's.
+- the speeds: each tube's least and most speed. The least is LEAST_TIMES the slowest speed at which every run
+  registers powder (a confident value: the measured minimum doubled); the most, the fastest from the least up whose
+  stops land alike (the spread of what lands after them within its bound). At each speed one run, the farthest from
+  the speed's median, is rejected as a clump or a lull. `judge` makes them from runs live or kept.
 
 No retries and no pass criteria: a part that cannot measure an item says so, and the item keeps its default.
 
@@ -20,10 +20,12 @@ Usage, with the repository's venv, from this folder:
 """
 
 import argparse
+import json
 import math
 import statistics
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import rigs
 from bench_twin import TwinBench
@@ -50,7 +52,9 @@ SPEED_STOPS = 4                 # stops at each speed
 SPEED_RUN_TURNS = 0.1           # every stop's run turns this much, so runs at every speed register alike powder,
 SPEED_RUN_LEAST_S = 0.5         # and lasts at least this long,
 SPEED_RUN_MOST_S = 10.0         # and never longer than this
-CONSISTENT_TIMES = 3.0          # a speed is consistent with a spread within this many times the best speed's
+CONSISTENT_TIMES = 3.0          # with no bound given, a landing's spread within this many times the speeds' median
+LEAST_TIMES = 2.0               # the least speed is the measured minimum times this
+REGISTER_SHARE = 0.5            # a run registers powder when it shows at least this share of its speed's median
 POUR_GR_A_TURN_MOST = 12.0      # a run's most pour for the cup's check, before the tube has poured at all
 
 
@@ -221,20 +225,71 @@ def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, s
             report.failures.append(f"the {tube} tube at {speed:.3g} rev/s poured nothing")
             continue
         gains = [run["gain"] for run in runs]
-        rises = [run["rise"] for run in runs]
-        share = statistics.stdev(gains) / statistics.fmean(gains) if statistics.fmean(gains) > 0.0 else math.inf
-        stops.append((speed, share, statistics.fmean(rises), statistics.stdev(rises)))
-    records = {"stops": stops}
-    if stops:
-        best_share = min(row[1] for row in stops)
-        least = min(row[0] for row in stops if row[1] <= CONSISTENT_TIMES * best_share)
-        upper = [row for row in stops if row[0] >= least]
-        best_spread = min(row[3] for row in upper)
-        records["least_rps"] = least
-        records["most_rps"] = max(row[0] for row in upper if row[3] <= CONSISTENT_TIMES * best_spread)
-    report.records = records
+        stops.append((speed, [run["gain"] for run in runs], [run["rise"] for run in runs]))
+    report.records, failures = judge(tube, stops)
+    report.failures += failures
     report.seconds, report.poured_gr = bench.now - start_s, bench.cup.landed_gr - start_gr
     return report
+
+
+def without_farthest(values: list) -> list:
+    """The values less the one farthest from their median: a clump or a lull rejected."""
+    middle = statistics.median(values)
+    farthest = max(range(len(values)), key=lambda i: abs(values[i] - middle))
+    return values[:farthest] + values[farthest + 1:]
+
+
+def judge(tube: str, stops: list, spread_bound_gr: float = None) -> tuple:
+    """A tube's least and most speed from its ladder's runs.
+
+    Args:
+        tube: "coarse" or "fine", for the failures' words.
+        stops: (speed, each run's registered powder gr, each run's powder landed after its stop gr) by speed.
+        spread_bound_gr: the bound on a landing's spread (the A&D's times 3), or None for CONSISTENT_TIMES the median of
+            the speeds' spreads.
+
+    Returns:
+        (records: `least_rps`, `most_rps` where found, and `stops` as (speed, the slowest registers, the landing's
+        median gr, its spread gr); the failures in words).
+    """
+    rows, failures = [], []
+    for speed, gains, rises in sorted(stops):
+        kept = without_farthest(gains)
+        floor = REGISTER_SHARE * statistics.median(gains)
+        registers = all(gain > 0.0 and gain >= floor for gain in kept)
+        landed = without_farthest(rises)
+        rows.append((speed, registers, statistics.median(rises), statistics.stdev(landed)))
+    records = {"stops": [(speed, 1.0 if registers else 0.0, median, spread)
+                         for speed, registers, median, spread in rows]}
+    floor_speeds = [speed for speed, registers, _, _ in rows if registers]
+    if not floor_speeds:
+        failures.append(f"no speed of the {tube} tube registered powder in every run: its least and most keep their "
+                        "values")
+        return records, failures
+    least = min(LEAST_TIMES * min(floor_speeds), rows[-1][0])
+    upper = [row for row in rows if row[0] >= least]
+    bound = spread_bound_gr if spread_bound_gr is not None else \
+        CONSISTENT_TIMES * statistics.median(row[3] for row in upper)
+    landed_alike = [row[0] for row in upper if row[3] <= bound]
+    records["least_rps"] = least
+    if landed_alike:
+        records["most_rps"] = max(landed_alike)
+    else:
+        failures.append(f"no {tube} stop from its least up landed within {bound:.3f} gr: its most keeps its value")
+    return records, failures
+
+
+def judge_kept(folder, tube: str, spread_bound_gr: float = None) -> tuple:
+    """`judge` on a kept recording's runs (`runs.json`): the ladder's speeds, each with SPEED_STOPS runs or more."""
+    runs = json.loads((Path(folder) / "runs.json").read_text(encoding="utf-8"))
+    by_speed = {}
+    for run in runs:
+        before, at_stop = run["during"][0][1], run["during"][-1][1]
+        rest = statistics.median(w for t, w in run["after"] if t >= run["after"][-1][0] - LAST_S)
+        by_speed.setdefault(round(run["speed_asked_rps"], 6), []).append((rest - before, rest - at_stop))
+    stops = [(speed, [g for g, _ in made], [r for _, r in made]) for speed, made in by_speed.items()
+             if len(made) >= SPEED_STOPS]
+    return judge(tube, stops, spread_bound_gr)
 
 
 def say(report: Report) -> None:

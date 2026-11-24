@@ -39,12 +39,12 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 | 5 | Each tube's least speed | the powder profile's own field | The slowest speed at which what lands after a stop is consistent |
 | 6 | Each tube's most speed | the powder profile's own field | The fastest speed at which what lands after a stop is consistent |
 
-**Consistent** (items 5 and 6), each tube judged on its own:
-- the least speed is the slowest whose runs register alike: the spread of the powder each run registers, as a share of it, every run the same turns;
-- the most speed is the fastest, from the least up, whose stops land alike: the spread of what lands after them;
-- each spread is held to a fixed bound: the A&D's own on the bench, measured in gate 1, times 3. The bounds are settings with those defaults, appended to the charge settings, which the user can change. A scale whose spreads pass no bound leaves the tube's speeds as they were.
+**Least and most** (items 5 and 6), each tube judged on its own, at each speed one run rejected as a clump or a lull (the one farthest from the speed's median):
+- **the least speed** is twice the slowest speed at which every run registers powder (at least half the speed's median): a confident value, the measured minimum doubled;
+- **the most speed** is the fastest, from the least up, whose stops land alike: the spread of what lands after them within a fixed bound, the A&D's own on the bench times 3. The bound is a setting with that default, appended to the charge settings, which the user can change;
+- a tube whose speeds give no least or no most leaves that speed as it was, and says so.
 
-Judged against the calibration's own best instead, 4 stops a speed were too few: in the simulation the result followed one speed's luck (progress, 2026-11-25, 01:28).
+On the bench (2026-11-25) this gives the fine tube 0.069 rev/s and 5 rev/s, the coarse tube 0.16 rev/s and 5 rev/s. The tubes register ever more alike with speed, kernel by kernel to a stream, with no knee, so the least is not judged by how alike the runs are (progress, 2026-11-25, 01:57).
 
 Items 5 and 6 belong to this powder on this unit's tubes and scale, not to the powder alone. The coarse and fine stop thresholds and the PID stay as the user has them; today's loop charges as it does now.
 
