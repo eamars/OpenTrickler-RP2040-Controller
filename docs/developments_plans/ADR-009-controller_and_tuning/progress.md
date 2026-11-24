@@ -3616,3 +3616,10 @@ The settings in force (the 00:37 copy, and the start's own lines): tolerance 0.0
 - **(d) Refuse a charge until the powder is calibrated.** Cost: against sign-off item 10 and the owner's decision that a charge before a calibration is allowed; about 15 minutes and 200 gr before a new user's first charge.
 
 *My recommendation:* the rig measurement first. It is 31 gr and settles which half of the figure's error is the birth and which is G9, before any option is chosen. Of the options, (b) is the one that removes the over by construction; it needs the owner's word as a new mechanism.
+
+## 2026-11-24, 21:46: the owner's two answers of 21:32 (relayed by the reviewer, asked with the question tool)
+
+1. **The bench:** asked whether the bench is ready and what is in the cup, the owner chose "Ready, cup emptied now". The unit is the Pico 2 W on the probe. The first run that reads the cup takes `--cup-emptied "Ready, cup emptied now"`, which covers the two drops of the night before too.
+2. **The fine top:** asked "Should the calibration find the fine top and write it to the profile, as it already writes the creep?", the owner chose "Calibration writes it (Recommended)". It changes the register's row 5. The calibration finds the fastest fine speed whose stop still lands within the tolerance and writes it to the profile's fine max on the user's yes. No new parameter. The method is designed at gate 3 and shown to the owner before it is built. Written into the register's row 5, numbers.md's A5 and C3, and gate 3's list; nothing of it is built.
+
+Also written (the reviewer, 21:44): the unit's step count with no direction, onto the failure modes with its simulated figure, 0.009 turn; nothing built.
