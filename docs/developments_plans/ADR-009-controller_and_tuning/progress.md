@@ -3753,3 +3753,21 @@ The Pico 2 W on the parser's mended image (2.0.3-318 at 1811ea6): `flash`, `menu
 - **(e) Refuse a charge until the powder is calibrated.** Cost: against sign-off item 10 and the owner's decision that a charge before a calibration is allowed; about 15 minutes and 200 gr before a new user's first charge.
 
 *My recommendation:* (b), as planned, with its rig check at gate 3 (31 gr). It removes the error the rig showed at its source, and adds nothing. (d) is the fallback if the check fails.
+
+## 2026-11-24, 22:31: an ABBA at the research night's conditions, for information (not F.5's pass); its prediction before the first arm
+
+**Why** (the reviewer): the research's 15 to 19 good of 20 (`research/pid_learning_2026-11-22.md`, experiments 4 to 6) were at the fast band, ±0.04 gr, with the fine top at 1.0 to 2.0 rev/s; tonight's F.5 arms were at ±0.02 with the top at 5. This run throws the comparison like for like. **F.5's pass stays failed as thrown.**
+
+**The owner, 22:28 (relayed by the reviewer):** "Cup emptied". The first arm's cup read takes `--cup-emptied "Cup emptied"` (`series.py` now passes it on).
+
+**Set as a user sets them,** the console's `setting`, stored, nothing by `ccon` or `ccal`; the settings copied first (`logs/adr009/bench_20261124_2230_settings_before_fast`):
+- `settings/charge fine_stop_threshold=0.05`, so the band is ±0.04;
+- `powder_profiles/0 fine_max_speed_rps=1.0`;
+- **the calibration's offer taken for the controller:** `ctune` offered coarse kp 0.2339, ki 0, kd 0, 0.1 to 5 rev/s; fine kp 1.1926, ki 0, kd 0, 0.08 to 1.0 rev/s. `ctune accept` wrote the gains, and the four speed limits as they already were (it writes the limits too, from the offer, which takes them from the user's). The profile was stored after. The gains before it: coarse kp 0.025, kd 0.25; fine kp 2, kd 10.
+- The image on the unit stays (2.0.3-318 at 1811ea6); every arm starts from `abba_record.py`'s record; every recording kept.
+
+**The bars, per 20 throws, as before:** A (the controller) against B (the glide's pour), settled good at most 2 fewer, overs at most 1 more, the median at most 2.5 s longer. Judged by `abba_judge.py --band 0.04 --tolerance 0.05`.
+
+**To compare with** (the research): the glide 15 to 19 good of 20 and 1 to 4 over; the PID law with the offer 14 good, 6 over, 9.3 s. Tonight's F.5 arms judged again at ±0.04 (the reviewer): the glide 16 good, 4 over; the controller 10 good, 8 over.
+
+**The prediction:** the glide's pour about 15 to 18 good and 1 to 4 over of 20; the controller with the offer about 12 to 16 good and 3 to 7 over, nearer the research's 14 and 6 than tonight's 10 and 8; the medians 9 to 13 s at the fine top of 1.0, the controller's within 2.5 s of the glide's. The overs bar is again the one at risk. I expect the settled-good and median bars met, and the overs bar about an even chance.

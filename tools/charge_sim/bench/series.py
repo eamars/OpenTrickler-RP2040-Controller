@@ -149,6 +149,9 @@ def main() -> int:
     parser.add_argument("--uncalibrated", action="store_true",
                         help="throw the profile as it is, a powder never calibrated (the learnt source, ADR-009 F.4): "
                              "no calibration written or loaded; the records' states listed (`ccal`)")
+    parser.add_argument("--cup-emptied", metavar="WORDS",
+                        help="the owner's words that the cup was emptied, as rc_run.py takes them: the cup's count "
+                             "starts again from the reading")
     parser.add_argument("--select-profile", type=int,
                         help="choose this powder profile for the series over the API (--host), the one chosen "
                              "before put back at the end")
@@ -188,7 +191,7 @@ def main() -> int:
     session = rc_run.Session(_argparse.Namespace(board=args.board, elf=args.elf), f"adr009_series_{args.name}")
     # The real cup, before anything turns (the owner, 2026-11-23: the hopper stays filled)
     most = args.most_pour if args.most_pour is not None else args.throws * (args.target + 3.0) + 10.0
-    go, cup_before = session.cup_before(f"series {args.name}", most, None)
+    go, cup_before = session.cup_before(f"series {args.name}", most, None, args.cup_emptied)
     if not go:
         print(f"refused: the cup ({cup_before}) and the series' most pour ({most:.0f} gr)")
         return session.finish()
