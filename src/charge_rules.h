@@ -44,8 +44,8 @@
                                                 //   (a tube pouring a third of its figure needs 3); no figure, no turn
 #define CHARGE_RULE_NOISE_DIGITS 2.0            // C24, digits: the scale's noise is the zero's mean margin (A9) and this
                                                 //   many digits (a reading's flicker, a drift of a digit in a throw):
-                                                //   a reading below the base by more is the cup lifted; a rise by more
-                                                //   is powder shown
+                                                //   a reading below the base by more is the cup lifted (in a throw, and
+                                                //   the removal after its verdict, E7); a rise by more is powder shown
 #define CHARGE_RULE_NO_POWDER_RISES 30.0        // C25, noises: while a tube turns in the stream, more forecast powder
                                                 //   due than this many of the noise since the last rise, the first
                                                 //   waiting longer than the longest lag, ends the throw "no powder"
@@ -131,8 +131,8 @@
 #define CHARGE_STEADY_LIMIT_MS (2 * CHARGE_STEADY_READINGS * CHARGE_STEADY_SPACING_MS)  // E5: not steady by then: unsteady
 #define CHARGE_ZERO_READINGS 10                 // E6: the zero is judged on this many readings,
 #define CHARGE_ZERO_SPACING_MS 300              // E6, ms: each waited for up to this long, and this far apart
-#define CHARGE_CUP_OFF_BELOW 10                 // E7, the scale's unit: the cup is off when the mean is this far under zero.
-                                                // A known fault (a cup lighter than it is never seen to go): mended at F.1
+// E7: the cup is off when the mean of E19's readings is below the throw's base by more than the scale's noise (C24),
+// the cup test of a throw (charge_control_noise_gr): no fixed weight (F.1; mended after the review of 2026-11-24)
 #define CHARGE_CUP_OFF_READINGS 5               // E19: the cup's removal is judged on this many readings,
 #define CHARGE_CUP_OFF_WAIT_MS 200              // E19, ms: each waited for up to this long,
 #define CHARGE_CUP_OFF_SPACING_MS 300           // E19, ms: this far apart

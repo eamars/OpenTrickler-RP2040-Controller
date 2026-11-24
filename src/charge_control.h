@@ -298,6 +298,10 @@ typedef struct {
 
 void charge_control_default_constants(charge_control_constants_t *k);
 
+// The scale's noise (C24): the zero's mean margin and CHARGE_RULE_NOISE_DIGITS digits. A reading below the throw's base
+// by more is the cup lifted (in a throw, and the cup's removal after its verdict, E7); a rise by more is powder shown
+charge_control_real_t charge_control_noise_gr(const charge_control_t *c);
+
 // A small move's speed: the creep, the calibration's floor (C1, gate 3)
 charge_control_real_t charge_control_move_rps(const charge_control_t *c);
 

@@ -356,6 +356,11 @@ static real_t since_start_s(const charge_control_t *c, uint32_t now_ms) {
 }
 
 
+charge_control_real_t charge_control_noise_gr(const charge_control_t *c) {
+    return c->k.zero_margin_gr + REAL(CHARGE_RULE_NOISE_DIGITS) * c->cal.digit_gr;
+}
+
+
 static void stop_all(charge_control_t *c, charge_control_result_t result, real_t weight) {
     c->backoff_until_s = -REAL(1.0);
     c->coarse_rps = REAL(0.0);
@@ -866,7 +871,7 @@ void charge_control_reading(charge_control_t *c, uint32_t now_ms, real_t weight)
             c->parcel_count[tube] = kept;
         }
     }
-    real_t noise = k->zero_margin_gr + REAL(CHARGE_RULE_NOISE_DIGITS) * cal->digit_gr;
+    real_t noise = charge_control_noise_gr(c);
     // The cup lifted: a reading below the throw's base by more than the scale's noise. Both tubes stop at once
     if (weight < -noise) {
         stop_all(c, CHARGE_CONTROL_RESULT_CUP, weight);

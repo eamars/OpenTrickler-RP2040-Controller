@@ -1102,7 +1102,12 @@ void charge_mode_wait_for_cup_removal() {
         return;
     }
 
-    // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
+    // The cup is off when E19's readings are steady and their mean is below the throw's base by more than the scale's
+    // noise: the cup test of a throw (E7, ADR-009 gate F.1), no fixed weight. Today's loop, the console's alone, has no
+    // controller: its digit is the smallest step the scale has shown
+    float cup_off_noise = charge_staged && charge_controller != NULL ? (float) charge_control_noise_gr(charge_controller) :
+                          charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin +
+                          (float) CHARGE_RULE_NOISE_DIGITS * scale_get_smallest_step();
     while (true) {
         TickType_t last_sample_tick = xTaskGetTickCount();
 
@@ -1125,8 +1130,8 @@ void charge_mode_wait_for_cup_removal() {
 
         // Generate stop condition
         if (data_buffer.getCounter() >= CHARGE_CUP_OFF_READINGS) {
-            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin && 
-                data_buffer.getMean() + CHARGE_CUP_OFF_BELOW < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin){
+            if (data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
+                data_buffer.getMean() - charge_base < -cup_off_noise) {
                 break;
             }
         }
