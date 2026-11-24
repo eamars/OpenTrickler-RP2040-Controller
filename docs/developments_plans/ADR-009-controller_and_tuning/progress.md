@@ -3795,3 +3795,57 @@ The Pico 2 W on the parser's mended image (2.0.3-318 at 1811ea6): `flash`, `menu
 - the tool's whole output goes to `series.log` in the arm's folder.
 
 **Shown without powder:** `bench/check_series_reads.py`, the function against a stand-in console and web that miss and time out, once and twice each, as on 11-22 and tonight. **VERDICT PASS** in six cases: it never raises, the rows come from whichever way answered, and only "neither" counts a failure.
+
+## 2026-11-24, 22:47: the ABBA at the research night's conditions, judged (for information; not F.5's pass)
+
+Band ±0.04 gr (tolerance 0.05), fine top 1.0 rev/s, the controller with the calibration's offer (coarse kp 0.2339, fine kp 1.1926), profile 0, 10 gr. Each arm from `abba_record.py`'s record, every recording kept (`tools/charge_sim/recordings/20261124_22[34]*_series_fast_abba_*`). B1 thrown again whole after the tool's mend; the partial B1 of 22:33 (8 throws) is on disk and not counted. Judged by `abba_judge.py --band 0.04 --tolerance 0.05 --distributions`. Weights in grains from the target.
+
+| Arm | Good | Over | Short | Settled good | Median | Verdicts held |
+|---|---|---|---|---|---|---|
+| A1, the controller | 9 | 1 (+0.08) | 0 | 9 | 9.5 s | 10 of 10 |
+| B1, the glide's pour | 9 | 1 (+0.06) | 0 | 9 | 9.9 s | 10 of 10 |
+| B2, the glide's pour | 10 | 0 | 0 | 10 | 10.0 s | 10 of 10 |
+| A2, the controller | 8 | 2 (+0.10, +0.06) | 0 | 7 | 8.7 s | 9 of 10 (−0.04 gr settled at −0.06 gr) |
+
+**The bars, per 20 throws:**
+- settled good at most 2 fewer: A 16, B 19, **not met**;
+- overs at most 1 more: A 3, B 1, **not met**;
+- the median at most 2.5 s longer: A 9.2 s, B 9.9 s, **met**.
+
+**VERDICT FAIL** for this ABBA too. Every arm meets gate 2's bar (68% within the band, median 13 s).
+
+**Against the research and the prediction:**
+- the glide 19 good, 1 over of 20 (the research 15 to 19 good, 1 to 4 over; predicted 15 to 18, 1 to 4): at the top of the research's range;
+- the controller with the offer 17 good, 3 over, 9.2 s (the research 14 good, 6 over, 9.3 s; predicted 12 to 16, 3 to 7): better than both;
+- the medians as predicted; the overs bar failed as I gave it an even chance to, and the settled-good bar failed against my expectation (A2's settled 7).
+
+**The distributions,** each side's 20 throws, counted by 0.02 gr from the target (the ends hold what lies beyond). A first rest is the reading at rest after the throw's first fine stop, from its recording:
+
+| This run (±0.04 gr) | −0.10 | −0.08 | −0.06 | −0.04 | −0.02 | 0.00 | +0.02 | +0.04 | +0.06 | +0.08 | +0.10 | +0.12 | +0.14 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A, first rests | 2 | 1 | 2 | 2 | 3 | 2 | 3 | 2 | 1 | 1 | 1 | 0 | 0 |
+| A, finals | 0 | 0 | 0 | 5 | 3 | 3 | 3 | 3 | 1 | 1 | 1 | 0 | 0 |
+| B, first rests | 2 | 0 | 1 | 0 | 3 | 3 | 3 | 7 | 1 | 0 | 0 | 0 | 0 |
+| B, finals | 0 | 0 | 0 | 0 | 4 | 4 | 4 | 7 | 1 | 0 | 0 | 0 | 0 |
+
+- first rests: A mean −0.019 gr, spread (SD) 0.084 gr; B mean −0.002 gr, spread 0.065 gr;
+- A's throws topped up or sent back: A1 2: −0.28 → +0.04 gr (4 moves, 1 stream); A1 6: −0.06 → −0.04 (2 moves); A1 8: −0.14 → 0.00 (1 stream); A1 10: −0.08 → −0.04 (3 moves); A2 1: −0.06 → −0.04 (5 moves);
+- B's: B1 3: −0.06 → −0.02 (3 moves); B1 4: −0.22 → +0.02 (1 stream); B2 7: −0.10 → 0.00 (5 moves).
+
+| F.5's arms (±0.02 gr, fine top 5, the profile's gains) | −0.10 | −0.08 | −0.06 | −0.04 | −0.02 | 0.00 | +0.02 | +0.04 | +0.06 | +0.08 | +0.10 | +0.12 | +0.14 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A, first rests | 9 | 3 | 1 | 0 | 2 | 1 | 1 | 1 | 1 | 1 | 0 | 0 | 0 |
+| A, finals | 1 | 0 | 0 | 0 | 3 | 2 | 4 | 2 | 4 | 2 | 2 | 0 | 0 |
+| B, first rests | 1 | 0 | 0 | 4 | 4 | 3 | 2 | 3 | 1 | 2 | 0 | 0 | 0 |
+| B, finals | 0 | 0 | 0 | 0 | 7 | 3 | 2 | 4 | 2 | 2 | 0 | 0 | 0 |
+
+- first rests: A mean −0.143 gr, spread 0.168 gr; B mean −0.007 gr, spread 0.075 gr;
+- A's throws topped up or sent back: A1 1: −0.32 → +0.08 (1 stream); A1 2: −0.28 → +0.02 (1 stream); A1 3: −0.40 → −0.02 (2 moves, 1 stream); A1 4: −0.34 → +0.06 (1 stream); A1 6: −0.08 → +0.10 (1 move); A1 7: −0.46 → +0.02 (1 stream); A1 10: −0.32 → +0.06 (4 moves, 1 stream); A2 1: −0.28 → 0.00 (1 stream); A2 2: −0.10 → +0.02 (1 move); A2 4: −0.08 → −0.30 (3 moves, 5 streams); A2 7: −0.22 → +0.06 (1 stream); A2 8: −0.08 → +0.10 (2 moves); A2 10: −0.06 → +0.04 (2 moves);
+- B's: B1 10: −0.04 → −0.02 (3 moves); B2 2: −0.28 → −0.02 (1 stream); B2 3: −0.04 → +0.04 (1 move); B2 7: −0.04 → +0.08 (3 moves); B2 8: −0.04 → −0.02 (2 moves).
+
+**What the two runs read side by side:**
+- **At F.5's conditions the controller's first rest is the problem.** 13 of its 20 throws were topped up or went back to the stream, 9 of 20 first rests 0.10 gr or more short (mean −0.143 gr, spread 0.168 gr). Its overs come out of those returns: a stream sent again from 0.2 to 0.46 gr short lands +0.02 to +0.08 over. The glide's first rests centre on the target (−0.007 gr, spread 0.075). The PID law on the profile's gains at the fine top of 5 stops the stream far short; the glide's frame does not.
+- **At the research's conditions, with the offer,** the controller's first rests centre near the target too (−0.019 gr), but spread wider than the glide's (0.084 against 0.065 gr). That spread is its 3 overs against 1, and its 5 top-ups and returns against 3.
+- **The A&D held almost every verdict** (39 of 40 here, 38 of 40 at F.5's): the verdict's moment is right on this scale, but for a throw ended by its tries (F.5's A2 4).
+
+**Put back after:** `settings --restore` from the copy of 22:30, then `--compare`: both **VERDICT PASS**. `keep.py`: the arms copied into `tools/charge_sim/recordings/`. **The cup:** emptied at the owner's word (22:28), 0.00 to 489.86 gr: A1 100.0, the partial B1 89.1, B1 again 100.1, B2 100.2, A2 100.1 (each of a most of 140).

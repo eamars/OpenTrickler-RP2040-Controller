@@ -141,3 +141,8 @@ Trials are counted without the turn that preconditions the tube.
 | `20261124_220746_series_f5_abba2_b1_pico2w_ar2209_review` | AR2209 | series (glide) | | 10 | 10.0 gr |  |
 | `20261124_220959_series_f5_abba2_b2_pico2w_ar2209_review` | AR2209 | series (glide) | | 10 | 10.0 gr |  |
 | `20261124_221220_series_f5_abba2_a2_pico2w_ar2209_review` | AR2209 | series (controller) | | 10 | 10.0 gr |  |
+| `20261124_223055_series_fast_abba_a1_pico2w_ar2209_review` | AR2209 | series (controller) | | 10 | 10.0 gr |  |
+| `20261124_223326_series_fast_abba_b1_pico2w_ar2209_review` | AR2209 | series (glide) | | 7 | 10.0 gr |  |
+| `20261124_223858_series_fast_abba_b1r_pico2w_ar2209_review` | AR2209 | series (glide) | | 10 | 10.0 gr |  |
+| `20261124_224124_series_fast_abba_b2_pico2w_ar2209_review` | AR2209 | series (glide) | | 10 | 10.0 gr |  |
+| `20261124_224354_series_fast_abba_a2_pico2w_ar2209_review` | AR2209 | series (controller) | | 10 | 10.0 gr |  |
