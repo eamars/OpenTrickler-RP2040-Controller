@@ -53,6 +53,8 @@ FINE_STOP_THRESHOLD_GR = 0.03
 # than any run or watch here, so a tool that raised or a PC that went leaves nothing turning for long
 MOTOR_BOUND_S = 60.0
 CUP_MOST_POUR = None           # the run's most pour, given at the command line: the real cup is checked first
+CUP_EMPTIED = None             # the owner's words that the cup was emptied, given at the command line, or None
+ELF = None                     # the image on the unit, when it is not the board's own build folder's
 
 
 class Bench:
@@ -61,10 +63,10 @@ class Bench:
     def __init__(self, repo: Path, name: str, board: str, tap: bool = True):
         sys.path.insert(0, str(repo / "tools" / "remote_control"))
         import rc_run   # the checkout's own runner, of the firmware's time: found only once the repo is known
-        self.session = rc_run.Session(argparse.Namespace(board=board, elf=None), f"adr009_{name}")
+        self.session = rc_run.Session(argparse.Namespace(board=board, elf=ELF), f"adr009_{name}")
         # The real cup, before anything turns (the owner, 2026-11-23: the hopper stays filled)
         self.cup_name = f"record {name}"
-        go, self.cup_before = self.session.cup_before(self.cup_name, CUP_MOST_POUR, None)
+        go, self.cup_before = self.session.cup_before(self.cup_name, CUP_MOST_POUR, None, CUP_EMPTIED)
         if not go:
             self.session.finish()
             raise SystemExit(f"refused: the cup ({self.cup_before}) and the most pour ({CUP_MOST_POUR:.0f} gr)")

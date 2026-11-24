@@ -3849,3 +3849,26 @@ Band ±0.04 gr (tolerance 0.05), fine top 1.0 rev/s, the controller with the cal
 - **The A&D held almost every verdict** (39 of 40 here, 38 of 40 at F.5's): the verdict's moment is right on this scale, but for a throw ended by its tries (F.5's A2 4).
 
 **Put back after:** `settings --restore` from the copy of 22:30, then `--compare`: both **VERDICT PASS**. `keep.py`: the arms copied into `tools/charge_sim/recordings/`. **The cup:** emptied at the owner's word (22:28), 0.00 to 489.86 gr: A1 100.0, the partial B1 89.1, B1 again 100.1, B2 100.2, A2 100.1 (each of a most of 140).
+
+## 2026-11-24, 22:57: the finish set anew: one shot from a continuous flow; the research, and its first measurement before it runs
+
+Written by the managing session, which does this research itself (not the implementing session).
+
+**The baseline, as requirements** (the owner, 2026-11-24, about 22:50):
+1. A hybrid is accepted: the bulk poured by the PID, the fine finish by the glide.
+2. A slow nudge is never the final top-up, on the A&D or on any slower scale: a nudge releases clumps inconsistently and the scale answers a small change slowly and inconsistently (the research's own nudge test: of 110 nudges 84 released nothing, 15 one kernel, 11 two to eight).
+3. The algorithm aims for one shot from a continuous flow.
+4. If the research fails, the fallback is pure PID with an automatic PID tuner, and no glide.
+
+**The measure:** accuracy is a small distribution of the final weight; with it, the time a throw takes. A consistent offset from the target is not judged: it is removed by where the stop is placed. Figures are given as the spread (the standard deviation, gr), the average from the target, the median time, and the distribution in bins of 0.02 gr.
+
+**What the recordings already say, by that measure** (10 gr, AR2209, this unit):
+- the glide's pour at a threshold of 0.05 and a fine top of 1.0: final spread 0.025 gr, average +0.017 gr, 9.9 s (20 throws, 22:47's run); the PID law with the calibration's gains beside it: 0.041 gr, +0.008 gr, 9.2 s;
+- top-ups by small moves end with a spread of their own of 0.039 gr around +0.04 gr, and a topped-up throw takes 17 to 21 s against 8 to 11 s;
+- the calibration's fine stops (4 to 8 stops a speed, two calibrations): the spread of what arrives after a stop is 0.024 to 0.051 gr from 0.025 to 0.1 rev/s, 0.053 to 0.068 at 0.18 to 0.2, 0.055 to 0.077 at 0.36 to 0.39, 0.10 to 0.11 at 0.5 to 0.73. Too few stops a speed to tell the slow ones apart.
+
+**Question 1: how fast can the fine tube be stopped from with no wider spread?** A one-shot finish scatters by the spread of what arrives after its one stop. The creep's rule (the band over the scale's lag) slows the stop to 0.03 to 0.08 rev/s; if the spread is no smaller there than at 0.1 or 0.2, that slowness buys nothing.
+- **The measurement** (`tools/charge_sim/bench/stop_spread.py`, the calibration's own stop: a steady turn of 3 s or a quarter turn, the tube stopped and held, the cup watched 3.5 s): 20 stops at each of 0.05, 0.1, 0.2 and 0.3 rev/s, the speeds taken in turn so a drift falls on all alike; the tube primed first. About 38 gr.
+- **The rule, written before the run:** the stop speed is the fastest whose spread is within 1.3 times the smallest measured. Twenty stops give a spread to about a sixth of itself, so a smaller difference is not told.
+- **Predicted:** the spread at 0.05 and 0.1 rev/s alike, 0.03 to 0.05 gr; at 0.2 within 1.3 of them or just beyond; at 0.3 wider (0.06 to 0.08).
+- **What it is not:** a number for the firmware. It is this unit's answer, for the question after it: whether one stop from that speed, with no nudge, beats today's finish and pure PID on spread and time. In a unit the calibration finds it from its own table of stops.
