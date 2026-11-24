@@ -49,6 +49,9 @@ BACKOFF_TURNS = 0.25
 CHARGE_EXIT, CHARGE_WAIT_FOR_ZERO, CHARGE_WAIT_FOR_COMPLETE = 0, 1, 2
 CHARGE_WAIT_FOR_CUP_REMOVAL, CHARGE_WAIT_FOR_CUP_RETURN = 3, 4
 FINE_STOP_THRESHOLD_GR = 0.03
+CUP_MOST_POUR = None           # the run's most pour, given at the command line: the real cup is checked first
+CUP_EMPTIED = None             # the owner's words that the cup was emptied, given at the command line, or None
+ELF = None                     # the image on the unit, when it is not the board's own build folder's
 
 
 class Bench:
@@ -57,7 +60,13 @@ class Bench:
     def __init__(self, repo: Path, name: str, board: str, tap: bool = True):
         sys.path.insert(0, str(repo / "tools" / "remote_control"))
         import rc_run   # the checkout's own runner, of the firmware's time: found only once the repo is known
-        self.session = rc_run.Session(argparse.Namespace(board=board, elf=None), f"adr009_{name}")
+        self.session = rc_run.Session(argparse.Namespace(board=board, elf=ELF), f"adr009_{name}")
+        # The real cup, before anything turns (the owner, 2026-11-23: the hopper stays filled)
+        self.cup_name = f"record {name}"
+        go, self.cup_before = self.session.cup_before(self.cup_name, CUP_MOST_POUR, None, CUP_EMPTIED)
+        if not go:
+            self.session.finish()
+            raise SystemExit(f"refused: the cup ({self.cup_before}) and the most pour ({CUP_MOST_POUR:.0f} gr)")
         stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.folder = repo / "logs" / "adr009" / f"{stamp}_{name}"
         self.folder.mkdir(parents=True)
@@ -161,7 +170,8 @@ class Bench:
         self.runs.append(trial)
         return trial
 
-    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str) -> dict:
+    def creep_stop(self, tube: str, speed_rps: float, run_s: float, still_s: float, stop: str,
+                   backoff: tuple = (BACKOFF_TURNS, BACKOFF_RPS)) -> dict:
         """
         One trial of the creep-stop test: a tube at a steady speed, stopped, then still.
 
@@ -188,10 +198,11 @@ class Bench:
             during.append((time.monotonic(), self.weight()))
         stopped = time.monotonic()
         if stop == "backoff":
-            self.session.send(f"motor {tube} {-BACKOFF_RPS:g}")
+            turns, rps = backoff
+            self.session.send(f"motor {tube} {-rps:g}")
             reversed_at = time.monotonic()
             after = []
-            while time.monotonic() - reversed_at < BACKOFF_TURNS / BACKOFF_RPS:
+            while time.monotonic() - reversed_at < turns / rps:
                 after.append((time.monotonic(), self.weight()))
             self.session.send(f"motor {tube} {HOLD_RPS:g}")
         else:
@@ -382,6 +393,7 @@ class Bench:
                 out.write(f"{parts[1]},{parts[2]},{header}\n")
         (self.folder / "runs.json").write_text(json.dumps(self.runs, indent=1), encoding="utf-8")
         print(f"saved {len(self.session.console.tap_lines)} frames and {len(self.runs)} runs to {self.folder}")
+        self.session.cup_after(self.cup_name, self.cup_before, CUP_MOST_POUR)
         return self.session.finish()
 
 
@@ -513,6 +525,8 @@ def main() -> None:
     parser.add_argument("--repo", required=True, type=Path, help="the checkout whose rc_run.py and build match the unit")
     parser.add_argument("--board", default="pico2_w")
     parser.add_argument("--label", default="", help="the end of the session's folder name, in place of the test's")
+    parser.add_argument("--most-pour", type=float, required=True,
+                        help="the most this run pours into the real cup, in grains: checked against 600 gr first")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("chain", help="five short runs of the fine tube: the recording chain's proof")
     nudges = sub.add_parser("nudges", help="small turns of the fine tube, each followed by a pause")
@@ -568,6 +582,8 @@ def main() -> None:
     show = sub.add_parser("show", help="sum up a saved folder")
     show.add_argument("folder", type=Path)
     args = parser.parse_args()
+    global CUP_MOST_POUR
+    CUP_MOST_POUR = args.most_pour
 
     if args.command == "show":
         runs = json.loads((args.folder / "runs.json").read_text(encoding="utf-8"))
