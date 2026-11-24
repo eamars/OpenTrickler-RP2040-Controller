@@ -3545,3 +3545,38 @@ The reviewer accepted job 1 and decided from the record: fix 1 stays (sign-off i
 The Pico 2 W builds.
 
 **Job 2 at its tip** (21:36): both boards build (`build_fix_2w`, `build_fix_w`; the Pico W's image 1,037,356 B of its 1,040,384 B slot, 3,028 B spare). `check_numbers.py`, `check_firmware_controller.py --throws 40 --logic-only` plain, `--pid` and `--learn-fine`, `check_calibration_job.py`, `safety_cases.py` and `limits_cases.py`: each **VERDICT PASS**. No unit touched.
+
+## 2026-11-24, 21:41: job 3, why a powder never calibrated went over 3 of 3 on the A&D: the data, and the prediction before the simulation
+
+The reviewer's job 3, at the desk, no firmware changed. F.4's unit run (01:47): profile 1 (AR2209, no record) on the Pico 2 W with the real A&D, `charge 10 series 3`, every throw over.
+
+**What data exists.** Recordings 4 to 6's rows were never fetched: the series ran through `rc_run.py send`, which keeps the console's lines, and the recordings live in the unit's RAM, cleared by every flash since (02:24 on). What is on disk is the console's summary line of each throw (`logs/adr009/f4/unit_series_learnt.txt`), the unit's settings copied at 00:37 (`logs/rc/settings/20261124_003756_settings/`), and profile 0's record of the same powder on the same rig (coarse 10.49 gr a turn, fine 0.88).
+
+| Throw | Rest, over | Streams | Moves | Time | Coarse turns counted | Fine turns | Fine figure after | Stop room after |
+|---|---|---|---|---|---|---|---|---|
+| 4 (the first) | 10.160, +8 digits | 1 | 0 | 24.2 s | 0.765 | 6.276 | 0.300 | 0.026 |
+| 5 | 10.160, +8 | 1 | 0 | 17.4 s | 0.352 | 10.703 | 0.265 | 0.032 |
+| 6 | 10.040, +2 | 1 | 0 | 17.4 s | 0.360 | 10.531 | 0.258 | 0.038 |
+
+The settings in force (the 00:37 copy, and the start's own lines): tolerance 0.03 (band 0.02), the digit 0.02 from the unit's record, the scale's live interval 0.040 s, lag 2 s and rest 6 s assumed; the back-off on, 0.25 turn at 1 rev/s, no spill measured, so the coarse tube stops by the coarse stop threshold, 5 gr; profile 1's gains coarse kp 0.02, kd 0.3, fine kp 2, kd 10, and its limits coarse 0.1 to 5, fine 0.08 to 5 rev/s.
+
+**What the lines show:**
+- **Every throw rested short first and went back to the stream once** (`streams=1`), and its one verdict came after that second stream: over by 8, 8 and 2 digits. The over is made in the second stream, not at the first stop. With no small moves (the learnt source), any rest short of the band goes back to the stream.
+- **The fine figure in use was far below what the fine tube poured.** It ended at 0.30, 0.26 and 0.26 gr a turn. What the tube really poured a turn cannot be had without the rows, and depends on the coarse turns:
+  - taking every coarse turn counted as forward at 10.49 gr a turn, the fine tube poured 0.34, 0.60 and 0.60 gr a turn in the three throws;
+  - **but the unit's count of a tube's turns has no direction:** the PIO counts the steps on the STEP pin. The back-off's 0.25 turn backwards is in each throw's coarse count. Without it the coarse tube turned 0.52, 0.10 and 0.11 forward, and the fine tube poured 0.71, 0.85 and 0.84 gr a turn, the calibration's 0.88.
+
+  Either way the figure in use was a third to a half of the tube's. A forecast that counts a fine turn at a third of its powder lets the stream run on past its stop by about that much.
+- **Not shown by the lines:** when the stop was decided, what the forecast held then, and the reading after it.
+
+**A suspect found in the code, not in the data:** the controller skips the coarse tube's turns as powder only while its own back-off window lasts (`backoff_until_s`, `make_parcel`). The motor ramps from −1 rev/s back to rest after that window, and those reverse steps are counted, unsigned, as forward turns. They become coarse powder in the forecast, a figure's worth a turn: for a calibrated powder about 10.5 gr a turn, and for the learnt source turns not yet figured. **The simulation does not see it:** its controller counts its own signed ramp, never the unit's count. The plant's count (`TubeState.turns`) is unsigned like the unit's, so the simulation can be fed the count as the unit gives it.
+
+**The run, its arms** (`f4_unit_repro.py`, new): the rig of record (`measured`), the unit's settings above, the bench's reverse spill of 0.83 gr (A11's row) on the coarse tube, 40 sessions of 3 throws at 10 gr from no figure:
+- **A, as the unit:** the controller given the plant's unsigned count of both tubes each millisecond, the back-off on;
+- **B, as the simulation has thrown:** the controller counting its own signed ramp, the back-off on;
+- **C:** as A, the back-off off.
+
+**The prediction, before the run:**
+1. **If the simulation reproduces the unit,** arm A goes over in at least 2 of a session's 3 throws in most sessions, its overs come after a return to the stream, and its fine figure ends at no more than half the rig's.
+2. **What I expect:** A goes over more often than B, and more often than C. Where A's overs follow `streams=1` and B's do not, the reverse ramp's phantom coarse powder is the cause the simulation shows: it stops the first stream short and teaches the figure low.
+3. **If none of the arms goes over as the unit did,** that gap is the finding. Its candidates: the A&D's real delays against the record's (`measured` is the record of 11-22 night), the unit's ramp against the rig's acceleration, and the rows never kept.
