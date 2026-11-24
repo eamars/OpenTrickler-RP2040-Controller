@@ -3642,3 +3642,41 @@ Also written (the reviewer, 21:44): the unit's step count with no direction, ont
 2. **The figure** in each throw's line falls throw by throw, after the first between 0.25 (the night: 0.30) and 0.55 (the simulation: 0.52), against the tube's 0.88.
 3. **The rows' word:** at the first fine stop the forecast (`ctl_forecast`) is at the target less the stop room, and the reading rests below it by several digits. What the forecast held there and did not come is the error that sends the throw back to the stream; the rows give its size, and whether it is the coarse tube's powder (the coarse stop near) or the fine's.
 4. **What would contradict job 3's cause:** a first rest within the band (no second stream), or a figure at or above 0.7 that still goes over.
+
+### 21:57: the rig measurement, judged (`logs/adr009/20261124_215444_series_f4_uncal_p1/`, rows read by `bench/uncal_look.py`)
+
+Profile 1 chosen over the API and put back to 0 after; recordings 2 to 4 read whole through the API and kept. The cup 55.84 to 86.16 gr (most 49, poured 30.3).
+
+**3 of 3 over again:** +0.12, +0.06, +0.12 gr (6, 3, 6 digits), each with `streams=2`, 30, 22 and 22 s. The fine figure after each: 0.446, 0.372, 0.326. Each verdict held: the next throw's base less this one's equals its rest every time.
+
+**Stop by stop** (the forecast is `ctl_forecast` at the stop's mark; "never came" is the rest less the forecast):
+
+| Throw | Stop | Reading | Forecast holds | At rest | Never came | Its stream: turns asked, gr a turn poured |
+|---|---|---|---|---|---|---|
+| 1 | coarse | 3.18 | +2.90 | 3.18 | −2.90 | 0.41 forward, 0.24 back |
+| 1 | fine 1 | 8.00 | +2.15 | 8.50 | −1.65 | 3.96, 1.34 |
+| 1 | fine 2 | 9.40 | +0.71 | 9.80 | −0.31 | 1.63, 0.80 |
+| 1 | fine 3 | 9.90 | +0.11 | 10.12 | **+0.12** | 0.23, 1.41 |
+| 2 | fine 1 | 6.64 | +3.69 | 7.34 | −2.99 | 8.52 (from empty) |
+| 2 | fine 2 | 9.20 | +1.03 | 9.86 | −0.37 | 2.81, 0.90 |
+| 2 | fine 3 | 9.92 | +0.10 | 10.06 | **+0.04** | 0.26, 0.78 |
+| 3 | fine 1 | 7.14 | +3.13 | 7.82 | −2.45 | 8.83 (from empty) |
+| 3 | fine 2 | 9.30 | +0.83 | 9.92 | −0.21 | 2.65, 0.79 |
+| 3 | fine 3 | 9.98 | +0.04 | 10.12 | **+0.10** | 0.12, 1.70 |
+
+(The turns are the speed asked, integrated over the rows; the unit's own count is not in them. A short stream's figure reads high for it, the ramp's turns being made after the speed is asked down.)
+
+**What the rows show:**
+- **Every long stream stops far short because of the assumed lag.** At throw 2's first fine stop the forecast counted all 8.5 fine turns of the last 2 s as unseen: 3.8 gr at the figure in use, the forecast holding 3.69. The A&D showed all but 0.70 of it. At 5 rev/s the scale shows the powder well inside the 2 s the learnt source assumes (the calibration of the same rig measured its fine stops' lags 0.49 to 1.08 s). The throw rests 2 to 3 gr short and needs two more streams.
+- **The over is made in the last, smallest stream,** 0.12 to 0.26 turns: there the lag matters least, and the figure in use, half of what the tube pours (0.33 to 0.45 against 0.78 to 0.90), lets the forecast hold too little. 0.04 to 0.12 gr more came than it held.
+- **The figure is low because of the lag:** G9 takes what landed after a stop over the turns the 2 s lag says were on their way, so it divides by too many turns. It falls at each throw (0.446, 0.372, 0.326), as job 3's simulation had it.
+- **The coarse tube did not run in throws 2 and 3:** the coarse figure born in throw 1 made the coarse unnecessary for 10 gr. Its first stop held 2.90 gr that never came, the same error. The coarse figure's value is not in the line or the rows.
+- **The unit's count is unsigned, shown:** throw 1's coarse count, 0.649, is the 0.406 turns forward and the 0.240 back the speeds asked.
+
+**Against the prediction of 21:54:**
+1. Over in 3 of 3, each after going back to the stream: **met**, but twice each, not once.
+2. The figure falling, after the first between 0.25 and 0.55: **met** (0.446, 0.372, 0.326).
+3. The forecast at the first fine stop above the rest by several digits: **met**, by 1.65 to 2.99 gr. It is the fine tube's powder: the coarse ran only in throw 1.
+4. No contradiction of job 3's cause; **but the rows put the root one step earlier than job 3 did:** the assumed lag. Job 3's arm D, the learnt source with the scale's measured lag in the simulation, went over as often. That disagreement is between the simulation and the rig: on the rig the 2 s is the larger error. The simulated fine tube is not valid above 0.5 rev/s, where these streams ran.
+
+**The cause, as far as shown now:** the learnt source's assumed lag of 2 s on a scale that shows the powder in about 0.5 to 1 s. The forecast holds powder that has already shown, each long stream stops 2 to 3 gr short, and G9 learns a fine figure half the tube's from those stops. The last short stream, forecast with that figure, goes over by 2 to 6 digits.
