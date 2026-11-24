@@ -66,3 +66,40 @@ Two runs at 0.010 and 0.035 rev/s poured almost nothing for 0.1 turn: a stall or
 - **Decided by the owner (recorded 02:08):** the least speed is a confident value, the measured minimum doubled. Written into `calibration.py`'s `judge`, which judges a ladder from runs live or kept: the least, twice the slowest speed at which every run registers at least half its speed's median; the most, the fastest from the least up whose landing's spread is within its bound; at each speed the run farthest from its median rejected as a clump or a lull.
 - **On the bench's kept runs:** the fine tube's least 0.069 rev/s (0.010 rev/s fails: with 0.14 gr rejected, a run of 0.02 gr is under half the median 0.07; 0.035 rev/s registers), its most 5 rev/s; the coarse tube's least 0.16 rev/s (its motor's least, 0.08, registers), its most 5 rev/s. The owner's fine least tuned by hand on the Pico W is 0.08 rev/s.
 - **Open:** the landing's bound in numbers. The fine landings from the least up spread 0.012 to 0.064 gr (median 0.037, so 3 times is 0.11 gr). The coarse runs of half a second were shorter than the scale's lag, so all their powder landed after the stop: the coarse landing's spread is not measured, and the coarse most needs runs that outlast the lag.
+
+## 2026-11-25, 02:35: the night, the fine tube alone
+
+With the owner away and the cup not emptied: the fine tube's speeds part twice more (02:12 and 02:16, 3.2 min and about 17 gr each) and the landing's spread at three slow speeds, 10 stops each (02:19, 8.7 gr). No coarse run. The cup: counted 418 of 600 gr. Its reading fell from 350 to 0 at 02:11 with no word that it was emptied, so the tool carries the drop. Kept in the recordings, session `pico2w_fine_night`.
+
+**The speeds part, three runs alike, by `judge`:**
+
+| Run | Least (rev/s) | Most (rev/s) | Speeds that failed to register |
+|---|---|---|---|
+| 01:48 | 0.069 | 5 | 0.010 |
+| 02:12 | 0.020 | 1.443 | 0.035 |
+| 02:16 | 0.020 | 5 | 0.120 |
+
+**The least's test is a count of kernels, not of the tube.** Below 0.2 rev/s each run is 0.1 turn, about 0.08 gr, about 4 kernels. A run of 4 kernels falls under half its speed's median by chance alone, about one speed in four, so a speed fails at random: 0.010 in one run, 0.035 in the next, 0.120 in the third, while a slower one passes. By each speed's sum (its 4 runs, about 16 kernels) the tube pours at its usual rate at every speed of the ladder, in every run:
+
+| Speed (rev/s) | 01:48 (gr a turn) | 02:12 | 02:16 |
+|---|---|---|---|
+| 0.010 | 0.75 | 0.95 | 0.65 |
+| 0.035 | 0.35 | 0.84 | 0.69 |
+| 0.120 | 1.31 | 0.70 | 1.04 |
+| 0.416 | 0.60 | 0.86 | 0.86 |
+| 1.443 | 0.84 | 0.82 | 0.80 |
+| 5.000 | 0.87 | 0.87 | 0.82 |
+
+- **Proposed, not changed:** a speed registers when its runs' sum is at least half of what the tube pours a turn at its fastest speeds. On the three runs the slowest speed that registers is 0.010 rev/s, the ladder's floor, each time, so the least is 0.020 rev/s each time. That is below the owner's 0.08 tuned by hand on the Pico W: the fine tube pours at the motor's least speed, so the ladder cannot find a floor above it.
+
+**The landing's spread, 10 stops a speed** (`stop_spread.py`; what lands after the stop, its spread over all 10 stops):
+
+| Speed (rev/s) | After the stop, mean (gr) | Its spread (gr) | Its most (gr) | Gr a turn |
+|---|---|---|---|---|
+| 0.035 | 0.050 | 0.051 | 0.14 | 0.80 |
+| 0.069 | 0.032 | 0.026 | 0.08 | 0.72 |
+| 0.120 | 0.120 | 0.076 | 0.24 | 0.84 |
+
+- **Four stops with the farthest left out read low:** at 0.035 rev/s the three runs gave 0.023, 0 and 0 gr against 0.051 over 10 stops; at 0.120, 0.031 to 0.064 against 0.076. With the bound at 0.11 gr every slow speed passes, and the most rests on the 5 rev/s stops, whose spread over 4 stops was 0.053, 0.145 and 0.035 gr in the three runs: 5 rev/s twice, 1.443 once.
+
+**The screens mocked for the owner:** the 12864's 21 screens on one sheet (`mockups/calibration_12864.png`); the web's Settings › Calibration on the stand-in (`tests/web_test.py`, the API provisional in `tests/calibration_mock.py`), driven through each part and a failure at 390, 768 and 1280 px and in the dark.

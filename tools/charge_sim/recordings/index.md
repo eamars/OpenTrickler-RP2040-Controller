@@ -150,3 +150,6 @@ Trials are counted without the turn that preconditions the tube.
 | `20261125_014338_trial_calibration_scale` | AR2209 | trial_calibration_scale | coarse, fine | 29 | 0.05, 0.1, 0.25, 0.5, 1 rev/s |  |
 | `20261125_014852_trial_calibration_fine` | AR2209 | trial_calibration_fine | fine | 26 | 0.01, 0.0346572, 0.120112, 0.223607, 0.416277, 1.4427, 5 rev/s |  |
 | `20261125_015308_trial_calibration_coarse` | AR2209 | trial_calibration_coarse | coarse | 26 | 0.08, 0.182922, 0.418256, 0.632456, 0.956352, 2.18672, 5 rev/s |  |
+| `20261125_021158_trial_calibration_fine` | AR2209 | trial_calibration_fine | fine | 26 | 0.01, 0.0346572, 0.120112, 0.223607, 0.416277, 1.4427, 5 rev/s |  |
+| `20261125_021553_trial_calibration_fine` | AR2209 | trial_calibration_fine | fine | 26 | 0.01, 0.0346572, 0.120112, 0.223607, 0.416277, 1.4427, 5 rev/s |  |
+| `20261125_021925_trial_stop_spread` | AR2209 | trial_stop_spread | fine | 31 | 0.035, 0.069, 0.12, 0.5 rev/s |  |

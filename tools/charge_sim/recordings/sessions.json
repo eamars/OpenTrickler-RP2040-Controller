@@ -97,5 +97,16 @@
   "powder_note": "assumed: the hopper's powder of 2026-11-24, not stated on 2026-11-25",
   "scale": "A&D FX-300i in grains, response FAST",
   "notes": "ADR-009 step 1, gate 1 (progress.md, 2026-11-25): the calibration's method from the PC (bench/calibrate_unit.py), one part a run: the scale, the fine tube's speeds, the coarse tube's speeds. The runs before the fine motor's current was raised (01:33 to 01:41) were discarded for its jams and are not kept"
+ },
+ {
+  "name": "pico2w_fine_night",
+  "from": "20261125_020000",
+  "to": "20261125_022959",
+  "unit": "Pico 2 W, the same tubes as the sessions before; adr009_restart's firmware (2.0.3-162 at 41f9189), the fine motor at 500 mA (490 by its driver), the coarse at 240",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "assumed: the hopper's powder of 2026-11-24, not stated on 2026-11-25",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009 step 1 (progress.md, 2026-11-25, the night): with the owner away and the cup not emptied, the fine tube only: its speeds part twice more (bench/calibrate_unit.py --part fine), and the landing's spread at 0.035, 0.069 and 0.12 rev/s, 10 stops each (bench/stop_spread.py)"
  }
 ]

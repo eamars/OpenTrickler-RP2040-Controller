@@ -20,7 +20,8 @@ import json
 import shutil
 from pathlib import Path
 
-KEPT = ("runs.json", "frames.csv", "batch.json", "calibration.json", "trial.json")
+KEPT = ("runs.json", "frames.csv", "batch.json", "calibration.json", "trial.json",
+        "stop_spread.json")       # a landing spread's summary (`stop_spread.py`)
 KEPT_LIKE = ("throws_*.json",   # a trial's sets (`trial.py`)
              "calibration_*.json")    # a calibration part's records (`calibrate_unit.py`, ADR-009 step 1)
 # Resources of a settings copy that say where the unit is and not how it charges
