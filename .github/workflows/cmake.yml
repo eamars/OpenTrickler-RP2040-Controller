@@ -40,8 +40,9 @@ jobs:
       run: ./setup_toolchain.sh
 
     # The charge controller (src/charge_control.c) against its reference in the simulation (ADR-009, gate 1): built
-    # for the PC with the Zig that toolchain.env names, its rules and its decisions throw for throw; again with the
-    # fine figure's learning on, which is off by default (gate N). Before it, no number of the charge without its row:
+    # for the PC with the Zig that toolchain.env names, its rules and its decisions throw for throw: the glide's law,
+    # the PID law that pours every throw since gate F.5, and the fine figure's learning on, which is off by default
+    # (gate N). Before it, no number of the charge without its row:
     # each is a macro in src/charge_rules.h (gate N)
     - name: Check the charge controller against its reference
       shell: bash
@@ -50,6 +51,7 @@ jobs:
         cd tools/charge_sim
         python3 check_numbers.py
         python3 check_firmware_controller.py --throws 40 --logic-only
+        python3 check_firmware_controller.py --throws 40 --logic-only --pid
         python3 check_firmware_controller.py --throws 40 --logic-only --learn-fine
 
     # A release's five builds and its folder, as a PC makes them with the same script (ADR-004, gate 3): each board's
