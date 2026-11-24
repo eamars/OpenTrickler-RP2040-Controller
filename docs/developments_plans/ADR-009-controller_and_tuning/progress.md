@@ -3680,3 +3680,21 @@ Profile 1 chosen over the API and put back to 0 after; recordings 2 to 4 read wh
 4. No contradiction of job 3's cause; **but the rows put the root one step earlier than job 3 did:** the assumed lag. Job 3's arm D, the learnt source with the scale's measured lag in the simulation, went over as often. That disagreement is between the simulation and the rig: on the rig the 2 s is the larger error. The simulated fine tube is not valid above 0.5 rev/s, where these streams ran.
 
 **The cause, as far as shown now:** the learnt source's assumed lag of 2 s on a scale that shows the powder in about 0.5 to 1 s. The forecast holds powder that has already shown, each long stream stops 2 to 3 gr short, and G9 learns a fine figure half the tube's from those stops. The last short stream, forecast with that figure, goes over by 2 to 6 digits.
+
+## 2026-11-24, 21:59: F.5's ABBA, its form, prediction and bars, before the first arm
+
+**As its pass was written at 01:51, unchanged:** the controller (the PID law) against the glide's pour (`charge ... glide`), 10 throws an arm in the order A B B A, 40 throws at 10 gr, profile 0, on the 23:56 trial's calibration with its floor rehearsals. All four arms are thrown afresh on this image (2.0.3-312 at b1a6ddc); the night's lone arm A1 is not reused.
+
+**Each arm starts from the same stored record,** made so by `bench/abba_record.py --host 192.168.2.166` before every arm:
+- profile 0's stored record, its measured part kept as it is (the 23:56 calibration's head, stops and moves, and F.3's measured back-off spill, 1.28 gr at 0.25 turn and 1 rev/s);
+- its carried stops put back to the 23:56 trial's ten floor rehearsals (0, 0, +1, +3, −3, −3, −2, −3, −2, −2 digits), the law the glide's;
+- written by the API's PATCH and save, read back and compared field by field (no other field changed), and checked with `--check`;
+- it can be made again at any time with the same command. The arm then throws from it with `series.py --keep-calibration` (its `ccal load` lines kept in the arm's `series.json`).
+
+An A arm's end carries its first errors into the record, bounded since job 2; a B arm carries nothing. The next arm's write puts the record back. Every throw's recording is read through the API and kept in each arm's `series.json`.
+
+**The bars, per 20 throws** (the night's, as written): A against B, settled good at most 2 fewer, overs at most 1 more, the median at most 2.5 s longer. **If it misses them and the calibration's stop is the cause, it moves after gate 3,** and is recorded as not met today.
+
+**The prediction:** from F.2's confirming series on this calibration (6 good, 4 over of 10) and A1 of the night (4 good, 6 over), each arm about 4 to 6 good and 3 to 6 over in 10, the controller and the glide's pour close; the overs bar (at most 1 more in 20) is the one at risk, a difference of 3 being within the noise of 20 throws at 40% over. I give it about an even chance to pass. **For information, not the pass:** gate 2's bar (within the tolerance at least 68% good, median at most 13 s), which no arm is expected to meet at these limits (39% over in the simulation at the shipped defaults); and each verdict against the next throw's base (register row 14), expected to hold within a digit for most throws, the night's E9 check leaning good to over.
+
+**The cup:** 86.16 gr before the first arm; each arm's most is 140 gr, about 100 expected, so the fourth arm starts near 386 counted, inside the 600.
