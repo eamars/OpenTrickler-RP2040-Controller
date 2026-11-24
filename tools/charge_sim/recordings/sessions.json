@@ -75,5 +75,16 @@
   "powder_note": "the same AR2209 as the sessions before; the hopper filled",
   "scale": "A&D FX-300i in grains, response FAST",
   "notes": "ADR-009's gates F.4 and F.5 (progress.md, 2026-11-24): F.4's series on profile 0 (calibrated, by mistake) and on profile 1 (no calibration: the learnt source, lag 2 s and rest 6 s assumed); F.5's arm A1 of its ABBA (the controller, the PID law, on profile 0's F.2 calibration kept), the other three arms owed"
+ },
+ {
+  "name": "pico2w_ar2209_review",
+  "from": "20261124_214000",
+  "to": "20261124_235959",
+  "unit": "Pico 2 W, the same tubes as the sessions before",
+  "powder": "AR2209",
+  "kernel_gr": 0.021,
+  "powder_note": "the same AR2209 as the sessions before; the hopper filled",
+  "scale": "A&D FX-300i in grains, response FAST",
+  "notes": "ADR-009 after the night's review (progress.md, 2026-11-24, from 21:54): the tip's proof; F.4's series again on profile 1 (no calibration: the learnt source, lag 2 s and rest 6 s assumed), every recording kept; F.5's ABBA thrown whole on the image with the console's parser mended (2.0.3-318 at 1811ea6), each arm from one stored record (abba_record.py: profile 0's measured part with the 23:56 trial's floor rehearsals); an arm A1 at 21:59 on the image before the mend, not counted"
  }
 ]

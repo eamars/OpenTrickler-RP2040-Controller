@@ -135,3 +135,9 @@ Trials are counted without the turn that preconditions the tube.
 | `20261124_003820_trial_backoff_pico2w_ar2209_f3` | AR2209 | trial_backoff_pico2w_ar2209_f3 | coarse | 3 | 0.1 rev/s |  |
 | `20261124_003946_series_pico2w_ar2209_f3_pico2w_ar2209_f2` | AR2209 | series (staged) | | 3 | 10.0 gr |  |
 | `20261124_022222_series_f5_abba_a1_pico2w_ar2209_f5` | AR2209 | series (controller) | | 10 | 10.0 gr |  |
+| `20261124_215444_series_f4_uncal_p1_pico2w_ar2209_review` | AR2209 | series (controller) | | 3 | 10.0 gr |  |
+| `20261124_215903_series_f5_abba2_a1_pico2w_ar2209_review` | AR2209 | series (controller) | | 10 | 10.0 gr |  |
+| `20261124_220529_series_f5_abba2_a1_pico2w_ar2209_review` | AR2209 | series (controller) | | 10 | 10.0 gr |  |
+| `20261124_220746_series_f5_abba2_b1_pico2w_ar2209_review` | AR2209 | series (glide) | | 10 | 10.0 gr |  |
+| `20261124_220959_series_f5_abba2_b2_pico2w_ar2209_review` | AR2209 | series (glide) | | 10 | 10.0 gr |  |
+| `20261124_221220_series_f5_abba2_a2_pico2w_ar2209_review` | AR2209 | series (controller) | | 10 | 10.0 gr |  |

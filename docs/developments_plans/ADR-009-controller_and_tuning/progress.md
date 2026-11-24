@@ -3711,3 +3711,45 @@ An A arm's end carries its first errors into the record, bounded since job 2; a 
 - **The reviewer's decision:** the mended image flashed, `menu_tour --compare` and `charge_cycle`, then all four arms A B B A afresh from `abba_record.py`'s record, the bars and the prediction of 35ff1b2 unchanged. **The first A1 (8 good, 2 over, 22:01) was on the image before the parser's mend and is not counted.**
 - **A failed claim of the night, recorded:** F.5 (02:24) said the console pours "today's loop and the glide's pour, for the comparisons the gates ask". No series with a pour word could start since F.5, so no glide arm of an ABBA could ever have started; that claim was never shown working.
 - **The case, so it cannot go again unseen:** `rc_run.py charge_cycle` now starts the console's `charge 1 series 1 glide` on the simulated scale after its cycle, requires `@ok`, and stops it at once; its most pour grows by 11 gr. AGENTS.md says so.
+
+## 2026-11-24, 22:16: F.5's ABBA, thrown whole on one image and judged: it fails the overs bar by one
+
+The Pico 2 W on the parser's mended image (2.0.3-318 at 1811ea6): `flash`, `menu_tour --compare` and `charge_cycle` (its new series-with-a-pour case started and stopped) each **VERDICT PASS**. Then the four arms, each from `abba_record.py`'s record (written, read back, nothing else changed, the same rules at every arm's start: `stop_room=0.00000`, `coarse_room=1.65242`, band 0.02), every throw's recording kept (`tools/charge_sim/recordings/2026112[4]_22*_series_f5_abba2_*`). Judged by `bench/abba_judge.py`:
+
+| Arm | Good | Over | Short | Settled good | Median | Back to the stream | Gate 2's bar (information) | Verdicts held |
+|---|---|---|---|---|---|---|---|---|
+| A1, the controller | 5 | 5 | 0 | 5 | 8.6 s | 6 of 10 | not met | 10 of 10 |
+| B1, the glide's pour | 8 | 2 | 0 | 8 | 8.6 s | 0 of 10 | met | 10 of 10 |
+| B2, the glide's pour | 4 | 6 | 0 | 3 | 9.4 s | 1 of 10 | not met | 9 of 10 (−0.02 to −0.04) |
+| A2, the controller | 4 | 5 | 1 | 4 | 9.4 s | 3 of 10 | not met | 9 of 10 (−0.30 to +0.08) |
+
+**Against the bars, per 20 throws, A against B:**
+- settled good at most 2 fewer: A 9, B 11, **met**;
+- overs at most 1 more: A 10, B 8, **NOT MET**;
+- the median at most 2.5 s longer: A 8.9 s, B 9.0 s, **met**.
+
+**F.5's ABBA: VERDICT FAIL, not met today.**
+- **The calibration's stop is not the cause,** so the plan's condition that would move it after gate 3 does not apply. Every arm started from the same record and the same rules, the stop shared by both sides.
+- **What differs is the law and its learning:**
+  - the controller's throws went back to the stream in 9 of 20, the glide's pour's in 1 of 20; its overs come after those returns (a first rest short, then a second stream over) and after moves;
+  - the controller learns its stop within the charge (A1's stop room from 0.006 to 0.027, A2's about 0), while the glide's pour learns nothing. Each A arm's end carried its first errors into the record, inside the bound (from −0.0400 to −0.0400, and to −0.0415).
+- **The miss is one over in 20**, and the glide's own two arms differed by 4 overs (2 and 6): at 20 throws a side the bars cannot tell such a difference from the arms' spread. That is a fact about the bars, not a reason to pass: the pass as written is not met.
+- **The prediction of 35ff1b2:** about 4 to 6 good and 3 to 6 over an arm, an even chance to pass, the overs bar the one at risk. Met in that form: A1 5/5, B1 8/2 (better than predicted), B2 4/6, A2 4/5; the overs bar failed.
+- **Not counted:** the A1 of 21:59 (8 good, 2 over), thrown on the image before the parser's mend.
+
+**For information, not the pass:**
+- **Gate 2's bar** (within the tolerance at least 68% good, median at most 13 s): B1 alone meets it; the medians all do (8.6 to 9.4 s).
+- **The verdict's moment** (register row 14, the review's open question), each verdict against the next throw's base less its own:
+  - 38 of 40 held their class;
+  - one good of B2 settled a digit lower (−0.02 to −0.04: a flicker, the next base read low);
+  - A2's throw 4, ended short after its 8 tries (3 moves, 5 returns to the stream, −0.30), settled at +0.08: 0.38 gr came after its verdict. A throw that ends by its tries is judged before the powder of its last stream has landed. That is the one verdict of 40 the rig showed false, a case for the failure modes (gate F.5, E9).
+- **The cup:** emptied at the owner's word (22:03), 0.00 to 30.74 gr by `charge_cycle`, then 30.76 to 431.92 by the four arms (100.4, 100.1, 100.3, 100.4 gr, each of a most of 140).
+
+**The owner's options for a powder never calibrated, in the light of the rig's word of 21:57** (the assumed 2 s lag counts as unseen the turns the A&D has already shown, and G9 learns the figure at half). Nothing designed or built; each with its cost:
+- **(a) Keep it as it is.** No code. A new user's first throws go over: 3 of 3 twice on this bench, by 2 to 8 digits, in 17 to 30 s, until the powder is calibrated.
+- **(b) The unit record's measured lag in place of the assumed one, as already planned** (register row 16): gate 3's calibration measures the scale's lag and rest into the unit's record, and every powder never calibrated on that unit then starts from them. No new mechanism; it waits for gate 3 (on this bench the unit's record holds no lag: the PC trial never wrote one). Its cost and its doubt: a unit never calibrated at all still assumes 2 s. The simulation's arm D, the measured lag, went over as often as the 2 s, though the simulated fine tube is not valid where these streams ran. So (b) is to be shown on the rig at gate 3: one series of 3 at 10 gr on a powder never calibrated, about 31 gr.
+- **(c) A shorter assumed lag** (G1, the owner's choice of 2 s at 01:21). Cost: F.4's study found no pair that holds on every stand-in scale. A shorter lag trades the A&D's overs for a slow scale's, on `slower` the worse.
+- **(d) The learnt source never streams again at its learnt figure:** a rest short ends the throw short, or tops up by moves of a digit at the creep. Cost: a new mechanism; first throws end short and slower, the safe side for powder.
+- **(e) Refuse a charge until the powder is calibrated.** Cost: against sign-off item 10 and the owner's decision that a charge before a calibration is allowed; about 15 minutes and 200 gr before a new user's first charge.
+
+*My recommendation:* (b), as planned, with its rig check at gate 3 (31 gr). It removes the error the rig showed at its source, and adds nothing. (d) is the fallback if the check fails.
