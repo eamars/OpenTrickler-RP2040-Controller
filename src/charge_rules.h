@@ -81,7 +81,6 @@
                                                 // against the reference)
 #define CHARGE_RULE_OFFER_COARSE_FACTOR 1.0     // D19: the offer's coarse kp is this over (grains a turn x coarse glide time)
 #define CHARGE_RULE_OFFER_FINE_FACTOR 0.6       // D19: the fine kp likewise. The bench's; from each unit's trade at gate 3
-#define CHARGE_RULE_VERDICT_DIGITS 0.5          // D20, digits: over or under is judged this much beyond the band
 #define CHARGE_RULE_TOP_UP_SHARE 0.5            // D22: a top-up's mean is at most this share of the short and the band
 #define CHARGE_RULE_PAUSE_COARSE_DIGITS 1.0     // D23, digits: with this much coarse powder still unseen, the fine tube's
                                                 // stop is a pause

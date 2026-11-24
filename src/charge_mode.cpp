@@ -112,7 +112,7 @@ static void charge_mode_staged_free(void) {
 static bool charge_staged = false;          // this charge's throws are the staged controller's
 static bool charge_staged_verdict = false;  // the last throw ended at its rest, judged by the controller
 static float charge_staged_weight = NAN;    // its weight at rest, from the throw's base
-static float charge_staged_threshold = NAN; // over or under from this far off the target, judged at rest
+static event_result_t charge_staged_result = EVENT_RESULT_NONE;   // the controller's verdict at its rest
 static uint16_t charge_series_asked = 0;    // the start request's, written with it under the activity lock
 static uint16_t charge_series_left = 0;     // this charge's throws still to pour, in a series; 0: no series
 static float charge_base = 0.0f;            // the weight a throw starts from: 0, but in a series
@@ -726,7 +726,10 @@ static bool charge_mode_staged_throw(const char *target_weight_string) {
 
     charge_staged_verdict = true;
     charge_staged_weight = cc->rest_weight;
-    charge_staged_threshold = cc->cal.band_gr + (float) CHARGE_RULE_VERDICT_DIGITS * cc->cal.digit_gr;
+    // The verdict is the controller's, from its own test at its rest (the band and a quarter digit, D16): one test,
+    // never a second one here
+    charge_staged_result = cc->result == CHARGE_CONTROL_RESULT_OVER ? EVENT_RESULT_OVER :
+                           cc->result == CHARGE_CONTROL_RESULT_SHORT ? EVENT_RESULT_UNDER : EVENT_RESULT_GOOD;
     float elapsed_s = (float) (charge_mode_now_ms() - start_ms) / 1000.0f;
     printf("Charge: throw n=%u result=%s rest=%.3f target=%.3f first=%.3f moves=%u streams=%u elapsed=%.2f "
            "coarse_turns=%.4f fine_turns=%.4f stop_room=%.4f fine_gr=%.4f fine_stream=%.4f learnt=%u base=%.3f "
@@ -1019,19 +1022,23 @@ void charge_mode_wait_for_cup_removal() {
         vTaskDelay(pdMS_TO_TICKS(CHARGE_VERDICT_WAIT_MS));
     }
 
-    // Take current measurement: the PID loop's a second after its stop; the staged controller's at its rest, judged
-    // by its band, half a digit beyond it (0.03 gr for 0.02 gr on the A&D, today's threshold) (ADR-009)
+    // The verdict: the staged controller's own, on its reading at rest (ADR-009); today's loop's, a second after its
+    // stop, over or under from the fine stop threshold
     float current_measurement = scale_get_current_measurement() - charge_base;
-    float fine_stop_threshold = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
+    event_result_t result = charge_staged_result;
     if (charge_staged_verdict) {
         current_measurement = charge_staged_weight;
-        fine_stop_threshold = charge_staged_threshold;
     }
-    float error = charge_mode_config.target_charge_weight - current_measurement;
+    else {
+        float fine_stop_threshold = charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold;
+        float error = charge_mode_config.target_charge_weight - current_measurement;
+        result = error <= -fine_stop_threshold ? EVENT_RESULT_OVER :
+                 error >= fine_stop_threshold ? EVENT_RESULT_UNDER : EVENT_RESULT_GOOD;
+    }
 
     // Update LED colour before moving to the next stage
     // Over charged
-    if (error <= -fine_stop_threshold) {
+    if (result == EVENT_RESULT_OVER) {
         neopixel_led_set_colour(
             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
             charge_mode_config.eeprom_charge_mode_data.neopixel_over_charge_colour, 
@@ -1043,7 +1050,7 @@ void charge_mode_wait_for_cup_removal() {
         charge_mode_config.charge_mode_event |= CHARGE_MODE_EVENT_OVER_CHARGE;
     }
     // Under charged
-    else if (error >= fine_stop_threshold) {
+    else if (result == EVENT_RESULT_UNDER) {
         neopixel_led_set_colour(
             neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour, 
             charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
@@ -1068,10 +1075,7 @@ void charge_mode_wait_for_cup_removal() {
         charge_mode_config.charge_mode_event &= ~(CHARGE_MODE_EVENT_UNDER_CHARGE | CHARGE_MODE_EVENT_OVER_CHARGE);
     }
 
-    // The verdict is given, by the test above: the throw is finished, and what it read may be written again
-    // (ADR-003, gates 3 and 4)
-    event_result_t result = error <= -fine_stop_threshold ? EVENT_RESULT_OVER :
-                            error >= fine_stop_threshold ? EVENT_RESULT_UNDER : EVENT_RESULT_GOOD;
+    // The verdict is given: the throw is finished, and what it read may be written again (ADR-003, gates 3 and 4)
     charge_last_throw = charge_throw_number;
     charge_last_result = result;
     charge_last_reason = EVENT_REASON_FINISHED;
