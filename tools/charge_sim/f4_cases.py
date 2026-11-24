@@ -1,7 +1,7 @@
 """A powder with no calibration, in the frame (ADR-009, gate F.4): the learnt source's cases and its study.
 
-The pass, written in `progress.md` before the build (2026-11-24, 00:55). Every case throws the learnt source
-(`staged.learnt_calibration`, the PID law on the default AR2209 profile's gains) on every stand-in scale:
+The pass, written in `progress.md` of adr009_controller before the build (2026-11-24, 00:55). Every case throws the
+learnt source (`staged.learnt_calibration`, the PID law on the default AR2209 profile's gains) on every stand-in scale:
 - `measured`: the rig of record (`records/pico2w_ar2209_night.json`), the bench's A&D FX-300i;
 - `late_small`, `holds`, `slow`, `slower`: that record with its delays stretched (`scales_like.py`);
 - `gng`, `strain`: another make's rhythm and filter (`scale.py`'s GNG_JJB and SLOW_STRAIN_GAUGE, estimates never
@@ -16,7 +16,8 @@ The cases:
 - c19_before_figure: no throw ends "limit" before its fine figure exists;
 - no_powder_before_figure: an empty hopper ends "no_powder";
 - keeps_short: the powder falls to a third once the figure is born: the throw ends short or good, never past C18;
-The study of the assumed lag and rest is `f4_landscape.py`'s (progress.md, 2026-11-24, 01:17: no pair passes).
+The study of the assumed lag and rest is `f4_landscape.py`'s (adr009_controller's progress.md, 2026-11-24, 01:17: no
+pair passes).
 
 Usage, with the repository's venv, from this folder:
     python f4_cases.py [--sessions 3] [--lag 1.0 --rest 4.0]

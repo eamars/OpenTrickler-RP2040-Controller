@@ -37,7 +37,8 @@ from throw import Session
 PARCEL_S = 0.01                 # the powder turned out is counted in parcels of this long
 # The fine tube's top speed in this trial. The bench turned it to 1 rev/s with both powders (and to 5 with
 # AR2209), but above 0.5 rev/s the simulated tube pours in gaps and dumps the bench never showed (no rise for up to
-# 1.4 s, where the bench's longest was 0.2 s: progress.md, 2026-11-21), which no controller could be judged on.
+# 1.4 s, where the bench's longest was 0.2 s: ADR-009's legacy/progress.md, 2026-11-21), which no controller could be
+# judged on.
 FINE_TOP_RPS = 0.5
 COARSE_TOP_RPS = 2.0
 COARSE_FLOOR_RPS = 0.3          # the coarse tube pours in lumps below it (bench, 2026-11-20)
@@ -64,12 +65,12 @@ REHEARSAL_GR = 1.0
 # The rehearsal's form R (gate 3, the manager's yes, 2026-11-24): a throw of the fine tube alone through the controller's
 # own law, from rest, its target the coarse room but never under the fine tube's flow at its top for this many of its
 # longest lag, so it reaches its approach before the stop as a throw does (F.2: a short one from a cold tube rested far
-# short at a fine top of 5 rev/s). Its count is the owner's choice (the study, progress.md)
+# short at a fine top of 5 rev/s). Its count is the owner's choice (the study, adr009_controller's progress.md)
 REHEARSAL_LAG_TIMES = 2.0
 MOST_MOVES = 8                  # tries a throw is given after its first rest: small moves, and returns to the stream
 COARSE_SPREADS = 3.0            # of the coarse tube's spread a turn, kept clear of its powder still unseen
 # The creep's powder still on its way, as a share of the band. Half of it was tried: 1.5 to 2 s slower a throw and
-# no more good ones (progress.md, 2026-11-21)
+# no more good ones (ADR-009's legacy/progress.md, 2026-11-21)
 CREEP_BAND_SHARE = 1.0
 # The reading a throw at rest is judged on: the lowest it showed since its last rise, so that a reading which
 # flickers across the band's edge is not taken for one inside it. Judged on the highest, one throw in ten rested
@@ -128,7 +129,7 @@ ZERO_MARGIN = 0.02             # A9 at its default: the harness gives the user's
 # No powder (C25): while a tube turns in the stream, more than this many of the noise of forecast powder due since the
 # reading last rose by more than the noise, the first of it waiting longer than the longest lag measured. In the
 # simulation an ordinary throw had at most 6.6 of them due before a rise, a tube pouring a third of its figure in
-# clumps 19 (progress.md, 2026-11-23, F.1): half as many again
+# clumps 19 (adr009_controller's progress.md, 2026-11-23, F.1): half as many again
 NO_POWDER_RISES = 30.0
 # The learnt source (ADR-009, gate F.4): a powder with no calibration. A tube's figure is born in the throw once this
 # many of its turns should have shown by the assumed lag (D17's least stretch) and the reading has risen past the
@@ -461,7 +462,7 @@ def set_rules(cal: Calibration, finish: str, band_gr: float, limits: Limits = No
     cal.floor_rps = max(cal.floor_rps, limits.fine_least)
     # The first reading at rest is meant to lie a digit under the target (half the band, if that is more): a
     # throw that rests short is topped up, one that rests over is lost. Aimed at the target itself the trial
-    # gave 5 points fewer good throws and half as many overs again (progress.md, 2026-11-21)
+    # gave 5 points fewer good throws and half as many overs again (adr009_controller's progress.md, 2026-11-21)
     cal.aim_gr = -max(cal.digit_gr, band_gr / 2.0)
     cal.stop_room_gr = -cal.aim_gr
     # The floor is reached with twice the spread of a stop from four times its flow still to go

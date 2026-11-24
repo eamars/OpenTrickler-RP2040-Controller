@@ -1,17 +1,18 @@
 """F.4's unit run reproduced in the simulation (ADR-009, the review's job 3, 2026-11-24): why a powder never calibrated
 went over 3 of 3 on the A&D.
 
-The unit's run (progress.md, 2026-11-24, 01:47): the learnt source, lag 2 s and rest 6 s assumed, digit 0.02, tolerance
-0.03, the back-off on (0.25 turn at 1 rev/s, no spill measured: the coarse stop threshold, 5 gr), profile 1's gains
-(coarse kp 0.02, kd 0.3; fine kp 2, kd 10) and limits (coarse 0.1 to 5, fine 0.08 to 5 rev/s), 3 throws at 10 gr.
-Here on the rig of record (`measured`), the coarse tube given the bench's reverse spill (0.83 gr, A11's row). Arms:
+The unit's run (adr009_controller's progress.md, 2026-11-24, 01:47): the learnt source, lag 2 s and rest 6 s assumed,
+digit 0.02, tolerance 0.03, the back-off on (0.25 turn at 1 rev/s, no spill measured: the coarse stop threshold, 5 gr),
+profile 1's gains (coarse kp 0.02, kd 0.3; fine kp 2, kd 10) and limits (coarse 0.1 to 5, fine 0.08 to 5 rev/s), 3
+throws at 10 gr. Here on the rig of record (`measured`), the coarse tube given the bench's reverse spill (0.83 gr, A11's
+row). Arms:
 - A, as the unit: the controller given the plant's own count of each tube's turns every millisecond, which has no
   direction, as the unit's count of the STEP pin has none;
 - B, as the simulation has thrown: the controller counting its own signed ramp;
 - C: as A, the back-off off;
 - D, a diagnostic added after the first run: as A, with the lag and rest a calibration on this scale measures (the
   fine stops' longest lag and the calibration's rest, as `f4_cases.py`'s `learnt_scale`) in place of 2 s and 6 s.
-The prediction was written in progress.md before the first run (2026-11-24, 21:41).
+The prediction was written in adr009_controller's progress.md before the first run (2026-11-24, 21:41).
 
 Usage, with the repository's venv, from this folder:
     python f4_unit_repro.py [--sessions 40]

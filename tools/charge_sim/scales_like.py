@@ -13,7 +13,8 @@ import dataclasses
 SCALES = {
     "measured": None,
     # the measured scale with every small change held 2.5 s: the record's scale shows nine small moves in ten
-    # within 2 to 2.5 s, the bench's took 4 s (progress.md, 2026-11-21), and this is later than the bench's
+    # within 2 to 2.5 s, the bench's took 4 s (ADR-009's legacy/progress.md, 2026-11-21), and this is later than the
+    # bench's
     "late_small": (1.0, 2.5, None, None),
     # as late as measured for a stream, but a single small change held 5 s; four readings a second, each a quarter
     # second old: the owner's account of his G&G (a stream is shown far sooner than one small change)

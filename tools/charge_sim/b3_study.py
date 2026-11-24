@@ -2,8 +2,9 @@
 
 A calibrated unit on every stand-in scale, and on the record whose fine tube pours by speed (`+fine_by_speed`, the
 11-22 finding: 0.68 gr a turn at the finish, 0.83 at 1 rev/s): 6 sessions of 20 throws at 10 gr, the PID law, with
-the forecast reading each stop's own figure by speed, and with the one figure. Pass, written first (progress.md):
-by speed no worse on every scale (good no more than 2 a session fewer, over no more than 2 a session more).
+the forecast reading each stop's own figure by speed, and with the one figure. Pass, written first (adr009_controller's
+progress.md): by speed no worse on every scale (good no more than 2 a session fewer, over no more than 2 a session
+more).
 
     python b3_study.py [--sessions 6] [--throws 20]
 """

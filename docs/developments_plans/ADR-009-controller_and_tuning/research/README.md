@@ -8,7 +8,7 @@
 
 ## The short answer
 
-Revised the same day, after PR #113's one real figure corrected the simulated fine tube (`../progress.md`).
+Revised the same day, after PR #113's one real figure corrected the simulated fine tube (`../legacy/progress.md`).
 
 1. **Overcharges have two causes, and both are real in the reference plant.** The fine tube feeds while the scale has not caught up (a control fault, curable), and several kernels leave the lip together (a property of powder and tube, which no stopping rule cures).
 2. **AR2209's kernel is the tolerance.** One kernel is 0.020 to 0.025 gr (community figures); the A&D's digit in grains is 0.02 gr; the band is +-0.02 gr. Three kernels falling together from just under the band is an overcharge. The owner's AR2209 clumps more than other powders.
@@ -113,7 +113,7 @@ In simulation, six gusts a minute of 0.06 gr leave the candidate's true overchar
 
 ## Which assumptions decide the result
 
-The table is in `../progress.md` (400 throws a row, `python matrix.py`). Read:
+The table is in `../legacy/progress.md` (400 throws a row, `python matrix.py`). Read:
 - **The fine tube's flow decides how much the blind window costs today's loop:** 15% over at a third of the reference flow, 25% at the reference, 55% at double. The candidate stays at 14 to 16% across the same range.
 - **Clumping sets the floor for both:** the candidate goes from 0% (single, regular kernels) to 30% (clumps of two).
 - **A slow scale is slow by physics:** about 30 s with nudges and long settles. The alternative is not a faster good throw: today's loop overcharges every throw there.
@@ -141,7 +141,7 @@ Each gate ends in a pass or fail on a unit.
 
 ## Open questions for the owner
 
-Answered on 2026-11-19 (`../progress.md`): the throw's time, the tube, the lip, PR #113. Still open:
+Answered on 2026-11-19 (`../legacy/progress.md`): the throw's time, the tube, the lip, PR #113. Still open:
 - **The A&D's settings:** response FAST, `SPd 2`, and `trc` (zero tracking), which neither set-up guide mentions.
 - **The Pico 2 W's fine gear ratio** is stored as 40:19; with the 22-tooth tube it should be 1.818. To be changed with the owner's word at the bench.
 - **A test command for oscillation** (`bench_guide.md`, step 7) is a small firmware addition in a research build, flashed by the probe. Built only if the nudge test says clumps are the limit.

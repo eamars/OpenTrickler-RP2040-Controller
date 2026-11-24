@@ -5,7 +5,8 @@ here at the night's settings: 10 gr, the fast mode's 0.04 gr, the fine top at 1.
 the fine figure not learnt. The simulation's controller calibrates its own rig, as a unit does.
 
 An arm is reproduced when the simulation's good, over and median, counted for 20 throws, lie within the rig arm's
-own and the spread like runs showed on the rig: 4 good, 4 over and 0.7 s (progress.md, 2026-11-23, 20:32).
+own and the spread like runs showed on the rig: 4 good, 4 over and 0.7 s (adr009_controller's progress.md, 2026-11-23,
+20:32).
 
     python night_study.py [--throws 400] [--rig pico2w_ar2209] [--out fit/study_20261123/night.txt]
 """

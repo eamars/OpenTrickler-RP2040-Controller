@@ -5,7 +5,7 @@ stage `tau`: the reading keeps rising at the flow's rate until `d`, then closes 
 second, slower stage (its share `s2` and `tau2`) is added only when the first leaves a residual over a digit (RMS).
 Fitted by least squares to each stop's run after the stop, the flow being the run's gain over its time.
 
-This file is the fit and its check; the forecast reads it once it holds (progress.md).
+This file is the fit and its check; the forecast reads it once it holds (adr009_controller's progress.md).
 
     python lag_stages.py            each stand-in's stops fitted: their RMS against a digit, and the stages used
 """

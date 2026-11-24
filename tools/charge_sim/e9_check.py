@@ -7,8 +7,9 @@ it since F.5 (the PID law on the default AR2209 profile's gains), sessions of th
 - a second later: the reading then, judged by the same edge;
 - the baseline: the readings one and two seconds after, judged alike: what a settled reading's noise alone changes.
 
-Pass, written first (progress.md, 2026-11-24): the verdict changes class within its second no more often than the
-baseline beyond the noise (two SDs of the difference of two shares). Else the verdict waits for the frame's rest rule.
+Pass, written first (adr009_controller's progress.md, 2026-11-24): the verdict changes class within its second no more
+often than the baseline beyond the noise (two SDs of the difference of two shares). Else the verdict waits for the
+frame's rest rule.
 
     python e9_check.py [--sessions 6] [--throws 20]
 """

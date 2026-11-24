@@ -4,11 +4,11 @@
 then the share (1 - s2) e^(-(t-d)/tau) + s2 e^(-(t-d)/tau2) still to come; a parcel leaves the forecast once under a
 hundredth of it is to come. Every sum of the forecast weighs a parcel by its share still to come.
 
-The study, its pass written first (progress.md, 2026-11-24, 02:25 and 02:50): on every stand-in, the learnt source given
-the scale's stages as a calibration on that scale fits them (the median of its fine stops' fits within four times
-the creep, `lag_stages.fit_run`), against the same given the scale's one measured lag (F.4: on `slower` 15 points over
-a calibrated unit): the first three throws of 40 fresh sessions at 10 gr, over as often as a calibrated unit there,
-within the noise (two SDs of the difference of two shares).
+The study, its pass written first (adr009_controller's progress.md, 2026-11-24, 02:25 and 02:50): on every stand-in, the
+learnt source given the scale's stages as a calibration on that scale fits them (the median of its fine stops' fits
+within four times the creep, `lag_stages.fit_run`), against the same given the scale's one measured lag (F.4: on
+`slower` 15 points over a calibrated unit): the first three throws of 40 fresh sessions at 10 gr, over as often as a
+calibrated unit there, within the noise (two SDs of the difference of two shares).
 
     python l_study.py [--sessions 40]
 """

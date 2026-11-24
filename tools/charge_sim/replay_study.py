@@ -1,11 +1,12 @@
 """Bench series replayed on a rig as the unit ran them, each judged against what the rig gave (ADR-009, gate S).
 
 `--day`: the series of 2026-11-22 before 18:00, the model's own source: which record of the rig reproduces them.
-`--night`: the night's ABBA arms, judged once on the record the day chose (progress.md, 2026-11-23).
+`--night`: the night's ABBA arms, judged once on the record the day chose (adr009_controller's progress.md, 2026-11-23).
 
 A series or an arm is reproduced when the simulation's good, over and median, counted for 20 throws, lie within the
-rig's own and the spread like runs showed on the rig: 4 good, 4 over, 0.7 s (progress.md, 2026-11-23, 20:32).
-`pid_learnt`'s arms have no calibration to replay: they are the simulation's own controllers of them.
+rig's own and the spread like runs showed on the rig: 4 good, 4 over, 0.7 s (adr009_controller's progress.md,
+2026-11-23, 20:32). `pid_learnt`'s arms have no calibration to replay: they are the simulation's own controllers of
+them.
 
     python replay_study.py --day --rigs pico2w_ar2209,pico2w_ar2209_1122 [--throws 400] [--out ...]
 """

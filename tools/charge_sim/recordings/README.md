@@ -7,7 +7,7 @@ What a real OpenTrickler did on the bench, for ADR-009: a tube turned by a plan 
 - **A folder** is one recording, named by when it began (`YYYYMMDD_HHMMSS`, New Zealand time) and its test. `runs.json` holds its trials. `frames.csv` holds the scale's own frames where the tap was on (the first session only; later ones read the weight by `state`, about 47 times a second, and their `frames.csv` is a header alone).
 - **`settings_before/`:** the unit's stored settings before the first session, without its Wi-Fi, its update source and its id.
 
-What each session found is in `docs/developments_plans/ADR-009-controller_and_tuning/progress.md`, under the headings `sessions.json` names. For the sessions from 2026-11-21 evening on, that is the `progress.md` of branch `adr009_controller` (`git show adr009_controller:docs/developments_plans/ADR-009-controller_and_tuning/progress.md`), the first implementation of ADR-009, kept as it was when ADR-009 was restarted on 2026-11-24.
+What each session found is in `docs/developments_plans/ADR-009-controller_and_tuning/legacy/progress.md`, under the headings `sessions.json` names. For the sessions from 2026-11-21 evening on, that is the `progress.md` of branch `adr009_controller` (`git show adr009_controller:docs/developments_plans/ADR-009-controller_and_tuning/progress.md`), the first implementation of ADR-009, kept as it was when ADR-009 was restarted on 2026-11-24.
 
 ## A trial in `runs.json`
 

@@ -15,9 +15,9 @@ from workers import Workers
 
 
 def judged(sessions: list, calibrated: list) -> tuple:
-    """The study's pass on one scale (progress.md, 00:55): the first throws over no more often than a calibrated
-    unit's beyond the noise (two SDs of the difference of two shares, as `fallback_study.py` judges); and, as the
-    uncalibrated case asks, every one of them ended good, over or short. (verdict, its words)"""
+    """The study's pass on one scale (adr009_controller's progress.md, 00:55): the first throws over no more often than
+    a calibrated unit's beyond the noise (two SDs of the difference of two shares, as `fallback_study.py` judges); and,
+    as the uncalibrated case asks, every one of them ended good, over or short. (verdict, its words)"""
     first = [t for s in sessions for t in s[:f4_cases.FIRST]]
     base = [t for s in calibrated for t in s[:f4_cases.FIRST]]
     n = len(first)

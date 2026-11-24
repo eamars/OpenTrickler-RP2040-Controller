@@ -1,4 +1,5 @@
-"""The rehearsal's form R and its count (ADR-009, gate 3; progress.md, 2026-11-24, 02:44): figures for the owner.
+"""The rehearsal's form R and its count (ADR-009, gate 3; adr009_controller's progress.md, 2026-11-24, 02:44): figures
+for the owner.
 
 At the shipped defaults (coarse 0.1 to 5, fine 0.08 to 5 rev/s; tolerance 0.03) on every stand-in scale, the controller
 being the PID law on the AR2209 profile's gains: today's form (10 rehearsals of 1 gr by the glide's law), R with 40 and
