@@ -3543,3 +3543,5 @@ The reviewer accepted job 1 and decided from the record: fix 1 stays (sign-off i
 - the console: `@err no memory to read the powder profile's calibration: try again`;
 - the state's words: "No memory to read the calibration: try again".
 The Pico 2 W builds.
+
+**Job 2 at its tip** (21:36): both boards build (`build_fix_2w`, `build_fix_w`; the Pico W's image 1,037,356 B of its 1,040,384 B slot, 3,028 B spare). `check_numbers.py`, `check_firmware_controller.py --throws 40 --logic-only` plain, `--pid` and `--learn-fine`, `check_calibration_job.py`, `safety_cases.py` and `limits_cases.py`: each **VERDICT PASS**. No unit touched.
