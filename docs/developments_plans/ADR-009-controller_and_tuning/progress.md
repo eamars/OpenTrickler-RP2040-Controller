@@ -3580,3 +3580,39 @@ The settings in force (the 00:37 copy, and the start's own lines): tolerance 0.0
 1. **If the simulation reproduces the unit,** arm A goes over in at least 2 of a session's 3 throws in most sessions, its overs come after a return to the stream, and its fine figure ends at no more than half the rig's.
 2. **What I expect:** A goes over more often than B, and more often than C. Where A's overs follow `streams=1` and B's do not, the reverse ramp's phantom coarse powder is the cause the simulation shows: it stops the first stream short and teaches the figure low.
 3. **If none of the arms goes over as the unit did,** that gap is the finding. Its candidates: the A&D's real delays against the record's (`measured` is the record of 11-22 night), the unit's ramp against the rig's acceleration, and the rows never kept.
+
+### 21:44: job 3, the simulation run and its judgement
+
+`f4_unit_repro.py --sessions 40` (`logs/adr009/f4/unit_repro_40.txt`). 40 sessions of 3 throws an arm; the unit's settings as above; error in digits of 0.02, + over:
+
+| Arm | Over | Sessions with 2 or 3 over | Overs after a return to the stream | Fine figure after throws 1, 2, 3 (the tube's) | Error median, throws 1 to 3 | Time median |
+|---|---|---|---|---|---|---|
+| the unit | 3 of 3 | 1 of 1 | 3 of 3 | 0.30, 0.26, 0.26 (0.71 to 0.85, or 0.34 to 0.60; above) | +8, +8, +2 | 24, 17, 17 s |
+| A, the unit's count | 66 of 120 | 22 of 40 | 64 of 66 | 0.52, 0.44, 0.38 (0.78) | +1.3, +2.0, +4.5 | 37, 29, 23 s |
+| B, its own count | 71 of 120 | 23 of 40 | 69 of 71 | 0.52, 0.44, 0.38 (0.78) | +2.1, +2.2, +4.1 | 37, 25, 23 s |
+| C, A with no back-off | 83 of 120 | 31 of 40 | 81 of 83 | 0.52, 0.44, 0.38 (0.78) | +2.8, +4.7, +5.8 | 38, 23, 23 s |
+| D, A with the scale's measured lag 1.31 s and rest 1.53 s (a diagnostic added after the first run) | 58 of 120 | 19 of 40 | 53 of 58 | 0.52, 0.47, 0.42 (0.78) | +1.8, +1.9, +2.8 | 17, 10, 9 s |
+
+**Against the prediction of 21:41:**
+1. **Reproduced in its mechanism, not in its size.** As on the unit, nearly every throw rests short first and goes back to the stream (39 of 40 in every arm), and almost every over is made in that second stream (64 of 66 in A). The fine figure in use is below the tube's and falls throw by throw, as on the unit. But A goes over in 55% of its throws, and 2 or 3 of 3 in 22 of 40 sessions, a bare majority. Its figure stays at 49 to 67% of the tube's, against the unit's third, and its overs are smaller (median +1 to +5 digits against +8). The letter "at most half the rig's" is met at throw 3 only.
+2. **Failed.** The reverse ramp's phantom powder is not the cause in the simulation: at the rig's acceleration the back-off's tail after its window is 0.009 turn. A is no worse than B (66 against 71 over), and with the back-off off (C) the overs rise to 83.
+3. **The gap between the unit and the simulation is real:** the unit's figure fell to a third of the tube's, the simulation's to half to two thirds.
+
+**The cause, as far as shown:**
+- **Shown, in the simulation and in the unit's lines alike:** the learnt source's fine figure is too low. It is born at about two thirds of the tube's figure (0.52 against 0.78, the same in every arm), and G9's rule (what landed after the stop over the turns the lag says were on their way, held to half and twice the figure) pulls it lower at every throw. The first stream ends short, and the second stream, counting each fine turn at about half its powder, runs on past its target.
+- **Not the cause:** the assumed lag alone (D, with the scale's own lag and rest, goes over as often: 58 of 120 against 66), the back-off (C), and the unit's unsigned step count (A against B).
+- **Not shown:** why the unit's figure fell further than the simulation's. Candidates, in the order the data points to them:
+  - the fine tube at up to 5 rev/s with kp 2: the simulated fine tube is not valid above 0.5 rev/s (`staged.py`: "pours in gaps and dumps the bench never showed"), so A runs where the simulation is known wrong;
+  - the A&D's delays on the night against the record's;
+  - the rows were never kept, so where on the unit the figure was born, and on what reading, is not known.
+- **Found beside it, in the code:** the unit's count of a tube's steps has no direction, and the controller skips a coarse turn as powder only inside its back-off window. In the simulation that costs 0.009 turn; on a unit whose motor ramps more slowly it costs more, a coarse figure's worth a turn (about 10 gr a turn for AR2209). Not shown to matter here. A case for the failure modes, the reviewer's to place.
+
+**What one measurement on the rig would settle:** the same series again, the unit's settings unchanged, profile 1 with no record, `charge 10 series 3` on the real A&D, with every throw's recording fetched before the next flash (`recordings_check` reads them, or `ccrec <id>`). Its pour: about **31 gr** (3 × 10 gr and the overs), the cup read by the tools. The rows answer, throw by throw: when and on which reading the figure was born, its value, where the first stop was decided and what the forecast held then, what arrived after it, and how far the second stream ran. That tells the figure's birth from G9's learning, and the simulation's gap.
+
+**Options for the owner** (none designed or built; each a change to F.4's form, the owner's decision of 2026-11-24, 01:21):
+- **(a) Keep it as it is.** No cost in code. A new user's first throws go over about half the time in the simulation and 3 of 3 on the unit, by 2 to 8 digits, until the powder is calibrated. Sign-off item 10 accepts the overs as the cost; the owner chose 2 s and 6 s before this result existed.
+- **(b) The learnt source never streams again at its learnt figure:** a rest short ends the throw short, or tops up by moves the size of a digit at the creep. Cost: a new mechanism; first throws end short and slower, where over is the worse side for powder.
+- **(c) The figure never learnt below its birth:** G9 bounded from below by the figure the throw was born with. Cost: a change to G9's row; the simulation's throw 1 already goes over 18 of 40 at the birth figure, so it narrows the overs and does not end them.
+- **(d) Refuse a charge until the powder is calibrated.** Cost: against sign-off item 10 and the owner's decision that a charge before a calibration is allowed; about 15 minutes and 200 gr before a new user's first charge.
+
+*My recommendation:* the rig measurement first. It is 31 gr and settles which half of the figure's error is the birth and which is G9, before any option is chosen. Of the options, (b) is the one that removes the over by construction; it needs the owner's word as a new mechanism.
