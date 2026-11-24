@@ -139,13 +139,13 @@ def screens():
     add(p, "Powder: paused before the cup is full")
 
     p = Panel(); m.title(p, "AR2209", back=True)
-    m.dense(p, [("Fine tube", "0.07 to 5 rev/s", "pair"), ("Was", "0.08 to 2 rev/s", "pair"),
+    m.dense(p, [("Fine tube", "0.02 to 5 rev/s", "pair"), ("Was", "0.08 to 2 rev/s", "pair"),
                 ("Coarse tube", "0.16 to 5 rev/s", "pair"), ("Was", "0.1 to 8 rev/s", "pair"),
                 ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)], at="top")
     add(p, "Powder: found, beside the profile's")
 
     p = Panel(); m.title(p, "AR2209", back=True)
-    m.dense(p, [("Fine tube", "0.07 to 5 rev/s", "pair"), ("Was", "0.08 to 2 rev/s", "pair"),
+    m.dense(p, [("Fine tube", "0.02 to 5 rev/s", "pair"), ("Was", "0.08 to 2 rev/s", "pair"),
                 ("Coarse tube", "0.16 to 5 rev/s", "pair"), ("Was", "0.1 to 8 rev/s", "pair"),
                 ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)], at="end")
     add(p, "Powder: Save at the end")

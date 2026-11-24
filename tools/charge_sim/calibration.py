@@ -54,7 +54,8 @@ SPEED_RUN_LEAST_S = 0.5         # and lasts at least this long,
 SPEED_RUN_MOST_S = 10.0         # and never longer than this
 CONSISTENT_TIMES = 3.0          # with no bound given, a landing's spread within this many times the speeds' median
 LEAST_TIMES = 2.0               # the least speed is the measured minimum times this
-REGISTER_SHARE = 0.5            # a run registers powder when it shows at least this share of its speed's median
+REGISTER_SHARE = 0.5            # a speed registers when its runs pour at least this share of the tube's rate (gr a
+                                # turn) at its fastest speed: by their sum, as one run of 0.1 turn is a few kernels
 POUR_GR_A_TURN_MOST = 12.0      # a run's most pour for the cup's check, before the tube has poured at all
 
 
@@ -128,7 +129,7 @@ def run_and_stop(bench, cup: Cup, tube: str, speed: float, run_s: float, watch_s
     before, at_stop = trial["during"][0][1], trial["during"][-1][1]
     rest, first, settle = settled(trial["after"], watch_s)
     return {"gain": rest - before, "rise": rest - at_stop, "first_s": first, "settle_s": settle,
-            "trial": trial, "before": before, "rest": rest}
+            "turns": trial.get("turns", speed * run_s), "trial": trial, "before": before, "rest": rest}
 
 
 def prime(bench, cup: Cup, tube: str, speed: float) -> float:
@@ -203,8 +204,8 @@ def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, s
         scale: the scale part's records, or None for the defaults.
 
     Returns:
-        A Report whose records are `least_rps`, `most_rps` and `stops` ((speed, registered powder's spread as a share,
-        mean landed after the stop gr, its spread gr) by speed), and the failures in words.
+        A Report whose records are `least_rps`, `most_rps` and `stops` (as `judge` gives them), and the failures in
+        words.
     """
     report = Report(f"speeds {tube}")
     start_s, start_gr = bench.now, bench.cup.landed_gr
@@ -224,19 +225,31 @@ def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, s
         if all(run["gain"] <= 0.0 for run in runs):
             report.failures.append(f"the {tube} tube at {speed:.3g} rev/s poured nothing")
             continue
-        gains = [run["gain"] for run in runs]
-        stops.append((speed, [run["gain"] for run in runs], [run["rise"] for run in runs]))
+        stops.append((speed, [run["gain"] for run in runs], [run["rise"] for run in runs],
+                      [run["turns"] for run in runs]))
     report.records, failures = judge(tube, stops)
     report.failures += failures
     report.seconds, report.poured_gr = bench.now - start_s, bench.cup.landed_gr - start_gr
     return report
 
 
+def farthest(values: list) -> int:
+    """The index of the value farthest from their median: a clump or a lull."""
+    middle = statistics.median(values)
+    return max(range(len(values)), key=lambda i: abs(values[i] - middle))
+
+
 def without_farthest(values: list) -> list:
     """The values less the one farthest from their median: a clump or a lull rejected."""
-    middle = statistics.median(values)
-    farthest = max(range(len(values)), key=lambda i: abs(values[i] - middle))
-    return values[:farthest] + values[farthest + 1:]
+    out = farthest(values)
+    return values[:out] + values[out + 1:]
+
+
+def pour_rate(gains: list, turns: list) -> float:
+    """A speed's grains a turn by its runs' sum, the run farthest from their median (a clump or a lull) left out."""
+    out = farthest(gains)
+    kept_turns = sum(turns) - turns[out]
+    return (sum(gains) - gains[out]) / kept_turns if kept_turns > 0.0 else 0.0
 
 
 def judge(tube: str, stops: list, spread_bound_gr: float = None) -> tuple:
@@ -244,27 +257,29 @@ def judge(tube: str, stops: list, spread_bound_gr: float = None) -> tuple:
 
     Args:
         tube: "coarse" or "fine", for the failures' words.
-        stops: (speed, each run's registered powder gr, each run's powder landed after its stop gr) by speed.
+        stops: (speed, each run's registered powder gr, each run's powder landed after its stop gr, each run's turns)
+            by speed.
         spread_bound_gr: the bound on a landing's spread (the A&D's times 3), or None for CONSISTENT_TIMES the median of
             the speeds' spreads.
 
     Returns:
-        (records: `least_rps`, `most_rps` where found, and `stops` as (speed, the slowest registers, the landing's
-        median gr, its spread gr); the failures in words).
+        (records: `least_rps`, `most_rps` where found, and `stops` as (speed, whether it registers, the landing's
+        median gr, its spread gr, its gr a turn); the failures in words).
     """
     rows, failures = [], []
-    for speed, gains, rises in sorted(stops):
-        kept = without_farthest(gains)
-        floor = REGISTER_SHARE * statistics.median(gains)
-        registers = all(gain > 0.0 and gain >= floor for gain in kept)
+    ordered = sorted(stops, key=lambda stop: stop[0])
+    rates = [pour_rate(gains, turns) for _, gains, _, turns in ordered]
+    stream = rates[-1]          # the fastest speed's: a stream, and the most kernels of any speed
+    for (speed, gains, rises, turns), rate in zip(ordered, rates):
+        registers = stream > 0.0 and rate >= REGISTER_SHARE * stream
         landed = without_farthest(rises)
-        rows.append((speed, registers, statistics.median(rises), statistics.stdev(landed)))
-    records = {"stops": [(speed, 1.0 if registers else 0.0, median, spread)
-                         for speed, registers, median, spread in rows]}
-    floor_speeds = [speed for speed, registers, _, _ in rows if registers]
+        rows.append((speed, registers, statistics.median(rises), statistics.stdev(landed), rate))
+    records = {"stops": [(speed, 1.0 if registers else 0.0, median, spread, rate)
+                         for speed, registers, median, spread, rate in rows]}
+    floor_speeds = [row[0] for row in rows if row[1]]
     if not floor_speeds:
-        failures.append(f"no speed of the {tube} tube registered powder in every run: its least and most keep their "
-                        "values")
+        failures.append(f"no speed of the {tube} tube poured at half its fastest speed's rate: its least and most "
+                        "keep their values")
         return records, failures
     least = min(LEAST_TIMES * min(floor_speeds), rows[-1][0])
     upper = [row for row in rows if row[0] >= least]
@@ -286,9 +301,10 @@ def judge_kept(folder, tube: str, spread_bound_gr: float = None) -> tuple:
     for run in runs:
         before, at_stop = run["during"][0][1], run["during"][-1][1]
         rest = statistics.median(w for t, w in run["after"] if t >= run["after"][-1][0] - LAST_S)
-        by_speed.setdefault(round(run["speed_asked_rps"], 6), []).append((rest - before, rest - at_stop))
-    stops = [(speed, [g for g, _ in made], [r for _, r in made]) for speed, made in by_speed.items()
-             if len(made) >= SPEED_STOPS]
+        turns = run.get("turns", run["speed_asked_rps"] * run["run_s"])
+        by_speed.setdefault(round(run["speed_asked_rps"], 6), []).append((rest - before, rest - at_stop, turns))
+    stops = [(speed, [g for g, _, _ in made], [r for _, r, _ in made], [n for _, _, n in made])
+             for speed, made in by_speed.items() if len(made) >= SPEED_STOPS]
     return judge(tube, stops, spread_bound_gr)
 
 

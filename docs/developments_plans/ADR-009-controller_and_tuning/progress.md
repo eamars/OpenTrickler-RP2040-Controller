@@ -103,3 +103,8 @@ With the owner away and the cup not emptied: the fine tube's speeds part twice m
 - **Four stops with the farthest left out read low:** at 0.035 rev/s the three runs gave 0.023, 0 and 0 gr against 0.051 over 10 stops; at 0.120, 0.031 to 0.064 against 0.076. With the bound at 0.11 gr every slow speed passes, and the most rests on the 5 rev/s stops, whose spread over 4 stops was 0.053, 0.145 and 0.035 gr in the three runs: 5 rev/s twice, 1.443 once.
 
 **The screens mocked for the owner:** the 12864's 21 screens on one sheet (`mockups/calibration_12864.png`); the web's Settings › Calibration on the stand-in (`tests/web_test.py`, the API provisional in `tests/calibration_mock.py`), driven through each part and a failure at 390, 768 and 1280 px and in the dark.
+
+## 2026-11-25, 02:48: the least by each speed's sum
+
+- **Decided by the owner (recorded 02:48):** the proposal of 02:35 taken. `calibration.py`'s `judge`: a speed registers when its runs together pour at least half the tube's grains a turn at its fastest speed, the run farthest from their median left out as before. Each stop's row now ends with its grains a turn.
+- **On the kept runs:** the fine tube's least 0.020 rev/s in each of the three runs, every speed of its ladder registering; the coarse tube's 0.16 rev/s as before. On the twin, 4 seeds: the fine 0.020 and the coarse 0.16 in each. The most is unchanged: the fine tube's 5 or 1.443 rev/s, run to run, on the bench and the twin alike.

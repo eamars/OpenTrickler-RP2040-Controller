@@ -40,11 +40,11 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 | 6 | Each tube's most speed | the powder profile's own field | The fastest speed at which what lands after a stop is consistent |
 
 **Least and most** (items 5 and 6), each tube judged on its own, at each speed one run rejected as a clump or a lull (the one farthest from the speed's median):
-- **the least speed** is twice the slowest speed at which every run registers powder (at least half the speed's median): a confident value, the measured minimum doubled;
+- **the least speed** is twice the slowest speed at which the tube pours: its runs together pour at least half the tube's grains a turn at its fastest speed. A confident value, the measured minimum doubled. The runs are judged by their sum, as one slow run is a few kernels;
 - **the most speed** is the fastest, from the least up, whose stops land alike: the spread of what lands after them within a fixed bound, the A&D's own on the bench times 3. The bound is a setting with that default, appended to the charge settings, which the user can change;
 - a tube whose speeds give no least or no most leaves that speed as it was, and says so.
 
-On the bench (2026-11-25) this gives the fine tube 0.069 rev/s and 5 rev/s, the coarse tube 0.16 rev/s and 5 rev/s. The tubes register ever more alike with speed, kernel by kernel to a stream, with no knee, so the least is not judged by how alike the runs are (progress, 2026-11-25, 01:57).
+On the bench (2026-11-25) this gives the fine tube 0.020 rev/s in each of three runs (it pours at its motor's least, 0.010) and 5 or 1.443 rev/s, the coarse tube 0.16 rev/s and 5 rev/s. The tubes register ever more alike with speed, kernel by kernel to a stream, with no knee, so the least is not judged by how alike the runs are (progress, 2026-11-25, 01:57).
 
 Items 5 and 6 belong to this powder on this unit's tubes and scale, not to the powder alone. The coarse and fine stop thresholds and the PID stay as the user has them; today's loop charges as it does now.
 

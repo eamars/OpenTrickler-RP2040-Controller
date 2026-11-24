@@ -21,7 +21,7 @@ POWDER_PAUSE_AT = 0.6           # the powder's part pauses here for a full cup
 CUP_GR_A_TURN = {"fine": 0.8, "coarse": 10.0}
 CUP_WEIGHT_GR = 77.3
 SCALE_RESULT = {"small_change_s": 0.7, "fast_flow_s": 0.6, "slow_flow_s": 1.2}
-POWDER_RESULT = {"fine": [0.069, 5.0], "coarse": [0.16, 5.0]}
+POWDER_RESULT = {"fine": [0.02, 5.0], "coarse": [0.16, 5.0]}
 
 
 def error(code, message):
