@@ -239,6 +239,11 @@ profile_t * profile_get_selected() {
 }
 
 
+profile_t * profile_get(uint16_t idx) {
+    return idx < MAX_PROFILE_CNT ? &profile_data.profiles[idx] : NULL;
+}
+
+
 profile_t * profile_select(uint8_t idx) {
     profile_data.current_profile_idx = idx;
 

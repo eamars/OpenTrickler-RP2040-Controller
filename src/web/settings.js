@@ -191,7 +191,14 @@ function liveValues(cal) {
     return live;
 }
 
-function drawCalibration() {
+/*
+ * The calibration's cards and its job's. In Settings (no options): the cup's and the scale's, a part's job whichever
+ * runs, and where a powder is calibrated. On a powder's page ({profile, page: "powders", saved}): that powder's start,
+ * and its job while it runs; saved() once its records are kept, so its form shows them
+ */
+function drawCalibration(options = {}) {
+    const forPowder = options.profile !== undefined;
+    const page = options.page || "settings";
     const box = element("div", {class: "calibration"});
     const fill = {fine: 0, coarse: 0};  // the fill's speeds as asked, ahead of the unit's reply: two quick taps are two
     let asking = 0;                     // the fill's writes not yet answered
@@ -199,6 +206,9 @@ function drawCalibration() {
     const send = async (method, path, body) => {
         const reply = await api(method, path, body);
         reply.ok ? draw(reply.data) : refusal(reply, "Not done");
+        if (reply.ok && path.endsWith("/save") && options.saved) {
+            options.saved();
+        }
     };
     const answer = (word) => send("POST", `${CALIBRATION}/answer`, {answer: word});
     const stop = () => send("POST", `${CALIBRATION}/stop`, {});
@@ -224,12 +234,13 @@ function drawCalibration() {
         const note = (text) => card.append(element("p", {class: "field-help", "data-live": text ? null : "note"},
                                                    text || ""));
         const actions = (...buttons) => card.append(element("div", {class: "pair"}, ...buttons));
-        const powder = cal.records.powder.name;
+        const powder = cal.profile_name;
         const named = {cup: "The cup", scale: "The scale", powder}[cal.part];
         switch (cal.step) {
         case "cup_on":
             head("Put the empty cup on the scale");
-            note(`To catch the powder. ${named} next.`);
+            note(cal.part === "powder" ? `With ${powder} in the hopper: it is what is calibrated.` :
+                 `To catch the powder. ${named} next.`);
             actions(cancel(), button("The cup is on", "action go", () => answer("next")));
             break;
         case "zeroing":
@@ -324,10 +335,18 @@ function drawCalibration() {
 
     const cards = (cal) => {
         const busy = cal.state !== "idle";
-        const start = (part, text) => element("button", {class: "ghost", type: "button", disabled: busy,
-                                                         onclick: () => send("POST", `${CALIBRATION}/start`, {part})},
-                                              text);
-        const {cup, scale, powder} = cal.records;
+        const start = (part, text, extra = {}) =>
+            element("button", {class: "ghost", type: "button", disabled: busy,
+                               onclick: () => send("POST", `${CALIBRATION}/start`, {part, ...extra})}, text);
+        if (forPowder) {
+            const other = busy && !(cal.part === "powder" && cal.profile === options.profile);
+            return [element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Calibration"),
+                            element("p", {class: "field-help"}, other ? "Another calibration runs." :
+                                    "Each tube's minimum speed, measured with this powder in the hopper."),
+                            element("div", {class: "field"},
+                                    start("powder", "Calibrate this powder", {profile: options.profile})))];
+        }
+        const {cup, scale} = cal.records;
         const lag = scale.lag;
         return [
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
@@ -339,15 +358,18 @@ function drawCalibration() {
                     line("Lag, slow flow", lag.length ? msText(lag[0].ms) : "Not done"),
                     line("Lag, fast flow", lag.length ? msText(lag[lag.length - 1].ms) : "Not done"),
                     element("div", {class: "field"}, start("scale", "Calibrate the scale"))),
-            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, powder.name),
-                    line("Fine minimum", rps(powder.fine_min_speed_rps)),
-                    line("Coarse minimum", rps(powder.coarse_min_speed_rps)),
-                    element("div", {class: "field"}, start("powder", `Calibrate ${powder.name}`))),
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Powders"),
+                    element("p", {class: "field-help"}, "A powder is calibrated from its own page."),
+                    element("div", {class: "field"}, element("button", {class: "ghost", type: "button",
+                                                                        onclick: () => { location.hash = "#powders"; }},
+                                                             "Open Powders"))),
         ];
     };
 
     const draw = (cal) => {
-        const running = cal.state === "running" && cal.step !== null;
+        // A powder's page shows its own powder's job alone
+        const running = cal.state === "running" && cal.step !== null &&
+                        (!forPowder || (cal.part === "powder" && cal.profile === options.profile));
         if (running && cal.step === "fill" && asking === 0) {
             fill.fine = cal.fine_rps;
             fill.coarse = cal.coarse_rps;
@@ -355,7 +377,7 @@ function drawCalibration() {
         // Built again only for a new step or new records; within a step its figures change in place, so a button is
         // never replaced under a finger
         const key = JSON.stringify({step: running && [cal.part, cal.step, cal.capacity, cal.failure],
-                                    state: cal.state, records: cal.records});
+                                    state: cal.state, part: cal.part, profile: cal.profile, records: cal.records});
         if (key !== drawnKey) {
             drawnKey = key;
             box.replaceChildren(...(running ? [jobCard(cal)] : []), ...cards(cal));
@@ -388,8 +410,8 @@ function drawCalibration() {
         }
     };
     const refresh = async () => {
-        if (pageShown !== "settings" || (drawnKey !== null && !box.isConnected)) {
-            if (calibrationOwner === box || pageShown !== "settings") {
+        if (pageShown !== page || (drawnKey !== null && !box.isConnected)) {
+            if (calibrationOwner === box || pageShown !== page) {
                 stopCalibrationPoll();
             }
             return;

@@ -149,16 +149,22 @@ class StandIn:
         self.started_ms = time.monotonic() * 1000
         self.add_event("system", "started", firmware=replies["/api/v1"]["firmware"]["version"])
         # ADR-009 step 1's calibration, its API provisional and the mock's alone until gate 3 makes the unit's
-        self.calibration = CalibrationMock(self.now_ms, self.selected_powder)
+        self.calibration = CalibrationMock(self.now_ms, lambda: self.replies["/api/v1/charge"]["powder_profile"],
+                                           self.powder_of, self.store_powder_speeds)
         replies["/api/v1"]["resources"].append(
             {"path": CALIBRATION, "methods": ["GET"], "about": "the calibration (ADR-009 step 1): the mock's alone"})
 
-    def selected_powder(self):
-        """The powder the charge uses: its index, its name (without the scale's unit after the comma) and its two
-        least speeds."""
-        index = self.replies["/api/v1/charge"]["powder_profile"]
+    def powder_of(self, index):
+        """A powder's name (without the scale's unit after the comma) and its two least speeds; None for none."""
+        profile = self.replies.get(f"/api/v1/powder_profiles/{index}")
+        if profile is None:
+            return None
+        return profile["name"].split(",")[0], profile["fine_min_speed_rps"], profile["coarse_min_speed_rps"]
+
+    def store_powder_speeds(self, index, fine, coarse):
+        """A calibration's least speeds kept into the powder's record, as the unit stores them."""
         profile = self.replies[f"/api/v1/powder_profiles/{index}"]
-        return (index, profile["name"].split(",")[0], profile["fine_min_speed_rps"], profile["coarse_min_speed_rps"])
+        profile.update(fine_min_speed_rps=fine, coarse_min_speed_rps=coarse)
 
     def now_ms(self):
         return int(time.monotonic() * 1000 - self.started_ms)

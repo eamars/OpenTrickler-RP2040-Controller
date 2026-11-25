@@ -47,6 +47,7 @@ typedef enum {
 typedef struct {
     const char *state;          // idle, starting, running
     calibration_part_t part;
+    int profile;                // the powder's part: the profile calibrated; -1 for none
     calibration_step_t step;
     const char *by;             // who started it; NULL with none
     int progress;               // 0 to 100, while running
@@ -80,8 +81,9 @@ typedef enum {
 extern "C" {
 #endif
 
-// A part asked from outside the menu: handed to the menu with no wait, or refused
-calibration_start_result_t calibration_request_start(calibration_part_t part, activity_by_t by);
+// A part asked from outside the menu: handed to the menu with no wait, or refused. profile: the powder's part's, -1
+// for the powder the charge uses; the powder calibrated is the one in the hopper, its cup's first step says so
+calibration_start_result_t calibration_request_start(calibration_part_t part, int profile, activity_by_t by);
 
 // The job task's: the part asked, run to its end
 uint8_t calibration_job_run(void);
@@ -102,8 +104,8 @@ const char *calibration_part_name(calibration_part_t part);
 const char *calibration_step_name(calibration_step_t step);
 calibration_part_t calibration_part_from_name(const char *name);
 
-// The console's `calibrate`: alone, the state; <cup|scale|powder> starts a part; answer <word>; fill <fine> <coarse>;
-// save; stop. "@ok ..." or "@err ..."
+// The console's `calibrate`: alone, the state; <cup|scale|powder [profile]> starts a part; answer <word>;
+// fill <fine> <coarse>; save; stop. "@ok ..." or "@err ..."
 bool calibration_console(const char *args, char *reply, size_t reply_size);
 
 #ifdef __cplusplus

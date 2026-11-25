@@ -53,6 +53,8 @@ bool profile_data_save();
 
 profile_t * profile_select(uint8_t idx);
 profile_t * profile_get_selected();
+// A profile by its index, the selection left as it is; NULL for no such profile
+profile_t * profile_get(uint16_t idx);
 uint16_t profile_get_selected_idx();
 // A profile's name, ended even when it was stored with none; NULL for no such profile. Good until the next call
 const char *profile_get_name(uint16_t idx);

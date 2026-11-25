@@ -39,27 +39,32 @@ def error(code, message):
 class CalibrationMock:
     """The calibration's records and its one job, moved on by the stand-in's clock, answered as the unit answers."""
 
-    def __init__(self, now_ms, powder):
+    def __init__(self, now_ms, selected, powder, store):
         """
         Args:
             now_ms: the stand-in's clock, in milliseconds.
-            powder: the selected powder's (index, name, its fine and coarse least speeds), read at each call.
+            selected: the index of the powder the charge uses, read at each call.
+            powder: a powder's (name, its fine and coarse least speeds) by its index; None for no such powder.
+            store: a powder's least speeds stored into its record, by its index (fine, coarse).
         """
         self.now_ms = now_ms
+        self.selected = selected
         self.powder = powder
+        self.store = store
         self.cup = {"capacity": None, "weight": None}
         self.scale = {"settle_ms": None, "lag": []}
-        self.powder_speeds = {}
         self.job = None
         self.was = {}
 
     def reply(self):
         """GET's reply: the job's state and step, what it found, and what is kept."""
         self.move_on()
-        index, name, fine, coarse = self.powder()
-        fine, coarse = self.powder_speeds.get(index, (fine, coarse))
+        index = self.selected()
+        name, fine, coarse = self.powder(index)
         job = self.job or {}
-        return {"state": "running" if self.job else "idle", "part": job.get("part"), "step": job.get("step"),
+        profile = job.get("profile")
+        return {"state": "running" if self.job else "idle", "part": job.get("part"), "profile": profile,
+                "profile_name": self.powder(profile)[0] if profile is not None else None, "step": job.get("step"),
                 "by": "api" if self.job else None, "progress": job.get("progress", 0), "line": job.get("line", ""),
                 "weight": round(job.get("weight", 0.0), 2), "fine_rps": job.get("fine_rps", 0.0),
                 "coarse_rps": job.get("coarse_rps", 0.0), "capacity": job.get("capacity"),
@@ -112,8 +117,8 @@ class CalibrationMock:
     def step(self, name, **values):
         """The job moved to a step, its time from now."""
         done = self.job.get("progress", 0) if name == "running" else 0
-        keep = {key: self.job[key] for key in ("part", "fails", "paused_once", "progress", "capacity", "cup_weight")
-                if key in self.job}
+        keep = {key: self.job[key] for key in ("part", "profile", "fails", "paused_once", "progress", "capacity",
+                                               "cup_weight") if key in self.job}
         self.job = dict(keep, step=name, since_ms=self.now_ms(), done=done)
         self.job.update(values)
 
@@ -131,10 +136,13 @@ class CalibrationMock:
             part = body.get("part")
             if part not in ("cup", "scale", "powder"):
                 return 400, error("not_a_choice", "part is cup, scale or powder")
-            index, _, fine, coarse = self.powder()
-            fine, coarse = self.powder_speeds.get(index, (fine, coarse))
-            self.was = {"fine_min_speed_rps": fine, "coarse_min_speed_rps": coarse}
-            self.job = {"part": part, "step": "cup_on", "since_ms": self.now_ms(), "done": 0,
+            profile = body.get("profile", self.selected()) if part == "powder" else None
+            if part == "powder" and (not isinstance(profile, int) or self.powder(profile) is None):
+                return 400, error("out_of_range", "no such powder profile")
+            if profile is not None:
+                _, fine, coarse = self.powder(profile)
+                self.was = {"fine_min_speed_rps": fine, "coarse_min_speed_rps": coarse}
+            self.job = {"part": part, "profile": profile, "step": "cup_on", "since_ms": self.now_ms(), "done": 0,
                         "line": "Put the empty cup on the scale", "fails": body.get("mock") == "fail"}
             return 202, self.reply()
         if method == "POST" and path == f"{PATH}/stop":
@@ -173,8 +181,7 @@ class CalibrationMock:
             if job["part"] == "scale":
                 self.scale = {"settle_ms": job["result"]["settle_ms"], "lag": list(job["result"]["lag"])}
             else:
-                self.powder_speeds[self.powder()[0]] = (job["result"]["fine_min_speed_rps"],
-                                                        job["result"]["coarse_min_speed_rps"])
+                self.store(job["profile"], job["result"]["fine_min_speed_rps"], job["result"]["coarse_min_speed_rps"])
             self.job = None
             return 200, self.reply()
         return 405, error("method_not_allowed", "not on this path")

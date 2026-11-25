@@ -134,6 +134,8 @@ PAGES.powders = {
                 reload: () => route(),
             };
             pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, hooks));     // features: 63
+            // ADR-009 step 1: this powder's calibration, its least speeds into the fields above once kept
+            pane.append(drawCalibration({profile: chosen, page: "powders", saved: () => route()}));
             const files = element("div", {class: "button-row"},
                                   element("button", {class: "ghost", type: "button", onclick: () => exportPowder(chosen)}, "Export this powder"),
                                   element("button", {class: "ghost", type: "button", onclick: () => importPowder(chosen)}, "Import into this powder"));
@@ -143,5 +145,7 @@ PAGES.powders = {
         }
         page.append(pane);
     },
-    leave() {},
+    leave() {
+        stopCalibrationPoll();
+    },
 };

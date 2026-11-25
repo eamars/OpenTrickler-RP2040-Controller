@@ -504,6 +504,15 @@ static void write_calibration(char *out, size_t room, size_t *len) {
     http_json_string(out, room, len, cal.state);
     http_json_raw(out, room, len, ",\"part\":");
     write_name_or_null(out, room, len, calibration_part_name(cal.part));
+    http_json_raw(out, room, len, ",\"profile\":");
+    if (cal.profile >= 0) {
+        http_json_integer(out, room, len, cal.profile);
+        http_json_raw(out, room, len, ",\"profile_name\":");
+        http_json_string(out, room, len, profile_get_name((uint16_t) cal.profile));
+    }
+    else {
+        http_json_raw(out, room, len, "null,\"profile_name\":null");
+    }
     http_json_raw(out, room, len, ",\"step\":");
     write_name_or_null(out, room, len, calibration_step_name(cal.step));
     http_json_raw(out, room, len, ",\"by\":");
@@ -611,13 +620,28 @@ static void api_v1_get_calibration(const http_server_request_t *request, http_se
 }
 
 
-// POST /api/v1/calibration/start: {"part": "cup"|"scale"|"powder"}
+// POST /api/v1/calibration/start: {"part": "cup"|"scale"|"powder"}, and for a powder its "profile" (else the
+// charge's)
 static void api_v1_calibration_start(const http_server_request_t *request, http_server_reply_t *reply) {
-    static const char *const allowed[] = {"part"};
+    static const char *const allowed[] = {"part", "profile"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
-    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 2)) {
         return;
+    }
+    int profile = -1;
+    const http_json_member_t *profile_member = api_member(members, count, "profile");
+    if (profile_member != NULL) {
+        double value;
+        if (!http_json_number_value(profile_member, &value) || value != (double) (int) value) {
+            api_error(reply, 400, "wrong_type", "profile", "profile is a powder profile's id", NULL);
+            return;
+        }
+        if (profile_get((uint16_t) (value < 0 ? 0xFFFF : value)) == NULL) {
+            api_error(reply, 400, "out_of_range", "profile", "no such powder profile", NULL);
+            return;
+        }
+        profile = (int) value;
     }
     const http_json_member_t *member = api_member(members, count, "part");
     char name[16] = "";
@@ -626,7 +650,7 @@ static void api_v1_calibration_start(const http_server_request_t *request, http_
         api_error(reply, 400, "not_a_choice", "part", "part is cup, scale or powder", NULL);
         return;
     }
-    switch (calibration_request_start(calibration_part_from_name(name), ACTIVITY_BY_API)) {
+    switch (calibration_request_start(calibration_part_from_name(name), profile, ACTIVITY_BY_API)) {
         case CALIBRATION_START_OK:
             reply_calibration(reply, 202);
             return;
@@ -1972,10 +1996,11 @@ static const char *const api_v1_schema_actions[] = {
     "{\"method\":\"POST\",\"path\":\"/api/v1/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops whatever job runs, or a start asked and not yet begun; never fails\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/start\",\"fields\":[{\"name\":\"part\",\"type\":"
-    "\"choice\",\"choices\":[\"cup\",\"scale\",\"powder\"],\"required\":true}],\"refused_while\":\"a_job_runs\","
-    "\"about\":\"starts a part of the calibration (202), the empty cup on the scale first; powder is the one the "
-    "charge uses. 409 busy, 409 driver_fault. The scale's and a powder's parts turn the tubes\","
-    "\"example\":{\"part\":\"scale\"}}",
+    "\"choice\",\"choices\":[\"cup\",\"scale\",\"powder\"],\"required\":true},{\"name\":\"profile\",\"type\":"
+    "\"integer\",\"about\":\"a powder's part: the profile calibrated, the powder in the hopper; without it, the one "
+    "the charge uses\"}],\"refused_while\":\"a_job_runs\",\"about\":\"starts a part of the calibration (202), the "
+    "empty cup on the scale first. 409 busy, 409 driver_fault. The scale's and a powder's parts turn the tubes\","
+    "\"example\":{\"part\":\"powder\",\"profile\":2}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/answer\",\"fields\":[{\"name\":\"answer\","
     "\"type\":\"choice\",\"choices\":[\"next\",\"full\",\"keep\",\"done\",\"go_on\"],\"required\":true}],"
     "\"refused_while\":\"never\",\"about\":\"the person's answer at a step: next at cup_on, full at fill, keep "

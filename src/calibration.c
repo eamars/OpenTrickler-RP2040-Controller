@@ -36,6 +36,7 @@ extern scale_config_t scale_config;
 
 // The job's state, read by the API, the console and the screen under the activity's lock
 static volatile calibration_part_t asked_part = CALIBRATION_PART_NONE;
+static volatile int asked_profile = -1;
 static calibration_status_t status;    // its state NULL until the first part: idle
 static volatile bool running = false;
 
@@ -430,7 +431,7 @@ static void run_powder(void) {
         return;
     }
     cup_for_method();
-    profile_t *profile = profile_get_selected();
+    const profile_t *profile = profile_get((uint16_t) status.profile);
     activity_lock();
     status.was_fine_rps = profile->fine_min_flow_speed_rps;
     status.was_coarse_rps = profile->coarse_min_flow_speed_rps;
@@ -486,6 +487,8 @@ uint8_t calibration_job_run(void) {
     memset(&status, 0, sizeof(status));
     status.state = "running";
     status.part = part;
+    status.profile = part == CALIBRATION_PART_POWDER ?
+                     (asked_profile >= 0 ? asked_profile : (int) profile_get_selected_idx()) : -1;
     status.capacity = NAN;
     status.cup_weight = NAN;
     status.scale.settle_s = NAN;
@@ -533,6 +536,7 @@ uint8_t calibration_job_run(void) {
     running = false;
     status.state = "idle";
     status.part = CALIBRATION_PART_NONE;
+    status.profile = -1;
     status.step = CALIBRATION_STEP_NONE;
     activity_unlock();
     activity_job_end();
@@ -540,7 +544,7 @@ uint8_t calibration_job_run(void) {
 }
 
 
-calibration_start_result_t calibration_request_start(calibration_part_t part, activity_by_t by) {
+calibration_start_result_t calibration_request_start(calibration_part_t part, int profile, activity_by_t by) {
     activity_t asked_before;
     if (part == CALIBRATION_PART_NONE || activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
         menu_get_current_form_id() < 0) {
@@ -550,6 +554,7 @@ calibration_start_result_t calibration_request_start(calibration_part_t part, ac
         return CALIBRATION_START_DRIVER_FAULT;
     }
     asked_part = part;
+    asked_profile = profile_get(profile >= 0 ? (uint16_t) profile : 0xFFFFu) != NULL ? profile : -1;
     if (!activity_request_start(ACTIVITY_CALIBRATION, by)) {
         return CALIBRATION_START_BUSY;
     }
@@ -650,7 +655,7 @@ bool calibration_save(void) {
     }
     else if (found.part == CALIBRATION_PART_POWDER) {
         char path[32];
-        snprintf(path, sizeof(path), "powder_profiles/%u", (unsigned) profile_get_selected_idx());
+        snprintf(path, sizeof(path), "powder_profiles/%d", found.profile);
         if (!isnan(found.fine.least_rps)) {
             snprintf(text, sizeof(text), "%.4f", (double) found.fine.least_rps);
             why = settings_write(path, "fine_min_speed_rps", text);
@@ -681,9 +686,13 @@ void calibration_get_status(calibration_status_t *out) {
         out->state = "idle";
     }
     activity_t asked;
+    if (out->state == NULL) {
+        out->profile = -1;
+    }
     if (!running && activity_start_pending(&asked) && asked == ACTIVITY_CALIBRATION) {
         out->state = "starting";
         out->part = asked_part;
+        out->profile = asked_part == CALIBRATION_PART_POWDER ? asked_profile : -1;
     }
     activity_unlock();
     out->weight = scale_get_current_measurement();
@@ -716,7 +725,10 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
     }
     calibration_part_t part = calibration_part_from_name(word);
     if (part != CALIBRATION_PART_NONE) {
-        calibration_start_result_t started = calibration_request_start(part, ACTIVITY_BY_CONSOLE);
+        char given[8];
+        console_word(rest, given, sizeof(given));
+        int profile = given[0] != '\0' ? atoi(given) : -1;
+        calibration_start_result_t started = calibration_request_start(part, profile, ACTIVITY_BY_CONSOLE);
         snprintf(reply, reply_size, started == CALIBRATION_START_OK ? "@ok calibrate %s" :
                  (started == CALIBRATION_START_DRIVER_FAULT ? "@err driver_fault calibrate %s" :
                   "@err busy calibrate %s"), word);

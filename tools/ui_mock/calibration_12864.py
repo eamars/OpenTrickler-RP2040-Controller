@@ -124,9 +124,10 @@ def screens():
 
     # --- A powder
     p = Panel(); m.title(p, "AR2209")
-    m.message(p, "Put the empty cup", "on the scale")
+    for base, text in ((26, "AR2209 in the hopper"), (37, "Put the empty cup"), (48, "on the scale")):
+        p.text(m.TEXT, 0, base, text, align="center")       # a dialog's three lines (menu_view_12864.c)
     m.softkeys(p, "Cancel", "Start")
-    add(p, "Powder: the selected one, the cup first")
+    add(p, "Powder: the one in the hopper, the cup first")
 
     p = Panel(); m.title(p, "Calibrating")
     m.figure(p, "62", "%"); m.context(p, "Fine tube 0.42 rev/s")

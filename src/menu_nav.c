@@ -1356,7 +1356,7 @@ static void calibration_start_row(calibration_part_t part) {
     if (motors_fault_shown("Calibration")) {
         return;
     }
-    if (calibration_request_start(part, ACTIVITY_BY_BUTTON) == CALIBRATION_START_DRIVER_FAULT) {
+    if (calibration_request_start(part, -1, ACTIVITY_BY_BUTTON) == CALIBRATION_START_DRIVER_FAULT) {
         push_message(motors_get_fault(), "Calibration", "cannot start");
     }
 }
@@ -2871,20 +2871,24 @@ static const char *charge_state_text(const char *state) {
 
 
 // The title a part's own screens have: the cup's, the scale's, or the powder's name
-static const char *calibration_part_title(calibration_part_t part) {
-    if (part == CALIBRATION_PART_POWDER) {
-        return profile_get_name(profile_get_selected_idx());
+static const char *calibration_part_title(const calibration_status_t *cal) {
+    if (cal->part == CALIBRATION_PART_POWDER && cal->profile >= 0) {
+        return profile_get_name((uint16_t) cal->profile);
     }
-    return part == CALIBRATION_PART_SCALE ? "Scale" : "Cup";
+    return cal->part == CALIBRATION_PART_SCALE ? "Scale" : "Cup";
 }
 
 
-static void calibration_dialog(menu_screen_t *screen, const char *title, const char *line1, const char *line2) {
+static void calibration_dialog(menu_screen_t *screen, const char *title, const char *line1, const char *line2,
+                               const char *line3) {
     screen->kind = MENU_SCREEN_DIALOG;
     snprintf(screen->title, sizeof(screen->title), "%s", title);
     screen_row(screen, line1, "", false);
     if (line2 != NULL) {
         screen_row(screen, line2, "", false);
+    }
+    if (line3 != NULL) {
+        screen_row(screen, line3, "", false);
     }
 }
 
@@ -2906,7 +2910,14 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
     const char *space = unit[0] != '\0' ? " " : "";
     switch (cal.step) {
         case CALIBRATION_STEP_CUP_ON:
-            calibration_dialog(screen, calibration_part_title(cal.part), "Put the empty cup", "on the scale");
+            if (cal.part == CALIBRATION_PART_POWDER) {
+                // The powder calibrated is the one in the hopper
+                snprintf(line, sizeof(line), "%s in the hopper", calibration_part_title(&cal));
+                calibration_dialog(screen, calibration_part_title(&cal), line, "Put the empty cup", "on the scale");
+            }
+            else {
+                calibration_dialog(screen, calibration_part_title(&cal), "Put the empty cup", "on the scale", NULL);
+            }
             break;
         case CALIBRATION_STEP_ZEROING:
             snprintf(screen->title, sizeof(screen->title), "Zeroing");
@@ -2953,10 +2964,10 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
         case CALIBRATION_STEP_KEEP:
             format_weight(cal.capacity, weight, sizeof(weight));
             snprintf(line, sizeof(line), "It holds %s%s%s", weight, space, unit);
-            calibration_dialog(screen, "Cup", line, "Keep it as its capacity?");
+            calibration_dialog(screen, "Cup", line, "Keep it as its capacity?", NULL);
             break;
         case CALIBRATION_STEP_EMPTY:
-            calibration_dialog(screen, "Empty the cup", "Then put it back", "on the scale");
+            calibration_dialog(screen, "Empty the cup", "Then put it back", "on the scale", NULL);
             break;
         case CALIBRATION_STEP_RUNNING:
             snprintf(screen->title, sizeof(screen->title), "Calibrating");
@@ -2966,11 +2977,11 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             break;
         case CALIBRATION_STEP_PAUSED:
             snprintf(line, sizeof(line), "%s%s%s", cal.line, space, unit);
-            calibration_dialog(screen, "Empty the cup", line, "Then go on");
+            calibration_dialog(screen, "Empty the cup", line, "Then go on", NULL);
             break;
         case CALIBRATION_STEP_RESULT: {
             screen->kind = MENU_SCREEN_NOTES;
-            snprintf(screen->title, sizeof(screen->title), "%s", calibration_part_title(cal.part));
+            snprintf(screen->title, sizeof(screen->title), "%s", calibration_part_title(&cal));
             screen->title_back = true;
             screen->row_count = calibration_result_lines(&cal, screen->row_label, screen->row_value, screen->row_bold);
             uint8_t last = calibration_last_first(&cal);
@@ -2982,9 +2993,9 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             return;
         }
         case CALIBRATION_STEP_FAILED:
-            calibration_dialog(screen, calibration_part_title(cal.part), cal.failure,
+            calibration_dialog(screen, calibration_part_title(&cal), cal.failure,
                                cal.part == CALIBRATION_PART_POWDER ? "Its minimum is kept" :
-                               (cal.part == CALIBRATION_PART_SCALE ? "Its records are kept" : "Its capacity is kept"));
+                               (cal.part == CALIBRATION_PART_SCALE ? "Its records are kept" : "Its capacity is kept"), NULL);
             break;
         default:
             snprintf(screen->title, sizeof(screen->title), "Calibration");
