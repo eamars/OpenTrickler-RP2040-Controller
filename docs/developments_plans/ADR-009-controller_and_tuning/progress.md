@@ -304,3 +304,25 @@ Each appended field is -1 when never calibrated, and null through the API (`null
 - **What it shows of the predictor:** the forecast is needed (the reading alone is 0.08 gr late and a third wider), but its weight a turn only roughly: 15% either way moves the spread by a tenth. The weight a turn depends on the speed (more a turn in the stream than at the creep), which a window of the latest turns alone did not follow better: it was noisier (sd 0.10 to 0.22 on the last 0.5 to 0.2 turns).
 - **Open, for the twin:** the fine tube's forecast before the throw's own weight a turn is known, from the coarse tube's stop to a few tenths of a turn after its powder's quiet. Today's threshold (5 gr by default) puts the last gram seconds after it; a small threshold does not, and the twin is run with thresholds down to what a user may set.
 - **Next, gate 1's controller:** the fine tube's PID on this forecast with its envelope, below the coarse tube's threshold, on the twin, then the tuner against today's loop.
+
+## 2026-11-25, 18:21: gate 1's controller on the twin
+
+**The tool,** `tools/charge_sim/step2.py`: step 2's charge against today's loop (`legacy_pid.py`), the owner's Pico W AR2209 profile for both (fine kp 0.8, kd 15, 0.08 to 2 rev/s; coarse kp 0.05, kd 0.3; the coarse threshold 5 gr, judged at 0.03 gr), 10 gr, 300 throws a case in sessions of 25, on four rigs. Step 1's records are made by `calibration.py`'s parts on each rig, once. Step 2:
+- the coarse tube today's (its PID on the reading, stopped at the target less its threshold, its back-off);
+- the fine tube's PID on its forecast (the profile's gains, step 1's least speed, the profile's most), within its envelope (the integral held at a limit; the speed held under its least plus the room over the weight a turn and the lag), stopped the moment the forecast reaches the target, no top-up;
+- the forecast's weight a turn and its lags solved together (the lag table is by flow, and the flow is the speed times the weight a turn: a lag looked up before the weight was known, at no flow, halved the estimate).
+
+| Rig | Today's loop | Step 2, the throw's own weight a turn only | Step 2, carried (RAM) | Step 2, carried, fine kp 1.2 |
+|---|---|---|---|---|
+| night (AR2209) | sd 0.153, +0.133, 9% good, 6.0 s | 0.182, −0.004, 28%, 5.1 s | **0.064, +0.012, 59%, 9.1 s** | 0.172, +0.090, 32%, 6.0 s |
+| f2 (AR2209) | 0.074, +0.083, 13%, 6.4 s | 0.096, −0.012, 55%, 8.6 s | **0.043, +0.004, 64%, 9.9 s** | 0.063, 0.000, 51%, 7.2 s |
+| BM2 | 0.092, +0.035, 68%, 9.3 s | 0.028, +0.017, 78%, 17.5 s | **0.024, +0.017, 74%, 17.7 s** | 0.032, +0.008, 83%, 12.6 s |
+| night, fine by speed | 0.116, +0.112, 10%, 5.6 s | 0.175, +0.048, 30%, 4.9 s | **0.083, +0.018, 54%, 9.2 s** | 0.160, +0.109, 22%, 4.8 s |
+
+(the final weight less the target: its sd and mean in gr, good within 0.03 gr, the median time to the stop)
+
+**What it shows:**
+- **At the owner's gains, step 2 is narrower than today's loop on every rig** (by 30 to 74%) and lands centred (+0.004 to +0.018 gr, where today's lands 0.035 to 0.133 over), **and it is slower,** by 50 to 90%: on the forecast the fine tube's PID closes the last grains exponentially (at kp 0.8 and 0.78 gr a turn, about 1.6 s an e-fold), where today's, on a late reading, runs on and overshoots.
+- **The weight a turn must be carried from throw to throw** (the median of the last five throws' own, at their stops; RAM, nothing stored). The throw's own alone fails on the twin: the fine tube alone runs only half a turn to a turn after the coarse tube's powder is quiet, and the twin's fine tube pours unevenly (30% by its angle in a turn, clumps: one stalled 0.75 s and dropped 1 gr, which a fit over 0.54 turns read as 2.4 gr a turn). The first throw after a start has nothing carried and throws on the reading alone, as today.
+- **Faster costs spread, and not by the estimate alone.** Given the rig's true weight a turn (an oracle, for the study only), the night rig gives 0.057 gr at kp 0.8 in 10.0 s, 0.116 at kp 1.2 in 7.5 s, 0.154 at kp 1.6 in 6.4 s: at today's time the spread is today's, only centred. f2 the same (0.062, 0.068, 0.072 at 10.4, 7.2, 6.1 s). The faster the fine tube arrives, the more powder is in the air at its stop, and its clumps and lateness widen the landing.
+- **So gate 1's bar, "narrower and no slower" from the owner's gains, is not met on the twin by the controller alone.** By the owner's ranking (the spread first, then the time) the owner's gains already give the narrower throw; the tuner is what moves along the trade.
