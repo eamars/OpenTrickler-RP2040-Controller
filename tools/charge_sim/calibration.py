@@ -6,8 +6,8 @@ load (`cup.landed_gr`).
 
 Three parts, each run alone, each using what the others stored or their defaults (the ADR's "Owner's direction"):
 - the cup: its capacity, given by the user, and its empty weight (the unit's screens; given here as numbers);
-- the scale: how long a small change takes to show and settle, by its size, and how far the reading runs behind a
-  steady flow, by flow rate;
+- the scale: its settle time, how long a small change takes from the reading's first move to its rest, and its lag,
+  how far the reading runs behind the powder poured, by flow rate;
 - the speeds: each tube's least speed, LEAST_TIMES the slowest speed at which the tube pours: its runs together pour
   at least REGISTER_SHARE of its rate at the prime's speed, where it streams. A confident value, the measured minimum
   doubled. The ladder runs from the motor's least up to the prime's speed, no faster: nothing above it is judged. At
@@ -33,17 +33,18 @@ from bench_twin import TwinBench
 from staged import behind
 
 # The defaults a part uses for what another part never measured
-DEFAULT_RESPONSE_S = 3.0        # a small change settled within this, on the slow side
+DEFAULT_WATCH_S = 4.0           # a stop watched this long on a scale never calibrated: on the slow side
 DEFAULT_CUP_CAPACITY_GR = 100.0
 
 # The method's own numbers
 PRIME_RUNS_MOST = 5             # each tube turned at most this many times until two runs pour alike
 PRIME_ALIKE_SHARE = 0.1         # two runs pour alike within this share of the larger
 PRIME_TURNS = {"coarse": 1.0, "fine": 3.0}
-RESPONSE_MOVES_TURNS = (0.05, 0.1, 0.25)    # the fine tube's small moves, by size
-RESPONSE_MOVES = 4              # moves of each size
-RESPONSE_MOVE_RPS = 0.25        # the speed a small move is made at
-RESPONSE_WATCH_S = 10.0         # each move watched this long: longer than any scale's answer to a small change
+SETTLE_MOVE_TURNS = 0.1         # the fine tube's small move for the settle time: about 4 kernels, the least it makes
+SETTLE_MOVES = 4                # moves made
+SETTLE_MOVE_RPS = 0.25          # the speed a small move is made at
+SETTLE_WATCH_S = 10.0           # each move watched this long: longer than any scale takes to come to rest
+WATCH_MARGIN_S = 1.0            # a stop is watched for the slowest lag and the settle time, and this
 LAG_RUNS = {"fine": ((0.05, 4.0), (0.1, 3.0), (0.25, 2.0), (0.5, 2.0)), "coarse": ((0.25, 1.5), (1.0, 1.0))}
 LAG_RUNS_EACH = 2               # runs at each speed
 LAST_S = 0.6                    # the reading at rest is the median of the watch's last stretch
@@ -101,18 +102,21 @@ def settled(after: list, watch_s: float) -> tuple:
         watch_s: the watch's length.
 
     Returns:
-        (the reading at rest, the first move's time or None, the settle time: the first reading after the last one
-        more than one step from the rest, 0 when it never moved). A step is the smallest change the readings make: a
-        scale at rest flickers by one (the A&D by 0.02 gr, seconds after it settled), which is no move.
+        (the reading at rest, the first move's time or None, the settle time: when the reading first shows its rest
+        and never again strays more than one step from it, 0 when it never moved). A step is the smallest change the
+        readings make. A scale at rest flickers by one (the A&D by 0.02 gr, seconds after it settled): a flicker leaves
+        the rest and comes back, which is no move, while a change's last step arrives at the rest and stays.
     """
     rest = statistics.median(w for t, w in after if t >= watch_s - LAST_S)
     start = after[0][1]
     first = next((t for t, w in after if w != start), None)
     changes = [abs(w1 - w0) for (_, w0), (_, w1) in zip(after, after[1:]) if w1 != w0]
-    step = min(changes) if changes else 0.0
-    last_away = max((i for i, (t, w) in enumerate(after) if abs(w - rest) > 1.5 * step), default=None)
-    settle = after[last_away + 1][0] if last_away is not None and last_away + 1 < len(after) else 0.0
-    return rest, first, settle
+    if not changes:
+        return rest, first, 0.0
+    step = min(changes)
+    last_away = max((i for i, (t, w) in enumerate(after) if abs(w - rest) > 1.5 * step), default=-1)
+    reached = next((t for t, w in after[last_away + 1:] if abs(w - rest) <= 0.5 * step + 1e-9), None)
+    return rest, first, reached if reached is not None else after[min(last_away + 1, len(after) - 1)][0]
 
 
 def run_and_stop(bench, cup: Cup, tube: str, speed: float, run_s: float, watch_s: float, gr_turn: float) -> dict:
@@ -139,35 +143,36 @@ def prime(bench, cup: Cup, tube: str, speed: float) -> float:
 
 
 def scale_part(bench, cup: Cup) -> Report:
-    """The scale: its response time to small changes by their size, and its lag behind a steady flow by flow rate.
+    """The scale: its settle time and its lag.
+
+    - The settle time: how long a small change takes from the reading's first move to its rest (within one step of
+      it), the median of SETTLE_MOVES small moves of the fine tube.
+    - The lag: how far the reading runs behind the powder poured, in seconds, by flow rate: over a steady run and its
+      stop, the powder poured but not yet shown, divided by the powder poured.
 
     Args:
         bench: the bench (above).
         cup: the cup's numbers, the user's or the defaults.
 
     Returns:
-        A Report whose records are `response` ((grains landed, first shown s, settled s) by move size) and `lag`
-        ((flow gr/s, lag s) by speed), each sorted, and the failures in words.
+        A Report whose records are `settle_s` and `lag` ((flow gr/s, lag s), sorted), each where measured, and the
+        failures in words.
     """
     report = Report("scale")
     start_s, start_gr = bench.now, bench.cup.landed_gr
     fine_turn = prime(bench, cup, "fine", 0.5)
     if fine_turn <= 0.0:
-        report.failures.append("the fine tube poured nothing: the scale's response time and lag keep their defaults")
+        report.failures.append("the fine tube poured nothing: the scale's settle time and lag keep their defaults")
         report.seconds, report.poured_gr = bench.now - start_s, bench.cup.landed_gr - start_gr
         return report
-    response = []
-    for turns in RESPONSE_MOVES_TURNS:
-        runs = [run_and_stop(bench, cup, "fine", RESPONSE_MOVE_RPS, turns / RESPONSE_MOVE_RPS, RESPONSE_WATCH_S,
-                             fine_turn) for _ in range(RESPONSE_MOVES)]
-        shown = [run for run in runs if run["gain"] > 0.0 and run["first_s"] is not None]
-        if not shown:
-            report.failures.append(f"a move of {turns:g} turn showed nothing in {RESPONSE_MOVES} tries")
-            continue
-        response.append((statistics.fmean(run["gain"] for run in shown),
-                         statistics.median(run["first_s"] for run in shown),
-                         statistics.median(run["settle_s"] for run in shown)))
-    watch_s = (max(row[2] for row in response) if response else DEFAULT_RESPONSE_S) + 1.0
+    moves = [run_and_stop(bench, cup, "fine", SETTLE_MOVE_RPS, SETTLE_MOVE_TURNS / SETTLE_MOVE_RPS, SETTLE_WATCH_S,
+                          fine_turn) for _ in range(SETTLE_MOVES)]
+    settle_s, watch_s = settle_of(moves)
+    if settle_s is None:
+        report.failures.append(f"no small move showed more than one step in {SETTLE_MOVES} tries: the settle time "
+                               "keeps its default")
+    else:
+        report.records["settle_s"] = settle_s
     lag = []
     for tube, runs in LAG_RUNS.items():
         gr_turn = fine_turn if tube == "fine" else prime(bench, cup, tube, 1.0)
@@ -182,9 +187,30 @@ def scale_part(bench, cup: Cup) -> Report:
             lags = [behind(run["trial"], run["before"], run["rest"], run["settle_s"] or watch_s) / run["gain"]
                     for run in made]
             lag.append((flow, max(0.0, statistics.fmean(lags))))
-    report.records = {"response": sorted(response), "lag": sorted(lag)}
+    if lag:
+        report.records["lag"] = sorted(lag)
     report.seconds, report.poured_gr = bench.now - start_s, bench.cup.landed_gr - start_gr
     return report
+
+
+def settle_of(moves: list) -> tuple:
+    """The settle time of the small moves that showed more than one step (their median from the first move to rest),
+    and how long the lag's runs are watched (the longest from a move's stop to its rest, and the margin); None and the
+    default watch when none showed."""
+    moved = [run for run in moves if run["first_s"] is not None and run["settle_s"] > 0.0]
+    if not moved:
+        return None, DEFAULT_WATCH_S
+    return (statistics.median(max(0.0, run["settle_s"] - run["first_s"]) for run in moved),
+            max(run["settle_s"] for run in moved) + WATCH_MARGIN_S)
+
+
+def watch_after_stop(scale: dict) -> float:
+    """How long a stop is watched: the slowest lag, then the settle time, and the margin; the default on a scale whose
+    records are not both measured."""
+    scale = scale or {}
+    if not scale.get("lag") or scale.get("settle_s") is None:
+        return DEFAULT_WATCH_S
+    return max(lag for _, lag in scale["lag"]) + scale["settle_s"] + WATCH_MARGIN_S
 
 
 def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, scale: dict = None) -> Report:
@@ -203,8 +229,7 @@ def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, s
     """
     report = Report(f"speeds {tube}")
     start_s, start_gr = bench.now, bench.cup.landed_gr
-    response = (scale or {}).get("response") or ((0.0, 0.0, DEFAULT_RESPONSE_S),)
-    watch_s = max(row[2] for row in response) + 1.0
+    watch_s = watch_after_stop(scale)
     prime_rps = math.sqrt(least_rps * most_rps)
     gr_turn = prime(bench, cup, tube, prime_rps)
     if gr_turn <= 0.0:
@@ -294,7 +319,8 @@ def kept_gain(run: dict) -> float:
 
 def scale_kept(folder) -> dict:
     """`scale_part`'s records made again from a kept scale part's runs (`runs.json`), in the order it ran them: the
-    fine tube's prime, the small moves, then the lag's runs by tube, the coarse tube's prime before them."""
+    fine tube's prime, the small moves, then the lag's runs by tube, the coarse tube's prime before them. Of a
+    recording that made small moves of several sizes, those of SETTLE_MOVE_TURNS alone are taken."""
     runs = json.loads((Path(folder) / "runs.json").read_text(encoding="utf-8"))
 
     def measured(run):
@@ -302,14 +328,14 @@ def scale_kept(folder) -> dict:
         return {"gain": rest - run["during"][0][1], "first_s": first, "settle_s": settle, "trial": run,
                 "before": run["during"][0][1], "rest": rest}
 
-    moves = {}
+    moves = []
     lag_runs = {}
     coarse_primed = False
     for run in runs:
         tube, speed = run["tube"], run["speed_asked_rps"]
-        if tube == "fine" and abs(speed - RESPONSE_MOVE_RPS) < 1e-6 and run["run_s"] < 1.5:
-            size = min(RESPONSE_MOVES_TURNS, key=lambda turns: abs(turns - speed * run["run_s"]))
-            moves.setdefault(size, []).append(measured(run))
+        if tube == "fine" and abs(speed - SETTLE_MOVE_RPS) < 1e-6 and run["run_s"] < 1.5:
+            if abs(speed * run["run_s"] - SETTLE_MOVE_TURNS) < 0.03:
+                moves.append(measured(run))
             continue
         if tube == "coarse" and not coarse_primed:
             coarse_primed = abs(speed - 1.0) > 1e-6     # the prime's runs end where the lag's first speed starts
@@ -319,13 +345,7 @@ def scale_kept(folder) -> dict:
         speed_key = next((s for s in planned if abs(s - speed) < 1e-6), None)
         if speed_key is not None and abs(run["run_s"] - planned[speed_key]) < 0.3:
             lag_runs.setdefault((tube, speed_key), []).append(measured(run))
-    response = []
-    for size in sorted(moves):
-        shown = [run for run in moves[size] if run["gain"] > 0.0 and run["first_s"] is not None]
-        if shown:
-            response.append((statistics.fmean(run["gain"] for run in shown),
-                             statistics.median(run["first_s"] for run in shown),
-                             statistics.median(run["settle_s"] for run in shown)))
+    settle_s, _ = settle_of(moves)
     lag = []
     for (tube, speed), made in lag_runs.items():
         made = [run for run in made if run["gain"] > 0.0]
@@ -334,7 +354,7 @@ def scale_kept(folder) -> dict:
             lags = [behind(run["trial"], run["before"], run["rest"], run["settle_s"] or run["trial"]["after"][-1][0])
                     / run["gain"] for run in made]
             lag.append((flow, max(0.0, statistics.fmean(lags))))
-    return {"response": sorted(response), "lag": sorted(lag)}
+    return {"settle_s": settle_s, "lag": sorted(lag)}
 
 
 def say(report: Report) -> None:

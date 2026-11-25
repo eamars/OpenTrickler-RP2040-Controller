@@ -269,8 +269,8 @@ function drawCalibration() {
             const result = cal.job.result;
             head(`${named}: done`);
             if (cal.job.part === "scale") {
-                card.append(line("Small change", `${result.small_change_s} s`), line("Fast flow", `${result.fast_flow_s} s`),
-                            line("Slow flow", `${result.slow_flow_s} s`));
+                card.append(line("Settle time", `${result.settle_s} s`), line("Lag, slow flow", `${result.slow_lag_s} s`),
+                            line("Lag, fast flow", `${result.fast_lag_s} s`));
             } else {
                 card.append(line("Fine minimum", rps(result.fine)), line("Was", rps(cal.job.was.fine)),
                             line("Coarse minimum", rps(result.coarse)), line("Was", rps(cal.job.was.coarse)));
@@ -302,9 +302,9 @@ function drawCalibration() {
                     line("Weight", shown(cal.cup.weight_gr, 2, "gr")),
                     element("div", {class: "field"}, start("cup", "Calibrate the cup"))),
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Scale"),
-                    line("Small change", cal.scale ? `${cal.scale.small_change_s} s` : "Not done"),
-                    line("Fast flow", cal.scale ? `${cal.scale.fast_flow_s} s` : "Not done"),
-                    line("Slow flow", cal.scale ? `${cal.scale.slow_flow_s} s` : "Not done"),
+                    line("Settle time", cal.scale ? `${cal.scale.settle_s} s` : "Not done"),
+                    line("Lag, slow flow", cal.scale ? `${cal.scale.slow_lag_s} s` : "Not done"),
+                    line("Lag, fast flow", cal.scale ? `${cal.scale.fast_lag_s} s` : "Not done"),
                     element("div", {class: "field"}, start("scale", "Calibrate the scale"))),
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, cal.powder.name),
                     line("Fine minimum", rps(powder.fine)), line("Coarse minimum", rps(powder.coarse)),

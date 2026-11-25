@@ -20,7 +20,7 @@ LIFT_S = 3.0                    # the cup lifted and put back, as the mock plays
 POWDER_PAUSE_AT = 0.6           # the powder's part pauses here for a full cup
 CUP_GR_A_TURN = {"fine": 0.8, "coarse": 10.0}
 CUP_WEIGHT_GR = 77.3
-SCALE_RESULT = {"small_change_s": 0.7, "fast_flow_s": 0.6, "slow_flow_s": 1.2}
+SCALE_RESULT = {"settle_s": 0.27, "slow_lag_s": 1.2, "fast_lag_s": 0.6}
 POWDER_RESULT = {"fine": 0.02, "coarse": 0.16}      # each tube's least speed, rev/s
 POWDER_WAS = {"fine": 0.08, "coarse": 0.1}
 

@@ -133,10 +133,17 @@ The owner's rule (recorded 14:09): a stage of the calibration that serves no pur
 **Fixed: the settle time was the scale's flicker.** The A&D flickers by one step (0.02 gr) at rest, seconds after it settled, and a settle taken as the last reading that differed from the rest was that flicker's time: 2.0, 2.0 and 6.5 s for the three move sizes on the bench, so every stop of the speeds part was watched for 7.5 s. Taken as the last reading more than one step from the rest (the step read from the readings themselves): 1.1, 0.9 and 0.8 s. The scale part on the twin now takes 3.4 min (4.3 to 4.9). The lag hardly moves (at 0.09 gr/s 1.18 s against 1.21): its jumps at slow flows (0.79, 1.18, 0.82 s) are not the flicker.
 
 **Is the calibration's development done? No.** Of step 1's five gates, the first (the method) is nearly done; the second (the records stored) and the third (the job on the unit) have not started; the fourth (the screens and the web) is mocked and waits for the owner's review before it is built; the fifth (the sign-off) comes last. Gate 1 still needs:
-- **The response's form (item 3), the owner's to decide** (README, To settle, 2): two of its three move sizes registered the same powder, and the largest's first move is no response. Proposed: one size, its settle time the record.
 - **The bench again, once the cup is emptied** (418 of 600 gr counted): the scale part and the coarse part ran once each, so their spread is not known, and gate 3 checks the unit's job against it. Two more runs of each, about 230 gr with the coarse part as it is now, which also runs the changed method on the bench for the first time. The lag at slow flows is judged from those runs.
 - **The cup's part** has nothing to measure from the PC: it is the unit's screens (gates 3 and 4).
 
 ## 2026-11-25, 14:14: a profile's maximum left as it is
 
 - **Decided by the owner (recorded 14:14):** nothing is built for a profile's maximum speed. The calibration leaves it as the user has it, and the charge already holds each tube to the smaller of it and the motor's maximum.
+
+## 2026-11-25, 14:20: the scale's settle time
+
+- **Decided by the owner (recorded 14:20):** item 3 is the scale's settle time, not its response time, and kept apart from the lag. The lag (item 4) is how far the reading runs behind the powder poured, by flow; the settle time is how long a small change takes from the reading's first move to its rest. What the response recorded before, the first move after a stop, was the lag measured again.
+- **Its measure:** the small moves are of one size, 0.1 turn (4 of them); their sizes of 0.05 and 0.25 turn are gone. A change has come to rest when the reading first shows its final value and never again strays more than one step from it: a flicker leaves the rest and comes back, a change's last step arrives and stays. Taken to the last reading more than one step away, as at 14:09, it cut a change's own last step (0.07 s on the bench).
+- **On the bench's kept scale run:** the settle time 0.27 s (its four moves 0.06, 0.33, 0.22 and 0.47 s); the lag as recorded, 0.59 to 1.21 s by flow. A speeds part on these records watches each stop 2.5 s: the slowest lag, the settle time and a second. The least is unchanged on the kept runs.
+- **The twin settles slower than the A&D:** 0.87 and 0.91 s over 2 seeds, against the bench's 0.27 s. The bench is the reference; the twin's scale is not changed for it.
+- **The mocks:** a scale's result reads Settle time, Lag, slow flow and Lag, fast flow, on the 12864 and the web.

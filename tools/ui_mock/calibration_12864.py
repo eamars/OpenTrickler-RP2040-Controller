@@ -118,7 +118,7 @@ def screens():
     add(p, "Scale: running, its step named")
 
     p = Panel(); m.title(p, "Scale", back=True)
-    m.dense(p, [("Small change", "0.7 s", "pair"), ("Fast flow", "0.6 s", "pair"), ("Slow flow", "1.2 s", "pair"),
+    m.dense(p, [("Settle time", "0.27 s", "pair"), ("Lag, slow flow", "1.2 s", "pair"), ("Lag, fast flow", "0.6 s", "pair"),
                 ("Took", "4.6 min, 62 gr", "pair"), ("Keep", "button", True)], at="top")
     add(p, "Scale: what it found, Keep at the end")
 
