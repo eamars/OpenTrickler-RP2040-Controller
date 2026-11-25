@@ -648,3 +648,31 @@ Both boards build with it (the Pico W 98.5% of its flash, 99.6% of its RAM).
 - **The lifted-cup throw** (the owner at the bench, a 30 gr charge so the pour lasts): two throws ran to their end (31.38 gr in 4.53 s, 31.06 gr in 4.58 s, both over), the second started by itself once the cup was back: no "Cup lifted", the cup lifted only after each throw had stopped.
 - **The owner:** "Why do we need to test cup lifted?" Answered from the record: the owner's words (2026-11-25, 14:28) were "Item 2 is the safety measure for the later powder charge controller."; the check (a reading under half the empty cup's weight in a throw stops both tubes and ends it) was my reading of them. Its reason: a cup lifted mid-throw reads as a charge far short, and the tubes would run on onto the bare pan; today's loop has the same exposure (its 10-below-zero check is only between throws). A simulated proof was offered (`sim weight -300`). **The owner: "Drop it."**
 - **Dropped:** the check, its define and its event reason (`cup_lifted`) out of the firmware; the cup weight's description no longer names it; api_v1.md and the README's step 2 (its safety, gate 3's item 4, the proofs) say so. The cup's weight stays recorded by step 1, and the calibration's own lifted-cup stop (step 1, seen on the unit) is untouched. The charge's 10-below-zero check between throws is the original's.
+
+## 2026-11-26, 01:45 to 01:47: the baseline's deadlock, found on the twin (no unit)
+
+The owner, going to sleep: re-arrange what is left "based on 1. Real priority 2. Available resources", and the principle "the normal workpath is always the high priority, then the failure modes and exceptions". The README's "What is left, in order" puts first the forecast and the carry on the baseline profile, the bench's AR2209 profile as stored, which the owner set as gate 4's baseline. Done tonight with no unit and no one at the bench; the back-off put back to its stored value, the unit idle.
+
+**Reproduced** (`tools/charge_sim/step2_nocarry.py`: the bench's profile, fine kp 2, kd 10, top 5 rev/s, coarse kp 0.02, kd 0.3, the back-off on; its step 1 records as stored): on the twin's two AR2209 rigs every throw ends before the coarse tube's quiet and none takes a weight a turn: 10 gr in 2.5 to 2.6 s, over by 1.0 to 2.0 gr; 30 gr in 5.0 to 5.4 s, over by 1.0 to 2.0. The unit's own (throws 5 to 7): 2.3 to 2.4 s, over by 1.3 to 1.6 gr at 10 gr.
+
+**The cause, a deadlock:** the forecast's weight a turn is learnt only from readings after the coarse tube's quiet (its stop, the back-off, the slowest lag and the settle time: about 1.8 s here), so only a throw whose fine tube is still pouring then can teach it. With none known there is no forecast and no envelope (the fine tube held under what the forecast can still take), so the fine tube runs at its top to the end, the throw ends before the quiet, and none is ever learnt. The tuner cannot break it either: a window with no good throw costs infinity, and infinity against infinity is never cheaper, so it puts every trial back (`step2_nocarry_tuner.py`, 300 throws from kp 2: the f2 rig 0% good in all 12 windows, no weight a turn ever; the night rig stuck four windows, until one throw by chance ran slow enough, after which the forecast engaged and the tuner moved, good 8% then 24% then 36%). From kp 0.5 both rigs work from the first window.
+
+**The root fix, tried** (`step2_nocarry_seed.py`, 50 throws a case): step 1's powder part already measures the fine tube's weight a turn where it streams (the prime's, `stream_gr_turn`), and today drops it. The carry seeded with it:
+
+| Rig, target | As built | Seeded with step 1's |
+|---|---|---|
+| AR2209 night, 10 gr | 0% good, mean +1.655, sd 0.323, a good charge ∞ | 4% good, mean +0.357, sd 0.299, 58.8 s |
+| AR2209 night, 30 gr | 0% good, mean +1.629 | 12% good, mean +0.226, 41.0 s |
+| AR2209 f2, 10 gr | 0% good, mean +1.153 | 36% good, mean +0.018, sd 0.104, 8.3 s |
+| AR2209 f2, 30 gr | 0% good, mean +1.121 | 36% good, mean +0.022, 16.0 s |
+| BM2, 10 gr | 0% good, mean +1.043 | 36% good, mean −0.007, sd 0.094, 12.9 s |
+| BM2, 30 gr | 0% good, mean +1.051 | 20% good, mean +0.007, 39.2 s |
+
+Every throw seeded has a weight a turn; step 1's figure was within 1% of each rig's own (0.787 against 0.781, 0.807 against 0.810). With the costs finite, the tuner moves from the baseline (`step2_nocarry_tuner_seeded.py`, 300 throws): on f2 and BM2 a good charge costs 7 to 12 s within a few windows, 40 to 68% good; on the night rig it stays 70 to 96% over.
+
+**A second gap, on the night rig** (`step2_nocarry_quiet.py`): the fine tube, fast on this profile, finishes within about the coarse tube's lag of its stop, so the coarse tube's powder still in the air is not yet shown, and the forecast counts only the fine tube's (the owner, 18:05: the predictor serves the fine tube alone). Tried: the fine tube held at its least, and no stop, until the coarse tube's quiet. Night rig: sd 0.323 to 0.098, good 6% to 30%, mean +0.260 to +0.042, a good charge 39.6 to 18.3 s, its time 2.4 to 5.5 s. On f2 it only costs time (7.6 to 16.2 s a good charge); BM2 about even (12.9 to 13.7 s).
+
+**Options for the owner** (nothing changed):
+- **(a) Recommended: the carry seeded from step 1.** The powder part keeps its measured weight a turn in the powder's profile, and a charge's first throw on that powder starts from it; each throw's own then renews the carry as built. It breaks the deadlock at its root, for any profile, from the first throw. Its cost: a field in the powder profile (a stored struct's layout, the loader keeping earlier records); a powder never calibrated has none and throws as today until a throw teaches one; step 1, signed off, keeps one more of its measurements.
+- **(b) The tuner told what to do with no good throw** (a window with none compared by its spread, or kp moved down): no stored field, but the deadlock lasts until the tuner has walked kp slow enough, some windows of 25 throws each, and on f2 none came by chance in 300. Not simulated.
+- **The second gap:** after (a), the unit's own throws show whether its powder is like the night rig's or the f2's; holding the fine tube until the coarse tube's quiet costs 2 to 3 s on every throw, so it is decided from the unit's data, not now.
