@@ -117,9 +117,8 @@ STEP_STUCK_FRACTION = 0.9       # this share, is pulsing
 
 CHARGE_POLL_S = 0.25
 CHARGE_STATE_NAMES = {0: "exit", 1: "waiting for zero", 2: "charging", 3: "waiting for cup removal",
-                      4: "waiting for cup return", 5: "waiting for the press"}
-# A charge, the cup off and back (by the simulated scale), the press for the next throw (ADR-009, gate 3), the next
-CHARGE_CYCLE_ORDER = [1, 2, 3, 4, 5, 2]
+                      4: "waiting for cup return"}
+CHARGE_CYCLE_ORDER = [1, 2, 3, 4, 1]    # a charge, the cup off and back (by the simulated scale), the next charge
 
 TCL_PORT = 6666
 RTT_PORT = 19021
@@ -2064,7 +2063,6 @@ class Session:
             return None
 
         expect("POST", "charge/stop", {}, 200)
-        expect("POST", "charge/next", {}, 409, "not_now")
         expect("POST", "purge/stop", {}, 200)
         expect("POST", "stop", {}, 200)
         if unit.read("charge")["target"] is None:
@@ -2119,7 +2117,6 @@ class Session:
         expect("POST", "charge/start", {}, 202)
         wait_event("charge", "started", by="api", target=charge["target"], powder_profile=charge["powder_profile"])
         wait_state("charge", ("zeroing", "charging"))
-        expect("POST", "charge/next", {}, 409, "not_now")
         expect("POST", "charge/start", {}, 409, "busy")
         expect("POST", "purge/start", {}, 409, "busy")
         # The owner's hello for agents, listed since ADR-008's gate 2: refused over a charge, so it never draws here
@@ -2963,7 +2960,6 @@ class Session:
         seen = []           # the charge states in the order they came
         entered = {}        # time each state of the cycle was first entered
         weight_at_end = None
-        pressed = False     # the press for the next throw, given once the unit takes it (the pan steady at zero)
         started = time.monotonic()
         while time.monotonic() - started < timeout_s and seen != CHARGE_CYCLE_ORDER:
             state = self.state()
@@ -2983,13 +2979,6 @@ class Session:
                 entered.setdefault(len(seen) - 1, time.monotonic() - started)
                 self.log.write("rc", f"charge state {charge} ({CHARGE_STATE_NAMES.get(charge, '?')}) at "
                                      f"{time.monotonic() - started:.1f} s, weight {weight:.3f}")
-            # The person's press, as the screen's Start gives it: refused until the pan reads steady at zero, so asked
-            # again each poll and not judged until taken
-            if charge == 5 and not pressed:
-                reply = self.console.command("charge next")
-                pressed = reply is not None and reply.startswith("@ok")
-                if pressed:
-                    self.log.write("rc", f"pressed for the next throw at {time.monotonic() - started:.1f} s")
             time.sleep(CHARGE_POLL_S)
 
         if seen != CHARGE_CYCLE_ORDER:

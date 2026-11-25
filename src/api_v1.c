@@ -343,7 +343,6 @@ static const api_v1_resource_t api_v1_resources[] = {
      "the charge: its state, the throw, the target and the powder profile it uses, the weight, the last throw; a "
      "PATCH sets the target or the profile the next throw uses"},
     {"/api/v1/charge/start", "[\"POST\"]", "starts a charge: {}, or the target and the powder profile to set first"},
-    {"/api/v1/charge/next", "[\"POST\"]", "the press for the next throw, once the cup is back and the pan steady"},
     {"/api/v1/charge/stop", "[\"POST\"]", "stops the charge, and acknowledges its fault; never fails"},
     {"/api/v1/purge", "[\"GET\",\"PATCH\"]",
      "the purge: its state and speed; a PATCH sets the speed, with a time to run no longer than"},

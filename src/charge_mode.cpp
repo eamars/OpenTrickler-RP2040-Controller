@@ -159,10 +159,6 @@ static bool charge_tuning = false;              // the switch then
 static float charge_profile_kp = NAN;           // the profile's kp as last seen or written
 static double charge_kp = NAN;                  // the fine kp the next throw is thrown on: the tuner's, or the profile's
 static double charge_kp_thrown = NAN;
-// Between throws: the cup back and the pan steady at zero, the person's press awaited (the owner, 2026-11-25)
-static volatile bool charge_ready = false;
-static volatile bool charge_next_asked = false;
-static activity_by_t charge_next_by = ACTIVITY_BY_BUTTON;
 
 // What the controller costs, since the unit started
 static uint32_t charge_tick_most_us = 0;
@@ -853,117 +849,7 @@ void charge_mode_wait_for_cup_return() {
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(20));
     }
 
-    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_START;
-}
-
-
-/*
-    Between throws (ADR-009, gate 3): the cup back, the pan read steady at zero as the zero's wait reads it, then the
-    next throw waits for the person's press (the owner, 2026-11-25: "Only the part that needs human to put back the cup
-    should have the confirmation"). A reading that leaves zero before the press waits again. Not in a throw: what to
-    throw may be changed meanwhile, and another job asked ends the charge (charge_mode_yield)
-*/
-void charge_mode_wait_for_start() {
-    neopixel_led_set_colour(
-        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
-        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
-        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
-        true
-    );
-    snprintf(title_string, sizeof(title_string), "Waiting for Zero");
-    FloatRingBuffer data_buffer(10);
-    uint32_t zero_count = scale_get_zero_count();
-    uint8_t readings_since_zero = 0;
-    charge_ready = false;
-    charge_next_asked = false;
-
-    while (true) {
-        TickType_t last_measurement_tick = xTaskGetTickCount();
-        if (charge_mode_stop_asked()) {
-            charge_ready = false;
-            charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
-            return;
-        }
-        if (charge_mode_end_on_motor_fault()) {
-            charge_ready = false;
-            return;
-        }
-
-        float current_measurement;
-        if (scale_block_wait_for_next_measurement(300, &current_measurement)) {
-            data_buffer.enqueue(current_measurement);
-            if (readings_since_zero < UINT8_MAX) {
-                readings_since_zero += 1;
-            }
-        }
-        if (scale_get_zero_count() != zero_count) {
-            zero_count = scale_get_zero_count();
-            readings_since_zero = 0;
-        }
-        bool steady = data_buffer.getCounter() >= 10 && readings_since_zero >= 10 &&
-                      data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
-                      fabsf(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
-        if (steady != charge_ready) {
-            charge_ready = steady;
-            charge_next_asked = false;      // a press is for the steady zero it was given on
-            snprintf(title_string, sizeof(title_string), "%s", steady ? "Ready" : "Waiting for Zero");
-        }
-
-        if (charge_ready && charge_next_asked) {
-            // Into the throw under the lock the API's zero takes, and only with no zero asked since
-            activity_lock();
-            bool zero_since = scale_get_zero_count() != zero_count;
-            if (!zero_since) {
-                charge_ready = false;
-                charge_next_asked = false;
-                activity_throw_begin();
-                charge_throw_number += 1;
-                charge_paused = false;
-                event_t throw_started = {.source = EVENT_SOURCE_THROW, .kind = EVENT_STARTED,
-                                         .by = (uint8_t) charge_next_by, .throw_number = charge_throw_number,
-                                         .number = (uint8_t) profile_get_selected_idx(),
-                                         .value = charge_mode_config.target_charge_weight};
-                events_add(&throw_started);
-                charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
-            }
-            activity_unlock();
-            if (!zero_since) {
-                return;
-            }
-            zero_count = scale_get_zero_count();
-            readings_since_zero = 0;
-            charge_next_asked = false;
-        }
-
-        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
-    }
-}
-
-
-bool charge_mode_request_next(activity_by_t by) {
-    if (activity_get() != ACTIVITY_CHARGE || charge_mode_config.charge_mode_state != CHARGE_MODE_WAIT_FOR_START ||
-        !charge_ready) {
-        return false;
-    }
-    charge_next_by = by;
-    charge_next_asked = true;
-    return true;
-}
-
-
-bool charge_mode_yield(activity_by_t by) {
-    if (activity_get() != ACTIVITY_CHARGE || charge_mode_config.charge_mode_state != CHARGE_MODE_WAIT_FOR_START) {
-        return true;
-    }
-    printf("Charge: ended for another job, between throws\n");
-    activity_request_stop(ACTIVITY_CHARGE, by);
-    for (int waited_ms = 0; waited_ms < 2000; waited_ms += 20) {
-        if (activity_get() == ACTIVITY_NONE && menu_get_current_form_id() >= 0) {
-            return true;
-        }
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-    return false;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
 }
 
 
@@ -984,7 +870,6 @@ uint8_t charge_mode_menu(void) {
 
     // A new charge: no fault of the last one on its screen
     charge_ended_on_fault = false;
-    charge_ready = false;
 
     // The charge is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile. Its
     // start is logged with who asked (gate 4)
@@ -1050,9 +935,6 @@ uint8_t charge_mode_menu(void) {
             case CHARGE_MODE_WAIT_FOR_CUP_RETURN:
                 charge_mode_wait_for_cup_return();
                 break;
-            case CHARGE_MODE_WAIT_FOR_START:
-                charge_mode_wait_for_start();
-                break;
             case CHARGE_MODE_EXIT:
             default:
                 quit = true;
@@ -1069,7 +951,6 @@ uint8_t charge_mode_menu(void) {
     // Diable motors on exiting the mode
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
-    charge_ready = false;
     if (charge_room != NULL) {
         vPortFree(charge_room);
         charge_room = NULL;
@@ -1231,7 +1112,6 @@ void charge_mode_get_status(charge_status_t * status) {
             case CHARGE_MODE_WAIT_FOR_COMPLETE: status->state = "charging"; break;
             case CHARGE_MODE_WAIT_FOR_CUP_REMOVAL: status->state = "waiting_for_cup_removal"; break;
             case CHARGE_MODE_WAIT_FOR_CUP_RETURN: status->state = "waiting_for_cup_return"; break;
-            case CHARGE_MODE_WAIT_FOR_START: status->state = charge_ready ? "waiting_for_start" : "zeroing"; break;
             default: status->state = "idle"; break;
         }
     }

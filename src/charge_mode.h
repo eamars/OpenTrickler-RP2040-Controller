@@ -18,7 +18,6 @@ typedef enum {
     CHARGE_MODE_WAIT_FOR_COMPLETE = 2,
     CHARGE_MODE_WAIT_FOR_CUP_REMOVAL = 3,
     CHARGE_MODE_WAIT_FOR_CUP_RETURN = 4,
-    CHARGE_MODE_WAIT_FOR_START = 5,     // ADR-009, gate 3: the cup back, the next throw waits for the person
 } charge_mode_state_t;
 
 typedef struct {
@@ -111,14 +110,6 @@ typedef enum {
     CHARGE_START_NO_TARGET,
 } charge_start_result_t;
 charge_start_result_t charge_mode_request_start(activity_by_t by, float target, int powder_profile);
-
-// The person's press for the next throw (ADR-009, gate 3): taken only while the charge waits for it, the cup back and
-// the pan steady at zero. False otherwise
-bool charge_mode_request_next(activity_by_t by);
-
-// Another job asked by `by` while a charge waits between throws with the cup back: the charge ends first, as a stop
-// ends it (the owner's choice, 2026-11-26). True when none waited, or it ended in time
-bool charge_mode_yield(activity_by_t by);
 
 // What the controller costs (ADR-009, gate 3), since the unit started: its time each millisecond and each reading, the
 // most and the mean, in microseconds; the heap's least free while a charge ran

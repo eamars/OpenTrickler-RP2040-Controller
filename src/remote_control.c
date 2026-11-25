@@ -699,18 +699,9 @@ static bool remote_control_tmc(const char *args, char *reply, size_t reply_size,
 }
 
 
-// `charge <gr>` starts charge mode as the API does; `charge stop` stops it, as the API's stop does (ADR-003, gate 4);
-// `charge next` is the person's press for the next throw once the cup is back (ADR-009, gate 3)
+// `charge <gr>` starts charge mode as the API does; `charge stop` stops it, as the API's stop does (ADR-003, gate 4)
 static bool remote_control_charge(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                   void *write_ctx) {
-    if (strcmp(args, "next") == 0) {
-        if (!charge_mode_request_next(ACTIVITY_BY_CONSOLE)) {
-            snprintf(reply, reply_size, "@err the charge does not wait for a start");
-            return false;
-        }
-        snprintf(reply, reply_size, "@ok charge next");
-        return true;
-    }
     if (strcmp(args, "stop") == 0) {
         if (!activity_request_stop(ACTIVITY_CHARGE, ACTIVITY_BY_CONSOLE)) {
             snprintf(reply, reply_size, "@err charge mode is not running");
@@ -723,7 +714,7 @@ static bool remote_control_charge(const char *args, char *reply, size_t reply_si
     char *end;
     float target = strtof(args, &end);
     if (end == args || *end != '\0' || !isfinite(target) || target <= 0.0f || target > 1000.0f) {
-        snprintf(reply, reply_size, "@err usage: charge <0..1000> | charge next | charge stop");
+        snprintf(reply, reply_size, "@err usage: charge <0..1000> | charge stop");
         return false;
     }
     if (activity_get() != ACTIVITY_NONE || menu_get_current_form_id() < 0) {
