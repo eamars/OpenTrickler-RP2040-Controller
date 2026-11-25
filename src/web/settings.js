@@ -145,8 +145,8 @@ function shown(value, digits, unit) {
     return value === null || value === undefined ? "Not done" : `${value.toFixed(digits)} ${unit}`;
 }
 
-function speeds(range) {
-    return range ? `${range[0]} to ${range[1]} rev/s` : "Not done";
+function rps(speed) {
+    return speed === null || speed === undefined ? "Not done" : `${speed} rev/s`;
 }
 
 function line(label, value) {
@@ -272,8 +272,8 @@ function drawCalibration() {
                 card.append(line("Small change", `${result.small_change_s} s`), line("Fast flow", `${result.fast_flow_s} s`),
                             line("Slow flow", `${result.slow_flow_s} s`));
             } else {
-                card.append(line("Fine tube", speeds(result.fine)), line("Was", speeds(cal.job.was.fine)),
-                            line("Coarse tube", speeds(result.coarse)), line("Was", speeds(cal.job.was.coarse)));
+                card.append(line("Fine minimum", rps(result.fine)), line("Was", rps(cal.job.was.fine)),
+                            line("Coarse minimum", rps(result.coarse)), line("Was", rps(cal.job.was.coarse)));
             }
             card.append(line("Took", cal.job.took));
             actions(button("Discard", "ghost", stop),
@@ -295,7 +295,7 @@ function drawCalibration() {
         const start = (part, text) => element("button", {class: "ghost", type: "button", disabled: busy,
                                                          onclick: () => send("POST", `${CALIBRATION}/start`, {part})},
                                               text);
-        const powder = cal.powder.speeds || {};
+        const powder = cal.powder.min_speed_rps || {};
         return [
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
                     line("Capacity", shown(cal.cup.capacity_gr, 2, "gr")),
@@ -307,7 +307,7 @@ function drawCalibration() {
                     line("Slow flow", cal.scale ? `${cal.scale.slow_flow_s} s` : "Not done"),
                     element("div", {class: "field"}, start("scale", "Calibrate the scale"))),
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, cal.powder.name),
-                    line("Fine tube", speeds(powder.fine)), line("Coarse tube", speeds(powder.coarse)),
+                    line("Fine minimum", rps(powder.fine)), line("Coarse minimum", rps(powder.coarse)),
                     element("div", {class: "field"}, start("powder", `Calibrate ${cal.powder.name}`))),
         ];
     };

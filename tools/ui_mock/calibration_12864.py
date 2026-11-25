@@ -139,27 +139,21 @@ def screens():
     add(p, "Powder: paused before the cup is full")
 
     p = Panel(); m.title(p, "AR2209", back=True)
-    m.dense(p, [("Fine tube", "0.02 to 5 rev/s", "pair"), ("Was", "0.08 to 2 rev/s", "pair"),
-                ("Coarse tube", "0.16 to 5 rev/s", "pair"), ("Was", "0.1 to 8 rev/s", "pair"),
+    m.dense(p, [("Fine minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"),
+                ("Coarse minimum", "0.16 rev/s", "pair"), ("Was", "0.1 rev/s", "pair"),
                 ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)], at="top")
     add(p, "Powder: found, beside the profile's")
 
     p = Panel(); m.title(p, "AR2209", back=True)
-    m.dense(p, [("Fine tube", "0.02 to 5 rev/s", "pair"), ("Was", "0.08 to 2 rev/s", "pair"),
-                ("Coarse tube", "0.16 to 5 rev/s", "pair"), ("Was", "0.1 to 8 rev/s", "pair"),
+    m.dense(p, [("Fine minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"),
+                ("Coarse minimum", "0.16 rev/s", "pair"), ("Was", "0.1 rev/s", "pair"),
                 ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)], at="end")
     add(p, "Powder: Save at the end")
 
     p = Panel(); m.title(p, "AR2209")
-    m.message(p, "Fine tube: no powder", "Its speeds are kept")
+    m.message(p, "Fine tube: no powder", "Its minimum is kept")
     m.softkeys(p, "", "OK")
     add(p, "Powder: a step that failed, nothing retried")
-
-    # --- The bound, a charge setting
-    p = Panel(); m.title(p, "Charge", back=True)
-    par.rows(p, [("Coarse stop", "5.00 gr", False), ("Fine stop", "0.03 gr", False),
-                 ("Landing spread", "0.11 gr", False), ("Back-off", "On", True)], 2, first=0, total=9)
-    add(p, "Settings, Charge: the landing's bound")
     return out, caps
 
 

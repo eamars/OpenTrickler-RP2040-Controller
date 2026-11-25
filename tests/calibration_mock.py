@@ -21,7 +21,8 @@ POWDER_PAUSE_AT = 0.6           # the powder's part pauses here for a full cup
 CUP_GR_A_TURN = {"fine": 0.8, "coarse": 10.0}
 CUP_WEIGHT_GR = 77.3
 SCALE_RESULT = {"small_change_s": 0.7, "fast_flow_s": 0.6, "slow_flow_s": 1.2}
-POWDER_RESULT = {"fine": [0.02, 5.0], "coarse": [0.16, 5.0]}
+POWDER_RESULT = {"fine": 0.02, "coarse": 0.16}      # each tube's least speed, rev/s
+POWDER_WAS = {"fine": 0.08, "coarse": 0.1}
 
 
 def error(code, message):
@@ -50,7 +51,7 @@ class CalibrationMock:
         index, name = self.powder()
         powder = self.powders.get(index)
         return {"cup": dict(self.cup), "scale": self.scale,
-                "powder": {"profile": index, "name": name, "speeds": powder}, "job": self.job}
+                "powder": {"profile": index, "name": name, "min_speed_rps": powder}, "job": self.job}
 
     def move_on(self):
         """What the clock does to the job: a lift seen, a pour made, a part's progress."""
@@ -78,15 +79,15 @@ class CalibrationMock:
                 speed = 0.02 * (250 ** (progress / 100.0))
                 job["line"] = f"{'Fine' if progress < 55 else 'Coarse'} tube {speed:.2f} rev/s"
                 if job.get("fails") and progress >= 30:
-                    self.step("failed", line="Fine tube: no powder", note="Its speeds are kept")
+                    self.step("failed", line="Fine tube: no powder", note="Its minimum is kept")
                 elif progress >= POWDER_PAUSE_AT * 100 and not job.get("paused_once"):
                     job["paused_once"] = True
                     capacity = self.cup["capacity_gr"] or 150.0
                     self.step("paused", held_gr=capacity - 2, line=f"It holds {capacity - 2:.0f} of {capacity:.0f} gr")
             if job["step"] == "running" and progress >= 100:
                 result = dict(SCALE_RESULT) if job["part"] == "scale" else {
-                    tube: list(speeds) for tube, speeds in POWDER_RESULT.items()}
-                was = None if job["part"] == "scale" else {"fine": [0.08, 2.0], "coarse": [0.1, 8.0]}
+                    tube: speed for tube, speed in POWDER_RESULT.items()}
+                was = None if job["part"] == "scale" else dict(POWDER_WAS)
                 self.step("result", result=result, was=was,
                           took="4.6 min, 62 gr" if job["part"] == "scale" else "6 min, 210 gr")
 

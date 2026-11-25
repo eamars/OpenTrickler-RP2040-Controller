@@ -7,7 +7,7 @@ The earlier README and progress are phased out and moved to [`legacy/`](legacy/)
 ## What we want
 
 ADR-009 is two steps, in this order:
-1. **The calibration:** the user runs it for the unit and for each powder, from the screen or the web. It measures the cup, the scale, and each tube's least and most speed for the powder, and keeps them.
+1. **The calibration:** the user runs it for the unit and for each powder, from the screen or the web. It measures the cup, the scale, and each tube's least speed for the powder, and keeps them.
 2. **The tuning:** the predictor and the PID auto-tuner, made from what step 1 keeps.
 
 Step 2 depends on step 1: it takes step 1's records as its input, and has none without them. It starts only once step 1 is fully complete: a user can run the calibration from the 12864 and from the web on a unit, its records are kept and backed up, and nothing of it is left open. ADR-009 is these two steps and nothing more.
@@ -25,6 +25,7 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 - A step that fails says what failed and retries nothing unless the user asks; its item keeps its default value.
 - Each part runs on its own: the cup, the scale and each powder are calibrated independently, and each item can be run alone. A part uses what the others have stored, or their defaults where they were never run.
 - The servo gate's tuning is not part of ADR-009.
+- The most speed is not measured. Each powder profile's maximum speed stays as the user has it; a profile whose maximum is not set uses the motor's maximum speed (Settings, Motors).
 
 ## Step 1: the calibration
 
@@ -36,17 +37,15 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 | 2 | The empty cup's weight | the charge settings, appended | The cup lifted off the zeroed scale: the reading falls by its weight, so a lifted cup can be told from a light reading |
 | 3 | The scale's response time | the scale settings, appended | How long a small change takes to show and settle, for a few sizes of change |
 | 4 | The scale's lag | the scale settings, appended | How far the reading runs behind a steady flow, by flow rate. It may be one curve with item 3: a smaller change takes longer to register |
-| 5 | Each tube's least speed | the powder profile's own field | Twice the slowest speed at which the tube pours |
-| 6 | Each tube's most speed | the powder profile's own field | The fastest speed it pours at, up to its motor's own most: the ceiling the charge's controller is held to |
+| 5 | Each tube's least speed | the powder profile's own field (its minimum speed) | Twice the slowest speed at which the tube pours |
 
-**Least and most** (items 5 and 6), each tube judged on its own, at each speed one run rejected as a clump or a lull (the one farthest from the speed's median):
-- **the least speed** is twice the slowest speed at which the tube pours: its runs together pour at least half the tube's grains a turn at its fastest speed. A confident value, the measured minimum doubled. The runs are judged by their sum, as one slow run is a few kernels;
-- **the most speed** is the fastest speed of the ladder the tube poured at: the motor's own most (its driver's maximum speed) unless the tube poured nothing there. It is the ceiling the charge's controller is held to, and matters less than the least; how alike the stops land did not judge it with any confidence over 4 stops a speed, so the motor's most is taken (the owner, 2026-11-25);
-- a tube whose speeds give no least or no most leaves that speed as it was, and says so.
+**The least speed** (item 5), each tube judged on its own over a ladder of speeds between its motor's own limits:
+- it is twice the slowest speed at which the tube pours: that speed's runs together pour at least half the tube's grains a turn at its fastest speed. A confident value, the measured minimum doubled. The runs are judged by their sum, as one slow run is a few kernels, and at each speed the run farthest from the speed's median is left out as a clump or a lull;
+- a tube whose speeds give no least leaves it as it was, and says so.
 
-On the bench (2026-11-25) this gives the fine tube 0.020 rev/s in each of three runs (it pours at its motor's least, 0.010) and 5 rev/s, the coarse tube 0.16 rev/s and 5 rev/s. The tubes register ever more alike with speed, kernel by kernel to a stream, with no knee, so the least is not judged by how alike the runs are (progress, 2026-11-25, 01:57).
+On the bench (2026-11-25) this gives the fine tube 0.020 rev/s in each of three runs (it pours at its motor's least, 0.010), the coarse tube 0.16 rev/s. The tubes register ever more alike with speed, kernel by kernel to a stream, with no knee, so the least is not judged by how alike the runs are (progress, 2026-11-25, 01:57).
 
-Items 5 and 6 belong to this powder on this unit's tubes and scale, not to the powder alone. The coarse and fine stop thresholds and the PID stay as the user has them; today's loop charges as it does now.
+Item 5 belongs to this powder on this unit's tubes and scale, not to the powder alone. The coarse and fine stop thresholds, each profile's maximum speeds and the PID stay as the user has them; today's loop charges as it does now.
 
 ### What we know
 
@@ -54,6 +53,7 @@ Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the fi
 - **The scale is late by an amount that depends on the change** (2026-11-21): about 0.5 s behind a fast stream, about 1 s behind a slow one, about 2 s for a single digit; the same for two powders and two tubes, so mostly the scale's. It calls a weight stable 0.38 s after its last change; one kernel first shows 1.7 s after a nudge, three and more 0.9 s.
 - **What lands after a fine stop scatters by about 2.5 digits at every speed tried** (2026-11-20), in stop tests and in real throws alike.
 - **Today's stored settings** (`common.c`'s `load_config`): each module's record is read as its struct's size and a CRC32. A struct that grows fails the check, and the module's defaults are applied. The charge settings hold the thresholds, margins, back-off, precharge and colours; the scale settings hold the scale's make, baud rate and frame format.
+- **The charge holds each tube to the smaller of the profile's maximum speed and the motor's** (`charge_mode.cpp`), and to the larger of their minimums. A profile has no maximum that is not set: a maximum of 0 holds the tube at its minimum speed.
 - **The first build's calibration** ran on the PC through the console (`tools/charge_sim/staged.py`'s `measure_on`, driven by `bench/trial.py`): it measured the scale's settle time and, at each speed, its lag and what lands after a stop. It took 8 to 13 minutes and poured 164 to 252 gr on the bench. Those tools and every recording are kept in `tools/charge_sim`.
 
 ### To settle before approval
@@ -65,13 +65,11 @@ Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the fi
 
    Shown by an update from today's release that keeps every setting.
 
-2. **The landing's bound:** it judged the most speed alone, and the most is now the motor's. Proposed: dropped, with the charge setting that was to hold it.
-
 ### What we do
 
 The method is developed from the PC on the bench, where the tools exist; for users it is a job on the unit, run from the screen and the web. The gates, in order, each started once the one before it is done:
 1. **The method,** in the simulation and then from the PC on the bench (`tools/charge_sim`, `bench/record.py`): the cup, the scale and each tube's speeds, each part run alone. Its recordings are kept, and they fix the records' form (how many points the lag and the response time hold).
-2. **The records stored:** the loader's migration (above) and the fields appended to the charge and scale settings, each described once in its module's table, so the API, the console, the export and the backup follow. Shown by an update from today's release that keeps every setting, on both boards.
+2. **The records stored:** the loader's migration (above) and the fields appended to the charge and scale settings, each described once in its module's table, so the API, the console, the export and the backup follow. A powder profile's maximum speed not set is taken as the motor's maximum speed; proposed: not set is 0, which has no use as a ceiling today. Shown by an update from today's release that keeps every setting, on both boards, and by a charge with a profile whose maximum is 0.
 3. **The calibration as a job on the unit,** started from the console and the API: each part alone, a failure said and not retried, the cup's pause. On the bench it records what gate 1's method recorded from the PC, within the spread each measured.
 4. **The screens and the web:** mock-ups for the owner first, then built.
 5. **Step 1's sign-off on a unit:** the list under "How the unit shows it works".

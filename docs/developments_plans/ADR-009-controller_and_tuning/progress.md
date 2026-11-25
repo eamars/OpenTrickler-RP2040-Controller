@@ -114,3 +114,9 @@ With the owner away and the cup not emptied: the fine tube's speeds part twice m
 - **The owner's direction (recorded 13:49):** the most speed lies between the least and the motor's own most (its driver's maximum speed); it matters less, being the ceiling the charge's controller is held to; a sensible number, or the motor's most when not confident. Not confident: over 4 stops a speed the fine tube's landing gave 5 rev/s twice and 1.443 once in three runs alike. `judge` now takes the fastest speed of the ladder the tube poured at, which is the motor's most unless the tube poured nothing there.
 - **On the kept runs and the twin (2 seeds):** each tube's most 5 rev/s every time; the least as before (fine 0.020, coarse 0.16). Each speed's landing (its median and spread) is still recorded with the stops.
 - **The landing's bound** judged the most alone. Proposed dropped, with its charge setting (README, To settle, 2).
+
+## 2026-11-25, 13:56: the most speed not measured, the landing's bound dropped
+
+- **Decided by the owner (recorded 13:56):** the landing's bound is dropped, with its charge setting. The most speed is not measured: each powder profile's maximum speed stays as the user has it, and a profile whose maximum is not set uses the motor's maximum speed. Item 6 is gone from the README's table; the calibration records items 1 to 5.
+- `calibration.py` records each tube's least speed alone; each speed's landing is still kept with the stops, as data. The charge today holds each tube to the smaller of the profile's maximum and the motor's, and has no maximum that is not set: a maximum of 0 holds the tube at its minimum. Proposed for gate 2: not set is 0.
+- **The mocks:** the 12864's sheet without the Charge settings' Landing spread (20 screens) and with each tube's minimum in a powder's result; the web's the same.

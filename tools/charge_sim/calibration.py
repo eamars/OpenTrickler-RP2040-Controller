@@ -8,10 +8,10 @@ Three parts, each run alone, each using what the others stored or their defaults
 - the cup: its capacity, given by the user, and its empty weight (the unit's screens; given here as numbers);
 - the scale: how long a small change takes to show and settle, by its size, and how far the reading runs behind a
   steady flow, by flow rate;
-- the speeds: each tube's least and most speed. The least is LEAST_TIMES the slowest speed at which the tube pours
-  (its runs together at least REGISTER_SHARE of its rate at its fastest speed; a confident value: the measured minimum
-  doubled); the most, the fastest speed it poured at, its motor's own most. At each speed one run, the farthest from
-  the speed's median, is rejected as a clump or a lull. `judge` makes them from runs live or kept.
+- the speeds: each tube's least speed, LEAST_TIMES the slowest speed at which the tube pours (its runs together at
+  least REGISTER_SHARE of its rate at its fastest speed; a confident value: the measured minimum doubled). At each
+  speed one run, the farthest from the speed's median, is rejected as a clump or a lull. `judge` makes it from runs
+  live or kept. The most speed is not measured: the powder profile's maximum is left as the user has it.
 
 No retries and no pass criteria: a part that cannot measure an item says so, and the item keeps its default.
 
@@ -193,7 +193,7 @@ def scale_part(bench, cup: Cup) -> Report:
 
 
 def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, scale: dict = None) -> Report:
-    """A tube's least and most speed, and what lands after a stop at each speed of its ladder.
+    """A tube's least speed, and what lands after a stop at each speed of its ladder.
 
     Args:
         bench: the bench (above).
@@ -203,8 +203,7 @@ def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, s
         scale: the scale part's records, or None for the defaults.
 
     Returns:
-        A Report whose records are `least_rps`, `most_rps` and `stops` (as `judge` gives them), and the failures in
-        words.
+        A Report whose records are `least_rps` and `stops` (as `judge` gives them), and the failures in words.
     """
     report = Report(f"speeds {tube}")
     start_s, start_gr = bench.now, bench.cup.landed_gr
@@ -212,7 +211,7 @@ def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, s
     watch_s = max(row[2] for row in response) + 1.0
     gr_turn = prime(bench, cup, tube, math.sqrt(least_rps * most_rps))
     if gr_turn <= 0.0:
-        report.failures.append(f"the {tube} tube poured nothing: its least and most speed keep their values")
+        report.failures.append(f"the {tube} tube poured nothing: its least speed keeps its value")
         report.seconds, report.poured_gr = bench.now - start_s, bench.cup.landed_gr - start_gr
         return report
     ratio = (most_rps / least_rps) ** (1.0 / (SPEED_LADDER - 1))
@@ -252,9 +251,7 @@ def pour_rate(gains: list, turns: list) -> float:
 
 
 def judge(tube: str, stops: list) -> tuple:
-    """A tube's least and most speed from its ladder's runs. The most is the ladder's fastest speed that poured: the
-    motor's own most, the ceiling the charge's controller is held to (the owner, 2026-11-25: a landing's spread over 4
-    stops a speed did not judge it with any confidence).
+    """A tube's least speed from its ladder's runs.
 
     Args:
         tube: "coarse" or "fine", for the failures' words.
@@ -262,8 +259,8 @@ def judge(tube: str, stops: list) -> tuple:
             by speed.
 
     Returns:
-        (records: `least_rps`, `most_rps` where found, and `stops` as (speed, whether it registers, the landing's
-        median gr, its spread gr, its gr a turn); the failures in words).
+        (records: `least_rps` where found, and `stops` as (speed, whether it registers, the landing's median gr, its
+        spread gr, its gr a turn); the failures in words).
     """
     rows, failures = [], []
     ordered = sorted(stops, key=lambda stop: stop[0])
@@ -277,11 +274,10 @@ def judge(tube: str, stops: list) -> tuple:
                          for speed, registers, median, spread, rate in rows]}
     floor_speeds = [row[0] for row in rows if row[1]]
     if not floor_speeds:
-        failures.append(f"no speed of the {tube} tube poured at half its fastest speed's rate: its least and most "
-                        "keep their values")
+        failures.append(f"no speed of the {tube} tube poured at half its fastest speed's rate: its least keeps its "
+                        "value")
         return records, failures
     records["least_rps"] = min(LEAST_TIMES * min(floor_speeds), rows[-1][0])
-    records["most_rps"] = rows[-1][0]
     return records, failures
 
 
