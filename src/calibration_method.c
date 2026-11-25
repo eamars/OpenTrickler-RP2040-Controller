@@ -58,9 +58,9 @@ typedef struct {
     float run_s;
 } run_t;
 
-// The readings of the run now and of its watch: one run at a time
-static calibration_sample_t during[CALIBRATION_SAMPLES_MAX];
-static calibration_sample_t after[CALIBRATION_SAMPLES_MAX];
+// The readings of the run now and of its watch, in the bench's room: one run at a time
+static calibration_sample_t *during;
+static calibration_sample_t *after;
 static int during_count;
 static int after_count;
 static float last_reading = 0.0f;
@@ -103,10 +103,14 @@ void calibration_settled(const calibration_sample_t *samples, int count, float w
         *rest = last_reading;
         return;
     }
-    float last[CALIBRATION_SAMPLES_MAX];
+    float last[32];             // the last stretch's readings: 0.6 s, a few at any scale's rate; its latest 32
     int last_count = 0;
     for (int i = 0; i < count; i += 1) {
         if (samples[i].t_s >= watch_s - LAST_S) {
+            if (last_count == 32) {
+                memmove(last, last + 1, sizeof(float) * 31);
+                last_count = 31;
+            }
             last[last_count++] = samples[i].weight;
         }
     }
@@ -156,13 +160,15 @@ static bool run_and_stop(const calibration_bench_t *bench, int tube, float speed
         }
         cup_held = 0.0f;
     }
+    during = bench->during;
+    after = bench->after;
     bench->set_speed(bench->ctx, tube, speed);
-    during_count = bench->watch(bench->ctx, run_s, during, CALIBRATION_SAMPLES_MAX);
+    during_count = bench->watch(bench->ctx, run_s, during, CALIBRATION_DURING_MAX);
     bench->set_speed(bench->ctx, tube, 0.0f);
     if (during_count < 0) {
         return false;
     }
-    after_count = bench->watch(bench->ctx, watch_s, after, CALIBRATION_SAMPLES_MAX);
+    after_count = bench->watch(bench->ctx, watch_s, after, CALIBRATION_AFTER_MAX);
     if (after_count < 0) {
         return false;
     }

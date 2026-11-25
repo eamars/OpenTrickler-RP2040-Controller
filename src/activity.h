@@ -19,6 +19,7 @@ typedef enum {
     ACTIVITY_CLEANUP,
     ACTIVITY_VIEW,              // never set since ADR-010: kept so the API's v1 names stay as they were
     ACTIVITY_UPDATE,            // a firmware update (ADR-004): an image written into the free slot
+    ACTIVITY_CALIBRATION,       // ADR-009 step 1: a part of the calibration (calibration.c)
 } activity_t;
 
 // Who asked for a start or a stop (api_v1.md, the events' `by`)
@@ -78,7 +79,7 @@ activity_t activity_get(void);
 // screen from any page), and it stays a name of the API's v1
 bool activity_job_runs(void);
 bool activity_in_throw(void);
-// "none", "charge", "purge", "view", "update": the API's names (api_v1.md, `activity`)
+// "none", "charge", "purge", "view", "update", "calibration": the API's names (api_v1.md, `activity`)
 const char *activity_name(activity_t activity);
 // "button", "api", "console", "unit"
 const char *activity_by_name(activity_by_t by);

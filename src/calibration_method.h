@@ -14,7 +14,9 @@
 #define CALIBRATION_COARSE 0
 #define CALIBRATION_FINE 1
 #define CALIBRATION_LAG_POINTS 5        // as the scale's settings keep it (SCALE_LAG_POINTS)
-#define CALIBRATION_SAMPLES_MAX 256     // the readings of a run or of a watch kept: 12 s of the A&D's 20 a second
+#define CALIBRATION_DURING_MAX 128      // the readings of a run kept: a lag's runs, 2 s at most; the longer runs
+                                        // need only their first
+#define CALIBRATION_AFTER_MAX 256       // of a watch: 12 s of the A&D's 20 a second
 #define CALIBRATION_FAILURE_LEN 72
 
 // A reading: its time in seconds, from the start of a run or from a stop, and the weight
@@ -24,7 +26,9 @@ typedef struct {
 } calibration_sample_t;
 
 /*
- * The bench the method turns and reads. Each call is the job's or the simulation's; ctx is theirs.
+ * The bench the method turns and reads, and the room it keeps a run's readings in: `during` and `after` of
+ * CALIBRATION_DURING_MAX and CALIBRATION_AFTER_MAX readings, the job's from its heap while a part runs (the Pico W's
+ * RAM has no 3 KB to spare for good). Each call is the job's or the simulation's; ctx is theirs.
  * - set_speed: a tube's speed in rev/s, 0 to stop it.
  * - watch: let `seconds` pass, the tubes as they are, each reading the scale gives meanwhile into `out` (up to `room`,
  *   later ones dropped), its time from the call. The count, or -1 when the calibration is stopped.
@@ -34,6 +38,8 @@ typedef struct {
  */
 typedef struct {
     void *ctx;
+    calibration_sample_t *during;
+    calibration_sample_t *after;
     void (*set_speed)(void *ctx, int tube, float rps);
     int (*watch)(void *ctx, float seconds, calibration_sample_t *out, int room);
     bool (*cup_full)(void *ctx, float held, float most);

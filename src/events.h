@@ -21,6 +21,7 @@ typedef enum {
     EVENT_SOURCE_SETTING,       // a settings resource written or stored (ADR-008, gate 2)
     EVENT_SOURCE_SETUP,         // the set-up's step (ADR-008, gate 4)
     EVENT_SOURCE_WIFI,          // the set-up's join, and its end (ADR-008, gate 4)
+    EVENT_SOURCE_CALIBRATION,   // a part of the calibration (ADR-009 step 1): text names the part
 } event_source_t;
 
 typedef enum {

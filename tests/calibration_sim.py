@@ -31,7 +31,8 @@ from host_test import compiler  # noqa: E402
 
 LAG_POINTS = 5
 FAILURE_LEN = 72
-SAMPLES_MAX = 256
+DURING_MAX = 128
+AFTER_MAX = 256
 TUBES = {"coarse": 0, "fine": 1}
 CAPACITY = 1000.0               # no pause in either: the two count the cup's powder differently near its capacity
 MOTOR_LIMITS = {"fine": (0.01, 5.0), "coarse": (0.08, 5.0)}
@@ -50,8 +51,15 @@ REPORT = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p)
 
 
 class Bench(ctypes.Structure):
-    _fields_ = [("ctx", ctypes.c_void_p), ("set_speed", SET_SPEED), ("watch", WATCH), ("cup_full", CUP_FULL),
-                ("report", REPORT)]
+    _fields_ = [("ctx", ctypes.c_void_p), ("during", ctypes.POINTER(Sample)), ("after", ctypes.POINTER(Sample)),
+                ("set_speed", SET_SPEED), ("watch", WATCH), ("cup_full", CUP_FULL), ("report", REPORT)]
+
+
+def bench_of(callbacks) -> tuple:
+    """A bench for the C with its room for a run's readings, the room kept alive beside it."""
+    room = ((Sample * DURING_MAX)(), (Sample * AFTER_MAX)())
+    return Bench(None, ctypes.cast(room[0], ctypes.POINTER(Sample)), ctypes.cast(room[1], ctypes.POINTER(Sample)),
+                 *callbacks), room
 
 
 class ScaleRecord(ctypes.Structure):
@@ -106,7 +114,7 @@ class ReplayForC:
         self.phase = "idle"
         self.mismatch = None
         self.callbacks = (SET_SPEED(self.set_speed), WATCH(self.watch), CUP_FULL(self.cup_full), REPORT(self.report))
-        self.bench = Bench(None, *self.callbacks)
+        self.bench, self.room = bench_of(self.callbacks)
 
     def note(self, what):
         if self.mismatch is None:
@@ -158,7 +166,7 @@ class TwinForC:
         self.twin = TwinBench(rig, seed)
         self.pauses = 0
         self.callbacks = (SET_SPEED(self.set_speed), WATCH(self.watch), CUP_FULL(self.cup_full), REPORT(self.report))
-        self.bench = Bench(None, *self.callbacks)
+        self.bench, self.room = bench_of(self.callbacks)
 
     def set_speed(self, ctx, tube, rps):
         self.twin.tubes["fine" if tube == TUBES["fine"] else "coarse"].set_speed(rps)

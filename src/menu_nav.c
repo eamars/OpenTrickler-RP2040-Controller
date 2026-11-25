@@ -15,6 +15,7 @@
 #include "activity.h"
 #include "api_v1.h"
 #include "charge_mode.h"
+#include "calibration.h"
 #include "cleanup_mode.h"
 #include "common.h"
 #include "eeprom.h"
@@ -1714,6 +1715,57 @@ static void cleanup_key(frame_t *frame, menu_key_t key) {
 
 
 /*
+ * The calibration's answer at its step, the right softkey's word on the screen and what it sends (ADR-009 step 1);
+ * none where the step waits for nothing of the person
+ */
+static const char *calibration_answer_label(calibration_step_t step, const char **answer) {
+    static const struct {
+        calibration_step_t step;
+        const char *label;
+        const char *answer;
+    } answers[] = {
+        {CALIBRATION_STEP_CUP_ON, "Next", "next"}, {CALIBRATION_STEP_FILL, "Full", "full"},
+        {CALIBRATION_STEP_KEEP, "Keep", "keep"}, {CALIBRATION_STEP_EMPTY, "Done", "done"},
+        {CALIBRATION_STEP_FAILED, "OK", "done"}, {CALIBRATION_STEP_PAUSED, "Go on", "go_on"},
+        {CALIBRATION_STEP_RESULT, "Save", "save"},
+    };
+    for (size_t idx = 0; idx < sizeof(answers) / sizeof(answers[0]); idx += 1) {
+        if (answers[idx].step == step) {
+            if (answer != NULL) {
+                *answer = answers[idx].answer;
+            }
+            return answers[idx].label;
+        }
+    }
+    return NULL;
+}
+
+
+static void calibration_key(frame_t *frame, menu_key_t key) {
+    calibration_status_t cal;
+    calibration_get_status(&cal);
+    const char *answer = NULL;
+    const char *label = calibration_answer_label(cal.step, &answer);
+    if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+        frame->softkey = key == MENU_KEY_NEXT && label != NULL ? 1 : 0;
+        return;
+    }
+    if (key == MENU_KEY_BACK || (key == MENU_KEY_ENTER && (frame->softkey == 0 || label == NULL))) {
+        activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);
+        return;
+    }
+    if (key == MENU_KEY_ENTER && answer != NULL) {
+        if (strcmp(answer, "save") == 0) {
+            calibration_save();
+        }
+        else {
+            calibration_answer(answer);
+        }
+        frame->softkey = 0;
+    }
+}
+
+/*
  * A job's keys. Its softkeys are Stop at the left and its action at the right; the knob moves between them where
  * the turn is free, and a click does the focused one. Back stops it (but an update while it installs)
  */
@@ -1728,6 +1780,10 @@ static void job_key(frame_t *frame, menu_key_t key) {
     }
     if (frame->job == ACTIVITY_CLEANUP) {
         cleanup_key(frame, key);
+        return;
+    }
+    if (frame->job == ACTIVITY_CALIBRATION) {
+        calibration_key(frame, key);
         return;
     }
     if (key == MENU_KEY_BACK || (key == MENU_KEY_ENTER && frame->softkey == 0)) {
@@ -2284,7 +2340,8 @@ static void screen_marks(menu_screen_t *screen) {
     screen->mark_station = strcmp(info.mode, "station") == 0 && info.address[0] != '\0';
     screen->mark_access_point = strcmp(info.mode, "access_point") == 0;
     activity_t job = activity_get();
-    bool job_remote = (job == ACTIVITY_CHARGE || job == ACTIVITY_CLEANUP || job == ACTIVITY_UPDATE) &&
+    bool job_remote = (job == ACTIVITY_CHARGE || job == ACTIVITY_CLEANUP || job == ACTIVITY_UPDATE ||
+                       job == ACTIVITY_CALIBRATION) &&
                       (activity_job_by() == ACTIVITY_BY_API || activity_job_by() == ACTIVITY_BY_CONSOLE);
     screen->mark_remote = job_remote || http_server_wrote_within(MENU_REMOTE_MS);
     screen->mark_simulated = scale_simulation_is_on();
@@ -2573,6 +2630,38 @@ static const char *charge_state_text(const char *state) {
 }
 
 
+// The calibration's screen: its step as the title, the weight or how far it is as the figure, what it does under it,
+// Stop and the step's answer (ADR-009 step 1, gate 3; gate 4 draws each step as its mock-up)
+static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
+    static const char *const titles[] = {"Calibration", "Put the cup on", "Zeroing", "Lift the cup", "Put the cup back",
+                                         "Fill the cup", "Keep its capacity?", "Empty the cup", "Calibrating",
+                                         "Empty the cup", "Found", "Failed"};
+    calibration_status_t cal;
+    calibration_get_status(&cal);
+    snprintf(screen->id, sizeof(screen->id), "job/calibration");
+    snprintf(screen->title, sizeof(screen->title), "%s", cal.step <= CALIBRATION_STEP_FAILED ? titles[cal.step] :
+                                                         titles[0]);
+    if (cal.step == CALIBRATION_STEP_RUNNING) {
+        snprintf(screen->figure, sizeof(screen->figure), "%d", cal.progress);
+        snprintf(screen->unit, sizeof(screen->unit), "%%");
+    }
+    else if (cal.step == CALIBRATION_STEP_KEEP) {
+        format_weight(cal.capacity, screen->figure, sizeof(screen->figure));
+        snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
+    }
+    else if (cal.step >= CALIBRATION_STEP_LIFT && cal.step <= CALIBRATION_STEP_FILL) {
+        format_weight(cal.weight, screen->figure, sizeof(screen->figure));
+        snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
+    }
+    snprintf(screen->context, MENU_TEXT, "%s", cal.step == CALIBRATION_STEP_FAILED ? cal.failure : cal.line);
+    const char *label = calibration_answer_label(cal.step, NULL);
+    snprintf(screen->softkey_right, MENU_TEXT, "%s", label != NULL ? label : "");
+    if (label == NULL) {
+        frame->softkey = 0;
+    }
+    screen->softkey_focus = frame->softkey;
+}
+
 /*
  * A job's screen (the skill, rule 5): its status as the title, one figure and its unit, one line under it, two
  * softkeys. Who started it shows as the remote mark, not in words
@@ -2581,6 +2670,11 @@ static void screen_job(menu_screen_t *screen, frame_t *frame) {
     screen->kind = MENU_SCREEN_JOB;
     screen->edit_at = -1;
     snprintf(screen->softkey_left, MENU_TEXT, "Stop");
+
+    if (frame->job == ACTIVITY_CALIBRATION) {
+        screen_calibration(screen, frame);
+        return;
+    }
 
     if (frame->job == ACTIVITY_CHARGE) {
         charge_status_t charge;

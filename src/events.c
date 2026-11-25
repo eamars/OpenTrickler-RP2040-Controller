@@ -66,7 +66,7 @@ bool events_get(uint32_t seq, event_t *event) {
 
 static const char *source_name(uint8_t source) {
     static const char *const names[] = {"charge", "throw", "purge", "motors", "system", "update", "setting", "setup",
-                                        "wifi"};
+                                        "wifi", "calibration"};
     return source < sizeof(names) / sizeof(names[0]) ? names[source] : "other";
 }
 
@@ -196,6 +196,19 @@ void events_write_json(const event_t *event, char *out, size_t room, size_t *len
                     write_member(out, room, len, "fault");
                     http_json_string(out, room, len, event->text != NULL ? event->text : "fault");
                 }
+            }
+            break;
+        case EVENT_SOURCE_CALIBRATION:
+            // Its part; who started or stopped it, and why it stopped
+            write_member(out, room, len, "part");
+            http_json_string(out, room, len, event->text != NULL ? event->text : "none");
+            if (event->kind == EVENT_STARTED || event->kind == EVENT_STOPPED) {
+                write_member(out, room, len, "by");
+                http_json_string(out, room, len, activity_by_name((activity_by_t) event->by));
+            }
+            if (event->kind == EVENT_STOPPED) {
+                write_member(out, room, len, "reason");
+                http_json_string(out, room, len, events_reason_name((event_reason_t) event->reason));
             }
             break;
         case EVENT_SOURCE_MOTORS:

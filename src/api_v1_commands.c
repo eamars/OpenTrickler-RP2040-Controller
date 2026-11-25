@@ -17,6 +17,7 @@
 
 #include "activity.h"
 #include "api_v1.h"
+#include "calibration.h"
 #include "charge_mode.h"
 #include "cleanup_mode.h"
 #include "eeprom.h"
@@ -462,6 +463,256 @@ static void api_v1_purge_stop(const http_server_request_t *request, http_server_
         return;
     }
     reply_purge(reply, activity_request_stop(ACTIVITY_CLEANUP, ACTIVITY_BY_API) ? 202 : 200);
+}
+
+
+// --- The calibration (ADR-009 step 1; calibration.h)
+
+static void write_name_or_null(char *out, size_t room, size_t *len, const char *name) {
+    if (name != NULL) {
+        http_json_string(out, room, len, name);
+    }
+    else {
+        http_json_raw(out, room, len, "null");
+    }
+}
+
+
+// A stored number of the calibration's records: null while never calibrated (held as -1)
+static void write_record(char *out, size_t room, size_t *len, float value, float scale) {
+    http_json_float(out, room, len, value >= 0.0f ? value * scale : NAN);
+}
+
+
+static void write_lag(char *out, size_t room, size_t *len, int count, const float *flow, const float *lag_s) {
+    http_json_raw(out, room, len, "[");
+    for (int idx = 0; idx < count; idx += 1) {
+        http_json_raw(out, room, len, idx > 0 ? ",{\"flow_per_s\":" : "{\"flow_per_s\":");
+        http_json_float(out, room, len, flow[idx]);
+        http_json_raw(out, room, len, ",\"ms\":");
+        http_json_number(out, room, len, lag_s[idx] * 1000.0f, 4);
+        http_json_raw(out, room, len, "}");
+    }
+    http_json_raw(out, room, len, "]");
+}
+
+
+static void write_calibration(char *out, size_t room, size_t *len) {
+    calibration_status_t cal;
+    calibration_get_status(&cal);
+    http_json_raw(out, room, len, "{\"state\":");
+    http_json_string(out, room, len, cal.state);
+    http_json_raw(out, room, len, ",\"part\":");
+    write_name_or_null(out, room, len, calibration_part_name(cal.part));
+    http_json_raw(out, room, len, ",\"step\":");
+    write_name_or_null(out, room, len, calibration_step_name(cal.step));
+    http_json_raw(out, room, len, ",\"by\":");
+    write_name_or_null(out, room, len, cal.by);
+    http_json_raw(out, room, len, ",\"progress\":");
+    http_json_integer(out, room, len, cal.progress);
+    http_json_raw(out, room, len, ",\"line\":");
+    http_json_string(out, room, len, cal.line);
+    http_json_raw(out, room, len, ",\"weight\":");
+    http_json_float(out, room, len, cal.weight);
+    http_json_raw(out, room, len, ",\"fine_rps\":");
+    http_json_float(out, room, len, cal.fine_rps);
+    http_json_raw(out, room, len, ",\"coarse_rps\":");
+    http_json_float(out, room, len, cal.coarse_rps);
+    http_json_raw(out, room, len, ",\"capacity\":");
+    http_json_float(out, room, len, cal.capacity);
+    http_json_raw(out, room, len, ",\"cup_weight\":");
+    http_json_float(out, room, len, cal.cup_weight);
+    // What the part found, at its result step
+    http_json_raw(out, room, len, ",\"result\":");
+    if (cal.step != CALIBRATION_STEP_RESULT) {
+        http_json_raw(out, room, len, "null");
+    }
+    else if (cal.part == CALIBRATION_PART_SCALE) {
+        http_json_raw(out, room, len, "{\"settle_ms\":");
+        http_json_number(out, room, len, cal.scale.settle_s * 1000.0f, 4);
+        http_json_raw(out, room, len, ",\"lag\":");
+        write_lag(out, room, len, cal.scale.lag_count, cal.scale.lag_flow_per_s, cal.scale.lag_s);
+        http_json_raw(out, room, len, ",\"elapsed_s\":");
+        http_json_number(out, room, len, cal.scale.seconds, 4);
+        http_json_raw(out, room, len, ",\"poured\":");
+        http_json_number(out, room, len, cal.scale.poured, 4);
+        http_json_raw(out, room, len, ",\"failure\":");
+        write_name_or_null(out, room, len, cal.scale.failure[0] != '\0' ? cal.scale.failure : NULL);
+        http_json_raw(out, room, len, "}");
+    }
+    else {
+        http_json_raw(out, room, len, "{\"fine_min_speed_rps\":");
+        http_json_number(out, room, len, cal.fine.least_rps, 4);
+        http_json_raw(out, room, len, ",\"coarse_min_speed_rps\":");
+        http_json_number(out, room, len, cal.coarse.least_rps, 4);
+        http_json_raw(out, room, len, ",\"was\":{\"fine_min_speed_rps\":");
+        http_json_float(out, room, len, cal.was_fine_rps);
+        http_json_raw(out, room, len, ",\"coarse_min_speed_rps\":");
+        http_json_float(out, room, len, cal.was_coarse_rps);
+        http_json_raw(out, room, len, "},\"elapsed_s\":");
+        http_json_number(out, room, len, cal.fine.seconds + cal.coarse.seconds, 4);
+        http_json_raw(out, room, len, ",\"poured\":");
+        http_json_number(out, room, len, cal.fine.poured + cal.coarse.poured, 4);
+        http_json_raw(out, room, len, ",\"failure\":");
+        write_name_or_null(out, room, len, cal.fine.failure[0] != '\0' ? cal.fine.failure :
+                                           (cal.coarse.failure[0] != '\0' ? cal.coarse.failure : NULL));
+        http_json_raw(out, room, len, "}");
+    }
+    http_json_raw(out, room, len, ",\"failure\":");
+    write_name_or_null(out, room, len, cal.failure[0] != '\0' ? cal.failure : NULL);
+    // What is kept: the cup's, the scale's, the powder's the charge uses
+    const eeprom_charge_mode_data_t *charge = &charge_mode_config.eeprom_charge_mode_data;
+    const eeprom_scale_data_t *scale = &scale_config.persistent_config;
+    http_json_raw(out, room, len, ",\"records\":{\"cup\":{\"capacity\":");
+    write_record(out, room, len, charge->cup_capacity, 1.0f);
+    http_json_raw(out, room, len, ",\"weight\":");
+    write_record(out, room, len, charge->cup_weight, 1.0f);
+    http_json_raw(out, room, len, "},\"scale\":{\"settle_ms\":");
+    write_record(out, room, len, scale->settle_ms, 1.0f);
+    http_json_raw(out, room, len, ",\"lag\":[");
+    bool first = true;
+    for (int idx = 0; idx < SCALE_LAG_POINTS; idx += 1) {
+        if (scale->lag[idx].flow_per_s < 0.0f || scale->lag[idx].lag_ms < 0.0f) {
+            continue;
+        }
+        http_json_raw(out, room, len, first ? "{\"flow_per_s\":" : ",{\"flow_per_s\":");
+        http_json_float(out, room, len, scale->lag[idx].flow_per_s);
+        http_json_raw(out, room, len, ",\"ms\":");
+        http_json_float(out, room, len, scale->lag[idx].lag_ms);
+        http_json_raw(out, room, len, "}");
+        first = false;
+    }
+    uint16_t profile_idx = profile_get_selected_idx();
+    const profile_t *profile = profile_get_selected();
+    http_json_raw(out, room, len, "]},\"powder\":{\"profile\":");
+    http_json_integer(out, room, len, profile_idx);
+    http_json_raw(out, room, len, ",\"name\":");
+    http_json_string(out, room, len, profile_get_name(profile_idx));
+    http_json_raw(out, room, len, ",\"fine_min_speed_rps\":");
+    http_json_float(out, room, len, profile->fine_min_flow_speed_rps);
+    http_json_raw(out, room, len, ",\"coarse_min_speed_rps\":");
+    http_json_float(out, room, len, profile->coarse_min_flow_speed_rps);
+    http_json_raw(out, room, len, "}}}");
+}
+
+
+static void reply_calibration(http_server_reply_t *reply, int status) {
+    size_t room;
+    char *out = http_server_reply_buffer(reply, &room);
+    size_t len = 0;
+    write_calibration(out, room, &len);
+    api_send(reply, status, room, len);
+}
+
+
+static void api_v1_get_calibration(const http_server_request_t *request, http_server_reply_t *reply) {
+    (void) request;
+    reply_calibration(reply, 200);
+}
+
+
+// POST /api/v1/calibration/start: {"part": "cup"|"scale"|"powder"}
+static void api_v1_calibration_start(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"part"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
+        return;
+    }
+    const http_json_member_t *member = api_member(members, count, "part");
+    char name[16] = "";
+    if (member == NULL || !http_json_string_value(member, name, sizeof(name)) ||
+        calibration_part_from_name(name) == CALIBRATION_PART_NONE) {
+        api_error(reply, 400, "not_a_choice", "part", "part is cup, scale or powder", NULL);
+        return;
+    }
+    switch (calibration_request_start(calibration_part_from_name(name), ACTIVITY_BY_API)) {
+        case CALIBRATION_START_OK:
+            reply_calibration(reply, 202);
+            return;
+        case CALIBRATION_START_DRIVER_FAULT:
+            api_driver_fault(reply);
+            return;
+        default:
+            api_busy(reply, "another job runs, a start is asked already, or a person has a screen open at the unit");
+            return;
+    }
+}
+
+
+// POST /api/v1/calibration/answer: {"answer": "next"|"full"|"keep"|"done"|"go_on"}
+static void api_v1_calibration_answer(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"answer"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
+        return;
+    }
+    const http_json_member_t *member = api_member(members, count, "answer");
+    char word[16] = "";
+    if (member == NULL || !http_json_string_value(member, word, sizeof(word))) {
+        api_error(reply, 400, "wrong_type", "answer", "answer is a word, and is given", NULL);
+        return;
+    }
+    switch (calibration_answer(word)) {
+        case CALIBRATION_ANSWER_OK:
+            reply_calibration(reply, 200);
+            return;
+        case CALIBRATION_ANSWER_NO_JOB:
+            api_error(reply, 409, "not_running", NULL, "no calibration runs: start a part first", NULL);
+            return;
+        default:
+            api_error(reply, 409, "not_now", "answer", "not an answer at this step: read step", NULL);
+            return;
+    }
+}
+
+
+// PATCH /api/v1/calibration/fill: {"fine_rps": 0.5, "coarse_rps": 1}, either or both
+static void api_v1_calibration_fill(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"fine_rps", "coarse_rps"};
+    http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
+    size_t count;
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 2)) {
+        return;
+    }
+    float speeds[2] = {NAN, NAN};
+    for (int idx = 0; idx < 2; idx += 1) {
+        const http_json_member_t *member = api_member(members, count, allowed[idx]);
+        double value;
+        if (member != NULL) {
+            if (!http_json_number_value(member, &value)) {
+                api_error(reply, 400, "wrong_type", allowed[idx], "a speed is a number", NULL);
+                return;
+            }
+            speeds[idx] = (float) value;
+        }
+    }
+    if (!calibration_set_fill(speeds[0], speeds[1])) {
+        api_error(reply, 409, "not_filling", NULL, "the cup is not being filled", NULL);
+        return;
+    }
+    reply_calibration(reply, 200);
+}
+
+
+static void api_v1_calibration_save(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    if (!calibration_save()) {
+        api_error(reply, 409, "not_now", NULL, "nothing found to keep yet, or it was not stored: read step", NULL);
+        return;
+    }
+    reply_calibration(reply, 200);
+}
+
+
+static void api_v1_calibration_stop(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    reply_calibration(reply, activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_API) ? 202 : 200);
 }
 
 
@@ -1720,6 +1971,26 @@ static const char *const api_v1_schema_actions[] = {
     "\"about\":\"stops the purge (202), or 200 with nothing to stop; it acknowledges the purge's fault\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops whatever job runs, or a start asked and not yet begun; never fails\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/start\",\"fields\":[{\"name\":\"part\",\"type\":"
+    "\"choice\",\"choices\":[\"cup\",\"scale\",\"powder\"],\"required\":true}],\"refused_while\":\"a_job_runs\","
+    "\"about\":\"starts a part of the calibration (202), the empty cup on the scale first; powder is the one the "
+    "charge uses. 409 busy, 409 driver_fault. The scale's and a powder's parts turn the tubes\","
+    "\"example\":{\"part\":\"scale\"}}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/answer\",\"fields\":[{\"name\":\"answer\","
+    "\"type\":\"choice\",\"choices\":[\"next\",\"full\",\"keep\",\"done\",\"go_on\"],\"required\":true}],"
+    "\"refused_while\":\"never\",\"about\":\"the person's answer at a step: next at cup_on, full at fill, keep "
+    "at keep, done at empty and failed, go_on at paused. 409 not_now at another step, 409 not_running\","
+    "\"example\":{\"answer\":\"next\"}}",
+    "{\"method\":\"PATCH\",\"path\":\"/api/v1/calibration/fill\",\"fields\":[{\"name\":\"fine_rps\","
+    "\"type\":\"number\",\"unit\":\"rev/s\"},{\"name\":\"coarse_rps\",\"type\":\"number\",\"unit\":"
+    "\"rev/s\"}],\"refused_while\":\"never\",\"about\":\"the tubes' speeds while the cup is filled, either or "
+    "both, within each motor's limits; 409 not_filling at another step\",\"example\":{\"fine_rps\":0}}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/save\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"keeps and stores the records found, at the result step: the scale's into settings/scale, a "
+    "powder's least speeds into its profile; the part then ends. 409 not_now at another step\"}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/stop\",\"fields\":[],\"refused_while\":\"never\","
+    "\"about\":\"stops the calibration (202), or 200 with nothing to stop; what it found and did not keep is "
+    "discarded\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/scale/zero\",\"fields\":[],\"about\":\"asks the scale to zero, not "
     "that it did. Taken with no job, in a purge and in a fault; in zeroing only while the weight is within 5 times "
     "zero_mean_margin of zero (409 weight_off_zero, with the weight); 409 busy while the charge pours or waits for the "
@@ -1865,7 +2136,17 @@ static const char *const api_v1_schema_states[] = {
     "\"activity\":[{\"value\":\"none\",\"about\":\"no job: the menu's forms\"},{\"value\":\"charge\"},"
     "{\"value\":\"purge\"},{\"value\":\"view\",\"about\":\"a person has a screen open at the unit that is not a job (the Wi-Fi "
     "information, a driver's fault): a start is refused until it is closed there\"},{\"value\":\"update\","
-    "\"about\":\"a firmware update (ADR-004)\"}]",
+    "\"about\":\"a firmware update (ADR-004)\"},{\"value\":\"calibration\",\"about\":\"a part of the "
+    "calibration (ADR-009)\"}]",
+    "\"calibration\":[{\"value\":\"cup_on\",\"about\":\"the empty cup to be put on the scale: answer "
+    "next\"},{\"value\":\"zeroing\"},{\"value\":\"lift\",\"about\":\"the cup to be lifted: its weight is "
+    "read\"},{\"value\":\"back\"},{\"value\":\"fill\",\"about\":\"the cup filled with the tubes' speeds "
+    "(PATCH fill): answer full\"},{\"value\":\"keep\",\"about\":\"the capacity found: answer keep\"},"
+    "{\"value\":\"empty\",\"about\":\"the cup to be emptied and put back: answer done\"},{\"value\":"
+    "\"running\"},{\"value\":\"paused\",\"about\":\"a run would pass the cup's capacity: empty it, put it "
+    "back, answer go_on\"},{\"value\":\"result\",\"about\":\"the records found: save, or stop to "
+    "discard\"},{\"value\":\"failed\",\"about\":\"what failed, in failure: answer done; nothing is "
+    "retried\"}]",
     "\"update\":[{\"value\":\"idle\"},{\"value\":\"starting\",\"about\":\"asked, and the menu has not begun it "
     "yet\"},{\"value\":\"receiving\",\"about\":\"the image is taken into the free slot\"},{\"value\":\"checking\",\"about\":\"all of the image in: its SHA-256, its board and its seal checked\"},{\"value\":\"ready\","
     "\"about\":\"the image is whole and checked: install, or stop\"},{\"value\":\"installing\",\"about\":\"the "
@@ -1909,6 +2190,16 @@ static const char *const api_v1_schema_events[] = {
     "{\"source\":\"purge\",\"kind\":\"started\",\"carries\":[\"by\"]}",
     "{\"source\":\"purge\",\"kind\":\"stopped\",\"carries\":[\"by\",\"reason\"],\"about\":\"reason: stopped, time "
     "(its time ran out: by the unit), fault\"}",
+    "{\"source\":\"calibration\",\"kind\":\"started\",\"carries\":[\"part\",\"by\"]}",
+    "{\"source\":\"calibration\",\"kind\":\"paused\",\"carries\":[\"part\"],\"about\":\"a run would pass "
+    "the cup's capacity\"}",
+    "{\"source\":\"calibration\",\"kind\":\"resumed\",\"carries\":[\"part\"]}",
+    "{\"source\":\"calibration\",\"kind\":\"finished\",\"carries\":[\"part\"],\"about\":\"the records "
+    "found: GET /api/v1/calibration, result\"}",
+    "{\"source\":\"calibration\",\"kind\":\"stored\",\"carries\":[\"part\"],\"about\":\"the records "
+    "kept and stored\"}",
+    "{\"source\":\"calibration\",\"kind\":\"stopped\",\"carries\":[\"part\",\"by\",\"reason\"],"
+    "\"about\":\"reason: finished, stopped, failed, fault\"}",
     "{\"source\":\"motors\",\"kind\":\"fault\",\"carries\":[\"motor\",\"fault\"],\"about\":\"a driver's fault "
     "appeared; motor: coarse, fine; fault: as the driver states\"}",
     "{\"source\":\"motors\",\"kind\":\"cleared\",\"carries\":[\"motor\",\"fault\"],\"about\":\"fault: the one that "
@@ -1970,6 +2261,12 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/purge/start", api_v1_purge_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/purge/stop", api_v1_purge_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/stop", api_v1_stop);
+    ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/calibration", api_v1_get_calibration);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/start", api_v1_calibration_start);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/answer", api_v1_calibration_answer);
+    ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/calibration/fill", api_v1_calibration_fill);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/save", api_v1_calibration_save);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/stop", api_v1_calibration_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events", api_v1_get_events);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events/stream", api_v1_get_events_stream);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/debug/routes", api_v1_get_routes);

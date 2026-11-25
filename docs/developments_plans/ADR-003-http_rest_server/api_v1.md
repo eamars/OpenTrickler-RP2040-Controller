@@ -170,6 +170,21 @@ ADR-014 adds a charge profile: `charge_profile` beside `target` and `powder_prof
 | `POST /api/v1/purge/stop` | `{}` | A stop; it acknowledges `fault` |
 | `PATCH /api/v1/purge` | `{"speed_rps": 2.0}`, or `{"speed_rps": 2.0, "time_s": 30}` | 200. Both tricklers turn at that speed, within ± the lower of the two motors' `max_speed_rps` at that moment. With `time_s` (1 to 600 *p*), for at most that long: a new PATCH before then sets a new speed and a new time, and when the time runs out with none, the purge stops by itself (`purge stopped`, `by` the unit, `reason` time). A client with no person at the unit gives a short time and sends the speed again while it wants it, so a client that loses the network leaves no motor turning for longer than its last time. Without `time_s` it turns until stopped, as at the unit. 409 `not_running` when idle. A speed beyond the motors' limit is turned at the limit, not refused: the limit follows the motors' settings, so the schema cannot give it, and the reply's `speed_rps` is the speed taken. In `fault` no speed is taken (409 `not_running`): the motors stay stopped until the purge is acknowledged (review D1, C6) |
 
+## Calibration (ADR-009, step 1)
+
+A job of three parts, each run alone: `cup` (its capacity and weight), `scale` (its settle time and its lag), `powder` (each tube's least speed, for the powder the charge uses). Each part begins with the empty cup put on the scale, which is then zeroed; the scale's and a powder's parts turn the tubes, and pause when a run would pass the cup's capacity. What a part finds is kept only when the person keeps it. In `activity` it is `calibration`, and `POST /api/v1/stop` stops it.
+
+| Method and path | Body | Reply |
+|---|---|---|
+| `GET /api/v1/calibration` | | `state` (idle, starting, running), `part`, `step` (below; null when idle), `by`, `progress` (0 to 100 while running), `line` (what it does, in words), `weight` (the reading now), `fine_rps` and `coarse_rps` (the fill's), `capacity` and `cup_weight` (the cup's, found; null before), `result` (at `result`: the scale's `settle_ms`, `lag` as `{flow_per_s, ms}` slowest first; a powder's `fine_min_speed_rps`, `coarse_min_speed_rps`, each null where not found, and `was`; with `elapsed_s`, `poured`, `failure`), `failure` (at `failed`), and `records`: what is kept, `cup` (`capacity`, `weight`), `scale` (`settle_ms`, `lag`), `powder` (`profile`, `name`, its two least speeds) |
+| `POST /api/v1/calibration/start` | `{"part": "scale"}` | 202. 400 `not_a_choice`; 409 `busy` while another job runs or a person has a screen open at the unit; 409 `driver_fault` |
+| `POST /api/v1/calibration/answer` | `{"answer": "next"}` | 200. The person's answer at a step: `next` at `cup_on`, `full` at `fill`, `keep` at `keep`, `done` at `empty` and `failed`, `go_on` at `paused`. 409 `not_now` at another step; 409 `not_running` |
+| `PATCH /api/v1/calibration/fill` | `{"fine_rps": 0, "coarse_rps": 1.5}`, either or both | 200. The tubes turn at those speeds while the cup is filled, within each motor's limits. 409 `not_filling` at another step |
+| `POST /api/v1/calibration/save` | `{}` | 200. At `result`, the records found kept and stored: the scale's into `settings/scale`, a powder's least speeds into its profile; the part then ends. The cup's are kept by `answer` `keep`. 409 `not_now` at another step |
+| `POST /api/v1/calibration/stop` | `{}` | A stop; what was found and not kept is discarded |
+
+The steps: `cup_on`, `zeroing`, then the cup's `lift`, `back`, `fill`, `keep`, `empty`; the scale's and a powder's `running`, `paused` when the cup would be passed, and `result`; `failed` when an item could not be measured (`failure` says which, and nothing is retried). Its events: `calibration` `started` (`part`, `by`), `paused`, `resumed`, `finished` (the records found), `stored`, `stopped` (`part`, `by`, `reason`: finished, stopped, failed, fault).
+
 ## The scale, the gate, the motors, the screen
 
 | Method and path | Body | Reply |
@@ -379,6 +394,8 @@ Read 2026-11-15 in every ADR, the menu's forms (`mui_menu.c`, `menu.c`) and the 
 | Waiting for news in place of polling | ADR-008, ADR-009 | `?wait=` on the event log, or a push channel |
 
 ## Experiments and recordings, for ADR-009 (reserved)
+
+ADR-009's step 1 built its calibration as its own job (Calibration, above), its cup a part of it: the cup's resource reserved here is not built by it.
 
 Written 2026-11-15 at the owner's challenge ("does the API capable of supporting the ADR-009 and the future AI agent assisted development and tuning needs?"), with the owner's word to settle it with the reviewer so that ADR-009 needs "minimum changes later", and the owner's warning that "tuning will need some access to huge amount of data". Reviewed in a fourth round (E1 to E21, at the end). **ADR-003 builds none of this but what "What gate 2 and gate 4 build for it" names.** It fixes the paths and the shapes now, so that ADR-009 builds to them and only adds: columns, marks, summary fields, override fields, as the growth rules allow.
 

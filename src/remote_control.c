@@ -32,6 +32,7 @@
 #include "settings.h"
 #include "activity.h"
 #include "update.h"
+#include "calibration.h"
 #include "wireless.h"
 #include "http_server.h"
 
@@ -792,6 +793,15 @@ static bool remote_control_wifi(const char *args, char *reply, size_t reply_size
 
 
 // `update [try]`: the image slots, and a restart into a trial of the other one (ADR-004)
+// ADR-009 step 1: a part of the calibration started, answered, filled, kept or stopped (calibration_console())
+static bool remote_control_calibrate(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
+                                     void *write_ctx) {
+    (void) write;
+    (void) write_ctx;
+    return calibration_console(args, reply, reply_size);
+}
+
+
 static bool remote_control_update(const char *args, char *reply, size_t reply_size, remote_control_write_fn write,
                                   void *write_ctx) {
     (void) write;
@@ -817,6 +827,7 @@ static const remote_control_command_t remote_control_commands[] = {
     {"charge", remote_control_charge},
     {"setting", remote_control_setting},
     {"update", remote_control_update},
+    {"calibrate", remote_control_calibrate},
     {"wifi", remote_control_wifi},
 };
 
