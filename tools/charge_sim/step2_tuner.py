@@ -70,37 +70,71 @@ def noise(good: float, throws: int) -> float:
     return math.sqrt((1.0 - good) / (good * throws)) if good > 0.0 else 1.0
 
 
-class Tuner:
-    """new_pid = tuner(old_pid, charge_data), a window at a time, on the time per good charge. Holds only RAM."""
+AXES = {"kp": ("gain",), "kp+kd": ("gain", "braking")}
 
-    def __init__(self, tolerance: float, z: float = Z, share: str = "counted", blind: str = "stay", first: str = "miss"):
+
+def braking(kd: float, k: float) -> float:
+    """1 + kd x k / 1000: how much the D term divides the fine tube's speed while it pours steadily on the forecast
+    (the forecast rises by k a turn; the derivative is per millisecond, the original's). Dimensionless: the same in
+    grams and grains. 1 is no D term; the stored kd of 10 to 15 is 1.01."""
+    return 1.0 + kd * k / 1000.0
+
+
+class Tuner:
+    """new_pid = tuner(old_pid, charge_data), a window at a time, on the time per good charge. Holds only RAM.
+
+    axes "kp+kd" (the owner, 2026-11-26 03:01: "consider Kd as well"): a compass search on two axes, the steady gain
+    kp / braking (moved by kp, kd held) and the braking (moved by kd, kp with it so the steady gain holds). The D term
+    acts by itself only on what the forecast does not hold (the coarse tube's powder landing): at an equal steady gain
+    more braking is a slower, narrower throw (step2_kd_map.py). A trial put back is tried the other way, then on the
+    other axis; with all four put back the step shrinks and the kept gains rest."""
+
+    def __init__(self, tolerance: float, z: float = Z, share: str = "counted", blind: str = "stay", first: str = "miss",
+                 axes: str = "kp"):
         """
         blind: what a trial is judged by when neither it nor the kept gains had a good throw (both cost infinity):
             "stay", never cheaper (as gate 1 built it); "error", the lower median miss is the cheaper.
         first: the first trial's way: "miss", the way the first window misses (over on average, a slower kp; the
             product, 2026-11-26); "up", always quicker (as gate 1 built it).
+        axes: "kp", the fine kp alone (gate 1's); "kp+kd", the steady gain and the braking.
         """
         self.tolerance = tolerance
         self.blind = blind
         self.first = first
+        self.axes = AXES[axes]
         self.z = z
         self.share = SHARES[share]
         self.base = None
         self.pool = ([], [])        # the base's throws: final weights less the target, times
+        self.axis = 0
         self.direction = 1
         self.factor = FIRST_FACTOR
-        self.turned = False         # the other way already tried from this base
+        self.tried = 0              # ways put back since the base was kept or the step changed
         self.resting = 0
+        self.k = None               # the weight a turn the braking is reckoned with (the carried one)
+
+    @property
+    def turned(self) -> bool:
+        return self.tried % 2 == 1
 
     def keep(self, profile, errors: list, times: list) -> None:
-        self.base, self.pool, self.turned = profile, (list(errors), list(times)), False
+        self.base, self.pool, self.tried = profile, (list(errors), list(times)), 0
 
-    def __call__(self, profile, errors: list, times: list):
-        """The profile's next gains from the window just thrown on `profile`, and what was done, in words."""
+    def missing_way(self, errors: list) -> int:
+        """The way the current axis is tried first: the gain down and the braking up after throws over on average."""
+        over = statistics.fmean(errors) > 0.0
+        if self.axes[self.axis] == "gain":
+            return -1 if over and self.first == "miss" else 1
+        return 1 if over else -1
+
+    def __call__(self, profile, errors: list, times: list, k: float = None):
+        """The profile's next gains from the window just thrown on `profile`, and what was done, in words. k: the
+        weight a turn the braking is reckoned with, needed with the axes "kp+kd"."""
+        if k is not None and k > 0.0:
+            self.k = k
         if self.base is None:
             self.keep(profile, errors, times)
-            if self.first == "miss" and statistics.fmean(errors) > 0.0:
-                self.direction = -1
+            self.direction = self.missing_way(errors)
             return self.trial(), "first window: the base"
         if profile is self.base:
             self.pool = ((self.pool[0] + errors)[-POOL_THROWS:], (self.pool[1] + times)[-POOL_THROWS:])
@@ -122,17 +156,44 @@ class Tuner:
             self.keep(profile, errors, times)
             self.factor = FIRST_FACTOR
             return self.trial(), f"kept ({trial_cost:.1f} against {base_cost:.1f} s)"
-        if not self.turned:
-            self.turned = True
-            self.direction = -self.direction
-            return self.trial(), f"put back ({trial_cost:.1f} against {base_cost:.1f} s): the other way"
-        self.turned = False
-        self.factor = max(LEAST_FACTOR, math.sqrt(self.factor))
-        self.resting = REST_WINDOWS
-        return self.base, f"put back both ways: resting, the step now x{self.factor:.2f}"
+        said = f"put back ({trial_cost:.1f} against {base_cost:.1f} s)"
+        return self.put_back(said)
+
+    def put_back(self, said: str):
+        """The trial no cheaper: the other way, then the next axis; all put back, the step shrinks and the base
+        rests. A trial that would not move the gains (the braking at 1 asked lower) counts as put back unthrown."""
+        while True:
+            self.tried += 1
+            if self.tried % 2 == 1:
+                self.direction = -self.direction
+                said_now = f"{said}: the other way"
+            elif self.tried < 2 * len(self.axes):
+                self.axis = (self.axis + 1) % len(self.axes)
+                self.direction = self.missing_way(self.pool[0])
+                said_now = f"{said}: the {self.axes[self.axis]}"
+            else:
+                self.tried = 0
+                self.factor = max(LEAST_FACTOR, math.sqrt(self.factor))
+                self.resting = REST_WINDOWS
+                if len(self.axes) > 1:
+                    self.axis = 0
+                    self.direction = self.missing_way(self.pool[0])
+                ways = "both ways" if len(self.axes) == 1 else "every way"
+                return self.base, f"{said}: put back {ways}, resting, the step now x{self.factor:.2f}"
+            trial = self.trial()
+            if (trial.fine_kp, trial.fine_kd) != (self.base.fine_kp, self.base.fine_kd):
+                return trial, said_now
 
     def trial(self):
-        return dataclasses.replace(self.base, fine_kp=self.base.fine_kp * self.factor ** self.direction)
+        step = self.factor ** self.direction
+        if self.axes[self.axis] == "gain":
+            return dataclasses.replace(self.base, fine_kp=self.base.fine_kp * step)
+        before = braking(self.base.fine_kd, self.k)
+        after = max(1.0, before * step)
+        if abs(after - before) < 0.01:
+            return self.base
+        return dataclasses.replace(self.base, fine_kp=self.base.fine_kp * after / before,
+                                   fine_kd=(after - 1.0) * 1000.0 / self.k)
 
 
 def run_case(job: tuple) -> list:

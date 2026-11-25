@@ -751,3 +751,47 @@ From the owner's gains the seed's effect is mixed, as built against seeded: nigh
 **The cup tool:** a drop between runs is now seen from 1 gr, not 20: each throw's zero of about 10 gr went past 20 unseen (`rc_run.py`, `CUP_EMPTIED_GR`).
 
 **The owner, after (03:01):** "Make sure you are not just tuning the Kp, consider Kd as well. If you don't know how, then do some research on how to auto tune the PID.." The owner's answer of 2026-11-25, 17:40 was already "its kd is tuned with its kp"; gate 1 left kd out on the reading that on the forecast the D term only scales kp down. That holds while the fine tube pours steadily (the speed is kp ÷ (1 + kd × the weight a turn), about kp ÷ 8.5 at kd 10), but not when powder the forecast does not hold lands: the coarse tube's, the second gap. There the D term brakes the fine tube by itself, and the bench's two kinds of throw may be that braking or its absence. Next: kd in the simulation.
+
+## 2026-11-26, 03:01 to 03:26: kd, and whether any tuner improves this unit (the twin, no unit)
+
+**The owner (03:01):** "Make sure you are not just tuning the Kp, consider Kd as well. If you don't know how, then do some research on how to auto tune the PID.."
+
+**What the D term is in the code.** The derivative is taken per millisecond: the original's `error_derivative` ((error − last error) / elapsed ms, v2.0.3), kept by the controller (`derivative_of`) and the twin. On the forecast, a fine tube pouring steadily makes the forecast rise by the weight a turn k times the speed, so the speed asked is kp × error ÷ (1 + kd × k ÷ 1000). At every stored profile's kd (10 to 15) that divisor is 1.01: **the fine tube's D term has been close to inert, in v2.0.3 as now.** On a landing (0.3 gr of the coarse tube's over 0.3 s) kd 10 asks 0.01 rev/s less.
+
+**kd mapped** (`tools/charge_sim/step2_kd_map.py`; the bench's other gains, the seed on, the tuner off, 2 sessions of 60 throws a cell):
+- kd 0 to 40: every row flat within the noise, on the four rigs.
+- kd 100 to 10,000: kd acts by itself. At an equal steady gain it brakes the fine tube on what the forecast does not hold: a slower, narrower throw. The night rig, steady gain about 1:
+
+| kp, kd | A good charge | SD | Median time |
+|---|---|---|---|
+| 1, 0 | 12.1 s | 0.193 | 3.8 s |
+| 2, 1,000 | 15.0 s | 0.152 | 5.4 s |
+| 4, 3,000 | 14.9 s | 0.123 | 5.8 s |
+| 8, 10,000 | 14.6 s | 0.102 | 7.3 s |
+
+  f2 and BM2 the same way (f2: kp 2, kd 0, SD 0.101 in 2.7 s; kp 4, kd 1,000, SD 0.076 in 4.8 s). So kd trades time for spread, and by the time per good charge that trade is about even.
+
+**Built, in the twin only:** the tuner's axes `kp+kd` (`step2_tuner.Tuner(axes=...)`): a compass search on two axes, the steady gain (kp moved, kd held, as today) and the braking b = 1 + kd × k ÷ 1000 (kd moved, kp with it so the steady gain holds; dimensionless, so grams and grains alike; never under 1, kd never negative). A trial put back is tried the other way, then on the other axis; all four put back, the step shrinks and the kept gains rest. With the axis `kp` it is the tuner as built, step for step (the C judge passes, below). The C is not changed.
+
+**Methods weighed** (the owner: "research on how to auto tune the PID"):
+- **Ziegler–Nichols and relay tuning (Åström–Hägglund)** need a loop that can be made to oscillate about a set point; a throw is a one-way pour that ends.
+- **Model-based rules for an integrator with dead time (Skogestad's SIMC)** give a start from step 1's weight a turn and lag. The first build's offer was of that kind and gave more overs.
+- **Batch-to-batch search on the measured cost** is what fits a throw: the tuner as built (one axis), a compass search (two), SPSA or Bayesian optimisation. The limit found tonight is not the search but what it is judged by: a window of 25 throws at a tolerance of 0.03 gr holds 6 to 12 good throws, ±30% of noise, against differences of 10 to 20% across a flat region.
+
+**The tuners against no tuner** (`step2_variants.py`, 3 sessions of 600 throws a case; the last 100 throws: a good charge, SD):
+
+| From the bench's stored gains | No tuner | kp | kp+kd | kp, the share modelled | kp+kd, modelled | kp, a margin of its noise (z 1) |
+|---|---|---|---|---|---|---|
+| AR2209 f2 | 11.3 s, 0.133 | 11.1 s, 0.209 | 12.6 s, 0.067 | 8.6 s, 0.120 | 9.9 s, 0.108 | 11.4 s, 0.123 |
+| f2, the fine tube pouring by speed | 10.6 s, 0.095 | 10.2 s, 0.108 | 10.8 s, 0.099 | 10.7 s, 0.055 | 10.6 s, 0.086 | 11.5 s, 0.107 |
+| AR2209 night | 54.4 s, 0.341 | 9.8 s, 0.227 | 9.6 s, 0.217 | 22.9 s, 0.151 | 15.1 s, 0.155 | 78.5 s, 0.357 |
+| BM2 | 19.0 s, 0.135 | 11.0 s, 0.097 | 12.0 s, 0.114 | 11.5 s, 0.101 | 13.6 s, 0.081 | 9.9 s, 0.101 |
+
+From the owner's gains (kp 0.8, kd 15, top 2 rev/s) no tuner gives the narrowest throws (SD 0.032 to 0.067 in 10 to 18 s); every tuner makes them quicker and about twice as wide (f2: SD 0.037 to 0.086, 10.4 to 7.7 s; over and under 22% to 46%), its time per good charge lower on three rigs of four.
+
+**What it shows:**
+- **On a unit like the bench's, the seeded stored gains are already where the cost is flat.** No tuner clearly beats leaving them; on f2 the kp tuner as built ended wider than no tuner (SD 0.209 against 0.133). The tuners earn their keep only from a baseline far off (the night rig: 54 to 10 s).
+- **kd buys nothing by the time per good charge:** the two-axis tuner ends anywhere from kd 0 to 4,260, the walk of a search in a flat direction.
+- **By the owner's check of 00:28** ("shorter time to trickle, and less over and undershoot"), no tuner does both here: from a narrow start they buy time with spread; from the bench's start the twin shows no trend a bench series could read in a few windows.
+
+**Decided (mine):** kd's tuning is not built into the firmware. It stays a study (`axes="kp+kd"`), ready if the objective changes. The C judge after the Python's change: `tests/step2_sim.py` VERDICT PASS (its first run failed on the note's words alone, "every way" for "both ways", each window to the same kp; the one-axis words put back).

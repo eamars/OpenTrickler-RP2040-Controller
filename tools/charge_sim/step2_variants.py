@@ -41,7 +41,15 @@ STARTS = {"bench": BENCH, "owner": AR2209_PICOW_168}
 VARIANTS = {"built": (False, "none", "stay", "up"), "seed": (True, "none", "stay", "up"),
             "seed+landed": (True, "landed", "stay", "up"), "seed+quiet": (True, "quiet", "stay", "up"),
             "seed+blind": (True, "none", "error", "up"), "seed+landed+blind": (True, "landed", "error", "up"),
-            "product": (True, "none", "stay", "miss")}
+            "product": (True, "none", "stay", "miss"),
+            "product+kd": (True, "none", "stay", "miss", "kp+kd"),
+            # the owner's objective estimated more steadily (2026-11-26, 03:2x): the share good from the window's
+            # spread (step2_tuner.modelled), or a keep only when cheaper by its noise (z 1); and no tuner at all
+            "modelled": (True, "none", "stay", "miss", "kp", "modelled", 0.0),
+            "modelled+kd": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0),
+            "z1": (True, "none", "stay", "miss", "kp", "counted", 1.0),
+            "z1+kd": (True, "none", "stay", "miss", "kp+kd", "counted", 1.0),
+            "fixed": (True, "none", "stay", "miss", None)}
 TARGET = 10.0
 FIRST = 50
 LAST = 100
@@ -49,12 +57,14 @@ LAST = 100
 
 def case(job: tuple) -> tuple:
     rig_name, start, variant, throws, seed, records = job
-    seeded, hold, blind, first = VARIANTS[variant]
+    seeded, hold, blind, first, *more = VARIANTS[variant]
+    axes, share, z = (more + ["kp", "counted", 0.0][len(more):])[:3]
     rig = rigs.get_rig(rig_name)
     profile = STARTS[start]
     session = Session(rig, seed)
     controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=seeded, hold=hold)
-    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, blind=blind, first=first)
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=z, share=share, blind=blind, first=first,
+                              axes=axes) if axes else None
     out, errors, times = [], [], []
     for _ in range(throws):
         controller.profile = profile
@@ -62,10 +72,10 @@ def case(job: tuple) -> tuple:
         out.append((result.true_error, result.elapsed_s, profile.fine_kp))
         errors.append(result.true_error)
         times.append(result.elapsed_s)
-        if len(errors) == step2_tuner.WINDOW:
-            profile, _ = tuner(profile, errors, times)
+        if len(errors) == step2_tuner.WINDOW and tuner is not None:
+            profile, _ = tuner(profile, errors, times, k=controller.carried())
             errors, times = [], []
-    return job[:3], out, profile.fine_kp
+    return job[:3], out, (profile.fine_kp, profile.fine_kd)
 
 
 def judged(throws: list, tolerance: float) -> dict:
@@ -114,7 +124,7 @@ def main() -> None:
                 runs = grouped[(rig, start, variant)]
                 first = judged([t for throws, _ in runs for t in throws[:FIRST]], tolerance)
                 last = judged([t for throws, _ in runs for t in throws[-LAST:]], tolerance)
-                kps = ", ".join(f"{kp:.2f}" for _, kp in runs)
+                kps = ", ".join(f"{kp:.2f}/{kd:.0f}" for _, (kp, kd) in runs)
                 print(f"    {variant:18s} first {FIRST}: {line(first)}")
                 print(f"    {'':18s} last {LAST}:  {line(last)}   (kp at the end {kps})")
 
