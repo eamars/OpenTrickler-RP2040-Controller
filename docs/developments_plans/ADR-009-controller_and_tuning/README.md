@@ -105,7 +105,7 @@ No throw's result is judged.
 
 ## Step 2: the tuning
 
-**Draft, for the owner's approval** (drafted 2026-11-25 at 17:01, at the owner's word, while step 1's test on a unit is deferred). Nothing of it is built until step 1 is signed off. It is drafted on step 1's records as built; their figures on a unit (the burst's settle time among them) come with step 1's test, and the draft is read again against them then.
+**Draft, unapproved until its idea is proven in the simulation** (the owner, recorded 17:45): gate 1 below is that proof, and approval follows it. Drafted 2026-11-25 at the owner's word while step 1's test on a unit is deferred. Nothing of it is built until step 1 is signed off. It is drafted on step 1's records as built; their figures on a unit (the burst's settle time among them) come with step 1's test, and the draft is read again against them then.
 
 ### What we want
 
@@ -166,7 +166,11 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 ### What we do
 
 The gates, in order, each started once the one before it is done:
-1. **The method in the simulation** (`tools/charge_sim`, Python first): the controller's forecast judged on the kept bench series (its rest less the forecast at each stop: its mean near 0, its spread at the kernel floor), its weight a turn estimated within each throw against the first build's stored one; the tuner on the twin, from the owner's gains and from bad ones, against today's loop with the owner's gains, over the rigs kept; its window, step and kd's rules chosen.
+1. **The method in the simulation** (`tools/charge_sim`, Python first), the proof the draft's approval waits for. It is proven when:
+   - **the forecast,** its weight a turn estimated within each throw, on the kept bench series: the rest less the forecast at each stop has a mean within a digit (0.02 gr) and a spread no more than a tenth wider than the first build's forecast on its stored weight a turn (0.036 to 0.045 gr);
+   - **the tuner,** on the twin over the rigs kept: from the owner's gains, the final weight's spread narrower than today's loop's with them and the throws no slower; from gains set far off, the same spread within a few windows.
+
+   Its window, its step and kd's rule are chosen there. If the forecast does not hold on an estimate within the throw, the owner hears it before anything else is done.
 2. **The controller and the tuner in C,** behind the interface above, judged against the Python on the same runs (step 1's `calibration_sim.py` pattern).
 3. **The charge on the unit:** the charge mode on the controller, the verdict's wait, the lifted cup, the switch, the tuner's writes into the profile.
 4. **Bench series:** the charge with the tuner against today's with the owner's gains, in alternating sets of 20 throws on the same powder and day, each reported as the final weight's SD, its mean offset, its time and a histogram in 0.02 steps. Step 2's sign-off.
