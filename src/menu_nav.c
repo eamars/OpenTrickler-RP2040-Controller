@@ -1926,10 +1926,10 @@ static void calibration_key(frame_t *frame, menu_key_t key) {
     }
 
     if (cal.step == CALIBRATION_STEP_FILL) {
-        // The knob pours: a detent clockwise turns the coarse tube a bounded pour, the other way nothing; the click
-        // is Full, Back is Cancel (above)
-        if (key == MENU_KEY_NEXT) {
-            calibration_pour_detent();
+        // The knob turns the coarse tube: right pours, left reverses, a detent a bounded turn; the click is Full,
+        // Back cancels (above: the title's "<")
+        if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            calibration_pour_detent(key == MENU_KEY_NEXT);
         }
         else if (key == MENU_KEY_ENTER) {
             calibration_answer("full", ACTIVITY_BY_BUTTON);
@@ -2906,12 +2906,14 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             snprintf(screen->context, MENU_TEXT, "The cup weighs %s%s%s", weight, space, unit);
             break;
         case CALIBRATION_STEP_FILL:
-            // A job whose turn pours: the powder in the cup as the figure, what the knob does under it; Full is the
-            // click, so it is drawn focused (the owner, 2026-11-25: the knob tied to the tube's motion)
+            // A job whose turn moves the coarse tube: the powder in the cup as the figure, what the knob does under
+            // it; Full is the click, drawn focused; no Cancel softkey the knob could not reach: Back cancels, the
+            // title's "<" says so (the owner, 2026-11-25)
             snprintf(screen->title, sizeof(screen->title), "Fill the cup");
+            screen->title_back = true;
             calibration_weight_figure(screen, cal.weight);
-            snprintf(screen->context, MENU_TEXT, "Turn the knob to pour");
-            snprintf(screen->softkey_left, MENU_TEXT, "Cancel");
+            snprintf(screen->context, MENU_TEXT, "Right pours, left reverses");
+            screen->softkey_left[0] = '\0';
             snprintf(screen->softkey_right, MENU_TEXT, "Full");
             screen->softkey_focus = 1;
             return;

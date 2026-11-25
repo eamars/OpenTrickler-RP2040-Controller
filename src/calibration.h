@@ -93,15 +93,16 @@ uint8_t calibration_job_run(void);
 calibration_answer_result_t calibration_answer(const char *answer, activity_by_t by);
 
 /*
- * The fill: the coarse tube turned at least these turns from now (at most CALIBRATION_POUR_MOST_TURNS): a pour under
- * way is extended to them, never added to, so input faster than the tube pours is dropped, not queued, and the tube
- * stops within a detent of the last (the owner, 2026-11-25: the knob tied to the tube's motion, not its speed; then
- * "when the tube is moving the excessive input event will be discard, instead of being queued"). False when not
- * filling or turns not above 0. The knob's detent: a quarter turn
+ * The fill: the coarse tube turned at least these turns from now, forward when above 0 and back when below (at most
+ * CALIBRATION_POUR_MOST_TURNS either way): a turn under way the same way is extended to them, never added to, so input
+ * faster than the tube is dropped, not queued, and the tube stops within a detent of the last; the other way replaces
+ * it (the owner, 2026-11-25: the knob tied to the tube's motion, not its speed; "when the tube is moving the excessive
+ * input event will be discard, instead of being queued"; "I'd allow the reverse motion"). False when not filling or
+ * turns 0. The knob's detent: a quarter turn, right forward and left back
  */
 #define CALIBRATION_POUR_MOST_TURNS 0.5f
 bool calibration_pour(float turns);
-bool calibration_pour_detent(void);
+bool calibration_pour_detent(bool forward);
 
 // The records found kept and stored (the result step); false at another step or when a write failed
 bool calibration_save(activity_by_t by);

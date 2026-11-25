@@ -68,7 +68,7 @@ class CalibrationMock:
         return {"state": "running" if self.job else "idle", "part": job.get("part"), "profile": profile,
                 "profile_name": self.powder(profile)[0] if profile is not None else None, "step": job.get("step"),
                 "by": "api" if self.job else None, "progress": job.get("progress", 0), "line": job.get("line", ""),
-                "weight": round(job.get("weight", 0.0), 2), "pouring": job.get("pour_turns", 0.0) > 0.0,
+                "weight": round(job.get("weight", 0.0), 2), "pouring": job.get("pour_turns", 0.0) != 0.0,
                 "pour_turns": round(job.get("pour_turns", 0.0), 3), "capacity": job.get("capacity"),
                 "cup_weight": job.get("cup_weight"),
                 "result": job.get("result") if job.get("step") == "result" else None,
@@ -94,9 +94,13 @@ class CalibrationMock:
         elif job["step"] == "back" and elapsed >= LIFT_S:
             self.step("fill", weight=0.0, pour_turns=0.0, line="Turn the knob to pour")
         elif job["step"] == "fill":
-            turned = min(job["pour_turns"], FILL_RPS * (elapsed - job.get("poured_s", 0.0)))
-            job["pour_turns"] -= turned
-            job["weight"] += turned * PER_TURN["coarse"]
+            step = FILL_RPS * (elapsed - job.get("poured_s", 0.0))
+            if job["pour_turns"] > 0:
+                turned = min(job["pour_turns"], step)
+                job["pour_turns"] -= turned
+                job["weight"] += turned * PER_TURN["coarse"]
+            elif job["pour_turns"] < 0:
+                job["pour_turns"] = min(0.0, job["pour_turns"] + step)      # back: nothing leaves the cup
             job["poured_s"] = elapsed
         elif job["step"] == "running":
             length = SCALE_S if job["part"] == "scale" else POWDER_S
@@ -159,11 +163,14 @@ class CalibrationMock:
             turns = body.get("turns")
             if not isinstance(turns, (int, float)) or isinstance(turns, bool):
                 return 400, error("wrong_type", "turns are a number")
-            if not 0 < turns <= POUR_MOST_TURNS:
-                return 400, error("out_of_range", "above 0, and no more than the pour held")
+            if turns == 0 or abs(turns) > POUR_MOST_TURNS:
+                return 400, error("out_of_range", "not 0, and no more than half a turn either way")
             if job["step"] != "fill":
                 return 409, error("not_filling", "the cup is not being filled")
-            job["pour_turns"] = max(job["pour_turns"], turns)
+            if turns > 0:
+                job["pour_turns"] = max(job["pour_turns"], turns)
+            else:
+                job["pour_turns"] = min(job["pour_turns"], turns) if job["pour_turns"] < 0 else turns
             return 200, self.reply()
         if method == "POST" and path == f"{PATH}/answer":
             answer = body.get("answer")

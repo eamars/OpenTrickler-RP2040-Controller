@@ -31,18 +31,19 @@ DEFAULT_OUT = REPO / "docs" / "developments_plans" / "ADR-009-controller_and_tun
 def fill_job(panel, weight):
     """
     The cup filled by the knob: a job whose title is what the person does, its figure the powder in the cup, its line
-    what the knob does now. Each detent clockwise has the coarse tube turn a quarter turn from now, extending a pour
-    under way and never adding to it, so a knob turned faster than the tube pours loses its extra detents and the tube
-    stops when the knob does; the other way does nothing. The turn pours instead of moving between the softkeys: the click is Full (drawn focused), Back is Cancel.
+    what the knob does now. Each detent has the coarse tube turn a quarter turn from now, right forward and left back,
+    extending a turn under way and never adding to it, so a knob turned faster than the tube loses its extra detents
+    and the tube stops when the knob does. The turn moves the tube instead of moving between the softkeys: the click is
+    Full (drawn focused), and there is no Cancel softkey the knob could not reach: Back cancels, the title's "<" says so.
 
     Args:
         panel: the Panel.
         weight: the figure, the powder in the cup.
     """
-    m.title(panel, "Fill the cup")
+    m.title(panel, "Fill the cup", back=True)
     m.figure(panel, weight, "gr")
-    m.context(panel, "Turn the knob to pour")
-    m.softkeys(panel, "Cancel", "Full", focus="right")
+    m.context(panel, "Right pours, left reverses")
+    m.softkeys(panel, "", "Full", focus="right")
 
 
 def screens():

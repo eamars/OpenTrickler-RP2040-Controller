@@ -385,7 +385,7 @@ static float pour_left = 0.0f;
 static answer_t fill_until_full(void) {
     float rps = fminf(CALIBRATION_FILL_RPS, (float) get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR));
     uint64_t last = time_us_64();
-    bool turning = false;
+    int turning = 0;            // the way the tube was set to turn: 1 forward, -1 back, 0 still
     answer_t given = ANSWER_NONE;
     activity_lock();
     pour_left = 0.0f;
@@ -396,14 +396,15 @@ static answer_t fill_until_full(void) {
         float elapsed = (float) (now - last) / 1e6f;
         last = now;
         activity_lock();
-        if (turning) {
-            pour_left -= rps * elapsed;
+        // Counted down toward 0 by the turning the tube did its own way; a turn asked the other way meanwhile stands
+        if (turning > 0 && pour_left > 0.0f) {
+            pour_left = fmaxf(0.0f, pour_left - rps * elapsed);
         }
-        if (pour_left < 0.0f) {
-            pour_left = 0.0f;
+        else if (turning < 0 && pour_left < 0.0f) {
+            pour_left = fminf(0.0f, pour_left + rps * elapsed);
         }
-        bool pour = pour_left > 0.0f;
-        status.pouring = pour;
+        int way = pour_left > 0.0f ? 1 : (pour_left < 0.0f ? -1 : 0);
+        status.pouring = way != 0;
         status.pour_turns = pour_left;
         if (answer_given == ANSWER_FULL) {
             given = ANSWER_FULL;
@@ -413,9 +414,9 @@ static answer_t fill_until_full(void) {
         if (given == ANSWER_FULL) {
             break;
         }
-        if (pour != turning) {
-            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, pour ? rps : 0.0f);
-            turning = pour;
+        if (way != turning) {
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, (float) way * rps);
+            turning = way;
         }
         jobs_wait(CALIBRATION_FILL_POLL_MS);
     }
@@ -696,9 +697,16 @@ calibration_answer_result_t calibration_answer(const char *answer, activity_by_t
 
 bool calibration_pour(float turns) {
     activity_lock();
-    bool filling = running && status.step == CALIBRATION_STEP_FILL && isfinite(turns) && turns > 0.0f;
+    bool filling = running && status.step == CALIBRATION_STEP_FILL && isfinite(turns) && turns != 0.0f;
     if (filling) {
-        pour_left = fmaxf(pour_left, fminf(turns, CALIBRATION_POUR_MOST_TURNS));    // extended, never added to
+        turns = fmaxf(-CALIBRATION_POUR_MOST_TURNS, fminf(turns, CALIBRATION_POUR_MOST_TURNS));
+        // The same way: extended, never added to; the other way: replaces it
+        if (turns > 0.0f) {
+            pour_left = pour_left > 0.0f ? fmaxf(pour_left, turns) : turns;
+        }
+        else {
+            pour_left = pour_left < 0.0f ? fminf(pour_left, turns) : turns;
+        }
         status.pour_turns = pour_left;
     }
     activity_unlock();
@@ -709,8 +717,8 @@ bool calibration_pour(float turns) {
 }
 
 
-bool calibration_pour_detent(void) {
-    return calibration_pour(CALIBRATION_DETENT_TURNS);
+bool calibration_pour_detent(bool forward) {
+    return calibration_pour(forward ? CALIBRATION_DETENT_TURNS : -CALIBRATION_DETENT_TURNS);
 }
 
 
@@ -843,7 +851,8 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
     if (strcmp(word, "pour") == 0) {
         char *end;
         float turns = strtof(rest, &end);
-        bool ok = end != rest && calibration_pour(turns);
+        bool ok = end != rest && turns >= -CALIBRATION_POUR_MOST_TURNS && turns <= CALIBRATION_POUR_MOST_TURNS &&
+                  calibration_pour(turns);
         snprintf(reply, reply_size, ok ? "@ok calibrate pour %.2f" : "@err not_filling calibrate pour",
                  (double) turns);
         return ok;

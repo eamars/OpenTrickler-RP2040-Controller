@@ -4238,7 +4238,7 @@ def cup_most(args):
             elif words[0] == "calibrate":
                 # a pour: its turns of the coarse tube, the unit taking no more than 0.5 (CALIBRATION_POUR_MOST_TURNS)
                 try:
-                    turns = min(max(float(words[2]), 0.0), 0.5)
+                    turns = min(abs(float(words[2])), 0.5)      # back pours nothing in; counted as forward
                 except (IndexError, ValueError):
                     turns = 0.5
                 most += turns * CUP_GR_A_TURN_MOST

@@ -692,7 +692,7 @@ static void api_v1_calibration_answer(const http_server_request_t *request, http
 }
 
 
-// POST /api/v1/calibration/pour: {"turns": 0.5}, the coarse tube turned at least these turns from now
+// POST /api/v1/calibration/pour: {"turns": 0.5}, the coarse tube turned at least these turns from now, back below 0
 static void api_v1_calibration_pour(const http_server_request_t *request, http_server_reply_t *reply) {
     static const char *const allowed[] = {"turns"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
@@ -706,8 +706,8 @@ static void api_v1_calibration_pour(const http_server_request_t *request, http_s
         api_error(reply, 400, "wrong_type", "turns", "turns are a number", NULL);
         return;
     }
-    if (!(turns > 0.0) || turns > CALIBRATION_POUR_MOST_TURNS) {
-        api_error(reply, 400, "out_of_range", "turns", "above 0, and no more than the pour held", NULL);
+    if (turns == 0.0 || turns < -CALIBRATION_POUR_MOST_TURNS || turns > CALIBRATION_POUR_MOST_TURNS) {
+        api_error(reply, 400, "out_of_range", "turns", "not 0, and no more than half a turn either way", NULL);
         return;
     }
     if (!calibration_pour((float) turns)) {
@@ -2005,10 +2005,11 @@ static const char *const api_v1_schema_actions[] = {
     "at keep, done at empty and failed, go_on at paused. 409 not_now at another step, 409 not_running\","
     "\"example\":{\"answer\":\"next\"}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/pour\",\"fields\":[{\"name\":\"turns\","
-    "\"type\":\"number\",\"unit\":\"turns\",\"min\":0,\"max\":0.5,\"required\":true}],\"refused_while\":"
-    "\"never\",\"about\":\"while the cup is filled, the coarse tube turned at least these turns from now: a pour "
-    "under way is extended to them, never added to, so it stops within half a turn of the last ask (the knob's detent "
-    "is a quarter turn); 409 not_filling at another step\",\"example\":{\"turns\":0.5}}",
+    "\"type\":\"number\",\"unit\":\"turns\",\"min\":-0.5,\"max\":0.5,\"required\":true}],\"refused_while\":"
+    "\"never\",\"about\":\"while the cup is filled, the coarse tube turned at least these turns from now, back "
+    "below 0: a turn under way the same way is extended to them, never added to, so it stops within half a turn of "
+    "the last ask (the knob's detent is a quarter turn, right forward and left back); 409 not_filling at another "
+    "step\",\"example\":{\"turns\":0.5}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/save\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"keeps and stores the records found, at the result step: the scale's into settings/scale, a "
     "powder's least speeds into its profile; the part then ends. 409 not_now at another step\"}",
