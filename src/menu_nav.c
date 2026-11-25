@@ -1255,10 +1255,13 @@ static const menu_row_t rows_scale[] = {
 static const menu_page_t page_scale = {.id = "settings/scale", .title = "Scale", .rows = rows_scale,
                                        .row_count = ROW_COUNT(rows_scale)};
 
-// The charge's two stop thresholds: what a person who only uses the screen sees the effect of (the owner)
+// The charge's two stop thresholds: what a person who only uses the screen sees the effect of (the owner); and the
+// auto-tuner's switch, the one thing of it a user sees (ADR-009 step 2, gate 3)
 static const menu_row_t rows_charge_settings[] = {
     {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/charge", .name = "fine_stop_threshold"},
     {.kind = ROW_STEP, .value = value_setting_step, .path = "settings/charge", .name = "coarse_stop_threshold"},
+    {.kind = ROW_TOGGLE, .value = value_setting_toggle, .act = act_toggle, .path = "settings/charge",
+     .name = "auto_tune"},
 };
 static const menu_page_t page_charge_settings = {.id = "settings/charge", .title = "Charge",
                                                  .rows = rows_charge_settings,
