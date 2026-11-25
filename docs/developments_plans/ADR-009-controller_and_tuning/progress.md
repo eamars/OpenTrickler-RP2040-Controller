@@ -921,3 +921,7 @@ From the owner's gains: no tuner, never cut, SD 0.034, 0.040, 0.047, 0.026 (11.1
 The other rigs the same way: the aim-off centres the mean (to +0.01 to +0.04) and lifts the good share a little, brings back 10 to 44% unders, and widens the grouping almost everywhere (night from the bench's gains 0.284 to 0.346 or 0.427; with the tuner 0.117 to 0.248). Aiming at the stop alone stops the throw before the creep, the early cut taken out at 09:51; aiming the whole target keeps the creep, but with the tuner on it spends the margin the offset gave on speed.
 
 **Not taken (mine):** it works against both things the stop was built for, the grouping and every miss an over. The throw stays never cut, its steady offset (+0.03 to +0.09 gr on the twin) left as it is; the code stays in the twin as a study. Nothing in the firmware changed.
+
+## 2026-11-26, 10:47 to 10:59: the interim decision written down
+
+**The owner:** "Let's talk before you test. So far, what is your recommendation and how does that look like?" (10:47); "Let's write down our understandings and interim decision you just explained." (10:58). Written as the README's "Interim decision (2026-11-26)": step 2 as it stands at `1fbac83`, what we understand, how it looks on the twin (`research/step2_twin_product_f2.png`: the product on f2 from the bench's and the owner's gains, first window and window 24), what a user sees, how sure, what is still the owner's, and the next bench run with its passes. Nothing signed off; no unit touched.

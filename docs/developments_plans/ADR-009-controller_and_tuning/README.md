@@ -216,6 +216,38 @@ The gates, in order, each started once the one before it is done:
 - In grams as in grains, the same throws.
 - With the switch off, the profile is never changed.
 
+## Interim decision (2026-11-26)
+
+The owner, 10:47: "Let's talk before you test. So far, what is your recommendation and how does that look like?"; 10:58: "Let's write down our understandings and interim decision you just explained." Interim: it is what the next bench run tests, and nothing in it is signed off. Its record is in progress (2026-11-26).
+
+**Step 2 as it stands** (built at `1fbac83`; each choice marked in progress as the owner's or mine):
+1. **The seed.** Step 1's powder part keeps the fine tube's weight a turn (`fine_weight_per_turn`, item 6); the forecast starts from it, and the throws' own renew it.
+2. **The forecast steers the approach, the reading stops the throw.** The fine tube's PID works on the forecast within its envelope, and the throw is stopped once the reading reaches the target, never cut on the forecast: a miss is an over (the owner, 09:51: "Yes, build it").
+3. **The tuner on kp and kd**, on by default with its switch: a window of 25 judged by its time per good charge, its share reckoned from every throw's weight; a compass search on the steady gain and the braking (mine, on the owner's "consider Kd as well" and "do all sort of attempt in simulation").
+4. **Not in it:** the hold, the blind-window rule, the aim-off of the steady overshoot (tried and not taken), and the Pico W's size (the owner, 09:37: the optimisation's).
+
+**What we understand:**
+- **Proven on the unit** (the Pico 2 W, AR2209, 49 throws, 02:26 to 03:04): with the seed every throw stopped on the forecast, and the stored gains threw centred (SD 0.13 at kp 2, 0.09 at kp 1.33) where the old build threw +1.3 to +1.6 gr over. The C matches the Python on every throw of the twin.
+- **The unit's throws are of two kinds:** fast ones, cut by the forecast while powder was in the air (SD 0.138, mean −0.063, nearly every under), and slow ones, finished on the creep (SD 0.057, mean +0.037). Never cutting early makes every throw the slow kind.
+- **The unit is nearest the twin's f2 rig.** Two of its traits the twin lacks: its slow throws land +0.04 over, and its carry rose 23% above its seed; neither the scale's lag at the creep nor more weight a turn at the creep explains them.
+- **The fine tube's D term is per millisecond,** so the stored kd of 10 to 15 does almost nothing; from some 300 to 3,000 it brakes the fine tube on the coarse tube's landing powder.
+- **Counting the good throws in a window of 25 is too noisy to steer by** (56 to 80% right between near gains on the rigs like the unit); every throw's weight is steadier (71 to 92%).
+- **The goal is modest** (the owner, 10:33): a small improvement on the PID the users run, on setups and powders that differ.
+
+**How it looks on the twin** (`research/step2_twin_product_f2.png`; f2 from the bench's stored gains, the tuner on): the first window SD 0.123, mean +0.093; window 24 SD 0.041, mean +0.027, 6 to 7 s a throw; over four sessions the last 100 throws SD 0.071, mean +0.048, no under. From the owner's hand-tuned gains about as narrow (SD 0.034 to 0.047 over four sessions), a little quicker.
+
+**What a user sees:**
+- A throw of some 5 to 7 s where the stored gains threw in 2.4 s, now and then a creep of 10 s or more.
+- The over colour often: the steady overshoot (+0.02 to +0.06) sits on a tolerance of 0.03.
+- Kd in the hundreds in the profile, where users keep 10 to 15.
+- A powder never calibrated throws as the old build did (from fast gains +1.1 to +1.6 gr): step 1's powder part is part of the normal path.
+
+**How sure:** the seed, proven on the unit; the narrower grouping of never cutting early, likely (the twin, and the unit's own slow throws); the tuner's direction on a unit, the twin's alone.
+
+**Still the owner's:** whether the tuner protects narrow hand-tuned gains (from them it trades a little spread for time).
+
+**The next bench run** (the Pico 2 W, when the owner says the bench is ready; the cup emptied, as the run needs some 500 gr): the settings copied, the image flashed and compared; step 1's powder part on AR2209 from the 12864 (the unit's own seed); then real throws from the stored gains with the tuner on, two windows at least (50 throws). It passes on: no under; an SD no more than about 0.07 (the unit threw 0.128 at kp 2 on 2026-11-26); a mean of about +0.03 to +0.05; some 5 to 7 s a throw; a `Tuner:` line each window, the gains stored when kept; the controller's cost in `stats`.
+
 ## What is left, in order
 
 The owner's principle (2026-11-26, 01:40): "For any project I'm working on, the normal workpath is always the high priority, then the failure modes and exceptions. Failure modes and exceptions includes "lift cup, or support Pico W"." The normal work path here: a calibrated unit throws charge after charge, each stopping near its target on the forecast, each renewing the weight a turn the next one forecasts with, and the tuner moving the stored PID toward quicker throws with fewer over and under. Ordered by that, then by who is at hand (the owner at the bench, or the agent alone):

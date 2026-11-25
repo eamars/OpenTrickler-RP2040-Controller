@@ -74,12 +74,17 @@ def cut_case(job: tuple) -> tuple:
     return cut, [thrown(session, controller) for _ in range(throws)]
 
 
+STARTS = {"bench": BENCH, "owner": AR2209_PICOW_168}
+
+
 def tuner_case(job: tuple) -> tuple:
-    rig_name, throws, seed, records = job
+    """The product as it ships (the throw never cut on the forecast, the tuner on kp and kd) from a start's gains."""
+    rig_name, throws, seed, records, start = job
     rig = rigs.get_rig(rig_name)
-    profile = BENCH
+    profile = STARTS[start]
     session = Session(rig, seed)
-    controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=True, hold="none")
+    controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=True, hold="none",
+                             cut="reading")
     tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, axes="kp+kd", share="modelled")
     windows, current, errors, times = [], [], [], []
     for _ in range(throws):
@@ -92,7 +97,7 @@ def tuner_case(job: tuple) -> tuple:
             windows.append(((profile.fine_kp, profile.fine_kd), current))
             profile, _ = tuner(profile, errors, times, k=controller.carried())
             current, errors, times = [], [], []
-    return rig_name, windows, (profile.fine_kp, profile.fine_kd)
+    return f"{rig_name} from the {start}'s gains", windows, (profile.fine_kp, profile.fine_kd)
 
 
 def main() -> None:
@@ -101,6 +106,7 @@ def main() -> None:
     parser.add_argument("--rig", default="pico2w_ar2209_f2")
     parser.add_argument("--rigs", nargs="+", default=["pico2w_ar2209_f2", "pico2w_ar2209_night"])
     parser.add_argument("--throws", type=int, default=600, help="the tuner's session")
+    parser.add_argument("--starts", nargs="+", default=["bench"], choices=list(STARTS))
     parser.add_argument("--seed", type=int, default=9400)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
@@ -129,7 +135,8 @@ def main() -> None:
         return
     with Workers() as pool:
         made = dict(zip(args.rigs, pool.map(step2.rig_records, list(args.rigs))))
-        results = pool.map(tuner_case, [(rig, args.throws, args.seed, made[rig]) for rig in args.rigs])
+        results = pool.map(tuner_case, [(rig, args.throws, args.seed, made[rig], start) for rig in args.rigs
+                                        for start in args.starts])
     panels = []
     for rig_name, windows, kept in results:
         (kp0, kd0), first = windows[0]
@@ -137,8 +144,8 @@ def main() -> None:
         panels.append((f"{rig_name}, window 1 on kp {kp0:.2f} kd {kd0:.0f}", first))
         panels.append((f"window {len(windows)} on kp {kp1:.2f} kd {kd1:.0f}", last))
         print(f"{rig_name}: {len(windows)} windows, the kept gains at the end kp {kept[0]:.3f}, kd {kept[1]:.0f}")
-    step2_traces.draw(panels, args.out, "ADR-009 step 2 on the twin: the tuner as it ships, from the bench's stored "
-                                        f"gains, its first window and its last of {args.throws} throws "
+    step2_traces.draw(panels, args.out, "ADR-009 step 2 on the twin as it ships (never cut early, the tuner on kp "
+                                        f"and kd): its first window and its last of {args.throws} throws "
                                         "(dashed: slower than the median)", rows=len(results),
                       ylabel="the twin's scale, gr")
     print(f"drawn into {args.out}")
