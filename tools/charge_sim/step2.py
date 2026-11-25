@@ -87,7 +87,8 @@ class Step2(LegacyPid):
     name = "step2"
 
     def __init__(self, profile: Profile, records: Records, acceleration_rps2: float, before: str = "none",
-                 envelope: bool = True, seed: bool = False, hold: str = "none", cut: str = "forecast"):
+                 envelope: bool = True, seed: bool = False, hold: str = "none", cut: str = "forecast",
+                 aim: str = "none"):
         """
         seed: with nothing carried, the forecast takes step 1's own weight a turn (Records.fine_gr_turn) until the
             throws' own replace it (2026-11-26: without it a fast profile never teaches one).
@@ -98,12 +99,19 @@ class Step2(LegacyPid):
             moment the forecast reaches the target (as built); "reading", only once the reading itself does, the
             forecast still driving the PID and its envelope, so the fine tube creeps at its least between; "none",
             no forecast: the PID on the reading, stopped once the reading reaches the target.
+        aim: with `cut` "reading", where the reading stops the throw (the owner, 2026-11-26: "Yes try it, but don't
+            stress yourself too hard"): "none", at the target; "median", short of it by the median of the last
+            throws' landing past where they stopped aiming (RAM, as the weight a turn), never above the target;
+            "whole", the fine finish's whole target (the forecast's PID too) short by that much.
         """
         super().__init__(profile)
         self.records = records
         self.acceleration = acceleration_rps2
         self.before = before
         self.cut = cut
+        self.aim = aim
+        self.overshoots = []            # the last throws' landing past their aim (RAM, nothing stored)
+        self.aim_off = 0.0
         self.envelope = envelope and cut != "none"
         self.seed = seed
         self.hold = hold
@@ -123,6 +131,12 @@ class Step2(LegacyPid):
         self.reading = 0.0
         self.quiet_at = None            # when the coarse tube's powder is quiet
         self.rows = []                  # (time s, reading) since the quiet
+        self.aim_off = (max(0.0, statistics.median(self.overshoots))
+                        if self.aim in ("median", "whole") and self.overshoots else 0.0)
+        if self.aim == "whole":
+            # The whole fine finish aimed short, the forecast's PID too, so the tube creeps when the reading stops it
+            self.target -= self.aim_off
+            self.aim_off = 0.0
         self.k = self.carried() if self.before == "last" else None
         if self.before.startswith("given="):
             self.k = float(self.before[6:])
@@ -205,8 +219,11 @@ class Step2(LegacyPid):
         return self.reading + (self.k * self.unseen if self.k is not None else 0.0)
 
     def reached(self) -> bool:
-        """The fine tube's stop: the forecast at the target, or with `cut` "reading", the reading itself."""
-        return (self.reading if self.cut == "reading" else self.forecast()) >= self.target
+        """The fine tube's stop: the forecast at the target, or with `cut` "reading", the reading itself at the target
+        less the aim-off."""
+        if self.cut == "reading":
+            return self.reading >= self.target - self.aim_off
+        return self.forecast() >= self.target
 
     def on_tick(self, now_ms: float) -> None:
         if self.done:
@@ -249,7 +266,10 @@ class Step2(LegacyPid):
     def at_rest(self, reading: float) -> None:
         """The throw's own weight a turn in hindsight, from its verdict's reading: the fine tube's powder since the
         coarse tube's quiet over its turns not yet shown then, so only the quiet's moment rests on the lag table.
-        Carried to the next throws (RAM): every throw with REST_TURNS of the fine tube alone renews the carry."""
+        Carried to the next throws (RAM): every throw with REST_TURNS of the fine tube alone renews the carry. With
+        `aim` "median", the throw's landing past its aim is carried too."""
+        if self.aim in ("median", "whole"):
+            self.overshoots = (self.overshoots + [reading - (self.target - self.aim_off)])[-CARRY_THROWS:]
         if not self.rows:
             return
         quiet, at_quiet = self.rows[0]

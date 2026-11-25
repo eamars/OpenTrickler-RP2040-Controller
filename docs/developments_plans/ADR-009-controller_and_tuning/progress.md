@@ -902,3 +902,22 @@ The sheet: `research/step2_twin_cut_f2.png` (`step2_twin_traces.py cut`): the th
 From the owner's gains: no tuner, never cut, SD 0.034, 0.040, 0.047, 0.026 (11.1 to 18.2 s); the tuner, never cut, 0.047, 0.060, 0.059, 0.059 (9.3 to 12.3 s): it still trades the spread for time from narrow gains. With the stop on the reading the tuner and the steady offset do not fight: the tuner takes the offset down (f2 +0.080 to +0.048) and, from the bench's gains, groups tightest on three rigs of four.
 
 **Still the owner's:** whether the steady offset (+0.03 to +0.09 gr) is aimed off; whether the tuner judges the spread with the offset forgiven, or protects narrow hand-tuned gains.
+
+## 2026-11-26, 10:33 to 10:44: aiming off the steady overshoot, tried and not taken (the twin, no unit)
+
+**The owner (10:33):** "Yes try it, but don't stress yourself too hard. Everyone has different setup, and some larger kernel powder is hard to dispense precisely. And PID is the algorithm the current users are using, we are just trying to improve it a little, so there is no hard requirement for you to improve massively."
+
+**Tried** (`step2.Step2(aim=...)`, twin only; `step2_cut_study.py --stops ...`): each throw's landing past where it aimed, carried in RAM as the weight a turn is (the median of the last five), never aiming above the target.
+- `median`: the reading's stop short of the target by that much, the forecast's PID still on the target;
+- `whole`: the fine finish's whole target short by it, the PID too, so the tube creeps when the reading stops it.
+
+| f2, the last throws: SD, mean, under, time | Never cut (as built) | Aim-off at the stop | Aim-off of the whole target |
+|---|---|---|---|
+| Fixed, the bench's gains | 0.098, +0.075, 0%, 5.0 s | 0.118, +0.022, 26%, 2.9 s | 0.100, +0.018, 27%, 5.2 s |
+| Fixed, the owner's gains | 0.042, +0.031, 0%, 11.3 s | 0.046, +0.010, 12%, 10.2 s | 0.044, +0.009, 12%, 11.6 s |
+| The tuner, the bench's gains | 0.105, +0.089, 0%, 5.8 s | 0.113, +0.012, 28%, 4.7 s | 0.117, +0.017, 28%, 3.0 s |
+| The tuner, the owner's gains | 0.059, +0.040, 0%, 9.5 s | 0.064, +0.012, 18%, 7.9 s | 0.059, +0.013, 14%, 9.5 s |
+
+The other rigs the same way: the aim-off centres the mean (to +0.01 to +0.04) and lifts the good share a little, brings back 10 to 44% unders, and widens the grouping almost everywhere (night from the bench's gains 0.284 to 0.346 or 0.427; with the tuner 0.117 to 0.248). Aiming at the stop alone stops the throw before the creep, the early cut taken out at 09:51; aiming the whole target keeps the creep, but with the tuner on it spends the margin the offset gave on speed.
+
+**Not taken (mine):** it works against both things the stop was built for, the grouping and every miss an over. The throw stays never cut, its steady offset (+0.03 to +0.09 gr on the twin) left as it is; the code stays in the twin as a study. Nothing in the firmware changed.
