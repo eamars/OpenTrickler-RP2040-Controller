@@ -181,7 +181,7 @@ The owner away and no bench run: gate 1 continued from what the bench recorded, 
 
 ## 2026-11-25, 14:54: gate 2, the records stored, built (no unit)
 
-The owner (recorded 14:44): gates 2, 3 and 4 in their order; the firmware built and the method run in the simulation, never trickled or tested on a unit. So gate 2 is built and checked on the PC, and its proof on the units waits for the bench.
+The owner (recorded 14:54): gates 2, 3 and 4 in their order; the firmware built and the method run in the simulation, never trickled or tested on a unit. So gate 2 is built and checked on the PC, and its proof on the units waits for the bench.
 
 **The stored structs, as built** (`sizeof` from both boards' images, the same on each):
 
