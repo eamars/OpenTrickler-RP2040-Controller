@@ -127,10 +127,11 @@ function drawGateControl() {
 // (tools/ui_mock/calibration_12864.py), on the unit's API (api_v1.md, Calibration; calibration.c). The stand-in plays
 // it with no unit (tests/calibration_mock.py)
 const CALIBRATION = "/api/v1/calibration";
-// The fill's Hold to pour: half a turn of the coarse tube every quarter second while held, the fill's own 2 rev/s, so
-// it pours steadily and the unit (which holds at most 2 turns) stops within about half a second of the release
+// The fill's Hold to pour: half a turn from now asked while held, more often than it takes to pour (a quarter second
+// at the fill's 2 rev/s), so it pours steadily through a late reply; the unit extends a pour, never adds to it, so the
+// tube stops within a quarter second of the release
 const POUR_TURNS = 0.5;
-const POUR_EVERY_MS = 250;
+const POUR_EVERY_MS = 150;
 let calibrationTimer = null;
 let calibrationOwner = null;    // the view whose card the poll draws into: one at a time
 let calibrationPeriod = null;   // its poll's period, in ms

@@ -33,9 +33,7 @@
 #define CALIBRATION_LOST_MIN_MS 1000u   // never under this, has lost the scale (the charge's rule, ADR-013)
 #define CALIBRATION_FILL_RPS 2.0f       // the coarse tube's speed while it pours the fill
 #define CALIBRATION_FILL_POLL_MS 20     // how often the fill looks at its pour
-#define CALIBRATION_DETENT_TURNS 0.25f  // a detent of the knob while filling
-#define CALIBRATION_FAST_DETENT_TURNS 1.0f
-#define CALIBRATION_FAST_DETENT_MS 80u  // a detent this soon after the last: the knob turned quickly
+#define CALIBRATION_DETENT_TURNS 0.25f  // a detent of the knob while filling: 2.5 gr of AR2209, 0.125 s at 2 rev/s
 #define CALIBRATION_BACK_GR 0.5f        // put back: within this of zero, and steady
 
 extern charge_mode_config_t charge_mode_config;
@@ -383,7 +381,6 @@ static void fail(const char *failure) {
 // The fill: the coarse tube turns while a pour has turns to go (each counted down by its speed and the time), until
 // the person says Full; the tubes still after it. ANSWER_FULL, or ANSWER_NONE when the job is to end
 static float pour_left = 0.0f;
-static uint64_t last_detent_us = 0;
 
 static answer_t fill_until_full(void) {
     float rps = fminf(CALIBRATION_FILL_RPS, (float) get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR));
@@ -701,7 +698,7 @@ bool calibration_pour(float turns) {
     activity_lock();
     bool filling = running && status.step == CALIBRATION_STEP_FILL && isfinite(turns) && turns > 0.0f;
     if (filling) {
-        pour_left = fminf(pour_left + turns, CALIBRATION_POUR_MOST_TURNS);
+        pour_left = fmaxf(pour_left, fminf(turns, CALIBRATION_POUR_MOST_TURNS));    // extended, never added to
         status.pour_turns = pour_left;
     }
     activity_unlock();
@@ -713,10 +710,7 @@ bool calibration_pour(float turns) {
 
 
 bool calibration_pour_detent(void) {
-    uint64_t now = time_us_64();
-    bool quick = now - last_detent_us < (uint64_t) CALIBRATION_FAST_DETENT_MS * 1000u;
-    last_detent_us = now;
-    return calibration_pour(quick ? CALIBRATION_FAST_DETENT_TURNS : CALIBRATION_DETENT_TURNS);
+    return calibration_pour(CALIBRATION_DETENT_TURNS);
 }
 
 

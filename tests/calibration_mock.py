@@ -9,7 +9,7 @@ unit's shape (api_v1.md, Calibration):
 - `POST /api/v1/calibration/start` `{"part": "cup"|"scale"|"powder"}`: a part started alone (`"mock": "fail"`, the
   stand-in's own, makes a powder's fail, to show it);
 - `POST /api/v1/calibration/answer` `{"answer": "next"|"full"|"keep"|"done"|"go_on"}`;
-- `POST /api/v1/calibration/pour` `{"turns"}`: the coarse tube's turns added to the fill's pour, at most 2 held;
+- `POST /api/v1/calibration/pour` `{"turns"}`: the coarse tube turned at least these turns from now, never added to;
 - `POST /api/v1/calibration/save`; `POST /api/v1/calibration/stop`.
 
 The figures are the bench's of 2026-11-25 (ADR-009's progress).
@@ -23,7 +23,7 @@ POWDER_S = 30.0
 POWDER_PAUSE_AT = 0.6           # the powder's part pauses here for a full cup
 PER_TURN = {"fine": 0.8, "coarse": 10.0}
 FILL_RPS = 2.0                  # the coarse tube while it pours the fill (calibration.c)
-POUR_MOST_TURNS = 2.0           # the pour held at most (CALIBRATION_POUR_MOST_TURNS)
+POUR_MOST_TURNS = 0.5           # a pour asks at most this (CALIBRATION_POUR_MOST_TURNS)
 CUP_WEIGHT = 77.3
 SCALE_RESULT = {"settle_ms": 270.0, "lag": [{"flow_per_s": 0.19, "ms": 920.0}, {"flow_per_s": 0.39, "ms": 870.0},
                                             {"flow_per_s": 0.77, "ms": 640.0}, {"flow_per_s": 2.9, "ms": 600.0},
@@ -163,7 +163,7 @@ class CalibrationMock:
                 return 400, error("out_of_range", "above 0, and no more than the pour held")
             if job["step"] != "fill":
                 return 409, error("not_filling", "the cup is not being filled")
-            job["pour_turns"] = min(job["pour_turns"] + turns, POUR_MOST_TURNS)
+            job["pour_turns"] = max(job["pour_turns"], turns)
             return 200, self.reply()
         if method == "POST" and path == f"{PATH}/answer":
             answer = body.get("answer")

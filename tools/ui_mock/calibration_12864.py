@@ -31,9 +31,9 @@ DEFAULT_OUT = REPO / "docs" / "developments_plans" / "ADR-009-controller_and_tun
 def fill_job(panel, weight):
     """
     The cup filled by the knob: a job whose title is what the person does, its figure the powder in the cup, its line
-    what the knob does now. Each detent clockwise turns the coarse tube a quarter turn (a whole turn when the knob is
-    turned quickly), at most about a second of turning held, so the tube stops when the knob does; the other way does
-    nothing. The turn pours instead of moving between the softkeys: the click is Full (drawn focused), Back is Cancel.
+    what the knob does now. Each detent clockwise has the coarse tube turn a quarter turn from now, extending a pour
+    under way and never adding to it, so a knob turned faster than the tube pours loses its extra detents and the tube
+    stops when the knob does; the other way does nothing. The turn pours instead of moving between the softkeys: the click is Full (drawn focused), Back is Cancel.
 
     Args:
         panel: the Panel.

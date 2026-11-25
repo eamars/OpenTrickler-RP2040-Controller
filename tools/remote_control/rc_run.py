@@ -4236,11 +4236,11 @@ def cup_most(args):
             elif words[0] == "calibrate" and words[1] in ("scale", "powder"):
                 most += sum(calibration_turns_most(words[1]).values()) * CUP_GR_A_TURN_MOST
             elif words[0] == "calibrate":
-                # a pour: its turns of the coarse tube, the unit holding no more than 2 (CALIBRATION_POUR_MOST_TURNS)
+                # a pour: its turns of the coarse tube, the unit taking no more than 0.5 (CALIBRATION_POUR_MOST_TURNS)
                 try:
-                    turns = min(max(float(words[2]), 0.0), 2.0)
+                    turns = min(max(float(words[2]), 0.0), 0.5)
                 except (IndexError, ValueError):
-                    turns = 2.0
+                    turns = 0.5
                 most += turns * CUP_GR_A_TURN_MOST
             else:
                 most += 100.0           # a purge or a cleanup: its own time
