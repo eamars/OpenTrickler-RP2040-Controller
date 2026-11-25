@@ -642,6 +642,9 @@ uint8_t calibration_job_run(void) {
 
 calibration_start_result_t calibration_request_start(calibration_part_t part, int profile, activity_by_t by) {
     activity_t asked_before;
+    if (part != CALIBRATION_PART_NONE) {
+        charge_mode_yield(by);  // a charge waiting between throws, the cup back, ends first (ADR-009, gate 3)
+    }
     if (part == CALIBRATION_PART_NONE || activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) ||
         menu_get_current_form_id() < 0) {
         return CALIBRATION_START_BUSY;

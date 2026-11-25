@@ -24,6 +24,10 @@
 #include "servo_gate.h"
 #include "menu.h"
 #include "jobs.h"
+#include "settings.h"
+#include "charge_controller.h"
+#include "charge_tuner.h"
+#include "pico/time.h"
 
 
 uint8_t charge_weight_digits[] = {0, 0, 0, 0, 0};
@@ -62,6 +66,8 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     // The calibration's cup: never calibrated
     .cup_capacity = -1.0f,
     .cup_weight = -1.0f,
+
+    .auto_tune = true,
 };
 
 // Configures
@@ -134,58 +140,158 @@ static void charge_mode_log_stopped(activity_by_t by, event_reason_t reason) {
     events_add(&stopped);
 }
 
-// Coarse trickler end-of-trickle backoff
-#define COARSE_STOP_BACKOFF_MAX_MS 15000  // safety cap
+/*
+    ADR-009 step 2: the charge on the controller (charge_controller.c) and the auto-tuner (charge_tuner.c), kept for
+    good: the weight a turn carried from throw to throw and the tuner's windows, in RAM, taken from the heap at the
+    first charge (the Pico W has no static RAM to spare). The throw's room is borrowed from the heap while a charge
+    runs. Both begin afresh at a start of the unit, at a change of powder or of the scale's
+    unit, and the tuner when the profile's kp is changed elsewhere or the switch is turned
+*/
+typedef struct {
+    charge_controller_t controller;
+    charge_tuner_t tuner;
+} charge_step2_t;
+static charge_step2_t * step2 = NULL;           // from the heap at the first charge, kept from then on
+static charge_room_t * charge_room = NULL;
+static int charge_tuned_profile = -1;           // the powder they are for; -1 none yet
+static char charge_tuned_unit[4] = "";          // the scale's unit then
+static bool charge_tuning = false;              // the switch then
+static float charge_profile_kp = NAN;           // the profile's kp as last seen or written
+static double charge_kp = NAN;                  // the fine kp the next throw is thrown on: the tuner's, or the profile's
+static double charge_kp_thrown = NAN;
+// Between throws: the cup back and the pan steady at zero, the person's press awaited (the owner, 2026-11-25)
+static volatile bool charge_ready = false;
+static volatile bool charge_next_asked = false;
+static activity_by_t charge_next_by = ACTIVITY_BY_BUTTON;
 
-static bool coarse_backoff_in_progress = false;
-static TickType_t coarse_backoff_end_tick = 0;
+// What the controller costs, since the unit started
+static uint32_t charge_tick_most_us = 0;
+static uint32_t charge_reading_most_us = 0;
+static uint64_t charge_tick_sum_us = 0;
+static uint64_t charge_reading_sum_us = 0;
+static uint32_t charge_tick_count = 0;
+static uint32_t charge_reading_count = 0;
+static size_t charge_heap_low = SIZE_MAX;
 
-static void coarse_trickler_backoff(float min_output_speed_rps) {
-    if (!charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_enable) {
-        return;
+// Step 1's scale never calibrated: the defaults the simulation takes where a part was never run (step2.py)
+#define CHARGE_DEFAULT_SETTLE_S 1.0f
+#define CHARGE_DEFAULT_LAG_FLOW 1.0f
+#define CHARGE_DEFAULT_LAG_S 0.8f
+// The cup never calibrated: a reading this far under zero is a lifted cup, as the cup's removal is told today
+#define CHARGE_LIFT_UNCALIBRATED (-10.0f)
+
+
+static void charge_step2_configure(profile_t * profile) {
+    eeprom_charge_mode_data_t * data = &charge_mode_config.eeprom_charge_mode_data;
+    const char * unit = scale_get_unit();
+    int idx = (int) profile_get_selected_idx();
+    bool same = idx == charge_tuned_profile && strncmp(unit ? unit : "", charge_tuned_unit, sizeof(charge_tuned_unit)) == 0;
+    if (!same) {
+        // Another powder or another unit of weight: nothing carried holds
+        charge_controller_init(&step2->controller);
+        charge_tuned_profile = idx;
+        snprintf(charge_tuned_unit, sizeof(charge_tuned_unit), "%s", unit ? unit : "");
+    }
+    if (!same || data->auto_tune != charge_tuning || profile->fine_kp != charge_profile_kp) {
+        charge_tuner_init(&step2->tuner, data->fine_stop_threshold);
+        charge_tuning = data->auto_tune;
+        charge_profile_kp = profile->fine_kp;
+        charge_kp = profile->fine_kp;
+        printf("Charge: the tuner begins afresh from kp %.4f\n", (double) profile->fine_kp);
+    }
+    step2->tuner.tolerance = data->fine_stop_threshold;
+    if (!data->auto_tune) {
+        charge_kp = profile->fine_kp;
     }
 
-    float backoff_turns = charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_turns;
-    if (backoff_turns <= 0.0f) {
-        return;
+    charge_config_t * config = &step2->controller.config;
+    config->coarse.kp = profile->coarse_kp;
+    config->coarse.ki = profile->coarse_ki;
+    config->coarse.kd = profile->coarse_kd;
+    config->coarse.least_rps = fmaxf(get_motor_min_speed(SELECT_COARSE_TRICKLER_MOTOR), profile->coarse_min_flow_speed_rps);
+    config->coarse.most_rps = fminf(get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR), profile->coarse_max_flow_speed_rps);
+    config->fine.kp = (float) charge_kp;
+    config->fine.ki = profile->fine_ki;
+    config->fine.kd = profile->fine_kd;
+    config->fine.least_rps = fmaxf(get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR), profile->fine_min_flow_speed_rps);
+    config->fine.most_rps = fminf(get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR), profile->fine_max_flow_speed_rps);
+    config->coarse_threshold = data->coarse_stop_threshold;
+    config->backoff_enable = data->coarse_stop_backoff_enable;
+    config->backoff_turns = data->coarse_stop_backoff_turns;
+    config->backoff_rps = data->coarse_stop_backoff_speed_rps;
+    // Step 1's records, slowest flow first, those never measured left out; none, the defaults
+    const eeprom_scale_data_t * scale = &scale_config.persistent_config;
+    config->settle_s = scale->settle_ms > 0.0f ? scale->settle_ms / 1000.0f : CHARGE_DEFAULT_SETTLE_S;
+    config->lag_count = 0;
+    for (int i = 0; i < SCALE_LAG_POINTS && config->lag_count < CHARGE_LAG_POINTS; i++) {
+        if (scale->lag[i].flow_per_s > 0.0f && scale->lag[i].lag_ms > 0.0f) {
+            config->lag_flow_per_s[config->lag_count] = scale->lag[i].flow_per_s;
+            config->lag_s[config->lag_count] = scale->lag[i].lag_ms / 1000.0f;
+            config->lag_count++;
+        }
     }
-
-    float configured_speed = charge_mode_config.eeprom_charge_mode_data.coarse_stop_backoff_speed_rps;
-    float backoff_speed = configured_speed;
-    if (backoff_speed <= 0.0f) {
-        backoff_speed = min_output_speed_rps;
+    if (config->lag_count == 0) {
+        config->lag_flow_per_s[0] = CHARGE_DEFAULT_LAG_FLOW;
+        config->lag_s[0] = CHARGE_DEFAULT_LAG_S;
+        config->lag_count = 1;
     }
-
-    if (backoff_speed <= 0.0f) {
-        return;
-    }
-
-    float backoff_time_s = backoff_turns / fabsf(backoff_speed);
-    uint32_t backoff_time_ms = (uint32_t)(backoff_time_s * 1000.0f);
-
-    if (backoff_time_ms == 0) {
-        return;
-    }
-
-    if (backoff_time_ms > COARSE_STOP_BACKOFF_MAX_MS) {
-        backoff_time_ms = COARSE_STOP_BACKOFF_MAX_MS;
-    }
-
-    motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, -fabsf(backoff_speed));
-    coarse_backoff_in_progress = true;
-    coarse_backoff_end_tick = xTaskGetTickCount() + pdMS_TO_TICKS(backoff_time_ms);
+    config->acceleration_rps2 = motor_get_acceleration(SELECT_FINE_TRICKLER_MOTOR);
+    charge_kp_thrown = charge_kp;
 }
 
 
-// Change of the error per millisecond, for the D term (PR #113). 0 on a throw's first reading: the last error is
-// still 0 there, so the whole error counted as its change, and the coarse trickler was given up to three times what
-// its P term asks until the next reading (ADR-002, seen on the unit). 0 when no time has passed since the last
-// reading: the plain division gives inf or NaN, which the speed limits turn into the maximum speed.
-static float error_derivative(float error, float last_error, float elapse_time_ms, bool first_sample) {
-    if (first_sample || elapse_time_ms <= 0.0f) {
-        return 0.0f;
+// The throw at rest, its verdict read: its own weight a turn carried, and its weight and time given to the tuner. A
+// window closed, the next window's kp is the tuner's; a better kp kept is written into the powder's profile and stored
+static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
+    charge_controller_at_rest(&step2->controller, reading);
+    double carried;
+    if (charge_controller_carried(&step2->controller, &carried)) {
+        printf("Charge: carried weight a turn %.4f\n", carried);
     }
-    return (error - last_error) / elapse_time_ms;
+    if (!charge_mode_config.eeprom_charge_mode_data.auto_tune) {
+        return;
+    }
+    double next_kp;
+    charge_tuner_step_t step = charge_tuner_throw(&step2->tuner, charge_kp_thrown, (double) reading - target, elapsed_s,
+                                                  &next_kp);
+    if (step == CHARGE_TUNER_THROWING) {
+        return;
+    }
+    static const char * const said[] = {"throwing", "first window", "resting", "the kept kp again", "kept",
+                                        "put back, the other way", "put back both ways"};
+    printf("Tuner: %s, kp %.4f; next %.4f, kept %.4f\n", said[step], charge_kp_thrown, next_kp, step2->tuner.base_kp);
+    charge_kp = next_kp;
+    if (step != CHARGE_TUNER_KEPT) {
+        return;
+    }
+    char path[32];
+    char text[16];
+    snprintf(path, sizeof(path), "powder_profiles/%d", charge_tuned_profile);
+    snprintf(text, sizeof(text), "%.4f", step2->tuner.base_kp);
+    const char * why = settings_write_by(path, "fine_kp", text, ACTIVITY_BY_UNIT);
+    why = why != NULL ? why : settings_store_by(path, ACTIVITY_BY_UNIT);
+    if (why != NULL) {
+        printf("Tuner: kp %s not kept, %s\n", text, why);
+        return;
+    }
+    profile_t * profile = profile_get((uint16_t) charge_tuned_profile);
+    charge_profile_kp = profile != NULL ? profile->fine_kp : NAN;
+}
+
+
+static void charge_cost_add(uint32_t us, uint32_t * most, uint64_t * sum, uint32_t * count) {
+    *most = us > *most ? us : *most;
+    *sum += us;
+    *count += 1;
+}
+
+
+void charge_mode_get_cost(charge_cost_t * cost) {
+    cost->tick_most_us = charge_tick_most_us;
+    cost->tick_mean_us = charge_tick_count ? (uint32_t) (charge_tick_sum_us / charge_tick_count) : 0;
+    cost->reading_most_us = charge_reading_most_us;
+    cost->reading_mean_us = charge_reading_count ? (uint32_t) (charge_reading_sum_us / charge_reading_count) : 0;
+    cost->heap_low = charge_heap_low == SIZE_MAX ? 0 : (uint32_t) charge_heap_low;
 }
 
 
@@ -424,13 +530,12 @@ void charge_mode_wait_for_complete() {
 
     charge_start_tick = xTaskGetTickCount();
     charge_timer_running = true;
-    coarse_backoff_in_progress = false;
 
     // Set colour to under charge
     neopixel_led_set_colour(
         neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
-        charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
-        charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour, 
+        charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
+        charge_mode_config.eeprom_charge_mode_data.neopixel_under_charge_colour,
         true
     );
 
@@ -442,37 +547,24 @@ void charge_mode_wait_for_complete() {
     char target_weight_string[WEIGHT_STRING_LEN];
     float_to_string(target_weight_string, charge_mode_config.target_charge_weight, charge_mode_config.eeprom_charge_mode_data.decimal_places);
 
-    snprintf(title_string, sizeof(title_string), 
-             "Target: %s", 
+    snprintf(title_string, sizeof(title_string),
+             "Target: %s",
              target_weight_string);
 
-    // Read trickling parameter from the current profile
-    profile_t * current_profile = profile_get_selected();
-
-    // Find the minimum of max speed from the motor and the profile
-    float coarse_trickler_max_speed = fmin(get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR),
-                                           current_profile->coarse_max_flow_speed_rps);
-    float coarse_trickler_min_speed = fmax(get_motor_min_speed(SELECT_COARSE_TRICKLER_MOTOR),
-                                           current_profile->coarse_min_flow_speed_rps);
-    float fine_trickler_max_speed = fmin(get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR),
-                                         current_profile->fine_max_flow_speed_rps);
-    float fine_trickler_min_speed = fmax(get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR),
-                                         current_profile->fine_min_flow_speed_rps);
-
-    // Define PID terms
-    float coarse_trickler_integral = 0.0f;
-    float fine_trickler_integral = 0.0f;
-    float coarse_trickler_last_error = 0.0f;
-    float fine_trickler_last_error = 0.0f;
-
-    // Calculate target weight for coarse trickler
-    // The coarse trickler is suppose to stop ahead of the target weight by an offset
-    float coarse_trickler_target_charge_weight = fmaxf(0.0f, charge_mode_config.target_charge_weight - charge_mode_config.eeprom_charge_mode_data.coarse_stop_threshold);
-
-    TickType_t last_sample_tick = xTaskGetTickCount();
-    TickType_t current_sample_tick = last_sample_tick;
-    bool should_coarse_trickler_move = true;
-    bool first_sample = true;   // no D term before the second reading
+    // ADR-009 step 2: the throw on the controller, given its config from the profile, the charge settings and step 1's
+    // records, a tick each millisecond and each reading as it comes; it sets both tubes' speeds
+    charge_controller_t * controller = &step2->controller;
+    charge_step2_configure(profile_get_selected());
+    if (!charge_controller_start(controller, charge_room, charge_mode_config.target_charge_weight,
+                                 (double) time_us_64() / 1000.0)) {
+        charge_mode_scale_fault("No memory", EVENT_REASON_FAULT, 0, NULL);
+        return;
+    }
+    double carried;
+    bool has_carried = charge_controller_carried(controller, &carried);
+    printf("Charge: throw %u on fine kp %.4f, weight a turn %s%.4f\n", (unsigned) charge_throw_number,
+           (double) controller->config.fine.kp, has_carried ? "carried " : "its own, none yet ",
+           has_carried ? carried : 0.0);
 
     // A missing reading pauses the tricklers, and a lost scale ends the charge, by the scale's own rhythm (ADR-013)
     uint32_t usual_interval_ms = scale_get_usual_interval_ms();
@@ -489,30 +581,47 @@ void charge_mode_wait_for_complete() {
     printf("Charge: the scale's usual interval %lu ms; a pause after %lu ms without a reading, lost after %lu ms\n",
            (unsigned long) usual_interval_ms, (unsigned long) stale_ms, (unsigned long) lost_ms);
 
+    // A lifted cup is no light charge: a reading under half the empty cup's weight ends the throw (ADR-009 step 2)
+    float cup_weight = charge_mode_config.eeprom_charge_mode_data.cup_weight;
+    float lifted_under = cup_weight > 0.0f ? -cup_weight / 2.0f : CHARGE_LIFT_UNCALIBRATED;
+
+    bool coarse_moved = true;
+    double coarse_set = 0.0;
+    double fine_set = 0.0;
+    TickType_t wake = xTaskGetTickCount();
     while (true) {
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(1));
         if (charge_mode_stop_asked()) {
+            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
             charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
             return;
         }
+        // A motor driver that reports a fault, or no longer answers, ends the throw as a failed scale does (ADR-012)
+        if (charge_mode_end_on_motor_fault()) {
+            return;
+        }
 
-        // Run the PID controlled loop to start charging
-        // Perform the measurement: wait no longer than the stale point, and no more than 200 ms between button polls
+        uint32_t began_us = time_us_32();
+        charge_controller_tick(controller, (double) time_us_64() / 1000.0);
+        charge_cost_add(time_us_32() - began_us, &charge_tick_most_us, &charge_tick_sum_us, &charge_tick_count);
+
         float current_weight;
-        bool resumed = false;
-        uint32_t silent_ms = (xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS;
-        uint32_t wait_ms = silent_ms < stale_ms ? stale_ms - silent_ms : 1;
-        if (wait_ms > 200) {
-            wait_ms = 200;
-        }
-        if (scale_block_wait_for_next_measurement(wait_ms, &current_weight)) {
+        if (scale_take_new_measurement(&current_weight)) {
             last_reading_tick = xTaskGetTickCount();
-        }
-        else {
-            silent_ms = (xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS;
-            if (silent_ms < stale_ms) {
-                continue;
+            if (current_weight < lifted_under) {
+                printf("Charge: cup lifted, %.3f under %.3f\n", (double) current_weight, (double) lifted_under);
+                charge_mode_scale_fault("Cup lifted", EVENT_REASON_CUP_LIFTED, 0, NULL);
+                return;
             }
-
+            began_us = time_us_32();
+            charge_controller_reading(controller, (double) time_us_64() / 1000.0, current_weight);
+            charge_cost_add(time_us_32() - began_us, &charge_reading_most_us, &charge_reading_sum_us,
+                            &charge_reading_count);
+            size_t heap_free = xPortGetFreeHeapSize();
+            charge_heap_low = heap_free < charge_heap_low ? heap_free : charge_heap_low;
+        }
+        else if ((xTaskGetTickCount() - last_reading_tick) * portTICK_PERIOD_MS >= stale_ms) {
             pause_count += 1;
             charge_pause_result_t pause = charge_mode_pause(pause_count, lost_ms, &last_reading_tick, &current_weight);
             if (pause == CHARGE_PAUSE_EXIT) {
@@ -528,91 +637,36 @@ void charge_mode_wait_for_complete() {
                 return;
             }
             snprintf(title_string, sizeof(title_string), "Target: %s", target_weight_string);
-            resumed = true;
-        }
-        current_sample_tick = xTaskGetTickCount();
-
-        // A motor driver that reports a fault, or no longer answers, ends the throw as a failed scale does (ADR-012)
-        if (charge_mode_end_on_motor_fault()) {
-            return;
-        }
-
-        // Handle coarse trickler backoff stop
-        if (coarse_backoff_in_progress && (current_sample_tick >= coarse_backoff_end_tick)) {
-            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
-            coarse_backoff_in_progress = false;
+            // Both motors stood through the pause: counted from standing, and given the settled weight at once
+            double now_ms = (double) time_us_64() / 1000.0;
+            charge_controller_resume(controller, now_ms);
+            charge_controller_reading(controller, now_ms, current_weight);
+            coarse_set = 0.0;
+            fine_set = 0.0;
+            wake = xTaskGetTickCount();
         }
 
-        float coarse_trickler_error = coarse_trickler_target_charge_weight - current_weight;
-        float fine_trickler_error = charge_mode_config.target_charge_weight - current_weight;
-
-        // After a pause the D term starts again as on a first reading, so the gap makes no spike; the I term took
-        // nothing during it (ADR-013)
-        if (resumed) {
-            fine_trickler_last_error = fine_trickler_error;
-            coarse_trickler_last_error = coarse_trickler_error;
+        // The speeds asked, set as they change
+        if (controller->coarse_rps != coarse_set) {
+            coarse_set = controller->coarse_rps;
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, (float) coarse_set);
         }
-
-        // Fine & Coarse trickler stop condition
-        if (fine_trickler_error < charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold) {
-            // Stop all motors
+        if (controller->fine_rps != fine_set) {
+            fine_set = controller->fine_rps;
+            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, (float) fine_set);
+        }
+        // The coarse tube stopped for good: the servo gate to its ratio (0.0 open, 1.0 closed), as today
+        if (coarse_moved && !controller->coarse_moves) {
+            coarse_moved = false;
+            if (servo_gate_enabled()) {
+                servo_gate_set_ratio(charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio, false);
+            }
+        }
+        if (controller->done) {
             motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, 0);
             motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
-
             break;
         }
-
-        // Coarse trickler stop condition
-        else if (coarse_trickler_error <= 0 &&
-                 should_coarse_trickler_move) {
-
-            should_coarse_trickler_move = false;
-            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
-
-            // NEW: When the coarse trickler stops, move the servo gate to a configured ratio
-            // Ratio convention: 0.0 = open, 1.0 = close
-            if (servo_gate_enabled()) {
-                float r = charge_mode_config.eeprom_charge_mode_data.coarse_stop_gate_ratio;
-
-                servo_gate_set_ratio(r, false); // don't block the charge loop
-            }
-
-            // NEW: Reverse the coarse trickler for a short backoff (quarter turn).
-            coarse_trickler_backoff(coarse_trickler_min_speed);
-        }
-    
-
-        // Update fine trickler speed
-        float elapse_time_ms = (current_sample_tick - last_sample_tick) / portTICK_RATE_MS;
-        fine_trickler_integral += fine_trickler_error;
-        float fine_trickler_derivative = error_derivative(fine_trickler_error, fine_trickler_last_error, elapse_time_ms, first_sample);
-
-        // Update fine trickler speed
-        float new_p = current_profile->fine_kp * fine_trickler_error;
-        float new_i = current_profile->fine_ki * fine_trickler_integral;
-        float new_d = current_profile->fine_kd * fine_trickler_derivative;
-        float new_speed = fmaxf(fine_trickler_min_speed, fminf(new_p + new_i + new_d, fine_trickler_max_speed));
-        motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, new_speed);
-
-        // Update coarse trickler speed
-        if (should_coarse_trickler_move && !coarse_backoff_in_progress) {
-            coarse_trickler_integral += coarse_trickler_error;
-            float coarse_trickler_derivative = error_derivative(coarse_trickler_error, coarse_trickler_last_error, elapse_time_ms, first_sample);
-
-            new_p = current_profile->coarse_kp * coarse_trickler_error;
-            new_i = current_profile->coarse_ki * coarse_trickler_integral;
-            new_d = current_profile->coarse_kd * coarse_trickler_derivative ;
-
-            new_speed = fmaxf(coarse_trickler_min_speed, fminf(new_p + new_i + new_d, coarse_trickler_max_speed));
-
-            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, new_speed);
-        }
-
-        // Record state
-        last_sample_tick = current_sample_tick;
-        fine_trickler_last_error = fine_trickler_error;
-        coarse_trickler_last_error = coarse_trickler_error;
-        first_sample = false;
     }
 
     // Stop the timer
@@ -639,7 +693,7 @@ void charge_mode_wait_for_complete() {
         motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, 0);
     }
     else {
-        vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete  
+        vTaskDelay(pdMS_TO_TICKS(20));  // Wait for other tasks to complete
     }
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_CUP_REMOVAL;
@@ -651,8 +705,9 @@ void charge_mode_wait_for_cup_removal() {
 
     FloatRingBuffer data_buffer(5);
 
-    // Post charge analysis (while waiting for removal of the cup)
-    vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for other tasks to complete
+    // The verdict, read once the slowest lag and the settle time have passed after the stop (ADR-009 step 2): what
+    // was poured has landed and shows
+    vTaskDelay(pdMS_TO_TICKS((uint32_t) (charge_controller_verdict_after_s(&step2->controller) * 1000.0)));
 
     // Take current measurement
     float current_measurement = scale_get_current_measurement();
@@ -711,6 +766,8 @@ void charge_mode_wait_for_cup_removal() {
                         .value2 = last_charge_elapsed_seconds};
     events_add(&finished);
     activity_throw_end();
+    // Out of the throw, so a kp kept is written as any setting between throws
+    charge_step2_at_rest(current_measurement, charge_mode_config.target_charge_weight, last_charge_elapsed_seconds);
 
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)
     while (true) {
@@ -796,7 +853,117 @@ void charge_mode_wait_for_cup_return() {
         vTaskDelayUntil(&last_sample_tick, pdMS_TO_TICKS(20));
     }
 
-    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
+    charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_START;
+}
+
+
+/*
+    Between throws (ADR-009, gate 3): the cup back, the pan read steady at zero as the zero's wait reads it, then the
+    next throw waits for the person's press (the owner, 2026-11-25: "Only the part that needs human to put back the cup
+    should have the confirmation"). A reading that leaves zero before the press waits again. Not in a throw: what to
+    throw may be changed meanwhile, and another job asked ends the charge (charge_mode_yield)
+*/
+void charge_mode_wait_for_start() {
+    neopixel_led_set_colour(
+        neopixel_led_config.eeprom_neopixel_led_metadata.default_led_colours.mini12864_backlight_colour,
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
+        charge_mode_config.eeprom_charge_mode_data.neopixel_not_ready_colour,
+        true
+    );
+    snprintf(title_string, sizeof(title_string), "Waiting for Zero");
+    FloatRingBuffer data_buffer(10);
+    uint32_t zero_count = scale_get_zero_count();
+    uint8_t readings_since_zero = 0;
+    charge_ready = false;
+    charge_next_asked = false;
+
+    while (true) {
+        TickType_t last_measurement_tick = xTaskGetTickCount();
+        if (charge_mode_stop_asked()) {
+            charge_ready = false;
+            charge_mode_config.charge_mode_state = CHARGE_MODE_EXIT;
+            return;
+        }
+        if (charge_mode_end_on_motor_fault()) {
+            charge_ready = false;
+            return;
+        }
+
+        float current_measurement;
+        if (scale_block_wait_for_next_measurement(300, &current_measurement)) {
+            data_buffer.enqueue(current_measurement);
+            if (readings_since_zero < UINT8_MAX) {
+                readings_since_zero += 1;
+            }
+        }
+        if (scale_get_zero_count() != zero_count) {
+            zero_count = scale_get_zero_count();
+            readings_since_zero = 0;
+        }
+        bool steady = data_buffer.getCounter() >= 10 && readings_since_zero >= 10 &&
+                      data_buffer.getSd() < charge_mode_config.eeprom_charge_mode_data.set_point_sd_margin &&
+                      fabsf(data_buffer.getMean()) < charge_mode_config.eeprom_charge_mode_data.set_point_mean_margin;
+        if (steady != charge_ready) {
+            charge_ready = steady;
+            charge_next_asked = false;      // a press is for the steady zero it was given on
+            snprintf(title_string, sizeof(title_string), "%s", steady ? "Ready" : "Waiting for Zero");
+        }
+
+        if (charge_ready && charge_next_asked) {
+            // Into the throw under the lock the API's zero takes, and only with no zero asked since
+            activity_lock();
+            bool zero_since = scale_get_zero_count() != zero_count;
+            if (!zero_since) {
+                charge_ready = false;
+                charge_next_asked = false;
+                activity_throw_begin();
+                charge_throw_number += 1;
+                charge_paused = false;
+                event_t throw_started = {.source = EVENT_SOURCE_THROW, .kind = EVENT_STARTED,
+                                         .by = (uint8_t) charge_next_by, .throw_number = charge_throw_number,
+                                         .number = (uint8_t) profile_get_selected_idx(),
+                                         .value = charge_mode_config.target_charge_weight};
+                events_add(&throw_started);
+                charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_COMPLETE;
+            }
+            activity_unlock();
+            if (!zero_since) {
+                return;
+            }
+            zero_count = scale_get_zero_count();
+            readings_since_zero = 0;
+            charge_next_asked = false;
+        }
+
+        vTaskDelayUntil(&last_measurement_tick, pdMS_TO_TICKS(300));
+    }
+}
+
+
+bool charge_mode_request_next(activity_by_t by) {
+    if (activity_get() != ACTIVITY_CHARGE || charge_mode_config.charge_mode_state != CHARGE_MODE_WAIT_FOR_START ||
+        !charge_ready) {
+        return false;
+    }
+    charge_next_by = by;
+    charge_next_asked = true;
+    return true;
+}
+
+
+bool charge_mode_yield(activity_by_t by) {
+    if (activity_get() != ACTIVITY_CHARGE || charge_mode_config.charge_mode_state != CHARGE_MODE_WAIT_FOR_START) {
+        return true;
+    }
+    printf("Charge: ended for another job, between throws\n");
+    activity_request_stop(ACTIVITY_CHARGE, by);
+    for (int waited_ms = 0; waited_ms < 2000; waited_ms += 20) {
+        if (activity_get() == ACTIVITY_NONE && menu_get_current_form_id() >= 0) {
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    return false;
 }
 
 
@@ -817,6 +984,7 @@ uint8_t charge_mode_menu(void) {
 
     // A new charge: no fault of the last one on its screen
     charge_ended_on_fault = false;
+    charge_ready = false;
 
     // The charge is the unit's job until it ends (ADR-003, gate 3): the motors' settings are refused meanwhile. Its
     // start is logged with who asked (gate 4)
@@ -838,6 +1006,23 @@ uint8_t charge_mode_menu(void) {
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, true);
 
     charge_mode_config.charge_mode_state = CHARGE_MODE_WAIT_FOR_ZERO;
+
+    // The controller and the tuner, kept from the first charge on, and the room for each throw, borrowed while the
+    // charge runs (ADR-009, gate 3); none to have, the charge ends at once and says why
+    if (step2 == NULL) {
+        step2 = (charge_step2_t *) pvPortMalloc(sizeof(charge_step2_t));
+        if (step2 != NULL) {
+            charge_controller_init(&step2->controller);
+            charge_tuner_init(&step2->tuner, charge_mode_config.eeprom_charge_mode_data.fine_stop_threshold);
+            charge_tuned_profile = -1;
+        }
+    }
+    charge_room = step2 != NULL ? (charge_room_t *) pvPortMalloc(sizeof(charge_room_t)) : NULL;
+    if (charge_room == NULL) {
+        printf("Charge: no room for the controller, %u and %u bytes\n", (unsigned) sizeof(charge_step2_t),
+               (unsigned) sizeof(charge_room_t));
+        charge_mode_scale_fault("No memory", EVENT_REASON_FAULT, 0, NULL);
+    }
 
     bool quit = false;
     while (quit == false) {
@@ -865,6 +1050,9 @@ uint8_t charge_mode_menu(void) {
             case CHARGE_MODE_WAIT_FOR_CUP_RETURN:
                 charge_mode_wait_for_cup_return();
                 break;
+            case CHARGE_MODE_WAIT_FOR_START:
+                charge_mode_wait_for_start();
+                break;
             case CHARGE_MODE_EXIT:
             default:
                 quit = true;
@@ -881,6 +1069,11 @@ uint8_t charge_mode_menu(void) {
     // Diable motors on exiting the mode
     motor_enable(SELECT_COARSE_TRICKLER_MOTOR, false);
     motor_enable(SELECT_FINE_TRICKLER_MOTOR, false);
+    charge_ready = false;
+    if (charge_room != NULL) {
+        vPortFree(charge_room);
+        charge_room = NULL;
+    }
 
     // The job is over, a throw cut short with it (ADR-003, gates 3 and 4): logged, unless a fault logged it
     charge_mode_throw_ended(EVENT_REASON_STOPPED, 0, NULL);
@@ -1038,6 +1231,7 @@ void charge_mode_get_status(charge_status_t * status) {
             case CHARGE_MODE_WAIT_FOR_COMPLETE: status->state = "charging"; break;
             case CHARGE_MODE_WAIT_FOR_CUP_REMOVAL: status->state = "waiting_for_cup_removal"; break;
             case CHARGE_MODE_WAIT_FOR_CUP_RETURN: status->state = "waiting_for_cup_return"; break;
+            case CHARGE_MODE_WAIT_FOR_START: status->state = charge_ready ? "waiting_for_start" : "zeroing"; break;
             default: status->state = "idle"; break;
         }
     }

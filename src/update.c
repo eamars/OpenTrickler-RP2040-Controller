@@ -39,6 +39,7 @@
 #include "http_server.h"
 #include "https_client.h"
 #include "menu.h"
+#include "charge_mode.h"
 #include "jobs.h"
 #include "mini_12864_module.h"
 #include "picobin_image.h"
@@ -656,6 +657,7 @@ static update_start_result_t update_request(activity_by_t by, bool download) {
         return UPDATE_START_ON_TRIAL;
     }
     activity_t asked_before;
+    charge_mode_yield(by);      // a charge waiting between throws, the cup back, ends first (ADR-009, gate 3)
     if (activity_get() != ACTIVITY_NONE || activity_start_pending(&asked_before) || menu_get_current_form_id() < 0) {
         return UPDATE_START_BUSY;
     }

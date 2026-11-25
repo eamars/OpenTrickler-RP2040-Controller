@@ -1676,6 +1676,7 @@ typedef enum {
     JOB_ACTION_ZERO,
     JOB_ACTION_CHANGE,
     JOB_ACTION_ACKNOWLEDGE,
+    JOB_ACTION_START,
 } job_action_t;
 
 
@@ -1692,6 +1693,10 @@ static job_action_t charge_action(void) {
     if (strcmp(charge.state, "zeroing") == 0) {
         return JOB_ACTION_ZERO;
     }
+    // The cup back and steady at zero: the next throw waits for the person's click (ADR-009, gate 3)
+    if (strcmp(charge.state, "waiting_for_start") == 0) {
+        return JOB_ACTION_START;
+    }
     // Between throws only: the API refuses a target or a powder in a throw
     bool between = strcmp(charge.state, "waiting_for_cup_return") == 0 ||
                    strcmp(charge.state, "waiting_for_cup_removal") == 0;
@@ -1707,6 +1712,7 @@ static const char *job_action_name(job_action_t action) {
         case JOB_ACTION_ZERO: return "Zero";
         case JOB_ACTION_CHANGE: return "Change";
         case JOB_ACTION_ACKNOWLEDGE: return "OK";
+        case JOB_ACTION_START: return "Start";
         case JOB_ACTION_NONE:
         default: return "";
     }
@@ -2027,6 +2033,9 @@ static void job_key(frame_t *frame, menu_key_t key) {
                     break;
                 case JOB_ACTION_ACKNOWLEDGE:
                     activity_request_stop(ACTIVITY_CHARGE, ACTIVITY_BY_BUTTON);
+                    break;
+                case JOB_ACTION_START:
+                    charge_mode_request_next(ACTIVITY_BY_BUTTON);
                     break;
                 case JOB_ACTION_NONE:
                     break;
@@ -2833,6 +2842,9 @@ static const char *charge_state_text(const char *state) {
     }
     if (strcmp(state, "waiting_for_cup_return") == 0) {
         return "Return the cup";
+    }
+    if (strcmp(state, "waiting_for_start") == 0) {
+        return "Ready";
     }
     if (strcmp(state, "starting") == 0) {
         return "Starting";

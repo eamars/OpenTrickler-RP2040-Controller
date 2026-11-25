@@ -83,7 +83,7 @@ void charge_controller_init(charge_controller_t *controller) {
 
 
 static const charge_parcel_t *parcel_at(const charge_controller_t *controller, int i) {
-    return &controller->parcels[controller->parcel_first + i];
+    return &controller->room->parcels[controller->parcel_first + i];
 }
 
 
@@ -114,11 +114,11 @@ static void parcel_keep(charge_controller_t *controller, double at_s, double tur
             controller->parcel_count--;
             controller->fit_cut = true;
         }
-        memmove(controller->parcels, &controller->parcels[controller->parcel_first],
+        memmove(controller->room->parcels, &controller->room->parcels[controller->parcel_first],
                 (size_t) controller->parcel_count * sizeof(charge_parcel_t));
         controller->parcel_first = 0;
     }
-    charge_parcel_t *parcel = &controller->parcels[controller->parcel_first + controller->parcel_count];
+    charge_parcel_t *parcel = &controller->room->parcels[controller->parcel_first + controller->parcel_count];
     parcel->turns = (float) turns;
     parcel->at_ms = (uint32_t) lround(at_s * 1000.0 - controller->start_ms);
     parcel->ms = (uint32_t) lround((now_s - at_s) * 1000.0);
@@ -136,7 +136,7 @@ static void air_add(charge_controller_t *controller, double due_s, double turns)
     if (controller->air_count == CHARGE_AIR_MAX) {
         return;                         // never on the lags a scale has: the oldest parcels show first
     }
-    charge_air_t *air = &controller->air[(controller->air_first + controller->air_count) % CHARGE_AIR_MAX];
+    charge_air_t *air = &controller->room->air[(controller->air_first + controller->air_count) % CHARGE_AIR_MAX];
     air->due_s = due_s;
     air->turns = (float) turns;
     controller->air_count++;
@@ -144,11 +144,12 @@ static void air_add(charge_controller_t *controller, double due_s, double turns)
 }
 
 
-bool charge_controller_start(charge_controller_t *controller, double target, double now_ms) {
+bool charge_controller_start(charge_controller_t *controller, charge_room_t *room, double target, double now_ms) {
     const charge_config_t *config = &controller->config;
-    if (config->lag_count < 1 || config->lag_count > CHARGE_LAG_POINTS) {
+    if (room == NULL || config->lag_count < 1 || config->lag_count > CHARGE_LAG_POINTS) {
         return false;
     }
+    controller->room = room;
     controller->start_ms = now_ms;
     controller->target = target;
     controller->coarse_target = fmax(0.0, target - config->coarse_threshold);
@@ -224,8 +225,8 @@ void charge_controller_tick(charge_controller_t *controller, double now_ms) {
         controller->parcel = 0.0;
         controller->parcel_start_s = now;
     }
-    while (controller->air_count > 0 && controller->air[controller->air_first].due_s <= now) {
-        controller->unseen -= controller->air[controller->air_first].turns;
+    while (controller->air_count > 0 && controller->room->air[controller->air_first].due_s <= now) {
+        controller->unseen -= controller->room->air[controller->air_first].turns;
         controller->air_first = (controller->air_first + 1) % CHARGE_AIR_MAX;
         controller->air_count--;
     }
@@ -257,7 +258,7 @@ static bool fit(charge_controller_t *controller, double *k_out) {
     bool first = true;
     for (int round = 0; round < FIT_ROUNDS; round++) {
         for (int r = 0; r < rows; r++) {
-            controller->shown_at_row[r] = 0.0;
+            controller->room->shown_at_row[r] = 0.0;
         }
         for (int i = 0; i < controller->parcel_count; i++) {
             const charge_parcel_t *parcel = parcel_at(controller, i);
@@ -267,32 +268,32 @@ static bool fit(charge_controller_t *controller, double *k_out) {
             int lo = 0, hi = rows;
             while (lo < hi) {
                 int mid = (lo + hi) / 2;
-                if ((controller->start_ms / 1000.0 + controller->rows[mid].t_s) < due) {
+                if ((controller->start_ms / 1000.0 + controller->room->rows[mid].t_s) < due) {
                     lo = mid + 1;
                 } else {
                     hi = mid;
                 }
             }
             if (lo > 0 && lo < rows) {
-                controller->shown_at_row[lo] += parcel->turns;
+                controller->room->shown_at_row[lo] += parcel->turns;
             }
         }
         // x: the turns shown since the first reading; the least squares' slope of the weights on it
         double x = 0.0, sum_x = 0.0, sum_w = 0.0;
         for (int r = 0; r < rows; r++) {
-            x += controller->shown_at_row[r];
-            controller->shown_at_row[r] = x;
+            x += controller->room->shown_at_row[r];
+            controller->room->shown_at_row[r] = x;
             sum_x += x;
-            sum_w += controller->rows[r].weight;
+            sum_w += controller->room->rows[r].weight;
         }
         if (x < KNOWN_TURNS) {
             return false;
         }
         double mean_x = sum_x / rows, mean_w = sum_w / rows, sxx = 0.0, sxw = 0.0;
         for (int r = 0; r < rows; r++) {
-            double dx = controller->shown_at_row[r] - mean_x;
+            double dx = controller->room->shown_at_row[r] - mean_x;
             sxx += dx * dx;
-            sxw += dx * (controller->rows[r].weight - mean_w);
+            sxw += dx * (controller->room->rows[r].weight - mean_w);
         }
         k = sxw / sxx;
         if (!(k > 0.0)) {
@@ -362,7 +363,7 @@ static void rest_begin(charge_controller_t *controller, double quiet_s, double w
                 controller->rest_cut = true;
                 continue;
             }
-            controller->edge[controller->edge_count++] = *parcel;
+            controller->room->edge[controller->edge_count++] = *parcel;
         }
     }
 }
@@ -412,7 +413,7 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
             rest_begin(controller, now_ms / 1000.0, weight);
         }
         if (controller->row_count < CHARGE_ROWS_MAX) {
-            charge_row_t *row = &controller->rows[controller->row_count++];
+            charge_row_t *row = &controller->room->rows[controller->row_count++];
             row->t_s = (float) ((now_ms - controller->start_ms) / 1000.0);
             row->weight = (float) weight;
         } else {
@@ -466,6 +467,23 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
 }
 
 
+void charge_controller_resume(charge_controller_t *controller, double now_ms) {
+    const charge_config_t *config = &controller->config;
+    double now = now_ms / 1000.0;
+    if (controller->parcel > 0.0 && controller->last_tick_s > controller->parcel_start_s) {
+        double speed = controller->parcel / (controller->last_tick_s - controller->parcel_start_s);
+        parcel_keep(controller, controller->parcel_start_s, controller->parcel, controller->last_tick_s);
+        air_add(controller, controller->parcel_start_s +
+                            lag_at(config, speed * (controller->k_known ? controller->k : 0.0)), controller->parcel);
+    }
+    controller->parcel = 0.0;
+    controller->parcel_start_s = now;
+    controller->last_tick_s = now;
+    controller->fine_speed = 0.0;
+    controller->first_sample = true;
+}
+
+
 double charge_controller_verdict_after_s(const charge_controller_t *controller) {
     return lag_most(&controller->config) + controller->config.settle_s;
 }
@@ -482,7 +500,7 @@ void charge_controller_at_rest(charge_controller_t *controller, double reading) 
     // The fine turns not yet shown at the quiet: every parcel due after it, and the one being turned out
     double alone = controller->parcel + controller->rest_certain;
     for (int i = 0; i < controller->edge_count; i++) {
-        const charge_parcel_t *parcel = &controller->edge[i];
+        const charge_parcel_t *parcel = &controller->room->edge[i];
         if (parcel_at_s(controller, parcel) + lag_at(config, parcel_speed(parcel) * k) > quiet) {
             alone += parcel->turns;
         }

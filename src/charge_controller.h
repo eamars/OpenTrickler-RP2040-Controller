@@ -71,9 +71,21 @@ typedef struct {
 } charge_air_t;
 
 /*
+ * A throw's room: the fine tube's parcels and the readings it keeps, some 28 KB. The charge borrows it while it runs
+ * and gives it back after (charge_controller_start); the controller itself stays small and is kept for good
+ */
+typedef struct {
+    charge_air_t air[CHARGE_AIR_MAX];               // a ring, in the order turned out
+    charge_parcel_t parcels[CHARGE_PARCELS_MAX];    // from parcels[parcel_first], parcel_count of them
+    charge_row_t rows[CHARGE_ROWS_MAX];
+    double shown_at_row[CHARGE_ROWS_MAX];           // the fit's room: turns first shown at each reading
+    charge_parcel_t edge[CHARGE_EDGE_MAX];          // the rest's edge (below)
+} charge_room_t;
+
+/*
  * The controller: its config, set before each throw (the tuner changes the fine kp between throws); what it gives
  * back (each tube's speed asked, rev/s, negative to turn back; done once it has stopped); the weights a turn it
- * carries from throw to throw; and the throw's own state. Some 28 KB: the caller says where it lives.
+ * carries from throw to throw; and the throw's own state, its room lent for the throw
  */
 typedef struct {
     charge_config_t config;
@@ -111,19 +123,16 @@ typedef struct {
     bool held;                          // the fine PID's speed held at a limit: its integral held
     bool fit_cut;                       // parcels or readings past their room: the throw's own held as last found
 
+    charge_room_t *room;                // lent for the throw
     double unseen;                      // the air's turns
-    charge_air_t air[CHARGE_AIR_MAX];   // a ring, in the order turned out
     int air_first;
     int air_count;
 
-    charge_parcel_t parcels[CHARGE_PARCELS_MAX];    // from parcels[parcel_first], parcel_count of them
     int parcel_first;
     int parcel_count;
     int parcels_most;                   // the most kept at once in this throw
 
-    charge_row_t rows[CHARGE_ROWS_MAX];
     int row_count;
-    double shown_at_row[CHARGE_ROWS_MAX];   // the fit's room: turns first shown at each reading
 
     // The throw's rest, from the first reading after the quiet: the fine turns not yet shown then are the parcels due
     // after it, those turned out since its quickest lag before it for certain, those of the edge by their own lag
@@ -132,7 +141,6 @@ typedef struct {
     double rest_at_quiet;
     double rest_certain;
     bool rest_cut;                      // the edge past its room: no carry renewed
-    charge_parcel_t edge[CHARGE_EDGE_MAX];
     int edge_count;
 } charge_controller_t;
 
@@ -143,8 +151,9 @@ extern "C" {
 // A controller with nothing carried: as after a start of the unit
 void charge_controller_init(charge_controller_t *controller);
 
-// A throw begins: its target, at now_ms. False when its config cannot be used (no lag table)
-bool charge_controller_start(charge_controller_t *controller, double target, double now_ms);
+// A throw begins: its target, at now_ms, in the room lent for it (kept until the throw is at rest). False when its
+// config cannot be used (no lag table) or no room is lent
+bool charge_controller_start(charge_controller_t *controller, charge_room_t *room, double target, double now_ms);
 
 // Each millisecond: the fine tube's turns counted, the air's due parcels shown, the stop the moment the forecast
 // reaches the target
@@ -152,6 +161,10 @@ void charge_controller_tick(charge_controller_t *controller, double now_ms);
 
 // Each reading of the scale, after the millisecond's tick: both tubes' speeds
 void charge_controller_reading(charge_controller_t *controller, double now_ms, double weight);
+
+// A pause's end (ADR-013: both motors were stopped for want of readings): the fine tube counted from standing, the
+// parcel being turned out closed where the pause began, the D term begun again as on a first reading
+void charge_controller_resume(charge_controller_t *controller, double now_ms);
 
 // How long after the stop the verdict is read: the slowest lag and the settle time
 double charge_controller_verdict_after_s(const charge_controller_t *controller);

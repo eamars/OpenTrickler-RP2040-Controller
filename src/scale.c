@@ -609,6 +609,15 @@ uint32_t scale_get_usual_interval_ms(void) {
 }
 
 
+bool scale_take_new_measurement(float * current_measurement) {
+    if (xSemaphoreTake(scale_config.scale_measurement_ready, 0) == pdTRUE) {
+        *current_measurement = scale_get_current_measurement();
+        return true;
+    }
+    return false;
+}
+
+
 /*
     Block wait for the next available measurement.
 

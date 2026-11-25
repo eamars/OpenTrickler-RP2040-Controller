@@ -131,7 +131,7 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | throw | paused | `throw`, `pause`: its number in the throw (ADR-013: no reading for 3 of the scale's intervals) |
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
-| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault), and for a driver's fault its `motor` and `fault` |
+| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault, cup_lifted), and for a driver's fault its `motor` and `fault` |
 | purge | started | `by` |
 | purge | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
 | motors | fault, cleared | `motor`, `fault` |
@@ -152,9 +152,10 @@ Later ADRs add sources and kinds (the rules above). **`?wait=s`** (1 to 30): the
 
 | Method and path | Body | Reply |
 |---|---|---|
-| `GET /api/v1/charge` | | `state` (idle, starting, zeroing, charging, waiting_for_cup_removal, waiting_for_cup_return, fault); `in_throw`; `throw`, the number of this throw or the last; `paused` (true while a throw waits for readings); `target` (null until set); `powder_profile` (its id) and `powder_profile_name`; `weight` (null with no reading); `elapsed_s` (this throw, or the last); `last` {`throw`, `result` (good, under, over, none), `reason` (finished, or as a throw's `ended`), `weight`}; `event_seq`, the newest event's number |
+| `GET /api/v1/charge` | | `state` (idle, starting, zeroing, charging, waiting_for_cup_removal, waiting_for_cup_return, waiting_for_start, fault: between throws the cup back is `zeroing` until the pan reads steady at zero, then `waiting_for_start`, the next throw waiting for the person's press); `in_throw`; `throw`, the number of this throw or the last; `paused` (true while a throw waits for readings); `target` (null until set); `powder_profile` (its id) and `powder_profile_name`; `weight` (null with no reading); `elapsed_s` (this throw, or the last); `last` {`throw`, `result` (good, under, over, none), `reason` (finished, or as a throw's `ended`), `weight`}; `event_seq`, the newest event's number |
 | `PATCH /api/v1/charge` | `{"target": 30.0}`, `{"powder_profile": 3}`, or both | 200. What the next throw uses. One target for the unit: the menu's weight digits show it and set it. `target` from 0.001 to 999.99 at two decimal places, 99.999 at three: what the menu can show. The powder profile chosen is live until saved, with the profiles (`powder_profiles.saved`). 409 `busy` while `in_throw` |
 | `POST /api/v1/charge/start` | `{}`, or `target` and `powder_profile` to set them first | 202 with the charge, in `starting` until the menu begins it. A target or a powder profile given is written only if the start is taken. 409 `busy` while another job runs or the menu is not at its forms (a person is in a mode at the unit); 409 `driver_fault` (the drivers looked at afresh first, as a start at the unit does: a fault that has passed does not refuse); 400 `no_target` when no target is set |
+| `POST /api/v1/charge/next` | `{}` | 202: the person's press for the next throw (ADR-009, gate 3), taken only in `waiting_for_start`; the throw begins at once. 409 `not_now` at any other time. A charge's first throw needs none: its start was the press. A charge waiting between throws, the cup back, holds no motor: a purge, a calibration or an update started meanwhile ends it first, as a stop ends it |
 | `POST /api/v1/charge/stop` | `{}` | A stop (the rule above). It also acknowledges `fault`, as a press at the unit does |
 
 The charge in `fault` has ended on one: it waits, as the screen does, to be acknowledged by a stop or a press, and `last.reason` says why. It is not a throw: settings are written. A fault between throws ends no throw: `last.reason` says why the charge ended, and `last.result` stays the last throw's verdict.
@@ -203,9 +204,9 @@ The steps: `cup_on`, `zeroing`, then the cup's `lift`, `back`, `fill`, `keep`, `
 |---|---|
 | No job, a purge, `fault` | Taken (the page's Scale Zero is on the purge page too, for the container) |
 | `starting`, `zeroing` | Taken only while the weight is within 5 times `zero_mean_margin` of zero *p* (0.1 at the default 0.02): a cup that reads 0.05 is put right. Otherwise 409 `weight_off_zero`, with `weight`: "the scale reads 30.02; over the API a zero puts right only a drift; empty the cup or put it on, or zero at the unit". A remote start passes no "Put pan on the scale" form: with the cup off the scale reads about minus the cup, and with a charge left in it about plus the charge |
-| `charging`, `waiting_for_cup_removal`, `waiting_for_cup_return` | 409 `busy`. While it waits for the cup's return the unit takes the cup to be away, and a zero there starts the next throw at once. |
+| `charging`, `waiting_for_cup_removal`, `waiting_for_cup_return`, `waiting_for_start` | 409 `busy`. While it waits for the cup's return the unit takes the cup to be away; once it is back, the zero the next throw pours from is the one read steady before the press. |
 
-The band is two-sided and in the scale's own unit, through the setting the user tunes for their scale: a fixed figure would be fifteen times wider in grams than in grains, wide enough at ±1 to zero away a pistol charge. It is a live condition on a command, not a limit in the schema. It is not the unit's test for a lifted cup either: that test is a fixed 10 in the scale's unit (`charge_mode.cpp`, the cup's removal), and misses a cup under 10 g. What no rule can close, and the guide says: a zero while idle and then a start, or a start on a scale zeroed with nothing on it, pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.
+The band is two-sided and in the scale's own unit, through the setting the user tunes for their scale: a fixed figure would be fifteen times wider in grams than in grains, wide enough at ±1 to zero away a pistol charge. It is a live condition on a command, not a limit in the schema. It is not the unit's test for a lifted cup either: between throws that test is a fixed 10 in the scale's unit (`charge_mode.cpp`, the cup's removal), and misses a cup under 10 g; in a throw a reading under half the empty cup's weight (`cup_weight`; never calibrated, 10) ends the throw as `cup_lifted` (ADR-009, gate 3). What no rule can close, and the guide says: a zero while idle and then a start, or a start on a scale zeroed with nothing on it, pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.
 
 ## Firmware updates (ADR-004)
 
@@ -286,6 +287,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `colour_good`, `colour_under`, `colour_over`, `colour_not_ready` | colour | | | now | `c1` to `c4` (`neopixel_..._colour`) |
 | `cup_capacity` | number or null | weight | 0 to 10,000; null: never calibrated. How much the cup holds, kept by the calibration (ADR-009, step 1) | now | new |
 | `cup_weight` | number or null | weight | 0 to 10,000; null: never calibrated. The empty cup's weight (ADR-009, step 1) | now | new |
+| `auto_tune` | boolean | | true by default. After each window of 25 throws the fine Kp moves toward quicker throws within the tolerance, a better one kept into the powder's profile, stored, its write `by` unit; off, the profile is never changed (ADR-009, step 2) | the next throw | new |
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
 

@@ -84,7 +84,7 @@ def load_library() -> ctypes.CDLL:
     lib = ctypes.CDLL(str(LIBRARY))
     p, d, i = ctypes.c_void_p, ctypes.c_double, ctypes.c_int
     pd, pi = ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_int)
-    for name, args, result in (("lib_charge_new", [], p), ("lib_charge_free", [p], None), ("lib_charge_size", [], i),
+    for name, args, result in (("lib_charge_new", [], p), ("lib_charge_free", [p], None), ("lib_charge_size", [pi], i),
                                ("lib_charge_config", [p, ctypes.POINTER(Config)], None),
                                ("lib_charge_start", [p, d, d], i), ("lib_charge_tick", [p, d], None),
                                ("lib_charge_reading", [p, d, d], None), ("lib_charge_out", [p, pd, pd], i),
@@ -290,7 +290,9 @@ def main() -> int:
     parser.add_argument("--starts", nargs="+", default=["owner", "kp/4"])
     args = parser.parse_args()
     build_library()
-    print(f"the controller: {load_library().lib_charge_size()} bytes")
+    room = ctypes.c_int()
+    size = load_library().lib_charge_size(ctypes.byref(room))
+    print(f"the controller: {size} bytes, and a throw's room {room.value} bytes")
     failures = []
     with Workers() as pool:
         made = dict(zip(args.rigs, pool.map(step2.rig_records, list(args.rigs))))

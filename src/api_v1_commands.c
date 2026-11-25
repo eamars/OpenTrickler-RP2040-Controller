@@ -354,6 +354,20 @@ static void api_v1_charge_start(const http_server_request_t *request, http_serve
 }
 
 
+// POST /api/v1/charge/next: the person's press for the next throw, once the cup is back and the pan steady at zero
+// (ADR-009, gate 3); 409 not_now at any other time
+static void api_v1_charge_next(const http_server_request_t *request, http_server_reply_t *reply) {
+    if (!api_empty(request, reply)) {
+        return;
+    }
+    if (!charge_mode_request_next(ACTIVITY_BY_API)) {
+        api_error(reply, 409, "not_now", NULL, "the charge does not wait for a start: read state", NULL);
+        return;
+    }
+    reply_charge(reply, 202);
+}
+
+
 // POST /api/v1/charge/stop: never fails; it acknowledges `fault` too
 static void api_v1_charge_stop(const http_server_request_t *request, http_server_reply_t *reply) {
     if (!api_empty(request, reply)) {
@@ -1977,6 +1991,9 @@ static const char *const api_v1_schema_actions[] = {
     "\"refused_while\":\"a_job_runs\",\"about\":\"starts a charge (202); a target or a powder profile given is set "
     "only if the start is taken. 409 busy also while a person has a screen open at the unit; 409 driver_fault; 400 "
     "no_target when none is set\",\"example\":{\"target\":30}}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/charge/next\",\"fields\":[],"
+    "\"refused_while\":\"not_waiting_for_start\",\"about\":\"the person's press for the next throw (202), taken "
+    "only in state waiting_for_start: the cup back and the pan steady at zero; 409 not_now at any other time\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/charge/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the charge (202), or 200 with nothing to stop; it acknowledges the charge's fault\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/purge/start\",\"fields\":[],\"refused_while\":\"a_job_runs\","
@@ -2280,6 +2297,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/charge", api_v1_get_charge);
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/charge", api_v1_patch_charge);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/start", api_v1_charge_start);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/next", api_v1_charge_next);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/charge/stop", api_v1_charge_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/purge", api_v1_get_purge);
     ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/purge", api_v1_patch_purge);

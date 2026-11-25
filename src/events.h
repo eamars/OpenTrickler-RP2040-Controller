@@ -67,6 +67,7 @@ typedef enum {
     EVENT_REASON_WRONG_PASSWORD,
     EVENT_REASON_TIMEOUT,
     EVENT_REASON_FAILED,
+    EVENT_REASON_CUP_LIFTED,    // ADR-009, gate 3: a reading under half the empty cup's weight in a throw
 } event_reason_t;
 
 // A throw's verdict (api_v1.md's `result`)

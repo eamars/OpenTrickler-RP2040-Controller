@@ -672,6 +672,17 @@ uint16_t get_motor_max_speed(motor_select_t selected_motor) {
 }
 
 
+// The ramp the motors task holds each motor to, in the trickler's own rev/s each second (after the gear), as the
+// charge controller counts the fine tube's turns from the speeds it asks (ADR-009, gate 3)
+float motor_get_acceleration(motor_select_t selected_motor) {
+    motor_config_t * motor_config = motor_get_config(selected_motor);
+    if (motor_config == NULL) {
+        return 0.0f;
+    }
+    return motor_config->persistent_config.angular_acceleration * motor_config->persistent_config.gear_ratio;
+}
+
+
 float get_motor_min_speed(motor_select_t selected_motor) {
     motor_config_t * motor_config = NULL;
     switch (selected_motor)

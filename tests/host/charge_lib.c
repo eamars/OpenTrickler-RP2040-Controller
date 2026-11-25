@@ -15,10 +15,17 @@
 #endif
 
 
+// The controller and, beside it, the room each throw borrows
+typedef struct {
+    charge_controller_t controller;
+    charge_room_t room;
+} lib_charge_t;
+
+
 CHARGE_LIB_EXPORT charge_controller_t *lib_charge_new(void) {
-    charge_controller_t *controller = calloc(1, sizeof(charge_controller_t));
-    charge_controller_init(controller);
-    return controller;
+    lib_charge_t *charge = calloc(1, sizeof(lib_charge_t));
+    charge_controller_init(&charge->controller);
+    return &charge->controller;
 }
 
 
@@ -27,7 +34,9 @@ CHARGE_LIB_EXPORT void lib_charge_free(charge_controller_t *controller) {
 }
 
 
-CHARGE_LIB_EXPORT int lib_charge_size(void) {
+// The controller's own size, and the room a throw borrows
+CHARGE_LIB_EXPORT int lib_charge_size(int *room) {
+    *room = (int) sizeof(charge_room_t);
     return (int) sizeof(charge_controller_t);
 }
 
@@ -38,7 +47,7 @@ CHARGE_LIB_EXPORT void lib_charge_config(charge_controller_t *controller, const 
 
 
 CHARGE_LIB_EXPORT int lib_charge_start(charge_controller_t *controller, double target, double now_ms) {
-    return charge_controller_start(controller, target, now_ms);
+    return charge_controller_start(controller, &((lib_charge_t *) controller)->room, target, now_ms);
 }
 
 

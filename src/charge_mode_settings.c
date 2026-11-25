@@ -96,6 +96,11 @@ static const setting_field_t charge_fields[] = {
               "never calibrated",
      .type = SETTING_NUMBER, CHARGE_FIELD(cup_weight), .unit = "weight", .min = 0.0f, .max = 10000.0f,
      .nullable = true, .null_held = -1.0f, .applies = "now"},
+    // ADR-009 step 2, gate 3: the auto-tuner's switch
+    {.name = "auto_tune", .label = "Auto-tune", .group = "Tuning",
+     .about = "After each window of 25 throws the fine Kp moves toward quicker throws within the tolerance, a better "
+              "one kept into the powder's profile; off, the profile is never changed",
+     .type = SETTING_BOOLEAN, CHARGE_FIELD(auto_tune), .applies = "the next throw"},
 };
 
 
