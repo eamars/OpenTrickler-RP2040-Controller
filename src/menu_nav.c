@@ -36,6 +36,10 @@
 #include "version.h"
 #include "wireless.h"
 
+// The calibration's records, where they are kept (ADR-009 step 1): read by its page and its offer
+extern charge_mode_config_t charge_mode_config;
+extern scale_config_t scale_config;
+
 // A write to the API this recent counts as the unit being controlled from elsewhere (menu_design.md, proposed)
 #define MENU_REMOTE_MS 30000
 
@@ -1347,7 +1351,77 @@ static const menu_page_t page_factory_reset = {.kind = PAGE_DIALOG, .id = "setti
                                                .row_count = ROW_COUNT(rows_factory_reset),
                                                .cancel_first = true};
 
+// ADR-009 step 1: the calibration, its three parts each started alone from its row (Settings > Calibration)
+static void calibration_start_row(calibration_part_t part) {
+    if (motors_fault_shown("Calibration")) {
+        return;
+    }
+    if (calibration_request_start(part, ACTIVITY_BY_BUTTON) == CALIBRATION_START_DRIVER_FAULT) {
+        push_message(motors_get_fault(), "Calibration", "cannot start");
+    }
+}
+
+
+static void act_calibrate_cup(const menu_row_t *row) {
+    (void) row;
+    calibration_start_row(CALIBRATION_PART_CUP);
+}
+
+
+static void act_calibrate_scale(const menu_row_t *row) {
+    (void) row;
+    calibration_start_row(CALIBRATION_PART_SCALE);
+}
+
+
+static void act_calibrate_powder(const menu_row_t *row) {
+    (void) row;
+    calibration_start_row(CALIBRATION_PART_POWDER);
+}
+
+
+static void value_cup_capacity(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    float capacity = charge_mode_config.eeprom_charge_mode_data.cup_capacity;
+    if (capacity < 0.0f) {
+        snprintf(out, room, "Not done");
+        return;
+    }
+    char weight[16];
+    format_weight(capacity, weight, sizeof(weight));
+    snprintf(out, room, "%s%s%s", weight, unit_text()[0] != '\0' ? " " : "", unit_text());
+}
+
+
+static void value_scale_calibrated(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "%s", scale_config.persistent_config.settle_ms < 0.0f ? "Not done" : "Done");
+}
+
+
+static void value_selected_powder(const menu_row_t *row, char *out, size_t room) {
+    (void) row;
+    snprintf(out, room, "%s", profile_get_name(profile_get_selected_idx()));
+}
+
+
+// Offered on the main menu until the cup and the scale are calibrated
+static bool calibration_offered(void) {
+    return charge_mode_config.eeprom_charge_mode_data.cup_capacity < 0.0f ||
+           scale_config.persistent_config.settle_ms < 0.0f;
+}
+
+
+static const menu_row_t rows_calibration[] = {
+    {.label = "Cup", .kind = ROW_ACTION, .act = act_calibrate_cup, .value = value_cup_capacity},
+    {.label = "Scale", .kind = ROW_ACTION, .act = act_calibrate_scale, .value = value_scale_calibrated},
+    {.label = "Powder", .kind = ROW_ACTION, .act = act_calibrate_powder, .value = value_selected_powder},
+};
+static const menu_page_t page_calibration = {.id = "settings/calibration", .title = "Calibration",
+                                             .rows = rows_calibration, .row_count = ROW_COUNT(rows_calibration)};
+
 static const menu_row_t rows_settings[] = {
+    {.label = "Calibration", .kind = ROW_PAGE, .page = &page_calibration},
     {.label = "Scale", .kind = ROW_PAGE, .page = &page_scale},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge_settings},
     {.label = "Display", .kind = ROW_PAGE, .page = &page_display},
@@ -1372,6 +1446,7 @@ static const menu_row_t rows_main[] = {
     {.label = "Set up this unit", .kind = ROW_PAGE, .page = &page_setup, .shown = setup_offered},
     {.label = "Update available", .kind = ROW_PAGE, .page = &page_update, .label_now = update_row_label,
      .shown = shown_update_found},
+    {.label = "Calibrate this unit", .kind = ROW_PAGE, .page = &page_calibration, .shown = calibration_offered},
     {.label = "Charge", .kind = ROW_PAGE, .page = &page_charge},
     {.label = "Purge", .kind = ROW_ACTION, .act = act_cleanup_start},
     {.label = "Wi-Fi", .kind = ROW_PAGE, .page = &page_wifi},
@@ -1382,7 +1457,8 @@ static const menu_page_t page_main = {.id = "main", .title = "OpenTrickler", .ti
 
 // Every page, for the console and the menu's tour; a page's parents are found through the tree
 static const menu_page_t *const all_pages[] = {
-    &page_main, &page_charge, &page_wifi, &page_settings, &page_scale, &page_charge_settings, &page_display,
+    &page_main, &page_charge, &page_wifi, &page_settings, &page_calibration, &page_scale, &page_charge_settings,
+    &page_display,
 #if FEATURE_SERVO_GATE
     &page_gate,
 #endif
@@ -1715,22 +1791,44 @@ static void cleanup_key(frame_t *frame, menu_key_t key) {
 
 
 /*
- * The calibration's answer at its step, the right softkey's word on the screen and what it sends (ADR-009 step 1);
- * none where the step waits for nothing of the person
+ * The calibration's job (ADR-009 step 1, gate 4): each step its own screen, as mocked (calibration_12864.py). The
+ * steps that ask the person are dialogs, Cancel or Stop at the left and the answer at the right; the cup's fill is
+ * the purge's control, the tubes' speeds set in place; the records found are notes ending in Keep or Save; the
+ * others a job's screen, the weight or how far it is as the figure. Back stops it at any step, discarding what was
+ * not kept.
  */
-static const char *calibration_answer_label(calibration_step_t step, const char **answer) {
+#define CALIBRATION_NOTES_LINES 4       // the 12864's lines of notes (menu_view_12864.c)
+#define CALIBRATION_FINE_STEP 0.1f      // a detent of the fill's fine tube, and of its coarse, rev/s
+#define CALIBRATION_COARSE_STEP 0.5f
+
+// The fill's focus: the title (Back), the tubes' rows, the softkeys
+enum {
+    CAL_FILL_TITLE = -1,
+    CAL_FILL_FINE = 0,
+    CAL_FILL_COARSE,
+    CAL_FILL_CANCEL,
+    CAL_FILL_FULL,
+};
+
+// The right softkey's word at a step and the answer it sends; NULL where the step waits for nothing of the person
+static const char *calibration_answer_label(const calibration_status_t *cal, const char **answer) {
     static const struct {
         calibration_step_t step;
         const char *label;
         const char *answer;
     } answers[] = {
-        {CALIBRATION_STEP_CUP_ON, "Next", "next"}, {CALIBRATION_STEP_FILL, "Full", "full"},
-        {CALIBRATION_STEP_KEEP, "Keep", "keep"}, {CALIBRATION_STEP_EMPTY, "Done", "done"},
-        {CALIBRATION_STEP_FAILED, "OK", "done"}, {CALIBRATION_STEP_PAUSED, "Go on", "go_on"},
-        {CALIBRATION_STEP_RESULT, "Save", "save"},
+        {CALIBRATION_STEP_FILL, "Full", "full"}, {CALIBRATION_STEP_KEEP, "Keep", "keep"},
+        {CALIBRATION_STEP_EMPTY, "Done", "done"}, {CALIBRATION_STEP_FAILED, "OK", "done"},
+        {CALIBRATION_STEP_PAUSED, "Go on", "go_on"}, {CALIBRATION_STEP_RESULT, "Save", "save"},
     };
+    if (cal->step == CALIBRATION_STEP_CUP_ON) {
+        if (answer != NULL) {
+            *answer = "next";
+        }
+        return cal->part == CALIBRATION_PART_CUP ? "Next" : "Start";
+    }
     for (size_t idx = 0; idx < sizeof(answers) / sizeof(answers[0]); idx += 1) {
-        if (answers[idx].step == step) {
+        if (answers[idx].step == cal->step) {
             if (answer != NULL) {
                 *answer = answers[idx].answer;
             }
@@ -1741,27 +1839,169 @@ static const char *calibration_answer_label(calibration_step_t step, const char 
 }
 
 
+// The left softkey: Cancel before anything is turned, Stop once it pours; none where the step only ends
+static const char *calibration_left_label(calibration_step_t step) {
+    switch (step) {
+        case CALIBRATION_STEP_RUNNING:
+        case CALIBRATION_STEP_PAUSED:
+            return "Stop";
+        case CALIBRATION_STEP_EMPTY:
+        case CALIBRATION_STEP_FAILED:
+        case CALIBRATION_STEP_RESULT:
+            return "";
+        default:
+            return "Cancel";
+    }
+}
+
+
+// The result's lines: the scale's records, or the powder's least speeds beside what they were
+static uint8_t calibration_result_lines(const calibration_status_t *cal, char label[][MENU_TEXT],
+                                        char value[][MENU_TEXT], bool *bold) {
+    uint8_t count = 0;
+    float seconds;
+    float poured;
+    if (cal->part == CALIBRATION_PART_SCALE) {
+        snprintf(label[count], MENU_TEXT, "Settle time");
+        snprintf(value[count++], MENU_TEXT, "%.2f s", (double) cal->scale.settle_s);
+        if (cal->scale.lag_count > 0) {
+            snprintf(label[count], MENU_TEXT, "Lag, slow flow");
+            snprintf(value[count++], MENU_TEXT, "%.2f s", (double) cal->scale.lag_s[0]);
+            snprintf(label[count], MENU_TEXT, "Lag, fast flow");
+            snprintf(value[count++], MENU_TEXT, "%.2f s", (double) cal->scale.lag_s[cal->scale.lag_count - 1]);
+        }
+        seconds = cal->scale.seconds;
+        poured = cal->scale.poured;
+    }
+    else {
+        const calibration_speeds_record_t *tubes[2] = {&cal->fine, &cal->coarse};
+        const float was[2] = {cal->was_fine_rps, cal->was_coarse_rps};
+        for (int idx = 0; idx < 2; idx += 1) {
+            bold[count] = true;
+            snprintf(label[count], MENU_TEXT, "%s", idx == 0 ? "Fine tube" : "Coarse tube");
+            value[count++][0] = '\0';
+            snprintf(label[count], MENU_TEXT, "Minimum");
+            if (isnan(tubes[idx]->least_rps)) {
+                snprintf(value[count++], MENU_TEXT, "Not found");
+            }
+            else {
+                snprintf(value[count++], MENU_TEXT, "%.2f rev/s", (double) tubes[idx]->least_rps);
+            }
+            snprintf(label[count], MENU_TEXT, "Was");
+            snprintf(value[count++], MENU_TEXT, "%.2f rev/s", (double) was[idx]);
+        }
+        seconds = cal->fine.seconds + cal->coarse.seconds;
+        poured = cal->fine.poured + cal->coarse.poured;
+    }
+    snprintf(label[count], MENU_TEXT, "Took");
+    snprintf(value[count++], MENU_TEXT, "%.1f min, %.0f%s%s", (double) (seconds / 60.0f), (double) poured,
+             unit_text()[0] != '\0' ? " " : "", unit_text());
+    return count;
+}
+
+
+// The notes' first line when scrolled to their end, their button a line of its own
+static uint8_t calibration_last_first(const calibration_status_t *cal) {
+    char label[MENU_ROWS_MAX][MENU_TEXT];
+    char value[MENU_ROWS_MAX][MENU_TEXT];
+    bool bold[MENU_ROWS_MAX] = {false};
+    int lines = calibration_result_lines(cal, label, value, bold) + 1;
+    return (uint8_t) (lines > CALIBRATION_NOTES_LINES ? lines - CALIBRATION_NOTES_LINES : 0);
+}
+
+
+// A new step: its default focus, the answer where there is one
+static void calibration_step_seen(frame_t *frame, const calibration_status_t *cal) {
+    if (frame->action_seen == (uint8_t) cal->step) {
+        return;
+    }
+    frame->action_seen = (uint8_t) cal->step;
+    frame->editing = false;
+    frame->first = 0;
+    frame->at_end = false;
+    frame->focus = CAL_FILL_FINE;
+    frame->softkey = calibration_answer_label(cal, NULL) != NULL ? 1 : 0;
+}
+
+
 static void calibration_key(frame_t *frame, menu_key_t key) {
     calibration_status_t cal;
     calibration_get_status(&cal);
+    calibration_step_seen(frame, &cal);
     const char *answer = NULL;
-    const char *label = calibration_answer_label(cal.step, &answer);
-    if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
-        frame->softkey = key == MENU_KEY_NEXT && label != NULL ? 1 : 0;
-        return;
-    }
-    if (key == MENU_KEY_BACK || (key == MENU_KEY_ENTER && (frame->softkey == 0 || label == NULL))) {
+    const char *label = calibration_answer_label(&cal, &answer);
+    if (key == MENU_KEY_BACK) {
         activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);
         return;
     }
-    if (key == MENU_KEY_ENTER && answer != NULL) {
-        if (strcmp(answer, "save") == 0) {
+
+    if (cal.step == CALIBRATION_STEP_FILL) {
+        if (frame->editing) {
+            if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+                float sign = key == MENU_KEY_NEXT ? 1.0f : -1.0f;
+                if (frame->focus == CAL_FILL_FINE) {
+                    calibration_set_fill(cal.fine_rps + sign * CALIBRATION_FINE_STEP, NAN);
+                }
+                else {
+                    calibration_set_fill(NAN, cal.coarse_rps + sign * CALIBRATION_COARSE_STEP);
+                }
+            }
+            else {
+                frame->editing = false;
+            }
+            return;
+        }
+        if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+            int focus = frame->focus + (key == MENU_KEY_NEXT ? 1 : -1);
+            frame->focus = (int8_t) (focus < CAL_FILL_TITLE ? CAL_FILL_TITLE : (focus > CAL_FILL_FULL ? CAL_FILL_FULL :
+                                                                                focus));
+            return;
+        }
+        switch (frame->focus) {
+            case CAL_FILL_FINE:
+            case CAL_FILL_COARSE:
+                frame->editing = true;
+                break;
+            case CAL_FILL_FULL:
+                calibration_answer("full");
+                break;
+            default:
+                activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);    // the title, or Cancel
+                break;
+        }
+        return;
+    }
+
+    if (cal.step == CALIBRATION_STEP_RESULT) {
+        // Turned down a line at a time to the end, where Save is reached and a click keeps them
+        uint8_t last = calibration_last_first(&cal);
+        if (key == MENU_KEY_NEXT) {
+            frame->at_end = frame->first >= last;
+            frame->first = (uint8_t) (frame->first < last ? frame->first + 1 : last);
+        }
+        else if (key == MENU_KEY_PREV) {
+            frame->at_end = false;
+            frame->first = (uint8_t) (frame->first > 0 ? frame->first - 1 : 0);
+        }
+        else if (key == MENU_KEY_ENTER && frame->at_end) {
             calibration_save();
         }
-        else {
+        return;
+    }
+
+    // A dialog or a job's screen: the knob between the softkeys there are, a click does the focused one
+    bool left = calibration_left_label(cal.step)[0] != '\0';
+    if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
+        frame->softkey = (int8_t) (label == NULL ? 0 : (!left ? 1 : (key == MENU_KEY_NEXT ? 1 : 0)));
+        return;
+    }
+    if (key == MENU_KEY_ENTER) {
+        if (frame->softkey == 1 && answer != NULL) {
             calibration_answer(answer);
         }
-        frame->softkey = 0;
+        else if (left) {
+            activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);
+        }
     }
 }
 
@@ -2630,35 +2870,129 @@ static const char *charge_state_text(const char *state) {
 }
 
 
-// The calibration's screen: its step as the title, the weight or how far it is as the figure, what it does under it,
-// Stop and the step's answer (ADR-009 step 1, gate 3; gate 4 draws each step as its mock-up)
+// The title a part's own screens have: the cup's, the scale's, or the powder's name
+static const char *calibration_part_title(calibration_part_t part) {
+    if (part == CALIBRATION_PART_POWDER) {
+        return profile_get_name(profile_get_selected_idx());
+    }
+    return part == CALIBRATION_PART_SCALE ? "Scale" : "Cup";
+}
+
+
+static void calibration_dialog(menu_screen_t *screen, const char *title, const char *line1, const char *line2) {
+    screen->kind = MENU_SCREEN_DIALOG;
+    snprintf(screen->title, sizeof(screen->title), "%s", title);
+    screen_row(screen, line1, "", false);
+    if (line2 != NULL) {
+        screen_row(screen, line2, "", false);
+    }
+}
+
+
+static void calibration_weight_figure(menu_screen_t *screen, float weight) {
+    format_weight(weight, screen->figure, sizeof(screen->figure));
+    snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
+}
+
+
 static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
-    static const char *const titles[] = {"Calibration", "Put the cup on", "Zeroing", "Lift the cup", "Put the cup back",
-                                         "Fill the cup", "Keep its capacity?", "Empty the cup", "Calibrating",
-                                         "Empty the cup", "Found", "Failed"};
     calibration_status_t cal;
     calibration_get_status(&cal);
+    calibration_step_seen(frame, &cal);
     snprintf(screen->id, sizeof(screen->id), "job/calibration");
-    snprintf(screen->title, sizeof(screen->title), "%s", cal.step <= CALIBRATION_STEP_FAILED ? titles[cal.step] :
-                                                         titles[0]);
-    if (cal.step == CALIBRATION_STEP_RUNNING) {
-        snprintf(screen->figure, sizeof(screen->figure), "%d", cal.progress);
-        snprintf(screen->unit, sizeof(screen->unit), "%%");
+    char line[MENU_TEXT];
+    char weight[16];
+    const char *unit = unit_text();
+    const char *space = unit[0] != '\0' ? " " : "";
+    switch (cal.step) {
+        case CALIBRATION_STEP_CUP_ON:
+            calibration_dialog(screen, calibration_part_title(cal.part), "Put the empty cup", "on the scale");
+            break;
+        case CALIBRATION_STEP_ZEROING:
+            snprintf(screen->title, sizeof(screen->title), "Zeroing");
+            calibration_weight_figure(screen, cal.weight);
+            break;
+        case CALIBRATION_STEP_LIFT:
+            snprintf(screen->title, sizeof(screen->title), "Lift the cup");
+            calibration_weight_figure(screen, cal.weight);
+            snprintf(screen->context, MENU_TEXT, "Its weight is read");
+            break;
+        case CALIBRATION_STEP_BACK:
+            snprintf(screen->title, sizeof(screen->title), "Put the cup back");
+            calibration_weight_figure(screen, cal.weight);
+            format_weight(cal.cup_weight, weight, sizeof(weight));
+            snprintf(screen->context, MENU_TEXT, "The cup weighs %s%s%s", weight, space, unit);
+            break;
+        case CALIBRATION_STEP_FILL: {
+            // The purge's control: the weight and its flow to read, the tubes' speeds set in place
+            screen->kind = MENU_SCREEN_CONTROL;
+            snprintf(screen->title, sizeof(screen->title), "Fill the cup");
+            screen->title_back = true;
+            format_weight(cal.weight, weight, sizeof(weight));
+            snprintf(line, sizeof(line), "%s%s%s", weight, space, unit);
+            char flow[MENU_TEXT] = "";
+            if (isfinite(flow_per_s)) {
+                snprintf(flow, sizeof(flow), "%.2f%s%s/s", (double) flow_per_s, space, unit);
+            }
+            screen->row_info[0] = true;
+            screen_row(screen, line, flow, false);
+            snprintf(line, sizeof(line), "%.1f rev/s", (double) cal.fine_rps);
+            screen_row(screen, "Fine tube", line, false);
+            snprintf(line, sizeof(line), "%.1f rev/s", (double) cal.coarse_rps);
+            screen_row(screen, "Coarse tube", line, false);
+            snprintf(screen->softkey_left, MENU_TEXT, "Cancel");
+            snprintf(screen->softkey_right, MENU_TEXT, "Full");
+            // The focus: -1 the title, 1 and 2 the rows (row 0 is the line to read), 3 the softkeys
+            screen->focus = (int8_t) (frame->focus == CAL_FILL_TITLE ? -1 :
+                                      (frame->focus <= CAL_FILL_COARSE ? frame->focus + 1 : 3));
+            screen->softkey_focus = (int8_t) (frame->focus == CAL_FILL_CANCEL ? 0 :
+                                              (frame->focus == CAL_FILL_FULL ? 1 : -1));
+            screen->editing = frame->editing;
+            return;
+        }
+        case CALIBRATION_STEP_KEEP:
+            format_weight(cal.capacity, weight, sizeof(weight));
+            snprintf(line, sizeof(line), "It holds %s%s%s", weight, space, unit);
+            calibration_dialog(screen, "Cup", line, "Keep it as its capacity?");
+            break;
+        case CALIBRATION_STEP_EMPTY:
+            calibration_dialog(screen, "Empty the cup", "Then put it back", "on the scale");
+            break;
+        case CALIBRATION_STEP_RUNNING:
+            snprintf(screen->title, sizeof(screen->title), "Calibrating");
+            snprintf(screen->figure, sizeof(screen->figure), "%d", cal.progress);
+            snprintf(screen->unit, sizeof(screen->unit), "%%");
+            snprintf(screen->context, MENU_TEXT, "%s", cal.line);
+            break;
+        case CALIBRATION_STEP_PAUSED:
+            snprintf(line, sizeof(line), "%s%s%s", cal.line, space, unit);
+            calibration_dialog(screen, "Empty the cup", line, "Then go on");
+            break;
+        case CALIBRATION_STEP_RESULT: {
+            screen->kind = MENU_SCREEN_NOTES;
+            snprintf(screen->title, sizeof(screen->title), "%s", calibration_part_title(cal.part));
+            screen->title_back = true;
+            screen->row_count = calibration_result_lines(&cal, screen->row_label, screen->row_value, screen->row_bold);
+            uint8_t last = calibration_last_first(&cal);
+            screen->first = frame->first > last ? last : frame->first;
+            screen->focus = 0;
+            snprintf(screen->button, MENU_TEXT, "%s", cal.part == CALIBRATION_PART_SCALE ? "Keep" : "Save");
+            screen->button_reached = frame->at_end;
+            screen->softkey_left[0] = '\0';
+            return;
+        }
+        case CALIBRATION_STEP_FAILED:
+            calibration_dialog(screen, calibration_part_title(cal.part), cal.failure,
+                               cal.part == CALIBRATION_PART_POWDER ? "Its minimum is kept" :
+                               (cal.part == CALIBRATION_PART_SCALE ? "Its records are kept" : "Its capacity is kept"));
+            break;
+        default:
+            snprintf(screen->title, sizeof(screen->title), "Calibration");
+            break;
     }
-    else if (cal.step == CALIBRATION_STEP_KEEP) {
-        format_weight(cal.capacity, screen->figure, sizeof(screen->figure));
-        snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
-    }
-    else if (cal.step >= CALIBRATION_STEP_LIFT && cal.step <= CALIBRATION_STEP_FILL) {
-        format_weight(cal.weight, screen->figure, sizeof(screen->figure));
-        snprintf(screen->unit, sizeof(screen->unit), "%s", unit_text());
-    }
-    snprintf(screen->context, MENU_TEXT, "%s", cal.step == CALIBRATION_STEP_FAILED ? cal.failure : cal.line);
-    const char *label = calibration_answer_label(cal.step, NULL);
+    const char *label = calibration_answer_label(&cal, NULL);
+    snprintf(screen->softkey_left, MENU_TEXT, "%s", calibration_left_label(cal.step));
     snprintf(screen->softkey_right, MENU_TEXT, "%s", label != NULL ? label : "");
-    if (label == NULL) {
-        frame->softkey = 0;
-    }
     screen->softkey_focus = frame->softkey;
 }
 

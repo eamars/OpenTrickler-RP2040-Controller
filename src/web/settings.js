@@ -124,8 +124,8 @@ function drawGateControl() {
 }
 
 // ADR-009 step 1: the calibration, its three parts each run alone, as the 12864's Settings > Calibration
-// (tools/ui_mock/calibration_12864.py). Its API is the stand-in's provisional one until ADR-009's gate 3 makes the
-// unit's (tests/calibration_mock.py): the mock is for the owner to settle the pages on.
+// (tools/ui_mock/calibration_12864.py), on the unit's API (api_v1.md, Calibration; calibration.c). The stand-in plays
+// it with no unit (tests/calibration_mock.py)
 const CALIBRATION = "/api/v1/calibration";
 const FILL_STEP = {fine: 0.1, coarse: 0.5};
 let calibrationTimer = null;
@@ -141,36 +141,52 @@ function stopCalibrationPoll() {
     calibrationPeriod = null;
 }
 
-function shown(value, digits, unit) {
-    return value === null || value === undefined ? "Not done" : `${value.toFixed(digits)} ${unit}`;
+const known = (value) => value !== null && value !== undefined;
+
+function weightText(value) {
+    return known(value) ? `${value.toFixed(2)} gr` : "Not done";
+}
+
+function msText(ms) {
+    return known(ms) ? `${(ms / 1000).toFixed(2)} s` : "Not done";
 }
 
 function rps(speed) {
-    return speed === null || speed === undefined ? "Not done" : `${speed} rev/s`;
+    return known(speed) ? `${speed} rev/s` : "Not done";
 }
 
 function line(label, value) {
     return element("div", {class: "field inline"}, element("span", {}, label), element("output", {}, value));
 }
 
+// The fill's flow, from the weight's change over a second or more, as the 12864 shows it
+const flowSeen = {weight: null, at: 0, perS: null};
+function flowOf(weight) {
+    const now = Date.now();
+    if (flowSeen.weight === null || weight < flowSeen.weight - 1) {
+        Object.assign(flowSeen, {weight, at: now, perS: null});
+    } else if (now - flowSeen.at >= 1000) {
+        Object.assign(flowSeen, {perS: (weight - flowSeen.weight) * 1000 / (now - flowSeen.at), weight, at: now});
+    }
+    return flowSeen.perS;
+}
+
 // What changes within a step, as the unit says it: drawn into the step's card in place, never by rebuilding it
-function liveValues(job) {
+function liveValues(cal) {
     const live = {};
-    if (["lift", "back", "fill"].includes(job.step)) {
-        live.figure = job.weight_gr.toFixed(2);
+    if (["zeroing", "lift", "back", "fill"].includes(cal.step)) {
+        live.figure = cal.weight.toFixed(2);
     }
-    if (job.step === "back") {
-        live.note = `The cup weighs ${(-job.weight_gr).toFixed(2)} gr.`;
+    if (cal.step === "fill") {
+        const flow = flowOf(cal.weight);
+        live.note = `${flow === null ? "-.--" : flow.toFixed(2)} gr/s. Pour until the cup holds as much as you want it to.`;
+        live.fine = `${cal.fine_rps.toFixed(1)} rev/s`;
+        live.coarse = `${cal.coarse_rps.toFixed(1)} rev/s`;
     }
-    if (job.step === "fill") {
-        live.note = `${job.flow_gr_s.toFixed(2)} gr/s. Pour until the cup holds as much as you want it to.`;
-        live.fine = `${job.fine_rps.toFixed(1)} rev/s`;
-        live.coarse = `${job.coarse_rps.toFixed(1)} rev/s`;
-    }
-    if (job.step === "running") {
-        live.figure = String(job.progress);
-        live.note = job.line;
-        live.bar = `${job.progress}%`;
+    if (cal.step === "running") {
+        live.figure = String(cal.progress);
+        live.note = cal.line;
+        live.bar = `${cal.progress}%`;
     }
     return live;
 }
@@ -208,12 +224,18 @@ function drawCalibration() {
         const note = (text) => card.append(element("p", {class: "field-help", "data-live": text ? null : "note"},
                                                    text || ""));
         const actions = (...buttons) => card.append(element("div", {class: "pair"}, ...buttons));
-        const named = {cup: "The cup", scale: "The scale", powder: cal.powder.name}[cal.job.part];
-        switch (cal.job.step) {
+        const powder = cal.records.powder.name;
+        const named = {cup: "The cup", scale: "The scale", powder}[cal.part];
+        switch (cal.step) {
         case "cup_on":
             head("Put the empty cup on the scale");
             note(`To catch the powder. ${named} next.`);
             actions(cancel(), button("The cup is on", "action go", () => answer("next")));
+            break;
+        case "zeroing":
+            head("Zeroing");
+            figure("gr");
+            actions(cancel());
             break;
         case "lift":
             head("Lift the cup");
@@ -224,7 +246,7 @@ function drawCalibration() {
         case "back":
             head("Put the cup back");
             figure("gr");
-            note();
+            note(`The cup weighs ${weightText(cal.cup_weight)}.`);
             actions(cancel());
             break;
         case "fill":
@@ -244,7 +266,7 @@ function drawCalibration() {
             actions(cancel(), button("Full", "action go", () => answer("full")));
             break;
         case "keep":
-            head(`It holds ${cal.job.capacity_gr.toFixed(2)} gr`);
+            head(`It holds ${weightText(cal.capacity)}`);
             note("Keep it as the cup's capacity? No pour of a calibration passes it.");
             actions(cancel(), button("Keep", "action go", () => answer("keep")));
             break;
@@ -262,28 +284,38 @@ function drawCalibration() {
             break;
         case "paused":
             head("Empty the cup");
-            note(`${cal.job.line}. Empty it, put it back, then go on.`);
+            note(`${cal.line} gr. Empty it, put it back, then go on.`);
             actions(button("Stop", "action halt", stop), button("Go on", "action go", () => answer("go_on")));
             break;
         case "result": {
-            const result = cal.job.result;
+            const result = cal.result;
             head(`${named}: done`);
-            if (cal.job.part === "scale") {
-                card.append(line("Settle time", `${result.settle_s} s`), line("Lag, slow flow", `${result.slow_lag_s} s`),
-                            line("Lag, fast flow", `${result.fast_lag_s} s`));
+            if (cal.part === "scale") {
+                const lag = result.lag;
+                card.append(line("Settle time", msText(result.settle_ms)),
+                            line("Lag, slow flow", lag.length ? msText(lag[0].ms) : "Not found"),
+                            line("Lag, fast flow", lag.length ? msText(lag[lag.length - 1].ms) : "Not found"));
             } else {
-                card.append(line("Fine minimum", rps(result.fine)), line("Was", rps(cal.job.was.fine)),
-                            line("Coarse minimum", rps(result.coarse)), line("Was", rps(cal.job.was.coarse)));
+                card.append(line("Fine minimum", known(result.fine_min_speed_rps) ? rps(result.fine_min_speed_rps) :
+                                                 "Not found"),
+                            line("Was", rps(result.was.fine_min_speed_rps)),
+                            line("Coarse minimum", known(result.coarse_min_speed_rps) ?
+                                                   rps(result.coarse_min_speed_rps) : "Not found"),
+                            line("Was", rps(result.was.coarse_min_speed_rps)));
             }
-            card.append(line("Took", cal.job.took));
+            card.append(line("Took", `${(result.elapsed_s / 60).toFixed(1)} min, ${result.poured.toFixed(0)} gr`));
+            if (result.failure) {
+                note(`${result.failure}.`);
+            }
             actions(button("Discard", "ghost", stop),
-                    button(cal.job.part === "scale" ? "Keep" : "Save", "action go",
+                    button(cal.part === "scale" ? "Keep" : "Save", "action go",
                            () => send("POST", `${CALIBRATION}/save`, {})));
             break;
         }
         case "failed":
-            head(cal.job.line);
-            note(`${cal.job.note}.`);
+            head(cal.failure);
+            note(cal.part === "powder" ? "Its minimum is kept." :
+                 (cal.part === "scale" ? "Its records are kept." : "Its capacity is kept."));
             actions(element("span"), button("OK", "action go", () => answer("done")));
             break;
         }
@@ -291,46 +323,49 @@ function drawCalibration() {
     };
 
     const cards = (cal) => {
-        const busy = cal.job !== null;
+        const busy = cal.state !== "idle";
         const start = (part, text) => element("button", {class: "ghost", type: "button", disabled: busy,
                                                          onclick: () => send("POST", `${CALIBRATION}/start`, {part})},
                                               text);
-        const powder = cal.powder.min_speed_rps || {};
+        const {cup, scale, powder} = cal.records;
+        const lag = scale.lag;
         return [
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
-                    line("Capacity", shown(cal.cup.capacity_gr, 2, "gr")),
-                    line("Weight", shown(cal.cup.weight_gr, 2, "gr")),
+                    line("Capacity", weightText(cup.capacity)),
+                    line("Weight", weightText(cup.weight)),
                     element("div", {class: "field"}, start("cup", "Calibrate the cup"))),
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Scale"),
-                    line("Settle time", cal.scale ? `${cal.scale.settle_s} s` : "Not done"),
-                    line("Lag, slow flow", cal.scale ? `${cal.scale.slow_lag_s} s` : "Not done"),
-                    line("Lag, fast flow", cal.scale ? `${cal.scale.fast_lag_s} s` : "Not done"),
+                    line("Settle time", msText(scale.settle_ms)),
+                    line("Lag, slow flow", lag.length ? msText(lag[0].ms) : "Not done"),
+                    line("Lag, fast flow", lag.length ? msText(lag[lag.length - 1].ms) : "Not done"),
                     element("div", {class: "field"}, start("scale", "Calibrate the scale"))),
-            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, cal.powder.name),
-                    line("Fine minimum", rps(powder.fine)), line("Coarse minimum", rps(powder.coarse)),
-                    element("div", {class: "field"}, start("powder", `Calibrate ${cal.powder.name}`))),
+            element("div", {class: "fields"}, element("h3", {class: "fields-title"}, powder.name),
+                    line("Fine minimum", rps(powder.fine_min_speed_rps)),
+                    line("Coarse minimum", rps(powder.coarse_min_speed_rps)),
+                    element("div", {class: "field"}, start("powder", `Calibrate ${powder.name}`))),
         ];
     };
 
     const draw = (cal) => {
-        if (cal.job && cal.job.step === "fill" && asking === 0) {
-            fill.fine = cal.job.fine_rps;
-            fill.coarse = cal.job.coarse_rps;
+        const running = cal.state === "running" && cal.step !== null;
+        if (running && cal.step === "fill" && asking === 0) {
+            fill.fine = cal.fine_rps;
+            fill.coarse = cal.coarse_rps;
         }
         // Built again only for a new step or new records; within a step its figures change in place, so a button is
         // never replaced under a finger
-        const key = JSON.stringify({step: cal.job && [cal.job.part, cal.job.step, cal.job.capacity_gr || null],
-                                    cup: cal.cup, scale: cal.scale, powder: cal.powder});
+        const key = JSON.stringify({step: running && [cal.part, cal.step, cal.capacity, cal.failure],
+                                    state: cal.state, records: cal.records});
         if (key !== drawnKey) {
             drawnKey = key;
-            box.replaceChildren(...(cal.job ? [jobCard(cal)] : []), ...cards(cal));
+            box.replaceChildren(...(running ? [jobCard(cal)] : []), ...cards(cal));
             // A new step's question is never left above the screen, where the last step's taller card had it
-            if (cal.job && box.firstChild.getBoundingClientRect().top < 0) {
+            if (running && box.firstChild.getBoundingClientRect().top < 0) {
                 box.firstChild.scrollIntoView({block: "start"});
             }
         }
-        if (cal.job) {
-            for (const [name, value] of Object.entries(liveValues(cal.job))) {
+        if (running) {
+            for (const [name, value] of Object.entries(liveValues(cal))) {
                 const at = box.querySelector(`[data-live="${name}"]`);
                 if (at === null) {
                     continue;
@@ -344,7 +379,7 @@ function drawCalibration() {
         }
         // One view polls at a time: the one on the page takes the poll over from any drawn before it. It polls with no
         // part running too, so a part started on the unit's screen or another browser is seen within 2 s
-        const period = cal.job !== null ? 500 : 2000;
+        const period = cal.state !== "idle" ? 500 : 2000;
         if (box.isConnected && (calibrationOwner !== box || calibrationPeriod !== period)) {
             stopCalibrationPoll();
             calibrationOwner = box;

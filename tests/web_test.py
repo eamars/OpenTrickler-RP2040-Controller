@@ -154,9 +154,11 @@ class StandIn:
             {"path": CALIBRATION, "methods": ["GET"], "about": "the calibration (ADR-009 step 1): the mock's alone"})
 
     def selected_powder(self):
-        """The powder the charge uses: its index and its name, without the scale's unit after the comma."""
+        """The powder the charge uses: its index, its name (without the scale's unit after the comma) and its two
+        least speeds."""
         index = self.replies["/api/v1/charge"]["powder_profile"]
-        return index, self.replies[f"/api/v1/powder_profiles/{index}"]["name"].split(",")[0]
+        profile = self.replies[f"/api/v1/powder_profiles/{index}"]
+        return (index, profile["name"].split(",")[0], profile["fine_min_speed_rps"], profile["coarse_min_speed_rps"])
 
     def now_ms(self):
         return int(time.monotonic() * 1000 - self.started_ms)

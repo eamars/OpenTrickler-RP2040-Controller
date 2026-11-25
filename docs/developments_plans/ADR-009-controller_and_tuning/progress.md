@@ -209,3 +209,18 @@ Each appended field is -1 when never calibrated, and null through the API (`null
 **The Pico W's image:** the first build overflowed its slot by 13.7 KB of flash and 3.8 KB of RAM. Not cut: `sscanf`, pulled in by the console's parsing alone, was 15 KB of the scanf family, and is gone; the method's 3 KB of readings come from the FreeRTOS heap while a part runs, given by the bench. Now 990.6 of 1016 KB of flash and 252.6 of 256 KB of RAM; the Pico 2 W 961.5 of 1792 and 285.2 of 512.
 
 **Not proven, waiting for the bench** (nothing run on a unit, the owner's direction): the job's steps on the 12864, the API and the console; the A&D's rate against the room for readings (128 in a run, 256 in a watch); the zero's wait, the lifted and put-back thresholds; a stop and a driver's fault in each step; the records kept as the method found them, against gate 1's within the spread the kept sessions give.
+
+## 2026-11-25, 15:20: gate 4, the screens and the web, built (no unit)
+
+**The 12864** (`menu_nav.c`): Settings › Calibration first in Settings, its rows Cup (the capacity kept, or Not done), Scale (Done or Not done) and Powder (the charge's powder), each starting its part; Calibrate this unit on the main menu while the cup or the scale was never calibrated, as Set up this unit is offered. In the job, each step its screen as mocked: the cup on the scale (Cancel, and Next for the cup's part, Start for the others), Zeroing, Lift the cup and Put the cup back (the weight as the figure), Fill the cup (the purge's control: the weight and its flow, the fine and coarse tubes' speeds set in place a detent at a time, 0.1 and 0.5 rev/s; Cancel, Full), its capacity to keep, Empty the cup, Calibrating (how far, what it does; Stop), the pause (Stop, Go on), the records found as notes ending in Keep or Save, and a failure (OK). Back stops it at any step. One change from the mock: the view gives notes a label and a value on one line and clips the label, so the powder's result is headed lines, Fine tube then Minimum and Was, where the mock wrapped "Coarse minimum" over two lines.
+
+**The web** (`settings.js`) on the unit's own API, the stand-in's model (`tests/calibration_mock.py`) answering as `calibration.c` does: each part driven through on the stand-in at a phone's width, the cup's (zeroing to empty, its capacity kept into the Cup card), the scale's (its result, Keep, its card), a powder's (the pause, the result beside what was, Save) and a failure (OK); no error in the console.
+
+**The images:** the Pico W 995.4 of 1016 KB of flash and 252.6 of 256 KB of RAM; the Pico 2 W 966.5 of 1792 and 285.2 of 512.
+
+**What the bench owes, gate by gate** (nothing of gates 2 to 4 has run on a unit):
+- gate 1: the method as changed on 2026-11-25 run once (the ladder below the prime, the shorter watch, the lag's five flows), and the settle time's measure (README, To settle, 2);
+- gate 2: an update from today's release that keeps every setting, on both boards;
+- gate 3: each part on a unit through the console and the API; the A&D's rate against the room for readings; the zero's wait and the cup's thresholds; a stop and a driver's fault at each step;
+- gate 4: the screens seen and reached on the unit (`snap`, `reach`), and the menu's baselines saved again for the pages this changes (main, settings, and the new settings/calibration); the web on a unit;
+- gate 5: step 1's sign-off.
