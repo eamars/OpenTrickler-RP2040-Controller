@@ -839,3 +839,45 @@ From the owner's gains (kp 0.8, kd 15, top 2 rev/s): no tuner 14.2, 14.7, 18.1, 
 **Proven with no unit:** `tests/step2_sim.py` VERDICT PASS (the controller call for call; the tuner the same steps in 12 windows from both starts on every rig, kd moving on three: 636, 446, 0); `tests/host_test.py` and `tests/calibration_sim.py` PASS; the Pico 2 W's image 55.06% of its slot, RAM 56.23%. The Pico W's misses its slot by 1,008 bytes (RAM 99.69%): **the owner (09:37): "Also, don't build for Pico W yet. That's the optimization domain."** Left to that work; CI builds both boards, so nothing is pushed meanwhile.
 
 **Sheets, as the bench's of 02:26** (the owner, 09:37: "Can you plot the result of the simulation of charge weight versus time diagram similar to what you plotted last night?"; `tools/charge_sim/step2_twin_traces.py`): `research/step2_twin_ab_f2.png`, the bench's A/B on f2 (one session of 48: kp 2 SD 0.064, kp 1.33 SD 0.046, narrower than the six sessions' 0.123 and 0.064 and the bench's 0.128 and 0.087; the same two kinds of throw); `research/step2_twin_tuner.png`, the tuner from the bench's gains, its first window and its 24th: f2 SD 0.106 to 0.076 (kp 2 to 1.81), night mean +0.213, SD 0.260 to mean +0.058, SD 0.185 (a trial at kp 1.20, kd 191).
+
+## 2026-11-26, 09:45 to 09:49: never cut the throw early (the twin, no unit)
+
+**The owner (09:45):** "Can you also run the simulation without the predictor (perhaps just don't cut the throw)? So we basically push all potential failure mode to overcharge? And will it help improving the grouping?"
+
+**Built in the twin only** (`step2.Step2(cut=...)`; the C unchanged, `cut="forecast"` the stop as before, the judge's Python the same): what stops the fine tube. `forecast`, the moment the forecast reaches the target (as built); `reading`, the forecast still drives the PID and its envelope but the throw is never cut early, the fine tube creeping at its least until the reading itself reaches the target; `none`, no forecast at all, the PID on the reading, stopped once the reading reaches the target.
+
+**Run** (`tools/charge_sim/step2_cut_study.py`: fixed gains, no tuner, the seed on, 4 sessions of 150 throws at 10 gr):
+
+| Rig, start | Stop | SD | 5% to 95% | Mean | Worst | Under | Median time (95%) |
+|---|---|---|---|---|---|---|---|
+| f2, the bench's gains | forecast | 0.135 | −0.17 to +0.19 | +0.014 | +1.49 | 34% | 2.8 s (6.0) |
+| | reading | 0.098 | −0.00 to +0.23 | +0.075 | +1.00 | 0% | 5.0 s (9.4) |
+| | none | 0.086 | +0.99 to +1.28 | +1.141 | +1.54 | 0% | 2.6 s (2.7) |
+| f2, the owner's gains | forecast | 0.072 | −0.04 to +0.07 | +0.010 | +1.40 | 9% | 10.2 s (13.1) |
+| | reading | 0.042 | −0.01 to +0.09 | +0.031 | +0.58 | 0% | 11.3 s (14.7) |
+| | none | 0.115 | +0.01 to +0.20 | +0.086 | +1.96 | 0% | 6.5 s (7.7) |
+| f2 by speed, the bench's gains | forecast | 0.186 | −0.20 to +0.35 | +0.044 | +1.37 | 30% | 4.1 s (6.5) |
+| | reading | 0.111 | −0.01 to +0.22 | +0.066 | +1.12 | 0% | 5.7 s (9.0) |
+| f2 by speed, the owner's gains | forecast | 0.080 | −0.03 to +0.09 | +0.019 | +1.61 | 5% | 10.5 s (14.7) |
+| | reading | 0.042 | −0.01 to +0.09 | +0.029 | +0.49 | 0% | 11.3 s (14.8) |
+| night, the bench's gains | forecast | 0.380 | −0.11 to +1.12 | +0.468 | +1.77 | 10% | 2.4 s (2.5) |
+| | reading | 0.284 | +0.01 to +0.85 | +0.335 | +1.52 | 0% | 2.6 s (10.0) |
+| night, the owner's gains | forecast | 0.054 | | +0.013 | +0.44 | 11% | 9.7 s |
+| | reading | 0.045 | | +0.035 | +0.43 | 0% | 11.0 s |
+| BM2, the bench's gains | forecast | 0.142 | | +0.038 | +0.95 | 32% | 3.9 s |
+| | reading | 0.150 | | +0.150 | +0.77 | 0% | 4.4 s |
+| BM2, the owner's gains | forecast | 0.036 | | +0.018 | +0.57 | 1% | 17.8 s |
+| | reading | 0.038 | | +0.023 | +0.69 | 0% | 18.2 s |
+
+(`none` from the bench's gains on f2 by speed, night and BM2: +1.05 to +1.63, every throw over.)
+
+**What it shows:**
+- **No forecast at all does not help:** from the bench's gains everything in the air lands on top, +1.1 to +1.6 gr, the unit's own throws before the seed (+1.28 to +1.56). The forecast's slowing of the approach is what makes the creep land close.
+- **Never cutting early helps the grouping on the AR2209 rigs like the unit:** the SD falls by 27 to 48% on f2 and f2 by speed from both starts, every under becomes an over, and the worst over shrinks. Its price: a steady offset of +0.03 to +0.07 gr and 1 to 2 s a throw (the 95% time 3 s more from the bench's gains: a creep at the fine tube's least, 0.0336 rev/s on the bench, to close a gap the forecast had counted on).
+- **Not where the coarse tube's powder is the trouble** (night from the bench's gains: still SD 0.284, mean +0.335), **nor on BM2.**
+- **The bench's own throws agree:** its slow throws are the ones the forecast did not cut early (they finished on the creep after the coarse tube's powder had landed), SD 0.057, mean +0.037; its fast throws, cut early on the forecast, SD 0.138, mean −0.063, nearly all its unders.
+- **By the tuner's objective** (time per good charge at ±0.03) it is dearer (f2 from the bench's gains 9.5 to 13.6 s): the offset pushes throws past the tolerance. By "What we want" ("its spread narrow first, then its time short (a steady offset matters less than a wide spread)") it is the better stop.
+
+The sheet: `research/step2_twin_cut_f2.png` (`step2_twin_traces.py cut`): the three stops on f2 from both starts, 40 throws each. One session is noisier than the study: from the bench's gains its never-cut SD is 0.106 against the forecast's 0.105, one clump landing +0.55 after a 16 s creep.
+
+**Not built into the firmware:** it changes how the controller stops (a mechanism, not a parameter), so it is the owner's decision; with it, the tuner's judgement and the steady offset follow (below, "What is left").

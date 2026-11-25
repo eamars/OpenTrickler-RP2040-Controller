@@ -87,18 +87,24 @@ class Step2(LegacyPid):
     name = "step2"
 
     def __init__(self, profile: Profile, records: Records, acceleration_rps2: float, before: str = "none",
-                 envelope: bool = True, seed: bool = False, hold: str = "none"):
+                 envelope: bool = True, seed: bool = False, hold: str = "none", cut: str = "forecast"):
         """
         seed: with nothing carried, the forecast takes step 1's own weight a turn (Records.fine_gr_turn) until the
             throws' own replace it (2026-11-26: without it a fast profile never teaches one).
         hold: "none"; "landed", the fine tube at its least and no stop until the coarse tube's powder has landed (its
             stop, the back-off and the slowest lag); "quiet", until the coarse tube's quiet (and the settle time).
+        cut: what stops the fine tube (the owner, 2026-11-26: "run the simulation without the predictor (perhaps just
+            don't cut the throw)? So we basically push all potential failure mode to overcharge"): "forecast", the
+            moment the forecast reaches the target (as built); "reading", only once the reading itself does, the
+            forecast still driving the PID and its envelope, so the fine tube creeps at its least between; "none",
+            no forecast: the PID on the reading, stopped once the reading reaches the target.
         """
         super().__init__(profile)
         self.records = records
         self.acceleration = acceleration_rps2
         self.before = before
-        self.envelope = envelope
+        self.cut = cut
+        self.envelope = envelope and cut != "none"
         self.seed = seed
         self.hold = hold
         self.history = []               # the last throws' own weights a turn (RAM, nothing stored)
@@ -194,7 +200,13 @@ class Step2(LegacyPid):
                 self.unseen += turns
 
     def forecast(self) -> float:
+        if self.cut == "none":
+            return self.reading
         return self.reading + (self.k * self.unseen if self.k is not None else 0.0)
+
+    def reached(self) -> bool:
+        """The fine tube's stop: the forecast at the target, or with `cut` "reading", the reading itself."""
+        return (self.reading if self.cut == "reading" else self.forecast()) >= self.target
 
     def on_tick(self, now_ms: float) -> None:
         if self.done:
@@ -221,7 +233,7 @@ class Step2(LegacyPid):
         if self.quiet_at is None and not self.coarse_moves and self.backoff_until_ms is None:
             self.quiet_at = now + max(self.lag_seconds) + self.records.settle_s
         # the stop, the moment the forecast reaches the target, below the coarse tube's threshold
-        if not self.coarse_moves and self.fine_rps > 0.0 and self.forecast() >= self.target and not self.holding(now):
+        if not self.coarse_moves and self.fine_rps > 0.0 and self.reached() and not self.holding(now):
             self._stop()
 
     def _stop(self) -> None:
@@ -282,7 +294,7 @@ class Step2(LegacyPid):
             self.coarse_last_error = coarse_error
             self.first_sample = False
             return
-        if not self.coarse_moves and error <= 0.0:
+        if not self.coarse_moves and self.reached():
             self._stop()
             return
         if not (self.envelope and self.held):

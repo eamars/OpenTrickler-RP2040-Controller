@@ -6,7 +6,9 @@ what you plotted last night?" Two sheets:
 - `ab`: the bench's A/B of 2026-11-26 thrown on a rig of the twin (kp 2 and 1.33 in ABBA order from the bench's
   stored gains, the seed on, the tuner off), to lay beside the bench's own sheet;
 - `tuner`: the tuner as it ships (kp and kd, the share modelled) from the bench's stored gains, its first window
-  against its last after a session of throws, a row a rig.
+  against its last after a session of throws, a row a rig;
+- `cut`: what stops the fine tube (step2_cut_study.py): the forecast (as built), the reading (never cut early), and
+  no forecast at all, from fixed gains, a row a start (the bench's stored gains, the owner's).
 
 The twin's reading is its scale's (its rhythm, its digit and its lag), as the A&D's on the bench.
 
@@ -22,6 +24,7 @@ from pathlib import Path
 import rigs
 import step2
 import step2_tuner
+from legacy_pid import AR2209_PICOW_168
 from step2_variants import BENCH
 from throw import Session
 from workers import Workers
@@ -62,6 +65,15 @@ def ab_case(job: tuple) -> list:
     return out
 
 
+def cut_case(job: tuple) -> tuple:
+    """A session from fixed gains with one of step2.Step2's stops (`cut`)."""
+    rig_name, profile, cut, throws, seed, records = job
+    rig = rigs.get_rig(rig_name)
+    session = Session(rig, seed)
+    controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=True, hold="none", cut=cut)
+    return cut, [thrown(session, controller) for _ in range(throws)]
+
+
 def tuner_case(job: tuple) -> tuple:
     rig_name, throws, seed, records = job
     rig = rigs.get_rig(rig_name)
@@ -85,13 +97,28 @@ def tuner_case(job: tuple) -> tuple:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("sheet", choices=("ab", "tuner"))
+    parser.add_argument("sheet", choices=("ab", "tuner", "cut"))
     parser.add_argument("--rig", default="pico2w_ar2209_f2")
     parser.add_argument("--rigs", nargs="+", default=["pico2w_ar2209_f2", "pico2w_ar2209_night"])
     parser.add_argument("--throws", type=int, default=600, help="the tuner's session")
     parser.add_argument("--seed", type=int, default=9400)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
+    if args.sheet == "cut":
+        records = step2.rig_records(args.rig)
+        starts = {"bench's gains": BENCH, "owner's gains": AR2209_PICOW_168}
+        cuts = {"forecast": "cut on the forecast (as built)", "reading": "never cut early: the reading",
+                "none": "no forecast"}
+        with Workers() as pool:
+            results = pool.map(cut_case, [(args.rig, profile, cut, 40, args.seed, records)
+                                          for profile in starts.values() for cut in cuts])
+        names = [f"{start}, {said}" for start in starts for said in cuts.values()]
+        panels = [(name, drawn) for name, (_, drawn) in zip(names, results)]
+        step2_traces.draw(panels, args.out, f"ADR-009 step 2 on the twin ({args.rig}): what stops the fine tube, 10 gr "
+                                            "throws (dashed: slower than the median)", rows=len(starts),
+                          ylabel="the twin's scale, gr")
+        print(f"drawn into {args.out}")
+        return
     if args.sheet == "ab":
         records = step2.rig_records(args.rig)
         found = ab_case((args.rig, 48, args.seed, records))
