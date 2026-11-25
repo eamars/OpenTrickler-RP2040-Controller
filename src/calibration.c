@@ -115,7 +115,10 @@ static bool calibration_should_end(void) {
     }
     if (activity_take_stop(&by)) {
         end_by = by;
-        end_reason = EVENT_REASON_STOPPED;
+        // A stop at a failure acknowledges it: the part still ended failed
+        if (end_reason != EVENT_REASON_FAILED) {
+            end_reason = EVENT_REASON_STOPPED;
+        }
         ending = true;
     }
     else if (motors_get_fault() != NULL) {

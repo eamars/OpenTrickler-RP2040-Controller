@@ -154,8 +154,8 @@ def screens():
     m.dense(p, POWDER_RESULT, at="end")
     add(p, "Powder: Save at the end")
 
-    p = Panel(); m.title(p, "AR2209")
-    m.message(p, "Fine tube: no powder", "Its minimum is kept")
+    p = Panel(); m.title(p, "Not calibrated")
+    m.message(p, "Fine tube: no powder", "Nothing changed")
     m.softkeys(p, "", "OK")
     add(p, "Powder: a step that failed, nothing retried")
     return out, caps

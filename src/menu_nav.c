@@ -2947,9 +2947,8 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             return;
         }
         case CALIBRATION_STEP_FAILED:
-            calibration_dialog(screen, calibration_part_title(&cal), cal.failure,
-                               cal.part == CALIBRATION_PART_POWDER ? "Its minimum is kept" :
-                               (cal.part == CALIBRATION_PART_SCALE ? "Its records are kept" : "Its capacity is kept"), NULL);
+            // Said as a failure, never as something kept (the owner, 2026-11-25: "Its records are kept" read as done)
+            calibration_dialog(screen, "Not calibrated", cal.failure, "Nothing changed", NULL);
             break;
         default:
             snprintf(screen->title, sizeof(screen->title), "Calibration");

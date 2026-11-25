@@ -340,9 +340,9 @@ function drawCalibration(options = {}) {
             break;
         }
         case "failed":
-            head(cal.failure);
-            note(cal.part === "powder" ? "Its minimum is kept." :
-                 (cal.part === "scale" ? "Its records are kept." : "Its capacity is kept."));
+            // Said as a failure, never as something kept, as the 12864 says it
+            head("Not calibrated");
+            note(`${cal.failure}. Nothing changed.`);
             actions(button("OK", "action go", () => answer("done")));
             break;
         }
