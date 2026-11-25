@@ -432,3 +432,44 @@ The owner said the bench was ready (20:01): the Pico 2 W (FA0C, 192.168.2.166) a
   - **Keep did nothing when pressed** (the owner, 20:37): the result screen took a click only once turned to its end, and counted the end one turn late, so Keep was shown but not reached; and a click before it did nothing. Now as every notes page does it: a click before the end turns the page, and the button is reached the moment it shows (`menu_nav.c`).
   - **The calibration's writes were logged `by` button** whoever kept them (the API's cup and powder, the console's): it wrote through the screen's own helpers. Now `settings_write_by` and `settings_store_by` take who wrote, and the calibration's answer and save carry it from the API, the console and the menu.
 - **The owner's words at the bench (recorded 20:59):** no confirmation added to the calibration's cup part (its fill waits for a speed the person sets: a click to edit, then a turn); "Only the part that needs human to put back the cup should have the confirmation": the charge's next throw, in step 2's gate 3 (the README's step 2).
+
+## 2026-11-25, 21:00 to 21:58: step 1 on the bench, the Pico 2 W: gate 4, and gate 5 as far as it goes
+
+**Gate 4, the screens and the web** (2.0.3-197, flashed by the probe): pass on the Pico 2 W.
+- `menu_tour --compare`: two pages changed, as meant: Settings (its Calibration row first) and Settings › Calibration (new: Cup, Scale, Powder). Both saved into `tests/menu_baseline/pico2_w`; the main page matches (with the cup and the scale calibrated it does not offer "Calibrate this unit").
+- `reach`: every element of every screen reached by turning. Its cup budget mended: its simulated charge poured 55.4 gr of AR2209 for the 30 the stand-in scale counted, against a flat 40 stated; now twice its target and a throw's start.
+- The result screen's Keep, mended at 20:59: two clicks with no turn, the first turning the page so Keep is reached, the second keeping the records (`by` button, from the console's `press enc`).
+- **The web on the unit:** the scale part run from the unit's own page end to end (the empty cup, Calibrating with its Stop, the result with Discard and Keep, the records read again into the card); the keep logged `by` api; no error in the browser's console.
+- **The owner, at the bench (recorded 21:58):** "Should the STOP has the same attribute as the "Calibrate xxx" button?", then "the same design language should apply to the entire web frontend, that if a button is replaced by another feature then the attribute should stay, so the user will not see the shift of the element." Done: a step's lone key spans the card (`settings.js`, checked on the stand-in); the rule written as rule 17 of the `web-ui-design` skill. **Owed:** the calibration's steps shown in the card whose button started them, its Stop in the button's place (today a card appears at the top and pushes the page down; a powder's steps show above its row the same way), and the other pages read against the rule (the charge's and the purge's Start and Stop, the update).
+
+**Gate 5, step 1's sign-off** ("How the unit shows it works"), on the Pico 2 W:
+
+| Item | Shown tonight |
+|---|---|
+| From the 12864, from nothing to its records, and stopped | AR2209's powder part run by the owner from the screen on a unit made never calibrated (the cup and the scale records cleared): its steps, the result, Save. **The cup part from the screen is owed** (below). A stop from the screen's Back not tried; the stops were proven over the API (gate 3) |
+| From the web | the scale part, end to end (gate 4) |
+| Each part alone, in any order, on defaults | the powder part ran on the cup's and the scale's defaults (the unit made never calibrated); the scale's parts left AR2209's record as it was |
+| No pour passes the cup's capacity | the capacity set live to 40 gr: the scale part paused at 38.7 ("It holds 39 of 49"), the owner emptied the cup and went on; the stored capacity put back |
+| Kept across a restart, in the backup, given back by a restore | the export holds every record; a restart kept them field by field; the copy restored whole and compared equal |
+| An update keeps every setting | gate 2 on the Pico 2 W; **the Pico W's pass owed** |
+| The values its recordings give | gate 3, against gate 1's spread |
+| A step made to fail | **fails**: below |
+| Its time and powder reported | every part |
+| A charge throws with them | one real 10 gr throw on AR2209 (its new least speeds, its stored gains, today's loop): 12.2 gr, over, as its gains make it |
+
+**Found, to be mended:**
+- **A lifted cup and a silent scale go unnoticed during a run.** The cup lifted for 5 s in the scale part's lag runs: no failure; the part reached a result whose lag table held a point at 235 gr/s and 0 ms (the lift and the return read as a flow), its slowest point gone; kept, it would have stored a false table (it was discarded). The job trusts every reading; a reading that does not come is skipped with nothing said (`bench_watch`). The mend, in the unit's watch, not the method: a reading more than the cup's own 2 gr under the part's zero ends the run as "The cup was lifted"; no reading for longer than the scale's lost-reading time ends it as "No reading from the scale"; the item stays as it was, nothing retried. Both tried on the unit after.
+- **The pause's line** reads "It holds 39 of 49": the cup's weight and what the next run could make it, read as a capacity of 49. To say the capacity: "It holds 39 of 40".
+- **The fine tube's least moves from run to run:** 0.020 (the PC's run), 0.034 and 0.056 rev/s (the unit's, the last on the scale's defaults) on the same powder and evening: each time the next step of the ladder's slow end (twice the slowest step that passes, those steps near the test's bar on this rig: 0.61 to 1.35 of the stream's pour across the kept sessions, against 0.5). Step 2 takes the least as the PID's floor, so a factor of 2.8 matters. For the owner, with its evidence, before step 2 is built.
+- Small: the calibration's idle status keeps the last part's line; the web's card is blank for a second or two after Keep while it reads the records again; a run's readings past its room are dropped with nothing said (gate 3).
+
+**The owner's decisions at the bench (recorded 21:58):**
+- **The cup's fill, redesigned on the owner's idea:** "My original idea was to tie the rotary button to the motion of the two tubes. So the rotary button will not control the speed, but position, when filling the cups. And on the screen you should show what the user should do. Currently the Fill the cup UI design is misleading." Agreed as proposed: the knob moves the coarse tube (a detent a quarter turn, about 2.5 gr; turned quickly, a whole turn), clockwise only, at most about a second's motion queued so the tube stops when the knob stops; the screen says "Turn the knob to pour" and "Click Full when the cup is full", the weight its figure; the web a "Hold to pour" key in the same place. **Mock-ups first**, then built.
+- The calibration's cup part needs no added confirmation after the cup is back (its fill waits for the person); the charge's next throw after the cup is put back waits for a press (step 2, gate 3).
+- The rest of gate 5 continued that evening; what it could not finish is owed.
+
+**What the bench owes for step 1's sign-off,** in order once built:
+1. The mends above (the lifted cup and the silent scale; the pause's words), the fill as mocked and approved, the web's steps in place (rule 17); built, the host tests and the stand-in, both boards built.
+2. On the Pico 2 W: the cup part from the 12864 and from the web; a lifted cup and an unplugged scale mid-run, each said and nothing kept; a stop from the screen's Back; `menu_tour` and `reach` again.
+3. The Pico W on the probe: gate 2's update from v2.0.3 (with `rc_run.py update`'s field-by-field check), its menu baseline, a part from its screen.
+4. The fine tube's least: the owner's decision on its spread.

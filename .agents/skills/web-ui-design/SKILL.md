@@ -97,6 +97,11 @@ description: Design rules for this firmware's web pages (ADR-008), served by the
     - A heading says only what nothing above or under it says: a group named as its resource has no heading (the resource's own fields come first, unheaded); a field is not named as its part ("Make", not "Scale" under Scale); a form whose first field is the name has no title over it (a powder).
     - Read each heading top to bottom with what is around it: one word twice in a stack ("Scale", "SCALE", "Scale") is one too many.
     - **Why:** the owner, 2026-11-18, on the Settings page with its list: the side bar and the section title, "another case of duplicated information" (rule 14's one element for one piece of news). The part's name was said four times: the list's row, the title, the group, the field.
+17. **Nothing shifts: a control replaced by another keeps its place and size.**
+    - What a button starts shows where the button was: a job's steps in the card that started it, its Stop or its next key in the button's place, at the button's width and height. A new card that appears above, pushing the page down, is a shift.
+    - A key that comes and goes (Start and Stop, Calibrate and Stop) is one slot that changes its words and colour, never two elements laid out apart; a slot that is sometimes empty keeps its room.
+    - A step with one key gives it the room the button had; colour still means what rule 5 says (a Stop is red wherever it is).
+    - **Why:** the owner, 2026-11-25, at the bench, on the calibration's Stop (half the width of the Calibrate button it replaced, under a card that had pushed the page down): "the same design language should apply to the entire web frontend, that if a button is replaced by another feature then the attribute should stay, so the user will not see the shift of the element."
 
 ## This project's design language
 

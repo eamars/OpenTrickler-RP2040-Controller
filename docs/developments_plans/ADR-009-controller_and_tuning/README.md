@@ -1,6 +1,6 @@
 # ADR-009: calibration and automatic tuning
 
-Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and being built in the gates under "What we do": gates 2 to 4 built with no unit. **Their test on a unit is deferred by the owner (recorded 16:37)**, until the owner says the bench is ready for it; then the list in progress, 2026-11-25, "What the bench owes", is run in its order, and step 1 is signed off by gate 5. Step 2, the tuning, approved by the owner (recorded 20:01) after gate 1 proved it in the simulation; its gates 2 to 4 are built once step 1 is signed off.
+Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and being built in the gates under "What we do": gates 2 to 4 built with no unit. Their test on a unit ran on the Pico 2 W on 2026-11-25 (progress, 20:01 to 21:58): gates 1 to 4 pass there, gate 5 in part; what it still owes is in progress, "What the bench owes for step 1's sign-off" (21:58), with the cup's fill to be redesigned (the owner's) and a run's lifted cup and silent scale to be mended. Step 2, the tuning, approved by the owner (recorded 20:01) after gate 1 proved it in the simulation; its gates 2 to 4 are built once step 1 is signed off.
 
 The earlier README and progress are phased out and moved to [`legacy/`](legacy/).
 
