@@ -290,7 +290,7 @@ function drawCalibration(options = {}) {
             head("Fill the cup");
             figure("gr");
             card.append(holdToPour());
-            actions(cancel(), button("Full", "action go", () => answer("full")));
+            actions(cancel(), button("It's full", "action go", () => answer("full")));
             break;
         case "keep":
             head(`It holds ${weightText(cal.capacity)}`);

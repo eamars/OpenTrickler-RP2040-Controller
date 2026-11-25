@@ -43,7 +43,7 @@ def fill_job(panel, weight):
     m.title(panel, "Fill the cup", back=True)
     m.figure(panel, weight, "gr")
     m.context(panel, "Rotate to dispense")
-    m.softkeys(panel, "", "Full", focus="right")
+    m.softkeys(panel, "", "It's full", focus="right")
 
 
 def screens():

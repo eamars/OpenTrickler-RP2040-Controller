@@ -1807,7 +1807,7 @@ static const char *calibration_answer_label(const calibration_status_t *cal, con
         const char *label;
         const char *answer;
     } answers[] = {
-        {CALIBRATION_STEP_FILL, "Full", "full"}, {CALIBRATION_STEP_KEEP, "Keep", "keep"},
+        {CALIBRATION_STEP_FILL, "It's full", "full"}, {CALIBRATION_STEP_KEEP, "Keep", "keep"},
         {CALIBRATION_STEP_EMPTY, "Done", "done"}, {CALIBRATION_STEP_FAILED, "OK", "done"},
         {CALIBRATION_STEP_PAUSED, "Go on", "go_on"}, {CALIBRATION_STEP_RESULT, "Save", "save"},
     };
@@ -2914,7 +2914,7 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             calibration_weight_figure(screen, cal.weight);
             snprintf(screen->context, MENU_TEXT, "Rotate to dispense");
             screen->softkey_left[0] = '\0';
-            snprintf(screen->softkey_right, MENU_TEXT, "Full");
+            snprintf(screen->softkey_right, MENU_TEXT, "It's full");
             screen->softkey_focus = 1;
             return;
         case CALIBRATION_STEP_KEEP:
