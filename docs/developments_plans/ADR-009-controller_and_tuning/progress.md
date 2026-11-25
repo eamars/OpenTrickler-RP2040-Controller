@@ -241,3 +241,8 @@ Each appended field is -1 when never calibrated, and null through the API (`null
 
 - **The owner (recorded 16:37):** the calibration's test with the new code on a unit is deferred to later. Its exit: the owner says the bench is ready for it. Then, in order: the list under "What the bench owes" (gate 4's entry, 15:20), with the burst's settle time measured in gate 1's run, the bench tools' calibration covered by `rc_run.py` (its cup check and `api_check`), and step 1's sign-off by gate 5. Nothing of gates 2 to 4 has run on a unit until then.
 - **Where the work is:** branch `adr009_restart`, local and not pushed (the owner's rule: pushed when its PR is ready). Both boards build from it; `tests/host_test.py` and `tests/calibration_sim.py` pass on the PC.
+
+## 2026-11-25, 17:01: step 2's design drafted
+
+- **The owner (recorded 17:01):** start step 2's design while step 1's test on a unit is deferred. Taken as the design alone: the README keeps that step 2 is built only once step 1 is signed off.
+- The first build's record was read for it (its legacy README and progress, branch `adr009_controller`'s progress and research, the simulation's tools): what it learnt of the forecast, the gains and learning throw by throw, and its traps, are in the draft's "What we know". The draft is in the README's step 2, with four questions for the owner before approval: where the grains a turn lives (step 1 keeps none, and the forecast needs it each throw), the gains while the tuner is on, I and D, and room on the Pico W.

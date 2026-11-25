@@ -105,9 +105,63 @@ No throw's result is judged.
 
 ## Step 2: the tuning
 
-- **The predictor:** what the reading will show once the powder still falling has landed, from step 1's records.
-- **The PID auto-tuner:** each tube's PID made from step 1's records, then kept right throw by throw.
-- **Its safety:** a cup lifted mid-charge told from a light reading, by the empty cup's weight (step 1's item 2; the owner, 2026-11-25).
-- **Nothing else:** no glide, and no other algorithm in parallel.
+**Draft, for the owner's approval** (drafted 2026-11-25 at 17:01, at the owner's word, while step 1's test on a unit is deferred). Nothing of it is built until step 1 is signed off. It is drafted on step 1's records as built; their figures on a unit (the burst's settle time among them) come with step 1's test, and the draft is read again against them then.
 
-Its input is step 1's records. It starts only once step 1 is fully complete; its details are drafted then.
+### What we want
+
+A throw lands as near its target as the powder allows, throw after throw: its spread narrow first, then its time short (a steady offset matters less than a wide spread). The user sets a target and a powder and throws; there is no tuning session. The predictor and the auto-tuner are not seen: the user sees throws, and one switch that turns the auto-tuner off.
+
+### Owner's direction
+
+- Step 2 is the predictor and the PID auto-tuner, and nothing runs beside them: no glide, no nudge as the final top-up, no other algorithm.
+- Its input is step 1's records.
+- Its safety: a cup lifted mid-charge told from a light reading, by the empty cup's weight.
+- The fine threshold is the user's tolerance; nothing writes it.
+- Each profile's maximum speed stays as the user has it.
+- Earlier words still standing (2026-11-22, the first build): the predictor and the auto-tuner not visible; an auto-tuner switch, on by default; no tuning session. A throw is judged by the spread of its final weight, then by its time (2026-11-24).
+
+### What we know
+
+From the first build's record (`legacy/` and branch `adr009_controller`'s progress) and step 1. On the bench's Pico 2 W, A&D FX-300i, AR2209.
+- **The plant integrates:** the weight is the turns times the grains a turn (fine 0.71 to 0.88, coarse 9.4 to 10.5), shown late by the scale's lag (0.5 to 0.6 s behind a fast flow, about 1 s behind a slow one; step 1's table, 0.59 to 1.21 s, steady from day to day).
+- **A forecast works where it decides:** the last reading plus each 10 ms parcel turned out and not yet due, each parcel due after the lag of the flow it was turned out at. At a stop from the creep the rest lay 0.003 gr from it, its spread 0.036 to 0.045 gr. One lag for the whole recent past double-counted a slowing tube; lags measured from the PC were 0.055 s long and stopped the coarse tube about 1 gr early (step 1 now measures on the unit).
+- **The stop's spread has a floor:** what lands unseen behaves as a count of kernels, about 0.03 to 0.06 gr at the creep; part of it does not shrink with speed.
+- **A gain from two measured numbers:** a fine kp under 0.37 / (lag x grains a turn), about 0.9, was stable, and 0.8 matched the owner's hand-tuned value.
+- **The first build's tuner offer** (coarse kp = 1 / (grains a turn x T), fine kp = 0.6 / (grains a turn x T), T = 0.6 x the longest lag), with the PID fed the forecast inside an envelope (anti-windup, a speed cap): as good as the first build's glide within 20 throws and quicker, but more overs in two of three sets; from bad starting gains, 85 to 90% good with the envelope, 35 to 66% without.
+- **Learning throw by throw:** the stop learnt at 15% of each throw's error, with a dead zone and a cap, held; it walked on noise where the stop's spread was wider than a digit, and a rule on the mean did worse. Learning the fine tube's grains a turn bought nothing measurable on the rig.
+- **The PID's I and D:** the first build's research found they added nothing on the rig: the plant already integrates, the error never changes sign, and a derivative of a rounded, late reading is noise. On the forecast the D term is a different thing: the forecast moves with the speeds asked, at once and without the scale's steps.
+- **Traps on record:** a cold fine tube pours short at first; the step count is unsigned, so the coarse back-off's reverse steps would count as forward turns (the forecast counts turns from the speeds asked); the throw's verdict is read 1 s after its stop today, before a slow stop's last powder shows; the rig itself drifts by about 4 good of 20 and 1 s within an hour, as large as most effects tried.
+- **Step 1 keeps no grains a turn.** Its powder part measures it (the prime's stream rate) and drops it. The forecast needs it every throw.
+
+### What it does
+
+**The predictor**, each reading: the forecast is the reading plus each tube's powder turned out and not yet shown, in 10 ms parcels of the turns asked (the speed set, times the time) times the powder's grains a turn, each due after the lag of its flow, read from step 1's table (between its points straight, beyond its ends at the end's). The scale's records never calibrated: the defaults of step 1's method. Each tube's PID works on the forecast's error, and each tube stops when the forecast reaches its stop point: the coarse at the target less its threshold, the fine at the target less the powder's learnt landing (below). The verdict is read once the slowest lag and the settle time have passed after the stop, not after 1 s.
+
+**Its safety:** a reading that falls by more than half the empty cup's weight during a throw is a lifted cup, not a light charge: the tubes stop and the throw ends, never pouring as if it were short. Never calibrated: today's 10 gr below zero.
+
+**The auto-tuner**, per powder:
+- **What it keeps,** in a record of its own (each powder, each tube: its grains a turn, and the landing: the rest less the forecast at the stop): its own slot in the EEPROM, so no stored struct changes. Seeded by the powder's calibration (the prime's grains a turn; the landing 0), and kept right after each throw: the grains a turn from the throw's own steady stretches, the landing from its rest, each by a small share with a dead zone and a cap (the first build's 15%, its constants chosen in gate 1).
+- **The gains** each throw from what it keeps: each tube's kp from its grains a turn and the longest lag (the first build's offer), within the bound above; ki and kd per the decision below.
+- **The switch,** `auto_tune` in the charge settings, on by default: off, the charge is today's, the user's own gains on the reading.
+
+### To settle before approval
+
+1. **Where the grains a turn lives.** The owner said on 2026-11-25 that kp holds it, so it need not be stored. It cannot carry it for the forecast: the forecast needs it every throw, and the tuner changes kp throw by throw (and a user's own kp says nothing of the powder). Proposed: the tuner's own record per powder, seeded by the calibration and kept right each throw. The other way: no record, learnt afresh in each throw's coarse stream, every first throw on a guess.
+2. **The gains while the tuner is on.** Proposed: made from what it keeps, the user's gains unused while it is on and theirs again when it is off. The other way: the user's gains as the start, corrected throw by throw, which leaves a bad start slow to mend (35 to 66% good from bad gains, in the first build's study).
+3. **I and D.** The owner did not agree that the D term helps nothing. Proposed: ki 0 (an integral on an error that never changes sign only winds up) and kd studied in gate 1 on the forecast, kept where it narrows the spread, 0 where it does not.
+4. **Room on the Pico W:** 19 KB of flash free after step 1. The next remedy in AGENTS.md's order, more third-party code (lwIP, the Pico SDK) at `-Os`, decided before gate 3.
+
+### What we do
+
+The gates, in order, each started once the one before it is done:
+1. **The method in the simulation** (`tools/charge_sim`): the forecast judged on the kept bench series (its rest less the forecast at each stop: its mean near 0, its spread at the kernel floor), and the tuner on the twin against today's loop with the owner's gains, over the rigs kept; its constants chosen and kd settled.
+2. **The tuner's record stored, and the method in C,** judged against the Python on the same runs (step 1's `calibration_sim.py` pattern).
+3. **The charge on the unit:** the forecast, the stops, the verdict's wait, the lifted cup, the switch.
+4. **Bench series:** the charge with the tuner against today's with the owner's gains, in alternating sets of 20 throws on the same powder and day, each reported as the final weight's SD, its mean offset, its time and a histogram in 0.02 gr steps. Step 2's sign-off.
+
+### How the unit shows it works
+
+- The final weight's spread is narrower than today's charge's on the same powder and day, and the throws no slower (the owner's bar, to be set in gate 1 from the twin's figures and the stop's floor).
+- A powder calibrated and thrown with no gain set by hand throws as well as one tuned by hand.
+- A cup lifted mid-throw stops the tubes and ends the throw.
+- With the switch off, the charge is today's.
