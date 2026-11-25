@@ -326,3 +326,46 @@ Each appended field is -1 when never calibrated, and null through the API (`null
 - **The weight a turn must be carried from throw to throw** (the median of the last five throws' own, at their stops; RAM, nothing stored). The throw's own alone fails on the twin: the fine tube alone runs only half a turn to a turn after the coarse tube's powder is quiet, and the twin's fine tube pours unevenly (30% by its angle in a turn, clumps: one stalled 0.75 s and dropped 1 gr, which a fit over 0.54 turns read as 2.4 gr a turn). The first throw after a start has nothing carried and throws on the reading alone, as today.
 - **Faster costs spread, and not by the estimate alone.** Given the rig's true weight a turn (an oracle, for the study only), the night rig gives 0.057 gr at kp 0.8 in 10.0 s, 0.116 at kp 1.2 in 7.5 s, 0.154 at kp 1.6 in 6.4 s: at today's time the spread is today's, only centred. f2 the same (0.062, 0.068, 0.072 at 10.4, 7.2, 6.1 s). The faster the fine tube arrives, the more powder is in the air at its stop, and its clumps and lateness widen the landing.
 - **So gate 1's bar, "narrower and no slower" from the owner's gains, is not met on the twin by the controller alone.** By the owner's ranking (the spread first, then the time) the owner's gains already give the narrower throw; the tuner is what moves along the trade.
+
+### 18:25: where the time goes: the coarse tube's threshold
+
+Step 2's fine tube pours the last threshold's worth alone, so a smaller coarse threshold would be quicker. `step2.py --threshold`, 200 throws, the owner's gains otherwise:
+
+| Rig | Threshold | Today's loop | Step 2, carried |
+|---|---|---|---|
+| night (its back-off spills 0.83 gr) | 5 gr | sd 0.153, +0.133, 6.0 s | 0.064, +0.012, 9.1 s |
+| | 3 gr | 0.250, **+0.344**, 3.5 s | 0.241, **+0.349**, 3.5 s |
+| | 2 gr | 0.369, **+0.822**, 3.2 s | 0.357, **+0.798**, 3.2 s |
+| f2 (no spill) | 5 gr | 0.074, +0.083, 6.4 s | 0.043, +0.004, 9.9 s |
+| | 3 gr | 0.080, +0.094, 5.2 s | 0.083, +0.043, 5.4 s |
+| | 2 gr | 0.153, +0.160, 3.8 s | 0.108, +0.144, 4.0 s |
+| BM2 (no spill) | 5 gr | 0.092, +0.035, 9.3 s | 0.024, +0.017, 17.7 s |
+| | 3 gr | 0.054, +0.034, 7.7 s | 0.030, +0.015, 15.4 s |
+| | 2 gr | 0.085, +0.060, 5.8 s | 0.088, +0.052, 6.0 s |
+
+Below 3 gr the two loops land alike and over: **the coarse tube's own powder overruns the threshold.** It stops on a late reading, so what it turned out in the last lag (and on the night rig its back-off's spill) lands after its stop, past where the fine tube could still help; the fine tube's forecast counts none of it. The threshold has to hold all of that, and the fine tube alone then pours it: that is where step 2's time goes. A forecast at the coarse tube's stop, on its weight a turn carried from throw to throw as the fine tube's is, would let the threshold shrink (the bench's replay at the coarse stop, carried: −0.070 gr, sd 0.622, against the stored figure's +0.017, sd 0.547). Not built: the owner put the predictor on the fine tube alone, so this is the owner's to decide.
+
+## 2026-11-25, 18:51: gate 1's tuner on the twin, failed
+
+**The tool,** `tools/charge_sim/step2_tuner.py`: `new_pid = tuner(old_pid, charge_data)` a window of 20 throws at a time, by the owner's ranking. It holds in RAM the gains it last kept and every window thrown on them; it tries one move on the fine tube's gains (kp up or down by 1.25, kd up or down by 2) and keeps it when the window's spread (the half-width of its middle 68%) is narrower than the kept gains' by a quarter, or within a quarter and its median time 5% shorter; otherwise it puts the kept gains back. Four sessions of 400 throws a case from three starts (the owner's gains, kp a quarter of them, kp four times them), tuned and fixed, against today's loop; the last 100 throws of each:
+
+| Rig | Today's loop | From the owner's, fixed | tuned | From kp/4, fixed | tuned | From kp x4, fixed | tuned |
+|---|---|---|---|---|---|---|---|
+| night | 0.129, +0.119, 6.1 s | 0.083, +0.021, 9.5 s | 0.092, 8.7 s | 0.050, 30.2 s | 0.048, 19.0 s | 0.229, +0.121, 4.3 s | 0.195, +0.131, 4.3 s |
+| f2 | 0.095, +0.087, 6.3 s | 0.042, +0.006, 10.1 s | 0.075, 6.9 s | 0.036, 31.3 s | 0.034, 26.9 s | 0.077, 5.9 s | 0.111, 5.8 s |
+| BM2 | 0.075, +0.041, 9.4 s | 0.044, +0.018, 17.6 s | 0.047, 13.4 s | 0.041, 51.4 s | 0.034, 46.6 s | 0.100, 7.7 s | 0.102, 7.6 s |
+| night, fine by speed | 0.127, +0.117, 5.6 s | 0.103, +0.018, 9.4 s | 0.055, 11.1 s | 0.042, 32.5 s | 0.053, 24.2 s | 0.231, +0.262, 4.2 s | 0.232, +0.272, 4.2 s |
+
+(the final weight's sd and mean less the target, gr, and the median time; a tuned case's mean is its fixed case's within 0.03 gr)
+
+**Verdict: the tuner fails** gate 1's bar. From the owner's gains it ends where it began, its gains scattered (kp 0.64 to 1.95, kd 1.9 to 60 across sessions). From gains far off it does not come back within 20 windows: from kp/4 the throws stay at 19 to 47 s, from kp x4 the night rigs stay 0.2 gr wide and over.
+
+**Why, each checked in the windows:**
+- **A window of 20 throws is too noisy.** On fixed gains its spread runs 0.025 to 0.14 gr (a first throw with nothing carried, a clump); a quarter's margin is inside that. On the night rig the first window at kp 0.8 came out 0.139 and kp 1.0 was kept as "narrower" on it; kp 0.8 at 0.025 was then put back.
+- **A slower throw is always a little narrower.** kp/4 is narrower than the owner's on every rig (0.036 to 0.050 against 0.042 to 0.103) at three times the time. "The spread first, then the time" has no point to stop at without a number: how narrow is narrow enough, or what a second is worth against the spread.
+- **kd does next to nothing on the forecast.** The forecast moves smoothly with the speeds asked, so its error falls at the weight a turn times the speed: the D term only scales kp down (by 1 + kd x weight a turn / 1000 in today's units, 1.2% at kd 15). The windows saw no effect of kd from 1.9 to 60.
+
+**What a tuner could be instead, for the owner's decision:** one number to tune rather than a search, and an objective with a stopping point.
+- kp made from what the throws measure: kp = c / (weight a turn x lag), the first build's offer, so a powder's weight a turn and a scale's lag are met by the formula, and the tuner moves the one dimensionless c.
+- the objective either the user's tolerance as the spread wanted (narrow enough when, say, nine throws in ten are within it; then quicker), or the time per good charge (the median time over the share within the tolerance: what a good charge costs when every bad one is thrown again), which puts a price on both.
+- windows of 50 throws or more, or the trial judged against the kept gains' pooled throws by a test of its own noise, so a move is kept on evidence.
