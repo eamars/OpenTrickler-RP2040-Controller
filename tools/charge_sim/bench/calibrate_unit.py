@@ -1,9 +1,9 @@
 """ADR-009, gate 1: the calibration's method from the PC on a unit, one part a run (`../calibration.py`).
 
 A part is the scale (`scale`), or one tube's speeds (`fine`, `coarse`), run alone: a tube's speeds use the scale's
-defaults unless `--scale-from` names an earlier scale run's records. The ladder of a tube's speeds runs between its
-motor's own least and most speed, read from the unit. A run that would pass the cup's capacity stops the part and says
-so: nothing is retried.
+defaults unless `--scale-from` names an earlier scale run's records. A tube's prime turns at the middle in ratio of its
+motor's own least and most speed, read from the unit, and its ladder runs from the least up to the prime's speed. A run
+that would pass the cup's capacity stops the part and says so: nothing is retried.
 
 Usage, with the repository's venv, from this folder; the unit on the probe and the real cup checked first (rc_run):
     python calibrate_unit.py --repo <checkout> --part scale --capacity 250 [--cup-emptied "<the owner's words>"]

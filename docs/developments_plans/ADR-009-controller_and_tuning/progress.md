@@ -120,3 +120,20 @@ With the owner away and the cup not emptied: the fine tube's speeds part twice m
 - **Decided by the owner (recorded 13:56):** the landing's bound is dropped, with its charge setting. The most speed is not measured: each powder profile's maximum speed stays as the user has it, and a profile whose maximum is not set uses the motor's maximum speed. Item 6 is gone from the README's table; the calibration records items 1 to 5.
 - `calibration.py` records each tube's least speed alone; each speed's landing is still kept with the stops, as data. The charge today holds each tube to the smaller of the profile's maximum and the motor's, and has no maximum that is not set: a maximum of 0 holds the tube at its minimum. Proposed for gate 2: not set is 0.
 - **The mocks:** the 12864's sheet without the Charge settings' Landing spread (20 screens) and with each tube's minimum in a powder's result; the web's the same.
+
+## 2026-11-25, 14:09: the method evaluated, what serves nothing removed
+
+The owner's rule (recorded 14:09): a stage of the calibration that serves no purpose is removed. Each stage was read against its use, and the bench's kept runs replayed (`calibration.py`'s `judge_kept` and `scale_kept`).
+
+**Removed:**
+- **The speeds ladder above the prime:** with the most not measured, its fast end only gave the rate the least is judged against, which the prime already measures where the tube streams. The ladder now runs from the motor's least up to the prime's speed (the middle of the motor's limits in ratio), and the least is judged against the prime's rate. On the kept runs the least is unchanged (the fine tube 0.020 rev/s in each of three, the coarse 0.16). On the twin, 3 seeds: the fine part 6.6 gr in 3.7 min (16 gr in 3.1 before), the coarse 53 gr in 2.0 min (205 gr), the least unchanged.
+- **What lands after each stop, its median and spread:** it judged the most alone.
+- **Code with no caller:** a table reader, a default lag no part used, and the farthest-run removal for a list.
+
+**Fixed: the settle time was the scale's flicker.** The A&D flickers by one step (0.02 gr) at rest, seconds after it settled, and a settle taken as the last reading that differed from the rest was that flicker's time: 2.0, 2.0 and 6.5 s for the three move sizes on the bench, so every stop of the speeds part was watched for 7.5 s. Taken as the last reading more than one step from the rest (the step read from the readings themselves): 1.1, 0.9 and 0.8 s. The scale part on the twin now takes 3.4 min (4.3 to 4.9). The lag hardly moves (at 0.09 gr/s 1.18 s against 1.21): its jumps at slow flows (0.79, 1.18, 0.82 s) are not the flicker.
+
+**Is the calibration's development done? No.** Of step 1's five gates, the first (the method) is nearly done; the second (the records stored) and the third (the job on the unit) have not started; the fourth (the screens and the web) is mocked and waits for the owner's review before it is built; the fifth (the sign-off) comes last. Gate 1 still needs:
+- **The response's form (item 3), the owner's to decide** (README, To settle, 3): two of its three move sizes registered the same powder, and the largest's first move is no response. Proposed: one size, its settle time the record.
+- **A profile's maximum not set, the owner's to decide** (README, To settle, 2): proposed, nothing built.
+- **The bench again, once the cup is emptied** (418 of 600 gr counted): the scale part and the coarse part ran once each, so their spread is not known, and gate 3 checks the unit's job against it. Two more runs of each, about 230 gr with the coarse part as it is now, which also runs the changed method on the bench for the first time. The lag at slow flows is judged from those runs.
+- **The cup's part** has nothing to measure from the PC: it is the unit's screens (gates 3 and 4).
