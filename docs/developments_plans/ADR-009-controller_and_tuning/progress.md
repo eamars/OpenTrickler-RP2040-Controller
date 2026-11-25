@@ -133,7 +133,10 @@ The owner's rule (recorded 14:09): a stage of the calibration that serves no pur
 **Fixed: the settle time was the scale's flicker.** The A&D flickers by one step (0.02 gr) at rest, seconds after it settled, and a settle taken as the last reading that differed from the rest was that flicker's time: 2.0, 2.0 and 6.5 s for the three move sizes on the bench, so every stop of the speeds part was watched for 7.5 s. Taken as the last reading more than one step from the rest (the step read from the readings themselves): 1.1, 0.9 and 0.8 s. The scale part on the twin now takes 3.4 min (4.3 to 4.9). The lag hardly moves (at 0.09 gr/s 1.18 s against 1.21): its jumps at slow flows (0.79, 1.18, 0.82 s) are not the flicker.
 
 **Is the calibration's development done? No.** Of step 1's five gates, the first (the method) is nearly done; the second (the records stored) and the third (the job on the unit) have not started; the fourth (the screens and the web) is mocked and waits for the owner's review before it is built; the fifth (the sign-off) comes last. Gate 1 still needs:
-- **The response's form (item 3), the owner's to decide** (README, To settle, 3): two of its three move sizes registered the same powder, and the largest's first move is no response. Proposed: one size, its settle time the record.
-- **A profile's maximum not set, the owner's to decide** (README, To settle, 2): proposed, nothing built.
+- **The response's form (item 3), the owner's to decide** (README, To settle, 2): two of its three move sizes registered the same powder, and the largest's first move is no response. Proposed: one size, its settle time the record.
 - **The bench again, once the cup is emptied** (418 of 600 gr counted): the scale part and the coarse part ran once each, so their spread is not known, and gate 3 checks the unit's job against it. Two more runs of each, about 230 gr with the coarse part as it is now, which also runs the changed method on the bench for the first time. The lag at slow flows is judged from those runs.
 - **The cup's part** has nothing to measure from the PC: it is the unit's screens (gates 3 and 4).
+
+## 2026-11-25, 14:14: a profile's maximum left as it is
+
+- **Decided by the owner (recorded 14:14):** nothing is built for a profile's maximum speed. The calibration leaves it as the user has it, and the charge already holds each tube to the smaller of it and the motor's maximum.

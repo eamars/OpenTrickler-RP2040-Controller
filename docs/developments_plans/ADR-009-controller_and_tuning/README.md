@@ -25,7 +25,7 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 - A step that fails says what failed and retries nothing unless the user asks; its item keeps its default value.
 - Each part runs on its own: the cup, the scale and each powder are calibrated independently, and each item can be run alone. A part uses what the others have stored, or their defaults where they were never run.
 - The servo gate's tuning is not part of ADR-009.
-- The most speed is not measured. Each powder profile's maximum speed stays as the user has it; a profile whose maximum is not set uses the motor's maximum speed (Settings, Motors).
+- The most speed is not measured, and nothing is built for it: each powder profile's maximum speed stays as the user has it, and the charge already holds each tube to the smaller of it and the motor's maximum speed (Settings, Motors).
 
 ## Step 1: the calibration
 
@@ -66,8 +66,7 @@ Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the fi
 
    Shown by an update from today's release that keeps every setting.
 
-2. **A profile's maximum speed not set:** every profile holds a maximum today, and the charge already holds each tube to the smaller of the profile's maximum and the motor's. Proposed: nothing built; the calibration leaves the maximum as it is. The other way: the calibration's save writes the motor's maximum into the profile, over the user's.
-3. **The scale's response (item 3), its form:** of its three move sizes on the bench, the two smaller registered the same powder (0.080 and 0.085 gr), and the largest's first move after its stop is no response (its reading was already moving: 0.19 s). Proposed: one size, 0.1 turn, its settle time the record (about 0.9 s on the A&D), which is also how long the speeds part watches each stop.
+2. **The scale's response (item 3), its form:** of its three move sizes on the bench, the two smaller registered the same powder (0.080 and 0.085 gr), and the largest's first move after its stop is no response (its reading was already moving: 0.19 s). Proposed: one size, 0.1 turn, its settle time the record (about 0.9 s on the A&D), which is also how long the speeds part watches each stop.
 
 ### What we do
 
