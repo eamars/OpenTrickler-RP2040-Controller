@@ -62,8 +62,9 @@ CUP_LEDGER = REPO / "logs" / "adr009" / "cup_ledger.csv"
 # A reading this far below the ledger's last is a drop between runs. It is never taken as the cup emptied on its own:
 # a zero of the scale with powder in the cup reads the same (2026-11-24, 02:13). Without the owner's word
 # (--cup-emptied) the drop is carried: the cup is counted as the reading and every drop carried since the owner's last
-# word, and the ledger says so (`offset=` in its note)
-CUP_EMPTIED_GR = 20.0
+# word, and the ledger says so (`offset=` in its note). A gram is enough to tell a drop from the scale's own drift: a
+# zero after each real throw of 10 gr, the charge's own start needing one, went past the 20 gr this was (2026-11-26)
+CUP_EMPTIED_GR = 1.0
 # The most grains a turn either tube may give: a run's most pour is its motors' turns at this (the bench's coarse tube
 # poured 9.5 a turn, 2026-11-23)
 CUP_GR_A_TURN_MOST = 12.0
