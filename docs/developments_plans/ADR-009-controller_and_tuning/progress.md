@@ -519,3 +519,13 @@ Flashed by the probe, each settings copy equal before and after (`before_fill_fl
 - **Approved as drawn** (the owner, 23:37); written as rule 18 of the `web-ui-design` skill with the owner's words, rule 17 read with it (a job's steps go in its button's place or in its sheet, never in a card pushing the page down).
 
 **Noted, not changed:** the first step of the cup's own part says "To catch the powder. The cup next.", whose "The cup next" names the part it is already in.
+
+## 2026-11-25, 23:40: the Pico W's work left to the end
+
+- **The owner (recorded 23:40):** "Pico W work to leave to last of ADR-009." Written into the README: the owner's direction, gate 5 (step 1 signed off on the Pico 2 W) and a section of its own, "Last: the Pico W", which the ADR does not close without.
+- So item 3 of "What the bench owes for step 1's sign-off" (21:58; the Pico W on the probe: gate 2's update from v2.0.3, its menu baseline, a part from its screen) moves there, with step 2's charge on the Pico W.
+
+**Step 1's sign-off: what is left** (the Pico 2 W):
+1. The fine tube's least: the owner's decision on its spread from run to run (0.020, 0.034 and 0.056 rev/s; progress, 21:00 to 21:58).
+2. The Settings page going blank for a second or two when it reads its settings again (after a part keeps its records): a shift under the `web-ui-design` skill's rule 17. Mended and shown on the stand-in.
+3. The cup's own part says "To catch the powder. The cup next." on its first step, naming the part it is in: its words, on the stand-in.

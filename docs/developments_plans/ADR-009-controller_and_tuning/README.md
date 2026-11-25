@@ -1,6 +1,6 @@
 # ADR-009: calibration and automatic tuning
 
-Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and being built in the gates under "What we do": gates 2 to 4 built with no unit. Their test on a unit ran on the Pico 2 W on 2026-11-25 (progress, 20:01 to 21:58): gates 1 to 4 pass there, gate 5 in part; what it still owes is in progress, "What the bench owes for step 1's sign-off" (21:58), with the cup's fill to be redesigned (the owner's) and a run's lifted cup and silent scale to be mended. Step 2, the tuning, approved by the owner (recorded 20:01) after gate 1 proved it in the simulation; its gates 2 to 4 are built once step 1 is signed off.
+Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and built in the gates under "What we do". Its test on a unit ran on the Pico 2 W the same evening (progress, 20:01 to 23:20): gates 1 to 4 pass, and the owner's redesigns found there (the knob's fill, the failure's words, a lifted cup and a silent scale mid-run) are built and seen on the unit; "The functional side is already verified and I'm satisfied" (the owner, 23:20). The web's steps then went into a sheet over the page, approved as drawn (23:37). What step 1 still owes for its sign-off is in progress ("Step 1's sign-off: what is left", 23:40). Every check on the Pico W is left to the ADR's end ("Last: the Pico W", below). Step 2, the tuning, approved by the owner (recorded 20:01) after gate 1 proved it in the simulation; its gates 2 to 4 are built once step 1 is signed off.
 
 The earlier README and progress are phased out and moved to [`legacy/`](legacy/).
 
@@ -19,6 +19,7 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 - Step 2 is the predictor and the PID auto-tuner, and nothing runs beside them: no glide, no other algorithm in parallel.
 - Step 2 starts only once the calibration is fully complete, the screen and the web included.
 - Step 1 is not judged by how throws turn out: no trickle performance is a condition of its sign-off. A charge with its settings only has to trickle.
+- The Pico W's work comes last, after step 2 and before the ADR closes (the owner, 2026-11-25, recorded 23:40: "Pico W work to leave to last of ADR-009"). Each step is signed off on the Pico 2 W; the Pico W's checks of both are under "Last: the Pico W".
 - The fine threshold is the user's expectation, the tolerance of a throw. The calibration never writes it.
 - The cup comes first. The user gives its capacity by filling it with the knob; a pour that would pass it pauses the calibration.
 - No retries and no pass criteria inside the calibration: an acceptable result is good enough. Each run pours as little powder as its measurement allows.
@@ -89,7 +90,7 @@ The method is developed from the PC on the bench, where the tools exist; for use
 2. **The records stored:** the loader's migration (above) and the fields appended to the charge and scale settings, each described once in its module's table, so the API, the console, the export and the backup follow. Proposed form: the charge settings gain the cup's capacity and its weight, in grains; the scale settings gain the settle time and the lag as five pairs of flow and lag, a point not measured kept as not a number (eleven floats, 44 bytes); each tube's least goes into the profile's own minimum speed. Shown by an update from today's release that keeps every setting, on both boards.
 3. **The calibration as a job on the unit,** started from the console and the API: each part alone, a failure said and not retried, the cup's pause. On the bench it records what gate 1's method recorded from the PC, within the spread each measured.
 4. **The screens and the web:** mock-ups for the owner first, then built.
-5. **Step 1's sign-off on a unit:** the list under "How the unit shows it works".
+5. **Step 1's sign-off on a unit:** the list under "How the unit shows it works", on the Pico 2 W; the Pico W's part is the ADR's last ("Last: the Pico W").
 
 ### How the unit shows it works
 
@@ -191,3 +192,11 @@ The gates, in order, each started once the one before it is done:
 - In grams as in grains, the same throws.
 - A cup lifted mid-throw stops the tubes and ends the throw.
 - With the switch off, the profile is never changed.
+
+## Last: the Pico W
+
+Every check of ADR-009 on the Pico W is left to its end (the owner, 2026-11-25, recorded 23:40: "Pico W work to leave to last of ADR-009"): after step 2's sign-off on the Pico 2 W, and before the ADR closes. The ADR does not close without them. Read here as the bench's work on the Pico W; both boards are still built on every change, here and in CI, so an image that no longer fits the Pico W's slot is met when it happens, by AGENTS.md's order of remedies.
+1. **Step 1's gate 2 on the Pico W:** an update from v2.0.3 keeps every setting (`rc_run.py update`, its check field by field). v2.0.3 is built in the worktree `C:\workspace\OpenTrickler-v2.0.3`; it is flashed with that worktree's own `rc_run.py`, which matches its version.
+2. **Its menu:** `menu_tour --compare tests/menu_baseline/pico_w`, its baseline saved again for the pages the calibration and step 2 change; `reach`.
+3. **A calibration from its screen:** the cup's part, with the knob's fill, and a powder's.
+4. **Step 2's charge on it:** what AGENTS.md asks of a change in memory and timing on both boards, at least a charge with the tuner on and `stats tasks`.
