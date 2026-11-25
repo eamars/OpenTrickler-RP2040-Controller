@@ -171,6 +171,8 @@ The gates, in order, each started once the one before it is done:
    - **the tuner,** on the twin over the rigs kept: from the owner's gains, the final weight's spread narrower than today's loop's with them and the throws no slower; from gains set far off, the same spread within a few windows.
 
    Its window, its step and kd's rule are chosen there. If the forecast does not hold on an estimate within the throw, the owner hears it before anything else is done.
+
+   **The forecast's check, run 17:58: failed on an estimate within the throw** (progress, 2026-11-25, 17:58). The weight a turn has to be known before the throw; where it comes from is the owner's to decide, and nothing more of gate 1 is done until then.
 2. **The controller and the tuner in C,** behind the interface above, judged against the Python on the same runs (step 1's `calibration_sim.py` pattern).
 3. **The charge on the unit:** the charge mode on the controller, the verdict's wait, the lifted cup, the switch, the tuner's writes into the profile.
 4. **Bench series:** the charge with the tuner against today's with the owner's gains, in alternating sets of 20 throws on the same powder and day, each reported as the final weight's SD, its mean offset, its time and a histogram in 0.02 steps. Step 2's sign-off.

@@ -255,3 +255,31 @@ Each appended field is -1 when never calibrated, and null through the API (`null
 ## 2026-11-25, 17:45: step 2 unapproved until proven in the simulation
 
 - **The owner (recorded 17:45):** step 2's draft stays unapproved until its idea is proven in the simulation. Its exit is gate 1's two checks, written into the README: the forecast on an estimate within each throw against the first build's on its stored weight a turn (mean within a digit, spread no more than a tenth wider), and the tuner on the twin against today's loop (narrower and no slower from the owner's gains; the same spread from gains far off within a few windows).
+
+## 2026-11-25, 17:58: gate 1's forecast check, failed on a weight a turn from the throw
+
+**The tool,** `tools/charge_sim/bench/forecast_in_throw.py`: every kept bench series with the calibration the unit echoed (61 series, 756 throws; 8 with no echo left out). Each throw's rows are replayed with the first build's forecast (10 ms parcels of the speeds asked, each shown after the lag of its speed, the unit's own lag table), which it makes again within 0.035 gr rms (median). Only the weight a turn differs between the ways:
+- **stored:** the calibration's, as the unit held it (the first build's forecast);
+- **slope:** none: the reading plus its rise over the last 0.25 s times the lag (the draft's fallback "until it is known");
+- **in-throw:** from the throw's own readings alone (the coarse tube's from the reading over its turns shown, the fine tube's from the rise once the coarse tube is quiet; the slope until each is known);
+- **carried:** the mean of the series' earlier throws' own weights a turn, each in hindsight: what RAM could carry from throw to throw, nothing stored. The first throw of a series has none.
+
+| Way | Fine stop, coarse quiet (746) | From the creep (554) | Coarse stop: forecast less truth (563) |
+|---|---|---|---|
+| stored | +0.001, sd 0.063 | +0.014, sd 0.048 | +0.018, sd 0.554 |
+| slope | −0.250, sd 0.422 | −0.149, sd 0.264 | +1.245, sd 1.649 |
+| in-throw | −0.017, sd 0.157 | +0.012, sd 0.074 | −0.763, sd 1.136 |
+| carried (its own throws) | +0.013, sd 0.057 (513) | +0.019, sd 0.044 (361) | −0.070, sd 0.622 (512) |
+| stored, on the carried's throws | +0.002, sd 0.058 | +0.013, sd 0.044 | +0.017, sd 0.547 |
+
+(the rest less the forecast at the fine stop; the forecast less the truth at the coarse stop, the truth being the settled weight less what the fine tube still turned out, at its own weight a turn in hindsight; gr)
+
+**Verdict: the forecast on a weight a turn from the throw fails** the bar written for it (mean within 0.02 gr, spread no more than a tenth wider than the stored one's): 2.5 times as wide at the fine stop, half as wide again from the creep, and 0.76 gr low at the coarse stop. The cause is in the throw's shape, not the estimate's method:
+- **both tubes turn together until the coarse stop,** so the readings cannot tell the two weights a turn apart; the fine tube's powder still unseen at the coarse stop (about 0.85 turns at 1 rev/s, 0.7 gr) has no weight to be counted at;
+- **in a short throw the fine tube stops as the coarse tube goes quiet,** before any stretch of the fine tube alone: 12 stops had no weight a turn of their own and fell back to the slope, about 1 gr out each;
+- **the slope is no fallback:** a quarter second of rounded, lumpy readings times a lag of 0.85 s is noise (sd 0.26 to 0.42 gr at the stop);
+- **the coarse tube's from its own first second is worse than the stored one** even with the fine tube's weight given (sd 0.90 against 0.55 at the coarse stop): its first turns and the lag weigh on it more than on the forecast itself.
+
+**What holds:** a weight a turn known before the throw. The stored one is the best; one carried in RAM from the throws since start is as good at the fine stop (0.057 against 0.058 on the same throws) and 14% wider and 0.09 gr low at the coarse stop, and has nothing for the first throw after each start or of each powder. Step 1's powder part already measures each tube's weight a turn where it streams (`stream_per_turn`, its prime's) and keeps only the least speed.
+
+**The question for the owner:** where the forecast's weight a turn comes from. Gate 1's controller and tuner wait for the answer.
