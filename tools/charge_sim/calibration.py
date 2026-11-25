@@ -45,7 +45,10 @@ SETTLE_MOVES = 4                # moves made
 SETTLE_MOVE_RPS = 0.25          # the speed a small move is made at
 SETTLE_WATCH_S = 10.0           # each move watched this long: longer than any scale takes to come to rest
 WATCH_MARGIN_S = 1.0            # a stop is watched for the slowest lag and the settle time, and this
-LAG_RUNS = {"fine": ((0.05, 4.0), (0.1, 3.0), (0.25, 2.0), (0.5, 2.0)), "coarse": ((0.25, 1.5), (1.0, 1.0))}
+# The lag's runs, (speed rev/s, run s) by tube: five flows, about 0.2, 0.4 and 0.8 gr/s on the fine tube and 3 and 10 on
+# the coarse, where the lag changes and the powder it leaves unseen is more than a step. Below 0.1 gr/s the lag of two
+# runs is noise (0.56 to 1.54 s, session to session) over less than two steps of powder unseen (progress, 2026-11-25)
+LAG_RUNS = {"fine": ((0.25, 2.0), (0.5, 2.0), (1.0, 1.5)), "coarse": ((0.25, 1.5), (1.0, 1.0))}
 LAG_RUNS_EACH = 2               # runs at each speed
 LAST_S = 0.6                    # the reading at rest is the median of the watch's last stretch
 SPEED_LADDER = 6                # speeds a tube is stopped from, spaced evenly in ratio from its motor's least up to

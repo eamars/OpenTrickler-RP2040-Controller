@@ -152,3 +152,29 @@ The owner's rule (recorded 14:09): a stage of the calibration that serves no pur
 
 - The README maps each item to where it is used now and to be (its "Where each item is used"), checked in the code.
 - **The owner (recorded 14:29):** the empty cup's weight (item 2) is the safety of the later charge controller, step 2's: a cup lifted mid-charge told from a light reading. Today's charge keeps its own check, a steady reading 10 gr below zero.
+
+## 2026-11-25, 14:35: gate 1 from the kept recordings, no bench
+
+The owner away and no bench run: gate 1 continued from what the bench recorded, yesterday's runs and the six sessions before them (the same Pico 2 W, tubes, AR2209 and A&D, 2026-11-19 to 25). `bench/records_spread.py` reads them all and gives by session what each part would record.
+
+**The shorter watch holds.** Each kept speeds run cut to the 2.5 s the method now watches (they watched 4 s): the least is unchanged in all four runs. Of 36 slow stops, one came to rest after 2.5 s (3.6 s, one kernel). One speed's rate halved, 0.92 to 0.46 gr a turn at 0.035 rev/s: not powder lost, but the run left out as a clump or a lull changing with one step of flicker at the end of a watch. On runs of about 4 kernels that rule swings a speed's rate by half; the least never moved with it, as the motor's minimum always pours.
+
+**The lag, session to session** (each session's mean at a speed):
+
+| Flow | Sessions | Lag |
+|---|---|---|
+| coarse 1 rev/s, about 10 gr/s | 5 | 0.55 to 0.59 s |
+| coarse 0.08 to 0.3 rev/s, 0.9 to 3 gr/s | 1 to 3 | 0.58 to 0.82 s |
+| fine 1 rev/s, 0.8 gr/s | 4 | 0.63 to 0.83 s |
+| fine 0.5 rev/s, 0.4 gr/s | 4 | 0.80 to 0.93 s |
+| fine 0.2 rev/s, 0.15 gr/s | 4 | 0.89 to 1.06 s |
+| fine 0.1 rev/s, 0.08 gr/s | 6 | 0.72 to 1.27 s |
+| fine 0.05 rev/s, 0.04 gr/s | 5 | 0.56 to 1.54 s |
+
+- **Changed:** the lag's runs are five flows: fine 0.25, 0.5 and 1 rev/s, coarse 0.25 and 1 rev/s. The fine tube's 0.05 and 0.1 rev/s are gone: two runs there are noise, and the powder they would say is unseen is under two steps. Fine 1 rev/s is added: the lag falls from about 0.9 s at 0.4 gr/s to 0.6 s by 1 gr/s, and without it the table read at 0.8 gr/s would be about 0.2 s slow, about 0.18 gr of powder still to show. On the twin the scale part takes 1.8 min (2.1); its fine 1 rev/s point is past where the twin holds (0.5 rev/s).
+
+**The settle time** follows the small move's own length: moves run 0.1 s rest 0.03 s after their first move (111 moves), moves run 0.3 to 0.9 s 0.22 to 0.53 s. It is the move's powder arriving over its run, and the A&D's own settling is too short to see beside it: the 0.27 s of 2026-11-25 is the move. The measure is the owner's to settle (README, To settle, 2).
+
+**The least** holds in all seven sessions: both tubes pour at the slowest speed tried at 0.61 to 1.35 of their stream's rate, so on this unit and powder the least is twice the motor's minimum.
+
+**Gate 1, where it stands:** the records' form is proposed for gate 2 (README, What we do, 2). The repeat bench runs are no longer needed for the spread, which the kept sessions give. Left: the settle time's measure (the owner's), and the method as changed today run once on the bench (the ladder below the prime, the shorter watch, the lag's five flows), at the next bench session.
