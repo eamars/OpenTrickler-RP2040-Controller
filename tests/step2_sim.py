@@ -42,10 +42,12 @@ TARGET = 10.0
 CLOSE_RPS = 1e-4                # two speeds this near are the same: the C's settings are floats, the Python's doubles
 CLOSE_K = 1e-4                  # two weights a turn this near (relative) are the same
 CLOSE_KP = 1e-9
-STEPS = {1: "first", 2: "resting", 3: "the base again", 4: "kept", 5: "the other way", 6: "both ways"}
+# The C tuner's steps (charge_tuner.h) and words the Python's note for the same step holds
+STEPS = {1: ("first",), 2: ("resting",), 3: ("the base again",), 4: ("kept",), 5: ("the other way",),
+         6: ("every way",), 7: ("the gain", "the braking")}
 # The product as it ships (ADR-009, 2026-11-26): step 1's weight a turn seeds the carry; the study of the variants
 # (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw
-PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss"}
+PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "modelled"}
 # The gains thrown from: the owner's Pico W's (gate 1's twin) and the bench's stored profile (gate 4's baseline)
 STARTS = {"owner": AR2209_PICOW_168, "bench": BENCH}
 
@@ -104,7 +106,7 @@ def load_library() -> ctypes.CDLL:
                                ("lib_charge_state", [p, pd, pd, pi, pi, pi], i),
                                ("lib_charge_verdict_after_s", [p], d), ("lib_charge_at_rest", [p, d], None),
                                ("lib_charge_carried", [p, pd], i), ("lib_tuner_new", [d], p),
-                               ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, pd], i)):
+                               ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, d, d, pd, pd], i)):
         getattr(lib, name).argtypes = args
         getattr(lib, name).restype = result
     return lib
@@ -268,7 +270,8 @@ def tuner_case(job: tuple) -> dict:
     rig = rigs.get_rig(rig_name)
     profile = STARTS[start] if start in STARTS else dataclasses.replace(AR2209_PICOW_168, **step2_tuner.STARTS[start])
     lib = load_library()
-    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, blind=PRODUCT["blind"], first=PRODUCT["first"])
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, blind=PRODUCT["blind"], first=PRODUCT["first"],
+                              axes=PRODUCT["axes"], share=PRODUCT["share"])
     c_tuner = lib.lib_tuner_new(profile.fine_stop_threshold)
     controller = python_controller(profile, records, rig)
     session = Session(rig, seed)
@@ -278,23 +281,28 @@ def tuner_case(job: tuple) -> dict:
         result = step2.throw_one(session, controller, TARGET, profile.fine_stop_threshold)
         errors.append(result.true_error)
         times.append(result.elapsed_s)
-        next_kp = ctypes.c_double()
-        step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, result.true_error, result.elapsed_s,
-                                   ctypes.byref(next_kp))
+        next_kp, next_kd = ctypes.c_double(), ctypes.c_double()
+        k = controller.carried() or 0.0
+        step = lib.lib_tuner_throw(c_tuner, profile.fine_kp, profile.fine_kd, k, result.true_error, result.elapsed_s,
+                                   ctypes.byref(next_kp), ctypes.byref(next_kd))
         if len(errors) < step2_tuner.WINDOW:
             if step != 0 and mismatch is None:
                 mismatch = f"window {windows}: the C closed a window early"
             continue
-        thrown = profile.fine_kp
-        profile, note = tuner(profile, errors, times)
+        thrown = (profile.fine_kp, profile.fine_kd)
+        profile, note = tuner(profile, errors, times, k=k)
         errors, times = [], []
-        said = STEPS.get(step, "none")
-        if mismatch is None and (said not in note or abs(next_kp.value - profile.fine_kp) > CLOSE_KP * profile.fine_kp):
-            mismatch = (f"window {windows} (kp {thrown:.4f}): Python {note!r} to kp {profile.fine_kp:.6f}, "
-                        f"the C {said!r} to kp {next_kp.value:.6f}")
+        said = STEPS.get(step, ("none",))
+        apart = (abs(next_kp.value - profile.fine_kp) > CLOSE_KP * profile.fine_kp
+                 or abs(next_kd.value - profile.fine_kd) > CLOSE_KP * max(profile.fine_kd, 1.0))
+        if mismatch is None and (not any(word in note for word in said) or apart):
+            mismatch = (f"window {windows} (kp {thrown[0]:.4f}, kd {thrown[1]:.1f}): Python {note!r} to kp "
+                        f"{profile.fine_kp:.6f}, kd {profile.fine_kd:.3f}; the C {said[0]!r} to kp {next_kp.value:.6f}, "
+                        f"kd {next_kd.value:.3f}")
         windows += 1
     lib.lib_tuner_free(c_tuner)
-    return {"rig": rig_name, "start": start, "windows": windows, "kp": profile.fine_kp, "mismatch": mismatch}
+    return {"rig": rig_name, "start": start, "windows": windows, "kp": profile.fine_kp, "kd": profile.fine_kd,
+            "mismatch": mismatch}
 
 
 def main() -> int:
@@ -345,7 +353,8 @@ def main() -> int:
                 for start in args.starts]
         for case in pool.map(tuner_case, jobs):
             said = case["mismatch"] or "the same steps"
-            print(f"  {case['rig']:36s} from {case['start']:6s} {case['windows']} windows, kp {case['kp']:.3f}: {said}")
+            print(f"  {case['rig']:36s} from {case['start']:6s} {case['windows']} windows, kp {case['kp']:.3f}, "
+                  f"kd {case['kd']:.0f}: {said}")
             if case["mismatch"]:
                 failures.append(f"{case['rig']} from {case['start']}: {case['mismatch']}")
     for failure in failures[:20]:

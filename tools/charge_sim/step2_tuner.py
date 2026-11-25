@@ -43,6 +43,20 @@ def counted(errors: list, tolerance: float) -> float:
     return sum(abs(e) < tolerance for e in errors) / len(errors)
 
 
+def erf_approx(x: float) -> float:
+    """erf by Abramowitz and Stegun 7.1.26 (an error under 1.5e-7), as charge_tuner.c computes it: the firmware cannot
+    take libm's erf on the Pico W (2026-11-26), and the two must decide alike."""
+    sign = -1.0 if x < 0.0 else 1.0
+    x = abs(x)
+    t = 1.0 / (1.0 + 0.3275911 * x)
+    poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))))
+    return sign * (1.0 - poly * math.exp(-x * x))
+
+
+def normal_cdf(x: float, mu: float, sigma: float) -> float:
+    return 0.5 * (1.0 + erf_approx((x - mu) / (sigma * math.sqrt(2.0))))
+
+
 def modelled(errors: list, tolerance: float) -> float:
     """The share within the tolerance of a normal spread with the window's median and the half-width of its middle
     68%: the same share from every throw's weight, not only from which side of the tolerance it fell."""
@@ -51,8 +65,7 @@ def modelled(errors: list, tolerance: float) -> float:
     width = (ordered[int(0.84 * (len(ordered) - 1))] - ordered[int(0.16 * (len(ordered) - 1))]) / 2.0
     if width <= 0.0:
         return 1.0 if abs(centre) < tolerance else 0.0
-    normal = statistics.NormalDist(centre, width)
-    return normal.cdf(tolerance) - normal.cdf(-tolerance)
+    return normal_cdf(tolerance, centre, width) - normal_cdf(-tolerance, centre, width)
 
 
 SHARES = {"counted": counted, "modelled": modelled}
@@ -135,13 +148,13 @@ class Tuner:
         if self.base is None:
             self.keep(profile, errors, times)
             self.direction = self.missing_way(errors)
-            return self.trial(), "first window: the base"
+            return self.next_trial("first window: the base")
         if profile is self.base:
             self.pool = ((self.pool[0] + errors)[-POOL_THROWS:], (self.pool[1] + times)[-POOL_THROWS:])
             if self.resting > 0:
                 self.resting -= 1
                 return self.base, "resting"
-            return self.trial(), "the base again"
+            return self.next_trial("the base again")
         trial_cost, trial_good = cost(errors, times, self.tolerance, self.share)
         base_cost, base_good = cost(*self.pool, self.tolerance, self.share)
         spread = math.hypot(noise(trial_good, len(errors)), noise(base_good, len(self.pool[0])))
@@ -151,13 +164,20 @@ class Tuner:
             if trial_miss < base_miss:
                 self.keep(profile, errors, times)
                 self.factor = FIRST_FACTOR
-                return self.trial(), f"kept, none good (a median miss {trial_miss:.3f} against {base_miss:.3f})"
+                return self.next_trial(f"kept, none good (a median miss {trial_miss:.3f} against {base_miss:.3f})")
         elif trial_cost < base_cost * (1.0 - self.z * spread):
             self.keep(profile, errors, times)
             self.factor = FIRST_FACTOR
-            return self.trial(), f"kept ({trial_cost:.1f} against {base_cost:.1f} s)"
+            return self.next_trial(f"kept ({trial_cost:.1f} against {base_cost:.1f} s)")
         said = f"put back ({trial_cost:.1f} against {base_cost:.1f} s)"
         return self.put_back(said)
+
+    def next_trial(self, said: str):
+        """A trial from the kept gains, or, when it would not move them, put back unthrown (as charge_tuner.c)."""
+        trial = self.trial()
+        if (trial.fine_kp, trial.fine_kd) != (self.base.fine_kp, self.base.fine_kd):
+            return trial, said
+        return self.put_back(f"{said}; no move")
 
     def put_back(self, said: str):
         """The trial no cheaper: the other way, then the next axis; all put back, the step shrinks and the base
@@ -188,6 +208,8 @@ class Tuner:
         step = self.factor ** self.direction
         if self.axes[self.axis] == "gain":
             return dataclasses.replace(self.base, fine_kp=self.base.fine_kp * step)
+        if not self.k:
+            return self.base
         before = braking(self.base.fine_kd, self.k)
         after = max(1.0, before * step)
         if abs(after - before) < 0.01:

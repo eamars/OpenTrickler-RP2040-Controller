@@ -145,7 +145,7 @@ static void charge_mode_log_stopped(activity_by_t by, event_reason_t reason) {
     good: the weight a turn carried from throw to throw and the tuner's windows, in RAM, taken from the heap at the
     first charge (the Pico W has no static RAM to spare). The throw's room is borrowed from the heap while a charge
     runs. Both begin afresh at a start of the unit, at a change of powder or of the scale's
-    unit, and the tuner when the profile's kp is changed elsewhere or the switch is turned
+    unit, and the tuner when the profile's kp or kd is changed elsewhere or the switch is turned
 */
 typedef struct {
     charge_controller_t controller;
@@ -156,9 +156,12 @@ static charge_room_t * charge_room = NULL;
 static int charge_tuned_profile = -1;           // the powder they are for; -1 none yet
 static char charge_tuned_unit[4] = "";          // the scale's unit then
 static bool charge_tuning = false;              // the switch then
-static float charge_profile_kp = NAN;           // the profile's kp as last seen or written
-static double charge_kp = NAN;                  // the fine kp the next throw is thrown on: the tuner's, or the profile's
+static float charge_profile_kp = NAN;           // the profile's fine gains as last seen or written
+static float charge_profile_kd = NAN;
+static double charge_kp = NAN;                  // the fine gains the next throw is thrown on: the tuner's, or the
+static double charge_kd = NAN;                  // profile's
 static double charge_kp_thrown = NAN;
+static double charge_kd_thrown = NAN;
 
 // What the controller costs, since the unit started
 static uint32_t charge_tick_most_us = 0;
@@ -186,16 +189,21 @@ static void charge_step2_configure(profile_t * profile) {
         charge_tuned_profile = idx;
         snprintf(charge_tuned_unit, sizeof(charge_tuned_unit), "%s", unit ? unit : "");
     }
-    if (!same || data->auto_tune != charge_tuning || profile->fine_kp != charge_profile_kp) {
+    if (!same || data->auto_tune != charge_tuning || profile->fine_kp != charge_profile_kp ||
+        profile->fine_kd != charge_profile_kd) {
         charge_tuner_init(&step2->tuner, data->fine_stop_threshold);
         charge_tuning = data->auto_tune;
         charge_profile_kp = profile->fine_kp;
+        charge_profile_kd = profile->fine_kd;
         charge_kp = profile->fine_kp;
-        printf("Charge: the tuner begins afresh from kp %.4f\n", (double) profile->fine_kp);
+        charge_kd = profile->fine_kd;
+        printf("Charge: the tuner begins afresh from kp %.4f, kd %.1f\n", (double) profile->fine_kp,
+               (double) profile->fine_kd);
     }
     step2->tuner.tolerance = data->fine_stop_threshold;
     if (!data->auto_tune) {
         charge_kp = profile->fine_kp;
+        charge_kd = profile->fine_kd;
     }
 
     charge_config_t * config = &step2->controller.config;
@@ -206,7 +214,7 @@ static void charge_step2_configure(profile_t * profile) {
     config->coarse.most_rps = fminf(get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR), profile->coarse_max_flow_speed_rps);
     config->fine.kp = (float) charge_kp;
     config->fine.ki = profile->fine_ki;
-    config->fine.kd = profile->fine_kd;
+    config->fine.kd = (float) charge_kd;
     config->fine.least_rps = fmaxf(get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR), profile->fine_min_flow_speed_rps);
     config->fine.most_rps = fminf(get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR), profile->fine_max_flow_speed_rps);
     config->coarse_threshold = data->coarse_stop_threshold;
@@ -232,48 +240,59 @@ static void charge_step2_configure(profile_t * profile) {
     config->acceleration_rps2 = motor_get_acceleration(SELECT_FINE_TRICKLER_MOTOR);
     config->fine_weight_per_turn = profile->fine_weight_per_turn > 0.0f ? profile->fine_weight_per_turn : 0.0f;
     charge_kp_thrown = charge_kp;
+    charge_kd_thrown = charge_kd;
 }
 
 
 // The throw at rest, its verdict read: its own weight a turn carried, and its weight and time given to the tuner. A
-// window closed, the next window's kp is the tuner's; a better kp kept is written into the powder's profile and stored
+// window closed, the next window's gains are the tuner's; better gains kept are written into the powder's profile and
+// stored
 static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
     // The throw's verdict on the console, for the bench's window report (tools/charge_sim/bench/step2_windows.py)
     printf("Charge: throw %u at rest, %.3f of %.3f in %.2f s\n", (unsigned) charge_throw_number, (double) reading,
            (double) target, (double) elapsed_s);
     charge_controller_at_rest(&step2->controller, reading);
     double carried;
-    if (charge_controller_carried(&step2->controller, &carried)) {
+    bool has_carried = charge_controller_carried(&step2->controller, &carried);
+    if (has_carried) {
         printf("Charge: carried weight a turn %.4f\n", carried);
     }
     if (!charge_mode_config.eeprom_charge_mode_data.auto_tune) {
         return;
     }
     double next_kp;
-    charge_tuner_step_t step = charge_tuner_throw(&step2->tuner, charge_kp_thrown, (double) reading - target, elapsed_s,
-                                                  &next_kp);
+    double next_kd;
+    charge_tuner_step_t step = charge_tuner_throw(&step2->tuner, charge_kp_thrown, charge_kd_thrown,
+                                                  has_carried ? carried : 0.0, (double) reading - target, elapsed_s,
+                                                  &next_kp, &next_kd);
     if (step == CHARGE_TUNER_THROWING) {
         return;
     }
-    static const char * const said[] = {"throwing", "first window", "resting", "the kept kp again", "kept",
-                                        "put back, the other way", "put back both ways"};
-    printf("Tuner: %s, kp %.4f; next %.4f, kept %.4f\n", said[step], charge_kp_thrown, next_kp, step2->tuner.base_kp);
+    static const char * const said[] = {"throwing", "first window", "resting", "the kept gains again", "kept",
+                                        "put back, the other way", "put back every way", "put back, the other axis"};
+    printf("Tuner: %s, kp %.4f kd %.1f; next %.4f %.1f, kept %.4f %.1f\n", said[step], charge_kp_thrown,
+           charge_kd_thrown, next_kp, next_kd, step2->tuner.base_kp, step2->tuner.base_kd);
     charge_kp = next_kp;
+    charge_kd = next_kd;
     if (step != CHARGE_TUNER_KEPT) {
         return;
     }
     char path[32];
-    char text[16];
+    char kp_text[16];
+    char kd_text[16];
     snprintf(path, sizeof(path), "powder_profiles/%d", charge_tuned_profile);
-    snprintf(text, sizeof(text), "%.4f", step2->tuner.base_kp);
-    const char * why = settings_write_by(path, "fine_kp", text, ACTIVITY_BY_UNIT);
+    snprintf(kp_text, sizeof(kp_text), "%.4f", step2->tuner.base_kp);
+    snprintf(kd_text, sizeof(kd_text), "%.2f", step2->tuner.base_kd);
+    const char * why = settings_write_by(path, "fine_kp", kp_text, ACTIVITY_BY_UNIT);
+    why = why != NULL ? why : settings_write_by(path, "fine_kd", kd_text, ACTIVITY_BY_UNIT);
     why = why != NULL ? why : settings_store_by(path, ACTIVITY_BY_UNIT);
     if (why != NULL) {
-        printf("Tuner: kp %s not kept, %s\n", text, why);
+        printf("Tuner: kp %s kd %s not kept, %s\n", kp_text, kd_text, why);
         return;
     }
     profile_t * profile = profile_get((uint16_t) charge_tuned_profile);
     charge_profile_kp = profile != NULL ? profile->fine_kp : NAN;
+    charge_profile_kd = profile != NULL ? profile->fine_kd : NAN;
 }
 
 
@@ -560,9 +579,9 @@ void charge_mode_wait_for_complete() {
     }
     double carried;
     bool has_carried = charge_controller_carried(controller, &carried);
-    printf("Charge: throw %u on fine kp %.4f, weight a turn %s%.4f\n", (unsigned) charge_throw_number,
-           (double) controller->config.fine.kp, has_carried ? "carried " : "its own, none yet ",
-           has_carried ? carried : 0.0);
+    printf("Charge: throw %u on fine kp %.4f kd %.1f, weight a turn %s%.4f\n", (unsigned) charge_throw_number,
+           (double) controller->config.fine.kp, (double) controller->config.fine.kd,
+           has_carried ? "carried " : "its own, none yet ", has_carried ? carried : 0.0);
 
     // A missing reading pauses the tricklers, and a lost scale ends the charge, by the scale's own rhythm (ADR-013)
     uint32_t usual_interval_ms = scale_get_usual_interval_ms();
@@ -755,7 +774,7 @@ void charge_mode_wait_for_cup_removal() {
                         .value2 = last_charge_elapsed_seconds};
     events_add(&finished);
     activity_throw_end();
-    // Out of the throw, so a kp kept is written as any setting between throws
+    // Out of the throw, so gains kept are written as any setting between throws
     charge_step2_at_rest(current_measurement, charge_mode_config.target_charge_weight, last_charge_elapsed_seconds);
 
     // Stop condition: 5 stable measurements in 300ms apart (1.5 seconds minimum)

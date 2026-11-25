@@ -795,3 +795,47 @@ From the owner's gains (kp 0.8, kd 15, top 2 rev/s) no tuner gives the narrowest
 - **By the owner's check of 00:28** ("shorter time to trickle, and less over and undershoot"), no tuner does both here: from a narrow start they buy time with spread; from the bench's start the twin shows no trend a bench series could read in a few windows.
 
 **Decided (mine):** kd's tuning is not built into the firmware. It stays a study (`axes="kp+kd"`), ready if the objective changes. The C judge after the Python's change: `tests/step2_sim.py` VERDICT PASS (its first run failed on the note's words alone, "every way" for "both ways", each window to the same kp; the one-axis words put back).
+
+## 2026-11-26, 09:17 to 09:42: the tuner judged by every throw's weight, kp and kd (the twin, no unit)
+
+**The owner (09:17):** "You can do all sort of attempt in simulation. Also, the cup is cleared, but I'm not around right now so I cannot clear the cup later. So I would like you to prioritize on the simulation based on data already." No unit was touched.
+
+**The twin against the bench's 49 throws** (`step2_bench_ab.py`, its throws now read from the recording; 6 sessions of 48 a rig):
+
+| | kp 2: mean, SD, time | kp 1.33: mean, SD, time | Fast throws | Slow throws: mean, SD | Carry, second half |
+|---|---|---|---|---|---|
+| The bench | +0.001, 0.128, 3.87 s | −0.009, 0.087, 4.67 s | 41% | +0.037, 0.057 | 0.925 (seed 0.752) |
+| f2 | +0.002, 0.123, 2.96 s | −0.015, 0.064, 4.93 s | 29% | −0.008, 0.070 | 0.847 (seed 0.807) |
+| f2, the fine tube pouring by speed | −0.025, 0.119, 4.33 s | −0.002, 0.059, 5.15 s | 12% | +0.001, 0.057 | 0.810 |
+| night | +0.178, 0.396, 2.41 s | +0.042, 0.267, 2.48 s | 80% | +0.091, 0.390 | 0.924 |
+| AR2209 (11-21), 1122 | +0.326 and +0.071 at kp 2 | | 85%, 20% | | |
+
+f2 stays the twin nearest the unit; f2 by speed and night bracket it. Two of the unit's ways the twin does not have: its slow throws land +0.037 over (the twin's centred), and its carry rose 23% above its seed (the twin's 5%). Tried and dropped: (a) the forecast's lag too short at the creep (the table's slowest point is 0.24 gr/s at 0.84 s): no, a slow throw's last powder showed a median 0.54 s after its stop, and what came after 0.84 s averaged 0.005 gr; (b) the fine tube giving more a turn at the creep (a variant, 1.2 times at 0.1 rev/s): no, the twin's own step 1 then seeds from the creep, its carry rose 8%, and on f2 every throw went slow (the unit's 41% fast). The variant was taken out again.
+
+**The landscape and the judge** (`step2_objective_study.py`: fixed gains, the seed on, 200 throws a cell; the judge from 600 at the bench's gains and each neighbour):
+- On f2 the cost of a good charge, its share modelled, is least at kp 2, kd 10: the bench's stored gains (8.6 s; 3 of 28 cells within 15%). More kd costs there (kd 300, 11.6 s; 3,000, 14.0 s): it buys spread with time the objective does not pay back.
+- On night kd matters: at kp 2, 53 s at kd 10 to 15 s at kd 3,000 (SD 0.333 to 0.067).
+- A window of 25 against the pool of 75 picked the truly cheaper of the bench's gains and a neighbour (kp 1.33 or 3, kd 300 or 1,000) 56 to 80 times in 100 by the count of its good throws on f2 and f2 by speed, 71 to 92 by the share modelled; 71 to 100 and 98 to 100 on night. **Counting is what made the tuner wander:** its decisions between near gains were not much better than a coin.
+- Counting and modelling disagree where the throws split into fast and slow: on night counting finds kp 1, kd 10 best (9.3 s, SD 0.181, 30% of throws good and the rest far off), modelling kp 2, kd 3,000 (SD 0.067).
+
+**The tuners against no tuner** (`step2_variants.py`, 4 sessions of 600; the last 100 throws, a good charge with its share modelled, s):
+
+| From the bench's stored gains | No tuner | kp, counted (as built) | kp, modelled | kp and kd, modelled |
+|---|---|---|---|---|
+| f2 | 12.6 (SD 0.124) | 23.4 (0.194) | 12.6 (0.120) | 11.7 (0.127) |
+| f2 by speed | 11.9 (0.096) | 12.7 (0.108) | 11.1 (0.072) | 11.3 (0.076) |
+| night | 60.4 (0.340) | 23.6 (0.212) | 31.2 (0.162) | 20.5 (0.159) |
+| BM2 | 20.7 (0.133) | 13.4 (0.092) | 12.6 (0.095) | 14.5 (0.092) |
+
+From the owner's gains (kp 0.8, kd 15, top 2 rev/s): no tuner 14.2, 14.7, 18.1, 26.9 s (SD 0.036, 0.038, 0.063, 0.032); kp and kd modelled 14.8, 12.2, 17.1, 16.1 s (SD 0.071, 0.062, 0.064, 0.052).
+
+**Decided (mine, on the owner's "all sort of attempt"):** the tuner ships judging by the share modelled from every throw's weight, on two axes, kp and kd (the braking). Of the four it is the one that never does badly: at worst 4% dearer than leaving the gains (f2 from the owner's), 1.4 to 3 times cheaper from a start far off, and the only one that cures the night rig's landing powder. **The owner's to see:** from narrow hand-tuned gains it still trades spread for time (SD 0.036 to about 0.07, a throw some 25% quicker): at a tolerance of 0.03 gr the owner's objective says that pays.
+
+**Built:**
+- `charge_tuner.c/.h`: two axes (the steady gain, the braking 1 + kd x k / 1000, never under 1), a compass search (the other way, then the other axis, then a smaller step), the first way on each axis the one the throws miss by, the share modelled (a sort of 75 at most on the stack). `erf` is the tuner's own (Abramowitz and Stegun 7.1.26, under 1.5e-7) on the SDK's `exp`: libm's `erf` and its `exp` are placed in RAM on the Pico W, 2.6 KB it has not got. The Python uses the same expression.
+- `charge_mode.cpp`: a trial's kd from RAM as its kp; the tuner afresh when the profile's kp or kd is changed elsewhere; both kept gains written and stored once a window; the throw's start line and the `Tuner:` line name kd. `step2_windows.py`, `step2_traces.py` and `step2_bench_ab.py` read both forms.
+- The switch's description, api_v1.md and the README's tuner say Kp and Kd.
+
+**Proven with no unit:** `tests/step2_sim.py` VERDICT PASS (the controller call for call; the tuner the same steps in 12 windows from both starts on every rig, kd moving on three: 636, 446, 0); `tests/host_test.py` and `tests/calibration_sim.py` PASS; the Pico 2 W's image 55.06% of its slot, RAM 56.23%. The Pico W's misses its slot by 1,008 bytes (RAM 99.69%): **the owner (09:37): "Also, don't build for Pico W yet. That's the optimization domain."** Left to that work; CI builds both boards, so nothing is pushed meanwhile.
+
+**Sheets, as the bench's of 02:26** (the owner, 09:37: "Can you plot the result of the simulation of charge weight versus time diagram similar to what you plotted last night?"; `tools/charge_sim/step2_twin_traces.py`): `research/step2_twin_ab_f2.png`, the bench's A/B on f2 (one session of 48: kp 2 SD 0.064, kp 1.33 SD 0.046, narrower than the six sessions' 0.123 and 0.064 and the bench's 0.128 and 0.087; the same two kinds of throw); `research/step2_twin_tuner.png`, the tuner from the bench's gains, its first window and its 24th: f2 SD 0.106 to 0.076 (kp 2 to 1.81), night mean +0.213, SD 0.260 to mean +0.058, SD 0.185 (a trial at kp 1.20, kd 191).

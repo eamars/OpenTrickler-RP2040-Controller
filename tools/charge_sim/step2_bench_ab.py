@@ -13,6 +13,8 @@ less the reading at the stop: what was in the air, or still poured unseen, when 
 
 import argparse
 import dataclasses
+import json
+import math
 import re
 import statistics
 from datetime import datetime
@@ -27,7 +29,10 @@ from workers import Workers
 KP = {"A": 2.0, "B": 1.3333}
 TARGET = 10.0
 ORDER = "ABBA"
-START = re.compile(r"^(\S+) unit +Charge: throw (\d+) on fine kp ([\d.]+), weight a turn (carried|its own, none yet) "
+FAST_S = 3.0               # a throw stopped within this is a fast one (the bench's split, 2026-11-26)
+RECORDING = Path(__file__).parent / "recordings" / "20261126_bench_ab" / "throws.json"
+START = re.compile(r"^(\S+) unit +Charge: throw (\d+) on fine kp ([\d.]+)(?: kd [\d.]+)?, weight a turn "
+                   r"(carried|its own, none yet) "
                    r"([\d.]+)")
 AT_REST = re.compile(r"^(\S+) unit +Charge: throw (\d+) at rest, (-?[\d.]+) of ([\d.]+) in ([\d.]+) s")
 CARRIED = re.compile(r"Charge: carried weight a turn ([\d.]+)")
@@ -41,6 +46,20 @@ class Throw:
     time_s: float
     renewed: bool               # gave its own weight a turn to the carry
     after_stop: float           # the final weight less the reading at the stop; nan where unknown
+    carried: float = math.nan   # the carried weight a turn after the throw
+
+
+def recorded(path: str) -> list:
+    """The bench's throws from their recording (`step2_traces.py --json`)."""
+    out = []
+    for throw in json.loads(Path(path).read_text(encoding="utf-8")):
+        arm = min(KP, key=lambda a: abs(KP[a] - throw["kp"]))
+        shown = [w for t, w in throw["trace"] if t <= throw["stop_s"]]
+        before, after = throw.get("carried_before"), throw.get("carried_after", math.nan)
+        out.append(Throw(arm, throw["final"] - throw["target"], throw["stop_s"],
+                         before is not None and abs(after - before) > 1e-4,
+                         throw["final"] - shown[-1] if shown else math.nan, after))
+    return out
 
 
 def twin_case(job: tuple) -> list:
@@ -60,7 +79,7 @@ def twin_case(job: tuple) -> list:
         shown = [row[1] for row in result.rows if row[0] <= result.elapsed_s and row[1] is not None]
         at_stop = shown[-1] if shown else float("nan")
         out.append(Throw(arm, result.reading - TARGET, result.elapsed_s, controller.history != history,
-                         result.reading - at_stop))
+                         result.reading - at_stop, controller.carried()))
     return out
 
 
@@ -103,21 +122,37 @@ def line(throws: list, tolerance: float) -> str:
             f"  after the stop {statistics.median(after) if after else float('nan'):+.3f}")
 
 
+def split(throws: list) -> str:
+    """The fast throws (stopped within FAST_S) and the slow, and the carry over the second half."""
+    fast = [t.error for t in throws if t.time_s < FAST_S]
+    slow = [t.error for t in throws if t.time_s >= FAST_S]
+    carried = [t.carried for t in throws[len(throws) // 2:] if t.carried == t.carried]
+
+    def part(errors: list) -> str:
+        if len(errors) < 2:
+            return "  -  "
+        return f"mean {statistics.fmean(errors):+.3f} sd {statistics.pstdev(errors):.3f}"
+
+    return (f"fast {len(fast) / len(throws):4.0%} ({part(fast)})  slow ({part(slow)})  "
+            f"carried {statistics.median(carried) if carried else math.nan:.3f}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--logs", nargs="*", default=[], help="the bench's session logs (logs/rc/*_send.log)")
+    parser.add_argument("--recording", default=str(RECORDING), help="the bench's throws kept (step2_traces.py)")
     parser.add_argument("--rigs", nargs="+", default=list(step2.DEFAULT_RIGS))
     parser.add_argument("--throws", type=int, default=40, help="throws a session on the twin")
     parser.add_argument("--sessions", type=int, default=4)
     args = parser.parse_args()
     tolerance = BENCH.fine_stop_threshold
-    if args.logs:
-        throws = bench_throws(args.logs)
-        print("the bench (the Pico 2 W FA0C, AR2209, the A&D FX-300i):")
-        for arm in KP:
-            mine = [t for t in throws if t.arm == arm]
-            if mine:
-                print(f"  kp {KP[arm]:<6g} {line(mine, tolerance)}")
+    throws = bench_throws(args.logs) if args.logs else recorded(args.recording)
+    print("the bench (the Pico 2 W FA0C, AR2209, the A&D FX-300i):")
+    for arm in KP:
+        mine = [t for t in throws if t.arm == arm]
+        if mine:
+            print(f"  kp {KP[arm]:<6g} {line(mine, tolerance)}")
+    print(f"  both     {split(throws)}")
     with Workers() as pool:
         made = dict(zip(args.rigs, pool.map(step2.rig_records, list(args.rigs))))
         jobs = [(rig, args.throws, 9300 + s, made[rig]) for rig in args.rigs for s in range(args.sessions)]
@@ -127,6 +162,7 @@ def main() -> None:
         print(f"{rig} (its seed {made[rig].fine_gr_turn:.3f}), {args.sessions} sessions of {args.throws}:")
         for arm in KP:
             print(f"  kp {KP[arm]:<6g} {line([t for t in throws if t.arm == arm], tolerance)}")
+        print(f"  both     {split(throws)}")
 
 
 if __name__ == "__main__":

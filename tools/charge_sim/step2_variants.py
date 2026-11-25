@@ -83,7 +83,9 @@ def judged(throws: list, tolerance: float) -> dict:
     times = sorted(t[1] for t in throws)
     good = sum(abs(e) < tolerance for e in errors) / len(errors)
     median = times[len(times) // 2]
+    modelled = step2_tuner.modelled(errors, tolerance)
     return {"cost": median / good if good else math.inf, "good": good,
+            "modelled": median / modelled if modelled else math.inf,
             "over": sum(e >= tolerance for e in errors) / len(errors),
             "under": sum(e <= -tolerance for e in errors) / len(errors),
             "mean": statistics.fmean(errors), "sd": statistics.pstdev(errors), "time": median}
@@ -91,8 +93,9 @@ def judged(throws: list, tolerance: float) -> dict:
 
 def line(j: dict) -> str:
     cost = "  inf" if math.isinf(j["cost"]) else f"{j['cost']:5.1f}"
-    return (f"{cost} s  good {j['good'] * 100:3.0f}%  over {j['over'] * 100:3.0f}%  under {j['under'] * 100:3.0f}%  "
-            f"mean {j['mean']:+.3f}  sd {j['sd']:.3f}  time {j['time']:4.1f} s")
+    modelled = "  inf" if math.isinf(j["modelled"]) else f"{j['modelled']:5.1f}"
+    return (f"{cost} s (modelled {modelled})  good {j['good'] * 100:3.0f}%  over {j['over'] * 100:3.0f}%  "
+            f"under {j['under'] * 100:3.0f}%  mean {j['mean']:+.3f}  sd {j['sd']:.3f}  time {j['time']:4.1f} s")
 
 
 def main() -> None:

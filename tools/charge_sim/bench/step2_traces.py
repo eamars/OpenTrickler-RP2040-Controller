@@ -21,8 +21,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-START = re.compile(r"^(\S+) unit +Charge: throw (\d+) on fine kp ([\d.]+), weight a turn (carried|its own, none "
-                   r"yet) ([\d.]+)")
+START = re.compile(r"^(\S+) unit +Charge: throw (\d+) on fine kp ([\d.]+)(?: kd [\d.]+)?, weight a turn "
+                   r"(carried|its own, none yet) ([\d.]+)")
 CARRIED = re.compile(r"Charge: carried weight a turn ([\d.]+)")
 AT_REST = re.compile(r"^(\S+) unit +Charge: throw (\d+) at rest, (-?[\d.]+) of ([\d.]+) in ([\d.]+) s")
 FRAME = re.compile(r"^(\S+) unit +@sf \d+ (-?[\d.]+) ")
@@ -55,6 +55,32 @@ def throws(paths: list) -> list:
     return out
 
 
+def draw(panels: list, out: str, title: str, rows: int = 1, ylabel: str = "the A&D's reading, gr") -> None:
+    """Panels of throws, each (its name, [(trace as (s, reading), the stop's s, the final weight, the target), ...]):
+    each throw's reading from its start, its stop a dot; one slower than the median of all is dashed."""
+    median_stop = statistics.median(stop for _, throws_drawn in panels for _, stop, _, _ in throws_drawn)
+    columns = -(-len(panels) // rows)
+    fig, axes = plt.subplots(rows, columns, figsize=(7 * columns, 5 * rows), sharey=True, squeeze=False)
+    for ax, (name, throws_drawn) in zip(axes.flat, panels):
+        for trace, stop, final, target in throws_drawn:
+            style = "--" if stop > median_stop else "-"
+            ax.plot([t for t, _ in trace], [w for _, w in trace], style, linewidth=0.8)
+            ax.plot([stop], [next((w for t, w in reversed(trace) if t <= stop), float("nan"))], "k.", markersize=4)
+        target = throws_drawn[0][3]
+        ax.axhline(target, color="grey", linewidth=0.6)
+        ax.set_ylim(target - 3.0, target + 0.8)
+        errors = [final - target for _, _, final, target in throws_drawn]
+        ax.set_title(f"{name}: {len(throws_drawn)} throws, mean {statistics.fmean(errors):+.3f}, "
+                     f"sd {statistics.pstdev(errors):.3f} gr", fontsize=10)
+        ax.set_xlabel("s from the throw's start (dot: the stop)")
+    for row in axes:
+        row[0].set_ylabel(ylabel)
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(out, dpi=110)
+    plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("logs", nargs="+")
@@ -63,25 +89,9 @@ def main() -> None:
     args = parser.parse_args()
     found = throws(args.logs)
     kps = sorted({kp for kp, *_ in found}, reverse=True)
-    median_stop = statistics.median(stop for _, _, stop, *_ in found)
-    fig, axes = plt.subplots(1, len(kps), figsize=(7 * len(kps), 5), sharey=True, squeeze=False)
-    for ax, kp in zip(axes[0], kps):
-        mine = [f for f in found if f[0] == kp]
-        for _, trace, stop, final, target, _ in mine:
-            style = "--" if stop > median_stop else "-"
-            ax.plot([t for t, _ in trace], [w for _, w in trace], style, linewidth=0.8)
-            ax.plot([stop], [next((w for t, w in reversed(trace) if t <= stop), float("nan"))], "k.", markersize=4)
-        target = mine[0][4]
-        ax.axhline(target, color="grey", linewidth=0.6)
-        ax.set_ylim(target - 3.0, target + 0.8)
-        errors = [final - target for _, _, _, final, target, _ in mine]
-        ax.set_title(f"fine kp {kp:g}: {len(mine)} throws, mean {statistics.fmean(errors):+.3f}, "
-                     f"sd {statistics.pstdev(errors):.3f} gr")
-        ax.set_xlabel("s from the throw's start (dot: the stop)")
-    axes[0][0].set_ylabel("the A&D's reading, gr")
-    fig.suptitle("ADR-009 step 2 on the Pico 2 W: real 10 gr throws, AR2209 (dashed: slower than the median)")
-    fig.tight_layout()
-    fig.savefig(args.out, dpi=110)
+    panels = [(f"fine kp {kp:g}", [(trace, stop, final, target) for k, trace, stop, final, target, _ in found
+                                   if k == kp]) for kp in kps]
+    draw(panels, args.out, "ADR-009 step 2 on the Pico 2 W: real 10 gr throws, AR2209 (dashed: slower than the median)")
     print(f"{len(found)} throws drawn into {args.out}")
     if args.json:
         kept = [dict(about, kp=kp, target=target, final=final, stop_s=stop,

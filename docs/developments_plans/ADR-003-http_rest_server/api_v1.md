@@ -287,7 +287,7 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `colour_good`, `colour_under`, `colour_over`, `colour_not_ready` | colour | | | now | `c1` to `c4` (`neopixel_..._colour`) |
 | `cup_capacity` | number or null | weight | 0 to 10,000; null: never calibrated. How much the cup holds, kept by the calibration (ADR-009, step 1) | now | new |
 | `cup_weight` | number or null | weight | 0 to 10,000; null: never calibrated. The empty cup's weight (ADR-009, step 1) | now | new |
-| `auto_tune` | boolean | | true by default. After each window of 25 throws the fine Kp moves toward quicker throws within the tolerance, a better one kept into the powder's profile, stored, its write `by` unit; off, the profile is never changed (ADR-009, step 2) | the next throw | new |
+| `auto_tune` | boolean | | true by default. After each window of 25 throws the fine Kp and Kd move toward quicker throws within the tolerance, better ones kept into the powder's profile, stored, their writes `by` unit; off, the profile is never changed (ADR-009, step 2) | the next throw | new |
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
 
