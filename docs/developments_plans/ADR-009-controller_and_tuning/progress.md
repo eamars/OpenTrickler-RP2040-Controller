@@ -398,3 +398,7 @@ Below 3 gr the two loops land alike and over: **the coarse tube's own powder ove
 - **What it costs:** the throws are slower than today's (7 to 11 s against 6 to 9 s) and step 2's verdict waits the slowest lag and the settle time (about 1.9 s on the twin) against today's 1 s; a good charge is cheaper because three to five times as many land within the tolerance on the AR2209 rigs. The tuner's step, window and rule are those above; kd and ki stay the user's.
 
 **The draft brought to what gate 1 built** (the README's step 2): the weight a turn carried in RAM from each throw's verdict, the tuner on kp alone by the time per good charge, the unit's proof in the same terms. Step 2 now waits for the owner's approval; it is built only once step 1 is signed off on the bench.
+
+## 2026-11-25, 20:01: step 2 approved
+
+- **The owner (recorded 20:01):** step 2 approved as gate 1 proved it in the simulation (the README's step 2 as of 19:52): today's coarse tube, the fine tube's PID on its forecast with its envelope, the weight a turn carried in RAM from each throw's verdict, the tuner on the fine kp alone by the time per good charge, kd and ki as the user has them. Its gates 2 to 4 are built once step 1 is signed off on the bench (the README: nothing of it is built until then). Still the owner's, not built: a forecast at the coarse tube's stop too (its threshold cannot go under about 3 gr otherwise; 18:25).

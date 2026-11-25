@@ -1,6 +1,6 @@
 # ADR-009: calibration and automatic tuning
 
-Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and being built in the gates under "What we do": gates 2 to 4 built with no unit. **Their test on a unit is deferred by the owner (recorded 16:37)**, until the owner says the bench is ready for it; then the list in progress, 2026-11-25, "What the bench owes", is run in its order, and step 1 is signed off by gate 5. Step 2, the tuning, is drafted once step 1 is complete.
+Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and being built in the gates under "What we do": gates 2 to 4 built with no unit. **Their test on a unit is deferred by the owner (recorded 16:37)**, until the owner says the bench is ready for it; then the list in progress, 2026-11-25, "What the bench owes", is run in its order, and step 1 is signed off by gate 5. Step 2, the tuning, approved by the owner (recorded 20:01) after gate 1 proved it in the simulation; its gates 2 to 4 are built once step 1 is signed off.
 
 The earlier README and progress are phased out and moved to [`legacy/`](legacy/).
 
@@ -105,7 +105,7 @@ No throw's result is judged.
 
 ## Step 2: the tuning
 
-**Draft, proven in the simulation, for the owner's approval** (gate 1, 2026-11-25, done 19:52; the owner, 17:45: unapproved until its idea is proven in the simulation). Drafted 2026-11-25 at the owner's word while step 1's test on a unit is deferred. Nothing of it is built until step 1 is signed off. It is drafted on step 1's records as built; their figures on a unit (the burst's settle time among them) come with step 1's test, and the draft is read again against them then.
+**Approved by the owner (recorded 20:01),** after gate 1 proved it in the simulation (2026-11-25, done 19:52; the owner, 17:45: unapproved until its idea is proven in the simulation). Drafted 2026-11-25 at the owner's word while step 1's test on a unit is deferred. Nothing of it is built until step 1 is signed off. It is drafted on step 1's records as built; their figures on a unit (the burst's settle time among them) come with step 1's test, and the draft is read again against them then.
 
 ### What we want
 
