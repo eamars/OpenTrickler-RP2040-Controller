@@ -641,3 +641,4 @@ Both boards build with it (the Pico W 98.5% of its flash, 99.6% of its RAM).
 - Its reason does not hold: after the stop the gate's close is already waited for, and the precharge (or 20 ms); the motors stop within about 0.1 s; no task was found that needs the second.
 - Its length is short on this scale at a slow finish: small amounts first show 0.8 to 1.6 s after they fall (2026-11-20, 24 releases of two digits: half after 1.17 s, a quarter after 1.5 s); this unit's step 1 records give a slowest lag of 0.99 s and a settle time of 0.57 s, 1.56 s.
 - **The owner chose** the scale's own lag and settle time, no floor of 1 s ("Yes, go ahead").
+- **After the unwind, on the unit** (2.0.3-218 at `d847a8b`, flashed by the probe; the back-off turned off again, live, for the rest of the test): `charge_cycle` passed in the original's order, the charge, the cup off and back, then the zero's wait and on by itself (states 1, 2, 3, 4, 1); the cup 53.96 gr after it.
