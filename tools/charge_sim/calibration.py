@@ -360,6 +360,36 @@ def scale_kept(folder) -> dict:
     return {"settle_s": settle_s, "lag": sorted(lag)}
 
 
+def turns_most(part: str, fine: tuple = (0.01, 5.0), coarse: tuple = (0.08, 5.0)) -> dict:
+    """The most each tube turns in a part, by the method's own figures: each prime to its last run, each run at its
+    length. For the cup's check on the PC (rc_run.py's cup_most, at its 12 gr a turn). fine and coarse are the motors'
+    least and most speeds, the ladder's ends: the bench's by default.
+
+    Returns:
+        {"fine": turns, "coarse": turns}; none for the cup's part, whose fill a person sets.
+    """
+    limits = {"fine": fine, "coarse": coarse}
+
+    def ladder(tube):
+        least, most = limits[tube]
+        prime_rps = math.sqrt(least * most)
+        ratio = (prime_rps / least) ** (1.0 / SPEED_LADDER)
+        turns = 0.0
+        for step in range(SPEED_LADDER):
+            speed = least * ratio ** step
+            turns += SPEED_STOPS * speed * min(SPEED_RUN_MOST_S, max(SPEED_RUN_LEAST_S, SPEED_RUN_TURNS / speed))
+        return turns
+
+    primes = {tube: PRIME_RUNS_MOST * PRIME_TURNS[tube] for tube in PRIME_TURNS}
+    if part == "scale":
+        lag = {tube: LAG_RUNS_EACH * sum(speed * run_s for speed, run_s in runs) for tube, runs in LAG_RUNS.items()}
+        return {"fine": primes["fine"] + SETTLE_BURSTS * SETTLE_BURST_TURNS + lag["fine"],
+                "coarse": primes["coarse"] + lag["coarse"]}
+    if part == "powder":
+        return {tube: primes[tube] + ladder(tube) for tube in ("fine", "coarse")}
+    return {"fine": 0.0, "coarse": 0.0}
+
+
 def say(report: Report) -> None:
     """A part's report in words."""
     print(f"  {report.part}: {report.seconds / 60.0:.1f} min, {report.poured_gr:.1f} gr")

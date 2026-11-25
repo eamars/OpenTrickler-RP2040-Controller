@@ -2119,6 +2119,20 @@ class Session:
         wait_state("purge", ("idle",))
         self.send("sim off")
 
+        # The calibration (ADR-009 step 1): a part started and read at its first step, where nothing turns until the
+        # cup is said to be on; each other action refused where it is not now; the part stopped
+        expect("POST", "calibration/answer", {"answer": "next"}, 409, "not_running")
+        expect("POST", "calibration/start", {"part": "scale"}, 202)
+        wait_event("calibration", "started", by="api", part="scale")
+        wait_state("calibration", ("running",))
+        expect("POST", "calibration/start", {"part": "cup"}, 409, "busy")
+        expect("POST", "calibration/answer", {"answer": "full"}, 409, "not_now")
+        expect("PATCH", "calibration/fill", {"fine_rps": 0}, 409, "not_filling")
+        expect("POST", "calibration/save", {}, 409, "not_now")
+        expect("POST", "calibration/stop", {}, 202)
+        wait_event("calibration", "stopped", by="api", reason="stopped")
+        wait_state("calibration", ("idle",))
+
         # The update (ADR-004): the job's shape, nothing installed (rc_run.py update installs an image)
         expect("POST", "update/install", {}, 409, "not_ready")
         expect("POST", "update/stop", {}, 200)
@@ -4116,10 +4130,19 @@ def main():
 
 
 def send_pours(line):
-    """Whether a send's line can turn a motor: a charge, a purge or a cleanup, or a motor at a speed other than 0."""
+    """Whether a send's line can turn a motor: a charge, a purge or a cleanup, a motor at a speed other than 0, or
+    the calibration's scale or powder part, or its fill at a speed (ADR-009 step 1)."""
     words = line.split()
     if not words:
         return False
+    if words[0] == "calibrate" and len(words) >= 2:
+        if words[1] in ("scale", "powder"):
+            return True
+        if words[1] == "fill":
+            try:
+                return any(float(word) != 0.0 for word in words[2:4])
+            except ValueError:
+                return True
     if words[0] == "charge":
         return len(words) >= 2 and words[1] != "stop"
     if words[0] in ("cleanup", "purge"):
@@ -4139,6 +4162,29 @@ def send_motor_seconds(lines, start):
     for line in lines[start + 1:]:
         words = line.split()
         if words[:2] == ["motor", tube] and len(words) >= 3 and float(words[2]) == 0.0:
+            break
+        seconds += float(words[1]) if words[0] == "pause" else SEND_LINE_S
+    return seconds
+
+
+def calibration_turns_most(part):
+    """The most each tube turns in a calibration's part, by its method's own figures (tools/charge_sim/calibration.py's
+    turns_most): one place for them."""
+    sim = str(Path(__file__).resolve().parents[1] / "charge_sim")
+    if sim not in sys.path:
+        sys.path.insert(0, sim)
+    import calibration     # noqa: E402  (the simulation's folder, put on the path just above)
+    return calibration.turns_most(part)
+
+
+def calibration_fill_seconds(lines, start):
+    """How long a send's calibration fill turns: its pauses until the cup is said full, the fill is set to 0 or the
+    calibration stopped; a line's own time for each other line."""
+    seconds = 0.0
+    for line in lines[start + 1:]:
+        words = line.split()
+        if words[:3] == ["calibrate", "answer", "full"] or words[:2] == ["calibrate", "stop"] or \
+                (words[:2] == ["calibrate", "fill"] and not send_pours(line)):
             break
         seconds += float(words[1]) if words[0] == "pause" else SEND_LINE_S
     return seconds
@@ -4182,6 +4228,11 @@ def cup_most(args):
                 most += float(words[1]) + 10.0
             elif words[0] == "motor" and len(words) >= 3:
                 most += abs(float(words[2])) * send_motor_seconds(lines, i) * CUP_GR_A_TURN_MOST
+            elif words[0] == "calibrate" and words[1] in ("scale", "powder"):
+                most += sum(calibration_turns_most(words[1]).values()) * CUP_GR_A_TURN_MOST
+            elif words[0] == "calibrate":
+                speeds = sum(abs(float(word)) for word in words[2:4])
+                most += speeds * calibration_fill_seconds(lines, i) * CUP_GR_A_TURN_MOST
             else:
                 most += 100.0           # a purge or a cleanup: its own time
         return most
