@@ -30,6 +30,11 @@ from throw import Session
 from workers import Workers
 
 F2 = "pico2w_ar2209_f2"
+G10 = 10.0 / rigs.GRAINS_A_GRAM                 # 10 gr in grams
+GRAMS_THRESHOLDS = {"coarse_stop_threshold": BENCH.coarse_stop_threshold / rigs.GRAINS_A_GRAM,
+                    "fine_stop_threshold": 0.002}       # 0.03 gr is 0.0019 g: two of the gram digit
+GRAMS_ALL = dict(GRAMS_THRESHOLDS, **{name: getattr(BENCH, name) * rigs.GRAINS_A_GRAM
+                                      for name in ("coarse_kp", "coarse_kd", "fine_kp", "fine_kd")})
 STARTS = {"bench": BENCH, "owner": AR2209_PICOW_168}
 
 
@@ -90,6 +95,29 @@ CASES = (
     Case("wild coarse", "the coarse kp ten times the bench's (0.2)", changes={"coarse_kp": 0.2}),
     Case("night rig", "the twin's rig with the most powder in the air at the coarse tube's stop",
          rig="pico2w_ar2209_night"),
+    # the coarse tube's two knobs (the owner, 2026-11-26: "Increase the stop threshold, or tune the coarse trickler
+    # PID. Which one do you prefer?"), from the wild coarse tube (kp 0.2), the fine tube's tuner off
+    *(Case(f"wild coarse, threshold {th:g}", "the coarse stop threshold raised", changes={"coarse_kp": 0.2,
+           "coarse_stop_threshold": th}, tuned=False, throws=60, judged=60) for th in (7.0, 9.0, 12.0)),
+    *(Case(f"wild coarse, coarse kp {kp:g}", "the coarse kp brought down", changes={"coarse_kp": kp}, tuned=False,
+           throws=60, judged=60) for kp in (0.1, 0.05, 0.02)),
+    Case("wild coarse, fixed", "the coarse kp ten times the bench's, no tuner", changes={"coarse_kp": 0.2},
+         tuned=False, throws=60, judged=60),
+    # a scale in grams (the owner, 2026-11-26): the twin weighed in grams, 10 gr as 0.648 g; what it prints is in grams
+    Case("grams, grain defaults, fixed", "the stored gains and thresholds as they are, in grams, no tuner",
+         rig=F2 + "+grams", target=G10, tuned=False, throws=60, judged=60),
+    Case("grams, grain defaults", "the same, the tuner on", rig=F2 + "+grams", target=G10),
+    Case("grams, converted, fixed", "every gain and threshold converted to grams, no tuner", rig=F2 + "+grams",
+         target=G10, changes=GRAMS_ALL, tuned=False, throws=150, judged=150),
+    Case("grams, converted", "the same, the tuner on", rig=F2 + "+grams", target=G10, changes=GRAMS_ALL),
+    Case("grams, thresholds only", "the thresholds in grams, the gains left in grains, the tuner on", rig=F2 + "+grams",
+         target=G10, changes=GRAMS_THRESHOLDS),
+    Case("grams, thresholds only, fixed", "the same, no tuner", rig=F2 + "+grams", target=G10,
+         changes=GRAMS_THRESHOLDS, tuned=False, throws=150, judged=150),
+    Case("grams, thresholds only, first 50", "the gains left in grains: the tuner's first throws", rig=F2 + "+grams",
+         target=G10, changes=GRAMS_THRESHOLDS, throws=50, judged=50),
+    Case("grains, gram gains", "a scale in grains, the gains a gram's (fifteen times too strong)",
+         changes={name: getattr(BENCH, name) * rigs.GRAINS_A_GRAM for name in ("fine_kp", "fine_kd")}),
 )
 
 
@@ -112,7 +140,8 @@ def run(job: tuple) -> tuple:
         errors.append(result.true_error)
         times.append(result.elapsed_s)
         if tuner is not None and len(errors) == step2_tuner.WINDOW:
-            profile, _ = tuner(profile, errors, times, k=controller.carried())
+            profile, _ = tuner(profile, errors, times, k=controller.carried(),
+                               lag=statistics.median(lag for _, lag in records.lag))
             errors, times = [], []
     starved = sum(v == "starved" for _, _, v in out)
     return case.name, out[-case.judged:], (profile.fine_kp, profile.fine_kd, profile.fine_ki), starved

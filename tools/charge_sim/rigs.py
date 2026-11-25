@@ -77,13 +77,38 @@ def _empty(tube):
     return dataclasses.replace(tube, gr_per_turn=((1.0, EMPTY_GR_A_TURN),))
 
 
+# grams (2026-11-26, the owner: "If a scale reports gram, while the default parameter is grain, then I need a reliable
+#   way to tune down to support gram, with the auto tuner. Noted the calibration must NOT assume the unit."): the same
+#   rig weighed in grams, every weight it holds divided by 15.4324 and the A&D's digit in grams, 0.001 g. Everything the
+#   simulation reports of it is then in grams, though its fields keep their names in grains
+GRAINS_A_GRAM = 15.4324
+
+
+def _grams_tube(tube):
+    return dataclasses.replace(tube, gr_per_turn=tuple((s, w / GRAINS_A_GRAM) for s, w in tube.gr_per_turn),
+                               reverse_spill_gr=tube.reverse_spill_gr / GRAINS_A_GRAM)
+
+
+def _grams(rig: Rig) -> Rig:
+    scale = rig.scale
+    return dataclasses.replace(
+        rig, powder=dataclasses.replace(rig.powder, kernel_gr=rig.powder.kernel_gr / GRAINS_A_GRAM),
+        coarse=_grams_tube(rig.coarse), fine=_grams_tube(rig.fine),
+        scale=dataclasses.replace(scale, digit_gr=0.001, open_above_gr=scale.open_above_gr / GRAINS_A_GRAM,
+                                  noise_gr=scale.noise_gr / GRAINS_A_GRAM,
+                                  zero_track_gr=scale.zero_track_gr / GRAINS_A_GRAM,
+                                  zero_track_gr_s=scale.zero_track_gr_s / GRAINS_A_GRAM,
+                                  draught_gr=scale.draught_gr / GRAINS_A_GRAM))
+
+
 VARIANTS = {"fine_by_speed": _fine_by_speed,
             "big_kernel": _scaled_kernel,
             "gram_digit": lambda rig: _scale(rig, digit_gr=0.001 * 15.4324),
             "draught": lambda rig: _scale(rig, draught_per_min=6.0, draught_gr=0.03, draught_tau_s=1.0),
             "missing": lambda rig: _scale(rig, miss_share=0.05),
             "fine_empty": lambda rig: dataclasses.replace(rig, fine=_empty(rig.fine)),
-            "coarse_empty": lambda rig: dataclasses.replace(rig, coarse=_empty(rig.coarse))}
+            "coarse_empty": lambda rig: dataclasses.replace(rig, coarse=_empty(rig.coarse)),
+            "grams": _grams}
 
 
 def get_rig(name: str) -> Rig:

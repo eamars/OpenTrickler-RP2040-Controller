@@ -405,6 +405,8 @@ def throw_one(session, controller, target: float, tolerance: float):
 def summary(results: list, tolerance: float) -> str:
     errors = [e for e, _, v in results if v != "timeout"]
     times = sorted(t for _, t, v in results if v != "timeout")
+    if not errors:
+        return f"every throw timed out ({len(results)})"
     good = sum(abs(e) < tolerance for e in errors) / len(results)
     over = sum(e >= tolerance for e in errors) / len(results)
     under = sum(e <= -tolerance for e in errors) / len(results)

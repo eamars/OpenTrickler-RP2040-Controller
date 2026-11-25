@@ -251,6 +251,22 @@ static void charge_step2_configure(profile_t * profile) {
 }
 
 
+// Step 1's middle lag (the median of its table), for the tuner's gains put right (step2_tuner: the same median)
+static double charge_lag_middle(const charge_config_t *config) {
+    double lags[CHARGE_LAG_POINTS];
+    int count = config->lag_count;
+    for (int i = 0; i < count; i++) {
+        int j = i;
+        while (j > 0 && lags[j - 1] > config->lag_s[i]) {
+            lags[j] = lags[j - 1];
+            j--;
+        }
+        lags[j] = config->lag_s[i];
+    }
+    return count % 2 ? lags[count / 2] : (lags[count / 2 - 1] + lags[count / 2]) / 2.0;
+}
+
+
 // The throw at rest, its verdict read: its own weight a turn carried, and its weight and time given to the tuner. A
 // window closed, the next window's gains are the tuner's; better gains kept are written into the powder's profile and
 // stored
@@ -271,14 +287,15 @@ static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
     double next_kd;
     double next_ki;
     charge_tuner_step_t step = charge_tuner_throw(&step2->tuner, charge_kp_thrown, charge_kd_thrown, charge_ki_thrown,
-                                                  has_carried ? carried : 0.0, (double) reading - target, elapsed_s,
-                                                  &next_kp, &next_kd, &next_ki);
+                                                  has_carried ? carried : 0.0,
+                                                  charge_lag_middle(&step2->controller.config),
+                                                  (double) reading - target, elapsed_s, &next_kp, &next_kd, &next_ki);
     if (step == CHARGE_TUNER_THROWING) {
         return;
     }
     static const char * const said[] = {"throwing", "first window", "resting", "the kept gains again", "kept",
                                         "put back, the other way", "put back every way", "put back, the other axis",
-                                        "put back, the integral"};
+                                        "put back as they were"};
     printf("Tuner: %s, kp %.4f kd %.1f; next %.4f %.1f, kept %.4f %.1f\n", said[step], charge_kp_thrown,
            charge_kd_thrown, next_kp, next_kd, step2->tuner.base_kp, step2->tuner.base_kd);
     if (next_ki != charge_ki_thrown || step2->tuner.base_ki != charge_ki_thrown) {

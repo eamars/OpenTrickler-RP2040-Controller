@@ -192,6 +192,23 @@ static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, doub
 }
 
 
+// The kept gains put right, true when they need it: the steady gain into range by the weight a turn and the lag, and
+// the integral term off (step2_tuner.Tuner.put_right)
+static bool put_right(const charge_tuner_t *tuner, double *kp, double *kd, double *ki) {
+    *kp = tuner->base_kp;
+    *kd = tuner->base_kd;
+    *ki = 0.0;
+    if (tuner->k > 0.0 && tuner->lag > 0.0) {
+        double hold = braking(tuner->base_kd, tuner->k);
+        double gain = tuner->base_kp / hold * tuner->k * tuner->lag;
+        if (!(CHARGE_TUNER_GAIN_LOW <= gain && gain <= CHARGE_TUNER_GAIN_HIGH)) {
+            *kp = CHARGE_TUNER_GAIN_AIM * hold / (tuner->k * tuner->lag);
+        }
+    }
+    return *kp != tuner->base_kp || tuner->base_ki != 0.0;
+}
+
+
 // The kept gains again, or a trial from them; a trial that would not move them is put back unthrown
 static charge_tuner_step_t next_trial(charge_tuner_t *tuner, charge_tuner_step_t step, double *next_kp,
                                       double *next_kd, double *next_ki) {
@@ -208,13 +225,9 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
     if (!tuner->has_base) {
         keep(tuner, kp, kd, ki);
         tuner->direction = missing_way(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
-        if (ki > 0.0) {
-            // An integral term only adds overshoot on the forecast: the first trial is the gains without it
-            tuner->integral = true;
+        if (put_right(tuner, next_kp, next_kd, next_ki)) {
+            tuner->putting_right = true;
             tuner->on_trial = true;
-            *next_kp = kp;
-            *next_kd = kd;
-            *next_ki = 0.0;
             return CHARGE_TUNER_FIRST;
         }
         return next_trial(tuner, CHARGE_TUNER_FIRST, next_kp, next_kd, next_ki);
@@ -232,14 +245,15 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
     }
     double trial_cost = cost(tuner, tuner->window_errors, tuner->window_times, CHARGE_TUNER_WINDOW);
     double base_cost = cost(tuner, tuner->pool_errors, tuner->pool_times, tuner->pool_count);
-    if (tuner->integral) {
-        tuner->integral = false;
+    if (tuner->putting_right) {
+        tuner->putting_right = false;
         if (trial_cost < base_cost) {
             keep(tuner, kp, kd, ki);
             tuner->factor = FIRST_FACTOR;
+            tuner->direction = missing_way(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
             return next_trial(tuner, CHARGE_TUNER_KEPT, next_kp, next_kd, next_ki);
         }
-        return next_trial(tuner, CHARGE_TUNER_INTEGRAL_BACK, next_kp, next_kd, next_ki);
+        return next_trial(tuner, CHARGE_TUNER_AS_THEY_WERE, next_kp, next_kd, next_ki);
     }
     if (trial_cost < base_cost) {
         keep(tuner, kp, kd, ki);
@@ -250,10 +264,13 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
 }
 
 
-charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double error,
-                                       double time_s, double *next_kp, double *next_kd, double *next_ki) {
+charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double lag,
+                                       double error, double time_s, double *next_kp, double *next_kd, double *next_ki) {
     if (k > 0.0) {
         tuner->k = k;
+    }
+    if (lag > 0.0) {
+        tuner->lag = lag;
     }
     tuner->window_errors[tuner->window_count] = error;
     tuner->window_times[tuner->window_count] = time_s;

@@ -84,6 +84,13 @@ def noise(good: float, throws: int) -> float:
 
 
 AXES = {"kp": ("gain",), "kp+kd": ("gain", "braking")}
+# The gains put right on the first window (2026-11-26: the owner, "If a scale reports gram, while the default parameter
+# is grain, then I need a reliable way to tune down to support gram, with the auto tuner"). The steady gain kp / braking
+# times step 1's weight a turn and its middle lag is a number with no unit: the bench's stored gains 1.3, the owner's
+# 0.5; grains' gains on a scale in grams 0.08, in grains a gram's 20. Out of GAIN_RANGE the first trial brings it to
+# GAIN_AIM, an integral term taken out with it; kept only if cheaper, as any trial
+GAIN_RANGE = (0.2, 5.0)
+GAIN_AIM = 1.0
 
 
 def braking(kd: float, k: float) -> float:
@@ -125,7 +132,8 @@ class Tuner:
         self.tried = 0              # ways put back since the base was kept or the step changed
         self.resting = 0
         self.k = None               # the weight a turn the braking is reckoned with (the carried one)
-        self.integral = False       # the window being thrown is the integral's trial: the gains with ki 0
+        self.lag = None             # step 1's middle lag, s
+        self.putting_right = False  # the window being thrown is the gains put right (into range, ki 0)
 
     @property
     def turned(self) -> bool:
@@ -141,19 +149,36 @@ class Tuner:
             return -1 if over and self.first == "miss" else 1
         return 1 if over else -1
 
-    def __call__(self, profile, errors: list, times: list, k: float = None):
+    def put_right(self):
+        """The base's gains put right, or None when they need nothing: the steady gain into range by the weight a
+        turn and the lag (GAIN_RANGE), and the integral term off (it only adds overshoot on the forecast, whose error
+        never changes sign before the stop)."""
+        base = self.base
+        kp = base.fine_kp
+        if self.k and self.lag:
+            hold = braking(base.fine_kd, self.k)
+            gain = kp / hold * self.k * self.lag
+            if not GAIN_RANGE[0] <= gain <= GAIN_RANGE[1]:
+                kp = GAIN_AIM * hold / (self.k * self.lag)
+        if kp == base.fine_kp and base.fine_ki == 0.0:
+            return None
+        return dataclasses.replace(base, fine_kp=kp, fine_ki=0.0)
+
+    def __call__(self, profile, errors: list, times: list, k: float = None, lag: float = None):
         """The profile's next gains from the window just thrown on `profile`, and what was done, in words. k: the
-        weight a turn the braking is reckoned with, needed with the axes "kp+kd"."""
+        weight a turn the braking is reckoned with, needed with the axes "kp+kd"; lag: step 1's middle lag, for the
+        gains put right."""
         if k is not None and k > 0.0:
             self.k = k
+        if lag is not None and lag > 0.0:
+            self.lag = lag
         if self.base is None:
             self.keep(profile, errors, times)
             self.direction = self.missing_way(errors)
-            if profile.fine_ki > 0.0:
-                # An integral term only adds overshoot on the forecast, whose error never changes sign before the
-                # stop (2026-11-26): its first trial is the same gains without it, kept only if cheaper
-                self.integral = True
-                return dataclasses.replace(self.base, fine_ki=0.0), "first window: the base; the integral off"
+            right = self.put_right()
+            if right is not None:
+                self.putting_right = True
+                return right, "first window: the base; the gains put right"
             return self.next_trial("first window: the base")
         if profile is self.base:
             self.pool = ((self.pool[0] + errors)[-POOL_THROWS:], (self.pool[1] + times)[-POOL_THROWS:])
@@ -164,13 +189,14 @@ class Tuner:
         trial_cost, trial_good = cost(errors, times, self.tolerance, self.share)
         base_cost, base_good = cost(*self.pool, self.tolerance, self.share)
         spread = math.hypot(noise(trial_good, len(errors)), noise(base_good, len(self.pool[0])))
-        if self.integral:
-            self.integral = False
+        if self.putting_right:
+            self.putting_right = False
             if trial_cost < base_cost * (1.0 - self.z * spread):
                 self.keep(profile, errors, times)
                 self.factor = FIRST_FACTOR
-                return self.next_trial(f"kept ({trial_cost:.1f} against {base_cost:.1f} s): the integral off")
-            return self.next_trial(f"put back ({trial_cost:.1f} against {base_cost:.1f} s): the integral put back")
+                self.direction = self.missing_way(errors)   # the way the gains put right miss by, not the first's
+                return self.next_trial(f"kept ({trial_cost:.1f} against {base_cost:.1f} s): the gains put right")
+            return self.next_trial(f"put back ({trial_cost:.1f} against {base_cost:.1f} s): the gains as they were")
         if math.isinf(trial_cost) and math.isinf(base_cost) and self.blind == "error":
             trial_miss = statistics.median(abs(e) for e in errors)
             base_miss = statistics.median(abs(e) for e in self.pool[0])

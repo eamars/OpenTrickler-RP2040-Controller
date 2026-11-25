@@ -18,6 +18,7 @@ The twin's reading is its scale's (its rhythm, its digit and its lag), as the A&
 
 import argparse
 import dataclasses
+import statistics
 import sys
 from pathlib import Path
 
@@ -95,7 +96,8 @@ def tuner_case(job: tuple) -> tuple:
         times.append(one[1])
         if len(current) == step2_tuner.WINDOW:
             windows.append(((profile.fine_kp, profile.fine_kd), current))
-            profile, _ = tuner(profile, errors, times, k=controller.carried())
+            profile, _ = tuner(profile, errors, times, k=controller.carried(),
+                               lag=statistics.median(lag for _, lag in records.lag))
             current, errors, times = [], [], []
     return f"{rig_name} from the {start}'s gains", windows, (profile.fine_kp, profile.fine_kd)
 

@@ -77,7 +77,8 @@ def case(job: tuple) -> tuple:
         errors.append(result.true_error)
         times.append(result.elapsed_s)
         if len(errors) == step2_tuner.WINDOW and tuner is not None:
-            profile, _ = tuner(profile, errors, times, k=controller.carried())
+            profile, _ = tuner(profile, errors, times, k=controller.carried(),
+                               lag=statistics.median(lag for _, lag in records.lag))
             errors, times = [], []
     return job[:3], out, (profile.fine_kp, profile.fine_kd)
 

@@ -19,15 +19,21 @@
  * A trial cheaper than the kept gains is kept and the same way tried again at the full step; one no cheaper is put
  * back and the other way tried at once, then the other axis; every way put back, the step's logarithm halves (down
  * to 1.1) and the kept gains are thrown again a while. The first way on an axis is the one the throws miss by: over
- * on average, a lower gain and more braking. A profile with an integral term (ki) is first tried without it: on the
- * forecast the error never changes sign before the stop, so the term only adds overshoot (2026-11-26); kept only if
- * cheaper, as any trial. Ratios only, so grams and grains are alike. Everything is in RAM: a
+ * on average, a lower gain and more braking. Ratios only, so grams and grains are alike. Before the search, the first
+ * window's gains are put right where they need it, as one trial kept only if cheaper (2026-11-26): the steady gain kp /
+ * braking times step 1's weight a turn and middle lag is a number with no unit (the bench's 1.3, the owner's 0.5), so
+ * out of CHARGE_TUNER_GAIN_LOW to CHARGE_TUNER_GAIN_HIGH it is brought to CHARGE_TUNER_GAIN_AIM: grains' gains on a scale
+ * in grams (0.08), a gram's in grains (20), an absurd kp; and an integral term is taken out, as on the forecast the
+ * error never changes sign before the stop, so it only adds overshoot. Everything is in RAM: a
  * start of the unit begins afresh from the profile's gains. What is stored into the profile is the kept gains alone.
  */
 #include <stdbool.h>
 
 #define CHARGE_TUNER_WINDOW 25
 #define CHARGE_TUNER_POOL 75
+#define CHARGE_TUNER_GAIN_LOW 0.2
+#define CHARGE_TUNER_GAIN_HIGH 5.0
+#define CHARGE_TUNER_GAIN_AIM 1.0
 
 typedef enum {
     CHARGE_TUNER_THROWING = 0,          // the window is not full yet
@@ -38,7 +44,7 @@ typedef enum {
     CHARGE_TUNER_OTHER_WAY,             // the trial no cheaper: put back, the other way tried
     CHARGE_TUNER_EVERY_WAY,             // every way put back: the step smaller, the kept gains thrown again
     CHARGE_TUNER_OTHER_AXIS,            // both ways of an axis put back: the other axis tried
-    CHARGE_TUNER_INTEGRAL_BACK,         // the gains without their integral term no cheaper: ki put back
+    CHARGE_TUNER_AS_THEY_WERE,          // the gains put right no cheaper: put back as they were
 } charge_tuner_step_t;
 
 typedef enum {
@@ -59,13 +65,14 @@ typedef struct {
     double pool_times[CHARGE_TUNER_POOL];
     int pool_count;
     bool on_trial;                      // the window being thrown is a trial's
-    bool integral;                      // that trial is the kept gains without their integral term
+    bool putting_right;                 // that trial is the first window's gains put right
     int axis;                           // charge_tuner_axis_t
     int direction;
     double factor;
     int tried;                          // ways put back since the kept gains were kept or the step changed
     int resting;
     double k;                           // the weight a turn the braking is reckoned with; 0, none known
+    double lag;                         // step 1's middle lag, s, for the gains put right; 0, none known
 } charge_tuner_t;
 
 #ifdef __cplusplus
@@ -76,11 +83,12 @@ void charge_tuner_init(charge_tuner_t *tuner, double tolerance);
 
 /*
  * A throw thrown on kp, kd and ki: its final weight less the target, and its time to the stop; k, the weight a turn
- * the forecast carries now (0 when none). When it closes a window, the gains the next window is thrown on go into
- * next_kp, next_kd and next_ki and the step taken is returned; else CHARGE_TUNER_THROWING, and they are the gains thrown
+ * the forecast carries now, and lag, step 1's middle lag (0 when none). When it closes a window, the gains the next
+ * window is thrown on go into next_kp, next_kd and next_ki and the step taken is returned; else CHARGE_TUNER_THROWING,
+ * and they are the gains thrown
  */
-charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double error,
-                                       double time_s, double *next_kp, double *next_kd, double *next_ki);
+charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double lag,
+                                       double error, double time_s, double *next_kp, double *next_kd, double *next_ki);
 
 #ifdef __cplusplus
 }
