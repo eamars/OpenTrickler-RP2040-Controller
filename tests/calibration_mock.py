@@ -92,7 +92,7 @@ class CalibrationMock:
         elif job["step"] == "lift" and elapsed >= LIFT_S:
             self.step("back", weight=-CUP_WEIGHT, cup_weight=CUP_WEIGHT, line="Put the cup back")
         elif job["step"] == "back" and elapsed >= LIFT_S:
-            self.step("fill", weight=0.0, pour_turns=0.0, line="Turn the knob to pour")
+            self.step("fill", weight=0.0, pour_turns=0.0, line="Rotate to dispense")
         elif job["step"] == "fill":
             step = FILL_RPS * (elapsed - job.get("poured_s", 0.0))
             if job["pour_turns"] > 0:

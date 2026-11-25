@@ -42,7 +42,7 @@ def fill_job(panel, weight):
     """
     m.title(panel, "Fill the cup", back=True)
     m.figure(panel, weight, "gr")
-    m.context(panel, "Right pours, left reverses")
+    m.context(panel, "Rotate to dispense")
     m.softkeys(panel, "", "Full", focus="right")
 
 

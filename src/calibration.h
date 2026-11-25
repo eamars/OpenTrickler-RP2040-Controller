@@ -3,7 +3,7 @@
 /*
  * ADR-009 step 1: the calibration as a job on the unit (gate 3). Its three parts, each run alone:
  * - the cup: put on the scale empty and zeroed, lifted for its weight, put back, filled by the person turning the coarse
- *   tube with the knob (or the web's Hold to pour), each detent a bounded pour, until
+ *   tube with the knob (or the web's Hold to dispense), each detent a bounded pour, until
  *   speeds until it holds as much as they want, its capacity kept, emptied;
  * - the scale: its settle time and its lag (calibration_method.c);
  * - a powder, the one the charge uses: each tube's least speed (calibration_method.c).

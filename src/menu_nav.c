@@ -2912,7 +2912,7 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             snprintf(screen->title, sizeof(screen->title), "Fill the cup");
             screen->title_back = true;
             calibration_weight_figure(screen, cal.weight);
-            snprintf(screen->context, MENU_TEXT, "Right pours, left reverses");
+            snprintf(screen->context, MENU_TEXT, "Rotate to dispense");
             screen->softkey_left[0] = '\0';
             snprintf(screen->softkey_right, MENU_TEXT, "Full");
             screen->softkey_focus = 1;

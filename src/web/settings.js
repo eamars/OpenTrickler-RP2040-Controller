@@ -127,7 +127,7 @@ function drawGateControl() {
 // (tools/ui_mock/calibration_12864.py), on the unit's API (api_v1.md, Calibration; calibration.c). The stand-in plays
 // it with no unit (tests/calibration_mock.py)
 const CALIBRATION = "/api/v1/calibration";
-// The fill's Hold to pour: half a turn from now asked while held, more often than it takes to pour (a quarter second
+// The fill's Hold to dispense: half a turn from now asked while held, more often than it takes to pour (a quarter second
 // at the fill's 2 rev/s), so it pours steadily through a late reply; the unit extends a pour, never adds to it, so the
 // tube stops within a quarter second of the release
 const POUR_TURNS = 0.5;
@@ -203,7 +203,7 @@ function drawCalibration(options = {}) {
     // The fill's key: pours while it is held (a finger, the mouse, or Space and Enter), never after; a step that
     // replaces it under the finger stops it too
     const holdToPour = () => {
-        const key = element("button", {class: "action ghost hold", type: "button"}, "Hold to pour");
+        const key = element("button", {class: "action ghost hold", type: "button"}, "Hold to dispense");
         let timer = null;
         const end = () => {
             if (timer !== null) {
@@ -289,7 +289,6 @@ function drawCalibration(options = {}) {
             // As at the unit, where the knob pours (the owner, 2026-11-25): the key pours while held
             head("Fill the cup");
             figure("gr");
-            note("Hold the key to pour, until the cup holds as much as you want it to.");
             card.append(holdToPour());
             actions(cancel(), button("Full", "action go", () => answer("full")));
             break;

@@ -448,7 +448,7 @@ static void run_cup(void) {
         return;
     }
     // Filled by the person, a pour at a time from the knob, the web, the API or the console
-    set_step(CALIBRATION_STEP_FILL, "Turn the knob to pour");
+    set_step(CALIBRATION_STEP_FILL, "Rotate to dispense");
     answer_t given = fill_until_full();
     if (given == ANSWER_NONE) {
         return;
