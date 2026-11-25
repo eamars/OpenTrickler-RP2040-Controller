@@ -244,7 +244,7 @@ The owner, 10:47: "Let's talk before you test. So far, what is your recommendati
 
 **How sure:** the seed, proven on the unit; the narrower grouping of never cutting early, likely (the twin, and the unit's own slow throws); the tuner's direction on a unit, the twin's alone.
 
-**The use cases** (the owner, 10:58; `research/step2_use_cases.md`, run 11:10): the normal path holds over charges of 3 to 60 gr, ball and stick powder, grams and tolerances of 0.02 to 0.1, and every failure fails towards over. Lumpy powder is the largest degradation (SD 0.18). Three failures need more than the tuner, each a proposal for the failure modes' turn: an empty hopper never ends a throw (as before step 2); an integral term only adds overshoot; a wild coarse tube overshoots every throw.
+**The use cases** (the owner, 10:58; `research/step2_use_cases.md`, run 11:10): the normal path holds over charges of 3 to 60 gr, ball and stick powder, grams and tolerances of 0.02 to 0.1, and every failure fails towards over. Lumpy powder is the largest degradation (SD 0.18). Taken first (the owner, 11:20: an exception to the order while the bench is out of reach): an empty hopper now ends the throw on the fault "Fine: no powder" (`f34ab17`); an integral term is tried out by the tuner first (`b62eb2c`). Left: a wild coarse tube, the owner's (it needs a forecast on the coarse tube); an absurd kp, safe.
 
 **Still the owner's:** whether the tuner protects narrow hand-tuned gains (from them it trades a little spread for time).
 
