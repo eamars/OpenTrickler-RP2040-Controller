@@ -402,3 +402,33 @@ Below 3 gr the two loops land alike and over: **the coarse tube's own powder ove
 ## 2026-11-25, 20:01: step 2 approved
 
 - **The owner (recorded 20:01):** step 2 approved as gate 1 proved it in the simulation (the README's step 2 as of 19:52): today's coarse tube, the fine tube's PID on its forecast with its envelope, the weight a turn carried in RAM from each throw's verdict, the tuner on the fine kp alone by the time per good charge, kd and ki as the user has them. Its gates 2 to 4 are built once step 1 is signed off on the bench (the README: nothing of it is built until then). Still the owner's, not built: a forecast at the coarse tube's stop too (its threshold cannot go under about 3 gr otherwise; 18:25).
+
+## 2026-11-25, 20:01 to 20:59: step 1 on the bench, the Pico 2 W: gates 1 to 3
+
+The owner said the bench was ready (20:01): the Pico 2 W (FA0C, 192.168.2.166) and the A&D on the probe, the cup emptied, AR2209 in the hopper ("the stored profile IS wrong, so a good candidate to run calibration and tuning against"), the owner at the bench. Its settings copied first (`logs/adr009/restart_bench/before_bench`).
+
+**Gate 1, the method from the PC** (`calibrate_unit.py`, on the image the unit ran, `41f9189`; capacity 250 gr): pass.
+
+| Part | Records | Time, powder |
+|---|---|---|
+| Scale | settle 0.469 s (four bursts); lag 1.26 s at 0.20 gr/s, 0.93 at 0.40, 0.68 at 0.79, 0.64 at 2.7, 0.56 at 10.2 | 1.7 min, 61 gr |
+| Fine tube | least 0.020 rev/s, stream 0.752 gr a turn | 3.8 min, 11.6 gr |
+| Coarse tube | least 0.160 rev/s, stream 10.44 gr a turn | 1.5 min, 54.7 gr |
+
+**Gate 2, an update from today's release that keeps every setting** (the Pico 2 W; the Pico W's pass owed):
+- v2.0.3 built from its tag in a worktree (`C:\workspace\OpenTrickler-v2.0.3`) and flashed by the probe with that worktree's `rc_run.py` (ours checks an image against this checkout's version). Every stored struct the same size in v2.0.3 and the unit's image (the Wi-Fi's `setup_done` was put in its filler), so v2.0.3 read every module's record; its settings equal the copy before, field by field (`on_v203`).
+- The update to this branch's release (`build_release.py`, 2.0.3-196) through the API, as a unit takes one: the image sent in 6.7 s, the trial confirmed, slot B. The loader kept both records that grew ("the record at 0x0400 was stored 6 bytes long, before fields were appended: kept", the scale's; 0x1400, 64 bytes, the charge's), and their writes waited for the confirmation. Every setting as on v2.0.3, field by field (`after_update`), the new fields null and stored. **Pass.**
+- `rc_run.py update` failed it: it required the whole export equal before and after, which no update that appends a field can pass. Mended: it now compares a field at a time as `settings --compare` does (`settings_differences`), a field only one copy has counting as null in the other; it runs first on the Pico W's pass.
+
+**Gate 3, the calibration as a job on the unit** (2.0.3-196): pass.
+- **The cup, over the API** (driven by `cup_part.py`: the owner lifted the cup and put it back, the fill run by the reading to 550 gr, under the bench's 600; the cup holds 800 gr): zeroing 0.6 s; the lifted cup read at −444.9 and kept as its weight; filled to 541.48 gr, kept as the capacity, stored into `settings/charge`; the part ended by itself once the emptied cup was back.
+- **The scale, through the console**: settle 0.55 s; lag 0.89 s at 0.22 gr/s, 0.75 at 0.41, 0.60 at 0.87, 0.55 at 2.6, 0.52 at 10.1; 1.8 min, 62 gr; kept from the screen's Keep (below), stored.
+- **AR2209's powder, over the API** (profile 1, not the charge's): the fine tube's least 0.0336 rev/s (was 0.08), the coarse's 0.16 (was 0.10); 5.0 min, 66 gr; saved into profile 1 alone, stored.
+- **Against gate 1:** the unit's lags are at or 0.03 to 0.05 s under the PC sessions' range at each flow (`records_spread.py`: the fine tube's 1 rev/s 0.63 to 0.83 s against the unit's 0.60; the coarse's 0.55 to 0.59 against 0.52), the PC's known lateness (about 0.055 s, the first build's), and within one session the lag varies by 0.08 to 0.34 s. The coarse tube's least is the same; the fine's 0.034 against 0.020 is its slowest step, 0.010 rev/s, failing the test this time, which sits near its bar (0.61 to 1.35 of the stream's pour across sessions, against 0.5). The settle time, 0.55 s against 0.47, has one burst measure each.
+- **Stops** (`stop_tests.py`, `fill_stop.py`): at the first step, while zeroing, while the tubes turn, at the result, and in the cup's fill with both tubes turning: each time the job idle, both motors still, the event `stopped`, nothing kept.
+- **A driver's fault:** the fine driver made to report a short mid-run: the motors' fault event, then 28 ms later the calibration stopped with reason `fault`, the motors still. With a driver faulted a start is refused (`driver_fault`); the next start reads the drivers afresh and clears the latched fault.
+- **The A&D's rate against the room for readings:** at 21 a second the lag runs (2 s at most) take about 42 of a run's 128; only the least ladder's slow runs fill it, and they use only their first reading and their rest. Past the room, readings are dropped with nothing said: harmless today, a trap for a longer run (noted, not mended).
+- **Found and mended (in the next image):**
+  - **Keep did nothing when pressed** (the owner, 20:37): the result screen took a click only once turned to its end, and counted the end one turn late, so Keep was shown but not reached; and a click before it did nothing. Now as every notes page does it: a click before the end turns the page, and the button is reached the moment it shows (`menu_nav.c`).
+  - **The calibration's writes were logged `by` button** whoever kept them (the API's cup and powder, the console's): it wrote through the screen's own helpers. Now `settings_write_by` and `settings_store_by` take who wrote, and the calibration's answer and save carry it from the API, the console and the menu.
+- **The owner's words at the bench (recorded 20:59):** no confirmation added to the calibration's cup part (its fill waits for a speed the person sets: a click to edit, then a turn); "Only the part that needs human to put back the cup should have the confirmation": the charge's next throw, in step 2's gate 3 (the README's step 2).

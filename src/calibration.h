@@ -89,13 +89,13 @@ calibration_start_result_t calibration_request_start(calibration_part_t part, in
 uint8_t calibration_job_run(void);
 
 // The person's answer at a step: "next", "full", "keep", "done", "go_on"
-calibration_answer_result_t calibration_answer(const char *answer);
+calibration_answer_result_t calibration_answer(const char *answer, activity_by_t by);
 
 // The fill's speeds, either or both (NAN: as it is), within each motor's limits; false when not filling
 bool calibration_set_fill(float fine_rps, float coarse_rps);
 
 // The records found kept and stored (the result step); false at another step or when a write failed
-bool calibration_save(void);
+bool calibration_save(activity_by_t by);
 
 void calibration_get_status(calibration_status_t *status);
 

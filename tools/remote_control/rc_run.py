@@ -238,6 +238,29 @@ def miss_kind(error):
     return "other"
 
 
+
+def settings_differences(old_resources: dict, new_resources: dict) -> list:
+    """
+    What differs between two copies of API v1's settings export, a field at a time.
+
+    A resource gone or new differs. A field differs when its two values differ; a field only one copy has counts as
+    null in the other, so a field an update appends, at no value until set, is no difference (ADR-009, step 1).
+
+    Returns:
+        Each difference in words.
+    """
+    out = []
+    for path in sorted(set(old_resources) | set(new_resources)):
+        if path not in old_resources or path not in new_resources:
+            out.append(f"{path} is {'gone' if path in old_resources else 'new'}")
+            continue
+        old, new = old_resources[path], new_resources[path]
+        for key in sorted(set(old) | set(new)):
+            if old.get(key) != new.get(key):
+                out.append(f"{path} {key} was {old.get(key)!r}, is {new.get(key)!r}")
+    return out
+
+
 class WebPoller(threading.Thread):
     """
     Web reads repeated at an interval until stopped. Each round does its requests one after another, as a page
@@ -1753,15 +1776,8 @@ class Session:
         if before.get("firmware") != read.get("firmware"):
             self.log.write("rc", f"settings: the firmware differs, not judged: {before.get('firmware')} -> "
                                  f"{read.get('firmware')}")
-        old_resources, new_resources = before["resources"], read["resources"]
-        for path in sorted(set(old_resources) | set(new_resources)):
-            if path not in old_resources or path not in new_resources:
-                self.fail(f"settings: {path} is {'gone' if path in old_resources else 'new'}")
-                continue
-            old, new = old_resources[path], new_resources[path]
-            for key in sorted(set(old) | set(new)):
-                if old.get(key) != new.get(key):
-                    self.fail(f"settings: {path} {key} was {old.get(key)!r}, is {new.get(key)!r}")
+        for difference in settings_differences(before["resources"], read["resources"]):
+            self.fail(f"settings: {difference}")
 
     def web_debug(self, host):
         """
@@ -3811,8 +3827,9 @@ class Session:
         kinds = [event["kind"] for event in events if event["source"] == "update"]
         if expect not in kinds:
             self.fail(f"update: the event log has no update {expect}: {kinds}")
-        if unit_api.Unit(host).read("settings")["resources"] != export_before["resources"]:
-            self.fail("update: the settings differ after the update")
+        for difference in settings_differences(export_before["resources"],
+                                               unit_api.Unit(host).read("settings")["resources"]):
+            self.fail(f"update: the settings differ after the update: {difference}")
         if new_elf is not None and expect == "confirmed":
             self.update_state(new_elf, CONSOLE_TIMEOUT_S)
         else:

@@ -1491,6 +1491,11 @@ static char settings_why[128];
 
 
 const char *settings_write(const char *path, const char *name, const char *value) {
+    return settings_write_by(path, name, value, ACTIVITY_BY_BUTTON);     // the menu's
+}
+
+
+const char *settings_write_by(const char *path, const char *name, const char *value, activity_by_t by) {
     int32_t id;
     const settings_resource_t *resource = screen_resource(path, &id);
     if (resource == NULL) {
@@ -1500,7 +1505,7 @@ const char *settings_write(const char *path, const char *name, const char *value
     http_json_member_t member = {.name = name, .name_len = strlen(name), .kind = HTTP_JSON_STRING,
                                  .value = value, .value_len = strlen(value)};
     outcome_t outcome;
-    settings_patch(resource, id, &member, 1, true, ACTIVITY_BY_BUTTON, &outcome);    // the menu's
+    settings_patch(resource, id, &member, 1, true, by, &outcome);
     if (outcome.status != 200) {
         snprintf(settings_why, sizeof(settings_why), "%s", outcome.message);
         return settings_why;
@@ -1511,13 +1516,18 @@ const char *settings_write(const char *path, const char *name, const char *value
 
 // Stored when confirmed, only if it changed (ADR-010, D2)
 const char *settings_store(const char *path) {
+    return settings_store_by(path, ACTIVITY_BY_BUTTON);      // the menu's
+}
+
+
+const char *settings_store_by(const char *path, activity_by_t by) {
     int32_t id;
     const settings_resource_t *resource = screen_resource(path, &id);
     if (resource == NULL) {
         snprintf(settings_why, sizeof(settings_why), "no such resource: %s", path);
         return settings_why;
     }
-    if (!resource->is_saved() && !store(resource, ACTIVITY_BY_BUTTON)) {     // the menu's
+    if (!resource->is_saved() && !store(resource, by)) {
         snprintf(settings_why, sizeof(settings_why), "the EEPROM did not take it");
         return settings_why;
     }

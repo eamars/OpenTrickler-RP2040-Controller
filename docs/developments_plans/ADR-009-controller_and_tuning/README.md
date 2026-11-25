@@ -127,6 +127,7 @@ A throw lands as near its target as the powder allows, throw after throw: its sp
   - the charge controller is a module with a clear interface to the others, so a design other than tubes can replace it by a firmware change (not built: designed for);
   - the Pico W's room is not step 2's concern.
 - **The owner, on the forecast check (recorded 18:05):** "Predictor should only matter for last grain/gram of throw, so predictor and your simulation should only run with fine trickler, below coarse trickler stop threshold." Read here as: the coarse tube is today's (its PID on the reading, stopped once the reading reaches the target less its threshold), and the predictor serves the fine tube alone, which finishes the throw below that threshold.
+- **The owner, on a confirmation after the cup is put back (recorded 20:59, at the bench):** "Only the part that needs human to put back the cup should have the confirmation." Read here as: the charge's next throw, once the person has put the cup back, waits for their press (a bump read as the cup's return must not start a pour); the calibration stays as built, its fill already waiting for a speed the person sets. Built with the charge mode, step 2's gate 3.
 - **The owner, on the tuner's objective (recorded 18:54):** the time per good charge, chosen over the tolerance first and then the speed. Read here as: a window's median time to the stop over its share of throws within the user's tolerance (the fine threshold): what a good charge costs when every bad one is thrown again.
 
 ### What we know

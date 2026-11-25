@@ -678,7 +678,7 @@ static void api_v1_calibration_answer(const http_server_request_t *request, http
         api_error(reply, 400, "wrong_type", "answer", "answer is a word, and is given", NULL);
         return;
     }
-    switch (calibration_answer(word)) {
+    switch (calibration_answer(word, ACTIVITY_BY_API)) {
         case CALIBRATION_ANSWER_OK:
             reply_calibration(reply, 200);
             return;
@@ -724,7 +724,7 @@ static void api_v1_calibration_save(const http_server_request_t *request, http_s
     if (!api_empty(request, reply)) {
         return;
     }
-    if (!calibration_save()) {
+    if (!calibration_save(ACTIVITY_BY_API)) {
         api_error(reply, 409, "not_now", NULL, "nothing found to keep yet, or it was not stored: read step", NULL);
         return;
     }

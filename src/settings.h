@@ -138,6 +138,9 @@ const char *settings_write_and_save(const char *path, const char *name, const ch
 // a path's resource, if it changed. NULL when done, else why not
 const char *settings_write(const char *path, const char *name, const char *value);
 const char *settings_store(const char *path);
+// The same two, by whom: a job's records kept by the API, the console or a button (the event log's `by`)
+const char *settings_write_by(const char *path, const char *name, const char *value, activity_by_t by);
+const char *settings_store_by(const char *path, activity_by_t by);
 /*
  * Several fields written as the console writes them, by whom (the set-up's join: the network it joined, by the API
  * or the console), and the resource stored: NULL when done, else why not. Then what the resource holds now is in

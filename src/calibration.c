@@ -51,6 +51,7 @@ typedef enum {
     ANSWER_SAVE,
 } answer_t;
 static volatile answer_t answer_given = ANSWER_NONE;
+static volatile activity_by_t answer_by = ACTIVITY_BY_BUTTON;     // who gave it: the API, the console or a button
 
 // How the job ended: who stopped it, and why; ending once a stop or a fault was taken
 static activity_by_t end_by = ACTIVITY_BY_BUTTON;
@@ -376,10 +377,13 @@ static void run_cup(void) {
     }
     char text[16];
     snprintf(text, sizeof(text), "%.2f", (double) status.capacity);
-    const char *why = settings_write("settings/charge", "cup_capacity", text);
+    activity_lock();
+    activity_by_t kept_by = answer_by;      // who answered Keep
+    activity_unlock();
+    const char *why = settings_write_by("settings/charge", "cup_capacity", text, kept_by);
     snprintf(text, sizeof(text), "%.2f", (double) status.cup_weight);
-    why = why != NULL ? why : settings_write("settings/charge", "cup_weight", text);
-    why = why != NULL ? why : settings_store("settings/charge");
+    why = why != NULL ? why : settings_write_by("settings/charge", "cup_weight", text, kept_by);
+    why = why != NULL ? why : settings_store_by("settings/charge", kept_by);
     if (why != NULL) {
         printf("Calibration: the cup not kept, %s\n", why);
         fail("Cup: not kept");
@@ -563,7 +567,7 @@ calibration_start_result_t calibration_request_start(calibration_part_t part, in
 }
 
 
-calibration_answer_result_t calibration_answer(const char *answer) {
+calibration_answer_result_t calibration_answer(const char *answer, activity_by_t by) {
     static const struct {
         const char *word;
         answer_t answer;
@@ -585,6 +589,7 @@ calibration_answer_result_t calibration_answer(const char *answer) {
         for (size_t idx = 0; idx < sizeof(answers) / sizeof(answers[0]); idx += 1) {
             if (answer != NULL && strcmp(answer, answers[idx].word) == 0 && status.step == answers[idx].step) {
                 answer_given = answers[idx].answer;
+                answer_by = by;
                 result = CALIBRATION_ANSWER_OK;
                 break;
             }
@@ -628,7 +633,7 @@ static void setting_text(char *text, size_t room, float value, float scale) {
 }
 
 
-bool calibration_save(void) {
+bool calibration_save(activity_by_t by) {
     activity_lock();
     bool at_result = running && status.step == CALIBRATION_STEP_RESULT;
     calibration_status_t found = status;
@@ -640,31 +645,31 @@ bool calibration_save(void) {
     const char *why = NULL;
     if (found.part == CALIBRATION_PART_SCALE) {
         setting_text(text, sizeof(text), found.scale.settle_s, 1000.0f);
-        why = settings_write("settings/scale", "settle_ms", text);
+        why = settings_write_by("settings/scale", "settle_ms", text, by);
         for (int idx = 0; idx < CALIBRATION_LAG_POINTS && why == NULL; idx += 1) {
             char name[24];
             bool measured = idx < found.scale.lag_count;
             snprintf(name, sizeof(name), "lag_%d_flow_per_s", idx + 1);
             setting_text(text, sizeof(text), measured ? found.scale.lag_flow_per_s[idx] : NAN, 1.0f);
-            why = settings_write("settings/scale", name, text);
+            why = settings_write_by("settings/scale", name, text, by);
             snprintf(name, sizeof(name), "lag_%d_ms", idx + 1);
             setting_text(text, sizeof(text), measured ? found.scale.lag_s[idx] : NAN, 1000.0f);
-            why = why != NULL ? why : settings_write("settings/scale", name, text);
+            why = why != NULL ? why : settings_write_by("settings/scale", name, text, by);
         }
-        why = why != NULL ? why : settings_store("settings/scale");
+        why = why != NULL ? why : settings_store_by("settings/scale", by);
     }
     else if (found.part == CALIBRATION_PART_POWDER) {
         char path[32];
         snprintf(path, sizeof(path), "powder_profiles/%d", found.profile);
         if (!isnan(found.fine.least_rps)) {
             snprintf(text, sizeof(text), "%.4f", (double) found.fine.least_rps);
-            why = settings_write(path, "fine_min_speed_rps", text);
+            why = settings_write_by(path, "fine_min_speed_rps", text, by);
         }
         if (why == NULL && !isnan(found.coarse.least_rps)) {
             snprintf(text, sizeof(text), "%.4f", (double) found.coarse.least_rps);
-            why = settings_write(path, "coarse_min_speed_rps", text);
+            why = settings_write_by(path, "coarse_min_speed_rps", text, by);
         }
-        why = why != NULL ? why : settings_store(path);
+        why = why != NULL ? why : settings_store_by(path, by);
     }
     if (why != NULL) {
         printf("Calibration: not kept, %s\n", why);
@@ -737,7 +742,7 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
     if (strcmp(word, "answer") == 0) {
         char given[16];
         console_word(rest, given, sizeof(given));
-        calibration_answer_result_t result = calibration_answer(given);
+        calibration_answer_result_t result = calibration_answer(given, ACTIVITY_BY_CONSOLE);
         snprintf(reply, reply_size, result == CALIBRATION_ANSWER_OK ? "@ok calibrate answer %s" :
                  (result == CALIBRATION_ANSWER_NO_JOB ? "@err no_job calibrate answer %s" :
                   "@err not_now calibrate answer %s"), given);
@@ -752,7 +757,7 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
         return ok;
     }
     if (strcmp(word, "save") == 0) {
-        bool ok = calibration_save();
+        bool ok = calibration_save(ACTIVITY_BY_CONSOLE);
         snprintf(reply, reply_size, ok ? "@ok calibrate save" : "@err not_now calibrate save");
         return ok;
     }

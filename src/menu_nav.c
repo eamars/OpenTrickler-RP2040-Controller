@@ -1963,7 +1963,7 @@ static void calibration_key(frame_t *frame, menu_key_t key) {
                 frame->editing = true;
                 break;
             case CAL_FILL_FULL:
-                calibration_answer("full");
+                calibration_answer("full", ACTIVITY_BY_BUTTON);
                 break;
             default:
                 activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);    // the title, or Cancel
@@ -1973,19 +1973,25 @@ static void calibration_key(frame_t *frame, menu_key_t key) {
     }
 
     if (cal.step == CALIBRATION_STEP_RESULT) {
-        // Turned down a line at a time to the end, where Save is reached and a click keeps them
+        // As on a notes page: turned a line at a time, or a click turns the page, to the end, so the result is read
+        // on the way; Keep or Save is reached the moment it shows, and a click there keeps them
         uint8_t last = calibration_last_first(&cal);
         if (key == MENU_KEY_NEXT) {
-            frame->at_end = frame->first >= last;
             frame->first = (uint8_t) (frame->first < last ? frame->first + 1 : last);
         }
         else if (key == MENU_KEY_PREV) {
-            frame->at_end = false;
             frame->first = (uint8_t) (frame->first > 0 ? frame->first - 1 : 0);
         }
-        else if (key == MENU_KEY_ENTER && frame->at_end) {
-            calibration_save();
+        else if (key == MENU_KEY_ENTER) {
+            if (frame->first >= last) {
+                calibration_save(ACTIVITY_BY_BUTTON);
+            }
+            else {
+                frame->first = (uint8_t) (frame->first + CALIBRATION_NOTES_LINES < last ?
+                                          frame->first + CALIBRATION_NOTES_LINES : last);
+            }
         }
+        frame->at_end = frame->first >= last;
         return;
     }
 
@@ -1997,7 +2003,7 @@ static void calibration_key(frame_t *frame, menu_key_t key) {
     }
     if (key == MENU_KEY_ENTER) {
         if (frame->softkey == 1 && answer != NULL) {
-            calibration_answer(answer);
+            calibration_answer(answer, ACTIVITY_BY_BUTTON);
         }
         else if (left) {
             activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);
@@ -2988,7 +2994,7 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             screen->first = frame->first > last ? last : frame->first;
             screen->focus = 0;
             snprintf(screen->button, MENU_TEXT, "%s", cal.part == CALIBRATION_PART_SCALE ? "Keep" : "Save");
-            screen->button_reached = frame->at_end;
+            screen->button_reached = screen->first >= last;
             screen->softkey_left[0] = '\0';
             return;
         }
