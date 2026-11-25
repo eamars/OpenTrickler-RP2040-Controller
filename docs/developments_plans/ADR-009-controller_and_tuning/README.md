@@ -1,6 +1,6 @@
 # ADR-009: calibration and automatic tuning
 
-Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and being built in the gates under "What we do": gates 2 to 4 built with no unit, their proofs on the bench to come (progress, 2026-11-25, "What the bench owes"). Step 2, the tuning, is drafted once step 1 is complete.
+Status: **Open** 2026-11-25: step 1, the calibration, approved by the owner (recorded 01:22) and being built in the gates under "What we do": gates 2 to 4 built with no unit. **Their test on a unit is deferred by the owner (recorded 16:37)**, until the owner says the bench is ready for it; then the list in progress, 2026-11-25, "What the bench owes", is run in its order, and step 1 is signed off by gate 5. Step 2, the tuning, is drafted once step 1 is complete.
 
 The earlier README and progress are phased out and moved to [`legacy/`](legacy/).
 
