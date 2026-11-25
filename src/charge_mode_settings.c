@@ -85,6 +85,17 @@ static const setting_field_t charge_fields[] = {
     {.name = "colour_not_ready", .label = "Not ready", .group = "Colours",
      .about = "The LEDs' colour while the unit waits for the cup",
      .type = SETTING_COLOUR, CHARGE_FIELD(neopixel_not_ready_colour), .applies = "now"},
+    // ADR-009 step 1: the calibration's cup, items 1 and 2
+    {.name = "cup_capacity", .label = "Cup capacity", .group = "Calibration",
+     .about = "How much the cup holds, filled and kept by the calibration: no pour of a calibration passes it; null, "
+              "never calibrated",
+     .type = SETTING_NUMBER, CHARGE_FIELD(cup_capacity), .unit = "weight", .min = 0.0f, .max = 10000.0f,
+     .nullable = true, .null_held = -1.0f, .applies = "now"},
+    {.name = "cup_weight", .label = "Cup weight", .group = "Calibration",
+     .about = "The empty cup's weight, as the calibration found it: a lifted cup told from a light reading; null, "
+              "never calibrated",
+     .type = SETTING_NUMBER, CHARGE_FIELD(cup_weight), .unit = "weight", .min = 0.0f, .max = 10000.0f,
+     .nullable = true, .null_held = -1.0f, .applies = "now"},
 };
 
 

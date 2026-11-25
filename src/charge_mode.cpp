@@ -58,6 +58,10 @@ const eeprom_charge_mode_data_t default_charge_mode_data = {
     .neopixel_under_charge_colour = RGB_COLOUR_YELLOW,        // yellow
     .neopixel_over_charge_colour = RGB_COLOUR_RED,            // red
     .neopixel_not_ready_colour = RGB_COLOUR_BLUE,             // blue
+
+    // The calibration's cup: never calibrated
+    .cup_capacity = -1.0f,
+    .cup_weight = -1.0f,
 };
 
 // Configures

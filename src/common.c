@@ -253,6 +253,23 @@ bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
 }
 
 
+/*
+    The size an earlier version stored a record at, before fields were appended at its struct's end (ADR-009, gate 2):
+    the longest size below `size` whose CRC32 the four bytes after it hold. 0 when none does: the record is damaged.
+    A wrong match is a chance of one in about four billion for each size tried
+*/
+static size_t config_stored_size(const uint8_t * buf, size_t size) {
+    for (size_t stored = size - 1; stored > sizeof(uint16_t); stored -= 1) {
+        uint32_t crc;
+        memcpy(&crc, buf + stored, sizeof(crc));
+        if (software_crc32((void *) buf, stored) == crc) {
+            return stored;
+        }
+    }
+    return 0;
+}
+
+
 bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
     bool is_ok;
     uint32_t calculated_crc32;
@@ -306,6 +323,20 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
 
     calculated_crc32 = software_crc32(buf, size);
     memcpy(&received_crc32, buf + size, sizeof(received_crc32));
+
+    // A record an earlier version stored shorter, before fields were appended (ADR-009, gate 2): its bytes kept, the
+    // appended fields their defaults, and stored at the new size, held on trial as any write is. Nothing is reset
+    if (received_rev == 0 && calculated_crc32 != received_crc32) {
+        size_t stored = config_stored_size(buf, size);
+        if (stored > 0) {
+            printf("Config: the record at 0x%04x was stored %u bytes long, before fields were appended: kept\n", addr,
+                   (unsigned) stored);
+            memcpy(cfg, default_cfg, size);
+            memcpy(cfg, buf, stored);
+            free(buf);
+            return save_config(addr, cfg, size);
+        }
+    }
 
     // We will validate if the rev (first 2 byte) is 0, AND CRC check matches. 
     if ((received_rev != 0) || (calculated_crc32 != received_crc32)) {

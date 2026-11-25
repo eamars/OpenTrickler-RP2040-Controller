@@ -47,6 +47,10 @@ typedef struct {
     rgbw_u32_t neopixel_over_charge_colour;
     rgbw_u32_t neopixel_not_ready_colour;
 
+    // The calibration's cup (ADR-009 step 1, items 1 and 2), in the scale's unit; -1 never calibrated. Appended at the
+    // end: an earlier version's record is kept by load_config (ADR-009, gate 2)
+    float cup_capacity;
+    float cup_weight;
 } eeprom_charge_mode_data_t;
 
 typedef struct {

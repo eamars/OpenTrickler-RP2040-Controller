@@ -269,6 +269,8 @@ Each is `GET` and `PATCH`; the schema names its save path. "When" is when a chan
 | `precharge_time_ms` | integer | ms | 0 to 5,000 *p* (RST is not read while it runs) | now | `c11` |
 | `precharge_speed_rps` | number | rev/s | 0 to 100; used up to the coarse motor's `max_speed_rps` | now | `c12` |
 | `colour_good`, `colour_under`, `colour_over`, `colour_not_ready` | colour | | | now | `c1` to `c4` (`neopixel_..._colour`) |
+| `cup_capacity` | number or null | weight | 0 to 10,000; null: never calibrated. How much the cup holds, kept by the calibration (ADR-009, step 1) | now | new |
+| `cup_weight` | number or null | weight | 0 to 10,000; null: never calibrated. The empty cup's weight (ADR-009, step 1) | now | new |
 
 ### `/api/v1/settings/motors/coarse` and `/api/v1/settings/motors/fine`, both saved at `/api/v1/settings/motors/save` (refused while a job runs)
 
@@ -301,6 +303,9 @@ The two are stored as one block, so they are saved together, and each one's `sav
 | `driver` | choice | and_fxi, steinberg_sbs, gng_jjb, ussolid_jfdbs, jm_science, creedmoor, radwag_ps_r2, sartorius, generic, simulated | at restart (the reader task is made once; ADR-006). The stored choice: a test stand-in never shows here | `s0` (an index; an unknown one was stored) |
 | `baud` | choice | 4800, 9600, 19200 | now | `s1` (an index; an unknown one set 0 baud) |
 | `format` | choice | 8n1, 7n1 | now | `s2` (an index) |
+| `settle_ms` | number or null | 0 to 30,000 ms; null: never calibrated. How long a small change takes from the reading's first move to its rest (ADR-009, step 1) | now | new |
+| `lag_1_flow_per_s` to `lag_5_flow_per_s` | number or null | 0 to 1,000, a weight a second, slowest first; null: never calibrated. The flows the lag was measured at | now | new |
+| `lag_1_ms` to `lag_5_ms` | number or null | 0 to 10,000 ms; null: never calibrated. How far the reading ran behind the powder poured at each flow (ADR-009, step 1) | now | new |
 
 ### `/api/v1/settings/gate`, saved at `/api/v1/settings/gate/save` (refused while `in_throw`)
 

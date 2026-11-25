@@ -178,3 +178,22 @@ The owner away and no bench run: gate 1 continued from what the bench recorded, 
 **The least** holds in all seven sessions: both tubes pour at the slowest speed tried at 0.61 to 1.35 of their stream's rate, so on this unit and powder the least is twice the motor's minimum.
 
 **Gate 1, where it stands:** the records' form is proposed for gate 2 (README, What we do, 2). The repeat bench runs are no longer needed for the spread, which the kept sessions give. Left: the settle time's measure (the owner's), and the method as changed today run once on the bench (the ladder below the prime, the shorter watch, the lag's five flows), at the next bench session.
+
+## 2026-11-25, 14:54: gate 2, the records stored, built (no unit)
+
+The owner (recorded 14:44): gates 2, 3 and 4 in their order; the firmware built and the method run in the simulation, never trickled or tested on a unit. So gate 2 is built and checked on the PC, and its proof on the units waits for the bench.
+
+**The stored structs, as built** (`sizeof` from both boards' images, the same on each):
+
+| Struct | Before | After | Appended |
+|---|---|---|---|
+| `eeprom_charge_mode_data_t` | 64 bytes | 72 | `cup_capacity`, `cup_weight` at 64 and 68 |
+| `eeprom_scale_data_t` | 6 bytes | 52 | `settle_ms` at 8, then `lag[5]` of `flow_per_s` and `lag_ms` |
+
+Each appended field is -1 when never calibrated, and null through the API (`nullable`, as the gate's ratio): `cup_capacity` and `cup_weight` in the scale's unit; `settle_ms`; `lag_1_flow_per_s` to `lag_5_flow_per_s` (a weight a second) and `lag_1_ms` to `lag_5_ms`. Named as the API names a quantity with a unit (api_v1.md, its settings tables grown to them). Each is in its module's table, group Calibration, so the API, the console's `setting`, the export, the backup and the web's forms carry it; the 12864's menu lists its rows itself and shows none of them. The scale's old record ends at 6 bytes and its new fields start at 8, past its filler.
+
+**The loader** (`common.c`): a record whose CRC32 fails at the struct's size is tried at each shorter size, the longest first, down to past its revision; where one matches, its bytes are kept, the appended fields take their defaults, and it is stored at the new size, held on an update's trial as every write is, and not said to be a reset. A record that matches at no size gets the defaults, as before.
+
+**Checked on the PC:** `tests/host_test.py` compiles `common.c` for the PC (`zig cc`; the runner's gcc in CI, a step added to it) over an EEPROM in RAM: an earlier version's record kept with the appended fields at their defaults and stored at the new size, read as it is at the next start, a record of the new size read whole, a damaged one and an erased chip given the defaults, and on a trial the record kept in RAM, the EEPROM untouched until the confirmation, no reset said. 11 checks, all pass. Both boards build.
+
+**Not proven, waiting for the bench:** the gate's own proof, an update from today's release that keeps every setting, on both boards.
