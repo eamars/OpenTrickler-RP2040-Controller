@@ -17,6 +17,12 @@ import menu_12864 as m
 import parity_12864 as par
 from panel import Panel, REPO, W, write_sheet
 
+# A powder's result as the firmware draws it (menu_nav.c): the 12864's notes give a label and a value on one line,
+# so each tube is a heading over its Minimum and Was
+POWDER_RESULT = [("Fine tube", "bold"), ("Minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"),
+                 ("Coarse tube", "bold"), ("Minimum", "0.16 rev/s", "pair"), ("Was", "0.1 rev/s", "pair"),
+                 ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)]
+
 DEFAULT_OUT = REPO / "docs" / "developments_plans" / "ADR-009-controller_and_tuning" / "mockups"
 
 
@@ -75,7 +81,12 @@ def screens():
     p = Panel(); m.title(p, "Cup")
     m.message(p, "Put the empty cup", "on the scale")
     m.softkeys(p, "Cancel", "Next")
-    add(p, "Cup: zeroed with the empty cup")
+    add(p, "Cup: the empty cup on the scale")
+
+    p = Panel(); m.title(p, "Zeroing")
+    m.figure(p, "0.00", "gr")
+    m.softkeys(p, "Cancel", "", focus="left")
+    add(p, "Every part: zeroed with the empty cup")
 
     p = Panel(); m.title(p, "Lift the cup")
     m.figure(p, "0.00", "gr"); m.context(p, "Its weight is read")
@@ -140,15 +151,11 @@ def screens():
     add(p, "Powder: paused before the cup is full")
 
     p = Panel(); m.title(p, "AR2209", back=True)
-    m.dense(p, [("Fine minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"),
-                ("Coarse minimum", "0.16 rev/s", "pair"), ("Was", "0.1 rev/s", "pair"),
-                ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)], at="top")
+    m.dense(p, POWDER_RESULT, at="top")
     add(p, "Powder: found, beside the profile's")
 
     p = Panel(); m.title(p, "AR2209", back=True)
-    m.dense(p, [("Fine minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"),
-                ("Coarse minimum", "0.16 rev/s", "pair"), ("Was", "0.1 rev/s", "pair"),
-                ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)], at="end")
+    m.dense(p, POWDER_RESULT, at="end")
     add(p, "Powder: Save at the end")
 
     p = Panel(); m.title(p, "AR2209")
