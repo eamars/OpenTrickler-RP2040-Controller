@@ -47,6 +47,18 @@ On the bench (2026-11-25) this gives the fine tube 0.020 rev/s in each of three 
 
 Item 5 belongs to this powder on this unit's tubes and scale, not to the powder alone. The coarse and fine stop thresholds, each profile's maximum speeds and the PID stay as the user has them; today's loop charges as it does now.
 
+### Where each item is used
+
+| # | Item | Used now | To be used |
+|---|---|---|---|
+| 1 | The cup's capacity | The calibration: a run that would pass it pauses for the cup to be emptied (`calibration.py`'s `cup_room`) | The calibration as a job on the unit (gate 3). Nothing outside the calibration |
+| 2 | The empty cup's weight | Nothing | The calibration's job (gate 3): a cup lifted mid-run told from a light reading. Not in the plan: the charge's own check that the cup was lifted, today a steady reading 10 gr below zero (`charge_mode.cpp`'s `charge_mode_wait_for_cup_removal`), so a cup under 10 gr is never seen lifted |
+| 3 | The scale's settle time | The calibration: how long each stop is watched, after the slowest lag (`watch_after_stop`) | Step 2's predictor: when a reading is final. Not in the plan: the charge reads a throw's result 1 s after its stop, and waits for zero over 10 steady readings 300 ms apart |
+| 4 | The scale's lag | The calibration: how long each stop is watched, with the settle time | Step 2's predictor: the powder still to show at a stop, its flow times its lag |
+| 5 | Each tube's least speed | Today's charge, once saved into the profile: each tube's PID never asks for less (the larger of it and the motor's minimum), and the coarse back-off turns at it when its own speed is 0 | Step 2's PID auto-tuner, which takes step 1's records (which ones is drafted with step 2) |
+
+Item 5 changes how today's charge finishes as soon as it is saved: the fine tube's least on the bench, 0.020 rev/s, is a quarter of the profile's 0.08, so its last powder comes four times slower.
+
 ### What we know
 
 Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the figures are in `legacy/progress.md` up to 2026-11-21 and in branch `adr009_controller`'s progress after.
