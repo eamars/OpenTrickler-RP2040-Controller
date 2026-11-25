@@ -131,7 +131,7 @@ An event is a change, not a state: a fault that stands is one event when it appe
 | throw | paused | `throw`, `pause`: its number in the throw (ADR-013: no reading for 3 of the scale's intervals) |
 | throw | resumed | `throw`, `weight`, the settled weight it went on from |
 | throw | finished | `throw`, `result` (good, under, over), `weight`, `elapsed_s` |
-| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault, cup_lifted), and for a driver's fault its `motor` and `fault` |
+| throw | ended | `throw`, `reason` (stopped, scale_no_reading, scale_unsteady, scale_unreliable, driver_fault), and for a driver's fault its `motor` and `fault` |
 | purge | started | `by` |
 | purge | stopped | `by`, `reason` (stopped, time, fault); at a fault, as the charge's |
 | motors | fault, cleared | `motor`, `fault` |
@@ -205,7 +205,7 @@ The steps: `cup_on`, `zeroing`, then the cup's `lift`, `back`, `fill`, `keep`, `
 | `starting`, `zeroing` | Taken only while the weight is within 5 times `zero_mean_margin` of zero *p* (0.1 at the default 0.02): a cup that reads 0.05 is put right. Otherwise 409 `weight_off_zero`, with `weight`: "the scale reads 30.02; over the API a zero puts right only a drift; empty the cup or put it on, or zero at the unit". A remote start passes no "Put pan on the scale" form: with the cup off the scale reads about minus the cup, and with a charge left in it about plus the charge |
 | `charging`, `waiting_for_cup_removal`, `waiting_for_cup_return` | 409 `busy`. While it waits for the cup's return the unit takes the cup to be away, and a zero there starts the next throw at once. |
 
-The band is two-sided and in the scale's own unit, through the setting the user tunes for their scale: a fixed figure would be fifteen times wider in grams than in grains, wide enough at ±1 to zero away a pistol charge. It is a live condition on a command, not a limit in the schema. It is not the unit's test for a lifted cup either: between throws that test is a fixed 10 in the scale's unit (`charge_mode.cpp`, the cup's removal), and misses a cup under 10 g; in a throw a reading under half the empty cup's weight (`cup_weight`; never calibrated, 10) ends the throw as `cup_lifted` (ADR-009, gate 3). What no rule can close, and the guide says: a zero while idle and then a start, or a start on a scale zeroed with nothing on it, pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.
+The band is two-sided and in the scale's own unit, through the setting the user tunes for their scale: a fixed figure would be fifteen times wider in grams than in grains, wide enough at ±1 to zero away a pistol charge. It is a live condition on a command, not a limit in the schema. It is not the unit's test for a lifted cup either: that test is a fixed 10 in the scale's unit (`charge_mode.cpp`, the cup's removal), and misses a cup under 10 g. What no rule can close, and the guide says: a zero while idle and then a start, or a start on a scale zeroed with nothing on it, pours onto whatever is on the pan. Start, and zero, only when a person has said an empty cup is on the pan.
 
 ## Firmware updates (ADR-004)
 

@@ -173,8 +173,6 @@ static size_t charge_heap_low = SIZE_MAX;
 #define CHARGE_DEFAULT_SETTLE_S 1.0f
 #define CHARGE_DEFAULT_LAG_FLOW 1.0f
 #define CHARGE_DEFAULT_LAG_S 0.8f
-// The cup never calibrated: a reading this far under zero is a lifted cup, as the cup's removal is told today
-#define CHARGE_LIFT_UNCALIBRATED (-10.0f)
 
 
 static void charge_step2_configure(profile_t * profile) {
@@ -577,10 +575,6 @@ void charge_mode_wait_for_complete() {
     printf("Charge: the scale's usual interval %lu ms; a pause after %lu ms without a reading, lost after %lu ms\n",
            (unsigned long) usual_interval_ms, (unsigned long) stale_ms, (unsigned long) lost_ms);
 
-    // A lifted cup is no light charge: a reading under half the empty cup's weight ends the throw (ADR-009 step 2)
-    float cup_weight = charge_mode_config.eeprom_charge_mode_data.cup_weight;
-    float lifted_under = cup_weight > 0.0f ? -cup_weight / 2.0f : CHARGE_LIFT_UNCALIBRATED;
-
     bool coarse_moved = true;
     double coarse_set = 0.0;
     double fine_set = 0.0;
@@ -605,11 +599,6 @@ void charge_mode_wait_for_complete() {
         float current_weight;
         if (scale_take_new_measurement(&current_weight)) {
             last_reading_tick = xTaskGetTickCount();
-            if (current_weight < lifted_under) {
-                printf("Charge: cup lifted, %.3f under %.3f\n", (double) current_weight, (double) lifted_under);
-                charge_mode_scale_fault("Cup lifted", EVENT_REASON_CUP_LIFTED, 0, NULL);
-                return;
-            }
             began_us = time_us_32();
             charge_controller_reading(controller, (double) time_us_64() / 1000.0, current_weight);
             charge_cost_add(time_us_32() - began_us, &charge_reading_most_us, &charge_reading_sum_us,

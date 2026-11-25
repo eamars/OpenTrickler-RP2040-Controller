@@ -92,8 +92,7 @@ static const setting_field_t charge_fields[] = {
      .type = SETTING_NUMBER, CHARGE_FIELD(cup_capacity), .unit = "weight", .min = 0.0f, .max = 10000.0f,
      .nullable = true, .null_held = -1.0f, .applies = "now"},
     {.name = "cup_weight", .label = "Cup weight", .group = "Calibration",
-     .about = "The empty cup's weight, as the calibration found it: a lifted cup told from a light reading; null, "
-              "never calibrated",
+     .about = "The empty cup's weight, as the calibration found it; null, never calibrated",
      .type = SETTING_NUMBER, CHARGE_FIELD(cup_weight), .unit = "weight", .min = 0.0f, .max = 10000.0f,
      .nullable = true, .null_held = -1.0f, .applies = "now"},
     // ADR-009 step 2, gate 3: the auto-tuner's switch

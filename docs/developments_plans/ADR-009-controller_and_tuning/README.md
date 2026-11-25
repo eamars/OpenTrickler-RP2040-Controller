@@ -53,7 +53,7 @@ Item 5 belongs to this powder on this unit's tubes and scale, not to the powder 
 | # | Item | Used now | To be used |
 |---|---|---|---|
 | 1 | The cup's capacity | The calibration: a run that would pass it pauses for the cup to be emptied (`calibration.py`'s `cup_room`) | The calibration as a job on the unit (gate 3). Nothing outside the calibration |
-| 2 | The empty cup's weight | Nothing | Step 2's charge controller, as its safety: a cup lifted mid-charge told from a light reading (the owner, 2026-11-25). Also the calibration's job (gate 3), for a cup lifted mid-run. Today's charge keeps its own check: a steady reading 10 gr below zero (`charge_mode.cpp`'s `charge_mode_wait_for_cup_removal`) |
+| 2 | The empty cup's weight | Nothing | The owner, 2026-11-25: "Item 2 is the safety measure for the later powder charge controller." A check of a cup lifted mid-throw built on it was dropped from step 2's gate 3 (the owner, 2026-11-26). The calibration's job (gate 3) uses it for a cup lifted mid-run. Today's charge keeps its own check: a steady reading 10 gr below zero (`charge_mode.cpp`'s `charge_mode_wait_for_cup_removal`) |
 | 3 | The scale's settle time | The calibration: how long each stop is watched, after the slowest lag (`watch_after_stop`) | Step 2's predictor: when a reading is final. Not in the plan: the charge reads a throw's result 1 s after its stop, and waits for zero over 10 steady readings 300 ms apart |
 | 4 | The scale's lag | The calibration: how long each stop is watched, with the settle time | Step 2's predictor: the powder still to show at a stop, its flow times its lag |
 | 5 | Each tube's least speed | Today's charge, once saved into the profile: each tube's PID never asks for less (the larger of it and the motor's minimum), and the coarse back-off turns at it when its own speed is 0 | Step 2's PID auto-tuner, which takes step 1's records (which ones is drafted with step 2) |
@@ -116,7 +116,7 @@ A throw lands as near its target as the powder allows, throw after throw: its sp
 
 - Step 2 is the predictor and the PID auto-tuner, and nothing runs beside them: no glide, no nudge as the final top-up, no other algorithm.
 - Its input is step 1's records.
-- Its safety: a cup lifted mid-charge told from a light reading, by the empty cup's weight.
+- Its safety: the owner, 2026-11-25: "Item 2 is the safety measure for the later powder charge controller." Read then as a cup lifted mid-throw told from a light reading; that check was dropped from gate 3 (the owner, 2026-11-26: "Drop it", asked why it must be tested).
 - The fine threshold is the user's tolerance; nothing writes it.
 - Each profile's maximum speed stays as the user has it.
 - Earlier words still standing (2026-11-22, the first build): the predictor and the auto-tuner not visible; an auto-tuner switch, on by default; no tuning session. A throw is judged by the spread of its final weight, then by its time (2026-11-24).
@@ -152,7 +152,7 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 - **What it is given:** the target and the user's tolerance; the profile's gains and speed limits; step 1's records (the lag by flow, the settle time); and its channels, each a feed with its own rate (a tube's in turns a second), its least and most rate, and the stop point it works to (the coarse's, the fine's).
 - **What it is fed:** each reading with its time, and the rate each channel was last set to.
 - **What it gives:** each channel's rate, when each stops, and at the throw's end its record (below).
-- **What stays outside it, in the charge mode:** the throw's states (the zero, the cup off and back), a missing reading's pause, a driver's fault, the verdict's wait, the lifted cup, the events and the lights. A design other than tubes replaces the channels and keeps the rest.
+- **What stays outside it, in the charge mode:** the throw's states (the zero, the cup off and back), a missing reading's pause, a driver's fault, the verdict's wait, the events and the lights. A design other than tubes replaces the channels and keeps the rest.
 
 **The coarse tube** is today's: its PID on the reading's error to the target less its threshold, stopped once the reading reaches it.
 
@@ -162,7 +162,7 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 
 **The verdict** is read once the slowest lag and the settle time have passed after the stop, not after 1 s.
 
-**Its safety:** a reading that falls by more than half the empty cup's weight during a throw is a lifted cup, not a light charge: the tubes stop and the throw ends, never pouring as if it were short. Never calibrated: today's 10 below zero.
+**A lifted cup:** dropped from gate 3 (the owner, 2026-11-26). Between throws, today's check stays: a steady reading 10 below zero is the cup off.
 
 **The auto-tuner**, after each throw, per powder: `new_pid = tuner(old_pid, charge_data)`.
 - **Its data:** each throw's final weight less the target and its time to the stop, in RAM: the window being thrown (25 throws) and the throws thrown on the kept gains (the latest 75); a restart begins afresh from the profile's gains.
@@ -184,13 +184,13 @@ The gates, in order, each started once the one before it is done:
 
    **The controller and the tuner on the twin (progress, 2026-11-25, 18:21 to 19:52): passed on the owner's objective.** At the owner's gains step 2 is narrower than today's loop on every rig and centred, and slower; faster costs spread even with the rig's true weight a turn. The tuner first built on the spread first, then the time, did not converge; on the owner's time per good charge it does: from the owner's gains a good charge costs 14 to 19 s against today's 41 to 51 s on the AR2209 rigs and 15.5 against 16.1 s on BM2; from a quarter of the owner's kp, 10 sessions of 12 reach kp 1 or more within 300 throws (f2's first in four windows), one is at 0.55 and one still at 0.22; from four times it, all 12 end where the cost is flat.
 2. **The controller and the tuner in C,** behind the interface above, judged against the Python on the same runs (step 1's `calibration_sim.py` pattern).
-3. **The charge on the unit:** the charge mode on the controller, the verdict's wait, the lifted cup, the switch, the tuner's writes into the profile.
+3. **The charge on the unit:** the charge mode on the controller, the verdict's wait, the switch, the tuner's writes into the profile.
 
    **Gate 3's plan** (drafted 2026-11-26 00:21, **approved by the owner 00:28**). What we know from the code: today's charge loop runs in the job task and wakes only on a reading (`charge_mode_wait_for_complete`); the controller needs a tick each millisecond. The FreeRTOS tick is 1 ms; the heap is 144 KB on the Pico 2 W, 112 KB on the Pico W. The controller holds some 30 KB, nearly all of it the throw's parcels and readings. The charge settings have a revision and the loader's migration (step 1's gate 2 appended the cup's records the same way).
    1. **The controller's room:** its state split in two. The throw's room (parcels, readings, the air, about 29 KB) is taken from the heap when a charge starts and given back when it ends, as the calibration's runs are. A start that cannot have it is refused and says so. The carried weight a turn and the tuner (about 2 KB) are kept in RAM for good, so they last from one charge to the next.
    2. **The charge loop on the controller:** the loop in the job task wakes each millisecond, ticks the controller, and gives it each reading as it comes; it sets both tubes' speeds from it. What stays as today: the zero, the cup off and back, a missing reading's pause and a lost scale, a driver's fault, the servo gate at the coarse tube's stop, the precharge, the events and the lights. The fine tube's least is the larger of the motor's and the profile's (step 1 writes the profile's). The coarse tube's turns are not counted: the predictor serves the fine tube alone.
    3. **The verdict:** read once the slowest lag and the settle time have passed after the stop (about 1.9 s on the twin, 1.56 s on the bench's Pico 2 W by its step 1 records; today 1 s). The owner's original 1 s was evaluated at the owner's asking and no floor kept (progress, 2026-11-26). Then the throw at rest gives its own weight a turn to the carry.
-   4. **The lifted cup:** a reading that falls by more than half the empty cup's weight during a throw stops both tubes and ends the throw, said as "Cup lifted" (a new reason, `cup_lifted`, in the events and the API); never calibrated, at today's 10 below zero.
+   4. **Dropped** (the owner, 2026-11-26): the lifted cup's check in a throw, built and taken out (progress).
    5. **The tuner:** after each throw's verdict, its weight less the target and its time to the stop; a window closed, the next window's kp is the tuner's. A trial's kp lives in RAM only, given to the controller and never written into the profile. A kept kp is written into the powder's profile and stored, as a write through the settings by `unit` (the unit itself; only the tuner writes a profile so), so the web and the export show it; at most one write a window. The carry and the tuner begin afresh at a start of the unit, at a change of powder, and when the scale's unit changes (a weight a turn in grains is not one in grams).
    6. **The switch:** `auto_tune` in the charge settings, on by default, on the screen and the web through its table. Off: no window is judged and the profile is never written. **A stored struct's layout changes:** the field is appended to the charge settings, its revision raised, and the loader keeps every earlier setting (the host test extended).
    7. **Withdrawn** (2026-11-26): a press before each next throw, built on a reading of the owner's 20:59 words that went past their scope (above); unwound, the charge's flow between throws as before. What stays of it: the owner's rule for the web, one key, Start or Stop, never both ("For the web UI, given stop and start are mutually exclusive, they can share the same button (not refering to the implementation. This is from user's experiences perspective). I don't think at any time both button should be enabled."), already the web's (`web-ui-design`, rule 17).
@@ -201,7 +201,6 @@ The gates, in order, each started once the one before it is done:
    - flashed by the probe, the settings copy equal before and after, `auto_tune` on;
    - `menu_tour` against its baseline (pages meant to change saved again), `reach`, and `charge_cycle` with the simulated scale;
    - real throws of 10 gr on the bench's powder, each stopping on the forecast, the verdict read after its wait, and the carry renewed (the console's log);
-   - a cup lifted mid-throw by the owner: both tubes stopped, the throw ended as "Cup lifted";
    - a window of 25 throws closed, the kept kp in the profile (the web and the export), and with the switch off no write;
    - the controller's time each tick and each reading, and the heap's low mark.
 
@@ -212,8 +211,17 @@ The gates, in order, each started once the one before it is done:
 
 - From the PID stored on the unit, untuned (the baseline, its first window), the tuner moves the charge toward a refined PID: shorter times to the stop and fewer throws over and under, window after window, the kp it reached in the profile. No target is set (the owner, 2026-11-26).
 - In grams as in grains, the same throws.
-- A cup lifted mid-throw stops the tubes and ends the throw.
 - With the switch off, the profile is never changed.
+
+## What is left, in order
+
+The owner's principle (2026-11-26, 01:40): "For any project I'm working on, the normal workpath is always the high priority, then the failure modes and exceptions. Failure modes and exceptions includes "lift cup, or support Pico W"." The normal work path here: a calibrated unit throws charge after charge, each stopping near its target on the forecast, each renewing the weight a turn the next one forecasts with, and the tuner moving the stored PID toward quicker throws with fewer over and under. Ordered by that, then by who is at hand (the owner at the bench, or the agent alone):
+
+1. **The forecast and the carry on the baseline profile** (normal path; the agent alone, in the simulation). On the bench's stored AR2209 profile (fine kp 2, top 5 rev/s) every real throw ended before the coarse tube's quiet, so no weight a turn was ever carried and the forecast never came into play (progress, 2026-11-26). Reproduced on the twin with that profile and the unit's step 1 records; its cause found; options, with a recommendation, to the owner before anything is changed.
+2. **Gate 3's throw on the unit** (normal path; the owner at the bench): real throws stopping on the forecast, the carry renewed, once item 1 is settled.
+3. **The tuner on the unit** (normal path; the owner at the bench): a window closed and the kept kp in the profile; with the switch off, none written. Taken with gate 4's first windows if the owner prefers.
+4. **Gate 4, the bench series** from the baseline (normal path; the owner at the bench), then step 2's sign-off.
+5. **Failure modes and exceptions**, after the normal path: a cup lifted mid-throw (dropped from gate 3, the owner); the Pico W ("Last: the Pico W", below).
 
 ## Last: the Pico W
 
