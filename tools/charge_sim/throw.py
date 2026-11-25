@@ -56,7 +56,8 @@ class Session:
         self.fine = TubeState(rig.fine, rig.powder, self.rng, rig.acceleration_rps2, rig.max_speed_rps)
 
     def throw(self, controller, target_gr: float, tolerance_gr: float, record: bool = False,
-              timeout_s: float = TIMEOUT_S, settle_s: float = SETTLE_AFTER_S) -> Result:
+              timeout_s: float = TIMEOUT_S, settle_s: float = SETTLE_AFTER_S,
+              verdict_after_s: float = VERDICT_AFTER_S) -> Result:
         """Run one throw to its verdict.
 
         controller: has start(target, now_ms), on_tick(now_ms), on_reading(now_ms, weight), and the attributes
@@ -65,6 +66,7 @@ class Session:
         record: keep a row a millisecond for plotting.
         timeout_s: a controller not done by then is stopped, and the throw counts as a timeout.
         settle_s: how long after the stop the throw is followed: the true weight is read then.
+        verdict_after_s: how long after the stop the reading is taken as the verdict (today's firmware: 1 s).
         """
         coarse, fine = self.coarse, self.fine
         cup = Cup()
@@ -105,7 +107,7 @@ class Session:
                     stopped_at = now
                     verdict_reading = float("nan")
                 continue
-            if verdict_reading is None and now >= stopped_at + VERDICT_AFTER_S:
+            if verdict_reading is None and now >= stopped_at + verdict_after_s:
                 verdict_reading = latest
             if now >= stopped_at + settle_s:
                 break

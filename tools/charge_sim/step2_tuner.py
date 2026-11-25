@@ -1,23 +1,25 @@
 """Step 2's auto-tuner on the twin (ADR-009, step 2, gate 1): `new_pid = tuner(old_pid, charge_data)`, a window of
-throws at a time, by the owner's ranking: the final weight's spread first, then the time.
+throws at a time, on the owner's objective: the time per good charge (2026-11-25).
 
-The tuner holds, in RAM, the gains it last kept (the base) and that window's spread and median time; each window it
-tries one move on the fine tube's gains (kp up, kp down, kd up, kd down, each by a factor), throws a window on it, and:
-- **keeps it** when its spread (the half-width of its middle 68%, which one clump does not move) is narrower than the
-  base's beyond the window's noise (by MARGIN), or within that noise and its median time shorter by TIME_SHARE (the
-  base's spread is then the lower of the two, so a run of "as narrow, quicker" cannot walk the spread up); every window
-  thrown on the base is pooled into its figures;
-- **puts the base back** otherwise, and tries the next move.
-A kept move is tried again; when every move in turn is put back, the tuner rests for REST_WINDOWS windows on the base.
-Everything is a ratio (gains by factors, spreads and times against each other), so it is the same in grams and grains.
+A window's cost is its median time to the stop over its share of throws within the tolerance (the profile's fine
+threshold): what a good charge costs when every bad one is thrown again. The tuner holds, in RAM, the gains it last kept
+(the base) and the throws thrown on them (the latest POOL_THROWS); each window it tries the base's fine kp moved by a
+factor, one way, and:
+- **keeps it** when its cost is lower than the base's by more than Z times the two windows' noise (each a share's:
+  sqrt((1 - good) / (good x throws))), and tries the same way again;
+- **puts the base back** otherwise, and tries the other way at once; when both ways are put back, the factor's
+  logarithm is halved (down to LEAST_FACTOR) and the tuner rests REST_WINDOWS windows on the base, pooling them.
+kd stays as the user has it: on the forecast the D term only scales kp (progress, 2026-11-25, 18:51). Everything is a
+ratio (kp by factors, costs against each other), so it is the same in grams and grains.
 
 Each case is a long session (the tubes keep their state, the RAM its carried weight a turn), from a start's gains.
 
-    venv\\Scripts\\python tools\\charge_sim\\step2_tuner.py [--rigs ...] [--throws 400] [--window 20]
+    venv\\Scripts\\python tools\\charge_sim\\step2_tuner.py [--rigs ...] [--throws 400] [--window 25]
 """
 
 import argparse
 import dataclasses
+import math
 import statistics
 
 import rigs
@@ -26,89 +28,108 @@ from legacy_pid import AR2209_PICOW_168, LegacyPid
 from throw import Session
 from workers import Workers
 
-FACTOR = {"kp": 1.25, "kd": 2.0}
-MARGIN = 0.25               # a window's spread differs from the base's only past this share (its noise at 20 throws)
-POOL_THROWS = 60
-TIME_SHARE = 0.05
-REST_WINDOWS = 3
-MOVES = (("kp", 1), ("kp", -1), ("kd", 1), ("kd", -1))
-STARTS = {"owner": {}, "kp/4": {"fine_kp": 0.2}, "kp x4": {"fine_kp": 3.2}, "kd 0": {"fine_kd": 0.0}}
+WINDOW = 25
+FIRST_FACTOR = 1.5
+LEAST_FACTOR = 1.1
+Z = 1.5
+POOL_THROWS = 75
+REST_WINDOWS = 2
+STARTS = {"owner": {}, "kp/4": {"fine_kp": 0.2}, "kp x4": {"fine_kp": 3.2}}
 
 
-def band(errors: list) -> float:
-    """Half the width that holds the middle 68% of the final weights: a window's spread that one clump does not move."""
+def counted(errors: list, tolerance: float) -> float:
+    """The share of throws within the tolerance, counted."""
+    return sum(abs(e) < tolerance for e in errors) / len(errors)
+
+
+def modelled(errors: list, tolerance: float) -> float:
+    """The share within the tolerance of a normal spread with the window's median and the half-width of its middle
+    68%: the same share from every throw's weight, not only from which side of the tolerance it fell."""
     ordered = sorted(errors)
-    return (ordered[int(0.84 * (len(ordered) - 1))] - ordered[int(0.16 * (len(ordered) - 1))]) / 2.0
+    centre = statistics.median(ordered)
+    width = (ordered[int(0.84 * (len(ordered) - 1))] - ordered[int(0.16 * (len(ordered) - 1))]) / 2.0
+    if width <= 0.0:
+        return 1.0 if abs(centre) < tolerance else 0.0
+    normal = statistics.NormalDist(centre, width)
+    return normal.cdf(tolerance) - normal.cdf(-tolerance)
+
+
+SHARES = {"counted": counted, "modelled": modelled}
+
+
+def cost(errors: list, times: list, tolerance: float, share=counted) -> tuple:
+    """(median time over the share within the tolerance, that share): seconds a good charge."""
+    good = share(errors, tolerance)
+    time = statistics.median(times)
+    return (time / good if good > 0.0 else math.inf), good
+
+
+def noise(good: float, throws: int) -> float:
+    """A cost's relative noise from its share of good throws."""
+    return math.sqrt((1.0 - good) / (good * throws)) if good > 0.0 else 1.0
 
 
 class Tuner:
-    """new_pid = tuner(old_pid, charge_data), a window at a time. Holds only RAM: the base's gains, and the throws
-    thrown on them since they were kept (every window on them pooled, the latest POOL_THROWS)."""
+    """new_pid = tuner(old_pid, charge_data), a window at a time, on the time per good charge. Holds only RAM."""
 
-    def __init__(self):
-        self.base = None            # the profile kept
-        self.pool = ([], [])        # its throws: final weights less the target, times
-        self.reference = None       # its spread to beat
-        self.move = 0
-        self.rejected = 0
+    def __init__(self, tolerance: float, z: float = Z, share: str = "counted"):
+        self.tolerance = tolerance
+        self.z = z
+        self.share = SHARES[share]
+        self.base = None
+        self.pool = ([], [])        # the base's throws: final weights less the target, times
+        self.direction = 1
+        self.factor = FIRST_FACTOR
+        self.turned = False         # the other way already tried from this base
         self.resting = 0
 
-    def keep(self, profile, errors: list, times: list, reference: float) -> None:
-        self.base, self.pool, self.reference = profile, (list(errors), list(times)), reference
+    def keep(self, profile, errors: list, times: list) -> None:
+        self.base, self.pool, self.turned = profile, (list(errors), list(times)), False
 
     def __call__(self, profile, errors: list, times: list):
         """The profile's next gains from the window just thrown on `profile`, and what was done, in words."""
-        spread, time = band(errors), statistics.median(times)
         if self.base is None:
-            self.keep(profile, errors, times, spread)
+            self.keep(profile, errors, times)
             return self.trial(), "first window: the base"
         if profile is self.base:
             self.pool = ((self.pool[0] + errors)[-POOL_THROWS:], (self.pool[1] + times)[-POOL_THROWS:])
-            self.reference = band(self.pool[0])
             if self.resting > 0:
                 self.resting -= 1
                 return self.base, "resting"
             return self.trial(), "the base again"
-        base_time = statistics.median(self.pool[1])
-        narrower = spread < self.reference * (1.0 - MARGIN)
-        as_narrow_quicker = spread <= self.reference * (1.0 + MARGIN) and time < base_time * (1.0 - TIME_SHARE)
-        if narrower or as_narrow_quicker:
-            self.keep(profile, errors, times, spread if narrower else min(spread, self.reference))
-            self.rejected = 0
-            return self.trial(), "kept: " + ("narrower" if narrower else "as narrow, quicker")
-        self.rejected += 1
-        self.move = (self.move + 1) % len(MOVES)
-        if self.rejected >= len(MOVES):
-            self.rejected = 0
-            self.resting = REST_WINDOWS
-            return self.base, "every move put back: resting on the base"
-        return self.base, "put back"
+        trial_cost, trial_good = cost(errors, times, self.tolerance, self.share)
+        base_cost, base_good = cost(*self.pool, self.tolerance, self.share)
+        spread = math.hypot(noise(trial_good, len(errors)), noise(base_good, len(self.pool[0])))
+        if trial_cost < base_cost * (1.0 - self.z * spread):
+            self.keep(profile, errors, times)
+            self.factor = FIRST_FACTOR
+            return self.trial(), f"kept ({trial_cost:.1f} against {base_cost:.1f} s)"
+        if not self.turned:
+            self.turned = True
+            self.direction = -self.direction
+            return self.trial(), f"put back ({trial_cost:.1f} against {base_cost:.1f} s): the other way"
+        self.turned = False
+        self.factor = max(LEAST_FACTOR, math.sqrt(self.factor))
+        self.resting = REST_WINDOWS
+        return self.base, f"put back both ways: resting, the step now x{self.factor:.2f}"
 
     def trial(self):
-        base = self.base
-        gain, direction = MOVES[self.move]
-        name = f"fine_{gain}"
-        value = getattr(base, name)
-        if gain == "kd" and value == 0.0:
-            value = 1.0 if direction > 0 else 0.0
-        else:
-            value = value * FACTOR[gain] ** direction
-        return dataclasses.replace(base, **{name: value})
+        return dataclasses.replace(self.base, fine_kp=self.base.fine_kp * self.factor ** self.direction)
 
 
 def run_case(job: tuple) -> list:
     """One long session from a start's gains: [(window, kp, kd, spread, mean, time, note), ...] and the throws."""
-    rig_name, start, throws, window, records, seed, tune = job
+    rig_name, start, throws, window, records, seed, tune = job      # tune: None, or (z, share)
     rig = rigs.get_rig(rig_name)
     profile = dataclasses.replace(AR2209_PICOW_168, **STARTS[start])
     session = Session(rig, seed)
     controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last")
-    tuner = Tuner()
+    tuner = Tuner(profile.fine_stop_threshold, *tune) if tune else None
     windows, all_throws = [], []
     errors, times = [], []
     for n in range(throws):
         controller.profile = profile
-        result = session.throw(controller, 10.0, profile.fine_stop_threshold)
+        result = step2.throw_one(session, controller, 10.0, profile.fine_stop_threshold)
         errors.append(result.true_error)
         times.append(result.elapsed_s)
         all_throws.append((result.true_error, result.elapsed_s))
@@ -117,8 +138,8 @@ def run_case(job: tuple) -> list:
             note = ""
             if tune:
                 profile, note = tuner(profile, errors, times)
-            windows.append((len(windows), thrown_on.fine_kp, thrown_on.fine_kd, statistics.pstdev(errors),
-                            statistics.fmean(errors), statistics.median(times), note))
+            windows.append((len(windows), thrown_on.fine_kp, cost(errors, times, profile.fine_stop_threshold)[0],
+                            statistics.pstdev(errors), statistics.fmean(errors), statistics.median(times), note))
             errors, times = [], []
     return windows, all_throws
 
@@ -136,8 +157,10 @@ def tail_summary(throws: list) -> str:
     errors = [e for e, _ in throws]
     times = sorted(t for _, t in throws)
     good = sum(abs(e) < AR2209_PICOW_168.fine_stop_threshold for e in errors) / len(errors)
-    return (f"sd {statistics.pstdev(errors):.3f}  mean {statistics.fmean(errors):+.3f}  good {good * 100:4.1f}%  "
-            f"time {times[len(times) // 2]:4.1f} s")
+    median = times[len(times) // 2]
+    per_good = median / good if good > 0 else float("inf")
+    return (f"{per_good:5.1f} s a good charge  (sd {statistics.pstdev(errors):.3f}  mean {statistics.fmean(errors):+.3f}"
+            f"  good {good * 100:4.1f}%  time {median:4.1f} s)")
 
 
 def main() -> None:
@@ -145,9 +168,11 @@ def main() -> None:
     parser.add_argument("--rigs", nargs="+", default=list(step2.DEFAULT_RIGS))
     parser.add_argument("--starts", nargs="+", default=list(STARTS))
     parser.add_argument("--throws", type=int, default=400)
-    parser.add_argument("--window", type=int, default=20)
+    parser.add_argument("--window", type=int, default=WINDOW)
     parser.add_argument("--seeds", type=int, default=2)
     parser.add_argument("--windows", action="store_true", help="print each window")
+    parser.add_argument("--tuners", nargs="+", default=[f"{Z}:counted"], help="the tuners tried, each z:share")
+    parser.add_argument("--no-fixed", action="store_true", help="leave out the untuned cases")
     args = parser.parse_args()
     tail = args.throws // 4
     with Workers() as pool:
@@ -157,19 +182,21 @@ def main() -> None:
                      for t in batch[-tail:]]
             print(f"{rig_name}: the last {tail} throws of {args.throws}, {args.seeds} sessions each")
             print(f"  {'today, the owner gains':30s} {tail_summary(today)}")
+            tuners = [None] if not args.no_fixed else []
+            tuners += [(float(z), share) for z, share in (item.split(":") for item in args.tuners)]
             jobs = [(rig_name, start, args.throws, args.window, made[rig_name], 7000 + s, tune)
-                    for start in args.starts for tune in (False, True) for s in range(args.seeds)]
+                    for start in args.starts for tune in tuners for s in range(args.seeds)]
             results = pool.map(run_case, jobs)
             for i in range(0, len(jobs), args.seeds):
                 _, start, _, _, _, _, tune = jobs[i]
-                label = f"step 2 from {start}, " + ("tuned" if tune else "fixed")
+                label = f"step 2 from {start}, " + (f"tuned z {tune[0]:g} {tune[1]}" if tune else "fixed")
                 last = [t for windows, throws in results[i:i + args.seeds] for t in throws[-tail:]]
-                ends = ", ".join(f"kp {w[-1][1]:.2f} kd {w[-1][2]:.1f}" for w, _ in results[i:i + args.seeds])
-                print(f"  {label:30s} {tail_summary(last)}   (its last window's gains: {ends})")
+                ends = ", ".join(f"{w[-1][1]:.2f}" for w, _ in results[i:i + args.seeds])
+                print(f"  {label:38s} {tail_summary(last)}   (kp at the end: {ends})")
                 if args.windows and tune:
                     for w in results[i][0]:
-                        print(f"      window {w[0]:2d} kp {w[1]:.3f} kd {w[2]:6.1f}  sd {w[3]:.3f} mean {w[4]:+.3f} "
-                              f"time {w[5]:4.1f} s  {w[6]}")
+                        print(f"      window {w[0]:2d} kp {w[1]:.3f}  {w[2]:6.1f} s a good charge  sd {w[3]:.3f} "
+                              f"mean {w[4]:+.3f} time {w[5]:4.1f} s  {w[6]}")
 
 
 if __name__ == "__main__":

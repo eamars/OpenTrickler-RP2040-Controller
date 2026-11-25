@@ -369,3 +369,32 @@ Below 3 gr the two loops land alike and over: **the coarse tube's own powder ove
 - kp made from what the throws measure: kp = c / (weight a turn x lag), the first build's offer, so a powder's weight a turn and a scale's lag are met by the formula, and the tuner moves the one dimensionless c.
 - the objective either the user's tolerance as the spread wanted (narrow enough when, say, nine throws in ten are within it; then quicker), or the time per good charge (the median time over the share within the tolerance: what a good charge costs when every bad one is thrown again), which puts a price on both.
 - windows of 50 throws or more, or the trial judged against the kept gains' pooled throws by a test of its own noise, so a move is kept on evidence.
+
+## 2026-11-25, 18:54: the tuner's objective, the owner's
+
+- **The owner (recorded 18:54):** the tuner optimises the time per good charge (the median time over the share within the tolerance), chosen over the tolerance first and then the speed. The tuner is rebuilt on it in `step2_tuner.py`: one number moved (the fine tube's kp, by a factor that halves in its logarithm when both ways are put back), each window of 25 throws against the kept gains' pooled throws, a move kept only when its cost is lower by more than one and a half of the two windows' noise (from their shares of good throws). kd stays as the user has it: on the forecast it only scales kp (18:51), so the windows cannot see it.
+
+## 2026-11-25, 19:52: gate 1's tuner on the owner's objective, passed
+
+**Two mends found on the way, each a root cause:**
+- **The carried weight a turn renewed only on slow throws.** Each throw's own was taken at its stop from at least half a turn of the fine tube alone; a quick throw stops before that, so the carry stayed empty and the forecast fell back to the reading (+0.5 gr over at kp 3.2 on the night rig). Now each throw's own is taken at rest, from its verdict's reading (the slowest lag and the settle time after the stop, as the draft reads its verdict), over all its fine turns since the coarse tube's quiet: the landing is centred at every kp (kp 1.6: +0.001 to +0.038 gr, where it was +0.09 to +0.11 at kp 1.2). `throw.py` takes the verdict's wait as an argument for it (today's 1 s by default).
+- **The tuner put good moves back.** A window's cost is noisy in its share of good throws (25 throws) and precise in its time; with a margin of its noise, kp 0.2 to 0.3 (31.5 to 23.2 s) was put back, both ways were, and the step shrank to 1.1 for good. The cost is flat over kp 0.8 to 3.2 and steep below, so a wrong keep is cheap and a wrong put-back dear: a trial is now kept when its cost is lower, and a kept move restores the full step.
+
+**The tuner, `step2_tuner.py`,** three sessions of 300 throws a case, the last 75 of each, seconds a good charge (the median time over the share within 0.03 gr):
+
+| Rig | Today's loop | Step 2, from the owner's, fixed | tuned | From kp/4, fixed | tuned | From kp x4, fixed | tuned |
+|---|---|---|---|---|---|---|---|
+| night | 51.2 (sd 0.109, +0.108, 6.1 s) | 15.8 (0.065, 10.0 s) | **15.2** (0.065, 8.8 s) | 59.1 | **16.7** | 17.3 | **14.3** |
+| f2 | 41.2 (0.085, +0.091, 6.4 s) | 15.0 (0.042, 10.2 s) | **14.2** (0.067, 7.1 s) | 45.1 | **15.0** | 15.3 | **12.5** |
+| BM2 | 16.1 (0.075, +0.035, 9.4 s) | 23.6 (0.027, 18.1 s) | **15.5** (0.101, 10.3 s) | 84.3 | **16.9** | 20.2 | **17.5** |
+| night, fine by speed | 49.2 (0.122, +0.117, 5.7 s) | 15.4 (0.052, 9.8 s) | **18.9** (0.053, 10.5 s) | 54.9 | **17.0** | 17.8 | **15.1** |
+
+(the fixed cases are of the run before the second mend, the same seeds; the tuned ones landed within 0.015 gr of the target on average)
+
+**Verdict: pass.**
+- From the owner's gains a good charge costs less than today's on every rig: about a third of today's on the AR2209 rigs, the same on BM2 (15.5 against 16.1 s); kp ended between 0.65 and 2.2.
+- From a quarter of the owner's kp, 10 sessions of 12 reached kp 1 or more within 300 throws (f2's first: 0.2, 0.3, 0.45, 0.68, 1.01 in four windows, the cost 46 to 10 s); one on the night rig ended at 0.55, one on f2 still at 0.22.
+- From four times it, every session ended where the cost is flat (12.5 to 17.5 s), one at kp 13 on the night rig with the fine tube by speed (its case 15.1 s).
+- **What it costs:** the throws are slower than today's (7 to 11 s against 6 to 9 s) and step 2's verdict waits the slowest lag and the settle time (about 1.9 s on the twin) against today's 1 s; a good charge is cheaper because three to five times as many land within the tolerance on the AR2209 rigs. The tuner's step, window and rule are those above; kd and ki stay the user's.
+
+**The draft brought to what gate 1 built** (the README's step 2): the weight a turn carried in RAM from each throw's verdict, the tuner on kp alone by the time per good charge, the unit's proof in the same terms. Step 2 now waits for the owner's approval; it is built only once step 1 is signed off on the bench.

@@ -105,7 +105,7 @@ No throw's result is judged.
 
 ## Step 2: the tuning
 
-**Draft, unapproved until its idea is proven in the simulation** (the owner, recorded 17:45): gate 1 below is that proof, and approval follows it. Drafted 2026-11-25 at the owner's word while step 1's test on a unit is deferred. Nothing of it is built until step 1 is signed off. It is drafted on step 1's records as built; their figures on a unit (the burst's settle time among them) come with step 1's test, and the draft is read again against them then.
+**Draft, proven in the simulation, for the owner's approval** (gate 1, 2026-11-25, done 19:52; the owner, 17:45: unapproved until its idea is proven in the simulation). Drafted 2026-11-25 at the owner's word while step 1's test on a unit is deferred. Nothing of it is built until step 1 is signed off. It is drafted on step 1's records as built; their figures on a unit (the burst's settle time among them) come with step 1's test, and the draft is read again against them then.
 
 ### What we want
 
@@ -127,6 +127,7 @@ A throw lands as near its target as the powder allows, throw after throw: its sp
   - the charge controller is a module with a clear interface to the others, so a design other than tubes can replace it by a firmware change (not built: designed for);
   - the Pico W's room is not step 2's concern.
 - **The owner, on the forecast check (recorded 18:05):** "Predictor should only matter for last grain/gram of throw, so predictor and your simulation should only run with fine trickler, below coarse trickler stop threshold." Read here as: the coarse tube is today's (its PID on the reading, stopped once the reading reaches the target less its threshold), and the predictor serves the fine tube alone, which finishes the throw below that threshold.
+- **The owner, on the tuner's objective (recorded 18:54):** the time per good charge, chosen over the tolerance first and then the speed. Read here as: a window's median time to the stop over its share of throws within the user's tolerance (the fine threshold): what a good charge costs when every bad one is thrown again.
 
 ### What we know
 
@@ -151,7 +152,7 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 
 **The coarse tube** is today's: its PID on the reading's error to the target less its threshold, stopped once the reading reaches it.
 
-**The predictor** serves the fine tube alone, below the coarse tube's threshold, where the throw's last grain or gram is decided. Each reading, the forecast is the reading plus the fine tube's turns turned out and not yet shown, in 10 ms parcels of its rate, each due after the lag of the flow it was turned out at (step 1's table, straight between its points and the end's value beyond them), times its weight a turn. The weight a turn is the throw's own: the slope of the reading on the fine turns shown since the coarse tube's powder went quiet (step 1's settle time after its stop). Nothing of it is stored, so a powder's change of lot, a cold tube or a scale in grams is met in the throw itself. The fine tube's PID works on the forecast's error and stops when the forecast reaches the target. The turns are counted from the rates set, not the step count, which has no sign. Before the throw's own weight a turn is known (from the coarse stop to its powder's quiet, and a few tenths of a turn after), what the forecast takes is settled in gate 1 on the twin, with thresholds as small as a user may set.
+**The predictor** serves the fine tube alone, below the coarse tube's threshold, where the throw's last grain or gram is decided. Each reading, the forecast is the reading plus the fine tube's turns turned out and not yet shown, in 10 ms parcels of its rate, each due after the lag of the flow it was turned out at (step 1's table, straight between its points and the end's value beyond them), times its weight a turn. The weight a turn is carried from throw to throw in RAM, nothing stored: the median of the last five throws' own, each taken once the throw is at rest, from its verdict's reading (the fine tube's powder since the coarse tube's powder went quiet, over its turns not yet shown then). The first throw after a start has none and takes the throw's own once a few tenths of a turn are shown (the slope of the reading on the fine turns shown, solved with the lags at its own flow); before that, the reading alone, as today. A powder's change of lot, a cold tube or a scale in grams is met within five throws. The fine tube's PID works on the forecast's error and stops the moment the forecast reaches the target (each millisecond, not only on a reading). The turns are counted from the rates set, not the step count, which has no sign.
 
 **The PID's envelope:** the integral held while a channel runs at its least or most rate (anti-windup), and the fine channel's rate held under what the forecast can still take before the stop. The first build found it the difference between 35 to 66% and 85 to 90% good from bad starting gains. Part of the PID, not an algorithm beside it.
 
@@ -160,10 +161,10 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 **Its safety:** a reading that falls by more than half the empty cup's weight during a throw is a lifted cup, not a light charge: the tubes stop and the throw ends, never pouring as if it were short. Never calibrated: today's 10 below zero.
 
 **The auto-tuner**, after each throw, per powder: `new_pid = tuner(old_pid, charge_data)`.
-- **Its data:** each throw's record from the controller (the target, the final weight, the forecast at the stop, the time, and the fine channel's rates near its stop), kept in RAM for the powder's window of throws; a restart begins a new window.
-- **Its judgement,** over the window, in the target's own terms so grams and grains are alike: its spread first (the final weights' SD against the tolerance and against the stop's floor, the kernels' count), then its time. A wide spread with overs: the fine channel calmer (its kp down, or its kd up, whichever the window points to). A narrow spread and slow throws: its kp up.
-- **Its change:** one gain at a time, by a factor (one step of 10%, its size chosen in gate 1), only when the window's evidence stands out of its noise; kp held under the bound from the lag and the weight a turn (kp under 0.37 / (lag x weight a turn), the first build's), ki left as the user has it.
-- **Stored** into the powder's profile, its own fields, as a write through the settings, so the web and the export show the gains it reached.
+- **Its data:** each throw's final weight less the target and its time to the stop, in RAM: the window being thrown (25 throws) and the throws thrown on the kept gains (the latest 75); a restart begins afresh from the profile's gains.
+- **Its judgement,** the owner's objective: a window's time per good charge, its median time over its share within the user's tolerance (the fine threshold). Ratios only, so grams and grains are alike.
+- **Its change:** the fine tube's kp alone, by a factor: each window tries the kept kp moved one way (by 1.5 at first). A trial whose time per good charge is lower than the kept gains' is kept, and the same way tried again at the full step; a trial no better is put back and the other way tried at once; both put back, the step's logarithm halves (down to 1.1) and the tuner throws two windows on the kept gains. A wrong keep is cheap (the cost is flat over a wide range of kp, 0.8 to 3.2 on the twin's rigs) and a wrong put-back dear (a slow kp costs three times), so a lower cost is enough. kd and ki are left as the user has them: on the forecast the D term only scales kp down (the error falls at the weight a turn times the speed), which the windows could not see.
+- **Stored** into the powder's profile, the kept kp only (a trial stays in RAM), as a write through the settings, so the web and the export show the gains it reached; at most one write a window.
 - **The switch,** `auto_tune` in the charge settings, on by default: off, the profile is left as it is.
 
 ### What we do
@@ -171,21 +172,21 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 The gates, in order, each started once the one before it is done:
 1. **The method in the simulation** (`tools/charge_sim`, Python first), the proof the draft's approval waits for. It is proven when:
    - **the forecast,** its weight a turn estimated within each throw, on the kept bench series: the rest less the forecast at each stop has a mean within a digit (0.02 gr) and a spread no more than a tenth wider than the first build's forecast on its stored weight a turn (0.036 to 0.045 gr);
-   - **the tuner,** on the twin over the rigs kept: from the owner's gains, the final weight's spread narrower than today's loop's with them and the throws no slower; from gains set far off, the same spread within a few windows.
+   - **the tuner,** on the twin over the rigs kept: from the owner's gains, the final weight's spread narrower than today's loop's with them and the throws no slower; from gains set far off, the same spread within a few windows. (The owner set its objective at 18:54: the time per good charge. Judged then as: from the owner's gains, a good charge no dearer than today's loop's; from gains set far off, the same within a few windows.)
 
    Its window, its step and kd's rule are chosen there. If the forecast does not hold on an estimate within the throw, the owner hears it before anything else is done.
 
    **The forecast's check: passed for the fine tube alone** (progress, 2026-11-25, 17:58 and 18:05). Run first with both tubes on the forecast, it failed: while both turn, the readings cannot tell their weights apart. The owner then put the predictor on the fine tube alone, below the coarse threshold; there the throw's own weight a turn holds (the rest less the forecast +0.013 gr, sd 0.064, against the stored figure's +0.002, sd 0.063).
 
-   **The controller and the tuner on the twin (progress, 2026-11-25, 18:21 to 18:51): the bar is not met.** At the owner's gains step 2 is narrower than today's loop on every rig and centred, and 50 to 90% slower; faster costs spread even with the rig's true weight a turn. The tuner as first built (one gain at a time, judged window against window) does not converge: a window of 20 throws is too noisy to tell its moves apart. What the tuner is to optimise, when a slower throw is always a little narrower, is the owner's to say before it is built again.
+   **The controller and the tuner on the twin (progress, 2026-11-25, 18:21 to 19:52): passed on the owner's objective.** At the owner's gains step 2 is narrower than today's loop on every rig and centred, and slower; faster costs spread even with the rig's true weight a turn. The tuner first built on the spread first, then the time, did not converge; on the owner's time per good charge it does: from the owner's gains a good charge costs 14 to 19 s against today's 41 to 51 s on the AR2209 rigs and 15.5 against 16.1 s on BM2; from a quarter of the owner's kp, 10 sessions of 12 reach kp 1 or more within 300 throws (f2's first in four windows), one is at 0.55 and one still at 0.22; from four times it, all 12 end where the cost is flat.
 2. **The controller and the tuner in C,** behind the interface above, judged against the Python on the same runs (step 1's `calibration_sim.py` pattern).
 3. **The charge on the unit:** the charge mode on the controller, the verdict's wait, the lifted cup, the switch, the tuner's writes into the profile.
-4. **Bench series:** the charge with the tuner against today's with the owner's gains, in alternating sets of 20 throws on the same powder and day, each reported as the final weight's SD, its mean offset, its time and a histogram in 0.02 steps. Step 2's sign-off.
+4. **Bench series:** the charge with the tuner against today's with the owner's gains, in alternating sets of 20 throws on the same powder and day, each reported as the time per good charge, the final weight's SD, its mean offset, its time and a histogram in 0.02 steps. Step 2's sign-off.
 
 ### How the unit shows it works
 
-- The final weight's spread is narrower than today's charge's on the same powder and day, and the throws no slower (the owner's bar, set in gate 1 from the twin's figures and the stop's floor).
-- From a profile's gains set far off, the tuner brings the throws to the same spread within a few windows, the gains it reached in the profile.
+- A good charge costs less time than today's on the same powder and day (the median time over the share within the tolerance; the owner's objective), the final weight centred on the target.
+- From a profile's kp set far off, the tuner brings a good charge's cost to the same within a few windows, the kp it reached in the profile.
 - In grams as in grains, the same throws.
 - A cup lifted mid-throw stops the tubes and ends the throw.
 - With the switch off, the profile is never changed.

@@ -39,7 +39,7 @@ THROWS_PER_SESSION = 25
 PARCEL_S = 0.01
 KNOWN_TURNS = 0.15          # fine turns shown since the quiet before the throw's own weight a turn is taken
 KNOWN_ROWS = 5
-TRUST_TURNS = 0.5           # fine turns shown since the quiet for the throw's own to be carried
+REST_TURNS = 0.2            # fine turns turned out after the quiet for a throw's own, at rest, to be carried
 FIT_ROUNDS = 4              # the weight a turn and its lags solved together
 CARRY_THROWS = 5            # the throws whose own weights a turn are carried (their mean)
 DEFAULT_RIGS = ("pico2w_ar2209_night", "pico2w_ar2209_f2", "pico2w_bm2", "pico2w_ar2209_night+fine_by_speed")
@@ -204,8 +204,25 @@ class Step2(LegacyPid):
         self.fine_rps = 0.0
         self.coarse_rps = 0.0
         self.done = True
-        if self.own is not None and self.own[1] >= TRUST_TURNS:
-            self.history = (self.history + [self.own[0]])[-CARRY_THROWS:]
+
+    @property
+    def verdict_after_s(self) -> float:
+        """Step 2 reads its verdict once the slowest lag and the settle time have passed after the stop."""
+        return max(self.lag_seconds) + self.records.settle_s
+
+    def at_rest(self, reading: float) -> None:
+        """The throw's own weight a turn in hindsight, from its verdict's reading: the fine tube's powder since the
+        coarse tube's quiet over its turns not yet shown then, so only the quiet's moment rests on the lag table.
+        Carried to the next throws (RAM): every throw with REST_TURNS of the fine tube alone renews the carry."""
+        if not self.rows:
+            return
+        quiet, at_quiet = self.rows[0]
+        k = self.k if self.k is not None else (self.own[0] if self.own is not None else 0.0)
+        turned = sum(turns for _, turns, _ in self.turned) + self.parcel
+        shown = sum(turns for at, turns, speed in self.turned if at + float(self.lags(speed * k)) <= quiet)
+        alone = turned - shown
+        if alone >= REST_TURNS and reading > at_quiet:
+            self.history = (self.history + [(reading - at_quiet) / alone])[-CARRY_THROWS:]
 
     def on_reading(self, now_ms: float, weight: float) -> None:
         if self.done:
@@ -277,9 +294,18 @@ def run_session(job: tuple) -> list:
         made = Step2(profile, records, rig.acceleration_rps2, before=before)
     out = []
     for _ in range(THROWS_PER_SESSION):
-        result = session.throw(made, target, profile.fine_stop_threshold)
+        result = throw_one(session, made, target, profile.fine_stop_threshold)
         out.append((result.true_error, result.elapsed_s, result.verdict))
     return out
+
+
+def throw_one(session, controller, target: float, tolerance: float):
+    """One throw: step 2's with its own verdict wait, its weight a turn then kept from the verdict's reading."""
+    if not isinstance(controller, Step2):
+        return session.throw(controller, target, tolerance)
+    result = session.throw(controller, target, tolerance, verdict_after_s=controller.verdict_after_s)
+    controller.at_rest(result.reading)
+    return result
 
 
 def summary(results: list, tolerance: float) -> str:
