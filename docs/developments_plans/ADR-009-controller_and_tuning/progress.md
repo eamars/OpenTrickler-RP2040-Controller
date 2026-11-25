@@ -529,3 +529,22 @@ Flashed by the probe, each settings copy equal before and after (`before_fill_fl
 1. The fine tube's least: the owner's decision on its spread from run to run (0.020, 0.034 and 0.056 rev/s; progress, 21:00 to 21:58).
 2. The Settings page going blank for a second or two when it reads its settings again (after a part keeps its records): a shift under the `web-ui-design` skill's rule 17. Mended and shown on the stand-in.
 3. The cup's own part says "To catch the powder. The cup next." on its first step, naming the part it is in: its words, on the stand-in.
+
+## 2026-11-25, 23:40 to 23:50: step 1's last items (the stand-in, no unit)
+
+- **The fine tube's least.** The owner: "Should it be a fixed number after calibration?" It is: a calibration stores one number in the powder's profile, and nothing changes it until that powder is calibrated again (step 2's tuner moves kp alone). Three runs measured 0.020, 0.034 and 0.056 rev/s. Step 2's controller in the simulation at each (`step2.py --controllers step2:last@least=...`, 300 throws of 10 gr, judged at 0.03 gr), the time per good charge:
+
+  | Rig | 0.020 | 0.034 | 0.056 |
+  |---|---|---|---|
+  | AR2209, night | 17.0 s | 17.5 s | 17.5 s |
+  | AR2209, f2 | 14.0 s | 15.7 s | 14.2 s |
+  | BM2 | 23.1 s | 24.5 s | 18.0 s |
+  | AR2209, night, the fine tube's pour by its speed | 18.3 s | 17.5 s | 18.5 s |
+
+  No least is better on every rig; a higher least is a little quicker each throw, and the last rig's spread is wider at 0.056 (sd 0.152 against 0.094) at the same cost. **The owner: "Accept as measured"** (23:50): each calibration keeps what its run measured; nothing repeats or averages it. Step 2's bench series (its gate 4) would show a floor that matters on real powder.
+- **The Settings page going blank on a reread.** The owner: "it appears breaking the MVC guideline, that UI is bending on the data. Perhaps an indicator at the corner of page can be used to determine the frontend and backend connection status." The cause: Settings and Powders, read again (a calibration kept, another client's write), put their list in place of the page first and the part only once its reads were done, and the calibration's cards filled in after that; two reads at once could show the older last. Measured on the stand-in before the mend: on a reread the part was gone, then the calibration empty, the page 610 px tall in place of 771. **Mended** (`settings.js`, `powders.js`): the part shown, read again, stays until the new one is read whole (its forms and the calibration's first read), then the two are swapped at once, and only the latest read is shown; a read that fails keeps what is shown, the link's banner saying the unit was not reached; the calibration's poll keeps its cards when a read fails. After: two rereads at once, a cup part kept (its capacity 30.92 to 20.00 gr in place), the Powders page read twice: never blank, the height unchanged, one part on the page; the link cut: both pages unchanged under "Unit not reached. Trying again..."; a part started elsewhere still opens the sheet (0.55 s). A part newly asked for shows its list first, as before. **The corner mark:** weighed against rule 9 (the owner, 2026-11-18: a permanent "Connected" was a waste of space; normal takes no room), the banner already saying a lost link on every page; **the owner: "No corner mark"** (23:50). Written into the `web-ui-design` skill, rule 17.
+- **The cup step's words.** The owner: "Fix if it breaks the user experience flow." It did: the cup's own part said "To catch the powder. The cup next.", naming the part it is in. Now "To catch the powder." for the cup and the scale; a powder's stays "With <powder> in the hopper: it is what is calibrated." The 12864 says neither (its steps are "Put the empty cup on the scale", with "<powder> in the hopper" for a powder).
+
+Both boards build with it (the Pico W 98.5% of its flash, 99.6% of its RAM).
+
+**Step 1's sign-off on the Pico 2 W: every item closed**, for the owner to sign off. One check is not in the record: a stop by the 12864's Back. The stop itself is proven from the console and the API at every step, the fill with both tubes turning among them (20:01 to 20:59, `stop_tests.py`, `fill_stop.py`), and Back is the menu's own key. The Pico W's checks are the ADR's last ("Last: the Pico W").

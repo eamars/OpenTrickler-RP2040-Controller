@@ -289,8 +289,7 @@ function drawCalibration(options = {}) {
         switch (cal.step) {
         case "cup_on":
             head("Put the empty cup on the scale");
-            note(cal.part === "powder" ? `With ${powder} in the hopper: it is what is calibrated.` :
-                 `To catch the powder. ${named} next.`);
+            note(cal.part === "powder" ? `With ${powder} in the hopper: it is what is calibrated.` : "To catch the powder.");
             actions(cancel(), button("The cup is on", "action go", () => answer("next")));
             break;
         case "zeroing":
@@ -447,14 +446,18 @@ function drawCalibration(options = {}) {
             }
         }
         // One view polls at a time: the one on the page takes the poll over from any drawn before it. It polls with no
-        // part running too, so a part started on the unit's screen or another browser is seen within 2 s
+        // part running too, so a part started on the unit's screen or another browser is seen within 2 s. A view drawn
+        // before its page is shown (a page is read whole, then shown) takes it once shown; one never shown, never
         const period = cal.state !== "idle" ? 500 : 2000;
-        if (box.isConnected && (calibrationOwner !== box || calibrationPeriod !== period)) {
-            stopCalibrationPoll();
-            calibrationOwner = box;
-            calibrationPeriod = period;
-            calibrationTimer = setInterval(refresh, period);
-        }
+        const follow = () => {
+            if (box.isConnected && (calibrationOwner !== box || calibrationPeriod !== period)) {
+                stopCalibrationPoll();
+                calibrationOwner = box;
+                calibrationPeriod = period;
+                calibrationTimer = setInterval(refresh, period);
+            }
+        };
+        box.isConnected ? follow() : setTimeout(follow, 0);
     };
     const refresh = async () => {
         if (pageShown !== page || (drawnKey !== null && !box.isConnected)) {
@@ -466,12 +469,14 @@ function drawCalibration(options = {}) {
         const reply = await api("GET", CALIBRATION);
         if (reply.ok) {
             draw(reply.data);
-        } else {
-            drawnKey = null;
+        } else if (drawnKey === null) {
             box.replaceChildren(element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
         }
+        // A read that fails once something is shown keeps it: the link's banner says the unit was not reached
+        return reply.ok;
     };
-    refresh();
+    box.ready = refresh();      // its first read (true when it was read), which the page waits for: the cards are shown
+                                // with their records
     return box;
 }
 
@@ -480,18 +485,24 @@ async function drawSettingsPart(key, hooks) {
     const pane = element("section", {class: "detail"},
                          element("a", {href: "#settings", class: "back"}, "‹ Settings"),
                          element("h2", {}, part.label));
+    // The calibration read with the forms and shown with them, never filled in after them (what is under it would move)
+    const calibration = key === "calibration" ? drawCalibration() : null;
     const forms = [];
+    let failed = false;
     for (const path of part.paths) {
         const reply = await api("GET", path);
+        failed ||= !reply.ok;
         forms.push(reply.ok ? await drawForm(path, reply.data, hooks)
                             : element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
     }
     if (part.titles) {
         pane.append(drawSwitch(part, forms));
     }
-    if (key === "calibration") {
-        pane.append(drawCalibration());
+    if (calibration !== null) {
+        failed ||= !await calibration.ready;
+        pane.append(calibration);
     }
+    pane.failed = failed;       // a part read again that failed is not shown: the one shown stays
     if (key === "gate") {
         // The gate's actions with its resource (README, "Handed on by ADR-010"); its Fitted, below, changes them
         const control = drawGateControl();
@@ -518,8 +529,10 @@ onUnit("event", (event) => {
 onUnit("afresh", () => pageShown === "settings" && route());
 
 PAGES.settings = {
+    drawing: 0,
     async enter(rest) {
         const page = $("page-settings");
+        const drawing = ++this.drawing;     // the latest read alone is shown: one that ends after a newer is dropped
         await readCarries();
         const all = await api("GET", "/api/v1/settings");
         const resources = all.ok ? all.data.resources : {};
@@ -529,9 +542,25 @@ PAGES.settings = {
             const first = SETTINGS_PARTS.find((p) => p.paths.some((path) => resources[path]));
             key = first ? first.key : null;
         }
-        page.dataset.open = key ? "part" : "list";
         const master = element("div", {class: "master"}, await drawSettingsList(resources, key));
-        page.replaceChildren(master);
+        if (drawing !== this.drawing) {
+            return;
+        }
+        // The part shown, read again (another client's write, a calibration kept): it stays as it is until the new is
+        // read whole, then the two are swapped, so nothing goes blank or moves meanwhile (web-ui-design, rule 17). A part
+        // newly asked for replaces the last at once, the list first, the part when it is read
+        const again = key !== null && page.dataset.key === key;
+        if (again && !all.ok) {
+            return;             // what is shown stays; the link's banner says the unit was not reached (rule 9)
+        }
+        const show = (...parts) => {
+            page.dataset.open = key ? "part" : "list";
+            page.dataset.key = key || "";
+            page.replaceChildren(...parts);
+        };
+        if (!again) {
+            show(master);
+        }
         if (key) {
             // A change shows in the list at once: its row's "Not stored" from the write's own reply, nothing read again
             const hooks = {
@@ -544,7 +573,11 @@ PAGES.settings = {
                 },
                 reload: () => route(),
             };
-            page.append(await drawSettingsPart(key, hooks));
+            const part = await drawSettingsPart(key, hooks);
+            if (drawing !== this.drawing || (again && part.failed)) {
+                return;
+            }
+            again ? show(master, part) : page.append(part);
         }
     },
     leave() {
