@@ -581,3 +581,9 @@ Both boards build with it (the Pico W 98.5% of its flash, 99.6% of its RAM).
 - **Verdict: pass.**
 
 **For gate 3:** the controller holds about 30 KB (31,160 bytes on the PC, most of it the parcels and readings for the first throw's own fit); where it lives on the unit, and its time each millisecond and each reading on both chips, are gate 3's to place and measure. The Pico W's are the ADR's last.
+
+## 2026-11-26, 00:10 to 00:25: gate 3's plan, drafted
+
+- The owner: "Yes, plan gate 3." Read first: the charge loop (`charge_mode_wait_for_complete`) runs in the job task and wakes only on a reading; the FreeRTOS tick is 1 ms; the heap is 144 KB on the Pico 2 W and 112 KB on the Pico W; the charge settings have a revision and the loader's migration. The plan is in the README, under gate 3: the controller's throw room from the heap during a charge, the carry and the tuner kept in RAM; the loop waking each millisecond; the verdict after the slowest lag and the settle time; the lifted cup; the tuner's kept kp written through the settings by `tuner`, a trial's never; `auto_tune` appended to the charge settings (a layout change, said there); the press after the cup's return, mock-ups first; the controller's time measured.
+- **Today's loop** (asked: kept behind a setting for gate 4's same-day comparison, as the first build's revision had it, or step 2 alone): the owner, "There will be no selection. The user will use the charge control just like the old controller. In terms of the performance comparison, I guess the key criteria is if the auto tune can optimize the PID towards the "better" direction. I don't want to set a "target goal", as we don't touch the controller mechanism, only the parameters are adjusted." Today's loop goes; gate 4 and the step's proof are judged by the tuner's direction, window after window, with no target. Written into the README.
+- The plan waits for the owner's approval.
