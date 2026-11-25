@@ -49,7 +49,11 @@ VARIANTS = {"built": (False, "none", "stay", "up"), "seed": (True, "none", "stay
             "modelled+kd": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0),
             "z1": (True, "none", "stay", "miss", "kp", "counted", 1.0),
             "z1+kd": (True, "none", "stay", "miss", "kp+kd", "counted", 1.0),
-            "fixed": (True, "none", "stay", "miss", None)}
+            "fixed": (True, "none", "stay", "miss", None),
+            # the throw never cut on the forecast, stopped by the reading (the owner, 2026-11-26: "Yes, build it"):
+            # the tuner as it ships with it, and no tuner
+            "shipped": (True, "none", "stay", "miss", "kp+kd", "modelled", 0.0, "reading"),
+            "fixed+reading": (True, "none", "stay", "miss", None, "counted", 0.0, "reading")}
 TARGET = 10.0
 FIRST = 50
 LAST = 100
@@ -58,11 +62,11 @@ LAST = 100
 def case(job: tuple) -> tuple:
     rig_name, start, variant, throws, seed, records = job
     seeded, hold, blind, first, *more = VARIANTS[variant]
-    axes, share, z = (more + ["kp", "counted", 0.0][len(more):])[:3]
+    axes, share, z, cut = (more + ["kp", "counted", 0.0, "forecast"][len(more):])[:4]
     rig = rigs.get_rig(rig_name)
     profile = STARTS[start]
     session = Session(rig, seed)
-    controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=seeded, hold=hold)
+    controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=seeded, hold=hold, cut=cut)
     tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=z, share=share, blind=blind, first=first,
                               axes=axes) if axes else None
     out, errors, times = [], [], []

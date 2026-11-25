@@ -46,8 +46,10 @@ CLOSE_KP = 1e-9
 STEPS = {1: ("first",), 2: ("resting",), 3: ("the base again",), 4: ("kept",), 5: ("the other way",),
          6: ("every way",), 7: ("the gain", "the braking")}
 # The product as it ships (ADR-009, 2026-11-26): step 1's weight a turn seeds the carry; the study of the variants
-# (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw
-PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "modelled"}
+# (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw; the
+# tuner on kp and kd by the share modelled; the throw never cut on the forecast, stopped by the reading
+PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes": "kp+kd", "share": "modelled",
+           "cut": "reading"}
 # The gains thrown from: the owner's Pico W's (gate 1's twin) and the bench's stored profile (gate 4's baseline)
 STARTS = {"owner": AR2209_PICOW_168, "bench": BENCH}
 
@@ -81,7 +83,7 @@ def config_of(profile, records, acceleration_rps2: float) -> Config:
 def python_controller(profile, records, rig):
     """The Python reference as the product ships."""
     return step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=PRODUCT["seed"],
-                       hold=PRODUCT["hold"])
+                       hold=PRODUCT["hold"], cut=PRODUCT["cut"])
 
 
 def build_library() -> None:

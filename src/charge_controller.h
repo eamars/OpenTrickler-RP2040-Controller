@@ -8,8 +8,10 @@
  * Two channels, each a tube:
  * - the coarse is today's: its PID on the reading's error to the target less its threshold, stopped for good once the
  *   reading reaches it, then its back-off;
- * - the fine one's PID works on the forecast's error, within its envelope, and it stops the moment the forecast
- *   reaches the target (each millisecond, not only on a reading). No top-up.
+ * - the fine one's PID works on the forecast's error, within its envelope, and it stops once the reading itself
+ *   reaches the target: the throw is never cut on the forecast (the owner, 2026-11-26: "perhaps just don't cut the
+ *   throw ... push all potential failure mode to overcharge"; "Yes, build it"). Past the forecast's target its PID
+ *   asks nothing and it creeps at its least until the reading shows the target. No top-up.
  * The forecast is the reading plus the fine tube's turns turned out and not yet shown (10 ms parcels of its speed at
  * the motor's ramp, each due after step 1's lag at its flow) times its weight a turn: the median of the last throws'
  * own, carried in RAM from throw to throw; the first throw after a start finds its own once a few tenths of a turn are

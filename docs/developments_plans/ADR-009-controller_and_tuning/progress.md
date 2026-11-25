@@ -881,3 +881,24 @@ From the owner's gains (kp 0.8, kd 15, top 2 rev/s): no tuner 14.2, 14.7, 18.1, 
 The sheet: `research/step2_twin_cut_f2.png` (`step2_twin_traces.py cut`): the three stops on f2 from both starts, 40 throws each. One session is noisier than the study: from the bench's gains its never-cut SD is 0.106 against the forecast's 0.105, one clump landing +0.55 after a 16 s creep.
 
 **Not built into the firmware:** it changes how the controller stops (a mechanism, not a parameter), so it is the owner's decision; with it, the tuner's judgement and the steady offset follow (below, "What is left").
+
+## 2026-11-26, 09:51 to 10:05: never cut the throw early, built (no unit)
+
+**The owner (09:51):** "Yes, build it" (the stop only; the two choices it brings are still the owner's).
+
+**Built:** `charge_controller.c`, both of the fine tube's stops (each millisecond, and each reading) on the reading reaching the target instead of the forecast; the PID and its envelope still on the forecast, so past the forecast's target the fine tube creeps at its least until the reading shows the target. The header says so. `tests/step2_sim.py`'s product: `cut="reading"`.
+
+**Proven with no unit:** `tests/step2_sim.py` VERDICT PASS (the C's stop the Python's on every throw of the four rigs, the tuner the same steps in 12 windows from both starts; under 0% on every rig, alone); `tests/host_test.py` and `tests/calibration_sim.py` PASS; the Pico 2 W's image 55.06% of its slot. The Pico W not built (the owner, 09:37).
+
+**The tuner with it** (`step2_variants.py`, variants `fixed+reading` and `shipped`; 4 sessions of 600, the last 100 throws, SD and mean):
+
+| From the bench's stored gains | No tuner, cut on the forecast | No tuner, never cut | The tuner, never cut (as it ships) |
+|---|---|---|---|
+| f2 | 0.124, +0.032 (under 31%) | 0.110, +0.080 | 0.071, +0.048, no under, 7.0 s |
+| f2 by speed | 0.096, −0.015 | 0.108, +0.084 | 0.105, +0.057 |
+| night | 0.340, +0.391 | 0.275, +0.291 | 0.139, +0.089 |
+| BM2 | 0.133, +0.046 | 0.133, +0.141 | 0.047, +0.034 |
+
+From the owner's gains: no tuner, never cut, SD 0.034, 0.040, 0.047, 0.026 (11.1 to 18.2 s); the tuner, never cut, 0.047, 0.060, 0.059, 0.059 (9.3 to 12.3 s): it still trades the spread for time from narrow gains. With the stop on the reading the tuner and the steady offset do not fight: the tuner takes the offset down (f2 +0.080 to +0.048) and, from the bench's gains, groups tightest on three rigs of four.
+
+**Still the owner's:** whether the steady offset (+0.03 to +0.09 gr) is aimed off; whether the tuner judges the spread with the offset forgiven, or protects narrow hand-tuned gains.
