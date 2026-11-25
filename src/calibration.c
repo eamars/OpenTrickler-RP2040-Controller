@@ -29,6 +29,13 @@
 #define CALIBRATION_STEADY_READINGS 5   // readings that are steady: within two steps of their median
 #define CALIBRATION_STEADY_GR 0.04f
 #define CALIBRATION_LIFTED_GR 2.0f      // the cup lifted: the reading this far below zero, and steady
+#define CALIBRATION_LOST_INTERVALS 10u  // a run with no reading for this many of the scale's intervals, and
+#define CALIBRATION_LOST_MIN_MS 1000u   // never under this, has lost the scale (the charge's rule, ADR-013)
+#define CALIBRATION_FILL_RPS 2.0f       // the coarse tube's speed while it pours the fill
+#define CALIBRATION_FILL_POLL_MS 20     // how often the fill looks at its pour
+#define CALIBRATION_DETENT_TURNS 0.25f  // a detent of the knob while filling
+#define CALIBRATION_FAST_DETENT_TURNS 1.0f
+#define CALIBRATION_FAST_DETENT_MS 80u  // a detent this soon after the last: the knob turned quickly
 #define CALIBRATION_BACK_GR 0.5f        // put back: within this of zero, and steady
 
 extern charge_mode_config_t charge_mode_config;
@@ -223,10 +230,24 @@ static void bench_set_speed(void *ctx, int tube, float rps) {
 }
 
 
+static void fail(const char *failure);
+
+// Why a run ended that the person must hear (the cup lifted, the scale silent); the part then fails with it
+static char bench_trouble[CALIBRATION_FAILURE_LEN] = "";
+
+/*
+ * The run's readings. A reading the cup's own lift under the part's zero is the cup lifted, and no reading for the
+ * scale's lost time is the scale lost: either ends the run (-1, as a stop does) with bench_trouble said, so a lift or
+ * a silent scale never becomes a record (2026-11-25: a cup lifted for 5 s made a lag of 235 gr/s at 0 ms)
+ */
 static int bench_watch(void *ctx, float seconds, calibration_sample_t *out, int room) {
     (void) ctx;
+    uint32_t usual_ms = scale_get_usual_interval_ms();
+    uint64_t lost_us = (uint64_t) (usual_ms * CALIBRATION_LOST_INTERVALS > CALIBRATION_LOST_MIN_MS ?
+                                   usual_ms * CALIBRATION_LOST_INTERVALS : CALIBRATION_LOST_MIN_MS) * 1000u;
     uint64_t start = time_us_64();
     uint64_t end = start + (uint64_t) (seconds * 1e6f);
+    uint64_t last_reading = start;
     int count = 0;
     while (true) {
         if (calibration_should_end()) {
@@ -236,14 +257,25 @@ static int bench_watch(void *ctx, float seconds, calibration_sample_t *out, int 
         if (now >= end) {
             return count;
         }
+        if (now - last_reading >= lost_us) {
+            snprintf(bench_trouble, sizeof(bench_trouble), "Scale: no reading");
+            return -1;
+        }
         uint32_t wait_ms = (uint32_t) ((end - now) / 1000u);
         if (wait_ms > CALIBRATION_READING_WAIT_MS) {
             wait_ms = CALIBRATION_READING_WAIT_MS;
         }
         float reading;
-        if (scale_block_wait_for_next_measurement(wait_ms > 0 ? wait_ms : 1, &reading) && isfinite(reading) &&
-            count < room) {
-            out[count].t_s = (float) (time_us_64() - start) / 1e6f;
+        if (!scale_block_wait_for_next_measurement(wait_ms > 0 ? wait_ms : 1, &reading) || !isfinite(reading)) {
+            continue;
+        }
+        last_reading = time_us_64();
+        if (reading <= -CALIBRATION_LIFTED_GR) {
+            snprintf(bench_trouble, sizeof(bench_trouble), "Cup: lifted mid-run");
+            return -1;
+        }
+        if (count < room) {
+            out[count].t_s = (float) (last_reading - start) / 1e6f;
             out[count].weight = reading;
             count += 1;
         }
@@ -251,10 +283,22 @@ static int bench_watch(void *ctx, float seconds, calibration_sample_t *out, int 
 }
 
 
+// A part's method ended early: a failure the person hears when the watch saw trouble, else a stop or a fault
+static void ended_early(void) {
+    if (bench_trouble[0] != '\0' && !ending) {
+        fail(bench_trouble);
+    }
+}
+
+
 static bool bench_cup_full(void *ctx, float held, float most) {
     (void) ctx;
+    // Said against the cup's capacity, as a person knows it (the next run's most, held + most, read as a capacity)
+    (void) most;
+    float capacity = charge_mode_config.eeprom_charge_mode_data.cup_capacity;
+    capacity = capacity > 0.0f ? capacity : CALIBRATION_DEFAULT_CAPACITY;
     char line[40];
-    snprintf(line, sizeof(line), "It holds %.0f of %.0f", (double) held, (double) (held + most));
+    snprintf(line, sizeof(line), "It holds %.0f of %.0f", (double) held, (double) capacity);
     calibration_step_t was = status.step;
     set_step(CALIBRATION_STEP_PAUSED, line);
     calibration_log(EVENT_PAUSED, ACTIVITY_BY_UNIT, EVENT_REASON_NONE, held);
@@ -333,6 +377,58 @@ static void fail(const char *failure) {
 }
 
 
+// The fill: the coarse tube turns while a pour has turns to go (each counted down by its speed and the time), until
+// the person says Full; the tubes still after it. ANSWER_FULL, or ANSWER_NONE when the job is to end
+static float pour_left = 0.0f;
+static uint64_t last_detent_us = 0;
+
+static answer_t fill_until_full(void) {
+    float rps = fminf(CALIBRATION_FILL_RPS, (float) get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR));
+    uint64_t last = time_us_64();
+    bool turning = false;
+    answer_t given = ANSWER_NONE;
+    activity_lock();
+    pour_left = 0.0f;
+    answer_given = ANSWER_NONE;
+    activity_unlock();
+    while (!calibration_should_end()) {
+        uint64_t now = time_us_64();
+        float elapsed = (float) (now - last) / 1e6f;
+        last = now;
+        activity_lock();
+        if (turning) {
+            pour_left -= rps * elapsed;
+        }
+        if (pour_left < 0.0f) {
+            pour_left = 0.0f;
+        }
+        bool pour = pour_left > 0.0f;
+        status.pouring = pour;
+        status.pour_turns = pour_left;
+        if (answer_given == ANSWER_FULL) {
+            given = ANSWER_FULL;
+        }
+        answer_given = ANSWER_NONE;
+        activity_unlock();
+        if (given == ANSWER_FULL) {
+            break;
+        }
+        if (pour != turning) {
+            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, pour ? rps : 0.0f);
+            turning = pour;
+        }
+        jobs_wait(CALIBRATION_FILL_POLL_MS);
+    }
+    motor_set_speed(SELECT_BOTH_MOTOR, 0.0f);
+    activity_lock();
+    pour_left = 0.0f;
+    status.pouring = false;
+    status.pour_turns = 0.0f;
+    activity_unlock();
+    return given;
+}
+
+
 static void run_cup(void) {
     if (!cup_on_and_zero()) {
         return;
@@ -350,18 +446,9 @@ static void run_cup(void) {
     if (!wait_steady(put_back, 0, &weight)) {
         return;
     }
-    // Filled by the person, the tubes' speeds set from the screen, the API or the console
-    activity_lock();
-    status.fine_rps = 0.0f;
-    status.coarse_rps = 0.0f;
-    activity_unlock();
-    set_step(CALIBRATION_STEP_FILL, "Fill the cup");
-    answer_t given = wait_answer(ANSWER_FULL, ANSWER_NONE);
-    motor_set_speed(SELECT_BOTH_MOTOR, 0.0f);
-    activity_lock();
-    status.fine_rps = 0.0f;
-    status.coarse_rps = 0.0f;
-    activity_unlock();
+    // Filled by the person, a pour at a time from the knob, the web, the API or the console
+    set_step(CALIBRATION_STEP_FILL, "Turn the knob to pour");
+    answer_t given = fill_until_full();
     if (given == ANSWER_NONE) {
         return;
     }
@@ -417,6 +504,7 @@ static void run_scale(void) {
     set_step(CALIBRATION_STEP_RUNNING, "");
     calibration_scale_record_t record;
     if (calibration_scale_part(&unit_bench, &record) == CALIBRATION_STOPPED) {
+        ended_early();
         return;
     }
     activity_lock();
@@ -448,11 +536,13 @@ static void run_powder(void) {
     if (calibration_speeds_part(&unit_bench, CALIBRATION_FINE, get_motor_min_speed(SELECT_FINE_TRICKLER_MOTOR),
                                 get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR), &scale, &fine) ==
         CALIBRATION_STOPPED) {
+        ended_early();
         return;
     }
     if (calibration_speeds_part(&unit_bench, CALIBRATION_COARSE, get_motor_min_speed(SELECT_COARSE_TRICKLER_MOTOR),
                                 get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR), &scale, &coarse) ==
         CALIBRATION_STOPPED) {
+        ended_early();
         return;
     }
     activity_lock();
@@ -501,6 +591,7 @@ uint8_t calibration_job_run(void) {
     status.was_fine_rps = NAN;
     status.was_coarse_rps = NAN;
     answer_given = ANSWER_NONE;
+    bench_trouble[0] = '\0';
     running = true;
     activity_unlock();
     activity_job_begin(ACTIVITY_CALIBRATION);
@@ -603,22 +694,26 @@ calibration_answer_result_t calibration_answer(const char *answer, activity_by_t
 }
 
 
-bool calibration_set_fill(float fine_rps, float coarse_rps) {
+bool calibration_pour(float turns) {
     activity_lock();
-    bool filling = running && status.step == CALIBRATION_STEP_FILL;
+    bool filling = running && status.step == CALIBRATION_STEP_FILL && isfinite(turns) && turns > 0.0f;
     if (filling) {
-        if (isfinite(fine_rps)) {
-            status.fine_rps = fminf(fmaxf(fine_rps, 0.0f), (float) get_motor_max_speed(SELECT_FINE_TRICKLER_MOTOR));
-            motor_set_speed(SELECT_FINE_TRICKLER_MOTOR, status.fine_rps);
-        }
-        if (isfinite(coarse_rps)) {
-            status.coarse_rps = fminf(fmaxf(coarse_rps, 0.0f),
-                                      (float) get_motor_max_speed(SELECT_COARSE_TRICKLER_MOTOR));
-            motor_set_speed(SELECT_COARSE_TRICKLER_MOTOR, status.coarse_rps);
-        }
+        pour_left = fminf(pour_left + turns, CALIBRATION_POUR_MOST_TURNS);
+        status.pour_turns = pour_left;
     }
     activity_unlock();
+    if (filling) {
+        jobs_wake();
+    }
     return filling;
+}
+
+
+bool calibration_pour_detent(void) {
+    uint64_t now = time_us_64();
+    bool quick = now - last_detent_us < (uint64_t) CALIBRATION_FAST_DETENT_MS * 1000u;
+    last_detent_us = now;
+    return calibration_pour(quick ? CALIBRATION_FAST_DETENT_TURNS : CALIBRATION_DETENT_TURNS);
 }
 
 
@@ -748,12 +843,12 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
                   "@err not_now calibrate answer %s"), given);
         return result == CALIBRATION_ANSWER_OK;
     }
-    if (strcmp(word, "fill") == 0) {
+    if (strcmp(word, "pour") == 0) {
         char *end;
-        float fine = strtof(rest, &end);
-        float coarse = end != rest ? strtof(end, NULL) : NAN;
-        bool ok = end != rest && calibration_set_fill(fine, coarse);
-        snprintf(reply, reply_size, ok ? "@ok calibrate fill" : "@err not_filling calibrate fill");
+        float turns = strtof(rest, &end);
+        bool ok = end != rest && calibration_pour(turns);
+        snprintf(reply, reply_size, ok ? "@ok calibrate pour %.2f" : "@err not_filling calibrate pour",
+                 (double) turns);
         return ok;
     }
     if (strcmp(word, "save") == 0) {
@@ -766,6 +861,6 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
         snprintf(reply, reply_size, "@ok calibrate stop stopped=%d", stopped ? 1 : 0);
         return true;
     }
-    snprintf(reply, reply_size, "@err usage calibrate [cup|scale|powder|answer <word>|fill <fine> <coarse>|save|stop]");
+    snprintf(reply, reply_size, "@err usage calibrate [cup|scale|powder|answer <word>|pour <turns>|save|stop]");
     return false;
 }

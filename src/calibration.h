@@ -2,7 +2,8 @@
 #define CALIBRATION_H_
 /*
  * ADR-009 step 1: the calibration as a job on the unit (gate 3). Its three parts, each run alone:
- * - the cup: put on the scale empty and zeroed, lifted for its weight, put back, filled by the person with the tubes'
+ * - the cup: put on the scale empty and zeroed, lifted for its weight, put back, filled by the person turning the coarse
+ *   tube with the knob (or the web's Hold to pour), each detent a bounded pour, until
  *   speeds until it holds as much as they want, its capacity kept, emptied;
  * - the scale: its settle time and its lag (calibration_method.c);
  * - a powder, the one the charge uses: each tube's least speed (calibration_method.c).
@@ -34,7 +35,7 @@ typedef enum {
     CALIBRATION_STEP_ZEROING,   // the scale zeroed with it
     CALIBRATION_STEP_LIFT,      // the cup's part: lifted, its weight read
     CALIBRATION_STEP_BACK,      // put back
-    CALIBRATION_STEP_FILL,      // filled by the person, the tubes' speeds set: answer full
+    CALIBRATION_STEP_FILL,      // filled by the person, a pour at a time (calibration_pour): answer full
     CALIBRATION_STEP_KEEP,      // its capacity shown: answer keep
     CALIBRATION_STEP_EMPTY,     // emptied and put back: answer done
     CALIBRATION_STEP_RUNNING,   // the scale's or a powder's runs
@@ -53,8 +54,8 @@ typedef struct {
     int progress;               // 0 to 100, while running
     char line[40];              // what it does, in words: "Fine tube 0.12 rev/s", "It holds 148 of 150"
     float weight;               // the scale's reading now
-    float fine_rps;             // the fill's speeds
-    float coarse_rps;
+    bool pouring;               // the fill: the coarse tube turning a pour
+    float pour_turns;           // the fill: its turns still to go
     float capacity;             // the cup's, as filled (keep); NAN before
     float cup_weight;           // as lifted; NAN before
     calibration_scale_record_t scale;       // the scale's records found (result)
@@ -91,8 +92,15 @@ uint8_t calibration_job_run(void);
 // The person's answer at a step: "next", "full", "keep", "done", "go_on"
 calibration_answer_result_t calibration_answer(const char *answer, activity_by_t by);
 
-// The fill's speeds, either or both (NAN: as it is), within each motor's limits; false when not filling
-bool calibration_set_fill(float fine_rps, float coarse_rps);
+/*
+ * The fill: turns of the coarse tube added to the pour under way, at most CALIBRATION_POUR_MOST_TURNS held, so the tube
+ * stops within about a second of the last; false when not filling or turns not above 0 (the owner, 2026-11-25: the
+ * knob tied to the tube's motion, not its speed). The knob's detent: a quarter turn, a whole one when it follows the
+ * last within CALIBRATION_FAST_DETENT_MS
+ */
+#define CALIBRATION_POUR_MOST_TURNS 2.0f
+bool calibration_pour(float turns);
+bool calibration_pour_detent(void);
 
 // The records found kept and stored (the result step); false at another step or when a write failed
 bool calibration_save(activity_by_t by);
@@ -105,7 +113,7 @@ const char *calibration_step_name(calibration_step_t step);
 calibration_part_t calibration_part_from_name(const char *name);
 
 // The console's `calibrate`: alone, the state; <cup|scale|powder [profile]> starts a part; answer <word>;
-// fill <fine> <coarse>; save; stop. "@ok ..." or "@err ..."
+// pour <turns>; save; stop. "@ok ..." or "@err ..."
 bool calibration_console(const char *args, char *reply, size_t reply_size);
 
 #ifdef __cplusplus

@@ -134,14 +134,15 @@ PAGES.powders = {
                 reload: () => route(),
             };
             pane.append(await drawForm(`/api/v1/powder_profiles/${chosen}`, reply.data, hooks));     // features: 63
-            // ADR-009 step 1: this powder's calibration, its least speeds into the fields above once kept: its steps
-            // here while it runs, its start among the powder's actions
+            // ADR-009 step 1: this powder's calibration, its least speeds into the fields above once kept: its start
+            // among the powder's actions, its steps in their place while it runs (web-ui-design, rule 17)
             const calibrate = element("button", {class: "ghost", type: "button"}, "Calibrate this powder");
-            pane.append(drawCalibration({profile: chosen, page: "powders", start: calibrate, saved: () => route()}));
             const files = element("div", {class: "button-row"}, calibrate,
                                   element("button", {class: "ghost", type: "button", onclick: () => exportPowder(chosen)}, "Export this powder"),
                                   element("button", {class: "ghost", type: "button", onclick: () => importPowder(chosen)}, "Import into this powder"));
             pane.append(files);
+            pane.append(drawCalibration({profile: chosen, page: "powders", start: calibrate, row: files,
+                                         saved: () => route()}));
         } else {
             pane.append(element("p", {class: "hint"}, `Not read: ${refusalText(reply)}`));
         }

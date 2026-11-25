@@ -6,8 +6,10 @@ parity_12864.py), onto one sheet.
     venv\\Scripts\\python tools\\ui_mock\\calibration_12864.py [--out <folder>]
 
 The calibration has three parts, each run alone (the cup, the scale, a powder), each a row of its own page. Its
-screens are of the seven kinds the skill allows: lists, dialogs, jobs, notes and one control (the cup filled by the
-tubes' speeds set in place, as the purge's). The figures are the bench's of 2026-11-25 (ADR-009's progress).
+screens are of the seven kinds the skill allows: lists, dialogs, jobs and notes. The cup is filled by the knob itself
+(the owner, 2026-11-25: "tie the rotary button to the motion of the two tubes ... not ... the speed, but position"):
+a job whose turn pours, each detent the coarse tube a quarter turn, and whose click is Full. The figures are the
+bench's of 2026-11-25 (ADR-009's progress).
 """
 import argparse
 import sys
@@ -26,27 +28,21 @@ POWDER_RESULT = [("Fine tube", "bold"), ("Minimum", "0.02 rev/s", "pair"), ("Was
 DEFAULT_OUT = REPO / "docs" / "developments_plans" / "ADR-009-controller_and_tuning" / "mockups"
 
 
-def fill_control(panel, weight, flow, fine, coarse, focus, editing=False):
+def fill_job(panel, weight):
     """
-    The cup filled by the user: the purge's control, its line the cup's weight and flow, the tubes' speeds as rows
-    set in place, Cancel and Full as its softkeys. The turn goes the title, Fine tube, Coarse tube, Cancel, Full.
+    The cup filled by the knob: a job whose title is what the person does, its figure the powder in the cup, its line
+    what the knob does now. Each detent clockwise turns the coarse tube a quarter turn (a whole turn when the knob is
+    turned quickly), at most about a second of turning held, so the tube stops when the knob does; the other way does
+    nothing. The turn pours instead of moving between the softkeys: the click is Full (drawn focused), Back is Cancel.
 
     Args:
         panel: the Panel.
-        weight, flow: the line to read.
-        fine, coarse: the tubes' speeds.
-        focus: "title", "fine", "coarse", "cancel" or "full".
-        editing: whether the focused speed is being set.
+        weight: the figure, the powder in the cup.
     """
-    m.title(panel, "Fill the cup", back=True)
-    if focus == "title":
-        par.title_focused(panel, "Fill the cup")
-    panel.text(m.TEXT, 3, m.CONTENT_TOP + m.DENSE_BASE, weight)
-    panel.text(m.TEXT, 0, m.CONTENT_TOP + m.DENSE_BASE, flow, align="right", right=W - 3)
-    order = {"fine": 0, "coarse": 1}
-    par.rows(panel, [("Fine tube", fine, False), ("Coarse tube", coarse, False)], order.get(focus), editing=editing,
-             top=m.CONTENT_TOP + m.DENSE_H + 1, shown=2)
-    m.softkeys(panel, "Cancel", "Full", focus={"cancel": "left", "full": "right"}.get(focus))
+    m.title(panel, "Fill the cup")
+    m.figure(panel, weight, "gr")
+    m.context(panel, "Turn the knob to pour")
+    m.softkeys(panel, "Cancel", "Full", focus="right")
 
 
 def screens():
@@ -74,7 +70,7 @@ def screens():
     add(p, "Settings: Calibration, kept for good")
 
     p = Panel(); m.title(p, "Calibration", back=True)
-    m.rows(p, [("Cup", "150 gr", True), ("Scale", "Not done", True), ("Powder", "AR2209", True)], 1)
+    m.rows(p, [("Cup", "541.48 gr", True), ("Scale", "Not done", True), ("Powder", "AR2209", True)], 1)
     add(p, "Calibration: three parts, each alone")
 
     # --- The cup
@@ -94,21 +90,21 @@ def screens():
     add(p, "Cup: lifted, the reading falls by its weight")
 
     p = Panel(); m.title(p, "Put the cup back")
-    m.figure(p, "-77.30", "gr"); m.context(p, "The cup weighs 77.30 gr")
+    m.figure(p, "-444.91", "gr"); m.context(p, "The cup weighs 444.91 gr")
     m.softkeys(p, "Cancel", "", focus="left")
     add(p, "Cup: its weight found, back on the pan")
 
-    p = Panel(); fill_control(p, "0.00 gr", "0.00 gr/s", "0.0 rev/s", "0.0 rev/s", "coarse")
-    add(p, "Fill: the purge's control")
+    p = Panel(); fill_job(p, "0.00")
+    add(p, "Fill: the knob pours, the click is Full")
 
-    p = Panel(); fill_control(p, "112.40 gr", "9.60 gr/s", "0.0 rev/s", "1.0 rev/s", "coarse", editing=True)
-    add(p, "Fill: the coarse tube set live")
+    p = Panel(); fill_job(p, "318.60")
+    add(p, "Fill: a detent a quarter turn; stops with it")
 
-    p = Panel(); fill_control(p, "150.20 gr", "0.00 gr/s", "0.0 rev/s", "0.0 rev/s", "full")
-    add(p, "Fill the cup: as full as wanted, Full")
+    p = Panel(); fill_job(p, "541.48")
+    add(p, "Fill: as full as wanted, then click")
 
     p = Panel(); m.title(p, "Cup")
-    m.message(p, "It holds 150.20 gr", "Keep it as its capacity?")
+    m.message(p, "It holds 541.48 gr", "Keep it as its capacity?")
     m.softkeys(p, "Cancel", "Keep")
     add(p, "Cup: the capacity confirmed")
 

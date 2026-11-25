@@ -1792,23 +1792,13 @@ static void cleanup_key(frame_t *frame, menu_key_t key) {
 
 /*
  * The calibration's job (ADR-009 step 1, gate 4): each step its own screen, as mocked (calibration_12864.py). The
- * steps that ask the person are dialogs, Cancel or Stop at the left and the answer at the right; the cup's fill is
- * the purge's control, the tubes' speeds set in place; the records found are notes ending in Keep or Save; the
+ * steps that ask the person are dialogs, Cancel or Stop at the left and the answer at the right; the cup's fill is a
+ * job whose turn pours (each detent a bounded pour of the coarse tube) and whose click is Full (the owner,
+ * 2026-11-25); the records found are notes ending in Keep or Save; the
  * others a job's screen, the weight or how far it is as the figure. Back stops it at any step, discarding what was
  * not kept.
  */
 #define CALIBRATION_NOTES_LINES 4       // the 12864's lines of notes (menu_view_12864.c)
-#define CALIBRATION_FINE_STEP 0.1f      // a detent of the fill's fine tube, and of its coarse, rev/s
-#define CALIBRATION_COARSE_STEP 0.5f
-
-// The fill's focus: the title (Back), the tubes' rows, the softkeys
-enum {
-    CAL_FILL_TITLE = -1,
-    CAL_FILL_FINE = 0,
-    CAL_FILL_COARSE,
-    CAL_FILL_CANCEL,
-    CAL_FILL_FULL,
-};
 
 // The right softkey's word at a step and the answer it sends; NULL where the step waits for nothing of the person
 static const char *calibration_answer_label(const calibration_status_t *cal, const char **answer) {
@@ -1919,7 +1909,7 @@ static void calibration_step_seen(frame_t *frame, const calibration_status_t *ca
     frame->editing = false;
     frame->first = 0;
     frame->at_end = false;
-    frame->focus = CAL_FILL_FINE;
+    frame->focus = 0;
     frame->softkey = calibration_answer_label(cal, NULL) != NULL ? 1 : 0;
 }
 
@@ -1936,38 +1926,13 @@ static void calibration_key(frame_t *frame, menu_key_t key) {
     }
 
     if (cal.step == CALIBRATION_STEP_FILL) {
-        if (frame->editing) {
-            if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
-                float sign = key == MENU_KEY_NEXT ? 1.0f : -1.0f;
-                if (frame->focus == CAL_FILL_FINE) {
-                    calibration_set_fill(cal.fine_rps + sign * CALIBRATION_FINE_STEP, NAN);
-                }
-                else {
-                    calibration_set_fill(NAN, cal.coarse_rps + sign * CALIBRATION_COARSE_STEP);
-                }
-            }
-            else {
-                frame->editing = false;
-            }
-            return;
+        // The knob pours: a detent clockwise turns the coarse tube a bounded pour, the other way nothing; the click
+        // is Full, Back is Cancel (above)
+        if (key == MENU_KEY_NEXT) {
+            calibration_pour_detent();
         }
-        if (key == MENU_KEY_NEXT || key == MENU_KEY_PREV) {
-            int focus = frame->focus + (key == MENU_KEY_NEXT ? 1 : -1);
-            frame->focus = (int8_t) (focus < CAL_FILL_TITLE ? CAL_FILL_TITLE : (focus > CAL_FILL_FULL ? CAL_FILL_FULL :
-                                                                                focus));
-            return;
-        }
-        switch (frame->focus) {
-            case CAL_FILL_FINE:
-            case CAL_FILL_COARSE:
-                frame->editing = true;
-                break;
-            case CAL_FILL_FULL:
-                calibration_answer("full", ACTIVITY_BY_BUTTON);
-                break;
-            default:
-                activity_request_stop(ACTIVITY_CALIBRATION, ACTIVITY_BY_BUTTON);    // the title, or Cancel
-                break;
+        else if (key == MENU_KEY_ENTER) {
+            calibration_answer("full", ACTIVITY_BY_BUTTON);
         }
         return;
     }
@@ -2940,33 +2905,16 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
             format_weight(cal.cup_weight, weight, sizeof(weight));
             snprintf(screen->context, MENU_TEXT, "The cup weighs %s%s%s", weight, space, unit);
             break;
-        case CALIBRATION_STEP_FILL: {
-            // The purge's control: the weight and its flow to read, the tubes' speeds set in place
-            screen->kind = MENU_SCREEN_CONTROL;
+        case CALIBRATION_STEP_FILL:
+            // A job whose turn pours: the powder in the cup as the figure, what the knob does under it; Full is the
+            // click, so it is drawn focused (the owner, 2026-11-25: the knob tied to the tube's motion)
             snprintf(screen->title, sizeof(screen->title), "Fill the cup");
-            screen->title_back = true;
-            format_weight(cal.weight, weight, sizeof(weight));
-            snprintf(line, sizeof(line), "%s%s%s", weight, space, unit);
-            char flow[MENU_TEXT] = "";
-            if (isfinite(flow_per_s)) {
-                snprintf(flow, sizeof(flow), "%.2f%s%s/s", (double) flow_per_s, space, unit);
-            }
-            screen->row_info[0] = true;
-            screen_row(screen, line, flow, false);
-            snprintf(line, sizeof(line), "%.1f rev/s", (double) cal.fine_rps);
-            screen_row(screen, "Fine tube", line, false);
-            snprintf(line, sizeof(line), "%.1f rev/s", (double) cal.coarse_rps);
-            screen_row(screen, "Coarse tube", line, false);
+            calibration_weight_figure(screen, cal.weight);
+            snprintf(screen->context, MENU_TEXT, "Turn the knob to pour");
             snprintf(screen->softkey_left, MENU_TEXT, "Cancel");
             snprintf(screen->softkey_right, MENU_TEXT, "Full");
-            // The focus: -1 the title, 1 and 2 the rows (row 0 is the line to read), 3 the softkeys
-            screen->focus = (int8_t) (frame->focus == CAL_FILL_TITLE ? -1 :
-                                      (frame->focus <= CAL_FILL_COARSE ? frame->focus + 1 : 3));
-            screen->softkey_focus = (int8_t) (frame->focus == CAL_FILL_CANCEL ? 0 :
-                                              (frame->focus == CAL_FILL_FULL ? 1 : -1));
-            screen->editing = frame->editing;
+            screen->softkey_focus = 1;
             return;
-        }
         case CALIBRATION_STEP_KEEP:
             format_weight(cal.capacity, weight, sizeof(weight));
             snprintf(line, sizeof(line), "It holds %s%s%s", weight, space, unit);

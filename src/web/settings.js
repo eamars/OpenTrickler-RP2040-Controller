@@ -127,7 +127,10 @@ function drawGateControl() {
 // (tools/ui_mock/calibration_12864.py), on the unit's API (api_v1.md, Calibration; calibration.c). The stand-in plays
 // it with no unit (tests/calibration_mock.py)
 const CALIBRATION = "/api/v1/calibration";
-const FILL_STEP = {fine: 0.1, coarse: 0.5};
+// The fill's Hold to pour: half a turn of the coarse tube every quarter second while held, the fill's own 2 rev/s, so
+// it pours steadily and the unit (which holds at most 2 turns) stops within about half a second of the release
+const POUR_TURNS = 0.5;
+const POUR_EVERY_MS = 250;
 let calibrationTimer = null;
 let calibrationOwner = null;    // the view whose card the poll draws into: one at a time
 let calibrationPeriod = null;   // its poll's period, in ms
@@ -159,29 +162,11 @@ function line(label, value) {
     return element("div", {class: "field inline"}, element("span", {}, label), element("output", {}, value));
 }
 
-// The fill's flow, from the weight's change over a second or more, as the 12864 shows it
-const flowSeen = {weight: null, at: 0, perS: null};
-function flowOf(weight) {
-    const now = Date.now();
-    if (flowSeen.weight === null || weight < flowSeen.weight - 1) {
-        Object.assign(flowSeen, {weight, at: now, perS: null});
-    } else if (now - flowSeen.at >= 1000) {
-        Object.assign(flowSeen, {perS: (weight - flowSeen.weight) * 1000 / (now - flowSeen.at), weight, at: now});
-    }
-    return flowSeen.perS;
-}
-
 // What changes within a step, as the unit says it: drawn into the step's card in place, never by rebuilding it
 function liveValues(cal) {
     const live = {};
     if (["zeroing", "lift", "back", "fill"].includes(cal.step)) {
         live.figure = cal.weight.toFixed(2);
-    }
-    if (cal.step === "fill") {
-        const flow = flowOf(cal.weight);
-        live.note = `${flow === null ? "-.--" : flow.toFixed(2)} gr/s. Pour until the cup holds as much as you want it to.`;
-        live.fine = `${cal.fine_rps.toFixed(1)} rev/s`;
-        live.coarse = `${cal.coarse_rps.toFixed(1)} rev/s`;
     }
     if (cal.step === "running") {
         live.figure = String(cal.progress);
@@ -192,17 +177,16 @@ function liveValues(cal) {
 }
 
 /*
- * The calibration's cards and its job's. In Settings (no options): the cup's and the scale's, a part's job whichever
- * runs, and where a powder is calibrated. On a powder's page ({profile, page: "powders", start, saved}): its job while
- * it runs, and start, the page's own button among the powder's actions, which starts it and is off while any part
- * runs; saved() once its records are kept, so its form shows them
+ * The calibration's cards and its job's. In Settings (no options): the cup's and the scale's, and where a powder is
+ * calibrated; a part's steps run in its own card, where its Calibrate button was (web-ui-design, rule 17: nothing
+ * above them moves). On a powder's page ({profile, page: "powders", start, row, saved}): its steps while it runs, in
+ * the place of row, the powder's actions (hidden meanwhile), and start, the page's own button among them, which starts
+ * it and is off while any part runs; saved() once its records are kept, so its form shows them
  */
 function drawCalibration(options = {}) {
     const forPowder = options.profile !== undefined;
     const page = options.page || "settings";
     const box = element("div", {class: "calibration"});
-    const fill = {fine: 0, coarse: 0};  // the fill's speeds as asked, ahead of the unit's reply: two quick taps are two
-    let asking = 0;                     // the fill's writes not yet answered
     let drawnKey = null;                // the step and the records the cards were built for
     const send = async (method, path, body) => {
         const reply = await api(method, path, body);
@@ -215,18 +199,55 @@ function drawCalibration(options = {}) {
     const stop = () => send("POST", `${CALIBRATION}/stop`, {});
     const button = (text, kind, act) => element("button", {class: kind, type: "button", onclick: act}, text);
     const cancel = () => button("Cancel", "ghost", stop);
-    const setFill = async (tube, delta) => {
-        fill[tube] = Math.round(Math.max(0, fill[tube] + delta) * 10) / 10;
-        asking += 1;
-        try {
-            await send("PATCH", `${CALIBRATION}/fill`, {[`${tube}_rps`]: fill[tube]});
-        } finally {
-            asking -= 1;
+    // The fill's key: pours while it is held (a finger, the mouse, or Space and Enter), never after; a step that
+    // replaces it under the finger stops it too
+    const holdToPour = () => {
+        const key = element("button", {class: "action ghost hold", type: "button"}, "Hold to pour");
+        let timer = null;
+        const end = () => {
+            if (timer !== null) {
+                clearInterval(timer);
+                timer = null;
+            }
+            key.classList.remove("held");
+        };
+        const pour = () => {
+            if (!key.isConnected) {
+                end();
+                return;
+            }
+            api("POST", `${CALIBRATION}/pour`, {turns: POUR_TURNS});
+        };
+        const begin = (event) => {
+            event.preventDefault();
+            if (timer === null) {
+                key.classList.add("held");
+                pour();
+                timer = setInterval(pour, POUR_EVERY_MS);
+            }
+        };
+        key.addEventListener("pointerdown", begin);
+        // A finger lifted or slid off the key, or the page left: the pour stops
+        for (const name of ["pointerup", "pointercancel", "pointerleave", "blur"]) {
+            key.addEventListener(name, end);
         }
+        key.addEventListener("keydown", (event) => {
+            if ((event.key === " " || event.key === "Enter") && !event.repeat) {
+                begin(event);
+            }
+        });
+        key.addEventListener("keyup", (event) => {
+            if (event.key === " " || event.key === "Enter") {
+                end();
+            }
+        });
+        key.addEventListener("contextmenu", (event) => event.preventDefault());
+        return key;
     };
 
-    const jobCard = (cal) => {
-        const card = element("div", {class: "fields calibration-job", "aria-live": "polite"});
+    const jobCard = (cal, inCard) => {
+        const card = element("div", {class: inCard ? "calibration-job in-card" : "fields calibration-job",
+                                     "aria-live": "polite"});
         const head = (status) => card.append(element("div", {class: "status"}, element("span", {}, status)));
         const figure = (unit) => card.append(
             element("div", {class: "figure-line"}, element("span", {class: unit === "%" ? "figure short" : "figure",
@@ -264,19 +285,11 @@ function drawCalibration(options = {}) {
             actions(cancel());
             break;
         case "fill":
+            // As at the unit, where the knob pours (the owner, 2026-11-25): the key pours while held
             head("Fill the cup");
             figure("gr");
-            note();
-            for (const tube of ["fine", "coarse"]) {
-                card.append(element("div", {class: "field"},
-                                    element("label", {}, tube === "fine" ? "Fine tube" : "Coarse tube"),
-                                    element("div", {class: "stepper"},
-                                            element("button", {class: "key", type: "button", "aria-label": "Slower",
-                                                               onclick: () => setFill(tube, -FILL_STEP[tube])}, "−"),
-                                            element("output", {class: "gate-open", "data-live": tube}),
-                                            element("button", {class: "key", type: "button", "aria-label": "Faster",
-                                                               onclick: () => setFill(tube, FILL_STEP[tube])}, "+"))));
-            }
+            note("Hold the key to pour, until the cup holds as much as you want it to.");
+            card.append(holdToPour());
             actions(cancel(), button("Full", "action go", () => answer("full")));
             break;
         case "keep":
@@ -336,26 +349,28 @@ function drawCalibration(options = {}) {
         return card;
     };
 
-    const cards = (cal) => {
+    const cards = (cal, job) => {
         const busy = cal.state !== "idle";
         const start = (part, text, extra = {}) =>
             element("button", {class: "ghost", type: "button", disabled: busy,
                                onclick: () => send("POST", `${CALIBRATION}/start`, {part, ...extra})}, text);
         if (forPowder) {
-            return [];          // its start is the page's own button (options.start)
+            return job ? [job] : [];        // in the place of the powder's actions (options.row)
         }
         const {cup, scale} = cal.records;
         const lag = scale.lag;
+        // The part that runs shows its steps where its button was; the other's button is off meanwhile
+        const slot = (part, text) => job && cal.part === part ? job : element("div", {class: "field"}, start(part, text));
         return [
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
                     line("Capacity", weightText(cup.capacity)),
                     line("Weight", weightText(cup.weight)),
-                    element("div", {class: "field"}, start("cup", "Calibrate the cup"))),
+                    slot("cup", "Calibrate the cup")),
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Scale"),
                     line("Settle time", msText(scale.settle_ms)),
                     line("Lag, slow flow", lag.length ? msText(lag[0].ms) : "Not done"),
                     line("Lag, fast flow", lag.length ? msText(lag[lag.length - 1].ms) : "Not done"),
-                    element("div", {class: "field"}, start("scale", "Calibrate the scale"))),
+                    slot("scale", "Calibrate the scale")),
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Powders"),
                     element("p", {class: "field-help"}, "A powder is calibrated from its own page."),
                     element("div", {class: "field"}, element("button", {class: "ghost", type: "button",
@@ -374,9 +389,8 @@ function drawCalibration(options = {}) {
         // A powder's page shows its own powder's job alone
         const running = cal.state === "running" && cal.step !== null &&
                         (!forPowder || (cal.part === "powder" && cal.profile === options.profile));
-        if (running && cal.step === "fill" && asking === 0) {
-            fill.fine = cal.fine_rps;
-            fill.coarse = cal.coarse_rps;
+        if (options.row) {
+            options.row.hidden = running;
         }
         // Built again only for a new step or new records; within a step its figures change in place, so a button is
         // never replaced under a finger
@@ -384,10 +398,11 @@ function drawCalibration(options = {}) {
                                     state: cal.state, part: cal.part, profile: cal.profile, records: cal.records});
         if (key !== drawnKey) {
             drawnKey = key;
-            box.replaceChildren(...(running ? [jobCard(cal)] : []), ...cards(cal));
+            const job = running ? jobCard(cal, !forPowder) : null;
+            box.replaceChildren(...cards(cal, job));
             // A new step's question is never left above the screen, where the last step's taller card had it
-            if (running && box.firstChild.getBoundingClientRect().top < 0) {
-                box.firstChild.scrollIntoView({block: "start"});
+            if (job !== null && job.getBoundingClientRect().top < 0) {
+                job.scrollIntoView({block: "start"});
             }
         }
         if (running) {

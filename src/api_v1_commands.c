@@ -523,10 +523,10 @@ static void write_calibration(char *out, size_t room, size_t *len) {
     http_json_string(out, room, len, cal.line);
     http_json_raw(out, room, len, ",\"weight\":");
     http_json_float(out, room, len, cal.weight);
-    http_json_raw(out, room, len, ",\"fine_rps\":");
-    http_json_float(out, room, len, cal.fine_rps);
-    http_json_raw(out, room, len, ",\"coarse_rps\":");
-    http_json_float(out, room, len, cal.coarse_rps);
+    http_json_raw(out, room, len, ",\"pouring\":");
+    http_json_bool(out, room, len, cal.pouring);
+    http_json_raw(out, room, len, ",\"pour_turns\":");
+    http_json_float(out, room, len, cal.pour_turns);
     http_json_raw(out, room, len, ",\"capacity\":");
     http_json_float(out, room, len, cal.capacity);
     http_json_raw(out, room, len, ",\"cup_weight\":");
@@ -692,27 +692,25 @@ static void api_v1_calibration_answer(const http_server_request_t *request, http
 }
 
 
-// PATCH /api/v1/calibration/fill: {"fine_rps": 0.5, "coarse_rps": 1}, either or both
-static void api_v1_calibration_fill(const http_server_request_t *request, http_server_reply_t *reply) {
-    static const char *const allowed[] = {"fine_rps", "coarse_rps"};
+// POST /api/v1/calibration/pour: {"turns": 0.5}, the coarse tube's turns added to the fill's pour
+static void api_v1_calibration_pour(const http_server_request_t *request, http_server_reply_t *reply) {
+    static const char *const allowed[] = {"turns"};
     http_json_member_t members[HTTP_JSON_MEMBERS_MAX];
     size_t count;
-    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 2)) {
+    if (!api_body(request, reply, members, &count) || !api_only(reply, members, count, allowed, 1)) {
         return;
     }
-    float speeds[2] = {NAN, NAN};
-    for (int idx = 0; idx < 2; idx += 1) {
-        const http_json_member_t *member = api_member(members, count, allowed[idx]);
-        double value;
-        if (member != NULL) {
-            if (!http_json_number_value(member, &value)) {
-                api_error(reply, 400, "wrong_type", allowed[idx], "a speed is a number", NULL);
-                return;
-            }
-            speeds[idx] = (float) value;
-        }
+    const http_json_member_t *member = api_member(members, count, "turns");
+    double turns;
+    if (member == NULL || !http_json_number_value(member, &turns)) {
+        api_error(reply, 400, "wrong_type", "turns", "turns are a number", NULL);
+        return;
     }
-    if (!calibration_set_fill(speeds[0], speeds[1])) {
+    if (!(turns > 0.0) || turns > CALIBRATION_POUR_MOST_TURNS) {
+        api_error(reply, 400, "out_of_range", "turns", "above 0, and no more than the pour held", NULL);
+        return;
+    }
+    if (!calibration_pour((float) turns)) {
         api_error(reply, 409, "not_filling", NULL, "the cup is not being filled", NULL);
         return;
     }
@@ -2006,10 +2004,11 @@ static const char *const api_v1_schema_actions[] = {
     "\"refused_while\":\"never\",\"about\":\"the person's answer at a step: next at cup_on, full at fill, keep "
     "at keep, done at empty and failed, go_on at paused. 409 not_now at another step, 409 not_running\","
     "\"example\":{\"answer\":\"next\"}}",
-    "{\"method\":\"PATCH\",\"path\":\"/api/v1/calibration/fill\",\"fields\":[{\"name\":\"fine_rps\","
-    "\"type\":\"number\",\"unit\":\"rev/s\"},{\"name\":\"coarse_rps\",\"type\":\"number\",\"unit\":"
-    "\"rev/s\"}],\"refused_while\":\"never\",\"about\":\"the tubes' speeds while the cup is filled, either or "
-    "both, within each motor's limits; 409 not_filling at another step\",\"example\":{\"fine_rps\":0}}",
+    "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/pour\",\"fields\":[{\"name\":\"turns\","
+    "\"type\":\"number\",\"unit\":\"turns\",\"min\":0,\"max\":2,\"required\":true}],\"refused_while\":"
+    "\"never\",\"about\":\"while the cup is filled, the coarse tube's turns added to the pour, at most 2 held: it "
+    "stops within about a second of the last (the knob's detent is a quarter turn); 409 not_filling at another step\","
+    "\"example\":{\"turns\":0.5}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/save\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"keeps and stores the records found, at the result step: the scale's into settings/scale, a "
     "powder's least speeds into its profile; the part then ends. 409 not_now at another step\"}",
@@ -2165,8 +2164,8 @@ static const char *const api_v1_schema_states[] = {
     "calibration (ADR-009)\"}]",
     "\"calibration\":[{\"value\":\"cup_on\",\"about\":\"the empty cup to be put on the scale: answer "
     "next\"},{\"value\":\"zeroing\"},{\"value\":\"lift\",\"about\":\"the cup to be lifted: its weight is "
-    "read\"},{\"value\":\"back\"},{\"value\":\"fill\",\"about\":\"the cup filled with the tubes' speeds "
-    "(PATCH fill): answer full\"},{\"value\":\"keep\",\"about\":\"the capacity found: answer keep\"},"
+    "read\"},{\"value\":\"back\"},{\"value\":\"fill\",\"about\":\"the cup filled a pour at a time (POST pour; "
+    "the knob at the unit): answer full\"},{\"value\":\"keep\",\"about\":\"the capacity found: answer keep\"},"
     "{\"value\":\"empty\",\"about\":\"the cup to be emptied and put back: answer done\"},{\"value\":"
     "\"running\"},{\"value\":\"paused\",\"about\":\"a run would pass the cup's capacity: empty it, put it "
     "back, answer go_on\"},{\"value\":\"result\",\"about\":\"the records found: save, or stop to "
@@ -2289,7 +2288,7 @@ bool api_v1_commands_init(void) {
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/calibration", api_v1_get_calibration);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/start", api_v1_calibration_start);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/answer", api_v1_calibration_answer);
-    ok = ok && http_server_add_route(HTTP_SERVER_PATCH, "/api/v1/calibration/fill", api_v1_calibration_fill);
+    ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/pour", api_v1_calibration_pour);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/save", api_v1_calibration_save);
     ok = ok && http_server_add_route(HTTP_SERVER_POST, "/api/v1/calibration/stop", api_v1_calibration_stop);
     ok = ok && http_server_add_route(HTTP_SERVER_GET, "/api/v1/events", api_v1_get_events);

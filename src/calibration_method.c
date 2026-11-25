@@ -10,7 +10,6 @@
 #include "calibration_method.h"
 
 // The method's own numbers (calibration.py's)
-#define CALIBRATION_DEFAULT_CAPACITY 100.0f     // the cup's, when the cup's part never ran
 #define DEFAULT_WATCH_S 4.0f            // a stop watched this long on a scale never calibrated: on the slow side
 #define PRIME_RUNS_MOST 5               // a tube turned at most this many times until two runs pour alike
 #define PRIME_ALIKE_SHARE 0.1f          // two runs pour alike within this share of the larger

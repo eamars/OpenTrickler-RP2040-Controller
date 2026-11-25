@@ -443,9 +443,15 @@ body[data-page="setup"] { padding-left: 0; }
 .facts dt { white-space: nowrap; }
 
 /* ADR-009 step 1: the calibration's cards in Settings, its job's card first */
-.calibration { display: grid; gap: 12px; }
+/* No scroll anchoring inside: a step's card changing height must not scroll the page under the person (rule 17) */
+.calibration { display: grid; gap: 12px; overflow-anchor: none; }
+.button-row[hidden] + .calibration { margin-top: 12px; }       /* a powder's steps exactly where its row was */
 .calibration-job .status { margin: 12px 0 4px; }
 .calibration-job .figure-line { margin: 4px 0; }
 .calibration-job .bar { width: 100%; }
 .calibration-job .bar i { background: var(--ink); }
 .calibration .pair { padding: 12px 0; }
+.calibration-job.in-card { padding: 0 0 4px; }
+.action.hold { border: 1px solid var(--edge); background: transparent; color: var(--ink); touch-action: none;
+               user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.action.hold.held { background: var(--well); border-color: var(--ink); }

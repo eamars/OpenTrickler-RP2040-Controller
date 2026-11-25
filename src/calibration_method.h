@@ -79,6 +79,7 @@ extern "C" {
  * The cup's capacity and the powder in it now, as the cup's part and the scale give them: no run passes the
  * capacity. NAN capacity: none known, and a default is taken (CALIBRATION_DEFAULT_CAPACITY).
  */
+#define CALIBRATION_DEFAULT_CAPACITY 100.0f     // the cup's, when the cup's part never ran
 void calibration_cup(float capacity, float held_now);
 
 // The scale part: its settle time and its lag, from the fine tube's bursts and both tubes' steady runs

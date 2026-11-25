@@ -353,7 +353,7 @@ static const api_v1_resource_t api_v1_resources[] = {
      "the calibration (ADR-009 step 1): its part and step, what it does, the records it found, and what is kept"},
     {"/api/v1/calibration/start", "[\"POST\"]", "starts a part of the calibration: cup, scale or powder"},
     {"/api/v1/calibration/answer", "[\"POST\"]", "the person's answer at a step of the calibration"},
-    {"/api/v1/calibration/fill", "[\"PATCH\"]", "the tubes' speeds while the cup is filled"},
+    {"/api/v1/calibration/pour", "[\"POST\"]", "while the cup is filled: the coarse tube's turns added to the pour"},
     {"/api/v1/calibration/save", "[\"POST\"]", "keeps and stores the records the calibration found"},
     {"/api/v1/calibration/stop", "[\"POST\"]", "stops the calibration, discarding what it found; never fails"},
     {"/api/v1/agent/hello", "[\"POST\"]",

@@ -4,12 +4,12 @@ The firmware's job (gate 3) is played by the stand-in's clock, so the web's page
 with no unit (`web-ui-design`), in the 12864's words (`tools/ui_mock/calibration_12864.py`). Its replies have the
 unit's shape (api_v1.md, Calibration):
 
-- `GET /api/v1/calibration`: `state`, `part`, `step`, `by`, `progress`, `line`, `weight`, `fine_rps`, `coarse_rps`,
+- `GET /api/v1/calibration`: `state`, `part`, `step`, `by`, `progress`, `line`, `weight`, `pouring`, `pour_turns`,
   `capacity`, `cup_weight`, `result`, `failure`, and `records` (`cup`, `scale`, `powder`);
 - `POST /api/v1/calibration/start` `{"part": "cup"|"scale"|"powder"}`: a part started alone (`"mock": "fail"`, the
   stand-in's own, makes a powder's fail, to show it);
 - `POST /api/v1/calibration/answer` `{"answer": "next"|"full"|"keep"|"done"|"go_on"}`;
-- `PATCH /api/v1/calibration/fill` `{"fine_rps", "coarse_rps"}`;
+- `POST /api/v1/calibration/pour` `{"turns"}`: the coarse tube's turns added to the fill's pour, at most 2 held;
 - `POST /api/v1/calibration/save`; `POST /api/v1/calibration/stop`.
 
 The figures are the bench's of 2026-11-25 (ADR-009's progress).
@@ -22,6 +22,8 @@ SCALE_S = 24.0                  # a scale's part (the bench's took about 2 minut
 POWDER_S = 30.0
 POWDER_PAUSE_AT = 0.6           # the powder's part pauses here for a full cup
 PER_TURN = {"fine": 0.8, "coarse": 10.0}
+FILL_RPS = 2.0                  # the coarse tube while it pours the fill (calibration.c)
+POUR_MOST_TURNS = 2.0           # the pour held at most (CALIBRATION_POUR_MOST_TURNS)
 CUP_WEIGHT = 77.3
 SCALE_RESULT = {"settle_ms": 270.0, "lag": [{"flow_per_s": 0.19, "ms": 920.0}, {"flow_per_s": 0.39, "ms": 870.0},
                                             {"flow_per_s": 0.77, "ms": 640.0}, {"flow_per_s": 2.9, "ms": 600.0},
@@ -66,8 +68,8 @@ class CalibrationMock:
         return {"state": "running" if self.job else "idle", "part": job.get("part"), "profile": profile,
                 "profile_name": self.powder(profile)[0] if profile is not None else None, "step": job.get("step"),
                 "by": "api" if self.job else None, "progress": job.get("progress", 0), "line": job.get("line", ""),
-                "weight": round(job.get("weight", 0.0), 2), "fine_rps": job.get("fine_rps", 0.0),
-                "coarse_rps": job.get("coarse_rps", 0.0), "capacity": job.get("capacity"),
+                "weight": round(job.get("weight", 0.0), 2), "pouring": job.get("pour_turns", 0.0) > 0.0,
+                "pour_turns": round(job.get("pour_turns", 0.0), 3), "capacity": job.get("capacity"),
                 "cup_weight": job.get("cup_weight"),
                 "result": job.get("result") if job.get("step") == "result" else None,
                 "failure": job.get("failure") if job.get("step") == "failed" else None,
@@ -90,10 +92,11 @@ class CalibrationMock:
         elif job["step"] == "lift" and elapsed >= LIFT_S:
             self.step("back", weight=-CUP_WEIGHT, cup_weight=CUP_WEIGHT, line="Put the cup back")
         elif job["step"] == "back" and elapsed >= LIFT_S:
-            self.step("fill", weight=0.0, fine_rps=0.0, coarse_rps=0.0, line="Fill the cup")
+            self.step("fill", weight=0.0, pour_turns=0.0, line="Turn the knob to pour")
         elif job["step"] == "fill":
-            flow = job["fine_rps"] * PER_TURN["fine"] + job["coarse_rps"] * PER_TURN["coarse"]
-            job["weight"] += flow * (elapsed - job.get("poured_s", 0.0))
+            turned = min(job["pour_turns"], FILL_RPS * (elapsed - job.get("poured_s", 0.0)))
+            job["pour_turns"] -= turned
+            job["weight"] += turned * PER_TURN["coarse"]
             job["poured_s"] = elapsed
         elif job["step"] == "running":
             length = SCALE_S if job["part"] == "scale" else POWDER_S
@@ -128,7 +131,7 @@ class CalibrationMock:
         return 200, self.reply()
 
     def write(self, method, path, body):
-        """A start, an answer, the fill's speeds, a save or a stop, refused as the unit refuses them."""
+        """A start, an answer, a pour of the fill, a save or a stop, refused as the unit refuses them."""
         self.move_on()
         if method == "POST" and path == f"{PATH}/start":
             if self.job is not None:
@@ -152,12 +155,15 @@ class CalibrationMock:
         if self.job is None:
             return 409, error("not_running", "no calibration runs: start a part first")
         job = self.job
-        if method == "PATCH" and path == f"{PATH}/fill":
+        if method == "POST" and path == f"{PATH}/pour":
+            turns = body.get("turns")
+            if not isinstance(turns, (int, float)) or isinstance(turns, bool):
+                return 400, error("wrong_type", "turns are a number")
+            if not 0 < turns <= POUR_MOST_TURNS:
+                return 400, error("out_of_range", "above 0, and no more than the pour held")
             if job["step"] != "fill":
                 return 409, error("not_filling", "the cup is not being filled")
-            for tube in ("fine", "coarse"):
-                if f"{tube}_rps" in body:
-                    job[f"{tube}_rps"] = max(0.0, min(5.0, float(body[f"{tube}_rps"])))
+            job["pour_turns"] = min(job["pour_turns"] + turns, POUR_MOST_TURNS)
             return 200, self.reply()
         if method == "POST" and path == f"{PATH}/answer":
             answer = body.get("answer")

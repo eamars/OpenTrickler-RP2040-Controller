@@ -2146,7 +2146,7 @@ class Session:
         wait_state("calibration", ("running",))
         expect("POST", "calibration/start", {"part": "cup"}, 409, "busy")
         expect("POST", "calibration/answer", {"answer": "full"}, 409, "not_now")
-        expect("PATCH", "calibration/fill", {"fine_rps": 0}, 409, "not_filling")
+        expect("POST", "calibration/pour", {"turns": 0.25}, 409, "not_filling")
         expect("POST", "calibration/save", {}, 409, "not_now")
         expect("POST", "calibration/stop", {}, 202)
         wait_event("calibration", "stopped", by="api", reason="stopped")
@@ -4151,18 +4151,13 @@ def main():
 
 def send_pours(line):
     """Whether a send's line can turn a motor: a charge, a purge or a cleanup, a motor at a speed other than 0, or
-    the calibration's scale or powder part, or its fill at a speed (ADR-009 step 1)."""
+    the calibration's scale or powder part, or a pour of its fill (ADR-009 step 1)."""
     words = line.split()
     if not words:
         return False
     if words[0] == "calibrate" and len(words) >= 2:
-        if words[1] in ("scale", "powder"):
+        if words[1] in ("scale", "powder", "pour"):
             return True
-        if words[1] == "fill":
-            try:
-                return any(float(word) != 0.0 for word in words[2:4])
-            except ValueError:
-                return True
     if words[0] == "charge":
         return len(words) >= 2 and words[1] != "stop"
     if words[0] in ("cleanup", "purge"):
@@ -4195,19 +4190,6 @@ def calibration_turns_most(part):
         sys.path.insert(0, sim)
     import calibration     # noqa: E402  (the simulation's folder, put on the path just above)
     return calibration.turns_most(part)
-
-
-def calibration_fill_seconds(lines, start):
-    """How long a send's calibration fill turns: its pauses until the cup is said full, the fill is set to 0 or the
-    calibration stopped; a line's own time for each other line."""
-    seconds = 0.0
-    for line in lines[start + 1:]:
-        words = line.split()
-        if words[:3] == ["calibrate", "answer", "full"] or words[:2] == ["calibrate", "stop"] or \
-                (words[:2] == ["calibrate", "fill"] and not send_pours(line)):
-            break
-        seconds += float(words[1]) if words[0] == "pause" else SEND_LINE_S
-    return seconds
 
 
 def cup_most(args):
@@ -4254,8 +4236,12 @@ def cup_most(args):
             elif words[0] == "calibrate" and words[1] in ("scale", "powder"):
                 most += sum(calibration_turns_most(words[1]).values()) * CUP_GR_A_TURN_MOST
             elif words[0] == "calibrate":
-                speeds = sum(abs(float(word)) for word in words[2:4])
-                most += speeds * calibration_fill_seconds(lines, i) * CUP_GR_A_TURN_MOST
+                # a pour: its turns of the coarse tube, the unit holding no more than 2 (CALIBRATION_POUR_MOST_TURNS)
+                try:
+                    turns = min(max(float(words[2]), 0.0), 2.0)
+                except (IndexError, ValueError):
+                    turns = 2.0
+                most += turns * CUP_GR_A_TURN_MOST
             else:
                 most += 100.0           # a purge or a cleanup: its own time
         return most
