@@ -240,9 +240,11 @@ The owner, 10:47: "Let's talk before you test. So far, what is your recommendati
 - A throw of some 5 to 7 s where the stored gains threw in 2.4 s, now and then a creep of 10 s or more.
 - The over colour often: the steady overshoot (+0.02 to +0.06) sits on a tolerance of 0.03.
 - Kd in the hundreds in the profile, where users keep 10 to 15.
-- A powder never calibrated throws as the old build did (from fast gains +1.1 to +1.6 gr): step 1's powder part is part of the normal path.
+- A powder never calibrated starts as the old build did (its first 50 throws from the bench's gains +0.87 on average, every one over) and recovers as the tuner slows the gains (the last 100 of 300: SD 0.054): step 1's powder part is part of the normal path (`research/step2_use_cases.md`).
 
 **How sure:** the seed, proven on the unit; the narrower grouping of never cutting early, likely (the twin, and the unit's own slow throws); the tuner's direction on a unit, the twin's alone.
+
+**The use cases** (the owner, 10:58; `research/step2_use_cases.md`, run 11:10): the normal path holds over charges of 3 to 60 gr, ball and stick powder, grams and tolerances of 0.02 to 0.1, and every failure fails towards over. Lumpy powder is the largest degradation (SD 0.18). Three failures need more than the tuner, each a proposal for the failure modes' turn: an empty hopper never ends a throw (as before step 2); an integral term only adds overshoot; a wild coarse tube overshoots every throw.
 
 **Still the owner's:** whether the tuner protects narrow hand-tuned gains (from them it trades a little spread for time).
 

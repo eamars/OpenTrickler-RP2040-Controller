@@ -925,3 +925,11 @@ The other rigs the same way: the aim-off centres the mean (to +0.01 to +0.04) an
 ## 2026-11-26, 10:47 to 10:59: the interim decision written down
 
 **The owner:** "Let's talk before you test. So far, what is your recommendation and how does that look like?" (10:47); "Let's write down our understandings and interim decision you just explained." (10:58). Written as the README's "Interim decision (2026-11-26)": step 2 as it stands at `1fbac83`, what we understand, how it looks on the twin (`research/step2_twin_product_f2.png`: the product on f2 from the bench's and the owner's gains, first window and window 24), what a user sees, how sure, what is still the owner's, and the next bench run with its passes. Nothing signed off; no unit touched.
+
+## 2026-11-26, 10:58 to 11:20: the use cases mapped and run on the twin (no unit)
+
+**The owner (10:58):** "I want you to also try more experiments, for failure modes, or out of ordinary exceptions, like: 1. Starting with the absurdly wrong PID 2. Someone accidentally put integral term 3. Different powder? I want you to map all use cases against your simulation, out of the known experiment so far, then conduct the experiment with your simulation."
+
+**Built:** `tools/charge_sim/step2_cases.py` (35 cases on step 2 as it ships) and six assumed variants in `rigs.py` (`big_kernel`, `gram_digit`, `draught`, `missing`, `fine_empty`, `coarse_empty`; variants now chain with "+").
+
+**The map and its verdicts:** `research/step2_use_cases.md`. The normal path holds over 3 to 60 gr, ball and stick powder, grams and tolerances of 0.02 to 0.1 (SD near 0.05, no under); every failure fails towards over; lumpy powder degrades most (SD 0.18 with the tuner). Fails: an empty fine hopper never ends a throw (no limit in the charge mode, as in v2.0.3), an absurd kp (200) pins the fine tube to its envelope where the tuner cannot see its trials, a wild coarse kp overshoots every throw by about 2 gr. Degraded: an integral term (ki 0.01 to 1: mean +0.07 to +0.2). A powder never calibrated starts as the old build (its first 50 throws +0.87, every one over) and recovers within some 100 to 200 throws; the interim decision's line said it stays so, corrected. Four proposals for the failure modes' turn, none built.

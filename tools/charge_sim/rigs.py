@@ -6,6 +6,7 @@ source (measured, solved from a recording, stated by the owner, or assumed becau
 or scale is another record, not other code.
 """
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -48,20 +49,50 @@ FINE_BY_SPEED = ((0.1, 0.68 / 0.7652), (1.0, 0.83 / 0.7652))
 
 
 def _fine_by_speed(rig: Rig) -> Rig:
-    import dataclasses
     base = rig.fine.gr_per_turn[0][1]
     return dataclasses.replace(rig, fine=dataclasses.replace(
         rig.fine, gr_per_turn=tuple((speed, share * base) for speed, share in FINE_BY_SPEED)))
 
 
-VARIANTS = {"fine_by_speed": _fine_by_speed}
+# The use cases' variants (2026-11-26, the owner: "try more experiments, for failure modes, or out of ordinary
+# exceptions"), each an assumption, none measured:
+# big_kernel: the same tubes and flow with kernels three times as heavy, the lumpier powders the owner names ("some
+#   larger kernel powder is hard to dispense precisely");
+# gram_digit: the scale read in grams, its digit 0.001 g (0.0154 gr);
+# draught: gusts on the pan, six a minute, 0.03 gr each (sd), a second long;
+# missing: one report in twenty never arrives;
+# fine_empty, coarse_empty: the tube's hopper empty, the tube turning and pouring next to nothing.
+EMPTY_GR_A_TURN = 1e-4
+
+
+def _scaled_kernel(rig: Rig) -> Rig:
+    return dataclasses.replace(rig, powder=dataclasses.replace(rig.powder, kernel_gr=3.0 * rig.powder.kernel_gr))
+
+
+def _scale(rig: Rig, **fields) -> Rig:
+    return dataclasses.replace(rig, scale=dataclasses.replace(rig.scale, **fields))
+
+
+def _empty(tube):
+    return dataclasses.replace(tube, gr_per_turn=((1.0, EMPTY_GR_A_TURN),))
+
+
+VARIANTS = {"fine_by_speed": _fine_by_speed,
+            "big_kernel": _scaled_kernel,
+            "gram_digit": lambda rig: _scale(rig, digit_gr=0.001 * 15.4324),
+            "draught": lambda rig: _scale(rig, draught_per_min=6.0, draught_gr=0.03, draught_tau_s=1.0),
+            "missing": lambda rig: _scale(rig, miss_share=0.05),
+            "fine_empty": lambda rig: dataclasses.replace(rig, fine=_empty(rig.fine)),
+            "coarse_empty": lambda rig: dataclasses.replace(rig, coarse=_empty(rig.coarse))}
 
 
 def get_rig(name: str) -> Rig:
-    """A rig by its record's name or path, with a variant after a "+" (VARIANTS)."""
-    name, _, variant = name.partition("+")
+    """A rig by its record's name or path, with each variant after a "+" (VARIANTS), in order."""
+    name, *variants = name.split("+")
     rig = rig_from_record(load_record(name))
-    return VARIANTS[variant](rig) if variant else rig
+    for variant in variants:
+        rig = VARIANTS[variant](rig)
+    return rig
 
 
 def names() -> list:
