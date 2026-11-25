@@ -548,3 +548,36 @@ Flashed by the probe, each settings copy equal before and after (`before_fill_fl
 Both boards build with it (the Pico W 98.5% of its flash, 99.6% of its RAM).
 
 **Step 1's sign-off on the Pico 2 W: every item closed**, for the owner to sign off. One check is not in the record: a stop by the 12864's Back. The stop itself is proven from the console and the API at every step, the fill with both tubes turning among them (20:01 to 20:59, `stop_tests.py`, `fill_stop.py`), and Back is the menu's own key. The Pico W's checks are the ADR's last ("Last: the Pico W").
+
+## 2026-11-25, 23:51: step 1 signed off; step 2's gate 2 started
+
+- **The owner:** "Sign off, start gate 2." Step 1 is signed off on the Pico 2 W, with the one check not in the record said (a stop by the 12864's Back). Its Pico W checks are the ADR's last.
+- Step 2's gate 2 starts: the controller and the tuner in C, behind the interface in the README, judged against the Python on the same runs.
+
+## 2026-11-25, 23:51 to 2026-11-26, 00:08: step 2's gate 2, the controller and the tuner in C (no unit)
+
+**Built:**
+- `src/charge_controller.c` and `.h`: `step2.py`'s Step2 and the coarse tube of `legacy_pid.py`, line for line, plain C with nothing of the RTOS, the motors or the scale. Given its config (each tube's gains and least and most speed, the coarse threshold, the back-off, step 1's settle time and lag table, the motors' ramp) and fed `start`, a `tick` each millisecond and each `reading`; it gives each tube's speed and `done`, then `verdict_after_s` and `at_rest` (the weight a turn carried to the next throws, median of the last 5, RAM only). Its times are doubles, as the Python's, so the two can be judged call for call.
+- `src/charge_tuner.c` and `.h`: `step2_tuner.py`'s Tuner, a throw at a time (`charge_tuner_throw`), the window of 25 and the kept kp's pool of 75 in RAM, on the README's rule: a cheaper trial is kept.
+- `tests/step2_sim.py` and `tests/host/charge_lib.c`: the C built for this PC as a library (as `calibration_sim.py` does) and judged on the twin's four rigs.
+- Neither is called by the firmware yet (gate 3): both boards build with them and no warning in them, the images unchanged in size.
+
+**Found on the way and mended:**
+- **The carry was lost after a long throw.** The first judged run stopped at the same millisecond as the Python on 25 throws of 25, but a 24.7 s throw outran the C's room for parcels; the C then carried nothing from it and every later throw's weight a turn drifted from the Python's (up to 12%). The root: the carry at rest was counted from the whole store of parcels, which it does not need. Now the parcels within the lags before the coarse tube's quiet are kept apart (their rest depends on the weight a turn) and every parcel after is summed as it comes: the carry is exact at any length. The room bounds only the throw's own fit, which is used only with nothing carried (the first throw after a start): past 20 s of parcels (or 512 readings) the own weight a turn is held as last found.
+- **The tuner's rule in the tool.** `step2_tuner.py` as committed at gate 1 (f680748) kept a trial only past 1.5 times its noise (Z 1.5, its default), while the README and the 19:52 record say a lower cost is enough. The C and the judge follow the README (z 0); the tool's default is now 0. The 19:52 table's runs are not rerun here.
+- **The README said two windows** on the kept gains once both ways are put back; the Python, which passed gate 1, throws three (the window after the second put-back, then two resting). The README now says three; the C does the same.
+
+**Judged** (`tests/step2_sim.py`, two sessions of 25 throws a rig, the tuner 300 throws from the owner's kp and from a quarter of it):
+
+| Rig | Throws | The same stop | Speeds within | Weight a turn within | Carried within | Most parcels / readings |
+|---|---|---|---|---|---|---|
+| AR2209, night | 50 | 50 | 1.1e-6 rev/s | 8.9e-6 | 1.4e-7 | 2048 (one throw past it, 24.7 s) / 428 |
+| AR2209, f2 | 50 | 50 | 7.5e-7 | 1.6e-6 | 1.0e-7 | 1446 / 268 |
+| BM2 | 50 | 50 | 2.6e-6 | 5.7e-6 | 5.1e-8 | 2024 / 389 |
+| AR2209, night, the fine tube's pour by its speed | 50 | 50 | 1.4e-7 | 2.2e-6 | 7.6e-8 | 1303 / 233 |
+
+- **The tuner:** the same step to the same kp in every window of all 8 cases (12 windows each).
+- **The C alone on the twin** (its own speeds driving the plant), against the Python on the same seeds: the same sd, mean, share good and time to the digit on three rigs; on the fourth sd 0.125 against 0.133, 56 against 58% good: its speeds differ from the Python's in the sixth decimal, and that rig's plant carries the difference on.
+- **Verdict: pass.**
+
+**For gate 3:** the controller holds about 30 KB (31,160 bytes on the PC, most of it the parcels and readings for the first throw's own fit); where it lives on the unit, and its time each millisecond and each reading on both chips, are gate 3's to place and measure. The Pico W's are the ADR's last.

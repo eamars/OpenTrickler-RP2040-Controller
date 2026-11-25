@@ -31,7 +31,7 @@ from workers import Workers
 WINDOW = 25
 FIRST_FACTOR = 1.5
 LEAST_FACTOR = 1.1
-Z = 1.5
+Z = 0.0                     # the rule gate 1 passed with (19:52): a lower cost is enough; z > 0 asks for a margin of its noise
 POOL_THROWS = 75
 REST_WINDOWS = 2
 STARTS = {"owner": {}, "kp/4": {"fine_kp": 0.2}, "kp x4": {"fine_kp": 3.2}}
