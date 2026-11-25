@@ -477,12 +477,11 @@ class StandIn:
                 self.held = 0
                 charge.update(state="waiting_for_cup_return", weight=0.0)
         elif charge["state"] == "waiting_for_cup_return":
+            # The cup back and steady at zero: the next throw waits for the person (ADR-009, gate 3, proposed)
             self.held += 1
             if self.held >= HOLD_READS // 2:
                 self.held = 0
-                charge.update(state="charging", in_throw=True, throw=charge["throw"] + 1, weight=0.0)
-                self.add_event("throw", "started", throw=charge["throw"], target=charge["target"],
-                               powder_profile=charge["powder_profile"])
+                charge.update(state="waiting_for_start", weight=0.0)
 
     def write(self, method, path, body):
         """
@@ -498,6 +497,15 @@ class StandIn:
         """
         if path.startswith(CALIBRATION):
             return self.calibration.write(method, path, body)
+        if method == "POST" and path == "/api/v1/charge/next":
+            # The next throw, once the cup is back (ADR-009, gate 3, proposed: not yet in the unit's schema)
+            charge = self.replies["/api/v1/charge"]
+            if charge["state"] != "waiting_for_start":
+                return 409, error("not_now", "the charge does not wait for a start: read state")
+            charge.update(state="charging", in_throw=True, throw=charge["throw"] + 1, weight=0.0)
+            self.add_event("throw", "started", throw=charge["throw"], target=charge["target"],
+                           powder_profile=charge["powder_profile"])
+            return 202, charge
         if method == "POST" and path in SETUP_PATHS:
             return self.setup_act(path, body)
         if method == "PATCH" and path == SETUP:
@@ -591,6 +599,12 @@ class StandIn:
                 return (202 if stopped else 200), {"stopped": stopped, "activity": system["activity"]}
             return (202 if stopped else 200), (charge if "charge" in path else purge)
         if path == "/api/v1/purge/start":
+            if system["activity"] == "charge" and charge["state"] == "waiting_for_start":
+                # A charge waiting at Ready holds no motor: another job started ends it (ADR-009, gate 3, proposed)
+                charge.update(state="idle", in_throw=False)
+                system["activity"] = "none"
+                busy = False
+                self.add_event("charge", "stopped", by="api", reason="stopped")
             if busy:
                 return 409, error("busy", "another job runs")
             purge.update(state="running", speed_rps=0.0, time_left_s=None)

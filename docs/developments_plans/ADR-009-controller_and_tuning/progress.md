@@ -593,3 +593,11 @@ Both boards build with it (the Pico W 98.5% of its flash, 99.6% of its RAM).
 - **The owner:** "Approve, with my correction: we have the baseline. The baseline is the current untuned (or aka default PID stored on this unit). And the check is, if the auto tune can slowly optimize the charge towards the refined PID, i.e,. shorter time to trickle, and less over and undershoot."
 - Gate 3 is built as planned (the README). Gate 4's baseline is the charge on the gains stored on the bench's unit, untuned (its first window); its check, whether the tuner brings shorter times to the stop and fewer throws over and under, window after window. The README's gate 4 and the step's proof say so.
 - First of gate 3: the mock-ups of the press after the cup's return, for the owner's look while the rest is built.
+
+## 2026-11-26, 00:28 to 00:39: gate 3, the press mocked and chosen
+
+- **The 12864** (`tools/ui_mock/charge_12864.py`, `mockups/charge_12864.png`): from one throw's end to the next one's start, today's screens and the new "Ready" between Zeroing and Charging, softkeys Stop and Start.
+- **The web, first mock:** Stop and Start side by side for good, each enabled when it could act. **The owner:** "For the web UI, given stop and start are mutually exclusive, they can share the same button (not refering to the implementation. This is from user's experiences perspective). I don't think at any time both button should be enabled."
+- **At Ready** (asked: the web then has no Stop): the owner chose "Another job ends it": a charge waiting at Ready ends when another job is started, so the Purge view is open meanwhile; the 12864 keeps its Stop.
+- **The web, built on the stand-in** (`trickler.js`; `tests/web_test.py` plays `waiting_for_start` and `POST /api/v1/charge/next`, and a purge started at Ready ends the waiting charge): one key, Stop while a throw runs or the cup is out, Start at Ready (and idle); at Ready the powder and the target open as when idle. Walked at a phone's width: Start at Ready begins the next throw; a purge started at Ready leaves the charge idle and the purge running; no console error. The sheet: `mockups/charge_web_press.png`.
+- Written into the `web-ui-design` skill, rule 17, with the owner's words.

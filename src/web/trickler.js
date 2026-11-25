@@ -12,7 +12,8 @@ let purgeTimer = null;
 
 // The screen's job titles, word for word (charge_state_text() in menu_nav.c)
 const STATUS = {idle: "Ready", starting: "Starting", zeroing: "Zeroing", charging: "Charging",
-                waiting_for_cup_removal: "Lift the cup", waiting_for_cup_return: "Return the cup", fault: "Fault"};
+                waiting_for_cup_removal: "Lift the cup", waiting_for_cup_return: "Return the cup",
+                waiting_for_start: "Ready", fault: "Fault"};
 const VERDICT = {good: "Good", under: "Under", over: "Over"};
 
 function shown(value) {
@@ -35,13 +36,20 @@ function renderCharge() {
     if (document.activeElement !== $("powder")) {
         $("powder").value = String(charge.powder_profile);
     }
+    // At Ready, the cup back and steady at zero, the charge waits for the person's press (ADR-009, gate 3): as idle
+    // to the page, what to throw may be changed, and another job started ends the waiting charge
+    const waiting = charge.state === "waiting_for_start";
+    const locked = running && !waiting;
     // What to throw is locked while it is thrown: the field and its keys alike
-    $("powder").disabled = running;
-    $("target").disabled = running;
-    document.querySelectorAll("[data-step]").forEach((key) => key.disabled = running);
+    $("powder").disabled = locked;
+    $("target").disabled = locked;
+    document.querySelectorAll("[data-step]").forEach((key) => key.disabled = locked);
     $("zero").disabled = running;   // the charge zeroes the pan itself; a zero mid-throw would spoil it
-    $("start").hidden = running;
-    $("stop").hidden = !running;
+    // One key, Start or Stop, never both (the owner, 2026-11-26): Stop while a throw runs or the cup is out; Start
+    // when idle, and at Ready for the next throw
+    $("start").hidden = running && !waiting;
+    $("stop").hidden = !running || waiting;
+    $("start").textContent = waiting ? "Start" : "Start charge";
 
     // Colour only where it means something (web-ui-design, rule 5): not ready, then the throw's verdict
     const result = charge.last && charge.last.result;
@@ -101,7 +109,7 @@ function show(wanted) {
 }
 
 function renderSwitch() {
-    const charging = charge !== null && charge.state !== "idle" && charge.state !== "fault";
+    const charging = charge !== null && !["idle", "fault", "waiting_for_start"].includes(charge.state);
     const purging = purge !== null && (purge.state === "running" || purge.state === "starting");
     $("seg-purge").disabled = charging;
     $("seg-charge").disabled = purging;
@@ -153,6 +161,12 @@ function stopPolling() {
 
 // features: 23 N5
 async function startCharge() {
+    if (charge !== null && charge.state === "waiting_for_start") {
+        const reply = await api("POST", "/api/v1/charge/next", {});
+        reply.ok ? say("") : refusal(reply, "Not started");
+        poll();
+        return;
+    }
     const target = Number($("target").value);
     if (!(target > 0)) {
         say("Give a target first.");
