@@ -20,14 +20,16 @@ Step 2 as it ships at the interim decision (the README): the forecast seeded by 
 | Big kernels, three times as heavy (*assumed* powder) | none | the tuner 0.184, +0.153, +1.26, 9.8 s; from the owner's gains 0.120, +0.090; no tuner 0.243, +0.225 | **Degraded:** lumps land after the stop. The tuner narrows it a little; the kernel sets the floor (the owner: "some larger kernel powder is hard to dispense precisely") |
 | The user's tolerance 0.02 | none | the reference's throws (the tuner took the same steps) | **Works** |
 | The user's tolerance 0.1 | none | 0.082, +0.063, 6.2 s, 84% within it | **Works:** the tuner takes quicker gains, as the tolerance allows |
-| A scale in grams (a digit of 0.001 g, *assumed* as 0.0154 gr) | none | 0.052, +0.044, +0.36, 7.0 s | **Works** |
+| A scale's digit as fine as a gram scale's (0.0154 gr, the weights still in grains) | none | 0.052, +0.044, +0.36, 7.0 s | **Works** |
+| A scale in grams with the profiles' defaults in grains (rigs.py's `grams`: every weight / 15.4324, the digit 0.001 g; 10 gr as 0.648 g) | none | the defaults as they are, no tuner: SD 0.003 g (0.05 gr) in **49 s** a throw: the fine gains 15 times too weak, the coarse threshold of 5 now 5 g, past the whole charge, so the coarse tube never runs; the tolerance of 0.03 now 0.03 g (0.46 gr), fifteen times looser. Gram thresholds, grain gains: 42.5 s; the tuner on, 15.3 s after 300 throws. **Since `8806f78`** (the gains put right): 6.9 s from the first trial on, SD 0.008 g (0.12 gr) against 0.004 g with every setting converted | **Improved:** the tuner brings the fine gains to grams in one window. The coarse gains and the thresholds stay in grains |
+| Step 1 on a scale in grams | none | the method's records in grams: least speeds 0.02 and 0.16 rev/s as in grains, lags 0.58 to 1.01 s (grains 0.48 to 1.06), weight a turn 0.052 g (0.807 gr / 15.43) | **Works**, the method. Five constants around it are in grains (below) |
 
 ## Failure modes and exceptions
 
 | Case | Before this run | Now: SD, mean, worst, time | Verdict |
 |---|---|---|---|
-| kp absurdly low (0.02) | kp / 4 at gate 1 (the forecast's cut) | 0.042, +0.035, 17.4 s; the tuner's steady gain only doubled in 600 throws | **Safe but slow:** tight, three times as long; the tuner climbs out slowly (1.5 a step) |
-| kp absurdly high (200) | kp x 4 at gate 1 | the tuner 0.172, +0.211, +1.24, 2.8 s; no tuner 0.118, +0.118 | **Fails, safely:** the fine tube rides the envelope's cap whatever kp is, so the tuner's trials all cost the same and it finds no way down. Every throw over, some by a gram |
+| kp absurdly low (0.02) | kp / 4 at gate 1 (the forecast's cut) | 0.042, +0.035, 17.4 s; the tuner's steady gain only doubled in 600 throws. **Since `8806f78`**, four sessions: 0.064, +0.048, 7.0 s (the reference 0.057) | **Fixed:** the gains put right in the first window |
+| kp absurdly high (200) | kp x 4 at gate 1 | the tuner 0.172, +0.211, +1.24, 2.8 s; no tuner 0.118, +0.118. **Since `8806f78`**, four sessions: 0.138, +0.100, worst +1.82 | **Improved, safely:** the gains put right; still wider than the reference |
 | kd 0 | none | 0.052, +0.040, 7.6 s | **Works** (the stored kd does almost nothing anyway) |
 | kd absurdly high (100,000) | none | 0.047, +0.039, 14.3 s | **Safe but slow:** braking hard; the tuner raised kp to 3.7 to 5.5 against it |
 | An integral term by mistake: ki 0.01, 0.1, 1 | none | the tuner 0.132 / 0.082 / 0.169, mean +0.076 / +0.071 / +0.195, worst +1.47 / +0.51 / +0.63; ki 0.1 with no tuner 0.114, +0.145. **Since `b62eb2c`** (the tuner's first trial without ki), four sessions: 0.092 / 0.089 / 0.084, mean +0.069 / +0.067 / +0.062, ki dropped in 2, 3 and 4 sessions of 4 | **Improved:** an absurd ki is taken out; a small one does little harm and is sometimes kept |
@@ -40,6 +42,7 @@ Step 2 as it ships at the interim decision (the README): the forecast seeded by 
 | Draught on the pan after the calibration (*assumed*: six gusts a minute, 0.03 gr) | none | 0.082, +0.058, +0.59, 7.1 s | **Degraded a little** |
 | One report in twenty lost (*assumed*) | the charge mode's pauses on the bench (ADR-013), not the controller | 0.040, +0.036, 7.2 s | **Works** |
 | A wild coarse tube (coarse kp ten times the bench's) | none | every throw +1.64 to +2.31, 1.4 s | **Fails:** the coarse tube's powder lands past the target; the fine tube cannot take it back, and the tuner leaves the coarse gains alone |
+| The same, its two knobs (no tuner, 2 x 60) | none | the threshold 5 to **7**: +0.076, SD 0.072, **3.9 s**; to 9: +0.054, 0.082, 6.3 s; to 12: +0.043, 0.052, 6.6 s. The coarse kp to 0.1: +0.131, 0.095, 2.3 s; to 0.05: +0.066, 0.090, 5.1 s; to the bench's 0.02: +0.063, 0.089, 4.9 s | **The threshold cures it with less:** 2 gr more room and the throw is quicker than with the bench's careful coarse kp |
 | The night rig (the most coarse powder in the air) | the twin | 0.131, +0.088, +0.81, 7.0 s | **Degraded** (known) |
 
 **Not simulated:** a restart in a session (the carry and the tuner begin afresh in RAM by design; the seed and the stored gains carry over); a cold tube pouring short at first, a lot change or drift within a session (the twin has no hook for a rig that changes mid-session; a wrong seed is its start); a bump on the scale large enough to read past the target (the draught's gusts are its small form; a reading past the target stops the throw short); the charge mode's own paths (the zero, the cup, a lost scale, a driver fault: on the bench, ADR-013 and gate 3).
