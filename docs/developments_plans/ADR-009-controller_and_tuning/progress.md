@@ -147,3 +147,8 @@ The owner's rule (recorded 14:09): a stage of the calibration that serves no pur
 - **On the bench's kept scale run:** the settle time 0.27 s (its four moves 0.06, 0.33, 0.22 and 0.47 s); the lag as recorded, 0.59 to 1.21 s by flow. A speeds part on these records watches each stop 2.5 s: the slowest lag, the settle time and a second. The least is unchanged on the kept runs.
 - **The twin settles slower than the A&D:** 0.87 and 0.91 s over 2 seeds, against the bench's 0.27 s. The bench is the reference; the twin's scale is not changed for it.
 - **The mocks:** a scale's result reads Settle time, Lag, slow flow and Lag, fast flow, on the 12864 and the web.
+
+## 2026-11-25, 14:29: where each item is used
+
+- The README maps each item to where it is used now and to be (its "Where each item is used"), checked in the code.
+- **The owner (recorded 14:29):** the empty cup's weight (item 2) is the safety of the later charge controller, step 2's: a cup lifted mid-charge told from a light reading. Today's charge keeps its own check, a steady reading 10 gr below zero.

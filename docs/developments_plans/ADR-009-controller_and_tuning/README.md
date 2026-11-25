@@ -52,7 +52,7 @@ Item 5 belongs to this powder on this unit's tubes and scale, not to the powder 
 | # | Item | Used now | To be used |
 |---|---|---|---|
 | 1 | The cup's capacity | The calibration: a run that would pass it pauses for the cup to be emptied (`calibration.py`'s `cup_room`) | The calibration as a job on the unit (gate 3). Nothing outside the calibration |
-| 2 | The empty cup's weight | Nothing | The calibration's job (gate 3): a cup lifted mid-run told from a light reading. Not in the plan: the charge's own check that the cup was lifted, today a steady reading 10 gr below zero (`charge_mode.cpp`'s `charge_mode_wait_for_cup_removal`), so a cup under 10 gr is never seen lifted |
+| 2 | The empty cup's weight | Nothing | Step 2's charge controller, as its safety: a cup lifted mid-charge told from a light reading (the owner, 2026-11-25). Also the calibration's job (gate 3), for a cup lifted mid-run. Today's charge keeps its own check: a steady reading 10 gr below zero (`charge_mode.cpp`'s `charge_mode_wait_for_cup_removal`) |
 | 3 | The scale's settle time | The calibration: how long each stop is watched, after the slowest lag (`watch_after_stop`) | Step 2's predictor: when a reading is final. Not in the plan: the charge reads a throw's result 1 s after its stop, and waits for zero over 10 steady readings 300 ms apart |
 | 4 | The scale's lag | The calibration: how long each stop is watched, with the settle time | Step 2's predictor: the powder still to show at a stop, its flow times its lag |
 | 5 | Each tube's least speed | Today's charge, once saved into the profile: each tube's PID never asks for less (the larger of it and the motor's minimum), and the coarse back-off turns at it when its own speed is 0 | Step 2's PID auto-tuner, which takes step 1's records (which ones is drafted with step 2) |
@@ -104,6 +104,7 @@ No throw's result is judged.
 
 - **The predictor:** what the reading will show once the powder still falling has landed, from step 1's records.
 - **The PID auto-tuner:** each tube's PID made from step 1's records, then kept right throw by throw.
+- **Its safety:** a cup lifted mid-charge told from a light reading, by the empty cup's weight (step 1's item 2; the owner, 2026-11-25).
 - **Nothing else:** no glide, and no other algorithm in parallel.
 
 Its input is step 1's records. It starts only once step 1 is fully complete; its details are drafted then.
