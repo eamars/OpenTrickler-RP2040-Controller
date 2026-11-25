@@ -234,7 +234,9 @@ function drawCalibration(options = {}) {
                     element("span", {class: "unit"}, unit)));
         const note = (text) => card.append(element("p", {class: "field-help", "data-live": text ? null : "note"},
                                                    text || ""));
-        const actions = (...buttons) => card.append(element("div", {class: "pair"}, ...buttons));
+        // A step's keys side by side; a step with one key gives it the card's width, as the Calibrate button had
+        const actions = (...buttons) => card.append(element("div", {class: buttons.length === 1 ? "pair one" : "pair"},
+                                                            ...buttons));
         const powder = cal.profile_name;
         const named = {cup: "The cup", scale: "The scale", powder}[cal.part];
         switch (cal.step) {
@@ -285,7 +287,7 @@ function drawCalibration(options = {}) {
         case "empty":
             head("Empty the cup");
             note("Then put it back on the scale.");
-            actions(element("span"), button("Done", "action go", () => answer("done")));
+            actions(button("Done", "action go", () => answer("done")));
             break;
         case "running":
             head("Calibrating");
@@ -328,7 +330,7 @@ function drawCalibration(options = {}) {
             head(cal.failure);
             note(cal.part === "powder" ? "Its minimum is kept." :
                  (cal.part === "scale" ? "Its records are kept." : "Its capacity is kept."));
-            actions(element("span"), button("OK", "action go", () => answer("done")));
+            actions(button("OK", "action go", () => answer("done")));
             break;
         }
         return card;

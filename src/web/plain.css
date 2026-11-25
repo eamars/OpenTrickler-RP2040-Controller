@@ -377,6 +377,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .gate-open { display: grid; place-items: center; min-height: var(--job-key); font-size: 1.6rem; font-weight: 700;
              font-variant-numeric: tabular-nums; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pair.one { grid-template-columns: 1fr; }
 /* The update as a job in its card: the screen's word, how far as a figure and a bar, the power, Stop in its place */
 .job-view { display: grid; gap: 8px; margin-top: 12px; }
 .job-word { font-weight: 700; font-size: 1.15rem; }
