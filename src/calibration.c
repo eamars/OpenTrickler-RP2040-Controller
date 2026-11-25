@@ -528,6 +528,7 @@ static void run_powder(void) {
     activity_lock();
     status.was_fine_rps = profile->fine_min_flow_speed_rps;
     status.was_coarse_rps = profile->coarse_min_flow_speed_rps;
+    status.was_fine_per_turn = profile->fine_weight_per_turn > 0.0f ? profile->fine_weight_per_turn : NAN;
     activity_unlock();
     calibration_scale_record_t scale;
     scale_records(&scale);
@@ -591,6 +592,7 @@ uint8_t calibration_job_run(void) {
     status.coarse.least_rps = NAN;
     status.was_fine_rps = NAN;
     status.was_coarse_rps = NAN;
+    status.was_fine_per_turn = NAN;
     answer_given = ANSWER_NONE;
     bench_trouble[0] = '\0';
     running = true;
@@ -764,6 +766,11 @@ bool calibration_save(activity_by_t by) {
         if (!isnan(found.fine.least_rps)) {
             snprintf(text, sizeof(text), "%.4f", (double) found.fine.least_rps);
             why = settings_write_by(path, "fine_min_speed_rps", text, by);
+        }
+        // The fine tube's weight a turn where it streams: step 2's first figure for this powder
+        if (why == NULL && isfinite(found.fine.stream_per_turn) && found.fine.stream_per_turn > 0.0f) {
+            snprintf(text, sizeof(text), "%.4f", (double) found.fine.stream_per_turn);
+            why = settings_write_by(path, "fine_weight_per_turn", text, by);
         }
         if (why == NULL && !isnan(found.coarse.least_rps)) {
             snprintf(text, sizeof(text), "%.4f", (double) found.coarse.least_rps);

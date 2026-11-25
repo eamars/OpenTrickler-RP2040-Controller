@@ -21,7 +21,7 @@ from panel import Panel, REPO, W, write_sheet
 
 # A powder's result as the firmware draws it (menu_nav.c): the 12864's notes give a label and a value on one line,
 # so each tube is a heading over its Minimum and Was
-POWDER_RESULT = [("Fine tube", "bold"), ("Minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"),
+POWDER_RESULT = [("Fine tube", "bold"), ("Minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"), ("A turn", "0.787 gr", "pair"),
                  ("Coarse tube", "bold"), ("Minimum", "0.16 rev/s", "pair"), ("Was", "0.1 rev/s", "pair"),
                  ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)]
 

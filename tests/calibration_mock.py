@@ -29,7 +29,8 @@ SCALE_RESULT = {"settle_ms": 270.0, "lag": [{"flow_per_s": 0.19, "ms": 920.0}, {
                                             {"flow_per_s": 0.77, "ms": 640.0}, {"flow_per_s": 2.9, "ms": 600.0},
                                             {"flow_per_s": 9.7, "ms": 570.0}],
                 "elapsed_s": 110.0, "poured": 58.0, "failure": None}
-POWDER_RESULT = {"fine_min_speed_rps": 0.02, "coarse_min_speed_rps": 0.16, "elapsed_s": 300.0, "poured": 60.0,
+POWDER_RESULT = {"fine_min_speed_rps": 0.02, "coarse_min_speed_rps": 0.16, "fine_weight_per_turn": 0.787,
+                 "elapsed_s": 300.0, "poured": 60.0,
                  "failure": None}
 ANSWERS = {"cup_on": "next", "fill": "full", "keep": "keep", "empty": "done", "failed": "done", "paused": "go_on"}
 

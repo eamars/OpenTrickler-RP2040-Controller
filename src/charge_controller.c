@@ -67,6 +67,10 @@ static double lag_median(const charge_config_t *config) {
 
 bool charge_controller_carried(const charge_controller_t *controller, double *k) {
     if (controller->carry_count == 0) {
+        if (controller->config.fine_weight_per_turn > 0.0f) {
+            *k = controller->config.fine_weight_per_turn;
+            return true;
+        }
         return false;
     }
     *k = median_of(controller->carry, controller->carry_count);

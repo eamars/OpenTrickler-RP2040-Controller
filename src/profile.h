@@ -13,7 +13,10 @@
 typedef struct
 {  
     uint32_t rev;
-    uint32_t compatibility;
+    // The fine tube's weight a turn where it streams, measured by the powder's calibration (ADR-009, step 2's seed);
+    // 0, not measured. It takes the place of `compatibility`, used by nothing and 0 in every release: the record's
+    // size and offsets are as they were, and a stored profile reads 0 (null in the API: never calibrated)
+    float fine_weight_per_turn;
     
     char name[PROFILE_NAME_MAX_LEN];
 

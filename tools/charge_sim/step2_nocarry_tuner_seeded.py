@@ -23,7 +23,7 @@ def case(job):
     c = step2.Step2(profile, RECORDS, rig.acceleration_rps2, before="last")
     if seed_k is not None:
         c.history = [seed_k]
-    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0)
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, first="up")    # as this study ran (11-26)
     errors, times, windows, carried_throws = [], [], [], 0
     for _ in range(throws):
         c.profile = profile

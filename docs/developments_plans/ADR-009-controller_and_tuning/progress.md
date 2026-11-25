@@ -676,3 +676,49 @@ Every throw seeded has a weight a turn; step 1's figure was within 1% of each ri
 - **(a) Recommended: the carry seeded from step 1.** The powder part keeps its measured weight a turn in the powder's profile, and a charge's first throw on that powder starts from it; each throw's own then renews the carry as built. It breaks the deadlock at its root, for any profile, from the first throw. Its cost: a field in the powder profile (a stored struct's layout, the loader keeping earlier records); a powder never calibrated has none and throws as today until a throw teaches one; step 1, signed off, keeps one more of its measurements.
 - **(b) The tuner told what to do with no good throw** (a window with none compared by its spread, or kp moved down): no stored field, but the deadlock lasts until the tuner has walked kp slow enough, some windows of 25 throws each, and on f2 none came by chance in 300. Not simulated.
 - **The second gap:** after (a), the unit's own throws show whether its powder is like the night rig's or the f2's; holding the fine tube until the coarse tube's quiet costs 2 to 3 s on every throw, so it is decided from the unit's data, not now.
+
+## 2026-11-26, 01:50 to 02:10: step 2 built for the bench, proven on the twin (no unit)
+
+**The owner, going to sleep (01:50):** "I won't sign off anything today. So, i want you to, similar to stage 1, build everything without my approval for stage 2 first, run the test in simulation, then present me the finished product, with your confident in simulation and pile up the validations on bench tomorrow, off one go." Every choice below is mine, made on the twin's evidence, for the owner to see before anything is signed off.
+
+**Built:**
+1. **The seed** (option (a) of 01:47; step 1's item 6). The fine tube's weight a turn where it streams, which step 1's powder part measured and dropped, is kept in the powder profile as `fine_weight_per_turn`, in the place of `compatibility` (used by nothing, 0 in every release: the stored layout as it was, no migration). A stored profile reads it as null, never calibrated (`nullable`, 0 held, as step 1's cup fields), so a settings copy from before the flash compares equal. The powder part's result shows it (the 12864's "A turn" row under the fine tube's, `mockups/calibration_screens/18.png`; the web's "Fine weight a turn", seen on the stand-in: "0.787 gr"; the API's result, `was` and `records.powder`), and Save stores it. The controller's carry, with no throw of its own yet, starts from it (`charge_controller_carried`); the throws' own replace it as before.
+2. **The tuner's first trial** the way the first window misses (over on average, a slower kp; else a quicker one), in C and Python. Gate 1's studies keep the rule they ran with (always quicker first).
+3. **Each throw's verdict on the console** (`Charge: throw N at rest, W of T in S s`) and `tools/charge_sim/bench/step2_windows.py`, which reads a session's log into gate 4's window report (each window's kp, median time, shares, mean, SD, histogram in 0.02 steps, time per good charge, the tuner's step) and ends with the mechanics' verdict (every throw on a carried weight a turn, every kept kp stored). Tried on a made-up log.
+
+**The study** (`tools/charge_sim/step2_variants.py`; 4 rigs, from the bench's stored gains and from the owner's, 2 sessions of 300 throws at 10 gr with the tuner on). A good charge's cost, the last 100 throws of each pair of sessions (the first 50 in brackets), and the share over:
+
+| From the bench's gains | As gate 1 built it | Seeded | Seeded, held until landed | Seeded, held until quiet |
+|---|---|---|---|---|
+| AR2209 night | 83.2 s (∞), 92% over | 12.8 s (39.3), 45% | 12.7 s (16.8), 36% | 16.0 s (20.6), 24% |
+| AR2209 f2 | ∞ (∞), 100% | 9.5 s (16.7), 48% | 15.7 s (16.2), 20% | 14.9 s (14.9), 18% |
+| BM2 | 17.6 s (∞), 63% | 11.7 s (17.8), 20% | 15.2 s (14.1), 22% | 16.4 s (16.4), 24% |
+| AR2209 night, weight a turn falling with speed | ∞ (∞), 100% | 15.5 s (75.0), 73% | 16.9 s (16.9), 32% | 17.4 s (18.0), 42% |
+
+From the owner's gains the seed's effect is mixed, as built against seeded: night 15.4 and 15.4 s; f2 14.0 and 16.1; BM2 14.4 and 17.9; the rig falling with speed 20.6 and 15.4. Two sessions each: not settled, and gate 4 starts from the bench's gains. The tuner's rule for two windows with no good throw (blind) never fired once the carry was seeded: its throws were the seed's, throw for throw.
+
+**Decided (mine):**
+- **The seed ships.** It ends the deadlock on every rig from the first throw, and it is a measured parameter given to the controller, not a change to how the controller works. From the owner's gains its effect is mixed (above).
+- **The hold is not built.** At the tuner's objective it is no cheaper once settled (night 12.8 against 12.7 s; f2 9.5 against 15.7; BM2 11.7 against 15.2), and it adds 2 to 3 s to every throw. Its gain is the start from an over-heavy baseline (night 39 to 17 s, the falling rig 75 to 17 s) and a narrower spread on the night rigs (sd 0.257 to 0.136, and 0.355 to 0.149: fewer over, 45 to 36% and 73 to 32%). **For the owner:** "What we want" puts the spread first and the tuner's objective is the time per good charge; on the night rigs these two disagree about the hold. The bench's first two windows show which rig the unit is like (the README's next bench run).
+- **The blind-window rule is not built:** with the seed it has nothing to do.
+- **The tuner's first trial the way the first window misses** (checked with `first_dir.py` in the session's scratch, 12 sessions of 200 throws from the bench's gains):
+
+| Rig | Window 2's cost: quicker first, the way it misses | A kept kp under 2 after window 2 | The last 50 throws |
+|---|---|---|---|
+| AR2209 night | 32.3 s, 19.0 s | 0 of 12, 9 of 12 | 11.1 s and 11.2 s; over 55%, 46%; mean +0.21, +0.07 |
+| AR2209 f2 | 10.2 s, 9.2 s | 0, 2 | 10.3 s, 9.9 s |
+| BM2 | 26.0 s, 13.5 s | 0, 8 | 12.3 s, 11.8 s |
+| AR2209 night, falling with speed | 111.3 s, 17.7 s | 0, 11 | 14.6 s, 14.2 s; over 71%, 60% |
+
+  It saves about one window (25 throws) of a wrong first step from an over-heavy baseline and ends where the built rule ends. On the bench each of those throws is the owner's hands, so it is built.
+
+**Proven with no unit:**
+- `tests/step2_sim.py`: `VERDICT PASS`. The C controller against the Python, call for call, 100 throws on each rig, the same stop on all; the C throwing alone from both starts as the Python; the tuner, given the Python's throws, the same steps in 12 windows from both starts on every rig.
+- `tests/host_test.py` and `tests/calibration_sim.py`: `VERDICT PASS`.
+- Both boards build with no new warning: the Pico 2 W's image 54.93% of its slot, RAM 56.22% at link; the Pico W's 99.87% of its slot (1,336 bytes free) and RAM 99.68% at link. The Pico W is the ADR's last ("Last: the Pico W"): its room is for AGENTS.md's order of remedies then.
+- The web on the stand-in: the powder part to its result, "Fine weight a turn 0.787 gr", no console error.
+
+**What the twin does not settle, and the bench must:**
+- The unit's baseline is over-heavy (throws 5 to 7, +1.28 to +1.56 gr with no forecast), between the night rig and f2. The README's next bench run predicts its first two windows.
+- On the rig whose fine weight a turn falls with speed, the tuner's kept kp wanders where few throws are good: one judged session of 300 throws from the bench's gains ended at kp 12.4 (most likely: at 1 or 2 good throws in 25 a window's time per good charge is mostly count noise, and a quicker kp then reads as the cheaper; not yet looked into). If the unit is like that rig, kp cannot cure its over, and the hold comes back to the owner.
+- The throws get longer as they get better: from the bench's gains a throw takes 2.4 s and is over three times in four; on the night rig after 600 throws, 3.8 s and over less than half the time. The owner's words of 00:28 asked for shorter times and fewer over and under; on this baseline the twin gives fewer over at a longer throw, and a cheaper good charge.

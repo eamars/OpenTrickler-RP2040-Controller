@@ -51,6 +51,9 @@ typedef struct {
     float lag_flow_per_s[CHARGE_LAG_POINTS];
     float lag_s[CHARGE_LAG_POINTS];
     float acceleration_rps2;            // the motors' ramp
+    float fine_weight_per_turn;         // step 1's, the powder's calibration: with nothing carried the forecast
+                                        // starts from it; 0, none (ADR-009, 2026-11-26: without it a fast profile
+                                        // never teaches one)
 } charge_config_t;
 
 // A parcel of the fine tube's turns: when it began, from the throw's start, and how long it lasted
@@ -173,7 +176,8 @@ double charge_controller_verdict_after_s(const charge_controller_t *controller);
 // turned enough alone after the coarse tube's quiet
 void charge_controller_at_rest(charge_controller_t *controller, double reading);
 
-// The weight a turn carried, the median of the last throws' own; false when none is
+// The weight a turn carried, the median of the last throws' own; with none, step 1's where it is kept; false when
+// neither is
 bool charge_controller_carried(const charge_controller_t *controller, double *k);
 
 #ifdef __cplusplus

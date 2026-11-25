@@ -8,7 +8,8 @@
  * After each throw, per powder: the throw's final weight less the target and its time to the stop. Each window of
  * CHARGE_TUNER_WINDOW throws is judged by the owner's objective, its time per good charge (its median time over its
  * share within the tolerance), against the kept gains' throws (the latest CHARGE_TUNER_POOL). It moves the fine kp
- * alone, by a factor: a trial cheaper than the kept gains is kept and the same way tried again at the full step; one
+ * alone, by a factor, its first trial the way the first window misses (over on average, slower; else quicker): a
+ * trial cheaper than the kept gains is kept and the same way tried again at the full step; one
  * no cheaper is put back and the other way tried at once; both put back, the step's logarithm halves (down to
  * 1.1) and the kept gains are thrown again a while. Ratios only, so grams and grains are alike. Everything is in RAM: a
  * start of the unit begins afresh from the profile's kp. What is stored into the profile is the kept kp alone.

@@ -32,6 +32,7 @@ import step2  # noqa: E402
 import step2_tuner  # noqa: E402
 from host_test import compiler  # noqa: E402
 from legacy_pid import AR2209_PICOW_168  # noqa: E402
+from step2_variants import BENCH  # noqa: E402
 from throw import Session  # noqa: E402
 from workers import Workers  # noqa: E402
 
@@ -42,6 +43,11 @@ CLOSE_RPS = 1e-4                # two speeds this near are the same: the C's set
 CLOSE_K = 1e-4                  # two weights a turn this near (relative) are the same
 CLOSE_KP = 1e-9
 STEPS = {1: "first", 2: "resting", 3: "the base again", 4: "kept", 5: "the other way", 6: "both ways"}
+# The product as it ships (ADR-009, 2026-11-26): step 1's weight a turn seeds the carry; the study of the variants
+# (tools/charge_sim/step2_variants.py) kept neither the hold nor the tuner's rule for windows with no good throw
+PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss"}
+# The gains thrown from: the owner's Pico W's (gate 1's twin) and the bench's stored profile (gate 4's baseline)
+STARTS = {"owner": AR2209_PICOW_168, "bench": BENCH}
 
 
 class Channel(ctypes.Structure):
@@ -53,7 +59,7 @@ class Config(ctypes.Structure):
                 ("backoff_enable", ctypes.c_bool), ("backoff_turns", ctypes.c_float), ("backoff_rps", ctypes.c_float),
                 ("settle_s", ctypes.c_float), ("lag_count", ctypes.c_int),
                 ("lag_flow_per_s", ctypes.c_float * LAG_POINTS), ("lag_s", ctypes.c_float * LAG_POINTS),
-                ("acceleration_rps2", ctypes.c_float)]
+                ("acceleration_rps2", ctypes.c_float), ("fine_weight_per_turn", ctypes.c_float)]
 
 
 def config_of(profile, records, acceleration_rps2: float) -> Config:
@@ -66,7 +72,14 @@ def config_of(profile, records, acceleration_rps2: float) -> Config:
                   Channel(profile.fine_kp, profile.fine_ki, profile.fine_kd, records.fine_least_rps,
                           profile.fine_max_rps),
                   profile.coarse_stop_threshold, profile.backoff_enable, profile.backoff_turns,
-                  profile.backoff_speed_rps, records.settle_s, len(lag), flows, lags, acceleration_rps2)
+                  profile.backoff_speed_rps, records.settle_s, len(lag), flows, lags, acceleration_rps2,
+                  records.fine_gr_turn if PRODUCT["seed"] and records.fine_gr_turn else 0.0)
+
+
+def python_controller(profile, records, rig):
+    """The Python reference as the product ships."""
+    return step2.Step2(profile, records, rig.acceleration_rps2, before="last", seed=PRODUCT["seed"],
+                       hold=PRODUCT["hold"])
 
 
 def build_library() -> None:
@@ -206,11 +219,11 @@ class Paired:
 
 def judged_session(job: tuple) -> list:
     """One session of the Python's throws, the C given the same calls: a dict a throw."""
-    rig_name, records, seed = job
+    rig_name, records, seed, start = job
     rig = rigs.get_rig(rig_name)
-    profile = AR2209_PICOW_168
+    profile = STARTS[start]
     lib = load_library()
-    python = step2.Step2(profile, records, rig.acceleration_rps2, before="last")
+    python = python_controller(profile, records, rig)
     c = CController(lib, config_of(profile, records, rig.acceleration_rps2))
     paired = Paired(python, c)
     session = Session(rig, seed)
@@ -233,29 +246,31 @@ def judged_session(job: tuple) -> list:
 
 def alone_session(job: tuple) -> tuple:
     """One session thrown by the C alone and one by the Python on the same seed: [(error, time, verdict)] each."""
-    rig_name, records, seed = job
+    rig_name, records, seed, start = job
     rig = rigs.get_rig(rig_name)
-    profile = AR2209_PICOW_168
-    c = CController(load_library(), config_of(profile, records, rig.acceleration_rps2))
-    session = Session(rig, seed)
-    mine = []
-    for _ in range(step2.THROWS_PER_SESSION):
-        result = session.throw(c, TARGET, profile.fine_stop_threshold, verdict_after_s=c.verdict_after_s)
-        c.at_rest(result.reading)
-        mine.append((result.true_error, result.elapsed_s, result.verdict))
-    theirs = step2.run_session((rig_name, "step2:last", TARGET, profile, records, seed))
-    return mine, theirs
+    profile = STARTS[start]
+    out = []
+    for made in (CController(load_library(), config_of(profile, records, rig.acceleration_rps2)),
+                 python_controller(profile, records, rig)):
+        session = Session(rig, seed)
+        throws = []
+        for _ in range(step2.THROWS_PER_SESSION):
+            result = session.throw(made, TARGET, profile.fine_stop_threshold, verdict_after_s=made.verdict_after_s)
+            made.at_rest(result.reading)
+            throws.append((result.true_error, result.elapsed_s, result.verdict))
+        out.append(throws)
+    return out[0], out[1]
 
 
 def tuner_case(job: tuple) -> dict:
     """The Python's throws tuned by the Python's tuner from a start's gains, the C tuner given the same throws."""
     rig_name, records, start, throws, seed = job
     rig = rigs.get_rig(rig_name)
-    profile = dataclasses.replace(AR2209_PICOW_168, **step2_tuner.STARTS[start])
+    profile = STARTS[start] if start in STARTS else dataclasses.replace(AR2209_PICOW_168, **step2_tuner.STARTS[start])
     lib = load_library()
-    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0)
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, blind=PRODUCT["blind"], first=PRODUCT["first"])
     c_tuner = lib.lib_tuner_new(profile.fine_stop_threshold)
-    controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last")
+    controller = python_controller(profile, records, rig)
     session = Session(rig, seed)
     errors, times, windows, mismatch = [], [], 0, None
     for _ in range(throws):
@@ -287,7 +302,7 @@ def main() -> int:
     parser.add_argument("--rigs", nargs="+", default=list(step2.DEFAULT_RIGS))
     parser.add_argument("--sessions", type=int, default=2, help="sessions of 25 throws a rig, judged and alone")
     parser.add_argument("--tuner-throws", type=int, default=300)
-    parser.add_argument("--starts", nargs="+", default=["owner", "kp/4"])
+    parser.add_argument("--starts", nargs="+", default=["owner", "bench"], help="owner, bench, or a step2_tuner start")
     args = parser.parse_args()
     build_library()
     room = ctypes.c_int()
@@ -298,7 +313,8 @@ def main() -> int:
         made = dict(zip(args.rigs, pool.map(step2.rig_records, list(args.rigs))))
         print("The controller, judged: the C given the Python's calls on the Python's throws")
         for rig_name in args.rigs:
-            jobs = [(rig_name, made[rig_name], 5000 + s) for s in range(args.sessions)]
+            jobs = [(rig_name, made[rig_name], 5000 + s, start) for s in range(args.sessions)
+                    for start in args.starts if start in STARTS]
             throws = [t for batch in pool.map(judged_session, jobs) for t in batch]
             same_stop = sum(t["py_stop"] == t["c_stop"] for t in throws)
             worst_rate = max(t["rate"] for t in throws)
@@ -316,13 +332,14 @@ def main() -> int:
                                     f"{t['first'] or ''} carried {t['carried']:.1e}, cut {t['cut']}")
         print("The controller, alone: the C throwing on the twin, the Python on the same seeds (printed)")
         for rig_name in args.rigs:
-            jobs = [(rig_name, made[rig_name], 6000 + s) for s in range(args.sessions)]
-            pairs = pool.map(alone_session, jobs)
-            mine = [r for m, _ in pairs for r in m]
-            theirs = [r for _, t in pairs for r in t]
-            tol = AR2209_PICOW_168.fine_stop_threshold
-            print(f"  {rig_name:36s} C      {step2.summary(mine, tol)}")
-            print(f"  {'':36s} Python {step2.summary(theirs, tol)}")
+            for start in [s for s in args.starts if s in STARTS]:
+                jobs = [(rig_name, made[rig_name], 6000 + s, start) for s in range(args.sessions)]
+                pairs = pool.map(alone_session, jobs)
+                mine = [r for m, _ in pairs for r in m]
+                theirs = [r for _, t in pairs for r in t]
+                tol = AR2209_PICOW_168.fine_stop_threshold
+                print(f"  {rig_name + ', ' + start:36s} C      {step2.summary(mine, tol)}")
+                print(f"  {'':36s} Python {step2.summary(theirs, tol)}")
         print("The tuner, judged: the C given the Python's throws window for window")
         jobs = [(rig_name, made[rig_name], start, args.tuner_throws, 7000) for rig_name in args.rigs
                 for start in args.starts]

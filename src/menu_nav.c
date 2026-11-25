@@ -1882,6 +1882,17 @@ static uint8_t calibration_result_lines(const calibration_status_t *cal, char la
             }
             snprintf(label[count], MENU_TEXT, "Was");
             snprintf(value[count++], MENU_TEXT, "%.2f rev/s", (double) was[idx]);
+            if (idx == 0) {
+                // Its weight a turn, kept as step 2's first figure for this powder
+                snprintf(label[count], MENU_TEXT, "A turn");
+                if (isfinite(cal->fine.stream_per_turn) && cal->fine.stream_per_turn > 0.0f) {
+                    snprintf(value[count++], MENU_TEXT, "%.3f%s%s", (double) cal->fine.stream_per_turn,
+                             unit_text()[0] != '\0' ? " " : "", unit_text());
+                }
+                else {
+                    snprintf(value[count++], MENU_TEXT, "Not found");
+                }
+            }
         }
         seconds = cal->fine.seconds + cal->coarse.seconds;
         poured = cal->fine.poured + cal->coarse.poured;

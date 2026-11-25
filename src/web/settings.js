@@ -350,6 +350,8 @@ function drawCalibration(options = {}) {
                 card.append(line("Fine minimum", known(result.fine_min_speed_rps) ? rps(result.fine_min_speed_rps) :
                                                  "Not found"),
                             line("Was", rps(result.was.fine_min_speed_rps)),
+                            line("Fine weight a turn", known(result.fine_weight_per_turn) ?
+                                                       `${result.fine_weight_per_turn.toFixed(3)} gr` : "Not found"),
                             line("Coarse minimum", known(result.coarse_min_speed_rps) ?
                                                    rps(result.coarse_min_speed_rps) : "Not found"),
                             line("Was", rps(result.was.coarse_min_speed_rps)));

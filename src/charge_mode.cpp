@@ -230,6 +230,7 @@ static void charge_step2_configure(profile_t * profile) {
         config->lag_count = 1;
     }
     config->acceleration_rps2 = motor_get_acceleration(SELECT_FINE_TRICKLER_MOTOR);
+    config->fine_weight_per_turn = profile->fine_weight_per_turn > 0.0f ? profile->fine_weight_per_turn : 0.0f;
     charge_kp_thrown = charge_kp;
 }
 
@@ -237,6 +238,9 @@ static void charge_step2_configure(profile_t * profile) {
 // The throw at rest, its verdict read: its own weight a turn carried, and its weight and time given to the tuner. A
 // window closed, the next window's kp is the tuner's; a better kp kept is written into the powder's profile and stored
 static void charge_step2_at_rest(float reading, float target, float elapsed_s) {
+    // The throw's verdict on the console, for the bench's window report (tools/charge_sim/bench/step2_windows.py)
+    printf("Charge: throw %u at rest, %.3f of %.3f in %.2f s\n", (unsigned) charge_throw_number, (double) reading,
+           (double) target, (double) elapsed_s);
     charge_controller_at_rest(&step2->controller, reading);
     double carried;
     if (charge_controller_carried(&step2->controller, &carried)) {

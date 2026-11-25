@@ -14,7 +14,7 @@ eeprom_profile_data_t profile_data;
 const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
     .profiles[0] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "AR2208,gr",
 
         .coarse_kp = 0.025f,
@@ -30,7 +30,7 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 5.0f,
     },
     .profiles[1] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "AR2209,gr",
 
         .coarse_kp = 0.05f,
@@ -46,7 +46,7 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 2.0f,
     },
     .profiles[2] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "8208XBR,gr",
 
         .coarse_kp = 0.05f,
@@ -62,7 +62,7 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 5.0f,
     },
     .profiles[3] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "Benchmark2,gr",
 
         .coarse_kp = 0.06f,
@@ -78,19 +78,19 @@ const eeprom_profile_data_t default_profile_data = {
         .fine_max_flow_speed_rps = 5.0f,
     },
     .profiles[4] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "Profile4",
     },
     .profiles[5] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "Profile5",
     },
     .profiles[6] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "Profile6",
     },
     .profiles[7] = {
-        .compatibility = 0,
+        .fine_weight_per_turn = 0.0f,
         .name = "Profile7",
     },
 };
@@ -109,8 +109,8 @@ bool profile_data_is_saved(void) {
 
 /*
     A powder profile's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/powder_profiles/{id}). The
-    eight are one block in the EEPROM, the one chosen with them, so they share a save. Today's rev and
-    compatibility are used by nothing, and are not in the API.
+    eight are one block in the EEPROM, the one chosen with them, so they share a save. Today's rev is used by
+    nothing, and is not in the API.
 */
 #define PROFILE_FIELD(member) SETTING_AT(profile_t, member)
 #define PROFILE_GAIN(field_name, field_label, member, field_about) \
@@ -139,6 +139,12 @@ static const setting_field_t profile_fields[] = {
                   "The fine motor's slowest while it pours; not above its maximum"),
     PROFILE_SPEED("fine_max_speed_rps", "Fine maximum speed", fine_max_flow_speed_rps,
                   "The fine motor's fastest while it pours; not above its Maximum speed in Settings, Motors"),
+    // ADR-009 step 2: the powder's calibration measures it; the charge's first throw on this powder forecasts from it
+    {.name = "fine_weight_per_turn", .label = "Fine weight a turn", .group = "Calibration",
+     .about = "The fine tube's weight a turn where it streams, kept by the powder's calibration: the charge forecasts "
+              "its first throws on this powder from it, until they give their own; null, never calibrated",
+     .type = SETTING_NUMBER, PROFILE_FIELD(fine_weight_per_turn), .unit = "weight", .min = 0.001f, .max = 100.0f,
+     .nullable = true, .null_held = 0.0f, .applies = "the next throw"},
 };
 
 

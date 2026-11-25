@@ -53,17 +53,21 @@ class Records:
     lag: tuple                  # ((flow gr/s, lag s), ...) by rising flow
     fine_least_rps: float
     coarse_least_rps: float
+    fine_gr_turn: float = None  # the powder part's own fine weight a turn where it streams (the prime's); None: not kept
 
 
 def records_of(rig, seed: int) -> Records:
     """Step 1's three parts, each on a fresh bench of the rig, as calibration.py's main runs them."""
     least = {}
+    stream = {}
     for tube, limits in (("fine", (0.01, 5.0)), ("coarse", (0.08, 5.0))):
         report = calibration.speeds_part(TwinBench(rig, seed), calibration.Cup(), tube, *limits)
         least[tube] = report.records.get("least_rps", limits[0])
+        stream[tube] = report.records.get("stream_gr_turn")
     report = calibration.scale_part(TwinBench(rig, seed), calibration.Cup())
     return Records(settle_s=report.records.get("settle_s", 1.0), lag=tuple(report.records.get("lag", ((1.0, 0.8),))),
-                   fine_least_rps=least["fine"], coarse_least_rps=least["coarse"])
+                   fine_least_rps=least["fine"], coarse_least_rps=least["coarse"],
+                   fine_gr_turn=stream["fine"] if stream["fine"] and stream["fine"] > 0.0 else None)
 
 
 def lag_at(lag: tuple, flow: float) -> float:
@@ -83,12 +87,20 @@ class Step2(LegacyPid):
     name = "step2"
 
     def __init__(self, profile: Profile, records: Records, acceleration_rps2: float, before: str = "none",
-                 envelope: bool = True):
+                 envelope: bool = True, seed: bool = False, hold: str = "none"):
+        """
+        seed: with nothing carried, the forecast takes step 1's own weight a turn (Records.fine_gr_turn) until the
+            throws' own replace it (2026-11-26: without it a fast profile never teaches one).
+        hold: "none"; "landed", the fine tube at its least and no stop until the coarse tube's powder has landed (its
+            stop, the back-off and the slowest lag); "quiet", until the coarse tube's quiet (and the settle time).
+        """
         super().__init__(profile)
         self.records = records
         self.acceleration = acceleration_rps2
         self.before = before
         self.envelope = envelope
+        self.seed = seed
+        self.hold = hold
         self.history = []               # the last throws' own weights a turn (RAM, nothing stored)
         self.lag_flows = [flow for flow, _ in records.lag]
         self.lag_seconds = [lag for _, lag in records.lag]
@@ -113,8 +125,20 @@ class Step2(LegacyPid):
         self.fine_last_forecast_error = None
 
     def carried(self):
-        """The median of the last throws' own weights a turn: one clump's throw moves it not at all."""
-        return statistics.median(self.history) if self.history else None
+        """The median of the last throws' own weights a turn: one clump's throw moves it not at all. With none yet,
+        step 1's own where it is kept and seeding is on."""
+        if self.history:
+            return statistics.median(self.history)
+        return self.records.fine_gr_turn if self.seed else None
+
+    def holding(self, now_s: float) -> bool:
+        """The fine tube held at its least, with no stop, while the coarse tube's powder may still be in the air."""
+        if self.hold == "none" or self.coarse_moves:
+            return False
+        if self.quiet_at is None:
+            return True
+        until = self.quiet_at - (self.records.settle_s if self.hold == "landed" else 0.0)
+        return now_s < until
 
     def lags(self, flow):
         return numpy.interp(flow, self.lag_flows, self.lag_seconds)
@@ -197,7 +221,7 @@ class Step2(LegacyPid):
         if self.quiet_at is None and not self.coarse_moves and self.backoff_until_ms is None:
             self.quiet_at = now + max(self.lag_seconds) + self.records.settle_s
         # the stop, the moment the forecast reaches the target, below the coarse tube's threshold
-        if not self.coarse_moves and self.fine_rps > 0.0 and self.forecast() >= self.target:
+        if not self.coarse_moves and self.fine_rps > 0.0 and self.forecast() >= self.target and not self.holding(now):
             self._stop()
 
     def _stop(self) -> None:
@@ -250,6 +274,14 @@ class Step2(LegacyPid):
             self.coarse_rps = max(profile.coarse_min_rps, min(speed, profile.coarse_max_rps))
         # the fine tube: the profile's PID on the forecast's error
         error = self.target - self.forecast()
+        if self.holding(now_ms / 1000.0):
+            # The coarse tube's powder may still be in the air: the fine tube at its least, the PID's state kept
+            self.fine_rps = self.records.fine_least_rps
+            self.last_sample_ms = now_ms
+            self.fine_last_forecast_error = error
+            self.coarse_last_error = coarse_error
+            self.first_sample = False
+            return
         if not self.coarse_moves and error <= 0.0:
             self._stop()
             return

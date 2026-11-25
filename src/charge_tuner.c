@@ -73,6 +73,15 @@ static void pool(charge_tuner_t *tuner) {
 }
 
 
+static double mean_of(const double *values, int count) {
+    double sum = 0.0;
+    for (int i = 0; i < count; i++) {
+        sum += values[i];
+    }
+    return sum / count;
+}
+
+
 static double trial_kp(const charge_tuner_t *tuner) {
     return tuner->base_kp * pow(tuner->factor, tuner->direction);
 }
@@ -81,6 +90,8 @@ static double trial_kp(const charge_tuner_t *tuner) {
 static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double *next_kp) {
     if (!tuner->has_base) {
         keep(tuner, kp);
+        // The first trial goes the way the first window misses: over on average, a slower kp; else a quicker one
+        tuner->direction = mean_of(tuner->window_errors, CHARGE_TUNER_WINDOW) > 0.0 ? -1 : 1;
         tuner->on_trial = true;
         *next_kp = trial_kp(tuner);
         return CHARGE_TUNER_FIRST;

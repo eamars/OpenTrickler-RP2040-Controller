@@ -4,7 +4,8 @@ throws at a time, on the owner's objective: the time per good charge (2026-11-25
 A window's cost is its median time to the stop over its share of throws within the tolerance (the profile's fine
 threshold): what a good charge costs when every bad one is thrown again. The tuner holds, in RAM, the gains it last kept
 (the base) and the throws thrown on them (the latest POOL_THROWS); each window it tries the base's fine kp moved by a
-factor, one way, and:
+factor, one way (the first trial the way the first window misses: over on average, slower; else quicker; 2026-11-26),
+and:
 - **keeps it** when its cost is lower than the base's by more than Z times the two windows' noise (each a share's:
   sqrt((1 - good) / (good x throws))), and tries the same way again;
 - **puts the base back** otherwise, and tries the other way at once; when both ways are put back, the factor's
@@ -72,8 +73,16 @@ def noise(good: float, throws: int) -> float:
 class Tuner:
     """new_pid = tuner(old_pid, charge_data), a window at a time, on the time per good charge. Holds only RAM."""
 
-    def __init__(self, tolerance: float, z: float = Z, share: str = "counted"):
+    def __init__(self, tolerance: float, z: float = Z, share: str = "counted", blind: str = "stay", first: str = "miss"):
+        """
+        blind: what a trial is judged by when neither it nor the kept gains had a good throw (both cost infinity):
+            "stay", never cheaper (as gate 1 built it); "error", the lower median miss is the cheaper.
+        first: the first trial's way: "miss", the way the first window misses (over on average, a slower kp; the
+            product, 2026-11-26); "up", always quicker (as gate 1 built it).
+        """
         self.tolerance = tolerance
+        self.blind = blind
+        self.first = first
         self.z = z
         self.share = SHARES[share]
         self.base = None
@@ -90,6 +99,8 @@ class Tuner:
         """The profile's next gains from the window just thrown on `profile`, and what was done, in words."""
         if self.base is None:
             self.keep(profile, errors, times)
+            if self.first == "miss" and statistics.fmean(errors) > 0.0:
+                self.direction = -1
             return self.trial(), "first window: the base"
         if profile is self.base:
             self.pool = ((self.pool[0] + errors)[-POOL_THROWS:], (self.pool[1] + times)[-POOL_THROWS:])
@@ -100,7 +111,14 @@ class Tuner:
         trial_cost, trial_good = cost(errors, times, self.tolerance, self.share)
         base_cost, base_good = cost(*self.pool, self.tolerance, self.share)
         spread = math.hypot(noise(trial_good, len(errors)), noise(base_good, len(self.pool[0])))
-        if trial_cost < base_cost * (1.0 - self.z * spread):
+        if math.isinf(trial_cost) and math.isinf(base_cost) and self.blind == "error":
+            trial_miss = statistics.median(abs(e) for e in errors)
+            base_miss = statistics.median(abs(e) for e in self.pool[0])
+            if trial_miss < base_miss:
+                self.keep(profile, errors, times)
+                self.factor = FIRST_FACTOR
+                return self.trial(), f"kept, none good (a median miss {trial_miss:.3f} against {base_miss:.3f})"
+        elif trial_cost < base_cost * (1.0 - self.z * spread):
             self.keep(profile, errors, times)
             self.factor = FIRST_FACTOR
             return self.trial(), f"kept ({trial_cost:.1f} against {base_cost:.1f} s)"
@@ -124,7 +142,7 @@ def run_case(job: tuple) -> list:
     profile = dataclasses.replace(AR2209_PICOW_168, **STARTS[start])
     session = Session(rig, seed)
     controller = step2.Step2(profile, records, rig.acceleration_rps2, before="last")
-    tuner = Tuner(profile.fine_stop_threshold, *tune) if tune else None
+    tuner = Tuner(profile.fine_stop_threshold, *tune, first="up") if tune else None    # gate 1's, as it ran
     windows, all_throws = [], []
     errors, times = [], []
     for n in range(throws):

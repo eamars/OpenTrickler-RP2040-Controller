@@ -21,7 +21,7 @@ def case(job):
     profile = dataclasses.replace(BENCH, fine_kp=start_kp)
     session = Session(rig, seed)
     c = step2.Step2(profile, RECORDS, rig.acceleration_rps2, before="last")
-    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0)
+    tuner = step2_tuner.Tuner(profile.fine_stop_threshold, z=0.0, first="up")    # as this study ran (11-26)
     errors, times, windows, carried_throws = [], [], [], 0
     for _ in range(throws):
         c.profile = profile
