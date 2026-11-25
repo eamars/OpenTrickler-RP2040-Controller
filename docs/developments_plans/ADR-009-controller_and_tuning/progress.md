@@ -486,3 +486,25 @@ The owner said the bench was ready (20:01): the Pico 2 W (FA0C, 192.168.2.166) a
   - **The pause's words:** "It holds 39 of 40", against the cup's capacity, as the mock-up always had them.
 - **Checked:** both boards build (the Pico W 98.3% of its flash, 99.6% of its RAM); `tests/host_test.py` and `tests/calibration_sim.py` pass; the web walked through on the stand-in with no console error.
 - **Owed on the unit:** the cup's part from the 12864 (the knob pouring, Full, Keep) and from the web (Hold to pour); a lifted cup and an unplugged scale mid-run; the pause's words; `menu_tour` and `reach` again; then the Pico W's passes (progress, 21:58).
+
+## 2026-11-25, 22:17 to 23:20: the knob's fill and the mends on the Pico 2 W
+
+Flashed by the probe, each settings copy equal before and after (`before_fill_flash`, `after_fill_flash`); the last image 2.0.3-207 (`04bf47c`).
+- **The pause's words:** "It holds 30 of 40 gr", against the capacity. Pass.
+- **A cup lifted mid-run** (the owner): the part ended under 5 s after the call with "Cup: lifted mid-run", the motors still, the scale's records unchanged. Pass.
+- **The scale unplugged mid-run** (the owner): "Scale: no reading", the records unchanged. Pass.
+- **The failure's words** (the owner, at the bench: a failed part "quited ... which ... will trick the user thinking the calibration is done", and "Its records are kept" read as success): every part's failure is now "Not calibrated" / its cause / "Nothing changed" / OK, on the 12864 and the web (chosen by the owner, 23:20); a stop at a failure keeps the reason `failed`. Seen on the unit with the simulated scale made quiet.
+- **The knob's fill from the 12864** (the owner), in three images:
+  - first, turns added to a queue of 2: "the rotary encoder input queue can be lagging behind ... The excessive speed can cause safety issue ... when the tube is moving the excessive input event will be discard, instead of being queued." The API's log showed 1.9 to 2.0 turns held after a quick spin, the tube running on about a second;
+  - then a pour that extends, never adds (a detent a quarter turn from now, the API at most half a turn): no pour held past about 0.21 turns, each stopping with the knob. "The lag is resolved";
+  - then the owner's three points: no way to quit that showed, a Cancel drawn but out of the knob's reach, and reverse motion. The owner's choice: "I'd allow the reverse motion, and remove the cancel button": right pours, left turns the tube back (the log: −0.21 to −0.25 turns), only the right softkey, the title's "<" for Back; then "simplify the tip": "Rotate to dispense"; then "the full button is such confusing": the key is "It's full" (the owner's choice among It's full, Cup is full, Already full). The last seen on the unit through the simulated scale: "< Fill the cup", "Rotate to dispense", "It's full".
+  - The owner filled to 623.57 gr once (24 gr past the bench's 600, by hand), and later kept 249.65 gr; the stored capacity is 249.65 gr, the cup 444.93 gr.
+- **The cup's part from the unit's web page:** started there, the cup lifted and put back by the owner, Hold to dispense held 1.5 s: pouring while held, stopped 82 ms after the release; finished with the web's Done. Full and Keep were pressed at the unit meanwhile (the owner), and the knob poured alongside: the API cannot tell the two apart, by design.
+- **`menu_tour`:** every page as its baseline but Settings › Calibration, whose data changed (the cup's capacity, the charge's powder now AR2209, the hopper's): saved again. **`reach`:** every element reached; its simulated charge poured 56 gr, inside its 70.
+- **The owner (recorded 23:20):** "The functional side is already verified and I'm satisfied"; further UI changes are shown as mock-ups, not run on the unit.
+
+**Found and noted, not mended:**
+- The Settings page goes blank for a second or two when it reads a setting again (after a part keeps its records): a shift under rule 17; it should keep what it shows until the new arrives.
+- One reply from the unit cut off mid-way (`ERR_INCOMPLETE_CHUNKED_ENCODING`) while the page asked for a pour every 150 ms and polled: a web-server matter (ADR-003), seen once.
+
+**The owner's idea for the web (recorded 23:20), being mocked:** "a popup dialog for each calibration item (like a wizard) works better than a random embedded element." Recommended: a sheet per part over the page, its keys in fixed places, opened by the part's button or by itself while a part runs, closed only by its own keys; on the stand-in for the owner's look.
