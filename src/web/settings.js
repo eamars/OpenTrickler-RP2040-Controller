@@ -145,6 +145,26 @@ function stopCalibrationPoll() {
     calibrationPeriod = null;
 }
 
+// The calibration's sheet: one dialog over the page while a part runs, a step at a time, its keys in fixed places at
+// its foot (the owner, 2026-11-25: "a popup dialog for each calibration item (like a wizard)"). Esc does the step's
+// way out (Cancel, Stop, Discard), never a silent close: a part ends only by its own keys, as at the unit
+function calibrationSheet() {
+    let sheet = document.getElementById("calibration-sheet");
+    if (sheet === null) {
+        sheet = element("dialog", {id: "calibration-sheet", class: "sheet wizard",
+                                     "aria-labelledby": "calibration-sheet-title"});
+        sheet.addEventListener("cancel", (event) => {
+            event.preventDefault();
+            const out = sheet.querySelector("[data-out]");
+            if (out !== null) {
+                out.click();
+            }
+        });
+        document.body.append(sheet);
+    }
+    return sheet;
+}
+
 const known = (value) => value !== null && value !== undefined;
 
 function weightText(value) {
@@ -178,11 +198,12 @@ function liveValues(cal) {
 }
 
 /*
- * The calibration's cards and its job's. In Settings (no options): the cup's and the scale's, and where a powder is
- * calibrated; a part's steps run in its own card, where its Calibrate button was (web-ui-design, rule 17: nothing
- * above them moves). On a powder's page ({profile, page: "powders", start, row, saved}): its steps while it runs, in
- * the place of row, the powder's actions (hidden meanwhile), and start, the page's own button among them, which starts
- * it and is off while any part runs; saved() once its records are kept, so its form shows them
+ * The calibration's cards, and its parts' steps in the sheet over the page (calibrationSheet). In Settings (no
+ * options): the cup's and the scale's cards with their records and Calibrate buttons, and where a powder is
+ * calibrated. On a powder's page ({profile, page: "powders", start, saved}): start, the page's own button among the
+ * powder's actions, which starts it and is off while any part runs; saved() once its records are kept, so its form
+ * shows them. The sheet opens with a part's first step, and by itself while a part started elsewhere runs (on a
+ * powder's page, that powder's), and closes when the part has ended
  */
 function drawCalibration(options = {}) {
     const forPowder = options.profile !== undefined;
@@ -199,7 +220,12 @@ function drawCalibration(options = {}) {
     const answer = (word) => send("POST", `${CALIBRATION}/answer`, {answer: word});
     const stop = () => send("POST", `${CALIBRATION}/stop`, {});
     const button = (text, kind, act) => element("button", {class: kind, type: "button", onclick: act}, text);
-    const cancel = () => button("Cancel", "ghost", stop);
+    const out = (text, kind, act) => {       // a step's way out, which Esc does too
+        const key = button(text, kind, act);
+        key.dataset.out = "";
+        return key;
+    };
+    const cancel = () => out("Cancel", "ghost", stop);
     // The fill's key: pours while it is held (a finger, the mouse, or Space and Enter), never after; a step that
     // replaces it under the finger stops it too
     const holdToPour = () => {
@@ -246,9 +272,8 @@ function drawCalibration(options = {}) {
         return key;
     };
 
-    const jobCard = (cal, inCard) => {
-        const card = element("div", {class: inCard ? "calibration-job in-card" : "fields calibration-job",
-                                     "aria-live": "polite"});
+    const jobCard = (cal) => {
+        const card = element("div", {class: "calibration-job", "aria-live": "polite"});
         const head = (status) => card.append(element("div", {class: "status"}, element("span", {}, status)));
         const figure = (unit) => card.append(
             element("div", {class: "figure-line"}, element("span", {class: unit === "%" ? "figure short" : "figure",
@@ -256,7 +281,7 @@ function drawCalibration(options = {}) {
                     element("span", {class: "unit"}, unit)));
         const note = (text) => card.append(element("p", {class: "field-help", "data-live": text ? null : "note"},
                                                    text || ""));
-        // A step's keys side by side; a step with one key gives it the card's width, as the Calibrate button had
+        // A step's keys side by side at the sheet's foot; a step with one key gives it the whole width
         const actions = (...buttons) => card.append(element("div", {class: buttons.length === 1 ? "pair one" : "pair"},
                                                             ...buttons));
         const powder = cal.profile_name;
@@ -307,12 +332,12 @@ function drawCalibration(options = {}) {
             figure("%");
             card.append(element("div", {class: "bar"}, element("i", {"data-live": "bar"})));
             note();
-            actions(button("Stop", "action halt", stop));
+            actions(out("Stop", "action halt", stop));
             break;
         case "paused":
             head("Empty the cup");
             note(`${cal.line} gr. Empty it, put it back, then go on.`);
-            actions(button("Stop", "action halt", stop), button("Go on", "action go", () => answer("go_on")));
+            actions(out("Stop", "action halt", stop), button("Go on", "action go", () => answer("go_on")));
             break;
         case "result": {
             const result = cal.result;
@@ -334,7 +359,7 @@ function drawCalibration(options = {}) {
             if (result.failure) {
                 note(`${result.failure}.`);
             }
-            actions(button("Discard", "ghost", stop),
+            actions(out("Discard", "ghost", stop),
                     button(cal.part === "scale" ? "Keep" : "Save", "action go",
                            () => send("POST", `${CALIBRATION}/save`, {})));
             break;
@@ -349,18 +374,17 @@ function drawCalibration(options = {}) {
         return card;
     };
 
-    const cards = (cal, job) => {
+    const cards = (cal) => {
         const busy = cal.state !== "idle";
         const start = (part, text, extra = {}) =>
             element("button", {class: "ghost", type: "button", disabled: busy,
                                onclick: () => send("POST", `${CALIBRATION}/start`, {part, ...extra})}, text);
         if (forPowder) {
-            return job ? [job] : [];        // in the place of the powder's actions (options.row)
+            return [];          // its start is the page's own button (options.start)
         }
         const {cup, scale} = cal.records;
         const lag = scale.lag;
-        // The part that runs shows its steps where its button was; the other's button is off meanwhile
-        const slot = (part, text) => job && cal.part === part ? job : element("div", {class: "field"}, start(part, text));
+        const slot = (part, text) => element("div", {class: "field"}, start(part, text));
         return [
             element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Cup"),
                     line("Capacity", weightText(cup.capacity)),
@@ -389,25 +413,29 @@ function drawCalibration(options = {}) {
         // A powder's page shows its own powder's job alone
         const running = cal.state === "running" && cal.step !== null &&
                         (!forPowder || (cal.part === "powder" && cal.profile === options.profile));
-        if (options.row) {
-            options.row.hidden = running;
-        }
         // Built again only for a new step or new records; within a step its figures change in place, so a button is
         // never replaced under a finger
         const key = JSON.stringify({step: running && [cal.part, cal.step, cal.capacity, cal.failure],
                                     state: cal.state, part: cal.part, profile: cal.profile, records: cal.records});
+        const sheet = calibrationSheet();
         if (key !== drawnKey) {
             drawnKey = key;
-            const job = running ? jobCard(cal, !forPowder) : null;
-            box.replaceChildren(...cards(cal, job));
-            // A new step's question is never left above the screen, where the last step's taller card had it
-            if (job !== null && job.getBoundingClientRect().top < 0) {
-                job.scrollIntoView({block: "start"});
+            box.replaceChildren(...cards(cal));
+            if (running) {
+                const title = {cup: "Calibrate the cup", scale: "Calibrate the scale",
+                               powder: `Calibrate ${cal.profile_name}`}[cal.part];
+                sheet.replaceChildren(element("h2", {id: "calibration-sheet-title", class: "sheet-title"}, title),
+                                      jobCard(cal));
+                if (!sheet.open) {
+                    sheet.showModal();
+                }
+            } else if (sheet.open) {
+                sheet.close();
             }
         }
         if (running) {
             for (const [name, value] of Object.entries(liveValues(cal))) {
-                const at = box.querySelector(`[data-live="${name}"]`);
+                const at = sheet.querySelector(`[data-live="${name}"]`);
                 if (at === null) {
                     continue;
                 }
