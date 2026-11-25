@@ -35,7 +35,7 @@ Step 2 depends on step 1: it takes step 1's records as its input, and has none w
 |---|---|---|---|
 | 1 | The cup's capacity | the charge settings, appended | The user trickles with the knob until the cup holds as much as they want it to; the reading, shown and confirmed, is the capacity. A pour of the calibration that would pass it pauses the calibration and asks for the cup to be emptied, then goes on |
 | 2 | The empty cup's weight | the charge settings, appended | The cup lifted off the zeroed scale: the reading falls by its weight, so a lifted cup can be told from a light reading |
-| 3 | The scale's settle time | the scale settings, appended | How long a small change takes from the reading's first move to its rest: when it first shows its final value and never again strays more than one step from it. One number, from small moves of the fine tube |
+| 3 | The scale's settle time | the scale settings, appended | How long a small change takes from the reading's first move to its rest: when it first shows its final value and never again strays more than one step from it. One number, from bursts of the fine tube: its powder turned out within about 0.1 s, several steps of it, so what follows the first move is the scale's (the owner, 2026-11-25) |
 | 4 | The scale's lag | the scale settings, appended | How far the reading runs behind the powder poured, in seconds, by flow rate: over a steady run and its stop, the powder poured but not yet shown, divided by the powder poured. A table of five flows: about 0.2, 0.4 and 0.8 gr/s on the fine tube, 3 and 10 on the coarse |
 | 5 | Each tube's least speed | the powder profile's own field (its minimum speed) | Twice the slowest speed at which the tube pours |
 
@@ -81,8 +81,6 @@ Measured on the bench (the Pico 2 W, an A&D FX-300i, AR2209) unless said; the fi
    - a record that matches at no size is taken as damaged and gets the defaults, as today. A wrong match is a chance of one in about four billion for each size tried.
 
    Shown by an update from today's release that keeps every setting.
-
-2. **The settle time's measure:** its moves of 0.1 turn at 0.25 rev/s read the move's own powder arriving (0.27 s on the bench), not the scale. Proposed: a burst, the powder turned out within about 0.1 s and several steps of it, so what follows the first move is the scale's; on the A&D it may read near 0, on a scale that damps its reading a second or more. Proven at the next bench session. The other ways: keep the moves as they are; or no item 3, the slowest lag and a margin telling when a reading is final.
 
 ### What we do
 

@@ -224,3 +224,9 @@ Each appended field is -1 when never calibrated, and null through the API (`null
 - gate 3: each part on a unit through the console and the API; the A&D's rate against the room for readings; the zero's wait and the cup's thresholds; a stop and a driver's fault at each step;
 - gate 4: the screens seen and reached on the unit (`snap`, `reach`), and the menu's baselines saved again for the pages this changes (main, settings, and the new settings/calibration); the web on a unit;
 - gate 5: step 1's sign-off.
+
+## 2026-11-25, 15:38: the settle time from bursts
+
+- **Decided by the owner (recorded 15:38):** the settle time is measured with bursts: the fine tube at 2 rev/s for 0.1 s, four times, about 0.2 turn and 0.16 gr each (8 of the A&D's steps), its powder turned out within about 0.14 s at the motor's 50 rev/s² (0.04 s to 2 rev/s). What follows a burst's first move is then the scale's settling, not the powder still arriving. In `calibration.py` and `calibration_method.c` alike; the screen's line while they run reads Bursts.
+- **On the simulation:** the C and the Python agree on the bursts' runs and the settle time (0.781 and 0.143 s on two seeds). The twin's figure itself means little: its fine tube holds only to 0.5 rev/s. Kept recordings have no bursts, so `scale_kept` gives no settle time for them. The A&D's own is measured at the next bench session (gate 1's run of the method as changed).
+- Both boards build: the Pico W 995.4 of 1016 KB of flash.

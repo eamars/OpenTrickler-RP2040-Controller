@@ -40,9 +40,9 @@ DEFAULT_CUP_CAPACITY_GR = 100.0
 PRIME_RUNS_MOST = 5             # each tube turned at most this many times until two runs pour alike
 PRIME_ALIKE_SHARE = 0.1         # two runs pour alike within this share of the larger
 PRIME_TURNS = {"coarse": 1.0, "fine": 3.0}
-SETTLE_MOVE_TURNS = 0.1         # the fine tube's small move for the settle time: about 4 kernels, the least it makes
-SETTLE_MOVES = 4                # moves made
-SETTLE_MOVE_RPS = 0.25          # the speed a small move is made at
+SETTLE_BURST_TURNS = 0.2        # the settle time's burst of the fine tube: its powder turned out at once, several
+SETTLE_BURSTS = 4               # steps of it (about 0.16 gr, 8 of the A&D's), so what follows its first move is the
+SETTLE_BURST_RPS = 2.0          # scale's, not the powder still arriving (the owner, 2026-11-25): 0.1 s at 2 rev/s
 SETTLE_WATCH_S = 10.0           # each move watched this long: longer than any scale takes to come to rest
 WATCH_MARGIN_S = 1.0            # a stop is watched for the slowest lag and the settle time, and this
 # The lag's runs, (speed rev/s, run s) by tube: five flows, about 0.2, 0.4 and 0.8 gr/s on the fine tube and 3 and 10 on
@@ -149,7 +149,7 @@ def scale_part(bench, cup: Cup) -> Report:
     """The scale: its settle time and its lag.
 
     - The settle time: how long a small change takes from the reading's first move to its rest (within one step of
-      it), the median of SETTLE_MOVES small moves of the fine tube.
+      it), the median of SETTLE_BURSTS bursts of the fine tube, each turned out within about 0.1 s.
     - The lag: how far the reading runs behind the powder poured, in seconds, by flow rate: over a steady run and its
       stop, the powder poured but not yet shown, divided by the powder poured.
 
@@ -168,11 +168,11 @@ def scale_part(bench, cup: Cup) -> Report:
         report.failures.append("the fine tube poured nothing: the scale's settle time and lag keep their defaults")
         report.seconds, report.poured_gr = bench.now - start_s, bench.cup.landed_gr - start_gr
         return report
-    moves = [run_and_stop(bench, cup, "fine", SETTLE_MOVE_RPS, SETTLE_MOVE_TURNS / SETTLE_MOVE_RPS, SETTLE_WATCH_S,
-                          fine_turn) for _ in range(SETTLE_MOVES)]
+    moves = [run_and_stop(bench, cup, "fine", SETTLE_BURST_RPS, SETTLE_BURST_TURNS / SETTLE_BURST_RPS, SETTLE_WATCH_S,
+                          fine_turn) for _ in range(SETTLE_BURSTS)]
     settle_s, watch_s = settle_of(moves)
     if settle_s is None:
-        report.failures.append(f"no small move showed more than one step in {SETTLE_MOVES} tries: the settle time "
+        report.failures.append(f"no burst showed more than one step in {SETTLE_BURSTS} tries: the settle time "
                                "keeps its default")
     else:
         report.records["settle_s"] = settle_s
@@ -197,7 +197,7 @@ def scale_part(bench, cup: Cup) -> Report:
 
 
 def settle_of(moves: list) -> tuple:
-    """The settle time of the small moves that showed more than one step (their median from the first move to rest),
+    """The settle time of the bursts that showed more than one step (their median from the first move to rest),
     and how long the lag's runs are watched (the longest from a move's stop to its rest, and the margin); None and the
     default watch when none showed."""
     moved = [run for run in moves if run["first_s"] is not None and run["settle_s"] > 0.0]
@@ -322,8 +322,8 @@ def kept_gain(run: dict) -> float:
 
 def scale_kept(folder) -> dict:
     """`scale_part`'s records made again from a kept scale part's runs (`runs.json`), in the order it ran them: the
-    fine tube's prime, the small moves, then the lag's runs by tube, the coarse tube's prime before them. Of a
-    recording that made small moves of several sizes, those of SETTLE_MOVE_TURNS alone are taken."""
+    fine tube's prime, the bursts, then the lag's runs by tube, the coarse tube's prime before them. Of a
+    recording made before the bursts (2026-11-25) has none: its settle time is None."""
     runs = json.loads((Path(folder) / "runs.json").read_text(encoding="utf-8"))
 
     def measured(run):
@@ -336,8 +336,8 @@ def scale_kept(folder) -> dict:
     coarse_primed = False
     for run in runs:
         tube, speed = run["tube"], run["speed_asked_rps"]
-        if tube == "fine" and abs(speed - SETTLE_MOVE_RPS) < 1e-6 and run["run_s"] < 1.5:
-            if abs(speed * run["run_s"] - SETTLE_MOVE_TURNS) < 0.03:
+        if tube == "fine" and abs(speed - SETTLE_BURST_RPS) < 1e-6 and run["run_s"] < 0.5:
+            if abs(speed * run["run_s"] - SETTLE_BURST_TURNS) < 0.05:
                 moves.append(measured(run))
             continue
         if tube == "coarse" and not coarse_primed:

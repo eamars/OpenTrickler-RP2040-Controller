@@ -95,7 +95,7 @@ class CalibrationMock:
             progress = min(100, int(job["done"] + elapsed / length * 100))
             job["progress"] = progress
             if job["part"] == "scale":
-                job["line"] = "Small moves" if progress < 25 else "The scale's lag"
+                job["line"] = "Bursts" if progress < 25 else "The scale's lag"
             else:
                 speed = 0.01 * (22.4 ** (progress / 100.0))
                 job["line"] = f"{'Fine' if progress < 55 else 'Coarse'} tube {speed:.2f} rev/s"

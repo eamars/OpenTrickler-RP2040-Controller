@@ -81,7 +81,7 @@ extern "C" {
  */
 void calibration_cup(float capacity, float held_now);
 
-// The scale part: its settle time and its lag, from the fine tube's small moves and both tubes' steady runs
+// The scale part: its settle time and its lag, from the fine tube's bursts and both tubes' steady runs
 calibration_outcome_t calibration_scale_part(const calibration_bench_t *bench, calibration_scale_record_t *record);
 
 /*

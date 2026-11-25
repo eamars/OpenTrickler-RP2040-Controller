@@ -18,9 +18,9 @@
 #define POUR_PER_TURN_MOST 12.0f        // a run's most pour for the cup's check, before the tube has poured at all
 #define SCALE_PRIME_RPS 0.5f            // the fine tube's prime in the scale part
 #define SCALE_COARSE_PRIME_RPS 1.0f     // the coarse tube's, before its lag's runs
-#define SETTLE_MOVE_TURNS 0.1f          // the fine tube's small move for the settle time: about 4 kernels
-#define SETTLE_MOVES 4
-#define SETTLE_MOVE_RPS 0.25f
+#define SETTLE_BURST_TURNS 0.2f         // the settle time's burst of the fine tube: 0.1 s at 2 rev/s, its powder
+#define SETTLE_BURSTS 4                 // turned out at once, several steps of it (about 0.16 gr), so what follows
+#define SETTLE_BURST_RPS 2.0f           // its first move is the scale's (the owner, 2026-11-25)
 #define SETTLE_WATCH_S 10.0f            // each move watched this long: longer than any scale takes to come to rest
 #define WATCH_MARGIN_S 1.0f             // a stop is watched for the slowest lag and the settle time, and this
 #define LAG_RUNS_EACH 2
@@ -262,15 +262,15 @@ calibration_outcome_t calibration_scale_part(const calibration_bench_t *bench, c
         return CALIBRATION_DONE;
     }
 
-    // The settle time: small moves, each watched long; the median from a move's first move to its rest, of those
-    // that moved more than one step
-    float settles[SETTLE_MOVES];
+    // The settle time: bursts, each watched long; the median from a burst's first move to its rest, of those that
+    // moved more than one step
+    float settles[SETTLE_BURSTS];
     int moved = 0;
     float longest_rest = 0.0f;
-    for (int idx = 0; idx < SETTLE_MOVES; idx += 1) {
-        bench->report(bench->ctx, 5 + idx * 5, "Small moves");
+    for (int idx = 0; idx < SETTLE_BURSTS; idx += 1) {
+        bench->report(bench->ctx, 5 + idx * 5, "Bursts");
         run_t run;
-        if (!run_and_stop(bench, CALIBRATION_FINE, SETTLE_MOVE_RPS, SETTLE_MOVE_TURNS / SETTLE_MOVE_RPS,
+        if (!run_and_stop(bench, CALIBRATION_FINE, SETTLE_BURST_RPS, SETTLE_BURST_TURNS / SETTLE_BURST_RPS,
                           SETTLE_WATCH_S, fine_turn, &run)) {
             return CALIBRATION_STOPPED;
         }
@@ -285,7 +285,7 @@ calibration_outcome_t calibration_scale_part(const calibration_bench_t *bench, c
         watch_s = longest_rest + WATCH_MARGIN_S;
     }
     else {
-        say_failure(record->failure, "Small moves: no change");
+        say_failure(record->failure, "Bursts: no change");
     }
 
     // The lag at each flow, both tubes: the coarse primed first
