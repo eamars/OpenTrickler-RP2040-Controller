@@ -8,9 +8,9 @@ Three parts, each run alone, each using what the others stored or their defaults
 - the cup: its capacity, given by the user, and its empty weight (the unit's screens; given here as numbers);
 - the scale: how long a small change takes to show and settle, by its size, and how far the reading runs behind a
   steady flow, by flow rate;
-- the speeds: each tube's least and most speed. The least is LEAST_TIMES the slowest speed at which every run
-  registers powder (a confident value: the measured minimum doubled); the most, the fastest from the least up whose
-  stops land alike (the spread of what lands after them within its bound). At each speed one run, the farthest from
+- the speeds: each tube's least and most speed. The least is LEAST_TIMES the slowest speed at which the tube pours
+  (its runs together at least REGISTER_SHARE of its rate at its fastest speed; a confident value: the measured minimum
+  doubled); the most, the fastest speed it poured at, its motor's own most. At each speed one run, the farthest from
   the speed's median, is rejected as a clump or a lull. `judge` makes them from runs live or kept.
 
 No retries and no pass criteria: a part that cannot measure an item says so, and the item keeps its default.
@@ -52,7 +52,6 @@ SPEED_STOPS = 4                 # stops at each speed
 SPEED_RUN_TURNS = 0.1           # every stop's run turns this much, so runs at every speed register alike powder,
 SPEED_RUN_LEAST_S = 0.5         # and lasts at least this long,
 SPEED_RUN_MOST_S = 10.0         # and never longer than this
-CONSISTENT_TIMES = 3.0          # with no bound given, a landing's spread within this many times the speeds' median
 LEAST_TIMES = 2.0               # the least speed is the measured minimum times this
 REGISTER_SHARE = 0.5            # a speed registers when its runs pour at least this share of the tube's rate (gr a
                                 # turn) at its fastest speed: by their sum, as one run of 0.1 turn is a few kernels
@@ -194,7 +193,7 @@ def scale_part(bench, cup: Cup) -> Report:
 
 
 def speeds_part(bench, cup: Cup, tube: str, least_rps: float, most_rps: float, scale: dict = None) -> Report:
-    """A tube's least and most speed at which what lands after a stop is consistent.
+    """A tube's least and most speed, and what lands after a stop at each speed of its ladder.
 
     Args:
         bench: the bench (above).
@@ -252,15 +251,15 @@ def pour_rate(gains: list, turns: list) -> float:
     return (sum(gains) - gains[out]) / kept_turns if kept_turns > 0.0 else 0.0
 
 
-def judge(tube: str, stops: list, spread_bound_gr: float = None) -> tuple:
-    """A tube's least and most speed from its ladder's runs.
+def judge(tube: str, stops: list) -> tuple:
+    """A tube's least and most speed from its ladder's runs. The most is the ladder's fastest speed that poured: the
+    motor's own most, the ceiling the charge's controller is held to (the owner, 2026-11-25: a landing's spread over 4
+    stops a speed did not judge it with any confidence).
 
     Args:
         tube: "coarse" or "fine", for the failures' words.
         stops: (speed, each run's registered powder gr, each run's powder landed after its stop gr, each run's turns)
             by speed.
-        spread_bound_gr: the bound on a landing's spread (the A&D's times 3), or None for CONSISTENT_TIMES the median of
-            the speeds' spreads.
 
     Returns:
         (records: `least_rps`, `most_rps` where found, and `stops` as (speed, whether it registers, the landing's
@@ -281,20 +280,12 @@ def judge(tube: str, stops: list, spread_bound_gr: float = None) -> tuple:
         failures.append(f"no speed of the {tube} tube poured at half its fastest speed's rate: its least and most "
                         "keep their values")
         return records, failures
-    least = min(LEAST_TIMES * min(floor_speeds), rows[-1][0])
-    upper = [row for row in rows if row[0] >= least]
-    bound = spread_bound_gr if spread_bound_gr is not None else \
-        CONSISTENT_TIMES * statistics.median(row[3] for row in upper)
-    landed_alike = [row[0] for row in upper if row[3] <= bound]
-    records["least_rps"] = least
-    if landed_alike:
-        records["most_rps"] = max(landed_alike)
-    else:
-        failures.append(f"no {tube} stop from its least up landed within {bound:.3f} gr: its most keeps its value")
+    records["least_rps"] = min(LEAST_TIMES * min(floor_speeds), rows[-1][0])
+    records["most_rps"] = rows[-1][0]
     return records, failures
 
 
-def judge_kept(folder, tube: str, spread_bound_gr: float = None) -> tuple:
+def judge_kept(folder, tube: str) -> tuple:
     """`judge` on a kept recording's runs (`runs.json`): the ladder's speeds, each with SPEED_STOPS runs or more."""
     runs = json.loads((Path(folder) / "runs.json").read_text(encoding="utf-8"))
     by_speed = {}
@@ -305,7 +296,7 @@ def judge_kept(folder, tube: str, spread_bound_gr: float = None) -> tuple:
         by_speed.setdefault(round(run["speed_asked_rps"], 6), []).append((rest - before, rest - at_stop, turns))
     stops = [(speed, [g for g, _, _ in made], [r for _, r, _ in made], [n for _, _, n in made])
              for speed, made in by_speed.items() if len(made) >= SPEED_STOPS]
-    return judge(tube, stops, spread_bound_gr)
+    return judge(tube, stops)
 
 
 def say(report: Report) -> None:
