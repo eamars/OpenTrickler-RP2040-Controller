@@ -193,8 +193,9 @@ function liveValues(cal) {
 
 /*
  * The calibration's cards and its job's. In Settings (no options): the cup's and the scale's, a part's job whichever
- * runs, and where a powder is calibrated. On a powder's page ({profile, page: "powders", saved}): that powder's start,
- * and its job while it runs; saved() once its records are kept, so its form shows them
+ * runs, and where a powder is calibrated. On a powder's page ({profile, page: "powders", start, saved}): its job while
+ * it runs, and start, the page's own button among the powder's actions, which starts it and is off while any part
+ * runs; saved() once its records are kept, so its form shows them
  */
 function drawCalibration(options = {}) {
     const forPowder = options.profile !== undefined;
@@ -339,12 +340,7 @@ function drawCalibration(options = {}) {
             element("button", {class: "ghost", type: "button", disabled: busy,
                                onclick: () => send("POST", `${CALIBRATION}/start`, {part, ...extra})}, text);
         if (forPowder) {
-            const other = busy && !(cal.part === "powder" && cal.profile === options.profile);
-            return [element("div", {class: "fields"}, element("h3", {class: "fields-title"}, "Calibration"),
-                            element("p", {class: "field-help"}, other ? "Another calibration runs." :
-                                    "Each tube's minimum speed, measured with this powder in the hopper."),
-                            element("div", {class: "field"},
-                                    start("powder", "Calibrate this powder", {profile: options.profile})))];
+            return [];          // its start is the page's own button (options.start)
         }
         const {cup, scale} = cal.records;
         const lag = scale.lag;
@@ -366,7 +362,13 @@ function drawCalibration(options = {}) {
         ];
     };
 
+    if (options.start) {
+        options.start.onclick = () => send("POST", `${CALIBRATION}/start`, {part: "powder", profile: options.profile});
+    }
     const draw = (cal) => {
+        if (options.start) {
+            options.start.disabled = cal.state !== "idle";
+        }
         // A powder's page shows its own powder's job alone
         const running = cal.state === "running" && cal.step !== null &&
                         (!forPowder || (cal.part === "powder" && cal.profile === options.profile));
