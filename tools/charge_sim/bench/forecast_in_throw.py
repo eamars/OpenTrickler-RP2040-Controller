@@ -1,28 +1,25 @@
-"""Step 2's forecast check (ADR-009, step 2, gate 1): the weight a turn estimated within each throw, against the first
-build's stored one, on the kept bench series.
+"""Step 2's forecast check (ADR-009, step 2, gate 1): the fine tube's weight a turn estimated within each throw,
+against the first build's stored one, on the kept bench series.
 
-Each throw's rows (`series.py` kept them: the time, the reading, the unit's own forecast, each tube's speed asked) are
-replayed four ways. The forecast is always the reading plus each tube's turns turned out and not yet shown (10 ms
-parcels of the speeds asked, each shown after the lag of its speed, the unit's own lag table); only the weight a turn
-differs:
-- **stored:** the calibration's, as the unit held it (its echo, `@cal head`): the first build's forecast;
-- **slope:** no weight a turn at all: the reading plus its own rise over the last quarter second times the lag;
-- **in-throw:** from the throw's own readings alone: the coarse tube's from the reading over the coarse turns shown
-  while the coarse tube's powder is the bulk of it, the fine tube's from the rise once the coarse tube is quiet; the
-  slope until each is known;
-- **carried:** the mean of the series' earlier throws' own, each as it worked out in hindsight (what RAM could carry
-  from throw to throw, nothing stored): the first throw of a series has none and is left out.
+The predictor matters only for a throw's last grain or gram, so it runs with the fine tube alone, below the coarse
+tube's stop threshold (the owner, 2026-11-25). Each throw's rows (`series.py` kept them: the time, the reading, the
+unit's own forecast, each tube's speed asked) are replayed: the fine tube's turns turned out and not yet shown, in
+10 ms parcels of the speeds asked, each shown after the lag of its speed (the unit's own lag table). At the fine
+tube's stop, with the coarse tube quiet and at least `--alone` turns shown since, the forecast is the reading plus
+those turns times a weight a turn:
+- **stored:** the calibration's, as the unit held it (its echo, `@cal head`): the first build's forecast; and the
+  same 15% under and over, to show how much the stop depends on it;
+- **none:** the reading alone;
+- **in-throw:** from the throw's own readings since the coarse tube went quiet: the slope of the reading on the fine
+  turns shown (a regression), or the rise over the turns between its two ends.
 
-Judged where the controller decides on it:
-- at the fine tube's stop with the coarse tube quiet: where the throw rested, less the forecast;
-- at the coarse tube's stop: the forecast less the truth (the throw's settled weight less what the fine tube still
-  turned out, at its own weight a turn in hindsight).
+Judged as where the throw rested, less the forecast. (The run of 17:58, with the coarse tube's stop and the slope's
+fallback, is the commit 23d85a3's version of this tool.)
 
     venv\\Scripts\\python tools\\charge_sim\\bench\\forecast_in_throw.py
 """
 
 import argparse
-import json
 import re
 import statistics
 import sys
@@ -37,12 +34,9 @@ from replay import series_of     # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 RECORDINGS = HERE.parent / "recordings"
-SLOPE_S = 0.25              # the slope's window
-KNOWN_TURNS = 0.15          # turns shown before a tube's own weight a turn replaces the slope
+KNOWN_TURNS = 0.15          # fine turns shown alone before the throw's own weight a turn is taken
 QUIET_HOLD_S = 1.5          # the fine tube's stop: still for this long
 CREEP_RPS = 0.08            # a stop from below this is a stop from the creep
-WAYS = ("stored", "slope", "in-throw", "carried")
-SAME = ("stored, same throws",)        # the stored forecast on the throws the carried one has
 
 
 def numbers(line: str) -> dict:
@@ -65,20 +59,16 @@ def echo(lines: list) -> dict:
 
 
 def lag_of(points: list, speed: numpy.ndarray) -> numpy.ndarray:
-    xs = numpy.array([p[0] for p in points])
-    ys = numpy.array([p[1] for p in points])
-    return numpy.interp(speed, xs, ys)
+    return numpy.interp(speed, [p[0] for p in points], [p[1] for p in points])
 
 
 class Throw:
-    """A throw's turns, shown and not, at each of its rows."""
+    """A throw's fine turns, shown and not, at each of its rows."""
 
     def __init__(self, throw: dict, cal: dict):
-        self.raw = throw
         rows = numpy.array(throw["rows"], dtype=float)
         self.t = rows[:, 0] / 1000.0
         self.w = rows[:, 1]
-        self.unit_forecast = rows[:, 2]
         self.coarse_asked = rows[:, 3]
         self.fine_asked = rows[:, 4]
         flow, _ = flows(throw["rows"], throw["coarse_turns"])
@@ -87,32 +77,23 @@ class Throw:
         pick = flow[step::step]
         before = numpy.vstack([numpy.zeros(5), pick[:-1]])
         at = (before[:, 0] + pick[:, 0]) / 2.0
-        dc = numpy.maximum(0.0, pick[:, 1] - before[:, 1])
-        df = numpy.maximum(0.0, pick[:, 2] - before[:, 2])
-        due_c = at + lag_of(cal["coarse"], pick[:, 3])
-        due_f = at + lag_of(cal["fine"], pick[:, 4])
+        turns = numpy.maximum(0.0, pick[:, 2] - before[:, 2])
+        due = at + lag_of(cal["fine"], pick[:, 4])
         now = self.t[:, None]
         out = at[None, :] <= now
-        self.sc = ((due_c[None, :] <= now) & out) @ dc       # coarse turns shown by each row
-        self.uc = ((due_c[None, :] > now) & out) @ dc        # coarse turns out and not yet shown
-        self.sf = ((due_f[None, :] <= now) & out) @ df
-        self.uf = ((due_f[None, :] > now) & out) @ df
-        self.lag_c = lag_of(cal["coarse"], self.coarse_asked)
-        self.lag_f = lag_of(cal["fine"], self.fine_asked)
-        self.fine_total = flow[-1, 2]
-        self.flow_t = flow[:, 0]
-        self.flow_f = flow[:, 2]
-        self.coarse_off = float(self.t[numpy.argmax(self.coarse_asked == 0.0)])
-        self.coarse = throw["coarse_turns"] > 0.0
-        self.quiet = self.coarse_off + cal["coarse"][0][2] if self.coarse else float(self.t[0])
+        self.shown = ((due[None, :] <= now) & out) @ turns
+        self.unseen = ((due[None, :] > now) & out) @ turns
+        coarse_off = float(self.t[numpy.argmax(self.coarse_asked == 0.0)])
+        quiet = coarse_off + cal["coarse"][0][2] if throw["coarse_turns"] > 0.0 else float(self.t[0])
+        self.q = int(numpy.searchsorted(self.t, quiet))
         self.first_rest = throw["target"] + throw["first"]
-        self.stop = self.fine_stop()
-        self.kf_hind, self.kc_hind = self.hindsight()
+        self.stored = cal["head"]["fine_gr_turn"]
+        self.stop = self.fine_stop(coarse_off)
 
-    def fine_stop(self):
-        """The first row after the coarse tube's stop from which the fine tube stays still for QUIET_HOLD_S."""
-        for i in range(len(self.t)):
-            if self.t[i] <= self.coarse_off or self.fine_asked[i] != 0.0:
+    def fine_stop(self, coarse_off: float):
+        """The first row after the coarse tube's quiet from which the fine tube stays still for QUIET_HOLD_S."""
+        for i in range(self.q, len(self.t)):
+            if self.t[i] <= coarse_off or self.fine_asked[i] != 0.0:
                 continue
             j = i
             while j < len(self.t) and self.fine_asked[j] == 0.0 and self.t[j] - self.t[i] < QUIET_HOLD_S:
@@ -121,63 +102,23 @@ class Throw:
                 return i
         return None
 
-    def hindsight(self) -> tuple:
-        """Each tube's weight a turn as the whole throw shows it: the fine tube's from the coarse tube's quiet to the
-        first rest, the coarse tube's from the reading at its quiet less the fine tube's shown by then."""
-        q = int(numpy.argmin(numpy.abs(self.t - (self.quiet + 0.3))))
-        if self.stop is None:
-            return None, None
-        turns = self.sf[self.stop] + self.uf[self.stop] - self.sf[q]
-        if turns < 0.2:
-            return None, None
-        kf = (self.first_rest - self.w[q]) / turns
-        kc = (self.w[q] - kf * self.sf[q]) / self.raw["coarse_turns"] if self.coarse else 0.0
-        return kf, kc
+    def alone(self, i: int) -> float:
+        """Fine turns shown since the coarse tube went quiet."""
+        return float(self.shown[i] - self.shown[self.q])
 
-    def slope(self, i: int) -> float:
-        j = int(numpy.searchsorted(self.t, self.t[i] - SLOPE_S))
-        span = self.t[i] - self.t[j]
-        return (self.w[i] - self.w[j]) / span if span > 0 else 0.0
+    def regression(self, i: int):
+        """The slope of the reading on the fine turns shown, from the coarse tube's quiet to row i."""
+        if i - self.q < 4 or self.alone(i) < KNOWN_TURNS:
+            return None
+        return float(numpy.polyfit(self.shown[self.q:i + 1], self.w[self.q:i + 1], 1)[0])
 
-    def forecast(self, i: int, way: str, carried: tuple = None) -> float:
-        lag = self.lag_c[i] if self.coarse_asked[i] > 0.0 or self.t[i] < self.quiet else self.lag_f[i]
-        if way == "slope":
-            return self.w[i] + self.slope(i) * lag
-        if way == "stored":
-            kc, kf = self.stored
-        elif way == "carried":
-            kc, kf = carried
-        else:
-            kc, kf = self.in_throw(i)
-            if kc is None:
-                return self.w[i] + self.slope(i) * lag
-            if kf is None:
-                # the fine tube's own powder still unknown: the coarse's forecast on its weight, the fine by the slope
-                # once the coarse tube is quiet, and its share of the reading before that
-                if self.t[i] < self.quiet:
-                    return self.w[i] + kc * self.uc[i]
-                return self.w[i] + kc * self.uc[i] + self.slope(i) * self.lag_f[i]
-        return self.w[i] + kc * self.uc[i] + kf * self.uf[i]
+    def two_point(self, i: int):
+        if self.alone(i) < KNOWN_TURNS:
+            return None
+        return float((self.w[i] - self.w[self.q]) / self.alone(i))
 
-    def in_throw(self, i: int) -> tuple:
-        """Each tube's weight a turn from the rows up to i alone (None until known)."""
-        if self.t[i] < self.quiet:
-            if self.sc[i] < KNOWN_TURNS:
-                return None, None
-            return self.w[i] / (self.sc[i] + 0.0), None     # the fine tube's powder counted as coarse, small share
-        q = int(numpy.searchsorted(self.t, self.quiet))
-        turns = self.sf[i] - self.sf[q]
-        kc = (self.w[q] / self.sc[q]) if self.sc[q] > 0 else 0.0
-        if turns < KNOWN_TURNS:
-            return kc, None
-        kf = (self.w[i] - self.w[q]) / turns
-        kc = (self.w[q] - kf * self.sf[q]) / self.sc[q] if self.sc[q] > 0 else 0.0
-        return kc, kf
-
-    def truth(self, i: int, kf: float) -> float:
-        k = int(numpy.searchsorted(self.flow_t, self.t[i]))
-        k = min(k, len(self.flow_f) - 1)
-        return self.raw["settled"] - (self.fine_total - self.flow_f[k]) * kf
+    def rest_less_forecast(self, i: int, gr_turn: float) -> float:
+        return float(self.first_rest - (self.w[i] + gr_turn * self.unseen[i]))
 
 
 def load(folder: Path) -> list:
@@ -185,18 +126,11 @@ def load(folder: Path) -> list:
     cal = echo(series.get("ccal", []))
     if "head" not in cal or not cal["coarse"] or not cal["fine"]:
         return []
-    out = []
-    for raw in series["throws"]:
-        if len(raw.get("rows", [])) < 40 or raw.get("settled") is None:
-            continue
-        throw = Throw(raw, cal)
-        throw.stored = (cal["head"]["coarse_gr_turn"], cal["head"]["fine_gr_turn"])
-        out.append(throw)
-    return out
+    return [Throw(raw, cal) for raw in series["throws"]
+            if len(raw.get("rows", [])) >= 40 and raw.get("settled") is not None]
 
 
 def spread(values: list) -> str:
-    values = [float(v) for v in values]
     if len(values) < 2:
         return f"n {len(values)}"
     return f"mean {statistics.fmean(values):+.3f}  sd {statistics.stdev(values):.3f}  n {len(values)}"
@@ -205,59 +139,38 @@ def spread(values: list) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("folders", nargs="*", type=Path, help="series folders (all kept series by default)")
+    parser.add_argument("--alone", type=float, default=0.5, help="the least fine turns shown alone before the stop")
     args = parser.parse_args()
     folders = args.folders or sorted(p for p in RECORDINGS.glob("*_series_*") if (p / "series.json").exists())
-    at_fine = {way: [] for way in WAYS + SAME}
-    at_creep = {way: [] for way in WAYS + SAME}
-    at_coarse = {way: [] for way in WAYS + SAME}
-    replayed, skipped, unlearnt = [], [], 0
+    ways = ("stored", "stored x0.85", "stored x1.15", "none", "in-throw, regression", "in-throw, two ends")
+    at_stop = {way: [] for way in ways}
+    at_creep = {way: [] for way in ways}
+    unseen, used, skipped = [], 0, 0
     for folder in folders:
         throws = load(folder)
         if not throws:
-            skipped.append(folder.name)
+            skipped += 1
             continue
-        seen = []           # each earlier throw's own weights a turn, in hindsight: what RAM could carry
+        used += 1
         for throw in throws:
-            replayed.append(float(numpy.sqrt(numpy.mean(
-                (numpy.array([throw.forecast(i, "stored") for i in range(len(throw.t))]) - throw.unit_forecast) ** 2))))
-            carried = None
-            if seen:
-                carried = (statistics.fmean(s[0] for s in seen), statistics.fmean(s[1] for s in seen))
-            ways = [way for way in WAYS if way != "carried" or carried is not None]
-            if throw.stop is not None and throw.t[throw.stop] >= throw.quiet:
-                if throw.in_throw(throw.stop)[1] is None:
-                    unlearnt += 1
-                for way in ways:
-                    value = throw.first_rest - throw.forecast(throw.stop, way, carried)
-                    at_fine[way].append(value)
-                    if throw.fine_asked[throw.stop - 1] < CREEP_RPS:
-                        at_creep[way].append(value)
-                    if carried is not None and way == "stored":
-                        at_fine["stored, same throws"].append(value)
-                        if throw.fine_asked[throw.stop - 1] < CREEP_RPS:
-                            at_creep["stored, same throws"].append(value)
-            if throw.kf_hind is not None and throw.coarse:
-                c = int(numpy.argmax(throw.coarse_asked == 0.0))
-                truth = throw.truth(c, throw.kf_hind)
-                for way in ways:
-                    at_coarse[way].append(throw.forecast(c, way, carried) - truth)
-                if carried is not None:
-                    at_coarse["stored, same throws"].append(throw.forecast(c, "stored") - truth)
-                seen.append((throw.kc_hind, throw.kf_hind))
-    print(f"{len(replayed)} throws replayed; the unit's own forecast made again within rms "
-          f"{statistics.median(replayed):.4f} gr (median), {max(replayed):.4f} at most")
-    if skipped:
-        print(f"{len(skipped)} series with no calibration echo, left out")
-    print("\nAT THE FINE TUBE'S STOP, THE COARSE TUBE QUIET: WHERE THE THROW RESTED, LESS THE FORECAST (gr)")
-    for way in WAYS + SAME:
-        print(f"  {way:9s} {spread(at_fine[way])}")
-    print(f"  in-throw: {unlearnt} stops came before the fine tube's own weight a turn was known (the slope's)")
-    print(f"\n  stops from the creep (under {CREEP_RPS} rev/s):")
-    for way in WAYS + SAME:
-        print(f"  {way:9s} {spread(at_creep[way])}")
-    print("\nAT THE COARSE TUBE'S STOP: THE FORECAST, LESS THE TRUTH (gr)")
-    for way in WAYS + SAME:
-        print(f"  {way:9s} {spread(at_coarse[way])}")
+            s = throw.stop
+            if s is None or throw.alone(s) < args.alone:
+                continue
+            unseen.append(float(throw.unseen[s]))
+            weights = {"stored": throw.stored, "stored x0.85": throw.stored * 0.85,
+                       "stored x1.15": throw.stored * 1.15, "none": 0.0,
+                       "in-throw, regression": throw.regression(s), "in-throw, two ends": throw.two_point(s)}
+            for way, gr_turn in weights.items():
+                value = throw.rest_less_forecast(s, gr_turn)
+                at_stop[way].append(value)
+                if throw.fine_asked[s - 1] < CREEP_RPS:
+                    at_creep[way].append(value)
+    print(f"{used} series ({skipped} with no calibration echo left out); {len(unseen)} fine stops with at least "
+          f"{args.alone} turns shown alone; fine turns unseen at the stop: median {statistics.median(unseen):.3f}, "
+          f"nine in ten under {numpy.percentile(unseen, 90):.3f}")
+    print("\nAT THE FINE TUBE'S STOP: WHERE THE THROW RESTED, LESS THE FORECAST (gr)")
+    for way in ways:
+        print(f"  {way:22s} all: {spread(at_stop[way])}   from the creep: {spread(at_creep[way])}")
 
 
 if __name__ == "__main__":

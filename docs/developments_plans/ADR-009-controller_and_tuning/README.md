@@ -126,6 +126,7 @@ A throw lands as near its target as the powder allows, throw after throw: its sp
   - the same mechanism works in grams and in grains;
   - the charge controller is a module with a clear interface to the others, so a design other than tubes can replace it by a firmware change (not built: designed for);
   - the Pico W's room is not step 2's concern.
+- **The owner, on the forecast check (recorded 18:05):** "Predictor should only matter for last grain/gram of throw, so predictor and your simulation should only run with fine trickler, below coarse trickler stop threshold." Read here as: the coarse tube is today's (its PID on the reading, stopped once the reading reaches the target less its threshold), and the predictor serves the fine tube alone, which finishes the throw below that threshold.
 
 ### What we know
 
@@ -138,7 +139,7 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 - **Learning throw by throw:** the stop learnt at 15% of each throw's error, with a dead zone and a cap, held; it walked on noise where the stop's spread was wider than a digit, and a rule on the mean did worse. Learning the fine tube's grains a turn bought nothing measurable on the rig.
 - **The PID's I and D:** the first build's research found they added nothing on the rig: the plant already integrates, the error never changes sign, and a derivative of a rounded, late reading is noise. On the forecast the D term is a different thing: the forecast moves with the speeds asked, at once and without the scale's steps.
 - **Traps on record:** a cold fine tube pours short at first; the step count is unsigned, so the coarse back-off's reverse steps would count as forward turns (the forecast counts turns from the speeds asked); the throw's verdict is read 1 s after its stop today, before a slow stop's last powder shows; the rig itself drifts by about 4 good of 20 and 1 s within an hour, as large as most effects tried.
-- **Step 1 keeps no grains a turn.** Its powder part measures it (the prime's stream rate) and drops it. The forecast needs it every throw.
+- **Step 1 keeps no grains a turn.** Its powder part measures it (the prime's stream rate) and drops it. The forecast needs the fine tube's, and the throw gives it (gate 1's check, below): with the coarse tube quiet, the reading's slope on the fine turns shown is as good at the stop as the first build's stored figure; while both tubes turn, the readings cannot tell their two weights apart.
 
 ### What it does
 
@@ -148,7 +149,9 @@ From the first build's record (`legacy/` and branch `adr009_controller`'s progre
 - **What it gives:** each channel's rate, when each stops, and at the throw's end its record (below).
 - **What stays outside it, in the charge mode:** the throw's states (the zero, the cup off and back), a missing reading's pause, a driver's fault, the verdict's wait, the lifted cup, the events and the lights. A design other than tubes replaces the channels and keeps the rest.
 
-**The predictor**, inside the controller, each reading: the forecast is the reading plus each channel's powder turned out and not yet shown, in 10 ms parcels of its rate times the weight a turn, each due after the lag of the flow it was turned out at (step 1's table, straight between its points and the end's value beyond them). The weight a turn is estimated within the throw, from its own readings against the rates set a lag before; until it is known (the throw's first second or so), the forecast is the reading plus its own flow times the lag. Nothing of it is stored, so a powder's change of lot, a cold tube or a scale in grams is met in the throw itself. Each channel's PID works on the forecast's error, and each stops when the forecast reaches its stop point: the coarse at the target less its threshold, the fine at the target. The turns are counted from the rates set, not the step count, which has no sign.
+**The coarse tube** is today's: its PID on the reading's error to the target less its threshold, stopped once the reading reaches it.
+
+**The predictor** serves the fine tube alone, below the coarse tube's threshold, where the throw's last grain or gram is decided. Each reading, the forecast is the reading plus the fine tube's turns turned out and not yet shown, in 10 ms parcels of its rate, each due after the lag of the flow it was turned out at (step 1's table, straight between its points and the end's value beyond them), times its weight a turn. The weight a turn is the throw's own: the slope of the reading on the fine turns shown since the coarse tube's powder went quiet (step 1's settle time after its stop). Nothing of it is stored, so a powder's change of lot, a cold tube or a scale in grams is met in the throw itself. The fine tube's PID works on the forecast's error and stops when the forecast reaches the target. The turns are counted from the rates set, not the step count, which has no sign. Before the throw's own weight a turn is known (from the coarse stop to its powder's quiet, and a few tenths of a turn after), what the forecast takes is settled in gate 1 on the twin, with thresholds as small as a user may set.
 
 **The PID's envelope:** the integral held while a channel runs at its least or most rate (anti-windup), and the fine channel's rate held under what the forecast can still take before the stop. The first build found it the difference between 35 to 66% and 85 to 90% good from bad starting gains. Part of the PID, not an algorithm beside it.
 
@@ -172,7 +175,7 @@ The gates, in order, each started once the one before it is done:
 
    Its window, its step and kd's rule are chosen there. If the forecast does not hold on an estimate within the throw, the owner hears it before anything else is done.
 
-   **The forecast's check, run 17:58: failed on an estimate within the throw** (progress, 2026-11-25, 17:58). The weight a turn has to be known before the throw; where it comes from is the owner's to decide, and nothing more of gate 1 is done until then.
+   **The forecast's check: passed for the fine tube alone** (progress, 2026-11-25, 17:58 and 18:05). Run first with both tubes on the forecast, it failed: while both turn, the readings cannot tell their weights apart. The owner then put the predictor on the fine tube alone, below the coarse threshold; there the throw's own weight a turn holds (the rest less the forecast +0.013 gr, sd 0.064, against the stored figure's +0.002, sd 0.063).
 2. **The controller and the tuner in C,** behind the interface above, judged against the Python on the same runs (step 1's `calibration_sim.py` pattern).
 3. **The charge on the unit:** the charge mode on the controller, the verdict's wait, the lifted cup, the switch, the tuner's writes into the profile.
 4. **Bench series:** the charge with the tuner against today's with the owner's gains, in alternating sets of 20 throws on the same powder and day, each reported as the final weight's SD, its mean offset, its time and a histogram in 0.02 steps. Step 2's sign-off.

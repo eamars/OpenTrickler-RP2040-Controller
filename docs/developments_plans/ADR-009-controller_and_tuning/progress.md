@@ -283,3 +283,24 @@ Each appended field is -1 when never calibrated, and null through the API (`null
 **What holds:** a weight a turn known before the throw. The stored one is the best; one carried in RAM from the throws since start is as good at the fine stop (0.057 against 0.058 on the same throws) and 14% wider and 0.09 gr low at the coarse stop, and has nothing for the first throw after each start or of each powder. Step 1's powder part already measures each tube's weight a turn where it streams (`stream_per_turn`, its prime's) and keeps only the least speed.
 
 **The question for the owner:** where the forecast's weight a turn comes from. Gate 1's controller and tuner wait for the answer.
+
+## 2026-11-25, 18:05: the forecast for the fine tube alone, passed
+
+- **The owner (recorded 18:05), asked where the weight a turn comes from:** "Predictor should only matter for last grain/gram of throw, so predictor and your simulation should only run with fine trickler, below coarse trickler stop threshold." Read as: the coarse tube is today's (its PID on the reading, stopped at the target less its threshold, as `charge_mode.cpp` does on main), and the predictor serves the fine tube alone below that threshold.
+- **The check re-run in that scope,** `forecast_in_throw.py` rewritten for it (the 17:58 version is in commit 23d85a3): the fine tube's stops with the coarse tube quiet and at least half a turn of the fine tube shown alone since (710 of the 746; the rest are the first build's stops right after the coarse tube's quiet, which a finish below a threshold does not make). The fine turns unseen at the stop: median 0.064, nine in ten under 0.27.
+
+| Fine tube's weight a turn | All stops (710) | From the creep (541) |
+|---|---|---|
+| stored (the first build's) | +0.002, sd 0.063 | +0.014, sd 0.047 |
+| stored, 15% under | +0.014, sd 0.057 | +0.022, sd 0.046 |
+| stored, 15% over | −0.009, sd 0.072 | +0.007, sd 0.051 |
+| none (the reading alone) | +0.078, sd 0.082 | +0.065, sd 0.069 |
+| **the throw's own: the reading's slope on the fine turns shown since the quiet** | **+0.013, sd 0.064** | +0.019, sd 0.052 |
+| the throw's own, from the stretch's two ends | +0.005, sd 0.070 | +0.016, sd 0.052 |
+
+(the rest less the forecast, gr; with a whole turn alone, 603 stops, the same within 0.003)
+
+- **Verdict: pass.** On the throw's own weight a turn the rest lies +0.013 gr from the forecast (within a digit), its spread 2% wider than on the stored figure (the bar: a tenth). From the creep it is 11% wider, as wide as a stored figure 15% over; the calibration's own figure was 11 to 29% over the throws' at the finish in the first build (0.797 to 0.814 against 0.63 to 0.715), so a stored figure from step 1's prime would do no better there.
+- **What it shows of the predictor:** the forecast is needed (the reading alone is 0.08 gr late and a third wider), but its weight a turn only roughly: 15% either way moves the spread by a tenth. The weight a turn depends on the speed (more a turn in the stream than at the creep), which a window of the latest turns alone did not follow better: it was noisier (sd 0.10 to 0.22 on the last 0.5 to 0.2 turns).
+- **Open, for the twin:** the fine tube's forecast before the throw's own weight a turn is known, from the coarse tube's stop to a few tenths of a turn after its powder's quiet. Today's threshold (5 gr by default) puts the last gram seconds after it; a small threshold does not, and the twin is run with thresholds down to what a user may set.
+- **Next, gate 1's controller:** the fine tube's PID on this forecast with its envelope, below the coarse tube's threshold, on the twin, then the tuner against today's loop.
