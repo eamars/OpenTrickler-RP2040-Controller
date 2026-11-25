@@ -82,6 +82,12 @@ CHARGE_LIB_EXPORT int lib_charge_state(const charge_controller_t *controller, do
 }
 
 
+// Whether the throw stopped starved (an empty hopper), for the judge
+CHARGE_LIB_EXPORT int lib_charge_starved(const charge_controller_t *controller) {
+    return controller->starved;
+}
+
+
 CHARGE_LIB_EXPORT double lib_charge_verdict_after_s(const charge_controller_t *controller) {
     return charge_controller_verdict_after_s(controller);
 }

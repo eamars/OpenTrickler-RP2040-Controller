@@ -108,20 +108,24 @@ def run(job: tuple) -> tuple:
     for _ in range(case.throws):
         controller.profile = profile
         result = step2.throw_one(session, controller, case.target, profile.fine_stop_threshold)
-        out.append((result.true_error, result.elapsed_s, result.verdict))
+        out.append((result.true_error, result.elapsed_s, "starved" if controller.starved else result.verdict))
         errors.append(result.true_error)
         times.append(result.elapsed_s)
         if tuner is not None and len(errors) == step2_tuner.WINDOW:
             profile, _ = tuner(profile, errors, times, k=controller.carried())
             errors, times = [], []
-    return case.name, out[-case.judged:], (profile.fine_kp, profile.fine_kd, profile.fine_ki)
+    starved = sum(v == "starved" for _, _, v in out)
+    return case.name, out[-case.judged:], (profile.fine_kp, profile.fine_kd, profile.fine_ki), starved
 
 
 def line(throws: list, tolerance: float) -> str:
-    done = [(e, t) for e, t, v in throws if v != "timeout"]
-    timeouts = len(throws) - len(done)
+    starved = sum(v == "starved" for _, _, v in throws)
+    done = [(e, t) for e, t, v in throws if v not in ("timeout", "starved")]
+    timeouts = len(throws) - len(done) - starved
     if not done:
-        return f"every throw timed out ({timeouts})"
+        ended = [t for _, t, v in throws if v == "starved"]
+        return (f"no throw finished: {starved} starved (stopped in {min(ended):.1f} to {max(ended):.1f} s), "
+                f"{timeouts} timed out" if ended else f"every throw timed out ({timeouts})")
     errors = sorted(e for e, _ in done)
     times = sorted(t for _, t in done)
     n = len(errors)
@@ -132,7 +136,7 @@ def line(throws: list, tolerance: float) -> str:
     return (f"sd {statistics.pstdev(errors):.3f}  mean {statistics.fmean(errors):+.3f}  5-95% "
             f"{errors[int(0.05 * (n - 1))]:+.2f}..{errors[int(0.95 * (n - 1))]:+.2f}  worst {errors[-1]:+.2f}  "
             f"under {under:4.0%} good {good:4.0%} over {over:4.0%}  time {times[n // 2]:4.1f} s "
-            f"(95% {times[int(0.95 * (n - 1))]:4.1f})  timeouts {timeouts}  a good charge "
+            f"(95% {times[int(0.95 * (n - 1))]:4.1f})  timeouts {timeouts}  starved {starved}  a good charge "
             f"{'inf' if math.isinf(cost) else f'{cost:.1f}'} s")
 
 
@@ -149,10 +153,11 @@ def main() -> None:
         results = pool.map(run, jobs)
     for case in cases:
         mine = [r for r in results if r[0] == case.name]
-        throws = [t for _, part, _ in mine for t in part]
+        throws = [t for _, part, _, _ in mine for t in part]
+        starved_all = sum(s for *_, s in mine)
         tolerance = dataclasses.replace(STARTS[case.start], **case.changes).fine_stop_threshold
-        ends = "; ".join(f"kp {kp:.3g} kd {kd:.0f}" + (f" ki {ki:g}" if ki else "") for _, _, (kp, kd, ki) in mine)
-        print(f"{case.name:26s} {line(throws, tolerance)}")
+        ends = "; ".join(f"kp {kp:.3g} kd {kd:.0f}" + (f" ki {ki:g}" if ki else "") for _, _, (kp, kd, ki), _ in mine)
+        print(f"{case.name:26s} {line(throws, tolerance)}  (starved in all {starved_all})")
         print(f"{'':26s} {case.what}; {case.target:g} gr, {args.sessions} x {case.throws}, the last {case.judged} each"
               + (f"; the tuner ended on {ends}" if case.tuned else ""))
 

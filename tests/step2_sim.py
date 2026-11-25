@@ -105,7 +105,7 @@ def load_library() -> ctypes.CDLL:
                                ("lib_charge_config", [p, ctypes.POINTER(Config)], None),
                                ("lib_charge_start", [p, d, d], i), ("lib_charge_tick", [p, d], None),
                                ("lib_charge_reading", [p, d, d], None), ("lib_charge_out", [p, pd, pd], i),
-                               ("lib_charge_state", [p, pd, pd, pi, pi, pi], i),
+                               ("lib_charge_state", [p, pd, pd, pi, pi, pi], i), ("lib_charge_starved", [p], i),
                                ("lib_charge_verdict_after_s", [p], d), ("lib_charge_at_rest", [p, d], None),
                                ("lib_charge_carried", [p, pd], i), ("lib_tuner_new", [d], p),
                                ("lib_tuner_free", [p], None), ("lib_tuner_throw", [p, d, d, d, d, d, pd, pd], i)):
@@ -155,6 +155,10 @@ class CController:
     def carried(self):
         k = ctypes.c_double()
         return k.value if self.lib.lib_charge_carried(self.handle, ctypes.byref(k)) else None
+
+    @property
+    def starved(self) -> bool:
+        return bool(self.lib.lib_charge_starved(self.handle))
 
     def state(self) -> dict:
         k, unseen = ctypes.c_double(), ctypes.c_double()
@@ -221,6 +225,15 @@ class Paired:
         return self.python.done
 
 
+# An empty fine hopper (the starved stop): calibrated while the hopper was full
+EMPTY_HOPPER = "pico2w_ar2209_f2+fine_empty"
+
+
+def calibrated_on(rig_name: str) -> str:
+    """The rig step 1 ran on: a failure that comes in use (an empty hopper) was not there at the calibration."""
+    return "+".join(part for part in rig_name.split("+") if part not in ("fine_empty", "coarse_empty"))
+
+
 def judged_session(job: tuple) -> list:
     """One session of the Python's throws, the C given the same calls: a dict a throw."""
     rig_name, records, seed, start = job
@@ -244,6 +257,7 @@ def judged_session(job: tuple) -> list:
                             float("inf") if (py_k is None) != (c_k is None) else abs(py_k - c_k) / py_k)
         throw.update(c.state())
         throw["timeout"] = result.verdict == "timeout"
+        throw["starved"] = (python.starved, c.starved)
         out.append(throw)
     return out
 
@@ -309,7 +323,7 @@ def tuner_case(job: tuple) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rigs", nargs="+", default=list(step2.DEFAULT_RIGS))
+    parser.add_argument("--rigs", nargs="+", default=list(step2.DEFAULT_RIGS) + [EMPTY_HOPPER])
     parser.add_argument("--sessions", type=int, default=2, help="sessions of 25 throws a rig, judged and alone")
     parser.add_argument("--tuner-throws", type=int, default=300)
     parser.add_argument("--starts", nargs="+", default=["owner", "bench"], help="owner, bench, or a step2_tuner start")
@@ -320,7 +334,8 @@ def main() -> int:
     print(f"the controller: {size} bytes, and a throw's room {room.value} bytes")
     failures = []
     with Workers() as pool:
-        made = dict(zip(args.rigs, pool.map(step2.rig_records, list(args.rigs))))
+        calibrated = [calibrated_on(rig) for rig in args.rigs]
+        made = dict(zip(args.rigs, pool.map(step2.rig_records, calibrated)))
         print("The controller, judged: the C given the Python's calls on the Python's throws")
         for rig_name in args.rigs:
             jobs = [(rig_name, made[rig_name], 5000 + s, start) for s in range(args.sessions)
@@ -333,11 +348,14 @@ def main() -> int:
             most = max(t["parcels"] for t in throws)
             rows = max(t["rows"] for t in throws)
             cut = sum(t["cut"] for t in throws)
-            print(f"  {rig_name:36s} {len(throws)} throws: the same stop {same_stop}, speeds within {worst_rate:.1e} "
+            starved = sum(t["starved"][0] for t in throws)
+            print(f"  {rig_name:36s} {len(throws)} throws: the same stop {same_stop}, starved {starved} (the C alike), "
+                  f"speeds within {worst_rate:.1e} "
                   f"rev/s, k within {worst_k:.1e}, carried within {worst_carry:.1e}; room: {most} parcels, {rows} "
                   f"readings; the own's room passed in {cut}")
             for n, t in enumerate(throws):
-                if t["py_stop"] != t["c_stop"] or t["first"] or t["carried"] > CLOSE_K or t["verdict_after"] > 1e-6:
+                if (t["py_stop"] != t["c_stop"] or t["first"] or t["carried"] > CLOSE_K or t["verdict_after"] > 1e-6
+                        or t["starved"][0] != t["starved"][1]):
                     failures.append(f"{rig_name} throw {n}: stop {t['py_stop']} against {t['c_stop']} ms; "
                                     f"{t['first'] or ''} carried {t['carried']:.1e}, cut {t['cut']}")
         print("The controller, alone: the C throwing on the twin, the Python on the same seeds (printed)")

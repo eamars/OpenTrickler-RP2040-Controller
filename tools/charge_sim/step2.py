@@ -42,6 +42,11 @@ KNOWN_ROWS = 5
 REST_TURNS = 0.2            # fine turns turned out after the quiet for a throw's own, at rest, to be carried
 FIT_ROUNDS = 4              # the weight a turn and its lags solved together
 CARRY_THROWS = 5            # the throws whose own weights a turn are carried (their mean)
+# A starved fine tube (2026-11-26, the owner: fix the failure modes; an empty hopper never ended a throw): once the
+# coarse tube has stopped, each STARVED_TURNS of the fine tube's turns shown must raise the reading by STARVED_SHARE of
+# what they carry at the weight a turn, or the throw stops, starved. Turns and shares: the same in grams and grains
+STARVED_TURNS = 5.0         # 0 false stops in 9,000 tuned throws on five rigs, big kernels and draught among them; at
+STARVED_SHARE = 0.1         # 3 and 0.25 a carry run high tripped big kernels 9 times; an empty hopper stops in some 6 s
 DEFAULT_RIGS = ("pico2w_ar2209_night", "pico2w_ar2209_f2", "pico2w_bm2", "pico2w_ar2209_night+fine_by_speed")
 
 
@@ -143,6 +148,9 @@ class Step2(LegacyPid):
         self.own = None                 # the throw's own weight a turn, and the turns it is taken over
         self.held = False
         self.fine_last_forecast_error = None
+        self.turned_total = 0.0         # the fine tube's turns turned out in closed parcels
+        self.starve_from = None         # (turns shown, reading) where the starvation's window began
+        self.starved = False
 
     def carried(self):
         """The median of the last throws' own weights a turn: one clump's throw moves it not at all. With none yet,
@@ -241,6 +249,7 @@ class Step2(LegacyPid):
             if self.parcel > 0.0:
                 speed = self.parcel / (now - self.parcel_start)
                 self.turned.append((self.parcel_start, self.parcel, speed))
+                self.turned_total += self.parcel
                 self.air.append((self.parcel_start + float(self.lags(speed * (self.k or 0.0))), self.parcel))
                 self.unseen += self.parcel
             self.parcel = 0.0
@@ -280,6 +289,22 @@ class Step2(LegacyPid):
         if alone >= REST_TURNS and reading > at_quiet:
             self.history = (self.history + [(reading - at_quiet) / alone])[-CARRY_THROWS:]
 
+    def starving(self) -> bool:
+        """After the coarse tube's stop, with a weight a turn known: STARVED_TURNS of the fine tube's turns shown that
+        raised the reading by less than STARVED_SHARE of what they carry. Each window of turns judged once."""
+        if self.coarse_moves or not self.k:
+            return False
+        shown = self.turned_total - self.unseen
+        if self.starve_from is None:
+            self.starve_from = (shown, self.reading)
+            return False
+        turns = shown - self.starve_from[0]
+        if turns < STARVED_TURNS - 1e-6:       # the C's parcels are floats: the same reading decides in both
+            return False
+        rose = self.reading - self.starve_from[1]
+        self.starve_from = (shown, self.reading)
+        return rose < STARVED_SHARE * self.k * turns
+
     def on_reading(self, now_ms: float, weight: float) -> None:
         if self.done:
             return
@@ -304,6 +329,11 @@ class Step2(LegacyPid):
             speed = (profile.coarse_kp * coarse_error + profile.coarse_ki * self.coarse_integral
                      + profile.coarse_kd * derivative)
             self.coarse_rps = max(profile.coarse_min_rps, min(speed, profile.coarse_max_rps))
+        # a starved fine tube: its turns shown no longer raise the reading
+        if self.starving():
+            self.starved = True
+            self._stop()
+            return
         # the fine tube: the profile's PID on the forecast's error
         error = self.target - self.forecast()
         if self.holding(now_ms / 1000.0):

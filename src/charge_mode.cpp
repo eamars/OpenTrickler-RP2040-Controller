@@ -677,6 +677,13 @@ void charge_mode_wait_for_complete() {
         }
     }
 
+    // The fine tube turned and the reading did not rise (an empty hopper): the charge ends on a fault, as a lost
+    // scale's does, and waits to be acknowledged (ADR-009, 2026-11-26)
+    if (controller->starved) {
+        charge_mode_scale_fault("Fine: no powder", EVENT_REASON_FAULT, 0, NULL);
+        return;
+    }
+
     // Stop the timer
     TickType_t now = xTaskGetTickCount();
     TickType_t elapsed_ticks = now - charge_start_tick;

@@ -127,6 +127,7 @@ static void parcel_keep(charge_controller_t *controller, double at_s, double tur
     parcel->at_ms = (uint32_t) lround(at_s * 1000.0 - controller->start_ms);
     parcel->ms = (uint32_t) lround((now_s - at_s) * 1000.0);
     controller->parcel_count++;
+    controller->turned_total += turns;
     if (controller->parcel_count > controller->parcels_most) {
         controller->parcels_most = controller->parcel_count;
     }
@@ -188,6 +189,9 @@ bool charge_controller_start(charge_controller_t *controller, charge_room_t *roo
     controller->parcel_count = 0;
     controller->parcels_most = 0;
     controller->row_count = 0;
+    controller->turned_total = 0.0;
+    controller->starve_known = false;
+    controller->starved = false;
     return true;
 }
 
@@ -402,6 +406,33 @@ static void backoff(charge_controller_t *controller, double now_ms) {
 }
 
 
+// After the coarse tube's stop, with a weight a turn known: CHARGE_STARVED_TURNS of the fine tube's turns shown that
+// raised the reading by less than CHARGE_STARVED_SHARE of what they carry (step2.Step2.starving). Each window judged
+// once
+static bool starving(charge_controller_t *controller) {
+    if (controller->coarse_moves || !controller->k_known || controller->k <= 0.0) {
+        return false;
+    }
+    double shown = controller->turned_total - controller->unseen;
+    if (!controller->starve_known) {
+        controller->starve_known = true;
+        controller->starve_shown = shown;
+        controller->starve_reading = controller->reading;
+        return false;
+    }
+    double turns = shown - controller->starve_shown;
+    // At a steady 5 rev/s the 10 ms parcels are 0.05 turn, so the window ends on its turns exactly: a millionth's room
+    // keeps the C (its parcels in floats) and the Python deciding at the same reading
+    if (turns < CHARGE_STARVED_TURNS - 1e-6) {
+        return false;
+    }
+    double rose = controller->reading - controller->starve_reading;
+    controller->starve_shown = shown;
+    controller->starve_reading = controller->reading;
+    return rose < CHARGE_STARVED_SHARE * controller->k * turns;
+}
+
+
 void charge_controller_reading(charge_controller_t *controller, double now_ms, double weight) {
     const charge_config_t *config = &controller->config;
     if (controller->done) {
@@ -440,6 +471,13 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
         double speed = config->coarse.kp * coarse_error + config->coarse.ki * controller->coarse_integral +
                        config->coarse.kd * derivative;
         controller->coarse_rps = fmax(config->coarse.least_rps, fmin(speed, config->coarse.most_rps));
+    }
+
+    // A starved fine tube: its turns shown no longer raise the reading
+    if (starving(controller)) {
+        controller->starved = true;
+        stop(controller);
+        return;
     }
 
     // The fine tube: the profile's PID on the forecast's error, within its envelope; stopped by the reading alone, so

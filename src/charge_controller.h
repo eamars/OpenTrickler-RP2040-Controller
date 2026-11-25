@@ -28,6 +28,13 @@
                                         // throw's own weight a turn: 20 s; past it the own is held as last found
 #define CHARGE_ROWS_MAX 512             // the readings kept from the quiet on, for the same: 25 s of the A&D's 20 a s
 #define CHARGE_AIR_MAX 256              // parcels turned out and not yet shown: the slowest lag's, 1.2 s, and more
+// A starved fine tube (an empty hopper never ended a throw, 2026-11-26): once the coarse tube has stopped and a weight
+// a turn is known, each CHARGE_STARVED_TURNS of the fine tube's turns shown must raise the reading by
+// CHARGE_STARVED_SHARE of what they carry at it, or the throw stops, starved. Turns and shares: grams and grains alike.
+// On the twin (step2.py's own): no false stop in 9,000 tuned throws on five rigs, big kernels and draught among them;
+// an empty hopper stops in some 6 s
+#define CHARGE_STARVED_TURNS 5.0
+#define CHARGE_STARVED_SHARE 0.1
 #define CHARGE_EDGE_MAX 256             // parcels turned out within the lags before the quiet: their rest depends on
                                         // the weight a turn
 
@@ -147,6 +154,13 @@ typedef struct {
     double rest_certain;
     bool rest_cut;                      // the edge past its room: no carry renewed
     int edge_count;
+
+    // A starved fine tube (an empty hopper): its turns shown no longer raise the reading
+    double turned_total;                // the fine tube's turns turned out in closed parcels
+    bool starve_known;                  // the window's start: turns shown and the reading then
+    double starve_shown;
+    double starve_reading;
+    bool starved;                       // the throw stopped starved: the charge ends on a fault
 } charge_controller_t;
 
 #ifdef __cplusplus
