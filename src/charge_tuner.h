@@ -19,7 +19,9 @@
  * A trial cheaper than the kept gains is kept and the same way tried again at the full step; one no cheaper is put
  * back and the other way tried at once, then the other axis; every way put back, the step's logarithm halves (down
  * to 1.1) and the kept gains are thrown again a while. The first way on an axis is the one the throws miss by: over
- * on average, a lower gain and more braking. Ratios only, so grams and grains are alike. Everything is in RAM: a
+ * on average, a lower gain and more braking. A profile with an integral term (ki) is first tried without it: on the
+ * forecast the error never changes sign before the stop, so the term only adds overshoot (2026-11-26); kept only if
+ * cheaper, as any trial. Ratios only, so grams and grains are alike. Everything is in RAM: a
  * start of the unit begins afresh from the profile's gains. What is stored into the profile is the kept gains alone.
  */
 #include <stdbool.h>
@@ -36,6 +38,7 @@ typedef enum {
     CHARGE_TUNER_OTHER_WAY,             // the trial no cheaper: put back, the other way tried
     CHARGE_TUNER_EVERY_WAY,             // every way put back: the step smaller, the kept gains thrown again
     CHARGE_TUNER_OTHER_AXIS,            // both ways of an axis put back: the other axis tried
+    CHARGE_TUNER_INTEGRAL_BACK,         // the gains without their integral term no cheaper: ki put back
 } charge_tuner_step_t;
 
 typedef enum {
@@ -51,10 +54,12 @@ typedef struct {
     bool has_base;
     double base_kp;                     // the kept gains: the ones stored into the profile
     double base_kd;
+    double base_ki;
     double pool_errors[CHARGE_TUNER_POOL];      // the throws thrown on them, oldest first
     double pool_times[CHARGE_TUNER_POOL];
     int pool_count;
     bool on_trial;                      // the window being thrown is a trial's
+    bool integral;                      // that trial is the kept gains without their integral term
     int axis;                           // charge_tuner_axis_t
     int direction;
     double factor;
@@ -70,12 +75,12 @@ extern "C" {
 void charge_tuner_init(charge_tuner_t *tuner, double tolerance);
 
 /*
- * A throw thrown on kp and kd: its final weight less the target, and its time to the stop; k, the weight a turn the
- * forecast carries now (0 when none). When it closes a window, the gains the next window is thrown on go into
- * next_kp and next_kd and the step taken is returned; else CHARGE_TUNER_THROWING, and they are kp and kd
+ * A throw thrown on kp, kd and ki: its final weight less the target, and its time to the stop; k, the weight a turn
+ * the forecast carries now (0 when none). When it closes a window, the gains the next window is thrown on go into
+ * next_kp, next_kd and next_ki and the step taken is returned; else CHARGE_TUNER_THROWING, and they are the gains thrown
  */
-charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double k, double error,
-                                       double time_s, double *next_kp, double *next_kd);
+charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double error,
+                                       double time_s, double *next_kp, double *next_kd, double *next_ki);
 
 #ifdef __cplusplus
 }

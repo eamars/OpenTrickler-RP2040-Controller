@@ -92,10 +92,11 @@ static double cost(const charge_tuner_t *tuner, const double *errors, const doub
 
 
 // The window's throws are the kept gains' own
-static void keep(charge_tuner_t *tuner, double kp, double kd) {
+static void keep(charge_tuner_t *tuner, double kp, double kd, double ki) {
     tuner->has_base = true;
     tuner->base_kp = kp;
     tuner->base_kd = kd;
+    tuner->base_ki = ki;
     memcpy(tuner->pool_errors, tuner->window_errors, sizeof(tuner->window_errors));
     memcpy(tuner->pool_times, tuner->window_times, sizeof(tuner->window_times));
     tuner->pool_count = CHARGE_TUNER_WINDOW;
@@ -134,8 +135,9 @@ static double braking(double kd, double k) {
 
 
 // The trial's gains from the kept ones: false when the step would not move them
-static bool trial(const charge_tuner_t *tuner, double *kp, double *kd) {
+static bool trial(const charge_tuner_t *tuner, double *kp, double *kd, double *ki) {
     double step = pow(tuner->factor, tuner->direction);
+    *ki = tuner->base_ki;
     if (tuner->axis == CHARGE_TUNER_GAIN) {
         *kp = tuner->base_kp * step;
         *kd = tuner->base_kd;
@@ -157,7 +159,7 @@ static bool trial(const charge_tuner_t *tuner, double *kp, double *kd) {
 
 // The trial no cheaper: the other way, then the other axis; every way put back, the step shrinks and the kept gains
 // rest. A trial that would not move the gains counts as put back unthrown
-static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, double *next_kd) {
+static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, double *next_kd, double *next_ki) {
     while (true) {
         charge_tuner_step_t step;
         tuner->tried++;
@@ -179,9 +181,10 @@ static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, doub
             tuner->on_trial = false;
             *next_kp = tuner->base_kp;
             *next_kd = tuner->base_kd;
+            *next_ki = tuner->base_ki;
             return CHARGE_TUNER_EVERY_WAY;
         }
-        if (trial(tuner, next_kp, next_kd) && (*next_kp != tuner->base_kp || *next_kd != tuner->base_kd)) {
+        if (trial(tuner, next_kp, next_kd, next_ki) && (*next_kp != tuner->base_kp || *next_kd != tuner->base_kd)) {
             tuner->on_trial = true;
             return step;
         }
@@ -191,20 +194,30 @@ static charge_tuner_step_t put_back(charge_tuner_t *tuner, double *next_kp, doub
 
 // The kept gains again, or a trial from them; a trial that would not move them is put back unthrown
 static charge_tuner_step_t next_trial(charge_tuner_t *tuner, charge_tuner_step_t step, double *next_kp,
-                                      double *next_kd) {
-    if (trial(tuner, next_kp, next_kd)) {
+                                      double *next_kd, double *next_ki) {
+    if (trial(tuner, next_kp, next_kd, next_ki)) {
         tuner->on_trial = true;
         return step;
     }
-    return put_back(tuner, next_kp, next_kd);
+    return put_back(tuner, next_kp, next_kd, next_ki);
 }
 
 
-static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, double *next_kp, double *next_kd) {
+static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, double ki, double *next_kp,
+                                 double *next_kd, double *next_ki) {
     if (!tuner->has_base) {
-        keep(tuner, kp, kd);
+        keep(tuner, kp, kd, ki);
         tuner->direction = missing_way(tuner, tuner->window_errors, CHARGE_TUNER_WINDOW);
-        return next_trial(tuner, CHARGE_TUNER_FIRST, next_kp, next_kd);
+        if (ki > 0.0) {
+            // An integral term only adds overshoot on the forecast: the first trial is the gains without it
+            tuner->integral = true;
+            tuner->on_trial = true;
+            *next_kp = kp;
+            *next_kd = kd;
+            *next_ki = 0.0;
+            return CHARGE_TUNER_FIRST;
+        }
+        return next_trial(tuner, CHARGE_TUNER_FIRST, next_kp, next_kd, next_ki);
     }
     if (!tuner->on_trial) {
         pool(tuner);
@@ -212,23 +225,33 @@ static charge_tuner_step_t judge(charge_tuner_t *tuner, double kp, double kd, do
             tuner->resting--;
             *next_kp = tuner->base_kp;
             *next_kd = tuner->base_kd;
+            *next_ki = tuner->base_ki;
             return CHARGE_TUNER_RESTING;
         }
-        return next_trial(tuner, CHARGE_TUNER_KEPT_AGAIN, next_kp, next_kd);
+        return next_trial(tuner, CHARGE_TUNER_KEPT_AGAIN, next_kp, next_kd, next_ki);
     }
     double trial_cost = cost(tuner, tuner->window_errors, tuner->window_times, CHARGE_TUNER_WINDOW);
     double base_cost = cost(tuner, tuner->pool_errors, tuner->pool_times, tuner->pool_count);
-    if (trial_cost < base_cost) {
-        keep(tuner, kp, kd);
-        tuner->factor = FIRST_FACTOR;
-        return next_trial(tuner, CHARGE_TUNER_KEPT, next_kp, next_kd);
+    if (tuner->integral) {
+        tuner->integral = false;
+        if (trial_cost < base_cost) {
+            keep(tuner, kp, kd, ki);
+            tuner->factor = FIRST_FACTOR;
+            return next_trial(tuner, CHARGE_TUNER_KEPT, next_kp, next_kd, next_ki);
+        }
+        return next_trial(tuner, CHARGE_TUNER_INTEGRAL_BACK, next_kp, next_kd, next_ki);
     }
-    return put_back(tuner, next_kp, next_kd);
+    if (trial_cost < base_cost) {
+        keep(tuner, kp, kd, ki);
+        tuner->factor = FIRST_FACTOR;
+        return next_trial(tuner, CHARGE_TUNER_KEPT, next_kp, next_kd, next_ki);
+    }
+    return put_back(tuner, next_kp, next_kd, next_ki);
 }
 
 
-charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double k, double error,
-                                       double time_s, double *next_kp, double *next_kd) {
+charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double kd, double ki, double k, double error,
+                                       double time_s, double *next_kp, double *next_kd, double *next_ki) {
     if (k > 0.0) {
         tuner->k = k;
     }
@@ -237,9 +260,10 @@ charge_tuner_step_t charge_tuner_throw(charge_tuner_t *tuner, double kp, double 
     tuner->window_count++;
     *next_kp = kp;
     *next_kd = kd;
+    *next_ki = ki;
     if (tuner->window_count < CHARGE_TUNER_WINDOW) {
         return CHARGE_TUNER_THROWING;
     }
     tuner->window_count = 0;
-    return judge(tuner, kp, kd, next_kp, next_kd);
+    return judge(tuner, kp, kd, ki, next_kp, next_kd, next_ki);
 }

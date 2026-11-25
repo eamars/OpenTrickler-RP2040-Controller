@@ -125,6 +125,7 @@ class Tuner:
         self.tried = 0              # ways put back since the base was kept or the step changed
         self.resting = 0
         self.k = None               # the weight a turn the braking is reckoned with (the carried one)
+        self.integral = False       # the window being thrown is the integral's trial: the gains with ki 0
 
     @property
     def turned(self) -> bool:
@@ -148,6 +149,11 @@ class Tuner:
         if self.base is None:
             self.keep(profile, errors, times)
             self.direction = self.missing_way(errors)
+            if profile.fine_ki > 0.0:
+                # An integral term only adds overshoot on the forecast, whose error never changes sign before the
+                # stop (2026-11-26): its first trial is the same gains without it, kept only if cheaper
+                self.integral = True
+                return dataclasses.replace(self.base, fine_ki=0.0), "first window: the base; the integral off"
             return self.next_trial("first window: the base")
         if profile is self.base:
             self.pool = ((self.pool[0] + errors)[-POOL_THROWS:], (self.pool[1] + times)[-POOL_THROWS:])
@@ -158,6 +164,13 @@ class Tuner:
         trial_cost, trial_good = cost(errors, times, self.tolerance, self.share)
         base_cost, base_good = cost(*self.pool, self.tolerance, self.share)
         spread = math.hypot(noise(trial_good, len(errors)), noise(base_good, len(self.pool[0])))
+        if self.integral:
+            self.integral = False
+            if trial_cost < base_cost * (1.0 - self.z * spread):
+                self.keep(profile, errors, times)
+                self.factor = FIRST_FACTOR
+                return self.next_trial(f"kept ({trial_cost:.1f} against {base_cost:.1f} s): the integral off")
+            return self.next_trial(f"put back ({trial_cost:.1f} against {base_cost:.1f} s): the integral put back")
         if math.isinf(trial_cost) and math.isinf(base_cost) and self.blind == "error":
             trial_miss = statistics.median(abs(e) for e in errors)
             base_miss = statistics.median(abs(e) for e in self.pool[0])
