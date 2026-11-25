@@ -239,6 +239,9 @@ def miss_kind(error):
 
 
 
+REACH_CHARGE_GR = 30.0           # reach's simulated charge
+
+
 def settings_differences(old_resources: dict, new_resources: dict) -> list:
     """
     What differs between two copies of API v1's settings export, a field at a time.
@@ -1590,7 +1593,7 @@ class Session:
                 time.sleep(0.25)
         # The jobs: a simulated charge, then a cleanup at speed 0, each stopped
         self.send("sim on")
-        self.send("charge 30")
+        self.send(f"charge {REACH_CHARGE_GR:g}")
         time.sleep(1.0)
         self.sweep("a charge, zeroing")
         # The throw poured: the screen between throws, Stop and Change, and the page Change opens. Change comes about
@@ -4229,7 +4232,10 @@ def cup_most(args):
     if command == "charge_fault":
         return args.repeat * args.target + 40.0
     if command == "reach":
-        return 40.0                     # a simulated charge's screens while it zeroes and between throws
+        # A simulated charge's screens while it zeroes and between throws. Its tubes turn until the stand-in scale
+        # counts the target, and a real tube pours more a turn than the stand-in counts: 55.4 gr for 30 with AR2209
+        # on the Pico 2 W (2026-11-25). Twice the target, and the next throw's start
+        return 2.0 * REACH_CHARGE_GR + 10.0
     if command == "scale_frames":
         return (SCALE_FRAMES_COARSE_RPS + SCALE_FRAMES_FINE_RPS) * (args.motors + 5.0) * CUP_GR_A_TURN_MOST
     if command == "send":
