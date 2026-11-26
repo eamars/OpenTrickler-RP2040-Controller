@@ -287,10 +287,9 @@ static void write_value(const setting_field_t *field, const uint8_t *base, char 
 }
 
 
-// Where a resource's part lies in the EEPROM: one of several ({id}) after the others, or a record each a slot apart
+// Where a resource's part lies in the EEPROM: one of several ({id}) after the others
 static uint16_t part_addr(const settings_resource_t *resource, int32_t id) {
-    size_t stride = resource->stride > 0 ? resource->stride : resource->size;
-    return (uint16_t) (resource->addr + (id > 0 ? (size_t) id * stride : 0));
+    return (uint16_t) (resource->addr + (id > 0 ? (size_t) id * resource->size : 0));
 }
 
 

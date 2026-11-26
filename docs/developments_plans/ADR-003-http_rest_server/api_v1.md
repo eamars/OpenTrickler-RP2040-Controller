@@ -238,7 +238,7 @@ What ADR-014 calls a powder profile: how a powder flows, and the controller's ga
 | `GET /api/v1/powder_profiles` | | `saved`, and `profiles`: for each its `id` and `name`. Which one the next throw uses is the charge's `powder_profile` |
 | `GET /api/v1/powder_profiles/{id}` | | Its fields, below; 404 for an id not in the list |
 | `PATCH /api/v1/powder_profiles/{id}` | Fields, below | 200; 409 `busy` while `in_throw`, when it is the one in use |
-| `POST /api/v1/powder_profiles/save` | `{}` | 200: all of them, and which one is chosen, stored. Each powder is a record of its own in the EEPROM, the choice another (ADR-009, 2026-11-26) |
+| `POST /api/v1/powder_profiles/save` | `{}` | 200: all of them, and which one is chosen, stored. They are one block in the EEPROM |
 
 | Field | Type | Unit | Limits | Today |
 |---|---|---|---|---|
@@ -250,7 +250,7 @@ What ADR-014 calls a powder profile: how a powder flows, and the controller's ga
 | `fine_weight_per_turn` | number or null | weight | 0.001 to 100; null, never calibrated (0 held). The fine tube's weight a turn where it streams, kept by the powder's calibration: the charge forecasts its first throws on this powder from it (ADR-009, step 2) | appended (ADR-009) |
 | `coarse_weight_per_turn` | number or null | weight | 0.001 to 100; null, never calibrated (0 held). The coarse tube's, kept by the same calibration (ADR-009, 2026-11-26) | appended (ADR-009) |
 
-Eight slots today, so no POST to make one and no DELETE. Those may come (ADR-014, or ADR-009's tuning saving a new one) without changing the paths. Today's `rev` (`p0`) is used by nothing in the code and is not in v1. Since ADR-009 (2026-11-26) each powder is a record of its own, a slot each from 23 KB in the EEPROM, so a new field is appended at its end; v2.0.x's `compatibility` (`p1`, used by nothing) is gone with the old block, and the powders were reset once to their defaults (nothing released kept them).
+Eight slots today, so no POST to make one and no DELETE. Those may come (ADR-014, or ADR-009's tuning saving a new one) without changing the paths. Today's `rev` (`p0`) and `compatibility` (`p1`, written by v1.2x's REST API) are kept as stored, used by nothing, and are not in v1. The two weights a turn are appended to each powder (ADR-009, 2026-11-26), so a v1.2x block is read whole by the migration (`load_config_layout`) and they start null, never calibrated.
 
 ## Settings
 

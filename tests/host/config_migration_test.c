@@ -4,11 +4,13 @@
     save_config are common.c's own, compiled on the host over an EEPROM in RAM (tests/host_test.py).
 */
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "common.h"
 #include "fake_eeprom.h"
+#include "profile.h"
 
 #define ADDR 0x0400
 #define REV 7               // an old revision number no record carries
@@ -48,6 +50,103 @@ static void store_v1(void) {
     fake_eeprom_erase();
     record_v1_t v1 = stored_v1;
     save_config_now(ADDR, &v1, sizeof(v1));
+}
+
+
+/*
+    A record that is a header and an array, grown at each element's end (load_config_layout): v1.21's powders, as it
+    stored them, read by this version's profile_t (two weights a turn appended); and a later version's, one more field
+    appended to each powder, read by this one
+*/
+typedef struct {
+    uint32_t rev;
+    uint32_t compatibility;
+    char name[PROFILE_NAME_MAX_LEN];
+    float coarse_kp, coarse_ki, coarse_kd, coarse_min, coarse_max;
+    float fine_kp, fine_ki, fine_kd, fine_min, fine_max;
+} profile_v121_t;                       // v1.21's src/profile.h
+
+typedef struct {
+    uint16_t profile_data_rev;
+    uint16_t current_profile_idx;
+    profile_v121_t profiles[MAX_PROFILE_CNT];
+} profiles_v121_t;
+
+typedef struct {
+    profile_t now;
+    float later;                        // a later version's appended field
+} profile_later_t;
+
+typedef struct {
+    uint16_t profile_data_rev;
+    uint16_t current_profile_idx;
+    profile_later_t profiles[MAX_PROFILE_CNT];
+} profiles_later_t;
+
+#define POWDERS_ADDR 0x2400
+
+static const config_layout_t powders_layout = {.header = offsetof(eeprom_profile_data_t, profiles),
+                                               .element = sizeof(profile_t), .count = MAX_PROFILE_CNT};
+
+
+static void powders(void) {
+    static eeprom_profile_data_t defaults;
+    for (int idx = 0; idx < MAX_PROFILE_CNT; idx += 1) {
+        snprintf(defaults.profiles[idx].name, PROFILE_NAME_MAX_LEN, "Default%d", idx);
+        defaults.profiles[idx].fine_weight_per_turn = -2.0f;      // told apart from what was stored
+        defaults.profiles[idx].coarse_weight_per_turn = -3.0f;
+    }
+
+    // v1.21's eight powders: every field it had kept, the appended ones at their defaults, stored at the new size
+    static profiles_v121_t old;
+    memset(&old, 0, sizeof(old));
+    old.current_profile_idx = 3;
+    for (int idx = 0; idx < MAX_PROFILE_CNT; idx += 1) {
+        snprintf(old.profiles[idx].name, PROFILE_NAME_MAX_LEN, "Powder%d", idx);
+        old.profiles[idx].compatibility = (uint32_t) idx;
+        old.profiles[idx].coarse_kp = 0.01f * (float) (idx + 1);
+        old.profiles[idx].fine_kp = 0.5f + (float) idx;
+        old.profiles[idx].fine_max = 5.0f - (float) idx * 0.25f;
+    }
+    fake_eeprom_erase();
+    save_config_now(POWDERS_ADDR, &old, sizeof(old));
+    static eeprom_profile_data_t now;
+    bool ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout, REV);
+    bool kept = ok && now.current_profile_idx == 3;
+    for (int idx = 0; idx < MAX_PROFILE_CNT && kept; idx += 1) {
+        const profile_t *p = &now.profiles[idx];
+        char want[PROFILE_NAME_MAX_LEN];
+        snprintf(want, sizeof(want), "Powder%d", idx);
+        kept = strcmp(p->name, want) == 0 && p->compatibility == (uint32_t) idx &&
+               p->coarse_kp == 0.01f * (float) (idx + 1) && p->fine_kp == 0.5f + (float) idx &&
+               p->fine_max_flow_speed_rps == 5.0f - (float) idx * 0.25f &&
+               p->fine_weight_per_turn == -2.0f && p->coarse_weight_per_turn == -3.0f;
+    }
+    check(kept, "v1.21's powders: each kept whole, the choice too, the weights a turn at their defaults");
+    static eeprom_profile_data_t back;
+    check(config_read_stored(POWDERS_ADDR, &back, sizeof(back)) && memcmp(&back, &now, sizeof(now)) == 0,
+          "and stored at the new size");
+
+    // A later version's powders, a field appended to each: this one's fields read, the rest discarded
+    static profiles_later_t later;
+    memset(&later, 0, sizeof(later));
+    later.current_profile_idx = 5;
+    for (int idx = 0; idx < MAX_PROFILE_CNT; idx += 1) {
+        later.profiles[idx].now = now.profiles[idx];
+        later.profiles[idx].now.fine_weight_per_turn = 0.8f + 0.01f * (float) idx;
+        later.profiles[idx].now.coarse_weight_per_turn = 10.0f + (float) idx;
+        later.profiles[idx].later = 99.0f;
+    }
+    fake_eeprom_erase();
+    save_config_now(POWDERS_ADDR, &later, sizeof(later));
+    ok = load_config_layout(POWDERS_ADDR, &now, &defaults, sizeof(now), &powders_layout, REV);
+    kept = ok && now.current_profile_idx == 5;
+    for (int idx = 0; idx < MAX_PROFILE_CNT && kept; idx += 1) {
+        kept = memcmp(&now.profiles[idx], &later.profiles[idx].now, sizeof(profile_t)) == 0;
+    }
+    check(kept, "a later version's powders: each read for this version's fields");
+    check(config_read_stored(POWDERS_ADDR, &back, sizeof(back)) && memcmp(&back, &now, sizeof(now)) == 0,
+          "and stored at this version's size");
 }
 
 
@@ -109,15 +208,15 @@ int main(void) {
     record_v1_t v1;
     ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1), REV);
     check(ok && v1.rev == 0 && v1.a == 7.0f && v1.b == 8.0f, "a later version's longer record: our fields read");
-    check(config_read_stored(ADDR, &read_back, sizeof(read_back)) && v2_is(&read_back, 7.0f, 8.0f, 9.0f, 10.0f),
-          "nothing written: the later version's record is still whole");
+    record_v1_t v1_back;
+    check(config_read_stored(ADDR, &v1_back, sizeof(v1_back)) && v1_back.a == 7.0f && v1_back.b == 8.0f &&
+          !config_read_stored(ADDR, &read_back, sizeof(read_back)),
+          "stored at once at our size, the later version's fields discarded");
     check(config_is_saved(ADDR, &v1, sizeof(v1)), "and it counts as saved");
 
-    // Stored by this version, the rest is discarded: the later version reads ours, its own fields at their defaults
-    v1.a = 7.5f;
-    save_config(ADDR, &v1, sizeof(v1));
+    // The later version again: ours read back, its own fields at their defaults
     ok = load_config(ADDR, &v2, &defaults_v2, sizeof(v2), REV);
-    check(ok && v2_is(&v2, 7.5f, 8.0f, -1.0f, -1.0f), "stored by the earlier version, the later reads its fields back");
+    check(ok && v2_is(&v2, 7.0f, 8.0f, -1.0f, -1.0f), "the later version reads them back, its own at their defaults");
 
     // A damaged longer record matches at no size: the defaults
     fake_eeprom_erase();
@@ -125,6 +224,8 @@ int main(void) {
     fake_eeprom_bytes()[ADDR + 5] ^= 0x5A;
     ok = load_config(ADDR, &v1, &defaults_v1, sizeof(v1), REV);
     check(ok && v1.a == 10.0f && v1.b == 20.0f, "a damaged longer record gets the defaults");
+
+    powders();
 
     printf("%s: %d failed\n", failures ? "FAIL" : "PASS", failures);
     return failures ? 1 : 0;

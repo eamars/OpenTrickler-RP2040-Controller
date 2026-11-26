@@ -129,7 +129,7 @@ uint32_t software_crc32(void * data, size_t length) {
     The CRC of what each module last stored, or read at the start (ADR-003, gate 3): `saved` is the struct in RAM
     against it, so a write from the menu or the console counts as one from the web does. One entry an address.
 */
-#define CONFIG_STORED_MAX 24        // every record: the modules' and the eight powders'
+#define CONFIG_STORED_MAX 16
 static struct {
     uint16_t addr;
     uint32_t crc;
@@ -254,44 +254,89 @@ bool config_is_saved(uint16_t addr, const void * cfg, size_t size) {
 
 
 /*
-    The size an earlier version stored a record at, before fields were appended at its struct's end (ADR-009, gate 2):
-    the longest size below `size` whose CRC32 the four bytes after it hold. 0 when none does: the record is damaged.
-    A wrong match is a chance of one in about four billion for each size tried
+    A record's migration, one for every module (the owner, 2026-11-25: "Between new size and 1, we can try if CRC
+    matches any try_size - 1 ... So if we only append new item to the list, then the non-corrupted data should always
+    match"; 2026-11-26: append, never repurpose, ignore and discard what is not known). Fields are only appended: at the
+    record's end, or for a record that is a header and an array (the powders, the motors), at each element's end, the
+    header as it was. A record whose CRC32 fails at its size is looked for at each size it could have had, by an
+    earlier version or a later one, within its slot; found, its part is filled into the struct, element by element,
+    the rest at the defaults. A wrong match is a chance of one in about four billion for each size tried.
 */
-static size_t config_stored_size(const uint8_t * buf, size_t size) {
-    for (size_t stored = size - 1; stored > sizeof(uint16_t); stored -= 1) {
-        uint32_t crc;
-        memcpy(&crc, buf + stored, sizeof(crc));
-        if (software_crc32((void *) buf, stored) == crc) {
-            return stored;
-        }
+static const config_layout_t config_plain = {.header = 0, .element = 0, .count = 0};
+
+
+// Whether a record of this layout can have been stored at `stored` bytes
+static bool config_size_fits(const config_layout_t *layout, size_t stored) {
+    if (layout->element == 0) {
+        return stored > sizeof(uint16_t);       // past the old revision
     }
-    return 0;
+    return stored > layout->header && (stored - layout->header) % layout->count == 0;
 }
 
 
 /*
-    The size a later version stored a record at, its fields appended after ours (the owner, 2026-11-26: forward
-    compatibility): the shortest size above `size`, within the record's slot, whose CRC32 the four bytes after it hold.
-    0 when none does. The CRC is carried from one size to the next, so the slot is read through once
+    The size the record in the slot was stored at, other than `size`: the longest below it (an earlier version's),
+    else the shortest above it (a later version's); 0 when none. The CRC is carried from one size to the next, so the
+    slot is read through once
 */
-static size_t config_longer_size(const uint8_t * slot, size_t size) {
-    uint32_t crc = software_crc32_continue(0, slot, size);
-    for (size_t stored = size + 1; stored + sizeof(crc) <= EEPROM_SLOT_SIZE; stored += 1) {
+static size_t config_stored_size(const uint8_t *slot, size_t room, size_t size, const config_layout_t *layout) {
+    uint32_t crc = 0;
+    size_t shorter = 0;
+    for (size_t stored = 1; stored + sizeof(crc) <= room; stored += 1) {
         crc = software_crc32_continue(crc, slot + stored - 1, 1);
+        if (stored > size && shorter > 0) {
+            break;
+        }
+        if (stored == size || !config_size_fits(layout, stored)) {
+            continue;
+        }
         uint32_t held;
         memcpy(&held, slot + stored, sizeof(held));
         if (crc == held) {
-            return stored;
+            if (stored > size) {
+                return stored;
+            }
+            shorter = stored;
         }
     }
-    return 0;
+    return shorter;
+}
+
+
+// A record stored at `stored` bytes, into the struct: the defaults, then what it holds of each field, element by element
+static void config_fill(void *cfg, const void *default_cfg, size_t size, const uint8_t *slot, size_t stored,
+                        const config_layout_t *layout) {
+    memcpy(cfg, default_cfg, size);
+    if (layout->element == 0) {
+        memcpy(cfg, slot, stored < size ? stored : size);
+        return;
+    }
+    memcpy(cfg, slot, layout->header);
+    size_t was = (stored - layout->header) / layout->count;
+    size_t part = was < layout->element ? was : layout->element;
+    for (size_t idx = 0; idx < layout->count; idx += 1) {
+        memcpy((uint8_t *) cfg + layout->header + idx * layout->element, slot + layout->header + idx * was, part);
+    }
 }
 
 
 bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t size, uint16_t rev_validation) {
+    return load_config_layout(addr, cfg, default_cfg, size, NULL, rev_validation);
+}
+
+
+bool load_config_layout(uint16_t addr, void * cfg, const void * default_cfg, size_t size,
+                        const config_layout_t * layout, uint16_t rev_validation) {
     bool is_ok;
     uint32_t calculated_crc32;
+
+    if (layout == NULL) {
+        layout = &config_plain;
+    }
+    else if (layout->element == 0 || layout->count == 0 || layout->header + layout->element * layout->count != size) {
+        printf("Config: the layout at 0x%04x is not its struct's: read as a plain record\n", addr);
+        layout = &config_plain;
+    }
 
 
     // Prepare rx buffer
@@ -343,33 +388,21 @@ bool load_config(uint16_t addr, void * cfg, const void * default_cfg, size_t siz
     calculated_crc32 = software_crc32(buf, size);
     memcpy(&received_crc32, buf + size, sizeof(received_crc32));
 
-    // A record an earlier version stored shorter, before fields were appended (ADR-009, gate 2): its bytes kept, the
-    // appended fields their defaults, and stored at the new size, held on trial as any write is. Nothing is reset
-    if (received_rev == 0 && calculated_crc32 != received_crc32) {
-        size_t stored = config_stored_size(buf, size);
-        if (stored > 0) {
-            printf("Config: the record at 0x%04x was stored %u bytes long, before fields were appended: kept\n", addr,
-                   (unsigned) stored);
-            memcpy(cfg, default_cfg, size);
-            memcpy(cfg, buf, stored);
-            free(buf);
-            return save_config(addr, cfg, size);
-        }
-    }
-
-    // A record a later version stored longer, fields appended after ours: ours read, the rest ignored. Nothing is
-    // written: the EEPROM keeps the later version's record until this one stores its own, which discards the rest
-    if (received_rev == 0 && calculated_crc32 != received_crc32 && size + sizeof(received_crc32) < EEPROM_SLOT_SIZE) {
+    // Another version's record, found at the size it was stored at: what it holds of each field kept, the rest at the
+    // defaults, and stored at this version's size at once (a later version's fields discarded), held on trial as any
+    // write is. Nothing is reset
+    if (received_rev == 0 && calculated_crc32 != received_crc32 && size + sizeof(received_crc32) <= EEPROM_SLOT_SIZE) {
         uint8_t *slot = malloc(EEPROM_SLOT_SIZE);
-        size_t stored = slot != NULL && eeprom_read(addr, slot, EEPROM_SLOT_SIZE) ? config_longer_size(slot, size) : 0;
+        size_t stored = slot != NULL && eeprom_read(addr, slot, EEPROM_SLOT_SIZE) ?
+                        config_stored_size(slot, EEPROM_SLOT_SIZE, size, layout) : 0;
         if (stored > 0) {
-            printf("Config: the record at 0x%04x was stored %u bytes long by a later version: its first %u read\n",
-                   addr, (unsigned) stored, (unsigned) size);
-            memcpy(cfg, slot, size);
-            config_stored_set(addr, software_crc32(cfg, size));
+            printf("Config: the record at 0x%04x was stored %u bytes long by %s version: %s\n", addr, (unsigned) stored,
+                   stored < size ? "an earlier" : "a later",
+                   stored < size ? "kept, the appended fields at their defaults" : "its fields read, the rest discarded");
+            config_fill(cfg, default_cfg, size, slot, stored, layout);
             free(slot);
             free(buf);
-            return true;
+            return save_config(addr, cfg, size);
         }
         free(slot);
     }

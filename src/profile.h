@@ -9,16 +9,15 @@
 #define MAX_PROFILE_CNT         8
 
 #define EEPROM_PROFILE_DATA_REV             1           // 16 bit
-#define PROFILE_RECORD_REV                  1           // never stored: a powder's record validates by its CRC
 
 /*
-    A powder: a record of its own in the EEPROM, a slot each from EEPROM_POWDER_BASE_ADDR (ADR-009, 2026-11-26), so a
-    field is appended at the record's end and an earlier or a later version reads the fields it knows (common.c).
-    Never a field put to a new use: a new one is appended
+    A powder, eight to the record (eeprom_profile_data_t, a header and an array: load_config_layout). A field is only
+    ever appended at its end, so each version reads the powders of an earlier or a later one (ADR-009, 2026-11-26)
 */
 typedef struct
 {
-    uint32_t rev;               // 0: the loader reads the first two bytes as an old revision (common.c)
+    uint32_t rev;
+    uint32_t compatibility;     // as v1.2x stored it (its REST API's p1): kept, used by nothing, not in the API
 
     char name[PROFILE_NAME_MAX_LEN];
 
@@ -43,10 +42,11 @@ typedef struct
 } profile_t;
 
 
-// The powder chosen, a record of its own at EEPROM_PROFILE_DATA_BASE_ADDR
 typedef struct {
     uint16_t profile_data_rev;
     uint16_t current_profile_idx;
+
+    profile_t profiles[MAX_PROFILE_CNT];
 } eeprom_profile_data_t;
 
 

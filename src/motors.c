@@ -301,7 +301,11 @@ bool motor_config_init(void) {
     // Read motor config from EEPROM
     eeprom_motor_data_t eeprom_motor_data;
     memset(&eeprom_motor_data, 0x0, sizeof(eeprom_motor_data));
-    is_ok = load_config(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, &default_motor_data, sizeof(eeprom_motor_data), EEPROM_MOTOR_DATA_REV);
+    // A header and two motors: each motor of an earlier or a later version read for the fields it has
+    static const config_layout_t layout = {.header = offsetof(eeprom_motor_data_t, motor_data),
+                                           .element = sizeof(motor_persistent_config_t), .count = 2};
+    is_ok = load_config_layout(EEPROM_MOTOR_CONFIG_BASE_ADDR, &eeprom_motor_data, &default_motor_data,
+                               sizeof(eeprom_motor_data), &layout, EEPROM_MOTOR_DATA_REV);
     if (!is_ok) {
         printf("Unable to read motor configuration\n");
         return is_ok;

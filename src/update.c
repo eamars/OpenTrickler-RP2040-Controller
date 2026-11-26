@@ -34,7 +34,6 @@
 #include "display.h"
 #include "common.h"
 #include "eeprom.h"
-#include "profile.h"
 #include "events.h"
 #include "http_json.h"
 #include "http_server.h"
@@ -582,17 +581,12 @@ void update_network_ready(bool on_its_network) {
     watchdog_disable();
     update_clear_note();
     // Kept: what the trial held is written now, and the settings it reset are said (gap 1)
-    uint16_t reset_addrs[24];       // every record, the eight powders' each its own
+    uint16_t reset_addrs[sizeof(update_records) / sizeof(update_records[0])];
     size_t reset_count = config_write_held(reset_addrs, sizeof(reset_addrs) / sizeof(reset_addrs[0]));
     uint16_t reset = 0;
     for (size_t idx = 0; idx < reset_count; idx += 1) {
-        // A powder's record is said as the powders'
-        uint16_t addr = reset_addrs[idx];
-        if (addr >= EEPROM_POWDER_BASE_ADDR && addr < EEPROM_POWDER_BASE_ADDR + MAX_PROFILE_CNT * EEPROM_SLOT_SIZE) {
-            addr = EEPROM_PROFILE_DATA_BASE_ADDR;
-        }
         for (size_t bit = 0; bit < sizeof(update_records) / sizeof(update_records[0]); bit += 1) {
-            if (update_records[bit].addr == addr) {
+            if (update_records[bit].addr == reset_addrs[idx]) {
                 reset |= (uint16_t) (1u << bit);
             }
         }

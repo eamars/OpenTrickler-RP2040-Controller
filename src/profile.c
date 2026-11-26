@@ -9,18 +9,12 @@
 #include "settings.h"
 
 
-// The powder chosen, and the eight: each a record of its own (ADR-009, 2026-11-26)
-static eeprom_profile_data_t profile_data;
-static profile_t profiles[MAX_PROFILE_CNT];
+eeprom_profile_data_t profile_data;
 
-static const eeprom_profile_data_t default_profile_data = {
+const eeprom_profile_data_t default_profile_data = {
     .profile_data_rev = 0,
-    .current_profile_idx = 0,
-};
-
-static const profile_t default_profiles[MAX_PROFILE_CNT] = {
-    [0] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[0] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "AR2208,gr",
 
         .coarse_kp = 0.025f,
@@ -35,8 +29,8 @@ static const profile_t default_profiles[MAX_PROFILE_CNT] = {
         .fine_min_flow_speed_rps = 0.08f,
         .fine_max_flow_speed_rps = 5.0f,
     },
-    [1] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[1] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "AR2209,gr",
 
         .coarse_kp = 0.05f,
@@ -51,8 +45,8 @@ static const profile_t default_profiles[MAX_PROFILE_CNT] = {
         .fine_min_flow_speed_rps = 0.08f,
         .fine_max_flow_speed_rps = 2.0f,
     },
-    [2] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[2] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "8208XBR,gr",
 
         .coarse_kp = 0.05f,
@@ -67,8 +61,8 @@ static const profile_t default_profiles[MAX_PROFILE_CNT] = {
         .fine_min_flow_speed_rps = 0.06f,
         .fine_max_flow_speed_rps = 5.0f,
     },
-    [3] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[3] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Benchmark2,gr",
 
         .coarse_kp = 0.06f,
@@ -83,58 +77,40 @@ static const profile_t default_profiles[MAX_PROFILE_CNT] = {
         .fine_min_flow_speed_rps = 0.08f,
         .fine_max_flow_speed_rps = 5.0f,
     },
-    [4] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[4] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile4",
     },
-    [5] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[5] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile5",
     },
-    [6] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[6] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile6",
     },
-    [7] = {
-        .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
+    .profiles[7] = {
+        .compatibility = 0, .fine_weight_per_turn = 0.0f, .coarse_weight_per_turn = 0.0f,
         .name = "Profile7",
     },
 };
 
 
-static uint16_t profile_addr(uint16_t idx) {
-    return (uint16_t) (EEPROM_POWDER_BASE_ADDR + idx * EEPROM_SLOT_SIZE);
-}
-
-
-// The choice and every powder that differs from what is stored: one save for the nine records
 bool profile_data_save() {
-    bool is_ok = true;
-    if (!config_is_saved(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, sizeof(profile_data))) {
-        is_ok = save_config(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, sizeof(profile_data));
-    }
-    for (uint16_t idx = 0; idx < MAX_PROFILE_CNT; idx += 1) {
-        if (!config_is_saved(profile_addr(idx), &profiles[idx], sizeof(profile_t))) {
-            is_ok = save_config(profile_addr(idx), &profiles[idx], sizeof(profile_t)) && is_ok;
-        }
-    }
+    bool is_ok = save_config(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, sizeof(profile_data));
     return is_ok;
 }
 
 
 bool profile_data_is_saved(void) {
-    bool saved = config_is_saved(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, sizeof(profile_data));
-    for (uint16_t idx = 0; idx < MAX_PROFILE_CNT && saved; idx += 1) {
-        saved = config_is_saved(profile_addr(idx), &profiles[idx], sizeof(profile_t));
-    }
-    return saved;
+    return config_is_saved(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, sizeof(profile_data));
 }
 
 
 /*
-    A powder profile's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/powder_profiles/{id}). Each
-    powder is a record of its own, a slot apart; the eight and the choice share a save. Today's rev is used by
-    nothing, and is not in the API.
+    A powder profile's settings, described once (ADR-003, gate 3; api_v1.md, /api/v1/powder_profiles/{id}). The
+    eight are one block in the EEPROM, the one chosen with them, so they share a save. Today's rev and compatibility
+    are used by nothing, and are not in the API.
 */
 #define PROFILE_FIELD(member) SETTING_AT(profile_t, member)
 #define PROFILE_GAIN(field_name, field_label, member, field_about) \
@@ -178,7 +154,7 @@ static const setting_field_t profile_fields[] = {
 
 
 static void *profile_settings_live(int32_t id) {
-    return &profiles[id];
+    return &profile_data.profiles[id];
 }
 
 
@@ -216,8 +192,7 @@ static const settings_resource_t profile_settings = {
     .path = "/api/v1/powder_profiles/{id}",
     .save_path = "/api/v1/powder_profiles/save",
     .revert_path = "/api/v1/powder_profiles/revert",
-    .addr = EEPROM_POWDER_BASE_ADDR,
-    .stride = EEPROM_SLOT_SIZE,
+    .addr = EEPROM_PROFILE_DATA_BASE_ADDR + offsetof(eeprom_profile_data_t, profiles),
     .label = "Powder",
     .about = "How a powder flows, and the controller's gains for it",
     SETTING_FIELDS(profile_fields),
@@ -238,8 +213,8 @@ const char *profile_get_name(uint16_t idx) {
         return NULL;
     }
     // A name of 16 was stored with no ending before gate 3
-    size_t len = strnlen(profiles[idx].name, PROFILE_NAME_MAX_LEN);
-    memcpy(name, profiles[idx].name, len);
+    size_t len = strnlen(profile_data.profiles[idx].name, PROFILE_NAME_MAX_LEN);
+    memcpy(name, profile_data.profiles[idx].name, len);
     name[len] = '\0';
     return name;
 }
@@ -248,20 +223,17 @@ const char *profile_get_name(uint16_t idx) {
 bool profile_data_init() {
     bool is_ok = true;
 
-    // The choice, then each powder from its own record
+    // Read profile index table
     memset(&profile_data, 0x0, sizeof(eeprom_profile_data_t));
-    is_ok = load_config(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data, sizeof(profile_data), EEPROM_PROFILE_DATA_REV);
-    for (uint16_t idx = 0; idx < MAX_PROFILE_CNT && is_ok; idx += 1) {
-        is_ok = load_config(profile_addr(idx), &profiles[idx], &default_profiles[idx], sizeof(profile_t),
-                            PROFILE_RECORD_REV);
-    }
+    // A header and eight powders: each powder of an earlier or a later version read for the fields it has
+    static const config_layout_t layout = {.header = offsetof(eeprom_profile_data_t, profiles),
+                                           .element = sizeof(profile_t), .count = MAX_PROFILE_CNT};
+    is_ok = load_config_layout(EEPROM_PROFILE_DATA_BASE_ADDR, &profile_data, &default_profile_data,
+                               sizeof(profile_data), &layout, EEPROM_PROFILE_DATA_REV);
 
     if (!is_ok) {
         printf("Unable to read profile data\n");
         return false;
-    }
-    if (profile_data.current_profile_idx >= MAX_PROFILE_CNT) {
-        profile_data.current_profile_idx = 0;
     }
 
     // Register to eeprom save all
@@ -278,12 +250,12 @@ uint16_t profile_get_selected_idx() {
 
 
 profile_t * profile_get_selected() {
-    return &profiles[profile_get_selected_idx()];
+    return &profile_data.profiles[profile_get_selected_idx()];
 }
 
 
 profile_t * profile_get(uint16_t idx) {
-    return idx < MAX_PROFILE_CNT ? &profiles[idx] : NULL;
+    return idx < MAX_PROFILE_CNT ? &profile_data.profiles[idx] : NULL;
 }
 
 
