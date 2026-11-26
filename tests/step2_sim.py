@@ -57,10 +57,12 @@ PRODUCT = {"seed": True, "hold": "none", "blind": "stay", "first": "miss", "axes
            "cut": "threshold", "objective": "tolerance"}
 # The gains thrown from: the owner's Pico W's (gate 1's twin), the bench's stored profile (gate 4's baseline), and the
 # bench's with an integral term put in by mistake (the tuner leaves it, and meets it with kp and kd) and with kp a
-# hundredth (the tuner's first trial puts it right)
+# hundredth (the tuner's first trial puts it right); and the bench's with the coarse stop threshold under the fine one,
+# where main stops both tubes on the fine threshold while the coarse tube still turns (the PR's review, C1)
 STARTS = {"owner": AR2209_PICOW_168, "bench": BENCH, "bench ki": dataclasses.replace(BENCH, fine_ki=0.1),
           "bench slow": dataclasses.replace(BENCH, fine_kp=0.02),
-          "bench wild coarse": dataclasses.replace(BENCH, coarse_kp=0.2)}
+          "bench wild coarse": dataclasses.replace(BENCH, coarse_kp=0.2),
+          "bench low coarse": dataclasses.replace(BENCH, coarse_stop_threshold=0.02)}
 
 
 class Channel(ctypes.Structure):
@@ -356,8 +358,9 @@ def main() -> int:
     parser.add_argument("--sessions", type=int, default=2, help="sessions of 25 throws a rig, judged and alone")
     parser.add_argument("--tuner-throws", type=int, default=300)
     parser.add_argument("--starts", nargs="+", default=["owner", "bench", "bench ki", "bench slow",
-                                                        "bench wild coarse"],
-                        help="owner, bench, bench ki, bench slow, bench wild coarse, or a step2_tuner start")
+                                                        "bench wild coarse", "bench low coarse"],
+                        help="owner, bench, bench ki, bench slow, bench wild coarse, bench low coarse (the coarse "
+                             "stop threshold under the fine one), or a step2_tuner start")
     args = parser.parse_args()
     build_library()
     room = ctypes.c_int()

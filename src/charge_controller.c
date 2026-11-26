@@ -252,9 +252,8 @@ void charge_controller_tick(charge_controller_t *controller, double now_ms) {
         controller->quiet_known = true;
         controller->quiet_at_s = now + lag_most(config) + config->settle_s;
     }
-    // The stop, once the reading is within the fine threshold under the target (main's rule), below the coarse tube's
-    // threshold: never cut on the forecast
-    if (!controller->coarse_moves && controller->fine_rps > 0.0 && reached(controller)) {
+    // The stop, once the reading is within the fine threshold under the target (main's rule): never cut on the forecast
+    if (controller->fine_rps > 0.0 && reached(controller)) {
         stop(controller);
     }
 }
@@ -468,6 +467,12 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
     }
     choose(controller);
 
+    // The stop first, whatever the coarse tube does (main's rule)
+    if (reached(controller)) {
+        stop(controller);
+        return;
+    }
+
     // The coarse tube: today's
     double coarse_error = controller->coarse_target - weight;
     if (coarse_error <= 0.0 && controller->coarse_moves) {
@@ -494,10 +499,6 @@ void charge_controller_reading(charge_controller_t *controller, double now_ms, d
     // The fine tube: the profile's PID on the forecast's error, within its envelope; stopped by the reading alone, so
     // past the forecast's target it creeps at its least until the reading is within the threshold
     double error = controller->target - forecast(controller);
-    if (!controller->coarse_moves && reached(controller)) {
-        stop(controller);
-        return;
-    }
     if (!controller->held) {
         controller->fine_integral += error;
     }

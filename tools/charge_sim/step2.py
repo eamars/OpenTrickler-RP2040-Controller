@@ -265,8 +265,8 @@ class Step2(LegacyPid):
             self.unseen -= self.air.popleft()[1]
         if self.quiet_at is None and not self.coarse_moves and self.backoff_until_ms is None:
             self.quiet_at = now + max(self.lag_seconds) + self.records.settle_s
-        # the stop, the moment the forecast reaches the target, below the coarse tube's threshold
-        if not self.coarse_moves and self.fine_rps > 0.0 and self.reached() and not self.holding(now):
+        # the stop, the moment the forecast reaches the target, whatever the coarse tube does (main's rule)
+        if self.fine_rps > 0.0 and self.reached() and not self.holding(now):
             self._stop()
 
     def _stop(self) -> None:
@@ -323,6 +323,10 @@ class Step2(LegacyPid):
         if self.quiet_at is not None and now_ms / 1000.0 >= self.quiet_at:
             self.rows.append((now_ms / 1000.0, weight))
         self.choose()
+        # the stop first, whatever the coarse tube does (main's rule)
+        if self.reached() and not self.holding(now_ms / 1000.0):
+            self._stop()
+            return
         # the coarse tube: today's
         coarse_error = self.coarse_target - weight
         if coarse_error <= 0.0 and self.coarse_moves:
@@ -350,9 +354,6 @@ class Step2(LegacyPid):
             self.fine_last_forecast_error = error
             self.coarse_last_error = coarse_error
             self.first_sample = False
-            return
-        if not self.coarse_moves and self.reached():
-            self._stop()
             return
         if not (self.envelope and self.held):
             self.fine_integral += error
