@@ -167,8 +167,13 @@ function calibrationSheet() {
 
 const known = (value) => value !== null && value !== undefined;
 
+// The scale's unit as the unit reports it (GET /api/v1/scale), grains as the screen writes them; "" where the unit
+// cannot tell, and the number is shown alone, as on the screen
+let scaleUnit = "";
+const withUnit = (text) => scaleUnit ? `${text} ${scaleUnit}` : text;
+
 function weightText(value) {
-    return known(value) ? `${value.toFixed(2)} gr` : "Not done";
+    return known(value) ? withUnit(value.toFixed(2)) : "Not done";
 }
 
 function msText(ms) {
@@ -210,9 +215,10 @@ function drawCalibration(options = {}) {
     const page = options.page || "settings";
     const box = element("div", {class: "calibration"});
     let drawnKey = null;                // the step and the records the cards were built for
-    const send = async (method, path, body) => {
+    let unitStep;                       // the step the scale's unit was last read at
+    const send = async (method, path, body, refused = "Not done") => {
         const reply = await api(method, path, body);
-        reply.ok ? draw(reply.data) : refusal(reply, "Not done");
+        reply.ok ? draw(reply.data) : refusal(reply, refused);
         if (reply.ok && path.endsWith("/save") && options.saved) {
             options.saved();
         }
@@ -289,30 +295,32 @@ function drawCalibration(options = {}) {
         switch (cal.step) {
         case "cup_on":
             head("Put the empty cup on the scale");
-            note(cal.part === "powder" ? `With ${powder} in the hopper: it is what is calibrated.` : "To catch the powder.");
-            actions(cancel(), button("The cup is on", "action go", () => answer("next")));
+            note({powder: `With ${powder} in the hopper: it is what is calibrated.`,
+                  scale: "With powder in the hopper: its runs pour it."}[cal.part] || "To catch the powder.");
+            // The key as the screen's: Next where nothing turns yet, Start where the motors start
+            actions(cancel(), button(cal.part === "cup" ? "Next" : "Start", "action go", () => answer("next")));
             break;
         case "zeroing":
             head("Zeroing");
-            figure("gr");
+            figure(scaleUnit);
             actions(cancel());
             break;
         case "lift":
             head("Lift the cup");
-            figure("gr");
+            figure(scaleUnit);
             note("Its weight is read.");
             actions(cancel());
             break;
         case "back":
             head("Put the cup back");
-            figure("gr");
+            figure(scaleUnit);
             note(`The cup weighs ${weightText(cal.cup_weight)}.`);
             actions(cancel());
             break;
         case "fill":
             // As at the unit, where the knob pours (the owner, 2026-11-25): the key pours while held
             head("Fill the cup");
-            figure("gr");
+            figure(scaleUnit);
             card.append(holdToPour());
             actions(cancel(), button("It's full", "action go", () => answer("full")));
             break;
@@ -335,7 +343,7 @@ function drawCalibration(options = {}) {
             break;
         case "paused":
             head("Empty the cup");
-            note(`${cal.line} gr. Empty it, put it back, then go on.`);
+            note(`${withUnit(cal.line)}. Empty it, put it back, then go on.`);
             actions(out("Stop", "action halt", stop), button("Go on", "action go", () => answer("go_on")));
             break;
         case "result": {
@@ -343,26 +351,30 @@ function drawCalibration(options = {}) {
             head(`${named}: done`);
             if (cal.part === "scale") {
                 const lag = result.lag;
-                card.append(line("Settle time", msText(result.settle_ms)),
+                card.append(line("Settle time", known(result.settle_ms) ? msText(result.settle_ms) : "Not found"),
                             line("Lag, slow flow", lag.length ? msText(lag[0].ms) : "Not found"),
                             line("Lag, fast flow", lag.length ? msText(lag[lag.length - 1].ms) : "Not found"));
+                // What Keep writes into the charge's steady and zero margins, only when it writes them (at most 1)
+                if (known(result.margin) && result.margin <= 1) {
+                    card.append(line("Charge margins", withUnit(result.margin.toFixed(3))));
+                }
             } else {
                 card.append(line("Fine minimum", known(result.fine_min_speed_rps) ? rps(result.fine_min_speed_rps) :
                                                  "Not found"),
                             line("Was", rps(result.was.fine_min_speed_rps)),
                             line("Fine weight a turn", known(result.fine_weight_per_turn) ?
-                                                       `${result.fine_weight_per_turn.toFixed(3)} gr` : "Not found"),
+                                                       withUnit(result.fine_weight_per_turn.toFixed(3)) : "Not found"),
                             line("Coarse minimum", known(result.coarse_min_speed_rps) ?
                                                    rps(result.coarse_min_speed_rps) : "Not found"),
                             line("Was", rps(result.was.coarse_min_speed_rps)));
             }
-            card.append(line("Took", `${(result.elapsed_s / 60).toFixed(1)} min, ${result.poured.toFixed(0)} gr`));
+            card.append(line("Took", `${(result.elapsed_s / 60).toFixed(1)} min, ${withUnit(result.poured.toFixed(0))}`));
             if (result.failure) {
                 note(`${result.failure}.`);
             }
             actions(out("Discard", "ghost", stop),
                     button(cal.part === "scale" ? "Keep" : "Save", "action go",
-                           () => send("POST", `${CALIBRATION}/save`, {})));
+                           () => send("POST", `${CALIBRATION}/save`, {}, "Not kept")));
             break;
         }
         case "failed":
@@ -469,6 +481,14 @@ function drawCalibration(options = {}) {
             return;
         }
         const reply = await api("GET", CALIBRATION);
+        if (reply.ok && (drawnKey === null || unitStep !== reply.data.step)) {
+            // The scale's unit read with the first read and at each new step, not at every poll
+            unitStep = reply.data.step;
+            const scale = await api("GET", "/api/v1/scale");
+            if (scale.ok) {
+                scaleUnit = scale.data.unit === "gn" ? "gr" : (scale.data.unit || "");
+            }
+        }
         if (reply.ok) {
             draw(reply.data);
         } else if (drawnKey === null) {

@@ -114,7 +114,7 @@ typedef struct {
     uint8_t digits[MENU_EDIT_DIGITS];   // FRAME_EDIT: most significant first
     uint8_t decimals;
     int8_t digit_at;
-    char message[3][MENU_TEXT];         // FRAME_MESSAGE: a title and two lines
+    char message[4][MENU_TEXT];         // FRAME_MESSAGE: a title and up to three lines
     activity_t job;                     // FRAME_JOB
     uint8_t first;                      // FRAME_PAGE, a card or notes: the first line shown
     bool at_end;                        // FRAME_PAGE, notes scrolled to their end: they stay there when lines come,
@@ -1521,6 +1521,18 @@ static uint8_t wrap_into(const char *text, bool bold, char lines[][MENU_TEXT], b
 }
 
 
+// A message whose text is wrapped onto its three lines (a setting's own refusal), cut past them
+static void push_message_wrapped(const char *title, const char *text) {
+    static char lines[MENU_ROWS_MAX][MENU_TEXT];       // off the menu task's stack: only that task navigates
+    bool bolds[MENU_ROWS_MAX];
+    uint8_t count = wrap_into(text, false, lines, bolds, 0);
+    push_message(title, count > 0 ? lines[0] : "", count > 1 ? lines[1] : NULL);
+    if (count > 2) {
+        snprintf(top()->message[3], MENU_TEXT, "%s", lines[2]);
+    }
+}
+
+
 // The room between a key and its value on a line, in the view's pixels
 #define NAV_PAIR_GAP 6
 // The values of lines only counted, not shown: one buffer, off the menu task's stack (only that task navigates)
@@ -1856,17 +1868,31 @@ static uint8_t calibration_result_lines(const calibration_status_t *cal, char la
     uint8_t count = 0;
     float seconds;
     float poured;
+    const char *failure;
     if (cal->part == CALIBRATION_PART_SCALE) {
         snprintf(label[count], MENU_TEXT, "Settle time");
-        snprintf(value[count++], MENU_TEXT, "%.2f s", (double) cal->scale.settle_s);
+        if (isnan(cal->scale.settle_s)) {
+            snprintf(value[count++], MENU_TEXT, "Not found");
+        }
+        else {
+            snprintf(value[count++], MENU_TEXT, "%.2f s", (double) cal->scale.settle_s);
+        }
         if (cal->scale.lag_count > 0) {
             snprintf(label[count], MENU_TEXT, "Lag, slow flow");
             snprintf(value[count++], MENU_TEXT, "%.2f s", (double) cal->scale.lag_s[0]);
             snprintf(label[count], MENU_TEXT, "Lag, fast flow");
             snprintf(value[count++], MENU_TEXT, "%.2f s", (double) cal->scale.lag_s[cal->scale.lag_count - 1]);
         }
+        // What Keep writes into the charge's steady and zero margins, only when it writes them
+        float margin;
+        if (calibration_margin_kept(&cal->scale, &margin)) {
+            snprintf(label[count], MENU_TEXT, "Charge margins");
+            snprintf(value[count++], MENU_TEXT, "%.3f%s%s", (double) margin, unit_text()[0] != '\0' ? " " : "",
+                     unit_text());
+        }
         seconds = cal->scale.seconds;
         poured = cal->scale.poured;
+        failure = cal->scale.failure;
     }
     else {
         const calibration_speeds_record_t *tubes[2] = {&cal->fine, &cal->coarse};
@@ -1898,10 +1924,17 @@ static uint8_t calibration_result_lines(const calibration_status_t *cal, char la
         }
         seconds = cal->fine.seconds + cal->coarse.seconds;
         poured = cal->fine.poured + cal->coarse.poured;
+        failure = cal->fine.failure[0] != '\0' ? cal->fine.failure : cal->coarse.failure;
     }
     snprintf(label[count], MENU_TEXT, "Took");
     snprintf(value[count++], MENU_TEXT, "%.1f min, %.0f%s%s", (double) (seconds / 60.0f), (double) poured,
              unit_text()[0] != '\0' ? " " : "", unit_text());
+    // Why an item was not found, as the web says it: its lines under Took
+    uint8_t first = count;
+    count = wrap_into(failure, false, label, bold, count);
+    for (uint8_t idx = first; idx < count; idx += 1) {
+        value[idx][0] = '\0';
+    }
     return count;
 }
 
@@ -1965,7 +1998,11 @@ static void calibration_key(frame_t *frame, menu_key_t key) {
         }
         else if (key == MENU_KEY_ENTER) {
             if (frame->first >= last) {
-                calibration_save(ACTIVITY_BY_BUTTON);
+                // Refused, nothing is kept: the setting's own words, and the result stays
+                char why[128];
+                if (!calibration_save(ACTIVITY_BY_BUTTON, why, sizeof(why)) && why[0] != '\0') {
+                    push_message_wrapped("Not kept", why);
+                }
             }
             else {
                 frame->first = (uint8_t) (frame->first + CALIBRATION_NOTES_LINES < last ?
@@ -2829,8 +2866,10 @@ static void screen_message(menu_screen_t *screen, const frame_t *frame) {
     snprintf(screen->id, sizeof(screen->id), "message");
     snprintf(screen->title, sizeof(screen->title), "%s", frame->message[0]);
     screen_row(screen, frame->message[1], "", false);
-    if (frame->message[2][0] != '\0') {
-        screen_row(screen, frame->message[2], "", false);
+    for (int idx = 2; idx < 4; idx += 1) {
+        if (frame->message[idx][0] != '\0') {
+            screen_row(screen, frame->message[idx], "", false);
+        }
     }
     snprintf(screen->softkey_right, MENU_TEXT, "OK");
     screen->softkey_focus = 1;
@@ -2901,6 +2940,11 @@ static void screen_calibration(menu_screen_t *screen, frame_t *frame) {
                 // The powder calibrated is the one in the hopper
                 snprintf(line, sizeof(line), "%s in the hopper", calibration_part_title(&cal));
                 calibration_dialog(screen, calibration_part_title(&cal), line, "Put the empty cup", "on the scale");
+            }
+            else if (cal.part == CALIBRATION_PART_SCALE) {
+                // Its runs pour powder too: an empty hopper is "Fine tube: no powder" only after them
+                calibration_dialog(screen, calibration_part_title(&cal), "Powder in the hopper", "Put the empty cup",
+                                   "on the scale");
             }
             else {
                 calibration_dialog(screen, calibration_part_title(&cal), "Put the empty cup", "on the scale", NULL);

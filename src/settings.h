@@ -146,7 +146,7 @@ const char *settings_store_by(const char *path, activity_by_t by);
  * or the console), and the resource stored: NULL when done, else why not. Then what the resource holds now is in
  * effect, as if the unit had started with it: a network the station joined needs no restart (restart_pending)
  */
-#define SETTINGS_WRITE_BY_MAX 8
+#define SETTINGS_WRITE_BY_MAX 11       // the scale's calibration: its settle time and its five lags' two fields
 const char *settings_write_and_store_by(const char *path, const char *const names[], const char *const values[],
                                         size_t count, activity_by_t by);
 void settings_in_effect(const char *path);

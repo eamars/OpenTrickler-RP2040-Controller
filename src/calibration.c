@@ -753,7 +753,108 @@ static bool kept_per_turn(float per_turn, const char *tube) {
 }
 
 
-bool calibration_save(activity_by_t by) {
+bool calibration_margin_kept(const calibration_scale_record_t *scale, float *margin) {
+    *margin = calibration_rest_margin(scale);
+    return isfinite(*margin) && *margin <= CALIBRATION_MARGIN_MOST;
+}
+
+
+#define SCALE_SAVED_FIELDS (1 + 2 * CALIBRATION_LAG_POINTS)
+#define SAVED_TEXT 16
+
+/*
+ * The scale's records, all or nothing: the charge's steady and zero margins from the scale's own noise (ADR-009,
+ * 2026-11-26) written first, not stored; then the scale's fields checked whole and stored; refused, the margins are
+ * put back as they were. NULL when kept, else why not (in refused)
+ */
+static const char *save_scale(const calibration_status_t *found, activity_by_t by, char *refused, size_t room) {
+    static const char *const names[SCALE_SAVED_FIELDS] = {
+        "settle_ms", "lag_1_flow_per_s", "lag_1_ms", "lag_2_flow_per_s", "lag_2_ms", "lag_3_flow_per_s", "lag_3_ms",
+        "lag_4_flow_per_s", "lag_4_ms", "lag_5_flow_per_s", "lag_5_ms"};
+    static const char *const margin_names[2] = {"steady_sd_margin", "zero_mean_margin"};
+    char was[2][SAVED_TEXT];
+    float margin;
+    bool margins = calibration_margin_kept(&found->scale, &margin);
+    const char *why = NULL;
+    if (margins) {
+        char text[SAVED_TEXT];
+        snprintf(text, sizeof(text), "%.6g", (double) margin);
+        for (int idx = 0; idx < 2; idx += 1) {
+            if (!settings_read_text("settings/charge", margin_names[idx], was[idx], sizeof(was[idx]))) {
+                return "the charge's margins were not read";
+            }
+        }
+        for (int idx = 0; idx < 2 && why == NULL; idx += 1) {
+            why = settings_write_by("settings/charge", margin_names[idx], text, by);
+        }
+    }
+    else {
+        printf("Calibration: the margins kept as they are (the scale's step %.6g)\n", (double) found->scale.step);
+    }
+    if (why == NULL) {
+        char values[SCALE_SAVED_FIELDS][SAVED_TEXT];
+        const char *texts[SCALE_SAVED_FIELDS];
+        setting_text(values[0], sizeof(values[0]), found->scale.settle_s, 1000.0f);
+        for (int idx = 0; idx < CALIBRATION_LAG_POINTS; idx += 1) {
+            bool measured = idx < found->scale.lag_count;
+            setting_text(values[1 + 2 * idx], SAVED_TEXT, measured ? found->scale.lag_flow_per_s[idx] : NAN, 1.0f);
+            setting_text(values[2 + 2 * idx], SAVED_TEXT, measured ? found->scale.lag_s[idx] : NAN, 1000.0f);
+        }
+        for (int idx = 0; idx < SCALE_SAVED_FIELDS; idx += 1) {
+            texts[idx] = values[idx];
+        }
+        why = settings_write_and_store_by("settings/scale", names, texts, SCALE_SAVED_FIELDS, by);
+    }
+    if (why != NULL) {
+        // The refusal's words kept before the put-back writes could overwrite them
+        snprintf(refused, room, "%s", why);
+        for (int idx = 0; margins && idx < 2; idx += 1) {
+            if (settings_write_by("settings/charge", margin_names[idx], was[idx], by) != NULL) {
+                printf("Calibration: the charge's %s not put back\n", margin_names[idx]);
+            }
+        }
+        return refused;
+    }
+    return margins ? settings_store_by("settings/charge", by) : NULL;
+}
+
+
+/*
+ * A powder's records, its least speeds and weights a turn, checked whole and stored, or refused whole. A weight a
+ * turn past what its setting holds is left out with a line, not a Save refused whole (the review's N11)
+ */
+static const char *save_powder(const calibration_status_t *found, activity_by_t by) {
+    const char *names[4];
+    char values[4][SAVED_TEXT];
+    const char *texts[4];
+    size_t count = 0;
+    const struct {
+        const char *name;
+        float value;
+        bool kept;
+    } fields[4] = {
+        {"fine_min_speed_rps", found->fine.least_rps, !isnan(found->fine.least_rps)},
+        {"fine_weight_per_turn", found->fine.stream_per_turn, kept_per_turn(found->fine.stream_per_turn, "fine")},
+        {"coarse_min_speed_rps", found->coarse.least_rps, !isnan(found->coarse.least_rps)},
+        {"coarse_weight_per_turn", found->coarse.stream_per_turn,
+         kept_per_turn(found->coarse.stream_per_turn, "coarse")},
+    };
+    for (int idx = 0; idx < 4; idx += 1) {
+        if (fields[idx].kept) {
+            names[count] = fields[idx].name;
+            snprintf(values[count], SAVED_TEXT, "%.4f", (double) fields[idx].value);
+            texts[count] = values[count];
+            count += 1;
+        }
+    }
+    char path[32];
+    snprintf(path, sizeof(path), "powder_profiles/%d", found->profile);
+    return settings_write_and_store_by(path, names, texts, count, by);
+}
+
+
+bool calibration_save(activity_by_t by, char *why, size_t room) {
+    why[0] = '\0';
     activity_lock();
     bool at_result = running && status.step == CALIBRATION_STEP_RESULT;
     calibration_status_t found = status;
@@ -761,60 +862,12 @@ bool calibration_save(activity_by_t by) {
     if (!at_result) {
         return false;
     }
-    char text[24];
-    const char *why = NULL;
-    if (found.part == CALIBRATION_PART_SCALE) {
-        setting_text(text, sizeof(text), found.scale.settle_s, 1000.0f);
-        why = settings_write_by("settings/scale", "settle_ms", text, by);
-        for (int idx = 0; idx < CALIBRATION_LAG_POINTS && why == NULL; idx += 1) {
-            char name[24];
-            bool measured = idx < found.scale.lag_count;
-            snprintf(name, sizeof(name), "lag_%d_flow_per_s", idx + 1);
-            setting_text(text, sizeof(text), measured ? found.scale.lag_flow_per_s[idx] : NAN, 1.0f);
-            why = settings_write_by("settings/scale", name, text, by);
-            snprintf(name, sizeof(name), "lag_%d_ms", idx + 1);
-            setting_text(text, sizeof(text), measured ? found.scale.lag_s[idx] : NAN, 1000.0f);
-            why = why != NULL ? why : settings_write_by("settings/scale", name, text, by);
+    const char *refused = found.part == CALIBRATION_PART_SCALE ? save_scale(&found, by, why, room) :
+                          found.part == CALIBRATION_PART_POWDER ? save_powder(&found, by) : NULL;
+    if (refused != NULL) {
+        if (refused != why) {
+            snprintf(why, room, "%s", refused);
         }
-        why = why != NULL ? why : settings_store_by("settings/scale", by);
-        // The charge's steady and zero margins from the scale's own noise, in its own numbers (ADR-009, 2026-11-26):
-        // not written when the step was not measured, or is past what the setting holds
-        float margin = calibration_rest_margin(&found.scale);
-        if (why == NULL && isfinite(margin) && margin <= CALIBRATION_MARGIN_MOST) {
-            snprintf(text, sizeof(text), "%.6g", (double) margin);
-            why = settings_write_by("settings/charge", "steady_sd_margin", text, by);
-            why = why != NULL ? why : settings_write_by("settings/charge", "zero_mean_margin", text, by);
-            why = why != NULL ? why : settings_store_by("settings/charge", by);
-        }
-        else if (why == NULL) {
-            printf("Calibration: the margins kept as they are (the scale's step %.6g)\n", (double) found.scale.step);
-        }
-    }
-    else if (found.part == CALIBRATION_PART_POWDER) {
-        char path[32];
-        snprintf(path, sizeof(path), "powder_profiles/%d", found.profile);
-        if (!isnan(found.fine.least_rps)) {
-            snprintf(text, sizeof(text), "%.4f", (double) found.fine.least_rps);
-            why = settings_write_by(path, "fine_min_speed_rps", text, by);
-        }
-        // The fine tube's weight a turn where it streams: step 2's first figure for this powder. One past what the
-        // setting holds is left out with a line, as the margins are, not a Save refused whole (the review's N11)
-        if (why == NULL && kept_per_turn(found.fine.stream_per_turn, "fine")) {
-            snprintf(text, sizeof(text), "%.4f", (double) found.fine.stream_per_turn);
-            why = settings_write_by(path, "fine_weight_per_turn", text, by);
-        }
-        if (why == NULL && !isnan(found.coarse.least_rps)) {
-            snprintf(text, sizeof(text), "%.4f", (double) found.coarse.least_rps);
-            why = settings_write_by(path, "coarse_min_speed_rps", text, by);
-        }
-        // The coarse tube's, measured by the same part (ADR-009, 2026-11-26)
-        if (why == NULL && kept_per_turn(found.coarse.stream_per_turn, "coarse")) {
-            snprintf(text, sizeof(text), "%.4f", (double) found.coarse.stream_per_turn);
-            why = settings_write_by(path, "coarse_weight_per_turn", text, by);
-        }
-        why = why != NULL ? why : settings_store_by(path, by);
-    }
-    if (why != NULL) {
         printf("Calibration: not kept, %s\n", why);
         return false;
     }
@@ -876,6 +929,11 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
         char given[8];
         console_word(rest, given, sizeof(given));
         int profile = given[0] != '\0' ? atoi(given) : -1;
+        // As the API refuses it: a powder named must be one there is
+        if (given[0] != '\0' && profile_get(profile >= 0 ? (uint16_t) profile : 0xFFFFu) == NULL) {
+            snprintf(reply, reply_size, "@err out_of_range calibrate %s: no such powder profile", word);
+            return false;
+        }
         calibration_start_result_t started = calibration_request_start(part, profile, ACTIVITY_BY_CONSOLE);
         snprintf(reply, reply_size, started == CALIBRATION_START_OK ? "@ok calibrate %s" :
                  (started == CALIBRATION_START_DRIVER_FAULT ? "@err driver_fault calibrate %s" :
@@ -887,7 +945,7 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
         console_word(rest, given, sizeof(given));
         calibration_answer_result_t result = calibration_answer(given, ACTIVITY_BY_CONSOLE);
         snprintf(reply, reply_size, result == CALIBRATION_ANSWER_OK ? "@ok calibrate answer %s" :
-                 (result == CALIBRATION_ANSWER_NO_JOB ? "@err no_job calibrate answer %s" :
+                 (result == CALIBRATION_ANSWER_NO_JOB ? "@err not_running calibrate answer %s" :
                   "@err not_now calibrate answer %s"), given);
         return result == CALIBRATION_ANSWER_OK;
     }
@@ -901,8 +959,14 @@ bool calibration_console(const char *args, char *reply, size_t reply_size) {
         return ok;
     }
     if (strcmp(word, "save") == 0) {
-        bool ok = calibration_save(ACTIVITY_BY_CONSOLE);
-        snprintf(reply, reply_size, ok ? "@ok calibrate save" : "@err not_now calibrate save");
+        char why[128];
+        bool ok = calibration_save(ACTIVITY_BY_CONSOLE, why, sizeof(why));
+        if (!ok && why[0] != '\0') {
+            snprintf(reply, reply_size, "@err not_kept calibrate save: %s", why);
+        }
+        else {
+            snprintf(reply, reply_size, ok ? "@ok calibrate save" : "@err not_now calibrate save");
+        }
         return ok;
     }
     if (strcmp(word, "stop") == 0) {

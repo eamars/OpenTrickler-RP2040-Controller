@@ -28,7 +28,7 @@ CUP_WEIGHT = 77.3
 SCALE_RESULT = {"settle_ms": 270.0, "lag": [{"flow_per_s": 0.19, "ms": 920.0}, {"flow_per_s": 0.39, "ms": 870.0},
                                             {"flow_per_s": 0.77, "ms": 640.0}, {"flow_per_s": 2.9, "ms": 600.0},
                                             {"flow_per_s": 9.7, "ms": 570.0}],
-                "elapsed_s": 110.0, "poured": 58.0, "failure": None}
+                "step": 0.01, "rest_sd": 0.004, "margin": 0.01, "elapsed_s": 110.0, "poured": 58.0, "failure": None}
 POWDER_RESULT = {"fine_min_speed_rps": 0.02, "coarse_min_speed_rps": 0.16, "fine_weight_per_turn": 0.787,
                  "elapsed_s": 300.0, "poured": 60.0,
                  "failure": None}
@@ -48,7 +48,8 @@ class CalibrationMock:
             now_ms: the stand-in's clock, in milliseconds.
             selected: the index of the powder the charge uses, read at each call.
             powder: a powder's (name, its fine and coarse least speeds) by its index; None for no such powder.
-            store: a powder's least speeds stored into its record, by its index (fine, coarse).
+            store: a powder's least speeds stored into its record, by its index (fine, coarse): None when kept, else
+                the setting's own refusal, and nothing is kept.
         """
         self.now_ms = now_ms
         self.selected = selected
@@ -195,7 +196,10 @@ class CalibrationMock:
             if job["part"] == "scale":
                 self.scale = {"settle_ms": job["result"]["settle_ms"], "lag": list(job["result"]["lag"])}
             else:
-                self.store(job["profile"], job["result"]["fine_min_speed_rps"], job["result"]["coarse_min_speed_rps"])
+                why = self.store(job["profile"], job["result"]["fine_min_speed_rps"],
+                                 job["result"]["coarse_min_speed_rps"])
+                if why is not None:
+                    return 409, error("not_kept", why)
             self.job = None
             return 200, self.reply()
         return 405, error("method_not_allowed", "not on this path")

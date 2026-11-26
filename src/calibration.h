@@ -17,6 +17,7 @@
  * any of them (activity_request_stop(ACTIVITY_CALIBRATION, by)).
  */
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "activity.h"
@@ -106,8 +107,14 @@ calibration_answer_result_t calibration_answer(const char *answer, activity_by_t
 bool calibration_pour(float turns);
 bool calibration_pour_detent(bool forward);
 
-// The records found kept and stored (the result step); false at another step or when a write failed
-bool calibration_save(activity_by_t by);
+/*
+ * The records found kept and stored (the result step), all of them or none. False at another step (why empty), or
+ * when a setting refused one: why is the setting's own refusal, and nothing is kept
+ */
+bool calibration_save(activity_by_t by, char *why, size_t room);
+
+// The margin the scale's Save writes into the charge's steady and zero margins; false when it writes none
+bool calibration_margin_kept(const calibration_scale_record_t *scale, float *margin);
 
 void calibration_get_status(calibration_status_t *status);
 

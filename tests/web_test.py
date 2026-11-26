@@ -162,9 +162,14 @@ class StandIn:
         return profile["name"].split(",")[0], profile["fine_min_speed_rps"], profile["coarse_min_speed_rps"]
 
     def store_powder_speeds(self, index, fine, coarse):
-        """A calibration's least speeds kept into the powder's record, as the unit stores them."""
+        """A calibration's least speeds kept into the powder's record, as the unit stores them, or refused whole as the
+        profile's check refuses them (profile.c): None when kept, else why not."""
         profile = self.replies[f"/api/v1/powder_profiles/{index}"]
+        for tube, least in (("coarse", coarse), ("fine", fine)):      # in the check's order
+            if least is not None and least > profile[f"{tube}_max_speed_rps"]:
+                return f"{tube}_min_speed_rps is above {tube}_max_speed_rps"
         profile.update(fine_min_speed_rps=fine, coarse_min_speed_rps=coarse)
+        return None
 
     def now_ms(self):
         return int(time.monotonic() * 1000 - self.started_ms)

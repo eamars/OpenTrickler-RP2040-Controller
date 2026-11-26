@@ -24,6 +24,17 @@ from panel import Panel, REPO, W, write_sheet
 POWDER_RESULT = [("Fine tube", "bold"), ("Minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"), ("A turn", "0.787 gr", "pair"),
                  ("Coarse tube", "bold"), ("Minimum", "0.16 rev/s", "pair"), ("Was", "0.1 rev/s", "pair"),
                  ("Took", "6 min, 210 gr", "pair"), ("Save", "button", True)]
+# A scale's result, with the margin Keep writes into the charge's steady and zero margins (the PR's review, U2)
+SCALE_RESULT = [("Settle time", "0.27 s", "pair"), ("Lag, slow flow", "1.2 s", "pair"),
+                ("Lag, fast flow", "0.6 s", "pair"), ("Charge margins", "0.010 gr", "pair"),
+                ("Took", "4.6 min, 62 gr", "pair"), ("Keep", "button", True)]
+# A powder's result with an item not found, its reason under Took, as the web says it (the review, U8)
+POWDER_NOT_FOUND = [("Fine tube", "bold"), ("Minimum", "0.02 rev/s", "pair"), ("Was", "0.08 rev/s", "pair"),
+                    ("A turn", "0.787 gr", "pair"), ("Coarse tube", "bold"), ("Minimum", "Not found", "pair"),
+                    ("Was", "0.1 rev/s", "pair"), ("Took", "6 min, 210 gr", "pair"),
+                    "Coarse tube: too little powder when slow", ("Save", "button", True)]
+# A Save a setting refused (the review, U1): its own words, wrapped onto the message's three lines; nothing kept
+REFUSED = "fine_min_speed_rps is above fine_max_speed_rps"
 
 DEFAULT_OUT = REPO / "docs" / "developments_plans" / "ADR-009-controller_and_tuning" / "mockups"
 
@@ -116,9 +127,10 @@ def screens():
 
     # --- The scale
     p = Panel(); m.title(p, "Scale")
-    m.message(p, "Put the empty cup", "on the scale")
+    for base, text in ((26, "Powder in the hopper"), (37, "Put the empty cup"), (48, "on the scale")):
+        p.text(m.TEXT, 0, base, text, align="center")       # a dialog's three lines (menu_view_12864.c)
     m.softkeys(p, "Cancel", "Start")
-    add(p, "Scale: the cup's step before it pours")
+    add(p, "Scale: its runs pour powder, the cup first")
 
     p = Panel(); m.title(p, "Calibrating")
     m.figure(p, "35", "%"); m.context(p, "The scale's lag")
@@ -126,9 +138,12 @@ def screens():
     add(p, "Scale: running, its step named")
 
     p = Panel(); m.title(p, "Scale", back=True)
-    m.dense(p, [("Settle time", "0.27 s", "pair"), ("Lag, slow flow", "1.2 s", "pair"), ("Lag, fast flow", "0.6 s", "pair"),
-                ("Took", "4.6 min, 62 gr", "pair"), ("Keep", "button", True)], at="top")
-    add(p, "Scale: what it found, Keep at the end")
+    m.dense(p, SCALE_RESULT, at="top")
+    add(p, "Scale: what it found")
+
+    p = Panel(); m.title(p, "Scale", back=True)
+    m.dense(p, SCALE_RESULT, at="end")
+    add(p, "Scale: the margins Keep writes, Keep")
 
     # --- A powder
     p = Panel(); m.title(p, "AR2209")
@@ -154,6 +169,16 @@ def screens():
     p = Panel(); m.title(p, "AR2209", back=True)
     m.dense(p, POWDER_RESULT, at="end")
     add(p, "Powder: Save at the end")
+
+    p = Panel(); m.title(p, "AR2209", back=True)
+    m.dense(p, POWDER_NOT_FOUND, at="end")
+    add(p, "Powder: an item not found, and why")
+
+    p = Panel(); m.title(p, "Not kept")
+    for base, text in zip((26, 37, 48), m.wrap(m.TEXT, REFUSED, W - 8)):
+        p.text(m.TEXT, 0, base, text, align="center")       # a dialog's three lines, as the scale's first step
+    m.softkeys(p, "", "OK")
+    add(p, "Save refused: the setting's words, kept none")
 
     p = Panel(); m.title(p, "Not calibrated")
     m.message(p, "Fine tube: no powder", "Nothing changed")

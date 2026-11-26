@@ -337,7 +337,7 @@ calibration_outcome_t calibration_scale_part(const calibration_bench_t *bench, c
         watch_s = longest_rest + WATCH_MARGIN_S;
     }
     else {
-        say_failure(record->failure, "Bursts: no change");
+        say_failure(record->failure, "Settle time: too little powder seen");
     }
 
     // The lag at each flow, both tubes: the coarse primed first

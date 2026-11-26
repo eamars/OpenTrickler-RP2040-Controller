@@ -740,8 +740,14 @@ static void api_v1_calibration_save(const http_server_request_t *request, http_s
     if (!api_empty(request, reply)) {
         return;
     }
-    if (!calibration_save(ACTIVITY_BY_API)) {
-        api_error(reply, 409, "not_now", NULL, "nothing found to keep yet, or it was not stored: read step", NULL);
+    char why[128];
+    if (!calibration_save(ACTIVITY_BY_API, why, sizeof(why))) {
+        if (why[0] != '\0') {
+            api_error(reply, 409, "not_kept", NULL, why, NULL);
+        }
+        else {
+            api_error(reply, 409, "not_now", NULL, "nothing found to keep yet: read step", NULL);
+        }
         return;
     }
     reply_calibration(reply, 200);
@@ -2030,7 +2036,8 @@ static const char *const api_v1_schema_actions[] = {
     "step\",\"example\":{\"turns\":0.5}}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/save\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"keeps and stores the records found, at the result step: the scale's into settings/scale, a "
-    "powder's least speeds into its profile; the part then ends. 409 not_now at another step\"}",
+    "powder's least speeds into its profile; the part then ends. All or nothing: 409 not_kept when a setting "
+    "refuses one, its message the setting's own refusal, nothing kept. 409 not_now at another step\"}",
     "{\"method\":\"POST\",\"path\":\"/api/v1/calibration/stop\",\"fields\":[],\"refused_while\":\"never\","
     "\"about\":\"stops the calibration (202), or 200 with nothing to stop; what it found and did not keep is "
     "discarded\"}",
