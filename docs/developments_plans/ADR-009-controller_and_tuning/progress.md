@@ -1050,3 +1050,19 @@ The other rigs the same way: the aim-off centres the mean (to +0.01 to +0.04) an
 **The cup's lift from its weight** (`charge_mode.cpp`, the wait for the cup's removal): the cup counts as lifted once the reading is half the cup's weight below zero (step 1's cup part, `cup_weight`); 10, as before, when the cup was never weighed. A fixed 10 assumed grains: a cup under 10 g on a scale in grams was never seen lifted.
 
 Pico 2 W: flash 55.39%, RAM 56.25%; no new warning. `host_test` and `calibration_sim` PASS. Not on a unit.
+
+## 2026-11-26, 15:33 to 15:42: the coarse tube's PID under the existing tuner (the twin, no unit)
+
+The owner's direction (after 15:18): keep the coarse PID and tune it under the existing framework; the margin a tuning question. Studied on the twin first (`tools/charge_sim/step2_coarse_tuner_study.py`): the product's tuner (`step2_tuner.Tuner`, kp+kd, the share modelled) on f2, 300 throws at 10 gr then the charge changed to 30 gr for 150, the tuner on throughout, 4 to 6 sessions an arm.
+
+| Arm | From the bench's coarse kp 0.02 | From a wild coarse kp 0.2 |
+|---|---|---|
+| Today's tuner (the fine tube's gains) | 10 gr +0.054, SD 0.104, 7.0 s; 30 gr +0.039, 0.073, 10.5 s | 10 gr 998 of 1200 throws over by 0.5 gr; 30 gr **+14.5 every throw** |
+| A third axis, the coarse kp, tried up first | 10 gr 7.5 s; 30 gr 9.8 s, worst +1.65: nothing gained | down to 0.089 only: 30 gr +0.35, 222 of 600 over |
+| The same, bounded by kp x step 1's coarse weight a turn x middle lag <= 0.4 | as above (the bound never reached) | 30 gr +0.049, 0.072, 4 of 600 over; many wild windows first |
+| **The first window's gains put right reaching the coarse kp: above the bound, brought down to it** (kept only if cheaper) | **identical to today's** (within the bound) | **10 gr +0.042, 0.058, 7.1 s; 30 gr +0.047, 0.059, 8.0 s, 0 of 600 over**; only the first window wild |
+| The same, a slow kp also raised to the bound | kept in 2 of 6 sessions (10 gr decides it by noise); 30 gr 9.4 s against 10.4 | |
+
+**Read:** tuning the coarse kp for speed under the existing tuner gains nothing from sane settings: below about 0.03 the coarse PID asks only its least speed on a 10 gr charge, and the steps the search can tell apart are within a window's noise; the speed-ups that exist (kp 0.1 and up) overshoot a larger charge. What the tuner can do is protection: a wild coarse kp brought down in the first window.
+
+**The bound's limit:** a coarse kp at the bound (0.053 here; the shipped AR2209 default is 0.05) is sound at 10 and 30 gr (+0.060, SD 0.088; +0.068, 0.077, 5.6 s against 6.6) and **not at 60 gr** (+0.109, SD 0.172, worst +1.26, 5.0 s, against the bench's 0.02: +0.060, 0.065, +0.27, 10.2 s). The overshoot grows with the charge: a bound sound to 60 gr is about half (0.2 by it, kp 0.026), which would also bring down the shipped AR2209 and Benchmark2 defaults (0.05, 0.06) where cheaper at the user's charge. Put to the owner; nothing built.
